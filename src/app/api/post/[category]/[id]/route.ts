@@ -9,10 +9,10 @@ import { POSTS_COLLECTION } from '@/app/api/constants';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { category: string; id: string } }
+  { params }: { params: Promise<{ category: string; id: string }> }
 ) {
   try {
-    const { category, id } = params;
+    const { category, id } = await params;
     const db = getFirestore();
 
     const docRef = db.collection(`${POSTS_COLLECTION}/${category}/posts`).doc(id);
@@ -64,7 +64,7 @@ export async function GET(
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { category: string; id: string } }
+  { params }: { params: Promise<{ category: string; id: string }> }
 ) {
   try {
     const { user, response } = await ensureValidUser(request);
@@ -72,7 +72,7 @@ export async function PUT(
       return response!;
     }
 
-    const { category, id } = params;
+    const { category, id } = await params;
     const body = await request.json();
     const { title, isPublic, body: postBody, image, language } = body;
 
@@ -121,7 +121,7 @@ export async function PUT(
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { category: string; id: string } }
+  { params }: { params: Promise<{ category: string; id: string }> }
 ) {
   try {
     const { user, response } = await ensureValidUser(request);
@@ -129,7 +129,7 @@ export async function DELETE(
       return response!;
     }
 
-    const { category, id } = params;
+    const { category, id } = await params;
     const db = getFirestore();
     const docRef = db.collection(`${POSTS_COLLECTION}/${category}/posts`).doc(id);
 

@@ -14,7 +14,7 @@ export interface Project {
   categories: string[];
 }
 
-async function getAuthHeaders() {
+async function getAuthHeaders(): Promise<Record<string, string>> {
   const user = auth.currentUser;
   if (!user) return {};
 

@@ -92,11 +92,13 @@ const PortfolioAnimation = () => {
         </Tabs>
       </div>
 
-      <PortfolioModal
-        project={selectedProject}
-        isOpen={isModalOpen}
-        setIsOpen={setIsModalOpen}
-      />
+      {selectedProject && (
+        <PortfolioModal
+          project={selectedProject}
+          isOpen={isModalOpen}
+          setIsOpen={setIsModalOpen}
+        />
+      )}
     </>
 
   );

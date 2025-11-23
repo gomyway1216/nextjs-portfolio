@@ -11,7 +11,7 @@ import { ensureValidUser } from '@/lib/auth-utils';
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { taskId: string } }
+  { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
     const { user, response } = await ensureValidUser(request);
@@ -19,7 +19,7 @@ export async function PUT(
       return response!;
     }
 
-    const { taskId } = params;
+    const { taskId } = await params;
     const searchParams = request.nextUrl.searchParams;
     const userId = searchParams.get('userId');
 

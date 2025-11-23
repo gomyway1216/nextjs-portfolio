@@ -11,10 +11,10 @@ import { POSTS_COLLECTION } from '@/app/api/constants';
  */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { category: string } }
+  { params }: { params: Promise<{ category: string }> }
 ) {
   try {
-    const { category } = params;
+    const { category } = await params;
     const searchParams = request.nextUrl.searchParams;
     const isPublicParam = searchParams.get('isPublic');
 

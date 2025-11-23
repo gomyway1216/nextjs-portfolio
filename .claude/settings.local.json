@@ -1,10 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir:*)",
-      "Bash(for file in *.ts)",
-      "Bash(do cp \"$file\" \"../../services/$file%.tsService.ts\")",
-      "Bash(done)"
+      "Bash(npm run build:*)",
+      "Bash(npm install:*)",
+      "Bash(while read file)",
+      "Bash(do sed -i '' 's/async function getAuthHeaders()/async function getAuthHeaders(): Promise<Record<string, string>>/' \"$file\" done)"
     ],
     "deny": [],
     "ask": []

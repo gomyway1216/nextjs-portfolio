@@ -56,9 +56,15 @@ const CategoryPostPage = () => {
     setIsLoading(true);
     const pageLimit = getPageLimitBasedOnScreenSize();
     const currentCategoryPage = (currentPageByCategory as any)[category] || 1;
-    const fetchedPosts = await postApi.getPosts(category,
-      true, currentCategoryPage, pageLimit, lastVisibleDocTimestamps,
-      setLastVisibleDocTimestamps);
+    const result = await postApi.getPosts({
+      category,
+      isPublic: true,
+      page: currentCategoryPage,
+      limit: pageLimit,
+      lastVisibleTimestamp: lastVisibleDocTimestamps?.[category],
+    });
+
+    const fetchedPosts = result.posts || [];
 
     if (fetchedPosts.length === 0) {
       setHasMore(false);

@@ -1,9 +1,12 @@
 'use client';
 
-import React, { createContext, useEffect, useContext, useState } from 'react';
-import PropTypes from 'prop-types';
+import React, { createContext, useEffect, useContext, useState, ReactNode } from 'react';
 import { auth, signInWithEmail, signOutUser }
   from '@/lib/firebaseConnect';
+
+interface AuthProviderProps {
+  children: ReactNode;
+}
 
 const AuthContext = createContext<any>(undefined);
 
@@ -11,7 +14,7 @@ export const useAuth = () => {
   return useContext(AuthContext);
 };
 
-export const AuthProvider = ({ children }: any) => {
+export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [currentUser, setCurrentUser] = useState<any>();
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -43,8 +46,4 @@ export const AuthProvider = ({ children }: any) => {
       {!loading && children}
     </AuthContext.Provider>
   );
-};
-
-AuthProvider.propTypes = {
-  children: PropTypes.any
 };

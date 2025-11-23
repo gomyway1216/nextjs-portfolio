@@ -38,7 +38,7 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://fonts.gstatic.com" />
       </head>
-      <body className={`${rubik.variable} ${playfair.variable}`}>
+      <body className={`${rubik.variable} ${playfair.variable}`} suppressHydrationWarning>
         <AOSInitializer />
         <Toaster />
         <AuthProvider>
@@ -46,6 +46,7 @@ export default function RootLayout({
             {children}
           </PostsProvider>
         </AuthProvider>
+        <div id="modal-root"></div>
       </body>
     </html>
   );

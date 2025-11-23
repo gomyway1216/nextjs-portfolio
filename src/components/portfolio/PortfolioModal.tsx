@@ -1,16 +1,12 @@
 'use client';
-import React from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import * as util from '@/lib/utils/util';
 import DOMPurify from 'dompurify';
 import SimpleCarousel from './SimpleCarousel';
-import {
-  Dialog,
-  DialogContent,
-  DialogTitle,
-} from '@/components/ui/dialog';
+import Modal from 'react-modal';
 
 interface PortfolioModalProps {
   project: {
@@ -25,7 +21,7 @@ interface PortfolioModalProps {
       type: 'language' | 'framework' | string;
     }>;
     industry: string;
-    date: Date;
+    date: Date | string;
     urls: Array<{
       name: string;
       link: string;
@@ -40,32 +36,44 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
   const { currentUser } = useAuth();
   const router = useRouter();
 
-  const purifiedDescription = project ? DOMPurify.sanitize(project.description, {
-    ADD_TAGS: ['iframe'],
-    ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling']
-  }) : '';
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      Modal.setAppElement('body');
+    }
+  }, []);
+
+  const purifiedDescription = useMemo(() => {
+    if (typeof window === 'undefined') return '';
+    return DOMPurify.sanitize(project.description, {
+      ADD_TAGS: ['iframe'],
+      ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling']
+    });
+  }, [project.description]);
 
   const closeModal = () => {
     setIsOpen(false);
   };
 
   const handleEdit = () => {
-    if (project) {
-      router.push(`/project/${project.id}/edit`);
-    }
+    router.push(`/project/${project.id}/edit`);
   };
 
   return (
-    <Dialog open={isOpen && !!project} onOpenChange={(open) => setIsOpen(open)}>
-      <DialogContent className="max-w-[90vw] md:max-w-[1000px] max-h-[90vh] overflow-y-auto">
-        <DialogTitle className="sr-only">{project?.title || 'Project Details'}</DialogTitle>
-        {currentUser && (
-          <Button onClick={handleEdit} className="mb-4">
-            EDIT
-          </Button>
-        )}
+    <Modal
+      isOpen={isOpen}
+      onRequestClose={closeModal}
+      contentLabel="Project Details Modal"
+      className="custom-modal"
+      overlayClassName="custom-overlay"
+      closeTimeoutMS={500}
+    >
+      <div>
+        {currentUser && <Button onClick={handleEdit} className="mb-4">EDIT</Button>}
+        <button className="close-modal" onClick={closeModal}>
+          <img src="/img/cancel.svg" alt="close icon" />
+        </button>
 
-        {project && (
+        <div className="box_inner">
           <div className="scrollable">
             <div className="blog-grid">
               <div className="container ajax-container">
@@ -145,9 +153,9 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
               </article>
             </div>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+        </div>
+      </div>
+    </Modal>
   );
 };
 

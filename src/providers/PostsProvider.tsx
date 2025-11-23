@@ -1,7 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
-import PropTypes from 'prop-types';
+import React, { createContext, useContext, useState, ReactNode } from 'react';
 
 const defaultValues: any = {
   postsByCategory: {},
@@ -20,7 +19,11 @@ export const usePosts = () => {
   return useContext(PostsContext);
 };
 
-export const PostsProvider = ({ children }: any) => {
+interface PostsProviderProps {
+  children: ReactNode;
+}
+
+export const PostsProvider = ({ children }: PostsProviderProps) => {
   const [postsByCategory, setInternalPostsByCategory] = useState<any>({});
   const [lastVisibleDocTimestamps, setLastVisibleDocTimestamps] = useState<any>({});
   const [currentPageByCategory, setCurrentPageByCategoryState] = useState<any>({});
@@ -54,8 +57,4 @@ export const PostsProvider = ({ children }: any) => {
       {children}
     </PostsContext.Provider>
   );
-};
-
-PostsProvider.propTypes = {
-  children: PropTypes.node.isRequired
 };

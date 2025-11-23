@@ -12,7 +12,7 @@ export interface Post {
   lastUpdated: string;
 }
 
-async function getAuthHeaders() {
+async function getAuthHeaders(): Promise<Record<string, string>> {
   const user = auth.currentUser;
   if (!user) return {};
 

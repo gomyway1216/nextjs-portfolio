@@ -10,13 +10,19 @@ const EditPostPage = () => {
   const category = Array.isArray(routeCategory) ? routeCategory[0] : routeCategory;
   const id = Array.isArray(routeId) ? routeId[0] : routeId;
 
+  // Wrapper functions to adapt the API to PostEditor's expected interface
+  const handleUpdatePost = async (post: any) => {
+    if (!id || !category) throw new Error('Missing id or category');
+    await api.updatePost(id, category, post);
+  };
+
   return (
     <PostEditor
       category={category}
       postId={id}
       getPost={api.getPostByCategory}
       createPost={api.createPost}
-      updatePost={api.updatePost}
+      updatePost={handleUpdatePost}
       deletePost={api.deletePostByCategory}
     />
   );

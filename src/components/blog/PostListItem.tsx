@@ -1,9 +1,21 @@
 import React, { forwardRef } from 'react';
 import { htmlToText } from 'html-to-text';
-import PropTypes from 'prop-types';
 
-const PostListItem = forwardRef(
-  ({ id, title, body, isPublic, created, lastUpdated, category, image, handleClick }: any, ref: any) => {
+interface PostListItemProps {
+  id: string;
+  title: string;
+  body: string;
+  isPublic?: boolean;
+  created?: string | Date;
+  lastUpdated: string | Date;
+  category: string;
+  image?: string;
+  language?: string;
+  handleClick: (id: string, category: string) => void;
+}
+
+const PostListItem = forwardRef<HTMLDivElement, PostListItemProps>(
+  ({ id, title, body, isPublic, created, lastUpdated, category, image, handleClick }, ref) => {
     const bodyText = htmlToText(body);
     return (
       <div
@@ -22,7 +34,9 @@ const PostListItem = forwardRef(
             marginBottom: '10px',
           }}
         >
-          {lastUpdated.toISOString().split('T')[0]}
+          {typeof lastUpdated === 'string'
+            ? lastUpdated.split('T')[0]
+            : lastUpdated.toISOString().split('T')[0]}
         </p>
         <div
           className="postgap"
@@ -86,19 +100,6 @@ const PostListItem = forwardRef(
     );
   }
 );
-
-PostListItem.propTypes = {
-  id: PropTypes.string.isRequired,
-  title: PropTypes.string.isRequired,
-  body: PropTypes.string.isRequired,
-  isPublic: PropTypes.bool,
-  created: PropTypes.instanceOf(Date),
-  lastUpdated: PropTypes.instanceOf(Date).isRequired,
-  category: PropTypes.string.isRequired,
-  image: PropTypes.string,
-  language: PropTypes.string.isRequired,
-  handleClick: PropTypes.func.isRequired,
-};
 
 PostListItem.displayName = 'PostListItem';
 

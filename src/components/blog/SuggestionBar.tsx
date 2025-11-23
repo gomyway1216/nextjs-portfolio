@@ -1,7 +1,11 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import PropTypes from 'prop-types';
+
+interface SuggestionBarProps {
+  activeTab?: string;
+  setActiveTab?: (tab: string) => void;
+}
 
 const DEFAULT_OPTIONS = [
   { id: 0, title: 'All', url: '/blog/all' },
@@ -9,7 +13,7 @@ const DEFAULT_OPTIONS = [
   { id: 2, title: 'Life', url: '/blog/life' }
 ];
 
-const SuggestionBar = ({ activeTab, setActiveTab }: any) => {
+const SuggestionBar = ({ activeTab, setActiveTab }: SuggestionBarProps) => {
   const [options, setOptions] = useState<any[]>(DEFAULT_OPTIONS);
 
   useEffect(() => {
@@ -42,7 +46,7 @@ const SuggestionBar = ({ activeTab, setActiveTab }: any) => {
           return (
             <Link
               href={`${option.url}`}
-              onClick={() => setActiveTab(option.title.toLowerCase())}
+              onClick={() => setActiveTab?.(option.title.toLowerCase())}
               style={{
                 textDecoration: 'none',
                 color: activeTab === option.title ? 'black' : 'gray',
@@ -64,11 +68,6 @@ const SuggestionBar = ({ activeTab, setActiveTab }: any) => {
       </>
     </div>
   );
-};
-
-SuggestionBar.propTypes = {
-  activeTab: PropTypes.string,
-  setActiveTab: PropTypes.func,
 };
 
 export default SuggestionBar;

@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
@@ -32,15 +32,14 @@ interface PortfolioModalProps {
   setIsOpen: (open: boolean) => void;
 }
 
+// Set app element once outside component to avoid warning
+if (typeof window !== 'undefined') {
+  Modal.setAppElement('body');
+}
+
 const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => {
   const { currentUser } = useAuth();
   const router = useRouter();
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      Modal.setAppElement('body');
-    }
-  }, []);
 
   const purifiedDescription = useMemo(() => {
     if (typeof window === 'undefined') return '';

@@ -1,0 +1,119 @@
+.embla {
+  position: relative;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
+.embla__viewport {
+  overflow: hidden;
+  width: 100%;
+}
+
+.embla__container {
+  display: flex;
+  touch-action: pan-y;
+  margin-left: calc(1rem * -1);
+}
+
+.embla__slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  padding-left: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.embla__slide__img {
+  max-width: 100%;
+  max-height: 500px;
+  height: auto;
+  display: block;
+  object-fit: contain;
+
+  @media (max-width: 768px) {
+    max-height: 400px;
+  }
+
+  @media (max-width: 480px) {
+    max-height: 300px;
+  }
+}
+
+.embla__button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+  transition: background 0.3s ease;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.7);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+
+  svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  &--prev {
+    left: 10px;
+  }
+
+  &--next {
+    right: 10px;
+  }
+}
+
+.embla__dots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.embla__dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid #ff9301;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.3s ease;
+  position: relative;
+
+  &:hover {
+    background: rgba(255, 147, 1, 0.3);
+  }
+
+  &--selected {
+    &::after {
+      content: '';
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ff9301;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+  }
+}

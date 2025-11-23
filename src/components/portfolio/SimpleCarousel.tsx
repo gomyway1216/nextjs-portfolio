@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect } from 'react';
+import useEmblaCarousel from 'embla-carousel-react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import './simple-carousel.scss';
+import './embla-carousel.scss';
 
 interface SimpleCarouselProps {
   images: string[];
@@ -10,55 +11,85 @@ interface SimpleCarouselProps {
 }
 
 export default function SimpleCarousel({ images, thumbImage }: SimpleCarouselProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
   const allImages = [thumbImage, ...(images || [])];
 
-  const goToPrevious = () => {
-    setCurrentIndex((prev) => (prev === 0 ? allImages.length - 1 : prev - 1));
-  };
+  const scrollPrev = useCallback(() => {
+    if (emblaApi) emblaApi.scrollPrev();
+  }, [emblaApi]);
 
-  const goToNext = () => {
-    setCurrentIndex((prev) => (prev === allImages.length - 1 ? 0 : prev + 1));
-  };
+  const scrollNext = useCallback(() => {
+    if (emblaApi) emblaApi.scrollNext();
+  }, [emblaApi]);
 
-  const goToSlide = (index: number) => {
-    setCurrentIndex(index);
-  };
+  const scrollTo = useCallback((index: number) => {
+    if (emblaApi) emblaApi.scrollTo(index);
+  }, [emblaApi]);
+
+  const [selectedIndex, setSelectedIndex] = React.useState(0);
+
+  useEffect(() => {
+    if (!emblaApi) return;
+
+    const onSelect = () => {
+      setSelectedIndex(emblaApi.selectedScrollSnap());
+    };
+
+    emblaApi.on('select', onSelect);
+    onSelect();
+
+    return () => {
+      emblaApi.off('select', onSelect);
+    };
+  }, [emblaApi]);
+
+  useEffect(() => {
+    if (emblaApi) {
+      emblaApi.scrollTo(0);
+    }
+  }, [thumbImage, emblaApi]);
 
   return (
-    <div className="simple-carousel">
-      <div className="carousel-content">
-        <button
-          className="carousel-arrow carousel-arrow-left"
-          onClick={goToPrevious}
-          aria-label="Previous image"
-        >
-          <ChevronLeft />
-        </button>
-
-        <div className="carousel-image">
-          <img
-            src={allImages[currentIndex]}
-            alt={`Slide ${currentIndex + 1}`}
-            className="img-fluid"
-          />
+    <div className="embla">
+      <div className="embla__viewport" ref={emblaRef}>
+        <div className="embla__container">
+          {allImages.map((image, index) => (
+            <div className="embla__slide" key={index}>
+              <img
+                className="embla__slide__img"
+                src={image}
+                alt={`Slide ${index + 1}`}
+              />
+            </div>
+          ))}
         </div>
-
-        <button
-          className="carousel-arrow carousel-arrow-right"
-          onClick={goToNext}
-          aria-label="Next image"
-        >
-          <ChevronRight />
-        </button>
       </div>
 
-      <div className="carousel-dots">
+      <button
+        className="embla__button embla__button--prev"
+        onClick={scrollPrev}
+        type="button"
+        aria-label="Previous slide"
+      >
+        <ChevronLeft />
+      </button>
+
+      <button
+        className="embla__button embla__button--next"
+        onClick={scrollNext}
+        type="button"
+        aria-label="Next slide"
+      >
+        <ChevronRight />
+      </button>
+
+      <div className="embla__dots">
         {allImages.map((_, index) => (
           <button
             key={index}
-            className={`carousel-dot ${index === currentIndex ? 'active' : ''}`}
-            onClick={() => goToSlide(index)}
+            className={`embla__dot ${index === selectedIndex ? 'embla__dot--selected' : ''}`}
+            type="button"
+            onClick={() => scrollTo(index)}
             aria-label={`Go to slide ${index + 1}`}
           />
         ))}

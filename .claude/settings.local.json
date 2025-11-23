@@ -1,10 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm run build:*)",
-      "Bash(npm install:*)",
-      "Bash(while read file)",
-      "Bash(do sed -i '' 's/async function getAuthHeaders()/async function getAuthHeaders(): Promise<Record<string, string>>/' \"$file\" done)"
+      "Bash(npm show:*)",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm uninstall:*)"
     ],
     "deny": [],
     "ask": []

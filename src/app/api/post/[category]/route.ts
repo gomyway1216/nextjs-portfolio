@@ -1,0 +1,64 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getFirestore } from '@/lib/firebase-admin';
+import { ensureValidUser } from '@/lib/auth-utils';
+import { POSTS_COLLECTION } from '@/app/api/constants';
+
+/**
+ * GET /api/posts/[category]
+ * Get all posts from a specific category
+ * Query params:
+ * - isPublic: boolean (optional)
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: { category: string } }
+) {
+  try {
+    const { category } = params;
+    const searchParams = request.nextUrl.searchParams;
+    const isPublicParam = searchParams.get('isPublic');
+
+    // If isPublic is not specified, show all posts (requires auth)
+    // If isPublic is explicitly set to false, require authentication
+    if (isPublicParam === 'false' || isPublicParam === null) {
+      const { user, response } = await ensureValidUser(request);
+      if (!user) {
+        return response!;
+      }
+    }
+
+    const db = getFirestore();
+    let query = db.collection(`${POSTS_COLLECTION}/${category}/posts`);
+
+    // If isPublic is specified, filter by it
+    if (isPublicParam !== null) {
+      const isPublic = isPublicParam === 'true';
+      query = query.where('isPublic', '==', isPublic) as any;
+    }
+
+    const snapshot = await query.get();
+
+    const posts = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        title: data.title,
+        body: data.body,
+        isPublic: data.isPublic,
+        category: category,
+        image: data.image,
+        language: data.language,
+        created: data.created?.toDate?.()?.toISOString() || data.created,
+        lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
+      };
+    });
+
+    return NextResponse.json({ posts });
+  } catch (error) {
+    console.error('Error fetching posts by category:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch posts' },
+      { status: 500 }
+    );
+  }
+}

@@ -1,0 +1,41 @@
+'use client';
+import React from 'react';
+import DOMPurify from 'dompurify';
+import * as util from '@/lib/utils/util';
+import styles from './rich-text-display.module.scss';
+
+interface Post {
+  id: string;
+  title: string;
+  body: string;
+  created: any;
+  lastUpdated?: any;
+  category: string;
+  image: string;
+}
+
+interface RichTextDisplayProps {
+  post: Post;
+}
+
+const RichTextDisplay = ({ post }: RichTextDisplayProps) => {
+  const { id, title, body, created, lastUpdated, category, image } = post;
+
+  const purifiedBody = DOMPurify.sanitize(body, {
+    ADD_TAGS: ['iframe'],
+    ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling']
+  });
+
+  return (
+    <div className={styles.root}>
+      <div className={styles.title}>{title}</div>
+      <div className={styles.category}>{category}</div>
+      <img src={image} alt="Post image" />
+      <div className={styles.date}>{util.formatDate(created)}</div>
+      <div className={styles.body}
+        dangerouslySetInnerHTML={{ __html: purifiedBody }} />
+    </div>
+  );
+};
+
+export default RichTextDisplay;

@@ -1,0 +1,38 @@
+.root {
+  margin-top: 100px;
+  margin-left: 5%;
+  margin-right: 5%;
+  margin-bottom: 80px;
+
+  .title {
+    font-size: xx-large;
+    text-align: center;
+  }
+
+  .category {
+    font-size: x-large;
+    text-align: center;
+  }
+
+  img {
+    max-width: 100%;
+    max-height: 500px;
+    object-fit: cover;
+    display: block;
+    margin: auto;
+  }
+
+  .date {
+    font-size: x-large;
+    text-align: center;
+  }
+
+  .body {
+    margin-top: 40px;
+  }
+
+  .homeButton {
+    display: flex;
+    justify-content: center;
+  }
+}

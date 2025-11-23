@@ -1,0 +1,59 @@
+.imageListContainer {
+  display: flex;
+  flex-wrap: nowrap; // Prevent wrapping to a new line
+  overflow-x: auto; // Enable horizontal scrolling
+  gap: 10px; // Adjust the space between images
+  padding: 10px 0; // Add some padding at the top and bottom (optional)
+
+  .imageListItem {
+    position: relative;
+    flex-shrink: 0; // Prevent the item from shrinking
+    width: 200px; // Set a fixed width, adjust as necessary
+    margin-right: 10px; // Keep space between items
+
+    &:last-child {
+      margin-right: 0; // Remove margin for the last item
+    }
+  
+    .deleteButton {
+      position: absolute;
+      top: 0; // top right corner of the relative container
+      right: 0; // top right corner of the relative container
+      background: rgba(0, 0, 0, 0.5); // Semi-transparent black background for visibility
+      color: white; // Adjust the color of the icon if needed
+      border-radius: 50%;
+      padding: 4px; // Adjust the padding if needed
+      z-index: 2; // Ensure it's above the image
+    }
+    
+    .imagePreview {
+      display: block; // Ensure the image is a block to fill the container
+      width: 100%; // Adjust if you want to control the size of the image
+      height: auto; // Keep the aspect ratio of the image
+    }    
+  }
+}
+
+.imagePreviewContainer {
+  position: relative;
+  display: inline-block; // Adjust this as necessary for layout
+  margin: 10px; // Provide some spacing around the image preview
+
+  .deleteButton {
+    position: absolute;
+    top: 0; // Place in the top-right corner of the container
+    right: 0;
+    background: rgba(0, 0, 0, 0.5); // Semi-transparent background for better visibility
+    color: white;
+    border-radius: 50%;
+    padding: 4px;
+    z-index: 2; // Ensure the button is above the image
+  }
+
+  .imagePreview {
+    display: block;
+    width: 100%; // Adjust based on the desired width, or keep it responsive
+    height: auto; // Maintain aspect ratio
+    // Add a border or shadow if desired for better presentation
+  }
+}

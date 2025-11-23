@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(for file in *.ts)",
+      "Bash(do cp \"$file\" \"../../services/$file%.tsService.ts\")",
+      "Bash(done)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

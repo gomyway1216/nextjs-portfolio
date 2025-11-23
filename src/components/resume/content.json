@@ -1,0 +1,129 @@
+{
+  "jobs": [
+    {
+      "jobPosition": "Software Engineer",
+      "jobType": "Full-time",
+      "jobDuration": "Dec 2023 - Present",
+      "companyName": "Atlas",
+      "jobDescription": "Develop user-centric features for a credit-improvement mobile app using Flutter and TypeScript with Firebase, focusing on enhancing user experience and scalability for customers with lower credit score. Actively manage app performance monitoring and issue resolution, collaborating with cross-functional teams to optimize payment processing, rewards, and effective credit-building functionalities",
+      "delayAnimation": "",
+      "order": 1
+    },
+    {
+      "jobPosition": "Software Engineer",
+      "jobType": "Full-time",
+      "jobDuration": "Jun 2020 - Dec 2023",
+      "companyName": "PayPal",
+      "jobDescription": "Developing large-scale architecture handles millions of requests daily with Java, Sprint framework. Designing and implementing payment’s failure recovery components which run with HTTP clients, ActiveMQ message service, batch, caching, Oracle, Relational database, and UI frameworks like Vue.",
+      "delayAnimation": "",
+      "order": 2
+    },
+    {
+      "jobPosition": "Full Stack Engineer",
+      "jobType": "Part-time",
+      "jobDuration": "Apr 2019 - May 2020",
+      "companyName": "University of Wisconsin-Madison",
+      "jobDescription": "Built thick UI client for tutor scheduling system which enables students to book sessions, and administrators to perform auditing using React, JavaScript, and PHP.",
+      "delayAnimation": "",
+      "order": 3
+    },
+    {
+      "jobPosition": "Front-End Engineer Intern",
+      "jobType": "Internship",
+      "jobDuration": "May 2019 - Aug 2019",
+      "companyName": "So-net Media Networks Corp",
+      "jobDescription": "Developed a web client for companies’ online ads performances using React, Redux, TypeScript. Introduced to Data Science research to improve accuracy of company’s Ad selection ML model.",
+      "delayAnimation": "",
+      "order": 4
+    },
+    {
+      "jobPosition": "Undergraduate Machine Learning Researcher",
+      "jobType": "Part-time",
+      "jobDuration": "Jan 2019 - May 2019",
+      "companyName": "UW-Madison Department of Materials Science and Engineering",
+      "jobDescription": "Fed alloy images to YOLOv3 network, detected the defects in the TEM videos, and tracked their number and size. Calculated the generation and annealing and achieved high accuracy defects detection with 0.95 F1 and low latency.",
+      "delayAnimation": "",
+      "order": 5
+    },
+    {
+      "jobPosition": "Tech Lead",
+      "jobType": "Student Org",
+      "jobDuration": "Jan 2018 - Jan 2019",
+      "companyName": "Helios",
+      "jobDescription": "Developed website, prototype for solar energy dashboard, and mentored new developers.",
+      "delayAnimation": "",
+      "order": 6
+    },
+    {
+      "jobPosition": "Android Engineer Intern",
+      "jobType": "Internship",
+      "jobDuration": "Jun 2018 - Aug 2018",
+      "companyName": "Kinetikos",
+      "jobDescription": "Implemented a patient care Android app with features such as patient monitoring and patient engagement enhanced by text to speech using Java, SQL.",
+      "delayAnimation": "",
+      "order": 7
+    },
+    {
+      "jobPosition": "Team Member",
+      "jobType": "Part-time",
+      "jobDuration": "Sep 2017 - Oct 2017",
+      "companyName": "University of Wisconsin-Madison",
+      "jobDescription": "Supported food preparation and kitchen operations for university events and community gatherings.",
+      "delayAnimation": "",
+      "order": 8
+    },
+    {
+      "jobPosition": "Support Staff Volunteer",
+      "jobType": "Volunteer",
+      "jobDuration": "Aug 2017 - Sep 2017",
+      "companyName": "University of Wisconsin-Madison",
+      "jobDescription": "Assisted students during the move-in process by helping with luggage and providing guidance for dormitory setup.",
+      "delayAnimation": "",
+      "order": 9
+    },
+    {
+      "jobPosition": "Private Tutor",
+      "jobType": "Self Employed",
+      "jobDuration": "May 2016 - Aug 2016",
+      "companyName": "Self-employed",
+      "jobDescription": "Provided tutoring services to a high school student in subjects including Math, Science, History, and English, achieving significant improvements in academic performance.",
+      "delayAnimation": "",
+      "order": 10
+    },
+    {
+      "jobPosition": "Professional Tutor",
+      "jobType": "Part-time",
+      "jobDuration": "Apr 2016 - Aug 2016",
+      "companyName": "Elve Gakuin",
+      "jobDescription": "Led tutoring sessions in a variety of subjects, adapting teaching methods to individual student learning styles for exam preparation.",
+      "delayAnimation": "",
+      "order": 11
+    }
+  ],
+  "education": [
+    {
+      "passingYear": "2023-2025",
+      "degreeTitle": "M.S. in Computer Science",
+      "instituteName": "Westcliff University",
+      "order": 1
+    },
+    {
+      "passingYear": "2017-2020",
+      "degreeTitle": "B.S. in Computer Science",
+      "instituteName": "University of Wisconsin-Madison",
+      "order": 2
+    },
+    {
+      "passingYear": "2016-2017",
+      "degreeTitle": "B.S. in Computer Science",
+      "instituteName": "University of Wisconsin-Superior",
+      "order": 3
+    },
+    {
+      "passingYear": "2013-2016",
+      "degreeTitle": "High School Degree",
+      "instituteName": "Waseda high school (Japan)",
+      "order": 4
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+.root {
+  margin-top: 100px;
+  margin-left: 5%;
+  margin-right: 5%;
+  background: white;
+
+  .subSection {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    margin-bottom: 20px;
+
+    .titleWrapper {
+      .title {
+        width: 500px;
+      }
+    }
+
+    .switchWrapper {
+      display: flex;
+      flex-direction: row;
+      margin: auto 0;
+
+      .switch {
+        margin-left: 20px;
+      }
+    }
+  }
+
+  .toolBar {
+    position: -webkit-sticky; /* Safari */
+    position: sticky;
+    top: 0;
+    background-color: #c0c0c0;
+    z-index:100;
+  }
+
+  .buttons {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-end;
+    margin-top: 20px;
+
+    .button {
+      margin-left: 20px;
+    }
+  }
+}

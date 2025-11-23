@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile, updateProfile } from '@/hooks/useProfile';
 import { useRouter } from 'next/navigation';
+import { addJumpGameProject } from '@/lib/utils/addJumpGameProject';
 
 const AdminPage = () => {
   const { currentUser } = useAuth();
@@ -25,6 +26,9 @@ const AdminPage = () => {
   const [profileEmail, setProfileEmail] = useState('');
   const [profileLanguages, setProfileLanguages] = useState('');
   const [profileMessage, setProfileMessage] = useState('');
+
+  // Project states
+  const [projectMessage, setProjectMessage] = useState('');
 
   useEffect(() => {
     // Redirect if not authenticated
@@ -100,6 +104,21 @@ const AdminPage = () => {
       }
     } catch (error) {
       alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleAddJumpGame = async () => {
+    setProjectMessage('');
+    if (!currentUser) {
+      setProjectMessage('❌ You must be signed in to add projects');
+      return;
+    }
+
+    try {
+      await addJumpGameProject(() => currentUser.getIdToken());
+      setProjectMessage('✅ Jump Game added to projects successfully!');
+    } catch (error) {
+      setProjectMessage(`❌ Failed to add Jump Game: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -190,6 +209,30 @@ const AdminPage = () => {
             {profileMessage}
           </div>
         )}
+      </div>
+
+      {/* Projects Section */}
+      <div className='bg-green-50 border border-green-200 p-6 rounded-lg shadow-md mb-8'>
+        <h2 className='text-xl font-semibold mb-4'>Projects Manager</h2>
+        <div className='space-y-4'>
+          <div>
+            <h3 className='font-medium mb-2'>Add Jump Game to Projects</h3>
+            <p className='text-sm text-gray-600 mb-3'>
+              Click the button below to add the Jump Game to your projects section.
+              This will create a new project entry in Firestore with the game details.
+            </p>
+            <Button onClick={handleAddJumpGame} className='bg-green-600 hover:bg-green-700'>
+              Add Jump Game to Projects
+            </Button>
+          </div>
+          {projectMessage && (
+            <div className={`mt-4 p-3 rounded ${
+              projectMessage.includes('✅') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}>
+              {projectMessage}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Job Technologies Section */}

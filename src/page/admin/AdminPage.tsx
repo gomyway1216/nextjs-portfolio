@@ -3,16 +3,47 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { useAuth } from '@/providers/AuthProvider';
+import { useProfile, updateProfile } from '@/hooks/useProfile';
+import { useRouter } from 'next/navigation';
 
 const AdminPage = () => {
+  const { currentUser } = useAuth();
+  const router = useRouter();
+  const { profile, loading: profileLoading } = useProfile();
+
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingJob, setEditingJob] = useState<string | null>(null);
   const [techInput, setTechInput] = useState<string>('');
 
+  // Profile edit states
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [profileBirthdate, setProfileBirthdate] = useState('');
+  const [profileLocation, setProfileLocation] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [profileLanguages, setProfileLanguages] = useState('');
+  const [profileMessage, setProfileMessage] = useState('');
+
   useEffect(() => {
+    // Redirect if not authenticated
+    if (!currentUser) {
+      router.push('/signin');
+      return;
+    }
     fetchJobs();
-  }, []);
+  }, [currentUser, router]);
+
+  useEffect(() => {
+    // Populate profile form when data loads
+    if (profile) {
+      setProfileBirthdate(profile.birthdate || '');
+      setProfileLocation(profile.location || '');
+      setProfileEmail(profile.email || '');
+      setProfileLanguages(profile.languages?.join(', ') || '');
+    }
+  }, [profile]);
 
   const fetchJobs = async () => {
     try {
@@ -23,6 +54,25 @@ const AdminPage = () => {
       console.error('Error fetching jobs:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpdateProfile = async () => {
+    setProfileMessage('');
+    try {
+      const languagesArray = profileLanguages.split(',').map(l => l.trim()).filter(l => l);
+      await updateProfile({
+        birthdate: profileBirthdate,
+        location: profileLocation,
+        email: profileEmail,
+        languages: languagesArray,
+      });
+      setProfileMessage('✅ Profile updated successfully!');
+      setEditingProfile(false);
+      // Refresh page to see updated data
+      window.location.reload();
+    } catch (error) {
+      setProfileMessage(`❌ Failed to update profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
@@ -53,12 +103,97 @@ const AdminPage = () => {
     }
   };
 
-  if (loading) return <div className='mt-20 text-center'>Loading...</div>;
+  // Show loading while checking authentication
+  if (!currentUser || loading || profileLoading) {
+    return <div className='mt-20 text-center'>Loading...</div>;
+  }
 
   return (
     <div className='admin max-w-6xl mx-auto mt-20 p-6'>
-      <h1 className='text-3xl font-bold mb-6'>Job Technologies Manager</h1>
+      <h1 className='text-3xl font-bold mb-8'>Admin Dashboard</h1>
 
+      {/* Profile Edit Section */}
+      <div className='bg-blue-50 border border-blue-200 p-6 rounded-lg shadow-md mb-8'>
+        <div className='flex justify-between items-center mb-4'>
+          <h2 className='text-xl font-semibold'>Profile Information</h2>
+          <Button
+            onClick={() => setEditingProfile(!editingProfile)}
+            variant="outline"
+            size="sm"
+          >
+            {editingProfile ? 'Cancel' : 'Edit Profile'}
+          </Button>
+        </div>
+
+        {!editingProfile ? (
+          // Display mode
+          <div className='space-y-2 text-gray-700'>
+            <p><strong>Birthdate:</strong> {profile?.birthdate || 'Not set'}</p>
+            <p><strong>Location:</strong> {profile?.location || 'Not set'}</p>
+            <p><strong>Email:</strong> {profile?.email || 'Not set'}</p>
+            <p><strong>Languages:</strong> {profile?.languages?.join(', ') || 'Not set'}</p>
+          </div>
+        ) : (
+          // Edit mode
+          <div className='space-y-4'>
+            <div>
+              <Label htmlFor="birthdate">Birthdate (YYYY-MM-DD)</Label>
+              <Input
+                id="birthdate"
+                type="date"
+                value={profileBirthdate}
+                onChange={(e) => setProfileBirthdate(e.target.value)}
+                className='mt-1'
+              />
+            </div>
+            <div>
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                value={profileLocation}
+                onChange={(e) => setProfileLocation(e.target.value)}
+                placeholder="e.g., San Francisco, Remote"
+                className='mt-1'
+              />
+            </div>
+            <div>
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                value={profileEmail}
+                onChange={(e) => setProfileEmail(e.target.value)}
+                placeholder="your@email.com"
+                className='mt-1'
+              />
+            </div>
+            <div>
+              <Label htmlFor="languages">Languages (comma-separated)</Label>
+              <Input
+                id="languages"
+                value={profileLanguages}
+                onChange={(e) => setProfileLanguages(e.target.value)}
+                placeholder="English, Japanese"
+                className='mt-1'
+              />
+            </div>
+            <Button onClick={handleUpdateProfile} className='mt-2'>
+              Save Profile
+            </Button>
+          </div>
+        )}
+
+        {profileMessage && (
+          <div className={`mt-4 p-3 rounded ${
+            profileMessage.includes('✅') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          }`}>
+            {profileMessage}
+          </div>
+        )}
+      </div>
+
+      {/* Job Technologies Section */}
+      <h2 className='text-2xl font-bold mb-4'>Job Technologies Manager</h2>
       <div className='space-y-4'>
         {jobs.map((job) => (
           <div key={job.id} className='bg-white p-4 rounded-lg shadow-md'>

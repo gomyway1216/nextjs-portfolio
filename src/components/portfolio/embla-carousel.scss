@@ -92,7 +92,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  border: 2px solid #ff9301;
+  border: 2px solid #0ea5e9;
   background: transparent;
   cursor: pointer;
   padding: 0;
@@ -100,7 +100,7 @@
   position: relative;
 
   &:hover {
-    background: rgba(255, 147, 1, 0.3);
+    background: rgba(14, 165, 233, 0.3);
   }
 
   &--selected {
@@ -110,7 +110,7 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: #ff9301;
+      background: #0ea5e9;
       top: 50%;
       left: 50%;
       transform: translate(-50%, -50%);

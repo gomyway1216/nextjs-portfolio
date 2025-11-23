@@ -22,6 +22,15 @@ const games: Game[] = [
     difficulty: 'Easy',
     category: 'Arcade',
   },
+  {
+    id: 'tic-tac-toe',
+    title: 'Tic Tac Toe',
+    description: 'Challenge the AI in this classic strategy game! Choose from Easy, Medium, or Hard difficulty and test your skills.',
+    thumbnail: '⭕',
+    path: '/games/tic-tac-toe',
+    difficulty: 'Medium',
+    category: 'Strategy',
+  },
 ];
 
 export default function GamesPage() {

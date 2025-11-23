@@ -154,7 +154,7 @@ const JumpGame = () => {
   const getDifficultyMultiplier = (difficulty: Difficulty): number => {
     switch (difficulty) {
       case 'easy':
-        return 0.7;
+        return 0.7; // Slower obstacles for easier gameplay
       case 'medium':
         return 1.0;
       case 'hard':
@@ -226,8 +226,38 @@ const JumpGame = () => {
 
     const y = heightMap[type];
 
+    // Calculate spawn position with minimum distance from other enemies
+    let spawnX = 600;
+    const minDistance = 250; // Minimum horizontal distance between enemies
+
+    // Find a spawn position that's far enough from all existing enemies
+    if (existingEnemies && existingEnemies.length > 0) {
+      let attemptCount = 0;
+      let validPosition = false;
+
+      while (!validPosition && attemptCount < 10) {
+        spawnX = 600 + Math.random() * 300; // Wider spawn range
+        validPosition = true;
+
+        // Check distance from all existing enemies
+        for (const enemy of existingEnemies) {
+          const distance = Math.abs(spawnX - enemy.x);
+          if (distance < minDistance) {
+            validPosition = false;
+            break;
+          }
+        }
+        attemptCount++;
+      }
+
+      // If we couldn't find a good position, use far right
+      if (!validPosition) {
+        spawnX = 900;
+      }
+    }
+
     return {
-      x: 600 + Math.random() * 200, // Randomize spawn distance
+      x: spawnX,
       y: y,
       r: 16,
       speed: speed,
@@ -282,13 +312,15 @@ const JumpGame = () => {
 
     // Prevent default behavior (especially for spacebar scrolling)
     e.preventDefault();
+    e.stopPropagation();
 
     const state = gameStateRef.current;
 
     if (state.scene === Scene.GameMain) {
       if (state.speed === 0) {
-        state.speed = -20;
-        state.acceleration = 1.5;
+        // Slightly higher jump with longer float time
+        state.speed = -17;
+        state.acceleration = 0.9;
         playJumpSound();
       }
     } else if (state.scene === Scene.GameOver) {
@@ -782,6 +814,11 @@ const JumpGame = () => {
   const startGame = () => {
     if (!canvasRef.current) return;
 
+    // Blur any focused element (like the Start button) to prevent space from triggering it
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
     gameStateRef.current = initGame(selectedDifficulty);
     setCurrentStage(1);
     setIsGameStarted(true);
@@ -1161,8 +1198,10 @@ const JumpGame = () => {
               borderRadius: '1rem',
               padding: '2rem',
               maxWidth: '600px',
+              maxHeight: '90vh',
               width: '100%',
-              position: 'relative'
+              position: 'relative',
+              overflowY: 'auto'
             }}
             onClick={(e) => e.stopPropagation()}
           >

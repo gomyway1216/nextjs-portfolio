@@ -31,6 +31,15 @@ const games: Game[] = [
     difficulty: 'Medium',
     category: 'Strategy',
   },
+  {
+    id: 'gomoku',
+    title: 'Gomoku',
+    description: 'Five in a Row! Strategic board game with AI using minimax and alpha-beta pruning. Can you outsmart the algorithm?',
+    thumbnail: '⚫',
+    path: '/games/gomoku',
+    difficulty: 'Hard',
+    category: 'Strategy',
+  },
 ];
 
 export default function GamesPage() {

@@ -1,11 +1,27 @@
-import React from 'react';
 import Social from '../Social';
-import Testimonials from '../testimonial/TestimonialAnimation';
-import Services from '../service/ServiceAnimation';
-import Awards from '../award/AwardsAnimation';
-import content from './content.json';
+import { differenceInYears } from 'date-fns';
+import { useProfile } from '@/hooks/useProfile';
 
 const About = () => {
+  const { profile } = useProfile();
+
+  // Calculate age dynamically from birthdate
+  const calculateAge = (birthdate: string) => {
+    return differenceInYears(new Date(), new Date(birthdate));
+  };
+
+  // Default values while loading or if profile is not available
+  const profileData = profile || {
+    birthdate: '1998-06-15',
+    location: 'San Francisco, Remote',
+    email: 'uwyudai@gmail.com',
+    languages: ['English', 'Japanese'],
+  };
+
+  const aboutText = "Hi, I'm Yudai, a full-stack engineer cultivating solutions from the vibrant tech hub of San Francisco. My career is a testament to the practical application of classroom knowledge, where concepts learned have been transformed into functional digital tools. I've had the pleasure of creating the Tokachi Musubi website, a platform that allows food truck owners to seamlessly manage their culinary offerings. My portfolio also includes engaging applications like a custom AI for Gomoku, showcasing my commitment to interactive and thoughtful software design. In the professional sphere, I've contributed to robust payment systems, honing my skills in a high-volume, team-oriented environment. Beyond my work, I am dedicated to personal growth, exploring AI and machine learning as part of my continuous learning journey. It's this blend of professional experience and personal exploration that fuels my passion for developing technologies that not only function but also fascinate and inspire.";
+
+  const age = calculateAge(profileData.birthdate);
+
   return (
     <>
       <section id="about" className="section theme-light dark-bg">
@@ -49,9 +65,7 @@ const About = () => {
                 </div>
 
                 <div className="about-text">
-                  {content.aboutParagraphs.map((paragraph, index) => (
-                    <p key={index}>{paragraph}</p>
-                  ))}
+                  <p>{aboutText}</p>
                 </div>
                 <div className="info-list">
                   <div className="row">
@@ -59,11 +73,11 @@ const About = () => {
                       <ul>
                         <li>
                           <label>Age: </label>
-                          <span>26 years</span>
+                          <span>{age} years</span>
                         </li>
                         <li>
                           <label>Location: </label>
-                          <span>San Francisco, Remote</span>
+                          <span>{profileData.location}</span>
                         </li>
                       </ul>
                     </div>
@@ -71,11 +85,11 @@ const About = () => {
                       <ul>
                         <li>
                           <label>Email: </label>
-                          <span>uwyudai@gmail.com</span>
+                          <span>{profileData.email}</span>
                         </li>
                         <li>
                           <label>Language: </label>
-                          <span>English, Japanese</span>
+                          <span>{profileData.languages.join(', ')}</span>
                         </li>
                       </ul>
                     </div>

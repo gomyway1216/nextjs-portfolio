@@ -1,7 +1,5 @@
 'use client';
-import React, { useEffect, useState, useMemo } from 'react';
-import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
-import content from './content.json';
+import { useMemo } from 'react';
 import { differenceInMonths, parse } from 'date-fns';
 import { useJobs, useEducation } from '@/hooks';
 
@@ -44,19 +42,6 @@ const Resume = () => {
     return [...fetchedEducation].sort((a: any, b: any) => a.order - b.order);
   }, [fetchedEducation]);
 
-  // useEffect(() => {
-  //   // Insert data into Firestore
-  //   addJobsToFirestore(content.jobs)
-  //     .then(() => console.log('Jobs added successfully!'))
-  //     .catch((error) => console.error('Error adding jobs to Firestore:', error));
-  
-  //   addEducationToFirestore(content.education)
-  //     .then(() => console.log('Education added successfully!'))
-  //     .catch((error) => console.error('Error adding education to Firestore:', error));
-  // }, []); 
-
-
-  // const { jobs, education } = content;
   return (
     <>
       <section id="resume" className="section">

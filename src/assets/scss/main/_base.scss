@@ -24,16 +24,42 @@ img {
   max-width: 100%;
 }
 
-* {
-  outline: none !important;
+// Improved focus states for accessibility
+*:focus-visible {
+  outline: 2px solid $px-theme;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+*:focus:not(:focus-visible) {
+  outline: none;
 }
 
 a {
   color: $px-theme;
-  transition: 0.3s;
+  transition: all 0.3s ease;
+  position: relative;
+  text-decoration: none;
+
+  // Subtle underline animation
+  &::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 1px;
+    bottom: -2px;
+    left: 0;
+    background: $px-theme;
+    transition: width 0.3s ease;
+  }
+
   @include px-hover {
     color: darken($px-theme, 8%);
     text-decoration: none;
+
+    &::after {
+      width: 100%;
+    }
   }
 }
 h1,

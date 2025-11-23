@@ -17,6 +17,7 @@
     &:hover {
       background: $px-theme;
       color: #fff;
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
     }
   }
   &.px-btn-theme {
@@ -26,6 +27,7 @@
     &:hover {
       background: $px-white;
       color: $px-theme;
+      box-shadow: 0 4px 12px rgba(14, 165, 233, 0.25);
     }
   }
   &.px-btn-white {
@@ -41,8 +43,10 @@
       background: transparent;
       color: $px-white;
       transform: translateY(-3px);
+      box-shadow: 0 6px 16px rgba(14, 165, 233, 0.2);
       .theme-light & {
         color: $px-dark;
+        box-shadow: 0 6px 16px rgba(14, 165, 233, 0.15);
       }
     }
   }

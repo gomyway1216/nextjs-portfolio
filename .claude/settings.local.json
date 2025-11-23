@@ -3,7 +3,9 @@
     "allow": [
       "Bash(npm show:*)",
       "Bash(npx shadcn@latest add:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []

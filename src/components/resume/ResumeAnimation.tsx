@@ -1,6 +1,5 @@
 'use client';
 import React, { useEffect, useState, useMemo } from 'react';
-import Skills from '../skills/Skills';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 import content from './content.json';
 import { differenceInMonths, parse } from 'date-fns';
@@ -33,7 +32,12 @@ const Resume = () => {
   const { education: fetchedEducation, loading: educationLoading } = useEducation();
 
   const jobs = useMemo(() => {
-    return [...fetchedJobs].sort((a: any, b: any) => a.order - b.order);
+    const sorted = [...fetchedJobs].sort((a: any, b: any) => a.order - b.order);
+    console.log('[Resume] Jobs data:', sorted);
+    sorted.forEach(job => {
+      console.log(`[Resume] ${job.companyName} - technologies:`, job.technologies);
+    });
+    return sorted;
   }, [fetchedJobs]);
 
   const educations = useMemo(() => {
@@ -84,6 +88,30 @@ const Resume = () => {
                     <div className="rb-right">
                       <h6>{val.compnayName}</h6>
                       <p>{val.jobDescription}</p>
+                      {val.technologies && val.technologies.length > 0 && (
+                        <div className="mt-3" style={{ marginTop: '1rem' }}>
+                          <strong style={{ fontSize: '14px', marginRight: '8px' }}>Technologies:</strong>
+                          {val.technologies.map((tech: string, techIndex: number) => (
+                            <span
+                              key={techIndex}
+                              className="inline-block bg-sky-500 text-white text-sm font-medium px-3 py-1 rounded-full mr-2 mb-2"
+                              style={{
+                                display: 'inline-block',
+                                backgroundColor: '#0ea5e9',
+                                color: 'white',
+                                fontSize: '14px',
+                                fontWeight: '500',
+                                padding: '4px 12px',
+                                borderRadius: '9999px',
+                                marginRight: '8px',
+                                marginBottom: '8px',
+                              }}
+                            >
+                              {tech}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -101,12 +129,12 @@ const Resume = () => {
           {/* End separated */}
 
           <div className="title">
-            <h3>Education & Skills</h3>{' '}
+            <h3>Education</h3>
           </div>
 
-          <div className="row">
+          <div className="row justify-content-center">
             <div
-              className="col-lg-4 m-15px-tb"
+              className="col-lg-10 col-xl-8 m-15px-tb"
               data-aos="fade-up"
               data-aos-duration="1200"
             >
@@ -114,21 +142,11 @@ const Resume = () => {
                 {educations.map((val, i) => (
                   <li key={i}>
                     <span>{val.passingYear}</span>
-                    <h6>{val.degreeTitle} </h6>
-                    <p>{val.instituteName}</p>{' '}
+                    <h6>{val.degreeTitle}</h6>
+                    <p>{val.instituteName}</p>
                   </li>
                 ))}
               </ul>
-            </div>
-            {/* End .col */}
-
-            <div
-              className="col-lg-7 ml-auto m-15px-tb"
-              data-aos="fade-up"
-              data-aos-duration="1200"
-              data-aos-delay="200"
-            >
-              <Skills />
             </div>
             {/* End .col */}
           </div>

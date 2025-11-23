@@ -1,33 +1,22 @@
-import React from 'react';
-import Slider from 'react-slick';
-import 'slick-carousel/slick/slick.css';
-import 'slick-carousel/slick/slick-theme.css';
+'use client';
+import React, { useCallback } from 'react';
+import useEmblaCarousel from 'embla-carousel-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 export default function SimpleSlider() {
-  const settings = {
-    dots: true,
-    arrow: false,
-    infinite: true,
-    speed: 900,
-    slidesToShow: 2,
-    slidesToScroll: 2,
-    autoplay: false,
-    margin: 30,
-    responsive: [
-      {
-        breakpoint: 991,
-        settings: {
-          slidesToShow: 1,
-        },
-      },
-      {
-        breakpoint: 420,
-        settings: {
-          slidesToShow: 1,
-        },
-      },
-    ],
-  };
+  const [emblaRef, emblaApi] = useEmblaCarousel({
+    loop: true,
+    align: 'start',
+    slidesToScroll: 1,
+  });
+
+  const scrollPrev = useCallback(() => {
+    if (emblaApi) emblaApi.scrollPrev();
+  }, [emblaApi]);
+
+  const scrollNext = useCallback(() => {
+    if (emblaApi) emblaApi.scrollNext();
+  }, [emblaApi]);
 
   const TestimonilContent = [
     {
@@ -61,30 +50,82 @@ export default function SimpleSlider() {
 
   return (
     <div className="testimonial-wrapper">
-      <Slider {...settings}>
-        {TestimonilContent.map((val, i) => (
-          <div
-            key={i}
-            data-aos="fade-up"
-            data-aos-duration="1200"
-            data-aos-delay={val.delayAnimation}
-          >
-            <div className="testimonial-01 media">
-              <div className="avatar">
-                <img
-                  src={`img/testimonial/${val.imageName}.jpg`}
-                  alt="review comments"
-                ></img>
+      <div className="embla" style={{ position: 'relative' }}>
+        <div className="embla__viewport" ref={emblaRef}>
+          <div className="embla__container" style={{ display: 'flex', gap: '30px' }}>
+            {TestimonilContent.map((val, i) => (
+              <div
+                key={i}
+                className="embla__slide"
+                style={{ flex: '0 0 calc(50% - 15px)', minWidth: 0 }}
+                data-aos="fade-up"
+                data-aos-duration="1200"
+                data-aos-delay={val.delayAnimation}
+              >
+                <div className="testimonial-01 media">
+                  <div className="avatar">
+                    <img
+                      src={`img/testimonial/${val.imageName}.jpg`}
+                      alt="review comments"
+                    ></img>
+                  </div>
+                  <div className="media-body">
+                    <p>{val.desc}</p>
+                    <h6>{val.reviewerName}</h6>
+                    <span>{val.designation}</span>
+                  </div>
+                </div>
               </div>
-              <div className="media-body">
-                <p>{val.desc}</p>
-                <h6>{val.reviewerName}</h6>
-                <span>{val.designation}</span>
-              </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </Slider>
+        </div>
+        <button
+          className="embla__prev"
+          onClick={scrollPrev}
+          type="button"
+          style={{
+            position: 'absolute',
+            left: '10px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            background: 'rgba(0,0,0,0.3)',
+            border: 'none',
+            borderRadius: '50%',
+            width: '40px',
+            height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 10,
+          }}
+        >
+          <ChevronLeft style={{ color: 'white' }} />
+        </button>
+        <button
+          className="embla__next"
+          onClick={scrollNext}
+          type="button"
+          style={{
+            position: 'absolute',
+            right: '10px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            background: 'rgba(0,0,0,0.3)',
+            border: 'none',
+            borderRadius: '50%',
+            width: '40px',
+            height: '40px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            zIndex: 10,
+          }}
+        >
+          <ChevronRight style={{ color: 'white' }} />
+        </button>
+      </div>
     </div>
   );
 }

@@ -11,7 +11,7 @@ import InstantMessage from '../popUp/Alert';
 import styles from './rich-text-editor.module.scss';
 import { getPostCategories } from '@/services/postsService';
 import ImageUpload from '../image/ImageUpload';
-import { RichTextEditor } from '@mantine/rte';
+import TiptapEditor from '../editor/TiptapEditor';
 import * as imageApi from '@/services/imageService';
 
 interface PostEditorProps {
@@ -314,7 +314,7 @@ const PostEditor = (props: PostEditorProps) => {
         handleImageUrl={handleImageUrl}
         originalImageUrl={imageUrl}
       />
-      <RichTextEditor
+      <TiptapEditor
         value={body}
         onChange={setBody}
         onImageUpload={imageApi.getMenuImageRef}

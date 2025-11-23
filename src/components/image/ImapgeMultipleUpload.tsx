@@ -3,7 +3,22 @@ import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import * as api from '@/services/imageService';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  horizontalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { Upload, X } from 'lucide-react';
 import styles from './image-upload.module.scss';
 
@@ -14,20 +29,74 @@ interface ImageMultipleUploadProps {
   originalImageUrls?: string[];
 }
 
+interface SortableImageItemProps {
+  url: string;
+  index: number;
+  onRemove: () => void;
+}
+
+const SortableImageItem = ({ url, index, onRemove }: SortableImageItemProps) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: url });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className="relative w-48 cursor-grab active:cursor-grabbing"
+    >
+      <img src={url} alt={`Image ${index}`} className="imagePreview rounded-md" />
+      <Button
+        type="button"
+        variant="destructive"
+        size="icon"
+        className="absolute top-2 right-2"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    </div>
+  );
+};
+
 const ImageMultipleUpload = ({ id, type, handleImageUrls, originalImageUrls }: ImageMultipleUploadProps) => {
   const [selectedImages, setSelectedImages] = useState<any[]>([]);
   const [imageUrls, setImageUrls] = useState<string[]>(originalImageUrls || []);
   const [loading, setLoading] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
 
-  const handleOnDragEnd = (result: any) => {
-    if (!result.destination) return;
-    const items = Array.from(imageUrls);
-    const [reorderedItem] = items.splice(result.source.index, 1);
-    items.splice(result.destination.index, 0, reorderedItem);
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
-    setImageUrls(items);
-    handleImageUrls(items);
+  const handleDragEnd = (event: any) => {
+    const { active, over } = event;
+
+    if (active.id !== over.id) {
+      const oldIndex = imageUrls.indexOf(active.id);
+      const newIndex = imageUrls.indexOf(over.id);
+      const newImageUrls = arrayMove(imageUrls, oldIndex, newIndex);
+      setImageUrls(newImageUrls);
+      handleImageUrls(newImageUrls);
+    }
   };
 
   useEffect(() => {
@@ -120,42 +189,27 @@ const ImageMultipleUpload = ({ id, type, handleImageUrls, originalImageUrls }: I
         </div>
       )}
 
-      <DragDropContext onDragEnd={handleOnDragEnd}>
-        <Droppable droppableId="imageList" direction="horizontal">
-          {(provided) => (
-            <div
-              {...provided.droppableProps}
-              ref={provided.innerRef}
-              className="mt-4 flex flex-wrap gap-4"
-            >
-              {imageUrls.map((url, index) => (
-                <Draggable key={url} draggableId={url} index={index}>
-                  {(provided) => (
-                    <div
-                      {...provided.draggableProps}
-                      {...provided.dragHandleProps}
-                      ref={provided.innerRef}
-                      className="relative w-48"
-                    >
-                      <img src={url} alt={`Image ${index}`} className="imagePreview rounded-md" />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-2 right-2"
-                        onClick={() => handleImageRemove(index)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                </Draggable>
-              ))}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext
+          items={imageUrls}
+          strategy={horizontalListSortingStrategy}
+        >
+          <div className="mt-4 flex flex-wrap gap-4">
+            {imageUrls.map((url, index) => (
+              <SortableImageItem
+                key={url}
+                url={url}
+                index={index}
+                onRemove={() => handleImageRemove(index)}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
     </div>
   );
 };

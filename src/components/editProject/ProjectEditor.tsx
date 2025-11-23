@@ -10,7 +10,7 @@ import InstantMessage from '../popUp/Alert';
 import styles from './rich-text-editor.module.scss';
 import { getProjectCategories } from '@/services/projectsService';
 import ImageUpload from '../image/ImageUpload';
-import { RichTextEditor } from '@mantine/rte';
+import TiptapEditor from '../editor/TiptapEditor';
 import * as imageApi from '@/services/imageService';
 import dayjs from 'dayjs';
 import ImageMultipleUpload from '../image/ImapgeMultipleUpload';
@@ -427,7 +427,7 @@ const ProjectEditor = (props: ProjectEditorProps) => {
         handleImageUrls={handleImageUrls}
         originalImageUrls={images} // Pass the current array of image URLs for display
       />
-      <RichTextEditor value={description} onChange={setDescription}
+      <TiptapEditor value={description} onChange={setDescription}
         onImageUpload={imageApi.getMenuImageRef} />
       <div className={styles.buttons}>
         <Button

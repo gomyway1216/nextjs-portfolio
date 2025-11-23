@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import TextLoop from 'react-text-loop';
+import { TypeAnimation } from 'react-type-animation';
 import * as profileApi from '@/services/profileService';
 
 const conctInfo = {
@@ -73,11 +73,20 @@ const Slider = () => {
                   data-aos-duration="1200"
                   data-aos-delay="200"
                 >
-                  <TextLoop>
-                    <p className="loop-text lead">Full-stack Developer</p>
-                    <p className="loop-text lead"> Software Engineer</p>
-                    <p className="loop-text lead"> Web Developer</p>
-                  </TextLoop>
+                  <TypeAnimation
+                    sequence={[
+                      'Full-stack Developer',
+                      2000,
+                      'Software Engineer',
+                      2000,
+                      'Web Developer',
+                      2000,
+                    ]}
+                    wrapper="p"
+                    speed={50}
+                    className="loop-text lead"
+                    repeat={Infinity}
+                  />
                 </div>
 
                 <p

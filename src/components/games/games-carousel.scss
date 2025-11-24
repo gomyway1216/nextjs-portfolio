@@ -1,0 +1,157 @@
+.games-carousel {
+  position: relative;
+  padding: 0 60px;
+
+  @media (max-width: 768px) {
+    padding: 0 50px;
+  }
+}
+
+.games-carousel__viewport {
+  overflow: hidden;
+  width: 100%;
+}
+
+.games-carousel__container {
+  display: flex;
+  gap: 30px;
+  margin-bottom: 30px;
+}
+
+.games-carousel__slide {
+  flex: 0 0 calc(33.333% - 20px);
+  min-width: 0;
+
+  @media (max-width: 1024px) {
+    flex: 0 0 calc(50% - 15px);
+  }
+
+  @media (max-width: 640px) {
+    flex: 0 0 100%;
+  }
+}
+
+.game-card-wrapper {
+  cursor: pointer;
+  transition: transform 0.3s ease;
+
+  &:hover {
+    transform: translateY(-8px);
+  }
+
+  .blog-grid {
+    height: 100%;
+  }
+
+  .blog-img {
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  }
+
+  .game-thumbnail {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    font-size: 5rem;
+    transition: transform 0.3s ease;
+  }
+
+  &:hover .game-thumbnail {
+    transform: scale(1.1);
+  }
+
+  .game-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    color: white;
+    gap: 8px;
+
+    p {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+    }
+  }
+
+  &:hover .game-overlay {
+    opacity: 1;
+  }
+
+  .blog-info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .game-header {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 12px;
+
+    h6 {
+      margin: 0;
+      flex: 1;
+    }
+
+    .difficulty-badge {
+      font-size: 0.75rem;
+      padding: 4px 12px;
+      white-space: nowrap;
+    }
+  }
+
+  .game-description {
+    margin-top: 0;
+  }
+
+  .game-category {
+    margin-top: auto;
+    color: #667eea;
+    font-weight: 600;
+  }
+}
+
+.games-carousel__button {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+
+  &--prev {
+    left: 0;
+  }
+
+  &--next {
+    right: 0;
+  }
+}
+
+.games-view-all {
+  text-align: center;
+  margin-top: 30px;
+
+  button {
+    span {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+  }
+}

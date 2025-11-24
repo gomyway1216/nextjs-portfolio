@@ -6,6 +6,7 @@ import Slider from '@/components/slider/SliderAnimation';
 import About from '@/components/about/AboutAnimation';
 import Resume from '@/components/resume/ResumeAnimation';
 import Portfolio from '@/components/portfolio/PortfolioAnimation';
+import GamesSlideshow from '@/components/games/GamesSlideshow';
 import Blog from '@/components/blog/BlogAnimation';
 import Contact from '@/components/contact/Contact';
 import ContactInfo from '@/components/contact/ContactInfo';
@@ -41,7 +42,17 @@ const HomeOne = () => {
       </section>
       {/* End Portfolio Section */}
 
-      <section id="blog" className="section">
+      <section id="games" className="section">
+        <div className="container">
+          <div className="title">
+            <h3>Interactive Games.</h3>
+          </div>
+          <GamesSlideshow />
+        </div>
+      </section>
+      {/* End Games Section */}
+
+      <section id="blog" className="section theme-light dark-bg">
         <div className="container">
           <div className="title">
             <h3>Latest Blog.</h3>
@@ -50,7 +61,7 @@ const HomeOne = () => {
           {/* <div onClick={() => navigate('/all')}>Check more blogs</div> */}
         </div>
       </section>
-      {/* End Portfolio Section */}
+      {/* End Blog Section */}
 
       {/* <section id="contactus" className="section theme-light dark-bg">
         <div className="container">

@@ -4,56 +4,8 @@ import React, { useCallback, useEffect } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ChevronLeft, ChevronRight, Gamepad2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { games } from '@/components/game/constants/games';
 import './games-carousel.scss';
-
-interface Game {
-  id: string;
-  title: string;
-  description: string;
-  thumbnail: string;
-  path: string;
-  difficulty: 'Easy' | 'Medium' | 'Hard';
-  category: string;
-}
-
-const games: Game[] = [
-  {
-    id: 'jump-game',
-    title: 'Jump Game',
-    description: 'A classic jump-and-dodge arcade game. Press any key to jump over obstacles and rack up points!',
-    thumbnail: '🎮',
-    path: '/games/jump-game',
-    difficulty: 'Easy',
-    category: 'Arcade',
-  },
-  {
-    id: 'tic-tac-toe',
-    title: 'Tic Tac Toe',
-    description: 'Challenge the AI in this classic strategy game! Choose from Easy, Medium, or Hard difficulty.',
-    thumbnail: '⭕',
-    path: '/games/tic-tac-toe',
-    difficulty: 'Medium',
-    category: 'Strategy',
-  },
-  {
-    id: 'gomoku',
-    title: 'Gomoku',
-    description: 'Five in a Row! Strategic board game with AI using minimax and alpha-beta pruning.',
-    thumbnail: '⚫',
-    path: '/games/gomoku',
-    difficulty: 'Hard',
-    category: 'Strategy',
-  },
-  {
-    id: 'tetris',
-    title: 'Tetris',
-    description: 'Classic block-stacking puzzle game. Clear lines by completing horizontal rows.',
-    thumbnail: '🟦',
-    path: '/games/tetris',
-    difficulty: 'Medium',
-    category: 'Puzzle',
-  },
-];
 
 const GamesSlideshow = () => {
   const router = useRouter();

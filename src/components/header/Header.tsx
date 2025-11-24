@@ -5,14 +5,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Tooltip } from 'react-tooltip';
 import {
-  FiUser,
-  FiBriefcase,
-  FiFileText,
-  FiPhoneOutgoing,
-} from 'react-icons/fi';
-import { MdAccountCircle } from 'react-icons/md';
-import { FaHome, FaBlog } from 'react-icons/fa';
-import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -58,7 +50,7 @@ const Header = () => {
 
           <Scrollspy
             className="nav nav-menu"
-            items={['home', 'about', 'resume', 'work', 'blog', 'contactus', 'admin']}
+            items={['home', 'about', 'resume', 'work', 'games', 'blog', 'contactus', 'admin']}
             currentClassName="active"
             offset={-30}
           >
@@ -70,7 +62,7 @@ const Header = () => {
                 data-for="HOME"
                 onClick={handleClick}
               >
-                <FaHome />
+                <span style={{ fontSize: '20px' }}>🏠</span>
                 <Tooltip
                   id="HOME"
                   place="right"
@@ -88,7 +80,7 @@ const Header = () => {
                 data-for="ABOUT"
                 onClick={handleClick}
               >
-                <FiUser />
+                <span style={{ fontSize: '20px' }}>👨‍💼</span>
                 <Tooltip
                   id="ABOUT"
                   place="right"
@@ -106,7 +98,7 @@ const Header = () => {
                 data-for="RESUME"
                 onClick={handleClick}
               >
-                <FiFileText />
+                <span style={{ fontSize: '20px' }}>📄</span>
                 <Tooltip
                   id="RESUME"
                   place="right"
@@ -124,7 +116,7 @@ const Header = () => {
                 data-for="WORK"
                 onClick={handleClick}
               >
-                <FiBriefcase />
+                <span style={{ fontSize: '20px' }}>💼</span>
                 <Tooltip
                   id="WORK"
                   place="right"
@@ -137,12 +129,30 @@ const Header = () => {
             <li>
               <a
                 className="nav-link"
+                href="#games"
+                data-tip
+                data-for="GAMES"
+                onClick={handleClick}
+              >
+                <span style={{ fontSize: '20px' }}>🎮</span>
+                <Tooltip
+                  id="GAMES"
+                  place="right"
+                  variant="dark"
+                >
+                  <span>Games</span>
+                </Tooltip>
+              </a>
+            </li>
+            <li>
+              <a
+                className="nav-link"
                 href="#blog"
                 data-tip
                 data-for="BLOG"
                 onClick={handleClick}
               >
-                <FaBlog />
+                <span style={{ fontSize: '20px' }}>📝</span>
                 <Tooltip
                   id="BLOG"
                   place="right"
@@ -178,7 +188,7 @@ const Header = () => {
                     data-tip
                     data-for="ADMIN"
                   >
-                    <MdAccountCircle />
+                    <span style={{ fontSize: '20px' }}>⚙️</span>
                     <Tooltip
                       id="ADMIN"
                       place="right"

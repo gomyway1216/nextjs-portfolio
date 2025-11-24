@@ -40,6 +40,15 @@ const games: Game[] = [
     difficulty: 'Hard',
     category: 'Strategy',
   },
+  {
+    id: 'tetris',
+    title: 'Tetris',
+    description: 'Classic block-stacking puzzle game. Clear lines by completing horizontal rows. Speed increases as you level up!',
+    thumbnail: '🟦',
+    path: '/games/tetris',
+    difficulty: 'Medium',
+    category: 'Puzzle',
+  },
 ];
 
 export default function GamesPage() {

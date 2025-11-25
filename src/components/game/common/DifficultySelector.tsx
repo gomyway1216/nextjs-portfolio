@@ -13,6 +13,7 @@ interface DifficultySelectorProps {
   onSelectDifficulty: (difficulty: Difficulty) => void;
   options: DifficultyOption[];
   onStart: () => void;
+  extraContent?: React.ReactNode;
 }
 
 export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
@@ -22,7 +23,8 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
   selectedDifficulty,
   onSelectDifficulty,
   options,
-  onStart
+  onStart,
+  extraContent
 }) => {
   return (
     <div style={{
@@ -115,6 +117,8 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
           );
         })}
       </div>
+
+      {extraContent}
 
       <button
         onClick={onStart}

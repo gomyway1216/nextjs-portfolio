@@ -58,4 +58,13 @@ export const games: Game[] = [
     difficulty: 'Hard',
     category: 'Strategy',
   },
+  {
+    id: 'othello',
+    title: 'Othello',
+    description: 'Classic strategy board game with AI using alpha-beta search. Flip your opponent\'s discs to win!',
+    thumbnail: '⚫',
+    path: '/games/othello',
+    difficulty: 'Medium',
+    category: 'Strategy',
+  },
 ];

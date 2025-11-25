@@ -15,14 +15,18 @@ export class ShogiAI {
   private leaf: number;
   private node: number;
   private depthMax: number;
+  private startTime: number;
+  private maxTime: number;
 
   constructor(difficulty: Difficulty = 'medium') {
     this.best = Array(LIMIT_DEPTH).fill(0).map(() => Array(LIMIT_DEPTH).fill(null));
     this.leaf = 0;
     this.node = 0;
+    this.startTime = 0;
 
-    // Set search depth based on difficulty
+    // Set search depth and time limit based on difficulty
     this.depthMax = difficulty === 'easy' ? 2 : difficulty === 'medium' ? 3 : 4;
+    this.maxTime = difficulty === 'easy' ? 3000 : difficulty === 'medium' ? 5000 : 8000; // ms
   }
 
   private getMax(
@@ -33,6 +37,11 @@ export class ShogiAI {
     depth: number,
     depthMax: number
   ): number {
+    // Check time limit
+    if (Date.now() - this.startTime > this.maxTime) {
+      return k.evaluate();
+    }
+
     // Leaf node - return evaluation
     if (depth >= depthMax) {
       this.leaf++;
@@ -43,6 +52,11 @@ export class ShogiAI {
 
     // Generate legal moves
     const v = generateLegalMoves(k);
+
+    // No moves - return evaluation
+    if (v.length === 0) {
+      return k.evaluate();
+    }
 
     // Current best value
     let value = -INFINITE;
@@ -99,6 +113,11 @@ export class ShogiAI {
     depth: number,
     depthMax: number
   ): number {
+    // Check time limit
+    if (Date.now() - this.startTime > this.maxTime) {
+      return k.evaluate();
+    }
+
     // Leaf node - return evaluation
     if (depth >= depthMax) {
       this.leaf++;
@@ -109,6 +128,11 @@ export class ShogiAI {
 
     // Generate legal moves
     const v = generateLegalMoves(k);
+
+    // No moves - return evaluation
+    if (v.length === 0) {
+      return k.evaluate();
+    }
 
     // Current best value
     let value = INFINITE;
@@ -161,9 +185,9 @@ export class ShogiAI {
   getNextTe(k: Kyokumen): Te | null {
     this.leaf = 0;
     this.node = 0;
+    this.startTime = Date.now();
 
     const te = new Te(0, new Position(0, 0), new Position(0, 0), false);
-    const startTime = Date.now();
 
     let evalValue: number;
     if (k.teban === SENTE) {
@@ -172,7 +196,7 @@ export class ShogiAI {
       evalValue = this.getMin(te, k, -INFINITE, INFINITE, 0, this.depthMax);
     }
 
-    const time = Date.now() - startTime;
+    const time = Date.now() - this.startTime;
     console.log(`Evaluation: ${evalValue}, Leaves: ${this.leaf}, Nodes: ${this.node}, Time: ${time}ms`);
 
     // Return null if no valid move found

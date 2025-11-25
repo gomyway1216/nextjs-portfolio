@@ -198,6 +198,21 @@ const Shogi = () => {
       setGameState(prev => ({ ...prev, isAIThinking: true }));
 
       setTimeout(() => {
+        // Check if AI has any legal moves first
+        const legalMoves = generateLegalMoves(gameState.kyokumen);
+
+        if (legalMoves.length === 0) {
+          // AI is in checkmate
+          setGameState(prev => ({
+            ...prev,
+            isAIThinking: false,
+            gameOver: true,
+            winner: SENTE,
+          }));
+          setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+          return;
+        }
+
         const aiMove = getBestMove(gameState.kyokumen, GOTE, difficulty);
 
         if (aiMove) {
@@ -219,7 +234,14 @@ const Shogi = () => {
             setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
           }
         } else {
-          setGameState(prev => ({ ...prev, isAIThinking: false }));
+          // AI couldn't find a move (shouldn't happen if legalMoves > 0)
+          setGameState(prev => ({
+            ...prev,
+            isAIThinking: false,
+            gameOver: true,
+            winner: SENTE,
+          }));
+          setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
         }
       }, 500);
     }

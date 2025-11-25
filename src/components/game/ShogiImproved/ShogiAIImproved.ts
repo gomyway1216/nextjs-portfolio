@@ -7,7 +7,7 @@ import { TTEntryImproved } from './TTEntryImproved';
 export class ShogiAIImproved {
   // Search constants
   private static readonly INFINITE = 99999999;
-  private static readonly DEPTH_MAX = 4;
+  private static readonly DEPTH_MAX = 5; // Increased from 4 for better play
   private static readonly LIMIT_DEPTH = 16;
 
   // Transposition table

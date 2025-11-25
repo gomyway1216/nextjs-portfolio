@@ -14,6 +14,8 @@ import {
   FU,
   HI,
   KA,
+  KY,
+  KE,
   RY,
   UM,
   SOU,
@@ -33,6 +35,7 @@ import {
   isSelf,
   getKomashu,
   komaValue,
+  handPieceValue,
   toString as komaToString,
   toBanString,
   canMove,
@@ -204,8 +207,8 @@ export class Kyokumen {
     return new Position(-2, -2);
   }
 
-  // Helper: Find king position
-  private findKingPosition(teban: number): Position | null {
+  // Helper: Find king position (public for AI move ordering)
+  findKingPosition(teban: number): Position | null {
     const targetKing = teban === SENTE ? SOU : GOU;
     for (let suji = 1; suji <= 9; suji++) {
       for (let dan = 1; dan <= 9; dan++) {
@@ -215,6 +218,33 @@ export class Kyokumen {
       }
     }
     return null;
+  }
+
+  // Helper: Check if a specific piece is at a specific position
+  private findPiecePosition(teban: number, komashu: number, targetSuji: number, targetDan: number): boolean {
+    const piece = this.ban[targetSuji][targetDan];
+    if (piece === EMPTY) return false;
+    const pieceTeban = isSente(piece) ? SENTE : GOTE;
+    return pieceTeban === teban && getKomashu(piece) === komashu;
+  }
+
+  // Helper: Check if a square is defended by a player's pieces
+  private isSquareDefendedBy(suji: number, dan: number, teban: number): boolean {
+    // Check if any piece of 'teban' can move to this square
+    for (let s = 1; s <= 9; s++) {
+      for (let d = 1; d <= 9; d++) {
+        const piece = this.ban[s][d];
+        if (piece === EMPTY) continue;
+        const pieceTeban = isSente(piece) ? SENTE : GOTE;
+        if (pieceTeban !== teban) continue;
+
+        // Check if this piece can reach the target square
+        if (this.canReachSquare(new Position(s, d), piece, new Position(suji, dan))) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   // Helper: Count pieces around a position
@@ -911,6 +941,409 @@ export class Kyokumen {
     return false;
   }
 
+  // Evaluate drop threats - critical for finding powerful drops like ☖２八飛打
+  private evaluateDropThreats(teban: number): number {
+    let score = 0;
+    const handIndex = teban === SENTE ? 0 : 1;
+    const hand = this.hand[handIndex];
+
+    if (hand.length === 0) return 0;
+
+    const enemyKingPos = this.findKingPosition(teban === SENTE ? GOTE : SENTE);
+    if (!enemyKingPos) return 0;
+
+    // Check what pieces we have in hand
+    const hasRook = hand.some(k => getKomashu(k) === HI);
+    const hasBishop = hand.some(k => getKomashu(k) === KA);
+    const hasGold = hand.some(k => getKomashu(k) === 5); // KI = 5
+    const hasLance = hand.some(k => getKomashu(k) === KY);
+    const hasKnight = hand.some(k => getKomashu(k) === KE);
+
+    // ROOK DROP THREATS - Most powerful
+    if (hasRook) {
+      // Check for open files near enemy king
+      for (let suji = 1; suji <= 9; suji++) {
+        // Count pieces on this file in enemy territory
+        let openSquares = 0;
+        const targetDanStart = teban === SENTE ? 1 : 7;
+        const targetDanEnd = teban === SENTE ? 4 : 9;
+
+        for (let dan = targetDanStart; dan <= targetDanEnd; dan++) {
+          if (this.ban[suji][dan] === EMPTY) {
+            openSquares++;
+
+            // Huge bonus for rook drop on same file or rank as king
+            if (suji === enemyKingPos.suji) {
+              score += 400; // Rook on king's file is devastating
+            }
+            if (dan === enemyKingPos.dan) {
+              score += 350; // Rook on king's rank
+            }
+
+            // Bonus for back rank drops (like ☖２八飛打)
+            const isBackRank = teban === SENTE ? dan <= 2 : dan >= 8;
+            if (isBackRank) {
+              score += 200; // Back rank rook drops are very strong
+            }
+          }
+        }
+
+        // Bonus for open files that can be dropped on
+        if (openSquares >= 2) {
+          score += openSquares * 30;
+        }
+      }
+    }
+
+    // BISHOP DROP THREATS
+    if (hasBishop) {
+      // Check diagonal lines to enemy king
+      for (let suji = 1; suji <= 9; suji++) {
+        for (let dan = 1; dan <= 9; dan++) {
+          if (this.ban[suji][dan] !== EMPTY) continue;
+
+          // Check if this square is on a diagonal to enemy king
+          const dSuji = Math.abs(suji - enemyKingPos.suji);
+          const dDan = Math.abs(dan - enemyKingPos.dan);
+
+          if (dSuji === dDan && dSuji > 0 && dSuji <= 3) {
+            // This is a diagonal attack on king
+            score += 250;
+          }
+
+          // Bonus for drops in enemy promotion zone
+          const inPromotionZone = teban === SENTE ? dan <= 3 : dan >= 7;
+          if (inPromotionZone) {
+            score += 50;
+          }
+        }
+      }
+    }
+
+    // GOLD DROP THREATS - Good for adjacent king attacks
+    if (hasGold) {
+      // Check squares adjacent to enemy king
+      for (let dSuji = -1; dSuji <= 1; dSuji++) {
+        for (let dDan = -1; dDan <= 1; dDan++) {
+          if (dSuji === 0 && dDan === 0) continue;
+          const targetSuji = enemyKingPos.suji + dSuji;
+          const targetDan = enemyKingPos.dan + dDan;
+
+          if (targetSuji >= 1 && targetSuji <= 9 && targetDan >= 1 && targetDan <= 9) {
+            if (this.ban[targetSuji][targetDan] === EMPTY) {
+              score += 150; // Gold drop adjacent to king is strong
+            }
+          }
+        }
+      }
+    }
+
+    // LANCE DROP THREATS - File attacks
+    if (hasLance) {
+      // Lance drops on king's file are strong
+      const targetDan = teban === SENTE ?
+        (enemyKingPos.dan > 2 ? enemyKingPos.dan - 1 : 0) :
+        (enemyKingPos.dan < 8 ? enemyKingPos.dan + 1 : 0);
+
+      if (targetDan > 0 && targetDan < 10) {
+        if (this.ban[enemyKingPos.suji][targetDan] === EMPTY) {
+          score += 120;
+        }
+      }
+    }
+
+    // KNIGHT DROP THREATS - Fork potential
+    if (hasKnight) {
+      // Knight forks are powerful
+      const knightTargets = teban === SENTE ?
+        [[enemyKingPos.suji - 1, enemyKingPos.dan - 2], [enemyKingPos.suji + 1, enemyKingPos.dan - 2]] :
+        [[enemyKingPos.suji - 1, enemyKingPos.dan + 2], [enemyKingPos.suji + 1, enemyKingPos.dan + 2]];
+
+      for (const [s, d] of knightTargets) {
+        if (s >= 1 && s <= 9 && d >= 1 && d <= 9) {
+          if (this.ban[s][d] === EMPTY) {
+            score += 100; // Knight check potential
+          }
+        }
+      }
+    }
+
+    return score;
+  }
+
+  // Evaluate file defense - critical for preventing rook invasions
+  // In the opening, GOTE must defend the 2-file with bishop (3三角) or gold (3二金)
+  private evaluateFileDefense(teban: number): number {
+    let score = 0;
+
+    if (teban === GOTE) {
+      // GOTE needs to defend against SENTE's 2-file attack
+      // Check if SENTE's rook is on original square or moved to 2-file
+      const senteRookOnSecondFile =
+        (this.ban[2][8] !== EMPTY && isSente(this.ban[2][8]) && getKomashu(this.ban[2][8]) === HI);
+
+      // Check if SENTE has pushed pawns on the 2-file
+      const sentePawnOn26 = this.ban[2][6] !== EMPTY &&
+        isSente(this.ban[2][6]) && getKomashu(this.ban[2][6]) === FU;
+      const sentePawnOn25 = this.ban[2][5] !== EMPTY &&
+        isSente(this.ban[2][5]) && getKomashu(this.ban[2][5]) === FU;
+      const sentePawnOn24 = this.ban[2][4] !== EMPTY &&
+        isSente(this.ban[2][4]) && getKomashu(this.ban[2][4]) === FU;
+
+      // Check if 2-4 square (critical exchange point) is defended
+      const square24Defended = this.isSquareDefendedBy(2, 4, GOTE);
+
+      // Check if GOTE's pawn is still on 23
+      const gotePawnOn23 = this.ban[2][3] !== EMPTY &&
+        isGote(this.ban[2][3]) && getKomashu(this.ban[2][3]) === FU;
+
+      // Best defense: Bishop on 3三 (33) defending 24
+      const bishopOn33 = this.ban[3][3] !== EMPTY &&
+        isGote(this.ban[3][3]) && getKomashu(this.ban[3][3]) === KA;
+
+      // Good defense: Gold on 3二 defending 23
+      const goldOn32 = this.ban[3][2] !== EMPTY &&
+        isGote(this.ban[3][2]) && getKomashu(this.ban[3][2]) === 5; // KI = 5
+
+      // Check if bishop moved to a USELESS square (not 33)
+      const bishopOnUselessSquare = !bishopOn33 &&
+        this.ban[2][2] === EMPTY && // Bishop left original square
+        !this.findPiecePosition(GOTE, KA, 3, 3); // But not on 33
+
+      // The attack is happening if pawn advanced to 26 or 25
+      const underAttack = sentePawnOn26 || sentePawnOn25 || sentePawnOn24;
+
+      if (underAttack || senteRookOnSecondFile) {
+        if (bishopOn33) {
+          score += 600; // Excellent defense - bishop controls 24
+        } else if (goldOn32 && gotePawnOn23) {
+          score += 400; // Good defense
+        } else if (gotePawnOn23 && square24Defended) {
+          score += 200; // Pawn still there and 24 is defended somehow
+        } else {
+          // DANGER! No proper defense
+          if (sentePawnOn24) {
+            // Pawn about to capture or be captured - CRITICAL
+            if (!gotePawnOn23) {
+              score -= 1500; // Disaster - pawn exchange lost, rook coming in
+            } else {
+              score -= 800; // About to exchange
+            }
+          } else if (sentePawnOn25) {
+            score -= 1000; // Very dangerous - one move from exchange
+          } else if (sentePawnOn26) {
+            score -= 600; // Dangerous - attack is coming
+          }
+
+          // Extra penalty if bishop moved to wrong square
+          if (bishopOnUselessSquare) {
+            score -= 400; // Bishop wasted on useless square like 44
+          }
+        }
+      }
+
+      // Also check if bishop is still on original square when attack is imminent
+      const bishopOnOriginal = this.ban[2][2] !== EMPTY &&
+        isGote(this.ban[2][2]) && getKomashu(this.ban[2][2]) === KA;
+      if (bishopOnOriginal && (sentePawnOn25 || sentePawnOn24)) {
+        // Bishop trapped on 22 - very bad
+        score -= 500;
+      }
+    }
+
+    if (teban === SENTE) {
+      // SENTE needs to defend against GOTE's 8-file attack (mirror of GOTE's 2-file defense)
+      const goteRookOnEighthFile = this.ban[8][2] !== EMPTY &&
+        isGote(this.ban[8][2]) && getKomashu(this.ban[8][2]) === HI;
+
+      const gotePawnOn84 = this.ban[8][4] !== EMPTY &&
+        isGote(this.ban[8][4]) && getKomashu(this.ban[8][4]) === FU;
+      const gotePawnOn85 = this.ban[8][5] !== EMPTY &&
+        isGote(this.ban[8][5]) && getKomashu(this.ban[8][5]) === FU;
+      const gotePawnOn86 = this.ban[8][6] !== EMPTY &&
+        isGote(this.ban[8][6]) && getKomashu(this.ban[8][6]) === FU;
+
+      const square86Defended = this.isSquareDefendedBy(8, 6, SENTE);
+      const sentePawnOn87 = this.ban[8][7] !== EMPTY &&
+        isSente(this.ban[8][7]) && getKomashu(this.ban[8][7]) === FU;
+
+      const bishopOn77 = this.ban[7][7] !== EMPTY &&
+        isSente(this.ban[7][7]) && getKomashu(this.ban[7][7]) === KA;
+
+      const goldOn78 = this.ban[7][8] !== EMPTY &&
+        isSente(this.ban[7][8]) && getKomashu(this.ban[7][8]) === 5;
+
+      const underAttack = gotePawnOn84 || gotePawnOn85 || gotePawnOn86;
+
+      if (underAttack || goteRookOnEighthFile) {
+        if (bishopOn77) {
+          score += 600;
+        } else if (goldOn78 && sentePawnOn87) {
+          score += 400;
+        } else if (sentePawnOn87 && square86Defended) {
+          score += 200;
+        } else {
+          if (gotePawnOn86) {
+            if (!sentePawnOn87) {
+              score -= 1500;
+            } else {
+              score -= 800;
+            }
+          } else if (gotePawnOn85) {
+            score -= 1000;
+          } else if (gotePawnOn84) {
+            score -= 600;
+          }
+        }
+      }
+
+      const bishopOnOriginal = this.ban[8][8] !== EMPTY &&
+        isSente(this.ban[8][8]) && getKomashu(this.ban[8][8]) === KA;
+      if (bishopOnOriginal && (gotePawnOn85 || gotePawnOn86)) {
+        score -= 500;
+      }
+    }
+
+    return score;
+  }
+
+  // CRITICAL: Evaluate threats of enemy pieces promoting into our territory
+  // A rook or bishop about to promote is a DISASTER that must be prevented
+  private evaluateIncomingPromotionThreats(teban: number): number {
+    let score = 0;
+
+    // For SENTE: look for GOTE pieces threatening to promote (dan 7-9 → dan 1-3)
+    // For GOTE: look for SENTE pieces threatening to promote (dan 1-3 → dan 7-9)
+    const enemyTeban = teban === SENTE ? GOTE : SENTE;
+
+    for (let suji = 1; suji <= 9; suji++) {
+      for (let dan = 1; dan <= 9; dan++) {
+        const piece = this.ban[suji][dan];
+        if (piece === EMPTY) continue;
+
+        // Check if this is an enemy piece
+        const pieceTeban = isSente(piece) ? SENTE : GOTE;
+        if (pieceTeban !== enemyTeban) continue;
+
+        const komashu = getKomashu(piece);
+
+        // Only care about major pieces (Rook and Bishop) that aren't promoted yet
+        if (komashu !== HI && komashu !== KA) continue;
+
+        // Check if this piece is near promotion zone and can promote
+        if (enemyTeban === SENTE) {
+          // SENTE rook/bishop at dan 4-6 threatening to enter dan 1-3
+          if (dan >= 4 && dan <= 6) {
+            // Check if there's a clear path to promotion zone
+            if (komashu === HI) {
+              // Rook can move vertically - check if path to dan 1-3 is open
+              let pathClear = true;
+              for (let checkDan = dan - 1; checkDan >= 1; checkDan--) {
+                if (this.ban[suji][checkDan] !== EMPTY) {
+                  // If blocked by own piece, can't promote easily
+                  if (isSente(this.ban[suji][checkDan])) {
+                    pathClear = false;
+                  }
+                  break;
+                }
+              }
+              if (pathClear) {
+                // MASSIVE penalty - rook about to promote!
+                score -= 800;
+              }
+            }
+          }
+          // SENTE rook/bishop already in promotion zone but not promoted - even worse!
+          if (dan <= 3) {
+            score -= 1500; // About to promote or will promote on next move
+          }
+        } else {
+          // GOTE rook/bishop at dan 4-6 threatening to enter dan 7-9
+          if (dan >= 4 && dan <= 6) {
+            if (komashu === HI) {
+              let pathClear = true;
+              for (let checkDan = dan + 1; checkDan <= 9; checkDan++) {
+                if (this.ban[suji][checkDan] !== EMPTY) {
+                  if (isGote(this.ban[suji][checkDan])) {
+                    pathClear = false;
+                  }
+                  break;
+                }
+              }
+              if (pathClear) {
+                score -= 800;
+              }
+            }
+          }
+          if (dan >= 7) {
+            score -= 1500;
+          }
+        }
+      }
+    }
+
+    // Also check for rook on open file pointing at promotion zone
+    // This is the key issue - SENTE's rook on 2-file pointing at GOTE's camp
+    for (let suji = 1; suji <= 9; suji++) {
+      // Check SENTE's attacking potential
+      if (teban === GOTE) {
+        // Look for SENTE rook that can reach GOTE's territory
+        for (let dan = 4; dan <= 9; dan++) {
+          const piece = this.ban[suji][dan];
+          if (piece !== EMPTY && isSente(piece) && getKomashu(piece) === HI) {
+            // Count how many squares until promotion zone
+            let emptySquares = 0;
+            let canReachPromotion = true;
+            for (let checkDan = dan - 1; checkDan >= 1; checkDan--) {
+              if (this.ban[suji][checkDan] === EMPTY) {
+                emptySquares++;
+              } else {
+                // Blocked - but can still capture and promote
+                if (isGote(this.ban[suji][checkDan]) && checkDan <= 3) {
+                  // Can capture into promotion zone!
+                  score -= 600;
+                }
+                canReachPromotion = false;
+                break;
+              }
+            }
+            if (canReachPromotion && emptySquares >= 1) {
+              // Open file to promotion zone - very dangerous
+              score -= 400 * Math.min(emptySquares, 3);
+            }
+          }
+        }
+      }
+
+      // Check GOTE's attacking potential
+      if (teban === SENTE) {
+        for (let dan = 1; dan <= 6; dan++) {
+          const piece = this.ban[suji][dan];
+          if (piece !== EMPTY && isGote(piece) && getKomashu(piece) === HI) {
+            let emptySquares = 0;
+            let canReachPromotion = true;
+            for (let checkDan = dan + 1; checkDan <= 9; checkDan++) {
+              if (this.ban[suji][checkDan] === EMPTY) {
+                emptySquares++;
+              } else {
+                if (isSente(this.ban[suji][checkDan]) && checkDan >= 7) {
+                  score -= 600;
+                }
+                canReachPromotion = false;
+                break;
+              }
+            }
+            if (canReachPromotion && emptySquares >= 1) {
+              score -= 400 * Math.min(emptySquares, 3);
+            }
+          }
+        }
+      }
+    }
+
+    return score;
+  }
+
   // Evaluate board position (improved with game phase awareness)
   evaluate(): number {
     // First, detect the game phase
@@ -931,17 +1364,38 @@ export class Kyokumen {
       }
     }
 
-    // Captured pieces
+    // Captured pieces - use proper hand piece values
     for (let i = 0; i < 2; i++) {
       for (let j = 0; j < this.hand[i].length; j++) {
         const koma = this.hand[i][j];
-        let handValue = komaValue[koma] * 1.1;
+        // Use handPieceValue which has higher values for flexibility
+        let handValue = handPieceValue[koma];
+        // Extra bonus in middle game when drops are most powerful
         if (gamePhase === 'chuban') {
-          handValue *= 1.2; // Extra bonus for hand pieces in middle game
+          handValue *= 1.3;
+        } else if (gamePhase === 'shuban') {
+          handValue *= 1.5; // Even more valuable in endgame for mating attacks
         }
         score += Math.floor(handValue * materialWeight);
       }
     }
+
+    // Evaluate drop threats (critical for finding moves like ☖２八飛打)
+    const senteDropThreats = this.evaluateDropThreats(SENTE);
+    const goteDropThreats = this.evaluateDropThreats(GOTE);
+    score += senteDropThreats - goteDropThreats;
+
+    // CRITICAL: Evaluate incoming promotion threats (rook/bishop about to promote)
+    // This prevents disasters like letting ☗２三飛成 happen
+    const sentePromotionThreatIncoming = this.evaluateIncomingPromotionThreats(SENTE);
+    const gotePromotionThreatIncoming = this.evaluateIncomingPromotionThreats(GOTE);
+    score += sentePromotionThreatIncoming - gotePromotionThreatIncoming;
+
+    // CRITICAL: Evaluate file defense (2-file for GOTE, 8-file for SENTE)
+    // This encourages moves like ☖３三角 or ☖３二金 to defend against rook attacks
+    const senteFileDefense = this.evaluateFileDefense(SENTE);
+    const goteFileDefense = this.evaluateFileDefense(GOTE);
+    score += senteFileDefense - goteFileDefense;
 
     // Phase-specific evaluations
     if (gamePhase === 'joban') {

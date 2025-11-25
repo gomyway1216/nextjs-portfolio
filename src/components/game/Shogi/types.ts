@@ -325,14 +325,30 @@ export const canJump: boolean[][] = [
   ]
 ];
 
-// Piece evaluation values
+// Piece evaluation values (on board)
+// Standard ratios: P=1, L=3, N=4, S=5, G=6, B=8, R=9, TO=7, promoted minor=6, UM=10, RY=11
+// Scale: Pawn = 100 points
 export const komaValue: number[] = [
   0, 0, 0, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 0, 0, 0,
-  0, 100, 600, 700, 1000, 1200, 1800, 2000,
-  10000, 1200, 1200, 1200, 1200, 0, 2000, 2200,
-  0, -100, -600, -700, -1000, -1200, -1800, -2000,
-  -10000, -1200, -1200, -1200, -1200, 0, -2000, -2200
+  //  FU   KY   KE   GI   KI   KA    HI
+  0, 100, 300, 400, 500, 600, 800, 900,
+  //  OU   TO   NY   NK   NG   --   UM    RY
+  10000, 700, 600, 600, 600, 0, 1000, 1100,
+  0, -100, -300, -400, -500, -600, -800, -900,
+  -10000, -700, -600, -600, -600, 0, -1000, -1100
+];
+
+// Hand piece values (pieces in hand are worth MORE due to drop flexibility)
+// Major pieces in hand are especially valuable
+export const handPieceValue: number[] = [
+  0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0,
+  //  FU   KY   KE   GI   KI   KA    HI
+  0, 115, 350, 450, 575, 700, 1050, 1200,  // ~15-30% bonus for flexibility
+  0, 0, 0, 0, 0, 0, 0, 0,  // Promoted pieces can't be in hand
+  0, -115, -350, -450, -575, -700, -1050, -1200,
+  0, 0, 0, 0, 0, 0, 0, 0
 ];
 
 // Position class

@@ -499,18 +499,14 @@ export class GenerateMovesImproved {
 
   // Evaluate moves for ordering
   static evaluateTe(k: KyokumenImproved, v: Te[]): void {
-    const nowEval = k.eval;
+    const nowEval = k.evaluate(); // Use full evaluation, not just material
 
     for (const te of v) {
-      // Get new piece after move
-      let newKoma = te.koma;
-      if (te.promote) newKoma |= PROMOTE;
-
       // Try the move
       k.move(te);
 
-      // Move value is change in evaluation
-      te.value = k.eval - nowEval;
+      // Move value is change in full evaluation
+      te.value = k.evaluate() - nowEval;
 
       // Undo the move
       k.back(te);
@@ -520,10 +516,23 @@ export class GenerateMovesImproved {
         te.value = -te.value;
       }
 
-      // Bonus for captures
-      if (te.capture !== EMPTY && te.capture !== SFU && te.capture !== GFU) {
-        // Non-pawn captures get bonus
-        te.value += 1500;
+      // ALWAYS prefer promotion - this is almost never wrong
+      if (te.promote) {
+        te.value += 2000; // Large bonus for promoting
+      }
+
+      // Bonus for captures (higher for major pieces)
+      if (te.capture !== EMPTY) {
+        const captureKomashu = getKomashu(te.capture);
+        if (captureKomashu === HI || captureKomashu === KA) {
+          te.value += 3000; // Major piece capture
+        } else if (captureKomashu === KI || captureKomashu === GI) {
+          te.value += 2000; // Gold/Silver capture
+        } else if (captureKomashu !== FU) {
+          te.value += 1500; // Other non-pawn captures
+        } else {
+          te.value += 500; // Pawn capture
+        }
       }
     }
 

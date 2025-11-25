@@ -3,7 +3,7 @@
  */
 
 import { Kyokumen } from './Kyokumen';
-import { Te, Position, SENTE, GOTE, EMPTY, komaValue } from './types';
+import { Te, Position, SENTE, GOTE, EMPTY, komaValue, KA, HI, getKomashu } from './types';
 import { generateLegalMoves } from './GenerateMoves';
 import { Difficulty } from '../common/types';
 import { getOpeningMoveComprehensive } from './OpeningBookComprehensive';
@@ -34,11 +34,12 @@ export class ShogiAI {
     this.startTime = 0;
 
     // Search depth and time limit by difficulty
-    this.depthMax = difficulty === 'easy' ? 3 : difficulty === 'medium' ? 4 : 5;
+    // Increased depth for better play - the AI needs to see threats further ahead
+    this.depthMax = difficulty === 'easy' ? 4 : difficulty === 'medium' ? 5 : 6;
     this.maxTime =
-      difficulty === 'easy' ? 2000 : difficulty === 'medium' ? 4000 : 8000; // ms
+      difficulty === 'easy' ? 3000 : difficulty === 'medium' ? 6000 : 12000; // ms
 
-    this.quiescenceDepthMax = 8; // how deep we allow capture-only search
+    this.quiescenceDepthMax = 10; // how deep we allow capture-only search
   }
 
   // Helper: has time limit been reached?
@@ -46,37 +47,154 @@ export class ShogiAI {
     return Date.now() - this.startTime > this.maxTime;
   }
 
+  // Check if a move is a drop (piece from hand)
+  private isDrop(m: Te): boolean {
+    return m.from.suji === 0 && m.from.dan === 0;
+  }
+
+  // Calculate drop threat score - how dangerous is this drop?
+  private calculateDropScore(m: Te, k: Kyokumen): number {
+    if (!this.isDrop(m)) return 0;
+
+    const komashu = getKomashu(m.koma);
+    const teban = k.teban;
+    let score = 0;
+
+    // Find enemy king position
+    const enemyKingPos = k.findKingPosition(teban === SENTE ? GOTE : SENTE);
+    if (!enemyKingPos) return 0;
+
+    const distToKing = Math.abs(m.to.suji - enemyKingPos.suji) + Math.abs(m.to.dan - enemyKingPos.dan);
+
+    // ROOK DROPS - Highest priority
+    if (komashu === HI) {
+      score = 5000; // Base score for rook drop
+
+      // Same file as king = devastating (like ☖２八飛打)
+      if (m.to.suji === enemyKingPos.suji) {
+        score += 3000;
+      }
+      // Same rank as king
+      if (m.to.dan === enemyKingPos.dan) {
+        score += 2500;
+      }
+      // Back rank drops (dan 1-2 for SENTE attacking, dan 8-9 for GOTE attacking)
+      const isBackRank = teban === SENTE ? m.to.dan <= 2 : m.to.dan >= 8;
+      if (isBackRank) {
+        score += 2000;
+      }
+      // Proximity to king
+      if (distToKing <= 3) {
+        score += (4 - distToKing) * 500;
+      }
+    }
+    // BISHOP DROPS
+    else if (komashu === KA) {
+      score = 3000;
+
+      // Diagonal to king
+      const dSuji = Math.abs(m.to.suji - enemyKingPos.suji);
+      const dDan = Math.abs(m.to.dan - enemyKingPos.dan);
+      if (dSuji === dDan && dSuji > 0) {
+        score += 2000;
+      }
+      // In promotion zone
+      const inPromotionZone = teban === SENTE ? m.to.dan <= 3 : m.to.dan >= 7;
+      if (inPromotionZone) {
+        score += 1000;
+      }
+      if (distToKing <= 3) {
+        score += (4 - distToKing) * 300;
+      }
+    }
+    // GOLD DROPS - Good for king attacks
+    else if (komashu === 5) { // KI = 5
+      score = 1500;
+      if (distToKing <= 2) {
+        score += (3 - distToKing) * 800;
+      }
+    }
+    // SILVER DROPS
+    else if (komashu === 4) { // GI = 4
+      score = 1200;
+      if (distToKing <= 2) {
+        score += (3 - distToKing) * 600;
+      }
+    }
+    // KNIGHT DROPS - Fork potential
+    else if (komashu === 3) { // KE = 3
+      score = 800;
+      // Knight check positions
+      const knightCheck = teban === SENTE ?
+        (m.to.dan === enemyKingPos.dan - 2 && Math.abs(m.to.suji - enemyKingPos.suji) === 1) :
+        (m.to.dan === enemyKingPos.dan + 2 && Math.abs(m.to.suji - enemyKingPos.suji) === 1);
+      if (knightCheck) {
+        score += 1500;
+      }
+    }
+    // LANCE DROPS
+    else if (komashu === 2) { // KY = 2
+      score = 600;
+      if (m.to.suji === enemyKingPos.suji) {
+        score += 800;
+      }
+    }
+    // PAWN DROPS
+    else if (komashu === 1) { // FU = 1
+      score = 200;
+      if (distToKing <= 2) {
+        score += 300;
+      }
+    }
+
+    return score;
+  }
+
   // Order moves for better alpha-beta pruning
-  // Slightly upgraded to MVV-LVA style for captures
+  // Combines MVV-LVA for captures with strong drop threat evaluation
   private orderMoves(moves: Te[], k: Kyokumen): Te[] {
     return moves.sort((a, b) => {
       const aTarget = k.get(a.to);
       const bTarget = k.get(b.to);
 
-      const aCaptureGain =
-        aTarget !== EMPTY
-          ? Math.abs(komaValue[aTarget]) - Math.abs(komaValue[a.koma])
-          : 0;
-      const bCaptureGain =
-        bTarget !== EMPTY
-          ? Math.abs(komaValue[bTarget]) - Math.abs(komaValue[b.koma])
-          : 0;
+      // Calculate capture value (what we're capturing)
+      const aCaptureValue = aTarget !== EMPTY ? Math.abs(komaValue[aTarget]) : 0;
+      const bCaptureValue = bTarget !== EMPTY ? Math.abs(komaValue[bTarget]) : 0;
 
-      // Good captures first
-      if (aCaptureGain !== bCaptureGain) {
-        return bCaptureGain - aCaptureGain;
+      // Calculate drop threat scores
+      const aDropScore = this.calculateDropScore(a, k);
+      const bDropScore = this.calculateDropScore(b, k);
+
+      // Compare total move value: captures + drop threats
+      // Multiply capture value to put it on similar scale as drop scores
+      // Promotion gets a LARGE bonus - always prefer promoting when possible
+      const aMoveValue = aCaptureValue * 5 + aDropScore + (a.promote ? 2000 : 0);
+      const bMoveValue = bCaptureValue * 5 + bDropScore + (b.promote ? 2000 : 0);
+
+      if (aMoveValue !== bMoveValue) {
+        return bMoveValue - aMoveValue;
       }
 
-      // Promotions next
+      // For same value, prefer promotion
       if (a.promote && !b.promote) return -1;
       if (!a.promote && b.promote) return 1;
 
-      // Moves toward board center
-      const aToCenter =
-        Math.abs(a.to.suji - 5) + Math.abs(a.to.dan - 5);
-      const bToCenter =
-        Math.abs(b.to.suji - 5) + Math.abs(b.to.dan - 5);
-      return aToCenter - bToCenter;
+      // Use lower value pieces to capture (LVA - Less Valuable Attacker)
+      const aAttackerValue = Math.abs(komaValue[a.koma]);
+      const bAttackerValue = Math.abs(komaValue[b.koma]);
+      if (aAttackerValue !== bAttackerValue) {
+        return aAttackerValue - bAttackerValue;
+      }
+
+      // Moves toward enemy king
+      const enemyKingPos = k.findKingPosition(k.teban === SENTE ? GOTE : SENTE);
+      if (enemyKingPos) {
+        const aDistToKing = Math.abs(a.to.suji - enemyKingPos.suji) + Math.abs(a.to.dan - enemyKingPos.dan);
+        const bDistToKing = Math.abs(b.to.suji - enemyKingPos.suji) + Math.abs(b.to.dan - enemyKingPos.dan);
+        return aDistToKing - bDistToKing;
+      }
+
+      return 0;
     });
   }
 
@@ -105,10 +223,20 @@ export class ShogiAI {
       alpha = standPat;
     }
 
-    // Only consider captures or promotions
+    // Consider captures, promotions, and aggressive major piece drops
     const noisyMoves = generateLegalMoves(k).filter((m) => {
       const target = k.get(m.to);
-      return target !== EMPTY || m.promote;
+      // Captures and promotions are always noisy
+      if (target !== EMPTY || m.promote) return true;
+      // Major piece drops (Rook/Bishop) in enemy territory are noisy
+      // For SENTE, enemy territory is dan 1-3
+      if (m.from.suji === 0 && m.from.dan === 0) {
+        const komashu = getKomashu(m.koma);
+        if ((komashu === HI || komashu === KA) && m.to.dan <= 4) {
+          return true;
+        }
+      }
+      return false;
     });
 
     if (noisyMoves.length === 0) {
@@ -155,9 +283,20 @@ export class ShogiAI {
       beta = standPat;
     }
 
+    // Consider captures, promotions, and aggressive major piece drops
     const noisyMoves = generateLegalMoves(k).filter((m) => {
       const target = k.get(m.to);
-      return target !== EMPTY || m.promote;
+      // Captures and promotions are always noisy
+      if (target !== EMPTY || m.promote) return true;
+      // Major piece drops (Rook/Bishop) in enemy territory are noisy
+      // For GOTE, enemy territory is dan 7-9
+      if (m.from.suji === 0 && m.from.dan === 0) {
+        const komashu = getKomashu(m.koma);
+        if ((komashu === HI || komashu === KA) && m.to.dan >= 6) {
+          return true;
+        }
+      }
+      return false;
     });
 
     if (noisyMoves.length === 0) {

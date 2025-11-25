@@ -6,6 +6,8 @@ import {
   Te, komaValue, isSente, isGote
 } from './types';
 
+// Re-export these for use in evaluation
+
 export class KyokumenImproved {
   // Board array (1D array with encoding (suji<<4)+dan)
   ban: number[];
@@ -366,9 +368,200 @@ export class KyokumenImproved {
     this.calcHash();
   }
 
-  // Evaluate position
+  // Evaluate position - comprehensive evaluation beyond just material
   evaluate(): number {
-    return this.eval;
+    let score = this.eval; // Start with material evaluation
+
+    // Add positional evaluation
+    score += this.evaluateFileDefense();
+    score += this.evaluatePromotionThreats();
+
+    return score;
+  }
+
+  // Helper: Get piece at position using suji/dan coordinates
+  private getAt(suji: number, dan: number): number {
+    if (suji < 1 || suji > 9 || dan < 1 || dan > 9) return WALL;
+    return this.ban[(suji << 4) + dan];
+  }
+
+  // Helper: Get komashu (piece type without player flag)
+  private getKomashu(koma: number): number {
+    return koma & 0x0F;
+  }
+
+  // Evaluate file defense - CRITICAL for opening
+  // Prevents disasters like letting pawn promote on 2-file
+  private evaluateFileDefense(): number {
+    let score = 0;
+
+    // === GOTE's 2-file defense (against SENTE's attack) ===
+    // Check SENTE's pawn position on 2-file
+    const sentePawnOn26 = isSente(this.getAt(2, 6)) && this.getKomashu(this.getAt(2, 6)) === FU;
+    const sentePawnOn25 = isSente(this.getAt(2, 5)) && this.getKomashu(this.getAt(2, 5)) === FU;
+    const sentePawnOn24 = isSente(this.getAt(2, 4)) && this.getKomashu(this.getAt(2, 4)) === FU;
+
+    // Check GOTE's defenses
+    const goteBishopOn33 = isGote(this.getAt(3, 3)) && this.getKomashu(this.getAt(3, 3)) === KA;
+    const goteGoldOn32 = isGote(this.getAt(3, 2)) && this.getKomashu(this.getAt(3, 2)) === KI;
+    const gotePawnOn23 = isGote(this.getAt(2, 3)) && this.getKomashu(this.getAt(2, 3)) === FU;
+    const goteBishopOn22 = isGote(this.getAt(2, 2)) && this.getKomashu(this.getAt(2, 2)) === KA;
+
+    // Check if bishop moved to a useless square (not 33, not 22)
+    const goteBishopMissing = !goteBishopOn33 && !goteBishopOn22;
+
+    const senteAttacking = sentePawnOn26 || sentePawnOn25 || sentePawnOn24;
+
+    if (senteAttacking) {
+      if (goteBishopOn33) {
+        score -= 600; // Good defense for GOTE (negative because GOTE is negative in eval)
+      } else if (goteGoldOn32 && gotePawnOn23) {
+        score -= 400;
+      } else {
+        // NO PROPER DEFENSE - penalize GOTE (add to score since GOTE values are negative)
+        if (sentePawnOn24) {
+          if (!gotePawnOn23) {
+            score += 1500; // Disaster for GOTE
+          } else {
+            score += 800;
+          }
+        } else if (sentePawnOn25) {
+          score += 1000;
+        } else if (sentePawnOn26) {
+          score += 600;
+        }
+
+        // Extra penalty if bishop moved to wrong square
+        if (goteBishopMissing && !goteBishopOn22) {
+          score += 400;
+        }
+      }
+
+      // Bishop trapped on 22
+      if (goteBishopOn22 && (sentePawnOn25 || sentePawnOn24)) {
+        score += 500;
+      }
+    }
+
+    // === SENTE's 8-file defense (against GOTE's attack) ===
+    const gotePawnOn84 = isGote(this.getAt(8, 4)) && this.getKomashu(this.getAt(8, 4)) === FU;
+    const gotePawnOn85 = isGote(this.getAt(8, 5)) && this.getKomashu(this.getAt(8, 5)) === FU;
+    const gotePawnOn86 = isGote(this.getAt(8, 6)) && this.getKomashu(this.getAt(8, 6)) === FU;
+
+    const senteBishopOn77 = isSente(this.getAt(7, 7)) && this.getKomashu(this.getAt(7, 7)) === KA;
+    const senteGoldOn78 = isSente(this.getAt(7, 8)) && this.getKomashu(this.getAt(7, 8)) === KI;
+    const sentePawnOn87 = isSente(this.getAt(8, 7)) && this.getKomashu(this.getAt(8, 7)) === FU;
+    const senteBishopOn88 = isSente(this.getAt(8, 8)) && this.getKomashu(this.getAt(8, 8)) === KA;
+
+    const goteAttacking = gotePawnOn84 || gotePawnOn85 || gotePawnOn86;
+
+    if (goteAttacking) {
+      if (senteBishopOn77) {
+        score += 600; // Good defense for SENTE
+      } else if (senteGoldOn78 && sentePawnOn87) {
+        score += 400;
+      } else {
+        // NO PROPER DEFENSE - penalize SENTE
+        if (gotePawnOn86) {
+          if (!sentePawnOn87) {
+            score -= 1500;
+          } else {
+            score -= 800;
+          }
+        } else if (gotePawnOn85) {
+          score -= 1000;
+        } else if (gotePawnOn84) {
+          score -= 600;
+        }
+      }
+
+      if (senteBishopOn88 && (gotePawnOn85 || gotePawnOn86)) {
+        score -= 500;
+      }
+    }
+
+    return score;
+  }
+
+  // Evaluate promotion threats - penalize allowing enemy pieces to promote
+  private evaluatePromotionThreats(): number {
+    let score = 0;
+
+    // Check for SENTE pieces about to promote in GOTE territory (dan 1-3)
+    for (let suji = 1; suji <= 9; suji++) {
+      for (let dan = 4; dan <= 6; dan++) {
+        const piece = this.getAt(suji, dan);
+        if (piece === EMPTY || piece === WALL) continue;
+
+        if (isSente(piece)) {
+          const komashu = this.getKomashu(piece);
+          // Rook or Bishop about to enter promotion zone
+          if (komashu === HI || komashu === KA) {
+            // Check if path to promotion zone is clear
+            let pathClear = true;
+            for (let checkDan = dan - 1; checkDan >= 1; checkDan--) {
+              const blocking = this.getAt(suji, checkDan);
+              if (blocking !== EMPTY) {
+                if (isSente(blocking)) pathClear = false;
+                break;
+              }
+            }
+            if (pathClear) {
+              score += 500; // Bonus for SENTE (threat to GOTE)
+            }
+          }
+        }
+      }
+
+      // SENTE major piece already in promotion zone (dan 1-3)
+      for (let dan = 1; dan <= 3; dan++) {
+        const piece = this.getAt(suji, dan);
+        if (piece !== EMPTY && isSente(piece)) {
+          const komashu = this.getKomashu(piece);
+          if (komashu === HI || komashu === KA) {
+            score += 800; // Strong position for SENTE
+          }
+        }
+      }
+    }
+
+    // Check for GOTE pieces about to promote in SENTE territory (dan 7-9)
+    for (let suji = 1; suji <= 9; suji++) {
+      for (let dan = 4; dan <= 6; dan++) {
+        const piece = this.getAt(suji, dan);
+        if (piece === EMPTY || piece === WALL) continue;
+
+        if (isGote(piece)) {
+          const komashu = this.getKomashu(piece);
+          if (komashu === HI || komashu === KA) {
+            let pathClear = true;
+            for (let checkDan = dan + 1; checkDan <= 9; checkDan++) {
+              const blocking = this.getAt(suji, checkDan);
+              if (blocking !== EMPTY) {
+                if (isGote(blocking)) pathClear = false;
+                break;
+              }
+            }
+            if (pathClear) {
+              score -= 500; // Bonus for GOTE (threat to SENTE)
+            }
+          }
+        }
+      }
+
+      // GOTE major piece already in promotion zone (dan 7-9)
+      for (let dan = 7; dan <= 9; dan++) {
+        const piece = this.getAt(suji, dan);
+        if (piece !== EMPTY && isGote(piece)) {
+          const komashu = this.getKomashu(piece);
+          if (komashu === HI || komashu === KA) {
+            score -= 800;
+          }
+        }
+      }
+    }
+
+    return score;
   }
 
   // Initial position setup
@@ -470,10 +663,6 @@ export class KyokumenImproved {
     } else {
       return "v" + komaString[this.getKomashu(koma)];
     }
-  }
-
-  private getKomashu(koma: number): number {
-    return koma & 0x0f;
   }
 
   /**

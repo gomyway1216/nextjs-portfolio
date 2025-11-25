@@ -49,4 +49,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Puzzle',
   },
+  {
+    id: 'shogi',
+    title: 'Shogi',
+    description: 'Japanese Chess! Strategic board game with piece drops and promotions. Challenge the AI in this classic strategy game!',
+    thumbnail: '☗',
+    path: '/games/shogi',
+    difficulty: 'Hard',
+    category: 'Strategy',
+  },
 ];

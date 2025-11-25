@@ -8,10 +8,11 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { RotateCcw, AlertCircle } from 'lucide-react';
 import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStats } from '../common';
 import { Kyokumen } from './Kyokumen';
-import { Te, Position, SENTE, GOTE, EMPTY, getKomashu, toString, isSente } from './types';
+import { Te, Position, SENTE, GOTE, EMPTY, getKomashu, toString, isSente, komaValue } from './types';
 import { generateLegalMoves } from './GenerateMoves';
 import { getBestMove } from './ShogiAI';
 import { createInitialPosition } from './InitialPosition';
+import { toFugo } from './FugoNotation';
 
 const DIFFICULTY_OPTIONS = [
   { label: 'Easy', value: 'easy' as Difficulty, description: 'Depth 2 search' },
@@ -27,6 +28,8 @@ interface GameState {
   gameOver: boolean;
   winner: number | null;
   isAIThinking: boolean;
+  lastMove: Te | null;
+  moveHistory: Te[];
 }
 
 const Shogi = () => {
@@ -45,6 +48,8 @@ const Shogi = () => {
     gameOver: false,
     winner: null,
     isAIThinking: false,
+    lastMove: null,
+    moveHistory: [],
   });
 
   // Initialize game
@@ -57,6 +62,8 @@ const Shogi = () => {
       gameOver: false,
       winner: null,
       isAIThinking: false,
+      lastMove: null,
+      moveHistory: [],
     });
     setShowPromotionDialog(false);
     setPendingMove(null);
@@ -89,6 +96,8 @@ const Shogi = () => {
       validMoves: [],
       gameOver: isOver,
       winner,
+      lastMove: te,
+      moveHistory: [...prev.moveHistory, te],
     }));
 
     if (isOver && winner === SENTE) {
@@ -228,6 +237,8 @@ const Shogi = () => {
             isAIThinking: false,
             gameOver: isOver,
             winner,
+            lastMove: aiMove,
+            moveHistory: [...prev.moveHistory, aiMove],
           }));
 
           if (isOver && winner === GOTE) {
@@ -266,8 +277,25 @@ const Shogi = () => {
       gameState.selectedPosition.suji === suji &&
       gameState.selectedPosition.dan === dan;
 
+    // Check if this is the last move (either from or to position)
+    const isLastMoveFrom = gameState.lastMove &&
+      gameState.lastMove.from.suji === suji &&
+      gameState.lastMove.from.dan === dan;
+    const isLastMoveTo = gameState.lastMove &&
+      gameState.lastMove.to.suji === suji &&
+      gameState.lastMove.to.dan === dan;
+
     const pieceText = toString(koma);
     const isGote = !isSente(koma);
+
+    let backgroundColor = 'transparent';
+    if (isSelected) {
+      backgroundColor = 'rgba(66, 153, 225, 0.3)';
+    } else if (isLastMoveTo) {
+      backgroundColor = 'rgba(255, 215, 0, 0.4)'; // Gold highlight for destination
+    } else if (isLastMoveFrom) {
+      backgroundColor = 'rgba(255, 215, 0, 0.2)'; // Lighter gold for source
+    }
 
     return (
       <div
@@ -276,7 +304,7 @@ const Shogi = () => {
           fontWeight: 'bold',
           color: isSente(koma) ? '#000' : '#c00',
           transform: isGote ? 'rotate(180deg)' : 'none',
-          backgroundColor: isSelected ? 'rgba(66, 153, 225, 0.3)' : 'transparent',
+          backgroundColor,
           width: '100%',
           height: '100%',
           display: 'flex',
@@ -316,7 +344,7 @@ const Shogi = () => {
         }
       />
 
-      <div style={{ maxWidth: '1200px', margin: '80px auto 0', display: 'flex', gap: '40px', flexWrap: 'wrap', justifyContent: 'center' }}>
+      <div style={{ maxWidth: '1400px', margin: '80px auto 0', display: 'flex', gap: '40px', flexWrap: 'wrap', justifyContent: 'center' }}>
         {/* Gote Captured Pieces */}
         <div style={{ flex: '0 0 auto' }}>
           <h3 style={{ marginBottom: '10px' }}>AI Pieces (後手)</h3>
@@ -332,19 +360,21 @@ const Shogi = () => {
               width: '200px',
             }}
           >
-            {gameState.kyokumen.hand[1].map((koma, i) => (
-              <div
-                key={i}
-                style={{
-                  padding: '5px 10px',
-                  background: 'rgba(200,0,0,0.2)',
-                  borderRadius: '4px',
-                  fontSize: '1.2rem',
-                }}
-              >
-                {toString(koma)}
-              </div>
-            ))}
+            {[...gameState.kyokumen.hand[1]]
+              .sort((a, b) => Math.abs(komaValue[b]) - Math.abs(komaValue[a]))
+              .map((koma, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '5px 10px',
+                    background: 'rgba(200,0,0,0.2)',
+                    borderRadius: '4px',
+                    fontSize: '1.2rem',
+                  }}
+                >
+                  {toString(koma)}
+                </div>
+              ))}
           </div>
         </div>
 
@@ -407,25 +437,70 @@ const Shogi = () => {
               width: '200px',
             }}
           >
-            {gameState.kyokumen.hand[0].map((koma, i) => (
-              <div
-                key={i}
-                onClick={() => handleCapturedClick(i)}
-                style={{
-                  padding: '5px 10px',
-                  background:
-                    gameState.selectedCapturedIndex === i
-                      ? 'rgba(66,153,225,0.5)'
-                      : 'rgba(0,0,0,0.2)',
-                  borderRadius: '4px',
-                  fontSize: '1.2rem',
-                  cursor: 'pointer',
-                  border: gameState.selectedCapturedIndex === i ? '2px solid #4299e1' : 'none',
-                }}
-              >
-                {toString(koma)}
+            {(() => {
+              // Sort pieces by value and keep track of original indices
+              const sortedPieces = gameState.kyokumen.hand[0]
+                .map((koma, originalIndex) => ({ koma, originalIndex }))
+                .sort((a, b) => Math.abs(komaValue[b.koma]) - Math.abs(komaValue[a.koma]));
+
+              return sortedPieces.map(({ koma, originalIndex }, i) => (
+                <div
+                  key={i}
+                  onClick={() => handleCapturedClick(originalIndex)}
+                  style={{
+                    padding: '5px 10px',
+                    background:
+                      gameState.selectedCapturedIndex === originalIndex
+                        ? 'rgba(66,153,225,0.5)'
+                        : 'rgba(0,0,0,0.2)',
+                    borderRadius: '4px',
+                    fontSize: '1.2rem',
+                    cursor: 'pointer',
+                    border: gameState.selectedCapturedIndex === originalIndex ? '2px solid #4299e1' : 'none',
+                  }}
+                >
+                  {toString(koma)}
+                </div>
+              ));
+            })()}
+          </div>
+        </div>
+
+        {/* Move History */}
+        <div style={{ flex: '0 0 auto', maxWidth: '250px' }}>
+          <h3 style={{ marginBottom: '10px' }}>Move History</h3>
+          <div
+            style={{
+              padding: '10px',
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: '8px',
+              maxHeight: '500px',
+              overflowY: 'auto',
+            }}
+          >
+            {gameState.moveHistory.length === 0 ? (
+              <p style={{ color: '#888' }}>No moves yet</p>
+            ) : (
+              <div>
+                {gameState.moveHistory.map((move, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      padding: '5px',
+                      marginBottom: '3px',
+                      background: i === gameState.moveHistory.length - 1 ? 'rgba(255,215,0,0.2)' : 'rgba(0,0,0,0.2)',
+                      borderRadius: '4px',
+                      fontSize: '0.9rem',
+                      display: 'flex',
+                      gap: '8px',
+                    }}
+                  >
+                    <span style={{ color: '#888', minWidth: '30px' }}>{i + 1}.</span>
+                    <span>{toFugo(move)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>

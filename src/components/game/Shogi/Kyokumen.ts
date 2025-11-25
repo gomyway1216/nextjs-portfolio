@@ -21,6 +21,10 @@ import {
   SHI,
   GKA,
   GHI,
+  SKI,
+  GKI,
+  SGI,
+  GGI,
   isSente,
   isGote,
   isSelf,
@@ -302,6 +306,146 @@ export class Kyokumen {
     return score;
   }
 
+  // Detect Mino Castle (美濃囲い) - Common ranging rook castle
+  private detectMinoCastle(teban: number): number {
+    const kingPos = this.findKingPosition(teban);
+    if (!kingPos) return 0;
+
+    let score = 0;
+
+    // Mino castle for Sente: King at 7h/8h/9h, Gold at 6h/7i/8h, Silver at 7h
+    // Mino castle for Gote: King at 2b/3b/4b, Gold at 2a/3b/4b, Silver at 3b
+    if (teban === SENTE) {
+      // Check if king is in typical Mino position (7h, 8h, or 9h)
+      if ((kingPos.suji >= 7 && kingPos.suji <= 9) && kingPos.dan === 8) {
+        score += 30;
+
+        // Check for gold pieces protecting
+        const gold1 = this.ban[6][9];
+        const gold2 = this.ban[7][9];
+        if (gold1 === SKI || gold1 === (SKI | PROMOTE)) score += 20;
+        if (gold2 === SKI || gold2 === (SKI | PROMOTE)) score += 20;
+
+        // Check for silver
+        const silver = this.ban[7][8];
+        if (silver === SGI || silver === (SGI | PROMOTE)) score += 15;
+      }
+    } else {
+      // Gote Mino castle (mirrored)
+      if ((kingPos.suji >= 1 && kingPos.suji <= 3) && kingPos.dan === 2) {
+        score += 30;
+
+        const gold1 = this.ban[4][1];
+        const gold2 = this.ban[3][1];
+        if (gold1 === GKI || gold1 === (GKI | PROMOTE)) score += 20;
+        if (gold2 === GKI || gold2 === (GKI | PROMOTE)) score += 20;
+
+        const silver = this.ban[3][2];
+        if (silver === GGI || silver === (GGI | PROMOTE)) score += 15;
+      }
+    }
+
+    return score;
+  }
+
+  // Detect Yagura Castle (矢倉囲い) - Common static rook castle
+  private detectYaguraCastle(teban: number): number {
+    const kingPos = this.findKingPosition(teban);
+    if (!kingPos) return 0;
+
+    let score = 0;
+
+    // Yagura for Sente: King at 6h/7h, Gold at 5h/6i/7h, Silver at 6h/7g
+    // Yagura for Gote: King at 3b/4b, Gold at 3a/4b/5b, Silver at 3b/4c
+    if (teban === SENTE) {
+      if ((kingPos.suji >= 6 && kingPos.suji <= 7) && kingPos.dan === 8) {
+        score += 35;
+
+        // Check for characteristic Yagura gold positions
+        const gold1 = this.ban[5][8];
+        const gold2 = this.ban[6][9];
+        if (gold1 === SKI || gold1 === (SKI | PROMOTE)) score += 20;
+        if (gold2 === SKI || gold2 === (SKI | PROMOTE)) score += 20;
+
+        // Check for silver
+        const silver1 = this.ban[6][8];
+        const silver2 = this.ban[7][7];
+        if (silver1 === SGI || silver1 === (SGI | PROMOTE)) score += 15;
+        if (silver2 === SGI || silver2 === (SGI | PROMOTE)) score += 15;
+      }
+    } else {
+      // Gote Yagura (mirrored)
+      if ((kingPos.suji >= 3 && kingPos.suji <= 4) && kingPos.dan === 2) {
+        score += 35;
+
+        const gold1 = this.ban[5][2];
+        const gold2 = this.ban[4][1];
+        if (gold1 === GKI || gold1 === (GKI | PROMOTE)) score += 20;
+        if (gold2 === GKI || gold2 === (GKI | PROMOTE)) score += 20;
+
+        const silver1 = this.ban[4][2];
+        const silver2 = this.ban[3][3];
+        if (silver1 === GGI || silver1 === (GGI | PROMOTE)) score += 15;
+        if (silver2 === GGI || silver2 === (GGI | PROMOTE)) score += 15;
+      }
+    }
+
+    return score;
+  }
+
+  // Detect Anaguma Castle (穴熊囲い) - Very strong but slow to build
+  private detectAnagumaCastle(teban: number): number {
+    const kingPos = this.findKingPosition(teban);
+    if (!kingPos) return 0;
+
+    let score = 0;
+
+    // Anaguma for Sente: King at 9i, Golds at 8i/9h, Silver at 8h
+    // Anaguma for Gote: King at 1a, Golds at 2a/1b, Silver at 2b
+    if (teban === SENTE) {
+      if (kingPos.suji === 9 && kingPos.dan === 9) {
+        score += 50; // Very strong castle
+
+        // Check for golds
+        const gold1 = this.ban[8][9];
+        const gold2 = this.ban[9][8];
+        if (gold1 === SKI || gold1 === (SKI | PROMOTE)) score += 25;
+        if (gold2 === SKI || gold2 === (SKI | PROMOTE)) score += 25;
+
+        // Check for silver
+        const silver = this.ban[8][8];
+        if (silver === SGI || silver === (SGI | PROMOTE)) score += 20;
+      }
+    } else {
+      // Gote Anaguma (mirrored)
+      if (kingPos.suji === 1 && kingPos.dan === 1) {
+        score += 50;
+
+        const gold1 = this.ban[2][1];
+        const gold2 = this.ban[1][2];
+        if (gold1 === GKI || gold1 === (GKI | PROMOTE)) score += 25;
+        if (gold2 === GKI || gold2 === (GKI | PROMOTE)) score += 25;
+
+        const silver = this.ban[2][2];
+        if (silver === GGI || silver === (GGI | PROMOTE)) score += 20;
+      }
+    }
+
+    return score;
+  }
+
+  // Evaluate kakoi (castle) formations
+  private evaluateKakoi(teban: number): number {
+    let score = 0;
+
+    // Check for each type of castle
+    score += this.detectMinoCastle(teban);
+    score += this.detectYaguraCastle(teban);
+    score += this.detectAnagumaCastle(teban);
+
+    return score;
+  }
+
   // Evaluate board position (improved)
   evaluate(): number {
     let score = 0;
@@ -335,6 +479,50 @@ export class Kyokumen {
     const senteDevelopment = this.evaluateDevelopment(SENTE);
     const goteDevelopment = this.evaluateDevelopment(GOTE);
     score += senteDevelopment - goteDevelopment;
+
+    // Kakoi (castle) evaluation
+    const senteKakoi = this.evaluateKakoi(SENTE);
+    const goteKakoi = this.evaluateKakoi(GOTE);
+    score += senteKakoi - goteKakoi;
+
+    // Aggressive endgame: If one side has significant material advantage, bonus for attacking
+    const materialAdvantage = Math.abs(score);
+    if (materialAdvantage > 3000) {
+      // If winning (positive score for sente), increase attack pressure
+      if (score > 0) {
+        // Sente is winning - reward pieces near gote king
+        const goteKingPos = this.findKingPosition(GOTE);
+        if (goteKingPos) {
+          for (let suji = 1; suji <= 9; suji++) {
+            for (let dan = 1; dan <= 9; dan++) {
+              const piece = this.ban[suji][dan];
+              if (piece !== EMPTY && isSente(piece)) {
+                const distance = Math.abs(suji - goteKingPos.suji) + Math.abs(dan - goteKingPos.dan);
+                if (distance <= 3) {
+                  score += (4 - distance) * 30; // Closer pieces get more bonus
+                }
+              }
+            }
+          }
+        }
+      } else {
+        // Gote is winning - reward pieces near sente king
+        const senteKingPos = this.findKingPosition(SENTE);
+        if (senteKingPos) {
+          for (let suji = 1; suji <= 9; suji++) {
+            for (let dan = 1; dan <= 9; dan++) {
+              const piece = this.ban[suji][dan];
+              if (piece !== EMPTY && isGote(piece)) {
+                const distance = Math.abs(suji - senteKingPos.suji) + Math.abs(dan - senteKingPos.dan);
+                if (distance <= 3) {
+                  score -= (4 - distance) * 30; // Closer pieces get more bonus
+                }
+              }
+            }
+          }
+        }
+      }
+    }
 
     return score;
   }

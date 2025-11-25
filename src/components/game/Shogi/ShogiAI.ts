@@ -6,6 +6,7 @@ import { Kyokumen } from './Kyokumen';
 import { Te, Position, SENTE, GOTE, EMPTY, komaValue } from './types';
 import { generateLegalMoves } from './GenerateMoves';
 import { Difficulty } from '../common/types';
+import { getOpeningMoveComprehensive } from './OpeningBookComprehensive';
 
 const INFINITE = 99999999;
 const LIMIT_DEPTH = 16;
@@ -213,7 +214,16 @@ export class ShogiAI {
   }
 
   // Get next move for AI
-  getNextTe(k: Kyokumen): Te | null {
+  getNextTe(k: Kyokumen, moveNumber: number = 0, moveHistory: Te[] = []): Te | null {
+    // Try opening book first for early game
+    if (moveNumber <= 12) {
+      const openingMove = getOpeningMoveComprehensive(k, moveNumber, k.teban, moveHistory);
+      if (openingMove) {
+        console.log(`Using opening book move (move ${moveNumber})`);
+        return openingMove;
+      }
+    }
+
     this.leaf = 0;
     this.node = 0;
     this.startTime = Date.now();
@@ -243,8 +253,10 @@ export class ShogiAI {
 export function getBestMove(
   k: Kyokumen,
   teban: number,
-  difficulty: Difficulty
+  difficulty: Difficulty,
+  moveNumber: number = 0,
+  moveHistory: Te[] = []
 ): Te | null {
   const ai = new ShogiAI(difficulty);
-  return ai.getNextTe(k);
+  return ai.getNextTe(k, moveNumber, moveHistory);
 }

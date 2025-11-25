@@ -222,7 +222,7 @@ const Shogi = () => {
           return;
         }
 
-        const aiMove = getBestMove(gameState.kyokumen, GOTE, difficulty);
+        const aiMove = getBestMove(gameState.kyokumen, GOTE, difficulty, gameState.moveHistory.length + 1, gameState.moveHistory);
 
         if (aiMove) {
           const newKyokumen = gameState.kyokumen.clone();

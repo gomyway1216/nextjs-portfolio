@@ -31,8 +31,13 @@ import {
   getKomashu,
   komaValue,
   toString as komaToString,
-  toBanString
+  toBanString,
+  canMove,
+  canJump,
+  diffSuji,
+  diffDan
 } from './types';
+import { evaluateAllKakoi } from './KakoiComprehensive';
 
 export class Kyokumen {
   // Board (11x11 where 1-9 are used, 0 and 10 are walls)
@@ -229,6 +234,94 @@ export class Kyokumen {
       }
     }
     return defenders;
+  }
+
+  // Check if a piece at position is under attack
+  private isUnderAttack(pos: Position, teban: number): boolean {
+    // Check all 12 directions for attacking pieces
+    for (let direct = 0; direct < 12; direct++) {
+      const attackerPos = new Position(
+        pos.suji - diffSuji[direct],
+        pos.dan - diffDan[direct]
+      );
+
+      if (attackerPos.suji < 1 || attackerPos.suji > 9 ||
+          attackerPos.dan < 1 || attackerPos.dan > 9) {
+        continue;
+      }
+
+      const attacker = this.ban[attackerPos.suji][attackerPos.dan];
+
+      // Check if enemy piece can attack from this direction
+      if (attacker !== EMPTY && !isSelf(teban, attacker)) {
+        if (canMove[direct][attacker]) {
+          return true;
+        }
+      }
+    }
+
+    // Check sliding pieces (rook, bishop, etc.)
+    for (let direct = 0; direct < 8; direct++) {
+      let checkPos = new Position(pos.suji, pos.dan);
+      checkPos.suji -= diffSuji[direct];
+      checkPos.dan -= diffDan[direct];
+
+      while (checkPos.suji >= 1 && checkPos.suji <= 9 &&
+             checkPos.dan >= 1 && checkPos.dan <= 9) {
+        const piece = this.ban[checkPos.suji][checkPos.dan];
+
+        if (piece === EMPTY) {
+          checkPos.suji -= diffSuji[direct];
+          checkPos.dan -= diffDan[direct];
+          continue;
+        }
+
+        // If own piece, this direction is blocked
+        if (isSelf(teban, piece)) {
+          break;
+        }
+
+        // If enemy sliding piece, we're under attack
+        if (!isSelf(teban, piece) && canJump[direct][piece]) {
+          return true;
+        }
+
+        break;
+      }
+    }
+
+    return false;
+  }
+
+  // Evaluate hanging pieces (pieces under attack and not defended)
+  private evaluateHangingPieces(teban: number): number {
+    let penalty = 0;
+
+    for (let suji = 1; suji <= 9; suji++) {
+      for (let dan = 1; dan <= 9; dan++) {
+        const piece = this.ban[suji][dan];
+
+        // Check own pieces
+        if (piece !== EMPTY && isSelf(teban, piece)) {
+          const pos = new Position(suji, dan);
+
+          // If piece is under attack
+          if (this.isUnderAttack(pos, teban)) {
+            const pieceValue = Math.abs(komaValue[piece]);
+            const defenders = this.countDefenders(pos, teban);
+
+            // Heavy penalty if undefended and under attack
+            if (defenders === 0) {
+              penalty -= pieceValue * 0.8; // Lose 80% of piece value
+            } else if (defenders < 2) {
+              penalty -= pieceValue * 0.3; // Lose 30% if lightly defended
+            }
+          }
+        }
+      }
+    }
+
+    return penalty;
   }
 
   // Evaluate king safety
@@ -480,10 +573,15 @@ export class Kyokumen {
     const goteDevelopment = this.evaluateDevelopment(GOTE);
     score += senteDevelopment - goteDevelopment;
 
-    // Kakoi (castle) evaluation
-    const senteKakoi = this.evaluateKakoi(SENTE);
-    const goteKakoi = this.evaluateKakoi(GOTE);
+    // Kakoi (castle) evaluation - using comprehensive evaluation
+    const senteKakoi = evaluateAllKakoi(this, SENTE);
+    const goteKakoi = evaluateAllKakoi(this, GOTE);
     score += senteKakoi - goteKakoi;
+
+    // Hanging pieces evaluation - penalize pieces under attack
+    const senteHanging = this.evaluateHangingPieces(SENTE);
+    const goteHanging = this.evaluateHangingPieces(GOTE);
+    score += senteHanging - goteHanging;
 
     // Aggressive endgame: If one side has significant material advantage, bonus for attacking
     const materialAdvantage = Math.abs(score);

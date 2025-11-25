@@ -3,7 +3,7 @@
  */
 
 import { Kyokumen } from './Kyokumen';
-import { Te, Position, SENTE, GOTE } from './types';
+import { Te, Position, SENTE, GOTE, EMPTY, komaValue } from './types';
 import { generateLegalMoves } from './GenerateMoves';
 import { Difficulty } from '../common/types';
 
@@ -24,9 +24,34 @@ export class ShogiAI {
     this.node = 0;
     this.startTime = 0;
 
-    // Set search depth and time limit based on difficulty
-    this.depthMax = difficulty === 'easy' ? 2 : difficulty === 'medium' ? 3 : 4;
-    this.maxTime = difficulty === 'easy' ? 3000 : difficulty === 'medium' ? 5000 : 8000; // ms
+    // Set search depth and time limit based on difficulty (increased for stronger play)
+    this.depthMax = difficulty === 'easy' ? 3 : difficulty === 'medium' ? 4 : 5;
+    this.maxTime = difficulty === 'easy' ? 5000 : difficulty === 'medium' ? 10000 : 20000; // ms
+  }
+
+  // Order moves for better alpha-beta pruning
+  private orderMoves(moves: Te[], k: Kyokumen): Te[] {
+    return moves.sort((a, b) => {
+      // Check if moves are captures
+      const aTarget = k.get(a.to);
+      const bTarget = k.get(b.to);
+      const aCaptureValue = aTarget !== EMPTY ? Math.abs(komaValue[aTarget]) : 0;
+      const bCaptureValue = bTarget !== EMPTY ? Math.abs(komaValue[bTarget]) : 0;
+
+      // Captures first (high value captures before low value)
+      if (aCaptureValue !== bCaptureValue) {
+        return bCaptureValue - aCaptureValue;
+      }
+
+      // Promotions next
+      if (a.promote && !b.promote) return -1;
+      if (!a.promote && b.promote) return 1;
+
+      // Moves toward center
+      const aToCenter = Math.abs(a.to.suji - 5) + Math.abs(a.to.dan - 5);
+      const bToCenter = Math.abs(b.to.suji - 5) + Math.abs(b.to.dan - 5);
+      return aToCenter - bToCenter;
+    });
   }
 
   private getMax(
@@ -50,13 +75,16 @@ export class ShogiAI {
 
     this.node++;
 
-    // Generate legal moves
-    const v = generateLegalMoves(k);
+    // Generate and order legal moves
+    const moves = generateLegalMoves(k);
 
     // No moves - return evaluation
-    if (v.length === 0) {
+    if (moves.length === 0) {
       return k.evaluate();
     }
+
+    // Order moves for better pruning
+    const v = this.orderMoves(moves, k);
 
     // Current best value
     let value = -INFINITE;
@@ -126,13 +154,16 @@ export class ShogiAI {
 
     this.node++;
 
-    // Generate legal moves
-    const v = generateLegalMoves(k);
+    // Generate and order legal moves
+    const moves = generateLegalMoves(k);
 
     // No moves - return evaluation
-    if (v.length === 0) {
+    if (moves.length === 0) {
       return k.evaluate();
     }
+
+    // Order moves for better pruning
+    const v = this.orderMoves(moves, k);
 
     // Current best value
     let value = INFINITE;

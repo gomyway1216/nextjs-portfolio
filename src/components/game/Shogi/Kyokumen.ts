@@ -13,8 +13,17 @@ import {
   OU,
   FU,
   HI,
+  SOU,
+  GOU,
+  SFU,
+  GFU,
+  SKA,
+  SHI,
+  GKA,
+  GHI,
   isSente,
   isGote,
+  isSelf,
   getKomashu,
   komaValue,
   toString as komaToString,
@@ -183,11 +192,121 @@ export class Kyokumen {
     return new Position(-2, -2);
   }
 
-  // Evaluate board position
+  // Helper: Find king position
+  private findKingPosition(teban: number): Position | null {
+    const targetKing = teban === SENTE ? SOU : GOU;
+    for (let suji = 1; suji <= 9; suji++) {
+      for (let dan = 1; dan <= 9; dan++) {
+        if (this.ban[suji][dan] === targetKing) {
+          return new Position(suji, dan);
+        }
+      }
+    }
+    return null;
+  }
+
+  // Helper: Count pieces around a position
+  private countDefenders(pos: Position, teban: number): number {
+    let defenders = 0;
+    const directions = [
+      [-1, -1], [-1, 0], [-1, 1],
+      [0, -1],           [0, 1],
+      [1, -1],  [1, 0],  [1, 1]
+    ];
+
+    for (const [dSuji, dDan] of directions) {
+      const newSuji = pos.suji + dSuji;
+      const newDan = pos.dan + dDan;
+      if (newSuji >= 1 && newSuji <= 9 && newDan >= 1 && newDan <= 9) {
+        const piece = this.ban[newSuji][newDan];
+        if (piece !== EMPTY && isSelf(teban, piece)) {
+          defenders++;
+        }
+      }
+    }
+    return defenders;
+  }
+
+  // Evaluate king safety
+  private evaluateKingSafety(teban: number): number {
+    const kingPos = this.findKingPosition(teban);
+    if (!kingPos) return 0;
+
+    let safety = 0;
+
+    // Reward pieces defending the king
+    safety += this.countDefenders(kingPos, teban) * 15;
+
+    // Penalize king in center of board (dangerous)
+    const centerDistance = Math.abs(kingPos.suji - 5) + Math.abs(kingPos.dan - 5);
+    if (centerDistance < 4) {
+      safety -= 20;
+    }
+
+    // Reward king in corner (safer)
+    if ((kingPos.suji <= 2 || kingPos.suji >= 8) &&
+        (kingPos.dan <= 2 || kingPos.dan >= 8)) {
+      safety += 25;
+    }
+
+    return safety;
+  }
+
+  // Evaluate pawn structure
+  private evaluatePawnStructure(teban: number): number {
+    let score = 0;
+    const pawnCounts = Array(9).fill(0);
+    const targetPawn = teban === SENTE ? SFU : GFU;
+
+    for (let suji = 1; suji <= 9; suji++) {
+      for (let dan = 1; dan <= 9; dan++) {
+        const piece = this.ban[suji][dan];
+        if (piece === targetPawn) {
+          pawnCounts[suji - 1]++;
+
+          // Reward advanced pawns
+          if (teban === SENTE) {
+            if (dan <= 3) score += 15; // Advanced into enemy territory
+            else if (dan <= 5) score += 5; // Middle of board
+          } else {
+            if (dan >= 7) score += 15;
+            else if (dan >= 5) score += 5;
+          }
+        }
+      }
+    }
+
+    // Penalize doubled pawns
+    for (const count of pawnCounts) {
+      if (count > 1) score -= 40;
+    }
+
+    return score;
+  }
+
+  // Evaluate piece development
+  private evaluateDevelopment(teban: number): number {
+    let score = 0;
+
+    // Penalize pieces on starting rank (not developed)
+    const startRank = teban === SENTE ? 9 : 1;
+    const bigPieces = teban === SENTE ? [SKA, SHI] : [GKA, GHI];
+
+    for (let suji = 1; suji <= 9; suji++) {
+      const piece = this.ban[suji][startRank];
+      if (bigPieces.includes(piece)) {
+        score -= 10; // Penalize unmoved major pieces
+      }
+    }
+
+    return score;
+  }
+
+  // Evaluate board position (improved)
   evaluate(): number {
     let score = 0;
 
-    // Board pieces
+    // Material value
     for (let suji = 1; suji <= 9; suji++) {
       for (let dan = 1; dan <= 9; dan++) {
         const koma = this.ban[suji][dan];
@@ -195,13 +314,27 @@ export class Kyokumen {
       }
     }
 
-    // Captured pieces
+    // Captured pieces (slightly more valuable than board pieces)
     for (let i = 0; i < 2; i++) {
       for (let j = 0; j < this.hand[i].length; j++) {
         const koma = this.hand[i][j];
-        score += komaValue[koma];
+        // Hand pieces are worth 110% of their value (can be dropped anywhere)
+        score += Math.floor(komaValue[koma] * 1.1);
       }
     }
+
+    // Positional evaluation
+    const senteKingSafety = this.evaluateKingSafety(SENTE);
+    const goteKingSafety = this.evaluateKingSafety(GOTE);
+    score += senteKingSafety - goteKingSafety;
+
+    const sentePawnStructure = this.evaluatePawnStructure(SENTE);
+    const gotePawnStructure = this.evaluatePawnStructure(GOTE);
+    score += sentePawnStructure - gotePawnStructure;
+
+    const senteDevelopment = this.evaluateDevelopment(SENTE);
+    const goteDevelopment = this.evaluateDevelopment(GOTE);
+    score += senteDevelopment - goteDevelopment;
 
     return score;
   }

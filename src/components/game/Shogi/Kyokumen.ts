@@ -586,93 +586,443 @@ export class Kyokumen {
     return penalty;
   }
 
-  // Evaluate board position (improved)
-  evaluate(): number {
+  // Detect the current game phase
+  private detectGamePhase(): 'joban' | 'chuban' | 'shuban' {
+    // Count total captured pieces
+    const totalHandPieces = this.hand[0].length + this.hand[1].length;
+
+    // Count major pieces that have been developed
+    let developedMajorPieces = 0;
+
+    // Check for developed bishop/rook (sente)
+    if (this.ban[2][8] !== SKA && this.ban[8][8] !== SHI) {
+      developedMajorPieces++; // Sente bishop or rook moved
+    }
+
+    // Check for developed bishop/rook (gote)
+    if (this.ban[2][2] !== GHI && this.ban[8][2] !== GKA) {
+      developedMajorPieces++; // Gote bishop or rook moved
+    }
+
+    // Check king positions
+    const senteKingPos = this.findKingPosition(SENTE);
+    const goteKingPos = this.findKingPosition(GOTE);
+
+    let kingsMovedFromStart = 0;
+    if (senteKingPos && (senteKingPos.suji !== 5 || senteKingPos.dan !== 9)) {
+      kingsMovedFromStart++;
+    }
+    if (goteKingPos && (goteKingPos.suji !== 5 || goteKingPos.dan !== 1)) {
+      kingsMovedFromStart++;
+    }
+
+    // Check for endgame conditions first
+    // Shuban: Significant material traded OR king under direct attack OR large material imbalance
+    if (totalHandPieces > 8) {
+      return 'shuban';
+    }
+
+    // Check if either king is under direct attack (pieces within 2-3 squares)
+    if (senteKingPos) {
+      let attackersNearSente = 0;
+      for (let suji = Math.max(1, senteKingPos.suji - 3); suji <= Math.min(9, senteKingPos.suji + 3); suji++) {
+        for (let dan = Math.max(1, senteKingPos.dan - 3); dan <= Math.min(9, senteKingPos.dan + 3); dan++) {
+          const piece = this.ban[suji][dan];
+          if (piece !== EMPTY && isGote(piece)) {
+            const distance = Math.abs(suji - senteKingPos.suji) + Math.abs(dan - senteKingPos.dan);
+            if (distance <= 2) attackersNearSente++;
+          }
+        }
+      }
+      if (attackersNearSente >= 2) return 'shuban';
+    }
+
+    if (goteKingPos) {
+      let attackersNearGote = 0;
+      for (let suji = Math.max(1, goteKingPos.suji - 3); suji <= Math.min(9, goteKingPos.suji + 3); suji++) {
+        for (let dan = Math.max(1, goteKingPos.dan - 3); dan <= Math.min(9, goteKingPos.dan + 3); dan++) {
+          const piece = this.ban[suji][dan];
+          if (piece !== EMPTY && isSente(piece)) {
+            const distance = Math.abs(suji - goteKingPos.suji) + Math.abs(dan - goteKingPos.dan);
+            if (distance <= 2) attackersNearGote++;
+          }
+        }
+      }
+      if (attackersNearGote >= 2) return 'shuban';
+    }
+
+    // Check for large material imbalance
+    let materialScore = 0;
+    for (let suji = 1; suji <= 9; suji++) {
+      for (let dan = 1; dan <= 9; dan++) {
+        materialScore += komaValue[this.ban[suji][dan]];
+      }
+    }
+    if (Math.abs(materialScore) > 4000) return 'shuban';
+
+    // Joban: Opening phase
+    if (developedMajorPieces <= 1 && kingsMovedFromStart === 0 && totalHandPieces < 3) {
+      return 'joban';
+    }
+
+    // Default to chuban (middle game)
+    return 'chuban';
+  }
+
+  // Enhanced development evaluation for opening phase
+  private evaluateDevelopmentEnhanced(teban: number): number {
     let score = 0;
 
-    // Material value
+    // Check bishop and rook development
+    if (teban === SENTE) {
+      // Bonus for developing bishop from 8h
+      if (this.ban[8][8] !== SKA) score += 50;
+
+      // Bonus for developing rook from 2h
+      if (this.ban[2][8] !== SHI) score += 50;
+
+      // Bonus for king moving toward castle position (e.g., toward 7h/8h/9h)
+      const kingPos = this.findKingPosition(SENTE);
+      if (kingPos) {
+        if (kingPos.suji >= 7 && kingPos.dan === 8) score += 30;
+      }
+
+      // Bonus for controlling central files (4-6)
+      for (let suji = 4; suji <= 6; suji++) {
+        for (let dan = 4; dan <= 6; dan++) {
+          const piece = this.ban[suji][dan];
+          if (piece !== EMPTY && isSente(piece)) score += 10;
+        }
+      }
+
+      // Bonus for key diagonals
+      const diagonals = [[7,7], [6,6], [5,5], [4,4], [3,3]];
+      for (const [s, d] of diagonals) {
+        if (this.ban[s][d] !== EMPTY && isSente(this.ban[s][d])) score += 8;
+      }
+    } else {
+      // Gote development
+      if (this.ban[2][2] !== GHI) score += 50;
+      if (this.ban[8][2] !== GKA) score += 50;
+
+      const kingPos = this.findKingPosition(GOTE);
+      if (kingPos) {
+        if (kingPos.suji <= 3 && kingPos.dan === 2) score += 30;
+      }
+
+      for (let suji = 4; suji <= 6; suji++) {
+        for (let dan = 4; dan <= 6; dan++) {
+          const piece = this.ban[suji][dan];
+          if (piece !== EMPTY && isGote(piece)) score += 10;
+        }
+      }
+
+      const diagonals = [[7,3], [6,4], [5,5], [4,6], [3,7]];
+      for (const [s, d] of diagonals) {
+        if (this.ban[s][d] !== EMPTY && isGote(this.ban[s][d])) score += 8;
+      }
+    }
+
+    return score;
+  }
+
+  // Evaluate king proximity attack for endgame
+  private evaluateKingProximityAttack(teban: number): number {
+    let score = 0;
+
+    const enemyKingPos = this.findKingPosition(teban === SENTE ? GOTE : SENTE);
+    if (!enemyKingPos) return 0;
+
+    // Check all pieces and reward based on proximity to enemy king
+    for (let suji = 1; suji <= 9; suji++) {
+      for (let dan = 1; dan <= 9; dan++) {
+        const piece = this.ban[suji][dan];
+        if (piece !== EMPTY && isSelf(teban, piece)) {
+          const distance = Math.abs(suji - enemyKingPos.suji) + Math.abs(dan - enemyKingPos.dan);
+
+          if (distance <= 2) {
+            score += 200; // Massive bonus for pieces within 2 squares
+
+            // Check if this piece is giving check
+            const pos = new Position(suji, dan);
+            if (this.canAttackKing(pos, piece, enemyKingPos)) {
+              score += 500; // Huge bonus for checks
+            }
+          } else if (distance <= 3) {
+            score += 100;
+          } else if (distance <= 4) {
+            score += 50;
+          }
+        }
+      }
+    }
+
+    // Bonus for advanced pawns in endgame
+    const targetPawn = teban === SENTE ? SFU : GFU;
+    for (let suji = 1; suji <= 9; suji++) {
+      for (let dan = 1; dan <= 9; dan++) {
+        if (this.ban[suji][dan] === targetPawn) {
+          if (teban === SENTE) {
+            if (dan <= 3) score += 300; // 7th/8th/9th rank for sente
+            else if (dan <= 4) score += 150;
+          } else {
+            if (dan >= 7) score += 300;
+            else if (dan >= 6) score += 150;
+          }
+        }
+      }
+    }
+
+    return score;
+  }
+
+  // Helper: Check if a piece can attack the king
+  private canAttackKing(from: Position, piece: number, kingPos: Position): boolean {
+    const dSuji = kingPos.suji - from.suji;
+    const dDan = kingPos.dan - from.dan;
+
+    // Check direct attacks for non-sliding pieces
+    for (let direct = 0; direct < 12; direct++) {
+      if (diffSuji[direct] === dSuji && diffDan[direct] === dDan) {
+        if (canMove[direct][piece]) return true;
+      }
+    }
+
+    // Check sliding attacks for rooks, bishops, etc.
+    const distance = Math.max(Math.abs(dSuji), Math.abs(dDan));
+    if (distance > 1) {
+      for (let direct = 0; direct < 8; direct++) {
+        if (canJump[direct][piece]) {
+          // Check if king is on the sliding path
+          let checkSuji = from.suji;
+          let checkDan = from.dan;
+          for (let i = 0; i < distance; i++) {
+            checkSuji += diffSuji[direct];
+            checkDan += diffDan[direct];
+            if (checkSuji === kingPos.suji && checkDan === kingPos.dan) {
+              // Check if path is clear
+              let pathClear = true;
+              let s = from.suji + diffSuji[direct];
+              let d = from.dan + diffDan[direct];
+              while (s !== kingPos.suji || d !== kingPos.dan) {
+                if (this.ban[s][d] !== EMPTY) {
+                  pathClear = false;
+                  break;
+                }
+                s += diffSuji[direct];
+                d += diffDan[direct];
+              }
+              if (pathClear) return true;
+            }
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  // Evaluate piece activity for middle game
+  private evaluatePieceActivity(teban: number): number {
+    let score = 0;
+
+    const enemyKingPos = this.findKingPosition(teban === SENTE ? GOTE : SENTE);
+    if (!enemyKingPos) return 0;
+
+    // Reward pieces attacking squares around enemy king
+    const kingArea = [
+      [enemyKingPos.suji - 1, enemyKingPos.dan - 1],
+      [enemyKingPos.suji - 1, enemyKingPos.dan],
+      [enemyKingPos.suji - 1, enemyKingPos.dan + 1],
+      [enemyKingPos.suji, enemyKingPos.dan - 1],
+      [enemyKingPos.suji, enemyKingPos.dan + 1],
+      [enemyKingPos.suji + 1, enemyKingPos.dan - 1],
+      [enemyKingPos.suji + 1, enemyKingPos.dan],
+      [enemyKingPos.suji + 1, enemyKingPos.dan + 1]
+    ];
+
+    for (const [targetSuji, targetDan] of kingArea) {
+      if (targetSuji < 1 || targetSuji > 9 || targetDan < 1 || targetDan > 9) continue;
+
+      // Check if any of our pieces attack this square
+      for (let suji = 1; suji <= 9; suji++) {
+        for (let dan = 1; dan <= 9; dan++) {
+          const piece = this.ban[suji][dan];
+          if (piece !== EMPTY && isSelf(teban, piece)) {
+            if (this.canReachSquare(new Position(suji, dan), piece, new Position(targetSuji, targetDan))) {
+              score += 60;
+            }
+          }
+        }
+      }
+    }
+
+    // Bonus for hand pieces (drops are powerful in middle game)
+    const handIndex = teban === SENTE ? 0 : 1;
+    score += this.hand[handIndex].length * 50;
+
+    return score;
+  }
+
+  // Helper: Check if a piece can reach a target square
+  private canReachSquare(from: Position, piece: number, to: Position): boolean {
+    const dSuji = to.suji - from.suji;
+    const dDan = to.dan - from.dan;
+
+    // Check direct moves
+    for (let direct = 0; direct < 12; direct++) {
+      if (diffSuji[direct] === dSuji && diffDan[direct] === dDan) {
+        if (canMove[direct][piece]) return true;
+      }
+    }
+
+    // Check sliding moves
+    const distance = Math.max(Math.abs(dSuji), Math.abs(dDan));
+    if (distance > 1) {
+      for (let direct = 0; direct < 8; direct++) {
+        if (canJump[direct][piece]) {
+          // Check if target is on sliding path and path is clear
+          let ratio = 0;
+          if (diffSuji[direct] !== 0) {
+            ratio = dSuji / diffSuji[direct];
+          } else if (diffDan[direct] !== 0) {
+            ratio = dDan / diffDan[direct];
+          }
+
+          if (ratio > 0 && ratio === Math.floor(ratio)) {
+            if (diffSuji[direct] * ratio === dSuji && diffDan[direct] * ratio === dDan) {
+              // Check if path is clear
+              let pathClear = true;
+              for (let i = 1; i < ratio; i++) {
+                const checkSuji = from.suji + diffSuji[direct] * i;
+                const checkDan = from.dan + diffDan[direct] * i;
+                if (this.ban[checkSuji][checkDan] !== EMPTY) {
+                  pathClear = false;
+                  break;
+                }
+              }
+              if (pathClear) return true;
+            }
+          }
+        }
+      }
+    }
+
+    return false;
+  }
+
+  // Evaluate board position (improved with game phase awareness)
+  evaluate(): number {
+    // First, detect the game phase
+    const gamePhase = this.detectGamePhase();
+
+    let score = 0;
+
+    // Material value (adjust weight based on phase)
+    let materialWeight = 1.0;
+    if (gamePhase === 'shuban') {
+      materialWeight = 0.5; // Reduce material weight by 50% in endgame
+    }
+
     for (let suji = 1; suji <= 9; suji++) {
       for (let dan = 1; dan <= 9; dan++) {
         const koma = this.ban[suji][dan];
-        score += komaValue[koma];
+        score += komaValue[koma] * materialWeight;
       }
     }
 
-    // Captured pieces (slightly more valuable than board pieces)
+    // Captured pieces
     for (let i = 0; i < 2; i++) {
       for (let j = 0; j < this.hand[i].length; j++) {
         const koma = this.hand[i][j];
-        // Hand pieces are worth 110% of their value (can be dropped anywhere)
-        score += Math.floor(komaValue[koma] * 1.1);
+        let handValue = komaValue[koma] * 1.1;
+        if (gamePhase === 'chuban') {
+          handValue *= 1.2; // Extra bonus for hand pieces in middle game
+        }
+        score += Math.floor(handValue * materialWeight);
       }
     }
 
-    // Positional evaluation
-    const senteKingSafety = this.evaluateKingSafety(SENTE);
-    const goteKingSafety = this.evaluateKingSafety(GOTE);
-    score += senteKingSafety - goteKingSafety;
+    // Phase-specific evaluations
+    if (gamePhase === 'joban') {
+      // JOBAN (Opening) priorities
 
-    const sentePawnStructure = this.evaluatePawnStructure(SENTE);
-    const gotePawnStructure = this.evaluatePawnStructure(GOTE);
-    score += sentePawnStructure - gotePawnStructure;
+      // Enhanced development evaluation
+      const senteDev = this.evaluateDevelopmentEnhanced(SENTE);
+      const goteDev = this.evaluateDevelopmentEnhanced(GOTE);
+      score += senteDev - goteDev;
 
-    const senteDevelopment = this.evaluateDevelopment(SENTE);
-    const goteDevelopment = this.evaluateDevelopment(GOTE);
-    score += senteDevelopment - goteDevelopment;
+      // Reduced hanging piece penalties (50% reduction)
+      const senteHanging = this.evaluateHangingPieces(SENTE) * 0.5;
+      const goteHanging = this.evaluateHangingPieces(GOTE) * 0.5;
+      score += senteHanging - goteHanging;
 
-    // Kakoi (castle) evaluation - using comprehensive evaluation
-    const senteKakoi = evaluateAllKakoi(this, SENTE);
-    const goteKakoi = evaluateAllKakoi(this, GOTE);
-    score += senteKakoi - goteKakoi;
+      // Reduced castle bonuses (50% reduction)
+      const senteKakoi = evaluateAllKakoi(this, SENTE) * 0.5;
+      const goteKakoi = evaluateAllKakoi(this, GOTE) * 0.5;
+      score += senteKakoi - goteKakoi;
 
-    // Hanging pieces evaluation - penalize pieces under attack
-    const senteHanging = this.evaluateHangingPieces(SENTE);
-    const goteHanging = this.evaluateHangingPieces(GOTE);
-    score += senteHanging - goteHanging;
+      // Normal king safety (but less important)
+      const senteKingSafety = this.evaluateKingSafety(SENTE) * 0.7;
+      const goteKingSafety = this.evaluateKingSafety(GOTE) * 0.7;
+      score += senteKingSafety - goteKingSafety;
 
-    // Promotion threats - heavily penalize allowing opponent to promote major pieces
+    } else if (gamePhase === 'chuban') {
+      // CHUBAN (Middle game) priorities
+
+      // Increased piece activity near enemy king
+      const senteActivity = this.evaluatePieceActivity(SENTE) * 2;
+      const goteActivity = this.evaluatePieceActivity(GOTE) * 2;
+      score += senteActivity - goteActivity;
+
+      // Normal hanging piece penalties
+      const senteHanging = this.evaluateHangingPieces(SENTE);
+      const goteHanging = this.evaluateHangingPieces(GOTE);
+      score += senteHanging - goteHanging;
+
+      // Increased king safety differential
+      const senteKingSafety = this.evaluateKingSafety(SENTE) * 1.5;
+      const goteKingSafety = this.evaluateKingSafety(GOTE) * 1.5;
+      score += senteKingSafety - goteKingSafety;
+
+      // Normal castle evaluation
+      const senteKakoi = evaluateAllKakoi(this, SENTE);
+      const goteKakoi = evaluateAllKakoi(this, GOTE);
+      score += senteKakoi - goteKakoi;
+
+      // Pawn structure
+      const sentePawnStructure = this.evaluatePawnStructure(SENTE);
+      const gotePawnStructure = this.evaluatePawnStructure(GOTE);
+      score += sentePawnStructure - gotePawnStructure;
+
+    } else {
+      // SHUBAN (Endgame) priorities
+
+      // MASSIVE bonuses for attacking king (3x-5x)
+      const senteKingAttack = this.evaluateKingProximityAttack(SENTE) * 4;
+      const goteKingAttack = this.evaluateKingProximityAttack(GOTE) * 4;
+      score += senteKingAttack - goteKingAttack;
+
+      // Greatly reduced defensive bonuses
+      const senteKingSafety = this.evaluateKingSafety(SENTE) * 0.2;
+      const goteKingSafety = this.evaluateKingSafety(GOTE) * 0.2;
+      score += senteKingSafety - goteKingSafety;
+
+      // Minimal hanging piece penalties (aggressive play prioritized)
+      const senteHanging = this.evaluateHangingPieces(SENTE) * 0.3;
+      const goteHanging = this.evaluateHangingPieces(GOTE) * 0.3;
+      score += senteHanging - goteHanging;
+
+      // Minimal castle importance
+      const senteKakoi = evaluateAllKakoi(this, SENTE) * 0.2;
+      const goteKakoi = evaluateAllKakoi(this, GOTE) * 0.2;
+      score += senteKakoi - goteKakoi;
+    }
+
+    // Promotion threats remain important in all phases
     const sentePromotionThreat = this.evaluatePromotionThreats(SENTE);
     const gotePromotionThreat = this.evaluatePromotionThreats(GOTE);
     score += sentePromotionThreat - gotePromotionThreat;
-
-    // Aggressive endgame: If one side has significant material advantage, bonus for attacking
-    const materialAdvantage = Math.abs(score);
-    if (materialAdvantage > 3000) {
-      // If winning (positive score for sente), increase attack pressure
-      if (score > 0) {
-        // Sente is winning - reward pieces near gote king
-        const goteKingPos = this.findKingPosition(GOTE);
-        if (goteKingPos) {
-          for (let suji = 1; suji <= 9; suji++) {
-            for (let dan = 1; dan <= 9; dan++) {
-              const piece = this.ban[suji][dan];
-              if (piece !== EMPTY && isSente(piece)) {
-                const distance = Math.abs(suji - goteKingPos.suji) + Math.abs(dan - goteKingPos.dan);
-                if (distance <= 3) {
-                  score += (4 - distance) * 30; // Closer pieces get more bonus
-                }
-              }
-            }
-          }
-        }
-      } else {
-        // Gote is winning - reward pieces near sente king
-        const senteKingPos = this.findKingPosition(SENTE);
-        if (senteKingPos) {
-          for (let suji = 1; suji <= 9; suji++) {
-            for (let dan = 1; dan <= 9; dan++) {
-              const piece = this.ban[suji][dan];
-              if (piece !== EMPTY && isGote(piece)) {
-                const distance = Math.abs(suji - senteKingPos.suji) + Math.abs(dan - senteKingPos.dan);
-                if (distance <= 3) {
-                  score -= (4 - distance) * 30; // Closer pieces get more bonus
-                }
-              }
-            }
-          }
-        }
-      }
-    }
 
     return score;
   }

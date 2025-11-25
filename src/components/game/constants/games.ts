@@ -67,4 +67,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Strategy',
   },
+  {
+    id: 'mini-adventure',
+    title: 'Mini Adventure',
+    description: 'Roguelike dungeon crawler! Descend 10 floors, manage your torch, and defeat the Dragon boss!',
+    thumbnail: '🗡️',
+    path: '/games/mini-adventure',
+    difficulty: 'Hard',
+    category: 'RPG',
+  },
 ];

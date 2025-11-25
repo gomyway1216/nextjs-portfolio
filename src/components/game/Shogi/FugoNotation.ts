@@ -30,7 +30,7 @@ export function toFugo(te: Te): string {
   notation += toString(te.koma);
 
   // Drop move indicator
-  if (te.from.suji === 0) {
+  if (te.from.suji === 0 && te.from.dan === 0) {
     notation += '打';
   }
 
@@ -57,7 +57,7 @@ export function toSimpleFugo(te: Te): string {
   notation += toString(te.koma);
 
   // Drop move indicator
-  if (te.from.suji === 0) {
+  if (te.from.suji === 0 && te.from.dan === 0) {
     notation += '打';
   }
 

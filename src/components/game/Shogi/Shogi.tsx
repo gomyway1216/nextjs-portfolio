@@ -34,6 +34,7 @@ interface GameState {
 
 const Shogi = () => {
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [playerSide, setPlayerSide] = useState<number>(SENTE); // Player's side (SENTE or GOTE)
   const [showDifficultySelect, setShowDifficultySelect] = useState<boolean>(true);
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
@@ -51,6 +52,17 @@ const Shogi = () => {
     lastMove: null,
     moveHistory: [],
   });
+
+  // Helper: Check if a piece belongs to the player
+  const isPlayerPiece = useCallback((koma: number): boolean => {
+    if (koma === EMPTY) return false;
+    return playerSide === SENTE ? isSente(koma) : !isSente(koma);
+  }, [playerSide]);
+
+  // Helper: Get AI side
+  const getAISide = useCallback((): number => {
+    return playerSide === SENTE ? GOTE : SENTE;
+  }, [playerSide]);
 
   // Initialize game
   const initGame = useCallback(() => {
@@ -84,7 +96,7 @@ const Shogi = () => {
     const newKyokumen = gameState.kyokumen.clone();
     te.promote = promote;
     newKyokumen.move(te);
-    newKyokumen.teban = GOTE;
+    newKyokumen.teban = getAISide();
 
     const { isOver, winner } = checkGameOver(newKyokumen);
 
@@ -100,7 +112,7 @@ const Shogi = () => {
       moveHistory: [...prev.moveHistory, te],
     }));
 
-    if (isOver && winner === SENTE) {
+    if (isOver && winner === playerSide) {
       setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
     }
 
@@ -110,7 +122,7 @@ const Shogi = () => {
 
   // Handle board cell click
   const handleCellClick = (suji: number, dan: number) => {
-    if (gameState.gameOver || gameState.kyokumen.teban !== SENTE || gameState.isAIThinking) {
+    if (gameState.gameOver || gameState.kyokumen.teban !== playerSide || gameState.isAIThinking) {
       return;
     }
 
@@ -119,9 +131,10 @@ const Shogi = () => {
 
     // If captured piece is selected, try to drop it
     if (gameState.selectedCapturedIndex >= 0) {
-      const handPiece = gameState.kyokumen.hand[0][gameState.selectedCapturedIndex];
+      const handIndex = playerSide === SENTE ? 0 : 1;
+      const handPiece = gameState.kyokumen.hand[handIndex][gameState.selectedCapturedIndex];
       const dropMove = gameState.validMoves.find(
-        m => m.from.suji === 0 && m.to.suji === suji && m.to.dan === dan && m.koma === handPiece
+        m => m.from.suji === 0 && m.from.dan === 0 && m.to.suji === suji && m.to.dan === dan && m.koma === handPiece
       );
 
       if (dropMove) {
@@ -154,7 +167,7 @@ const Shogi = () => {
           // Execute move without promotion
           executeMove(move, false);
         }
-      } else if (clickedPiece !== EMPTY && isSente(clickedPiece)) {
+      } else if (clickedPiece !== EMPTY && isPlayerPiece(clickedPiece)) {
         // Select different piece
         const allMoves = generateLegalMoves(gameState.kyokumen);
         const pieceMoves = allMoves.filter(m => m.from.equals(clickedPos));
@@ -167,7 +180,7 @@ const Shogi = () => {
         // Deselect
         setGameState(prev => ({ ...prev, selectedPosition: null, validMoves: [] }));
       }
-    } else if (clickedPiece !== EMPTY && isSente(clickedPiece)) {
+    } else if (clickedPiece !== EMPTY && isPlayerPiece(clickedPiece)) {
       // Select piece
       const allMoves = generateLegalMoves(gameState.kyokumen);
       const pieceMoves = allMoves.filter(m => m.from.equals(clickedPos));
@@ -181,13 +194,14 @@ const Shogi = () => {
 
   // Handle captured piece click
   const handleCapturedClick = (index: number) => {
-    if (gameState.gameOver || gameState.kyokumen.teban !== SENTE || gameState.isAIThinking) {
+    if (gameState.gameOver || gameState.kyokumen.teban !== playerSide || gameState.isAIThinking) {
       return;
     }
 
-    const handPiece = gameState.kyokumen.hand[0][index];
+    const handIndex = playerSide === SENTE ? 0 : 1;
+    const handPiece = gameState.kyokumen.hand[handIndex][index];
     const allMoves = generateLegalMoves(gameState.kyokumen);
-    const dropMoves = allMoves.filter(m => m.from.suji === 0 && m.koma === handPiece);
+    const dropMoves = allMoves.filter(m => m.from.suji === 0 && m.from.dan === 0 && m.koma === handPiece);
 
     setGameState(prev => ({
       ...prev,
@@ -199,8 +213,9 @@ const Shogi = () => {
 
   // AI move
   useEffect(() => {
+    const aiSide = getAISide();
     if (
-      gameState.kyokumen.teban === GOTE &&
+      gameState.kyokumen.teban === aiSide &&
       !gameState.gameOver &&
       !gameState.isAIThinking
     ) {
@@ -216,18 +231,18 @@ const Shogi = () => {
             ...prev,
             isAIThinking: false,
             gameOver: true,
-            winner: SENTE,
+            winner: playerSide,
           }));
           setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
           return;
         }
 
-        const aiMove = getBestMove(gameState.kyokumen, GOTE, difficulty, gameState.moveHistory.length + 1, gameState.moveHistory);
+        const aiMove = getBestMove(gameState.kyokumen, aiSide, difficulty, gameState.moveHistory.length + 1, gameState.moveHistory);
 
         if (aiMove) {
           const newKyokumen = gameState.kyokumen.clone();
           newKyokumen.move(aiMove);
-          newKyokumen.teban = SENTE;
+          newKyokumen.teban = playerSide;
 
           const { isOver, winner } = checkGameOver(newKyokumen);
 
@@ -241,7 +256,7 @@ const Shogi = () => {
             moveHistory: [...prev.moveHistory, aiMove],
           }));
 
-          if (isOver && winner === GOTE) {
+          if (isOver && winner === aiSide) {
             setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
           }
         } else {
@@ -250,13 +265,13 @@ const Shogi = () => {
             ...prev,
             isAIThinking: false,
             gameOver: true,
-            winner: SENTE,
+            winner: playerSide,
           }));
           setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
         }
       }, 500);
     }
-  }, [gameState.kyokumen.teban, gameState.gameOver, gameState.isAIThinking, difficulty]);
+  }, [gameState.kyokumen.teban, gameState.gameOver, gameState.isAIThinking, difficulty, playerSide, getAISide]);
 
   const startGame = () => {
     setShowDifficultySelect(false);
@@ -286,7 +301,12 @@ const Shogi = () => {
       gameState.lastMove.to.dan === dan;
 
     const pieceText = toString(koma);
-    const isGote = !isSente(koma);
+    const pieceIsSente = isSente(koma);
+
+    // Determine if piece should be rotated based on player's side
+    // When player is Sente: rotate Gote pieces
+    // When player is Gote: rotate Sente pieces
+    const shouldRotate = playerSide === SENTE ? !pieceIsSente : pieceIsSente;
 
     let backgroundColor = 'transparent';
     if (isSelected) {
@@ -302,8 +322,8 @@ const Shogi = () => {
         style={{
           fontSize: '1.5rem',
           fontWeight: 'bold',
-          color: isSente(koma) ? '#000' : '#c00',
-          transform: isGote ? 'rotate(180deg)' : 'none',
+          color: pieceIsSente ? '#000' : '#c00',
+          transform: shouldRotate ? 'rotate(180deg)' : 'none',
           backgroundColor,
           width: '100%',
           height: '100%',
@@ -320,15 +340,172 @@ const Shogi = () => {
 
   if (showDifficultySelect) {
     return (
-      <DifficultySelector
-        title="Shogi"
-        subtitle="Japanese Chess"
-        icon="☗"
-        selectedDifficulty={difficulty}
-        onSelectDifficulty={setDifficulty}
-        options={DIFFICULTY_OPTIONS}
-        onStart={startGame}
-      />
+      <div style={{
+        minHeight: '100vh',
+        background: '#1a1a2e',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '20px'
+      }}>
+        <div style={{
+          background: 'rgba(0, 0, 0, 0.95)',
+          border: '3px solid #0ea5e9',
+          borderRadius: '1rem',
+          padding: '3rem',
+          boxShadow: '0 0 50px rgba(14, 165, 233, 0.3)',
+          minWidth: '500px'
+        }}>
+          <h1 style={{
+            color: '#fff',
+            fontSize: '2.5rem',
+            fontWeight: 'bold',
+            marginBottom: '1rem',
+            textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '1rem'
+          }}>
+            ☗ Shogi
+          </h1>
+          <p style={{
+            color: '#9ca3af',
+            textAlign: 'center',
+            marginBottom: '2rem'
+          }}>
+            Japanese Chess
+          </p>
+
+          {/* Side Selection */}
+          <h2 style={{
+            color: '#fff',
+            fontSize: '1.5rem',
+            fontWeight: 'bold',
+            marginBottom: '1rem',
+            textAlign: 'center'
+          }}>
+            Choose Your Side
+          </h2>
+          <div style={{
+            display: 'flex',
+            gap: '1rem',
+            marginBottom: '2rem'
+          }}>
+            <button
+              onClick={() => setPlayerSide(SENTE)}
+              style={{
+                flex: 1,
+                background: playerSide === SENTE ? 'rgba(59, 130, 246, 0.5)' : 'rgba(31, 41, 55, 0.5)',
+                border: `2px solid ${playerSide === SENTE ? '#3b82f6' : 'rgba(75, 85, 99, 1)'}`,
+                borderRadius: '0.5rem',
+                color: playerSide === SENTE ? '#fff' : '#9ca3af',
+                padding: '1rem',
+                fontSize: '1.125rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              ☗ Sente (First)
+              <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.8 }}>
+                Black / You move first
+              </div>
+            </button>
+            <button
+              onClick={() => setPlayerSide(GOTE)}
+              style={{
+                flex: 1,
+                background: playerSide === GOTE ? 'rgba(220, 38, 38, 0.5)' : 'rgba(31, 41, 55, 0.5)',
+                border: `2px solid ${playerSide === GOTE ? '#dc2626' : 'rgba(75, 85, 99, 1)'}`,
+                borderRadius: '0.5rem',
+                color: playerSide === GOTE ? '#fff' : '#9ca3af',
+                padding: '1rem',
+                fontSize: '1.125rem',
+                fontWeight: '600',
+                cursor: 'pointer',
+                transition: 'all 0.2s'
+              }}
+            >
+              ☖ Gote (Second)
+              <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.8 }}>
+                White / AI moves first
+              </div>
+            </button>
+          </div>
+
+          {/* Difficulty Selection */}
+          <h2 style={{
+            color: '#fff',
+            fontSize: '1.5rem',
+            fontWeight: 'bold',
+            marginBottom: '1rem',
+            textAlign: 'center'
+          }}>
+            Select Difficulty
+          </h2>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1rem',
+            marginBottom: '2rem'
+          }}>
+            {DIFFICULTY_OPTIONS.map((option) => {
+              const isSelected = difficulty === option.value;
+              return (
+                <button
+                  key={option.value}
+                  onClick={() => setDifficulty(option.value)}
+                  style={{
+                    background: isSelected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(31, 41, 55, 0.5)',
+                    border: `2px solid ${isSelected ? '#10b981' : 'rgba(75, 85, 99, 1)'}`,
+                    borderRadius: '0.5rem',
+                    color: isSelected ? '#10b981' : '#9ca3af',
+                    padding: '1rem',
+                    fontSize: '1.125rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    textTransform: 'uppercase'
+                  }}
+                >
+                  {option.label}
+                  <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.8 }}>
+                    {option.description}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          <button
+            onClick={startGame}
+            style={{
+              background: '#0ea5e9',
+              border: 'none',
+              borderRadius: '0.5rem',
+              color: '#fff',
+              fontSize: '1.5rem',
+              fontWeight: 'bold',
+              padding: '1.5rem 3rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              boxShadow: '0 10px 40px rgba(14, 165, 233, 0.5)',
+              width: '100%'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = '#0284c7';
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = '#0ea5e9';
+              e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            Start Game
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -344,56 +521,108 @@ const Shogi = () => {
         }
       />
 
-      <div style={{ maxWidth: '1400px', margin: '80px auto 0', display: 'flex', gap: '40px', flexWrap: 'wrap', justifyContent: 'center' }}>
-        {/* Gote Captured Pieces */}
-        <div style={{ flex: '0 0 auto' }}>
-          <h3 style={{ marginBottom: '10px' }}>AI Pieces (後手)</h3>
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '5px',
-              padding: '10px',
-              background: 'rgba(255,255,255,0.1)',
-              borderRadius: '8px',
-              minHeight: '60px',
-              width: '200px',
-            }}
-          >
-            {[...gameState.kyokumen.hand[1]]
-              .sort((a, b) => Math.abs(komaValue[b]) - Math.abs(komaValue[a]))
-              .map((koma, i) => (
-                <div
-                  key={i}
-                  style={{
-                    padding: '5px 10px',
-                    background: 'rgba(200,0,0,0.2)',
-                    borderRadius: '4px',
-                    fontSize: '1.2rem',
-                  }}
-                >
-                  {toString(koma)}
-                </div>
-              ))}
-          </div>
-        </div>
+      <div style={{ maxWidth: '1600px', margin: '80px auto 0', display: 'flex', gap: '40px', justifyContent: 'center', alignItems: 'flex-start' }}>
+        {/* Left side captured pieces - shown when player is Gote */}
+        {playerSide === GOTE && (
+          <div style={{ flex: '0 0 auto' }}>
+            <h3 style={{ marginBottom: '10px' }}>Your Pieces (後手)</h3>
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '5px',
+                padding: '10px',
+                background: 'rgba(255,255,255,0.1)',
+                borderRadius: '8px',
+                minHeight: '80px',
+                width: '250px',
+              }}
+            >
+              {(() => {
+                const sortedPieces = gameState.kyokumen.hand[1]
+                  .map((koma, originalIndex) => ({ koma, originalIndex }))
+                  .sort((a, b) => Math.abs(komaValue[b.koma]) - Math.abs(komaValue[a.koma]));
 
-        {/* Board */}
-        <div style={{ flex: '0 0 auto' }}>
+                return sortedPieces.map(({ koma, originalIndex }, i) => (
+                  <div
+                    key={i}
+                    onClick={() => handleCapturedClick(originalIndex)}
+                    style={{
+                      padding: '8px 12px',
+                      background: 'rgba(0,200,0,0.2)',
+                      borderRadius: '4px',
+                      fontSize: '1.4rem',
+                      cursor: 'pointer',
+                      border: '2px solid transparent',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,255,0,0.3)'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0,200,0,0.2)'}
+                  >
+                    {toString(koma)}
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        )}
+
+        {/* Center column with board and captured pieces */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center' }}>
+          {/* AI Captured Pieces - top */}
+          <div>
+            <h3 style={{ marginBottom: '10px', textAlign: 'center' }}>
+              {playerSide === SENTE ? 'AI Pieces (後手)' : 'AI Pieces (先手)'}
+            </h3>
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '5px',
+                padding: '10px',
+                background: 'rgba(255,255,255,0.1)',
+                borderRadius: '8px',
+                minHeight: '80px',
+                width: '620px',
+                justifyContent: 'center',
+              }}
+            >
+              {[...gameState.kyokumen.hand[playerSide === SENTE ? 1 : 0]]
+                .sort((a, b) => Math.abs(komaValue[b]) - Math.abs(komaValue[a]))
+                .map((koma, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      padding: '8px 12px',
+                      background: 'rgba(200,0,0,0.2)',
+                      borderRadius: '4px',
+                      fontSize: '1.4rem',
+                    }}
+                  >
+                    {toString(koma)}
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          {/* Board */}
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(9, 50px)',
+              gridTemplateColumns: 'repeat(9, 65px)',
               gap: '1px',
               background: '#333',
-              border: '2px solid #666',
+              border: '3px solid #666',
               padding: '1px',
+              boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
             }}
           >
-            {Array.from({ length: 9 }, (_, dan) =>
+            {Array.from({ length: 9 }, (_, danIdx) =>
               Array.from({ length: 9 }, (_, sujiIdx) => {
-                const suji = 9 - sujiIdx; // Right to left (9→1)
-                const actualDan = dan + 1;
+                // Flip board if player is Gote
+                const suji = playerSide === SENTE ? (9 - sujiIdx) : (sujiIdx + 1);
+                const actualDan = playerSide === SENTE ? (danIdx + 1) : (9 - danIdx);
+
                 const isValidMove = gameState.validMoves.some(
                   m => m.to.suji === suji && m.to.dan === actualDan
                 );
@@ -403,8 +632,8 @@ const Shogi = () => {
                     key={`${suji}-${actualDan}`}
                     onClick={() => handleCellClick(suji, actualDan)}
                     style={{
-                      width: '50px',
-                      height: '50px',
+                      width: '65px',
+                      height: '65px',
                       background: isValidMove ? 'rgba(0, 255, 0, 0.2)' : '#ffe8b8',
                       border: '1px solid #8b7355',
                       cursor: 'pointer',
@@ -420,51 +649,121 @@ const Shogi = () => {
               })
             )}
           </div>
-        </div>
 
-        {/* Sente Captured Pieces */}
-        <div style={{ flex: '0 0 auto' }}>
-          <h3 style={{ marginBottom: '10px' }}>Your Pieces (先手)</h3>
-          <div
-            style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '5px',
-              padding: '10px',
-              background: 'rgba(255,255,255,0.1)',
-              borderRadius: '8px',
-              minHeight: '60px',
-              width: '200px',
-            }}
-          >
-            {(() => {
-              // Sort pieces by value and keep track of original indices
-              const sortedPieces = gameState.kyokumen.hand[0]
-                .map((koma, originalIndex) => ({ koma, originalIndex }))
-                .sort((a, b) => Math.abs(komaValue[b.koma]) - Math.abs(komaValue[a.koma]));
+          {/* Player Captured Pieces - bottom */}
+          <div>
+            <h3 style={{ marginBottom: '10px', textAlign: 'center' }}>
+              {playerSide === SENTE ? 'Your Pieces (先手)' : 'Your Pieces (後手)'}
+            </h3>
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '5px',
+                padding: '10px',
+                background: 'rgba(255,255,255,0.1)',
+                borderRadius: '8px',
+                minHeight: '80px',
+                width: '620px',
+                justifyContent: 'center',
+              }}
+            >
+              {(() => {
+                const handIndex = playerSide === SENTE ? 0 : 1;
+                const sortedPieces = gameState.kyokumen.hand[handIndex]
+                  .map((koma, originalIndex) => ({ koma, originalIndex }))
+                  .sort((a, b) => Math.abs(komaValue[b.koma]) - Math.abs(komaValue[a.koma]));
 
-              return sortedPieces.map(({ koma, originalIndex }, i) => (
-                <div
-                  key={i}
-                  onClick={() => handleCapturedClick(originalIndex)}
-                  style={{
-                    padding: '5px 10px',
-                    background:
-                      gameState.selectedCapturedIndex === originalIndex
-                        ? 'rgba(66,153,225,0.5)'
-                        : 'rgba(0,0,0,0.2)',
-                    borderRadius: '4px',
-                    fontSize: '1.2rem',
-                    cursor: 'pointer',
-                    border: gameState.selectedCapturedIndex === originalIndex ? '2px solid #4299e1' : 'none',
-                  }}
-                >
-                  {toString(koma)}
-                </div>
-              ));
-            })()}
+                return sortedPieces.map(({ koma, originalIndex }, i) => (
+                  <div
+                    key={i}
+                    onClick={() => handleCapturedClick(originalIndex)}
+                    style={{
+                      padding: '8px 12px',
+                      background:
+                        gameState.selectedCapturedIndex === originalIndex
+                          ? 'rgba(66,153,225,0.5)'
+                          : 'rgba(0,200,0,0.2)',
+                      borderRadius: '4px',
+                      fontSize: '1.4rem',
+                      cursor: 'pointer',
+                      border: gameState.selectedCapturedIndex === originalIndex ? '2px solid #4299e1' : '2px solid transparent',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (gameState.selectedCapturedIndex !== originalIndex) {
+                        e.currentTarget.style.background = 'rgba(0,255,0,0.3)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (gameState.selectedCapturedIndex !== originalIndex) {
+                        e.currentTarget.style.background = 'rgba(0,200,0,0.2)';
+                      }
+                    }}
+                  >
+                    {toString(koma)}
+                  </div>
+                ));
+              })()}
+            </div>
           </div>
         </div>
+
+        {/* Right side captured pieces - shown when player is Sente */}
+        {playerSide === SENTE && (
+          <div style={{ flex: '0 0 auto' }}>
+            <h3 style={{ marginBottom: '10px' }}>Your Pieces (先手)</h3>
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '5px',
+                padding: '10px',
+                background: 'rgba(255,255,255,0.1)',
+                borderRadius: '8px',
+                minHeight: '80px',
+                width: '250px',
+              }}
+            >
+              {(() => {
+                const sortedPieces = gameState.kyokumen.hand[0]
+                  .map((koma, originalIndex) => ({ koma, originalIndex }))
+                  .sort((a, b) => Math.abs(komaValue[b.koma]) - Math.abs(komaValue[a.koma]));
+
+                return sortedPieces.map(({ koma, originalIndex }, i) => (
+                  <div
+                    key={i}
+                    onClick={() => handleCapturedClick(originalIndex)}
+                    style={{
+                      padding: '8px 12px',
+                      background:
+                        gameState.selectedCapturedIndex === originalIndex
+                          ? 'rgba(66,153,225,0.5)'
+                          : 'rgba(0,200,0,0.2)',
+                      borderRadius: '4px',
+                      fontSize: '1.4rem',
+                      cursor: 'pointer',
+                      border: gameState.selectedCapturedIndex === originalIndex ? '2px solid #4299e1' : '2px solid transparent',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (gameState.selectedCapturedIndex !== originalIndex) {
+                        e.currentTarget.style.background = 'rgba(0,255,0,0.3)';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (gameState.selectedCapturedIndex !== originalIndex) {
+                        e.currentTarget.style.background = 'rgba(0,200,0,0.2)';
+                      }
+                    }}
+                  >
+                    {toString(koma)}
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        )}
 
         {/* Move History */}
         <div style={{ flex: '0 0 auto', maxWidth: '250px' }}>

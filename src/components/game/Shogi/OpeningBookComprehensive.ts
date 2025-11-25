@@ -11,7 +11,7 @@ interface OpeningMove {
   from: { suji: number; dan: number };
   to: { suji: number; dan: number };
   promote: boolean;
-  teban: number; // SENTE or GOTE
+  teban?: number; // SENTE or GOTE (optional - can be derived from move index)
 }
 
 interface OpeningSequence {
@@ -126,6 +126,22 @@ const IBISHA_OPENINGS: OpeningSequence[] = [
       { from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 }, promote: false }, // S-7h
       { from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 }, promote: false }, // P-6f
       { from: { suji: 7, dan: 8 }, to: { suji: 6, dan: 7 }, promote: false }, // S-6g
+    ],
+  },
+  // 対早繰り銀 (Defense against Early 8th File Attack)
+  {
+    name: '対８筋早攻め',
+    category: '対居飛車',
+    priority: 95,
+    moves: [
+      { from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 }, promote: false }, // ☗７六歩
+      { from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 }, promote: false }, // ☖８四歩
+      { from: { suji: 5, dan: 9 }, to: { suji: 6, dan: 8 }, promote: false }, // ☗６八王
+      { from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 }, promote: false }, // ☖８五歩
+      { from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 }, promote: false }, // ☗７七角 (KEY DEFENSIVE MOVE - FIXED!)
+      { from: { suji: 8, dan: 5 }, to: { suji: 7, dan: 6 }, promote: false }, // ☖８六歩
+      { from: { suji: 7, dan: 6 }, to: { suji: 7, dan: 6 }, promote: false }, // ☗同歩 (capture)
+      { from: { suji: 8, dan: 2 }, to: { suji: 8, dan: 6 }, promote: false }, // ☖同飛
     ],
   },
 ];
@@ -332,8 +348,9 @@ export function getOpeningMoveComprehensive(
   const positionEval = kyokumen.evaluate();
   const evalForThisSide = teban === SENTE ? positionEval : -positionEval;
 
-  // If position is very unbalanced (> 300 points), don't use book moves
-  if (Math.abs(evalForThisSide) > 300) {
+  // If position is tactical/unbalanced (> 200 points), don't use book moves
+  // Lowered from 300 to 200 to catch promotion threats earlier
+  if (Math.abs(evalForThisSide) > 200) {
     console.log(`Position too tactical (eval: ${evalForThisSide}), skipping opening book`);
     return null;
   }
@@ -348,7 +365,12 @@ export function getOpeningMoveComprehensive(
   // Filter openings that match the game so far and have moves for this move number
   const viableOpenings = ALL_OPENINGS.filter(opening => {
     if (moveIndex >= opening.moves.length) return false;
-    if (opening.moves[moveIndex].teban !== teban) return false;
+
+    // Check teban - if not specified in the move, derive from move index
+    // Odd moves (1,3,5,7...) are SENTE, even moves (2,4,6,8...) are GOTE
+    const expectedTeban = opening.moves[moveIndex].teban ??
+                         ((moveIndex % 2 === 0) ? SENTE : GOTE);
+    if (expectedTeban !== teban) return false;
 
     // IMPORTANT: Check if the game has been following this opening
     return matchesOpeningSequence(kyokumen, opening, moveHistory, moveNumber);

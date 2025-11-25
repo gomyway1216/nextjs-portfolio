@@ -13,6 +13,9 @@ import {
   OU,
   FU,
   HI,
+  KA,
+  RY,
+  UM,
   SOU,
   GOU,
   SFU,
@@ -159,7 +162,7 @@ export class Kyokumen {
       }
     }
 
-    if (te.from.suji === 0) {
+    if (te.from.suji === 0 && te.from.dan === 0) {
       // This is a drop move
       if (isSente(te.koma)) {
         // Sente drops
@@ -539,6 +542,50 @@ export class Kyokumen {
     return score;
   }
 
+  // Evaluate promotion threats - detect when opponent pieces can promote
+  private evaluatePromotionThreats(teban: number): number {
+    let penalty = 0;
+    const opponent = teban === SENTE ? GOTE : SENTE;
+
+    // Define promotion zones
+    const promotionZone = teban === SENTE ? [1, 2, 3] : [7, 8, 9];
+
+    // Check for enemy major pieces (Rook, Bishop) that can reach promotion zone
+    for (let suji = 1; suji <= 9; suji++) {
+      for (let dan = 1; dan <= 9; dan++) {
+        const piece = this.ban[suji][dan];
+        if (piece === EMPTY || isSelf(teban, piece)) continue;
+
+        // Heavy penalty for enemy Rook in or near promotion zone
+        const isRook = Math.abs(piece) === HI || Math.abs(piece) === RY;
+        const isBishop = Math.abs(piece) === KA || Math.abs(piece) === UM;
+
+        if (isRook || isBishop) {
+          // Check if piece is in promotion zone
+          if (promotionZone.includes(dan)) {
+            // Critical: enemy major piece in promotion zone!
+            penalty -= (isRook ? 1600 : 1200); // Rook is more dangerous (doubled)
+
+            // Even worse if it's undefended
+            if (!this.isUnderAttack(new Position(suji, dan), opponent)) {
+              penalty -= 800; // Doubled - undefended promotion threat is critical!
+            }
+          } else {
+            // Check if piece is 1-2 moves away from promotion zone
+            const distanceToPromotion = Math.min(...promotionZone.map(d => Math.abs(dan - d)));
+            if (distanceToPromotion === 1) {
+              penalty -= (isRook ? 800 : 600); // One move away from promotion (doubled)
+            } else if (distanceToPromotion === 2) {
+              penalty -= (isRook ? 400 : 300); // Two moves away (doubled)
+            }
+          }
+        }
+      }
+    }
+
+    return penalty;
+  }
+
   // Evaluate board position (improved)
   evaluate(): number {
     let score = 0;
@@ -582,6 +629,11 @@ export class Kyokumen {
     const senteHanging = this.evaluateHangingPieces(SENTE);
     const goteHanging = this.evaluateHangingPieces(GOTE);
     score += senteHanging - goteHanging;
+
+    // Promotion threats - heavily penalize allowing opponent to promote major pieces
+    const sentePromotionThreat = this.evaluatePromotionThreats(SENTE);
+    const gotePromotionThreat = this.evaluatePromotionThreats(GOTE);
+    score += sentePromotionThreat - gotePromotionThreat;
 
     // Aggressive endgame: If one side has significant material advantage, bonus for attacking
     const materialAdvantage = Math.abs(score);

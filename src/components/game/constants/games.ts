@@ -76,4 +76,13 @@ export const games: Game[] = [
     difficulty: 'Hard',
     category: 'RPG',
   },
+  {
+    id: 'breakout',
+    title: 'Breakout',
+    description: 'Classic brick-breaking arcade game! Use your paddle to bounce the ball and destroy all bricks. Collect power-ups!',
+    thumbnail: '🧱',
+    path: '/games/breakout',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
 ];

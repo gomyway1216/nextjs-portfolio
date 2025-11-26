@@ -521,91 +521,46 @@ const Shogi = () => {
         }
       />
 
-      <div style={{ maxWidth: '1600px', margin: '80px auto 0', display: 'flex', gap: '40px', justifyContent: 'center', alignItems: 'flex-start' }}>
-        {/* Left side captured pieces - shown when player is Gote */}
-        {playerSide === GOTE && (
-          <div style={{ flex: '0 0 auto' }}>
-            <h3 style={{ marginBottom: '10px' }}>Your Pieces (後手)</h3>
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '5px',
-                padding: '10px',
-                background: 'rgba(255,255,255,0.1)',
-                borderRadius: '8px',
-                minHeight: '80px',
-                width: '250px',
-              }}
-            >
-              {(() => {
-                const sortedPieces = gameState.kyokumen.hand[1]
-                  .map((koma, originalIndex) => ({ koma, originalIndex }))
-                  .sort((a, b) => Math.abs(komaValue[b.koma]) - Math.abs(komaValue[a.koma]));
-
-                return sortedPieces.map(({ koma, originalIndex }, i) => (
-                  <div
-                    key={i}
-                    onClick={() => handleCapturedClick(originalIndex)}
-                    style={{
-                      padding: '8px 12px',
-                      background: 'rgba(0,200,0,0.2)',
-                      borderRadius: '4px',
-                      fontSize: '1.4rem',
-                      cursor: 'pointer',
-                      border: '2px solid transparent',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,255,0,0.3)'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(0,200,0,0.2)'}
-                  >
-                    {toString(koma)}
-                  </div>
-                ));
-              })()}
-            </div>
+      <div style={{ maxWidth: '1600px', margin: '80px auto 0', display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'stretch' }}>
+        {/* AI Captured Pieces - Left side */}
+        <div style={{ flex: '0 0 100px', display: 'flex', flexDirection: 'column' }}>
+          <h3 style={{ marginBottom: '10px', fontSize: '0.9rem', textAlign: 'center' }}>
+            {playerSide === SENTE ? 'AI (後手)' : 'AI (先手)'}
+          </h3>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '5px',
+              padding: '10px',
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: '8px',
+              flex: 1,
+              minHeight: '500px',
+            }}
+          >
+            {[...gameState.kyokumen.hand[playerSide === SENTE ? 1 : 0]]
+              .sort((a, b) => Math.abs(komaValue[b]) - Math.abs(komaValue[a]))
+              .map((koma, i) => (
+                <div
+                  key={i}
+                  style={{
+                    padding: '8px',
+                    background: 'rgba(200,0,0,0.2)',
+                    borderRadius: '4px',
+                    fontSize: '1.4rem',
+                    textAlign: 'center',
+                    transform: 'rotate(180deg)',
+                  }}
+                >
+                  {toString(koma)}
+                </div>
+              ))}
           </div>
-        )}
+        </div>
 
-        {/* Center column with board and captured pieces */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', alignItems: 'center' }}>
-          {/* AI Captured Pieces - top */}
-          <div>
-            <h3 style={{ marginBottom: '10px', textAlign: 'center' }}>
-              {playerSide === SENTE ? 'AI Pieces (後手)' : 'AI Pieces (先手)'}
-            </h3>
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '5px',
-                padding: '10px',
-                background: 'rgba(255,255,255,0.1)',
-                borderRadius: '8px',
-                minHeight: '80px',
-                width: '620px',
-                justifyContent: 'center',
-              }}
-            >
-              {[...gameState.kyokumen.hand[playerSide === SENTE ? 1 : 0]]
-                .sort((a, b) => Math.abs(komaValue[b]) - Math.abs(komaValue[a]))
-                .map((koma, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      padding: '8px 12px',
-                      background: 'rgba(200,0,0,0.2)',
-                      borderRadius: '4px',
-                      fontSize: '1.4rem',
-                    }}
-                  >
-                    {toString(koma)}
-                  </div>
-                ))}
-            </div>
-          </div>
-
-          {/* Board */}
+        {/* Board */}
+        <div style={{ flex: '0 0 auto' }}>
           <div
             style={{
               display: 'grid',
@@ -649,131 +604,77 @@ const Shogi = () => {
               })
             )}
           </div>
+        </div>
 
-          {/* Player Captured Pieces - bottom */}
-          <div>
-            <h3 style={{ marginBottom: '10px', textAlign: 'center' }}>
-              {playerSide === SENTE ? 'Your Pieces (先手)' : 'Your Pieces (後手)'}
-            </h3>
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '5px',
-                padding: '10px',
-                background: 'rgba(255,255,255,0.1)',
-                borderRadius: '8px',
-                minHeight: '80px',
-                width: '620px',
-                justifyContent: 'center',
-              }}
-            >
-              {(() => {
-                const handIndex = playerSide === SENTE ? 0 : 1;
-                const sortedPieces = gameState.kyokumen.hand[handIndex]
-                  .map((koma, originalIndex) => ({ koma, originalIndex }))
-                  .sort((a, b) => Math.abs(komaValue[b.koma]) - Math.abs(komaValue[a.koma]));
+        {/* Human Captured Pieces - Right side */}
+        <div style={{ flex: '0 0 100px', display: 'flex', flexDirection: 'column' }}>
+          <h3 style={{ marginBottom: '10px', fontSize: '0.9rem', textAlign: 'center' }}>
+            {playerSide === SENTE ? 'You (先手)' : 'You (後手)'}
+          </h3>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '5px',
+              padding: '10px',
+              background: 'rgba(255,255,255,0.1)',
+              borderRadius: '8px',
+              flex: 1,
+              minHeight: '500px',
+            }}
+          >
+            {(() => {
+              const handIndex = playerSide === SENTE ? 0 : 1;
+              const sortedPieces = gameState.kyokumen.hand[handIndex]
+                .map((koma, originalIndex) => ({ koma, originalIndex }))
+                .sort((a, b) => Math.abs(komaValue[b.koma]) - Math.abs(komaValue[a.koma]));
 
-                return sortedPieces.map(({ koma, originalIndex }, i) => (
-                  <div
-                    key={i}
-                    onClick={() => handleCapturedClick(originalIndex)}
-                    style={{
-                      padding: '8px 12px',
-                      background:
-                        gameState.selectedCapturedIndex === originalIndex
-                          ? 'rgba(66,153,225,0.5)'
-                          : 'rgba(0,200,0,0.2)',
-                      borderRadius: '4px',
-                      fontSize: '1.4rem',
-                      cursor: 'pointer',
-                      border: gameState.selectedCapturedIndex === originalIndex ? '2px solid #4299e1' : '2px solid transparent',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (gameState.selectedCapturedIndex !== originalIndex) {
-                        e.currentTarget.style.background = 'rgba(0,255,0,0.3)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (gameState.selectedCapturedIndex !== originalIndex) {
-                        e.currentTarget.style.background = 'rgba(0,200,0,0.2)';
-                      }
-                    }}
-                  >
-                    {toString(koma)}
-                  </div>
-                ));
-              })()}
-            </div>
+              return sortedPieces.map(({ koma, originalIndex }, i) => (
+                <div
+                  key={i}
+                  onClick={() => handleCapturedClick(originalIndex)}
+                  style={{
+                    padding: '8px',
+                    background:
+                      gameState.selectedCapturedIndex === originalIndex
+                        ? 'rgba(66,153,225,0.5)'
+                        : 'rgba(0,200,0,0.2)',
+                    borderRadius: '4px',
+                    fontSize: '1.4rem',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    border: gameState.selectedCapturedIndex === originalIndex ? '2px solid #4299e1' : '2px solid transparent',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (gameState.selectedCapturedIndex !== originalIndex) {
+                      e.currentTarget.style.background = 'rgba(0,255,0,0.3)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (gameState.selectedCapturedIndex !== originalIndex) {
+                      e.currentTarget.style.background = 'rgba(0,200,0,0.2)';
+                    }
+                  }}
+                >
+                  {toString(koma)}
+                </div>
+              ));
+            })()}
           </div>
         </div>
 
-        {/* Right side captured pieces - shown when player is Sente */}
-        {playerSide === SENTE && (
-          <div style={{ flex: '0 0 auto' }}>
-            <h3 style={{ marginBottom: '10px' }}>Your Pieces (先手)</h3>
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                gap: '5px',
-                padding: '10px',
-                background: 'rgba(255,255,255,0.1)',
-                borderRadius: '8px',
-                minHeight: '80px',
-                width: '250px',
-              }}
-            >
-              {(() => {
-                const sortedPieces = gameState.kyokumen.hand[0]
-                  .map((koma, originalIndex) => ({ koma, originalIndex }))
-                  .sort((a, b) => Math.abs(komaValue[b.koma]) - Math.abs(komaValue[a.koma]));
-
-                return sortedPieces.map(({ koma, originalIndex }, i) => (
-                  <div
-                    key={i}
-                    onClick={() => handleCapturedClick(originalIndex)}
-                    style={{
-                      padding: '8px 12px',
-                      background:
-                        gameState.selectedCapturedIndex === originalIndex
-                          ? 'rgba(66,153,225,0.5)'
-                          : 'rgba(0,200,0,0.2)',
-                      borderRadius: '4px',
-                      fontSize: '1.4rem',
-                      cursor: 'pointer',
-                      border: gameState.selectedCapturedIndex === originalIndex ? '2px solid #4299e1' : '2px solid transparent',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (gameState.selectedCapturedIndex !== originalIndex) {
-                        e.currentTarget.style.background = 'rgba(0,255,0,0.3)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (gameState.selectedCapturedIndex !== originalIndex) {
-                        e.currentTarget.style.background = 'rgba(0,200,0,0.2)';
-                      }
-                    }}
-                  >
-                    {toString(koma)}
-                  </div>
-                ));
-              })()}
-            </div>
-          </div>
-        )}
-
         {/* Move History */}
-        <div style={{ flex: '0 0 auto', maxWidth: '250px' }}>
-          <h3 style={{ marginBottom: '10px' }}>Move History</h3>
+        <div style={{ flex: '0 0 200px', display: 'flex', flexDirection: 'column' }}>
+          <h3 style={{ marginBottom: '10px', fontSize: '0.9rem' }}>Move History</h3>
           <div
             style={{
               padding: '10px',
               background: 'rgba(255,255,255,0.1)',
               borderRadius: '8px',
-              maxHeight: '500px',
+              flex: 1,
+              minHeight: '500px',
+              maxHeight: '600px',
               overflowY: 'auto',
             }}
           >

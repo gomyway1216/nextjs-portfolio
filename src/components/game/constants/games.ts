@@ -85,4 +85,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Arcade',
   },
+  {
+    id: 'space-invaders',
+    title: 'Space Invaders',
+    description: 'Defend Earth from alien invasion! Destroy waves of enemies, use shields for cover, and shoot the mystery UFO for bonus points.',
+    thumbnail: '👾',
+    path: '/games/space-invaders',
+    difficulty: 'Medium',
+    category: 'Arcade',
+  },
 ];

@@ -1,6 +1,7 @@
 /**
  * Othello Game Component
  * Based on Thell 3.0.3 implementation
+ * Supports both single-player (vs AI) and multiplayer modes
  */
 
 'use client';
@@ -20,6 +21,9 @@ import {
 } from './types';
 import { OthelloAI } from './AI';
 import { initMobilityTables } from './MobilityTable';
+import { useOthelloMultiplayer } from './useOthelloMultiplayer';
+import { OthelloMultiplayerLobby } from './OthelloMultiplayerLobby';
+import { OthelloNetworkState, boardToNetwork } from './multiplayerTypes';
 
 const DIFFICULTY_OPTIONS = [
   { label: 'Easy', value: 'easy' as Difficulty, description: 'Depth 2 search' },
@@ -37,6 +41,8 @@ interface OthelloState {
   lastMove: Point | null;
 }
 
+type GameMode = 'menu' | 'ai' | 'multiplayer';
+
 const Othello = () => {
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium');
@@ -45,6 +51,10 @@ const Othello = () => {
   const [showDifficultySelect, setShowDifficultySelect] = useState<boolean>(true);
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
+  const [gameMode, setGameMode] = useState<GameMode>('menu');
+
+  // Multiplayer hook
+  const multiplayer = useOthelloMultiplayer();
 
   const aiColor = playerColor === BLACK ? WHITE : BLACK;
 
@@ -114,10 +124,31 @@ const Othello = () => {
     };
   }, []);
 
-  // Handle player move
+  // Helper to create network state from board
+  const createNetworkState = useCallback((board: Board, lastMove: Point | null, isGameOver: boolean, winner: Color | null): OthelloNetworkState => {
+    return {
+      board: boardToNetwork((x, y) => board.getColor(x, y)),
+      currentTurn: board.getCurrentColor(),
+      blackCount: board.countDisc(BLACK),
+      whiteCount: board.countDisc(WHITE),
+      lastMove,
+      validMoves: board.getMovablePos(),
+      gameOver: isGameOver,
+      winner,
+      turnNumber: board.getTurns(),
+      lastUpdate: Date.now(),
+    };
+  }, []);
+
+  // Handle player move (works for both AI and multiplayer modes)
   const handleCellClick = useCallback((x: number, y: number) => {
     if (gameState.gameOver || gameState.isAIThinking) return;
-    if (gameState.board.getCurrentColor() !== playerColor) return;
+
+    // In AI mode, check if it's player's turn
+    if (gameMode === 'ai' && gameState.board.getCurrentColor() !== playerColor) return;
+
+    // In multiplayer mode, check if it's my turn
+    if (gameMode === 'multiplayer' && gameState.board.getCurrentColor() !== multiplayer.myColor) return;
 
     const point: Point = { x, y };
 
@@ -140,9 +171,76 @@ const Othello = () => {
         lastMove: point,
       }));
 
-      if (winner === playerColor) {
+      // Update stats based on mode
+      if (gameMode === 'ai') {
+        if (winner === playerColor) {
+          setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+        } else if (winner === aiColor) {
+          setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+        } else {
+          setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
+        }
+      } else if (gameMode === 'multiplayer') {
+        if (winner === multiplayer.myColor) {
+          setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+        } else if (winner === multiplayer.opponentColor) {
+          setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+        } else {
+          setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
+        }
+        // Send final state to Firebase
+        const networkState = createNetworkState(newBoard, point, true, winner);
+        multiplayer.updateGameState(networkState);
+        multiplayer.endGame(winner === multiplayer.myColor ? multiplayer.context.playerId :
+          winner === multiplayer.opponentColor ? multiplayer.otherPlayer?.id || null : null);
+      }
+      return;
+    }
+
+    // In multiplayer, send the move to Firebase
+    if (gameMode === 'multiplayer') {
+      multiplayer.makeMove(point);
+      const networkState = createNetworkState(newBoard, point, false, null);
+      multiplayer.updateGameState(networkState);
+    }
+
+    setGameState(prev => ({
+      ...prev,
+      board: newBoard,
+      validMoves: newBoard.getMovablePos(),
+      message,
+      lastMove: point,
+      isAIThinking: gameMode === 'ai', // Only AI thinking in AI mode
+    }));
+  }, [gameState, checkGameState, playerColor, aiColor, gameMode, multiplayer, createNetworkState]);
+
+  // Effect to handle opponent's moves in multiplayer mode
+  useEffect(() => {
+    if (gameMode !== 'multiplayer') return;
+    if (!multiplayer.pendingMove) return;
+    if (multiplayer.pendingMove.playerId === multiplayer.context.playerId) return;
+
+    const move = multiplayer.pendingMove.move;
+    const newBoard = gameState.board.clone();
+
+    if (!newBoard.move(move)) return;
+
+    const { isOver, winner, message } = checkGameState(newBoard);
+
+    if (isOver) {
+      setGameState(prev => ({
+        ...prev,
+        board: newBoard,
+        validMoves: [],
+        gameOver: true,
+        winner,
+        message,
+        lastMove: move,
+      }));
+
+      if (winner === multiplayer.myColor) {
         setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-      } else if (winner === aiColor) {
+      } else if (winner === multiplayer.opponentColor) {
         setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
       } else {
         setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
@@ -155,13 +253,13 @@ const Othello = () => {
       board: newBoard,
       validMoves: newBoard.getMovablePos(),
       message,
-      lastMove: point,
-      isAIThinking: true,
+      lastMove: move,
     }));
-  }, [gameState, checkGameState, playerColor, aiColor]);
+  }, [multiplayer.pendingMove, gameMode, multiplayer.context.playerId, multiplayer.myColor, multiplayer.opponentColor, gameState.board, checkGameState]);
 
-  // AI move effect
+  // AI move effect (only runs in AI mode)
   useEffect(() => {
+    if (gameMode !== 'ai') return;
     if (!gameState.isAIThinking || gameState.gameOver) return;
 
     const currentBoard = gameState.board;
@@ -267,15 +365,42 @@ const Othello = () => {
     }, 500);
 
     return () => clearTimeout(timeoutId);
-  }, [gameState.isAIThinking, gameState.gameOver, gameState.board, difficulty, checkGameState, playerColor, aiColor]);
+  }, [gameMode, gameState.isAIThinking, gameState.gameOver, gameState.board, difficulty, checkGameState, playerColor, aiColor]);
 
-  // Start game with selected difficulty and color
-  const startGame = useCallback(() => {
+  // Start AI game with selected difficulty and color
+  const startAIGame = useCallback(() => {
     setDifficulty(selectedDifficulty);
     setPlayerColor(selectedPlayerColor);
     setShowDifficultySelect(false);
+    setGameMode('ai');
     initGame(selectedPlayerColor);
   }, [initGame, selectedDifficulty, selectedPlayerColor]);
+
+  // Start multiplayer game
+  const startMultiplayerGame = useCallback(async () => {
+    const board = new Board();
+    setGameState({
+      board,
+      validMoves: board.getMovablePos(),
+      gameOver: false,
+      winner: null,
+      isAIThinking: false,
+      message: 'Black to play',
+      lastMove: null,
+    });
+    setPlayerColor(multiplayer.myColor);
+    setShowDifficultySelect(false);
+    setGameMode('multiplayer');
+
+    // If host, send initial game state to Firebase
+    if (multiplayer.context.isHost) {
+      const networkState = createNetworkState(board, null, false, null);
+      await multiplayer.startGame(networkState);
+    }
+  }, [multiplayer, createNetworkState]);
+
+  // Legacy startGame for backwards compatibility
+  const startGame = startAIGame;
 
   // Styles
   const containerStyle: React.CSSProperties = {
@@ -437,13 +562,16 @@ const Othello = () => {
   const renderBoard = () => {
     const cells = [];
 
+    // Determine if player can click based on game mode
+    const myTurnColor = gameMode === 'multiplayer' ? multiplayer.myColor : playerColor;
+
     for (let y = 1; y <= BOARD_SIZE; y++) {
       for (let x = 1; x <= BOARD_SIZE; x++) {
         const color = gameState.board.getColor(x, y);
         const isValidMove = gameState.validMoves.some(m => m.x === x && m.y === y);
         const isLastMove = gameState.lastMove?.x === x && gameState.lastMove?.y === y;
         const canClick = isValidMove && !gameState.isAIThinking && !gameState.gameOver &&
-          gameState.board.getCurrentColor() === playerColor;
+          gameState.board.getCurrentColor() === myTurnColor;
 
         cells.push(
           <div
@@ -531,20 +659,102 @@ const Othello = () => {
     </div>
   );
 
-  // Difficulty selector screen
+  // Show multiplayer lobby or difficulty selector
   if (showDifficultySelect) {
+    // Check if we're in multiplayer lobby mode
+    const isInMultiplayerLobby = multiplayer.context.lobbyState !== 'idle' ||
+      multiplayer.context.roomId !== null;
+
+    // If multiplayer game is starting/playing, redirect to game
+    if (multiplayer.context.lobbyState === 'playing') {
+      startMultiplayerGame();
+    }
+
     return (
       <div style={containerStyle}>
-        <DifficultySelector
-          title="Othello"
-          subtitle="Classic disc-flipping strategy game"
-          icon={<><span style={{ fontSize: '3rem' }}>⚫</span><span style={{ fontSize: '3rem' }}>⚪</span></>}
-          options={DIFFICULTY_OPTIONS}
-          selectedDifficulty={selectedDifficulty}
-          onSelectDifficulty={setSelectedDifficulty}
-          onStart={startGame}
-          extraContent={<ColorSelector />}
-        />
+        <div style={{
+          background: 'rgba(0, 0, 0, 0.95)',
+          border: '3px solid #22c55e',
+          borderRadius: '1rem',
+          padding: '2rem',
+          maxWidth: '500px',
+          minWidth: '400px',
+        }}>
+          {/* Show multiplayer lobby */}
+          <OthelloMultiplayerLobby
+            multiplayer={multiplayer}
+            onStartSinglePlayer={() => {
+              // This is handled internally by the lobby component
+            }}
+            onGameStart={startMultiplayerGame}
+          />
+
+          {/* AI Difficulty selector - shown when not in multiplayer lobby */}
+          {!isInMultiplayerLobby && (
+            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #374151' }}>
+              <h3 style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '1rem', textAlign: 'center' }}>
+                Or play against AI:
+              </h3>
+
+              {/* Difficulty options */}
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginBottom: '1rem' }}>
+                {DIFFICULTY_OPTIONS.map(option => (
+                  <button
+                    key={option.value}
+                    onClick={() => setSelectedDifficulty(option.value)}
+                    style={{
+                      padding: '0.5rem 1rem',
+                      borderRadius: '0.5rem',
+                      border: selectedDifficulty === option.value ? '2px solid #22c55e' : '2px solid #374151',
+                      backgroundColor: selectedDifficulty === option.value ? 'rgba(34, 197, 94, 0.2)' : 'transparent',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+
+              <ColorSelector />
+
+              <button
+                onClick={startAIGame}
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  backgroundColor: '#16a34a',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '0.5rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  marginTop: '1rem',
+                }}
+              >
+                Start vs AI
+              </button>
+            </div>
+          )}
+
+          <button
+            onClick={() => setShowInfoModal(true)}
+            style={{
+              background: 'transparent',
+              border: '1px solid #4b5563',
+              borderRadius: '0.5rem',
+              color: '#9ca3af',
+              fontSize: '0.875rem',
+              padding: '0.5rem 1.5rem',
+              cursor: 'pointer',
+              marginTop: '1rem',
+              width: '100%',
+            }}
+          >
+            How to Play
+          </button>
+        </div>
 
         <InfoModal
           isOpen={showInfoModal}
@@ -577,14 +787,20 @@ const Othello = () => {
             </span>
             {gameState.board.getCurrentColor() === BLACK && !gameState.gameOver && (
               <span style={{ color: '#4ade80', fontSize: '0.875rem' }}>
-                ({playerColor === BLACK ? 'Your turn' : 'AI turn'})
+                {gameMode === 'multiplayer'
+                  ? (multiplayer.myColor === BLACK ? '(Your turn)' : `(${multiplayer.otherPlayer?.name || 'Opponent'}'s turn)`)
+                  : (playerColor === BLACK ? '(Your turn)' : '(AI turn)')
+                }
               </span>
             )}
           </div>
           <div style={scoreItemStyle}>
             {gameState.board.getCurrentColor() === WHITE && !gameState.gameOver && (
               <span style={{ color: '#4ade80', fontSize: '0.875rem' }}>
-                ({playerColor === WHITE ? 'Your turn' : 'AI turn'})
+                {gameMode === 'multiplayer'
+                  ? (multiplayer.myColor === WHITE ? '(Your turn)' : `(${multiplayer.otherPlayer?.name || 'Opponent'}'s turn)`)
+                  : (playerColor === WHITE ? '(Your turn)' : '(AI turn)')
+                }
               </span>
             )}
             <span style={{ color: '#ffffff', fontWeight: 'bold', fontSize: '1.125rem' }}>
@@ -597,16 +813,24 @@ const Othello = () => {
         {/* Player indicator */}
         <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
           <span style={{ color: '#6b7280', fontSize: '0.75rem' }}>
-            You are playing as {playerColor === BLACK ? 'Black' : 'White'}
+            {gameMode === 'multiplayer'
+              ? `You are ${multiplayer.myColor === BLACK ? 'Black' : 'White'} vs ${multiplayer.otherPlayer?.name || 'Opponent'}`
+              : `You are playing as ${playerColor === BLACK ? 'Black' : 'White'}`
+            }
           </span>
         </div>
 
         {/* Message */}
         <div style={messageContainerStyle}>
-          {gameState.isAIThinking ? (
+          {gameState.isAIThinking && gameMode === 'ai' ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#facc15' }}>
               <Loader2 style={{ width: '20px', height: '20px', animation: 'spin 1s linear infinite' }} />
               <span>AI is thinking...</span>
+            </div>
+          ) : gameMode === 'multiplayer' && gameState.board.getCurrentColor() !== multiplayer.myColor && !gameState.gameOver ? (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#facc15' }}>
+              <Loader2 style={{ width: '20px', height: '20px', animation: 'spin 1s linear infinite' }} />
+              <span>Waiting for {multiplayer.otherPlayer?.name || 'opponent'}...</span>
             </div>
           ) : (
             <span style={{
@@ -649,15 +873,23 @@ const Othello = () => {
 
         {/* Game over actions */}
         {gameState.gameOver && (
-          <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
             <button
               style={buttonStyle}
-              onClick={() => initGame(playerColor)}
+              onClick={() => {
+                if (gameMode === 'multiplayer') {
+                  multiplayer.resetMultiplayer();
+                  setShowDifficultySelect(true);
+                  setGameMode('menu');
+                } else {
+                  initGame(playerColor);
+                }
+              }}
               onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#15803d'}
               onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#16a34a'}
             >
               <RotateCcw style={{ width: '20px', height: '20px' }} />
-              Play Again
+              {gameMode === 'multiplayer' ? 'Back to Lobby' : 'Play Again'}
             </button>
           </div>
         )}

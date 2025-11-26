@@ -5,6 +5,7 @@ let app: admin.app.App;
 let db: admin.firestore.Firestore;
 let auth: admin.auth.Auth;
 let storage: admin.storage.Storage;
+let realtimeDb: admin.database.Database;
 
 export function getAdminSDK() {
   if (!app) {
@@ -16,7 +17,8 @@ export function getAdminSDK() {
         db = admin.firestore(app);
         auth = admin.auth(app);
         storage = admin.storage(app);
-        return { app, db, auth, storage };
+        realtimeDb = admin.database(app);
+        return { app, db, auth, storage, realtimeDb };
       }
 
       // Check if we're running in an environment with service account credentials
@@ -32,6 +34,8 @@ export function getAdminSDK() {
         projectId,
       });
 
+      const databaseURL = process.env.FIREBASE_DATABASE_URL || 'https://yudai-portfolio-default-rtdb.firebaseio.com';
+
       if (serviceAccount) {
         // Use service account JSON (for production)
         console.log('[Firebase Admin] Using service account JSON');
@@ -39,6 +43,7 @@ export function getAdminSDK() {
           credential: admin.credential.cert(JSON.parse(serviceAccount)),
           projectId: projectId,
           storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_STORAGE_BUCKET,
+          databaseURL,
         });
       } else if (privateKey && clientEmail && projectId) {
         // Use individual environment variables (for development)
@@ -51,6 +56,7 @@ export function getAdminSDK() {
           }),
           projectId: projectId,
           storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_STORAGE_BUCKET,
+          databaseURL,
         });
       } else {
         // Use default credentials (for development with gcloud CLI)
@@ -61,12 +67,14 @@ export function getAdminSDK() {
         app = admin.initializeApp({
           projectId: projectId,
           storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_STORAGE_BUCKET,
+          databaseURL,
         });
       }
 
       db = admin.firestore();
       auth = admin.auth();
       storage = admin.storage();
+      realtimeDb = admin.database();
       console.log('[Firebase Admin] Successfully initialized');
     } catch (error) {
       console.error('[Firebase Admin] Failed to initialize:', error);
@@ -74,7 +82,7 @@ export function getAdminSDK() {
     }
   }
 
-  return { app, db, auth, storage };
+  return { app, db, auth, storage, realtimeDb };
 }
 
 export function getFirestore() {
@@ -90,4 +98,9 @@ export function getAuth() {
 export function getStorage() {
   const { storage } = getAdminSDK();
   return storage;
+}
+
+export function getRealtimeDatabase() {
+  const { realtimeDb } = getAdminSDK();
+  return realtimeDb;
 }

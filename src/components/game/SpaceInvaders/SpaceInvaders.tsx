@@ -1,5 +1,6 @@
 /**
  * Space Invaders - React Component with Canvas Rendering
+ * Supports both single-player and multiplayer modes
  */
 
 'use client';
@@ -10,7 +11,6 @@ import { GameTopBar, InfoModal, GameStats } from '../common';
 import {
   GameState,
   InputState,
-  SoundEvents,
   Enemy,
   EnemyType,
   CANVAS_WIDTH,
@@ -18,17 +18,43 @@ import {
   SHIELD_BLOCK_SIZE,
   UFO_WIDTH,
   UFO_HEIGHT,
+  PLAYER_WIDTH,
+  PLAYER_HEIGHT,
 } from './types';
 import { createGameState, updateGame } from './GameEngine';
 import { Sounds, initAudio } from './sounds';
+import { useMultiplayer } from './useMultiplayer';
+import { MultiplayerLobby } from './MultiplayerLobby';
+import { toNetworkGameState, MultiplayerPlayer } from './multiplayerTypes';
 
-// Draw player ship
-function drawPlayer(ctx: CanvasRenderingContext2D, x: number, y: number, width: number, height: number) {
+// Color helpers for multiplayer
+function hexToRgb(hex: string): { r: number; g: number; b: number } {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) }
+    : { r: 34, g: 197, b: 94 };
+}
+
+function lightenColor(hex: string, percent: number): string {
+  const { r, g, b } = hexToRgb(hex);
+  const lighten = (c: number) => Math.min(255, Math.floor(c + (255 - c) * percent));
+  return `rgb(${lighten(r)}, ${lighten(g)}, ${lighten(b)})`;
+}
+
+// Draw player ship with customizable color
+function drawPlayer(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  color: string = '#22c55e'
+) {
   // Ship body gradient
   const gradient = ctx.createLinearGradient(x, y + height, x, y);
-  gradient.addColorStop(0, '#22c55e');
-  gradient.addColorStop(0.5, '#4ade80');
-  gradient.addColorStop(1, '#86efac');
+  gradient.addColorStop(0, color);
+  gradient.addColorStop(0.5, lightenColor(color, 0.2));
+  gradient.addColorStop(1, lightenColor(color, 0.4));
 
   ctx.fillStyle = gradient;
 
@@ -49,9 +75,10 @@ function drawPlayer(ctx: CanvasRenderingContext2D, x: number, y: number, width: 
   ctx.fill();
 
   // Glow
-  ctx.shadowColor = '#22c55e';
+  ctx.shadowColor = color;
   ctx.shadowBlur = 10;
-  ctx.fillStyle = 'rgba(34, 197, 94, 0.3)';
+  const { r, g, b } = hexToRgb(color);
+  ctx.fillStyle = `rgba(${r}, ${g}, ${b}, 0.3)`;
   ctx.fillRect(x + 5, y + height - 5, width - 10, 5);
   ctx.shadowBlur = 0;
 }
@@ -184,23 +211,61 @@ function drawUFO(ctx: CanvasRenderingContext2D, x: number, y: number, width: num
   }
 }
 
+type GameMode = 'menu' | 'single' | 'multi';
+
 const SpaceInvaders: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showStartScreen, setShowStartScreen] = useState(true);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
+  const [gameMode, setGameMode] = useState<GameMode>('menu');
   const inputRef = useRef<InputState>({ left: false, right: false, shoot: false });
   const lastTimeRef = useRef<number>(0);
   const animationFrameRef = useRef<number>(0);
 
-  // Start new game
-  const startNewGame = useCallback(() => {
-    initAudio(); // Initialize audio on user interaction
+  // Multiplayer hook
+  const multiplayer = useMultiplayer();
+
+  // Start single player game
+  const startSinglePlayer = useCallback(() => {
+    initAudio();
     Sounds.startGame();
     setGameState(createGameState(1));
+    setGameMode('single');
     setShowStartScreen(false);
   }, []);
+
+  // Start multiplayer game (called when host starts or game begins)
+  const startMultiplayerGame = useCallback(async () => {
+    initAudio();
+    Sounds.startGame();
+    const newState = createGameState(1);
+    setGameState(newState);
+    setGameMode('multi');
+    setShowStartScreen(false);
+
+    // If host, send initial game state to Firebase
+    if (multiplayer.context.isHost) {
+      const networkState = toNetworkGameState(
+        newState.formation,
+        newState.bullets,
+        newState.ufo,
+        newState.shields,
+        newState.level,
+        newState.animationTick,
+        newState.marchCounter
+      );
+      await multiplayer.startGame(networkState);
+    }
+  }, [multiplayer]);
+
+  // Legacy function for keyboard start
+  const startNewGame = useCallback(() => {
+    if (gameMode === 'menu') {
+      startSinglePlayer();
+    }
+  }, [gameMode, startSinglePlayer]);
 
   // Reset game
   const resetGame = useCallback(() => {
@@ -268,7 +333,13 @@ const SpaceInvaders: React.FC = () => {
   }, [showStartScreen, gameState, togglePause, startNewGame]);
 
   // Render game
-  const render = useCallback((ctx: CanvasRenderingContext2D, state: GameState) => {
+  const render = useCallback((
+    ctx: CanvasRenderingContext2D,
+    state: GameState,
+    otherPlayer?: MultiplayerPlayer | null,
+    myColor: string = '#22c55e',
+    otherColor: string = '#3b82f6'
+  ) => {
     // Clear canvas with space background
     ctx.fillStyle = '#0a0a0f';
     ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
@@ -303,8 +374,18 @@ const SpaceInvaders: React.FC = () => {
       drawUFO(ctx, state.ufo.x, state.ufo.y, UFO_WIDTH, UFO_HEIGHT);
     }
 
+    // Draw other player (in multiplayer mode)
+    if (otherPlayer && gameMode === 'multi') {
+      drawPlayer(ctx, otherPlayer.x, state.player.y, PLAYER_WIDTH, PLAYER_HEIGHT, otherColor);
+      // Draw other player's name above their ship
+      ctx.fillStyle = otherColor;
+      ctx.font = '12px Arial';
+      ctx.textAlign = 'center';
+      ctx.fillText(otherPlayer.name, otherPlayer.x + PLAYER_WIDTH / 2, state.player.y - 10);
+    }
+
     // Draw player
-    drawPlayer(ctx, state.player.x, state.player.y, state.player.width, state.player.height);
+    drawPlayer(ctx, state.player.x, state.player.y, state.player.width, state.player.height, myColor);
 
     // Draw bullets
     for (const bullet of state.bullets) {
@@ -322,10 +403,10 @@ const SpaceInvaders: React.FC = () => {
       } else {
         // Player bullet - simple laser
         const gradient = ctx.createLinearGradient(bullet.x, bullet.y + bullet.height, bullet.x, bullet.y);
-        gradient.addColorStop(0, '#22c55e');
-        gradient.addColorStop(1, '#86efac');
+        gradient.addColorStop(0, myColor);
+        gradient.addColorStop(1, lightenColor(myColor, 0.4));
         ctx.fillStyle = gradient;
-        ctx.shadowColor = '#22c55e';
+        ctx.shadowColor = myColor;
         ctx.shadowBlur = 8;
         ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
       }
@@ -396,7 +477,17 @@ const SpaceInvaders: React.FC = () => {
       ctx.font = '24px Arial';
       ctx.fillText(`Final Score: ${state.score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 20);
     }
-  }, []);
+
+    // Draw multiplayer scores if in multiplayer mode
+    if (gameMode === 'multi' && otherPlayer) {
+      // Draw combined score at the top
+      ctx.fillStyle = '#fff';
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText(`Team Score: ${state.score + (otherPlayer.score || 0)}`, 10, 35);
+    }
+  }, [gameMode]);
 
   // Game loop
   useEffect(() => {
@@ -429,18 +520,43 @@ const SpaceInvaders: React.FC = () => {
       if (soundEvents.gameOver) Sounds.gameOver();
       if (soundEvents.enemyMarch) Sounds.enemyMarch(soundEvents.marchPitch);
 
-      // Render
-      render(ctx, newState);
+      // Update multiplayer state
+      if (gameMode === 'multi') {
+        // Send our position to Firebase
+        multiplayer.updateMyPosition(newState.player.x);
+        multiplayer.updateMyState(newState.score, newState.lives);
+
+        // If host, sync game state
+        if (multiplayer.context.isHost) {
+          const networkState = toNetworkGameState(
+            newState.formation,
+            newState.bullets,
+            newState.ufo,
+            newState.shields,
+            newState.level,
+            newState.animationTick,
+            newState.marchCounter
+          );
+          multiplayer.updateGameState(networkState);
+        }
+      }
+
+      // Render with multiplayer info
+      render(ctx, newState, multiplayer.otherPlayer, multiplayer.myColor, multiplayer.otherColor);
 
       // Continue loop if game is active
       if (!newState.gameOver && !newState.victory) {
         animationFrameRef.current = requestAnimationFrame(gameLoop);
       } else {
-        render(ctx, newState);
+        render(ctx, newState, multiplayer.otherPlayer, multiplayer.myColor, multiplayer.otherColor);
         if (newState.victory) {
           setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
         } else if (newState.gameOver) {
           setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+        }
+        // End multiplayer game if applicable
+        if (gameMode === 'multi') {
+          multiplayer.endGame(newState.victory ? multiplayer.context.playerId : null);
         }
       }
     };
@@ -452,7 +568,7 @@ const SpaceInvaders: React.FC = () => {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [gameState, showStartScreen, render]);
+  }, [gameState, showStartScreen, render, gameMode, multiplayer]);
 
   // Info modal content
   const infoContent = (
@@ -482,7 +598,7 @@ const SpaceInvaders: React.FC = () => {
     </div>
   );
 
-  // Start screen
+  // Start screen with multiplayer lobby
   if (showStartScreen) {
     return (
       <div
@@ -503,70 +619,17 @@ const SpaceInvaders: React.FC = () => {
             background: 'rgba(0, 0, 0, 0.95)',
             border: '3px solid #22c55e',
             borderRadius: '1rem',
-            padding: '3rem',
+            padding: '2rem',
             textAlign: 'center',
             maxWidth: '500px',
+            minWidth: '400px',
           }}
         >
-          <h1
-            style={{
-              color: '#22c55e',
-              fontSize: '2.5rem',
-              marginBottom: '0.5rem',
-              textShadow: '0 0 20px rgba(34, 197, 94, 0.5)',
-              letterSpacing: '0.2em',
-            }}
-          >
-            SPACE INVADERS
-          </h1>
-          <p
-            style={{
-              color: '#9ca3af',
-              marginBottom: '2rem',
-            }}
-          >
-            Defend Earth from the alien invasion
-          </p>
-
-          <div
-            style={{
-              color: '#6b7280',
-              fontSize: '0.875rem',
-              marginBottom: '2rem',
-              textAlign: 'left',
-            }}
-          >
-            <p>Destroy all alien invaders across 5 waves.</p>
-            <p>Don't let them reach your position!</p>
-            <p>Shoot the mystery UFO for bonus points.</p>
-          </div>
-
-          <button
-            onClick={startNewGame}
-            style={{
-              background: '#22c55e',
-              border: 'none',
-              borderRadius: '0.5rem',
-              color: '#000',
-              fontSize: '1.5rem',
-              fontWeight: 'bold',
-              padding: '1rem 3rem',
-              cursor: 'pointer',
-              width: '100%',
-              marginBottom: '1rem',
-              transition: 'transform 0.2s, background 0.2s',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#16a34a';
-              e.currentTarget.style.transform = 'scale(1.02)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#22c55e';
-              e.currentTarget.style.transform = 'scale(1)';
-            }}
-          >
-            START GAME
-          </button>
+          <MultiplayerLobby
+            multiplayer={multiplayer}
+            onStartSinglePlayer={startSinglePlayer}
+            onGameStart={startMultiplayerGame}
+          />
 
           <button
             onClick={() => setShowInfo(true)}
@@ -575,10 +638,10 @@ const SpaceInvaders: React.FC = () => {
               border: '1px solid #4b5563',
               borderRadius: '0.5rem',
               color: '#9ca3af',
-              fontSize: '1rem',
-              padding: '0.75rem 2rem',
+              fontSize: '0.875rem',
+              padding: '0.5rem 1.5rem',
               cursor: 'pointer',
-              width: '100%',
+              marginTop: '1rem',
             }}
           >
             How to Play

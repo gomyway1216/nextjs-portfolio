@@ -1,0 +1,83 @@
+/**
+ * Firebase Realtime Database Client
+ * Provides client-side access to Firebase Realtime Database for multiplayer games
+ */
+
+'use client';
+
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
+import { getDatabase, ref, onValue, off, set, Database, DataSnapshot } from 'firebase/database';
+
+// Firebase config
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: 'yudai-portfolio.firebaseapp.com',
+  databaseURL: 'https://yudai-portfolio-default-rtdb.firebaseio.com',
+  projectId: 'yudai-portfolio',
+  storageBucket: 'yudai-portfolio.appspot.com',
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+};
+
+// Singleton instances
+let app: FirebaseApp | null = null;
+let database: Database | null = null;
+
+/**
+ * Get or initialize Firebase App
+ */
+export function getFirebaseApp(): FirebaseApp {
+  if (!app) {
+    const apps = getApps();
+    app = apps.length > 0 ? apps[0] : initializeApp(firebaseConfig);
+  }
+  return app;
+}
+
+/**
+ * Get or initialize Firebase Realtime Database
+ */
+export function getFirebaseDatabase(): Database {
+  if (!database) {
+    database = getDatabase(getFirebaseApp());
+  }
+  return database;
+}
+
+/**
+ * Subscribe to a database path
+ * Returns an unsubscribe function
+ */
+export function subscribeToPath<T>(
+  path: string,
+  callback: (data: T | null) => void
+): () => void {
+  const db = getFirebaseDatabase();
+  const pathRef = ref(db, path);
+
+  const handler = (snapshot: DataSnapshot) => {
+    callback(snapshot.val() as T | null);
+  };
+
+  onValue(pathRef, handler);
+
+  return () => {
+    off(pathRef);
+  };
+}
+
+/**
+ * Set data at a database path
+ */
+export async function setData<T>(path: string, data: T): Promise<void> {
+  const db = getFirebaseDatabase();
+  await set(ref(db, path), data);
+}
+
+/**
+ * Get database reference for direct operations
+ */
+export function getDatabaseRef(path: string) {
+  const db = getFirebaseDatabase();
+  return ref(db, path);
+}

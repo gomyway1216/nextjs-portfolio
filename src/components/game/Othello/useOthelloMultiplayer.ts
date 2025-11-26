@@ -77,11 +77,22 @@ export function useOthelloMultiplayer(): UseOthelloMultiplayerReturn {
   useEffect(() => {
     if (!context.roomId) return;
 
+    console.log('[useOthelloMultiplayer] Subscribing to room:', context.roomId);
+
     const unsubscribe = subscribeToPath<OthelloGameRoom>(
       `gameRooms/${context.roomId}`,
       (roomData) => {
+        console.log('[useOthelloMultiplayer] Room data received:', roomData ? 'exists' : 'null');
+
         if (!roomData) {
-          // Room was deleted
+          // Room was deleted - only show error if we were actively in a game
+          // Don't disconnect immediately, give it a moment
+          console.log('[useOthelloMultiplayer] Room data is null, checking context...');
+          if (context.lobbyState === 'playing') {
+            // During gameplay, null data might be temporary - don't disconnect immediately
+            console.log('[useOthelloMultiplayer] In playing state, ignoring temporary null');
+            return;
+          }
           setContext(prev => ({
             ...prev,
             roomId: null,
@@ -118,7 +129,7 @@ export function useOthelloMultiplayer(): UseOthelloMultiplayerReturn {
     );
 
     return unsubscribe;
-  }, [context.roomId, playerId]);
+  }, [context.roomId, playerId, context.lobbyState]);
 
   // Listen for pending moves (for non-host to receive moves)
   useEffect(() => {
@@ -189,7 +200,9 @@ export function useOthelloMultiplayer(): UseOthelloMultiplayerReturn {
     setContext(prev => ({ ...prev, lobbyState: 'joining', error: null, playerName }));
 
     try {
+      console.log('[useOthelloMultiplayer] Joining room:', { roomId, playerName });
       const result = await api.joinRoom(roomId, playerId, playerName, password);
+      console.log('[useOthelloMultiplayer] Join result:', result);
 
       if (result.success && result.room) {
         setMyColor(WHITE); // Joiner is always white
@@ -210,11 +223,12 @@ export function useOthelloMultiplayer(): UseOthelloMultiplayerReturn {
         }));
         return false;
       }
-    } catch {
+    } catch (err) {
+      console.error('[useOthelloMultiplayer] Join error:', err);
       setContext(prev => ({
         ...prev,
         lobbyState: 'idle',
-        error: 'Network error',
+        error: err instanceof Error ? err.message : 'Network error',
       }));
       return false;
     }

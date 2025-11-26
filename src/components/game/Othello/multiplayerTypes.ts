@@ -14,6 +14,14 @@ export interface OthelloPlayer extends BasePlayer {
   score: number; // Current disc count
 }
 
+// Move history entry
+export interface MoveHistoryEntry {
+  moveNumber: number;
+  color: Color;
+  move: Point | null; // null means pass
+  timestamp: number;
+}
+
 // Othello board state for network sync
 export interface OthelloNetworkState {
   // Board represented as array of 64 cells (8x8)
@@ -28,6 +36,7 @@ export interface OthelloNetworkState {
   winner: Color | null;
   turnNumber: number;
   lastUpdate: number;
+  moveHistory: MoveHistoryEntry[];
 }
 
 // Othello game room

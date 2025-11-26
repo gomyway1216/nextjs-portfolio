@@ -86,11 +86,21 @@ export function OthelloMultiplayerLobby({
           <div style={discStyle(true, 40)} />
           <div style={discStyle(false, 40)} />
         </div>
-        <h2 className="text-2xl font-bold text-green-400">OTHELLO</h2>
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#4ade80' }}>OTHELLO</h2>
 
         <button
           onClick={onStartSinglePlayer}
-          className="w-56 py-3 px-6 bg-green-600 hover:bg-green-500 text-white font-bold text-lg rounded-lg transition-colors"
+          style={{
+            width: '14rem',
+            padding: '0.75rem 1.5rem',
+            backgroundColor: '#16a34a',
+            color: '#ffffff',
+            fontWeight: 'bold',
+            fontSize: '1.125rem',
+            borderRadius: '0.5rem',
+            border: 'none',
+            cursor: 'pointer',
+          }}
         >
           Play vs AI
         </button>
@@ -98,13 +108,29 @@ export function OthelloMultiplayerLobby({
         <div className="flex gap-3">
           <button
             onClick={() => setMode('create')}
-            className="py-2 px-5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors"
+            style={{
+              padding: '0.5rem 1.25rem',
+              backgroundColor: '#2563eb',
+              color: '#ffffff',
+              fontWeight: 'bold',
+              borderRadius: '0.5rem',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
             Create Room
           </button>
           <button
             onClick={() => setMode('join')}
-            className="py-2 px-5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg transition-colors"
+            style={{
+              padding: '0.5rem 1.25rem',
+              backgroundColor: '#9333ea',
+              color: '#ffffff',
+              fontWeight: 'bold',
+              borderRadius: '0.5rem',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
             Join Room
           </button>
@@ -117,48 +143,75 @@ export function OthelloMultiplayerLobby({
     );
   }
 
+  // Input style helper
+  const inputStyle: React.CSSProperties = {
+    width: '14rem',
+    padding: '0.5rem 1rem',
+    backgroundColor: '#1f2937',
+    color: '#ffffff',
+    borderRadius: '0.25rem',
+    border: '1px solid #4b5563',
+    outline: 'none',
+  };
+
   // Render create room form
   if (mode === 'create' && context.lobbyState === 'idle') {
     return (
       <div className="flex flex-col items-center gap-4 p-4">
-        <h3 className="text-xl font-bold text-blue-400 mb-2">Create Room</h3>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#60a5fa', marginBottom: '0.5rem' }}>Create Room</h3>
 
         <input
           type="text"
           placeholder="Your Name"
           value={playerName}
           onChange={(e) => setPlayerName(e.target.value)}
-          className="w-56 py-2 px-4 bg-gray-800 text-white rounded border border-gray-600 focus:border-blue-400 outline-none"
+          style={inputStyle}
           maxLength={20}
         />
 
         <input
-          type="password"
+          type="text"
           placeholder="Room Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-56 py-2 px-4 bg-gray-800 text-white rounded border border-gray-600 focus:border-blue-400 outline-none"
+          style={inputStyle}
           maxLength={20}
         />
 
-        <div className="flex gap-3 mt-2">
+        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
           <button
             onClick={() => setMode('menu')}
-            className="py-2 px-5 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded transition-colors"
+            style={{
+              padding: '0.5rem 1.25rem',
+              backgroundColor: '#4b5563',
+              color: '#ffffff',
+              fontWeight: 'bold',
+              borderRadius: '0.25rem',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
             Back
           </button>
           <button
             onClick={handleCreate}
             disabled={isLoading || !playerName.trim() || !password.trim()}
-            className="py-2 px-5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded transition-colors"
+            style={{
+              padding: '0.5rem 1.25rem',
+              backgroundColor: isLoading || !playerName.trim() || !password.trim() ? '#4b5563' : '#2563eb',
+              color: '#ffffff',
+              fontWeight: 'bold',
+              borderRadius: '0.25rem',
+              border: 'none',
+              cursor: isLoading || !playerName.trim() || !password.trim() ? 'not-allowed' : 'pointer',
+            }}
           >
             {isLoading ? 'Creating...' : 'Create'}
           </button>
         </div>
 
         {context.error && (
-          <p className="text-red-400 text-sm">{context.error}</p>
+          <p style={{ color: '#f87171', fontSize: '0.875rem' }}>{context.error}</p>
         )}
       </div>
     );
@@ -168,14 +221,14 @@ export function OthelloMultiplayerLobby({
   if (mode === 'join' && context.lobbyState === 'idle') {
     return (
       <div className="flex flex-col items-center gap-4 p-4">
-        <h3 className="text-xl font-bold text-purple-400 mb-2">Join Room</h3>
+        <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#c084fc', marginBottom: '0.5rem' }}>Join Room</h3>
 
         <input
           type="text"
           placeholder="Your Name"
           value={playerName}
           onChange={(e) => setPlayerName(e.target.value)}
-          className="w-56 py-2 px-4 bg-gray-800 text-white rounded border border-gray-600 focus:border-purple-400 outline-none"
+          style={inputStyle}
           maxLength={20}
         />
 
@@ -184,37 +237,53 @@ export function OthelloMultiplayerLobby({
           placeholder="Room Code"
           value={roomCode}
           onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-          className="w-56 py-2 px-4 bg-gray-800 text-white rounded border border-gray-600 focus:border-purple-400 outline-none font-mono"
+          style={{ ...inputStyle, fontFamily: 'monospace' }}
           maxLength={6}
         />
 
         <input
-          type="password"
+          type="text"
           placeholder="Room Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-56 py-2 px-4 bg-gray-800 text-white rounded border border-gray-600 focus:border-purple-400 outline-none"
+          style={inputStyle}
           maxLength={20}
         />
 
-        <div className="flex gap-3 mt-2">
+        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
           <button
             onClick={() => setMode('menu')}
-            className="py-2 px-5 bg-gray-600 hover:bg-gray-500 text-white font-bold rounded transition-colors"
+            style={{
+              padding: '0.5rem 1.25rem',
+              backgroundColor: '#4b5563',
+              color: '#ffffff',
+              fontWeight: 'bold',
+              borderRadius: '0.25rem',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
             Back
           </button>
           <button
             onClick={handleJoin}
             disabled={isLoading || !playerName.trim() || !password.trim() || !roomCode.trim()}
-            className="py-2 px-5 bg-purple-600 hover:bg-purple-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded transition-colors"
+            style={{
+              padding: '0.5rem 1.25rem',
+              backgroundColor: isLoading || !playerName.trim() || !password.trim() || !roomCode.trim() ? '#4b5563' : '#9333ea',
+              color: '#ffffff',
+              fontWeight: 'bold',
+              borderRadius: '0.25rem',
+              border: 'none',
+              cursor: isLoading || !playerName.trim() || !password.trim() || !roomCode.trim() ? 'not-allowed' : 'pointer',
+            }}
           >
             {isLoading ? 'Joining...' : 'Join'}
           </button>
         </div>
 
         {context.error && (
-          <p className="text-red-400 text-sm">{context.error}</p>
+          <p style={{ color: '#f87171', fontSize: '0.875rem' }}>{context.error}</p>
         )}
       </div>
     );
@@ -280,10 +349,18 @@ export function OthelloMultiplayerLobby({
         </div>
 
         {/* Action buttons */}
-        <div className="flex gap-3">
+        <div style={{ display: 'flex', gap: '0.75rem' }}>
           <button
             onClick={() => multiplayer.leaveRoom()}
-            className="py-2 px-5 bg-red-600 hover:bg-red-500 text-white font-bold rounded transition-colors"
+            style={{
+              padding: '0.5rem 1.25rem',
+              backgroundColor: '#dc2626',
+              color: '#ffffff',
+              fontWeight: 'bold',
+              borderRadius: '0.25rem',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
             Leave
           </button>
@@ -291,11 +368,15 @@ export function OthelloMultiplayerLobby({
           <button
             onClick={handleReady}
             disabled={isLoading}
-            className={`py-2 px-5 font-bold rounded transition-colors ${
-              myPlayer?.ready
-                ? 'bg-yellow-600 hover:bg-yellow-500 text-white'
-                : 'bg-green-600 hover:bg-green-500 text-white'
-            }`}
+            style={{
+              padding: '0.5rem 1.25rem',
+              backgroundColor: myPlayer?.ready ? '#ca8a04' : '#16a34a',
+              color: '#ffffff',
+              fontWeight: 'bold',
+              borderRadius: '0.25rem',
+              border: 'none',
+              cursor: 'pointer',
+            }}
           >
             {myPlayer?.ready ? 'Not Ready' : 'Ready'}
           </button>
@@ -304,7 +385,15 @@ export function OthelloMultiplayerLobby({
             <button
               onClick={handleStartGame}
               disabled={!allReady || players.length < 2}
-              className="py-2 px-5 bg-blue-600 hover:bg-blue-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold rounded transition-colors"
+              style={{
+                padding: '0.5rem 1.25rem',
+                backgroundColor: !allReady || players.length < 2 ? '#4b5563' : '#2563eb',
+                color: '#ffffff',
+                fontWeight: 'bold',
+                borderRadius: '0.25rem',
+                border: 'none',
+                cursor: !allReady || players.length < 2 ? 'not-allowed' : 'pointer',
+              }}
             >
               Start Game
             </button>
@@ -312,11 +401,11 @@ export function OthelloMultiplayerLobby({
         </div>
 
         {!context.isHost && allReady && (
-          <p className="text-yellow-400 text-sm">Waiting for host to start...</p>
+          <p style={{ color: '#facc15', fontSize: '0.875rem' }}>Waiting for host to start...</p>
         )}
 
         {context.error && (
-          <p className="text-red-400 text-sm">{context.error}</p>
+          <p style={{ color: '#f87171', fontSize: '0.875rem' }}>{context.error}</p>
         )}
       </div>
     );

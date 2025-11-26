@@ -75,7 +75,7 @@ const API_BASE = '/api/game/room';
 
 // API helper function
 async function apiCall<T>(endpoint: string, method: 'GET' | 'POST', body?: object): Promise<T> {
-  const url = endpoint.startsWith('/') ? endpoint : `${API_BASE}${endpoint}`;
+  const url = `${API_BASE}${endpoint}`;
 
   const options: RequestInit = {
     method,

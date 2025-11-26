@@ -274,6 +274,42 @@ export class Board {
   }
 
   /**
+   * Set color at a position (for network sync)
+   */
+  setColor(x: number, y: number, color: Color): void {
+    const oldColor = this.rawBoard[x][y];
+    if (oldColor !== color) {
+      if (oldColor !== WALL) {
+        this.discs[oldColor]--;
+      }
+      this.rawBoard[x][y] = color;
+      this.discs[color]++;
+    }
+  }
+
+  /**
+   * Set current player's color (for network sync)
+   */
+  setCurrentColor(color: Color): void {
+    this.currentColor = color;
+  }
+
+  /**
+   * Set turn number (for network sync)
+   */
+  setTurns(turns: number): void {
+    this.turns = turns;
+  }
+
+  /**
+   * Recalculate indices after bulk update (for network sync)
+   */
+  recalcIndices(): void {
+    this.indexTable.recalc(this);
+    this.setupEmptyList();
+  }
+
+  /**
    * Get the index table (for evaluation)
    */
   getIndexTable(): Indexer {

@@ -11,7 +11,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { roomId, playerId, playerName, password } = body;
 
+    console.log('[Join Room API] Request:', { roomId, playerId, playerName, hasPassword: !!password });
+
     if (!roomId || !playerId || !playerName || !password) {
+      console.log('[Join Room API] Missing fields:', { roomId: !!roomId, playerId: !!playerId, playerName: !!playerName, password: !!password });
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
@@ -19,9 +22,10 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await gameRoom.joinRoom(roomId, playerId, playerName, password);
+    console.log('[Join Room API] Result:', { success: result.success, error: result.error });
     return NextResponse.json(result);
   } catch (error) {
-    console.error('Error joining game room:', error);
+    console.error('[Join Room API] Error:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to join room' },
       { status: 500 }

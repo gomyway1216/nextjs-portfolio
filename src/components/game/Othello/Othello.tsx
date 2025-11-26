@@ -6,7 +6,7 @@
 
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { RotateCcw, Loader2 } from 'lucide-react';
 import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStats } from '../common';
 import { Board } from './Board';
@@ -23,7 +23,7 @@ import { OthelloAI } from './AI';
 import { initMobilityTables } from './MobilityTable';
 import { useOthelloMultiplayer } from './useOthelloMultiplayer';
 import { OthelloMultiplayerLobby } from './OthelloMultiplayerLobby';
-import { OthelloNetworkState, boardToNetwork } from './multiplayerTypes';
+import { OthelloNetworkState, boardToNetwork, MoveHistoryEntry } from './multiplayerTypes';
 
 const DIFFICULTY_OPTIONS = [
   { label: 'Easy', value: 'easy' as Difficulty, description: 'Depth 2 search' },
@@ -39,6 +39,7 @@ interface OthelloState {
   isAIThinking: boolean;
   message: string;
   lastMove: Point | null;
+  moveHistory: MoveHistoryEntry[];
 }
 
 type GameMode = 'menu' | 'ai' | 'multiplayer';
@@ -68,8 +69,12 @@ const Othello = () => {
       isAIThinking: false,
       message: 'Black to play',
       lastMove: null,
+      moveHistory: [],
     };
   });
+
+  // Ref to track the last processed network state update
+  const lastProcessedUpdate = useRef<number>(0);
 
   // Initialize mobility tables on mount
   useEffect(() => {
@@ -88,6 +93,7 @@ const Othello = () => {
       isAIThinking: !isPlayerTurn, // AI thinks first if player is white
       message: 'Black to play',
       lastMove: null,
+      moveHistory: [],
     });
   }, []);
 
@@ -125,7 +131,7 @@ const Othello = () => {
   }, []);
 
   // Helper to create network state from board
-  const createNetworkState = useCallback((board: Board, lastMove: Point | null, isGameOver: boolean, winner: Color | null): OthelloNetworkState => {
+  const createNetworkState = useCallback((board: Board, lastMove: Point | null, isGameOver: boolean, winner: Color | null, moveHistory: MoveHistoryEntry[]): OthelloNetworkState => {
     return {
       board: boardToNetwork((x, y) => board.getColor(x, y)),
       currentTurn: board.getCurrentColor(),
@@ -137,6 +143,7 @@ const Othello = () => {
       winner,
       turnNumber: board.getTurns(),
       lastUpdate: Date.now(),
+      moveHistory,
     };
   }, []);
 
@@ -151,12 +158,22 @@ const Othello = () => {
     if (gameMode === 'multiplayer' && gameState.board.getCurrentColor() !== multiplayer.myColor) return;
 
     const point: Point = { x, y };
+    const currentColor = gameState.board.getCurrentColor();
 
     const isValid = gameState.validMoves.some(m => m.x === x && m.y === y);
     if (!isValid) return;
 
     const newBoard = gameState.board.clone();
     if (!newBoard.move(point)) return;
+
+    // Create move history entry
+    const newMoveEntry: MoveHistoryEntry = {
+      moveNumber: gameState.moveHistory.length + 1,
+      color: currentColor,
+      move: point,
+      timestamp: Date.now(),
+    };
+    const newMoveHistory = [...gameState.moveHistory, newMoveEntry];
 
     const { isOver, winner, message } = checkGameState(newBoard);
 
@@ -169,6 +186,7 @@ const Othello = () => {
         winner,
         message,
         lastMove: point,
+        moveHistory: newMoveHistory,
       }));
 
       // Update stats based on mode
@@ -189,7 +207,7 @@ const Othello = () => {
           setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
         }
         // Send final state to Firebase
-        const networkState = createNetworkState(newBoard, point, true, winner);
+        const networkState = createNetworkState(newBoard, point, true, winner, newMoveHistory);
         multiplayer.updateGameState(networkState);
         multiplayer.endGame(winner === multiplayer.myColor ? multiplayer.context.playerId :
           winner === multiplayer.opponentColor ? multiplayer.otherPlayer?.id || null : null);
@@ -200,7 +218,7 @@ const Othello = () => {
     // In multiplayer, send the move to Firebase
     if (gameMode === 'multiplayer') {
       multiplayer.makeMove(point);
-      const networkState = createNetworkState(newBoard, point, false, null);
+      const networkState = createNetworkState(newBoard, point, false, null, newMoveHistory);
       multiplayer.updateGameState(networkState);
     }
 
@@ -210,34 +228,131 @@ const Othello = () => {
       validMoves: newBoard.getMovablePos(),
       message,
       lastMove: point,
+      moveHistory: newMoveHistory,
       isAIThinking: gameMode === 'ai', // Only AI thinking in AI mode
     }));
   }, [gameState, checkGameState, playerColor, aiColor, gameMode, multiplayer, createNetworkState]);
 
-  // Effect to handle opponent's moves in multiplayer mode
+  // Effect to sync game state from Firebase (handles opponent moves and passes)
   useEffect(() => {
     if (gameMode !== 'multiplayer') return;
-    if (!multiplayer.pendingMove) return;
-    if (multiplayer.pendingMove.playerId === multiplayer.context.playerId) return;
+    if (!multiplayer.gameState) return;
 
-    const move = multiplayer.pendingMove.move;
-    const newBoard = gameState.board.clone();
+    const networkState = multiplayer.gameState;
 
-    if (!newBoard.move(move)) return;
+    // Check if this is a newer state than what we've already processed
+    // Use lastUpdate timestamp to detect new updates (including passes)
+    if (networkState.lastUpdate <= lastProcessedUpdate.current) {
+      return;
+    }
 
-    const { isOver, winner, message } = checkGameState(newBoard);
+    // Mark this update as processed
+    lastProcessedUpdate.current = networkState.lastUpdate;
 
-    if (isOver) {
+    console.log('[Othello] Syncing from network state:', {
+      currentTurn: networkState.currentTurn === BLACK ? 'Black' : 'White',
+      turnNumber: networkState.turnNumber,
+      moveHistoryLength: networkState.moveHistory?.length || 0,
+      lastUpdate: networkState.lastUpdate,
+    });
+
+    // Reconstruct the board from network state
+    const newBoard = new Board();
+    // Apply the network board state
+    for (let y = 1; y <= 8; y++) {
+      for (let x = 1; x <= 8; x++) {
+        const index = (y - 1) * 8 + (x - 1);
+        const color = networkState.board[index];
+        newBoard.setColor(x, y, color as Color);
+      }
+    }
+    // Set the current turn and recalculate indices
+    newBoard.setCurrentColor(networkState.currentTurn);
+    newBoard.setTurns(networkState.turnNumber);
+    newBoard.recalcIndices();
+
+    const currentTurnColor = networkState.currentTurn === BLACK ? 'Black' : 'White';
+    let message = `${currentTurnColor} to play`;
+
+    if (networkState.gameOver) {
+      if (networkState.winner === BLACK) {
+        message = `Black wins ${networkState.blackCount}-${networkState.whiteCount}!`;
+      } else if (networkState.winner === WHITE) {
+        message = `White wins ${networkState.whiteCount}-${networkState.blackCount}!`;
+      } else {
+        message = `Draw ${networkState.blackCount}-${networkState.whiteCount}!`;
+      }
+
       setGameState(prev => ({
         ...prev,
         board: newBoard,
         validMoves: [],
         gameOver: true,
-        winner,
+        winner: networkState.winner,
         message,
-        lastMove: move,
+        lastMove: networkState.lastMove,
+        moveHistory: networkState.moveHistory || prev.moveHistory,
       }));
 
+      // Update stats if game just ended
+      if (!gameState.gameOver) {
+        if (networkState.winner === multiplayer.myColor) {
+          setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+        } else if (networkState.winner === multiplayer.opponentColor) {
+          setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+        } else {
+          setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
+        }
+      }
+      return;
+    }
+
+    // Check if current player must pass
+    const validMoves = newBoard.getMovablePos();
+    if (validMoves.length === 0) {
+      message = `${currentTurnColor} must pass`;
+    }
+
+    setGameState(prev => ({
+      ...prev,
+      board: newBoard,
+      validMoves: validMoves,
+      message,
+      lastMove: networkState.lastMove,
+      moveHistory: networkState.moveHistory || prev.moveHistory,
+      gameOver: false,
+    }));
+  }, [gameMode, multiplayer.gameState, multiplayer.myColor, multiplayer.opponentColor, gameState.gameOver]);
+
+  // Auto-pass effect for multiplayer mode when current player has no valid moves
+  useEffect(() => {
+    if (gameMode !== 'multiplayer') return;
+    if (gameState.gameOver) return;
+
+    const currentColor = gameState.board.getCurrentColor();
+    const validMoves = gameState.board.getMovablePos();
+
+    // Only auto-pass if it's my turn and I have no valid moves
+    if (currentColor !== multiplayer.myColor) return;
+    if (validMoves.length > 0) return;
+
+    // Check if game is over (neither player can move)
+    const newBoard = gameState.board.clone();
+    newBoard.pass();
+    const opponentMoves = newBoard.getMovablePos();
+
+    if (opponentMoves.length === 0) {
+      // Game over - neither player can move
+      const { winner, message } = checkGameState(gameState.board);
+      setGameState(prev => ({
+        ...prev,
+        gameOver: true,
+        winner,
+        message,
+        validMoves: [],
+      }));
+
+      // Update stats and notify
       if (winner === multiplayer.myColor) {
         setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
       } else if (winner === multiplayer.opponentColor) {
@@ -245,17 +360,47 @@ const Othello = () => {
       } else {
         setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
       }
+
+      const networkState = createNetworkState(gameState.board, null, true, winner, gameState.moveHistory);
+      multiplayer.updateGameState(networkState);
+      multiplayer.endGame(winner === multiplayer.myColor ? multiplayer.context.playerId :
+        winner === multiplayer.opponentColor ? multiplayer.otherPlayer?.id || null : null);
       return;
     }
 
-    setGameState(prev => ({
-      ...prev,
-      board: newBoard,
-      validMoves: newBoard.getMovablePos(),
-      message,
-      lastMove: move,
-    }));
-  }, [multiplayer.pendingMove, gameMode, multiplayer.context.playerId, multiplayer.myColor, multiplayer.opponentColor, gameState.board, checkGameState]);
+    // Auto-pass after a short delay so user can see the message
+    const timeoutId = setTimeout(() => {
+      const passedBoard = gameState.board.clone();
+      passedBoard.pass();
+
+      const colorName = currentColor === BLACK ? 'Black' : 'White';
+      const nextColorName = currentColor === BLACK ? 'White' : 'Black';
+
+      // Add pass to move history
+      const passEntry: MoveHistoryEntry = {
+        moveNumber: gameState.moveHistory.length + 1,
+        color: currentColor,
+        move: null, // null indicates pass
+        timestamp: Date.now(),
+      };
+      const newMoveHistory = [...gameState.moveHistory, passEntry];
+
+      setGameState(prev => ({
+        ...prev,
+        board: passedBoard,
+        validMoves: passedBoard.getMovablePos(),
+        message: `${colorName} passed. ${nextColorName} to play`,
+        lastMove: null,
+        moveHistory: newMoveHistory,
+      }));
+
+      // Send updated state to Firebase
+      const networkState = createNetworkState(passedBoard, null, false, null, newMoveHistory);
+      multiplayer.updateGameState(networkState);
+    }, 1500); // 1.5 second delay to show "must pass" message
+
+    return () => clearTimeout(timeoutId);
+  }, [gameMode, gameState.board, gameState.gameOver, gameState.validMoves, gameState.moveHistory, multiplayer.myColor, multiplayer, checkGameState, createNetworkState]);
 
   // AI move effect (only runs in AI mode)
   useEffect(() => {
@@ -379,6 +524,11 @@ const Othello = () => {
   // Start multiplayer game
   const startMultiplayerGame = useCallback(async () => {
     const board = new Board();
+    const initialMoveHistory: MoveHistoryEntry[] = [];
+
+    // Reset the last processed update timestamp for new game
+    lastProcessedUpdate.current = 0;
+
     setGameState({
       board,
       validMoves: board.getMovablePos(),
@@ -387,6 +537,7 @@ const Othello = () => {
       isAIThinking: false,
       message: 'Black to play',
       lastMove: null,
+      moveHistory: initialMoveHistory,
     });
     setPlayerColor(multiplayer.myColor);
     setShowDifficultySelect(false);
@@ -394,7 +545,7 @@ const Othello = () => {
 
     // If host, send initial game state to Firebase
     if (multiplayer.context.isHost) {
-      const networkState = createNetworkState(board, null, false, null);
+      const networkState = createNetworkState(board, null, false, null, initialMoveHistory);
       await multiplayer.startGame(networkState);
     }
   }, [multiplayer, createNetworkState]);
@@ -679,6 +830,7 @@ const Othello = () => {
           padding: '2rem',
           maxWidth: '500px',
           minWidth: '400px',
+          color: '#ffffff',
         }}>
           {/* Show multiplayer lobby */}
           <OthelloMultiplayerLobby
@@ -707,7 +859,7 @@ const Othello = () => {
                       borderRadius: '0.5rem',
                       border: selectedDifficulty === option.value ? '2px solid #22c55e' : '2px solid #374151',
                       backgroundColor: selectedDifficulty === option.value ? 'rgba(34, 197, 94, 0.2)' : 'transparent',
-                      color: '#fff',
+                      color: '#ffffff',
                       cursor: 'pointer',
                       fontSize: '0.875rem',
                     }}
@@ -893,6 +1045,45 @@ const Othello = () => {
             </button>
           </div>
         )}
+
+        {/* Move History */}
+        <div style={{
+          marginTop: '1rem',
+          padding: '0.75rem',
+          background: 'rgba(255,255,255,0.1)',
+          borderRadius: '0.5rem',
+          maxHeight: '200px',
+          overflowY: 'auto',
+        }}>
+          <h3 style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: '#9ca3af' }}>Move History</h3>
+          {gameState.moveHistory.length === 0 ? (
+            <p style={{ color: '#6b7280', fontSize: '0.75rem' }}>No moves yet</p>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+              {gameState.moveHistory.map((entry, i) => {
+                const colorLabel = entry.color === BLACK ? '●' : '○';
+                const moveLabel = entry.move
+                  ? `${String.fromCharCode(96 + entry.move.x)}${entry.move.y}`
+                  : 'Pass';
+                const isLast = i === gameState.moveHistory.length - 1;
+                return (
+                  <span
+                    key={i}
+                    style={{
+                      padding: '0.125rem 0.375rem',
+                      background: isLast ? 'rgba(250, 204, 21, 0.3)' : 'rgba(0,0,0,0.3)',
+                      borderRadius: '0.25rem',
+                      fontSize: '0.75rem',
+                      color: entry.move ? '#d1d5db' : '#facc15',
+                    }}
+                  >
+                    {entry.moveNumber}. {colorLabel}{moveLabel}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       <InfoModal

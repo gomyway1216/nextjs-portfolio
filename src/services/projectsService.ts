@@ -84,6 +84,18 @@ export async function getUrlTypeList() {
   return data.urlTypes;
 }
 
+interface TechnologyData {
+  id: string;
+  name: string;
+  type: string;
+}
+
+interface UrlData {
+  name: string;
+  link: string;
+  type: string;
+}
+
 export async function createProject(project: {
   title: string;
   date?: string;
@@ -92,8 +104,8 @@ export async function createProject(project: {
   industry?: string;
   thumbImage?: string;
   images?: string[];
-  urls?: any[];
-  technologies?: string[];
+  urls?: UrlData[];
+  technologies?: TechnologyData[];
   categories?: string[];
 }) {
   const headers = await getAuthHeaders();
@@ -123,8 +135,8 @@ export async function updateProject(id: string, project: {
   industry?: string;
   thumbImage?: string;
   images?: string[];
-  urls?: any[];
-  technologies?: string[];
+  urls?: UrlData[];
+  technologies?: TechnologyData[];
   categories?: string[];
 }) {
   const headers = await getAuthHeaders();

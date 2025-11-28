@@ -1,51 +1,408 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useState, useEffect, CSSProperties } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile, updateProfile } from '@/hooks/useProfile';
+import { useProjects, useProjectMutations, useProjectCategories } from '@/hooks/useProjects';
+import { usePosts, usePostMutations, usePostCategories } from '@/hooks/usePosts';
 import { useRouter } from 'next/navigation';
-import { addJumpGameProject } from '@/lib/utils/addJumpGameProject';
+import * as technologyApi from '@/services/technologiesService';
+import type { Technology } from '@/services/technologiesService';
+import * as imageApi from '@/services/imageService';
+import {
+  LayoutDashboard,
+  User,
+  FolderKanban,
+  FileText,
+  Briefcase,
+  Plus,
+  Pencil,
+  Trash2,
+  X,
+  Save,
+  Loader2,
+  Eye,
+  EyeOff,
+  ExternalLink,
+  CheckCircle,
+  AlertCircle,
+  Upload,
+  Image as ImageIcon,
+} from 'lucide-react';
+
+type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs';
+
+interface Job {
+  id: string;
+  companyName: string;
+  jobPosition: string;
+  jobDuration: string;
+  technologies?: (string | { name: string; id?: string; type?: string })[];
+}
+
+// Helper function to get technology name (handles both string and object formats)
+const getTechName = (tech: string | { name: string; id?: string; type?: string }): string => {
+  if (typeof tech === 'string') return tech;
+  if (tech && typeof tech === 'object' && 'name' in tech) return tech.name;
+  return '';
+};
+
+// Styles
+const styles: Record<string, CSSProperties> = {
+  container: {
+    minHeight: '100vh',
+    background: 'linear-gradient(135deg, #0f172a 0%, #581c87 50%, #0f172a 100%)',
+  },
+  sidebar: {
+    width: '280px',
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    backdropFilter: 'blur(12px)',
+    borderRight: '1px solid rgba(255, 255, 255, 0.1)',
+    minHeight: '100vh',
+    position: 'fixed' as const,
+    left: 0,
+    top: 0,
+    paddingTop: '80px',
+  },
+  sidebarHeader: {
+    padding: '24px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+  },
+  sidebarTitle: {
+    fontSize: '24px',
+    fontWeight: 'bold',
+    background: 'linear-gradient(to right, #a855f7, #ec4899)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
+  },
+  sidebarEmail: {
+    fontSize: '14px',
+    color: '#94a3b8',
+    marginTop: '4px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  navButton: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '12px 16px',
+    borderRadius: '12px',
+    border: 'none',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    marginBottom: '4px',
+    fontSize: '15px',
+    fontWeight: '500',
+  },
+  navButtonActive: {
+    background: 'linear-gradient(to right, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.2))',
+    color: '#ffffff',
+    border: '1px solid rgba(168, 85, 247, 0.3)',
+  },
+  navButtonInactive: {
+    backgroundColor: 'transparent',
+    color: '#94a3b8',
+  },
+  main: {
+    marginLeft: '280px',
+    flex: 1,
+    padding: '32px',
+    paddingTop: '96px',
+  },
+  pageTitle: {
+    fontSize: '36px',
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: '8px',
+  },
+  pageSubtitle: {
+    color: '#94a3b8',
+    marginBottom: '32px',
+  },
+  card: {
+    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+    backdropFilter: 'blur(8px)',
+    borderRadius: '16px',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    overflow: 'hidden',
+  },
+  statCard: {
+    padding: '24px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+  },
+  statIconWrapper: {
+    padding: '12px',
+    borderRadius: '12px',
+  },
+  statNumber: {
+    fontSize: '32px',
+    fontWeight: 'bold',
+    color: '#ffffff',
+  },
+  button: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '10px 20px',
+    borderRadius: '8px',
+    border: 'none',
+    cursor: 'pointer',
+    fontWeight: '500',
+    fontSize: '14px',
+    transition: 'all 0.2s',
+  },
+  primaryButton: {
+    background: 'linear-gradient(to right, #a855f7, #ec4899)',
+    color: '#ffffff',
+  },
+  outlineButton: {
+    backgroundColor: 'transparent',
+    border: '1px solid rgba(255, 255, 255, 0.2)',
+    color: '#ffffff',
+  },
+  dangerButton: {
+    backgroundColor: '#ef4444',
+    color: '#ffffff',
+  },
+  ghostButton: {
+    backgroundColor: 'transparent',
+    color: '#94a3b8',
+    padding: '8px',
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse' as const,
+  },
+  th: {
+    textAlign: 'left' as const,
+    padding: '16px 24px',
+    fontWeight: '500',
+    color: '#94a3b8',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+  },
+  td: {
+    padding: '16px 24px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+  },
+  badge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    padding: '4px 12px',
+    borderRadius: '9999px',
+    fontSize: '12px',
+    fontWeight: '500',
+  },
+  techBadge: {
+    backgroundColor: 'rgba(168, 85, 247, 0.2)',
+    color: '#c084fc',
+    border: '1px solid rgba(168, 85, 247, 0.3)',
+  },
+  input: {
+    width: '100%',
+    padding: '10px 14px',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    color: '#ffffff',
+    fontSize: '14px',
+    outline: 'none',
+  },
+  textarea: {
+    width: '100%',
+    padding: '10px 14px',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+    color: '#ffffff',
+    fontSize: '14px',
+    outline: 'none',
+    resize: 'vertical' as const,
+    minHeight: '100px',
+  },
+  select: {
+    width: '100%',
+    padding: '10px 14px',
+    borderRadius: '8px',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(15, 23, 42, 0.8)',
+    color: '#ffffff',
+    fontSize: '14px',
+    outline: 'none',
+    cursor: 'pointer',
+  },
+  label: {
+    display: 'block',
+    color: '#cbd5e1',
+    fontSize: '14px',
+    fontWeight: '500',
+    marginBottom: '8px',
+  },
+  modal: {
+    position: 'fixed' as const,
+    inset: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 50,
+    padding: '16px',
+  },
+  modalContent: {
+    backgroundColor: '#0f172a',
+    borderRadius: '16px',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    maxWidth: '640px',
+    width: '100%',
+    maxHeight: '90vh',
+    overflow: 'auto',
+  },
+  modalHeader: {
+    padding: '24px',
+    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+  },
+  modalTitle: {
+    fontSize: '20px',
+    fontWeight: '600',
+    color: '#ffffff',
+  },
+  modalBody: {
+    padding: '24px',
+  },
+  modalFooter: {
+    padding: '24px',
+    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+  },
+  toast: {
+    position: 'fixed' as const,
+    top: '16px',
+    right: '16px',
+    zIndex: 100,
+    padding: '16px 24px',
+    borderRadius: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+  },
+  toastSuccess: {
+    backgroundColor: 'rgba(16, 185, 129, 0.9)',
+    border: '1px solid #34d399',
+    color: '#ffffff',
+  },
+  toastError: {
+    backgroundColor: 'rgba(239, 68, 68, 0.9)',
+    border: '1px solid #f87171',
+    color: '#ffffff',
+  },
+};
 
 const AdminPage = () => {
   const { currentUser } = useAuth();
   const router = useRouter();
   const { profile, loading: profileLoading } = useProfile();
+  const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
+  const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts({ limit: 100 });
+  const { categories: projectCategories } = useProjectCategories();
+  const { categories: postCategories } = usePostCategories();
+  const projectMutations = useProjectMutations();
+  const postMutations = usePostMutations();
 
-  const [jobs, setJobs] = useState<any[]>([]);
+  const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Modal states
+  const [showProjectModal, setShowProjectModal] = useState(false);
+  const [showPostModal, setShowPostModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ type: 'project' | 'post' | 'job'; id: string; name: string; category?: string } | null>(null);
+
+  // Edit states
+  const [editingProject, setEditingProject] = useState<any | null>(null);
+  const [editingPost, setEditingPost] = useState<any | null>(null);
   const [editingJob, setEditingJob] = useState<string | null>(null);
-  const [techInput, setTechInput] = useState<string>('');
+  const [techInput, setTechInput] = useState('');
+
+  // Available technologies from API
+  const [availableTechnologies, setAvailableTechnologies] = useState<Technology[]>([]);
 
   // Profile edit states
   const [editingProfile, setEditingProfile] = useState(false);
-  const [profileBirthdate, setProfileBirthdate] = useState('');
-  const [profileLocation, setProfileLocation] = useState('');
-  const [profileEmail, setProfileEmail] = useState('');
-  const [profileLanguages, setProfileLanguages] = useState('');
-  const [profileMessage, setProfileMessage] = useState('');
+  const [profileForm, setProfileForm] = useState({
+    birthdate: '',
+    location: '',
+    email: '',
+    languages: '',
+  });
 
-  // Project states
-  const [projectMessage, setProjectMessage] = useState('');
+  // Project form states
+  const [projectForm, setProjectForm] = useState({
+    title: '',
+    description: '',
+    date: '',
+    client: '',
+    industry: '',
+    thumbImage: '',
+    images: [] as string[],
+    technologies: '',
+    categories: '',
+  });
+
+  // Image upload states
+  const [uploadingThumb, setUploadingThumb] = useState(false);
+  const [uploadingImages, setUploadingImages] = useState(false);
+  const [thumbProgress, setThumbProgress] = useState(0);
+  const [imagesProgress, setImagesProgress] = useState(0);
+  const [dragOverThumb, setDragOverThumb] = useState(false);
+  const [dragOverImages, setDragOverImages] = useState(false);
+
+  // Post form states
+  const [postForm, setPostForm] = useState({
+    title: '',
+    body: '',
+    category: '',
+    isPublic: true,
+    image: '',
+    language: 'en',
+  });
+
+  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    // Redirect if not authenticated
     if (!currentUser) {
       router.push('/signin');
       return;
     }
     fetchJobs();
+    fetchTechnologies();
   }, [currentUser, router]);
 
+  const fetchTechnologies = async () => {
+    try {
+      const technologies = await technologyApi.getTechnologies();
+      setAvailableTechnologies(technologies);
+    } catch (error) {
+      console.error('Error fetching technologies:', error);
+    }
+  };
+
   useEffect(() => {
-    // Populate profile form when data loads
     if (profile) {
-      setProfileBirthdate(profile.birthdate || '');
-      setProfileLocation(profile.location || '');
-      setProfileEmail(profile.email || '');
-      setProfileLanguages(profile.languages?.join(', ') || '');
+      setProfileForm({
+        birthdate: profile.birthdate || '',
+        location: profile.location || '',
+        email: profile.email || '',
+        languages: profile.languages?.join(', ') || '',
+      });
     }
   }, [profile]);
 
@@ -53,7 +410,7 @@ const AdminPage = () => {
     try {
       const response = await fetch('/api/job');
       const data = await response.json();
-      setJobs(data.jobs);
+      setJobs(data.jobs || []);
     } catch (error) {
       console.error('Error fetching jobs:', error);
     } finally {
@@ -61,248 +418,1228 @@ const AdminPage = () => {
     }
   };
 
+  const showMessage = (type: 'success' | 'error', text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 5000);
+  };
+
+  // Profile handlers
   const handleUpdateProfile = async () => {
-    setProfileMessage('');
     try {
-      const languagesArray = profileLanguages.split(',').map(l => l.trim()).filter(l => l);
+      const languagesArray = profileForm.languages.split(',').map(l => l.trim()).filter(l => l);
       await updateProfile({
-        birthdate: profileBirthdate,
-        location: profileLocation,
-        email: profileEmail,
+        birthdate: profileForm.birthdate,
+        location: profileForm.location,
+        email: profileForm.email,
         languages: languagesArray,
       });
-      setProfileMessage('✅ Profile updated successfully!');
+      showMessage('success', 'Profile updated successfully!');
       setEditingProfile(false);
-      // Refresh page to see updated data
-      window.location.reload();
     } catch (error) {
-      setProfileMessage(`❌ Failed to update profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showMessage('error', `Failed to update profile: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  const handleUpdateTechnologies = async (jobId: string, companyName: string) => {
-    const techArray = techInput.split(',').map(t => t.trim()).filter(t => t);
+  // Project handlers
+  const handleOpenProjectModal = (project?: any) => {
+    if (project) {
+      setEditingProject(project);
+      const techNames = project.technologies?.map((t: any) => getTechName(t)).filter(Boolean) || [];
+      setProjectForm({
+        title: project.title || '',
+        description: project.description || '',
+        date: project.date || '',
+        client: project.client || '',
+        industry: project.industry || '',
+        thumbImage: project.thumbImage || '',
+        images: project.images || [],
+        technologies: techNames.join(', '),
+        categories: project.categories?.join(', ') || '',
+      });
+    } else {
+      setEditingProject(null);
+      setProjectForm({
+        title: '',
+        description: '',
+        date: new Date().toISOString().split('T')[0],
+        client: '',
+        industry: '',
+        thumbImage: '',
+        images: [],
+        technologies: '',
+        categories: '',
+      });
+    }
+    setShowProjectModal(true);
+  };
 
+  // Image upload handlers
+  // Use 'undefined' to match existing storage pattern when no project ID exists
+  const getProjectIdForUpload = () => editingProject?.id || 'undefined';
+
+  const handleThumbImageUpload = async (file: File) => {
+    setUploadingThumb(true);
+    setThumbProgress(0);
+
+    const progressInterval = setInterval(() => {
+      setThumbProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 100);
+
+    try {
+      const downloadURL = await imageApi.getImageRef(file, 'project', getProjectIdForUpload());
+      setProjectForm(prev => ({ ...prev, thumbImage: downloadURL }));
+      setThumbProgress(100);
+    } catch (error) {
+      console.error('Error uploading thumbnail:', error);
+      showMessage('error', 'Failed to upload thumbnail image');
+    } finally {
+      clearInterval(progressInterval);
+      setUploadingThumb(false);
+      setTimeout(() => setThumbProgress(0), 1000);
+    }
+  };
+
+  const handleGalleryImageUpload = async (files: FileList) => {
+    setUploadingImages(true);
+    setImagesProgress(0);
+
+    const progressInterval = setInterval(() => {
+      setImagesProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 100);
+
+    try {
+      const projectId = getProjectIdForUpload();
+      const uploadPromises = Array.from(files).map(file =>
+        imageApi.getImageRef(file, 'project', projectId)
+      );
+      const downloadURLs = await Promise.all(uploadPromises);
+      setProjectForm(prev => ({ ...prev, images: [...prev.images, ...downloadURLs] }));
+      setImagesProgress(100);
+    } catch (error) {
+      console.error('Error uploading images:', error);
+      showMessage('error', 'Failed to upload gallery images');
+    } finally {
+      clearInterval(progressInterval);
+      setUploadingImages(false);
+      setTimeout(() => setImagesProgress(0), 1000);
+    }
+  };
+
+  const handleRemoveThumbImage = () => {
+    setProjectForm(prev => ({ ...prev, thumbImage: '' }));
+  };
+
+  const handleRemoveGalleryImage = (index: number) => {
+    setProjectForm(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleDragThumb = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDropThumb = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverThumb(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files[0] && files[0].type.startsWith('image/')) {
+      handleThumbImageUpload(files[0]);
+    }
+  };
+
+  const handleDropImages = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverImages(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files.length > 0) {
+      const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+      if (imageFiles.length > 0) {
+        const dt = new DataTransfer();
+        imageFiles.forEach(f => dt.items.add(f));
+        handleGalleryImageUpload(dt.files);
+      }
+    }
+  };
+
+  const handleSaveProject = async () => {
+    try {
+      // Convert technology names to technology objects
+      const techNames = projectForm.technologies.split(',').map(t => t.trim().toLowerCase()).filter(t => t);
+      const technologiesData = techNames.map(name => {
+        // Find matching technology from available technologies
+        const matchedTech = availableTechnologies.find(
+          t => t.name.toLowerCase() === name
+        );
+        if (matchedTech) {
+          return { id: matchedTech.id, name: matchedTech.name, type: matchedTech.type };
+        }
+        // If not found, return as string (will be stored as-is, but ideally should be in DB)
+        return { id: '', name, type: '' };
+      });
+
+      const projectData = {
+        title: projectForm.title,
+        description: projectForm.description,
+        date: projectForm.date,
+        client: projectForm.client,
+        industry: projectForm.industry,
+        thumbImage: projectForm.thumbImage,
+        images: projectForm.images,
+        urls: editingProject?.urls || [],
+        technologies: technologiesData,
+        categories: projectForm.categories.split(',').map(c => c.trim()).filter(c => c),
+      };
+
+      if (editingProject) {
+        await projectMutations.updateProject(editingProject.id, projectData);
+        showMessage('success', 'Project updated successfully!');
+      } else {
+        await projectMutations.createProject(projectData);
+        showMessage('success', 'Project created successfully!');
+      }
+      setShowProjectModal(false);
+      refetchProjects();
+    } catch (error) {
+      showMessage('error', `Failed to save project: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleDeleteProject = async (id: string) => {
+    try {
+      await projectMutations.deleteProject(id);
+      showMessage('success', 'Project deleted successfully!');
+      refetchProjects();
+    } catch (error) {
+      showMessage('error', `Failed to delete project: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+    setShowDeleteConfirm(null);
+  };
+
+  // Post handlers
+  const handleOpenPostModal = (post?: any) => {
+    if (post) {
+      setEditingPost(post);
+      setPostForm({
+        title: post.title || '',
+        body: post.body || '',
+        category: post.category || '',
+        isPublic: post.isPublic ?? true,
+        image: post.image || '',
+        language: post.language || 'en',
+      });
+    } else {
+      setEditingPost(null);
+      setPostForm({
+        title: '',
+        body: '',
+        category: postCategories[0] || '',
+        isPublic: true,
+        image: '',
+        language: 'en',
+      });
+    }
+    setShowPostModal(true);
+  };
+
+  const handleSavePost = async () => {
+    try {
+      if (editingPost) {
+        await postMutations.updatePost(editingPost.id, editingPost.category, {
+          title: postForm.title,
+          body: postForm.body,
+          isPublic: postForm.isPublic,
+          image: postForm.image,
+          language: postForm.language,
+        });
+        showMessage('success', 'Post updated successfully!');
+      } else {
+        await postMutations.createPost({
+          title: postForm.title,
+          body: postForm.body,
+          category: postForm.category,
+          isPublic: postForm.isPublic,
+          image: postForm.image,
+          language: postForm.language,
+        });
+        showMessage('success', 'Post created successfully!');
+      }
+      setShowPostModal(false);
+      refetchPosts();
+    } catch (error) {
+      showMessage('error', `Failed to save post: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleDeletePost = async (id: string, category: string) => {
+    try {
+      await postMutations.deletePost(id, category);
+      showMessage('success', 'Post deleted successfully!');
+      refetchPosts();
+    } catch (error) {
+      showMessage('error', `Failed to delete post: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+    setShowDeleteConfirm(null);
+  };
+
+  // Job handlers
+  const handleUpdateJobTechnologies = async (jobId: string, companyName: string) => {
+    const techArray = techInput.split(',').map(t => t.trim()).filter(t => t);
     try {
       const response = await fetch('/api/job', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyName,
-          technologies: techArray,
-        }),
+        body: JSON.stringify({ companyName, technologies: techArray }),
       });
 
       if (response.ok) {
-        alert(`Updated technologies for ${companyName}`);
+        showMessage('success', `Updated technologies for ${companyName}`);
         setEditingJob(null);
         setTechInput('');
-        fetchJobs(); // Refresh
+        fetchJobs();
       } else {
         const error = await response.json();
-        alert(`Failed: ${error.error}`);
+        showMessage('error', `Failed: ${error.error}`);
       }
     } catch (error) {
-      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      showMessage('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  const handleAddJumpGame = async () => {
-    setProjectMessage('');
-    if (!currentUser) {
-      setProjectMessage('❌ You must be signed in to add projects');
-      return;
-    }
-
-    try {
-      await addJumpGameProject(() => currentUser.getIdToken());
-      setProjectMessage('✅ Jump Game added to projects successfully!');
-    } catch (error) {
-      setProjectMessage(`❌ Failed to add Jump Game: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-  };
-
-  // Show loading while checking authentication
   if (!currentUser || loading || profileLoading) {
-    return <div className='mt-20 text-center'>Loading...</div>;
+    return (
+      <div style={{ ...styles.container, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#ffffff' }}>
+          <Loader2 style={{ width: '24px', height: '24px', animation: 'spin 1s linear infinite' }} />
+          <span style={{ fontSize: '18px' }}>Loading...</span>
+        </div>
+      </div>
+    );
   }
 
+  const sidebarItems = [
+    { id: 'dashboard' as AdminSection, label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'profile' as AdminSection, label: 'Profile', icon: User },
+    { id: 'projects' as AdminSection, label: 'Projects', icon: FolderKanban },
+    { id: 'posts' as AdminSection, label: 'Blog Posts', icon: FileText },
+    { id: 'jobs' as AdminSection, label: 'Jobs', icon: Briefcase },
+  ];
+
   return (
-    <div className='admin max-w-6xl mx-auto mt-20 p-6'>
-      <h1 className='text-3xl font-bold mb-8'>Admin Dashboard</h1>
-
-      {/* Profile Edit Section */}
-      <div className='bg-blue-50 border border-blue-200 p-6 rounded-lg shadow-md mb-8'>
-        <div className='flex justify-between items-center mb-4'>
-          <h2 className='text-xl font-semibold'>Profile Information</h2>
-          <Button
-            onClick={() => setEditingProfile(!editingProfile)}
-            variant="outline"
-            size="sm"
+    <div style={styles.container}>
+      {/* Toast Message */}
+      {message && (
+        <div style={{ ...styles.toast, ...(message.type === 'success' ? styles.toastSuccess : styles.toastError) }}>
+          {message.type === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+          <span style={{ fontWeight: '500' }}>{message.text}</span>
+          <button
+            onClick={() => setMessage(null)}
+            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px' }}
           >
-            {editingProfile ? 'Cancel' : 'Edit Profile'}
-          </Button>
+            <X size={16} />
+          </button>
         </div>
+      )}
 
-        {!editingProfile ? (
-          // Display mode
-          <div className='space-y-2 text-gray-700'>
-            <p><strong>Birthdate:</strong> {profile?.birthdate || 'Not set'}</p>
-            <p><strong>Location:</strong> {profile?.location || 'Not set'}</p>
-            <p><strong>Email:</strong> {profile?.email || 'Not set'}</p>
-            <p><strong>Languages:</strong> {profile?.languages?.join(', ') || 'Not set'}</p>
+      <div style={{ display: 'flex' }}>
+        {/* Sidebar */}
+        <aside style={styles.sidebar}>
+          <div style={styles.sidebarHeader}>
+            <h2 style={styles.sidebarTitle}>Admin Panel</h2>
+            <p style={styles.sidebarEmail}>{currentUser?.email}</p>
           </div>
-        ) : (
-          // Edit mode
-          <div className='space-y-4'>
-            <div>
-              <Label htmlFor="birthdate">Birthdate (YYYY-MM-DD)</Label>
-              <Input
-                id="birthdate"
-                type="date"
-                value={profileBirthdate}
-                onChange={(e) => setProfileBirthdate(e.target.value)}
-                className='mt-1'
-              />
-            </div>
-            <div>
-              <Label htmlFor="location">Location</Label>
-              <Input
-                id="location"
-                value={profileLocation}
-                onChange={(e) => setProfileLocation(e.target.value)}
-                placeholder="e.g., San Francisco, Remote"
-                className='mt-1'
-              />
-            </div>
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={profileEmail}
-                onChange={(e) => setProfileEmail(e.target.value)}
-                placeholder="your@email.com"
-                className='mt-1'
-              />
-            </div>
-            <div>
-              <Label htmlFor="languages">Languages (comma-separated)</Label>
-              <Input
-                id="languages"
-                value={profileLanguages}
-                onChange={(e) => setProfileLanguages(e.target.value)}
-                placeholder="English, Japanese"
-                className='mt-1'
-              />
-            </div>
-            <Button onClick={handleUpdateProfile} className='mt-2'>
-              Save Profile
-            </Button>
-          </div>
-        )}
+          <nav style={{ padding: '16px' }}>
+            {sidebarItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => setActiveSection(item.id)}
+                style={{
+                  ...styles.navButton,
+                  ...(activeSection === item.id ? styles.navButtonActive : styles.navButtonInactive),
+                }}
+                onMouseEnter={(e) => {
+                  if (activeSection !== item.id) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
+                    e.currentTarget.style.color = '#ffffff';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (activeSection !== item.id) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#94a3b8';
+                  }
+                }}
+              >
+                <item.icon size={20} style={{ color: activeSection === item.id ? '#a855f7' : 'inherit' }} />
+                {item.label}
+              </button>
+            ))}
+          </nav>
+        </aside>
 
-        {profileMessage && (
-          <div className={`mt-4 p-3 rounded ${
-            profileMessage.includes('✅') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-          }`}>
-            {profileMessage}
-          </div>
-        )}
-      </div>
+        {/* Main Content */}
+        <main style={styles.main}>
+          {/* Dashboard Section */}
+          {activeSection === 'dashboard' && (
+            <div>
+              <h1 style={styles.pageTitle}>Dashboard</h1>
+              <p style={styles.pageSubtitle}>Overview of your portfolio content</p>
 
-      {/* Projects Section */}
-      <div className='bg-green-50 border border-green-200 p-6 rounded-lg shadow-md mb-8'>
-        <h2 className='text-xl font-semibold mb-4'>Projects Manager</h2>
-        <div className='space-y-4'>
-          <div>
-            <h3 className='font-medium mb-2'>Add Jump Game to Projects</h3>
-            <p className='text-sm text-gray-600 mb-3'>
-              Click the button below to add the Jump Game to your projects section.
-              This will create a new project entry in Firestore with the game details.
-            </p>
-            <Button onClick={handleAddJumpGame} className='bg-green-600 hover:bg-green-700'>
-              Add Jump Game to Projects
-            </Button>
-          </div>
-          {projectMessage && (
-            <div className={`mt-4 p-3 rounded ${
-              projectMessage.includes('✅') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-            }`}>
-              {projectMessage}
+              {/* Stats Cards */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '32px' }}>
+                <div style={{ ...styles.card, background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(6, 182, 212, 0.1))', borderColor: 'rgba(59, 130, 246, 0.2)' }}>
+                  <div style={styles.statCard}>
+                    <div style={{ ...styles.statIconWrapper, backgroundColor: 'rgba(59, 130, 246, 0.2)' }}>
+                      <FolderKanban size={24} color="#60a5fa" />
+                    </div>
+                    <div>
+                      <p style={styles.statNumber}>{projects.length}</p>
+                      <p style={{ color: '#93c5fd' }}>Projects</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ ...styles.card, background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(34, 197, 94, 0.1))', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                  <div style={styles.statCard}>
+                    <div style={{ ...styles.statIconWrapper, backgroundColor: 'rgba(16, 185, 129, 0.2)' }}>
+                      <FileText size={24} color="#34d399" />
+                    </div>
+                    <div>
+                      <p style={styles.statNumber}>{posts.length}</p>
+                      <p style={{ color: '#6ee7b7' }}>Blog Posts</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ ...styles.card, background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(236, 72, 153, 0.1))', borderColor: 'rgba(168, 85, 247, 0.2)' }}>
+                  <div style={styles.statCard}>
+                    <div style={{ ...styles.statIconWrapper, backgroundColor: 'rgba(168, 85, 247, 0.2)' }}>
+                      <Briefcase size={24} color="#c084fc" />
+                    </div>
+                    <div>
+                      <p style={styles.statNumber}>{jobs.length}</p>
+                      <p style={{ color: '#d8b4fe' }}>Jobs</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions */}
+              <div style={{ ...styles.card, marginBottom: '32px' }}>
+                <div style={{ padding: '24px' }}>
+                  <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '8px' }}>Quick Actions</h3>
+                  <p style={{ color: '#94a3b8', marginBottom: '16px' }}>Create new content quickly</p>
+                  <div style={{ display: 'flex', gap: '12px' }}>
+                    <button
+                      onClick={() => { setActiveSection('projects'); handleOpenProjectModal(); }}
+                      style={{ ...styles.button, ...styles.primaryButton }}
+                    >
+                      <Plus size={16} /> New Project
+                    </button>
+                    <button
+                      onClick={() => { setActiveSection('posts'); handleOpenPostModal(); }}
+                      style={{ ...styles.button, ...styles.outlineButton }}
+                    >
+                      <Plus size={16} /> New Post
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Items */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px' }}>
+                <div style={styles.card}>
+                  <div style={{ padding: '24px' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FolderKanban size={20} color="#a855f7" /> Recent Projects
+                    </h3>
+                    {projects.slice(0, 5).map((project) => (
+                      <div key={project.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                        <span style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.title}</span>
+                        <button
+                          onClick={() => { setActiveSection('projects'); handleOpenProjectModal(project); }}
+                          style={{ ...styles.ghostButton, borderRadius: '8px' }}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      </div>
+                    ))}
+                    {projects.length === 0 && <p style={{ color: '#64748b', fontSize: '14px' }}>No projects yet</p>}
+                  </div>
+                </div>
+
+                <div style={styles.card}>
+                  <div style={{ padding: '24px' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FileText size={20} color="#34d399" /> Recent Posts
+                    </h3>
+                    {posts.slice(0, 5).map((post) => (
+                      <div key={post.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                        <span style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.title}</span>
+                        <button
+                          onClick={() => { setActiveSection('posts'); handleOpenPostModal(post); }}
+                          style={{ ...styles.ghostButton, borderRadius: '8px' }}
+                        >
+                          <Pencil size={16} />
+                        </button>
+                      </div>
+                    ))}
+                    {posts.length === 0 && <p style={{ color: '#64748b', fontSize: '14px' }}>No posts yet</p>}
+                  </div>
+                </div>
+              </div>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* Job Technologies Section */}
-      <h2 className='text-2xl font-bold mb-4'>Job Technologies Manager</h2>
-      <div className='space-y-4'>
-        {jobs.map((job) => (
-          <div key={job.id} className='bg-white p-4 rounded-lg shadow-md'>
-            <div className='flex justify-between items-start mb-2'>
-              <div>
-                <h3 className='font-bold text-lg'>{job.jobPosition}</h3>
-                <p className='text-gray-600'>{job.companyName}</p>
-                <p className='text-sm text-gray-500'>{job.jobDuration}</p>
+          {/* Profile Section */}
+          {activeSection === 'profile' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+                <div>
+                  <h1 style={styles.pageTitle}>Profile</h1>
+                  <p style={{ color: '#94a3b8' }}>Manage your personal information</p>
+                </div>
+                <button
+                  onClick={() => setEditingProfile(!editingProfile)}
+                  style={{ ...styles.button, ...styles.outlineButton }}
+                >
+                  {editingProfile ? 'Cancel' : 'Edit Profile'}
+                </button>
               </div>
-              <Button
-                onClick={() => {
-                  setEditingJob(job.id);
-                  setTechInput(job.technologies?.join(', ') || '');
-                }}
-                size="sm"
-              >
-                Edit Tech
-              </Button>
-            </div>
 
-            <div className='mt-2'>
-              <strong className='text-sm'>Current Technologies:</strong>
-              <div className='flex flex-wrap gap-2 mt-1'>
-                {job.technologies?.length > 0 ? (
-                  job.technologies.map((tech: string, i: number) => (
-                    <span key={i} className='bg-sky-500 text-white text-xs px-2 py-1 rounded'>
-                      {tech}
-                    </span>
-                  ))
-                ) : (
-                  <span className='text-gray-400 text-sm'>No technologies set</span>
+              <div style={{ ...styles.card, maxWidth: '640px' }}>
+                <div style={{ padding: '24px' }}>
+                  {!editingProfile ? (
+                    <div>
+                      {[
+                        { label: 'Birthdate', value: profile?.birthdate },
+                        { label: 'Location', value: profile?.location },
+                        { label: 'Email', value: profile?.email },
+                        { label: 'Languages', value: profile?.languages?.join(', ') },
+                      ].map((item, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 0', borderBottom: i < 3 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none' }}>
+                          <span style={{ color: '#94a3b8' }}>{item.label}</span>
+                          <span style={{ color: '#ffffff', fontWeight: '500' }}>{item.value || 'Not set'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                      <div>
+                        <label style={styles.label}>Birthdate</label>
+                        <input
+                          type="date"
+                          value={profileForm.birthdate}
+                          onChange={(e) => setProfileForm({ ...profileForm, birthdate: e.target.value })}
+                          style={styles.input}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Location</label>
+                        <input
+                          value={profileForm.location}
+                          onChange={(e) => setProfileForm({ ...profileForm, location: e.target.value })}
+                          placeholder="e.g., San Francisco, CA"
+                          style={styles.input}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Email</label>
+                        <input
+                          type="email"
+                          value={profileForm.email}
+                          onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                          placeholder="your@email.com"
+                          style={styles.input}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Languages (comma-separated)</label>
+                        <input
+                          value={profileForm.languages}
+                          onChange={(e) => setProfileForm({ ...profileForm, languages: e.target.value })}
+                          placeholder="English, Japanese"
+                          style={styles.input}
+                        />
+                      </div>
+                      <button onClick={handleUpdateProfile} style={{ ...styles.button, ...styles.primaryButton }}>
+                        <Save size={16} /> Save Profile
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Projects Section */}
+          {activeSection === 'projects' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+                <div>
+                  <h1 style={styles.pageTitle}>Projects</h1>
+                  <p style={{ color: '#94a3b8' }}>Manage your portfolio projects</p>
+                </div>
+                <button onClick={() => handleOpenProjectModal()} style={{ ...styles.button, ...styles.primaryButton }}>
+                  <Plus size={16} /> Add Project
+                </button>
+              </div>
+
+              {projectsLoading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
+                  <Loader2 size={32} color="#a855f7" style={{ animation: 'spin 1s linear infinite' }} />
+                </div>
+              ) : (
+                <div style={styles.card}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr>
+                        <th style={styles.th}>Title</th>
+                        <th style={styles.th}>Date</th>
+                        <th style={styles.th}>Technologies</th>
+                        <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {projects.map((project) => (
+                        <tr key={project.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                          <td style={styles.td}>
+                            <div style={{ fontWeight: '500', color: '#ffffff' }}>{project.title}</div>
+                            <div style={{ fontSize: '14px', color: '#64748b', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.description}</div>
+                          </td>
+                          <td style={{ ...styles.td, color: '#94a3b8' }}>{project.date}</td>
+                          <td style={styles.td}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                              {project.technologies?.slice(0, 3).map((tech, i) => (
+                                <span key={i} style={{ ...styles.badge, ...styles.techBadge }}>{getTechName(tech)}</span>
+                              ))}
+                              {(project.technologies?.length || 0) > 3 && (
+                                <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#94a3b8' }}>
+                                  +{(project.technologies?.length || 0) - 3}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={{ ...styles.td, textAlign: 'right' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                              <button onClick={() => handleOpenProjectModal(project)} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                onClick={() => setShowDeleteConfirm({ type: 'project', id: project.id, name: project.title })}
+                                style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {projects.length === 0 && (
+                        <tr>
+                          <td colSpan={4} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
+                            No projects yet. Click &quot;Add Project&quot; to create one.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Posts Section */}
+          {activeSection === 'posts' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+                <div>
+                  <h1 style={styles.pageTitle}>Blog Posts</h1>
+                  <p style={{ color: '#94a3b8' }}>Manage your blog content</p>
+                </div>
+                <button onClick={() => handleOpenPostModal()} style={{ ...styles.button, ...styles.primaryButton }}>
+                  <Plus size={16} /> Add Post
+                </button>
+              </div>
+
+              {postsLoading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
+                  <Loader2 size={32} color="#a855f7" style={{ animation: 'spin 1s linear infinite' }} />
+                </div>
+              ) : (
+                <div style={styles.card}>
+                  <table style={styles.table}>
+                    <thead>
+                      <tr>
+                        <th style={styles.th}>Title</th>
+                        <th style={styles.th}>Category</th>
+                        <th style={styles.th}>Status</th>
+                        <th style={styles.th}>Updated</th>
+                        <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {posts.map((post) => (
+                        <tr key={post.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                          <td style={styles.td}>
+                            <div style={{ fontWeight: '500', color: '#ffffff' }}>{post.title}</div>
+                          </td>
+                          <td style={styles.td}>
+                            <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#cbd5e1' }}>
+                              {post.category}
+                            </span>
+                          </td>
+                          <td style={styles.td}>
+                            {post.isPublic ? (
+                              <span style={{ ...styles.badge, backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                                <Eye size={12} /> Public
+                              </span>
+                            ) : (
+                              <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#94a3b8' }}>
+                                <EyeOff size={12} /> Private
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ ...styles.td, color: '#94a3b8', fontSize: '14px' }}>
+                            {post.lastUpdated ? new Date(post.lastUpdated).toLocaleDateString() : '-'}
+                          </td>
+                          <td style={{ ...styles.td, textAlign: 'right' }}>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                              <button onClick={() => window.open(`/blog/${post.category}/${post.id}`, '_blank')} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
+                                <ExternalLink size={16} />
+                              </button>
+                              <button onClick={() => handleOpenPostModal(post)} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
+                                <Pencil size={16} />
+                              </button>
+                              <button
+                                onClick={() => setShowDeleteConfirm({ type: 'post', id: post.id, name: post.title, category: post.category })}
+                                style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {posts.length === 0 && (
+                        <tr>
+                          <td colSpan={5} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
+                            No posts yet. Click &quot;Add Post&quot; to create one.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Jobs Section */}
+          {activeSection === 'jobs' && (
+            <div>
+              <h1 style={styles.pageTitle}>Jobs & Experience</h1>
+              <p style={{ color: '#94a3b8', marginBottom: '32px' }}>Manage your work experience and technologies</p>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                {jobs.map((job) => (
+                  <div key={job.id} style={styles.card}>
+                    <div style={{ padding: '24px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                        <div>
+                          <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#ffffff' }}>{job.jobPosition}</h3>
+                          <p style={{ color: '#a855f7' }}>{job.companyName}</p>
+                          <p style={{ fontSize: '14px', color: '#64748b' }}>{job.jobDuration}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setEditingJob(job.id);
+                            const techNames = job.technologies?.map(t => getTechName(t)).filter(Boolean) || [];
+                            setTechInput(techNames.join(', '));
+                          }}
+                          style={{ ...styles.button, ...styles.outlineButton }}
+                        >
+                          <Pencil size={16} /> Edit Tech
+                        </button>
+                      </div>
+
+                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
+                        <p style={{ fontSize: '14px', fontWeight: '500', color: '#94a3b8', marginBottom: '12px' }}>Technologies</p>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                          {job.technologies?.length ? (
+                            job.technologies.map((tech, i) => (
+                              <span key={i} style={{ ...styles.badge, ...styles.techBadge }}>{getTechName(tech)}</span>
+                            ))
+                          ) : (
+                            <span style={{ color: '#64748b', fontSize: '14px' }}>No technologies set</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {editingJob === job.id && (
+                        <div style={{ marginTop: '24px', padding: '16px', backgroundColor: 'rgba(15, 23, 42, 0.5)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                          <label style={styles.label}>Technologies (comma-separated)</label>
+                          <input
+                            value={techInput}
+                            onChange={(e) => setTechInput(e.target.value)}
+                            placeholder="React, TypeScript, Node.js"
+                            style={{ ...styles.input, marginBottom: '16px' }}
+                          />
+                          <div style={{ display: 'flex', gap: '12px' }}>
+                            <button onClick={() => handleUpdateJobTechnologies(job.id, job.companyName)} style={{ ...styles.button, ...styles.primaryButton }}>
+                              <Save size={16} /> Save
+                            </button>
+                            <button onClick={() => { setEditingJob(null); setTechInput(''); }} style={{ ...styles.button, ...styles.outlineButton }}>
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {jobs.length === 0 && (
+                  <div style={{ ...styles.card, textAlign: 'center', padding: '48px' }}>
+                    <Briefcase size={48} color="#64748b" style={{ marginBottom: '16px' }} />
+                    <p style={{ color: '#64748b' }}>No jobs found</p>
+                  </div>
                 )}
               </div>
             </div>
+          )}
+        </main>
+      </div>
 
-            {editingJob === job.id && (
-              <div className='mt-3 p-3 bg-gray-50 rounded'>
-                <Input
-                  value={techInput}
-                  onChange={(e) => setTechInput(e.target.value)}
-                  placeholder="Enter technologies separated by commas (e.g., React, TypeScript, Node.js)"
-                  className='mb-2'
-                />
-                <div className='flex gap-2'>
-                  <Button
-                    onClick={() => handleUpdateTechnologies(job.id, job.companyName)}
-                    size="sm"
-                  >
-                    Save
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      setEditingJob(null);
-                      setTechInput('');
+      {/* Project Modal */}
+      {showProjectModal && (
+        <div style={styles.modal}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>{editingProject ? 'Edit Project' : 'New Project'}</h2>
+              <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '4px' }}>
+                {editingProject ? 'Update your project details' : 'Add a new project to your portfolio'}
+              </p>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <label style={styles.label}>Title *</label>
+                  <input
+                    value={projectForm.title}
+                    onChange={(e) => setProjectForm({ ...projectForm, title: e.target.value })}
+                    style={styles.input}
+                  />
+                </div>
+                <div>
+                  <label style={styles.label}>Description *</label>
+                  <textarea
+                    value={projectForm.description}
+                    onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })}
+                    style={styles.textarea}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={styles.label}>Date</label>
+                    <input
+                      type="date"
+                      value={projectForm.date}
+                      onChange={(e) => setProjectForm({ ...projectForm, date: e.target.value })}
+                      style={styles.input}
+                    />
+                  </div>
+                  <div>
+                    <label style={styles.label}>Client</label>
+                    <input
+                      value={projectForm.client}
+                      onChange={(e) => setProjectForm({ ...projectForm, client: e.target.value })}
+                      style={styles.input}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={styles.label}>Industry</label>
+                  <input
+                    value={projectForm.industry}
+                    onChange={(e) => setProjectForm({ ...projectForm, industry: e.target.value })}
+                    style={styles.input}
+                  />
+                </div>
+                {/* Thumbnail Image Upload */}
+                <div>
+                  <label style={styles.label}>Thumbnail Image</label>
+                  <div
+                    onDragOver={(e) => { handleDragThumb(e); setDragOverThumb(true); }}
+                    onDragLeave={() => setDragOverThumb(false)}
+                    onDrop={handleDropThumb}
+                    style={{
+                      border: `2px dashed ${dragOverThumb ? '#a855f7' : 'rgba(255, 255, 255, 0.2)'}`,
+                      borderRadius: '12px',
+                      padding: '20px',
+                      textAlign: 'center',
+                      backgroundColor: dragOverThumb ? 'rgba(168, 85, 247, 0.1)' : 'rgba(15, 23, 42, 0.3)',
+                      transition: 'all 0.2s',
+                      cursor: 'pointer',
                     }}
-                    variant="outline"
-                    size="sm"
                   >
-                    Cancel
-                  </Button>
+                    {projectForm.thumbImage ? (
+                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <img
+                          src={projectForm.thumbImage}
+                          alt="Thumbnail"
+                          style={{ maxWidth: '200px', maxHeight: '150px', borderRadius: '8px' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRemoveThumbImage}
+                          style={{
+                            position: 'absolute',
+                            top: '-8px',
+                            right: '-8px',
+                            background: '#ef4444',
+                            border: 'none',
+                            borderRadius: '50%',
+                            padding: '4px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <X size={14} color="#fff" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          id="thumb-upload"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleThumbImageUpload(e.target.files[0]);
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                        <label htmlFor="thumb-upload" style={{ cursor: 'pointer' }}>
+                          <ImageIcon size={40} color="#64748b" style={{ marginBottom: '8px' }} />
+                          <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                            Drag & drop or click to upload thumbnail
+                          </p>
+                        </label>
+                      </div>
+                    )}
+                    {uploadingThumb && (
+                      <div style={{ marginTop: '12px' }}>
+                        <div style={{
+                          height: '4px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          borderRadius: '2px',
+                          overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${thumbProgress}%`,
+                            background: 'linear-gradient(to right, #a855f7, #ec4899)',
+                            transition: 'width 0.2s',
+                          }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Gallery Images Upload */}
+                <div>
+                  <label style={styles.label}>Gallery Images</label>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setDragOverImages(true); }}
+                    onDragLeave={() => setDragOverImages(false)}
+                    onDrop={handleDropImages}
+                    style={{
+                      border: `2px dashed ${dragOverImages ? '#a855f7' : 'rgba(255, 255, 255, 0.2)'}`,
+                      borderRadius: '12px',
+                      padding: '20px',
+                      textAlign: 'center',
+                      backgroundColor: dragOverImages ? 'rgba(168, 85, 247, 0.1)' : 'rgba(15, 23, 42, 0.3)',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      id="gallery-upload"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files.length > 0) {
+                          handleGalleryImageUpload(e.target.files);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <label htmlFor="gallery-upload" style={{ cursor: 'pointer' }}>
+                      <Upload size={32} color="#64748b" style={{ marginBottom: '8px' }} />
+                      <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                        Drag & drop or click to upload gallery images
+                      </p>
+                    </label>
+                    {uploadingImages && (
+                      <div style={{ marginTop: '12px' }}>
+                        <div style={{
+                          height: '4px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          borderRadius: '2px',
+                          overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${imagesProgress}%`,
+                            background: 'linear-gradient(to right, #a855f7, #ec4899)',
+                            transition: 'width 0.2s',
+                          }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {/* Gallery Image Previews */}
+                  {projectForm.images.length > 0 && (
+                    <div style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: '12px',
+                      marginTop: '16px',
+                    }}>
+                      {projectForm.images.map((url, index) => (
+                        <div
+                          key={url}
+                          style={{
+                            position: 'relative',
+                            width: '100px',
+                            height: '80px',
+                          }}
+                        >
+                          <img
+                            src={url}
+                            alt={`Gallery ${index + 1}`}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              borderRadius: '8px',
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveGalleryImage(index)}
+                            style={{
+                              position: 'absolute',
+                              top: '-6px',
+                              right: '-6px',
+                              background: '#ef4444',
+                              border: 'none',
+                              borderRadius: '50%',
+                              padding: '3px',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            }}
+                          >
+                            <X size={12} color="#fff" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label style={styles.label}>Technologies (comma-separated)</label>
+                  <input
+                    value={projectForm.technologies}
+                    onChange={(e) => setProjectForm({ ...projectForm, technologies: e.target.value })}
+                    placeholder="React, TypeScript, Firebase"
+                    style={styles.input}
+                  />
+                </div>
+                <div>
+                  <label style={styles.label}>Categories (comma-separated)</label>
+                  <input
+                    value={projectForm.categories}
+                    onChange={(e) => setProjectForm({ ...projectForm, categories: e.target.value })}
+                    placeholder="Web, Mobile, Game"
+                    style={styles.input}
+                  />
+                  {projectCategories.length > 0 && (
+                    <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Existing: {projectCategories.join(', ')}</p>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={() => setShowProjectModal(false)} style={{ ...styles.button, ...styles.outlineButton }}>
+                Cancel
+              </button>
+              <button onClick={handleSaveProject} disabled={projectMutations.loading} style={{ ...styles.button, ...styles.primaryButton }}>
+                {projectMutations.loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />}
+                {editingProject ? 'Update' : 'Create'}
+              </button>
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* Post Modal */}
+      {showPostModal && (
+        <div style={styles.modal}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>{editingPost ? 'Edit Post' : 'New Post'}</h2>
+              <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '4px' }}>
+                {editingPost ? 'Update your blog post' : 'Create a new blog post'}
+              </p>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <label style={styles.label}>Title *</label>
+                  <input
+                    value={postForm.title}
+                    onChange={(e) => setPostForm({ ...postForm, title: e.target.value })}
+                    style={styles.input}
+                  />
+                </div>
+                {!editingPost && (
+                  <div>
+                    <label style={styles.label}>Category *</label>
+                    <select
+                      value={postForm.category}
+                      onChange={(e) => setPostForm({ ...postForm, category: e.target.value })}
+                      style={styles.select}
+                    >
+                      <option value="">Select category</option>
+                      {postCategories.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label style={styles.label}>Content *</label>
+                  <textarea
+                    value={postForm.body}
+                    onChange={(e) => setPostForm({ ...postForm, body: e.target.value })}
+                    style={{ ...styles.textarea, minHeight: '200px' }}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'center' }}>
+                  <div>
+                    <label style={styles.label}>Language</label>
+                    <select
+                      value={postForm.language}
+                      onChange={(e) => setPostForm({ ...postForm, language: e.target.value })}
+                      style={styles.select}
+                    >
+                      <option value="en">English</option>
+                      <option value="ja">Japanese</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingTop: '24px' }}>
+                    <input
+                      type="checkbox"
+                      id="post-public"
+                      checked={postForm.isPublic}
+                      onChange={(e) => setPostForm({ ...postForm, isPublic: e.target.checked })}
+                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                    />
+                    <label htmlFor="post-public" style={{ color: '#cbd5e1', cursor: 'pointer' }}>Public</label>
+                  </div>
+                </div>
+                <div>
+                  <label style={styles.label}>Image URL</label>
+                  <input
+                    value={postForm.image}
+                    onChange={(e) => setPostForm({ ...postForm, image: e.target.value })}
+                    placeholder="https://..."
+                    style={styles.input}
+                  />
+                </div>
+              </div>
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={() => setShowPostModal(false)} style={{ ...styles.button, ...styles.outlineButton }}>
+                Cancel
+              </button>
+              <button onClick={handleSavePost} disabled={postMutations.loading} style={{ ...styles.button, ...styles.primaryButton }}>
+                {postMutations.loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />}
+                {editingPost ? 'Update' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <div style={styles.modal}>
+          <div style={{ ...styles.modalContent, maxWidth: '400px' }}>
+            <div style={styles.modalHeader}>
+              <h2 style={{ ...styles.modalTitle, color: '#f87171' }}>Confirm Delete</h2>
+            </div>
+            <div style={styles.modalBody}>
+              <p style={{ color: '#94a3b8' }}>
+                Are you sure you want to delete <strong style={{ color: '#ffffff' }}>{showDeleteConfirm.name}</strong>? This action cannot be undone.
+              </p>
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={() => setShowDeleteConfirm(null)} style={{ ...styles.button, ...styles.outlineButton }}>
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (showDeleteConfirm.type === 'project') {
+                    handleDeleteProject(showDeleteConfirm.id);
+                  } else if (showDeleteConfirm.type === 'post' && showDeleteConfirm.category) {
+                    handleDeletePost(showDeleteConfirm.id, showDeleteConfirm.category);
+                  }
+                }}
+                style={{ ...styles.button, ...styles.dangerButton }}
+              >
+                <Trash2 size={16} /> Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CSS for animations */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

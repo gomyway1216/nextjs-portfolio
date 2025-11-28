@@ -4,6 +4,18 @@ import { useState, useEffect, useCallback } from 'react';
 import * as api from '@/services/projectsService';
 import type { Project } from '@/services/projectsService';
 
+interface TechnologyData {
+  id: string;
+  name: string;
+  type: string;
+}
+
+interface UrlData {
+  name: string;
+  link: string;
+  type: string;
+}
+
 export interface CreateProjectData {
   title: string;
   date?: string;
@@ -12,8 +24,8 @@ export interface CreateProjectData {
   industry?: string;
   thumbImage?: string;
   images?: string[];
-  urls?: any[];
-  technologies?: string[];
+  urls?: UrlData[];
+  technologies?: TechnologyData[];
   categories?: string[];
 }
 
@@ -25,8 +37,8 @@ export interface UpdateProjectData {
   industry?: string;
   thumbImage?: string;
   images?: string[];
-  urls?: any[];
-  technologies?: string[];
+  urls?: UrlData[];
+  technologies?: TechnologyData[];
   categories?: string[];
 }
 

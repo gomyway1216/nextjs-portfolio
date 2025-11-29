@@ -15,6 +15,7 @@ import {
   FolderKanban,
   FileText,
   Briefcase,
+  BookOpen,
   Plus,
   Pencil,
   Trash2,
@@ -29,8 +30,9 @@ import {
   Upload,
   Image as ImageIcon,
 } from 'lucide-react';
+import StudyAdminPanel from '@/components/study/StudyAdminPanel';
 
-type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs';
+type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study';
 
 interface Job {
   id: string;
@@ -741,6 +743,7 @@ const AdminPage = () => {
     { id: 'projects' as AdminSection, label: 'Projects', icon: FolderKanban },
     { id: 'posts' as AdminSection, label: 'Blog Posts', icon: FileText },
     { id: 'jobs' as AdminSection, label: 'Jobs', icon: Briefcase },
+    { id: 'study' as AdminSection, label: 'Study Tool', icon: BookOpen },
   ];
 
   return (
@@ -1224,6 +1227,11 @@ const AdminPage = () => {
                 )}
               </div>
             </div>
+          )}
+
+          {/* Study Tool Section */}
+          {activeSection === 'study' && (
+            <StudyAdminPanel />
           )}
         </main>
       </div>

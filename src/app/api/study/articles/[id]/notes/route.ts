@@ -41,6 +41,8 @@ export async function POST(
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
 
+    console.log('[Study API] Creating note for article:', id, 'body:', body);
+
     const response = await fetch(getCloudFunctionUrl('createArticleNote'), {
       method: 'POST',
       headers: {
@@ -51,6 +53,15 @@ export async function POST(
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      console.error('[Study API] Error creating note:', {
+        status: response.status,
+        error: data.error,
+        details: data.details || data.message,
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error creating note:', error);

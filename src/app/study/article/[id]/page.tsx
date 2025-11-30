@@ -30,7 +30,6 @@ import {
   Menu,
   X,
 } from 'lucide-react';
-
 // Prism.js for code highlighting
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
@@ -44,6 +43,196 @@ import 'prismjs/components/prism-sql';
 import 'prismjs/components/prism-bash';
 import 'prismjs/components/prism-json';
 import 'prismjs/components/prism-yaml';
+
+// Simple markdown renderer for chat messages
+function renderMarkdown(text: string): React.ReactNode {
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let i = 0;
+  let keyCounter = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const key = keyCounter++;
+
+    // Code block (```)
+    if (line.trim().startsWith('```')) {
+      const lang = line.trim().slice(3);
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      elements.push(
+        <pre key={key} style={{ backgroundColor: '#1f2937', color: '#e5e7eb', padding: '12px', borderRadius: '8px', overflow: 'auto', margin: '12px 0', fontSize: '13px' }}>
+          <code className={lang ? `language-${lang}` : undefined}>{codeLines.join('\n')}</code>
+        </pre>
+      );
+      i++;
+      continue;
+    }
+
+    // Headers
+    if (line.startsWith('### ')) {
+      elements.push(<h3 key={key} style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginTop: '16px', marginBottom: '8px' }}>{renderInlineMarkdown(line.slice(4))}</h3>);
+      i++;
+      continue;
+    }
+    if (line.startsWith('## ')) {
+      elements.push(<h2 key={key} style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginTop: '20px', marginBottom: '12px' }}>{renderInlineMarkdown(line.slice(3))}</h2>);
+      i++;
+      continue;
+    }
+    if (line.startsWith('# ')) {
+      elements.push(<h1 key={key} style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginTop: '24px', marginBottom: '14px' }}>{renderInlineMarkdown(line.slice(2))}</h1>);
+      i++;
+      continue;
+    }
+
+    // Blockquote
+    if (line.startsWith('> ')) {
+      elements.push(
+        <blockquote key={key} style={{ borderLeft: '3px solid #10a37f', paddingLeft: '12px', margin: '12px 0', color: '#6b7280', fontStyle: 'italic' }}>
+          {renderInlineMarkdown(line.slice(2))}
+        </blockquote>
+      );
+      i++;
+      continue;
+    }
+
+    // Unordered list
+    if (line.match(/^[\s]*[-*]\s/)) {
+      const listItems: React.ReactNode[] = [];
+      while (i < lines.length && lines[i].match(/^[\s]*[-*]\s/)) {
+        const itemKey = keyCounter++;
+        const itemText = lines[i].replace(/^[\s]*[-*]\s/, '');
+        listItems.push(<li key={itemKey} style={{ marginBottom: '4px', fontSize: '14px' }}>{renderInlineMarkdown(itemText)}</li>);
+        i++;
+      }
+      elements.push(<ul key={key} style={{ paddingLeft: '20px', margin: '8px 0' }}>{listItems}</ul>);
+      continue;
+    }
+
+    // Ordered list
+    if (line.match(/^[\s]*\d+\.\s/)) {
+      const listItems: React.ReactNode[] = [];
+      while (i < lines.length && lines[i].match(/^[\s]*\d+\.\s/)) {
+        const itemKey = keyCounter++;
+        const itemText = lines[i].replace(/^[\s]*\d+\.\s/, '');
+        listItems.push(<li key={itemKey} style={{ marginBottom: '4px', fontSize: '14px' }}>{renderInlineMarkdown(itemText)}</li>);
+        i++;
+      }
+      elements.push(<ol key={key} style={{ paddingLeft: '20px', margin: '8px 0' }}>{listItems}</ol>);
+      continue;
+    }
+
+    // Table
+    if (line.includes('|') && line.trim().startsWith('|')) {
+      const tableRows: string[] = [];
+      while (i < lines.length && lines[i].includes('|')) {
+        tableRows.push(lines[i]);
+        i++;
+      }
+      if (tableRows.length >= 2) {
+        const headerRow = tableRows[0].split('|').filter(cell => cell.trim());
+        const dataRows = tableRows.slice(2).map(row => row.split('|').filter(cell => cell.trim()));
+        elements.push(
+          <div key={key} style={{ overflowX: 'auto', margin: '12px 0' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr>
+                  {headerRow.map((cell, idx) => (
+                    <th key={idx} style={{ backgroundColor: '#f3f4f6', padding: '8px 12px', border: '1px solid #e5e7eb', textAlign: 'left', fontWeight: '600' }}>{cell.trim()}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dataRows.map((row, rowIdx) => (
+                  <tr key={rowIdx}>
+                    {row.map((cell, cellIdx) => (
+                      <td key={cellIdx} style={{ padding: '8px 12px', border: '1px solid #e5e7eb' }}>{cell.trim()}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+    }
+
+    // Empty line
+    if (line.trim() === '') {
+      i++;
+      continue;
+    }
+
+    // Regular paragraph
+    elements.push(<p key={key} style={{ lineHeight: 1.7, margin: '8px 0', fontSize: '14px' }}>{renderInlineMarkdown(line)}</p>);
+    i++;
+  }
+
+  return elements;
+}
+
+// Render inline markdown (bold, italic, code, links)
+function renderInlineMarkdown(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let keyCounter = 0;
+
+  while (remaining.length > 0) {
+    // Inline code
+    const codeMatch = remaining.match(/^`([^`]+)`/);
+    if (codeMatch) {
+      parts.push(<code key={keyCounter++} style={{ backgroundColor: '#e5e7eb', padding: '2px 6px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace' }}>{codeMatch[1]}</code>);
+      remaining = remaining.slice(codeMatch[0].length);
+      continue;
+    }
+
+    // Bold
+    const boldMatch = remaining.match(/^\*\*([^*]+)\*\*/);
+    if (boldMatch) {
+      parts.push(<strong key={keyCounter++} style={{ fontWeight: '600', color: '#111827' }}>{boldMatch[1]}</strong>);
+      remaining = remaining.slice(boldMatch[0].length);
+      continue;
+    }
+
+    // Italic
+    const italicMatch = remaining.match(/^\*([^*]+)\*/);
+    if (italicMatch) {
+      parts.push(<em key={keyCounter++}>{italicMatch[1]}</em>);
+      remaining = remaining.slice(italicMatch[0].length);
+      continue;
+    }
+
+    // Link
+    const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
+    if (linkMatch) {
+      parts.push(<a key={keyCounter++} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" style={{ color: '#10a37f', textDecoration: 'underline' }}>{linkMatch[1]}</a>);
+      remaining = remaining.slice(linkMatch[0].length);
+      continue;
+    }
+
+    // Regular text - find next special char or end
+    const nextSpecial = remaining.search(/[`*\[]/);
+    if (nextSpecial === -1) {
+      parts.push(remaining);
+      break;
+    } else if (nextSpecial === 0) {
+      // Special char at start but no pattern matched, treat as text
+      parts.push(remaining[0]);
+      remaining = remaining.slice(1);
+    } else {
+      parts.push(remaining.slice(0, nextSpecial));
+      remaining = remaining.slice(nextSpecial);
+    }
+  }
+
+  return parts.length === 1 ? parts[0] : parts;
+}
 
 export default function StudyArticlePage() {
   const params = useParams();
@@ -902,20 +1091,27 @@ export default function StudyArticlePage() {
                               }}
                             >
                               <div style={{
-                                maxWidth: '85%',
+                                maxWidth: message.role === 'user' ? '85%' : '100%',
                                 borderRadius: '12px',
                                 padding: '12px 16px',
-                                backgroundColor: message.role === 'user' ? '#10a37f' : '#f3f4f6',
+                                backgroundColor: message.role === 'user' ? '#10a37f' : '#f9fafb',
                                 color: message.role === 'user' ? '#ffffff' : '#374151',
+                                border: message.role === 'assistant' ? '1px solid #e5e7eb' : 'none',
                               }}>
-                                <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0, fontSize: '14px' }}>
-                                  {message.content}
-                                </p>
+                                {message.role === 'user' ? (
+                                  <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0, fontSize: '14px' }}>
+                                    {message.content}
+                                  </p>
+                                ) : (
+                                  <div className="chat-markdown">
+                                    {renderMarkdown(message.content)}
+                                  </div>
+                                )}
                                 <span style={{
                                   display: 'block',
                                   fontSize: '10px',
                                   color: message.role === 'user' ? 'rgba(255,255,255,0.7)' : '#9ca3af',
-                                  marginTop: '6px',
+                                  marginTop: '8px',
                                 }}>
                                   {new Date(message.timestamp).toLocaleTimeString()}
                                 </span>

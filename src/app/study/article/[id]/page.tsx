@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import Link from 'next/link';
 import {
   useStudyArticle,
   useArticleNotes,
@@ -24,11 +23,12 @@ import {
   Send,
   Loader2,
   ExternalLink,
-  ChevronRight,
   Edit3,
   Trash2,
   Copy,
   CheckCircle,
+  Menu,
+  X,
 } from 'lucide-react';
 
 // Prism.js for code highlighting
@@ -61,6 +61,7 @@ export default function StudyArticlePage() {
   const [hasMarkedRead, setHasMarkedRead] = useState(false);
   const [readStartTime] = useState(Date.now());
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Data hooks
@@ -169,18 +170,18 @@ export default function StudyArticlePage() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
-  const getDifficultyColor = (difficulty: QuizDifficulty) => {
+  const getDifficultyStyle = (difficulty: QuizDifficulty) => {
     switch (difficulty) {
       case QuizDifficulty.BEGINNER:
-        return { bg: 'rgba(16, 185, 129, 0.2)', text: '#6ee7b7', border: 'rgba(16, 185, 129, 0.3)' };
+        return { bg: '#dcfce7', text: '#166534', border: '#bbf7d0' };
       case QuizDifficulty.INTERMEDIATE:
-        return { bg: 'rgba(59, 130, 246, 0.2)', text: '#93c5fd', border: 'rgba(59, 130, 246, 0.3)' };
+        return { bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' };
       case QuizDifficulty.ADVANCED:
-        return { bg: 'rgba(245, 158, 11, 0.2)', text: '#fbbf24', border: 'rgba(245, 158, 11, 0.3)' };
+        return { bg: '#fef3c7', text: '#92400e', border: '#fde68a' };
       case QuizDifficulty.EXPERT:
-        return { bg: 'rgba(239, 68, 68, 0.2)', text: '#f87171', border: 'rgba(239, 68, 68, 0.3)' };
+        return { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' };
       default:
-        return { bg: 'rgba(148, 163, 184, 0.2)', text: '#94a3b8', border: 'rgba(148, 163, 184, 0.3)' };
+        return { bg: '#f3f4f6', text: '#374151', border: '#e5e7eb' };
     }
   };
 
@@ -188,15 +189,15 @@ export default function StudyArticlePage() {
     return (
       <div style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0f172a 0%, #581c87 50%, #0f172a 100%)',
+        backgroundColor: '#ffffff',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingTop: '80px',
+        paddingTop: '64px',
       }}>
         <div style={{ textAlign: 'center' }}>
-          <Loader2 size={48} color="#a855f7" style={{ animation: 'spin 1s linear infinite', marginBottom: '16px' }} />
-          <p style={{ color: '#94a3b8' }}>Loading article...</p>
+          <Loader2 size={40} color="#10a37f" style={{ animation: 'spin 1s linear infinite', marginBottom: '16px' }} />
+          <p style={{ color: '#6b7280', fontSize: '15px' }}>Loading article...</p>
         </div>
       </div>
     );
@@ -206,25 +207,22 @@ export default function StudyArticlePage() {
     return (
       <div style={{
         minHeight: '100vh',
-        background: 'linear-gradient(135deg, #0f172a 0%, #581c87 50%, #0f172a 100%)',
+        backgroundColor: '#ffffff',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingTop: '80px',
+        paddingTop: '64px',
       }}>
         <div style={{
           textAlign: 'center',
-          backgroundColor: 'rgba(30, 41, 59, 0.5)',
-          backdropFilter: 'blur(8px)',
-          borderRadius: '16px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          padding: '48px',
+          padding: '48px 24px',
+          maxWidth: '400px',
         }}>
-          <BookOpen size={48} color="#64748b" style={{ marginBottom: '16px' }} />
-          <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginBottom: '8px' }}>
+          <BookOpen size={48} color="#9ca3af" style={{ marginBottom: '16px' }} />
+          <h1 style={{ fontSize: '24px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
             Article Not Found
           </h1>
-          <p style={{ color: '#94a3b8', marginBottom: '24px' }}>
+          <p style={{ color: '#6b7280', marginBottom: '24px', lineHeight: 1.6 }}>
             {articleError?.message || 'The article you are looking for does not exist.'}
           </p>
           <button
@@ -233,16 +231,17 @@ export default function StudyArticlePage() {
               display: 'inline-flex',
               alignItems: 'center',
               gap: '8px',
-              padding: '12px 24px',
-              borderRadius: '8px',
-              background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+              padding: '10px 20px',
+              borderRadius: '6px',
+              backgroundColor: '#10a37f',
               color: '#ffffff',
               border: 'none',
               cursor: 'pointer',
               fontWeight: '500',
+              fontSize: '14px',
             }}
           >
-            <ArrowLeft size={18} />
+            <ArrowLeft size={16} />
             Back to Study
           </button>
         </div>
@@ -250,67 +249,245 @@ export default function StudyArticlePage() {
     );
   }
 
-  const diffColors = getDifficultyColor(article.difficulty);
+  const diffStyle = getDifficultyStyle(article.difficulty);
+
+  const SidebarContent = () => (
+    <>
+      {/* Article Info Card */}
+      <div style={{
+        backgroundColor: '#f9fafb',
+        borderRadius: '12px',
+        padding: '16px',
+        marginBottom: '16px',
+      }}>
+        <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px' }}>Article Info</h3>
+        <dl style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {[
+            { label: 'AI Provider', value: article.aiProvider },
+            { label: 'Model', value: article.aiModel },
+            { label: 'Published', value: article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : 'Not published' },
+            { label: 'Views', value: article.viewCount.toString() },
+          ].map((item) => (
+            <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <dt style={{ color: '#6b7280', fontSize: '13px' }}>{item.label}</dt>
+              <dd style={{ color: '#374151', fontSize: '13px', textTransform: 'capitalize' }}>{item.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      {/* Quiz Card */}
+      {quizzes.length > 0 && (
+        <div style={{
+          backgroundColor: '#f9fafb',
+          borderRadius: '12px',
+          padding: '16px',
+          marginBottom: '16px',
+        }}>
+          <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px' }}>Quizzes</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {quizzes.map((quiz) => (
+              <div key={quiz.id} style={{
+                backgroundColor: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                padding: '12px',
+              }}>
+                <h4 style={{ fontWeight: '500', color: '#374151', marginBottom: '4px', fontSize: '13px' }}>
+                  {quiz.title}
+                </h4>
+                <p style={{ color: '#6b7280', fontSize: '12px', marginBottom: '10px' }}>
+                  {quiz.questions.length} questions • {quiz.difficulty}
+                </p>
+                <button
+                  onClick={() => router.push(`/study/quiz/${quiz.id}`)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    backgroundColor: '#10a37f',
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    fontSize: '13px',
+                  }}
+                >
+                  Take Quiz
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Table of Contents */}
+      <div style={{
+        backgroundColor: '#f9fafb',
+        borderRadius: '12px',
+        padding: '16px',
+        marginBottom: '16px',
+      }}>
+        <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px' }}>Table of Contents</h3>
+        <nav style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <a href="#introduction" style={{ color: '#10a37f', fontSize: '13px', padding: '6px 0', textDecoration: 'none' }}>
+            Introduction
+          </a>
+          {article.sections.map((section, index) => (
+            <a
+              key={section.id}
+              href={`#section-${section.id}`}
+              style={{
+                color: '#6b7280',
+                fontSize: '13px',
+                padding: '6px 0 6px 12px',
+                textDecoration: 'none',
+                borderLeft: '2px solid #e5e7eb',
+              }}
+            >
+              {index + 1}. {section.title}
+            </a>
+          ))}
+          <a href="#conclusion" style={{ color: '#10a37f', fontSize: '13px', padding: '6px 0', textDecoration: 'none' }}>
+            Conclusion
+          </a>
+          <a href="#takeaways" style={{ color: '#10a37f', fontSize: '13px', padding: '6px 0', textDecoration: 'none' }}>
+            Key Takeaways
+          </a>
+        </nav>
+      </div>
+
+      {/* Actions */}
+      <div style={{
+        backgroundColor: '#f9fafb',
+        borderRadius: '12px',
+        padding: '16px',
+      }}>
+        <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px' }}>Actions</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <button
+            onClick={() => { setActiveTab('notes'); setShowMobileSidebar(false); }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              width: '100%',
+              padding: '10px',
+              borderRadius: '6px',
+              border: '1px solid #d1d5db',
+              backgroundColor: '#ffffff',
+              color: '#374151',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+          >
+            <StickyNote size={16} />
+            Add Note
+          </button>
+          <button
+            onClick={() => { setActiveTab('chat'); setShowMobileSidebar(false); }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              width: '100%',
+              padding: '10px',
+              borderRadius: '6px',
+              border: '1px solid #d1d5db',
+              backgroundColor: '#ffffff',
+              color: '#374151',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+          >
+            <MessageSquare size={16} />
+            Ask Question
+          </button>
+          {currentUser && (
+            <button
+              onClick={() => router.push(`/study/article/${articleId}/edit`)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                width: '100%',
+                padding: '10px',
+                borderRadius: '6px',
+                border: '1px solid #d1d5db',
+                backgroundColor: '#ffffff',
+                color: '#374151',
+                cursor: 'pointer',
+                fontSize: '13px',
+              }}
+            >
+              <Edit3 size={16} />
+              Edit Article
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  );
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #0f172a 0%, #581c87 50%, #0f172a 100%)',
-      paddingTop: '80px',
+      backgroundColor: '#ffffff',
+      paddingTop: '64px',
     }}>
       {/* Header */}
       <div style={{
-        backgroundColor: 'rgba(15, 23, 42, 0.8)',
-        backdropFilter: 'blur(8px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        backgroundColor: '#ffffff',
+        borderBottom: '1px solid #e5e7eb',
         position: 'sticky',
         top: '64px',
         zIndex: 40,
       }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '16px 24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '12px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
               <button
                 onClick={() => router.push('/study')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  backgroundColor: 'transparent',
-                  color: '#ffffff',
+                  justifyContent: 'center',
+                  padding: '8px',
+                  borderRadius: '6px',
+                  border: '1px solid #e5e7eb',
+                  backgroundColor: '#ffffff',
+                  color: '#374151',
                   cursor: 'pointer',
+                  flexShrink: 0,
                 }}
               >
                 <ArrowLeft size={18} />
-                Back
               </button>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px', flexWrap: 'wrap' }}>
                   {category && (
                     <span style={{
-                      padding: '2px 10px',
-                      borderRadius: '9999px',
-                      fontSize: '12px',
+                      padding: '2px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
                       fontWeight: '500',
-                      backgroundColor: 'rgba(168, 85, 247, 0.2)',
-                      color: '#c084fc',
-                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                      backgroundColor: '#f3f4f6',
+                      color: '#6b7280',
                     }}>
                       {category.name}
                     </span>
                   )}
                   {topic && (
-                    <span style={{ color: '#94a3b8', fontSize: '14px' }}>{topic.name}</span>
+                    <span style={{ color: '#9ca3af', fontSize: '12px', display: 'none' }} className="sm-show">{topic.name}</span>
                   )}
                 </div>
                 <h1 style={{
-                  fontSize: '20px',
-                  fontWeight: 'bold',
-                  color: '#ffffff',
-                  maxWidth: '600px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  color: '#111827',
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
@@ -319,21 +496,22 @@ export default function StudyArticlePage() {
                 </h1>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
               <span style={{
-                padding: '4px 12px',
-                borderRadius: '9999px',
-                fontSize: '12px',
+                padding: '4px 10px',
+                borderRadius: '4px',
+                fontSize: '11px',
                 fontWeight: '500',
-                backgroundColor: diffColors.bg,
-                color: diffColors.text,
-                border: `1px solid ${diffColors.border}`,
-              }}>
+                backgroundColor: diffStyle.bg,
+                color: diffStyle.text,
+                border: `1px solid ${diffStyle.border}`,
+                display: 'none',
+              }} className="sm-show">
                 {article.difficulty}
               </span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#94a3b8', fontSize: '14px' }}>
-                <Clock size={16} />
-                {article.readingTimeMinutes} min read
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6b7280', fontSize: '12px' }} className="sm-show">
+                <Clock size={14} />
+                {article.readingTimeMinutes} min
               </div>
               {!hasMarkedRead ? (
                 <button
@@ -341,52 +519,115 @@ export default function StudyArticlePage() {
                   style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    backgroundColor: '#10a37f',
                     color: '#ffffff',
                     border: 'none',
                     cursor: 'pointer',
                     fontWeight: '500',
-                    fontSize: '14px',
+                    fontSize: '12px',
                   }}
                 >
-                  <Check size={16} />
-                  Mark as Read
+                  <Check size={14} />
+                  <span className="sm-show">Mark Read</span>
                 </button>
               ) : (
                 <span style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '4px',
-                  color: '#6ee7b7',
-                  fontSize: '14px',
+                  color: '#10a37f',
+                  fontSize: '12px',
+                  fontWeight: '500',
                 }}>
-                  <CheckCircle size={16} />
-                  Read
+                  <CheckCircle size={14} />
+                  <span className="sm-show">Read</span>
                 </span>
               )}
+              <button
+                onClick={() => setShowMobileSidebar(true)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '8px',
+                  borderRadius: '6px',
+                  border: '1px solid #e5e7eb',
+                  backgroundColor: '#ffffff',
+                  color: '#374151',
+                  cursor: 'pointer',
+                }}
+                className="lg-hide"
+              >
+                <Menu size={18} />
+              </button>
             </div>
           </div>
         </div>
       </div>
 
-      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '32px 24px' }}>
+      {/* Mobile Sidebar Overlay */}
+      {showMobileSidebar && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 50,
+          }}
+          onClick={() => setShowMobileSidebar(false)}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: '300px',
+              maxWidth: '85vw',
+              backgroundColor: '#ffffff',
+              padding: '16px',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontWeight: '600', color: '#111827' }}>Menu</h2>
+              <button
+                onClick={() => setShowMobileSidebar(false)}
+                style={{
+                  padding: '8px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={20} color="#6b7280" />
+              </button>
+            </div>
+            <SidebarContent />
+          </div>
+        </div>
+      )}
+
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 16px' }}>
         <div style={{ display: 'flex', gap: '32px' }}>
           {/* Main Content Area */}
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* Tab Navigation */}
             <div style={{
-              backgroundColor: 'rgba(30, 41, 59, 0.5)',
-              backdropFilter: 'blur(8px)',
-              borderRadius: '16px',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
+              backgroundColor: '#ffffff',
+              borderRadius: '12px',
+              border: '1px solid #e5e7eb',
               overflow: 'hidden',
             }}>
               <div style={{
                 display: 'flex',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                borderBottom: '1px solid #e5e7eb',
+                overflowX: 'auto',
               }}>
                 {[
                   { id: 'article', label: 'Article', icon: BookOpen },
@@ -399,26 +640,27 @@ export default function StudyArticlePage() {
                     style={{
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '8px',
-                      padding: '16px 24px',
-                      backgroundColor: activeTab === tab.id ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
+                      gap: '6px',
+                      padding: '14px 20px',
+                      backgroundColor: activeTab === tab.id ? '#f9fafb' : 'transparent',
                       border: 'none',
-                      borderBottom: activeTab === tab.id ? '2px solid #a855f7' : '2px solid transparent',
-                      color: activeTab === tab.id ? '#c084fc' : '#94a3b8',
+                      borderBottom: activeTab === tab.id ? '2px solid #10a37f' : '2px solid transparent',
+                      color: activeTab === tab.id ? '#10a37f' : '#6b7280',
                       cursor: 'pointer',
                       fontWeight: '500',
-                      transition: 'all 0.2s',
+                      fontSize: '14px',
+                      whiteSpace: 'nowrap',
                     }}
                   >
-                    <tab.icon size={18} />
+                    <tab.icon size={16} />
                     {tab.label}
                     {tab.count !== undefined && tab.count > 0 && (
                       <span style={{
-                        padding: '2px 8px',
-                        borderRadius: '9999px',
-                        fontSize: '12px',
-                        backgroundColor: 'rgba(168, 85, 247, 0.3)',
-                        color: '#c084fc',
+                        padding: '2px 6px',
+                        borderRadius: '10px',
+                        fontSize: '11px',
+                        backgroundColor: activeTab === tab.id ? '#d1fae5' : '#f3f4f6',
+                        color: activeTab === tab.id ? '#065f46' : '#6b7280',
                       }}>
                         {tab.count}
                       </span>
@@ -428,29 +670,29 @@ export default function StudyArticlePage() {
               </div>
 
               {/* Tab Content */}
-              <div style={{ padding: '32px' }}>
+              <div style={{ padding: '24px' }}>
                 {activeTab === 'article' && (
-                  <article>
+                  <article style={{ maxWidth: '720px', margin: '0 auto' }}>
                     {/* Summary */}
                     <div style={{
-                      backgroundColor: 'rgba(168, 85, 247, 0.1)',
-                      border: '1px solid rgba(168, 85, 247, 0.3)',
-                      borderRadius: '12px',
-                      padding: '20px',
+                      backgroundColor: '#f0fdf4',
+                      border: '1px solid #bbf7d0',
+                      borderRadius: '8px',
+                      padding: '16px',
                       marginBottom: '32px',
                     }}>
-                      <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#c084fc', marginBottom: '8px' }}>
+                      <h3 style={{ fontSize: '14px', fontWeight: '600', color: '#166534', marginBottom: '8px' }}>
                         Summary
                       </h3>
-                      <p style={{ color: '#e2e8f0', lineHeight: 1.7 }}>{article.summary}</p>
+                      <p style={{ color: '#15803d', lineHeight: 1.7, fontSize: '14px' }}>{article.summary}</p>
                     </div>
 
                     {/* Introduction */}
-                    <section style={{ marginBottom: '40px' }}>
-                      <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginBottom: '16px' }}>
+                    <section id="introduction" style={{ marginBottom: '40px' }}>
+                      <h2 style={{ fontSize: '22px', fontWeight: '600', color: '#111827', marginBottom: '16px' }}>
                         Introduction
                       </h2>
-                      <div style={{ color: '#cbd5e1', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                      <div style={{ color: '#374151', lineHeight: 1.8, fontSize: '15px', whiteSpace: 'pre-wrap' }}>
                         {article.introduction}
                       </div>
                     </section>
@@ -458,10 +700,10 @@ export default function StudyArticlePage() {
                     {/* Sections */}
                     {article.sections.map((section, index) => (
                       <section key={section.id} id={`section-${section.id}`} style={{ marginBottom: '40px' }}>
-                        <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginBottom: '16px' }}>
+                        <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#111827', marginBottom: '16px' }}>
                           {index + 1}. {section.title}
                         </h2>
-                        <div style={{ color: '#cbd5e1', lineHeight: 1.8, whiteSpace: 'pre-wrap', marginBottom: '20px' }}>
+                        <div style={{ color: '#374151', lineHeight: 1.8, fontSize: '15px', whiteSpace: 'pre-wrap', marginBottom: '20px' }}>
                           {section.content}
                         </div>
 
@@ -472,12 +714,11 @@ export default function StudyArticlePage() {
                               display: 'flex',
                               justifyContent: 'space-between',
                               alignItems: 'center',
-                              backgroundColor: '#1e293b',
+                              backgroundColor: '#1f2937',
                               borderRadius: '8px 8px 0 0',
-                              padding: '8px 16px',
-                              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                              padding: '8px 12px',
                             }}>
-                              <span style={{ color: '#94a3b8', fontSize: '13px', fontWeight: '500' }}>
+                              <span style={{ color: '#9ca3af', fontSize: '12px', fontWeight: '500' }}>
                                 {example.language}
                               </span>
                               <button
@@ -490,19 +731,19 @@ export default function StudyArticlePage() {
                                   borderRadius: '4px',
                                   border: 'none',
                                   backgroundColor: 'transparent',
-                                  color: copiedCode === example.id ? '#6ee7b7' : '#94a3b8',
+                                  color: copiedCode === example.id ? '#10b981' : '#9ca3af',
                                   cursor: 'pointer',
-                                  fontSize: '12px',
+                                  fontSize: '11px',
                                 }}
                               >
                                 {copiedCode === example.id ? (
                                   <>
-                                    <Check size={14} />
+                                    <Check size={12} />
                                     Copied!
                                   </>
                                 ) : (
                                   <>
-                                    <Copy size={14} />
+                                    <Copy size={12} />
                                     Copy
                                   </>
                                 )}
@@ -511,20 +752,21 @@ export default function StudyArticlePage() {
                             <pre style={{
                               margin: 0,
                               borderRadius: '0 0 8px 8px',
-                              backgroundColor: '#0f172a',
+                              backgroundColor: '#111827',
                               padding: '16px',
                               overflow: 'auto',
+                              fontSize: '13px',
                             }}>
                               <code className={`language-${example.language}`}>{example.code}</code>
                             </pre>
                             {example.explanation && (
                               <p style={{
-                                color: '#94a3b8',
-                                fontSize: '14px',
+                                color: '#6b7280',
+                                fontSize: '13px',
                                 marginTop: '12px',
                                 fontStyle: 'italic',
-                                paddingLeft: '16px',
-                                borderLeft: '2px solid rgba(168, 85, 247, 0.5)',
+                                paddingLeft: '12px',
+                                borderLeft: '3px solid #e5e7eb',
                               }}>
                                 {example.explanation}
                               </p>
@@ -535,17 +777,17 @@ export default function StudyArticlePage() {
                         {/* External Links */}
                         {section.externalLinks && section.externalLinks.length > 0 && (
                           <div style={{
-                            backgroundColor: 'rgba(30, 41, 59, 0.5)',
-                            borderRadius: '12px',
-                            padding: '20px',
+                            backgroundColor: '#f9fafb',
+                            borderRadius: '8px',
+                            padding: '16px',
                             marginTop: '20px',
                           }}>
-                            <h4 style={{ fontWeight: '600', color: '#e2e8f0', marginBottom: '12px' }}>
+                            <h4 style={{ fontWeight: '600', color: '#374151', marginBottom: '12px', fontSize: '14px' }}>
                               Related Resources
                             </h4>
                             <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                               {section.externalLinks.map((link, linkIndex) => (
-                                <li key={linkIndex} style={{ marginBottom: '12px' }}>
+                                <li key={linkIndex} style={{ marginBottom: '10px' }}>
                                   <a
                                     href={link.url}
                                     target="_blank"
@@ -554,24 +796,25 @@ export default function StudyArticlePage() {
                                       display: 'flex',
                                       alignItems: 'center',
                                       gap: '8px',
-                                      color: '#a855f7',
+                                      color: '#10a37f',
                                       textDecoration: 'none',
+                                      fontSize: '14px',
                                     }}
                                   >
                                     <span style={{
-                                      padding: '2px 8px',
+                                      padding: '2px 6px',
                                       borderRadius: '4px',
-                                      fontSize: '11px',
-                                      backgroundColor: 'rgba(168, 85, 247, 0.2)',
-                                      color: '#c084fc',
+                                      fontSize: '10px',
+                                      backgroundColor: '#e5e7eb',
+                                      color: '#6b7280',
                                       textTransform: 'uppercase',
                                     }}>
                                       {link.type}
                                     </span>
                                     {link.title}
-                                    <ExternalLink size={14} />
+                                    <ExternalLink size={12} />
                                   </a>
-                                  <p style={{ color: '#94a3b8', fontSize: '13px', marginLeft: '40px', marginTop: '4px' }}>
+                                  <p style={{ color: '#6b7280', fontSize: '12px', marginLeft: '0', marginTop: '4px' }}>
                                     {link.description}
                                   </p>
                                 </li>
@@ -583,24 +826,24 @@ export default function StudyArticlePage() {
                     ))}
 
                     {/* Conclusion */}
-                    <section style={{ marginBottom: '40px' }}>
-                      <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginBottom: '16px' }}>
+                    <section id="conclusion" style={{ marginBottom: '40px' }}>
+                      <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#111827', marginBottom: '16px' }}>
                         Conclusion
                       </h2>
-                      <div style={{ color: '#cbd5e1', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                      <div style={{ color: '#374151', lineHeight: 1.8, fontSize: '15px', whiteSpace: 'pre-wrap' }}>
                         {article.conclusion}
                       </div>
                     </section>
 
                     {/* Key Takeaways */}
-                    <section style={{
-                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                      border: '1px solid rgba(16, 185, 129, 0.3)',
-                      borderRadius: '12px',
-                      padding: '24px',
+                    <section id="takeaways" style={{
+                      backgroundColor: '#eff6ff',
+                      border: '1px solid #bfdbfe',
+                      borderRadius: '8px',
+                      padding: '20px',
                       marginBottom: '32px',
                     }}>
-                      <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#6ee7b7', marginBottom: '16px' }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1e40af', marginBottom: '16px' }}>
                         Key Takeaways
                       </h3>
                       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -608,46 +851,28 @@ export default function StudyArticlePage() {
                           <li key={index} style={{
                             display: 'flex',
                             alignItems: 'flex-start',
-                            gap: '12px',
-                            color: '#d1fae5',
-                            marginBottom: '12px',
+                            gap: '10px',
+                            color: '#1e3a8a',
+                            marginBottom: '10px',
+                            fontSize: '14px',
                           }}>
-                            <CheckCircle size={20} color="#6ee7b7" style={{ flexShrink: 0, marginTop: '2px' }} />
+                            <CheckCircle size={18} color="#3b82f6" style={{ flexShrink: 0, marginTop: '2px' }} />
                             <span style={{ lineHeight: 1.6 }}>{takeaway}</span>
                           </li>
                         ))}
                       </ul>
                     </section>
 
-                    {/* Chat Summary (if exists) */}
-                    {article.chatSummary && (
-                      <section style={{
-                        backgroundColor: 'rgba(168, 85, 247, 0.1)',
-                        border: '1px solid rgba(168, 85, 247, 0.3)',
-                        borderRadius: '12px',
-                        padding: '24px',
-                        marginBottom: '32px',
-                      }}>
-                        <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#c084fc', marginBottom: '12px' }}>
-                          Discussion Summary
-                        </h3>
-                        <p style={{ color: '#e2e8f0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-                          {article.chatSummary}
-                        </p>
-                      </section>
-                    )}
-
                     {/* Tags */}
                     {article.tags.length > 0 && (
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '24px' }}>
                         {article.tags.map((tag) => (
                           <span key={tag} style={{
-                            padding: '6px 14px',
-                            borderRadius: '9999px',
-                            fontSize: '13px',
-                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                            color: '#94a3b8',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            padding: '4px 12px',
+                            borderRadius: '16px',
+                            fontSize: '12px',
+                            backgroundColor: '#f3f4f6',
+                            color: '#6b7280',
                           }}>
                             {tag}
                           </span>
@@ -658,13 +883,13 @@ export default function StudyArticlePage() {
                 )}
 
                 {activeTab === 'chat' && (
-                  <div style={{ display: 'flex', flexDirection: 'column', height: '600px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', height: '500px', maxWidth: '720px', margin: '0 auto' }}>
                     {/* Chat Messages */}
                     <div style={{ flex: 1, overflowY: 'auto', marginBottom: '16px' }}>
                       {!chat?.messages || chat.messages.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '64px 0' }}>
-                          <MessageSquare size={48} color="#64748b" style={{ marginBottom: '16px' }} />
-                          <p style={{ color: '#94a3b8' }}>No messages yet. Ask a question about this article!</p>
+                        <div style={{ textAlign: 'center', padding: '48px 16px' }}>
+                          <MessageSquare size={40} color="#d1d5db" style={{ marginBottom: '12px' }} />
+                          <p style={{ color: '#6b7280', fontSize: '14px' }}>No messages yet. Ask a question about this article!</p>
                         </div>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -677,29 +902,20 @@ export default function StudyArticlePage() {
                               }}
                             >
                               <div style={{
-                                maxWidth: '80%',
+                                maxWidth: '85%',
                                 borderRadius: '12px',
-                                padding: '16px',
-                                backgroundColor: message.role === 'user'
-                                  ? 'rgba(168, 85, 247, 0.3)'
-                                  : 'rgba(30, 41, 59, 0.8)',
-                                border: message.role === 'user'
-                                  ? '1px solid rgba(168, 85, 247, 0.5)'
-                                  : '1px solid rgba(255, 255, 255, 0.1)',
+                                padding: '12px 16px',
+                                backgroundColor: message.role === 'user' ? '#10a37f' : '#f3f4f6',
+                                color: message.role === 'user' ? '#ffffff' : '#374151',
                               }}>
-                                <p style={{
-                                  color: '#e2e8f0',
-                                  whiteSpace: 'pre-wrap',
-                                  lineHeight: 1.6,
-                                  margin: 0,
-                                }}>
+                                <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0, fontSize: '14px' }}>
                                   {message.content}
                                 </p>
                                 <span style={{
                                   display: 'block',
-                                  fontSize: '11px',
-                                  color: '#64748b',
-                                  marginTop: '8px',
+                                  fontSize: '10px',
+                                  color: message.role === 'user' ? 'rgba(255,255,255,0.7)' : '#9ca3af',
+                                  marginTop: '6px',
                                 }}>
                                   {new Date(message.timestamp).toLocaleTimeString()}
                                 </span>
@@ -711,44 +927,23 @@ export default function StudyArticlePage() {
                       )}
                     </div>
 
-                    {/* Chat Summary Button */}
-                    {chat?.messages && chat.messages.length >= 4 && !chat.summary && (
-                      <div style={{ marginBottom: '16px' }}>
-                        <button
-                          onClick={handleGenerateSummary}
-                          disabled={chatLoading}
-                          style={{
-                            padding: '8px 16px',
-                            borderRadius: '8px',
-                            border: '1px solid rgba(255, 255, 255, 0.2)',
-                            backgroundColor: 'transparent',
-                            color: '#ffffff',
-                            cursor: chatLoading ? 'not-allowed' : 'pointer',
-                            opacity: chatLoading ? 0.5 : 1,
-                          }}
-                        >
-                          Generate Discussion Summary
-                        </button>
-                      </div>
-                    )}
-
                     {/* Chat Input */}
-                    <div style={{ display: 'flex', gap: '12px' }}>
+                    <div style={{ display: 'flex', gap: '8px' }}>
                       <input
                         type="text"
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendChat()}
-                        placeholder="Ask a question about this article..."
+                        placeholder="Ask a question..."
                         disabled={isSendingChat}
                         style={{
                           flex: 1,
-                          padding: '14px 18px',
+                          padding: '12px 16px',
                           borderRadius: '8px',
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
-                          backgroundColor: 'rgba(15, 23, 42, 0.5)',
-                          color: '#ffffff',
-                          fontSize: '15px',
+                          border: '1px solid #d1d5db',
+                          backgroundColor: '#ffffff',
+                          color: '#111827',
+                          fontSize: '14px',
                           outline: 'none',
                         }}
                       />
@@ -758,27 +953,20 @@ export default function StudyArticlePage() {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: '8px',
-                          padding: '14px 24px',
+                          justifyContent: 'center',
+                          padding: '12px 16px',
                           borderRadius: '8px',
-                          background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+                          backgroundColor: '#10a37f',
                           color: '#ffffff',
                           border: 'none',
                           cursor: isSendingChat || !chatInput.trim() ? 'not-allowed' : 'pointer',
                           opacity: isSendingChat || !chatInput.trim() ? 0.5 : 1,
-                          fontWeight: '500',
                         }}
                       >
                         {isSendingChat ? (
-                          <>
-                            <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                            Sending...
-                          </>
+                          <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
                         ) : (
-                          <>
-                            <Send size={18} />
-                            Send
-                          </>
+                          <Send size={18} />
                         )}
                       </button>
                     </div>
@@ -786,45 +974,46 @@ export default function StudyArticlePage() {
                 )}
 
                 {activeTab === 'notes' && (
-                  <div>
+                  <div style={{ maxWidth: '720px', margin: '0 auto' }}>
                     {/* Add Note */}
                     <div style={{
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      borderRadius: '12px',
-                      padding: '20px',
-                      marginBottom: '24px',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      marginBottom: '20px',
                     }}>
-                      <h3 style={{ fontWeight: '600', color: '#ffffff', marginBottom: '12px' }}>Add a Note</h3>
+                      <h3 style={{ fontWeight: '500', color: '#374151', marginBottom: '10px', fontSize: '14px' }}>Add a Note</h3>
                       <textarea
                         value={newNote}
                         onChange={(e) => setNewNote(e.target.value)}
                         placeholder="Write your note here..."
                         style={{
                           width: '100%',
-                          minHeight: '100px',
-                          padding: '14px',
-                          borderRadius: '8px',
-                          border: '1px solid rgba(255, 255, 255, 0.2)',
-                          backgroundColor: 'rgba(15, 23, 42, 0.5)',
-                          color: '#ffffff',
-                          fontSize: '15px',
+                          minHeight: '80px',
+                          padding: '12px',
+                          borderRadius: '6px',
+                          border: '1px solid #d1d5db',
+                          backgroundColor: '#ffffff',
+                          color: '#111827',
+                          fontSize: '14px',
                           outline: 'none',
                           resize: 'vertical',
                         }}
                       />
-                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
                         <button
                           onClick={handleCreateNote}
                           disabled={!newNote.trim() || notesLoading}
                           style={{
-                            padding: '10px 20px',
-                            borderRadius: '8px',
-                            background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            backgroundColor: '#10a37f',
                             color: '#ffffff',
                             border: 'none',
                             cursor: !newNote.trim() || notesLoading ? 'not-allowed' : 'pointer',
                             opacity: !newNote.trim() || notesLoading ? 0.5 : 1,
                             fontWeight: '500',
+                            fontSize: '13px',
                           }}
                         >
                           Add Note
@@ -834,17 +1023,17 @@ export default function StudyArticlePage() {
 
                     {/* Notes List */}
                     {notes.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '64px 0' }}>
-                        <StickyNote size={48} color="#64748b" style={{ marginBottom: '16px' }} />
-                        <p style={{ color: '#94a3b8' }}>No notes yet. Start taking notes as you read!</p>
+                      <div style={{ textAlign: 'center', padding: '48px 16px' }}>
+                        <StickyNote size={40} color="#d1d5db" style={{ marginBottom: '12px' }} />
+                        <p style={{ color: '#6b7280', fontSize: '14px' }}>No notes yet. Start taking notes as you read!</p>
                       </div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                         {notes.map((note: ArticleNote) => (
                           <div key={note.id} style={{
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                            borderRadius: '12px',
-                            padding: '20px',
+                            border: '1px solid #e5e7eb',
+                            borderRadius: '8px',
+                            padding: '16px',
                           }}>
                             {editingNoteId === note.id ? (
                               <>
@@ -853,27 +1042,28 @@ export default function StudyArticlePage() {
                                   onChange={(e) => setEditNoteContent(e.target.value)}
                                   style={{
                                     width: '100%',
-                                    minHeight: '100px',
-                                    padding: '14px',
-                                    borderRadius: '8px',
-                                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                                    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-                                    color: '#ffffff',
-                                    fontSize: '15px',
+                                    minHeight: '80px',
+                                    padding: '12px',
+                                    borderRadius: '6px',
+                                    border: '1px solid #d1d5db',
+                                    backgroundColor: '#ffffff',
+                                    color: '#111827',
+                                    fontSize: '14px',
                                     outline: 'none',
                                     resize: 'vertical',
                                   }}
                                 />
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
                                   <button
                                     onClick={() => setEditingNoteId(null)}
                                     style={{
-                                      padding: '8px 16px',
-                                      borderRadius: '8px',
-                                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                                      backgroundColor: 'transparent',
-                                      color: '#ffffff',
+                                      padding: '6px 12px',
+                                      borderRadius: '6px',
+                                      border: '1px solid #d1d5db',
+                                      backgroundColor: '#ffffff',
+                                      color: '#374151',
                                       cursor: 'pointer',
+                                      fontSize: '13px',
                                     }}
                                   >
                                     Cancel
@@ -881,12 +1071,13 @@ export default function StudyArticlePage() {
                                   <button
                                     onClick={() => handleUpdateNote(note.id)}
                                     style={{
-                                      padding: '8px 16px',
-                                      borderRadius: '8px',
-                                      background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+                                      padding: '6px 12px',
+                                      borderRadius: '6px',
+                                      backgroundColor: '#10a37f',
                                       color: '#ffffff',
                                       border: 'none',
                                       cursor: 'pointer',
+                                      fontSize: '13px',
                                     }}
                                   >
                                     Save
@@ -895,34 +1086,21 @@ export default function StudyArticlePage() {
                               </>
                             ) : (
                               <>
-                                {note.highlightedText && (
-                                  <div style={{
-                                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                                    borderLeft: '3px solid #f59e0b',
-                                    padding: '8px 12px',
-                                    marginBottom: '12px',
-                                    fontSize: '14px',
-                                    color: '#fbbf24',
-                                    fontStyle: 'italic',
-                                  }}>
-                                    &quot;{note.highlightedText}&quot;
-                                  </div>
-                                )}
-                                <p style={{ color: '#e2e8f0', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                                <p style={{ color: '#374151', whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '14px' }}>
                                   {note.content}
                                 </p>
                                 <div style={{
                                   display: 'flex',
                                   justifyContent: 'space-between',
                                   alignItems: 'center',
-                                  marginTop: '16px',
-                                  paddingTop: '12px',
-                                  borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                                  marginTop: '12px',
+                                  paddingTop: '10px',
+                                  borderTop: '1px solid #f3f4f6',
                                 }}>
-                                  <span style={{ color: '#64748b', fontSize: '13px' }}>
+                                  <span style={{ color: '#9ca3af', fontSize: '12px' }}>
                                     {new Date(note.createdAt).toLocaleDateString()}
                                   </span>
-                                  <div style={{ display: 'flex', gap: '12px' }}>
+                                  <div style={{ display: 'flex', gap: '8px' }}>
                                     <button
                                       onClick={() => {
                                         setEditingNoteId(note.id);
@@ -936,12 +1114,12 @@ export default function StudyArticlePage() {
                                         borderRadius: '4px',
                                         border: 'none',
                                         backgroundColor: 'transparent',
-                                        color: '#a855f7',
+                                        color: '#10a37f',
                                         cursor: 'pointer',
-                                        fontSize: '13px',
+                                        fontSize: '12px',
                                       }}
                                     >
-                                      <Edit3 size={14} />
+                                      <Edit3 size={12} />
                                       Edit
                                     </button>
                                     <button
@@ -956,10 +1134,10 @@ export default function StudyArticlePage() {
                                         backgroundColor: 'transparent',
                                         color: '#ef4444',
                                         cursor: 'pointer',
-                                        fontSize: '13px',
+                                        fontSize: '12px',
                                       }}
                                     >
-                                      <Trash2 size={14} />
+                                      <Trash2 size={12} />
                                       Delete
                                     </button>
                                   </div>
@@ -976,207 +1154,30 @@ export default function StudyArticlePage() {
             </div>
           </div>
 
-          {/* Sidebar */}
-          <aside style={{ width: '320px', flexShrink: 0, display: 'none' }} className="lg:block">
-            <div style={{ position: 'sticky', top: '140px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              {/* Article Info Card */}
-              <div style={{
-                backgroundColor: 'rgba(30, 41, 59, 0.5)',
-                backdropFilter: 'blur(8px)',
-                borderRadius: '16px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                padding: '20px',
-              }}>
-                <h3 style={{ fontWeight: '600', color: '#ffffff', marginBottom: '16px' }}>Article Info</h3>
-                <dl style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {[
-                    { label: 'AI Provider', value: article.aiProvider },
-                    { label: 'Model', value: article.aiModel },
-                    { label: 'Published', value: article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : 'Not published' },
-                    { label: 'Views', value: article.viewCount.toString() },
-                  ].map((item) => (
-                    <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <dt style={{ color: '#94a3b8', fontSize: '14px' }}>{item.label}</dt>
-                      <dd style={{ color: '#e2e8f0', fontSize: '14px', textTransform: 'capitalize' }}>{item.value}</dd>
-                    </div>
-                  ))}
-                </dl>
-              </div>
-
-              {/* Quiz Card */}
-              {quizzes.length > 0 && (
-                <div style={{
-                  backgroundColor: 'rgba(30, 41, 59, 0.5)',
-                  backdropFilter: 'blur(8px)',
-                  borderRadius: '16px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  padding: '20px',
-                }}>
-                  <h3 style={{ fontWeight: '600', color: '#ffffff', marginBottom: '16px' }}>Quizzes</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {quizzes.map((quiz) => (
-                      <div key={quiz.id} style={{
-                        border: '1px solid rgba(255, 255, 255, 0.1)',
-                        borderRadius: '12px',
-                        padding: '16px',
-                      }}>
-                        <h4 style={{ fontWeight: '500', color: '#e2e8f0', marginBottom: '8px', fontSize: '14px' }}>
-                          {quiz.title}
-                        </h4>
-                        <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '12px' }}>
-                          {quiz.questions.length} questions • {quiz.difficulty}
-                        </p>
-                        <button
-                          onClick={() => router.push(`/study/quiz/${quiz.id}`)}
-                          style={{
-                            width: '100%',
-                            padding: '10px',
-                            borderRadius: '8px',
-                            background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
-                            color: '#ffffff',
-                            border: 'none',
-                            cursor: 'pointer',
-                            fontWeight: '500',
-                            fontSize: '14px',
-                          }}
-                        >
-                          Take Quiz
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Table of Contents */}
-              <div style={{
-                backgroundColor: 'rgba(30, 41, 59, 0.5)',
-                backdropFilter: 'blur(8px)',
-                borderRadius: '16px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                padding: '20px',
-              }}>
-                <h3 style={{ fontWeight: '600', color: '#ffffff', marginBottom: '16px' }}>Table of Contents</h3>
-                <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <a href="#" style={{ color: '#a855f7', fontSize: '14px', padding: '6px 0', textDecoration: 'none' }}>
-                    Introduction
-                  </a>
-                  {article.sections.map((section, index) => (
-                    <a
-                      key={section.id}
-                      href={`#section-${section.id}`}
-                      style={{
-                        color: '#94a3b8',
-                        fontSize: '14px',
-                        padding: '6px 0 6px 12px',
-                        textDecoration: 'none',
-                        borderLeft: '2px solid rgba(255, 255, 255, 0.1)',
-                      }}
-                    >
-                      {index + 1}. {section.title}
-                    </a>
-                  ))}
-                  <a href="#" style={{ color: '#a855f7', fontSize: '14px', padding: '6px 0', textDecoration: 'none' }}>
-                    Conclusion
-                  </a>
-                  <a href="#" style={{ color: '#a855f7', fontSize: '14px', padding: '6px 0', textDecoration: 'none' }}>
-                    Key Takeaways
-                  </a>
-                </nav>
-              </div>
-
-              {/* Actions */}
-              <div style={{
-                backgroundColor: 'rgba(30, 41, 59, 0.5)',
-                backdropFilter: 'blur(8px)',
-                borderRadius: '16px',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
-                padding: '20px',
-              }}>
-                <h3 style={{ fontWeight: '600', color: '#ffffff', marginBottom: '16px' }}>Actions</h3>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <button
-                    onClick={() => setActiveTab('notes')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                      backgroundColor: 'transparent',
-                      color: '#ffffff',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                    }}
-                  >
-                    <StickyNote size={16} />
-                    Add Note
-                  </button>
-                  <button
-                    onClick={() => setActiveTab('chat')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      width: '100%',
-                      padding: '10px',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(255, 255, 255, 0.2)',
-                      backgroundColor: 'transparent',
-                      color: '#ffffff',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                    }}
-                  >
-                    <MessageSquare size={16} />
-                    Ask Question
-                  </button>
-                  {currentUser && (
-                    <button
-                      onClick={() => router.push(`/study/article/${articleId}/edit`)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '8px',
-                        width: '100%',
-                        padding: '10px',
-                        borderRadius: '8px',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        backgroundColor: 'transparent',
-                        color: '#ffffff',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                      }}
-                    >
-                      <Edit3 size={16} />
-                      Edit Article
-                    </button>
-                  )}
-                </div>
-              </div>
+          {/* Desktop Sidebar */}
+          <aside style={{ width: '280px', flexShrink: 0 }} className="lg-show">
+            <div style={{ position: 'sticky', top: '140px' }}>
+              <SidebarContent />
             </div>
           </aside>
         </div>
       </div>
 
-      {/* CSS for animations */}
+      {/* CSS */}
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        .lg\\:block {
-          display: none;
+        .sm-show { display: none; }
+        .lg-show { display: none; }
+        .lg-hide { display: flex; }
+        @media (min-width: 640px) {
+          .sm-show { display: flex; }
         }
         @media (min-width: 1024px) {
-          .lg\\:block {
-            display: block !important;
-          }
+          .lg-show { display: block; }
+          .lg-hide { display: none; }
         }
       `}</style>
     </div>

@@ -8,14 +8,14 @@ import {
   Filter,
   BookOpen,
   Clock,
-  Tag,
   ChevronRight,
   Loader2,
   X,
   BarChart3,
+  Flame,
 } from 'lucide-react';
 import { useStudyArticles, useStudyCategories, useStudyProgress } from '@/hooks/useStudy';
-import { QuizDifficulty, ArticleStatus } from '@/types/study';
+import { QuizDifficulty } from '@/types/study';
 
 export default function StudyListPage() {
   const router = useRouter();
@@ -56,39 +56,39 @@ export default function StudyListPage() {
     return categories.find(c => c.id === categoryId)?.name || 'General';
   };
 
-  const getDifficultyColor = (difficulty: QuizDifficulty) => {
+  const getDifficultyStyle = (difficulty: QuizDifficulty) => {
     switch (difficulty) {
       case QuizDifficulty.BEGINNER:
-        return { bg: 'rgba(16, 185, 129, 0.2)', text: '#6ee7b7', border: 'rgba(16, 185, 129, 0.3)' };
+        return { bg: '#dcfce7', text: '#166534', border: '#bbf7d0' };
       case QuizDifficulty.INTERMEDIATE:
-        return { bg: 'rgba(59, 130, 246, 0.2)', text: '#93c5fd', border: 'rgba(59, 130, 246, 0.3)' };
+        return { bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' };
       case QuizDifficulty.ADVANCED:
-        return { bg: 'rgba(245, 158, 11, 0.2)', text: '#fbbf24', border: 'rgba(245, 158, 11, 0.3)' };
+        return { bg: '#fef3c7', text: '#92400e', border: '#fde68a' };
       case QuizDifficulty.EXPERT:
-        return { bg: 'rgba(239, 68, 68, 0.2)', text: '#f87171', border: 'rgba(239, 68, 68, 0.3)' };
+        return { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' };
       default:
-        return { bg: 'rgba(148, 163, 184, 0.2)', text: '#94a3b8', border: 'rgba(148, 163, 184, 0.3)' };
+        return { bg: '#f3f4f6', text: '#374151', border: '#e5e7eb' };
     }
   };
 
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #0f172a 0%, #581c87 50%, #0f172a 100%)',
-      paddingTop: '80px',
+      backgroundColor: '#ffffff',
+      paddingTop: '64px',
     }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px' }}>
+      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 16px' }}>
         {/* Header */}
-        <div style={{ marginBottom: '32px' }}>
+        <div style={{ marginBottom: '24px' }}>
           <h1 style={{
-            fontSize: '36px',
-            fontWeight: 'bold',
-            color: '#ffffff',
-            marginBottom: '8px',
+            fontSize: '28px',
+            fontWeight: '600',
+            color: '#111827',
+            marginBottom: '4px',
           }}>
             Study Articles
           </h1>
-          <p style={{ color: '#94a3b8', fontSize: '18px' }}>
+          <p style={{ color: '#6b7280', fontSize: '15px' }}>
             Deep-dive into software engineering concepts
           </p>
         </div>
@@ -97,81 +97,132 @@ export default function StudyListPage() {
         {progress && (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            gap: '16px',
-            marginBottom: '32px',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+            gap: '12px',
+            marginBottom: '24px',
           }}>
             <div style={{
-              backgroundColor: 'rgba(30, 41, 59, 0.5)',
-              backdropFilter: 'blur(8px)',
+              backgroundColor: '#f9fafb',
               borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              padding: '20px',
+              padding: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
             }}>
-              <BookOpen size={24} color="#a855f7" style={{ marginBottom: '8px' }} />
-              <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff' }}>
-                {progress.totalArticlesRead}
-              </p>
-              <p style={{ color: '#94a3b8', fontSize: '14px' }}>Articles Read</p>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                backgroundColor: '#ede9fe',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <BookOpen size={20} color="#7c3aed" />
+              </div>
+              <div>
+                <p style={{ fontSize: '20px', fontWeight: '600', color: '#111827' }}>
+                  {progress.totalArticlesRead}
+                </p>
+                <p style={{ color: '#6b7280', fontSize: '12px' }}>Articles Read</p>
+              </div>
             </div>
             <div style={{
-              backgroundColor: 'rgba(30, 41, 59, 0.5)',
-              backdropFilter: 'blur(8px)',
+              backgroundColor: '#f9fafb',
               borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              padding: '20px',
+              padding: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
             }}>
-              <BarChart3 size={24} color="#3b82f6" style={{ marginBottom: '8px' }} />
-              <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff' }}>
-                {progress.totalQuizzesCompleted}
-              </p>
-              <p style={{ color: '#94a3b8', fontSize: '14px' }}>Quizzes Completed</p>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                backgroundColor: '#dbeafe',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <BarChart3 size={20} color="#2563eb" />
+              </div>
+              <div>
+                <p style={{ fontSize: '20px', fontWeight: '600', color: '#111827' }}>
+                  {progress.totalQuizzesCompleted}
+                </p>
+                <p style={{ color: '#6b7280', fontSize: '12px' }}>Quizzes Done</p>
+              </div>
             </div>
             <div style={{
-              backgroundColor: 'rgba(30, 41, 59, 0.5)',
-              backdropFilter: 'blur(8px)',
+              backgroundColor: '#f9fafb',
               borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              padding: '20px',
+              padding: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
             }}>
-              <Clock size={24} color="#10b981" style={{ marginBottom: '8px' }} />
-              <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff' }}>
-                {Math.round(progress.totalTimeSpentMinutes / 60)}h
-              </p>
-              <p style={{ color: '#94a3b8', fontSize: '14px' }}>Time Spent</p>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                backgroundColor: '#d1fae5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Clock size={20} color="#059669" />
+              </div>
+              <div>
+                <p style={{ fontSize: '20px', fontWeight: '600', color: '#111827' }}>
+                  {Math.round(progress.totalTimeSpentMinutes / 60)}h
+                </p>
+                <p style={{ color: '#6b7280', fontSize: '12px' }}>Time Spent</p>
+              </div>
             </div>
             <div style={{
-              backgroundColor: 'rgba(30, 41, 59, 0.5)',
-              backdropFilter: 'blur(8px)',
+              backgroundColor: '#f9fafb',
               borderRadius: '12px',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              padding: '20px',
+              padding: '16px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
             }}>
-              <span style={{ fontSize: '24px' }}>🔥</span>
-              <p style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginTop: '8px' }}>
-                {progress.currentStreak}
-              </p>
-              <p style={{ color: '#94a3b8', fontSize: '14px' }}>Day Streak</p>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                backgroundColor: '#fef3c7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Flame size={20} color="#d97706" />
+              </div>
+              <div>
+                <p style={{ fontSize: '20px', fontWeight: '600', color: '#111827' }}>
+                  {progress.currentStreak}
+                </p>
+                <p style={{ color: '#6b7280', fontSize: '12px' }}>Day Streak</p>
+              </div>
             </div>
           </div>
         )}
 
         {/* Search and Filters */}
         <div style={{
-          backgroundColor: 'rgba(30, 41, 59, 0.5)',
-          backdropFilter: 'blur(8px)',
-          borderRadius: '16px',
-          border: '1px solid rgba(255, 255, 255, 0.1)',
-          padding: '20px',
-          marginBottom: '24px',
+          backgroundColor: '#ffffff',
+          borderRadius: '12px',
+          border: '1px solid #e5e7eb',
+          padding: '16px',
+          marginBottom: '20px',
         }}>
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
             {/* Search */}
-            <div style={{ flex: 1, position: 'relative' }}>
+            <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
               <Search
                 size={18}
-                color="#64748b"
-                style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }}
+                color="#9ca3af"
+                style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
               />
               <input
                 type="text"
@@ -180,12 +231,12 @@ export default function StudyListPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
                   width: '100%',
-                  padding: '12px 14px 12px 44px',
+                  padding: '10px 12px 10px 40px',
                   borderRadius: '8px',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  backgroundColor: 'rgba(15, 23, 42, 0.5)',
-                  color: '#ffffff',
-                  fontSize: '15px',
+                  border: '1px solid #e5e7eb',
+                  backgroundColor: '#ffffff',
+                  color: '#111827',
+                  fontSize: '14px',
                   outline: 'none',
                 }}
               />
@@ -194,12 +245,12 @@ export default function StudyListPage() {
                   onClick={() => setSearchQuery('')}
                   style={{
                     position: 'absolute',
-                    right: '14px',
+                    right: '12px',
                     top: '50%',
                     transform: 'translateY(-50%)',
                     background: 'none',
                     border: 'none',
-                    color: '#64748b',
+                    color: '#9ca3af',
                     cursor: 'pointer',
                     padding: '4px',
                   }}
@@ -215,17 +266,18 @@ export default function StudyListPage() {
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '8px',
-                padding: '12px 20px',
+                gap: '6px',
+                padding: '10px 16px',
                 borderRadius: '8px',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                backgroundColor: showFilters ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
-                color: showFilters ? '#c084fc' : '#ffffff',
+                border: '1px solid #e5e7eb',
+                backgroundColor: showFilters ? '#f3f4f6' : '#ffffff',
+                color: '#374151',
                 cursor: 'pointer',
                 fontWeight: '500',
+                fontSize: '14px',
               }}
             >
-              <Filter size={18} />
+              <Filter size={16} />
               Filters
             </button>
           </div>
@@ -234,14 +286,15 @@ export default function StudyListPage() {
           {showFilters && (
             <div style={{
               display: 'flex',
-              gap: '16px',
+              gap: '12px',
               marginTop: '16px',
               paddingTop: '16px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+              borderTop: '1px solid #f3f4f6',
+              flexWrap: 'wrap',
             }}>
               {/* Category Filter */}
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '8px' }}>
+              <div style={{ flex: 1, minWidth: '150px' }}>
+                <label style={{ display: 'block', color: '#6b7280', fontSize: '12px', marginBottom: '6px' }}>
                   Category
                 </label>
                 <select
@@ -249,11 +302,11 @@ export default function StudyListPage() {
                   onChange={(e) => setSelectedCategory(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-                    color: '#ffffff',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #e5e7eb',
+                    backgroundColor: '#ffffff',
+                    color: '#111827',
                     fontSize: '14px',
                     cursor: 'pointer',
                   }}
@@ -266,8 +319,8 @@ export default function StudyListPage() {
               </div>
 
               {/* Difficulty Filter */}
-              <div style={{ flex: 1 }}>
-                <label style={{ display: 'block', color: '#94a3b8', fontSize: '13px', marginBottom: '8px' }}>
+              <div style={{ flex: 1, minWidth: '150px' }}>
+                <label style={{ display: 'block', color: '#6b7280', fontSize: '12px', marginBottom: '6px' }}>
                   Difficulty
                 </label>
                 <select
@@ -275,11 +328,11 @@ export default function StudyListPage() {
                   onChange={(e) => setSelectedDifficulty(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '10px 14px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-                    color: '#ffffff',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #e5e7eb',
+                    backgroundColor: '#ffffff',
+                    color: '#111827',
                     fontSize: '14px',
                     cursor: 'pointer',
                   }}
@@ -300,13 +353,13 @@ export default function StudyListPage() {
                     setSearchQuery('');
                   }}
                   style={{
-                    padding: '10px 20px',
-                    borderRadius: '8px',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    backgroundColor: 'transparent',
-                    color: '#94a3b8',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    border: '1px solid #e5e7eb',
+                    backgroundColor: '#ffffff',
+                    color: '#6b7280',
                     cursor: 'pointer',
-                    fontSize: '14px',
+                    fontSize: '13px',
                   }}
                 >
                   Clear All
@@ -321,19 +374,19 @@ export default function StudyListPage() {
           <div style={{
             display: 'flex',
             gap: '8px',
-            marginBottom: '24px',
+            marginBottom: '20px',
             flexWrap: 'wrap',
           }}>
             <button
               onClick={() => setSelectedCategory('')}
               style={{
-                padding: '8px 16px',
+                padding: '6px 14px',
                 borderRadius: '9999px',
-                border: `1px solid ${!selectedCategory ? 'rgba(168, 85, 247, 0.5)' : 'rgba(255, 255, 255, 0.2)'}`,
-                backgroundColor: !selectedCategory ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
-                color: !selectedCategory ? '#c084fc' : '#94a3b8',
+                border: `1px solid ${!selectedCategory ? '#10a37f' : '#e5e7eb'}`,
+                backgroundColor: !selectedCategory ? '#d1fae5' : '#ffffff',
+                color: !selectedCategory ? '#065f46' : '#6b7280',
                 cursor: 'pointer',
-                fontSize: '14px',
+                fontSize: '13px',
                 fontWeight: '500',
               }}
             >
@@ -344,13 +397,13 @@ export default function StudyListPage() {
                 key={cat.id}
                 onClick={() => setSelectedCategory(cat.id)}
                 style={{
-                  padding: '8px 16px',
+                  padding: '6px 14px',
                   borderRadius: '9999px',
-                  border: `1px solid ${selectedCategory === cat.id ? 'rgba(168, 85, 247, 0.5)' : 'rgba(255, 255, 255, 0.2)'}`,
-                  backgroundColor: selectedCategory === cat.id ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
-                  color: selectedCategory === cat.id ? '#c084fc' : '#94a3b8',
+                  border: `1px solid ${selectedCategory === cat.id ? '#10a37f' : '#e5e7eb'}`,
+                  backgroundColor: selectedCategory === cat.id ? '#d1fae5' : '#ffffff',
+                  color: selectedCategory === cat.id ? '#065f46' : '#6b7280',
                   cursor: 'pointer',
-                  fontSize: '14px',
+                  fontSize: '13px',
                   fontWeight: '500',
                 }}
               >
@@ -363,20 +416,18 @@ export default function StudyListPage() {
         {/* Articles Grid */}
         {loading ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '64px' }}>
-            <Loader2 size={32} color="#a855f7" style={{ animation: 'spin 1s linear infinite' }} />
+            <Loader2 size={32} color="#10a37f" style={{ animation: 'spin 1s linear infinite' }} />
           </div>
         ) : filteredArticles.length === 0 ? (
           <div style={{
-            backgroundColor: 'rgba(30, 41, 59, 0.5)',
-            backdropFilter: 'blur(8px)',
-            borderRadius: '16px',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            padding: '64px',
+            backgroundColor: '#f9fafb',
+            borderRadius: '12px',
+            padding: '64px 24px',
             textAlign: 'center',
           }}>
-            <BookOpen size={48} color="#64748b" style={{ marginBottom: '16px' }} />
-            <h3 style={{ color: '#ffffff', fontSize: '20px', marginBottom: '8px' }}>No articles found</h3>
-            <p style={{ color: '#94a3b8' }}>
+            <BookOpen size={48} color="#d1d5db" style={{ marginBottom: '16px' }} />
+            <h3 style={{ color: '#374151', fontSize: '18px', marginBottom: '8px' }}>No articles found</h3>
+            <p style={{ color: '#6b7280', fontSize: '14px' }}>
               {searchQuery || selectedCategory || selectedDifficulty
                 ? 'Try adjusting your filters'
                 : 'Articles will appear here once generated'}
@@ -386,11 +437,11 @@ export default function StudyListPage() {
           <>
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))',
-              gap: '24px',
+              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+              gap: '16px',
             }}>
               {filteredArticles.map(article => {
-                const diffColors = getDifficultyColor(article.difficulty);
+                const diffStyle = getDifficultyStyle(article.difficulty);
 
                 return (
                   <Link
@@ -399,45 +450,42 @@ export default function StudyListPage() {
                     style={{ textDecoration: 'none' }}
                   >
                     <div style={{
-                      backgroundColor: 'rgba(30, 41, 59, 0.5)',
-                      backdropFilter: 'blur(8px)',
-                      borderRadius: '16px',
-                      border: '1px solid rgba(255, 255, 255, 0.1)',
-                      padding: '24px',
+                      backgroundColor: '#ffffff',
+                      borderRadius: '12px',
+                      border: '1px solid #e5e7eb',
+                      padding: '20px',
                       height: '100%',
                       transition: 'all 0.2s',
                       cursor: 'pointer',
                     }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = 'rgba(168, 85, 247, 0.3)';
-                        e.currentTarget.style.transform = 'translateY(-2px)';
+                        e.currentTarget.style.borderColor = '#10a37f';
+                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.05)';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.1)';
-                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.borderColor = '#e5e7eb';
+                        e.currentTarget.style.boxShadow = 'none';
                       }}
                     >
                       {/* Category & Difficulty */}
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
                         <span style={{
-                          padding: '4px 12px',
-                          borderRadius: '9999px',
-                          fontSize: '12px',
+                          padding: '4px 10px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
                           fontWeight: '500',
-                          backgroundColor: 'rgba(168, 85, 247, 0.2)',
-                          color: '#c084fc',
-                          border: '1px solid rgba(168, 85, 247, 0.3)',
+                          backgroundColor: '#f3f4f6',
+                          color: '#6b7280',
                         }}>
                           {getCategoryName(article.categoryId)}
                         </span>
                         <span style={{
-                          padding: '4px 12px',
-                          borderRadius: '9999px',
-                          fontSize: '12px',
+                          padding: '4px 10px',
+                          borderRadius: '4px',
+                          fontSize: '11px',
                           fontWeight: '500',
-                          backgroundColor: diffColors.bg,
-                          color: diffColors.text,
-                          border: `1px solid ${diffColors.border}`,
+                          backgroundColor: diffStyle.bg,
+                          color: diffStyle.text,
                         }}>
                           {article.difficulty}
                         </span>
@@ -445,23 +493,27 @@ export default function StudyListPage() {
 
                       {/* Title */}
                       <h3 style={{
-                        color: '#ffffff',
-                        fontSize: '18px',
+                        color: '#111827',
+                        fontSize: '16px',
                         fontWeight: '600',
                         marginBottom: '8px',
                         lineHeight: 1.4,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
                       }}>
                         {article.title}
                       </h3>
 
                       {/* Summary */}
                       <p style={{
-                        color: '#94a3b8',
-                        fontSize: '14px',
+                        color: '#6b7280',
+                        fontSize: '13px',
                         lineHeight: 1.6,
-                        marginBottom: '16px',
+                        marginBottom: '12px',
                         display: '-webkit-box',
-                        WebkitLineClamp: 3,
+                        WebkitLineClamp: 2,
                         WebkitBoxOrient: 'vertical',
                         overflow: 'hidden',
                       }}>
@@ -470,21 +522,26 @@ export default function StudyListPage() {
 
                       {/* Tags */}
                       {article.tags.length > 0 && (
-                        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '16px' }}>
-                          {article.tags.slice(0, 4).map((tag, i) => (
+                        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '12px' }}>
+                          {article.tags.slice(0, 3).map((tag, i) => (
                             <span
                               key={i}
                               style={{
                                 padding: '2px 8px',
                                 borderRadius: '4px',
-                                fontSize: '11px',
-                                backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                                color: '#64748b',
+                                fontSize: '10px',
+                                backgroundColor: '#f9fafb',
+                                color: '#9ca3af',
                               }}
                             >
                               {tag}
                             </span>
                           ))}
+                          {article.tags.length > 3 && (
+                            <span style={{ fontSize: '10px', color: '#9ca3af' }}>
+                              +{article.tags.length - 3}
+                            </span>
+                          )}
                         </div>
                       )}
 
@@ -493,15 +550,15 @@ export default function StudyListPage() {
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'center',
-                        paddingTop: '16px',
-                        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                        paddingTop: '12px',
+                        borderTop: '1px solid #f3f4f6',
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#64748b', fontSize: '13px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#9ca3af', fontSize: '12px' }}>
                           <Clock size={14} />
                           {article.readingTimeMinutes} min read
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#a855f7', fontSize: '13px' }}>
-                          Read Article
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10a37f', fontSize: '12px', fontWeight: '500' }}>
+                          Read
                           <ChevronRight size={14} />
                         </div>
                       </div>
@@ -513,7 +570,7 @@ export default function StudyListPage() {
 
             {/* Load More */}
             {hasMore && (
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '32px' }}>
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
                 <button
                   onClick={loadMore}
                   disabled={loading}
@@ -521,14 +578,14 @@ export default function StudyListPage() {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '8px',
-                    padding: '12px 32px',
+                    padding: '10px 24px',
                     borderRadius: '8px',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    backgroundColor: 'transparent',
-                    color: '#ffffff',
+                    border: '1px solid #e5e7eb',
+                    backgroundColor: '#ffffff',
+                    color: '#374151',
                     cursor: loading ? 'not-allowed' : 'pointer',
                     fontWeight: '500',
-                    fontSize: '15px',
+                    fontSize: '14px',
                   }}
                 >
                   {loading ? (

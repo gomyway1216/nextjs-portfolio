@@ -611,18 +611,23 @@ export function useStudyQuizzes(options?: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // Extract individual values to use as stable dependencies
+  const articleId = options?.articleId;
+  const categoryId = options?.categoryId;
+  const topicId = options?.topicId;
+
   const fetchQuizzes = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await studyService.getQuizzes(options);
+      const data = await studyService.getQuizzes({ articleId, categoryId, topicId });
       setQuizzes(data);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch quizzes'));
     } finally {
       setLoading(false);
     }
-  }, [options]);
+  }, [articleId, categoryId, topicId]);
 
   useEffect(() => {
     fetchQuizzes();

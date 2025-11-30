@@ -15,8 +15,20 @@ export async function GET(request: NextRequest) {
       if (value) url.searchParams.set(param, value);
     });
 
+    console.log('[Study API] GET quizzes:', url.toString());
+
     const response = await fetch(url.toString());
     const data = await response.json();
+
+    // Log error details from Cloud Function
+    if (!response.ok || !data.success) {
+      console.error('[Study API] Error from Cloud Function (quizzes):', {
+        status: response.status,
+        error: data.error,
+        details: data.details || data.message,
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error fetching quizzes:', error);

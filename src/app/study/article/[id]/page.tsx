@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   useStudyArticle,
   useArticleNotes,
@@ -12,8 +13,23 @@ import {
 } from '@/hooks/useStudy';
 import { markArticleAsRead } from '@/services/studyService';
 import { useAuth } from '@/providers/AuthProvider';
-import { Button } from '@/components/ui/button';
 import { QuizDifficulty, ArticleNote, ChatMessage } from '@/types/study';
+import {
+  ArrowLeft,
+  Clock,
+  BookOpen,
+  MessageSquare,
+  StickyNote,
+  Check,
+  Send,
+  Loader2,
+  ExternalLink,
+  ChevronRight,
+  Edit3,
+  Trash2,
+  Copy,
+  CheckCircle,
+} from 'lucide-react';
 
 // Prism.js for code highlighting
 import Prism from 'prismjs';
@@ -44,6 +60,7 @@ export default function StudyArticlePage() {
   const [isSendingChat, setIsSendingChat] = useState(false);
   const [hasMarkedRead, setHasMarkedRead] = useState(false);
   const [readStartTime] = useState(Date.now());
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Data hooks
@@ -146,27 +163,40 @@ export default function StudyArticlePage() {
     }
   };
 
+  const handleCopyCode = async (code: string, id: string) => {
+    await navigator.clipboard.writeText(code);
+    setCopiedCode(id);
+    setTimeout(() => setCopiedCode(null), 2000);
+  };
+
   const getDifficultyColor = (difficulty: QuizDifficulty) => {
     switch (difficulty) {
       case QuizDifficulty.BEGINNER:
-        return 'bg-green-100 text-green-800';
+        return { bg: 'rgba(16, 185, 129, 0.2)', text: '#6ee7b7', border: 'rgba(16, 185, 129, 0.3)' };
       case QuizDifficulty.INTERMEDIATE:
-        return 'bg-yellow-100 text-yellow-800';
+        return { bg: 'rgba(59, 130, 246, 0.2)', text: '#93c5fd', border: 'rgba(59, 130, 246, 0.3)' };
       case QuizDifficulty.ADVANCED:
-        return 'bg-orange-100 text-orange-800';
+        return { bg: 'rgba(245, 158, 11, 0.2)', text: '#fbbf24', border: 'rgba(245, 158, 11, 0.3)' };
       case QuizDifficulty.EXPERT:
-        return 'bg-red-100 text-red-800';
+        return { bg: 'rgba(239, 68, 68, 0.2)', text: '#f87171', border: 'rgba(239, 68, 68, 0.3)' };
       default:
-        return 'bg-gray-100 text-gray-800';
+        return { bg: 'rgba(148, 163, 184, 0.2)', text: '#94a3b8', border: 'rgba(148, 163, 184, 0.3)' };
     }
   };
 
   if (articleLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading article...</p>
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0f172a 0%, #581c87 50%, #0f172a 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingTop: '80px',
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <Loader2 size={48} color="#a855f7" style={{ animation: 'spin 1s linear infinite', marginBottom: '16px' }} />
+          <p style={{ color: '#94a3b8' }}>Loading article...</p>
         </div>
       </div>
     );
@@ -174,164 +204,376 @@ export default function StudyArticlePage() {
 
   if (articleError || !article) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Article Not Found</h1>
-          <p className="text-gray-600 mb-4">{articleError?.message || 'The article you are looking for does not exist.'}</p>
-          <Button onClick={() => router.push('/study')}>Back to Study</Button>
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0f172a 0%, #581c87 50%, #0f172a 100%)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingTop: '80px',
+      }}>
+        <div style={{
+          textAlign: 'center',
+          backgroundColor: 'rgba(30, 41, 59, 0.5)',
+          backdropFilter: 'blur(8px)',
+          borderRadius: '16px',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          padding: '48px',
+        }}>
+          <BookOpen size={48} color="#64748b" style={{ marginBottom: '16px' }} />
+          <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginBottom: '8px' }}>
+            Article Not Found
+          </h1>
+          <p style={{ color: '#94a3b8', marginBottom: '24px' }}>
+            {articleError?.message || 'The article you are looking for does not exist.'}
+          </p>
+          <button
+            onClick={() => router.push('/study')}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 24px',
+              borderRadius: '8px',
+              background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+              color: '#ffffff',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: '500',
+            }}
+          >
+            <ArrowLeft size={18} />
+            Back to Study
+          </button>
         </div>
       </div>
     );
   }
 
+  const diffColors = getDifficultyColor(article.difficulty);
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div style={{
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #0f172a 0%, #581c87 50%, #0f172a 100%)',
+      paddingTop: '80px',
+    }}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Button variant="ghost" onClick={() => router.push('/study')}>
-                ← Back
-              </Button>
+      <div style={{
+        backgroundColor: 'rgba(15, 23, 42, 0.8)',
+        backdropFilter: 'blur(8px)',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        position: 'sticky',
+        top: '64px',
+        zIndex: 40,
+      }}>
+        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '16px 24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <button
+                onClick={() => router.push('/study')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  backgroundColor: 'transparent',
+                  color: '#ffffff',
+                  cursor: 'pointer',
+                }}
+              >
+                <ArrowLeft size={18} />
+                Back
+              </button>
               <div>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   {category && (
-                    <>
-                      <span className="text-blue-600">{category.name}</span>
-                      <span>•</span>
-                    </>
+                    <span style={{
+                      padding: '2px 10px',
+                      borderRadius: '9999px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      backgroundColor: 'rgba(168, 85, 247, 0.2)',
+                      color: '#c084fc',
+                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                    }}>
+                      {category.name}
+                    </span>
                   )}
-                  {topic && <span>{topic.name}</span>}
+                  {topic && (
+                    <span style={{ color: '#94a3b8', fontSize: '14px' }}>{topic.name}</span>
+                  )}
                 </div>
-                <h1 className="text-xl font-bold text-gray-900 line-clamp-1">{article.title}</h1>
+                <h1 style={{
+                  fontSize: '20px',
+                  fontWeight: 'bold',
+                  color: '#ffffff',
+                  maxWidth: '600px',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}>
+                  {article.title}
+                </h1>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getDifficultyColor(article.difficulty)}`}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <span style={{
+                padding: '4px 12px',
+                borderRadius: '9999px',
+                fontSize: '12px',
+                fontWeight: '500',
+                backgroundColor: diffColors.bg,
+                color: diffColors.text,
+                border: `1px solid ${diffColors.border}`,
+              }}>
                 {article.difficulty}
               </span>
-              <span className="text-sm text-gray-500">{article.readingTimeMinutes} min read</span>
-              {!hasMarkedRead && (
-                <Button size="sm" onClick={handleMarkAsRead}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#94a3b8', fontSize: '14px' }}>
+                <Clock size={16} />
+                {article.readingTimeMinutes} min read
+              </div>
+              {!hasMarkedRead ? (
+                <button
+                  onClick={handleMarkAsRead}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 16px',
+                    borderRadius: '8px',
+                    background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+                    color: '#ffffff',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    fontSize: '14px',
+                  }}
+                >
+                  <Check size={16} />
                   Mark as Read
-                </Button>
-              )}
-              {hasMarkedRead && (
-                <span className="text-sm text-green-600 flex items-center gap-1">
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                </button>
+              ) : (
+                <span style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  color: '#6ee7b7',
+                  fontSize: '14px',
+                }}>
+                  <CheckCircle size={16} />
                   Read
                 </span>
               )}
             </div>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex gap-6">
+      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '32px 24px' }}>
+        <div style={{ display: 'flex', gap: '32px' }}>
           {/* Main Content Area */}
-          <div className="flex-1 min-w-0">
+          <div style={{ flex: 1, minWidth: 0 }}>
             {/* Tab Navigation */}
-            <div className="bg-white rounded-lg shadow-sm mb-6">
-              <div className="border-b border-gray-200">
-                <nav className="flex -mb-px">
-                  {(['article', 'chat', 'notes'] as const).map((tab) => (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveTab(tab)}
-                      className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors ${
-                        activeTab === tab
-                          ? 'border-blue-500 text-blue-600'
-                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                      }`}
-                    >
-                      {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                      {tab === 'notes' && notes.length > 0 && (
-                        <span className="ml-2 bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
-                          {notes.length}
-                        </span>
-                      )}
-                      {tab === 'chat' && chat?.messages && chat.messages.length > 0 && (
-                        <span className="ml-2 bg-blue-100 text-blue-600 px-2 py-0.5 rounded-full text-xs">
-                          {chat.messages.length}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </nav>
+            <div style={{
+              backgroundColor: 'rgba(30, 41, 59, 0.5)',
+              backdropFilter: 'blur(8px)',
+              borderRadius: '16px',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              overflow: 'hidden',
+            }}>
+              <div style={{
+                display: 'flex',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              }}>
+                {[
+                  { id: 'article', label: 'Article', icon: BookOpen },
+                  { id: 'chat', label: 'Chat', icon: MessageSquare, count: chat?.messages?.length },
+                  { id: 'notes', label: 'Notes', icon: StickyNote, count: notes.length },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as 'article' | 'chat' | 'notes')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '16px 24px',
+                      backgroundColor: activeTab === tab.id ? 'rgba(168, 85, 247, 0.2)' : 'transparent',
+                      border: 'none',
+                      borderBottom: activeTab === tab.id ? '2px solid #a855f7' : '2px solid transparent',
+                      color: activeTab === tab.id ? '#c084fc' : '#94a3b8',
+                      cursor: 'pointer',
+                      fontWeight: '500',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <tab.icon size={18} />
+                    {tab.label}
+                    {tab.count !== undefined && tab.count > 0 && (
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: '9999px',
+                        fontSize: '12px',
+                        backgroundColor: 'rgba(168, 85, 247, 0.3)',
+                        color: '#c084fc',
+                      }}>
+                        {tab.count}
+                      </span>
+                    )}
+                  </button>
+                ))}
               </div>
 
               {/* Tab Content */}
-              <div className="p-6">
+              <div style={{ padding: '32px' }}>
                 {activeTab === 'article' && (
-                  <article className="prose prose-blue max-w-none">
+                  <article>
                     {/* Summary */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-                      <h3 className="text-lg font-semibold text-blue-800 mb-2">Summary</h3>
-                      <p className="text-blue-900">{article.summary}</p>
+                    <div style={{
+                      backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                      border: '1px solid rgba(168, 85, 247, 0.3)',
+                      borderRadius: '12px',
+                      padding: '20px',
+                      marginBottom: '32px',
+                    }}>
+                      <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#c084fc', marginBottom: '8px' }}>
+                        Summary
+                      </h3>
+                      <p style={{ color: '#e2e8f0', lineHeight: 1.7 }}>{article.summary}</p>
                     </div>
 
                     {/* Introduction */}
-                    <section className="mb-8">
-                      <h2 className="text-2xl font-bold text-gray-900 mb-4">Introduction</h2>
-                      <div className="text-gray-700 whitespace-pre-wrap">{article.introduction}</div>
+                    <section style={{ marginBottom: '40px' }}>
+                      <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginBottom: '16px' }}>
+                        Introduction
+                      </h2>
+                      <div style={{ color: '#cbd5e1', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                        {article.introduction}
+                      </div>
                     </section>
 
                     {/* Sections */}
                     {article.sections.map((section, index) => (
-                      <section key={section.id} className="mb-8">
-                        <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                      <section key={section.id} id={`section-${section.id}`} style={{ marginBottom: '40px' }}>
+                        <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginBottom: '16px' }}>
                           {index + 1}. {section.title}
                         </h2>
-                        <div className="text-gray-700 whitespace-pre-wrap mb-4">{section.content}</div>
+                        <div style={{ color: '#cbd5e1', lineHeight: 1.8, whiteSpace: 'pre-wrap', marginBottom: '20px' }}>
+                          {section.content}
+                        </div>
 
                         {/* Code Examples */}
                         {section.codeExamples?.map((example) => (
-                          <div key={example.id} className="mb-4">
-                            <div className="bg-gray-800 rounded-t-lg px-4 py-2 text-gray-300 text-sm flex justify-between items-center">
-                              <span>{example.language}</span>
+                          <div key={example.id} style={{ marginBottom: '20px' }}>
+                            <div style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              backgroundColor: '#1e293b',
+                              borderRadius: '8px 8px 0 0',
+                              padding: '8px 16px',
+                              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                            }}>
+                              <span style={{ color: '#94a3b8', fontSize: '13px', fontWeight: '500' }}>
+                                {example.language}
+                              </span>
                               <button
-                                onClick={() => navigator.clipboard.writeText(example.code)}
-                                className="text-gray-400 hover:text-white transition-colors"
+                                onClick={() => handleCopyCode(example.code, example.id)}
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  border: 'none',
+                                  backgroundColor: 'transparent',
+                                  color: copiedCode === example.id ? '#6ee7b7' : '#94a3b8',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                }}
                               >
-                                Copy
+                                {copiedCode === example.id ? (
+                                  <>
+                                    <Check size={14} />
+                                    Copied!
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy size={14} />
+                                    Copy
+                                  </>
+                                )}
                               </button>
                             </div>
-                            <pre className="!mt-0 !rounded-t-none">
+                            <pre style={{
+                              margin: 0,
+                              borderRadius: '0 0 8px 8px',
+                              backgroundColor: '#0f172a',
+                              padding: '16px',
+                              overflow: 'auto',
+                            }}>
                               <code className={`language-${example.language}`}>{example.code}</code>
                             </pre>
                             {example.explanation && (
-                              <p className="text-sm text-gray-600 mt-2 italic">{example.explanation}</p>
+                              <p style={{
+                                color: '#94a3b8',
+                                fontSize: '14px',
+                                marginTop: '12px',
+                                fontStyle: 'italic',
+                                paddingLeft: '16px',
+                                borderLeft: '2px solid rgba(168, 85, 247, 0.5)',
+                              }}>
+                                {example.explanation}
+                              </p>
                             )}
                           </div>
                         ))}
 
                         {/* External Links */}
                         {section.externalLinks && section.externalLinks.length > 0 && (
-                          <div className="bg-gray-50 rounded-lg p-4 mt-4">
-                            <h4 className="font-semibold text-gray-700 mb-2">Related Resources</h4>
-                            <ul className="space-y-2">
+                          <div style={{
+                            backgroundColor: 'rgba(30, 41, 59, 0.5)',
+                            borderRadius: '12px',
+                            padding: '20px',
+                            marginTop: '20px',
+                          }}>
+                            <h4 style={{ fontWeight: '600', color: '#e2e8f0', marginBottom: '12px' }}>
+                              Related Resources
+                            </h4>
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                               {section.externalLinks.map((link, linkIndex) => (
-                                <li key={linkIndex}>
+                                <li key={linkIndex} style={{ marginBottom: '12px' }}>
                                   <a
                                     href={link.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline flex items-center gap-2"
+                                    style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '8px',
+                                      color: '#a855f7',
+                                      textDecoration: 'none',
+                                    }}
                                   >
-                                    <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded">
+                                    <span style={{
+                                      padding: '2px 8px',
+                                      borderRadius: '4px',
+                                      fontSize: '11px',
+                                      backgroundColor: 'rgba(168, 85, 247, 0.2)',
+                                      color: '#c084fc',
+                                      textTransform: 'uppercase',
+                                    }}>
                                       {link.type}
                                     </span>
                                     {link.title}
+                                    <ExternalLink size={14} />
                                   </a>
-                                  <p className="text-sm text-gray-500 ml-6">{link.description}</p>
+                                  <p style={{ color: '#94a3b8', fontSize: '13px', marginLeft: '40px', marginTop: '4px' }}>
+                                    {link.description}
+                                  </p>
                                 </li>
                               ))}
                             </ul>
@@ -341,25 +583,37 @@ export default function StudyArticlePage() {
                     ))}
 
                     {/* Conclusion */}
-                    <section className="mb-8">
-                      <h2 className="text-2xl font-bold text-gray-900 mb-4">Conclusion</h2>
-                      <div className="text-gray-700 whitespace-pre-wrap">{article.conclusion}</div>
+                    <section style={{ marginBottom: '40px' }}>
+                      <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginBottom: '16px' }}>
+                        Conclusion
+                      </h2>
+                      <div style={{ color: '#cbd5e1', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                        {article.conclusion}
+                      </div>
                     </section>
 
                     {/* Key Takeaways */}
-                    <section className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-                      <h3 className="text-lg font-semibold text-green-800 mb-3">Key Takeaways</h3>
-                      <ul className="space-y-2">
+                    <section style={{
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                      border: '1px solid rgba(16, 185, 129, 0.3)',
+                      borderRadius: '12px',
+                      padding: '24px',
+                      marginBottom: '32px',
+                    }}>
+                      <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#6ee7b7', marginBottom: '16px' }}>
+                        Key Takeaways
+                      </h3>
+                      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                         {article.keyTakeaways.map((takeaway, index) => (
-                          <li key={index} className="flex items-start gap-2 text-green-900">
-                            <svg className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                            {takeaway}
+                          <li key={index} style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            gap: '12px',
+                            color: '#d1fae5',
+                            marginBottom: '12px',
+                          }}>
+                            <CheckCircle size={20} color="#6ee7b7" style={{ flexShrink: 0, marginTop: '2px' }} />
+                            <span style={{ lineHeight: 1.6 }}>{takeaway}</span>
                           </li>
                         ))}
                       </ul>
@@ -367,172 +621,345 @@ export default function StudyArticlePage() {
 
                     {/* Chat Summary (if exists) */}
                     {article.chatSummary && (
-                      <section className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6">
-                        <h3 className="text-lg font-semibold text-purple-800 mb-2">Discussion Summary</h3>
-                        <p className="text-purple-900 whitespace-pre-wrap">{article.chatSummary}</p>
+                      <section style={{
+                        backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                        border: '1px solid rgba(168, 85, 247, 0.3)',
+                        borderRadius: '12px',
+                        padding: '24px',
+                        marginBottom: '32px',
+                      }}>
+                        <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#c084fc', marginBottom: '12px' }}>
+                          Discussion Summary
+                        </h3>
+                        <p style={{ color: '#e2e8f0', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                          {article.chatSummary}
+                        </p>
                       </section>
                     )}
 
                     {/* Tags */}
-                    <div className="flex flex-wrap gap-2 mt-6">
-                      {article.tags.map((tag) => (
-                        <span key={tag} className="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-sm">
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
+                    {article.tags.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '24px' }}>
+                        {article.tags.map((tag) => (
+                          <span key={tag} style={{
+                            padding: '6px 14px',
+                            borderRadius: '9999px',
+                            fontSize: '13px',
+                            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                            color: '#94a3b8',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                          }}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </article>
                 )}
 
                 {activeTab === 'chat' && (
-                  <div className="flex flex-col h-[600px]">
+                  <div style={{ display: 'flex', flexDirection: 'column', height: '600px' }}>
                     {/* Chat Messages */}
-                    <div className="flex-1 overflow-y-auto mb-4 space-y-4">
+                    <div style={{ flex: 1, overflowY: 'auto', marginBottom: '16px' }}>
                       {!chat?.messages || chat.messages.length === 0 ? (
-                        <div className="text-center text-gray-500 py-8">
-                          <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                          </svg>
-                          <p>No messages yet. Ask a question about this article!</p>
+                        <div style={{ textAlign: 'center', padding: '64px 0' }}>
+                          <MessageSquare size={48} color="#64748b" style={{ marginBottom: '16px' }} />
+                          <p style={{ color: '#94a3b8' }}>No messages yet. Ask a question about this article!</p>
                         </div>
                       ) : (
-                        chat.messages.map((message: ChatMessage) => (
-                          <div
-                            key={message.id}
-                            className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                          >
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          {chat.messages.map((message: ChatMessage) => (
                             <div
-                              className={`max-w-[80%] rounded-lg p-4 ${
-                                message.role === 'user'
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-gray-100 text-gray-800'
-                              }`}
+                              key={message.id}
+                              style={{
+                                display: 'flex',
+                                justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
+                              }}
                             >
-                              <p className="whitespace-pre-wrap">{message.content}</p>
-                              <span className={`text-xs mt-2 block ${
-                                message.role === 'user' ? 'text-blue-200' : 'text-gray-400'
-                              }`}>
-                                {new Date(message.timestamp).toLocaleTimeString()}
-                              </span>
+                              <div style={{
+                                maxWidth: '80%',
+                                borderRadius: '12px',
+                                padding: '16px',
+                                backgroundColor: message.role === 'user'
+                                  ? 'rgba(168, 85, 247, 0.3)'
+                                  : 'rgba(30, 41, 59, 0.8)',
+                                border: message.role === 'user'
+                                  ? '1px solid rgba(168, 85, 247, 0.5)'
+                                  : '1px solid rgba(255, 255, 255, 0.1)',
+                              }}>
+                                <p style={{
+                                  color: '#e2e8f0',
+                                  whiteSpace: 'pre-wrap',
+                                  lineHeight: 1.6,
+                                  margin: 0,
+                                }}>
+                                  {message.content}
+                                </p>
+                                <span style={{
+                                  display: 'block',
+                                  fontSize: '11px',
+                                  color: '#64748b',
+                                  marginTop: '8px',
+                                }}>
+                                  {new Date(message.timestamp).toLocaleTimeString()}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          ))}
+                          <div ref={chatEndRef} />
+                        </div>
                       )}
-                      <div ref={chatEndRef} />
                     </div>
 
                     {/* Chat Summary Button */}
                     {chat?.messages && chat.messages.length >= 4 && !chat.summary && (
-                      <div className="mb-4">
-                        <Button
-                          variant="outline"
-                          size="sm"
+                      <div style={{ marginBottom: '16px' }}>
+                        <button
                           onClick={handleGenerateSummary}
                           disabled={chatLoading}
+                          style={{
+                            padding: '8px 16px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                            backgroundColor: 'transparent',
+                            color: '#ffffff',
+                            cursor: chatLoading ? 'not-allowed' : 'pointer',
+                            opacity: chatLoading ? 0.5 : 1,
+                          }}
                         >
                           Generate Discussion Summary
-                        </Button>
+                        </button>
                       </div>
                     )}
 
                     {/* Chat Input */}
-                    <div className="flex gap-2">
+                    <div style={{ display: 'flex', gap: '12px' }}>
                       <input
                         type="text"
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendChat()}
                         placeholder="Ask a question about this article..."
-                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         disabled={isSendingChat}
+                        style={{
+                          flex: 1,
+                          padding: '14px 18px',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          backgroundColor: 'rgba(15, 23, 42, 0.5)',
+                          color: '#ffffff',
+                          fontSize: '15px',
+                          outline: 'none',
+                        }}
                       />
-                      <Button onClick={handleSendChat} disabled={isSendingChat || !chatInput.trim()}>
+                      <button
+                        onClick={handleSendChat}
+                        disabled={isSendingChat || !chatInput.trim()}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          padding: '14px 24px',
+                          borderRadius: '8px',
+                          background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+                          color: '#ffffff',
+                          border: 'none',
+                          cursor: isSendingChat || !chatInput.trim() ? 'not-allowed' : 'pointer',
+                          opacity: isSendingChat || !chatInput.trim() ? 0.5 : 1,
+                          fontWeight: '500',
+                        }}
+                      >
                         {isSendingChat ? (
-                          <span className="flex items-center gap-2">
-                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                            </svg>
+                          <>
+                            <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
                             Sending...
-                          </span>
+                          </>
                         ) : (
-                          'Send'
+                          <>
+                            <Send size={18} />
+                            Send
+                          </>
                         )}
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 )}
 
                 {activeTab === 'notes' && (
-                  <div className="space-y-4">
+                  <div>
                     {/* Add Note */}
-                    <div className="border border-gray-200 rounded-lg p-4">
-                      <h3 className="font-semibold text-gray-800 mb-3">Add a Note</h3>
+                    <div style={{
+                      border: '1px solid rgba(255, 255, 255, 0.1)',
+                      borderRadius: '12px',
+                      padding: '20px',
+                      marginBottom: '24px',
+                    }}>
+                      <h3 style={{ fontWeight: '600', color: '#ffffff', marginBottom: '12px' }}>Add a Note</h3>
                       <textarea
                         value={newNote}
                         onChange={(e) => setNewNote(e.target.value)}
                         placeholder="Write your note here..."
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[100px]"
+                        style={{
+                          width: '100%',
+                          minHeight: '100px',
+                          padding: '14px',
+                          borderRadius: '8px',
+                          border: '1px solid rgba(255, 255, 255, 0.2)',
+                          backgroundColor: 'rgba(15, 23, 42, 0.5)',
+                          color: '#ffffff',
+                          fontSize: '15px',
+                          outline: 'none',
+                          resize: 'vertical',
+                        }}
                       />
-                      <div className="flex justify-end mt-2">
-                        <Button onClick={handleCreateNote} disabled={!newNote.trim() || notesLoading}>
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+                        <button
+                          onClick={handleCreateNote}
+                          disabled={!newNote.trim() || notesLoading}
+                          style={{
+                            padding: '10px 20px',
+                            borderRadius: '8px',
+                            background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+                            color: '#ffffff',
+                            border: 'none',
+                            cursor: !newNote.trim() || notesLoading ? 'not-allowed' : 'pointer',
+                            opacity: !newNote.trim() || notesLoading ? 0.5 : 1,
+                            fontWeight: '500',
+                          }}
+                        >
                           Add Note
-                        </Button>
+                        </button>
                       </div>
                     </div>
 
                     {/* Notes List */}
                     {notes.length === 0 ? (
-                      <div className="text-center text-gray-500 py-8">
-                        <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        <p>No notes yet. Start taking notes as you read!</p>
+                      <div style={{ textAlign: 'center', padding: '64px 0' }}>
+                        <StickyNote size={48} color="#64748b" style={{ marginBottom: '16px' }} />
+                        <p style={{ color: '#94a3b8' }}>No notes yet. Start taking notes as you read!</p>
                       </div>
                     ) : (
-                      <div className="space-y-4">
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         {notes.map((note: ArticleNote) => (
-                          <div key={note.id} className="border border-gray-200 rounded-lg p-4">
+                          <div key={note.id} style={{
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            borderRadius: '12px',
+                            padding: '20px',
+                          }}>
                             {editingNoteId === note.id ? (
                               <>
                                 <textarea
                                   value={editNoteContent}
                                   onChange={(e) => setEditNoteContent(e.target.value)}
-                                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[100px]"
+                                  style={{
+                                    width: '100%',
+                                    minHeight: '100px',
+                                    padding: '14px',
+                                    borderRadius: '8px',
+                                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                                    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+                                    color: '#ffffff',
+                                    fontSize: '15px',
+                                    outline: 'none',
+                                    resize: 'vertical',
+                                  }}
                                 />
-                                <div className="flex justify-end gap-2 mt-2">
-                                  <Button variant="outline" size="sm" onClick={() => setEditingNoteId(null)}>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '12px' }}>
+                                  <button
+                                    onClick={() => setEditingNoteId(null)}
+                                    style={{
+                                      padding: '8px 16px',
+                                      borderRadius: '8px',
+                                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                                      backgroundColor: 'transparent',
+                                      color: '#ffffff',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
                                     Cancel
-                                  </Button>
-                                  <Button size="sm" onClick={() => handleUpdateNote(note.id)}>
+                                  </button>
+                                  <button
+                                    onClick={() => handleUpdateNote(note.id)}
+                                    style={{
+                                      padding: '8px 16px',
+                                      borderRadius: '8px',
+                                      background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+                                      color: '#ffffff',
+                                      border: 'none',
+                                      cursor: 'pointer',
+                                    }}
+                                  >
                                     Save
-                                  </Button>
+                                  </button>
                                 </div>
                               </>
                             ) : (
                               <>
                                 {note.highlightedText && (
-                                  <div className="bg-yellow-50 border-l-4 border-yellow-400 pl-3 py-1 mb-2 text-sm text-gray-600 italic">
+                                  <div style={{
+                                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                                    borderLeft: '3px solid #f59e0b',
+                                    padding: '8px 12px',
+                                    marginBottom: '12px',
+                                    fontSize: '14px',
+                                    color: '#fbbf24',
+                                    fontStyle: 'italic',
+                                  }}>
                                     &quot;{note.highlightedText}&quot;
                                   </div>
                                 )}
-                                <p className="text-gray-800 whitespace-pre-wrap">{note.content}</p>
-                                <div className="flex justify-between items-center mt-3 text-sm text-gray-500">
-                                  <span>{new Date(note.createdAt).toLocaleDateString()}</span>
-                                  <div className="flex gap-2">
+                                <p style={{ color: '#e2e8f0', whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+                                  {note.content}
+                                </p>
+                                <div style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  marginTop: '16px',
+                                  paddingTop: '12px',
+                                  borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                                }}>
+                                  <span style={{ color: '#64748b', fontSize: '13px' }}>
+                                    {new Date(note.createdAt).toLocaleDateString()}
+                                  </span>
+                                  <div style={{ display: 'flex', gap: '12px' }}>
                                     <button
                                       onClick={() => {
                                         setEditingNoteId(note.id);
                                         setEditNoteContent(note.content);
                                       }}
-                                      className="text-blue-600 hover:text-blue-800"
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '4px 8px',
+                                        borderRadius: '4px',
+                                        border: 'none',
+                                        backgroundColor: 'transparent',
+                                        color: '#a855f7',
+                                        cursor: 'pointer',
+                                        fontSize: '13px',
+                                      }}
                                     >
+                                      <Edit3 size={14} />
                                       Edit
                                     </button>
                                     <button
                                       onClick={() => handleDeleteNote(note.id)}
-                                      className="text-red-600 hover:text-red-800"
+                                      style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '4px',
+                                        padding: '4px 8px',
+                                        borderRadius: '4px',
+                                        border: 'none',
+                                        backgroundColor: 'transparent',
+                                        color: '#ef4444',
+                                        cursor: 'pointer',
+                                        fontSize: '13px',
+                                      }}
                                     >
+                                      <Trash2 size={14} />
                                       Delete
                                     </button>
                                   </div>
@@ -550,53 +977,71 @@ export default function StudyArticlePage() {
           </div>
 
           {/* Sidebar */}
-          <aside className="w-80 flex-shrink-0 hidden lg:block">
-            <div className="sticky top-24 space-y-6">
+          <aside style={{ width: '320px', flexShrink: 0, display: 'none' }} className="lg:block">
+            <div style={{ position: 'sticky', top: '140px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
               {/* Article Info Card */}
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <h3 className="font-semibold text-gray-800 mb-3">Article Info</h3>
-                <dl className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">AI Provider</dt>
-                    <dd className="text-gray-900 capitalize">{article.aiProvider}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Model</dt>
-                    <dd className="text-gray-900">{article.aiModel}</dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Published</dt>
-                    <dd className="text-gray-900">
-                      {article.publishedAt
-                        ? new Date(article.publishedAt).toLocaleDateString()
-                        : 'Not published'}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between">
-                    <dt className="text-gray-500">Views</dt>
-                    <dd className="text-gray-900">{article.viewCount}</dd>
-                  </div>
+              <div style={{
+                backgroundColor: 'rgba(30, 41, 59, 0.5)',
+                backdropFilter: 'blur(8px)',
+                borderRadius: '16px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                padding: '20px',
+              }}>
+                <h3 style={{ fontWeight: '600', color: '#ffffff', marginBottom: '16px' }}>Article Info</h3>
+                <dl style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {[
+                    { label: 'AI Provider', value: article.aiProvider },
+                    { label: 'Model', value: article.aiModel },
+                    { label: 'Published', value: article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : 'Not published' },
+                    { label: 'Views', value: article.viewCount.toString() },
+                  ].map((item) => (
+                    <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <dt style={{ color: '#94a3b8', fontSize: '14px' }}>{item.label}</dt>
+                      <dd style={{ color: '#e2e8f0', fontSize: '14px', textTransform: 'capitalize' }}>{item.value}</dd>
+                    </div>
+                  ))}
                 </dl>
               </div>
 
               {/* Quiz Card */}
               {quizzes.length > 0 && (
-                <div className="bg-white rounded-lg shadow-sm p-4">
-                  <h3 className="font-semibold text-gray-800 mb-3">Quizzes</h3>
-                  <div className="space-y-3">
+                <div style={{
+                  backgroundColor: 'rgba(30, 41, 59, 0.5)',
+                  backdropFilter: 'blur(8px)',
+                  borderRadius: '16px',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  padding: '20px',
+                }}>
+                  <h3 style={{ fontWeight: '600', color: '#ffffff', marginBottom: '16px' }}>Quizzes</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {quizzes.map((quiz) => (
-                      <div key={quiz.id} className="border border-gray-200 rounded-lg p-3">
-                        <h4 className="font-medium text-gray-800 mb-1">{quiz.title}</h4>
-                        <p className="text-sm text-gray-500 mb-2">
+                      <div key={quiz.id} style={{
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        borderRadius: '12px',
+                        padding: '16px',
+                      }}>
+                        <h4 style={{ fontWeight: '500', color: '#e2e8f0', marginBottom: '8px', fontSize: '14px' }}>
+                          {quiz.title}
+                        </h4>
+                        <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '12px' }}>
                           {quiz.questions.length} questions • {quiz.difficulty}
                         </p>
-                        <Button
-                          size="sm"
-                          className="w-full"
+                        <button
                           onClick={() => router.push(`/study/quiz/${quiz.id}`)}
+                          style={{
+                            width: '100%',
+                            padding: '10px',
+                            borderRadius: '8px',
+                            background: 'linear-gradient(135deg, #a855f7 0%, #6366f1 100%)',
+                            color: '#ffffff',
+                            border: 'none',
+                            cursor: 'pointer',
+                            fontWeight: '500',
+                            fontSize: '14px',
+                          }}
                         >
                           Take Quiz
-                        </Button>
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -604,48 +1049,113 @@ export default function StudyArticlePage() {
               )}
 
               {/* Table of Contents */}
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <h3 className="font-semibold text-gray-800 mb-3">Table of Contents</h3>
-                <nav className="space-y-1">
-                  <a href="#" className="block text-sm text-blue-600 hover:text-blue-800 py-1">
+              <div style={{
+                backgroundColor: 'rgba(30, 41, 59, 0.5)',
+                backdropFilter: 'blur(8px)',
+                borderRadius: '16px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                padding: '20px',
+              }}>
+                <h3 style={{ fontWeight: '600', color: '#ffffff', marginBottom: '16px' }}>Table of Contents</h3>
+                <nav style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <a href="#" style={{ color: '#a855f7', fontSize: '14px', padding: '6px 0', textDecoration: 'none' }}>
                     Introduction
                   </a>
                   {article.sections.map((section, index) => (
                     <a
                       key={section.id}
                       href={`#section-${section.id}`}
-                      className="block text-sm text-gray-600 hover:text-blue-600 py-1 pl-2"
+                      style={{
+                        color: '#94a3b8',
+                        fontSize: '14px',
+                        padding: '6px 0 6px 12px',
+                        textDecoration: 'none',
+                        borderLeft: '2px solid rgba(255, 255, 255, 0.1)',
+                      }}
                     >
                       {index + 1}. {section.title}
                     </a>
                   ))}
-                  <a href="#" className="block text-sm text-blue-600 hover:text-blue-800 py-1">
+                  <a href="#" style={{ color: '#a855f7', fontSize: '14px', padding: '6px 0', textDecoration: 'none' }}>
                     Conclusion
                   </a>
-                  <a href="#" className="block text-sm text-blue-600 hover:text-blue-800 py-1">
+                  <a href="#" style={{ color: '#a855f7', fontSize: '14px', padding: '6px 0', textDecoration: 'none' }}>
                     Key Takeaways
                   </a>
                 </nav>
               </div>
 
               {/* Actions */}
-              <div className="bg-white rounded-lg shadow-sm p-4">
-                <h3 className="font-semibold text-gray-800 mb-3">Actions</h3>
-                <div className="space-y-2">
-                  <Button variant="outline" className="w-full" onClick={() => setActiveTab('notes')}>
+              <div style={{
+                backgroundColor: 'rgba(30, 41, 59, 0.5)',
+                backdropFilter: 'blur(8px)',
+                borderRadius: '16px',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                padding: '20px',
+              }}>
+                <h3 style={{ fontWeight: '600', color: '#ffffff', marginBottom: '16px' }}>Actions</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <button
+                    onClick={() => setActiveTab('notes')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      backgroundColor: 'transparent',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                    }}
+                  >
+                    <StickyNote size={16} />
                     Add Note
-                  </Button>
-                  <Button variant="outline" className="w-full" onClick={() => setActiveTab('chat')}>
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('chat')}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      width: '100%',
+                      padding: '10px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(255, 255, 255, 0.2)',
+                      backgroundColor: 'transparent',
+                      color: '#ffffff',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                    }}
+                  >
+                    <MessageSquare size={16} />
                     Ask Question
-                  </Button>
+                  </button>
                   {currentUser && (
-                    <Button
-                      variant="outline"
-                      className="w-full"
+                    <button
                       onClick={() => router.push(`/study/article/${articleId}/edit`)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        width: '100%',
+                        padding: '10px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        backgroundColor: 'transparent',
+                        color: '#ffffff',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                      }}
                     >
+                      <Edit3 size={16} />
                       Edit Article
-                    </Button>
+                    </button>
                   )}
                 </div>
               </div>
@@ -653,6 +1163,22 @@ export default function StudyArticlePage() {
           </aside>
         </div>
       </div>
+
+      {/* CSS for animations */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .lg\\:block {
+          display: none;
+        }
+        @media (min-width: 1024px) {
+          .lg\\:block {
+            display: block !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }

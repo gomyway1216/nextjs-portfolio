@@ -15,11 +15,25 @@ export async function GET(request: NextRequest) {
       if (value) url.searchParams.set(param, value);
     });
 
+    console.log('[Study API] GET articles:', url.toString());
+
     const response = await fetch(url.toString());
     const data = await response.json();
+
+    // Log error details from Cloud Function
+    if (!response.ok || !data.success) {
+      console.error('[Study API] Error from Cloud Function:', {
+        status: response.status,
+        error: data.error,
+        details: data.details || data.message,
+      });
+    } else {
+      console.log('[Study API] Fetched', data.articles?.length || 0, 'articles');
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error('Error fetching articles:', error);
+    console.error('[Study API] Error fetching articles:', error);
     return NextResponse.json(
       { success: false, error: 'Failed to fetch articles' },
       { status: 500 }

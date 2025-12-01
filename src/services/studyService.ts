@@ -167,6 +167,7 @@ export async function getArticles(
     status?: string;
     limit?: number;
     lastId?: string;
+    listView?: boolean;  // Optimization: only return fields needed for list view
   } = {}
 ): Promise<{ articles: StudyArticle[]; hasMore: boolean }> {
   const params = new URLSearchParams();
@@ -175,6 +176,7 @@ export async function getArticles(
   if (options.status) params.set('status', options.status);
   if (options.limit) params.set('limit', String(options.limit));
   if (options.lastId) params.set('lastId', options.lastId);
+  if (options.listView) params.set('listView', 'true');
 
   const url = `/api/study/articles${params.toString() ? `?${params}` : ''}`;
   const data = await apiCall<{ success: boolean; articles: StudyArticle[]; hasMore: boolean }>(url);

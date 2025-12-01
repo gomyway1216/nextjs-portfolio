@@ -216,6 +216,7 @@ export function useStudyArticles(initialOptions?: {
         limit?: number;
         lastId?: string;
         append?: boolean;
+        listView?: boolean;  // Default true for list views, false when full article data is needed
       } = {}
     ) => {
       try {
@@ -227,6 +228,7 @@ export function useStudyArticles(initialOptions?: {
           status: options.status,
           limit: options.limit,
           lastId: options.lastId,
+          listView: options.listView !== false,  // Default to true for optimized list loading
         });
 
         if (options.append) {

@@ -4,16 +4,151 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useStudyQuiz, useStudyCategories, useStudyTopics } from '@/hooks/useStudy';
 import { submitQuiz } from '@/services/studyService';
-import { Button } from '@/components/ui/button';
 import {
-  Quiz,
   QuizQuestion,
   QuizQuestionType,
   QuizDifficulty,
   QuizAnswer,
   QuizAttempt,
-  QuestionFeedback,
 } from '@/types/study';
+import { ArrowLeft, ChevronLeft, ChevronRight, Check, Loader2 } from 'lucide-react';
+
+// Simple markdown renderer for feedback text
+function renderMarkdown(text: string): React.ReactNode {
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let i = 0;
+  let keyCounter = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const key = keyCounter++;
+
+    // Code block (```)
+    if (line.trim().startsWith('```')) {
+      const lang = line.trim().slice(3);
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      elements.push(
+        <pre key={key} style={{ backgroundColor: '#1f2937', color: '#e5e7eb', padding: '12px', borderRadius: '8px', overflow: 'auto', margin: '12px 0', fontSize: '13px' }}>
+          <code className={lang ? `language-${lang}` : undefined}>{codeLines.join('\n')}</code>
+        </pre>
+      );
+      i++;
+      continue;
+    }
+
+    // Headers
+    if (line.startsWith('### ')) {
+      elements.push(<h3 key={key} style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginTop: '16px', marginBottom: '8px' }}>{renderInlineMarkdown(line.slice(4))}</h3>);
+      i++;
+      continue;
+    }
+    if (line.startsWith('## ')) {
+      elements.push(<h2 key={key} style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginTop: '20px', marginBottom: '12px' }}>{renderInlineMarkdown(line.slice(3))}</h2>);
+      i++;
+      continue;
+    }
+
+    // Unordered list
+    if (line.match(/^[\s]*[-*]\s/)) {
+      const listItems: React.ReactNode[] = [];
+      while (i < lines.length && lines[i].match(/^[\s]*[-*]\s/)) {
+        const itemKey = keyCounter++;
+        const itemText = lines[i].replace(/^[\s]*[-*]\s/, '');
+        listItems.push(<li key={itemKey} style={{ marginBottom: '4px', fontSize: '14px' }}>{renderInlineMarkdown(itemText)}</li>);
+        i++;
+      }
+      elements.push(<ul key={key} style={{ paddingLeft: '20px', margin: '8px 0' }}>{listItems}</ul>);
+      continue;
+    }
+
+    // Ordered list
+    if (line.match(/^[\s]*\d+\.\s/)) {
+      const listItems: React.ReactNode[] = [];
+      while (i < lines.length && lines[i].match(/^[\s]*\d+\.\s/)) {
+        const itemKey = keyCounter++;
+        const itemText = lines[i].replace(/^[\s]*\d+\.\s/, '');
+        listItems.push(<li key={itemKey} style={{ marginBottom: '4px', fontSize: '14px' }}>{renderInlineMarkdown(itemText)}</li>);
+        i++;
+      }
+      elements.push(<ol key={key} style={{ paddingLeft: '20px', margin: '8px 0' }}>{listItems}</ol>);
+      continue;
+    }
+
+    // Empty line
+    if (line.trim() === '') {
+      i++;
+      continue;
+    }
+
+    // Regular paragraph
+    elements.push(<p key={key} style={{ lineHeight: 1.7, margin: '8px 0', fontSize: '14px' }}>{renderInlineMarkdown(line)}</p>);
+    i++;
+  }
+
+  return elements;
+}
+
+// Render inline markdown (bold, italic, code, links)
+function renderInlineMarkdown(text: string): React.ReactNode {
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let keyCounter = 0;
+
+  while (remaining.length > 0) {
+    // Inline code
+    const codeMatch = remaining.match(/^`([^`]+)`/);
+    if (codeMatch) {
+      parts.push(<code key={keyCounter++} style={{ backgroundColor: '#e5e7eb', padding: '2px 6px', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace' }}>{codeMatch[1]}</code>);
+      remaining = remaining.slice(codeMatch[0].length);
+      continue;
+    }
+
+    // Bold
+    const boldMatch = remaining.match(/^\*\*([^*]+)\*\*/);
+    if (boldMatch) {
+      parts.push(<strong key={keyCounter++} style={{ fontWeight: '600', color: '#111827' }}>{boldMatch[1]}</strong>);
+      remaining = remaining.slice(boldMatch[0].length);
+      continue;
+    }
+
+    // Italic
+    const italicMatch = remaining.match(/^\*([^*]+)\*/);
+    if (italicMatch) {
+      parts.push(<em key={keyCounter++}>{italicMatch[1]}</em>);
+      remaining = remaining.slice(italicMatch[0].length);
+      continue;
+    }
+
+    // Link
+    const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
+    if (linkMatch) {
+      parts.push(<a key={keyCounter++} href={linkMatch[2]} target="_blank" rel="noopener noreferrer" style={{ color: '#10a37f', textDecoration: 'underline' }}>{linkMatch[1]}</a>);
+      remaining = remaining.slice(linkMatch[0].length);
+      continue;
+    }
+
+    // Regular text - find next special char or end
+    const nextSpecial = remaining.search(/[`*\[]/);
+    if (nextSpecial === -1) {
+      parts.push(remaining);
+      break;
+    } else if (nextSpecial === 0) {
+      parts.push(remaining[0]);
+      remaining = remaining.slice(1);
+    } else {
+      parts.push(remaining.slice(0, nextSpecial));
+      remaining = remaining.slice(nextSpecial);
+    }
+  }
+
+  return parts.length === 1 ? parts[0] : parts;
+}
 
 export default function StudyQuizPage() {
   const params = useParams();
@@ -105,18 +240,18 @@ export default function StudyQuizPage() {
     }
   };
 
-  const getDifficultyColor = (difficulty: QuizDifficulty) => {
+  const getDifficultyStyle = (difficulty: QuizDifficulty) => {
     switch (difficulty) {
       case QuizDifficulty.BEGINNER:
-        return 'bg-green-100 text-green-800';
+        return { backgroundColor: '#dcfce7', color: '#166534' };
       case QuizDifficulty.INTERMEDIATE:
-        return 'bg-yellow-100 text-yellow-800';
+        return { backgroundColor: '#fef9c3', color: '#854d0e' };
       case QuizDifficulty.ADVANCED:
-        return 'bg-orange-100 text-orange-800';
+        return { backgroundColor: '#ffedd5', color: '#9a3412' };
       case QuizDifficulty.EXPERT:
-        return 'bg-red-100 text-red-800';
+        return { backgroundColor: '#fee2e2', color: '#991b1b' };
       default:
-        return 'bg-gray-100 text-gray-800';
+        return { backgroundColor: '#f3f4f6', color: '#374151' };
     }
   };
 
@@ -130,10 +265,11 @@ export default function StudyQuizPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading quiz...</p>
+      <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <Loader2 size={48} color="#10a37f" style={{ animation: 'spin 1s linear infinite', marginBottom: '16px' }} />
+          <p style={{ color: '#6b7280', fontSize: '14px' }}>Loading quiz...</p>
+          <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
     );
@@ -141,11 +277,25 @@ export default function StudyQuizPage() {
 
   if (error || !quiz) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-2">Quiz Not Found</h1>
-          <p className="text-gray-600 mb-4">{error?.message || 'The quiz you are looking for does not exist.'}</p>
-          <Button onClick={() => router.push('/study')}>Back to Study</Button>
+      <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center', maxWidth: '400px', padding: '0 20px' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111827', marginBottom: '8px' }}>Quiz Not Found</h1>
+          <p style={{ color: '#6b7280', marginBottom: '24px', fontSize: '14px' }}>{error?.message || 'The quiz you are looking for does not exist.'}</p>
+          <button
+            onClick={() => router.push('/study')}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#10a37f',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: 'pointer',
+            }}
+          >
+            Back to Study
+          </button>
         </div>
       </div>
     );
@@ -153,76 +303,96 @@ export default function StudyQuizPage() {
 
   if (showResults && attempt) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-3xl mx-auto px-4 py-8">
+      <div style={{ minHeight: '100vh', backgroundColor: '#ffffff' }}>
+        <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 20px' }}>
           {/* Results Header */}
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6 text-center">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Quiz Results</h1>
-            <p className="text-gray-600 mb-4">{quiz.title}</p>
+          <div style={{ backgroundColor: '#f9fafb', borderRadius: '12px', padding: '32px', marginBottom: '24px', textAlign: 'center', border: '1px solid #e5e7eb' }}>
+            <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111827', marginBottom: '8px' }}>Quiz Results</h1>
+            <p style={{ color: '#6b7280', marginBottom: '24px', fontSize: '14px' }}>{quiz.title}</p>
 
             <div
-              className={`inline-flex items-center justify-center w-32 h-32 rounded-full text-4xl font-bold mb-4 ${
-                attempt.passed ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-              }`}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '128px',
+                height: '128px',
+                borderRadius: '50%',
+                fontSize: '36px',
+                fontWeight: '700',
+                marginBottom: '16px',
+                backgroundColor: attempt.passed ? '#dcfce7' : '#fee2e2',
+                color: attempt.passed ? '#166534' : '#991b1b',
+              }}
             >
               {Math.round(attempt.percentage)}%
             </div>
 
-            <p className={`text-lg font-semibold ${attempt.passed ? 'text-green-600' : 'text-red-600'}`}>
+            <p style={{ fontSize: '18px', fontWeight: '600', color: attempt.passed ? '#166534' : '#991b1b' }}>
               {attempt.passed ? 'Passed!' : 'Not Passed'}
             </p>
 
-            <div className="flex justify-center gap-8 mt-4 text-sm text-gray-600">
-              <div>
-                <span className="block text-2xl font-bold text-gray-800">
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '48px', marginTop: '24px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ display: 'block', fontSize: '28px', fontWeight: '700', color: '#111827' }}>
                   {attempt.score}/{attempt.totalPoints}
                 </span>
-                Points
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Points</span>
               </div>
-              <div>
-                <span className="block text-2xl font-bold text-gray-800">
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ display: 'block', fontSize: '28px', fontWeight: '700', color: '#111827' }}>
                   {Math.round(attempt.timeSpent / 60)}:{String(attempt.timeSpent % 60).padStart(2, '0')}
                 </span>
-                Time
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Time</span>
               </div>
-              <div>
-                <span className="block text-2xl font-bold text-gray-800">
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ display: 'block', fontSize: '28px', fontWeight: '700', color: '#111827' }}>
                   {attempt.feedback.filter((f) => f.isCorrect).length}/{quiz.questions.length}
                 </span>
-                Correct
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Correct</span>
               </div>
             </div>
           </div>
 
           {/* Question Review */}
-          <div className="space-y-4">
-            <h2 className="text-xl font-bold text-gray-800">Question Review</h2>
+          <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '16px' }}>Question Review</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {quiz.questions.map((question, index) => {
               const feedback = attempt.feedback.find((f) => f.questionId === question.id);
               return (
                 <div
                   key={question.id}
-                  className={`bg-white rounded-lg shadow-sm p-4 border-l-4 ${
-                    feedback?.isCorrect ? 'border-green-500' : 'border-red-500'
-                  }`}
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '12px',
+                    padding: '20px',
+                    border: '1px solid #e5e7eb',
+                    borderLeft: `4px solid ${feedback?.isCorrect ? '#22c55e' : '#ef4444'}`,
+                  }}
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <h3 className="font-semibold text-gray-800">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                    <h3 style={{ fontWeight: '600', color: '#111827', fontSize: '15px', flex: 1, paddingRight: '12px' }}>
                       Q{index + 1}: {question.question}
                     </h3>
                     <span
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        feedback?.isCorrect ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                      }`}
+                      style={{
+                        padding: '4px 10px',
+                        fontSize: '12px',
+                        borderRadius: '20px',
+                        fontWeight: '500',
+                        backgroundColor: feedback?.isCorrect ? '#dcfce7' : '#fee2e2',
+                        color: feedback?.isCorrect ? '#166534' : '#991b1b',
+                        whiteSpace: 'nowrap',
+                      }}
                     >
                       {feedback?.pointsEarned}/{question.points} pts
                     </span>
                   </div>
 
                   {/* Your Answer */}
-                  <div className="text-sm mb-2">
-                    <span className="text-gray-500">Your answer: </span>
-                    <span className={feedback?.isCorrect ? 'text-green-600' : 'text-red-600'}>
+                  <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                    <span style={{ color: '#6b7280' }}>Your answer: </span>
+                    <span style={{ color: feedback?.isCorrect ? '#166534' : '#991b1b', fontWeight: '500' }}>
                       {Array.isArray(answers[question.id])
                         ? (answers[question.id] as string[]).join(', ')
                         : answers[question.id]?.toString() || 'No answer'}
@@ -231,23 +401,25 @@ export default function StudyQuizPage() {
 
                   {/* Correct Answer */}
                   {!feedback?.isCorrect && feedback?.correctAnswer && (
-                    <div className="text-sm mb-2">
-                      <span className="text-gray-500">Correct answer: </span>
-                      <span className="text-green-600">{feedback.correctAnswer}</span>
+                    <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                      <span style={{ color: '#6b7280' }}>Correct answer: </span>
+                      <span style={{ color: '#166534', fontWeight: '500' }}>{feedback.correctAnswer}</span>
                     </div>
                   )}
 
                   {/* Feedback */}
                   {feedback?.feedback && (
-                    <div className="bg-gray-50 rounded p-3 text-sm text-gray-700">
-                      <strong>Feedback:</strong> {feedback.feedback}
+                    <div style={{ backgroundColor: '#f9fafb', borderRadius: '8px', padding: '12px', marginTop: '12px', border: '1px solid #e5e7eb' }}>
+                      <strong style={{ fontSize: '13px', color: '#374151' }}>Feedback:</strong>
+                      <div style={{ marginTop: '4px', color: '#374151' }}>{renderMarkdown(feedback.feedback)}</div>
                     </div>
                   )}
 
                   {/* AI Assessment for free-form */}
                   {feedback?.aiAssessment && (
-                    <div className="bg-blue-50 rounded p-3 text-sm text-blue-800 mt-2">
-                      <strong>AI Assessment:</strong> {feedback.aiAssessment}
+                    <div style={{ backgroundColor: '#ecfdf5', borderRadius: '8px', padding: '12px', marginTop: '12px', border: '1px solid #a7f3d0' }}>
+                      <strong style={{ fontSize: '13px', color: '#065f46' }}>AI Assessment:</strong>
+                      <div style={{ marginTop: '4px', color: '#065f46' }}>{renderMarkdown(feedback.aiAssessment)}</div>
                     </div>
                   )}
                 </div>
@@ -256,11 +428,39 @@ export default function StudyQuizPage() {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-4 mt-6">
-            <Button variant="outline" onClick={() => router.push(`/study/article/${quiz.articleId}`)}>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
+            <button
+              onClick={() => router.push(`/study/article/${quiz.articleId}`)}
+              style={{
+                flex: 1,
+                padding: '12px 20px',
+                backgroundColor: '#ffffff',
+                color: '#374151',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >
               Back to Article
-            </Button>
-            <Button onClick={() => router.push('/study')}>Back to Study</Button>
+            </button>
+            <button
+              onClick={() => router.push('/study')}
+              style={{
+                flex: 1,
+                padding: '12px 20px',
+                backgroundColor: '#10a37f',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >
+              Back to Study
+            </button>
           </div>
         </div>
       </div>
@@ -268,71 +468,110 @@ export default function StudyQuizPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div style={{ minHeight: '100vh', backgroundColor: '#ffffff' }}>
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                {category && (
-                  <>
-                    <span className="text-blue-600">{category.name}</span>
-                    <span>•</span>
-                  </>
-                )}
-                {topic && <span>{topic.name}</span>}
+      <header style={{ backgroundColor: '#ffffff', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 10 }}>
+        <div style={{ maxWidth: '720px', margin: '0 auto', padding: '16px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                onClick={() => router.push('/study')}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '36px',
+                  height: '36px',
+                  backgroundColor: '#f3f4f6',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                }}
+              >
+                <ArrowLeft size={18} color="#374151" />
+              </button>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#6b7280' }}>
+                  {category && (
+                    <>
+                      <span style={{ color: '#10a37f' }}>{category.name}</span>
+                      <span>•</span>
+                    </>
+                  )}
+                  {topic && <span>{topic.name}</span>}
+                </div>
+                <h1 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginTop: '2px' }}>{quiz.title}</h1>
               </div>
-              <h1 className="text-lg font-bold text-gray-900">{quiz.title}</h1>
             </div>
-            <div className="flex items-center gap-4">
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getDifficultyColor(quiz.difficulty)}`}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  borderRadius: '20px',
+                  ...getDifficultyStyle(quiz.difficulty),
+                }}
+              >
                 {quiz.difficulty}
               </span>
-              <span className="text-sm text-gray-500">
-                {answeredCount}/{quiz.questions.length} answered
+              <span style={{ fontSize: '13px', color: '#6b7280' }}>
+                {answeredCount}/{quiz.questions.length}
               </span>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-3xl mx-auto px-4 py-6">
+      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '24px 20px' }}>
         {/* Progress Bar */}
-        <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-          <div className="flex justify-between text-sm text-gray-500 mb-2">
-            <span>
-              Question {currentQuestionIndex + 1} of {quiz.questions.length}
-            </span>
+        <div style={{ backgroundColor: '#f9fafb', borderRadius: '12px', padding: '16px', marginBottom: '24px', border: '1px solid #e5e7eb' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#6b7280', marginBottom: '8px' }}>
+            <span>Question {currentQuestionIndex + 1} of {quiz.questions.length}</span>
             <span>{Math.round(((currentQuestionIndex + 1) / quiz.questions.length) * 100)}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div style={{ width: '100%', backgroundColor: '#e5e7eb', borderRadius: '10px', height: '8px' }}>
             <div
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${((currentQuestionIndex + 1) / quiz.questions.length) * 100}%` }}
+              style={{
+                backgroundColor: '#10a37f',
+                height: '8px',
+                borderRadius: '10px',
+                transition: 'width 0.3s ease',
+                width: `${((currentQuestionIndex + 1) / quiz.questions.length) * 100}%`,
+              }}
             />
           </div>
         </div>
 
         {/* Question */}
         {currentQuestion && (
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-            <div className="flex justify-between items-start mb-4">
-              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getDifficultyColor(currentQuestion.difficulty)}`}>
+          <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '24px', marginBottom: '24px', border: '1px solid #e5e7eb' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <span
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  borderRadius: '20px',
+                  ...getDifficultyStyle(currentQuestion.difficulty),
+                }}
+              >
                 {currentQuestion.difficulty}
               </span>
-              <span className="text-sm text-gray-500">{currentQuestion.points} points</span>
+              <span style={{ fontSize: '13px', color: '#6b7280' }}>{currentQuestion.points} points</span>
             </div>
 
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">{currentQuestion.question}</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginBottom: '24px', lineHeight: 1.5 }}>
+              {currentQuestion.question}
+            </h2>
 
             {/* Code Snippet */}
             {currentQuestion.codeSnippet && (
-              <div className="mb-6">
-                <div className="bg-gray-800 rounded-lg px-4 py-2 text-gray-300 text-sm mb-2">
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ backgroundColor: '#374151', borderRadius: '8px 8px 0 0', padding: '8px 16px', fontSize: '13px', color: '#9ca3af' }}>
                   {currentQuestion.language || 'code'}
                 </div>
-                <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+                <pre style={{ backgroundColor: '#1f2937', color: '#e5e7eb', padding: '16px', borderRadius: '0 0 8px 8px', overflow: 'auto', margin: 0, fontSize: '13px' }}>
                   <code>{currentQuestion.codeSnippet}</code>
                 </pre>
               </div>
@@ -347,13 +586,13 @@ export default function StudyQuizPage() {
 
             {/* Hints */}
             {currentQuestion.hints && currentQuestion.hints.length > 0 && (
-              <details className="mt-4">
-                <summary className="text-sm text-blue-600 cursor-pointer hover:text-blue-800">
+              <details style={{ marginTop: '20px' }}>
+                <summary style={{ fontSize: '14px', color: '#10a37f', cursor: 'pointer' }}>
                   Show Hints ({currentQuestion.hints.length})
                 </summary>
-                <ul className="mt-2 text-sm text-gray-600 list-disc list-inside space-y-1">
+                <ul style={{ marginTop: '12px', fontSize: '14px', color: '#6b7280', paddingLeft: '20px' }}>
                   {currentQuestion.hints.map((hint, index) => (
-                    <li key={index}>{hint}</li>
+                    <li key={index} style={{ marginBottom: '4px' }}>{hint}</li>
                   ))}
                 </ul>
               </details>
@@ -362,12 +601,28 @@ export default function StudyQuizPage() {
         )}
 
         {/* Navigation */}
-        <div className="flex justify-between items-center">
-          <Button variant="outline" onClick={handlePrevQuestion} disabled={currentQuestionIndex === 0}>
-            ← Previous
-          </Button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button
+            onClick={handlePrevQuestion}
+            disabled={currentQuestionIndex === 0}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '10px 16px',
+              backgroundColor: currentQuestionIndex === 0 ? '#f3f4f6' : '#ffffff',
+              color: currentQuestionIndex === 0 ? '#9ca3af' : '#374151',
+              border: '1px solid #d1d5db',
+              borderRadius: '8px',
+              fontSize: '14px',
+              fontWeight: '500',
+              cursor: currentQuestionIndex === 0 ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <ChevronLeft size={18} /> Previous
+          </button>
 
-          <div className="flex gap-2">
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', justifyContent: 'center' }}>
             {quiz.questions.map((_, index) => (
               <button
                 key={index}
@@ -375,13 +630,27 @@ export default function StudyQuizPage() {
                   if (currentQuestion) saveTimeForQuestion(currentQuestion.id);
                   setCurrentQuestionIndex(index);
                 }}
-                className={`w-8 h-8 rounded-full text-sm font-medium transition-colors ${
-                  index === currentQuestionIndex
-                    ? 'bg-blue-600 text-white'
-                    : answers[quiz.questions[index].id]
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                }`}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  fontSize: '13px',
+                  fontWeight: '500',
+                  border: 'none',
+                  cursor: 'pointer',
+                  backgroundColor:
+                    index === currentQuestionIndex
+                      ? '#10a37f'
+                      : answers[quiz.questions[index].id]
+                      ? '#dcfce7'
+                      : '#f3f4f6',
+                  color:
+                    index === currentQuestionIndex
+                      ? '#ffffff'
+                      : answers[quiz.questions[index].id]
+                      ? '#166534'
+                      : '#6b7280',
+                }}
               >
                 {index + 1}
               </button>
@@ -389,14 +658,56 @@ export default function StudyQuizPage() {
           </div>
 
           {currentQuestionIndex === quiz.questions.length - 1 ? (
-            <Button onClick={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting ? 'Submitting...' : 'Submit Quiz'}
-            </Button>
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '10px 20px',
+                backgroundColor: isSubmitting ? '#86efac' : '#10a37f',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> Submitting...
+                </>
+              ) : (
+                <>
+                  <Check size={18} /> Submit Quiz
+                </>
+              )}
+            </button>
           ) : (
-            <Button onClick={handleNextQuestion}>Next →</Button>
+            <button
+              onClick={handleNextQuestion}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '10px 16px',
+                backgroundColor: '#10a37f',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >
+              Next <ChevronRight size={18} />
+            </button>
           )}
         </div>
       </div>
+      <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -411,19 +722,46 @@ function QuestionInput({
   answer: string | string[] | number[] | undefined;
   onChange: (answer: string | string[] | number[]) => void;
 }) {
+  const inputStyle = {
+    width: '100%',
+    padding: '12px 16px',
+    border: '1px solid #d1d5db',
+    borderRadius: '8px',
+    fontSize: '14px',
+    outline: 'none',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
+  };
+
+  const focusStyle = {
+    borderColor: '#10a37f',
+    boxShadow: '0 0 0 3px rgba(16, 163, 127, 0.1)',
+  };
+
+  // Default True/False options if none provided
+  const trueFalseOptions = [
+    { id: 'true', text: 'True' },
+    { id: 'false', text: 'False' },
+  ];
+
   switch (question.type) {
-    case QuizQuestionType.MULTIPLE_CHOICE:
-    case QuizQuestionType.TRUE_FALSE:
+    case QuizQuestionType.TRUE_FALSE: {
+      const options = question.options && question.options.length > 0 ? question.options : trueFalseOptions;
       return (
-        <div className="space-y-3">
-          {question.options?.map((option) => (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {options.map((option) => (
             <label
               key={option.id}
-              className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                answer === option.id
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-              }`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '14px 16px',
+                borderRadius: '8px',
+                border: answer === option.id ? '2px solid #10a37f' : '1px solid #e5e7eb',
+                backgroundColor: answer === option.id ? '#ecfdf5' : '#ffffff',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
             >
               <input
                 type="radio"
@@ -431,9 +769,42 @@ function QuestionInput({
                 value={option.id}
                 checked={answer === option.id}
                 onChange={() => onChange(option.id)}
-                className="w-4 h-4 text-blue-600"
+                style={{ width: '18px', height: '18px', accentColor: '#10a37f' }}
               />
-              <span className="text-gray-800">{option.text}</span>
+              <span style={{ color: '#374151', fontSize: '14px' }}>{option.text}</span>
+            </label>
+          ))}
+        </div>
+      );
+    }
+
+    case QuizQuestionType.MULTIPLE_CHOICE:
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {question.options?.map((option) => (
+            <label
+              key={option.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '14px 16px',
+                borderRadius: '8px',
+                border: answer === option.id ? '2px solid #10a37f' : '1px solid #e5e7eb',
+                backgroundColor: answer === option.id ? '#ecfdf5' : '#ffffff',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+            >
+              <input
+                type="radio"
+                name={question.id}
+                value={option.id}
+                checked={answer === option.id}
+                onChange={() => onChange(option.id)}
+                style={{ width: '18px', height: '18px', accentColor: '#10a37f' }}
+              />
+              <span style={{ color: '#374151', fontSize: '14px' }}>{option.text}</span>
             </label>
           ))}
         </div>
@@ -441,18 +812,24 @@ function QuestionInput({
 
     case QuizQuestionType.MULTIPLE_SELECT:
       return (
-        <div className="space-y-3">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           {question.options?.map((option) => {
             const selectedAnswers = (answer as string[]) || [];
             const isSelected = selectedAnswers.includes(option.id);
             return (
               <label
                 key={option.id}
-                className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-colors ${
-                  isSelected
-                    ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                }`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '14px 16px',
+                  borderRadius: '8px',
+                  border: isSelected ? '2px solid #10a37f' : '1px solid #e5e7eb',
+                  backgroundColor: isSelected ? '#ecfdf5' : '#ffffff',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
               >
                 <input
                   type="checkbox"
@@ -464,9 +841,9 @@ function QuestionInput({
                       onChange([...selectedAnswers, option.id]);
                     }
                   }}
-                  className="w-4 h-4 text-blue-600 rounded"
+                  style={{ width: '18px', height: '18px', accentColor: '#10a37f', borderRadius: '4px' }}
                 />
-                <span className="text-gray-800">{option.text}</span>
+                <span style={{ color: '#374151', fontSize: '14px' }}>{option.text}</span>
               </label>
             );
           })}
@@ -480,7 +857,9 @@ function QuestionInput({
           value={(answer as string) || ''}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Type your answer..."
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          style={inputStyle}
+          onFocus={(e) => Object.assign(e.target.style, focusStyle)}
+          onBlur={(e) => { e.target.style.borderColor = '#d1d5db'; e.target.style.boxShadow = 'none'; }}
         />
       );
 
@@ -498,32 +877,48 @@ function QuestionInput({
               ? 'Write your code review feedback...'
               : 'Type your answer...'
           }
-          className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 min-h-[150px] ${
-            question.type === QuizQuestionType.CODE_COMPLETION ||
-            question.type === QuizQuestionType.CODE_REVIEW
-              ? 'font-mono text-sm'
-              : ''
-          }`}
+          style={{
+            ...inputStyle,
+            minHeight: '150px',
+            resize: 'vertical',
+            fontFamily: question.type === QuizQuestionType.CODE_COMPLETION || question.type === QuizQuestionType.CODE_REVIEW
+              ? 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
+              : 'inherit',
+          }}
+          onFocus={(e) => Object.assign(e.target.style, focusStyle)}
+          onBlur={(e) => { e.target.style.borderColor = '#d1d5db'; e.target.style.boxShadow = 'none'; }}
         />
       );
 
     case QuizQuestionType.MATCHING:
       return (
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500 mb-2">Match the items on the left with the correct items on the right.</p>
-          {question.matchingPairs?.map((pair) => (
-            <div key={pair.id} className="flex items-center gap-4">
-              <div className="flex-1 p-3 bg-gray-100 rounded-lg text-gray-800">{pair.left}</div>
-              <span className="text-gray-400">→</span>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '4px' }}>
+            Match the items on the left with the correct items on the right.
+          </p>
+          {question.matchingPairs?.map((pair, pairIndex) => (
+            <div key={pair.id} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{ flex: 1, padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px', color: '#374151', fontSize: '14px', border: '1px solid #e5e7eb' }}>
+                {pair.left}
+              </div>
+              <span style={{ color: '#9ca3af', fontSize: '18px' }}>→</span>
               <select
-                value={((answer as string[]) || [])[question.matchingPairs?.indexOf(pair) || 0] || ''}
+                value={((answer as string[]) || [])[pairIndex] || ''}
                 onChange={(e) => {
                   const currentAnswers = (answer as string[]) || Array(question.matchingPairs?.length).fill('');
                   const newAnswers = [...currentAnswers];
-                  newAnswers[question.matchingPairs?.indexOf(pair) || 0] = e.target.value;
+                  newAnswers[pairIndex] = e.target.value;
                   onChange(newAnswers);
                 }}
-                className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                style={{
+                  flex: 1,
+                  padding: '12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  backgroundColor: '#ffffff',
+                  cursor: 'pointer',
+                }}
               >
                 <option value="">Select match...</option>
                 {question.matchingPairs?.map((p) => (
@@ -540,16 +935,26 @@ function QuestionInput({
     case QuizQuestionType.ORDERING:
       const items = (answer as string[]) || question.orderItems || [];
       return (
-        <div className="space-y-2">
-          <p className="text-sm text-gray-500 mb-2">Drag and drop to arrange in the correct order.</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <p style={{ fontSize: '14px', color: '#6b7280', marginBottom: '4px' }}>
+            Use the arrows to arrange in the correct order.
+          </p>
           {items.map((item, index) => (
             <div
               key={index}
-              className="flex items-center gap-3 p-4 bg-white border border-gray-200 rounded-lg"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px 16px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+              }}
             >
-              <span className="text-gray-400 font-medium">{index + 1}.</span>
-              <span className="flex-1 text-gray-800">{item}</span>
-              <div className="flex gap-1">
+              <span style={{ color: '#9ca3af', fontWeight: '600', minWidth: '24px' }}>{index + 1}.</span>
+              <span style={{ flex: 1, color: '#374151', fontSize: '14px' }}>{item}</span>
+              <div style={{ display: 'flex', gap: '4px' }}>
                 <button
                   type="button"
                   onClick={() => {
@@ -560,7 +965,14 @@ function QuestionInput({
                     }
                   }}
                   disabled={index === 0}
-                  className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '16px',
+                    color: index === 0 ? '#d1d5db' : '#6b7280',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: index === 0 ? 'not-allowed' : 'pointer',
+                  }}
                 >
                   ↑
                 </button>
@@ -574,7 +986,14 @@ function QuestionInput({
                     }
                   }}
                   disabled={index === items.length - 1}
-                  className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-30"
+                  style={{
+                    padding: '4px 8px',
+                    fontSize: '16px',
+                    color: index === items.length - 1 ? '#d1d5db' : '#6b7280',
+                    backgroundColor: 'transparent',
+                    border: 'none',
+                    cursor: index === items.length - 1 ? 'not-allowed' : 'pointer',
+                  }}
                 >
                   ↓
                 </button>
@@ -591,7 +1010,9 @@ function QuestionInput({
           value={(answer as string) || ''}
           onChange={(e) => onChange(e.target.value)}
           placeholder="Type your answer..."
-          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+          style={inputStyle}
+          onFocus={(e) => Object.assign(e.target.style, focusStyle)}
+          onBlur={(e) => { e.target.style.borderColor = '#d1d5db'; e.target.style.boxShadow = 'none'; }}
         />
       );
   }

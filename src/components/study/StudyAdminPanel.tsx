@@ -742,7 +742,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       <div>
                         <p style={{ color: '#ffffff', fontWeight: '500' }}>{schedule.name}</p>
                         <p style={{ color: '#64748b', fontSize: '14px' }}>
-                          {schedule.frequency} - {schedule.numberOfArticles} article(s)
+                          {schedule.frequency} at {(schedule.scheduledTimes || ['09:00']).join(', ')} - {schedule.numberOfArticles} article(s)
                         </p>
                       </div>
                       <button
@@ -1155,10 +1155,14 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '16px' }}>
                       <div>
                         <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Frequency</p>
                         <p style={{ color: '#ffffff' }}>{schedule.frequency}</p>
+                      </div>
+                      <div>
+                        <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Run Times</p>
+                        <p style={{ color: '#ffffff' }}>{(schedule.scheduledTimes || ['09:00']).join(', ')}</p>
                       </div>
                       <div>
                         <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Articles/Run</p>
@@ -1712,6 +1716,68 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       <option value={AIProvider.CLAUDE}>Claude</option>
                       <option value={AIProvider.CHATGPT}>ChatGPT</option>
                     </select>
+                  </div>
+                </div>
+                <div>
+                  <label style={styles.label}>Run Times (can add multiple)</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {scheduleForm.scheduledTimes.map((time, index) => (
+                      <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="time"
+                          value={time}
+                          onChange={(e) => {
+                            const newTimes = [...scheduleForm.scheduledTimes];
+                            newTimes[index] = e.target.value;
+                            setScheduleForm({ ...scheduleForm, scheduledTimes: newTimes });
+                          }}
+                          style={{ ...styles.input, flex: 1 }}
+                        />
+                        {scheduleForm.scheduledTimes.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newTimes = scheduleForm.scheduledTimes.filter((_, i) => i !== index);
+                              setScheduleForm({ ...scheduleForm, scheduledTimes: newTimes });
+                            }}
+                            style={{
+                              background: 'rgba(239, 68, 68, 0.2)',
+                              border: '1px solid rgba(239, 68, 68, 0.3)',
+                              borderRadius: '6px',
+                              color: '#ef4444',
+                              padding: '8px 12px',
+                              cursor: 'pointer',
+                              fontSize: '14px',
+                            }}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    {scheduleForm.scheduledTimes.length < 4 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setScheduleForm({
+                            ...scheduleForm,
+                            scheduledTimes: [...scheduleForm.scheduledTimes, '12:00'],
+                          });
+                        }}
+                        style={{
+                          background: 'rgba(34, 197, 94, 0.2)',
+                          border: '1px solid rgba(34, 197, 94, 0.3)',
+                          borderRadius: '6px',
+                          color: '#22c55e',
+                          padding: '8px 12px',
+                          cursor: 'pointer',
+                          fontSize: '14px',
+                          alignSelf: 'flex-start',
+                        }}
+                      >
+                        + Add Another Time
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>

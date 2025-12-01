@@ -240,6 +240,9 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   const [editingTopic, setEditingTopic] = useState<StudyTopic | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<ArticleSchedule | null>(null);
 
+  // Running schedule state
+  const [runningScheduleId, setRunningScheduleId] = useState<string | null>(null);
+
   // Form states
   const [categoryForm, setCategoryForm] = useState({
     name: '',
@@ -476,10 +479,14 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
 
   const handleRunSchedule = async (scheduleId: string) => {
     try {
+      setRunningScheduleId(scheduleId);
+      showMessageToast('success', 'Running schedule... This may take a few minutes.');
       const result = await runScheduleNow(scheduleId);
-      showMessageToast('success', `Schedule ran successfully! Generated ${result.articleIds.length} article(s).`);
+      showMessageToast('success', `Schedule completed! Generated ${result.articleIds.length} article(s).`);
     } catch (error) {
       showMessageToast('error', `Failed to run schedule: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setRunningScheduleId(null);
     }
   };
 
@@ -532,7 +539,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
       const result = await generateArticle({
         categoryId: generateForm.categoryId,
         aiProvider: generateForm.aiProvider,
-        difficulty: generateForm.difficulty || undefined,  // undefined means AI decides
+        difficulty: generateForm.difficulty === '' ? undefined : generateForm.difficulty,  // empty means AI decides
         includeQuiz: generateForm.includeQuiz,
         numberOfQuestions: generateForm.numberOfQuestions,
         customPrompt: generateForm.customPrompt || undefined,
@@ -740,9 +747,20 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       </div>
                       <button
                         onClick={() => handleRunSchedule(schedule.id)}
-                        style={{ ...styles.button, ...styles.successButton, padding: '8px 16px' }}
+                        disabled={runningScheduleId === schedule.id}
+                        style={{
+                          ...styles.button,
+                          ...styles.successButton,
+                          padding: '8px 16px',
+                          opacity: runningScheduleId === schedule.id ? 0.7 : 1,
+                          cursor: runningScheduleId === schedule.id ? 'not-allowed' : 'pointer',
+                        }}
                       >
-                        <Play size={14} /> Run Now
+                        {runningScheduleId === schedule.id ? (
+                          <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Running...</>
+                        ) : (
+                          <><Play size={14} /> Run Now</>
+                        )}
                       </button>
                     </div>
                   ))
@@ -1101,9 +1119,20 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       <div style={{ display: 'flex', gap: '8px' }}>
                         <button
                           onClick={() => handleRunSchedule(schedule.id)}
-                          style={{ ...styles.button, ...styles.successButton, padding: '8px 16px' }}
+                          disabled={runningScheduleId === schedule.id}
+                          style={{
+                            ...styles.button,
+                            ...styles.successButton,
+                            padding: '8px 16px',
+                            opacity: runningScheduleId === schedule.id ? 0.7 : 1,
+                            cursor: runningScheduleId === schedule.id ? 'not-allowed' : 'pointer',
+                          }}
                         >
-                          <Play size={14} /> Run Now
+                          {runningScheduleId === schedule.id ? (
+                            <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Running...</>
+                          ) : (
+                            <><Play size={14} /> Run Now</>
+                          )}
                         </button>
                         <button
                           onClick={() => handleToggleScheduleStatus(schedule)}

@@ -325,7 +325,7 @@ export function useArticleGeneration() {
       topicName?: string;
       categoryId: string;
       aiProvider: AIProvider;
-      difficulty: QuizDifficulty;
+      difficulty?: QuizDifficulty;  // Optional - AI decides if not provided
       includeQuiz: boolean;
       numberOfQuestions: number;
       customPrompt?: string;

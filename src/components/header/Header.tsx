@@ -180,35 +180,60 @@ const Header = () => {
                 </Tooltip>
               </a>
             </li> */}
-            {currentUser && <li>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <a
-                    className="nav-link"
-                    data-tip
-                    data-for="ADMIN"
+            {currentUser && (
+              <li>
+                <a
+                  className="nav-link"
+                  href="/study"
+                  data-tip
+                  data-for="STUDY"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    handleClick();
+                    router.push('/study');
+                  }}
+                >
+                  <span style={{ fontSize: '20px' }}>📚</span>
+                  <Tooltip
+                    id="STUDY"
+                    place="right"
+                    variant="dark"
                   >
-                    <span style={{ fontSize: '20px' }}>⚙️</span>
-                    <Tooltip
-                      id="ADMIN"
-                      place="right"
-                      variant="dark"
+                    <span>Study</span>
+                  </Tooltip>
+                </a>
+              </li>
+            )}
+            {currentUser && (
+              <li>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <a
+                      className="nav-link"
+                      data-tip
+                      data-for="ADMIN"
                     >
-                      <span>Admin</span>
-                    </Tooltip>
-                  </a>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => router.push('/admin')}>
-                    Admin Page
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleSignOut}>
-                    Log out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </li>
-            }
+                      <span style={{ fontSize: '20px' }}>⚙️</span>
+                      <Tooltip
+                        id="ADMIN"
+                        place="right"
+                        variant="dark"
+                      >
+                        <span>Admin</span>
+                      </Tooltip>
+                    </a>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => router.push('/admin')}>
+                      Admin Page
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleSignOut}>
+                      Log out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </li>
+            )}
           </Scrollspy>
         </div>
       </header>

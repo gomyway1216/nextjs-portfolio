@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   // Enable SCSS support
   sassOptions: {
     includePaths: ['./src/assets/scss'],
+    silenceDeprecations: ['legacy-js-api', 'import', 'global-builtin', 'color-functions'],
+    quietDeps: true,
   },
 
   // Image optimization configuration

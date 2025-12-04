@@ -349,6 +349,7 @@ export function useArticleGeneration() {
       numberOfQuestions: number;
       customPrompt?: string;
       language?: string;  // Output language (e.g., "en", "ja")
+      codingLanguage?: string;  // Preferred coding language for examples
     }) => {
       try {
         setGenerating(true);

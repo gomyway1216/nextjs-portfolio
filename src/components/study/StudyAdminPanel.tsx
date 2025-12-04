@@ -299,12 +299,13 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
 
   const [generateForm, setGenerateForm] = useState({
     categoryId: '',
-    aiProvider: AIProvider.CLAUDE,
+    aiProvider: AIProvider.CHATGPT,  // Changed default to ChatGPT
     difficulty: '' as QuizDifficulty | '',  // Empty means AI decides
     includeQuiz: true,
     numberOfQuestions: 5,
     customPrompt: '',
-    language: 'en',
+    language: 'ja',  // Changed default to Japanese
+    codingLanguage: 'typescript',  // Default coding language
   });
 
   const [articleForm, setArticleForm] = useState({
@@ -618,7 +619,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
         includeQuiz: generateForm.includeQuiz,
         numberOfQuestions: generateForm.numberOfQuestions,
         customPrompt: generateForm.customPrompt || undefined,
-        language: generateForm.language || 'en',
+        language: generateForm.language || 'ja',
+        codingLanguage: generateForm.codingLanguage || 'typescript',
       });
 
       if (result) {
@@ -628,12 +630,13 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
         // Reset form
         setGenerateForm({
           categoryId: '',
-          aiProvider: AIProvider.CLAUDE,
+          aiProvider: AIProvider.CHATGPT,
           difficulty: '',
           includeQuiz: true,
           numberOfQuestions: 5,
           customPrompt: '',
-          language: 'en',
+          language: 'ja',
+          codingLanguage: 'typescript',
         });
       }
     } catch (error) {
@@ -1503,7 +1506,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   </select>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
                   <div>
                     <label style={styles.label}>AI Provider</label>
                     <select
@@ -1511,12 +1514,42 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       onChange={(e) => setGenerateForm({ ...generateForm, aiProvider: e.target.value as AIProvider })}
                       style={styles.select}
                     >
-                      <option value={AIProvider.CLAUDE}>Claude</option>
                       <option value={AIProvider.CHATGPT}>ChatGPT</option>
+                      <option value={AIProvider.CLAUDE}>Claude</option>
                     </select>
                   </div>
                   <div>
-                    <label style={styles.label}>Difficulty (optional)</label>
+                    <label style={styles.label}>Language</label>
+                    <select
+                      value={generateForm.language}
+                      onChange={(e) => setGenerateForm({ ...generateForm, language: e.target.value })}
+                      style={styles.select}
+                    >
+                      <option value="ja">日本語</option>
+                      <option value="en">English</option>
+                      <option value="es">Spanish</option>
+                      <option value="zh">Chinese</option>
+                      <option value="ko">Korean</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={styles.label}>Code Language</label>
+                    <select
+                      value={generateForm.codingLanguage}
+                      onChange={(e) => setGenerateForm({ ...generateForm, codingLanguage: e.target.value })}
+                      style={styles.select}
+                    >
+                      <option value="typescript">TypeScript</option>
+                      <option value="javascript">JavaScript</option>
+                      <option value="python">Python</option>
+                      <option value="java">Java</option>
+                      <option value="go">Go</option>
+                      <option value="rust">Rust</option>
+                      <option value="csharp">C#</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={styles.label}>Difficulty</label>
                     <select
                       value={generateForm.difficulty}
                       onChange={(e) => setGenerateForm({ ...generateForm, difficulty: e.target.value as QuizDifficulty | '' })}
@@ -2148,7 +2181,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   </select>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
                   <div>
                     <label style={styles.label}>AI Provider</label>
                     <select
@@ -2156,8 +2189,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       onChange={(e) => setGenerateForm({ ...generateForm, aiProvider: e.target.value as AIProvider })}
                       style={styles.select}
                     >
-                      <option value={AIProvider.CLAUDE}>Claude</option>
                       <option value={AIProvider.CHATGPT}>ChatGPT</option>
+                      <option value={AIProvider.CLAUDE}>Claude</option>
                     </select>
                   </div>
                   <div>
@@ -2167,17 +2200,31 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       onChange={(e) => setGenerateForm({ ...generateForm, language: e.target.value })}
                       style={styles.select}
                     >
+                      <option value="ja">日本語</option>
                       <option value="en">English</option>
-                      <option value="ja">Japanese</option>
                       <option value="es">Spanish</option>
                       <option value="zh">Chinese</option>
                       <option value="ko">Korean</option>
-                      <option value="fr">French</option>
-                      <option value="de">German</option>
                     </select>
                   </div>
                   <div>
-                    <label style={styles.label}>Difficulty (optional)</label>
+                    <label style={styles.label}>Code Language</label>
+                    <select
+                      value={generateForm.codingLanguage}
+                      onChange={(e) => setGenerateForm({ ...generateForm, codingLanguage: e.target.value })}
+                      style={styles.select}
+                    >
+                      <option value="typescript">TypeScript</option>
+                      <option value="javascript">JavaScript</option>
+                      <option value="python">Python</option>
+                      <option value="java">Java</option>
+                      <option value="go">Go</option>
+                      <option value="rust">Rust</option>
+                      <option value="csharp">C#</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={styles.label}>Difficulty</label>
                     <select
                       value={generateForm.difficulty}
                       onChange={(e) => setGenerateForm({ ...generateForm, difficulty: e.target.value as QuizDifficulty | '' })}

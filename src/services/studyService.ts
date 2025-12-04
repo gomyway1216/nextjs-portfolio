@@ -215,6 +215,7 @@ export async function generateArticle(options: {
   numberOfQuestions: number;
   customPrompt?: string;
   language?: string;  // Output language (e.g., "en", "ja")
+  codingLanguage?: string;  // Preferred coding language for examples
 }): Promise<{ article: StudyArticle; quizId?: string }> {
   // Filter out undefined values
   const cleanOptions = Object.fromEntries(

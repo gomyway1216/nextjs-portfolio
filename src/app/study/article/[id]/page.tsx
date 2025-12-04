@@ -607,7 +607,12 @@ export default function StudyArticlePage() {
           {[
             { label: 'AI Provider', value: article.aiProvider },
             { label: 'Model', value: article.aiModel },
-            { label: 'Published', value: article.publishedAt ? new Date(article.publishedAt).toLocaleDateString() : 'Not published' },
+            { label: 'Published', value: article.publishedAt
+              ? new Date(typeof article.publishedAt === 'object' && '_seconds' in article.publishedAt
+                  ? (article.publishedAt as { _seconds: number })._seconds * 1000
+                  : article.publishedAt
+                ).toLocaleDateString()
+              : 'Not published' },
             { label: 'Views', value: article.viewCount.toString() },
           ].map((item) => (
             <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -808,24 +813,20 @@ export default function StudyArticlePage() {
               >
                 <ArrowLeft size={18} />
               </button>
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '2px', flexWrap: 'wrap' }}>
-                  {category && (
-                    <span style={{
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontWeight: '500',
-                      backgroundColor: '#f3f4f6',
-                      color: '#6b7280',
-                    }}>
-                      {category.name}
-                    </span>
-                  )}
-                  {topic && (
-                    <span style={{ color: '#9ca3af', fontSize: '12px', display: 'none' }} className="sm-show">{topic.name}</span>
-                  )}
-                </div>
+              <div style={{ minWidth: 0, flex: 1, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {category && (
+                  <span style={{
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '11px',
+                    fontWeight: '500',
+                    backgroundColor: '#f3f4f6',
+                    color: '#6b7280',
+                    flexShrink: 0,
+                  }}>
+                    {category.name}
+                  </span>
+                )}
                 <h1 style={{
                   fontSize: '16px',
                   fontWeight: '600',
@@ -833,6 +834,7 @@ export default function StudyArticlePage() {
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
+                  margin: 0,
                 }}>
                   {article.title}
                 </h1>

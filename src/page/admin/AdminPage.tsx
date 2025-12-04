@@ -29,10 +29,14 @@ import {
   AlertCircle,
   Upload,
   Image as ImageIcon,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import StudyAdminPanel from '@/components/study/StudyAdminPanel';
+import { useAppErrors } from '@/hooks/useErrors';
+import { ErrorSource, ErrorSeverity } from '@/types/errors';
 
-type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study';
+type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'errors';
 
 interface Job {
   id: string;
@@ -318,10 +322,19 @@ const AdminPage = () => {
   const { categories: postCategories } = usePostCategories();
   const projectMutations = useProjectMutations();
   const postMutations = usePostMutations();
+  const { errors: appErrors, loading: errorsLoading, fetchErrors, resolveError, unresolveError, deleteError } = useAppErrors();
 
   const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Error tracking states
+  const [errorsFilter, setErrorsFilter] = useState<{
+    resolved: 'all' | 'resolved' | 'unresolved';
+    source: string;
+    severity: string;
+  }>({ resolved: 'unresolved', source: '', severity: '' });
+  const [expandedErrorId, setExpandedErrorId] = useState<string | null>(null);
 
   // Modal states
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -737,6 +750,9 @@ const AdminPage = () => {
     );
   }
 
+  // Count unresolved errors
+  const unresolvedErrorCount = appErrors.filter(e => !e.resolved).length;
+
   const sidebarItems = [
     { id: 'dashboard' as AdminSection, label: 'Dashboard', icon: LayoutDashboard },
     { id: 'profile' as AdminSection, label: 'Profile', icon: User },
@@ -744,6 +760,7 @@ const AdminPage = () => {
     { id: 'posts' as AdminSection, label: 'Blog Posts', icon: FileText },
     { id: 'jobs' as AdminSection, label: 'Jobs', icon: Briefcase },
     { id: 'study' as AdminSection, label: 'Study Tool', icon: BookOpen },
+    { id: 'errors' as AdminSection, label: `Errors${unresolvedErrorCount > 0 ? ` (${unresolvedErrorCount})` : ''}`, icon: AlertCircle },
   ];
 
   return (
@@ -1232,6 +1249,233 @@ const AdminPage = () => {
           {/* Study Tool Section */}
           {activeSection === 'study' && (
             <StudyAdminPanel />
+          )}
+
+          {/* Errors Section */}
+          {activeSection === 'errors' && (
+            <div>
+              <h1 style={styles.pageTitle}>Error Monitoring</h1>
+              <p style={{ color: '#94a3b8', marginBottom: '32px' }}>Track and manage application errors</p>
+
+              {/* Filter Bar */}
+              <div style={{ ...styles.card, marginBottom: '24px' }}>
+                <div style={{ padding: '16px 24px', display: 'flex', gap: '16px', flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div>
+                    <label style={{ ...styles.label, marginBottom: '4px' }}>Status</label>
+                    <select
+                      value={errorsFilter.resolved}
+                      onChange={(e) => {
+                        const value = e.target.value as 'all' | 'resolved' | 'unresolved';
+                        setErrorsFilter(prev => ({ ...prev, resolved: value }));
+                        fetchErrors({ resolved: value === 'all' ? undefined : value === 'resolved' });
+                      }}
+                      style={{ ...styles.select, width: 'auto', minWidth: '140px' }}
+                    >
+                      <option value="all">All</option>
+                      <option value="unresolved">Unresolved</option>
+                      <option value="resolved">Resolved</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ ...styles.label, marginBottom: '4px' }}>Source</label>
+                    <select
+                      value={errorsFilter.source}
+                      onChange={(e) => {
+                        setErrorsFilter(prev => ({ ...prev, source: e.target.value }));
+                        fetchErrors({ source: e.target.value as ErrorSource || undefined });
+                      }}
+                      style={{ ...styles.select, width: 'auto', minWidth: '160px' }}
+                    >
+                      <option value="">All Sources</option>
+                      <option value={ErrorSource.FRONTEND}>Frontend</option>
+                      <option value={ErrorSource.CLOUD_FUNCTION}>Cloud Function</option>
+                      <option value={ErrorSource.API_ROUTE}>API Route</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ ...styles.label, marginBottom: '4px' }}>Severity</label>
+                    <select
+                      value={errorsFilter.severity}
+                      onChange={(e) => {
+                        setErrorsFilter(prev => ({ ...prev, severity: e.target.value }));
+                        fetchErrors({ severity: e.target.value as ErrorSeverity || undefined });
+                      }}
+                      style={{ ...styles.select, width: 'auto', minWidth: '120px' }}
+                    >
+                      <option value="">All</option>
+                      <option value={ErrorSeverity.CRITICAL}>Critical</option>
+                      <option value={ErrorSeverity.HIGH}>High</option>
+                      <option value={ErrorSeverity.MEDIUM}>Medium</option>
+                      <option value={ErrorSeverity.LOW}>Low</option>
+                    </select>
+                  </div>
+                  <button
+                    onClick={() => fetchErrors()}
+                    style={{ ...styles.button, ...styles.outlineButton, marginTop: '20px' }}
+                  >
+                    Refresh
+                  </button>
+                </div>
+              </div>
+
+              {/* Error List */}
+              {errorsLoading ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
+                  <Loader2 size={32} color="#a855f7" style={{ animation: 'spin 1s linear infinite' }} />
+                </div>
+              ) : appErrors.length === 0 ? (
+                <div style={{ ...styles.card, textAlign: 'center', padding: '48px' }}>
+                  <CheckCircle size={48} color="#34d399" style={{ marginBottom: '16px' }} />
+                  <p style={{ color: '#94a3b8', fontSize: '18px' }}>No errors found</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {appErrors.map((error) => (
+                    <div key={error.id} style={styles.card}>
+                      <div style={{ padding: '20px 24px' }}>
+                        {/* Error Header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                              <span style={{
+                                ...styles.badge,
+                                backgroundColor: error.severity === 'critical' ? 'rgba(239, 68, 68, 0.2)' :
+                                  error.severity === 'high' ? 'rgba(249, 115, 22, 0.2)' :
+                                    error.severity === 'medium' ? 'rgba(234, 179, 8, 0.2)' : 'rgba(59, 130, 246, 0.2)',
+                                color: error.severity === 'critical' ? '#f87171' :
+                                  error.severity === 'high' ? '#fb923c' :
+                                    error.severity === 'medium' ? '#facc15' : '#60a5fa',
+                                border: `1px solid ${error.severity === 'critical' ? 'rgba(239, 68, 68, 0.3)' :
+                                  error.severity === 'high' ? 'rgba(249, 115, 22, 0.3)' :
+                                    error.severity === 'medium' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+                              }}>
+                                {error.severity.toUpperCase()}
+                              </span>
+                              <span style={{
+                                ...styles.badge,
+                                backgroundColor: 'rgba(168, 85, 247, 0.2)',
+                                color: '#c084fc',
+                                border: '1px solid rgba(168, 85, 247, 0.3)',
+                              }}>
+                                {error.source.replace('_', ' ')}
+                              </span>
+                              <span style={{
+                                ...styles.badge,
+                                backgroundColor: 'transparent',
+                                color: '#94a3b8',
+                                border: '1px solid rgba(255, 255, 255, 0.2)',
+                              }}>
+                                {error.errorType}
+                              </span>
+                              {error.resolved && (
+                                <span style={{
+                                  ...styles.badge,
+                                  backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                                  color: '#34d399',
+                                  border: '1px solid rgba(16, 185, 129, 0.3)',
+                                }}>
+                                  <CheckCircle size={12} /> Resolved
+                                </span>
+                              )}
+                            </div>
+                            <p style={{ color: '#ffffff', fontSize: '16px', fontWeight: '500', marginBottom: '4px' }}>
+                              {error.message}
+                            </p>
+                            <p style={{ color: '#64748b', fontSize: '13px' }}>
+                              Occurrences: {error.occurrenceCount} | Last: {new Date(error.lastOccurredAt).toLocaleString()}
+                              {error.functionName && ` | Function: ${error.functionName}`}
+                              {error.endpoint && ` | Endpoint: ${error.endpoint}`}
+                            </p>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => setExpandedErrorId(expandedErrorId === error.id ? null : error.id)}
+                              style={{ ...styles.ghostButton, borderRadius: '8px' }}
+                            >
+                              {expandedErrorId === error.id ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                            </button>
+                            {error.resolved ? (
+                              <button
+                                onClick={() => unresolveError(error.id)}
+                                style={{ ...styles.button, ...styles.outlineButton, padding: '8px 12px' }}
+                              >
+                                Unresolve
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => resolveError(error.id)}
+                                style={{ ...styles.button, backgroundColor: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', padding: '8px 12px' }}
+                              >
+                                <CheckCircle size={14} /> Resolve
+                              </button>
+                            )}
+                            <button
+                              onClick={() => deleteError(error.id)}
+                              style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Expanded Details */}
+                        {expandedErrorId === error.id && (
+                          <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'rgba(15, 23, 42, 0.5)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                            {error.details && (
+                              <div style={{ marginBottom: '12px' }}>
+                                <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>Details</p>
+                                <p style={{ color: '#cbd5e1', fontSize: '14px', whiteSpace: 'pre-wrap' }}>{error.details}</p>
+                              </div>
+                            )}
+                            {error.stack && (
+                              <div style={{ marginBottom: '12px' }}>
+                                <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>Stack Trace</p>
+                                <pre style={{
+                                  color: '#cbd5e1',
+                                  fontSize: '12px',
+                                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                                  padding: '12px',
+                                  borderRadius: '8px',
+                                  overflow: 'auto',
+                                  maxHeight: '200px',
+                                }}>
+                                  {error.stack}
+                                </pre>
+                              </div>
+                            )}
+                            {error.userId && (
+                              <div style={{ marginBottom: '12px' }}>
+                                <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>User ID</p>
+                                <p style={{ color: '#cbd5e1', fontSize: '14px' }}>{error.userId}</p>
+                              </div>
+                            )}
+                            {error.metadata && Object.keys(error.metadata).length > 0 && (
+                              <div>
+                                <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>Metadata</p>
+                                <pre style={{
+                                  color: '#cbd5e1',
+                                  fontSize: '12px',
+                                  backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                                  padding: '12px',
+                                  borderRadius: '8px',
+                                  overflow: 'auto',
+                                }}>
+                                  {JSON.stringify(error.metadata, null, 2)}
+                                </pre>
+                              </div>
+                            )}
+                            <div style={{ marginTop: '12px', color: '#64748b', fontSize: '12px' }}>
+                              Created: {new Date(error.createdAt).toLocaleString()}
+                              {error.resolvedAt && ` | Resolved: ${new Date(error.resolvedAt).toLocaleString()}`}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           )}
         </main>
       </div>

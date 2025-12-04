@@ -201,6 +201,10 @@ export function useTopicSuggestions() {
 export function useStudyArticles(initialOptions?: {
   categoryId?: string;
   topicId?: string;
+  status?: string;  // 'all' to show all statuses (for admin), or specific status
+  language?: string;
+  orderBy?: string;
+  orderDir?: 'asc' | 'desc';
 }) {
   const [articles, setArticles] = useState<StudyArticle[]>([]);
   const [hasMore, setHasMore] = useState(false);
@@ -213,6 +217,9 @@ export function useStudyArticles(initialOptions?: {
         categoryId?: string;
         topicId?: string;
         status?: string;
+        language?: string;
+        orderBy?: string;
+        orderDir?: 'asc' | 'desc';
         limit?: number;
         lastId?: string;
         append?: boolean;
@@ -225,7 +232,10 @@ export function useStudyArticles(initialOptions?: {
         const data = await studyService.getArticles({
           categoryId: options.categoryId || initialOptions?.categoryId,
           topicId: options.topicId || initialOptions?.topicId,
-          status: options.status,
+          status: options.status || initialOptions?.status,
+          language: options.language || initialOptions?.language,
+          orderBy: options.orderBy || initialOptions?.orderBy || 'createdAt',
+          orderDir: options.orderDir || initialOptions?.orderDir || 'desc',
           limit: options.limit,
           lastId: options.lastId,
           listView: options.listView !== false,  // Default to true for optimized list loading
@@ -243,7 +253,7 @@ export function useStudyArticles(initialOptions?: {
         setLoading(false);
       }
     },
-    [initialOptions?.categoryId, initialOptions?.topicId]
+    [initialOptions?.categoryId, initialOptions?.topicId, initialOptions?.status, initialOptions?.language, initialOptions?.orderBy, initialOptions?.orderDir]
   );
 
   const loadMore = useCallback(async () => {
@@ -331,6 +341,7 @@ export function useArticleGeneration() {
       includeQuiz: boolean;
       numberOfQuestions: number;
       customPrompt?: string;
+      language?: string;  // Output language (e.g., "en", "ja")
     }) => {
       try {
         setGenerating(true);

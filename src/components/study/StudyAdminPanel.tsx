@@ -20,8 +20,6 @@ import {
   Clock,
   CheckCircle,
   AlertCircle,
-  ChevronDown,
-  ChevronUp,
 } from 'lucide-react';
 import {
   useStudyCategories,
@@ -231,7 +229,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   const { config, loading: configLoading, updateConfig } = useStudyConfig();
   const { suggestions, loading: suggestionsLoading, fetchSuggestions } = useTopicSuggestions();
   const { generating, generateArticle, result: generationResult } = useArticleGeneration();
-  const { articles, loading: articlesLoading, fetchArticles, hasMore: articlesHasMore, loadMore: loadMoreArticles } = useStudyArticles();
+  const { articles, loading: articlesLoading, fetchArticles, hasMore: articlesHasMore, loadMore: loadMoreArticles } = useStudyArticles({ status: 'all' });
 
   // Modal states
   const [showCategoryModal, setShowCategoryModal] = useState(false);
@@ -305,6 +303,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
     includeQuiz: true,
     numberOfQuestions: 5,
     customPrompt: '',
+    language: 'en',
   });
 
   const [articleForm, setArticleForm] = useState({
@@ -313,6 +312,13 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
     status: ArticleStatus.PUBLISHED as ArticleStatus,
     difficulty: QuizDifficulty.INTERMEDIATE as QuizDifficulty,
     isPublic: true,
+  });
+
+  // Articles filter state
+  const [articlesFilter, setArticlesFilter] = useState({
+    language: '',
+    orderBy: 'createdAt',
+    orderDir: 'desc' as 'asc' | 'desc',
   });
 
   // Suggestion state
@@ -547,7 +553,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
       await studyService.updateArticle(editingArticle.id, articleForm);
       showMessageToast('success', 'Article updated successfully!');
       setShowArticleModal(false);
-      fetchArticles();
+      fetchArticles({ status: 'all' });
     } catch (error) {
       showMessageToast('error', `Failed to update article: ${error instanceof Error ? error.message : 'Unknown error'}`);
     } finally {
@@ -559,7 +565,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
     try {
       await studyService.deleteArticle(id);
       showMessageToast('success', 'Article deleted successfully!');
-      fetchArticles();
+      fetchArticles({ status: 'all' });
     } catch (error) {
       showMessageToast('error', `Failed to delete article: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -599,11 +605,13 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
         includeQuiz: generateForm.includeQuiz,
         numberOfQuestions: generateForm.numberOfQuestions,
         customPrompt: generateForm.customPrompt || undefined,
+        language: generateForm.language || 'en',
       });
 
       if (result) {
         showMessageToast('success', `Article "${result.article.title}" generated successfully!`);
         setShowGenerateModal(false);
+        fetchArticles({ status: 'all' });
         // Reset form
         setGenerateForm({
           categoryId: '',
@@ -612,6 +620,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
           includeQuiz: true,
           numberOfQuestions: 5,
           customPrompt: '',
+          language: 'en',
         });
       }
     } catch (error) {
@@ -1134,6 +1143,61 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
             </button>
           </div>
 
+          {/* Filter Controls */}
+          <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', flexWrap: 'wrap' }}>
+            <div>
+              <label style={{ color: '#94a3b8', fontSize: '12px', display: 'block', marginBottom: '4px' }}>Language</label>
+              <select
+                value={articlesFilter.language}
+                onChange={(e) => {
+                  setArticlesFilter({ ...articlesFilter, language: e.target.value });
+                  fetchArticles({ status: 'all', language: e.target.value || undefined, orderBy: articlesFilter.orderBy, orderDir: articlesFilter.orderDir });
+                }}
+                style={{ ...styles.select, minWidth: '120px' }}
+              >
+                <option value="">All Languages</option>
+                <option value="en">English</option>
+                <option value="ja">Japanese</option>
+                <option value="es">Spanish</option>
+                <option value="zh">Chinese</option>
+                <option value="ko">Korean</option>
+                <option value="fr">French</option>
+                <option value="de">German</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ color: '#94a3b8', fontSize: '12px', display: 'block', marginBottom: '4px' }}>Order By</label>
+              <select
+                value={articlesFilter.orderBy}
+                onChange={(e) => {
+                  setArticlesFilter({ ...articlesFilter, orderBy: e.target.value });
+                  fetchArticles({ status: 'all', language: articlesFilter.language || undefined, orderBy: e.target.value, orderDir: articlesFilter.orderDir });
+                }}
+                style={{ ...styles.select, minWidth: '140px' }}
+              >
+                <option value="createdAt">Created Date</option>
+                <option value="title">Title</option>
+                <option value="difficulty">Difficulty</option>
+                <option value="viewCount">View Count</option>
+              </select>
+            </div>
+            <div>
+              <label style={{ color: '#94a3b8', fontSize: '12px', display: 'block', marginBottom: '4px' }}>Direction</label>
+              <select
+                value={articlesFilter.orderDir}
+                onChange={(e) => {
+                  const dir = e.target.value as 'asc' | 'desc';
+                  setArticlesFilter({ ...articlesFilter, orderDir: dir });
+                  fetchArticles({ status: 'all', language: articlesFilter.language || undefined, orderBy: articlesFilter.orderBy, orderDir: dir });
+                }}
+                style={{ ...styles.select, minWidth: '120px' }}
+              >
+                <option value="desc">Newest First</option>
+                <option value="asc">Oldest First</option>
+              </select>
+            </div>
+          </div>
+
           {articlesLoading ? (
             <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
               <Loader2 size={32} color="#a855f7" style={{ animation: 'spin 1s linear infinite' }} />
@@ -1145,6 +1209,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   <tr>
                     <th style={styles.th}>Title</th>
                     <th style={styles.th}>Category</th>
+                    <th style={styles.th}>Lang</th>
                     <th style={styles.th}>Difficulty</th>
                     <th style={styles.th}>Status</th>
                     <th style={styles.th}>Created</th>
@@ -1164,6 +1229,9 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       </td>
                       <td style={{ ...styles.td, color: '#94a3b8' }}>
                         {getCategoryName(article.categoryId)}
+                      </td>
+                      <td style={{ ...styles.td, color: '#94a3b8', textTransform: 'uppercase', fontSize: '12px' }}>
+                        {(article as StudyArticle & { language?: string }).language || 'en'}
                       </td>
                       <td style={styles.td}>
                         <span style={{
@@ -1228,7 +1296,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   ))}
                   {articles.length === 0 && (
                     <tr>
-                      <td colSpan={6} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
+                      <td colSpan={7} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
                         No articles yet. Click &quot;Generate New&quot; to create one.
                       </td>
                     </tr>
@@ -2057,7 +2125,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   </select>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
                   <div>
                     <label style={styles.label}>AI Provider</label>
                     <select
@@ -2067,6 +2135,22 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                     >
                       <option value={AIProvider.CLAUDE}>Claude</option>
                       <option value={AIProvider.CHATGPT}>ChatGPT</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={styles.label}>Language</label>
+                    <select
+                      value={generateForm.language}
+                      onChange={(e) => setGenerateForm({ ...generateForm, language: e.target.value })}
+                      style={styles.select}
+                    >
+                      <option value="en">English</option>
+                      <option value="ja">Japanese</option>
+                      <option value="es">Spanish</option>
+                      <option value="zh">Chinese</option>
+                      <option value="ko">Korean</option>
+                      <option value="fr">French</option>
+                      <option value="de">German</option>
                     </select>
                   </div>
                   <div>

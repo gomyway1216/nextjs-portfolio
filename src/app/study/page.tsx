@@ -26,17 +26,19 @@ export default function StudyListPage() {
   const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('');
+  const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
 
   // Fetch articles
   const { articles, loading, hasMore, fetchArticles, loadMore } = useStudyArticles({
     categoryId: selectedCategory || undefined,
+    language: selectedLanguage || undefined,
   });
 
   // Refetch when filters change
   useEffect(() => {
-    fetchArticles({ categoryId: selectedCategory || undefined });
-  }, [selectedCategory, fetchArticles]);
+    fetchArticles({ categoryId: selectedCategory || undefined, language: selectedLanguage || undefined });
+  }, [selectedCategory, selectedLanguage, fetchArticles]);
 
   // Filter articles client-side for search and difficulty
   const filteredArticles = useMemo(() => {
@@ -344,12 +346,43 @@ export default function StudyListPage() {
                 </select>
               </div>
 
+              {/* Language Filter */}
+              <div style={{ flex: 1, minWidth: '150px' }}>
+                <label style={{ display: 'block', color: '#6b7280', fontSize: '12px', marginBottom: '6px' }}>
+                  Language
+                </label>
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid #e5e7eb',
+                    backgroundColor: '#ffffff',
+                    color: '#111827',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value="">All Languages</option>
+                  <option value="en">English</option>
+                  <option value="ja">Japanese</option>
+                  <option value="es">Spanish</option>
+                  <option value="fr">French</option>
+                  <option value="de">German</option>
+                  <option value="zh">Chinese</option>
+                  <option value="ko">Korean</option>
+                </select>
+              </div>
+
               {/* Clear Filters */}
               <div style={{ display: 'flex', alignItems: 'flex-end' }}>
                 <button
                   onClick={() => {
                     setSelectedCategory('');
                     setSelectedDifficulty('');
+                    setSelectedLanguage('');
                     setSearchQuery('');
                   }}
                   style={{
@@ -428,7 +461,7 @@ export default function StudyListPage() {
             <BookOpen size={48} color="#d1d5db" style={{ marginBottom: '16px' }} />
             <h3 style={{ color: '#374151', fontSize: '18px', marginBottom: '8px' }}>No articles found</h3>
             <p style={{ color: '#6b7280', fontSize: '14px' }}>
-              {searchQuery || selectedCategory || selectedDifficulty
+              {searchQuery || selectedCategory || selectedDifficulty || selectedLanguage
                 ? 'Try adjusting your filters'
                 : 'Articles will appear here once generated'}
             </p>

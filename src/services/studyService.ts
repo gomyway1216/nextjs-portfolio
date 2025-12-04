@@ -165,6 +165,9 @@ export async function getArticles(
     categoryId?: string;
     topicId?: string;
     status?: string;
+    language?: string;
+    orderBy?: string;
+    orderDir?: 'asc' | 'desc';
     limit?: number;
     lastId?: string;
     listView?: boolean;  // Optimization: only return fields needed for list view
@@ -174,6 +177,9 @@ export async function getArticles(
   if (options.categoryId) params.set('categoryId', options.categoryId);
   if (options.topicId) params.set('topicId', options.topicId);
   if (options.status) params.set('status', options.status);
+  if (options.language) params.set('language', options.language);
+  if (options.orderBy) params.set('orderBy', options.orderBy);
+  if (options.orderDir) params.set('orderDir', options.orderDir);
   if (options.limit) params.set('limit', String(options.limit));
   if (options.lastId) params.set('lastId', options.lastId);
   if (options.listView) params.set('listView', 'true');
@@ -198,6 +204,7 @@ export async function generateArticle(options: {
   includeQuiz: boolean;
   numberOfQuestions: number;
   customPrompt?: string;
+  language?: string;  // Output language (e.g., "en", "ja")
 }): Promise<{ article: StudyArticle; quizId?: string }> {
   // Filter out undefined values
   const cleanOptions = Object.fromEntries(

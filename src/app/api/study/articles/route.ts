@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
     const url = new URL(getCloudFunctionUrl('getStudyArticles'));
 
     // Forward query parameters
-    const params = ['categoryId', 'topicId', 'status', 'limit', 'lastId', 'listView'];
+    const params = ['categoryId', 'topicId', 'status', 'language', 'orderBy', 'orderDir', 'limit', 'lastId', 'listView'];
     params.forEach((param) => {
       const value = searchParams.get(param);
       if (value) url.searchParams.set(param, value);

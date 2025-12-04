@@ -30,19 +30,23 @@ import {
   useStudyConfig,
   useTopicSuggestions,
   useArticleGeneration,
+  useStudyArticles,
 } from '@/hooks/useStudy';
+import * as studyService from '@/services/studyService';
 import {
   StudyCategory,
   StudyTopic,
+  StudyArticle,
   ArticleSchedule,
   AIProvider,
   QuizDifficulty,
   ScheduleStatus,
   TopicSuggestionType,
   ScheduleFrequency,
+  ArticleStatus,
 } from '@/types/study';
 
-type StudyAdminSection = 'overview' | 'categories' | 'topics' | 'schedules' | 'generate' | 'config';
+type StudyAdminSection = 'overview' | 'categories' | 'topics' | 'articles' | 'schedules' | 'generate' | 'config';
 
 // Shared styles (matching admin page)
 const styles: Record<string, CSSProperties> = {
@@ -227,18 +231,22 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   const { config, loading: configLoading, updateConfig } = useStudyConfig();
   const { suggestions, loading: suggestionsLoading, fetchSuggestions } = useTopicSuggestions();
   const { generating, generateArticle, result: generationResult } = useArticleGeneration();
+  const { articles, loading: articlesLoading, fetchArticles, hasMore: articlesHasMore, loadMore: loadMoreArticles } = useStudyArticles();
 
   // Modal states
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [showTopicModal, setShowTopicModal] = useState(false);
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showGenerateModal, setShowGenerateModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ type: 'category' | 'topic' | 'schedule'; id: string; name: string } | null>(null);
+  const [showArticleModal, setShowArticleModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ type: 'category' | 'topic' | 'schedule' | 'article'; id: string; name: string } | null>(null);
 
   // Edit states
   const [editingCategory, setEditingCategory] = useState<StudyCategory | null>(null);
   const [editingTopic, setEditingTopic] = useState<StudyTopic | null>(null);
   const [editingSchedule, setEditingSchedule] = useState<ArticleSchedule | null>(null);
+  const [editingArticle, setEditingArticle] = useState<StudyArticle | null>(null);
+  const [articleSaving, setArticleSaving] = useState(false);
 
   // Running schedule state
   const [runningScheduleId, setRunningScheduleId] = useState<string | null>(null);
@@ -297,6 +305,14 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
     includeQuiz: true,
     numberOfQuestions: 5,
     customPrompt: '',
+  });
+
+  const [articleForm, setArticleForm] = useState({
+    title: '',
+    summary: '',
+    status: ArticleStatus.PUBLISHED as ArticleStatus,
+    difficulty: QuizDifficulty.INTERMEDIATE as QuizDifficulty,
+    isPublic: true,
   });
 
   // Suggestion state
@@ -510,6 +526,46 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
     setShowDeleteConfirm(null);
   };
 
+  // Article handlers
+  const handleOpenArticleModal = (article: StudyArticle) => {
+    setEditingArticle(article);
+    setArticleForm({
+      title: article.title,
+      summary: article.summary,
+      status: article.status,
+      difficulty: article.difficulty,
+      isPublic: article.isPublic,
+    });
+    setShowArticleModal(true);
+  };
+
+  const handleSaveArticle = async () => {
+    if (!editingArticle) return;
+
+    try {
+      setArticleSaving(true);
+      await studyService.updateArticle(editingArticle.id, articleForm);
+      showMessageToast('success', 'Article updated successfully!');
+      setShowArticleModal(false);
+      fetchArticles();
+    } catch (error) {
+      showMessageToast('error', `Failed to update article: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setArticleSaving(false);
+    }
+  };
+
+  const handleDeleteArticle = async (id: string) => {
+    try {
+      await studyService.deleteArticle(id);
+      showMessageToast('success', 'Article deleted successfully!');
+      fetchArticles();
+    } catch (error) {
+      showMessageToast('error', `Failed to delete article: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+    setShowDeleteConfirm(null);
+  };
+
   // Generate handlers
   const handleFetchSuggestions = async () => {
     setShowSuggestions(true);
@@ -578,6 +634,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
     { id: 'overview' as const, label: 'Overview', icon: BarChart3 },
     { id: 'categories' as const, label: 'Categories', icon: Tags },
     { id: 'topics' as const, label: 'Topics', icon: BookOpen },
+    { id: 'articles' as const, label: 'Articles', icon: FileText },
     { id: 'schedules' as const, label: 'Schedules', icon: Calendar },
     { id: 'generate' as const, label: 'Generate', icon: Sparkles },
     { id: 'config' as const, label: 'Settings', icon: Settings },
@@ -1057,6 +1114,137 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   )}
                 </tbody>
               </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Articles Section */}
+      {activeSection === 'articles' && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+            <div>
+              <h2 style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffffff', marginBottom: '8px' }}>
+                Articles
+              </h2>
+              <p style={{ color: '#94a3b8' }}>Manage generated study articles</p>
+            </div>
+            <button onClick={() => setShowGenerateModal(true)} style={{ ...styles.button, ...styles.primaryButton }}>
+              <Sparkles size={16} /> Generate New
+            </button>
+          </div>
+
+          {articlesLoading ? (
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
+              <Loader2 size={32} color="#a855f7" style={{ animation: 'spin 1s linear infinite' }} />
+            </div>
+          ) : (
+            <div style={styles.card}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Title</th>
+                    <th style={styles.th}>Category</th>
+                    <th style={styles.th}>Difficulty</th>
+                    <th style={styles.th}>Status</th>
+                    <th style={styles.th}>Created</th>
+                    <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {articles.map((article) => (
+                    <tr key={article.id}>
+                      <td style={styles.td}>
+                        <div>
+                          <span style={{ color: '#ffffff', fontWeight: '500' }}>{article.title}</span>
+                          <p style={{ color: '#64748b', fontSize: '13px', marginTop: '2px' }}>
+                            {article.summary?.substring(0, 80)}...
+                          </p>
+                        </div>
+                      </td>
+                      <td style={{ ...styles.td, color: '#94a3b8' }}>
+                        {getCategoryName(article.categoryId)}
+                      </td>
+                      <td style={styles.td}>
+                        <span style={{
+                          ...styles.badge,
+                          backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                          color: '#93c5fd',
+                          border: '1px solid rgba(59, 130, 246, 0.3)',
+                        }}>
+                          {article.difficulty}
+                        </span>
+                      </td>
+                      <td style={styles.td}>
+                        {article.status === ArticleStatus.PUBLISHED ? (
+                          <span style={{
+                            ...styles.badge,
+                            backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                            color: '#6ee7b7',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                          }}>
+                            Published
+                          </span>
+                        ) : article.status === ArticleStatus.DRAFT ? (
+                          <span style={{
+                            ...styles.badge,
+                            backgroundColor: 'rgba(245, 158, 11, 0.2)',
+                            color: '#fbbf24',
+                            border: '1px solid rgba(245, 158, 11, 0.3)',
+                          }}>
+                            Draft
+                          </span>
+                        ) : (
+                          <span style={{
+                            ...styles.badge,
+                            backgroundColor: 'transparent',
+                            color: '#94a3b8',
+                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                          }}>
+                            {article.status}
+                          </span>
+                        )}
+                      </td>
+                      <td style={{ ...styles.td, color: '#94a3b8', fontSize: '14px' }}>
+                        {new Date(article.createdAt).toLocaleDateString()}
+                      </td>
+                      <td style={{ ...styles.td, textAlign: 'right' }}>
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                          <button
+                            onClick={() => handleOpenArticleModal(article)}
+                            style={{ ...styles.ghostButton, borderRadius: '8px' }}
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm({ type: 'article', id: article.id, name: article.title })}
+                            style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {articles.length === 0 && (
+                    <tr>
+                      <td colSpan={6} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
+                        No articles yet. Click &quot;Generate New&quot; to create one.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              {articlesHasMore && (
+                <div style={{ padding: '16px 24px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                  <button
+                    onClick={loadMoreArticles}
+                    style={{ ...styles.button, ...styles.outlineButton, width: '100%', justifyContent: 'center' }}
+                  >
+                    Load More
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1966,6 +2154,104 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
         </div>
       )}
 
+      {/* Article Edit Modal */}
+      {showArticleModal && editingArticle && (
+        <div style={styles.modal}>
+          <div style={styles.modalContent}>
+            <div style={styles.modalHeader}>
+              <h2 style={styles.modalTitle}>Edit Article</h2>
+            </div>
+            <div style={styles.modalBody}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <div>
+                  <label style={styles.label}>Title</label>
+                  <input
+                    value={articleForm.title}
+                    onChange={(e) => setArticleForm({ ...articleForm, title: e.target.value })}
+                    style={styles.input}
+                  />
+                </div>
+                <div>
+                  <label style={styles.label}>Summary</label>
+                  <textarea
+                    value={articleForm.summary}
+                    onChange={(e) => setArticleForm({ ...articleForm, summary: e.target.value })}
+                    style={styles.textarea}
+                  />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={styles.label}>Status</label>
+                    <select
+                      value={articleForm.status}
+                      onChange={(e) => setArticleForm({ ...articleForm, status: e.target.value as ArticleStatus })}
+                      style={styles.select}
+                    >
+                      {Object.values(ArticleStatus).map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={styles.label}>Difficulty</label>
+                    <select
+                      value={articleForm.difficulty}
+                      onChange={(e) => setArticleForm({ ...articleForm, difficulty: e.target.value as QuizDifficulty })}
+                      style={styles.select}
+                    >
+                      {Object.values(QuizDifficulty).map((diff) => (
+                        <option key={diff} value={diff}>{diff}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input
+                    type="checkbox"
+                    id="article-public"
+                    checked={articleForm.isPublic}
+                    onChange={(e) => setArticleForm({ ...articleForm, isPublic: e.target.checked })}
+                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="article-public" style={{ color: '#cbd5e1', cursor: 'pointer' }}>
+                    Public (visible to others)
+                  </label>
+                </div>
+                <div style={{ padding: '16px', backgroundColor: 'rgba(15, 23, 42, 0.5)', borderRadius: '8px' }}>
+                  <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '8px' }}>Article Info</p>
+                  <p style={{ color: '#94a3b8', fontSize: '14px' }}>
+                    Category: {getCategoryName(editingArticle.categoryId)} •
+                    AI: {editingArticle.aiProvider} ({editingArticle.aiModel}) •
+                    Created: {new Date(editingArticle.createdAt).toLocaleString()}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={() => setShowArticleModal(false)} style={{ ...styles.button, ...styles.outlineButton }}>
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveArticle}
+                disabled={articleSaving}
+                style={{
+                  ...styles.button,
+                  ...styles.primaryButton,
+                  opacity: articleSaving ? 0.7 : 1,
+                  cursor: articleSaving ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {articleSaving ? (
+                  <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Saving...</>
+                ) : (
+                  <><Save size={16} /> Update</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {showDeleteConfirm && (
         <div style={styles.modal}>
@@ -1990,6 +2276,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                     handleDeleteTopic(showDeleteConfirm.id);
                   } else if (showDeleteConfirm.type === 'schedule') {
                     handleDeleteSchedule(showDeleteConfirm.id);
+                  } else if (showDeleteConfirm.type === 'article') {
+                    handleDeleteArticle(showDeleteConfirm.id);
                   }
                 }}
                 style={{ ...styles.button, ...styles.dangerButton }}

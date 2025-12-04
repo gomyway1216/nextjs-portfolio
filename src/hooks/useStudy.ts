@@ -66,6 +66,12 @@ export function useStudyCategories() {
     setCategories((prev) => prev.filter((cat) => cat.id !== id));
   }, []);
 
+  const seedCategories = useCallback(async () => {
+    const result = await studyService.seedCategories();
+    await fetchCategories();  // Refresh the list after seeding
+    return result;
+  }, [fetchCategories]);
+
   useEffect(() => {
     fetchCategories();
   }, [fetchCategories]);
@@ -78,6 +84,7 @@ export function useStudyCategories() {
     createCategory,
     updateCategory,
     deleteCategory,
+    seedCategories,
   };
 }
 

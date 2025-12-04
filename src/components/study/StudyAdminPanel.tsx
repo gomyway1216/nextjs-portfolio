@@ -223,7 +223,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Hooks
-  const { categories, loading: categoriesLoading, createCategory, updateCategory, deleteCategory, fetchCategories } = useStudyCategories();
+  const { categories, loading: categoriesLoading, createCategory, updateCategory, deleteCategory, fetchCategories, seedCategories } = useStudyCategories();
   const { topics, loading: topicsLoading, createTopic, updateTopic, deleteTopic, fetchTopics } = useStudyTopics();
   const { schedules, loading: schedulesLoading, createSchedule, updateSchedule, deleteSchedule, runScheduleNow } = useStudySchedules();
   const { config, loading: configLoading, updateConfig } = useStudyConfig();
@@ -248,6 +248,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
 
   // Running schedule state
   const [runningScheduleId, setRunningScheduleId] = useState<string | null>(null);
+  const [seedingCategories, setSeedingCategories] = useState(false);
 
   // Form states
   const [categoryForm, setCategoryForm] = useState({
@@ -380,6 +381,18 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
       showMessageToast('error', `Failed to delete category: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
     setShowDeleteConfirm(null);
+  };
+
+  const handleSeedCategories = async () => {
+    try {
+      setSeedingCategories(true);
+      const result = await seedCategories();
+      showMessageToast('success', `Added ${result.addedCount} categories, ${result.skippedCount} already existed`);
+    } catch (error) {
+      showMessageToast('error', `Failed to seed categories: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSeedingCategories(false);
+    }
   };
 
   // Topic handlers
@@ -846,9 +859,19 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
               </h2>
               <p style={{ color: '#94a3b8' }}>Organize your learning topics into categories</p>
             </div>
-            <button onClick={() => handleOpenCategoryModal()} style={{ ...styles.button, ...styles.primaryButton }}>
-              <Plus size={16} /> Add Category
-            </button>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={handleSeedCategories}
+                disabled={seedingCategories}
+                style={{ ...styles.button, ...styles.outlineButton }}
+              >
+                {seedingCategories ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Sparkles size={16} />}
+                {seedingCategories ? 'Seeding...' : 'Seed All Categories'}
+              </button>
+              <button onClick={() => handleOpenCategoryModal()} style={{ ...styles.button, ...styles.primaryButton }}>
+                <Plus size={16} /> Add Category
+              </button>
+            </div>
           </div>
 
           {categoriesLoading ? (

@@ -93,6 +93,16 @@ export async function deleteCategory(id: string): Promise<void> {
   });
 }
 
+export async function seedCategories(): Promise<{ addedCount: number; skippedCount: number }> {
+  const data = await apiCall<{ success: boolean; addedCount: number; skippedCount: number }>(
+    '/api/study/categories',
+    {
+      method: 'PATCH',
+    }
+  );
+  return { addedCount: data.addedCount, skippedCount: data.skippedCount };
+}
+
 // ============================================================================
 // TOPICS
 // ============================================================================

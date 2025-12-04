@@ -117,3 +117,27 @@ export async function DELETE(request: NextRequest) {
     );
   }
 }
+
+// PATCH /api/study/categories - Seed all default categories
+export async function PATCH(request: NextRequest) {
+  try {
+    const authHeader = request.headers.get('authorization');
+
+    const response = await fetch(getCloudFunctionUrl('seedStudyCategories'), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(authHeader && { Authorization: authHeader }),
+      },
+    });
+
+    const data = await response.json();
+    return NextResponse.json(data, { status: response.status });
+  } catch (error) {
+    console.error('Error seeding categories:', error);
+    return NextResponse.json(
+      { success: false, error: 'Failed to seed categories' },
+      { status: 500 }
+    );
+  }
+}

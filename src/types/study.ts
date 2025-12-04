@@ -82,18 +82,31 @@ export interface StudyCategory {
 
 // Predefined categories
 export const DEFAULT_CATEGORIES: Omit<StudyCategory, 'id' | 'createdAt' | 'updatedAt'>[] = [
-  { name: 'TypeScript', slug: 'typescript', description: 'Advanced TypeScript concepts and patterns', order: 1 },
-  { name: 'System Design', slug: 'system-design', description: 'Scalable system architecture and design patterns', order: 2 },
-  { name: 'Architecture', slug: 'architecture', description: 'Software architecture patterns and principles', order: 3 },
-  { name: 'Databases', slug: 'databases', description: 'Database design, optimization, and management', order: 4 },
-  { name: 'Algorithms', slug: 'algorithms', description: 'Data structures and algorithms', order: 5 },
-  { name: 'DevOps', slug: 'devops', description: 'CI/CD, containerization, and cloud infrastructure', order: 6 },
-  { name: 'Security', slug: 'security', description: 'Application security and best practices', order: 7 },
-  { name: 'Performance', slug: 'performance', description: 'Performance optimization techniques', order: 8 },
-  { name: 'Testing', slug: 'testing', description: 'Testing strategies and methodologies', order: 9 },
-  { name: 'Frontend', slug: 'frontend', description: 'Frontend development and frameworks', order: 10 },
-  { name: 'Backend', slug: 'backend', description: 'Backend development and APIs', order: 11 },
-  { name: 'Machine Learning', slug: 'machine-learning', description: 'ML concepts for engineers', order: 12 },
+  // Core Programming Concepts
+  { name: 'Programming Paradigms', slug: 'programming-paradigms', description: 'OOP vs FP, design patterns, and coding philosophies explained', order: 1 },
+  { name: 'JavaScript Deep Dive', slug: 'javascript-deep-dive', description: 'The tricky parts of JS - this, closures, event loop, prototypes', order: 2 },
+  { name: 'TypeScript', slug: 'typescript', description: 'TypeScript tips and advanced patterns for real projects', order: 3 },
+
+  // System & Architecture
+  { name: 'System Design', slug: 'system-design', description: 'How to design scalable apps like Uber, Twitter, Instagram', order: 4 },
+  { name: 'Architecture', slug: 'architecture', description: 'Monolith vs microservices, clean architecture, and trade-offs', order: 5 },
+  { name: 'Databases', slug: 'databases', description: 'SQL vs NoSQL, indexing, and real database decisions', order: 6 },
+
+  // CS Fundamentals
+  { name: 'CS Fundamentals', slug: 'cs-fundamentals', description: 'MapReduce, geohashing, distributed systems - the concepts that matter', order: 7 },
+  { name: 'Algorithms', slug: 'algorithms', description: 'Data structures and algorithms explained with real use cases', order: 8 },
+
+  // Practical Skills
+  { name: 'Frontend', slug: 'frontend', description: 'React, Vue, CSS - building great user interfaces', order: 9 },
+  { name: 'Backend', slug: 'backend', description: 'APIs, authentication, and server-side development', order: 10 },
+  { name: 'DevOps', slug: 'devops', description: 'Docker, CI/CD, cloud - deploying and running apps', order: 11 },
+
+  // Career Growth
+  { name: 'Interview Prep', slug: 'interview-prep', description: 'Common interview questions and how to approach them', order: 12 },
+  { name: 'Performance', slug: 'performance', description: 'Making your app faster - profiling, caching, optimization', order: 13 },
+  { name: 'Security', slug: 'security', description: 'OWASP, authentication, and keeping your app safe', order: 14 },
+  { name: 'Testing', slug: 'testing', description: 'Unit tests, integration tests, TDD - testing strategies that work', order: 15 },
+  { name: 'Machine Learning', slug: 'machine-learning', description: 'ML basics for engineers - when and how to use it', order: 16 },
 ];
 
 // ============================================================================

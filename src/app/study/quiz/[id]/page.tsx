@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useStudyQuiz, useStudyCategories, useStudyTopics } from '@/hooks/useStudy';
+import { useStudyQuiz, useStudyCategories, useStudyTopics, useQuizAttempts } from '@/hooks/useStudy';
 import { submitQuiz } from '@/services/studyService';
+import { useAuth } from '@/providers/AuthProvider';
 import {
   QuizQuestion,
   QuizQuestionType,
@@ -11,7 +12,7 @@ import {
   QuizAnswer,
   QuizAttempt,
 } from '@/types/study';
-import { ArrowLeft, ChevronLeft, ChevronRight, Check, Loader2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Check, Loader2, History, RotateCcw } from 'lucide-react';
 
 // Simple markdown renderer for feedback text
 function renderMarkdown(text: string): React.ReactNode {
@@ -165,20 +166,27 @@ export default function StudyQuizPage() {
   const router = useRouter();
   const quizId = Array.isArray(params.id) ? params.id[0] : params.id || '';
 
+  // Auth
+  const { currentUser } = useAuth();
+  const isLoggedIn = !!currentUser;
+
   // State
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string | string[] | number[]>>({});
-  const [startTime] = useState(new Date().toISOString());
+  const [startTime, setStartTime] = useState(new Date().toISOString());
   const [questionStartTime, setQuestionStartTime] = useState(Date.now());
   const [timeTaken, setTimeTaken] = useState<Record<string, number>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [attempt, setAttempt] = useState<QuizAttempt | null>(null);
   const [showResults, setShowResults] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [viewingPastAttempt, setViewingPastAttempt] = useState<QuizAttempt | null>(null);
 
   // Data hooks
   const { quiz, loading, error } = useStudyQuiz(quizId);
   const { categories } = useStudyCategories();
   const { topics } = useStudyTopics();
+  const { attempts: pastAttempts, loading: attemptsLoading, fetchAttempts } = useQuizAttempts(isLoggedIn ? quizId : undefined);
 
   // Get category and topic info
   const category = categories.find((c) => c.id === quiz?.categoryId);
@@ -243,11 +251,33 @@ export default function StudyQuizPage() {
       const result = await submitQuiz(quizId, formattedAnswers, startTime);
       setAttempt(result);
       setShowResults(true);
+      // Refetch attempts if logged in
+      if (isLoggedIn) {
+        fetchAttempts();
+      }
     } catch (error) {
       console.error('Failed to submit quiz:', error);
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Retry quiz - reset all state
+  const handleRetry = () => {
+    setCurrentQuestionIndex(0);
+    setAnswers({});
+    setStartTime(new Date().toISOString());
+    setQuestionStartTime(Date.now());
+    setTimeTaken({});
+    setAttempt(null);
+    setShowResults(false);
+    setViewingPastAttempt(null);
+  };
+
+  // View a past attempt
+  const handleViewPastAttempt = (pastAttempt: QuizAttempt) => {
+    setViewingPastAttempt(pastAttempt);
+    setShowHistory(false);
   };
 
   const getDifficultyStyle = (difficulty: QuizDifficulty) => {
@@ -369,6 +399,57 @@ export default function StudyQuizPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {quiz.questions.map((question, index) => {
               const feedback = attempt.feedback.find((f) => f.questionId === question.id);
+
+              // Helper to get display text for an answer (converts option IDs to text)
+              const getAnswerDisplayText = (answerValue: string | string[] | number[] | undefined): string => {
+                if (!answerValue) return 'No answer';
+
+                // For multiple choice/true-false, find the option text
+                if (question.type === QuizQuestionType.MULTIPLE_CHOICE ||
+                    question.type === QuizQuestionType.TRUE_FALSE) {
+                  const option = question.options?.find((o) => o.id === answerValue);
+                  return option?.text || String(answerValue);
+                }
+
+                // For multiple select
+                if (question.type === QuizQuestionType.MULTIPLE_SELECT && Array.isArray(answerValue)) {
+                  return (answerValue as string[])
+                    .map((id) => question.options?.find((o) => o.id === id)?.text || id)
+                    .join(', ');
+                }
+
+                // For other types, return as-is
+                if (Array.isArray(answerValue)) {
+                  return (answerValue as string[]).join(', ');
+                }
+                return String(answerValue);
+              };
+
+              // Get the correct answer text for display
+              const getCorrectAnswerText = (): string | null => {
+                // For multiple choice/true-false, find the correct option
+                if (question.type === QuizQuestionType.MULTIPLE_CHOICE ||
+                    question.type === QuizQuestionType.TRUE_FALSE) {
+                  const correctOption = question.options?.find((o) => o.isCorrect);
+                  return correctOption?.text || null;
+                }
+
+                // For multiple select, find all correct options
+                if (question.type === QuizQuestionType.MULTIPLE_SELECT) {
+                  const correctOptions = question.options?.filter((o) => o.isCorrect);
+                  if (correctOptions && correctOptions.length > 0) {
+                    return correctOptions.map((o) => o.text).join(', ');
+                  }
+                  return null;
+                }
+
+                // For other types, use the feedback's correctAnswer or expectedAnswer
+                return feedback?.correctAnswer || question.expectedAnswer || null;
+              };
+
+              const userAnswerText = getAnswerDisplayText(answers[question.id]);
+              const correctAnswerText = getCorrectAnswerText();
+
               return (
                 <div
                   key={question.id}
@@ -403,17 +484,15 @@ export default function StudyQuizPage() {
                   <div style={{ fontSize: '14px', marginBottom: '8px' }}>
                     <span style={{ color: '#6b7280' }}>Your answer: </span>
                     <span style={{ color: feedback?.isCorrect ? '#166534' : '#991b1b', fontWeight: '500' }}>
-                      {Array.isArray(answers[question.id])
-                        ? (answers[question.id] as string[]).join(', ')
-                        : answers[question.id]?.toString() || 'No answer'}
+                      {userAnswerText}
                     </span>
                   </div>
 
-                  {/* Correct Answer */}
-                  {!feedback?.isCorrect && feedback?.correctAnswer && (
+                  {/* Correct Answer - show for incorrect answers */}
+                  {!feedback?.isCorrect && correctAnswerText && (
                     <div style={{ fontSize: '14px', marginBottom: '8px' }}>
                       <span style={{ color: '#6b7280' }}>Correct answer: </span>
-                      <span style={{ color: '#166534', fontWeight: '500' }}>{feedback.correctAnswer}</span>
+                      <span style={{ color: '#166534', fontWeight: '500' }}>{correctAnswerText}</span>
                     </div>
                   )}
 
@@ -438,11 +517,56 @@ export default function StudyQuizPage() {
           </div>
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
+          <div style={{ display: 'flex', gap: '12px', marginTop: '32px', flexWrap: 'wrap' }}>
+            <button
+              onClick={handleRetry}
+              style={{
+                flex: 1,
+                minWidth: '140px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '12px 20px',
+                backgroundColor: '#10a37f',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >
+              <RotateCcw size={16} /> Try Again
+            </button>
+            {isLoggedIn && pastAttempts && pastAttempts.length > 1 && (
+              <button
+                onClick={() => setShowHistory(true)}
+                style={{
+                  flex: 1,
+                  minWidth: '140px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '12px 20px',
+                  backgroundColor: '#ffffff',
+                  color: '#374151',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                }}
+              >
+                <History size={16} /> Past Attempts ({pastAttempts.length})
+              </button>
+            )}
             <button
               onClick={() => router.push(`/study/article/${quiz.articleId}`)}
               style={{
                 flex: 1,
+                minWidth: '140px',
                 padding: '12px 20px',
                 backgroundColor: '#ffffff',
                 color: '#374151',
@@ -455,10 +579,158 @@ export default function StudyQuizPage() {
             >
               Back to Article
             </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // View past attempt results
+  if (viewingPastAttempt && quiz) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#ffffff' }}>
+        <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 20px' }}>
+          {/* Past Attempt Header */}
+          <div style={{ backgroundColor: '#f9fafb', borderRadius: '12px', padding: '32px', marginBottom: '24px', textAlign: 'center', border: '1px solid #e5e7eb' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
+              <History size={20} color="#6b7280" />
+              <span style={{ fontSize: '13px', color: '#6b7280' }}>Past Attempt</span>
+            </div>
+            <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111827', marginBottom: '8px' }}>Quiz Results</h1>
+            <p style={{ color: '#6b7280', marginBottom: '8px', fontSize: '14px' }}>{quiz.title}</p>
+            <p style={{ color: '#9ca3af', fontSize: '12px' }}>
+              {new Date(viewingPastAttempt.completedAt).toLocaleDateString()} at {new Date(viewingPastAttempt.completedAt).toLocaleTimeString()}
+            </p>
+
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '128px',
+                height: '128px',
+                borderRadius: '50%',
+                fontSize: '36px',
+                fontWeight: '700',
+                marginTop: '16px',
+                marginBottom: '16px',
+                backgroundColor: viewingPastAttempt.passed ? '#dcfce7' : '#fee2e2',
+                color: viewingPastAttempt.passed ? '#166534' : '#991b1b',
+              }}
+            >
+              {Math.round(viewingPastAttempt.percentage)}%
+            </div>
+
+            <p style={{ fontSize: '18px', fontWeight: '600', color: viewingPastAttempt.passed ? '#166534' : '#991b1b' }}>
+              {viewingPastAttempt.passed ? 'Passed!' : 'Not Passed'}
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '48px', marginTop: '24px' }}>
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ display: 'block', fontSize: '28px', fontWeight: '700', color: '#111827' }}>
+                  {viewingPastAttempt.score}/{viewingPastAttempt.totalPoints}
+                </span>
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Points</span>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ display: 'block', fontSize: '28px', fontWeight: '700', color: '#111827' }}>
+                  {Math.round(viewingPastAttempt.timeSpent / 60)}:{String(viewingPastAttempt.timeSpent % 60).padStart(2, '0')}
+                </span>
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Time</span>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <span style={{ display: 'block', fontSize: '28px', fontWeight: '700', color: '#111827' }}>
+                  {viewingPastAttempt.feedback.filter((f) => f.isCorrect).length}/{quiz.questions.length}
+                </span>
+                <span style={{ fontSize: '13px', color: '#6b7280' }}>Correct</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Question Review for past attempt */}
+          <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginBottom: '16px' }}>Question Review</h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            {quiz.questions.map((question, index) => {
+              const feedback = viewingPastAttempt.feedback.find((f) => f.questionId === question.id);
+              const pastAnswer = viewingPastAttempt.answers.find((a) => a.questionId === question.id);
+
+              // Helper to get display text for an answer
+              const getAnswerDisplayText = (answerValue: string | string[] | number | number[] | undefined): string => {
+                if (!answerValue) return 'No answer';
+                if (question.type === QuizQuestionType.MULTIPLE_CHOICE || question.type === QuizQuestionType.TRUE_FALSE) {
+                  const option = question.options?.find((o) => o.id === answerValue);
+                  return option?.text || String(answerValue);
+                }
+                if (question.type === QuizQuestionType.MULTIPLE_SELECT && Array.isArray(answerValue)) {
+                  return (answerValue as string[]).map((id) => question.options?.find((o) => o.id === id)?.text || id).join(', ');
+                }
+                if (Array.isArray(answerValue)) return (answerValue as string[]).join(', ');
+                return String(answerValue);
+              };
+
+              const getCorrectAnswerText = (): string | null => {
+                if (question.type === QuizQuestionType.MULTIPLE_CHOICE || question.type === QuizQuestionType.TRUE_FALSE) {
+                  return question.options?.find((o) => o.isCorrect)?.text || null;
+                }
+                if (question.type === QuizQuestionType.MULTIPLE_SELECT) {
+                  const correct = question.options?.filter((o) => o.isCorrect);
+                  return correct && correct.length > 0 ? correct.map((o) => o.text).join(', ') : null;
+                }
+                return feedback?.correctAnswer || question.expectedAnswer || null;
+              };
+
+              return (
+                <div
+                  key={question.id}
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '12px',
+                    padding: '20px',
+                    border: '1px solid #e5e7eb',
+                    borderLeft: `4px solid ${feedback?.isCorrect ? '#22c55e' : '#ef4444'}`,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                    <h3 style={{ fontWeight: '600', color: '#111827', fontSize: '15px', flex: 1, paddingRight: '12px' }}>
+                      Q{index + 1}: {question.question}
+                    </h3>
+                    <span style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '20px', fontWeight: '500', backgroundColor: feedback?.isCorrect ? '#dcfce7' : '#fee2e2', color: feedback?.isCorrect ? '#166534' : '#991b1b', whiteSpace: 'nowrap' }}>
+                      {feedback?.pointsEarned}/{question.points} pts
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                    <span style={{ color: '#6b7280' }}>Your answer: </span>
+                    <span style={{ color: feedback?.isCorrect ? '#166534' : '#991b1b', fontWeight: '500' }}>
+                      {getAnswerDisplayText(pastAnswer?.answer)}
+                    </span>
+                  </div>
+                  {!feedback?.isCorrect && getCorrectAnswerText() && (
+                    <div style={{ fontSize: '14px', marginBottom: '8px' }}>
+                      <span style={{ color: '#6b7280' }}>Correct answer: </span>
+                      <span style={{ color: '#166534', fontWeight: '500' }}>{getCorrectAnswerText()}</span>
+                    </div>
+                  )}
+                  {feedback?.feedback && (
+                    <div style={{ backgroundColor: '#f9fafb', borderRadius: '8px', padding: '12px', marginTop: '12px', border: '1px solid #e5e7eb' }}>
+                      <strong style={{ fontSize: '13px', color: '#374151' }}>Feedback:</strong>
+                      <div style={{ marginTop: '4px', color: '#374151' }}>{renderMarkdown(feedback.feedback)}</div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
             <button
-              onClick={() => router.push('/study')}
+              onClick={handleRetry}
               style={{
                 flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
                 padding: '12px 20px',
                 backgroundColor: '#10a37f',
                 color: '#ffffff',
@@ -469,10 +741,159 @@ export default function StudyQuizPage() {
                 cursor: 'pointer',
               }}
             >
-              Back to Study
+              <RotateCcw size={16} /> Take Quiz Again
+            </button>
+            <button
+              onClick={() => setShowHistory(true)}
+              style={{
+                flex: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '12px 20px',
+                backgroundColor: '#ffffff',
+                color: '#374151',
+                border: '1px solid #d1d5db',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >
+              <History size={16} /> All Attempts
             </button>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // History modal
+  if (showHistory && pastAttempts) {
+    return (
+      <div style={{ minHeight: '100vh', backgroundColor: '#ffffff' }}>
+        <div style={{ maxWidth: '720px', margin: '0 auto', padding: '32px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+            <button
+              onClick={() => {
+                setShowHistory(false);
+                if (!showResults && !viewingPastAttempt) {
+                  // Go back to quiz taking
+                } else if (showResults) {
+                  // Stay on results
+                  setShowHistory(false);
+                } else {
+                  setViewingPastAttempt(null);
+                }
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '36px',
+                height: '36px',
+                backgroundColor: '#f3f4f6',
+                border: 'none',
+                borderRadius: '8px',
+                cursor: 'pointer',
+              }}
+            >
+              <ArrowLeft size={18} color="#374151" />
+            </button>
+            <div>
+              <h1 style={{ fontSize: '20px', fontWeight: '700', color: '#111827' }}>Past Attempts</h1>
+              <p style={{ fontSize: '13px', color: '#6b7280' }}>{quiz?.title}</p>
+            </div>
+          </div>
+
+          {attemptsLoading ? (
+            <div style={{ textAlign: 'center', padding: '40px' }}>
+              <Loader2 size={32} color="#10a37f" style={{ animation: 'spin 1s linear infinite' }} />
+            </div>
+          ) : pastAttempts.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#6b7280' }}>
+              <p>No past attempts found.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {pastAttempts
+                .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())
+                .map((pastAttempt, index) => (
+                  <button
+                    key={pastAttempt.id}
+                    onClick={() => handleViewPastAttempt(pastAttempt)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '16px 20px',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span style={{ fontWeight: '600', color: '#111827', fontSize: '14px' }}>
+                          Attempt #{pastAttempts.length - index}
+                        </span>
+                        <span
+                          style={{
+                            padding: '2px 8px',
+                            fontSize: '11px',
+                            borderRadius: '12px',
+                            fontWeight: '500',
+                            backgroundColor: pastAttempt.passed ? '#dcfce7' : '#fee2e2',
+                            color: pastAttempt.passed ? '#166534' : '#991b1b',
+                          }}
+                        >
+                          {pastAttempt.passed ? 'Passed' : 'Failed'}
+                        </span>
+                      </div>
+                      <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                        {new Date(pastAttempt.completedAt).toLocaleDateString()} at {new Date(pastAttempt.completedAt).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ display: 'block', fontSize: '20px', fontWeight: '700', color: pastAttempt.passed ? '#166534' : '#991b1b' }}>
+                        {Math.round(pastAttempt.percentage)}%
+                      </span>
+                      <span style={{ fontSize: '12px', color: '#6b7280' }}>
+                        {pastAttempt.score}/{pastAttempt.totalPoints} pts
+                      </span>
+                    </div>
+                  </button>
+                ))}
+            </div>
+          )}
+
+          <div style={{ marginTop: '24px' }}>
+            <button
+              onClick={handleRetry}
+              style={{
+                width: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '12px 20px',
+                backgroundColor: '#10a37f',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '8px',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+              }}
+            >
+              <RotateCcw size={16} /> Take Quiz Again
+            </button>
+          </div>
+        </div>
+        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
@@ -873,17 +1294,37 @@ function QuestionInput({
         />
       );
 
-    case QuizQuestionType.LONG_ANSWER:
     case QuizQuestionType.CODE_COMPLETION:
+      // Fill-in-the-blank style - simple text input for one word/method
+      return (
+        <div>
+          <p style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px' }}>
+            Fill in the blank (___) in the code above:
+          </p>
+          <input
+            type="text"
+            value={(answer as string) || ''}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="Enter the missing word or method..."
+            style={{
+              ...inputStyle,
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+              maxWidth: '300px',
+            }}
+            onFocus={(e) => Object.assign(e.target.style, focusStyle)}
+            onBlur={(e) => { e.target.style.borderColor = '#d1d5db'; e.target.style.boxShadow = 'none'; }}
+          />
+        </div>
+      );
+
+    case QuizQuestionType.LONG_ANSWER:
     case QuizQuestionType.CODE_REVIEW:
       return (
         <textarea
           value={(answer as string) || ''}
           onChange={(e) => onChange(e.target.value)}
           placeholder={
-            question.type === QuizQuestionType.CODE_COMPLETION
-              ? 'Write your code here...'
-              : question.type === QuizQuestionType.CODE_REVIEW
+            question.type === QuizQuestionType.CODE_REVIEW
               ? 'Write your code review feedback...'
               : 'Type your answer...'
           }
@@ -891,7 +1332,7 @@ function QuestionInput({
             ...inputStyle,
             minHeight: '150px',
             resize: 'vertical',
-            fontFamily: question.type === QuizQuestionType.CODE_COMPLETION || question.type === QuizQuestionType.CODE_REVIEW
+            fontFamily: question.type === QuizQuestionType.CODE_REVIEW
               ? 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace'
               : 'inherit',
           }}

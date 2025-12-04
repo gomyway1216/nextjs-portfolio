@@ -234,6 +234,159 @@ function renderInlineMarkdown(text: string): React.ReactNode {
   return parts.length === 1 ? parts[0] : parts;
 }
 
+// Render article body content with markdown (for introduction and section content)
+function renderArticleMarkdown(text: string): React.ReactNode {
+  if (!text) return null;
+
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let i = 0;
+  let keyCounter = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const key = keyCounter++;
+
+    // Code block (```)
+    if (line.trim().startsWith('```')) {
+      const lang = line.trim().slice(3);
+      const codeLines: string[] = [];
+      i++;
+      while (i < lines.length && !lines[i].trim().startsWith('```')) {
+        codeLines.push(lines[i]);
+        i++;
+      }
+      elements.push(
+        <pre key={key} style={{ backgroundColor: '#1f2937', color: '#e5e7eb', padding: '16px', borderRadius: '8px', overflow: 'auto', margin: '16px 0', fontSize: '13px' }}>
+          <code className={lang ? `language-${lang}` : undefined}>{codeLines.join('\n')}</code>
+        </pre>
+      );
+      i++;
+      continue;
+    }
+
+    // Headers (check from most specific to least specific)
+    if (line.startsWith('#### ')) {
+      elements.push(<h4 key={key} style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginTop: '20px', marginBottom: '10px' }}>{renderInlineMarkdown(line.slice(5))}</h4>);
+      i++;
+      continue;
+    }
+    if (line.startsWith('### ')) {
+      elements.push(<h3 key={key} style={{ fontSize: '17px', fontWeight: '600', color: '#111827', marginTop: '24px', marginBottom: '12px' }}>{renderInlineMarkdown(line.slice(4))}</h3>);
+      i++;
+      continue;
+    }
+    if (line.startsWith('## ')) {
+      elements.push(<h2 key={key} style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginTop: '28px', marginBottom: '14px' }}>{renderInlineMarkdown(line.slice(3))}</h2>);
+      i++;
+      continue;
+    }
+    if (line.startsWith('# ')) {
+      elements.push(<h1 key={key} style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginTop: '32px', marginBottom: '16px' }}>{renderInlineMarkdown(line.slice(2))}</h1>);
+      i++;
+      continue;
+    }
+
+    // Blockquote
+    if (line.startsWith('> ')) {
+      const quoteLines: string[] = [];
+      while (i < lines.length && lines[i].startsWith('> ')) {
+        quoteLines.push(lines[i].slice(2));
+        i++;
+      }
+      elements.push(
+        <blockquote key={key} style={{ borderLeft: '4px solid #10a37f', paddingLeft: '16px', margin: '16px 0', color: '#6b7280', fontStyle: 'italic' }}>
+          {quoteLines.map((ql, idx) => (
+            <p key={idx} style={{ margin: '4px 0' }}>{renderInlineMarkdown(ql)}</p>
+          ))}
+        </blockquote>
+      );
+      continue;
+    }
+
+    // Horizontal rule
+    if (line.trim() === '---' || line.trim() === '***' || line.trim() === '___') {
+      elements.push(<hr key={key} style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '24px 0' }} />);
+      i++;
+      continue;
+    }
+
+    // Unordered list
+    if (line.match(/^[\s]*[-*]\s/)) {
+      const listItems: React.ReactNode[] = [];
+      while (i < lines.length && lines[i].match(/^[\s]*[-*]\s/)) {
+        const itemKey = keyCounter++;
+        const itemText = lines[i].replace(/^[\s]*[-*]\s/, '');
+        listItems.push(<li key={itemKey} style={{ marginBottom: '6px' }}>{renderInlineMarkdown(itemText)}</li>);
+        i++;
+      }
+      elements.push(<ul key={key} style={{ paddingLeft: '24px', margin: '12px 0' }}>{listItems}</ul>);
+      continue;
+    }
+
+    // Ordered list
+    if (line.match(/^[\s]*\d+\.\s/)) {
+      const listItems: React.ReactNode[] = [];
+      while (i < lines.length && lines[i].match(/^[\s]*\d+\.\s/)) {
+        const itemKey = keyCounter++;
+        const itemText = lines[i].replace(/^[\s]*\d+\.\s/, '');
+        listItems.push(<li key={itemKey} style={{ marginBottom: '6px' }}>{renderInlineMarkdown(itemText)}</li>);
+        i++;
+      }
+      elements.push(<ol key={key} style={{ paddingLeft: '24px', margin: '12px 0' }}>{listItems}</ol>);
+      continue;
+    }
+
+    // Table
+    if (line.includes('|') && line.trim().startsWith('|')) {
+      const tableRows: string[] = [];
+      while (i < lines.length && lines[i].includes('|')) {
+        tableRows.push(lines[i]);
+        i++;
+      }
+      if (tableRows.length >= 2) {
+        const headerRow = tableRows[0].split('|').filter(cell => cell.trim());
+        const dataRows = tableRows.slice(2).map(row => row.split('|').filter(cell => cell.trim()));
+        elements.push(
+          <div key={key} style={{ overflowX: 'auto', margin: '16px 0' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+              <thead>
+                <tr>
+                  {headerRow.map((cell, idx) => (
+                    <th key={idx} style={{ backgroundColor: '#f3f4f6', padding: '10px 14px', border: '1px solid #e5e7eb', textAlign: 'left', fontWeight: '600' }}>{cell.trim()}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {dataRows.map((row, rowIdx) => (
+                  <tr key={rowIdx}>
+                    {row.map((cell, cellIdx) => (
+                      <td key={cellIdx} style={{ padding: '10px 14px', border: '1px solid #e5e7eb' }}>{renderInlineMarkdown(cell.trim())}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+    }
+
+    // Empty line
+    if (line.trim() === '') {
+      i++;
+      continue;
+    }
+
+    // Regular paragraph
+    elements.push(<p key={key} style={{ margin: '12px 0' }}>{renderInlineMarkdown(line)}</p>);
+    i++;
+  }
+
+  return elements;
+}
+
 export default function StudyArticlePage() {
   const params = useParams();
   const router = useRouter();
@@ -881,8 +1034,8 @@ export default function StudyArticlePage() {
                       <h2 style={{ fontSize: '22px', fontWeight: '600', color: '#111827', marginBottom: '16px' }}>
                         Introduction
                       </h2>
-                      <div style={{ color: '#374151', lineHeight: 1.8, fontSize: '15px', whiteSpace: 'pre-wrap' }}>
-                        {article.introduction}
+                      <div className="article-content" style={{ color: '#374151', lineHeight: 1.8, fontSize: '15px' }}>
+                        {renderArticleMarkdown(article.introduction)}
                       </div>
                     </section>
 
@@ -892,8 +1045,8 @@ export default function StudyArticlePage() {
                         <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#111827', marginBottom: '16px' }}>
                           {index + 1}. {section.title}
                         </h2>
-                        <div style={{ color: '#374151', lineHeight: 1.8, fontSize: '15px', whiteSpace: 'pre-wrap', marginBottom: '20px' }}>
-                          {section.content}
+                        <div className="article-content" style={{ color: '#374151', lineHeight: 1.8, fontSize: '15px', marginBottom: '20px' }}>
+                          {renderArticleMarkdown(section.content)}
                         </div>
 
                         {/* Code Examples */}
@@ -1019,8 +1172,8 @@ export default function StudyArticlePage() {
                       <h2 style={{ fontSize: '20px', fontWeight: '600', color: '#111827', marginBottom: '16px' }}>
                         Conclusion
                       </h2>
-                      <div style={{ color: '#374151', lineHeight: 1.8, fontSize: '15px', whiteSpace: 'pre-wrap' }}>
-                        {article.conclusion}
+                      <div className="article-content" style={{ color: '#374151', lineHeight: 1.8, fontSize: '15px' }}>
+                        {renderArticleMarkdown(article.conclusion)}
                       </div>
                     </section>
 
@@ -1046,7 +1199,7 @@ export default function StudyArticlePage() {
                             fontSize: '14px',
                           }}>
                             <CheckCircle size={18} color="#3b82f6" style={{ flexShrink: 0, marginTop: '2px' }} />
-                            <span style={{ lineHeight: 1.6 }}>{takeaway}</span>
+                            <span style={{ lineHeight: 1.6 }}>{renderInlineMarkdown(takeaway)}</span>
                           </li>
                         ))}
                       </ul>

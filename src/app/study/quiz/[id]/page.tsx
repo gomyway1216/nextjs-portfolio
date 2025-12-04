@@ -43,6 +43,11 @@ function renderMarkdown(text: string): React.ReactNode {
     }
 
     // Headers
+    if (line.startsWith('#### ')) {
+      elements.push(<h4 key={key} style={{ fontSize: '14px', fontWeight: '600', color: '#111827', marginTop: '12px', marginBottom: '6px' }}>{renderInlineMarkdown(line.slice(5))}</h4>);
+      i++;
+      continue;
+    }
     if (line.startsWith('### ')) {
       elements.push(<h3 key={key} style={{ fontSize: '16px', fontWeight: '600', color: '#111827', marginTop: '16px', marginBottom: '8px' }}>{renderInlineMarkdown(line.slice(4))}</h3>);
       i++;
@@ -50,6 +55,11 @@ function renderMarkdown(text: string): React.ReactNode {
     }
     if (line.startsWith('## ')) {
       elements.push(<h2 key={key} style={{ fontSize: '18px', fontWeight: '600', color: '#111827', marginTop: '20px', marginBottom: '12px' }}>{renderInlineMarkdown(line.slice(3))}</h2>);
+      i++;
+      continue;
+    }
+    if (line.startsWith('# ')) {
+      elements.push(<h1 key={key} style={{ fontSize: '20px', fontWeight: '700', color: '#111827', marginTop: '24px', marginBottom: '12px' }}>{renderInlineMarkdown(line.slice(2))}</h1>);
       i++;
       continue;
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
+import { ensureAdmin } from '@/lib/auth-utils';
 
 const PROFILE_DOC_ID = 'main'; // Single document for the main profile
 
@@ -56,9 +57,17 @@ export async function GET() {
 /**
  * PUT /api/profile
  * Update profile information
+ * SECURITY: Requires authentication
  */
 export async function PUT(request: NextRequest) {
   const endpoint = '/api/profile';
+
+  // SECURITY: Require admin for profile updates
+  const { user, response: authResponse } = await ensureAdmin(request);
+  if (!user) {
+    return authResponse;
+  }
+
   try {
     const body = await request.json();
     const { birthdate, location, email, languages } = body;

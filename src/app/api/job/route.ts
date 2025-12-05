@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
+import { ensureAdmin } from '@/lib/auth-utils';
 
 /**
  * GET /api/job
@@ -43,8 +44,15 @@ export async function GET(request: NextRequest) {
 /**
  * PUT /api/job
  * Update a job by company name
+ * SECURITY: Requires authentication
  */
 export async function PUT(request: NextRequest) {
+  // SECURITY: Require admin for job updates
+  const { user, response: authResponse } = await ensureAdmin(request);
+  if (!user) {
+    return authResponse;
+  }
+
   try {
     const body = await request.json();
     const { companyName, technologies } = body;

@@ -31,7 +31,9 @@ import {
   Image as ImageIcon,
   ChevronDown,
   ChevronUp,
+  Shield,
 } from 'lucide-react';
+import Link from 'next/link';
 import StudyAdminPanel from '@/components/study/StudyAdminPanel';
 import { useAppErrors } from '@/hooks/useErrors';
 import { ErrorSource, ErrorSeverity } from '@/types/errors';
@@ -812,6 +814,21 @@ const AdminPage = () => {
                 {item.label}
               </button>
             ))}
+
+            {/* Security Settings Link */}
+            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+              <Link
+                href="/admin/security"
+                style={{
+                  ...styles.navButton,
+                  ...styles.navButtonInactive,
+                  textDecoration: 'none',
+                }}
+              >
+                <Shield size={20} />
+                Security Settings
+              </Link>
+            </div>
           </nav>
         </aside>
 

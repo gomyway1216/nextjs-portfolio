@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_API_KEY,
@@ -19,4 +19,16 @@ export const signInWithEmail = (email: string, password: string) => {
 
 export const signOutUser = () => {
   return signOut(auth);
+};
+
+export const resetPassword = (email: string) => {
+  return sendPasswordResetEmail(auth, email);
+};
+
+export const sendVerificationEmail = () => {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('No user signed in');
+  }
+  return sendEmailVerification(user);
 };

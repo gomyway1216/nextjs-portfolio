@@ -933,3 +933,78 @@ export function useStudySearch() {
     clearResults,
   };
 }
+
+// ============================================================================
+// ARTICLE READ HISTORY HOOK (Admin feature)
+// ============================================================================
+
+export function useArticleReadHistory() {
+  const [readArticleIds, setReadArticleIds] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchReadHistory = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await studyService.getReadHistory();
+      setReadArticleIds(data.readArticleIds);
+    } catch (err) {
+      // Don't set error for auth failures - user might not be logged in
+      if (err instanceof Error && !err.message.includes('401')) {
+        setError(err);
+      }
+      setReadArticleIds({});
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const markAsRead = useCallback(async (articleId: string, timeSpentSeconds?: number) => {
+    try {
+      await studyService.markArticleAsReadAdmin(articleId, timeSpentSeconds);
+      setReadArticleIds((prev) => ({
+        ...prev,
+        [articleId]: new Date().toISOString(),
+      }));
+      return true;
+    } catch (err) {
+      console.error('Failed to mark article as read:', err);
+      return false;
+    }
+  }, []);
+
+  const unmarkAsRead = useCallback(async (articleId: string) => {
+    try {
+      await studyService.unmarkArticleAsRead(articleId);
+      setReadArticleIds((prev) => {
+        const updated = { ...prev };
+        delete updated[articleId];
+        return updated;
+      });
+      return true;
+    } catch (err) {
+      console.error('Failed to unmark article as read:', err);
+      return false;
+    }
+  }, []);
+
+  const isRead = useCallback(
+    (articleId: string) => articleId in readArticleIds,
+    [readArticleIds]
+  );
+
+  useEffect(() => {
+    fetchReadHistory();
+  }, [fetchReadHistory]);
+
+  return {
+    readArticleIds,
+    loading,
+    error,
+    fetchReadHistory,
+    markAsRead,
+    unmarkAsRead,
+    isRead,
+  };
+}

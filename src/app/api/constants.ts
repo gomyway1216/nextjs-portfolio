@@ -20,6 +20,7 @@ export const STUDY_CHATS_COLLECTION = 'study_chats';
 export const STUDY_PROGRESS_COLLECTION = 'study_progress';
 export const STUDY_INSIGHTS_COLLECTION = 'study_insights';
 export const STUDY_CONFIG_COLLECTION = 'study_config';
+export const STUDY_READ_HISTORY_COLLECTION = 'study_read_history';
 
 // Firebase Cloud Functions base URL (v2 uses individual URLs per function)
 // Format: https://{functionname-lowercase}-{project-hash}-uc.a.run.app

@@ -591,3 +591,21 @@ export type UpdateQuiz = Partial<CreateQuiz>;
 
 export type CreateArticleSchedule = Omit<ArticleSchedule, 'id' | 'createdAt' | 'updatedAt' | 'lastRunAt' | 'nextRunAt' | 'articlesGenerated'>;
 export type UpdateArticleSchedule = Partial<CreateArticleSchedule>;
+
+// ============================================================================
+// ARTICLE READ HISTORY
+// ============================================================================
+
+export interface ArticleReadHistory {
+  id: string;
+  articleId: string;
+  userId: string;
+  readAt: string;
+  timeSpentSeconds?: number;
+}
+
+// Extended article type with read status for admin view
+export interface StudyArticleWithReadStatus extends StudyArticle {
+  isRead?: boolean;
+  readAt?: string;
+}

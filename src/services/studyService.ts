@@ -520,3 +520,40 @@ export async function searchStudyContent(
   }>(`/api/study/search?${params}`);
   return data.results;
 }
+
+// ============================================================================
+// ARTICLE READ HISTORY (Admin feature)
+// ============================================================================
+
+export async function getReadHistory(): Promise<{
+  readHistory: Array<{ id: string; articleId: string; userId: string; readAt: string; timeSpentSeconds?: number }>;
+  readArticleIds: Record<string, string>;
+}> {
+  const data = await apiCall<{
+    success: boolean;
+    readHistory: Array<{ id: string; articleId: string; userId: string; readAt: string; timeSpentSeconds?: number }>;
+    readArticleIds: Record<string, string>;
+  }>('/api/study/articles/read-history');
+  return { readHistory: data.readHistory, readArticleIds: data.readArticleIds };
+}
+
+export async function markArticleAsReadAdmin(
+  articleId: string,
+  timeSpentSeconds?: number
+): Promise<{ id: string; message: string }> {
+  const data = await apiCall<{ success: boolean; id: string; message: string }>(
+    '/api/study/articles/read-history',
+    {
+      method: 'POST',
+      body: JSON.stringify({ articleId, timeSpentSeconds }),
+    }
+  );
+  return { id: data.id, message: data.message };
+}
+
+export async function unmarkArticleAsRead(articleId: string): Promise<void> {
+  await apiCall('/api/study/articles/read-history', {
+    method: 'DELETE',
+    body: JSON.stringify({ articleId }),
+  });
+}

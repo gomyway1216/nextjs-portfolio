@@ -9,6 +9,7 @@ import {
   useStudyCategories,
   useStudyTopics,
   useStudyQuizzes,
+  useArticleReadHistory,
 } from '@/hooks/useStudy';
 import { markArticleAsRead } from '@/services/studyService';
 import { useAuth } from '@/providers/AuthProvider';
@@ -400,7 +401,7 @@ export default function StudyArticlePage() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editNoteContent, setEditNoteContent] = useState('');
   const [isSendingChat, setIsSendingChat] = useState(false);
-  const [hasMarkedRead, setHasMarkedRead] = useState(false);
+  const [hasMarkedReadForProgress, setHasMarkedReadForProgress] = useState(false);
   const [readStartTime] = useState(Date.now());
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
@@ -413,6 +414,9 @@ export default function StudyArticlePage() {
   const { categories } = useStudyCategories();
   const { topics } = useStudyTopics();
   const { quizzes } = useStudyQuizzes({ articleId });
+
+  // Admin read history hook
+  const { isRead, markAsRead, unmarkAsRead } = useArticleReadHistory();
 
   // Get category and topic info
   const category = categories.find((c) => c.id === article?.categoryId);
@@ -432,26 +436,41 @@ export default function StudyArticlePage() {
     }
   }, [chat?.messages]);
 
-  // Mark as read when leaving page
+  // Mark as read when leaving page (for general progress tracking)
   useEffect(() => {
     return () => {
-      if (articleId && !hasMarkedRead) {
+      if (articleId && !hasMarkedReadForProgress) {
         const timeSpent = Math.round((Date.now() - readStartTime) / 1000);
         if (timeSpent > 30) {
           markArticleAsRead(articleId, timeSpent).catch(console.error);
         }
       }
     };
-  }, [articleId, hasMarkedRead, readStartTime]);
+  }, [articleId, hasMarkedReadForProgress, readStartTime]);
 
-  const handleMarkAsRead = async () => {
-    if (!articleId || hasMarkedRead) return;
+  // Handler for admin "Mark Read" button
+  const handleMarkAsReadAdmin = async () => {
+    if (!articleId || !currentUser) return;
     const timeSpent = Math.round((Date.now() - readStartTime) / 1000);
     try {
-      await markArticleAsRead(articleId, timeSpent);
-      setHasMarkedRead(true);
+      await markAsRead(articleId, timeSpent);
+      // Also mark for general progress
+      if (!hasMarkedReadForProgress) {
+        await markArticleAsRead(articleId, timeSpent);
+        setHasMarkedReadForProgress(true);
+      }
     } catch (error) {
       console.error('Failed to mark as read:', error);
+    }
+  };
+
+  // Handler for admin "Unmark Read" button
+  const handleUnmarkAsRead = async () => {
+    if (!articleId || !currentUser) return;
+    try {
+      await unmarkAsRead(articleId);
+    } catch (error) {
+      console.error('Failed to unmark as read:', error);
     }
   };
 
@@ -857,38 +876,50 @@ export default function StudyArticlePage() {
                 <Clock size={14} />
                 {article.readingTimeMinutes} min
               </div>
-              {!hasMarkedRead ? (
-                <button
-                  onClick={handleMarkAsRead}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 12px',
-                    borderRadius: '6px',
-                    backgroundColor: '#10a37f',
-                    color: '#ffffff',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontWeight: '500',
-                    fontSize: '12px',
-                  }}
-                >
-                  <Check size={14} />
-                  <span className="sm-show">Mark Read</span>
-                </button>
-              ) : (
-                <span style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  color: '#10a37f',
-                  fontSize: '12px',
-                  fontWeight: '500',
-                }}>
-                  <CheckCircle size={14} />
-                  <span className="sm-show">Read</span>
-                </span>
+              {/* Mark Read Button - Only for admin users */}
+              {currentUser && (
+                !isRead(articleId) ? (
+                  <button
+                    onClick={handleMarkAsReadAdmin}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      backgroundColor: '#10a37f',
+                      color: '#ffffff',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontWeight: '500',
+                      fontSize: '12px',
+                    }}
+                  >
+                    <Check size={14} />
+                    <span className="sm-show">Mark Read</span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleUnmarkAsRead}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '6px 12px',
+                      borderRadius: '6px',
+                      backgroundColor: '#d1fae5',
+                      color: '#065f46',
+                      border: '1px solid #a7f3d0',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                    }}
+                    title="Click to unmark as read"
+                  >
+                    <CheckCircle size={14} />
+                    <span className="sm-show">Read</span>
+                  </button>
+                )
               )}
               <button
                 onClick={() => setShowMobileSidebar(true)}

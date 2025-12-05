@@ -13,14 +13,18 @@ import {
   X,
   BarChart3,
   Flame,
+  CheckCircle,
 } from 'lucide-react';
-import { useStudyArticles, useStudyCategories, useStudyProgress } from '@/hooks/useStudy';
+import { useStudyArticles, useStudyCategories, useStudyProgress, useArticleReadHistory } from '@/hooks/useStudy';
+import { useAuth } from '@/providers/AuthProvider';
 import { QuizDifficulty } from '@/types/study';
 
 export default function StudyListPage() {
   const router = useRouter();
+  const { currentUser } = useAuth();
   const { categories, loading: categoriesLoading } = useStudyCategories();
   const { progress } = useStudyProgress();
+  const { isRead, loading: readHistoryLoading } = useArticleReadHistory();
 
   // Filters
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -501,7 +505,27 @@ export default function StudyListPage() {
                       }}
                     >
                       {/* Category & Difficulty */}
-                      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        {/* Read Icon - Only for admin users */}
+                        {currentUser && isRead(article.id) && (
+                          <span
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '4px 10px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: '500',
+                              backgroundColor: '#d1fae5',
+                              color: '#065f46',
+                            }}
+                            title="You have read this article"
+                          >
+                            <CheckCircle size={12} />
+                            Read
+                          </span>
+                        )}
                         <span style={{
                           padding: '4px 10px',
                           borderRadius: '4px',

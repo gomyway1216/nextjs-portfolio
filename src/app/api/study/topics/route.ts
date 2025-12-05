@@ -1,9 +1,12 @@
 // Study Topics API
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../constants';
+import { logApiError, logCloudFunctionError } from '../../utils/errorLogger';
+import { ErrorSeverity } from '@/types/errors';
 
 // GET /api/study/topics - Get topics with optional filters
 export async function GET(request: NextRequest) {
+  const endpoint = '/api/study/topics';
   try {
     const searchParams = request.nextUrl.searchParams;
     const url = new URL(getCloudFunctionUrl('getStudyTopics'));
@@ -17,9 +20,27 @@ export async function GET(request: NextRequest) {
 
     const response = await fetch(url.toString());
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'getStudyTopics',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details },
+        metadata: { categoryId, isActive },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error fetching topics:', error);
+    await logApiError({
+      severity: ErrorSeverity.HIGH,
+      errorType: 'StudyTopicsAPI:FetchError',
+      message: 'Failed to fetch topics',
+      details: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      endpoint,
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch topics' },
       { status: 500 }

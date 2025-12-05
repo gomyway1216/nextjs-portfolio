@@ -33,16 +33,11 @@ export default function StudyListPage() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
 
-  // Fetch articles
-  const { articles, loading, hasMore, fetchArticles, loadMore } = useStudyArticles({
+  // Fetch articles - the hook will automatically refetch when categoryId or language changes
+  const { articles, loading, hasMore, loadMore } = useStudyArticles({
     categoryId: selectedCategory || undefined,
     language: selectedLanguage || undefined,
   });
-
-  // Refetch when filters change
-  useEffect(() => {
-    fetchArticles({ categoryId: selectedCategory || undefined, language: selectedLanguage || undefined });
-  }, [selectedCategory, selectedLanguage, fetchArticles]);
 
   // Filter articles client-side for search and difficulty
   const filteredArticles = useMemo(() => {
@@ -81,7 +76,7 @@ export default function StudyListPage() {
     <div style={{
       minHeight: '100vh',
       backgroundColor: '#ffffff',
-      paddingTop: '64px',
+      paddingTop: '8px',
     }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 16px' }}>
         {/* Header */}
@@ -99,8 +94,8 @@ export default function StudyListPage() {
           </p>
         </div>
 
-        {/* Progress Overview */}
-        {progress && (
+        {/* Progress Overview - Only show when logged in */}
+        {currentUser && progress && (
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
@@ -180,7 +175,9 @@ export default function StudyListPage() {
               </div>
               <div>
                 <p style={{ fontSize: '20px', fontWeight: '600', color: '#111827' }}>
-                  {Math.round(progress.totalTimeSpentMinutes / 60)}h
+                  {progress.totalTimeSpentMinutes < 60
+                    ? `${progress.totalTimeSpentMinutes}m`
+                    : `${Math.round(progress.totalTimeSpentMinutes / 60)}h`}
                 </p>
                 <p style={{ color: '#6b7280', fontSize: '12px' }}>Time Spent</p>
               </div>

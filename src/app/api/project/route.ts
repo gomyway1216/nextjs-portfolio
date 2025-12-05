@@ -2,12 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureValidUser } from '@/lib/auth-utils';
 import { PROJECTS_COLLECTION } from '@/app/api/constants';
+import { logApiError } from '../utils/errorLogger';
+import { ErrorSeverity } from '@/types/errors';
 
 /**
  * GET /api/projects
  * Get all projects
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
+  const endpoint = '/api/project';
   try {
     const db = getFirestore();
     const snapshot = await db.collection(PROJECTS_COLLECTION).get();
@@ -32,6 +35,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ projects });
   } catch (error) {
     console.error('Error fetching projects:', error);
+    await logApiError({
+      severity: ErrorSeverity.HIGH,
+      errorType: 'ProjectsAPI:FetchError',
+      message: 'Failed to fetch projects',
+      details: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      endpoint,
+    });
     return NextResponse.json(
       { error: 'Failed to fetch projects' },
       { status: 500 }
@@ -93,6 +104,14 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('Error creating project:', error);
+    await logApiError({
+      severity: ErrorSeverity.HIGH,
+      errorType: 'ProjectsAPI:CreateError',
+      message: 'Failed to create project',
+      details: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      endpoint: '/api/project',
+    });
     return NextResponse.json(
       { error: 'Failed to create project' },
       { status: 500 }

@@ -1,15 +1,35 @@
 // Study Categories API
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../constants';
+import { logApiError, logCloudFunctionError } from '../../utils/errorLogger';
+import { ErrorSeverity } from '@/types/errors';
 
 // GET /api/study/categories - Get all categories
 export async function GET() {
+  const endpoint = '/api/study/categories';
   try {
     const response = await fetch(getCloudFunctionUrl('getStudyCategories'));
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'getStudyCategories',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error fetching categories:', error);
+    await logApiError({
+      severity: ErrorSeverity.HIGH,
+      errorType: 'StudyCategoriesAPI:FetchError',
+      message: 'Failed to fetch categories',
+      details: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      endpoint,
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch categories' },
       { status: 500 }

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
-import { ensureValidUser, getOptionalUser } from '@/lib/auth-utils';
+import { ensureValidUser } from '@/lib/auth-utils';
 import { POSTS_COLLECTION } from '@/app/api/constants';
+import { logApiError } from '../utils/errorLogger';
+import { ErrorSeverity } from '@/types/errors';
 
 /**
  * GET /api/posts
@@ -101,6 +103,14 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error fetching posts:', error);
+    await logApiError({
+      severity: ErrorSeverity.HIGH,
+      errorType: 'PostsAPI:FetchError',
+      message: 'Failed to fetch posts',
+      details: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      endpoint: '/api/post',
+    });
     return NextResponse.json(
       { error: 'Failed to fetch posts' },
       { status: 500 }
@@ -149,6 +159,14 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('Error creating post:', error);
+    await logApiError({
+      severity: ErrorSeverity.HIGH,
+      errorType: 'PostsAPI:CreateError',
+      message: 'Failed to create post',
+      details: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      endpoint: '/api/post',
+    });
     return NextResponse.json(
       { error: 'Failed to create post' },
       { status: 500 }

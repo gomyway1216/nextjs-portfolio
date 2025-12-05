@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
+import { logApiError } from '../utils/errorLogger';
+import { ErrorSeverity } from '@/types/errors';
 
 const PROFILE_DOC_ID = 'main'; // Single document for the main profile
 
@@ -7,7 +9,8 @@ const PROFILE_DOC_ID = 'main'; // Single document for the main profile
  * GET /api/profile
  * Get profile information
  */
-export async function GET(request: NextRequest) {
+export async function GET() {
+  const endpoint = '/api/profile';
   try {
     const db = getFirestore();
     console.log('[API /profile] Fetching profile...');
@@ -32,9 +35,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ profile });
   } catch (error) {
     console.error('[API /profile] Error fetching profile:', error);
-    console.error('[API /profile] Error details:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
+    await logApiError({
+      severity: ErrorSeverity.HIGH,
+      errorType: 'ProfileAPI:FetchError',
+      message: 'Failed to fetch profile',
+      details: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
+      endpoint,
     });
     return NextResponse.json(
       {
@@ -51,6 +58,7 @@ export async function GET(request: NextRequest) {
  * Update profile information
  */
 export async function PUT(request: NextRequest) {
+  const endpoint = '/api/profile';
   try {
     const body = await request.json();
     const { birthdate, location, email, languages } = body;
@@ -58,7 +66,7 @@ export async function PUT(request: NextRequest) {
     const db = getFirestore();
     const docRef = db.collection('profile').doc(PROFILE_DOC_ID);
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (birthdate !== undefined) updateData.birthdate = birthdate;
     if (location !== undefined) updateData.location = location;
     if (email !== undefined) updateData.email = email;
@@ -73,6 +81,14 @@ export async function PUT(request: NextRequest) {
     });
   } catch (error) {
     console.error('[API /profile] Error updating profile:', error);
+    await logApiError({
+      severity: ErrorSeverity.HIGH,
+      errorType: 'ProfileAPI:UpdateError',
+      message: 'Failed to update profile',
+      details: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      endpoint,
+    });
     return NextResponse.json(
       {
         error: 'Failed to update profile',

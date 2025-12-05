@@ -1,9 +1,12 @@
 // Study Articles API
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../constants';
+import { logCloudFunctionError, logApiError } from '../../utils/errorLogger';
+import { ErrorSeverity } from '@/types/errors';
 
 // GET /api/study/articles - Get articles with filters
 export async function GET(request: NextRequest) {
+  const endpoint = '/api/study/articles';
   try {
     const searchParams = request.nextUrl.searchParams;
     const url = new URL(getCloudFunctionUrl('getStudyArticles'));
@@ -27,6 +30,22 @@ export async function GET(request: NextRequest) {
         error: data.error,
         details: data.details || data.message,
       });
+
+      // Log to error tracking system
+      await logCloudFunctionError({
+        functionName: 'getStudyArticles',
+        endpoint,
+        response: {
+          status: response.status,
+          error: data.error,
+          details: data.details || data.message,
+        },
+        metadata: {
+          categoryId: searchParams.get('categoryId'),
+          topicId: searchParams.get('topicId'),
+          language: searchParams.get('language'),
+        },
+      });
     } else {
       console.log('[Study API] Fetched', data.articles?.length || 0, 'articles');
     }
@@ -34,6 +53,17 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('[Study API] Error fetching articles:', error);
+
+    // Log to error tracking system
+    await logApiError({
+      severity: ErrorSeverity.HIGH,
+      errorType: 'StudyArticlesAPI:FetchError',
+      message: 'Failed to fetch articles',
+      details: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      endpoint,
+    });
+
     return NextResponse.json(
       { success: false, error: 'Failed to fetch articles' },
       { status: 500 }

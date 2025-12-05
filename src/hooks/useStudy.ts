@@ -237,7 +237,7 @@ export function useStudyArticles(initialOptions?: {
         setLoading(true);
         setError(null);
         const data = await studyService.getArticles({
-          categoryId: options.categoryId || initialOptions?.categoryId,
+          categoryId: options.categoryId ?? initialOptions?.categoryId,
           topicId: options.topicId || initialOptions?.topicId,
           status: options.status || initialOptions?.status,
           language: options.language || initialOptions?.language,

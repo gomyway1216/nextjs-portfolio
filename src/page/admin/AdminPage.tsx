@@ -337,6 +337,8 @@ const AdminPage = () => {
     severity: string;
   }>({ resolved: 'unresolved', source: '', severity: '' });
   const [expandedErrorId, setExpandedErrorId] = useState<string | null>(null);
+  const [processingErrorId, setProcessingErrorId] = useState<string | null>(null);
+  const [processingErrorAction, setProcessingErrorAction] = useState<'resolve' | 'unresolve' | 'delete' | null>(null);
 
   // Modal states
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -1351,9 +1353,9 @@ const AdminPage = () => {
                     <div key={error.id} style={styles.card}>
                       <div style={{ padding: '20px 24px' }}>
                         {/* Error Header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px', gap: '16px' }}>
+                          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
                               <span style={{
                                 ...styles.badge,
                                 backgroundColor: error.severity === 'critical' ? 'rgba(239, 68, 68, 0.2)' :
@@ -1365,6 +1367,7 @@ const AdminPage = () => {
                                 border: `1px solid ${error.severity === 'critical' ? 'rgba(239, 68, 68, 0.3)' :
                                   error.severity === 'high' ? 'rgba(249, 115, 22, 0.3)' :
                                     error.severity === 'medium' ? 'rgba(234, 179, 8, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+                                flexShrink: 0,
                               }}>
                                 {error.severity.toUpperCase()}
                               </span>
@@ -1373,6 +1376,7 @@ const AdminPage = () => {
                                 backgroundColor: 'rgba(168, 85, 247, 0.2)',
                                 color: '#c084fc',
                                 border: '1px solid rgba(168, 85, 247, 0.3)',
+                                flexShrink: 0,
                               }}>
                                 {error.source.replace('_', ' ')}
                               </span>
@@ -1381,6 +1385,8 @@ const AdminPage = () => {
                                 backgroundColor: 'transparent',
                                 color: '#94a3b8',
                                 border: '1px solid rgba(255, 255, 255, 0.2)',
+                                wordBreak: 'break-all' as const,
+                                maxWidth: '100%',
                               }}>
                                 {error.errorType}
                               </span>
@@ -1390,18 +1396,23 @@ const AdminPage = () => {
                                   backgroundColor: 'rgba(16, 185, 129, 0.2)',
                                   color: '#34d399',
                                   border: '1px solid rgba(16, 185, 129, 0.3)',
+                                  flexShrink: 0,
                                 }}>
                                   <CheckCircle size={12} /> Resolved
                                 </span>
                               )}
                             </div>
-                            <p style={{ color: '#ffffff', fontSize: '16px', fontWeight: '500', marginBottom: '4px' }}>
+                            <p style={{ color: '#ffffff', fontSize: '16px', fontWeight: '500', marginBottom: '4px', wordBreak: 'break-word' as const, overflowWrap: 'break-word' as const }}>
                               {error.message}
                             </p>
-                            <p style={{ color: '#64748b', fontSize: '13px' }}>
+                            <p style={{ color: '#64748b', fontSize: '13px', wordBreak: 'break-word' as const, overflowWrap: 'break-word' as const }}>
                               Occurrences: {error.occurrenceCount} | Last: {new Date(error.lastOccurredAt).toLocaleString()}
-                              {error.functionName && ` | Function: ${error.functionName}`}
-                              {error.endpoint && ` | Endpoint: ${error.endpoint}`}
+                              {error.functionName && (
+                                <><br />Function: {error.functionName}</>
+                              )}
+                              {error.endpoint && (
+                                <><br />Endpoint: {error.endpoint}</>
+                              )}
                             </p>
                           </div>
                           <div style={{ display: 'flex', gap: '8px' }}>
@@ -1413,35 +1424,77 @@ const AdminPage = () => {
                             </button>
                             {error.resolved ? (
                               <button
-                                onClick={() => unresolveError(error.id)}
-                                style={{ ...styles.button, ...styles.outlineButton, padding: '8px 12px' }}
+                                onClick={async () => {
+                                  setProcessingErrorId(error.id);
+                                  setProcessingErrorAction('unresolve');
+                                  try {
+                                    await unresolveError(error.id);
+                                  } finally {
+                                    setProcessingErrorId(null);
+                                    setProcessingErrorAction(null);
+                                  }
+                                }}
+                                disabled={processingErrorId === error.id}
+                                style={{ ...styles.button, ...styles.outlineButton, padding: '8px 12px', opacity: processingErrorId === error.id ? 0.7 : 1 }}
                               >
+                                {processingErrorId === error.id && processingErrorAction === 'unresolve' ? (
+                                  <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                ) : null}
                                 Unresolve
                               </button>
                             ) : (
                               <button
-                                onClick={() => resolveError(error.id)}
-                                style={{ ...styles.button, backgroundColor: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', padding: '8px 12px' }}
+                                onClick={async () => {
+                                  setProcessingErrorId(error.id);
+                                  setProcessingErrorAction('resolve');
+                                  try {
+                                    await resolveError(error.id);
+                                  } finally {
+                                    setProcessingErrorId(null);
+                                    setProcessingErrorAction(null);
+                                  }
+                                }}
+                                disabled={processingErrorId === error.id}
+                                style={{ ...styles.button, backgroundColor: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', padding: '8px 12px', opacity: processingErrorId === error.id ? 0.7 : 1 }}
                               >
-                                <CheckCircle size={14} /> Resolve
+                                {processingErrorId === error.id && processingErrorAction === 'resolve' ? (
+                                  <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                ) : (
+                                  <CheckCircle size={14} />
+                                )}
+                                Resolve
                               </button>
                             )}
                             <button
-                              onClick={() => deleteError(error.id)}
-                              style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
+                              onClick={async () => {
+                                setProcessingErrorId(error.id);
+                                setProcessingErrorAction('delete');
+                                try {
+                                  await deleteError(error.id);
+                                } finally {
+                                  setProcessingErrorId(null);
+                                  setProcessingErrorAction(null);
+                                }
+                              }}
+                              disabled={processingErrorId === error.id}
+                              style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171', opacity: processingErrorId === error.id ? 0.7 : 1 }}
                             >
-                              <Trash2 size={16} />
+                              {processingErrorId === error.id && processingErrorAction === 'delete' ? (
+                                <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                              ) : (
+                                <Trash2 size={16} />
+                              )}
                             </button>
                           </div>
                         </div>
 
                         {/* Expanded Details */}
                         {expandedErrorId === error.id && (
-                          <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'rgba(15, 23, 42, 0.5)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
+                          <div style={{ marginTop: '16px', padding: '16px', backgroundColor: 'rgba(15, 23, 42, 0.5)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.1)', overflow: 'hidden' }}>
                             {error.details && (
                               <div style={{ marginBottom: '12px' }}>
                                 <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>Details</p>
-                                <p style={{ color: '#cbd5e1', fontSize: '14px', whiteSpace: 'pre-wrap' }}>{error.details}</p>
+                                <p style={{ color: '#cbd5e1', fontSize: '14px', whiteSpace: 'pre-wrap', wordBreak: 'break-word' as const, overflowWrap: 'break-word' as const }}>{error.details}</p>
                               </div>
                             )}
                             {error.stack && (
@@ -1455,6 +1508,8 @@ const AdminPage = () => {
                                   borderRadius: '8px',
                                   overflow: 'auto',
                                   maxHeight: '200px',
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word' as const,
                                 }}>
                                   {error.stack}
                                 </pre>
@@ -1463,7 +1518,7 @@ const AdminPage = () => {
                             {error.userId && (
                               <div style={{ marginBottom: '12px' }}>
                                 <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '4px' }}>User ID</p>
-                                <p style={{ color: '#cbd5e1', fontSize: '14px' }}>{error.userId}</p>
+                                <p style={{ color: '#cbd5e1', fontSize: '14px', wordBreak: 'break-all' as const }}>{error.userId}</p>
                               </div>
                             )}
                             {error.metadata && Object.keys(error.metadata).length > 0 && (
@@ -1476,6 +1531,8 @@ const AdminPage = () => {
                                   padding: '12px',
                                   borderRadius: '8px',
                                   overflow: 'auto',
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word' as const,
                                 }}>
                                   {JSON.stringify(error.metadata, null, 2)}
                                 </pre>

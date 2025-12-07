@@ -14,6 +14,9 @@ import {
   BarChart3,
   Flame,
   CheckCircle,
+  GraduationCap,
+  Brain,
+  BookMarked,
 } from 'lucide-react';
 import { useStudyArticles, useStudyCategories, useStudyProgress, useArticleReadHistory } from '@/hooks/useStudy';
 import { useAuth } from '@/providers/AuthProvider';
@@ -207,6 +210,102 @@ export default function StudyListPage() {
                 </p>
                 <p style={{ color: '#6b7280', fontSize: '12px' }}>Day Streak</p>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Learning Hub Quick Access */}
+        {currentUser && (
+          <div style={{
+            background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
+            borderRadius: '16px',
+            padding: '20px',
+            marginBottom: '24px',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '16px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <div style={{
+                width: '48px',
+                height: '48px',
+                borderRadius: '12px',
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <GraduationCap size={24} color="#ffffff" />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '4px' }}>
+                  Learning Hub
+                </h3>
+                <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
+                  Track learning from books, videos, work & more
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+              <Link
+                href="/study/learning/review"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  color: '#ffffff',
+                  textDecoration: 'none',
+                  fontWeight: '500',
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s',
+                }}
+              >
+                <Brain size={16} />
+                Review
+              </Link>
+              <Link
+                href="/study/learning/dictionary"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  color: '#ffffff',
+                  textDecoration: 'none',
+                  fontWeight: '500',
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s',
+                }}
+              >
+                <BookMarked size={16} />
+                Dictionary
+              </Link>
+              <Link
+                href="/study/learning"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  backgroundColor: '#ffffff',
+                  color: '#7c3aed',
+                  textDecoration: 'none',
+                  fontWeight: '500',
+                  fontSize: '14px',
+                  transition: 'background-color 0.2s',
+                }}
+              >
+                Open Hub
+                <ChevronRight size={16} />
+              </Link>
             </div>
           </div>
         )}

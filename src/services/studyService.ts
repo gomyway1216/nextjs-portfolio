@@ -17,6 +17,15 @@ import {
   QuizDifficulty,
   TopicSuggestionType,
   QuizAnswer,
+  LearningEntry,
+  DictionaryTerm,
+  Flashcard,
+  FlashcardDeck,
+  LearningStats,
+  QuickCapture,
+  LearningSourceType,
+  FlashcardDifficulty,
+  CreateLearningEntryRequest,
 } from '@/types/study';
 
 // Helper to get auth headers
@@ -556,4 +565,354 @@ export async function unmarkArticleAsRead(articleId: string): Promise<void> {
     method: 'DELETE',
     body: JSON.stringify({ articleId }),
   });
+}
+
+// ============================================================================
+// LEARNING ENTRIES
+// ============================================================================
+
+export async function getLearningEntries(params?: {
+  categoryId?: string;
+  sourceType?: LearningSourceType;
+  tags?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<LearningEntry[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.categoryId) searchParams.set('categoryId', params.categoryId);
+  if (params?.sourceType) searchParams.set('sourceType', params.sourceType);
+  if (params?.tags) searchParams.set('tags', params.tags);
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.limit) searchParams.set('limit', params.limit.toString());
+  if (params?.offset) searchParams.set('offset', params.offset.toString());
+
+  const queryString = searchParams.toString();
+  const url = `/api/study/learning/entries${queryString ? `?${queryString}` : ''}`;
+
+  const data = await apiCall<{ success: boolean; entries: LearningEntry[] }>(url);
+  return data.entries;
+}
+
+export async function getLearningEntry(entryId: string): Promise<LearningEntry> {
+  const data = await apiCall<{ success: boolean; entry: LearningEntry }>(
+    `/api/study/learning/entries/${entryId}`
+  );
+  return data.entry;
+}
+
+export async function createLearningEntry(
+  entry: CreateLearningEntryRequest
+): Promise<LearningEntry> {
+  const data = await apiCall<{ success: boolean; entry: LearningEntry }>(
+    '/api/study/learning/entries',
+    {
+      method: 'POST',
+      body: JSON.stringify(entry),
+    }
+  );
+  return data.entry;
+}
+
+export async function updateLearningEntry(
+  entryId: string,
+  updates: Partial<LearningEntry>
+): Promise<void> {
+  await apiCall(`/api/study/learning/entries?entryId=${entryId}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteLearningEntry(entryId: string): Promise<void> {
+  await apiCall(`/api/study/learning/entries?entryId=${entryId}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============================================================================
+// DICTIONARY
+// ============================================================================
+
+export async function getDictionaryTerms(params?: {
+  category?: string;
+  search?: string;
+  limit?: number;
+}): Promise<DictionaryTerm[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.category) searchParams.set('category', params.category);
+  if (params?.search) searchParams.set('search', params.search);
+  if (params?.limit) searchParams.set('limit', params.limit.toString());
+
+  const queryString = searchParams.toString();
+  const url = `/api/study/learning/dictionary${queryString ? `?${queryString}` : ''}`;
+
+  const data = await apiCall<{ success: boolean; terms: DictionaryTerm[] }>(url);
+  return data.terms;
+}
+
+export async function createDictionaryTerm(
+  term: Omit<DictionaryTerm, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'reviewCount' | 'lastReviewedAt'>
+): Promise<DictionaryTerm> {
+  const data = await apiCall<{ success: boolean; term: DictionaryTerm }>(
+    '/api/study/learning/dictionary',
+    {
+      method: 'POST',
+      body: JSON.stringify(term),
+    }
+  );
+  return data.term;
+}
+
+export async function updateDictionaryTerm(
+  termId: string,
+  updates: Partial<DictionaryTerm>
+): Promise<void> {
+  await apiCall(`/api/study/learning/dictionary?termId=${termId}`, {
+    method: 'PUT',
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteDictionaryTerm(termId: string): Promise<void> {
+  await apiCall(`/api/study/learning/dictionary?termId=${termId}`, {
+    method: 'DELETE',
+  });
+}
+
+// ============================================================================
+// FLASHCARDS
+// ============================================================================
+
+export async function getFlashcards(params?: {
+  deckId?: string;
+  categoryId?: string;
+  dueOnly?: boolean;
+  limit?: number;
+}): Promise<Flashcard[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.deckId) searchParams.set('deckId', params.deckId);
+  if (params?.categoryId) searchParams.set('categoryId', params.categoryId);
+  if (params?.dueOnly) searchParams.set('dueOnly', 'true');
+  if (params?.limit) searchParams.set('limit', params.limit.toString());
+
+  const queryString = searchParams.toString();
+  const url = `/api/study/learning/flashcards${queryString ? `?${queryString}` : ''}`;
+
+  const data = await apiCall<{ success: boolean; flashcards: Flashcard[] }>(url);
+  return data.flashcards;
+}
+
+export async function createFlashcard(
+  flashcard: Omit<Flashcard, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'reviewHistory' | 'lastReviewedAt'>
+): Promise<Flashcard> {
+  const data = await apiCall<{ success: boolean; flashcard: Flashcard }>(
+    '/api/study/learning/flashcards',
+    {
+      method: 'POST',
+      body: JSON.stringify(flashcard),
+    }
+  );
+  return data.flashcard;
+}
+
+export async function deleteFlashcard(flashcardId: string): Promise<void> {
+  await apiCall(`/api/study/learning/flashcards?flashcardId=${flashcardId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getFlashcardDecks(): Promise<FlashcardDeck[]> {
+  const data = await apiCall<{ success: boolean; decks: FlashcardDeck[] }>(
+    '/api/study/learning/flashcards/decks'
+  );
+  return data.decks;
+}
+
+export async function createFlashcardDeck(
+  deck: Omit<FlashcardDeck, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'cardsDue' | 'cardsNew'>
+): Promise<FlashcardDeck> {
+  const data = await apiCall<{ success: boolean; deck: FlashcardDeck }>(
+    '/api/study/learning/flashcards/decks',
+    {
+      method: 'POST',
+      body: JSON.stringify(deck),
+    }
+  );
+  return data.deck;
+}
+
+// ============================================================================
+// SPACED REPETITION REVIEW
+// ============================================================================
+
+export async function getDueReviewItems(params?: {
+  itemType?: 'flashcard' | 'dictionary' | 'mixed';
+  deckId?: string;
+  categoryId?: string;
+  limit?: number;
+}): Promise<{
+  flashcards: Flashcard[];
+  dictionaryTerms: DictionaryTerm[];
+  totalDue: number;
+}> {
+  const searchParams = new URLSearchParams();
+  if (params?.itemType) searchParams.set('itemType', params.itemType);
+  if (params?.deckId) searchParams.set('deckId', params.deckId);
+  if (params?.categoryId) searchParams.set('categoryId', params.categoryId);
+  if (params?.limit) searchParams.set('limit', params.limit.toString());
+
+  const queryString = searchParams.toString();
+  const url = `/api/study/learning/review${queryString ? `?${queryString}` : ''}`;
+
+  const data = await apiCall<{
+    success: boolean;
+    flashcards: Flashcard[];
+    dictionaryTerms: DictionaryTerm[];
+    totalDue: number;
+  }>(url);
+
+  return {
+    flashcards: data.flashcards,
+    dictionaryTerms: data.dictionaryTerms,
+    totalDue: data.totalDue,
+  };
+}
+
+export async function submitReview(params: {
+  itemId: string;
+  itemType: 'flashcard' | 'dictionary_term';
+  difficulty: FlashcardDifficulty;
+  timeTaken: number;
+}): Promise<{
+  nextReviewDate: string;
+  easeFactor: number;
+  interval: number;
+}> {
+  const data = await apiCall<{
+    success: boolean;
+    nextReviewDate: string;
+    easeFactor: number;
+    interval: number;
+  }>('/api/study/learning/review', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+
+  return {
+    nextReviewDate: data.nextReviewDate,
+    easeFactor: data.easeFactor,
+    interval: data.interval,
+  };
+}
+
+// ============================================================================
+// LEARNING STATS
+// ============================================================================
+
+export async function getLearningStats(): Promise<LearningStats> {
+  const data = await apiCall<{ success: boolean; stats: LearningStats }>(
+    '/api/study/learning/stats'
+  );
+  return data.stats;
+}
+
+// ============================================================================
+// QUICK CAPTURE
+// ============================================================================
+
+export async function getQuickCaptures(status?: 'pending' | 'processed' | 'archived'): Promise<QuickCapture[]> {
+  const url = status
+    ? `/api/study/learning/quick-capture?status=${status}`
+    : '/api/study/learning/quick-capture';
+
+  const data = await apiCall<{ success: boolean; captures: QuickCapture[] }>(url);
+  return data.captures;
+}
+
+export async function createQuickCapture(capture: {
+  content: string;
+  sourceType?: LearningSourceType;
+  sourceUrl?: string;
+  tags?: string[];
+}): Promise<QuickCapture> {
+  const data = await apiCall<{ success: boolean; capture: QuickCapture }>(
+    '/api/study/learning/quick-capture',
+    {
+      method: 'POST',
+      body: JSON.stringify(capture),
+    }
+  );
+  return data.capture;
+}
+
+// ============================================================================
+// AI GENERATION
+// ============================================================================
+
+export async function generateFlashcardsFromContent(params: {
+  entryId?: string;
+  content?: string;
+  count?: number;
+  difficulty?: QuizDifficulty;
+}): Promise<Omit<Flashcard, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'reviewHistory' | 'lastReviewedAt'>[]> {
+  const data = await apiCall<{
+    success: boolean;
+    flashcards: Omit<Flashcard, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'reviewHistory' | 'lastReviewedAt'>[];
+  }>('/api/study/learning/ai', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'flashcards', ...params }),
+  });
+  return data.flashcards;
+}
+
+export async function extractTermsFromContent(params: {
+  entryId?: string;
+  content?: string;
+  existingTerms?: string[];
+}): Promise<Omit<DictionaryTerm, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'reviewCount' | 'lastReviewedAt'>[]> {
+  const data = await apiCall<{
+    success: boolean;
+    terms: Omit<DictionaryTerm, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'reviewCount' | 'lastReviewedAt'>[];
+  }>('/api/study/learning/ai', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'terms', ...params }),
+  });
+  return data.terms;
+}
+
+export async function generateSummaryFromContent(params: {
+  entryId?: string;
+  content?: string;
+  maxLength?: number;
+}): Promise<{ summary: string; keyPoints: string[]; mainConcepts: string[] }> {
+  const data = await apiCall<{
+    success: boolean;
+    summary: string;
+    keyPoints: string[];
+    mainConcepts: string[];
+  }>('/api/study/learning/ai', {
+    method: 'POST',
+    body: JSON.stringify({ action: 'summary', ...params }),
+  });
+  return {
+    summary: data.summary,
+    keyPoints: data.keyPoints,
+    mainConcepts: data.mainConcepts,
+  };
+}
+
+export async function generateQuizFromLearningEntries(params: {
+  entryIds: string[];
+  questionCount?: number;
+  difficulty?: QuizDifficulty;
+}): Promise<unknown[]> {
+  const data = await apiCall<{ success: boolean; questions: unknown[] }>(
+    '/api/study/learning/ai',
+    {
+      method: 'POST',
+      body: JSON.stringify({ action: 'quiz', ...params }),
+    }
+  );
+  return data.questions;
 }

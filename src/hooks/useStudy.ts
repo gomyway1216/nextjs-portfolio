@@ -18,6 +18,15 @@ import {
   QuizDifficulty,
   TopicSuggestionType,
   QuizAnswer,
+  LearningEntry,
+  DictionaryTerm,
+  Flashcard,
+  FlashcardDeck,
+  LearningStats,
+  QuickCapture,
+  LearningSourceType,
+  FlashcardDifficulty,
+  CreateLearningEntryRequest,
 } from '@/types/study';
 
 // ============================================================================
@@ -1006,5 +1015,513 @@ export function useArticleReadHistory() {
     markAsRead,
     unmarkAsRead,
     isRead,
+  };
+}
+
+// ============================================================================
+// LEARNING ENTRIES HOOK
+// ============================================================================
+
+export function useLearningEntries(initialParams?: {
+  categoryId?: string;
+  sourceType?: LearningSourceType;
+  tags?: string;
+  search?: string;
+}) {
+  const [entries, setEntries] = useState<LearningEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchEntries = useCallback(
+    async (params?: {
+      categoryId?: string;
+      sourceType?: LearningSourceType;
+      tags?: string;
+      search?: string;
+      limit?: number;
+      offset?: number;
+    }) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await studyService.getLearningEntries(params || initialParams);
+        setEntries(data);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch entries'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [initialParams]
+  );
+
+  const createEntry = useCallback(
+    async (entry: CreateLearningEntryRequest) => {
+      const newEntry = await studyService.createLearningEntry(entry);
+      setEntries((prev) => [newEntry, ...prev]);
+      return newEntry;
+    },
+    []
+  );
+
+  const updateEntry = useCallback(
+    async (entryId: string, updates: Partial<LearningEntry>) => {
+      await studyService.updateLearningEntry(entryId, updates);
+      setEntries((prev) =>
+        prev.map((e) => (e.id === entryId ? { ...e, ...updates } : e))
+      );
+    },
+    []
+  );
+
+  const deleteEntry = useCallback(async (entryId: string) => {
+    await studyService.deleteLearningEntry(entryId);
+    setEntries((prev) => prev.filter((e) => e.id !== entryId));
+  }, []);
+
+  useEffect(() => {
+    fetchEntries();
+  }, [fetchEntries]);
+
+  return {
+    entries,
+    loading,
+    error,
+    fetchEntries,
+    createEntry,
+    updateEntry,
+    deleteEntry,
+  };
+}
+
+// ============================================================================
+// DICTIONARY HOOK
+// ============================================================================
+
+export function useDictionary(initialParams?: {
+  category?: string;
+  search?: string;
+}) {
+  const [terms, setTerms] = useState<DictionaryTerm[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchTerms = useCallback(
+    async (params?: { category?: string; search?: string; limit?: number }) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await studyService.getDictionaryTerms(params || initialParams);
+        setTerms(data);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch terms'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [initialParams]
+  );
+
+  const createTerm = useCallback(
+    async (
+      term: Omit<DictionaryTerm, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'reviewCount' | 'lastReviewedAt'>
+    ) => {
+      const newTerm = await studyService.createDictionaryTerm(term);
+      setTerms((prev) => [...prev, newTerm].sort((a, b) => a.term.localeCompare(b.term)));
+      return newTerm;
+    },
+    []
+  );
+
+  const updateTerm = useCallback(
+    async (termId: string, updates: Partial<DictionaryTerm>) => {
+      await studyService.updateDictionaryTerm(termId, updates);
+      setTerms((prev) =>
+        prev.map((t) => (t.id === termId ? { ...t, ...updates } : t))
+      );
+    },
+    []
+  );
+
+  const deleteTerm = useCallback(async (termId: string) => {
+    await studyService.deleteDictionaryTerm(termId);
+    setTerms((prev) => prev.filter((t) => t.id !== termId));
+  }, []);
+
+  useEffect(() => {
+    fetchTerms();
+  }, [fetchTerms]);
+
+  return {
+    terms,
+    loading,
+    error,
+    fetchTerms,
+    createTerm,
+    updateTerm,
+    deleteTerm,
+  };
+}
+
+// ============================================================================
+// FLASHCARDS HOOK
+// ============================================================================
+
+export function useFlashcards(params?: {
+  deckId?: string;
+  categoryId?: string;
+  dueOnly?: boolean;
+}) {
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [decks, setDecks] = useState<FlashcardDeck[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchFlashcards = useCallback(
+    async (fetchParams?: {
+      deckId?: string;
+      categoryId?: string;
+      dueOnly?: boolean;
+      limit?: number;
+    }) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await studyService.getFlashcards(fetchParams || params);
+        setFlashcards(data);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch flashcards'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [params]
+  );
+
+  const fetchDecks = useCallback(async () => {
+    try {
+      const data = await studyService.getFlashcardDecks();
+      setDecks(data);
+    } catch (err) {
+      console.error('Failed to fetch decks:', err);
+    }
+  }, []);
+
+  const createFlashcard = useCallback(
+    async (
+      flashcard: Omit<Flashcard, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'reviewHistory' | 'lastReviewedAt'>
+    ) => {
+      const newFlashcard = await studyService.createFlashcard(flashcard);
+      setFlashcards((prev) => [...prev, newFlashcard]);
+      return newFlashcard;
+    },
+    []
+  );
+
+  const deleteFlashcard = useCallback(async (flashcardId: string) => {
+    await studyService.deleteFlashcard(flashcardId);
+    setFlashcards((prev) => prev.filter((f) => f.id !== flashcardId));
+  }, []);
+
+  const createDeck = useCallback(
+    async (
+      deck: Omit<FlashcardDeck, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'cardsDue' | 'cardsNew'>
+    ) => {
+      const newDeck = await studyService.createFlashcardDeck(deck);
+      setDecks((prev) => [...prev, newDeck]);
+      return newDeck;
+    },
+    []
+  );
+
+  useEffect(() => {
+    fetchFlashcards();
+    fetchDecks();
+  }, [fetchFlashcards, fetchDecks]);
+
+  return {
+    flashcards,
+    decks,
+    loading,
+    error,
+    fetchFlashcards,
+    fetchDecks,
+    createFlashcard,
+    deleteFlashcard,
+    createDeck,
+  };
+}
+
+// ============================================================================
+// SPACED REPETITION REVIEW HOOK
+// ============================================================================
+
+export function useSpacedRepetition(params?: {
+  itemType?: 'flashcard' | 'dictionary' | 'mixed';
+  deckId?: string;
+  categoryId?: string;
+}) {
+  const [dueFlashcards, setDueFlashcards] = useState<Flashcard[]>([]);
+  const [dueTerms, setDueTerms] = useState<DictionaryTerm[]>([]);
+  const [totalDue, setTotalDue] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+
+  const fetchDueItems = useCallback(
+    async (fetchParams?: {
+      itemType?: 'flashcard' | 'dictionary' | 'mixed';
+      deckId?: string;
+      categoryId?: string;
+      limit?: number;
+    }) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await studyService.getDueReviewItems(fetchParams || params);
+        setDueFlashcards(data.flashcards);
+        setDueTerms(data.dictionaryTerms);
+        setTotalDue(data.totalDue);
+        setCurrentIndex(0);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch due items'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [params]
+  );
+
+  const submitReview = useCallback(
+    async (
+      itemId: string,
+      itemType: 'flashcard' | 'dictionary_term',
+      difficulty: FlashcardDifficulty,
+      timeTaken: number
+    ) => {
+      setReviewing(true);
+      try {
+        const result = await studyService.submitReview({
+          itemId,
+          itemType,
+          difficulty,
+          timeTaken,
+        });
+
+        // Move to next item
+        setCurrentIndex((prev) => prev + 1);
+
+        return result;
+      } finally {
+        setReviewing(false);
+      }
+    },
+    []
+  );
+
+  const getCurrentItem = useCallback(() => {
+    const allItems = [
+      ...dueFlashcards.map((f) => ({ ...f, type: 'flashcard' as const })),
+      ...dueTerms.map((t) => ({ ...t, type: 'dictionary_term' as const })),
+    ];
+    return allItems[currentIndex] || null;
+  }, [dueFlashcards, dueTerms, currentIndex]);
+
+  const isComplete = currentIndex >= dueFlashcards.length + dueTerms.length;
+
+  useEffect(() => {
+    fetchDueItems();
+  }, [fetchDueItems]);
+
+  return {
+    dueFlashcards,
+    dueTerms,
+    totalDue,
+    currentIndex,
+    loading,
+    error,
+    reviewing,
+    isComplete,
+    fetchDueItems,
+    submitReview,
+    getCurrentItem,
+  };
+}
+
+// ============================================================================
+// LEARNING STATS HOOK
+// ============================================================================
+
+export function useLearningStats() {
+  const [stats, setStats] = useState<LearningStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchStats = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await studyService.getLearningStats();
+      setStats(data);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch learning stats'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  return {
+    stats,
+    loading,
+    error,
+    fetchStats,
+  };
+}
+
+// ============================================================================
+// QUICK CAPTURE HOOK
+// ============================================================================
+
+export function useQuickCapture() {
+  const [captures, setCaptures] = useState<QuickCapture[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchCaptures = useCallback(
+    async (status?: 'pending' | 'processed' | 'archived') => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await studyService.getQuickCaptures(status);
+        setCaptures(data);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch captures'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  const createCapture = useCallback(
+    async (capture: {
+      content: string;
+      sourceType?: LearningSourceType;
+      sourceUrl?: string;
+      tags?: string[];
+    }) => {
+      const newCapture = await studyService.createQuickCapture(capture);
+      setCaptures((prev) => [newCapture, ...prev]);
+      return newCapture;
+    },
+    []
+  );
+
+  return {
+    captures,
+    loading,
+    error,
+    fetchCaptures,
+    createCapture,
+  };
+}
+
+// ============================================================================
+// AI GENERATION HOOK
+// ============================================================================
+
+export function useLearningAI() {
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const generateFlashcards = useCallback(
+    async (params: {
+      entryId?: string;
+      content?: string;
+      count?: number;
+      difficulty?: QuizDifficulty;
+    }) => {
+      try {
+        setGenerating(true);
+        setError(null);
+        return await studyService.generateFlashcardsFromContent(params);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to generate flashcards'));
+        throw err;
+      } finally {
+        setGenerating(false);
+      }
+    },
+    []
+  );
+
+  const extractTerms = useCallback(
+    async (params: {
+      entryId?: string;
+      content?: string;
+      existingTerms?: string[];
+    }) => {
+      try {
+        setGenerating(true);
+        setError(null);
+        return await studyService.extractTermsFromContent(params);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to extract terms'));
+        throw err;
+      } finally {
+        setGenerating(false);
+      }
+    },
+    []
+  );
+
+  const generateSummary = useCallback(
+    async (params: { entryId?: string; content?: string; maxLength?: number }) => {
+      try {
+        setGenerating(true);
+        setError(null);
+        return await studyService.generateSummaryFromContent(params);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to generate summary'));
+        throw err;
+      } finally {
+        setGenerating(false);
+      }
+    },
+    []
+  );
+
+  const generateQuizFromEntries = useCallback(
+    async (params: {
+      entryIds: string[];
+      questionCount?: number;
+      difficulty?: QuizDifficulty;
+    }) => {
+      try {
+        setGenerating(true);
+        setError(null);
+        return await studyService.generateQuizFromLearningEntries(params);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to generate quiz'));
+        throw err;
+      } finally {
+        setGenerating(false);
+      }
+    },
+    []
+  );
+
+  return {
+    generating,
+    error,
+    generateFlashcards,
+    extractTerms,
+    generateSummary,
+    generateQuizFromEntries,
   };
 }

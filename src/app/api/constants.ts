@@ -22,6 +22,16 @@ export const STUDY_INSIGHTS_COLLECTION = 'study_insights';
 export const STUDY_CONFIG_COLLECTION = 'study_config';
 export const STUDY_READ_HISTORY_COLLECTION = 'study_read_history';
 
+// Learning System collection names
+export const LEARNING_ENTRIES_COLLECTION = 'learning_entries';
+export const DICTIONARY_TERMS_COLLECTION = 'dictionary_terms';
+export const FLASHCARDS_COLLECTION = 'flashcards';
+export const FLASHCARD_DECKS_COLLECTION = 'flashcard_decks';
+export const REVIEW_SESSIONS_COLLECTION = 'review_sessions';
+export const QUICK_CAPTURES_COLLECTION = 'quick_captures';
+export const LEARNING_GOALS_COLLECTION = 'learning_goals';
+export const LEARNING_STATS_COLLECTION = 'learning_stats';
+
 // Firebase Cloud Functions base URL (v2 uses individual URLs per function)
 // Format: https://{functionname-lowercase}-{project-hash}-uc.a.run.app
 export const FIREBASE_FUNCTIONS_URL = process.env.FIREBASE_FUNCTIONS_URL || 'https://us-central1-yudai-portfolio.cloudfunctions.net';

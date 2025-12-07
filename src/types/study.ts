@@ -609,3 +609,386 @@ export interface StudyArticleWithReadStatus extends StudyArticle {
   isRead?: boolean;
   readAt?: string;
 }
+
+// ============================================================================
+// LEARNING ENTRY TYPES - Comprehensive Learning System
+// ============================================================================
+
+export enum LearningSourceType {
+  BOOK = 'book',
+  YOUTUBE = 'youtube',
+  ARTICLE = 'article',
+  COURSE = 'course',
+  PODCAST = 'podcast',
+  WORK = 'work',
+  CONVERSATION = 'conversation',
+  DOCUMENTATION = 'documentation',
+  CONFERENCE = 'conference',
+  OTHER = 'other',
+}
+
+export enum ReviewStatus {
+  NEW = 'new',
+  LEARNING = 'learning',
+  REVIEW = 'review',
+  MASTERED = 'mastered',
+}
+
+export enum FlashcardDifficulty {
+  AGAIN = 'again',    // Show again in < 1 min
+  HARD = 'hard',      // Show in 1-10 min
+  GOOD = 'good',      // Show in 1-3 days
+  EASY = 'easy',      // Show in 4+ days
+}
+
+// Main learning entry - captures knowledge from any source
+export interface LearningEntry {
+  id: string;
+  userId: string;
+  title: string;
+  content: string;                    // Main notes in markdown
+  summary?: string;                   // AI-generated or user summary
+  sourceType: LearningSourceType;
+  sourceDetails: LearningSource;      // Specific source info
+  categoryId?: string;                // Link to study category
+  topicIds: string[];                 // Link to study topics
+  tags: string[];
+  keyTakeaways: string[];             // Bullet points of main learnings
+  dictionaryTermIds: string[];        // Terms defined from this entry
+  flashcardIds: string[];             // Generated flashcards
+  linkedArticleIds: string[];         // Related generated articles
+  linkedEntryIds: string[];           // Related learning entries
+  reviewStatus: ReviewStatus;
+  nextReviewDate?: string;
+  reviewCount: number;
+  lastReviewedAt?: string;
+  confidenceLevel: number;            // 0-100, tracks mastery
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Source-specific metadata
+export interface LearningSource {
+  type: LearningSourceType;
+  // Book
+  bookTitle?: string;
+  bookAuthor?: string;
+  isbn?: string;
+  chapter?: string;
+  pageNumbers?: string;
+  // YouTube
+  videoUrl?: string;
+  videoTitle?: string;
+  channelName?: string;
+  timestamp?: string;
+  // Article/Blog
+  articleUrl?: string;
+  articleTitle?: string;
+  articleAuthor?: string;
+  publicationName?: string;
+  // Course
+  courseName?: string;
+  courseProvider?: string;          // Udemy, Coursera, etc.
+  courseUrl?: string;
+  lessonName?: string;
+  // Podcast
+  podcastName?: string;
+  episodeTitle?: string;
+  episodeUrl?: string;
+  // Work
+  projectName?: string;
+  taskDescription?: string;
+  teamContext?: string;
+  // Conference/Talk
+  conferenceName?: string;
+  speakerName?: string;
+  talkTitle?: string;
+  talkUrl?: string;
+  // Documentation
+  docUrl?: string;
+  docTitle?: string;
+  technology?: string;
+  // General
+  notes?: string;
+}
+
+// Dictionary/Glossary term
+export interface DictionaryTerm {
+  id: string;
+  userId: string;
+  term: string;
+  definition: string;
+  pronunciation?: string;           // For technical terms
+  category?: string;                // Programming, System Design, etc.
+  tags: string[];
+  examples: TermExample[];
+  relatedTermIds: string[];
+  sourceEntryId?: string;           // Learning entry that introduced this
+  aliases: string[];                // Alternative names/spellings
+  difficulty: QuizDifficulty;
+  reviewStatus: ReviewStatus;
+  nextReviewDate?: string;
+  reviewCount: number;
+  lastReviewedAt?: string;
+  confidenceLevel: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TermExample {
+  id: string;
+  context: string;                  // When/where to use
+  codeExample?: string;
+  language?: string;
+  explanation?: string;
+}
+
+// Flashcard for spaced repetition
+export interface Flashcard {
+  id: string;
+  userId: string;
+  front: string;                    // Question/prompt
+  back: string;                     // Answer
+  frontType: 'text' | 'code' | 'image';
+  backType: 'text' | 'code' | 'image';
+  codeLanguage?: string;
+  hint?: string;
+  explanation?: string;
+  sourceEntryId?: string;           // Learning entry this came from
+  dictionaryTermId?: string;        // If from dictionary
+  articleId?: string;               // If from generated article
+  tags: string[];
+  categoryId?: string;
+  // Spaced repetition fields (SM-2 algorithm)
+  easeFactor: number;               // Starts at 2.5
+  interval: number;                 // Days until next review
+  repetitions: number;              // Consecutive correct answers
+  nextReviewDate: string;
+  lastReviewedAt?: string;
+  reviewHistory: FlashcardReview[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FlashcardReview {
+  date: string;
+  difficulty: FlashcardDifficulty;
+  timeTaken: number;                // seconds
+}
+
+// Deck for organizing flashcards
+export interface FlashcardDeck {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  flashcardIds: string[];
+  categoryId?: string;
+  tags: string[];
+  isPublic: boolean;
+  cardsDue: number;                 // Cached count of due cards
+  cardsNew: number;                 // Cached count of new cards
+  lastStudiedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Learning review session
+export interface ReviewSession {
+  id: string;
+  userId: string;
+  sessionType: 'flashcard' | 'dictionary' | 'mixed';
+  deckId?: string;
+  itemsReviewed: ReviewedItem[];
+  totalItems: number;
+  correctCount: number;
+  accuracy: number;
+  duration: number;                 // seconds
+  startedAt: string;
+  completedAt?: string;
+}
+
+export interface ReviewedItem {
+  itemId: string;
+  itemType: 'flashcard' | 'dictionary_term';
+  wasCorrect: boolean;
+  difficulty: FlashcardDifficulty;
+  timeTaken: number;
+}
+
+// Quick capture for on-the-go learning
+export interface QuickCapture {
+  id: string;
+  userId: string;
+  content: string;
+  sourceType?: LearningSourceType;
+  sourceUrl?: string;
+  tags: string[];
+  status: 'pending' | 'processed' | 'archived';
+  processedEntryId?: string;        // Learning entry created from this
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Learning goal tracking
+export interface LearningGoal {
+  id: string;
+  userId: string;
+  title: string;
+  description?: string;
+  targetType: 'entries' | 'reviews' | 'flashcards' | 'time' | 'articles';
+  targetValue: number;
+  currentValue: number;
+  period: 'daily' | 'weekly' | 'monthly' | 'total';
+  categoryId?: string;              // If goal is category-specific
+  startDate: string;
+  endDate?: string;
+  isCompleted: boolean;
+  completedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Comprehensive learning statistics
+export interface LearningStats {
+  id: string;
+  userId: string;
+  // Entry stats
+  totalEntries: number;
+  entriesBySource: { [key in LearningSourceType]?: number };
+  entriesByCategory: { [categoryId: string]: number };
+  // Dictionary stats
+  totalTerms: number;
+  termsByCategory: { [category: string]: number };
+  masteredTerms: number;
+  // Flashcard stats
+  totalFlashcards: number;
+  flashcardsDueToday: number;
+  flashcardsStudiedToday: number;
+  averageEaseFactor: number;
+  // Review stats
+  totalReviews: number;
+  reviewsThisWeek: number;
+  averageAccuracy: number;
+  currentStreak: number;
+  longestStreak: number;
+  // Time tracking
+  totalStudyTimeMinutes: number;
+  studyTimeThisWeek: number;
+  studyTimeToday: number;
+  // Goals
+  activeGoals: number;
+  completedGoals: number;
+  // Last updated
+  lastActivityAt: string;
+  updatedAt: string;
+}
+
+// ============================================================================
+// LEARNING API REQUEST/RESPONSE TYPES
+// ============================================================================
+
+export interface CreateLearningEntryRequest {
+  title: string;
+  content: string;
+  sourceType: LearningSourceType;
+  sourceDetails: LearningSource;
+  categoryId?: string;
+  topicIds?: string[];
+  tags?: string[];
+  keyTakeaways?: string[];
+  generateFlashcards?: boolean;
+  generateSummary?: boolean;
+  extractTerms?: boolean;
+}
+
+export interface GenerateFlashcardsRequest {
+  entryId?: string;
+  articleId?: string;
+  dictionaryTermIds?: string[];
+  content?: string;
+  count?: number;
+  difficulty?: QuizDifficulty;
+}
+
+export interface GenerateFlashcardsResponse {
+  flashcards: Omit<Flashcard, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'reviewHistory' | 'lastReviewedAt'>[];
+}
+
+export interface ExtractTermsRequest {
+  entryId?: string;
+  content?: string;
+  existingTerms?: string[];
+}
+
+export interface ExtractTermsResponse {
+  terms: Omit<DictionaryTerm, 'id' | 'userId' | 'createdAt' | 'updatedAt' | 'reviewHistory' | 'lastReviewedAt'>[];
+}
+
+export interface GenerateSummaryRequest {
+  entryId?: string;
+  content?: string;
+  maxLength?: number;
+}
+
+export interface ReviewDueItemsRequest {
+  itemType: 'flashcard' | 'dictionary' | 'mixed';
+  deckId?: string;
+  categoryId?: string;
+  limit?: number;
+}
+
+export interface ReviewDueItemsResponse {
+  flashcards: Flashcard[];
+  dictionaryTerms: DictionaryTerm[];
+  totalDue: number;
+}
+
+export interface SubmitReviewRequest {
+  itemId: string;
+  itemType: 'flashcard' | 'dictionary_term';
+  difficulty: FlashcardDifficulty;
+  timeTaken: number;
+}
+
+export interface GenerateQuizFromEntriesRequest {
+  entryIds: string[];
+  questionCount?: number;
+  questionTypes?: QuizQuestionType[];
+  difficulty?: QuizDifficulty;
+}
+
+export interface LinkEntriesToArticleRequest {
+  entryIds: string[];
+  generateNewArticle?: boolean;
+  existingArticleId?: string;
+}
+
+export interface SearchLearningContentRequest {
+  query: string;
+  types?: ('entry' | 'term' | 'flashcard' | 'article')[];
+  categoryId?: string;
+  tags?: string[];
+  sourceType?: LearningSourceType;
+  limit?: number;
+}
+
+export interface SearchLearningContentResponse {
+  entries: LearningEntry[];
+  terms: DictionaryTerm[];
+  flashcards: Flashcard[];
+  articles: StudyArticle[];
+}
+
+// Helper types for creation
+export type CreateLearningEntry = Omit<LearningEntry, 'id' | 'createdAt' | 'updatedAt' | 'reviewCount' | 'lastReviewedAt' | 'flashcardIds' | 'dictionaryTermIds' | 'linkedArticleIds'>;
+export type UpdateLearningEntry = Partial<CreateLearningEntry>;
+
+export type CreateDictionaryTerm = Omit<DictionaryTerm, 'id' | 'createdAt' | 'updatedAt' | 'reviewCount' | 'lastReviewedAt'>;
+export type UpdateDictionaryTerm = Partial<CreateDictionaryTerm>;
+
+export type CreateFlashcard = Omit<Flashcard, 'id' | 'createdAt' | 'updatedAt' | 'reviewHistory' | 'lastReviewedAt'>;
+export type UpdateFlashcard = Partial<CreateFlashcard>;
+
+export type CreateFlashcardDeck = Omit<FlashcardDeck, 'id' | 'createdAt' | 'updatedAt' | 'cardsDue' | 'cardsNew'>;
+export type UpdateFlashcardDeck = Partial<CreateFlashcardDeck>;

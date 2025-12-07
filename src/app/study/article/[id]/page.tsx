@@ -30,7 +30,9 @@ import {
   CheckCircle,
   Menu,
   X,
+  GraduationCap,
 } from 'lucide-react';
+import ArticleLearningIntegration from '@/components/study/ArticleLearningIntegration';
 // Prism.js for code highlighting
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
@@ -795,6 +797,22 @@ export default function StudyArticlePage() {
           )}
         </div>
       </div>
+
+      {/* Learning Hub Integration */}
+      {currentUser && (
+        <div style={{
+          backgroundColor: '#f9fafb',
+          borderRadius: '12px',
+          padding: '16px',
+          marginTop: '16px',
+        }}>
+          <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <GraduationCap size={16} style={{ color: '#9333ea' }} />
+            Learning Hub
+          </h3>
+          <ArticleLearningIntegration article={article} />
+        </div>
+      )}
     </>
   );
 

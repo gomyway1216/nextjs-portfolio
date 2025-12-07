@@ -743,10 +743,14 @@ export interface TermExample {
   explanation?: string;
 }
 
+// Card content difficulty (how hard the content is to learn)
+export type CardContentDifficulty = 'easy' | 'medium' | 'hard';
+
 // Flashcard for spaced repetition
 export interface Flashcard {
   id: string;
   userId: string;
+  deckId?: string;                  // Optional deck assignment
   front: string;                    // Question/prompt
   back: string;                     // Answer
   frontType: 'text' | 'code' | 'image';
@@ -754,6 +758,7 @@ export interface Flashcard {
   codeLanguage?: string;
   hint?: string;
   explanation?: string;
+  difficulty: CardContentDifficulty; // How hard the content is
   sourceEntryId?: string;           // Learning entry this came from
   dictionaryTermId?: string;        // If from dictionary
   articleId?: string;               // If from generated article
@@ -765,6 +770,9 @@ export interface Flashcard {
   repetitions: number;              // Consecutive correct answers
   nextReviewDate: string;
   lastReviewedAt?: string;
+  reviewCount: number;              // Total reviews
+  correctCount: number;             // Correct reviews
+  masteryLevel: number;             // 0-5 mastery
   reviewHistory: FlashcardReview[];
   createdAt: string;
   updatedAt: string;
@@ -897,6 +905,8 @@ export interface CreateLearningEntryRequest {
   topicIds?: string[];
   tags?: string[];
   keyTakeaways?: string[];
+  linkedArticleIds?: string[];
+  linkedEntryIds?: string[];
   generateFlashcards?: boolean;
   generateSummary?: boolean;
   extractTerms?: boolean;

@@ -6,9 +6,9 @@ import { useFlashcards, useLearningAI } from "@/hooks/useStudy";
 import {
   Flashcard,
   FlashcardDeck,
-  FlashcardDifficulty,
-  CreateFlashcardRequest,
-  CreateFlashcardDeckRequest,
+  CreateFlashcard,
+  CreateFlashcardDeck,
+  CardContentDifficulty,
 } from "@/types/study";
 import { formatDistanceToNow } from "date-fns";
 
@@ -28,7 +28,7 @@ export default function FlashcardsPage() {
     updateFlashcard,
     deleteDeck,
   } = useFlashcards();
-  const { generateFlashcards, loading: aiLoading } = useLearningAI();
+  const { generateFlashcards, generating: aiLoading } = useLearningAI();
 
   const [activeTab, setActiveTab] = useState<TabType>("decks");
   const [selectedDeck, setSelectedDeck] = useState<FlashcardDeck | null>(null);
@@ -47,14 +47,14 @@ export default function FlashcardsPage() {
   // Create card form state
   const [newCardFront, setNewCardFront] = useState("");
   const [newCardBack, setNewCardBack] = useState("");
-  const [newCardDifficulty, setNewCardDifficulty] = useState<FlashcardDifficulty>("medium");
+  const [newCardDifficulty, setNewCardDifficulty] = useState<CardContentDifficulty>("medium");
   const [newCardHint, setNewCardHint] = useState("");
   const [newCardTags, setNewCardTags] = useState("");
 
   // AI generation form state
   const [aiContent, setAiContent] = useState("");
   const [aiCardCount, setAiCardCount] = useState(5);
-  const [aiDifficulty, setAiDifficulty] = useState<FlashcardDifficulty>("medium");
+  const [aiDifficulty, setAiDifficulty] = useState<CardContentDifficulty>("medium");
 
   useEffect(() => {
     fetchDecks();
@@ -64,13 +64,16 @@ export default function FlashcardsPage() {
   const handleCreateDeck = async () => {
     if (!newDeckName.trim()) return;
 
-    const deckData: CreateFlashcardDeckRequest = {
+    const deckData = {
       name: newDeckName.trim(),
       description: newDeckDescription.trim() || undefined,
+      flashcardIds: [] as string[],
       tags: newDeckTags
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean),
+      isPublic: false,
+      lastStudiedAt: undefined,
     };
 
     await createDeck(deckData);
@@ -83,9 +86,11 @@ export default function FlashcardsPage() {
   const handleCreateCard = async () => {
     if (!newCardFront.trim() || !newCardBack.trim()) return;
 
-    const cardData: CreateFlashcardRequest = {
+    const cardData = {
       front: newCardFront.trim(),
       back: newCardBack.trim(),
+      frontType: 'text' as const,
+      backType: 'text' as const,
       difficulty: newCardDifficulty,
       hint: newCardHint.trim() || undefined,
       tags: newCardTags
@@ -93,6 +98,13 @@ export default function FlashcardsPage() {
         .map((t) => t.trim())
         .filter(Boolean),
       deckId: selectedDeck?.id,
+      easeFactor: 2.5,
+      interval: 0,
+      repetitions: 0,
+      nextReviewDate: new Date().toISOString(),
+      reviewCount: 0,
+      correctCount: 0,
+      masteryLevel: 0,
     };
 
     await createFlashcard(cardData);
@@ -107,11 +119,10 @@ export default function FlashcardsPage() {
   const handleAIGenerate = async () => {
     if (!aiContent.trim() || !selectedDeck) return;
 
-    const generatedCards = await generateFlashcards(
-      aiContent,
-      aiCardCount,
-      aiDifficulty
-    );
+    const generatedCards = await generateFlashcards({
+      content: aiContent,
+      count: aiCardCount,
+    });
 
     if (generatedCards && generatedCards.length > 0) {
       // Create each generated card
@@ -119,10 +130,19 @@ export default function FlashcardsPage() {
         await createFlashcard({
           front: card.front,
           back: card.back,
-          difficulty: card.difficulty || aiDifficulty,
+          frontType: 'text' as const,
+          backType: 'text' as const,
+          difficulty: aiDifficulty,
           hint: card.hint,
           tags: card.tags || [],
           deckId: selectedDeck.id,
+          easeFactor: 2.5,
+          interval: 0,
+          repetitions: 0,
+          nextReviewDate: new Date().toISOString(),
+          reviewCount: 0,
+          correctCount: 0,
+          masteryLevel: 0,
         });
       }
     }
@@ -155,7 +175,7 @@ export default function FlashcardsPage() {
     return flashcards.filter((card) => !card.deckId);
   };
 
-  const getDifficultyColor = (difficulty: FlashcardDifficulty) => {
+  const getDifficultyColor = (difficulty: CardContentDifficulty) => {
     switch (difficulty) {
       case "easy":
         return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200";
@@ -229,7 +249,7 @@ export default function FlashcardsPage() {
       {error && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-            <p className="text-red-600 dark:text-red-400">{error}</p>
+            <p className="text-red-600 dark:text-red-400">{error?.message || String(error)}</p>
           </div>
         </div>
       )}
@@ -634,7 +654,7 @@ export default function FlashcardsPage() {
                 </label>
                 <select
                   value={newCardDifficulty}
-                  onChange={(e) => setNewCardDifficulty(e.target.value as FlashcardDifficulty)}
+                  onChange={(e) => setNewCardDifficulty(e.target.value as CardContentDifficulty)}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="easy">Easy</option>
@@ -749,7 +769,7 @@ export default function FlashcardsPage() {
                   </label>
                   <select
                     value={aiDifficulty}
-                    onChange={(e) => setAiDifficulty(e.target.value as FlashcardDifficulty)}
+                    onChange={(e) => setAiDifficulty(e.target.value as CardContentDifficulty)}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
                     <option value="easy">Easy</option>

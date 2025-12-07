@@ -722,6 +722,20 @@ export async function deleteFlashcard(flashcardId: string): Promise<void> {
   });
 }
 
+export async function updateFlashcard(
+  flashcardId: string,
+  updates: Partial<Flashcard>
+): Promise<Flashcard> {
+  const data = await apiCall<{ success: boolean; flashcard: Flashcard }>(
+    `/api/study/learning/flashcards?flashcardId=${flashcardId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    }
+  );
+  return data.flashcard;
+}
+
 export async function getFlashcardDecks(): Promise<FlashcardDeck[]> {
   const data = await apiCall<{ success: boolean; decks: FlashcardDeck[] }>(
     '/api/study/learning/flashcards/decks'
@@ -740,6 +754,12 @@ export async function createFlashcardDeck(
     }
   );
   return data.deck;
+}
+
+export async function deleteFlashcardDeck(deckId: string): Promise<void> {
+  await apiCall(`/api/study/learning/flashcards/decks?deckId=${deckId}`, {
+    method: 'DELETE',
+  });
 }
 
 // ============================================================================

@@ -1218,6 +1218,17 @@ export function useFlashcards(params?: {
     []
   );
 
+  const updateFlashcard = useCallback(
+    async (flashcardId: string, updates: Partial<Flashcard>) => {
+      const updatedFlashcard = await studyService.updateFlashcard(flashcardId, updates);
+      setFlashcards((prev) =>
+        prev.map((f) => (f.id === flashcardId ? updatedFlashcard : f))
+      );
+      return updatedFlashcard;
+    },
+    []
+  );
+
   const deleteFlashcard = useCallback(async (flashcardId: string) => {
     await studyService.deleteFlashcard(flashcardId);
     setFlashcards((prev) => prev.filter((f) => f.id !== flashcardId));
@@ -1234,6 +1245,13 @@ export function useFlashcards(params?: {
     []
   );
 
+  const deleteDeck = useCallback(async (deckId: string) => {
+    await studyService.deleteFlashcardDeck(deckId);
+    setDecks((prev) => prev.filter((d) => d.id !== deckId));
+    // Also remove flashcards from this deck from the local state
+    setFlashcards((prev) => prev.filter((f) => f.deckId !== deckId));
+  }, []);
+
   useEffect(() => {
     fetchFlashcards();
     fetchDecks();
@@ -1247,8 +1265,10 @@ export function useFlashcards(params?: {
     fetchFlashcards,
     fetchDecks,
     createFlashcard,
+    updateFlashcard,
     deleteFlashcard,
     createDeck,
+    deleteDeck,
   };
 }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useEffect, useContext, useState, ReactNode, useCallback, useRef } from 'react';
-import { MultiFactorResolver, RecaptchaVerifier } from 'firebase/auth';
+import { MultiFactorResolver, RecaptchaVerifier, User } from 'firebase/auth';
 import { auth, signInWithEmail, signOutUser }
   from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
@@ -12,6 +12,7 @@ interface AuthProviderProps {
 
 interface AuthContextType {
   currentUser: any;
+  isAdmin: boolean;
   isEnrolledInMFA: boolean;
   twoFactorRequired: boolean;
   mfaPhoneHint: string | null;
@@ -37,12 +38,31 @@ export const useAuth = () => {
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
   const [isEnrolledInMFA, setIsEnrolledInMFA] = useState<boolean>(false);
   const [twoFactorRequired, setTwoFactorRequired] = useState<boolean>(false);
   const [mfaPhoneHint, setMfaPhoneHint] = useState<string | null>(null);
 
   // Use ref for MFA resolver to avoid re-renders and state serialization issues
   const mfaResolverRef = useRef<MultiFactorResolver | null>(null);
+
+  // Check if user has admin claim
+  const checkAdminStatus = useCallback(async (user: User | null) => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+
+    try {
+      const tokenResult = await user.getIdTokenResult();
+      const hasAdminClaim = tokenResult.claims.admin === true;
+      console.log('Admin claim check:', { email: user.email, admin: tokenResult.claims.admin, hasAdminClaim });
+      setIsAdmin(hasAdminClaim);
+    } catch (error) {
+      console.error('Error checking admin status:', error);
+      setIsAdmin(false);
+    }
+  }, []);
 
   // Check MFA enrollment status
   const refreshMFAStatus = useCallback(() => {
@@ -119,6 +139,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signOut = useCallback(() => {
     signOutUser();
+    setIsAdmin(false);
     setIsEnrolledInMFA(false);
     mfaResolverRef.current = null;
     setTwoFactorRequired(false);
@@ -127,21 +148,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Listen to auth state changes
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((user: any) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
       setCurrentUser(user);
-      setLoading(false);
 
-      // Update MFA status when user signs in
+      // Check admin status and MFA status when user signs in
       if (user) {
+        await checkAdminStatus(user);
         refreshMFAStatus();
+      } else {
+        setIsAdmin(false);
       }
+
+      setLoading(false);
     });
 
     return unsubscribe;
-  }, [refreshMFAStatus]);
+  }, [checkAdminStatus, refreshMFAStatus]);
 
   const value: AuthContextType = {
     currentUser,
+    isAdmin,
     isEnrolledInMFA,
     twoFactorRequired,
     mfaPhoneHint,

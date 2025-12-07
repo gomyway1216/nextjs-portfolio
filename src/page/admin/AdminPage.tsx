@@ -315,7 +315,7 @@ const styles: Record<string, CSSProperties> = {
 };
 
 const AdminPage = () => {
-  const { currentUser } = useAuth();
+  const { currentUser, isAdmin } = useAuth();
   const router = useRouter();
   const { profile, loading: profileLoading } = useProfile();
   const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
@@ -401,9 +401,14 @@ const AdminPage = () => {
       router.push('/signin');
       return;
     }
+    // Redirect non-admin users to home page
+    if (!isAdmin) {
+      router.push('/');
+      return;
+    }
     fetchJobs();
     fetchTechnologies();
-  }, [currentUser, router]);
+  }, [currentUser, isAdmin, router]);
 
   const fetchTechnologies = async () => {
     try {
@@ -743,7 +748,7 @@ const AdminPage = () => {
     }
   };
 
-  if (!currentUser || loading || profileLoading) {
+  if (!currentUser || !isAdmin || loading || profileLoading) {
     return (
       <div style={{ ...styles.container, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#ffffff' }}>

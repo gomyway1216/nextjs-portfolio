@@ -27,7 +27,7 @@ import Link from 'next/link';
 
 export default function SecuritySettingsPage() {
   const router = useRouter();
-  const { currentUser, isEnrolledInMFA, refreshMFAStatus } = useAuth();
+  const { currentUser, isAdmin, isEnrolledInMFA, refreshMFAStatus } = useAuth();
 
   // Enrollment state
   const [enrollmentStep, setEnrollmentStep] = useState<'idle' | 'phone' | 'verify'>('idle');
@@ -44,12 +44,17 @@ export default function SecuritySettingsPage() {
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
-  // Redirect if not logged in
+  // Redirect if not logged in or not admin
   useEffect(() => {
     if (!currentUser) {
       router.push('/signin');
+      return;
     }
-  }, [currentUser, router]);
+    if (!isAdmin) {
+      router.push('/');
+      return;
+    }
+  }, [currentUser, isAdmin, router]);
 
   // Initialize reCAPTCHA when entering phone step
   useEffect(() => {
@@ -222,7 +227,7 @@ export default function SecuritySettingsPage() {
     }
   };
 
-  if (!currentUser) {
+  if (!currentUser || !isAdmin) {
     return null;
   }
 

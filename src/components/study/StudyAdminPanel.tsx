@@ -280,6 +280,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
     numberOfArticles: number;
     topicSelectionMode: 'sequential' | 'random' | 'ai_suggested';
     suggestionType: TopicSuggestionType;
+    language: string;
+    codingLanguage: string;
     sendEmailNotification: boolean;
     notificationEmail: string;
   }>({
@@ -293,6 +295,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
     numberOfArticles: 1,
     topicSelectionMode: 'ai_suggested',
     suggestionType: TopicSuggestionType.SIMILAR,
+    language: 'ja',
+    codingLanguage: 'typescript',
     sendEmailNotification: false,
     notificationEmail: '',
   });
@@ -469,6 +473,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
         numberOfArticles: schedule.numberOfArticles,
         topicSelectionMode: schedule.topicSelectionMode,
         suggestionType: schedule.suggestionType,
+        language: schedule.language || 'ja',
+        codingLanguage: schedule.codingLanguage || 'typescript',
         sendEmailNotification: schedule.sendEmailNotification,
         notificationEmail: schedule.notificationEmail || '',
       });
@@ -485,6 +491,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
         numberOfArticles: 1,
         topicSelectionMode: 'ai_suggested',
         suggestionType: TopicSuggestionType.SIMILAR,
+        language: 'ja',
+        codingLanguage: 'typescript',
         sendEmailNotification: false,
         notificationEmail: '',
       });
@@ -2030,43 +2038,93 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                     </select>
                   </div>
                 </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div>
+                    <label style={styles.label}>Language</label>
+                    <select
+                      value={scheduleForm.language}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, language: e.target.value })}
+                      style={styles.select}
+                    >
+                      <option value="ja">Japanese</option>
+                      <option value="en">English</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={styles.label}>Code Language</label>
+                    <select
+                      value={scheduleForm.codingLanguage}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, codingLanguage: e.target.value })}
+                      style={styles.select}
+                    >
+                      <option value="typescript">TypeScript</option>
+                      <option value="javascript">JavaScript</option>
+                      <option value="python">Python</option>
+                      <option value="go">Go</option>
+                      <option value="rust">Rust</option>
+                      <option value="java">Java</option>
+                      <option value="csharp">C#</option>
+                      <option value="cpp">C++</option>
+                    </select>
+                  </div>
+                </div>
                 <div>
                   <label style={styles.label}>Run Times (can add multiple)</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {scheduleForm.scheduledTimes.map((time, index) => (
-                      <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                        <input
-                          type="time"
-                          value={time}
-                          onChange={(e) => {
-                            const newTimes = [...scheduleForm.scheduledTimes];
-                            newTimes[index] = e.target.value;
-                            setScheduleForm({ ...scheduleForm, scheduledTimes: newTimes });
-                          }}
-                          style={{ ...styles.input, flex: 1 }}
-                        />
-                        {scheduleForm.scheduledTimes.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newTimes = scheduleForm.scheduledTimes.filter((_, i) => i !== index);
+                    {scheduleForm.scheduledTimes.map((time, index) => {
+                      const [hour, minute] = time.split(':');
+                      return (
+                        <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <select
+                            value={hour}
+                            onChange={(e) => {
+                              const newTimes = [...scheduleForm.scheduledTimes];
+                              newTimes[index] = `${e.target.value}:${minute}`;
                               setScheduleForm({ ...scheduleForm, scheduledTimes: newTimes });
                             }}
-                            style={{
-                              background: 'rgba(239, 68, 68, 0.2)',
-                              border: '1px solid rgba(239, 68, 68, 0.3)',
-                              borderRadius: '6px',
-                              color: '#ef4444',
-                              padding: '8px 12px',
-                              cursor: 'pointer',
-                              fontSize: '14px',
-                            }}
+                            style={{ ...styles.select, flex: 1 }}
                           >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                            {Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0')).map((h) => (
+                              <option key={h} value={h}>{h}</option>
+                            ))}
+                          </select>
+                          <span style={{ color: '#94a3b8', fontSize: '18px', fontWeight: '600' }}>:</span>
+                          <select
+                            value={minute}
+                            onChange={(e) => {
+                              const newTimes = [...scheduleForm.scheduledTimes];
+                              newTimes[index] = `${hour}:${e.target.value}`;
+                              setScheduleForm({ ...scheduleForm, scheduledTimes: newTimes });
+                            }}
+                            style={{ ...styles.select, flex: 1 }}
+                          >
+                            {['00', '15', '30', '45'].map((m) => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                          {scheduleForm.scheduledTimes.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const newTimes = scheduleForm.scheduledTimes.filter((_, i) => i !== index);
+                                setScheduleForm({ ...scheduleForm, scheduledTimes: newTimes });
+                              }}
+                              style={{
+                                background: 'rgba(239, 68, 68, 0.2)',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                borderRadius: '6px',
+                                color: '#ef4444',
+                                padding: '8px 12px',
+                                cursor: 'pointer',
+                                fontSize: '14px',
+                              }}
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
                     {scheduleForm.scheduledTimes.length < 4 && (
                       <button
                         type="button"

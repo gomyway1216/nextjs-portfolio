@@ -343,6 +343,8 @@ export interface ArticleSchedule {
   numberOfArticles: number; // How many to generate per run
   topicSelectionMode: 'sequential' | 'random' | 'ai_suggested';
   suggestionType: TopicSuggestionType; // For AI suggestions
+  language: string; // Article language (e.g., 'ja', 'en')
+  codingLanguage: string; // Programming language for code examples
   status: ScheduleStatus;
   lastRunAt?: string;
   nextRunAt?: string;

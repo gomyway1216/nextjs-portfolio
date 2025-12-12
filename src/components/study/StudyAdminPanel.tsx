@@ -46,6 +46,27 @@ import {
 
 type StudyAdminSection = 'overview' | 'categories' | 'topics' | 'articles' | 'schedules' | 'generate' | 'config';
 
+// Helper functions for local time <-> UTC conversion
+// Convert local time (HH:MM) to UTC time (HH:MM)
+function localTimeToUTC(localTime: string): string {
+  const [hours, minutes] = localTime.split(':').map(Number);
+  const now = new Date();
+  now.setHours(hours, minutes, 0, 0);
+  const utcHours = now.getUTCHours().toString().padStart(2, '0');
+  const utcMinutes = now.getUTCMinutes().toString().padStart(2, '0');
+  return `${utcHours}:${utcMinutes}`;
+}
+
+// Convert UTC time (HH:MM) to local time (HH:MM)
+function utcTimeToLocal(utcTime: string): string {
+  const [hours, minutes] = utcTime.split(':').map(Number);
+  const now = new Date();
+  now.setUTCHours(hours, minutes, 0, 0);
+  const localHours = now.getHours().toString().padStart(2, '0');
+  const localMinutes = now.getMinutes().toString().padStart(2, '0');
+  return `${localHours}:${localMinutes}`;
+}
+
 // Shared styles (matching admin page)
 const styles: Record<string, CSSProperties> = {
   card: {
@@ -249,6 +270,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   // Running schedule state
   const [runningScheduleId, setRunningScheduleId] = useState<string | null>(null);
   const [seedingCategories, setSeedingCategories] = useState(false);
+  const [savingSchedule, setSavingSchedule] = useState(false);
+  const [deletingSchedule, setDeletingSchedule] = useState(false);
 
   // Form states
   const [categoryForm, setCategoryForm] = useState({
@@ -462,12 +485,14 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   const handleOpenScheduleModal = (schedule?: ArticleSchedule) => {
     if (schedule) {
       setEditingSchedule(schedule);
+      // Convert UTC times from database to local time for display
+      const localTimes = schedule.scheduledTimes.map(utcTimeToLocal);
       setScheduleForm({
         name: schedule.name,
         description: schedule.description || '',
         categoryIds: schedule.categoryIds,
         frequency: schedule.frequency,
-        scheduledTimes: schedule.scheduledTimes,
+        scheduledTimes: localTimes,
         timezone: schedule.timezone,
         aiProvider: schedule.aiProvider,
         numberOfArticles: schedule.numberOfArticles,
@@ -485,7 +510,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
         description: '',
         categoryIds: [],
         frequency: ScheduleFrequency.DAILY,
-        scheduledTimes: ['09:00'],
+        scheduledTimes: ['09:00'], // Default 9 AM local time
         timezone: 'America/Los_Angeles',
         aiProvider: AIProvider.CLAUDE,
         numberOfArticles: 1,
@@ -502,8 +527,12 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
 
   const handleSaveSchedule = async () => {
     try {
+      setSavingSchedule(true);
+      // Convert local times to UTC before saving to database
+      const utcTimes = scheduleForm.scheduledTimes.map(localTimeToUTC);
       const scheduleData = {
         ...scheduleForm,
+        scheduledTimes: utcTimes,
         topicIds: [],
         status: ScheduleStatus.ACTIVE,
       };
@@ -518,6 +547,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
       setShowScheduleModal(false);
     } catch (error) {
       showMessageToast('error', `Failed to save schedule: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSavingSchedule(false);
     }
   };
 
@@ -546,12 +577,15 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
 
   const handleDeleteSchedule = async (id: string) => {
     try {
+      setDeletingSchedule(true);
       await deleteSchedule(id);
       showMessageToast('success', 'Schedule deleted successfully!');
     } catch (error) {
       showMessageToast('error', `Failed to delete schedule: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setDeletingSchedule(false);
+      setShowDeleteConfirm(null);
     }
-    setShowDeleteConfirm(null);
   };
 
   // Article handlers
@@ -832,7 +866,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       <div>
                         <p style={{ color: '#ffffff', fontWeight: '500' }}>{schedule.name}</p>
                         <p style={{ color: '#64748b', fontSize: '14px' }}>
-                          {schedule.frequency} at {(schedule.scheduledTimes || ['09:00']).join(', ')} - {schedule.numberOfArticles} article(s)
+                          {schedule.frequency} at {(schedule.scheduledTimes || ['09:00']).map(utcTimeToLocal).join(', ')} (local) - {schedule.numberOfArticles} article(s)
                         </p>
                       </div>
                       <button
@@ -1451,8 +1485,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                         <p style={{ color: '#ffffff' }}>{schedule.frequency}</p>
                       </div>
                       <div>
-                        <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Run Times</p>
-                        <p style={{ color: '#ffffff' }}>{(schedule.scheduledTimes || ['09:00']).join(', ')}</p>
+                        <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Run Times (local)</p>
+                        <p style={{ color: '#ffffff' }}>{(schedule.scheduledTimes || ['09:00']).map(utcTimeToLocal).join(', ')}</p>
                       </div>
                       <div>
                         <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Articles/Run</p>
@@ -2069,7 +2103,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   </div>
                 </div>
                 <div>
-                  <label style={styles.label}>Run Times (can add multiple)</label>
+                  <label style={styles.label}>Run Times - Local Time (can add multiple)</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {scheduleForm.scheduledTimes.map((time, index) => {
                       const [hour, minute] = time.split(':');
@@ -2205,11 +2239,15 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
               </div>
             </div>
             <div style={styles.modalFooter}>
-              <button onClick={() => setShowScheduleModal(false)} style={{ ...styles.button, ...styles.outlineButton }}>
+              <button onClick={() => setShowScheduleModal(false)} style={{ ...styles.button, ...styles.outlineButton }} disabled={savingSchedule}>
                 Cancel
               </button>
-              <button onClick={handleSaveSchedule} style={{ ...styles.button, ...styles.primaryButton }}>
-                <Save size={16} /> {editingSchedule ? 'Update' : 'Create'}
+              <button onClick={handleSaveSchedule} style={{ ...styles.button, ...styles.primaryButton }} disabled={savingSchedule}>
+                {savingSchedule ? (
+                  <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Saving...</>
+                ) : (
+                  <><Save size={16} /> {editingSchedule ? 'Update' : 'Create'}</>
+                )}
               </button>
             </div>
           </div>
@@ -2477,7 +2515,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
               </p>
             </div>
             <div style={styles.modalFooter}>
-              <button onClick={() => setShowDeleteConfirm(null)} style={{ ...styles.button, ...styles.outlineButton }}>
+              <button onClick={() => setShowDeleteConfirm(null)} style={{ ...styles.button, ...styles.outlineButton }} disabled={deletingSchedule && showDeleteConfirm.type === 'schedule'}>
                 Cancel
               </button>
               <button
@@ -2493,8 +2531,13 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   }
                 }}
                 style={{ ...styles.button, ...styles.dangerButton }}
+                disabled={deletingSchedule && showDeleteConfirm.type === 'schedule'}
               >
-                <Trash2 size={16} /> Delete
+                {deletingSchedule && showDeleteConfirm.type === 'schedule' ? (
+                  <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Deleting...</>
+                ) : (
+                  <><Trash2 size={16} /> Delete</>
+                )}
               </button>
             </div>
           </div>

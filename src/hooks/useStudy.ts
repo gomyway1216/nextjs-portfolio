@@ -219,6 +219,8 @@ export function useStudyArticles(initialOptions?: {
   topicId?: string;
   status?: string;  // 'all' to show all statuses (for admin), or specific status
   language?: string;
+  search?: string;  // Search query for backend filtering
+  difficulty?: string;  // Difficulty filter
   orderBy?: string;
   orderDir?: 'asc' | 'desc';
 }) {
@@ -226,6 +228,17 @@ export function useStudyArticles(initialOptions?: {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  // Track current filters for load more
+  const [currentFilters, setCurrentFilters] = useState<{
+    categoryId?: string;
+    topicId?: string;
+    status?: string;
+    language?: string;
+    search?: string;
+    difficulty?: string;
+    orderBy?: string;
+    orderDir?: 'asc' | 'desc';
+  }>({});
 
   const fetchArticles = useCallback(
     async (
@@ -234,6 +247,8 @@ export function useStudyArticles(initialOptions?: {
         topicId?: string;
         status?: string;
         language?: string;
+        search?: string;  // Search query for backend filtering
+        difficulty?: string;  // Difficulty filter
         orderBy?: string;
         orderDir?: 'asc' | 'desc';
         limit?: number;
@@ -245,13 +260,25 @@ export function useStudyArticles(initialOptions?: {
       try {
         setLoading(true);
         setError(null);
-        const data = await studyService.getArticles({
+
+        const filters = {
           categoryId: options.categoryId ?? initialOptions?.categoryId,
           topicId: options.topicId || initialOptions?.topicId,
           status: options.status || initialOptions?.status,
           language: options.language || initialOptions?.language,
+          search: options.search ?? initialOptions?.search,
+          difficulty: options.difficulty ?? initialOptions?.difficulty,
           orderBy: options.orderBy || initialOptions?.orderBy || 'createdAt',
           orderDir: options.orderDir || initialOptions?.orderDir || 'desc',
+        };
+
+        // Save current filters for load more (only if not appending)
+        if (!options.append) {
+          setCurrentFilters(filters);
+        }
+
+        const data = await studyService.getArticles({
+          ...filters,
           limit: options.limit,
           lastId: options.lastId,
           listView: options.listView !== false,  // Default to true for optimized list loading
@@ -269,17 +296,19 @@ export function useStudyArticles(initialOptions?: {
         setLoading(false);
       }
     },
-    [initialOptions?.categoryId, initialOptions?.topicId, initialOptions?.status, initialOptions?.language, initialOptions?.orderBy, initialOptions?.orderDir]
+    [initialOptions?.categoryId, initialOptions?.topicId, initialOptions?.status, initialOptions?.language, initialOptions?.search, initialOptions?.difficulty, initialOptions?.orderBy, initialOptions?.orderDir]
   );
 
   const loadMore = useCallback(async () => {
     if (!hasMore || loading || articles.length === 0) return;
     const lastId = articles[articles.length - 1].id;
+    // Use saved filters when loading more to maintain consistency
     await fetchArticles({
+      ...currentFilters,
       lastId,
       append: true,
     });
-  }, [hasMore, loading, articles, fetchArticles]);
+  }, [hasMore, loading, articles, fetchArticles, currentFilters]);
 
   useEffect(() => {
     fetchArticles();
@@ -782,23 +811,32 @@ export function useStudySchedules() {
 // PROGRESS HOOK
 // ============================================================================
 
-export function useStudyProgress() {
+export function useStudyProgress(isAuthenticated?: boolean) {
   const [progress, setProgress] = useState<UserStudyProgress | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchProgress = useCallback(async () => {
+    // Skip API call if explicitly not authenticated
+    if (isAuthenticated === false) {
+      setLoading(false);
+      setProgress(null);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
       const data = await studyService.getUserProgress();
       setProgress(data);
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to fetch progress'));
+      // Don't set error for auth failures - user might not be logged in
+      if (err instanceof Error && !err.message.includes('401') && !err.message.includes('500')) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch progress'));
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   useEffect(() => {
     fetchProgress();
@@ -947,12 +985,18 @@ export function useStudySearch() {
 // ARTICLE READ HISTORY HOOK (Admin feature)
 // ============================================================================
 
-export function useArticleReadHistory() {
+export function useArticleReadHistory(isAuthenticated?: boolean) {
   const [readArticleIds, setReadArticleIds] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchReadHistory = useCallback(async () => {
+    // Skip API call if explicitly not authenticated
+    if (isAuthenticated === false) {
+      setLoading(false);
+      setReadArticleIds({});
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -967,7 +1011,7 @@ export function useArticleReadHistory() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isAuthenticated]);
 
   const markAsRead = useCallback(async (articleId: string, timeSpentSeconds?: number) => {
     try {

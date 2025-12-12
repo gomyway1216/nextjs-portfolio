@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -22,12 +22,30 @@ import { useStudyArticles, useStudyCategories, useStudyProgress, useArticleReadH
 import { useAuth } from '@/providers/AuthProvider';
 import { QuizDifficulty } from '@/types/study';
 
+// Debounce hook for search
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = useState<T>(value);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
 export default function StudyListPage() {
   const router = useRouter();
   const { currentUser } = useAuth();
+  const isAuthenticated = !!currentUser;
   const { categories, loading: categoriesLoading } = useStudyCategories();
-  const { progress } = useStudyProgress();
-  const { isRead, loading: readHistoryLoading } = useArticleReadHistory();
+  const { progress } = useStudyProgress(isAuthenticated);
+  const { isRead, loading: readHistoryLoading } = useArticleReadHistory(isAuthenticated);
 
   // Filters
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -36,25 +54,17 @@ export default function StudyListPage() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
 
-  // Fetch articles - the hook will automatically refetch when categoryId or language changes
+  // Debounce search to avoid too many API calls
+  const debouncedSearch = useDebounce(searchQuery, 300);
+
+  // Fetch articles with all filters
+  // The hook will automatically refetch when any of these options change
   const { articles, loading, hasMore, loadMore } = useStudyArticles({
     categoryId: selectedCategory || undefined,
     language: selectedLanguage || undefined,
+    search: debouncedSearch || undefined,
+    difficulty: selectedDifficulty || undefined,
   });
-
-  // Filter articles client-side for search and difficulty
-  const filteredArticles = useMemo(() => {
-    return articles.filter(article => {
-      const matchesSearch = !searchQuery ||
-        article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        article.summary.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        article.tags.some(tag => tag.toLowerCase().includes(searchQuery.toLowerCase()));
-
-      const matchesDifficulty = !selectedDifficulty || article.difficulty === selectedDifficulty;
-
-      return matchesSearch && matchesDifficulty;
-    });
-  }, [articles, searchQuery, selectedDifficulty]);
 
   const getCategoryName = (categoryId: string) => {
     return categories.find(c => c.id === categoryId)?.name || 'General';
@@ -551,7 +561,7 @@ export default function StudyListPage() {
           <div style={{ display: 'flex', justifyContent: 'center', padding: '64px' }}>
             <Loader2 size={32} color="#10a37f" style={{ animation: 'spin 1s linear infinite' }} />
           </div>
-        ) : filteredArticles.length === 0 ? (
+        ) : articles.length === 0 ? (
           <div style={{
             backgroundColor: '#f9fafb',
             borderRadius: '12px',
@@ -573,7 +583,7 @@ export default function StudyListPage() {
               gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
               gap: '16px',
             }}>
-              {filteredArticles.map(article => {
+              {articles.map(article => {
                 const diffStyle = getDifficultyStyle(article.difficulty);
 
                 return (

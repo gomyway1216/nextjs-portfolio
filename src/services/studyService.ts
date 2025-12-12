@@ -185,6 +185,8 @@ export async function getArticles(
     topicId?: string;
     status?: string;
     language?: string;
+    search?: string;
+    difficulty?: string;
     orderBy?: string;
     orderDir?: 'asc' | 'desc';
     limit?: number;
@@ -197,6 +199,8 @@ export async function getArticles(
   if (options.topicId) params.set('topicId', options.topicId);
   if (options.status) params.set('status', options.status);
   if (options.language) params.set('language', options.language);
+  if (options.search) params.set('search', options.search);
+  if (options.difficulty) params.set('difficulty', options.difficulty);
   if (options.orderBy) params.set('orderBy', options.orderBy);
   if (options.orderDir) params.set('orderDir', options.orderDir);
   if (options.limit) params.set('limit', String(options.limit));

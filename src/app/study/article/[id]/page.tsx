@@ -632,7 +632,13 @@ export default function StudyArticlePage() {
               ? new Date(typeof article.publishedAt === 'object' && '_seconds' in article.publishedAt
                   ? (article.publishedAt as { _seconds: number })._seconds * 1000
                   : article.publishedAt
-                ).toLocaleDateString()
+                ).toLocaleString(undefined, {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })
               : 'Not published' },
             { label: 'Views', value: article.viewCount.toString() },
           ].map((item) => (

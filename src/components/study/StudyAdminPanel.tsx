@@ -485,8 +485,11 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   const handleOpenScheduleModal = (schedule?: ArticleSchedule) => {
     if (schedule) {
       setEditingSchedule(schedule);
-      // Convert UTC times from database to local time for display
-      const localTimes = schedule.scheduledTimes.map(utcTimeToLocal);
+      // Convert UTC times from database to local time for display (normalize to :00)
+      const localTimes = schedule.scheduledTimes.map(t => {
+        const localTime = utcTimeToLocal(t);
+        return localTime.split(':')[0] + ':00';
+      });
       setScheduleForm({
         name: schedule.name,
         description: schedule.description || '',
@@ -866,7 +869,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       <div>
                         <p style={{ color: '#ffffff', fontWeight: '500' }}>{schedule.name}</p>
                         <p style={{ color: '#64748b', fontSize: '14px' }}>
-                          {schedule.frequency} at {(schedule.scheduledTimes || ['09:00']).map(utcTimeToLocal).join(', ')} (local) - {schedule.numberOfArticles} article(s)
+                          {schedule.frequency} at {(schedule.scheduledTimes || ['09:00']).map(t => utcTimeToLocal(t).split(':')[0] + ':00').join(', ')} (local) - {schedule.numberOfArticles} article(s)
                         </p>
                       </div>
                       <button
@@ -1485,8 +1488,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                         <p style={{ color: '#ffffff' }}>{schedule.frequency}</p>
                       </div>
                       <div>
-                        <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Run Times (local)</p>
-                        <p style={{ color: '#ffffff' }}>{(schedule.scheduledTimes || ['09:00']).map(utcTimeToLocal).join(', ')}</p>
+                        <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Run Hours (local)</p>
+                        <p style={{ color: '#ffffff' }}>{(schedule.scheduledTimes || ['09:00']).map(t => utcTimeToLocal(t).split(':')[0] + ':00').join(', ')}</p>
                       </div>
                       <div>
                         <p style={{ color: '#64748b', fontSize: '12px', marginBottom: '4px' }}>Articles/Run</p>
@@ -2103,37 +2106,23 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   </div>
                 </div>
                 <div>
-                  <label style={styles.label}>Run Times - Local Time (can add multiple)</label>
+                  <label style={styles.label}>Run Hours - Local Time (runs at the top of each selected hour)</label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {scheduleForm.scheduledTimes.map((time, index) => {
-                      const [hour, minute] = time.split(':');
+                      const [hour] = time.split(':');
                       return (
                         <div key={index} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <select
                             value={hour}
                             onChange={(e) => {
                               const newTimes = [...scheduleForm.scheduledTimes];
-                              newTimes[index] = `${e.target.value}:${minute}`;
+                              newTimes[index] = `${e.target.value}:00`;
                               setScheduleForm({ ...scheduleForm, scheduledTimes: newTimes });
                             }}
                             style={{ ...styles.select, flex: 1 }}
                           >
                             {Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0')).map((h) => (
-                              <option key={h} value={h}>{h}</option>
-                            ))}
-                          </select>
-                          <span style={{ color: '#94a3b8', fontSize: '18px', fontWeight: '600' }}>:</span>
-                          <select
-                            value={minute}
-                            onChange={(e) => {
-                              const newTimes = [...scheduleForm.scheduledTimes];
-                              newTimes[index] = `${hour}:${e.target.value}`;
-                              setScheduleForm({ ...scheduleForm, scheduledTimes: newTimes });
-                            }}
-                            style={{ ...styles.select, flex: 1 }}
-                          >
-                            {['00', '15', '30', '45'].map((m) => (
-                              <option key={m} value={m}>{m}</option>
+                              <option key={h} value={h}>{h}:00</option>
                             ))}
                           </select>
                           {scheduleForm.scheduledTimes.length > 1 && (
@@ -2179,7 +2168,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                           alignSelf: 'flex-start',
                         }}
                       >
-                        + Add Another Time
+                        + Add Another Hour
                       </button>
                     )}
                   </div>

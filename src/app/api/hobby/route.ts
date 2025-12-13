@@ -13,23 +13,17 @@ export async function GET(request: NextRequest) {
     const includePrivate = searchParams.get('includePrivate') === 'true';
 
     const db = getFirestore();
-    let query = db.collection(HOBBIES_COLLECTION).orderBy('order', 'asc');
 
-    // Only show public hobbies unless admin requests private ones
-    if (!includePrivate) {
-      query = query.where('isPublic', '==', true);
-    } else {
-      // Verify admin for private hobbies
+    // Check if user is admin when requesting private hobbies
+    let isAdminUser = false;
+    if (includePrivate) {
       const { user } = await ensureAdmin(request);
-      if (!user) {
-        query = db.collection(HOBBIES_COLLECTION)
-          .where('isPublic', '==', true)
-          .orderBy('order', 'asc');
-      }
+      isAdminUser = !!user;
     }
 
-    const snapshot = await query.get();
-    const categories: HobbyCategory[] = [];
+    // Fetch all hobbies and filter/sort in memory to avoid composite index requirement
+    const snapshot = await db.collection(HOBBIES_COLLECTION).get();
+    let categories: HobbyCategory[] = [];
 
     snapshot.forEach((doc) => {
       const data = doc.data();
@@ -42,12 +36,20 @@ export async function GET(request: NextRequest) {
         coverImage: data.coverImage,
         templateType: data.templateType,
         isPublic: data.isPublic,
-        order: data.order,
+        order: data.order ?? 0,
         fields: data.fields || [],
         createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
         updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
       });
     });
+
+    // Filter by public unless admin is requesting private
+    if (!isAdminUser) {
+      categories = categories.filter(c => c.isPublic);
+    }
+
+    // Sort by order
+    categories.sort((a, b) => a.order - b.order);
 
     return NextResponse.json({
       categories,

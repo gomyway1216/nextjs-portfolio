@@ -38,11 +38,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Hobby not found' }, { status: 404 });
     }
 
-    let query = db.collection(HOBBY_ITEMS_COLLECTION)
-      .where('hobbyId', '==', hobbyId)
-      .orderBy('order', 'asc');
-
-    // Only show public items unless admin requests private ones
+    // Check if user is admin
     let isAdminUser = false;
     if (includePrivate) {
       const token = getTokenFromRequest(request);
@@ -54,12 +50,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (!isAdminUser) {
-      query = query.where('isPublic', '==', true);
-    }
+    // Fetch items by hobbyId only (avoid composite index requirement)
+    const snapshot = await db.collection(HOBBY_ITEMS_COLLECTION)
+      .where('hobbyId', '==', hobbyId)
+      .get();
 
-    const snapshot = await query.offset(offset).limit(limit).get();
-    const items: HobbyItem[] = [];
+    let items: HobbyItem[] = [];
 
     snapshot.forEach((doc) => {
       const data = doc.data();
@@ -71,7 +67,7 @@ export async function GET(request: NextRequest) {
         images: data.images || [],
         thumbImage: data.thumbImage || '',
         isPublic: data.isPublic,
-        order: data.order,
+        order: data.order ?? 0,
         customFields: data.customFields || {},
         tags: data.tags || [],
         createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
@@ -79,15 +75,19 @@ export async function GET(request: NextRequest) {
       });
     });
 
-    // Get total count
-    const countQuery = isAdminUser
-      ? db.collection(HOBBY_ITEMS_COLLECTION).where('hobbyId', '==', hobbyId)
-      : db.collection(HOBBY_ITEMS_COLLECTION)
-          .where('hobbyId', '==', hobbyId)
-          .where('isPublic', '==', true);
+    // Filter by public unless admin
+    if (!isAdminUser) {
+      items = items.filter(item => item.isPublic);
+    }
 
-    const countSnapshot = await countQuery.count().get();
-    const total = countSnapshot.data().count;
+    // Sort by order
+    items.sort((a, b) => a.order - b.order);
+
+    // Get total before pagination
+    const total = items.length;
+
+    // Apply pagination
+    items = items.slice(offset, offset + limit);
 
     return NextResponse.json({
       items,
@@ -130,14 +130,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Hobby not found' }, { status: 404 });
     }
 
-    // Get the next order number
-    const lastDoc = await db.collection(HOBBY_ITEMS_COLLECTION)
+    // Get the next order number (fetch all items for this hobby to avoid composite index)
+    const existingItems = await db.collection(HOBBY_ITEMS_COLLECTION)
       .where('hobbyId', '==', body.hobbyId)
-      .orderBy('order', 'desc')
-      .limit(1)
       .get();
 
-    const nextOrder = lastDoc.empty ? 1 : (lastDoc.docs[0].data().order || 0) + 1;
+    let maxOrder = 0;
+    existingItems.forEach(doc => {
+      const order = doc.data().order || 0;
+      if (order > maxOrder) maxOrder = order;
+    });
+    const nextOrder = maxOrder + 1;
 
     const newItem = {
       hobbyId: body.hobbyId,

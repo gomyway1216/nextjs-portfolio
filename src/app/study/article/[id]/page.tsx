@@ -864,7 +864,7 @@ export default function StudyArticlePage() {
   );
 
   return (
-    <div className={activeTab === 'chat' ? 'chat-page-active' : ''} style={{
+    <div style={{
       minHeight: '100vh',
       backgroundColor: '#ffffff',
       paddingTop: '8px',
@@ -1668,22 +1668,7 @@ export default function StudyArticlePage() {
           .lg-show { display: block; }
           .lg-hide { display: none; }
         }
-        /* Chat improvements - remove all padding when chat is active */
-        .chat-page-active {
-          padding-top: 0 !important;
-          padding-bottom: 0 !important;
-        }
-        .chat-active-container {
-          padding: 0 24px !important;
-        }
-        .main-content-box.chat-active .tab-content {
-          padding: 0 !important;
-        }
-        /* When sidebar is hidden, adjust chat container */
-        .chat-container.sidebar-hidden {
-          right: 24px !important;
-        }
-        /* Mobile improvements */
+                /* Mobile improvements */
         @media (max-width: 639px) {
           .header-container {
             padding: 6px 8px !important;
@@ -1704,18 +1689,18 @@ export default function StudyArticlePage() {
             background-color: transparent !important;
           }
           .chat-container {
-            height: auto !important;
+            height: calc(100dvh - 60px) !important;
             min-height: unset !important;
             position: fixed !important;
             top: 60px !important;
             left: 0 !important;
             right: 0 !important;
-            bottom: env(safe-area-inset-bottom, 0px) !important;
+            bottom: 0 !important;
             padding: 0 8px !important;
           }
           .chat-input-container {
             position: fixed !important;
-            bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
+            bottom: 16px !important;
             left: 8px !important;
             right: 8px !important;
             padding: 0 !important;

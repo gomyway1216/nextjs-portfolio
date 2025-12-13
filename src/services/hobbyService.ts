@@ -1,3 +1,4 @@
+import { auth } from '@/lib/firebaseConnect';
 import type {
   HobbyCategory,
   HobbyItem,
@@ -11,6 +12,39 @@ import type {
 
 const BASE_URL = '/api/hobby';
 
+// Helper to get auth headers (returns empty object if not logged in)
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  const user = auth.currentUser;
+  if (!user) return {};
+  const token = await user.getIdToken();
+  return { Authorization: `Bearer ${token}` };
+}
+
+// Helper for API calls
+async function apiCall<T>(
+  url: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const headers = await getAuthHeaders();
+
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+      ...options.headers,
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.error || 'API request failed');
+  }
+
+  return data;
+}
+
 // ============================================================================
 // HOBBY CATEGORIES
 // ============================================================================
@@ -22,23 +56,11 @@ export async function getHobbyCategories(
   if (includePrivate) {
     url.searchParams.set('includePrivate', 'true');
   }
-
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error('Failed to fetch hobby categories');
-  }
-  return response.json();
+  return apiCall<HobbyCategoriesResponse>(url.toString());
 }
 
 export async function getHobbyCategory(hobbyId: string): Promise<HobbyCategory> {
-  const response = await fetch(`${BASE_URL}/${hobbyId}`);
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error('Hobby not found');
-    }
-    throw new Error('Failed to fetch hobby category');
-  }
-  return response.json();
+  return apiCall<HobbyCategory>(`${BASE_URL}/${hobbyId}`);
 }
 
 export async function getHobbyCategoryBySlug(slug: string): Promise<HobbyCategory | null> {
@@ -48,45 +70,27 @@ export async function getHobbyCategoryBySlug(slug: string): Promise<HobbyCategor
 
 export async function createHobbyCategory(
   input: CreateHobbyCategoryInput
-): Promise<{ id: string }> {
-  const response = await fetch(BASE_URL, {
+): Promise<{ id: string; message: string }> {
+  return apiCall<{ id: string; message: string }>(BASE_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to create hobby category');
-  }
-  return response.json();
 }
 
 export async function updateHobbyCategory(
   hobbyId: string,
   input: UpdateHobbyCategoryInput
 ): Promise<void> {
-  const response = await fetch(`${BASE_URL}/${hobbyId}`, {
+  await apiCall(`${BASE_URL}/${hobbyId}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to update hobby category');
-  }
 }
 
 export async function deleteHobbyCategory(hobbyId: string): Promise<void> {
-  const response = await fetch(`${BASE_URL}/${hobbyId}`, {
+  await apiCall(`${BASE_URL}/${hobbyId}`, {
     method: 'DELETE',
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to delete hobby category');
-  }
 }
 
 // ============================================================================
@@ -114,63 +118,34 @@ export async function getHobbyItems(
     url.searchParams.set('offset', options.offset.toString());
   }
 
-  const response = await fetch(url.toString());
-  if (!response.ok) {
-    throw new Error('Failed to fetch hobby items');
-  }
-  return response.json();
+  return apiCall<HobbyItemsResponse>(url.toString());
 }
 
 export async function getHobbyItem(itemId: string): Promise<HobbyItem> {
-  const response = await fetch(`${BASE_URL}/items/${itemId}`);
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new Error('Item not found');
-    }
-    throw new Error('Failed to fetch hobby item');
-  }
-  return response.json();
+  return apiCall<HobbyItem>(`${BASE_URL}/items/${itemId}`);
 }
 
 export async function createHobbyItem(
   input: CreateHobbyItemInput
-): Promise<{ id: string }> {
-  const response = await fetch(`${BASE_URL}/items`, {
+): Promise<{ id: string; message: string }> {
+  return apiCall<{ id: string; message: string }>(`${BASE_URL}/items`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to create hobby item');
-  }
-  return response.json();
 }
 
 export async function updateHobbyItem(
   itemId: string,
   input: UpdateHobbyItemInput
 ): Promise<void> {
-  const response = await fetch(`${BASE_URL}/items/${itemId}`, {
+  await apiCall(`${BASE_URL}/items/${itemId}`, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to update hobby item');
-  }
 }
 
 export async function deleteHobbyItem(itemId: string): Promise<void> {
-  const response = await fetch(`${BASE_URL}/items/${itemId}`, {
+  await apiCall(`${BASE_URL}/items/${itemId}`, {
     method: 'DELETE',
   });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'Failed to delete hobby item');
-  }
 }

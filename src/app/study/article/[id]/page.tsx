@@ -1700,7 +1700,7 @@ export default function StudyArticlePage() {
           }
           .chat-input-container {
             position: absolute !important;
-            bottom: 12px !important;
+            bottom: 0 !important;
             left: 0 !important;
             right: 0 !important;
             padding: 0 !important;

@@ -1284,11 +1284,14 @@ export default function StudyArticlePage() {
 
                 {activeTab === 'chat' && (
                   <div className={`chat-container ${!showDesktopSidebar ? 'sidebar-hidden' : ''}`} style={{
+                    position: 'fixed',
+                    top: '60px',
+                    left: '24px',
+                    right: showDesktopSidebar ? '328px' : '24px',
+                    bottom: '0',
                     display: 'flex',
                     flexDirection: 'column',
-                    height: 'calc(100vh - 80px)',
-                    maxWidth: '100%',
-                    position: 'relative',
+                    backgroundColor: '#ffffff',
                   }}>
                     {/* Chat Messages */}
                     <div className="chat-messages" style={{
@@ -1687,9 +1690,13 @@ export default function StudyArticlePage() {
             background-color: transparent !important;
           }
           .chat-container {
-            height: calc(100dvh - 140px) !important;
-            min-height: unset !important;
-            position: relative !important;
+            position: fixed !important;
+            top: 60px !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            background-color: #ffffff !important;
+            padding: 0 8px !important;
           }
           .chat-input-container {
             position: absolute !important;

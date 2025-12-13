@@ -864,7 +864,7 @@ export default function StudyArticlePage() {
   );
 
   return (
-    <div style={{
+    <div className={activeTab === 'chat' ? 'chat-page-active' : ''} style={{
       minHeight: '100vh',
       backgroundColor: '#ffffff',
       paddingTop: '8px',
@@ -1061,7 +1061,7 @@ export default function StudyArticlePage() {
         </div>
       )}
 
-      <div className="main-container" style={{ maxWidth: '100%', padding: '6px 24px 24px' }}>
+      <div className={`main-container ${activeTab === 'chat' ? 'chat-active-container' : ''}`} style={{ maxWidth: '100%', padding: '6px 24px 24px' }}>
         <div style={{ display: 'flex', gap: '32px' }}>
           {/* Main Content Area */}
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -1283,12 +1283,14 @@ export default function StudyArticlePage() {
                 )}
 
                 {activeTab === 'chat' && (
-                  <div className="chat-container" style={{
+                  <div className={`chat-container ${!showDesktopSidebar ? 'sidebar-hidden' : ''}`} style={{
+                    position: 'fixed',
+                    top: '60px',
+                    left: '24px',
+                    right: showDesktopSidebar ? '328px' : '24px',
+                    bottom: '0',
                     display: 'flex',
                     flexDirection: 'column',
-                    height: 'calc(100vh - 120px)',
-                    maxWidth: '100%',
-                    position: 'relative',
                   }}>
                     {/* Chat Messages */}
                     <div className="chat-messages" style={{
@@ -1373,10 +1375,9 @@ export default function StudyArticlePage() {
                     {/* Chat Input - Fixed at bottom with minimal spacing */}
                     <div className="chat-input-container" style={{
                       position: 'absolute',
-                      bottom: '0',
+                      bottom: '12px',
                       left: '0',
                       right: '0',
-                      paddingTop: '8px',
                       backgroundColor: 'transparent',
                     }}>
                       <div style={{
@@ -1408,7 +1409,7 @@ export default function StudyArticlePage() {
                             border: '1px solid #d1d5db',
                             backgroundColor: '#f9fafb',
                             color: '#111827',
-                            fontSize: '15px',
+                            fontSize: '16px',
                             outline: 'none',
                             resize: 'none',
                             maxHeight: '120px',
@@ -1667,16 +1668,32 @@ export default function StudyArticlePage() {
           .lg-show { display: block; }
           .lg-hide { display: none; }
         }
+        /* Chat improvements - remove all padding when chat is active */
+        .chat-page-active {
+          padding-top: 0 !important;
+          padding-bottom: 0 !important;
+        }
+        .chat-active-container {
+          padding: 0 24px !important;
+        }
+        .main-content-box.chat-active .tab-content {
+          padding: 0 !important;
+        }
+        /* When sidebar is hidden, adjust chat container */
+        .chat-container.sidebar-hidden {
+          right: 24px !important;
+        }
         /* Mobile improvements */
         @media (max-width: 639px) {
           .header-container {
             padding: 6px 8px !important;
           }
           .main-container {
-            padding: 6px 8px 0 !important;
+            padding: 0 8px !important;
+            margin: 0 !important;
           }
           .tab-content {
-            padding: 8px 4px !important;
+            padding: 8px 4px 0 !important;
             background-color: transparent !important;
           }
           .main-content-box {
@@ -1687,21 +1704,26 @@ export default function StudyArticlePage() {
             background-color: transparent !important;
           }
           .chat-container {
-            height: calc(100vh - 70px) !important;
+            height: calc(100dvh - 60px) !important;
             min-height: unset !important;
-            position: relative !important;
+            position: fixed !important;
+            top: 60px !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            padding: 0 8px !important;
           }
           .chat-input-container {
             position: fixed !important;
-            bottom: 16px !important;
-            left: 0 !important;
-            right: 0 !important;
-            padding: 8px !important;
+            bottom: 12px !important;
+            left: 8px !important;
+            right: 8px !important;
+            padding: 0 !important;
             background-color: transparent !important;
             z-index: 30 !important;
           }
           .chat-messages {
-            padding-bottom: 60px !important;
+            padding-bottom: 70px !important;
           }
         }
       `}</style>

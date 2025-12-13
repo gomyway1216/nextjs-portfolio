@@ -1395,6 +1395,12 @@ export default function StudyArticlePage() {
                               handleSendChat();
                             }
                           }}
+                          onBlur={() => {
+                            // Fix iOS Safari viewport issue when keyboard closes
+                            setTimeout(() => {
+                              window.scrollTo(0, 0);
+                            }, 100);
+                          }}
                           placeholder="Ask a question..."
                           disabled={isSendingChat}
                           rows={1}

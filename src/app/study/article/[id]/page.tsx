@@ -408,7 +408,6 @@ export default function StudyArticlePage() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showDesktopSidebar, setShowDesktopSidebar] = useState(true);
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Data hooks
   const { article, loading: articleLoading, error: articleError } = useStudyArticle(articleId);
@@ -432,13 +431,7 @@ export default function StudyArticlePage() {
     }
   }, [article, activeTab]);
 
-  // Scroll to bottom of chat
-  useEffect(() => {
-    if (chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [chat?.messages]);
-
+  
   // Mark as read when leaving page (for general progress tracking)
   useEffect(() => {
     return () => {
@@ -1292,11 +1285,14 @@ export default function StudyArticlePage() {
                     display: 'flex',
                     flexDirection: 'column',
                     backgroundColor: '#ffffff',
+                    overflow: 'hidden',
                   }}>
                     {/* Chat Messages */}
                     <div className="chat-messages" style={{
                       flex: 1,
                       overflowY: 'auto',
+                      WebkitOverflowScrolling: 'touch',
+                      overscrollBehavior: 'contain',
                       paddingBottom: '60px',
                       display: 'flex',
                       flexDirection: 'column',
@@ -1368,7 +1364,6 @@ export default function StudyArticlePage() {
                               )}
                             </div>
                           ))}
-                          <div ref={chatEndRef} />
                         </div>
                       )}
                     </div>
@@ -1669,7 +1664,13 @@ export default function StudyArticlePage() {
           .lg-show { display: block; }
           .lg-hide { display: none; }
         }
-                /* Mobile improvements */
+        /* Prevent body scroll when chat is active */
+        body:has(.chat-container) {
+          overflow: hidden !important;
+          position: fixed !important;
+          width: 100% !important;
+        }
+        /* Mobile improvements */
         @media (max-width: 639px) {
           .header-container {
             padding: 6px 8px !important;
@@ -1697,6 +1698,12 @@ export default function StudyArticlePage() {
             bottom: 0 !important;
             background-color: #ffffff !important;
             padding: 0 8px !important;
+            overflow: hidden !important;
+          }
+          .chat-messages {
+            -webkit-overflow-scrolling: touch !important;
+            overscroll-behavior: contain !important;
+            padding-bottom: 70px !important;
           }
           .chat-input-container {
             position: absolute !important;
@@ -1705,9 +1712,6 @@ export default function StudyArticlePage() {
             right: 0 !important;
             padding: 0 !important;
             background-color: transparent !important;
-          }
-          .chat-messages {
-            padding-bottom: 70px !important;
           }
         }
       `}</style>

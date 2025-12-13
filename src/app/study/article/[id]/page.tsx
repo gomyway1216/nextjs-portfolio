@@ -407,6 +407,7 @@ export default function StudyArticlePage() {
   const [readStartTime] = useState(Date.now());
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [showDesktopSidebar, setShowDesktopSidebar] = useState(true);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   // Data hooks
@@ -986,7 +987,16 @@ export default function StudyArticlePage() {
                 )
               )}
               <button
-                onClick={() => setShowMobileSidebar(true)}
+                onClick={() => {
+                  // On mobile, show overlay sidebar
+                  // On desktop, toggle the sidebar visibility
+                  const isDesktop = window.innerWidth >= 1024;
+                  if (isDesktop) {
+                    setShowDesktopSidebar(!showDesktopSidebar);
+                  } else {
+                    setShowMobileSidebar(true);
+                  }
+                }}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -998,7 +1008,6 @@ export default function StudyArticlePage() {
                   color: '#374151',
                   cursor: 'pointer',
                 }}
-                className="lg-hide"
               >
                 <Menu size={18} />
               </button>
@@ -1362,77 +1371,80 @@ export default function StudyArticlePage() {
                     </div>
 
                     {/* Chat Input - Fixed at bottom with minimal spacing */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'flex-end',
-                      gap: '8px',
+                    <div className="chat-input-container" style={{
                       paddingTop: '8px',
-                      borderTop: '1px solid #e5e7eb',
-                      backgroundColor: '#ffffff',
                     }}>
-                      <textarea
-                        value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          // IME変換中（日本語入力など）はEnterで送信しない
-                          if (e.nativeEvent.isComposing) return;
-                          // On mobile (touch devices), Enter creates new line
-                          // On desktop, Enter sends (Shift+Enter for new line)
-                          const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-                          if (e.key === 'Enter' && !isMobile && !e.shiftKey) {
-                            e.preventDefault();
-                            handleSendChat();
-                          }
-                        }}
-                        placeholder="Ask a question..."
-                        disabled={isSendingChat}
-                        rows={1}
-                        style={{
-                          flex: 1,
-                          padding: '10px 14px',
-                          borderRadius: '20px',
-                          border: '1px solid #d1d5db',
-                          backgroundColor: '#f9fafb',
-                          color: '#111827',
-                          fontSize: '15px',
-                          outline: 'none',
-                          resize: 'none',
-                          maxHeight: '120px',
-                          minHeight: '40px',
-                          lineHeight: '1.4',
-                          overflow: 'auto',
-                        }}
-                        onInput={(e) => {
-                          // Auto-resize textarea
-                          const target = e.target as HTMLTextAreaElement;
-                          target.style.height = 'auto';
-                          target.style.height = Math.min(target.scrollHeight, 120) + 'px';
-                        }}
-                      />
-                      <button
-                        onClick={handleSendChat}
-                        disabled={isSendingChat || !chatInput.trim()}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          width: '40px',
-                          height: '40px',
-                          borderRadius: '50%',
-                          backgroundColor: '#10a37f',
-                          color: '#ffffff',
-                          border: 'none',
-                          cursor: isSendingChat || !chatInput.trim() ? 'not-allowed' : 'pointer',
-                          opacity: isSendingChat || !chatInput.trim() ? 0.5 : 1,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {isSendingChat ? (
-                          <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
-                        ) : (
-                          <Send size={18} />
-                        )}
-                      </button>
+                      <div style={{
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'flex-end',
+                      }}>
+                        <textarea
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            // IME変換中（日本語入力など）はEnterで送信しない
+                            if (e.nativeEvent.isComposing) return;
+                            // On mobile (touch devices), Enter creates new line
+                            // On desktop, Enter sends (Shift+Enter for new line)
+                            const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+                            if (e.key === 'Enter' && !isMobile && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSendChat();
+                            }
+                          }}
+                          placeholder="Ask a question..."
+                          disabled={isSendingChat}
+                          rows={1}
+                          style={{
+                            width: '100%',
+                            padding: '10px 44px 10px 14px',
+                            borderRadius: '20px',
+                            border: '1px solid #d1d5db',
+                            backgroundColor: '#f9fafb',
+                            color: '#111827',
+                            fontSize: '15px',
+                            outline: 'none',
+                            resize: 'none',
+                            maxHeight: '120px',
+                            minHeight: '40px',
+                            lineHeight: '1.4',
+                            overflow: 'auto',
+                          }}
+                          onInput={(e) => {
+                            // Auto-resize textarea
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = 'auto';
+                            target.style.height = Math.min(target.scrollHeight, 120) + 'px';
+                          }}
+                        />
+                        <button
+                          onClick={handleSendChat}
+                          disabled={isSendingChat || !chatInput.trim()}
+                          style={{
+                            position: 'absolute',
+                            right: '6px',
+                            bottom: '6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '50%',
+                            backgroundColor: '#10a37f',
+                            color: '#ffffff',
+                            border: 'none',
+                            cursor: isSendingChat || !chatInput.trim() ? 'not-allowed' : 'pointer',
+                            opacity: isSendingChat || !chatInput.trim() ? 0.5 : 1,
+                          }}
+                        >
+                          {isSendingChat ? (
+                            <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                          ) : (
+                            <Send size={14} />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1619,11 +1631,18 @@ export default function StudyArticlePage() {
           </div>
 
           {/* Desktop Sidebar */}
-          <aside style={{ width: '280px', flexShrink: 0 }} className="lg-show">
-            <div style={{ position: 'sticky', top: '60px' }}>
-              <SidebarContent />
-            </div>
-          </aside>
+          {showDesktopSidebar && (
+            <aside style={{ width: '280px', flexShrink: 0 }} className="lg-show">
+              <div style={{
+                position: 'sticky',
+                top: '60px',
+                maxHeight: 'calc(100vh - 70px)',
+                overflowY: 'auto',
+              }}>
+                <SidebarContent />
+              </div>
+            </aside>
+          )}
         </div>
       </div>
 
@@ -1660,6 +1679,11 @@ export default function StudyArticlePage() {
           }
           .main-content-box.chat-active .tab-content {
             padding: 4px !important;
+          }
+          .chat-input-container {
+            background-color: transparent !important;
+            border-top: none !important;
+            padding-top: 4px !important;
           }
         }
       `}</style>

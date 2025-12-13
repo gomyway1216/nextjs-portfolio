@@ -1667,8 +1667,6 @@ export default function StudyArticlePage() {
         /* Prevent body scroll when chat is active */
         body:has(.chat-container) {
           overflow: hidden !important;
-          position: fixed !important;
-          width: 100% !important;
         }
         /* Mobile improvements */
         @media (max-width: 639px) {

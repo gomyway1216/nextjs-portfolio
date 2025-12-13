@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   useStudyArticle,
   useArticleNotes,
@@ -393,11 +393,16 @@ function renderArticleMarkdown(text: string): React.ReactNode {
 export default function StudyArticlePage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { currentUser } = useAuth();
   const articleId = Array.isArray(params.id) ? params.id[0] : params.id || '';
 
+  // Get initial tab from URL query parameter
+  const tabParam = searchParams.get('tab');
+  const initialTab = (tabParam === 'chat' || tabParam === 'notes') ? tabParam : 'article';
+
   // State
-  const [activeTab, setActiveTab] = useState<'article' | 'chat' | 'notes'>('article');
+  const [activeTab, setActiveTab] = useState<'article' | 'chat' | 'notes'>(initialTab);
   const [chatInput, setChatInput] = useState('');
   const [newNote, setNewNote] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -527,6 +532,23 @@ export default function StudyArticlePage() {
     setTimeout(() => setCopiedCode(null), 2000);
   };
 
+  // Handle tab change with URL update
+  const handleTabChange = (tab: 'article' | 'chat' | 'notes') => {
+    setActiveTab(tab);
+    const url = tab === 'article'
+      ? `/study/article/${articleId}`
+      : `/study/article/${articleId}?tab=${tab}`;
+    router.replace(url, { scroll: false });
+  };
+
+  // Sync activeTab with URL when browser back/forward is used
+  useEffect(() => {
+    const newTab = (tabParam === 'chat' || tabParam === 'notes') ? tabParam : 'article';
+    if (newTab !== activeTab) {
+      setActiveTab(newTab);
+    }
+  }, [tabParam]);
+
   const getDifficultyStyle = (difficulty: QuizDifficulty) => {
     switch (difficulty) {
       case QuizDifficulty.BEGINNER:
@@ -626,7 +648,7 @@ export default function StudyArticlePage() {
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => { setActiveTab(tab.id as 'article' | 'chat' | 'notes'); setShowMobileSidebar(false); }}
+              onClick={() => { handleTabChange(tab.id as 'article' | 'chat' | 'notes'); setShowMobileSidebar(false); }}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -774,7 +796,7 @@ export default function StudyArticlePage() {
         <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px' }}>Actions</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           <button
-            onClick={() => { setActiveTab('notes'); setShowMobileSidebar(false); }}
+            onClick={() => { handleTabChange('notes'); setShowMobileSidebar(false); }}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -794,7 +816,7 @@ export default function StudyArticlePage() {
             Add Note
           </button>
           <button
-            onClick={() => { setActiveTab('chat'); setShowMobileSidebar(false); }}
+            onClick={() => { handleTabChange('chat'); setShowMobileSidebar(false); }}
             style={{
               display: 'flex',
               alignItems: 'center',

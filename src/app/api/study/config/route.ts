@@ -1,6 +1,9 @@
 // Study Config API
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../constants';
+import { logCloudFunctionError } from '../../utils/errorLogger';
+
+const endpoint = '/api/study/config';
 
 // GET /api/study/config - Get study configuration
 export async function GET(request: NextRequest) {
@@ -14,9 +17,23 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'getStudyConfig',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error fetching config:', error);
+    await logCloudFunctionError({
+      functionName: 'getStudyConfig',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch config' },
       { status: 500 }
@@ -40,9 +57,23 @@ export async function PUT(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'updateStudyConfig',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error updating config:', error);
+    await logCloudFunctionError({
+      functionName: 'updateStudyConfig',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to update config' },
       { status: 500 }

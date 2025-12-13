@@ -1,6 +1,9 @@
 // Learning Entries API
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../constants';
+import { logCloudFunctionError } from '../../../utils/errorLogger';
+
+const endpoint = '/api/study/learning/entries';
 
 // GET /api/study/learning/entries - Get learning entries with filters
 export async function GET(request: NextRequest) {
@@ -23,9 +26,22 @@ export async function GET(request: NextRequest) {
     });
     const data = await response.json();
 
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'getLearningEntries',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('[Learning API] Error fetching entries:', error);
+    await logCloudFunctionError({
+      functionName: 'getLearningEntries',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch learning entries' },
       { status: 500 }
@@ -49,9 +65,23 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'createLearningEntry',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('[Learning API] Error creating entry:', error);
+    await logCloudFunctionError({
+      functionName: 'createLearningEntry',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to create learning entry' },
       { status: 500 }
@@ -79,9 +109,24 @@ export async function PUT(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'updateLearningEntry',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { entryId },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('[Learning API] Error updating entry:', error);
+    await logCloudFunctionError({
+      functionName: 'updateLearningEntry',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to update learning entry' },
       { status: 500 }
@@ -107,9 +152,24 @@ export async function DELETE(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'deleteLearningEntry',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { entryId },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('[Learning API] Error deleting entry:', error);
+    await logCloudFunctionError({
+      functionName: 'deleteLearningEntry',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to delete learning entry' },
       { status: 500 }

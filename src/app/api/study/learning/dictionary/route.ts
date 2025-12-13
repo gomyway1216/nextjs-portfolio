@@ -1,6 +1,9 @@
 // Dictionary Terms API
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../constants';
+import { logCloudFunctionError } from '../../../utils/errorLogger';
+
+const endpoint = '/api/study/learning/dictionary';
 
 // GET /api/study/learning/dictionary - Get dictionary terms
 export async function GET(request: NextRequest) {
@@ -23,9 +26,22 @@ export async function GET(request: NextRequest) {
     });
     const data = await response.json();
 
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'getDictionaryTerms',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('[Learning API] Error fetching dictionary terms:', error);
+    await logCloudFunctionError({
+      functionName: 'getDictionaryTerms',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch dictionary terms' },
       { status: 500 }
@@ -49,9 +65,23 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'createDictionaryTerm',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('[Learning API] Error creating dictionary term:', error);
+    await logCloudFunctionError({
+      functionName: 'createDictionaryTerm',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to create dictionary term' },
       { status: 500 }
@@ -79,9 +109,24 @@ export async function PUT(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'updateDictionaryTerm',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { termId },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('[Learning API] Error updating dictionary term:', error);
+    await logCloudFunctionError({
+      functionName: 'updateDictionaryTerm',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to update dictionary term' },
       { status: 500 }
@@ -107,9 +152,24 @@ export async function DELETE(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'deleteDictionaryTerm',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { termId },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('[Learning API] Error deleting dictionary term:', error);
+    await logCloudFunctionError({
+      functionName: 'deleteDictionaryTerm',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to delete dictionary term' },
       { status: 500 }

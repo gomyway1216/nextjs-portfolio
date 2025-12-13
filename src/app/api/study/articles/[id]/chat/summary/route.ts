@@ -1,6 +1,7 @@
 // Study Article Chat Summary API
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../../../constants';
+import { logCloudFunctionError } from '../../../../../utils/errorLogger';
 
 // POST /api/study/articles/[id]/chat/summary - Generate chat summary
 export async function POST(
@@ -21,9 +22,24 @@ export async function POST(
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'generateArticleChatSummary',
+        endpoint: `/api/study/articles/${id}/chat/summary`,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { articleId: id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error generating chat summary:', error);
+    await logCloudFunctionError({
+      functionName: 'generateArticleChatSummary',
+      endpoint: '/api/study/articles/[id]/chat/summary',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to generate summary' },
       { status: 500 }

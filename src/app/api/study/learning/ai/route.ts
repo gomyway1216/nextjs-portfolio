@@ -1,6 +1,9 @@
 // AI Generation API for Learning System
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../constants';
+import { logCloudFunctionError } from '../../../utils/errorLogger';
+
+const endpoint = '/api/study/learning/ai';
 
 // POST /api/study/learning/ai - AI generation endpoints
 // Body should include 'action' field: 'flashcards', 'terms', 'summary', 'quiz'
@@ -41,9 +44,24 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName,
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { action },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('[Learning API] Error with AI generation:', error);
+    await logCloudFunctionError({
+      functionName: 'learningAI',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to generate AI content' },
       { status: 500 }

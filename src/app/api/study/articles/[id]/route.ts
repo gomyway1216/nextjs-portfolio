@@ -1,6 +1,7 @@
 // Study Article by ID API
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../constants';
+import { logCloudFunctionError } from '../../../utils/errorLogger';
 
 // GET /api/study/articles/[id] - Get a single article
 export async function GET(
@@ -14,9 +15,24 @@ export async function GET(
 
     const response = await fetch(url.toString());
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'getStudyArticle',
+        endpoint: `/api/study/articles/${id}`,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { articleId: id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error fetching article:', error);
+    await logCloudFunctionError({
+      functionName: 'getStudyArticle',
+      endpoint: '/api/study/articles/[id]',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch article' },
       { status: 500 }
@@ -44,9 +60,24 @@ export async function PUT(
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'updateStudyArticle',
+        endpoint: `/api/study/articles/${id}`,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { articleId: id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error updating article:', error);
+    await logCloudFunctionError({
+      functionName: 'updateStudyArticle',
+      endpoint: '/api/study/articles/[id]',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to update article' },
       { status: 500 }
@@ -73,9 +104,24 @@ export async function DELETE(
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'deleteStudyArticle',
+        endpoint: `/api/study/articles/${id}`,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { articleId: id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error deleting article:', error);
+    await logCloudFunctionError({
+      functionName: 'deleteStudyArticle',
+      endpoint: '/api/study/articles/[id]',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to delete article' },
       { status: 500 }

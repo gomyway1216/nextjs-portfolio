@@ -1,6 +1,7 @@
 // Study Quiz Submit API
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../../constants';
+import { logCloudFunctionError } from '../../../../utils/errorLogger';
 
 // POST /api/study/quizzes/[id]/submit - Submit quiz answers
 export async function POST(
@@ -22,9 +23,24 @@ export async function POST(
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'submitQuizAttempt',
+        endpoint: `/api/study/quizzes/${id}/submit`,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { quizId: id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error submitting quiz:', error);
+    await logCloudFunctionError({
+      functionName: 'submitQuizAttempt',
+      endpoint: '/api/study/quizzes/[id]/submit',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to submit quiz' },
       { status: 500 }

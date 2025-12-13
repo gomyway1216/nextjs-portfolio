@@ -1,6 +1,9 @@
 // Study Schedules API
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../constants';
+import { logCloudFunctionError } from '../../utils/errorLogger';
+
+const endpoint = '/api/study/schedules';
 
 // GET /api/study/schedules - Get all schedules
 export async function GET(request: NextRequest) {
@@ -14,9 +17,23 @@ export async function GET(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'getStudySchedules',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error fetching schedules:', error);
+    await logCloudFunctionError({
+      functionName: 'getStudySchedules',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch schedules' },
       { status: 500 }
@@ -40,9 +57,23 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'createStudySchedule',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error creating schedule:', error);
+    await logCloudFunctionError({
+      functionName: 'createStudySchedule',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to create schedule' },
       { status: 500 }
@@ -66,9 +97,24 @@ export async function PUT(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'updateStudySchedule',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { scheduleId: body.id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error updating schedule:', error);
+    await logCloudFunctionError({
+      functionName: 'updateStudySchedule',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to update schedule' },
       { status: 500 }
@@ -92,9 +138,24 @@ export async function DELETE(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'deleteStudySchedule',
+        endpoint,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { scheduleId: body.id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error deleting schedule:', error);
+    await logCloudFunctionError({
+      functionName: 'deleteStudySchedule',
+      endpoint,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to delete schedule' },
       { status: 500 }

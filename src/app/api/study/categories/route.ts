@@ -76,9 +76,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'createStudyCategory',
+        endpoint: '/api/study/categories',
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error creating category:', error);
+    await logCloudFunctionError({
+      functionName: 'createStudyCategory',
+      endpoint: '/api/study/categories',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to create category', details: String(error) },
       { status: 500 }
@@ -102,9 +115,24 @@ export async function PUT(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'updateStudyCategory',
+        endpoint: '/api/study/categories',
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { categoryId: body.id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error updating category:', error);
+    await logCloudFunctionError({
+      functionName: 'updateStudyCategory',
+      endpoint: '/api/study/categories',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to update category' },
       { status: 500 }
@@ -128,9 +156,24 @@ export async function DELETE(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'deleteStudyCategory',
+        endpoint: '/api/study/categories',
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { categoryId: body.id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error deleting category:', error);
+    await logCloudFunctionError({
+      functionName: 'deleteStudyCategory',
+      endpoint: '/api/study/categories',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to delete category' },
       { status: 500 }
@@ -152,9 +195,23 @@ export async function PATCH(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'seedStudyCategories',
+        endpoint: '/api/study/categories',
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error seeding categories:', error);
+    await logCloudFunctionError({
+      functionName: 'seedStudyCategories',
+      endpoint: '/api/study/categories',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to seed categories' },
       { status: 500 }

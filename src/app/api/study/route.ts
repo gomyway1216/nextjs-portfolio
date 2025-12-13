@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../constants';
+import { logCloudFunctionError } from '../utils/errorLogger';
 
 // Helper to forward requests to Firebase Functions
 async function forwardToFirebase(
@@ -32,9 +33,22 @@ async function forwardToFirebase(
 
     const data = await response.json();
 
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName,
+        endpoint: `/api/study?action=${functionName}`,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error(`Error calling Firebase function ${functionName}:`, error);
+    await logCloudFunctionError({
+      functionName,
+      endpoint: `/api/study?action=${functionName}`,
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to process request' },
       { status: 500 }

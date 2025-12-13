@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureValidUser } from '@/lib/auth-utils';
 import { STUDY_READ_HISTORY_COLLECTION } from '../../../constants';
+import { logApiError } from '../../../utils/errorLogger';
+import { ErrorSeverity } from '@/types/errors';
 
 // GET /api/study/articles/read-history - Get all read articles for the admin
 export async function GET(request: NextRequest) {
@@ -41,6 +43,14 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Read History API] Error fetching read history:', error);
+    await logApiError({
+      severity: ErrorSeverity.MEDIUM,
+      errorType: 'ReadHistoryAPI:FetchError',
+      message: 'Failed to fetch read history',
+      details: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      endpoint: '/api/study/articles/read-history',
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch read history' },
       { status: 500 }
@@ -113,6 +123,14 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Read History API] Error marking as read:', error);
+    await logApiError({
+      severity: ErrorSeverity.MEDIUM,
+      errorType: 'ReadHistoryAPI:MarkAsReadError',
+      message: 'Failed to mark as read',
+      details: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      endpoint: '/api/study/articles/read-history',
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to mark as read' },
       { status: 500 }
@@ -168,6 +186,14 @@ export async function DELETE(request: NextRequest) {
     });
   } catch (error) {
     console.error('[Read History API] Error unmarking as read:', error);
+    await logApiError({
+      severity: ErrorSeverity.MEDIUM,
+      errorType: 'ReadHistoryAPI:UnmarkAsReadError',
+      message: 'Failed to unmark as read',
+      details: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      endpoint: '/api/study/articles/read-history',
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to unmark as read' },
       { status: 500 }

@@ -64,9 +64,23 @@ export async function POST(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'createStudyTopic',
+        endpoint: '/api/study/topics',
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error creating topic:', error);
+    await logCloudFunctionError({
+      functionName: 'createStudyTopic',
+      endpoint: '/api/study/topics',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to create topic' },
       { status: 500 }
@@ -90,9 +104,24 @@ export async function PUT(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'updateStudyTopic',
+        endpoint: '/api/study/topics',
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { topicId: body.id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error updating topic:', error);
+    await logCloudFunctionError({
+      functionName: 'updateStudyTopic',
+      endpoint: '/api/study/topics',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to update topic' },
       { status: 500 }
@@ -116,9 +145,24 @@ export async function DELETE(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'deleteStudyTopic',
+        endpoint: '/api/study/topics',
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { topicId: body.id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error deleting topic:', error);
+    await logCloudFunctionError({
+      functionName: 'deleteStudyTopic',
+      endpoint: '/api/study/topics',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to delete topic' },
       { status: 500 }

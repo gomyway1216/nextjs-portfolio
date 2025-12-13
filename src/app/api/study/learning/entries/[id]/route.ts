@@ -1,6 +1,7 @@
 // Learning Entry by ID API
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../../constants';
+import { logCloudFunctionError } from '../../../../utils/errorLogger';
 
 // GET /api/study/learning/entries/[id] - Get a single learning entry
 export async function GET(
@@ -21,9 +22,23 @@ export async function GET(
     });
     const data = await response.json();
 
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'getLearningEntry',
+        endpoint: `/api/study/learning/entries/${id}`,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { entryId: id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('[Learning API] Error fetching entry:', error);
+    await logCloudFunctionError({
+      functionName: 'getLearningEntry',
+      endpoint: '/api/study/learning/entries/[id]',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch learning entry' },
       { status: 500 }

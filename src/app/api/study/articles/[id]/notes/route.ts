@@ -1,6 +1,7 @@
 // Study Article Notes API
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../../constants';
+import { logCloudFunctionError } from '../../../../utils/errorLogger';
 
 // GET /api/study/articles/[id]/notes - Get notes for an article
 export async function GET(
@@ -14,16 +15,36 @@ export async function GET(
     const url = new URL(getCloudFunctionUrl('getArticleNotes'));
     url.searchParams.set('articleId', id);
 
+    console.log('[Notes API] Fetching notes from:', url.toString());
+
     const response = await fetch(url.toString(), {
       headers: {
         ...(authHeader && { Authorization: authHeader }),
       },
     });
 
+    console.log('[Notes API] Response status:', response.status);
+
     const data = await response.json();
+
+    // Log error if Cloud Function returned an error
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'getArticleNotes',
+        endpoint: `/api/study/articles/${id}/notes`,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { articleId: id },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
-    console.error('Error fetching notes:', error);
+    console.error('[Notes API] Error fetching notes:', error);
+    await logCloudFunctionError({
+      functionName: 'getArticleNotes',
+      endpoint: '/api/study/articles/[id]/notes',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to fetch notes' },
       { status: 500 }
@@ -60,11 +81,22 @@ export async function POST(
         error: data.error,
         details: data.details || data.message,
       });
+      await logCloudFunctionError({
+        functionName: 'createArticleNote',
+        endpoint: `/api/study/articles/${id}/notes`,
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { articleId: id },
+      });
     }
 
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error creating note:', error);
+    await logCloudFunctionError({
+      functionName: 'createArticleNote',
+      endpoint: '/api/study/articles/[id]/notes',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to create note' },
       { status: 500 }
@@ -88,9 +120,24 @@ export async function PUT(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'updateArticleNote',
+        endpoint: '/api/study/articles/[id]/notes',
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { noteId: body.noteId },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error updating note:', error);
+    await logCloudFunctionError({
+      functionName: 'updateArticleNote',
+      endpoint: '/api/study/articles/[id]/notes',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to update note' },
       { status: 500 }
@@ -114,9 +161,24 @@ export async function DELETE(request: NextRequest) {
     });
 
     const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      await logCloudFunctionError({
+        functionName: 'deleteArticleNote',
+        endpoint: '/api/study/articles/[id]/notes',
+        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        metadata: { noteId: body.noteId },
+      });
+    }
+
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
     console.error('Error deleting note:', error);
+    await logCloudFunctionError({
+      functionName: 'deleteArticleNote',
+      endpoint: '/api/study/articles/[id]/notes',
+      response: { status: 500, error: error instanceof Error ? error.message : 'Unknown error' },
+    });
     return NextResponse.json(
       { success: false, error: 'Failed to delete note' },
       { status: 500 }

@@ -826,18 +826,48 @@ async function seedHobbies() {
     if (!existingHobbies.empty) {
       console.log('⚠️  Hobbies collection is not empty.');
       console.log('   Existing hobbies:', existingHobbies.docs.map(d => d.data().name).join(', '));
-      console.log('\n   To re-seed, delete existing data first or skip this step.');
+      console.log('\n   Options:');
+      console.log('   [d] Delete existing data and re-seed (recommended)');
+      console.log('   [s] Skip - exit without changes');
+      console.log('   [a] Add anyway (will create duplicates!)');
 
       const readline = await import('readline');
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
       const answer = await new Promise<string>((resolve) => {
-        rl.question('\n   Continue anyway? (y/N): ', resolve);
+        rl.question('\n   Choose option (d/s/a): ', resolve);
       });
       rl.close();
 
-      if (answer.toLowerCase() !== 'y') {
+      const choice = answer.toLowerCase();
+
+      if (choice === 's' || choice === '') {
         console.log('\n   Skipping seed. Exiting.');
+        process.exit(0);
+      }
+
+      if (choice === 'd') {
+        console.log('\n   Deleting existing data...');
+
+        // Delete all hobby items first
+        const existingItems = await db.collection(HOBBY_ITEMS_COLLECTION).get();
+        const itemBatch = db.batch();
+        existingItems.docs.forEach((doc) => {
+          itemBatch.delete(doc.ref);
+        });
+        await itemBatch.commit();
+        console.log(`   ✓ Deleted ${existingItems.size} hobby items`);
+
+        // Delete all hobbies
+        const hobbyBatch = db.batch();
+        existingHobbies.docs.forEach((doc) => {
+          hobbyBatch.delete(doc.ref);
+        });
+        await hobbyBatch.commit();
+        console.log(`   ✓ Deleted ${existingHobbies.size} hobbies`);
+        console.log('');
+      } else if (choice !== 'a') {
+        console.log('\n   Invalid option. Exiting.');
         process.exit(0);
       }
     }

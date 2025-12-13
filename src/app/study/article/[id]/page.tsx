@@ -1704,18 +1704,18 @@ export default function StudyArticlePage() {
             background-color: transparent !important;
           }
           .chat-container {
-            height: calc(100dvh - 60px) !important;
+            height: auto !important;
             min-height: unset !important;
             position: fixed !important;
             top: 60px !important;
             left: 0 !important;
             right: 0 !important;
-            bottom: 0 !important;
+            bottom: env(safe-area-inset-bottom, 0px) !important;
             padding: 0 8px !important;
           }
           .chat-input-container {
             position: fixed !important;
-            bottom: 12px !important;
+            bottom: calc(12px + env(safe-area-inset-bottom, 0px)) !important;
             left: 8px !important;
             right: 8px !important;
             padding: 0 !important;

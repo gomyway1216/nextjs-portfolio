@@ -1398,8 +1398,12 @@ export default function StudyArticlePage() {
                           onBlur={() => {
                             // Fix iOS Safari viewport issue when keyboard closes
                             setTimeout(() => {
-                              window.scrollTo(0, 0);
-                            }, 100);
+                              // Force iOS Safari to recalculate viewport by triggering a minimal scroll
+                              window.scrollTo(0, 1);
+                              requestAnimationFrame(() => {
+                                window.scrollTo(0, 0);
+                              });
+                            }, 50);
                           }}
                           placeholder="Ask a question..."
                           disabled={isSendingChat}

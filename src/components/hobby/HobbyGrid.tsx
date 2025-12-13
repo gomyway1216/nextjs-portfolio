@@ -1,0 +1,50 @@
+'use client';
+
+import type { HobbyItem, HobbyCategory } from '@/types/hobby';
+import HobbyItemCard from './HobbyItemCard';
+
+interface HobbyGridProps {
+  items: HobbyItem[];
+  hobby: HobbyCategory;
+  loading?: boolean;
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+}
+
+export default function HobbyGrid({
+  items,
+  hobby,
+  loading,
+  hasMore,
+  onLoadMore,
+}: HobbyGridProps) {
+  if (items.length === 0 && !loading) {
+    return (
+      <div className="hobby-grid__empty">
+        <p>No items yet</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="hobby-grid">
+      <div className="hobby-grid__items">
+        {items.map((item) => (
+          <HobbyItemCard key={item.id} item={item} hobby={hobby} />
+        ))}
+      </div>
+      {loading && (
+        <div className="hobby-grid__loading">
+          <div className="hobby-grid__spinner" />
+        </div>
+      )}
+      {hasMore && !loading && (
+        <div className="hobby-grid__load-more">
+          <button onClick={onLoadMore} className="hobby-grid__load-more-btn">
+            Load More
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}

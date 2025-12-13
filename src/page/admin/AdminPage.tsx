@@ -16,6 +16,7 @@ import {
   FileText,
   Briefcase,
   BookOpen,
+  Heart,
   Plus,
   Pencil,
   Trash2,
@@ -35,10 +36,11 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import StudyAdminPanel from '@/components/study/StudyAdminPanel';
+import HobbiesAdminPanel from '@/components/hobby/HobbiesAdminPanel';
 import { useAppErrors } from '@/hooks/useErrors';
 import { ErrorSource, ErrorSeverity } from '@/types/errors';
 
-type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'errors';
+type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'hobbies' | 'errors';
 
 interface Job {
   id: string;
@@ -769,6 +771,7 @@ const AdminPage = () => {
     { id: 'posts' as AdminSection, label: 'Blog Posts', icon: FileText },
     { id: 'jobs' as AdminSection, label: 'Jobs', icon: Briefcase },
     { id: 'study' as AdminSection, label: 'Study Tool', icon: BookOpen },
+    { id: 'hobbies' as AdminSection, label: 'Hobbies', icon: Heart },
     { id: 'errors' as AdminSection, label: `Errors${unresolvedErrorCount > 0 ? ` (${unresolvedErrorCount})` : ''}`, icon: AlertCircle },
   ];
 
@@ -1273,6 +1276,11 @@ const AdminPage = () => {
           {/* Study Tool Section */}
           {activeSection === 'study' && (
             <StudyAdminPanel />
+          )}
+
+          {/* Hobbies Section */}
+          {activeSection === 'hobbies' && (
+            <HobbiesAdminPanel />
           )}
 
           {/* Errors Section */}

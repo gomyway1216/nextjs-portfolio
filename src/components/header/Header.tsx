@@ -162,6 +162,28 @@ const Header = () => {
                 </Tooltip>
               </a>
             </li>
+            <li>
+              <a
+                className="nav-link"
+                href="/hobbies"
+                data-tip
+                data-for="HOBBIES"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleClick();
+                  router.push('/hobbies');
+                }}
+              >
+                <span style={{ fontSize: '20px' }}>❤️</span>
+                <Tooltip
+                  id="HOBBIES"
+                  place="right"
+                  variant="dark"
+                >
+                  <span>Hobbies</span>
+                </Tooltip>
+              </a>
+            </li>
             {/* <li>
               <a
                 className="nav-link"

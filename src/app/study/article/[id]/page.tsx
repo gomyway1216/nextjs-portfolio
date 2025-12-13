@@ -616,6 +616,46 @@ export default function StudyArticlePage() {
 
   const SidebarContent = () => (
     <>
+      {/* Tab Navigation */}
+      <div style={{
+        backgroundColor: '#f9fafb',
+        borderRadius: '12px',
+        padding: '12px',
+        marginBottom: '16px',
+      }}>
+        <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '10px', fontSize: '14px' }}>View</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {[
+            { id: 'article', label: 'Article', icon: BookOpen },
+            { id: 'chat', label: 'Chat', icon: MessageSquare },
+            { id: 'notes', label: 'Notes', icon: StickyNote },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => { setActiveTab(tab.id as 'article' | 'chat' | 'notes'); setShowMobileSidebar(false); }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                width: '100%',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                backgroundColor: activeTab === tab.id ? '#d1fae5' : 'transparent',
+                color: activeTab === tab.id ? '#065f46' : '#374151',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: activeTab === tab.id ? '500' : '400',
+                textAlign: 'left',
+              }}
+            >
+              <tab.icon size={18} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Article Info Card */}
       <div style={{
         backgroundColor: '#f9fafb',
@@ -836,7 +876,7 @@ export default function StudyArticlePage() {
         top: 0,
         zIndex: 40,
       }}>
-        <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '6px 16px' }}>
+        <div className="header-container" style={{ maxWidth: '100%', padding: '6px 24px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
               <button
@@ -1012,66 +1052,18 @@ export default function StudyArticlePage() {
         </div>
       )}
 
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '6px 16px 24px' }}>
+      <div className="main-container" style={{ maxWidth: '100%', padding: '6px 24px 24px' }}>
         <div style={{ display: 'flex', gap: '32px' }}>
           {/* Main Content Area */}
           <div style={{ flex: 1, minWidth: 0 }}>
             {/* Tab Navigation */}
             <div style={{
               backgroundColor: '#ffffff',
-              borderRadius: '12px',
-              border: '1px solid #e5e7eb',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                display: 'flex',
-                borderBottom: '1px solid #e5e7eb',
-                overflowX: 'auto',
-              }}>
-                {[
-                  { id: 'article', label: 'Article', icon: BookOpen },
-                  { id: 'chat', label: 'Chat', icon: MessageSquare, count: chat?.messages?.length },
-                  { id: 'notes', label: 'Notes', icon: StickyNote, count: notes.length },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as 'article' | 'chat' | 'notes')}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '14px 20px',
-                      backgroundColor: activeTab === tab.id ? '#f9fafb' : 'transparent',
-                      border: 'none',
-                      borderBottom: activeTab === tab.id ? '2px solid #10a37f' : '2px solid transparent',
-                      color: activeTab === tab.id ? '#10a37f' : '#6b7280',
-                      cursor: 'pointer',
-                      fontWeight: '500',
-                      fontSize: '14px',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    <tab.icon size={16} />
-                    {tab.label}
-                    {tab.count !== undefined && tab.count > 0 && (
-                      <span style={{
-                        padding: '2px 6px',
-                        borderRadius: '10px',
-                        fontSize: '11px',
-                        backgroundColor: activeTab === tab.id ? '#d1fae5' : '#f3f4f6',
-                        color: activeTab === tab.id ? '#065f46' : '#6b7280',
-                      }}>
-                        {tab.count}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-
+            }} className={`main-content-box ${activeTab === 'chat' ? 'chat-active' : ''}`}>
               {/* Tab Content */}
-              <div style={{ padding: '24px' }}>
+              <div className="tab-content" style={{ padding: '16px 8px' }}>
                 {activeTab === 'article' && (
-                  <article style={{ maxWidth: '720px', margin: '0 auto' }}>
+                  <article style={{ maxWidth: '100%' }}>
                     {/* Summary */}
                     <div style={{
                       backgroundColor: '#f0fdf4',
@@ -1282,19 +1274,18 @@ export default function StudyArticlePage() {
                 )}
 
                 {activeTab === 'chat' && (
-                  <div style={{
+                  <div className="chat-container" style={{
                     display: 'flex',
                     flexDirection: 'column',
                     height: 'calc(100vh - 240px)',
                     minHeight: '400px',
-                    maxWidth: '720px',
-                    margin: '0 auto',
+                    maxWidth: '100%',
                   }}>
                     {/* Chat Messages */}
                     <div style={{
                       flex: 1,
                       overflowY: 'auto',
-                      paddingBottom: '16px',
+                      paddingBottom: '8px',
                       display: 'flex',
                       flexDirection: 'column',
                     }}>
@@ -1322,32 +1313,47 @@ export default function StudyArticlePage() {
                                 justifyContent: message.role === 'user' ? 'flex-end' : 'flex-start',
                               }}
                             >
-                              <div style={{
-                                maxWidth: message.role === 'user' ? '85%' : '100%',
-                                borderRadius: '12px',
-                                padding: '12px 16px',
-                                backgroundColor: message.role === 'user' ? '#10a37f' : '#f9fafb',
-                                color: message.role === 'user' ? '#ffffff' : '#374151',
-                                border: message.role === 'assistant' ? '1px solid #e5e7eb' : 'none',
-                              }}>
-                                {message.role === 'user' ? (
-                                  <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0, fontSize: '14px' }}>
+                              {message.role === 'user' ? (
+                                // User message - speech bubble style
+                                <div style={{
+                                  maxWidth: '85%',
+                                  borderRadius: '18px 18px 4px 18px',
+                                  padding: '10px 14px',
+                                  backgroundColor: '#10a37f',
+                                  color: '#ffffff',
+                                }}>
+                                  <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5, margin: 0, fontSize: '14px' }}>
                                     {message.content}
                                   </p>
-                                ) : (
-                                  <div className="chat-markdown">
+                                  <span style={{
+                                    display: 'block',
+                                    fontSize: '10px',
+                                    color: 'rgba(255,255,255,0.7)',
+                                    marginTop: '4px',
+                                    textAlign: 'right',
+                                  }}>
+                                    {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              ) : (
+                                // AI response - full width, no bubble
+                                <div style={{
+                                  width: '100%',
+                                  padding: '0',
+                                }}>
+                                  <div className="chat-markdown" style={{ color: '#374151' }}>
                                     {renderMarkdown(message.content)}
                                   </div>
-                                )}
-                                <span style={{
-                                  display: 'block',
-                                  fontSize: '10px',
-                                  color: message.role === 'user' ? 'rgba(255,255,255,0.7)' : '#9ca3af',
-                                  marginTop: '8px',
-                                }}>
-                                  {new Date(message.timestamp).toLocaleTimeString()}
-                                </span>
-                              </div>
+                                  <span style={{
+                                    display: 'block',
+                                    fontSize: '10px',
+                                    color: '#9ca3af',
+                                    marginTop: '8px',
+                                  }}>
+                                    {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           ))}
                           <div ref={chatEndRef} />
@@ -1355,34 +1361,52 @@ export default function StudyArticlePage() {
                       )}
                     </div>
 
-                    {/* Chat Input - Fixed at bottom */}
+                    {/* Chat Input - Fixed at bottom with minimal spacing */}
                     <div style={{
                       display: 'flex',
+                      alignItems: 'flex-end',
                       gap: '8px',
-                      paddingTop: '16px',
+                      paddingTop: '8px',
                       borderTop: '1px solid #e5e7eb',
                       backgroundColor: '#ffffff',
                     }}>
-                      <input
-                        type="text"
+                      <textarea
                         value={chatInput}
                         onChange={(e) => setChatInput(e.target.value)}
                         onKeyDown={(e) => {
                           // IME変換中（日本語入力など）はEnterで送信しない
                           if (e.nativeEvent.isComposing) return;
-                          if (e.key === 'Enter' && !e.shiftKey) handleSendChat();
+                          // On mobile (touch devices), Enter creates new line
+                          // On desktop, Enter sends (Shift+Enter for new line)
+                          const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+                          if (e.key === 'Enter' && !isMobile && !e.shiftKey) {
+                            e.preventDefault();
+                            handleSendChat();
+                          }
                         }}
-                        placeholder="Ask a question about this article..."
+                        placeholder="Ask a question..."
                         disabled={isSendingChat}
+                        rows={1}
                         style={{
                           flex: 1,
-                          padding: '14px 18px',
-                          borderRadius: '12px',
+                          padding: '10px 14px',
+                          borderRadius: '20px',
                           border: '1px solid #d1d5db',
-                          backgroundColor: '#ffffff',
+                          backgroundColor: '#f9fafb',
                           color: '#111827',
                           fontSize: '15px',
                           outline: 'none',
+                          resize: 'none',
+                          maxHeight: '120px',
+                          minHeight: '40px',
+                          lineHeight: '1.4',
+                          overflow: 'auto',
+                        }}
+                        onInput={(e) => {
+                          // Auto-resize textarea
+                          const target = e.target as HTMLTextAreaElement;
+                          target.style.height = 'auto';
+                          target.style.height = Math.min(target.scrollHeight, 120) + 'px';
                         }}
                       />
                       <button
@@ -1392,19 +1416,21 @@ export default function StudyArticlePage() {
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          padding: '14px 18px',
-                          borderRadius: '12px',
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '50%',
                           backgroundColor: '#10a37f',
                           color: '#ffffff',
                           border: 'none',
                           cursor: isSendingChat || !chatInput.trim() ? 'not-allowed' : 'pointer',
                           opacity: isSendingChat || !chatInput.trim() ? 0.5 : 1,
+                          flexShrink: 0,
                         }}
                       >
                         {isSendingChat ? (
-                          <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+                          <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
                         ) : (
-                          <Send size={20} />
+                          <Send size={18} />
                         )}
                       </button>
                     </div>
@@ -1412,7 +1438,7 @@ export default function StudyArticlePage() {
                 )}
 
                 {activeTab === 'notes' && (
-                  <div style={{ maxWidth: '720px', margin: '0 auto' }}>
+                  <div style={{ maxWidth: '100%' }}>
                     {/* Add Note */}
                     <div style={{
                       border: '1px solid #e5e7eb',
@@ -1594,7 +1620,7 @@ export default function StudyArticlePage() {
 
           {/* Desktop Sidebar */}
           <aside style={{ width: '280px', flexShrink: 0 }} className="lg-show">
-            <div style={{ position: 'sticky', top: '140px' }}>
+            <div style={{ position: 'sticky', top: '60px' }}>
               <SidebarContent />
             </div>
           </aside>
@@ -1616,6 +1642,25 @@ export default function StudyArticlePage() {
         @media (min-width: 1024px) {
           .lg-show { display: block; }
           .lg-hide { display: none; }
+        }
+        /* Mobile improvements */
+        @media (max-width: 639px) {
+          .header-container {
+            padding: 6px 8px !important;
+          }
+          .main-container {
+            padding: 6px 8px 24px !important;
+          }
+          .tab-content {
+            padding: 8px 4px !important;
+          }
+          .chat-container {
+            height: calc(100vh - 140px) !important;
+            min-height: 300px !important;
+          }
+          .main-content-box.chat-active .tab-content {
+            padding: 4px !important;
+          }
         }
       `}</style>
     </div>

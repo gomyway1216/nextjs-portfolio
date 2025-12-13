@@ -1286,15 +1286,15 @@ export default function StudyArticlePage() {
                   <div className="chat-container" style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    height: 'calc(100vh - 240px)',
-                    minHeight: '400px',
+                    height: 'calc(100vh - 120px)',
                     maxWidth: '100%',
+                    position: 'relative',
                   }}>
                     {/* Chat Messages */}
-                    <div style={{
+                    <div className="chat-messages" style={{
                       flex: 1,
                       overflowY: 'auto',
-                      paddingBottom: '8px',
+                      paddingBottom: '60px',
                       display: 'flex',
                       flexDirection: 'column',
                     }}>
@@ -1372,7 +1372,12 @@ export default function StudyArticlePage() {
 
                     {/* Chat Input - Fixed at bottom with minimal spacing */}
                     <div className="chat-input-container" style={{
+                      position: 'absolute',
+                      bottom: '0',
+                      left: '0',
+                      right: '0',
                       paddingTop: '8px',
+                      backgroundColor: 'transparent',
                     }}>
                       <div style={{
                         position: 'relative',
@@ -1668,22 +1673,35 @@ export default function StudyArticlePage() {
             padding: 6px 8px !important;
           }
           .main-container {
-            padding: 6px 8px 24px !important;
+            padding: 6px 8px 0 !important;
           }
           .tab-content {
             padding: 8px 4px !important;
+            background-color: transparent !important;
           }
-          .chat-container {
-            height: calc(100vh - 140px) !important;
-            min-height: 300px !important;
+          .main-content-box {
+            background-color: transparent !important;
           }
           .main-content-box.chat-active .tab-content {
-            padding: 4px !important;
+            padding: 0 !important;
+            background-color: transparent !important;
+          }
+          .chat-container {
+            height: calc(100vh - 70px) !important;
+            min-height: unset !important;
+            position: relative !important;
           }
           .chat-input-container {
+            position: fixed !important;
+            bottom: 16px !important;
+            left: 0 !important;
+            right: 0 !important;
+            padding: 8px !important;
             background-color: transparent !important;
-            border-top: none !important;
-            padding-top: 4px !important;
+            z-index: 30 !important;
+          }
+          .chat-messages {
+            padding-bottom: 60px !important;
           }
         }
       `}</style>

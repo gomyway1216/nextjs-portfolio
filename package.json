@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:hobbies": "npx tsx scripts/seed-hobbies.ts",
+    "migrate:hobby-images": "npx tsx scripts/migrate-hobby-images.ts"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.4",
@@ -70,9 +72,11 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
     "tailwindcss": "^4",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

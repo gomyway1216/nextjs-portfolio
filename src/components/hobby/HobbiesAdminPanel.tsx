@@ -14,7 +14,7 @@ import type {
   CreateHobbyCategoryInput,
   CreateHobbyItemInput,
 } from '@/types/hobby';
-import { HobbyTemplateType, CustomFieldType, FISH_CATALOG_FIELDS, SKI_RESORT_FIELDS, generateSlug } from '@/types/hobby';
+import { HobbyTemplateType, CustomFieldType, FISH_CATALOG_FIELDS, SKI_RESORT_FIELDS, TRAIN_CATALOG_FIELDS, generateSlug } from '@/types/hobby';
 import * as imageApi from '@/services/imageService';
 import {
   Plus,
@@ -31,6 +31,7 @@ import {
   Image as ImageIcon,
   Fish,
   Mountain,
+  Train,
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -452,8 +453,34 @@ export default function HobbiesAdminPanel() {
     }));
   };
 
-  const handleApplyTemplate = (template: 'fish' | 'ski') => {
-    const templateFields = template === 'fish' ? FISH_CATALOG_FIELDS : SKI_RESORT_FIELDS;
+  const handleApplyTemplate = (template: 'fish' | 'ski' | 'train') => {
+    let templateFields;
+    let name, slug, description, icon;
+
+    switch (template) {
+      case 'fish':
+        templateFields = FISH_CATALOG_FIELDS;
+        name = '魚図鑑';
+        slug = 'fish';
+        description = '食べた魚のコレクション - 日本語名と英語名付き';
+        icon = 'fish';
+        break;
+      case 'ski':
+        templateFields = SKI_RESORT_FIELDS;
+        name = 'スキー';
+        slug = 'ski';
+        description = 'スキー場の記録';
+        icon = 'mountain';
+        break;
+      case 'train':
+        templateFields = TRAIN_CATALOG_FIELDS;
+        name = '日本の鉄道';
+        slug = 'trains';
+        description = '乗った日本の列車のコレクション';
+        icon = 'train';
+        break;
+    }
+
     const fieldsWithIds: CustomField[] = templateFields.map((f, i) => ({
       ...f,
       id: uuidv4(),
@@ -462,10 +489,10 @@ export default function HobbiesAdminPanel() {
     setCategoryForm((prev) => ({
       ...prev,
       fields: fieldsWithIds,
-      name: template === 'fish' ? '魚図鑑' : 'スキー',
-      slug: template === 'fish' ? 'fish' : 'ski',
-      description: template === 'fish' ? '捕まえた魚のコレクション' : 'スキー場の記録',
-      icon: template === 'fish' ? 'fish' : 'mountain',
+      name,
+      slug,
+      description,
+      icon,
     }));
   };
 
@@ -772,18 +799,24 @@ export default function HobbiesAdminPanel() {
             <div style={styles.modalBody}>
               {/* Template Buttons */}
               {!editingCategory && (
-                <div style={{ marginBottom: '24px', display: 'flex', gap: '12px' }}>
+                <div style={{ marginBottom: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => handleApplyTemplate('fish')}
                     style={{ ...styles.button, ...styles.outlineButton }}
                   >
-                    <Fish size={16} /> Apply Fish Template
+                    <Fish size={16} /> 魚図鑑テンプレート
                   </button>
                   <button
                     onClick={() => handleApplyTemplate('ski')}
                     style={{ ...styles.button, ...styles.outlineButton }}
                   >
-                    <Mountain size={16} /> Apply Ski Template
+                    <Mountain size={16} /> スキーテンプレート
+                  </button>
+                  <button
+                    onClick={() => handleApplyTemplate('train')}
+                    style={{ ...styles.button, ...styles.outlineButton }}
+                  >
+                    <Train size={16} /> 鉄道テンプレート
                   </button>
                 </div>
               )}
@@ -829,6 +862,7 @@ export default function HobbiesAdminPanel() {
                       <option value="star">Star</option>
                       <option value="fish">Fish</option>
                       <option value="mountain">Mountain</option>
+                      <option value="train">Train</option>
                       <option value="camera">Camera</option>
                       <option value="music">Music</option>
                       <option value="gamepad">Gamepad</option>

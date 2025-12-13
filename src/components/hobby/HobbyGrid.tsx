@@ -3,12 +3,15 @@
 import type { HobbyItem, HobbyCategory } from '@/types/hobby';
 import HobbyItemCard from './HobbyItemCard';
 
+export type Language = 'en' | 'ja';
+
 interface HobbyGridProps {
   items: HobbyItem[];
   hobby: HobbyCategory;
   loading?: boolean;
   hasMore?: boolean;
   onLoadMore?: () => void;
+  language?: Language;
 }
 
 export default function HobbyGrid({
@@ -17,11 +20,12 @@ export default function HobbyGrid({
   loading,
   hasMore,
   onLoadMore,
+  language = 'en',
 }: HobbyGridProps) {
   if (items.length === 0 && !loading) {
     return (
       <div className="hobby-grid__empty">
-        <p>No items yet</p>
+        <p>{language === 'en' ? 'No items yet' : 'アイテムがありません'}</p>
       </div>
     );
   }
@@ -30,7 +34,7 @@ export default function HobbyGrid({
     <div className="hobby-grid">
       <div className="hobby-grid__items">
         {items.map((item) => (
-          <HobbyItemCard key={item.id} item={item} hobby={hobby} />
+          <HobbyItemCard key={item.id} item={item} hobby={hobby} language={language} />
         ))}
       </div>
       {loading && (

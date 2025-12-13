@@ -143,15 +143,19 @@ export interface HobbyItemsResponse {
 // PREDEFINED TEMPLATES
 // ============================================================================
 
+// Fish catalog - for tracking fish you've eaten
 export const FISH_CATALOG_FIELDS: Omit<CustomField, 'id'>[] = [
-  { name: 'scientificName', label: '学名', type: CustomFieldType.TEXT, required: false, order: 1 },
-  { name: 'habitat', label: '生息地', type: CustomFieldType.TEXT, required: false, order: 2 },
-  { name: 'size', label: 'サイズ', type: CustomFieldType.TEXT, required: false, placeholder: '例: 30cm', order: 3 },
-  { name: 'caughtDate', label: '捕獲日', type: CustomFieldType.DATE, required: false, order: 4 },
-  { name: 'caughtLocation', label: '捕獲場所', type: CustomFieldType.LOCATION, required: false, order: 5 },
-  { name: 'difficulty', label: '捕獲難易度', type: CustomFieldType.RATING, required: false, order: 6 },
+  { name: 'nameKanji', label: '名前（漢字）', type: CustomFieldType.TEXT, required: false, placeholder: '例: 鮪', order: 1 },
+  { name: 'nameKana', label: '名前（かな）', type: CustomFieldType.TEXT, required: false, placeholder: '例: まぐろ', order: 2 },
+  { name: 'nameEnglish', label: 'English Name', type: CustomFieldType.TEXT, required: false, placeholder: 'e.g., Tuna', order: 3 },
+  { name: 'hasEaten', label: '食べたことある', type: CustomFieldType.BOOLEAN, required: false, order: 4 },
+  { name: 'taste', label: '味の感想', type: CustomFieldType.TEXTAREA, required: false, placeholder: '味、食感などの感想', order: 5 },
+  { name: 'favoritePreparation', label: 'おすすめの食べ方', type: CustomFieldType.SELECT, required: false, options: ['刺身', '寿司', '焼き', '煮付け', 'フライ', '天ぷら', 'その他'], order: 6 },
+  { name: 'rating', label: '評価', type: CustomFieldType.RATING, required: false, order: 7 },
+  { name: 'season', label: '旬の季節', type: CustomFieldType.SELECT, required: false, options: ['春', '夏', '秋', '冬', '通年'], order: 8 },
 ];
 
+// Ski resort catalog
 export const SKI_RESORT_FIELDS: Omit<CustomField, 'id'>[] = [
   { name: 'resortName', label: 'スキー場名', type: CustomFieldType.TEXT, required: true, order: 1 },
   { name: 'visitDate', label: '訪問日', type: CustomFieldType.DATE, required: false, order: 2 },
@@ -161,6 +165,20 @@ export const SKI_RESORT_FIELDS: Omit<CustomField, 'id'>[] = [
   { name: 'skiableAcres', label: 'スキーエリア (エーカー)', type: CustomFieldType.NUMBER, required: false, order: 6 },
   { name: 'location', label: '所在地', type: CustomFieldType.TEXT, required: false, order: 7 },
   { name: 'website', label: 'ウェブサイト', type: CustomFieldType.URL, required: false, order: 8 },
+];
+
+// Japanese train catalog - for tracking trains you've ridden
+export const TRAIN_CATALOG_FIELDS: Omit<CustomField, 'id'>[] = [
+  { name: 'nameKanji', label: '列車名（漢字）', type: CustomFieldType.TEXT, required: false, placeholder: '例: 新幹線', order: 1 },
+  { name: 'nameKana', label: '列車名（かな）', type: CustomFieldType.TEXT, required: false, placeholder: '例: しんかんせん', order: 2 },
+  { name: 'nameEnglish', label: 'English Name', type: CustomFieldType.TEXT, required: false, placeholder: 'e.g., Shinkansen', order: 3 },
+  { name: 'hasRidden', label: '乗ったことある', type: CustomFieldType.BOOLEAN, required: false, order: 4 },
+  { name: 'trainType', label: '種別', type: CustomFieldType.SELECT, required: false, options: ['新幹線', '特急', '急行', '快速', '普通', '地下鉄', '私鉄', 'その他'], order: 5 },
+  { name: 'railwayCompany', label: '鉄道会社', type: CustomFieldType.TEXT, required: false, placeholder: '例: JR東日本', order: 6 },
+  { name: 'route', label: '路線', type: CustomFieldType.TEXT, required: false, placeholder: '例: 東海道新幹線', order: 7 },
+  { name: 'rating', label: '評価', type: CustomFieldType.RATING, required: false, order: 8 },
+  { name: 'impression', label: '感想', type: CustomFieldType.TEXTAREA, required: false, placeholder: '乗った感想など', order: 9 },
+  { name: 'rideDate', label: '乗車日', type: CustomFieldType.DATE, required: false, order: 10 },
 ];
 
 // ============================================================================

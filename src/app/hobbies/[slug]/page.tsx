@@ -1,17 +1,20 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import Link from 'next/link';
 import { useHobbyCategory, useHobbyItems } from '@/hooks/useHobbies';
 import { HobbyGrid } from '@/components/hobby';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, HelpCircle, Languages } from 'lucide-react';
 
 interface HobbyPageProps {
   params: Promise<{ slug: string }>;
 }
 
+export type Language = 'en' | 'ja';
+
 export default function HobbyPage({ params }: HobbyPageProps) {
   const { slug } = use(params);
+  const [language, setLanguage] = useState<Language>('en');
   const { hobby, loading: hobbyLoading, error: hobbyError } = useHobbyCategory(slug, true);
   const {
     items,
@@ -68,6 +71,23 @@ export default function HobbyPage({ params }: HobbyPageProps) {
           </Link>
           <h1 className="hobby-page__title">{hobby.name}</h1>
           <p className="hobby-page__description">{hobby.description}</p>
+          <div className="hobby-page__actions">
+            {/* Language Toggle */}
+            <button
+              className="hobby-page__lang-toggle"
+              onClick={() => setLanguage(language === 'en' ? 'ja' : 'en')}
+              title={language === 'en' ? 'Switch to Japanese' : 'Switch to English'}
+            >
+              <Languages size={20} />
+              <span>{language === 'en' ? 'English' : '日本語'}</span>
+            </button>
+            {items.length >= 4 && (
+              <Link href={`/hobbies/${slug}/quiz`} className="hobby-page__quiz-btn">
+                <HelpCircle size={20} />
+                <span>Take Quiz</span>
+              </Link>
+            )}
+          </div>
         </div>
       </div>
 
@@ -85,6 +105,7 @@ export default function HobbyPage({ params }: HobbyPageProps) {
           loading={itemsLoading}
           hasMore={hasMore}
           onLoadMore={loadMore}
+          language={language}
         />
       </div>
     </div>

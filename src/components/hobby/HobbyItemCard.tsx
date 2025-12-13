@@ -5,13 +5,16 @@ import Image from 'next/image';
 import type { HobbyItem, HobbyCategory, CustomFieldType } from '@/types/hobby';
 import { Star, MapPin, Calendar, ExternalLink } from 'lucide-react';
 
+export type Language = 'en' | 'ja';
+
 interface HobbyItemCardProps {
   item: HobbyItem;
   hobby: HobbyCategory;
   showLink?: boolean;
+  language?: Language;
 }
 
-export default function HobbyItemCard({ item, hobby, showLink = true }: HobbyItemCardProps) {
+export default function HobbyItemCard({ item, hobby, showLink = true, language = 'en' }: HobbyItemCardProps) {
   const renderCustomField = (fieldName: string, value: unknown) => {
     const fieldDef = hobby.fields.find((f) => f.name === fieldName);
     if (!fieldDef || value === undefined || value === null || value === '') return null;
@@ -75,10 +78,57 @@ export default function HobbyItemCard({ item, hobby, showLink = true }: HobbyIte
     }
   };
 
-  // Get first few custom fields to display on card
+  // Get first few custom fields to display on card (excluding description fields)
   const displayFields = hobby.fields
     .slice(0, 3)
-    .filter((f) => item.customFields[f.name] !== undefined);
+    .filter((f) =>
+      item.customFields[f.name] !== undefined &&
+      f.name !== 'descriptionJa' &&
+      f.name !== 'descriptionEn'
+    );
+
+  // Get the appropriate description based on language
+  const getDescription = () => {
+    const descriptionEn = item.customFields?.descriptionEn as string | undefined;
+    const descriptionJa = item.customFields?.descriptionJa as string | undefined;
+
+    if (language === 'en') {
+      return descriptionEn || descriptionJa || item.description;
+    } else {
+      return descriptionJa || descriptionEn || item.description;
+    }
+  };
+
+  // Get the appropriate title/name based on language
+  const getDisplayTitle = () => {
+    const nameEnglish = item.customFields?.nameEnglish as string | undefined;
+    const nameKanji = item.customFields?.nameKanji as string | undefined;
+
+    if (language === 'en' && nameEnglish) {
+      return nameEnglish;
+    }
+    return item.title;
+  };
+
+  // Get secondary name (the other language)
+  const getSecondaryName = () => {
+    const nameEnglish = item.customFields?.nameEnglish as string | undefined;
+    const nameKanji = item.customFields?.nameKanji as string | undefined;
+    const nameKana = item.customFields?.nameKana as string | undefined;
+
+    if (language === 'en') {
+      // Show Japanese name as secondary
+      if (nameKanji) return nameKanji;
+      return item.title !== nameEnglish ? item.title : null;
+    } else {
+      // Show English name as secondary
+      return nameEnglish || null;
+    }
+  };
+
+  const displayTitle = getDisplayTitle();
+  const secondaryName = getSecondaryName();
+  const description = getDescription();
 
   const content = (
     <div className="hobby-item-card">
@@ -106,9 +156,12 @@ export default function HobbyItemCard({ item, hobby, showLink = true }: HobbyIte
         )}
       </div>
       <div className="hobby-item-card__content">
-        <h4 className="hobby-item-card__title">{item.title}</h4>
-        {item.description && (
-          <p className="hobby-item-card__description">{item.description}</p>
+        <h4 className="hobby-item-card__title">{displayTitle}</h4>
+        {secondaryName && (
+          <p className="hobby-item-card__secondary-name">{secondaryName}</p>
+        )}
+        {description && (
+          <p className="hobby-item-card__description">{description}</p>
         )}
         <div className="hobby-item-card__fields">
           {displayFields.map((field) => (

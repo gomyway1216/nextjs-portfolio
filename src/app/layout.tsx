@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Rubik, Playfair_Display } from "next/font/google";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { PostsProvider } from "@/providers/PostsProvider";
@@ -6,6 +6,12 @@ import AOSInitializer from "./AOSInitializer";
 import { Toaster } from "@/components/ui/sonner";
 import "../assets/scss/main.scss";
 import "aos/dist/aos.css";
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  interactiveWidget: 'resizes-content',
+};
 
 const rubik = Rubik({
   weight: ['300', '400', '500', '700', '900'],

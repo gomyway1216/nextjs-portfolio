@@ -22,6 +22,13 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   useStudyCategories,
   useStudyTopics,
   useStudySchedules,
@@ -2358,72 +2365,92 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div>
                   <label style={styles.label}>Category *</label>
-                  <select
-                    value={generateForm.categoryId}
-                    onChange={(e) => setGenerateForm({ ...generateForm, categoryId: e.target.value })}
-                    style={styles.select}
+                  <Select
+                    value={generateForm.categoryId || 'none'}
+                    onValueChange={(v) => setGenerateForm({ ...generateForm, categoryId: v === 'none' ? '' : v })}
                   >
-                    <option value="">Select category</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
+                    <SelectTrigger className="w-full bg-[#1e293b] border-[#334155] text-white">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Select category</SelectItem>
+                      {categories.map((cat) => (
+                        <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
                   <div>
                     <label style={styles.label}>AI Provider</label>
-                    <select
+                    <Select
                       value={generateForm.aiProvider}
-                      onChange={(e) => setGenerateForm({ ...generateForm, aiProvider: e.target.value as AIProvider })}
-                      style={styles.select}
+                      onValueChange={(v) => setGenerateForm({ ...generateForm, aiProvider: v as AIProvider })}
                     >
-                      <option value={AIProvider.CHATGPT}>ChatGPT</option>
-                      <option value={AIProvider.CLAUDE}>Claude</option>
-                    </select>
+                      <SelectTrigger className="w-full bg-[#1e293b] border-[#334155] text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={AIProvider.CHATGPT}>ChatGPT</SelectItem>
+                        <SelectItem value={AIProvider.CLAUDE}>Claude</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <label style={styles.label}>Language</label>
-                    <select
+                    <Select
                       value={generateForm.language}
-                      onChange={(e) => setGenerateForm({ ...generateForm, language: e.target.value })}
-                      style={styles.select}
+                      onValueChange={(v) => setGenerateForm({ ...generateForm, language: v })}
                     >
-                      <option value="ja">日本語</option>
-                      <option value="en">English</option>
-                      <option value="es">Spanish</option>
-                      <option value="zh">Chinese</option>
-                      <option value="ko">Korean</option>
-                    </select>
+                      <SelectTrigger className="w-full bg-[#1e293b] border-[#334155] text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ja">日本語</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
+                        <SelectItem value="es">Spanish</SelectItem>
+                        <SelectItem value="zh">Chinese</SelectItem>
+                        <SelectItem value="ko">Korean</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <label style={styles.label}>Code Language</label>
-                    <select
+                    <Select
                       value={generateForm.codingLanguage}
-                      onChange={(e) => setGenerateForm({ ...generateForm, codingLanguage: e.target.value })}
-                      style={styles.select}
+                      onValueChange={(v) => setGenerateForm({ ...generateForm, codingLanguage: v })}
                     >
-                      <option value="typescript">TypeScript</option>
-                      <option value="javascript">JavaScript</option>
-                      <option value="python">Python</option>
-                      <option value="java">Java</option>
-                      <option value="go">Go</option>
-                      <option value="rust">Rust</option>
-                      <option value="csharp">C#</option>
-                    </select>
+                      <SelectTrigger className="w-full bg-[#1e293b] border-[#334155] text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="typescript">TypeScript</SelectItem>
+                        <SelectItem value="javascript">JavaScript</SelectItem>
+                        <SelectItem value="python">Python</SelectItem>
+                        <SelectItem value="java">Java</SelectItem>
+                        <SelectItem value="go">Go</SelectItem>
+                        <SelectItem value="rust">Rust</SelectItem>
+                        <SelectItem value="csharp">C#</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div>
                     <label style={styles.label}>Difficulty</label>
-                    <select
-                      value={generateForm.difficulty}
-                      onChange={(e) => setGenerateForm({ ...generateForm, difficulty: e.target.value as QuizDifficulty | '' })}
-                      style={styles.select}
+                    <Select
+                      value={generateForm.difficulty || 'auto'}
+                      onValueChange={(v) => setGenerateForm({ ...generateForm, difficulty: v === 'auto' ? '' : v as QuizDifficulty })}
                     >
-                      <option value="">AI decides</option>
-                      {Object.values(QuizDifficulty).map((diff) => (
-                        <option key={diff} value={diff}>{diff}</option>
-                      ))}
-                    </select>
+                      <SelectTrigger className="w-full bg-[#1e293b] border-[#334155] text-white">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="auto">AI decides</SelectItem>
+                        {Object.values(QuizDifficulty).map((diff) => (
+                          <SelectItem key={diff} value={diff}>{diff}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 

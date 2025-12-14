@@ -273,6 +273,11 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [deletingSchedule, setDeletingSchedule] = useState(false);
 
+  // Article multi-select state
+  const [selectedArticleIds, setSelectedArticleIds] = useState<Set<string>>(new Set());
+  const [deletingMultipleArticles, setDeletingMultipleArticles] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+
   // Form states
   const [categoryForm, setCategoryForm] = useState({
     name: '',
@@ -629,6 +634,57 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
       showMessageToast('error', `Failed to delete article: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
     setShowDeleteConfirm(null);
+  };
+
+  // Article multi-select handlers
+  const handleToggleArticleSelection = (id: string) => {
+    setSelectedArticleIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllArticles = () => {
+    if (selectedArticleIds.size === articles.length) {
+      // Deselect all
+      setSelectedArticleIds(new Set());
+    } else {
+      // Select all
+      setSelectedArticleIds(new Set(articles.map(a => a.id)));
+    }
+  };
+
+  const handleDeleteSelectedArticles = async () => {
+    if (selectedArticleIds.size === 0) return;
+
+    setDeletingMultipleArticles(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of selectedArticleIds) {
+      try {
+        await studyService.deleteArticle(id);
+        successCount++;
+      } catch {
+        failCount++;
+      }
+    }
+
+    if (failCount === 0) {
+      showMessageToast('success', `Successfully deleted ${successCount} article(s)!`);
+    } else {
+      showMessageToast('error', `Deleted ${successCount} article(s), but ${failCount} failed.`);
+    }
+
+    setSelectedArticleIds(new Set());
+    setShowBulkDeleteConfirm(false);
+    setDeletingMultipleArticles(false);
+    fetchArticles({ status: 'all' });
   };
 
   // Generate handlers
@@ -1209,9 +1265,24 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
               </h2>
               <p style={{ color: '#94a3b8' }}>Manage generated study articles</p>
             </div>
-            <button onClick={() => setShowGenerateModal(true)} style={{ ...styles.button, ...styles.primaryButton }}>
-              <Sparkles size={16} /> Generate New
-            </button>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              {selectedArticleIds.size > 0 && (
+                <button
+                  onClick={() => setShowBulkDeleteConfirm(true)}
+                  style={{
+                    ...styles.button,
+                    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+                    color: '#f87171',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                  }}
+                >
+                  <Trash2 size={16} /> Delete Selected ({selectedArticleIds.size})
+                </button>
+              )}
+              <button onClick={() => setShowGenerateModal(true)} style={{ ...styles.button, ...styles.primaryButton }}>
+                <Sparkles size={16} /> Generate New
+              </button>
+            </div>
           </div>
 
           {/* Filter Controls */}
@@ -1278,6 +1349,15 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
               <table style={styles.table}>
                 <thead>
                   <tr>
+                    <th style={{ ...styles.th, width: '40px', padding: '12px 8px' }}>
+                      <input
+                        type="checkbox"
+                        checked={articles.length > 0 && selectedArticleIds.size === articles.length}
+                        onChange={handleSelectAllArticles}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                        title="Select all"
+                      />
+                    </th>
                     <th style={styles.th}>Title</th>
                     <th style={styles.th}>Category</th>
                     <th style={styles.th}>Lang</th>
@@ -1289,7 +1369,20 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                 </thead>
                 <tbody>
                   {articles.map((article) => (
-                    <tr key={article.id}>
+                    <tr
+                      key={article.id}
+                      style={{
+                        backgroundColor: selectedArticleIds.has(article.id) ? 'rgba(168, 85, 247, 0.1)' : 'transparent',
+                      }}
+                    >
+                      <td style={{ ...styles.td, padding: '12px 8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedArticleIds.has(article.id)}
+                          onChange={() => handleToggleArticleSelection(article.id)}
+                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                        />
+                      </td>
                       <td style={styles.td}>
                         <div>
                           <span style={{ color: '#ffffff', fontWeight: '500' }}>{article.title}</span>
@@ -1367,7 +1460,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   ))}
                   {articles.length === 0 && (
                     <tr>
-                      <td colSpan={7} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
+                      <td colSpan={8} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
                         No articles yet. Click &quot;Generate New&quot; to create one.
                       </td>
                     </tr>
@@ -2526,6 +2619,58 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Deleting...</>
                 ) : (
                   <><Trash2 size={16} /> Delete</>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirm && (
+        <div style={styles.modal}>
+          <div style={{ ...styles.modalContent, maxWidth: '450px' }}>
+            <div style={styles.modalHeader}>
+              <h2 style={{ ...styles.modalTitle, color: '#f87171' }}>Delete Multiple Articles</h2>
+            </div>
+            <div style={styles.modalBody}>
+              <p style={{ color: '#94a3b8', marginBottom: '16px' }}>
+                Are you sure you want to delete <strong style={{ color: '#ffffff' }}>{selectedArticleIds.size} article(s)</strong>? This action cannot be undone.
+              </p>
+              <div style={{
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                borderRadius: '8px',
+                padding: '12px',
+                maxHeight: '150px',
+                overflowY: 'auto',
+              }}>
+                <ul style={{ margin: 0, paddingLeft: '20px', color: '#f87171', fontSize: '14px' }}>
+                  {articles
+                    .filter(a => selectedArticleIds.has(a.id))
+                    .map(a => (
+                      <li key={a.id} style={{ marginBottom: '4px' }}>{a.title}</li>
+                    ))}
+                </ul>
+              </div>
+            </div>
+            <div style={styles.modalFooter}>
+              <button
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                style={{ ...styles.button, ...styles.outlineButton }}
+                disabled={deletingMultipleArticles}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteSelectedArticles}
+                style={{ ...styles.button, ...styles.dangerButton }}
+                disabled={deletingMultipleArticles}
+              >
+                {deletingMultipleArticles ? (
+                  <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Deleting...</>
+                ) : (
+                  <><Trash2 size={16} /> Delete All ({selectedArticleIds.size})</>
                 )}
               </button>
             </div>

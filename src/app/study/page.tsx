@@ -4,6 +4,13 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Search,
   Filter,
   BookOpen,
@@ -485,84 +492,69 @@ export default function StudyListPage() {
             }}>
               {/* Category Filter */}
               <div style={{ flex: 1, minWidth: '150px' }}>
-                <label style={{ display: 'block', color: '#6b7280', fontSize: '12px', marginBottom: '6px' }}>
+                <label style={{ display: 'block', color: '#6b7280', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
                   Category
                 </label>
-                <select
-                  value={selectedCategory}
-                  onChange={(e) => setSelectedCategory(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #e5e7eb',
-                    backgroundColor: '#ffffff',
-                    color: '#111827',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
+                <Select
+                  value={selectedCategory || 'all'}
+                  onValueChange={(v) => setSelectedCategory(v === 'all' ? '' : v)}
                 >
-                  <option value="">All Categories</option>
-                  {categories.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Categories</SelectItem>
+                    {categories.map(cat => (
+                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Difficulty Filter */}
               <div style={{ flex: 1, minWidth: '150px' }}>
-                <label style={{ display: 'block', color: '#6b7280', fontSize: '12px', marginBottom: '6px' }}>
+                <label style={{ display: 'block', color: '#6b7280', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
                   Difficulty
                 </label>
-                <select
-                  value={selectedDifficulty}
-                  onChange={(e) => setSelectedDifficulty(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #e5e7eb',
-                    backgroundColor: '#ffffff',
-                    color: '#111827',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
+                <Select
+                  value={selectedDifficulty || 'all'}
+                  onValueChange={(v) => setSelectedDifficulty(v === 'all' ? '' : v)}
                 >
-                  <option value="">All Difficulties</option>
-                  {Object.values(QuizDifficulty).map(diff => (
-                    <option key={diff} value={diff}>{diff}</option>
-                  ))}
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Difficulties" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Difficulties</SelectItem>
+                    {Object.values(QuizDifficulty).map(diff => (
+                      <SelectItem key={diff} value={diff}>{diff}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Language Filter */}
               <div style={{ flex: 1, minWidth: '150px' }}>
-                <label style={{ display: 'block', color: '#6b7280', fontSize: '12px', marginBottom: '6px' }}>
+                <label style={{ display: 'block', color: '#6b7280', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
                   Language
                 </label>
-                <select
-                  value={selectedLanguage}
-                  onChange={(e) => setSelectedLanguage(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '8px 12px',
-                    borderRadius: '6px',
-                    border: '1px solid #e5e7eb',
-                    backgroundColor: '#ffffff',
-                    color: '#111827',
-                    fontSize: '14px',
-                    cursor: 'pointer',
-                  }}
+                <Select
+                  value={selectedLanguage || 'all'}
+                  onValueChange={(v) => setSelectedLanguage(v === 'all' ? '' : v)}
                 >
-                  <option value="">All Languages</option>
-                  <option value="en">English</option>
-                  <option value="ja">Japanese</option>
-                  <option value="es">Spanish</option>
-                  <option value="fr">French</option>
-                  <option value="de">German</option>
-                  <option value="zh">Chinese</option>
-                  <option value="ko">Korean</option>
-                </select>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Languages" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Languages</SelectItem>
+                    <SelectItem value="en">English</SelectItem>
+                    <SelectItem value="ja">Japanese</SelectItem>
+                    <SelectItem value="es">Spanish</SelectItem>
+                    <SelectItem value="fr">French</SelectItem>
+                    <SelectItem value="de">German</SelectItem>
+                    <SelectItem value="zh">Chinese</SelectItem>
+                    <SelectItem value="ko">Korean</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               {/* Clear Filters */}

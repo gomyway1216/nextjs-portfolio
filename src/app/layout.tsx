@@ -6,6 +6,7 @@ import AOSInitializer from "./AOSInitializer";
 import { Toaster } from "@/components/ui/sonner";
 import "../assets/scss/main.scss";
 import "aos/dist/aos.css";
+import "./globals.css";
 
 export const viewport: Viewport = {
   width: 'device-width',

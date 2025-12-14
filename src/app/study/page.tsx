@@ -512,14 +512,19 @@ export default function StudyListPage() {
           )}
         </div>
 
-        {/* Category Pills */}
+        {/* Category Pills - Horizontal Scroll */}
         {!categoriesLoading && categories.length > 0 && (
-          <div style={{
-            display: 'flex',
-            gap: '8px',
-            marginBottom: '20px',
-            flexWrap: 'wrap',
-          }}>
+          <div
+            className="category-scroll-container"
+            style={{
+              display: 'flex',
+              gap: '8px',
+              marginBottom: '20px',
+              overflowX: 'auto',
+              paddingBottom: '8px',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
             <button
               onClick={() => setSelectedCategory('')}
               style={{
@@ -531,6 +536,8 @@ export default function StudyListPage() {
                 cursor: 'pointer',
                 fontSize: '13px',
                 fontWeight: '500',
+                flexShrink: 0,
+                whiteSpace: 'nowrap',
               }}
             >
               All
@@ -548,6 +555,8 @@ export default function StudyListPage() {
                   cursor: 'pointer',
                   fontSize: '13px',
                   fontWeight: '500',
+                  flexShrink: 0,
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {cat.name}
@@ -612,7 +621,7 @@ export default function StudyListPage() {
                     >
                       {/* Category & Difficulty */}
                       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        {/* Read Icon - Only for admin users */}
+                        {/* Read Icon - Only for logged in users */}
                         {currentUser && isRead(article.id) && (
                           <span
                             style={{
@@ -763,11 +772,33 @@ export default function StudyListPage() {
         )}
       </div>
 
-      {/* CSS for animations */}
+      {/* CSS for animations and scrollbar */}
       <style>{`
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+
+        .category-scroll-container {
+          scrollbar-width: thin;
+          scrollbar-color: #e5e7eb transparent;
+        }
+
+        .category-scroll-container::-webkit-scrollbar {
+          height: 6px;
+        }
+
+        .category-scroll-container::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        .category-scroll-container::-webkit-scrollbar-thumb {
+          background: #e5e7eb;
+          border-radius: 3px;
+        }
+
+        .category-scroll-container::-webkit-scrollbar-thumb:hover {
+          background: #d1d5db;
         }
       `}</style>
     </div>

@@ -1,8 +1,20 @@
 // Study Articles API
 import { NextRequest, NextResponse } from 'next/server';
-import { getCloudFunctionUrl } from '../../constants';
+import { getCloudFunctionUrl, STUDY_READ_HISTORY_COLLECTION } from '../../constants';
 import { logCloudFunctionError, logApiError } from '../../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
+import { getFirestore } from '@/lib/firebase-admin';
+
+// Helper function to get user's read article IDs
+async function getUserReadArticleIds(userId: string): Promise<Set<string>> {
+  const db = getFirestore();
+  const snapshot = await db
+    .collection(STUDY_READ_HISTORY_COLLECTION)
+    .where('userId', '==', userId)
+    .get();
+
+  return new Set(snapshot.docs.map(doc => doc.data().articleId));
+}
 
 // GET /api/study/articles - Get articles with filters
 export async function GET(request: NextRequest) {
@@ -11,12 +23,21 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const url = new URL(getCloudFunctionUrl('getStudyArticles'));
 
-    // Forward query parameters
+    // Get read status filter and userId
+    const readStatus = searchParams.get('readStatus'); // 'all', 'unread', 'read'
+    const userId = searchParams.get('userId');
+
+    // Forward query parameters to Cloud Function
     const params = ['categoryId', 'topicId', 'status', 'language', 'orderBy', 'orderDir', 'limit', 'lastId', 'listView', 'search', 'difficulty'];
     params.forEach((param) => {
       const value = searchParams.get(param);
       if (value) url.searchParams.set(param, value);
     });
+
+    // If filtering by read status, fetch more articles to ensure we have enough after filtering
+    if (readStatus && readStatus !== 'all' && userId) {
+      url.searchParams.set('limit', '100'); // Fetch more for filtering
+    }
 
     console.log('[Study API] GET articles:', url.toString());
 
@@ -31,7 +52,6 @@ export async function GET(request: NextRequest) {
         details: data.details || data.message,
       });
 
-      // Log to error tracking system
       await logCloudFunctionError({
         functionName: 'getStudyArticles',
         endpoint,
@@ -46,15 +66,54 @@ export async function GET(request: NextRequest) {
           language: searchParams.get('language'),
         },
       });
-    } else {
-      console.log('[Study API] Fetched', data.articles?.length || 0, 'articles');
+      return NextResponse.json(data, { status: response.status });
     }
 
-    return NextResponse.json(data, { status: response.status });
+    let articles = data.articles || [];
+    let readArticleIds = new Set<string>();
+    let counts = { total: articles.length, read: 0, unread: 0 };
+
+    // If userId is provided, get read history and calculate counts
+    if (userId) {
+      readArticleIds = await getUserReadArticleIds(userId);
+
+      // Calculate counts based on ALL fetched articles
+      counts.read = articles.filter((a: any) => readArticleIds.has(a.id)).length;
+      counts.unread = articles.length - counts.read;
+
+      // Filter by read status if specified
+      if (readStatus === 'unread') {
+        articles = articles.filter((a: any) => !readArticleIds.has(a.id));
+      } else if (readStatus === 'read') {
+        articles = articles.filter((a: any) => readArticleIds.has(a.id));
+      } else {
+        // Sort unread first for 'all' status
+        articles = articles.sort((a: any, b: any) => {
+          const aRead = readArticleIds.has(a.id);
+          const bRead = readArticleIds.has(b.id);
+          if (aRead !== bRead) return aRead ? 1 : -1;
+          return 0;
+        });
+      }
+
+      // Apply original limit after filtering
+      const originalLimit = parseInt(searchParams.get('limit') || '20');
+      if (articles.length > originalLimit) {
+        articles = articles.slice(0, originalLimit);
+      }
+    }
+
+    console.log('[Study API] Fetched', articles.length, 'articles, counts:', counts);
+
+    return NextResponse.json({
+      ...data,
+      articles,
+      counts,
+      readArticleIds: userId ? Array.from(readArticleIds) : [],
+    }, { status: response.status });
   } catch (error) {
     console.error('[Study API] Error fetching articles:', error);
 
-    // Log to error tracking system
     await logApiError({
       severity: ErrorSeverity.HIGH,
       errorType: 'StudyArticlesAPI:FetchError',

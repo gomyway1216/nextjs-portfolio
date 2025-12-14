@@ -26,7 +26,7 @@ import {
   BookMarked,
   Menu,
 } from 'lucide-react';
-import { useStudyArticles, useStudyCategories, useStudyProgress, useArticleReadHistory } from '@/hooks/useStudy';
+import { useStudyArticles, useStudyCategories, useStudyProgress } from '@/hooks/useStudy';
 import { useAuth } from '@/providers/AuthProvider';
 import { QuizDifficulty } from '@/types/study';
 
@@ -53,7 +53,6 @@ export default function StudyListPage() {
   const isAuthenticated = !!currentUser;
   const { categories, loading: categoriesLoading } = useStudyCategories();
   const { progress } = useStudyProgress(isAuthenticated);
-  const { isRead, loading: readHistoryLoading } = useArticleReadHistory(isAuthenticated);
 
   // Filters
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -62,18 +61,24 @@ export default function StudyListPage() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'unread' | 'read'>('all');
 
   // Debounce search to avoid too many API calls
   const debouncedSearch = useDebounce(searchQuery, 300);
 
-  // Fetch articles with all filters
-  // The hook will automatically refetch when any of these options change
-  const { articles, loading, hasMore, loadMore } = useStudyArticles({
+  // Fetch articles with all filters including read status (backend filtering)
+  const { articles, loading, hasMore, loadMore, counts, isArticleRead } = useStudyArticles({
     categoryId: selectedCategory || undefined,
     language: selectedLanguage || undefined,
     search: debouncedSearch || undefined,
     difficulty: selectedDifficulty || undefined,
+    readStatus: isAuthenticated ? statusFilter : undefined,
+    userId: currentUser?.uid,
   });
+
+  // Use counts from backend
+  const readCount = counts.read;
+  const unreadCount = counts.unread;
 
   const getCategoryName = (categoryId: string) => {
     return categories.find(c => c.id === categoryId)?.name || 'General';
@@ -121,11 +126,31 @@ export default function StudyListPage() {
               }}>
                 <BookOpen size={18} color="#7c3aed" />
               </div>
-              <div>
-                <p style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
-                  {progress.totalArticlesRead}
-                </p>
-                <p style={{ color: '#6b7280', fontSize: '11px' }}>Articles Read</p>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+                  <p style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                    {readCount}
+                  </p>
+                  <p style={{ fontSize: '12px', color: '#6b7280' }}>/ {articles.length}</p>
+                </div>
+                <p style={{ color: '#6b7280', fontSize: '11px', marginBottom: '6px' }}>Articles Read</p>
+                {articles.length > 0 && (
+                  <div style={{
+                    width: '100%',
+                    height: '4px',
+                    backgroundColor: '#e5e7eb',
+                    borderRadius: '2px',
+                    overflow: 'hidden',
+                  }}>
+                    <div style={{
+                      width: `${(readCount / articles.length) * 100}%`,
+                      height: '100%',
+                      backgroundColor: '#7c3aed',
+                      borderRadius: '2px',
+                      transition: 'width 0.3s ease',
+                    }} />
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -582,6 +607,64 @@ export default function StudyListPage() {
             </div>
           )}
 
+        {/* Status Filter Pills */}
+        {isAuthenticated && (
+          <div style={{
+            display: 'flex',
+            gap: '8px',
+            marginBottom: '16px',
+          }}>
+            <button
+              onClick={() => setStatusFilter('all')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                border: 'none',
+                backgroundColor: statusFilter === 'all' ? '#10a37f' : '#f3f4f6',
+                color: statusFilter === 'all' ? '#ffffff' : '#6b7280',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '13px',
+                transition: 'all 0.2s',
+              }}
+            >
+              All ({counts.total})
+            </button>
+            <button
+              onClick={() => setStatusFilter('unread')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                border: 'none',
+                backgroundColor: statusFilter === 'unread' ? '#10a37f' : '#f3f4f6',
+                color: statusFilter === 'unread' ? '#ffffff' : '#6b7280',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '13px',
+                transition: 'all 0.2s',
+              }}
+            >
+              Unread ({unreadCount})
+            </button>
+            <button
+              onClick={() => setStatusFilter('read')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: '20px',
+                border: 'none',
+                backgroundColor: statusFilter === 'read' ? '#10a37f' : '#f3f4f6',
+                color: statusFilter === 'read' ? '#ffffff' : '#6b7280',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '13px',
+                transition: 'all 0.2s',
+              }}
+            >
+              Read ({readCount})
+            </button>
+          </div>
+        )}
+
         {/* Category Pills - Horizontal Scroll */}
         {!categoriesLoading && categories.length > 0 && (
           <div
@@ -648,11 +731,17 @@ export default function StudyListPage() {
             textAlign: 'center',
           }}>
             <BookOpen size={48} color="#d1d5db" style={{ marginBottom: '16px' }} />
-            <h3 style={{ color: '#374151', fontSize: '18px', marginBottom: '8px' }}>No articles found</h3>
+            <h3 style={{ color: '#374151', fontSize: '18px', marginBottom: '8px' }}>
+              {statusFilter === 'unread' ? 'All caught up!' : statusFilter === 'read' ? 'No read articles yet' : 'No articles found'}
+            </h3>
             <p style={{ color: '#6b7280', fontSize: '14px' }}>
-              {searchQuery || selectedCategory || selectedDifficulty || selectedLanguage
-                ? 'Try adjusting your filters'
-                : 'Articles will appear here once generated'}
+              {statusFilter === 'unread'
+                ? "You've read all available articles. Great job!"
+                : statusFilter === 'read'
+                  ? 'Start reading articles to track your progress'
+                  : searchQuery || selectedCategory || selectedDifficulty || selectedLanguage
+                    ? 'Try adjusting your filters'
+                    : 'Articles will appear here once generated'}
             </p>
           </div>
         ) : (
@@ -664,6 +753,7 @@ export default function StudyListPage() {
             }}>
               {articles.map(article => {
                 const diffStyle = getDifficultyStyle(article.difficulty);
+                const articleIsRead = isAuthenticated && isArticleRead(article.id);
 
                 return (
                   <Link
@@ -674,25 +764,28 @@ export default function StudyListPage() {
                     <div style={{
                       backgroundColor: '#ffffff',
                       borderRadius: '12px',
-                      border: '1px solid #e5e7eb',
+                      border: articleIsRead ? '1px solid #d1d5db' : '1px solid #e5e7eb',
                       padding: '20px',
                       height: '100%',
                       transition: 'all 0.2s',
                       cursor: 'pointer',
+                      opacity: articleIsRead ? 0.7 : 1,
                     }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.borderColor = '#10a37f';
                         e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.05)';
+                        e.currentTarget.style.opacity = '1';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = '#e5e7eb';
+                        e.currentTarget.style.borderColor = articleIsRead ? '#d1d5db' : '#e5e7eb';
                         e.currentTarget.style.boxShadow = 'none';
+                        e.currentTarget.style.opacity = articleIsRead ? '0.7' : '1';
                       }}
                     >
                       {/* Category & Difficulty */}
                       <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
                         {/* Read Icon - Only for logged in users */}
-                        {currentUser && isRead(article.id) && (
+                        {currentUser && isArticleRead(article.id) && (
                           <span
                             style={{
                               display: 'flex',

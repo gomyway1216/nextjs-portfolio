@@ -223,11 +223,15 @@ export function useStudyArticles(initialOptions?: {
   difficulty?: string;  // Difficulty filter
   orderBy?: string;
   orderDir?: 'asc' | 'desc';
+  readStatus?: 'all' | 'unread' | 'read';  // Filter by read status
+  userId?: string;  // User ID for read status filtering
 }) {
   const [articles, setArticles] = useState<StudyArticle[]>([]);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const [counts, setCounts] = useState<{ total: number; read: number; unread: number }>({ total: 0, read: 0, unread: 0 });
+  const [readArticleIds, setReadArticleIds] = useState<Set<string>>(new Set());
   // Track current filters for load more
   const [currentFilters, setCurrentFilters] = useState<{
     categoryId?: string;
@@ -238,6 +242,8 @@ export function useStudyArticles(initialOptions?: {
     difficulty?: string;
     orderBy?: string;
     orderDir?: 'asc' | 'desc';
+    readStatus?: 'all' | 'unread' | 'read';
+    userId?: string;
   }>({});
 
   const fetchArticles = useCallback(
@@ -255,6 +261,8 @@ export function useStudyArticles(initialOptions?: {
         lastId?: string;
         append?: boolean;
         listView?: boolean;  // Default true for list views, false when full article data is needed
+        readStatus?: 'all' | 'unread' | 'read';
+        userId?: string;
       } = {}
     ) => {
       try {
@@ -270,6 +278,8 @@ export function useStudyArticles(initialOptions?: {
           difficulty: options.difficulty ?? initialOptions?.difficulty,
           orderBy: options.orderBy || initialOptions?.orderBy || 'createdAt',
           orderDir: options.orderDir || initialOptions?.orderDir || 'desc',
+          readStatus: options.readStatus ?? initialOptions?.readStatus,
+          userId: options.userId ?? initialOptions?.userId,
         };
 
         // Save current filters for load more (only if not appending)
@@ -290,13 +300,21 @@ export function useStudyArticles(initialOptions?: {
           setArticles(data.articles);
         }
         setHasMore(data.hasMore);
+
+        // Update counts and read article IDs from backend
+        if (data.counts) {
+          setCounts(data.counts);
+        }
+        if (data.readArticleIds) {
+          setReadArticleIds(new Set(data.readArticleIds));
+        }
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch articles'));
       } finally {
         setLoading(false);
       }
     },
-    [initialOptions?.categoryId, initialOptions?.topicId, initialOptions?.status, initialOptions?.language, initialOptions?.search, initialOptions?.difficulty, initialOptions?.orderBy, initialOptions?.orderDir]
+    [initialOptions?.categoryId, initialOptions?.topicId, initialOptions?.status, initialOptions?.language, initialOptions?.search, initialOptions?.difficulty, initialOptions?.orderBy, initialOptions?.orderDir, initialOptions?.readStatus, initialOptions?.userId]
   );
 
   const loadMore = useCallback(async () => {
@@ -314,6 +332,11 @@ export function useStudyArticles(initialOptions?: {
     fetchArticles();
   }, [fetchArticles]);
 
+  // Helper function to check if an article is read
+  const isArticleRead = useCallback((articleId: string) => {
+    return readArticleIds.has(articleId);
+  }, [readArticleIds]);
+
   return {
     articles,
     hasMore,
@@ -321,6 +344,9 @@ export function useStudyArticles(initialOptions?: {
     error,
     fetchArticles,
     loadMore,
+    counts,
+    readArticleIds,
+    isArticleRead,
   };
 }
 

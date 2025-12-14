@@ -192,8 +192,15 @@ export async function getArticles(
     limit?: number;
     lastId?: string;
     listView?: boolean;  // Optimization: only return fields needed for list view
+    readStatus?: 'all' | 'unread' | 'read';  // Filter by read status
+    userId?: string;  // User ID for read status filtering
   } = {}
-): Promise<{ articles: StudyArticle[]; hasMore: boolean }> {
+): Promise<{
+  articles: StudyArticle[];
+  hasMore: boolean;
+  counts?: { total: number; read: number; unread: number };
+  readArticleIds?: string[];
+}> {
   const params = new URLSearchParams();
   if (options.categoryId) params.set('categoryId', options.categoryId);
   if (options.topicId) params.set('topicId', options.topicId);
@@ -206,10 +213,23 @@ export async function getArticles(
   if (options.limit) params.set('limit', String(options.limit));
   if (options.lastId) params.set('lastId', options.lastId);
   if (options.listView) params.set('listView', 'true');
+  if (options.readStatus) params.set('readStatus', options.readStatus);
+  if (options.userId) params.set('userId', options.userId);
 
   const url = `/api/study/articles${params.toString() ? `?${params}` : ''}`;
-  const data = await apiCall<{ success: boolean; articles: StudyArticle[]; hasMore: boolean }>(url);
-  return { articles: data.articles, hasMore: data.hasMore };
+  const data = await apiCall<{
+    success: boolean;
+    articles: StudyArticle[];
+    hasMore: boolean;
+    counts?: { total: number; read: number; unread: number };
+    readArticleIds?: string[];
+  }>(url);
+  return {
+    articles: data.articles,
+    hasMore: data.hasMore,
+    counts: data.counts,
+    readArticleIds: data.readArticleIds,
+  };
 }
 
 export async function getArticle(id: string): Promise<StudyArticle> {

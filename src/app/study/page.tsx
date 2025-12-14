@@ -17,6 +17,7 @@ import {
   GraduationCap,
   Brain,
   BookMarked,
+  Menu,
 } from 'lucide-react';
 import { useStudyArticles, useStudyCategories, useStudyProgress, useArticleReadHistory } from '@/hooks/useStudy';
 import { useAuth } from '@/providers/AuthProvider';
@@ -53,6 +54,7 @@ export default function StudyListPage() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('');
   const [selectedLanguage, setSelectedLanguage] = useState<string>('');
   const [showFilters, setShowFilters] = useState(false);
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false);
 
   // Debounce search to avoid too many API calls
   const debouncedSearch = useDebounce(searchQuery, 300);
@@ -85,250 +87,326 @@ export default function StudyListPage() {
     }
   };
 
+  // Sidebar content component
+  const SidebarContent = () => (
+    <>
+      {/* Progress Overview */}
+      {currentUser && progress && (
+        <div style={{
+          backgroundColor: '#f9fafb',
+          borderRadius: '12px',
+          padding: '16px',
+          marginBottom: '16px',
+        }}>
+          <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px' }}>
+            Your Progress
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                backgroundColor: '#ede9fe',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <BookOpen size={18} color="#7c3aed" />
+              </div>
+              <div>
+                <p style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                  {progress.totalArticlesRead}
+                </p>
+                <p style={{ color: '#6b7280', fontSize: '11px' }}>Articles Read</p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                backgroundColor: '#dbeafe',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <BarChart3 size={18} color="#2563eb" />
+              </div>
+              <div>
+                <p style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                  {progress.totalQuizzesCompleted}
+                </p>
+                <p style={{ color: '#6b7280', fontSize: '11px' }}>Quizzes Done</p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                backgroundColor: '#d1fae5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Clock size={18} color="#059669" />
+              </div>
+              <div>
+                <p style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                  {progress.totalTimeSpentMinutes < 60
+                    ? `${progress.totalTimeSpentMinutes}m`
+                    : `${Math.round(progress.totalTimeSpentMinutes / 60)}h`}
+                </p>
+                <p style={{ color: '#6b7280', fontSize: '11px' }}>Time Spent</p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '8px',
+                backgroundColor: '#fef3c7',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <Flame size={18} color="#d97706" />
+              </div>
+              <div>
+                <p style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                  {progress.currentStreak}
+                </p>
+                <p style={{ color: '#6b7280', fontSize: '11px' }}>Day Streak</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Learning Hub Quick Access */}
+      {currentUser && (
+        <div style={{
+          backgroundColor: '#f9fafb',
+          borderRadius: '12px',
+          padding: '16px',
+          marginBottom: '16px',
+        }}>
+          <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <GraduationCap size={16} style={{ color: '#7c3aed' }} />
+            Learning Hub
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <Link
+              href="/study/learning/review"
+              onClick={() => setShowMobileSidebar(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #e5e7eb',
+                color: '#374151',
+                textDecoration: 'none',
+                fontWeight: '500',
+                fontSize: '13px',
+              }}
+            >
+              <Brain size={16} />
+              Review
+            </Link>
+            <Link
+              href="/study/learning/dictionary"
+              onClick={() => setShowMobileSidebar(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                backgroundColor: '#ffffff',
+                border: '1px solid #e5e7eb',
+                color: '#374151',
+                textDecoration: 'none',
+                fontWeight: '500',
+                fontSize: '13px',
+              }}
+            >
+              <BookMarked size={16} />
+              Dictionary
+            </Link>
+            <Link
+              href="/study/learning"
+              onClick={() => setShowMobileSidebar(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                backgroundColor: '#7c3aed',
+                color: '#ffffff',
+                textDecoration: 'none',
+                fontWeight: '500',
+                fontSize: '13px',
+              }}
+            >
+              Open Hub
+              <ChevronRight size={16} />
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {/* Categories Quick Filter */}
+      {!categoriesLoading && categories.length > 0 && (
+        <div style={{
+          backgroundColor: '#f9fafb',
+          borderRadius: '12px',
+          padding: '16px',
+        }}>
+          <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px' }}>
+            Categories
+          </h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <button
+              onClick={() => { setSelectedCategory(''); setShowMobileSidebar(false); }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: 'none',
+                backgroundColor: !selectedCategory ? '#d1fae5' : 'transparent',
+                color: !selectedCategory ? '#065f46' : '#374151',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: !selectedCategory ? '500' : '400',
+                textAlign: 'left',
+              }}
+            >
+              All Categories
+            </button>
+            {categories.map(cat => (
+              <button
+                key={cat.id}
+                onClick={() => { setSelectedCategory(cat.id); setShowMobileSidebar(false); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: selectedCategory === cat.id ? '#d1fae5' : 'transparent',
+                  color: selectedCategory === cat.id ? '#065f46' : '#374151',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: selectedCategory === cat.id ? '500' : '400',
+                  textAlign: 'left',
+                }}
+              >
+                {cat.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </>
+  );
+
   return (
     <div style={{
       minHeight: '100vh',
       backgroundColor: '#ffffff',
       paddingTop: '8px',
     }}>
-      <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 16px' }}>
-        {/* Header */}
-        <div style={{ marginBottom: '24px' }}>
-          <h1 style={{
-            fontSize: '28px',
-            fontWeight: '600',
-            color: '#111827',
-            marginBottom: '4px',
-          }}>
-            Study Articles
-          </h1>
-          <p style={{ color: '#6b7280', fontSize: '15px' }}>
-            Deep-dive into software engineering concepts
-          </p>
+      {/* Mobile Sidebar Overlay */}
+      {showMobileSidebar && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 50,
+          }}
+          onClick={() => setShowMobileSidebar(false)}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: '300px',
+              maxWidth: '85vw',
+              backgroundColor: '#ffffff',
+              padding: '16px',
+              overflowY: 'auto',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h2 style={{ fontWeight: '600', color: '#111827' }}>Menu</h2>
+              <button
+                onClick={() => setShowMobileSidebar(false)}
+                style={{
+                  padding: '8px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  cursor: 'pointer',
+                }}
+              >
+                <X size={20} color="#6b7280" />
+              </button>
+            </div>
+            <SidebarContent />
+          </div>
         </div>
+      )}
 
-        {/* Progress Overview - Only show when logged in */}
-        {currentUser && progress && (
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-            gap: '12px',
-            marginBottom: '24px',
-          }}>
-            <div style={{
-              backgroundColor: '#f9fafb',
-              borderRadius: '12px',
-              padding: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-            }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '10px',
-                backgroundColor: '#ede9fe',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <BookOpen size={20} color="#7c3aed" />
-              </div>
-              <div>
-                <p style={{ fontSize: '20px', fontWeight: '600', color: '#111827' }}>
-                  {progress.totalArticlesRead}
-                </p>
-                <p style={{ color: '#6b7280', fontSize: '12px' }}>Articles Read</p>
-              </div>
+      <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '24px 16px' }}>
+        <div style={{ display: 'flex', gap: '32px' }}>
+          {/* Main Content Area */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 0 }}>
+              <h1 style={{
+                  fontSize: '28px',
+                  fontWeight: '600',
+                  color: '#111827',
+                }}>
+                  Study Articles
+                </h1>
+              {/* Mobile Menu Button */}
+              {currentUser && (
+                <button
+                  onClick={() => setShowMobileSidebar(true)}
+                  className="lg-hide"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '8px',
+                    borderRadius: '6px',
+                    border: '1px solid #e5e7eb',
+                    backgroundColor: '#ffffff',
+                    color: '#374151',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Menu size={20} />
+                </button>
+              )}
             </div>
-            <div style={{
-              backgroundColor: '#f9fafb',
-              borderRadius: '12px',
-              padding: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-            }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '10px',
-                backgroundColor: '#dbeafe',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <BarChart3 size={20} color="#2563eb" />
-              </div>
-              <div>
-                <p style={{ fontSize: '20px', fontWeight: '600', color: '#111827' }}>
-                  {progress.totalQuizzesCompleted}
-                </p>
-                <p style={{ color: '#6b7280', fontSize: '12px' }}>Quizzes Done</p>
-              </div>
-            </div>
-            <div style={{
-              backgroundColor: '#f9fafb',
-              borderRadius: '12px',
-              padding: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-            }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '10px',
-                backgroundColor: '#d1fae5',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <Clock size={20} color="#059669" />
-              </div>
-              <div>
-                <p style={{ fontSize: '20px', fontWeight: '600', color: '#111827' }}>
-                  {progress.totalTimeSpentMinutes < 60
-                    ? `${progress.totalTimeSpentMinutes}m`
-                    : `${Math.round(progress.totalTimeSpentMinutes / 60)}h`}
-                </p>
-                <p style={{ color: '#6b7280', fontSize: '12px' }}>Time Spent</p>
-              </div>
-            </div>
-            <div style={{
-              backgroundColor: '#f9fafb',
-              borderRadius: '12px',
-              padding: '16px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-            }}>
-              <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '10px',
-                backgroundColor: '#fef3c7',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <Flame size={20} color="#d97706" />
-              </div>
-              <div>
-                <p style={{ fontSize: '20px', fontWeight: '600', color: '#111827' }}>
-                  {progress.currentStreak}
-                </p>
-                <p style={{ color: '#6b7280', fontSize: '12px' }}>Day Streak</p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Learning Hub Quick Access */}
-        {currentUser && (
-          <div style={{
-            background: 'linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)',
-            borderRadius: '16px',
-            padding: '20px',
-            marginBottom: '24px',
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '16px',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <div style={{
-                width: '48px',
-                height: '48px',
-                borderRadius: '12px',
-                backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <GraduationCap size={24} color="#ffffff" />
-              </div>
-              <div>
-                <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '4px' }}>
-                  Learning Hub
-                </h3>
-                <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px' }}>
-                  Track learning from books, videos, work & more
-                </p>
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <Link
-                href="/study/learning/review"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 16px',
-                  borderRadius: '8px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  color: '#ffffff',
-                  textDecoration: 'none',
-                  fontWeight: '500',
-                  fontSize: '14px',
-                  transition: 'background-color 0.2s',
-                }}
-              >
-                <Brain size={16} />
-                Review
-              </Link>
-              <Link
-                href="/study/learning/dictionary"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 16px',
-                  borderRadius: '8px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                  color: '#ffffff',
-                  textDecoration: 'none',
-                  fontWeight: '500',
-                  fontSize: '14px',
-                  transition: 'background-color 0.2s',
-                }}
-              >
-                <BookMarked size={16} />
-                Dictionary
-              </Link>
-              <Link
-                href="/study/learning"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '10px 16px',
-                  borderRadius: '8px',
-                  backgroundColor: '#ffffff',
-                  color: '#7c3aed',
-                  textDecoration: 'none',
-                  fontWeight: '500',
-                  fontSize: '14px',
-                  transition: 'background-color 0.2s',
-                }}
-              >
-                Open Hub
-                <ChevronRight size={16} />
-              </Link>
-            </div>
-          </div>
-        )}
 
         {/* Search and Filters */}
-        <div style={{
-          backgroundColor: '#ffffff',
-          borderRadius: '12px',
-          border: '1px solid #e5e7eb',
-          padding: '16px',
-          marginBottom: '20px',
-        }}>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '16px' }}>
             {/* Search */}
             <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
               <Search
@@ -390,7 +468,7 @@ export default function StudyListPage() {
               }}
             >
               <Filter size={16} />
-              Filters
+              <span className="filter-text">Filters</span>
             </button>
           </div>
 
@@ -399,9 +477,10 @@ export default function StudyListPage() {
             <div style={{
               display: 'flex',
               gap: '12px',
-              marginTop: '16px',
-              paddingTop: '16px',
-              borderTop: '1px solid #f3f4f6',
+              marginBottom: '16px',
+              padding: '16px',
+              backgroundColor: '#f9fafb',
+              borderRadius: '8px',
               flexWrap: 'wrap',
             }}>
               {/* Category Filter */}
@@ -510,7 +589,6 @@ export default function StudyListPage() {
               </div>
             </div>
           )}
-        </div>
 
         {/* Category Pills - Horizontal Scroll */}
         {!categoriesLoading && categories.length > 0 && (
@@ -566,7 +644,7 @@ export default function StudyListPage() {
         )}
 
         {/* Articles Grid */}
-        {loading ? (
+        {loading && articles.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '64px' }}>
             <Loader2 size={32} color="#10a37f" style={{ animation: 'spin 1s linear infinite' }} />
           </div>
@@ -770,6 +848,21 @@ export default function StudyListPage() {
             )}
           </>
         )}
+          </div>
+
+          {/* Desktop Sidebar */}
+          <aside
+            className="lg-show"
+            style={{
+              width: '280px',
+              flexShrink: 0,
+            }}
+          >
+            <div style={{ position: 'sticky', top: '24px' }}>
+              <SidebarContent />
+            </div>
+          </aside>
+        </div>
       </div>
 
       {/* CSS for animations and scrollbar */}
@@ -799,6 +892,36 @@ export default function StudyListPage() {
 
         .category-scroll-container::-webkit-scrollbar-thumb:hover {
           background: #d1d5db;
+        }
+
+        /* Responsive sidebar visibility */
+        .lg-show {
+          display: none;
+        }
+
+        .lg-hide {
+          display: flex;
+        }
+
+        /* Hide filter text on mobile */
+        .filter-text {
+          display: none;
+        }
+
+        @media (min-width: 640px) {
+          .filter-text {
+            display: inline;
+          }
+        }
+
+        @media (min-width: 1024px) {
+          .lg-show {
+            display: block;
+          }
+
+          .lg-hide {
+            display: none !important;
+          }
         }
       `}</style>
     </div>

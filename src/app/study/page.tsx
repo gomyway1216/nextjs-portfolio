@@ -26,7 +26,7 @@ import {
   BookMarked,
   Menu,
 } from 'lucide-react';
-import { useStudyArticles, useStudyCategories, useStudyProgress } from '@/hooks/useStudy';
+import { useStudyArticles, useStudyCategories, useStudyProgress, useArticleCounts } from '@/hooks/useStudy';
 import { useAuth } from '@/providers/AuthProvider';
 import { QuizDifficulty } from '@/types/study';
 
@@ -67,7 +67,7 @@ export default function StudyListPage() {
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   // Fetch articles with all filters including read status (backend filtering)
-  const { articles, loading, hasMore, loadMore, counts, isArticleRead } = useStudyArticles({
+  const { articles, loading, hasMore, loadMore, isArticleRead } = useStudyArticles({
     categoryId: selectedCategory || undefined,
     language: selectedLanguage || undefined,
     search: debouncedSearch || undefined,
@@ -76,9 +76,8 @@ export default function StudyListPage() {
     userId: currentUser?.uid,
   });
 
-  // Use counts from backend
-  const readCount = counts.read;
-  const unreadCount = counts.unread;
+  // Fetch counts from separate efficient endpoint
+  const { counts } = useArticleCounts(currentUser?.uid);
 
   const getCategoryName = (categoryId: string) => {
     return categories.find(c => c.id === categoryId)?.name || 'General';
@@ -129,12 +128,12 @@ export default function StudyListPage() {
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
                   <p style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
-                    {readCount}
+                    {counts.read}
                   </p>
-                  <p style={{ fontSize: '12px', color: '#6b7280' }}>/ {articles.length}</p>
+                  <p style={{ fontSize: '12px', color: '#6b7280' }}>/ {counts.total}</p>
                 </div>
                 <p style={{ color: '#6b7280', fontSize: '11px', marginBottom: '6px' }}>Articles Read</p>
-                {articles.length > 0 && (
+                {counts.total > 0 && (
                   <div style={{
                     width: '100%',
                     height: '4px',
@@ -143,7 +142,7 @@ export default function StudyListPage() {
                     overflow: 'hidden',
                   }}>
                     <div style={{
-                      width: `${(readCount / articles.length) * 100}%`,
+                      width: `${(counts.read / counts.total) * 100}%`,
                       height: '100%',
                       backgroundColor: '#7c3aed',
                       borderRadius: '2px',
@@ -644,7 +643,7 @@ export default function StudyListPage() {
                 transition: 'all 0.2s',
               }}
             >
-              Unread ({unreadCount})
+              Unread ({counts.unread})
             </button>
             <button
               onClick={() => setStatusFilter('read')}
@@ -660,7 +659,7 @@ export default function StudyListPage() {
                 transition: 'all 0.2s',
               }}
             >
-              Read ({readCount})
+              Read ({counts.read})
             </button>
           </div>
         )}

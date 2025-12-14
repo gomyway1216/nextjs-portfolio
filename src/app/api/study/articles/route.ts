@@ -34,11 +34,6 @@ export async function GET(request: NextRequest) {
       if (value) url.searchParams.set(param, value);
     });
 
-    // If filtering by read status, fetch more articles to ensure we have enough after filtering
-    if (readStatus && readStatus !== 'all' && userId) {
-      url.searchParams.set('limit', '100'); // Fetch more for filtering
-    }
-
     console.log('[Study API] GET articles:', url.toString());
 
     const response = await fetch(url.toString());
@@ -71,15 +66,10 @@ export async function GET(request: NextRequest) {
 
     let articles = data.articles || [];
     let readArticleIds = new Set<string>();
-    let counts = { total: articles.length, read: 0, unread: 0 };
 
-    // If userId is provided, get read history and calculate counts
+    // If userId is provided, get read history for filtering and sorting
     if (userId) {
       readArticleIds = await getUserReadArticleIds(userId);
-
-      // Calculate counts based on ALL fetched articles
-      counts.read = articles.filter((a: any) => readArticleIds.has(a.id)).length;
-      counts.unread = articles.length - counts.read;
 
       // Filter by read status if specified
       if (readStatus === 'unread') {
@@ -95,20 +85,13 @@ export async function GET(request: NextRequest) {
           return 0;
         });
       }
-
-      // Apply original limit after filtering
-      const originalLimit = parseInt(searchParams.get('limit') || '20');
-      if (articles.length > originalLimit) {
-        articles = articles.slice(0, originalLimit);
-      }
     }
 
-    console.log('[Study API] Fetched', articles.length, 'articles, counts:', counts);
+    console.log('[Study API] Fetched', articles.length, 'articles');
 
     return NextResponse.json({
       ...data,
       articles,
-      counts,
       readArticleIds: userId ? Array.from(readArticleIds) : [],
     }, { status: response.status });
   } catch (error) {

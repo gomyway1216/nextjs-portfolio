@@ -230,7 +230,6 @@ export function useStudyArticles(initialOptions?: {
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [counts, setCounts] = useState<{ total: number; read: number; unread: number }>({ total: 0, read: 0, unread: 0 });
   const [readArticleIds, setReadArticleIds] = useState<Set<string>>(new Set());
   // Track current filters for load more
   const [currentFilters, setCurrentFilters] = useState<{
@@ -301,10 +300,7 @@ export function useStudyArticles(initialOptions?: {
         }
         setHasMore(data.hasMore);
 
-        // Update counts and read article IDs from backend
-        if (data.counts) {
-          setCounts(data.counts);
-        }
+        // Update read article IDs from backend
         if (data.readArticleIds) {
           setReadArticleIds(new Set(data.readArticleIds));
         }
@@ -344,10 +340,47 @@ export function useStudyArticles(initialOptions?: {
     error,
     fetchArticles,
     loadMore,
-    counts,
     readArticleIds,
     isArticleRead,
   };
+}
+
+// ============================================================================
+// ARTICLE COUNTS HOOK - Efficient separate endpoint for read/unread counts
+// ============================================================================
+
+export function useArticleCounts(userId: string | undefined) {
+  const [counts, setCounts] = useState<{ total: number; read: number; unread: number }>({
+    total: 0,
+    read: 0,
+    unread: 0,
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchCounts = useCallback(async () => {
+    if (!userId) {
+      setCounts({ total: 0, read: 0, unread: 0 });
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await studyService.getArticleCounts(userId);
+      setCounts(data);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch counts'));
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+
+  useEffect(() => {
+    fetchCounts();
+  }, [fetchCounts]);
+
+  return { counts, loading, error, refetch: fetchCounts };
 }
 
 // ============================================================================

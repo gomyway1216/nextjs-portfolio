@@ -198,7 +198,6 @@ export async function getArticles(
 ): Promise<{
   articles: StudyArticle[];
   hasMore: boolean;
-  counts?: { total: number; read: number; unread: number };
   readArticleIds?: string[];
 }> {
   const params = new URLSearchParams();
@@ -221,13 +220,11 @@ export async function getArticles(
     success: boolean;
     articles: StudyArticle[];
     hasMore: boolean;
-    counts?: { total: number; read: number; unread: number };
     readArticleIds?: string[];
   }>(url);
   return {
     articles: data.articles,
     hasMore: data.hasMore,
-    counts: data.counts,
     readArticleIds: data.readArticleIds,
   };
 }
@@ -237,6 +234,18 @@ export async function getArticle(id: string): Promise<StudyArticle> {
     `/api/study/articles/${id}`
   );
   return data.article;
+}
+
+export async function getArticleCounts(userId: string): Promise<{
+  total: number;
+  read: number;
+  unread: number;
+}> {
+  const data = await apiCall<{
+    success: boolean;
+    counts: { total: number; read: number; unread: number };
+  }>(`/api/study/articles/counts?userId=${userId}`);
+  return data.counts;
 }
 
 export async function generateArticle(options: {

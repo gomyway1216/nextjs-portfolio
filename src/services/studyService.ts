@@ -26,6 +26,20 @@ import {
   LearningSourceType,
   FlashcardDifficulty,
   CreateLearningEntryRequest,
+  // Learning Path types
+  LearningPath,
+  LearningPathStatus,
+  DailyLearningPlan,
+  LearningPathRecommendations,
+  GenerateLearningPathRequest,
+  StartTopicRequest,
+  StartTopicResponse,
+  CompleteTopicRequest,
+  CompleteTopicResponse,
+  UpdateLearningPath,
+  GetDailyPlanRequest,
+  UpdateDailyPlanItemRequest,
+  UpdateDailyPlanItemResponse,
 } from '@/types/study';
 
 // Helper to get auth headers
@@ -968,4 +982,138 @@ export async function generateQuizFromLearningEntries(params: {
     }
   );
   return data.questions;
+}
+
+// ============================================================================
+// LEARNING PATHS
+// ============================================================================
+
+export async function getLearningPaths(params?: {
+  status?: LearningPathStatus;
+  limit?: number;
+}): Promise<LearningPath[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set('status', params.status);
+  if (params?.limit) searchParams.set('limit', params.limit.toString());
+
+  const query = searchParams.toString();
+  const url = `/api/study/learning/paths${query ? `?${query}` : ''}`;
+
+  const data = await apiCall<{ success: boolean; paths: LearningPath[] }>(url);
+  return data.paths;
+}
+
+export async function getLearningPath(pathId: string): Promise<LearningPath> {
+  const data = await apiCall<{ success: boolean; path: LearningPath }>(
+    `/api/study/learning/paths/${pathId}`
+  );
+  return data.path;
+}
+
+export async function createLearningPath(
+  request: GenerateLearningPathRequest
+): Promise<{ path: LearningPath; recommendations: LearningPathRecommendations }> {
+  const data = await apiCall<{
+    success: boolean;
+    path: LearningPath;
+    recommendations: LearningPathRecommendations;
+  }>('/api/study/learning/paths', {
+    method: 'POST',
+    body: JSON.stringify(request),
+  });
+  return { path: data.path, recommendations: data.recommendations };
+}
+
+export async function updateLearningPath(
+  pathId: string,
+  updates: UpdateLearningPath
+): Promise<LearningPath> {
+  const data = await apiCall<{ success: boolean; path: LearningPath }>(
+    `/api/study/learning/paths?pathId=${pathId}`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    }
+  );
+  return data.path;
+}
+
+export async function deleteLearningPath(pathId: string): Promise<void> {
+  await apiCall<{ success: boolean }>(
+    `/api/study/learning/paths?pathId=${pathId}`,
+    {
+      method: 'DELETE',
+    }
+  );
+}
+
+export async function startLearningPathTopic(
+  request: StartTopicRequest
+): Promise<StartTopicResponse> {
+  const data = await apiCall<{ success: boolean } & StartTopicResponse>(
+    '/api/study/learning/paths/topics?action=start',
+    {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }
+  );
+  return { message: data.message, entry: data.entry };
+}
+
+export async function completeLearningPathTopic(
+  request: CompleteTopicRequest
+): Promise<CompleteTopicResponse> {
+  const data = await apiCall<{ success: boolean } & CompleteTopicResponse>(
+    '/api/study/learning/paths/topics?action=complete',
+    {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }
+  );
+  return {
+    message: data.message,
+    progress: data.progress,
+    pathCompleted: data.pathCompleted,
+  };
+}
+
+// ============================================================================
+// DAILY LEARNING PLANS
+// ============================================================================
+
+export async function getDailyLearningPlan(params?: GetDailyPlanRequest): Promise<{
+  plan: DailyLearningPlan;
+  motivationalMessage?: string;
+}> {
+  const searchParams = new URLSearchParams();
+  if (params?.date) searchParams.set('date', params.date);
+  if (params?.pathId) searchParams.set('pathId', params.pathId);
+  if (params?.regenerate) searchParams.set('regenerate', 'true');
+
+  const query = searchParams.toString();
+  const url = `/api/study/learning/daily${query ? `?${query}` : ''}`;
+
+  const data = await apiCall<{
+    success: boolean;
+    plan: DailyLearningPlan;
+    motivationalMessage?: string;
+  }>(url);
+  return { plan: data.plan, motivationalMessage: data.motivationalMessage };
+}
+
+export async function updateDailyPlanItem(
+  request: UpdateDailyPlanItemRequest
+): Promise<UpdateDailyPlanItemResponse> {
+  const data = await apiCall<{ success: boolean } & UpdateDailyPlanItemResponse>(
+    '/api/study/learning/daily',
+    {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    }
+  );
+  return {
+    completedItems: data.completedItems,
+    totalItems: data.totalItems,
+    completed: data.completed,
+  };
 }

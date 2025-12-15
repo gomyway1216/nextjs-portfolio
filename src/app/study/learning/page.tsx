@@ -259,6 +259,13 @@ export default function LearningHubPage() {
           }}
         >
           <QuickActionCard
+            href="/study/learning/daily"
+            icon={<Clock size={24} />}
+            title="Today's Plan"
+            description="AI-generated daily learning"
+            color="#06b6d4"
+          />
+          <QuickActionCard
             href="/study/learning/review"
             icon={<Brain size={24} />}
             title="Start Review Session"
@@ -278,6 +285,13 @@ export default function LearningHubPage() {
             title="Flashcard Decks"
             description="Study with spaced repetition"
             color="#f59e0b"
+          />
+          <QuickActionCard
+            href="/study/learning/paths"
+            icon={<Target size={24} />}
+            title="Learning Paths"
+            description="AI-generated goal-based learning"
+            color="#ec4899"
           />
           <QuickActionCard
             href="/study"

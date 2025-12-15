@@ -1004,3 +1004,226 @@ export type UpdateFlashcard = Partial<CreateFlashcard>;
 
 export type CreateFlashcardDeck = Omit<FlashcardDeck, 'id' | 'createdAt' | 'updatedAt' | 'cardsDue' | 'cardsNew'>;
 export type UpdateFlashcardDeck = Partial<CreateFlashcardDeck>;
+
+// ============================================================================
+// LEARNING PATH TYPES
+// ============================================================================
+
+export enum LearningPathStatus {
+  NOT_STARTED = 'not_started',
+  IN_PROGRESS = 'in_progress',
+  COMPLETED = 'completed',
+  PAUSED = 'paused',
+}
+
+export enum TopicImportance {
+  CRITICAL = 'critical',
+  IMPORTANT = 'important',
+  NICE_TO_HAVE = 'nice_to_have',
+}
+
+export enum PreferredLearningStyle {
+  HANDS_ON = 'hands_on',
+  READING = 'reading',
+  VIDEO = 'video',
+  MIXED = 'mixed',
+}
+
+// Learning Path Resource
+export interface LearningResource {
+  id: string;
+  type: 'book' | 'course' | 'video' | 'article' | 'documentation' | 'podcast';
+  title: string;
+  url?: string;
+  description?: string;
+  estimatedTime?: number; // minutes
+}
+
+// Learning Topic within a Phase
+export interface LearningPathTopic {
+  id: string;
+  phaseId: string;
+  title: string;
+  description: string;
+  importance: TopicImportance;
+  prerequisites: string[]; // topic IDs
+  status: LearningPathStatus;
+  entryId?: string; // linked learning entry
+  flashcardIds: string[];
+  dictionaryTermIds: string[];
+  linkedArticleIds: string[];
+  resources: LearningResource[];
+  estimatedDuration: string;
+  completedAt?: string;
+  order: number;
+}
+
+// Learning Phase within a Path
+export interface LearningPhase {
+  id: string;
+  pathId: string;
+  number: number;
+  title: string;
+  description: string;
+  estimatedDuration: string;
+  topics: LearningPathTopic[];
+  milestones: string[];
+  status: LearningPathStatus;
+  progress: number; // 0-100
+  entryIds: string[];
+  flashcardDeckIds: string[];
+  startedAt?: string;
+  completedAt?: string;
+  order: number;
+}
+
+// Learning Path Context
+export interface LearningPathContext {
+  currentLevel?: string;
+  yearsOfExperience?: number;
+  primaryTechStack?: string[];
+  availableHoursPerWeek?: number;
+  preferredLearningStyle?: PreferredLearningStyle;
+  targetDate?: string;
+  additionalNotes?: string;
+}
+
+// Main Learning Path
+export interface LearningPath {
+  id: string;
+  userId: string;
+  title: string;
+  description: string;
+  goal: string;
+  estimatedDuration: string;
+  phases: LearningPhase[];
+  status: LearningPathStatus;
+  progress: number; // 0-100
+  currentPhaseId?: string;
+  currentTopicId?: string;
+  totalTopics: number;
+  completedTopics: number;
+  totalFlashcards: number;
+  masteredFlashcards: number;
+  totalDictionaryTerms: number;
+  linkedArticleIds: string[];
+  tags: string[];
+  aiProvider: AIProvider;
+  aiModel: string;
+  context?: LearningPathContext;
+  startedAt?: string;
+  completedAt?: string;
+  lastActivityAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Daily Learning Plan Item
+export interface DailyLearningItem {
+  id: string;
+  type: 'read_entry' | 'review_flashcards' | 'review_terms' | 'read_article' | 'practice';
+  title: string;
+  description?: string;
+  estimatedTime: number;
+  completed: boolean;
+  completedAt?: string;
+  linkedId?: string; // entry, article, or deck ID
+  order: number;
+}
+
+// Daily Learning Plan
+export interface DailyLearningPlan {
+  id: string;
+  userId: string;
+  date: string;
+  pathId?: string;
+  phaseId?: string;
+  topicId?: string;
+  suggestedStudyTime: number; // minutes
+  items: DailyLearningItem[];
+  flashcardsDue: number;
+  dictionaryTermsDue: number;
+  completed: boolean;
+  completedItems: number;
+  totalItems: number;
+  actualStudyTime: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Learning Path Recommendations
+export interface LearningPathRecommendations {
+  books: string[];
+  courses: string[];
+  youtubeChannels: string[];
+  podcasts: string[];
+  websites: string[];
+}
+
+// Request types for Learning Path functions
+export interface GenerateLearningPathRequest {
+  goal: string;
+  context?: LearningPathContext;
+  options?: {
+    generateEntries?: boolean;
+    generateFlashcards?: boolean;
+    generateDictionary?: boolean;
+    linkArticles?: boolean;
+    createGoals?: boolean;
+  };
+}
+
+export interface CreateLearningPathResponse {
+  path: LearningPath;
+  recommendations: LearningPathRecommendations;
+}
+
+export interface StartTopicRequest {
+  pathId: string;
+  topicId: string;
+  generateContent?: boolean;
+}
+
+export interface StartTopicResponse {
+  message: string;
+  entry?: LearningEntry;
+}
+
+export interface CompleteTopicRequest {
+  pathId: string;
+  topicId: string;
+}
+
+export interface CompleteTopicResponse {
+  message: string;
+  progress: number;
+  pathCompleted: boolean;
+}
+
+export interface GetDailyPlanRequest {
+  date?: string; // ISO date string
+  pathId?: string;
+  regenerate?: boolean;
+}
+
+export interface GetDailyPlanResponse {
+  plan: DailyLearningPlan;
+  motivationalMessage?: string;
+}
+
+export interface UpdateDailyPlanItemRequest {
+  planId: string;
+  itemId: string;
+  completed?: boolean;
+  actualTime?: number;
+}
+
+export interface UpdateDailyPlanItemResponse {
+  completedItems: number;
+  totalItems: number;
+  completed: boolean;
+}
+
+// Helper types
+export type CreateLearningPath = GenerateLearningPathRequest;
+export type UpdateLearningPath = Partial<Pick<LearningPath, 'title' | 'description' | 'status' | 'tags'>>;

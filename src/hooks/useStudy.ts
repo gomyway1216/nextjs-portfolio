@@ -27,6 +27,17 @@ import {
   LearningSourceType,
   FlashcardDifficulty,
   CreateLearningEntryRequest,
+  // Learning Path types
+  LearningPath,
+  LearningPathStatus,
+  DailyLearningPlan,
+  LearningPathRecommendations,
+  GenerateLearningPathRequest,
+  StartTopicRequest,
+  CompleteTopicRequest,
+  UpdateLearningPath,
+  GetDailyPlanRequest,
+  UpdateDailyPlanItemRequest,
 } from '@/types/study';
 
 // ============================================================================
@@ -1646,5 +1657,340 @@ export function useLearningAI() {
     extractTerms,
     generateSummary,
     generateQuizFromEntries,
+  };
+}
+
+// ============================================================================
+// LEARNING PATHS HOOK
+// ============================================================================
+
+export function useLearningPaths(initialParams?: { status?: LearningPathStatus; limit?: number }) {
+  const [paths, setPaths] = useState<LearningPath[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [creating, setCreating] = useState(false);
+
+  const fetchPaths = useCallback(
+    async (params?: { status?: LearningPathStatus; limit?: number }) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await studyService.getLearningPaths(params || initialParams);
+        setPaths(data);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch learning paths'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [initialParams]
+  );
+
+  useEffect(() => {
+    fetchPaths();
+  }, [fetchPaths]);
+
+  const createPath = useCallback(
+    async (request: GenerateLearningPathRequest) => {
+      try {
+        setCreating(true);
+        setError(null);
+        const result = await studyService.createLearningPath(request);
+        setPaths((prev) => [result.path, ...prev]);
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to create learning path'));
+        throw err;
+      } finally {
+        setCreating(false);
+      }
+    },
+    []
+  );
+
+  const updatePath = useCallback(async (pathId: string, updates: UpdateLearningPath) => {
+    try {
+      setError(null);
+      const updated = await studyService.updateLearningPath(pathId, updates);
+      setPaths((prev) => prev.map((p) => (p.id === pathId ? updated : p)));
+      return updated;
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to update learning path'));
+      throw err;
+    }
+  }, []);
+
+  const deletePath = useCallback(async (pathId: string) => {
+    try {
+      setError(null);
+      await studyService.deleteLearningPath(pathId);
+      setPaths((prev) => prev.filter((p) => p.id !== pathId));
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to delete learning path'));
+      throw err;
+    }
+  }, []);
+
+  return {
+    paths,
+    loading,
+    error,
+    creating,
+    fetchPaths,
+    createPath,
+    updatePath,
+    deletePath,
+  };
+}
+
+// ============================================================================
+// SINGLE LEARNING PATH HOOK
+// ============================================================================
+
+export function useLearningPath(pathId: string | null) {
+  const [path, setPath] = useState<LearningPath | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [updating, setUpdating] = useState(false);
+
+  const fetchPath = useCallback(async () => {
+    if (!pathId) {
+      setPath(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await studyService.getLearningPath(pathId);
+      setPath(data);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch learning path'));
+    } finally {
+      setLoading(false);
+    }
+  }, [pathId]);
+
+  useEffect(() => {
+    fetchPath();
+  }, [fetchPath]);
+
+  const startTopic = useCallback(
+    async (topicId: string, generateContent = true) => {
+      if (!pathId) return;
+
+      try {
+        setUpdating(true);
+        setError(null);
+        const result = await studyService.startLearningPathTopic({
+          pathId,
+          topicId,
+          generateContent,
+        });
+        // Refresh path to get updated state
+        await fetchPath();
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to start topic'));
+        throw err;
+      } finally {
+        setUpdating(false);
+      }
+    },
+    [pathId, fetchPath]
+  );
+
+  const completeTopic = useCallback(
+    async (topicId: string) => {
+      if (!pathId) return;
+
+      try {
+        setUpdating(true);
+        setError(null);
+        const result = await studyService.completeLearningPathTopic({
+          pathId,
+          topicId,
+        });
+        // Refresh path to get updated state
+        await fetchPath();
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to complete topic'));
+        throw err;
+      } finally {
+        setUpdating(false);
+      }
+    },
+    [pathId, fetchPath]
+  );
+
+  const updatePath = useCallback(
+    async (updates: UpdateLearningPath) => {
+      if (!pathId) return;
+
+      try {
+        setUpdating(true);
+        setError(null);
+        const updated = await studyService.updateLearningPath(pathId, updates);
+        setPath(updated);
+        return updated;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to update learning path'));
+        throw err;
+      } finally {
+        setUpdating(false);
+      }
+    },
+    [pathId]
+  );
+
+  return {
+    path,
+    loading,
+    error,
+    updating,
+    fetchPath,
+    startTopic,
+    completeTopic,
+    updatePath,
+  };
+}
+
+// ============================================================================
+// DAILY LEARNING PLAN HOOK
+// ============================================================================
+
+export function useDailyLearningPlan(initialParams?: GetDailyPlanRequest) {
+  const [plan, setPlan] = useState<DailyLearningPlan | null>(null);
+  const [motivationalMessage, setMotivationalMessage] = useState<string | undefined>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [updating, setUpdating] = useState(false);
+
+  const fetchPlan = useCallback(
+    async (params?: GetDailyPlanRequest) => {
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await studyService.getDailyLearningPlan(params || initialParams);
+        setPlan(result.plan);
+        setMotivationalMessage(result.motivationalMessage);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch daily plan'));
+      } finally {
+        setLoading(false);
+      }
+    },
+    [initialParams]
+  );
+
+  useEffect(() => {
+    fetchPlan();
+  }, [fetchPlan]);
+
+  const regeneratePlan = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await studyService.getDailyLearningPlan({
+        ...initialParams,
+        regenerate: true,
+      });
+      setPlan(result.plan);
+      setMotivationalMessage(result.motivationalMessage);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to regenerate daily plan'));
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, [initialParams]);
+
+  const completeItem = useCallback(
+    async (itemId: string, actualTime?: number) => {
+      if (!plan) return;
+
+      try {
+        setUpdating(true);
+        setError(null);
+        const result = await studyService.updateDailyPlanItem({
+          planId: plan.id,
+          itemId,
+          completed: true,
+          actualTime,
+        });
+
+        // Update local state
+        setPlan((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            items: prev.items.map((item) =>
+              item.id === itemId ? { ...item, completed: true } : item
+            ),
+            completedItems: result.completedItems,
+            completed: result.completed,
+          };
+        });
+
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to complete item'));
+        throw err;
+      } finally {
+        setUpdating(false);
+      }
+    },
+    [plan]
+  );
+
+  const uncompleteItem = useCallback(
+    async (itemId: string) => {
+      if (!plan) return;
+
+      try {
+        setUpdating(true);
+        setError(null);
+        const result = await studyService.updateDailyPlanItem({
+          planId: plan.id,
+          itemId,
+          completed: false,
+        });
+
+        // Update local state
+        setPlan((prev) => {
+          if (!prev) return prev;
+          return {
+            ...prev,
+            items: prev.items.map((item) =>
+              item.id === itemId ? { ...item, completed: false } : item
+            ),
+            completedItems: result.completedItems,
+            completed: result.completed,
+          };
+        });
+
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to uncomplete item'));
+        throw err;
+      } finally {
+        setUpdating(false);
+      }
+    },
+    [plan]
+  );
+
+  return {
+    plan,
+    motivationalMessage,
+    loading,
+    error,
+    updating,
+    fetchPlan,
+    regeneratePlan,
+    completeItem,
+    uncompleteItem,
   };
 }

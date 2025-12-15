@@ -7,6 +7,9 @@ import { Te, Position, SENTE, GOTE, EMPTY, komaValue, KA, HI, getKomashu } from 
 import { generateLegalMoves } from './GenerateMoves';
 import { Difficulty } from '../common/types';
 import { getOpeningMoveComprehensive } from './OpeningBookComprehensive';
+import { KyokumenImproved } from '../ShogiImproved/KyokumenImproved';
+import { getBestMove as getBestMoveImproved } from '../ShogiImproved/ShogiAIImproved';
+import { Te as TeImproved } from '../ShogiImproved/types';
 
 const INFINITE = 99999999;
 const LIMIT_DEPTH = 16;
@@ -574,6 +577,88 @@ export function getBestMove(
   moveNumber: number = 0,
   moveHistory: Te[] = []
 ): Te | null {
+  /**
+   * `/games/shogi` UI uses the original `Kyokumen` representation and opening book.
+   *
+   * Performance problem (old approach):
+   * - The legacy search clones `Kyokumen` for every node.
+   * - Legality filtering (`removeSelfMate`) also cloned per candidate move.
+   * This is correct but becomes slow in JS/TS due to heavy allocations + GC.
+   *
+   * Current approach (fast path):
+   * - Use the opening book for early plies (keeps variety and prevents early slow searches).
+   * - Convert `Kyokumen` -> `KyokumenImproved` and search using make/unmake + TT.
+   * - Convert the chosen move back into the UI-friendly `Te` format.
+   *
+   * Safety:
+   * - Conversion is safe because both engines share the same piece encoding (SENTE/GOTE flags + PROMOTE flag).
+   * - We still keep the legacy engine as a fallback in case anything unexpected happens.
+   */
+  // Ensure caller-provided turn is applied.
+  k.teban = teban;
+
+  // Opening book for first 12 plies (keeps variety and avoids slow early searches).
+  if (moveNumber <= 12) {
+    const openingMove = getOpeningMoveComprehensive(k, moveNumber, k.teban, moveHistory);
+    if (openingMove) {
+      console.log(`Using opening book move (move ${moveNumber})`);
+      return openingMove;
+    }
+  }
+
+  // Fast engine: convert position and search with make/unmake + TT.
+  const kImproved = convertToImprovedKyokumen(k);
+  const bestImproved = getBestMoveImproved(kImproved, teban, difficulty);
+  if (bestImproved) return convertToMainTe(bestImproved);
+
+  // Fallback (should be rare): legacy clone-based engine.
   const ai = new ShogiAI(difficulty);
   return ai.getNextTe(k, moveNumber, moveHistory);
+}
+
+/**
+ * Convert from the UI/legacy position into the fast engine position.
+ *
+ * Representation mapping:
+ * - Board: direct copy square-by-square into the 1D array using `(suji<<4)+dan` index.
+ * - Hand:
+ *   - legacy uses arrays of captured pieces (duplicates as multiple entries)
+ *   - improved uses counts per piece code
+ * - Turn (`teban`): copy as-is.
+ */
+function convertToImprovedKyokumen(k: Kyokumen): KyokumenImproved {
+  const ki = new KyokumenImproved();
+
+  // Board (same encoding between engines)
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      ki.ban[(suji << 4) + dan] = k.ban[suji][dan];
+    }
+  }
+
+  // Hands (main engine stores arrays; improved engine stores counts)
+  for (let i = 0; i < ki.hand.length; i++) {
+    ki.hand[i] = 0;
+  }
+  for (const koma of k.hand[0]) {
+    ki.hand[koma]++;
+  }
+  for (const koma of k.hand[1]) {
+    ki.hand[koma]++;
+  }
+
+  ki.teban = k.teban;
+  ki.initAll();
+  return ki;
+}
+
+/**
+ * Convert from the fast engine move (`TeImproved`) to the UI/legacy `Te` object.
+ * - `from === 0` means a drop in the improved engine, which maps to (0,0) in the UI engine.
+ */
+function convertToMainTe(te: TeImproved): Te {
+  const from =
+    te.from === 0 ? new Position(0, 0) : new Position(te.from >> 4, te.from & 0x0f);
+  const to = new Position(te.to >> 4, te.to & 0x0f);
+  return new Te(te.koma, from, to, te.promote);
 }

@@ -14,9 +14,9 @@ import { getBestMove } from './ShogiAIImproved';
 import { InitialPositionImproved } from './InitialPositionImproved';
 
 const DIFFICULTY_OPTIONS = [
-  { label: 'Easy', value: 'easy' as Difficulty, description: 'Depth 2 search' },
-  { label: 'Medium', value: 'medium' as Difficulty, description: 'Depth 3 search' },
-  { label: 'Hard', value: 'hard' as Difficulty, description: 'Depth 4 search' },
+  { label: 'Easy', value: 'easy' as Difficulty, description: 'Fast (~250ms), depth ≤4' },
+  { label: 'Medium', value: 'medium' as Difficulty, description: 'Balanced (~800ms), depth ≤6' },
+  { label: 'Hard', value: 'hard' as Difficulty, description: 'Strong (~2s), depth ≤8' },
 ];
 
 interface GameState {

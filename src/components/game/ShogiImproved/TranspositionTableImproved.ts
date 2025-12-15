@@ -1,14 +1,27 @@
 import { Te } from './types';
 import { TTEntryImproved } from './TTEntryImproved';
 
-// Transposition Table for position caching
+/**
+ * Simple fixed-size Transposition Table (TT).
+ *
+ * Design:
+ * - Direct-mapped by `HashVal & 0x0fffff` (1,048,576 entries).
+ * - Each slot stores a full `HashVal` for verification (to avoid using collided entries).
+ * - Stores the best move and a "second best" (legacy from the Java version; still useful for move ordering).
+ *
+ * Why `usedCount` exists:
+ * - Counting filled entries by scanning the whole array is O(N) and expensive if done frequently.
+ * - We maintain an approximate used count by tracking empty->non-empty transitions.
+ */
 export class TranspositionTableImproved {
   // Table array - 1MB size (0x100000 entries)
   private table: (TTEntryImproved | null)[];
+  private usedCount: number;
 
   constructor() {
     // Initialize table with 1MB entries (matching Java)
     this.table = new Array(0x100000).fill(null);
+    this.usedCount = 0;
   }
 
   // Get entry from table
@@ -34,6 +47,9 @@ export class TranspositionTableImproved {
     remainDepth: number,
     tesu: number
   ): void {
+    const index = HashVal & 0x0fffff;
+    const wasEmpty = this.table[index] === null;
+
     let e = this.get(HashVal);
 
     if (e === null) {
@@ -63,13 +79,14 @@ export class TranspositionTableImproved {
     e.tesu = tesu;
 
     // Store in table
-    const index = HashVal & 0x0fffff;
     this.table[index] = e;
+    if (wasEmpty) this.usedCount++;
   }
 
   // Clear the table
   clear(): void {
     this.table.fill(null);
+    this.usedCount = 0;
   }
 
   // Get table size
@@ -79,13 +96,7 @@ export class TranspositionTableImproved {
 
   // Get number of entries used
   used(): number {
-    let count = 0;
-    for (const entry of this.table) {
-      if (entry !== null) {
-        count++;
-      }
-    }
-    return count;
+    return this.usedCount;
   }
 
   // Get fill percentage

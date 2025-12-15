@@ -6,7 +6,17 @@ import {
   Te, komaValue, isSente, isGote
 } from './types';
 
-// Re-export these for use in evaluation
+/**
+ * KyokumenImproved (fast shogi position representation)
+ *
+ * Differences vs the original `Kyokumen` implementation:
+ * - Uses a 1D board array with (suji<<4)+dan indexing for faster access and simpler hashing.
+ * - Maintains incremental evaluation (`eval`) and incremental Zobrist hash (`HashVal`) for TT.
+ * - Uses count-based hands (`hand[koma] = count`) instead of arrays of captured pieces.
+ *
+ * Important invariant:
+ * - `move(te)` and `back(te)` do NOT flip `teban`. Callers (search, UI) must change `teban` explicitly.
+ */
 
 export class KyokumenImproved {
   // Board array (1D array with encoding (suji<<4)+dan)
@@ -64,19 +74,35 @@ export class KyokumenImproved {
     }
   }
 
-  // Initialize Zobrist hash seeds (static)
+  /**
+   * Initialize Zobrist hash seeds (static).
+   *
+   * Why this is careful:
+   * - Transposition Tables only work if hashes are well-distributed and actually change per position.
+   * - A previous approach used 48-bit bitwise operations (like Java's LCG) but JavaScript bitwise operators are
+   *   *32-bit*, which can accidentally produce all zeros and collapse the entire TT (every position hashes to 0).
+   *
+   * This implementation uses a deterministic 32-bit PRNG (Mulberry32-ish) via `Math.imul` so:
+   * - seeds are stable across runtime/environment
+   * - values are non-zero and well-mixed for our purposes
+   */
   static initializeHash(): void {
-    let seed = 0;
-    const rand = (bits: number): number => {
-      seed = (seed * 0x5DEECE66D + 0xB) & ((1 << 48) - 1);
-      return seed >>> (48 - bits);
+    // Deterministic 32-bit PRNG (stable across runtimes)
+    let seed = 0x6d2b79f5 >>> 0;
+    const rand32 = (): number => {
+      seed = (seed + 0x6d2b79f5) >>> 0;
+      let t = seed;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return (t ^ (t >>> 14)) >>> 0;
     };
+    const rand30 = (): number => rand32() & 0x3fffffff;
 
     // Initialize board hash seeds
     this.HashSeed = Array(GRY + 1).fill(null).map(() => new Array(16 * 11).fill(0));
     for (let i = 0; i <= GRY; i++) {
       for (let j = 0; j < 16 * 11; j++) {
-        this.HashSeed[i][j] = rand(30);
+        this.HashSeed[i][j] = rand30();
       }
     }
 
@@ -84,7 +110,7 @@ export class KyokumenImproved {
     this.HandHashSeed = Array(GHI + 1).fill(null).map(() => new Array(20).fill(0));
     for (let i = 0; i <= GHI; i++) {
       for (let j = 0; j < 20; j++) {
-        this.HandHashSeed[i][j] = rand(30);
+        this.HandHashSeed[i][j] = rand30();
       }
     }
 
@@ -158,6 +184,9 @@ export class KyokumenImproved {
 
   // Make a move (CRITICAL: matches Java logic exactly)
   move(te: Te): void {
+    // NOTE:
+    // - `teban` is NOT changed here (search/UI must toggle).
+    // - `te.capture` must be accurate for undo logic (back()).
     // Remove piece from destination (for hash)
     this.BanHash ^= KyokumenImproved.HashSeed[this.get(te.to)][te.to];
 
@@ -230,6 +259,10 @@ export class KyokumenImproved {
 
   // Undo a move (CRITICAL: matches Java logic exactly)
   back(te: Te): void {
+    // Undo must precisely reverse `move()` including:
+    // - restoring captured piece to destination
+    // - restoring moved piece to `from` (or restoring to hand for drops)
+    // - restoring incremental eval and hash values
     // Remove piece from destination (for hash)
     this.BanHash ^= KyokumenImproved.HashSeed[this.get(te.to)][te.to];
 
@@ -268,7 +301,6 @@ export class KyokumenImproved {
       // Was a drop - restore to hand
       this.hand[te.koma]++;
       this.HandHash ^= KyokumenImproved.HandHashSeed[te.koma][this.hand[te.koma]];
-      this.BanHash ^= KyokumenImproved.HashSeed[EMPTY][te.from];
     } else {
       // Regular move - restore piece to source
       this.put(te.from, te.koma);
@@ -344,7 +376,7 @@ export class KyokumenImproved {
     this.HandHash = 0;
     this.BanHash = 0;
 
-    // Hand hash (cumulative XOR from 0 to count)
+    // Hand hash (cumulative XOR from 0..count) so counts can be updated incrementally by XORing the old/new count seed.
     for (let i = 0; i <= GHI; i++) {
       for (let j = 0; j <= this.hand[i]; j++) {
         this.HandHash ^= KyokumenImproved.HandHashSeed[i][j];
@@ -370,11 +402,49 @@ export class KyokumenImproved {
 
   // Evaluate position - comprehensive evaluation beyond just material
   evaluate(): number {
+    // `this.eval` is an incremental material score from SENTE's perspective.
     let score = this.eval; // Start with material evaluation
+
+    // Pieces in hand are generally more valuable due to drop flexibility.
+    score += this.evaluateHandBonus();
 
     // Add positional evaluation
     score += this.evaluateFileDefense();
     score += this.evaluatePromotionThreats();
+
+    return score;
+  }
+
+  private evaluateHandBonus(): number {
+    // Bonus values are intentionally modest; search still drives tactics.
+    const handBonusByType: number[] = [
+      0,   // EMPTY
+      15,  // FU
+      60,  // KY
+      70,  // KE
+      110, // GI
+      130, // KI
+      220, // KA
+      260, // HI
+      0,   // OU (not in hand)
+      0, 0, 0, 0, 0, 0, 0, 0
+    ];
+
+    let score = 0;
+
+    // SENTE hand pieces
+    for (let koma = SFU; koma <= SHI; koma++) {
+      const count = this.hand[koma];
+      if (!count) continue;
+      score += handBonusByType[this.getKomashu(koma)] * count;
+    }
+
+    // GOTE hand pieces
+    for (let koma = GFU; koma <= GHI; koma++) {
+      const count = this.hand[koma];
+      if (!count) continue;
+      score -= handBonusByType[this.getKomashu(koma)] * count;
+    }
 
     return score;
   }

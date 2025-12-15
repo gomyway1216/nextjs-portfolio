@@ -202,62 +202,68 @@ const canJump: boolean[][] = [
 ];
 
 export class GenerateMovesImproved {
+  /**
+   * Returns true if `teban`'s king is attacked by any enemy piece in the current position.
+   *
+   * This is a core primitive used in:
+   * - legality filtering (`removeSelfMate`)
+   * - move validation (`isLegalMove`)
+   * - search extensions / quiescence (checking positions are tactically sharp)
+   *
+   * Notes:
+   * - This function does NOT modify the position.
+   * - It assumes `KyokumenImproved.searchGyoku(teban)` returns the current king square for that side.
+   */
+  static isKingInCheck(k: KyokumenImproved, teban: number): boolean {
+    const gyokuPosition = k.searchGyoku(teban);
+    if (gyokuPosition < 0) return true;
+
+    // Check all 12 directions for direct (non-sliding) attacks.
+    // The move tables are encoded so that "subtract diff" walks from king outwards, matching the old Java logic.
+    for (let direct = 0; direct < 12; direct++) {
+      const pos = gyokuPosition - diff[direct];
+      const koma = k.get(pos);
+      if (isEnemy(teban, koma) && canMove[direct][koma]) {
+        return true;
+      }
+    }
+
+    // Check 8 directions for sliding attacks (rook/bishop/lance and promoted variants).
+    for (let direct = 0; direct < 8; direct++) {
+      for (
+        let pos = gyokuPosition - diff[direct], koma = k.get(pos);
+        koma !== WALL;
+        pos -= diff[direct], koma = k.get(pos)
+      ) {
+        if (isSelf(teban, koma)) break;
+        if (isEnemy(teban, koma)) {
+          if (canJump[direct][koma]) return true;
+          break;
+        }
+      }
+    }
+
+    return false;
+  }
+
   // Remove self-mate moves
   static removeSelfMate(k: KyokumenImproved, v: Te[]): Te[] {
     const removed: Te[] = [];
 
     for (const te of v) {
-      // Try the move
-      const test = k.clone();
-      test.move(te);
+      // IMPORTANT:
+      // `KyokumenImproved.back(te)` needs `te.capture` to restore the destination square.
+      // Generated moves usually already contain `capture`, but we enforce it here because this filter
+      // may run on externally created `Te` objects (e.g. TT moves / PV moves).
+      te.capture = k.get(te.to);
 
-      // Find king position
-      const gyokuPosition = test.searchGyoku(k.teban);
+      // Try the move (move/back is drastically faster than cloning per move).
+      // `move()` does not flip `teban`, so `k.teban` still refers to the mover after the move.
+      k.move(te);
+      const isOuteHouchi = this.isKingInCheck(k, k.teban);
+      k.back(te);
 
-      // Check if king is under attack
-      let isOuteHouchi = false;
-
-      // Check all 12 directions for direct attacks
-      for (let direct = 0; direct < 12 && !isOuteHouchi; direct++) {
-        const pos = gyokuPosition - diff[direct];
-        const koma = test.get(pos);
-
-        // Enemy piece that can move to king position?
-        if (isEnemy(test.teban, koma) && canMove[direct][koma]) {
-          isOuteHouchi = true;
-          break;
-        }
-      }
-
-      // Check 8 directions for sliding attacks
-      for (let direct = 0; direct < 8 && !isOuteHouchi; direct++) {
-        let pos = gyokuPosition;
-        let koma;
-
-        // Search in this direction
-        for (pos -= diff[direct], koma = test.get(pos);
-             koma !== WALL;
-             pos -= diff[direct], koma = test.get(pos)) {
-
-          // Blocked by own piece
-          if (isSelf(test.teban, koma)) break;
-
-          // Enemy sliding piece that can attack?
-          if (isEnemy(test.teban, koma) && canJump[direct][koma]) {
-            isOuteHouchi = true;
-            break;
-          }
-
-          // Blocked by enemy piece
-          if (isEnemy(test.teban, koma)) {
-            break;
-          }
-        }
-      }
-
-      if (!isOuteHouchi) {
-        removed.push(te);
-      }
+      if (!isOuteHouchi) removed.push(te);
     }
 
     return removed;
@@ -542,6 +548,7 @@ export class GenerateMovesImproved {
 
   // Check if a move is legal
   static isLegalMove(k: KyokumenImproved, t: Te): boolean {
+    // Basic structural validation (piece exists, drop rules, etc.)
     if (t.from > 0 && k.ban[t.from] !== t.koma) {
       // Wrong piece at source
       return false;
@@ -563,48 +570,15 @@ export class GenerateMovesImproved {
       return false;
     }
 
-    // Check for self-mate
-    const test = k.clone();
-    test.move(t);
-
-    const gyokuPosition = test.searchGyoku(k.teban);
-    let isOuteHouchi = false;
-
-    // Check all directions for attacks on king
-    for (let direct = 0; direct < 12 && !isOuteHouchi; direct++) {
-      const pos = gyokuPosition - diff[direct];
-      const koma = test.get(pos);
-
-      if (isEnemy(test.teban, koma) && canMove[direct][koma]) {
-        isOuteHouchi = true;
-        break;
-      }
-    }
-
-    for (let direct = 0; direct < 8 && !isOuteHouchi; direct++) {
-      let pos = gyokuPosition;
-      let koma;
-
-      for (pos -= diff[direct], koma = test.get(pos);
-           koma !== WALL;
-           pos -= diff[direct], koma = test.get(pos)) {
-
-        if (isSelf(test.teban, koma)) break;
-
-        if (isEnemy(test.teban, koma) && canJump[direct][koma]) {
-          isOuteHouchi = true;
-          break;
-        }
-
-        if (isEnemy(test.teban, koma)) {
-          break;
-        }
-      }
-    }
-
-    if (isOuteHouchi) {
-      return false;
-    }
+    // King safety validation (self-check):
+    // - Apply move
+    // - Ensure our own king is not in check
+    // - Undo move
+    t.capture = k.get(t.to);
+    k.move(t);
+    const isOuteHouchi = this.isKingInCheck(k, k.teban);
+    k.back(t);
+    if (isOuteHouchi) return false;
 
     return true;
   }

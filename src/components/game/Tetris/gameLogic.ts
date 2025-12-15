@@ -195,6 +195,8 @@ export const getDropInterval = (difficulty: Difficulty, level: number): number =
     easy: 1200,
     medium: 1000,
     hard: 800,
+    expert: 650,
+    master: 500,
   }[difficulty];
 
   return Math.max(

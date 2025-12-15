@@ -27,6 +27,18 @@ export const getDifficultyColor = (difficulty: Difficulty): DifficultyConfig => 
         border: '#ef4444',
         text: '#ef4444'
       };
+    case 'expert':
+      return {
+        bg: 'rgba(168, 85, 247, 0.2)',
+        border: '#a855f7',
+        text: '#a855f7'
+      };
+    case 'master':
+      return {
+        bg: 'rgba(236, 72, 153, 0.2)',
+        border: '#ec4899',
+        text: '#ec4899'
+      };
   }
 };
 

@@ -281,6 +281,8 @@ export const getBestMove = (board: GomokuBoard, difficulty: Difficulty): Positio
     easy: 2,
     medium: 3,
     hard: 4,
+    expert: 5,
+    master: 6,
   };
 
   const searchDepth = depthMap[difficulty];

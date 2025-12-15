@@ -24,6 +24,7 @@ export class ShogiImprovedTest {
     this.testPieceDrop();
     this.testMoveGeneration();
     this.testPromotion();
+    this.testMajorPiecePromotion();
     this.testHashingConsistency();
     this.testAIMove();
     this.testEvaluationSymmetry();
@@ -185,6 +186,27 @@ export class ShogiImprovedTest {
     this.assert(k.eval === initialEval, 'Evaluation restored');
   }
 
+  // Test 6b: Major pieces (bishop/rook) always promote when possible
+  private testMajorPiecePromotion(): void {
+    console.log('\nTest 6b: Major Piece Promotion (KA/HI)');
+
+    const k = new KyokumenImproved();
+    k.initHirate();
+
+    // Open Sente bishop diagonal: 8-8 -> 3-3 (promotion zone for Sente)
+    // Clear the pawn at 7-7 so the bishop has a clear line.
+    k.put(0x77, EMPTY);
+    k.initAll();
+
+    const moves = GenerateMovesImproved.generateLegalMoves(k);
+    const bishopToZone = moves.filter((m) => m.from === 0x88 && m.to === 0x33);
+
+    this.assert(bishopToZone.length === 1, 'Bishop move into promotion zone generates only one move');
+    if (bishopToZone.length === 1) {
+      this.assert(bishopToZone[0].promote === true, 'Bishop move into promotion zone is promoted');
+    }
+  }
+
   // Test 7: Hashing consistency
   private testHashingConsistency(): void {
     console.log('\nTest 7: Hashing Consistency');
@@ -196,6 +218,14 @@ export class ShogiImprovedTest {
     k2.initHirate();
 
     this.assert(k1.HashVal === k2.HashVal, 'Same positions have same hash');
+
+    // Side-to-move MUST be part of the TT key.
+    // Otherwise the same board+hand position would collide for SENTE and GOTE turns (incorrect).
+    const senteHash = k1.HashVal;
+    k1.setTeban(GOTE);
+    this.assert(k1.HashVal !== senteHash, 'Hash changes when side-to-move changes');
+    k1.setTeban(SENTE);
+    this.assert(k1.HashVal === senteHash, 'Hash returns when side-to-move is restored');
 
     // Make a move on k1
     const moves = GenerateMovesImproved.generateLegalMoves(k1);
@@ -237,7 +267,7 @@ export class ShogiImprovedTest {
 
     const senteEval = k.evaluate();
 
-    k.teban = GOTE;
+    k.setTeban(GOTE);
     const goteEval = k.evaluate();
 
     this.assert(senteEval === -goteEval, 'Evaluation is symmetric (zero for even position)');

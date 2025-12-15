@@ -25,15 +25,14 @@ import { KyokumenImproved } from './KyokumenImproved';
 import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { TranspositionTableImproved } from './TranspositionTableImproved';
 import { TTEntryImproved } from './TTEntryImproved';
-
-export type DifficultyLevel = 'easy' | 'medium' | 'hard';
+import { Difficulty } from '../common/types';
 
 export interface ShogiAISearchOptions {
   /**
    * Higher difficulty increases depth and time budget.
    * You can override `maxDepth` / `maxTimeMs` directly if you want precise control.
    */
-  difficulty?: DifficultyLevel;
+  difficulty?: Difficulty;
   /**
    * Maximum depth for iterative deepening.
    * - This is a *search depth*, not a ply counter from the start of the game.
@@ -79,6 +78,11 @@ export class ShogiAIImproved {
   private startTime = 0;
   private maxTimeMs = 0;
   private quiescenceDepthMax = 0;
+
+  // Extra strength/speed knobs (enabled by higher difficulties).
+  private enableAspiration = false;
+  private aspirationWindow = 0;
+  private enableLMR = false;
 
   private killer1: number[] = new Array(ShogiAIImproved.MAX_PLY).fill(0);
   private killer2: number[] = new Array(ShogiAIImproved.MAX_PLY).fill(0);
@@ -138,7 +142,7 @@ export class ShogiAIImproved {
 
   private toggleTeban(k: KyokumenImproved): void {
     // Keep this as a dedicated helper to make "move, toggle, search, toggle, unmove" easy to audit.
-    k.teban = k.teban === SENTE ? GOTE : SENTE;
+    k.toggleTeban();
   }
 
   private evalForSideToMove(k: KyokumenImproved): number {
@@ -303,7 +307,8 @@ export class ShogiAIImproved {
     }
 
     // Check extension: being in check is tactically sharp.
-    if (GenerateMovesImproved.isKingInCheck(k, k.teban)) depthLeft++;
+    const parentInCheck = GenerateMovesImproved.isKingInCheck(k, k.teban);
+    if (parentInCheck) depthLeft++;
 
     const moves = GenerateMovesImproved.generateLegalMoves(k);
     if (moves.length === 0) return -ShogiAIImproved.MATE + ply;
@@ -322,13 +327,42 @@ export class ShogiAIImproved {
       // - First move searched with full window.
       // - Later moves searched with a null window (alpha..alpha+1) to prove they don't beat alpha.
       // - If a null-window search beats alpha, re-search with full window.
+      const depthNext = depthLeft - 1;
       let score: number;
       if (searched === 0) {
-        score = -this.search(k, depthLeft - 1, -beta, -alpha, ply + 1);
+        score = -this.search(k, depthNext, -beta, -alpha, ply + 1);
       } else {
-        score = -this.search(k, depthLeft - 1, -alpha - 1, -alpha, ply + 1);
+        // Late Move Reductions (LMR):
+        // - On deeper nodes, most late "quiet" moves are unlikely to beat alpha.
+        // - We search them at reduced depth first; only if they look promising do we re-search fully.
+        //
+        // This is enabled only on higher difficulties to preserve behavior for Levels 1-3.
+        const canLMR =
+          this.enableLMR &&
+          !parentInCheck &&
+          depthNext >= 3 &&
+          searched >= 4 &&
+          te.from !== 0 && // do not reduce drops; drops are tactically critical in shogi
+          te.capture === EMPTY &&
+          !te.promote;
+
+        let reducedDepth = depthNext;
+        if (canLMR) {
+          // Avoid reducing checking moves (tactical) even if they're quiet.
+          const givesCheck = GenerateMovesImproved.isKingInCheck(k, k.teban);
+          if (!givesCheck) reducedDepth = depthNext - 1;
+        }
+
+        // PVS with (optional) reduced-depth probe
+        score = -this.search(k, reducedDepth, -alpha - 1, -alpha, ply + 1);
+
+        // If the reduced probe looks better than alpha, verify at full depth.
+        if (reducedDepth !== depthNext && score > alpha) {
+          score = -this.search(k, depthNext, -alpha - 1, -alpha, ply + 1);
+        }
+
         if (score > alpha && score < beta) {
-          score = -this.search(k, depthLeft - 1, -beta, -alpha, ply + 1);
+          score = -this.search(k, depthNext, -beta, -alpha, ply + 1);
         }
       }
 
@@ -361,16 +395,33 @@ export class ShogiAIImproved {
     void tesu;
 
     const difficulty = options.difficulty ?? 'medium';
-    const defaults =
-      difficulty === 'easy'
-        ? { maxDepth: 4, maxTimeMs: 250, quiescenceDepthMax: 4 }
-        : difficulty === 'hard'
-          ? { maxDepth: 8, maxTimeMs: 2000, quiescenceDepthMax: 8 }
-          : { maxDepth: 6, maxTimeMs: 800, quiescenceDepthMax: 6 };
+    const defaults: { maxDepth: number; maxTimeMs: number; quiescenceDepthMax: number } = (() => {
+      switch (difficulty) {
+        case 'easy':
+          return { maxDepth: 4, maxTimeMs: 250, quiescenceDepthMax: 4 };
+        case 'medium':
+          return { maxDepth: 6, maxTimeMs: 800, quiescenceDepthMax: 6 };
+        case 'hard':
+          return { maxDepth: 8, maxTimeMs: 2000, quiescenceDepthMax: 8 };
+        case 'expert':
+          return { maxDepth: 10, maxTimeMs: 5000, quiescenceDepthMax: 10 };
+        case 'master':
+          return { maxDepth: 12, maxTimeMs: 10_000, quiescenceDepthMax: 12 };
+      }
+    })();
 
     const maxDepth = Math.max(1, Math.min(options.maxDepth ?? defaults.maxDepth, 32));
     this.maxTimeMs = options.maxTimeMs ?? defaults.maxTimeMs;
     this.quiescenceDepthMax = Math.max(0, options.quiescenceDepthMax ?? defaults.quiescenceDepthMax);
+
+    // Enable extra search techniques only for higher levels to keep Levels 1-3 stable.
+    this.enableAspiration = difficulty === 'hard' || difficulty === 'expert' || difficulty === 'master';
+    this.aspirationWindow =
+      difficulty === 'hard' ? 900
+        : difficulty === 'expert' ? 800
+          : difficulty === 'master' ? 700
+            : 0;
+    this.enableLMR = difficulty === 'expert' || difficulty === 'master';
 
     this.node = 0;
     this.leaf = 0;
@@ -393,7 +444,22 @@ export class ShogiAIImproved {
       try {
         // Reset PV for this iteration; iterative deepening will refine it.
         this.resetRootBest();
-        const score = this.search(position, depth, -ShogiAIImproved.INFINITE, ShogiAIImproved.INFINITE, 0);
+
+        // Aspiration windows:
+        // - Use the previous iteration's score as a guess and search a narrow alpha/beta window around it.
+        // - If it fails high/low, immediately re-search with a full window.
+        //
+        // Benefit: fewer nodes on average at deeper depths because most searches stay inside the window.
+        const useAspiration = this.enableAspiration && depth >= 2 && bestMove !== null;
+        const alpha0 = useAspiration ? bestScore - this.aspirationWindow : -ShogiAIImproved.INFINITE;
+        const beta0 = useAspiration ? bestScore + this.aspirationWindow : ShogiAIImproved.INFINITE;
+
+        let score = this.search(position, depth, alpha0, beta0, 0);
+        if (useAspiration && (score <= alpha0 || score >= beta0)) {
+          // Fail-high/low: re-search full window to get an exact score and stable PV.
+          this.resetRootBest();
+          score = this.search(position, depth, -ShogiAIImproved.INFINITE, ShogiAIImproved.INFINITE, 0);
+        }
 
         const rootBest = this.rootBest;
         if (rootBest) {
@@ -430,8 +496,8 @@ const sharedAI = new ShogiAIImproved();
 /**
  * Export getBestMove function for UI compatibility.
  */
-export function getBestMove(k: KyokumenImproved, teban: number, difficulty: DifficultyLevel): Te | null {
+export function getBestMove(k: KyokumenImproved, teban: number, difficulty: Difficulty): Te | null {
   // The UI passes `teban` explicitly; keep the position consistent.
-  k.teban = teban;
+  k.setTeban(teban);
   return sharedAI.getNextTe(k, 0, { difficulty });
 }

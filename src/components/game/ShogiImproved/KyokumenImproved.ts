@@ -2,8 +2,8 @@ import {
   SENTE, GOTE, EMPTY, WALL,
   SFU, SKY, SKE, SGI, SKI, SKA, SHI, SOU, STO, SNY, SNK, SNG, SUM, SRY,
   GFU, GKY, GKE, GGI, GKI, GKA, GHI, GOU, GTO, GNY, GNK, GNG, GUM, GRY,
-  FU, KY, KE, GI, KI, KA, HI, OU, PROMOTE,
-  Te, komaValue, isSente, isGote
+  FU, KY, KE, GI, KI, KA, HI, OU, UM, RY, PROMOTE,
+  Te, komaValue, isSente, isGote, isSelf
 } from './types';
 
 /**
@@ -43,6 +43,7 @@ export class KyokumenImproved {
   // Hash seeds (Zobrist hashing)
   static HashSeed: number[][] = [];
   static HandHashSeed: number[][] = [];
+  static TebanHashSeed = 0;
   static hashInitialized = false;
 
   constructor() {
@@ -114,6 +115,12 @@ export class KyokumenImproved {
       }
     }
 
+    // Side-to-move seed.
+    // The transposition table key MUST include which side is to move; otherwise the same board+hand
+    // position would be treated as identical for both turns, which is incorrect for negamax scoring
+    // and will corrupt TT cutoffs / best-move ordering.
+    this.TebanHashSeed = rand30() || 1;
+
     this.hashInitialized = true;
   }
 
@@ -141,6 +148,28 @@ export class KyokumenImproved {
     k.HandHash = this.HandHash;
 
     return k;
+  }
+
+  /**
+   * Set the side to move while keeping the incremental Zobrist hash consistent.
+   *
+   * Why a helper exists:
+   * - `HashVal` now includes side-to-move, so `teban = ...` is no longer a "free" assignment.
+   * - The search flips the side very frequently; XOR'ing a single seed is much cheaper than a full re-hash.
+   */
+  setTeban(teban: number): void {
+    if (this.teban === teban) return;
+    this.teban = teban;
+    this.HashVal ^= KyokumenImproved.TebanHashSeed;
+  }
+
+  /**
+   * Toggle side-to-move while keeping `HashVal` consistent.
+   * Equivalent to `setTeban(this.teban === SENTE ? GOTE : SENTE)` but slightly cheaper.
+   */
+  toggleTeban(): void {
+    this.teban = this.teban === SENTE ? GOTE : SENTE;
+    this.HashVal ^= KyokumenImproved.TebanHashSeed;
   }
 
   // Check if positions are equal
@@ -254,7 +283,7 @@ export class KyokumenImproved {
       this.kingG = te.to;
     }
 
-    this.HashVal = this.BanHash ^ this.HandHash;
+    this.HashVal = this.BanHash ^ this.HandHash ^ (this.teban === GOTE ? KyokumenImproved.TebanHashSeed : 0);
   }
 
   // Undo a move (CRITICAL: matches Java logic exactly)
@@ -322,7 +351,7 @@ export class KyokumenImproved {
       this.kingG = te.from;
     }
 
-    this.HashVal = this.BanHash ^ this.HandHash;
+    this.HashVal = this.BanHash ^ this.HandHash ^ (this.teban === GOTE ? KyokumenImproved.TebanHashSeed : 0);
   }
 
   // Initialize king positions
@@ -390,7 +419,7 @@ export class KyokumenImproved {
       }
     }
 
-    this.HashVal = this.HandHash ^ this.BanHash;
+    this.HashVal = this.HandHash ^ this.BanHash ^ (this.teban === GOTE ? KyokumenImproved.TebanHashSeed : 0);
   }
 
   // Initialize all
@@ -411,6 +440,8 @@ export class KyokumenImproved {
     // Add positional evaluation
     score += this.evaluateFileDefense();
     score += this.evaluatePromotionThreats();
+    score += this.evaluateKingSafety();
+    score += this.evaluateMajorPieceActivity();
 
     return score;
   }
@@ -447,6 +478,288 @@ export class KyokumenImproved {
     }
 
     return score;
+  }
+
+  /**
+   * King safety (very simplified).
+   *
+   * Why this matters for "weird drops":
+   * - With mostly material-based eval, many non-losing moves can look similar, so the engine may choose a
+   *   "harmless" drop that doesn't actually improve king safety or piece activity.
+   * - Adding even a small king-safety term helps the engine prefer moves that keep a defensive shape
+   *   (and penalize wasting key defenders as random drops).
+   *
+   * This is intentionally lightweight:
+   * - rewards friendly defenders in the 3x3 around the king
+   * - penalizes adjacent empty squares (lack of shelter)
+   * - penalizes enemy pieces adjacent to the king (danger)
+   * - small "home rank" bonus so the engine doesn't keep the king in the open forever
+   */
+  private evaluateKingSafety(): number {
+    let score = 0;
+
+    if (this.kingS <= 0) {
+      // Sente king missing => lost.
+      return -50_000;
+    }
+    if (this.kingG <= 0) {
+      // Gote king missing => won.
+      return 50_000;
+    }
+
+    score += this.evaluateOneKingSafety(SENTE, this.kingS);
+    score -= this.evaluateOneKingSafety(GOTE, this.kingG);
+    return score;
+  }
+
+  private evaluateOneKingSafety(teban: number, kingPos: number): number {
+    const suji = kingPos >> 4;
+    const dan = kingPos & 0x0f;
+
+    // Defender weights by komashu (1..15); index 0 unused.
+    // Promoted minors (TO/NY/NK/NG) act like golds for king shelter.
+    const defenderWeight: number[] = [
+      0,
+      10,  // FU
+      18,  // KY
+      16,  // KE
+      22,  // GI
+      28,  // KI
+      16,  // KA (doesn't usually "shield" king)
+      18,  // HI (doesn't usually "shield" king)
+      0,   // OU
+      26,  // TO
+      24,  // NY
+      24,  // NK
+      24,  // NG
+      0,   // (unused)
+      18,  // UM
+      18,  // RY
+    ];
+
+    const enemyAdjPenalty: number[] = [
+      0,
+      10,  // FU
+      16,  // KY
+      16,  // KE
+      22,  // GI
+      28,  // KI
+      22,  // KA
+      22,  // HI
+      0,   // OU
+      20,  // TO
+      20,  // NY
+      20,  // NK
+      20,  // NG
+      0,   // (unused)
+      22,  // UM
+      22,  // RY
+    ];
+
+    let safety = 0;
+
+    for (let dSuji = -1; dSuji <= 1; dSuji++) {
+      for (let dDan = -1; dDan <= 1; dDan++) {
+        if (dSuji === 0 && dDan === 0) continue;
+        const p = this.getAt(suji + dSuji, dan + dDan);
+        if (p === WALL) continue;
+        if (p === EMPTY) {
+          // Fewer adjacent pieces => less shelter.
+          safety -= 4;
+          continue;
+        }
+        const komashu = this.getKomashu(p);
+        if (isSelf(teban, p)) {
+          safety += defenderWeight[komashu] ?? 0;
+        } else {
+          safety -= enemyAdjPenalty[komashu] ?? 0;
+        }
+      }
+    }
+
+    // Small "stay in home camp" encouragement (helps avoid leaving the king in the open early).
+    // - SENTE home ranks: 8-9
+    // - GOTE home ranks: 1-2
+    if (teban === SENTE) {
+      if (dan >= 8) safety += 10;
+    } else {
+      if (dan <= 2) safety += 10;
+    }
+
+    // Slight preference to be away from center (helps castling-ish behavior without hardcoding castles).
+    const distFromCenter = Math.abs(suji - 5) + Math.abs(dan - 5);
+    safety += distFromCenter; // very small
+
+    return safety;
+  }
+
+  /**
+   * Major piece activity (rook/bishop + promoted variants).
+   *
+   * This is a fast mobility-style term:
+   * - reward rooks/bishops that have open lines
+   * - reward having lines pointing at the enemy king (even if not immediate tactics yet)
+   */
+  private evaluateMajorPieceActivity(): number {
+    let score = 0;
+
+    const kingPosGote = this.kingG;
+    const kingPosSente = this.kingS;
+
+    const kingSujiG = kingPosGote >> 4;
+    const kingDanG = kingPosGote & 0x0f;
+    const kingSujiS = kingPosSente >> 4;
+    const kingDanS = kingPosSente & 0x0f;
+
+    for (let suji = 1; suji <= 9; suji++) {
+      for (let dan = 1; dan <= 9; dan++) {
+        const p = this.getAt(suji, dan);
+        if (p === EMPTY || p === WALL) continue;
+
+        const komashu = this.getKomashu(p);
+        const isS = isSente(p);
+
+        // Rook / Dragon
+        if (komashu === HI || komashu === RY) {
+          const mobility = this.countSlidingMobility(suji, dan, [
+            { ds: 1, dd: 0 }, { ds: -1, dd: 0 }, { ds: 0, dd: 1 }, { ds: 0, dd: -1 },
+          ]);
+          const lineBonus = isS
+            ? this.lineToKingBonusRookLike(suji, dan, kingSujiG, kingDanG)
+            : this.lineToKingBonusRookLike(suji, dan, kingSujiS, kingDanS);
+
+          const base = mobility * 6 + lineBonus;
+          score += isS ? base : -base;
+
+          // Dragon gets a tiny extra for nearby diagonal influence (king-like diagonals).
+          if (komashu === RY) {
+            const diagAdj = this.countAdjacentMobility(suji, dan, [
+              { ds: 1, dd: 1 }, { ds: 1, dd: -1 }, { ds: -1, dd: 1 }, { ds: -1, dd: -1 },
+            ]);
+            const extra = diagAdj * 3;
+            score += isS ? extra : -extra;
+          }
+          continue;
+        }
+
+        // Bishop / Horse
+        if (komashu === KA || komashu === UM) {
+          const mobility = this.countSlidingMobility(suji, dan, [
+            { ds: 1, dd: 1 }, { ds: 1, dd: -1 }, { ds: -1, dd: 1 }, { ds: -1, dd: -1 },
+          ]);
+          const lineBonus = isS
+            ? this.lineToKingBonusBishopLike(suji, dan, kingSujiG, kingDanG)
+            : this.lineToKingBonusBishopLike(suji, dan, kingSujiS, kingDanS);
+
+          const base = mobility * 5 + lineBonus;
+          score += isS ? base : -base;
+
+          // Horse gets a tiny extra for adjacent orthogonal influence (king-like orthogonals).
+          if (komashu === UM) {
+            const orthoAdj = this.countAdjacentMobility(suji, dan, [
+              { ds: 1, dd: 0 }, { ds: -1, dd: 0 }, { ds: 0, dd: 1 }, { ds: 0, dd: -1 },
+            ]);
+            const extra = orthoAdj * 3;
+            score += isS ? extra : -extra;
+          }
+        }
+      }
+    }
+
+    return score;
+  }
+
+  private countAdjacentMobility(
+    suji: number,
+    dan: number,
+    dirs: ReadonlyArray<{ ds: number; dd: number }>
+  ): number {
+    let count = 0;
+    for (const { ds, dd } of dirs) {
+      const p = this.getAt(suji + ds, dan + dd);
+      if (p === WALL) continue;
+      if (p === EMPTY) count++;
+    }
+    return count;
+  }
+
+  private countSlidingMobility(
+    suji: number,
+    dan: number,
+    dirs: ReadonlyArray<{ ds: number; dd: number }>
+  ): number {
+    let count = 0;
+    for (const { ds, dd } of dirs) {
+      for (let step = 1; step <= 8; step++) {
+        const p = this.getAt(suji + ds * step, dan + dd * step);
+        if (p === WALL) break;
+        if (p !== EMPTY) {
+          // Can "see" the first occupied square (capture influence), then stop.
+          count++;
+          break;
+        }
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private lineToKingBonusRookLike(
+    suji: number,
+    dan: number,
+    kingSuji: number,
+    kingDan: number
+  ): number {
+    // Same file
+    if (suji === kingSuji) {
+      const step = dan < kingDan ? 1 : -1;
+      let blockers = 0;
+      for (let d = dan + step; d !== kingDan; d += step) {
+        const p = this.getAt(suji, d);
+        if (p !== EMPTY) blockers++;
+        if (blockers > 1) break;
+      }
+      if (blockers === 0) return 35;
+      if (blockers === 1) return 15;
+    }
+
+    // Same rank
+    if (dan === kingDan) {
+      const step = suji < kingSuji ? 1 : -1;
+      let blockers = 0;
+      for (let s = suji + step; s !== kingSuji; s += step) {
+        const p = this.getAt(s, dan);
+        if (p !== EMPTY) blockers++;
+        if (blockers > 1) break;
+      }
+      if (blockers === 0) return 25;
+      if (blockers === 1) return 12;
+    }
+
+    return 0;
+  }
+
+  private lineToKingBonusBishopLike(
+    suji: number,
+    dan: number,
+    kingSuji: number,
+    kingDan: number
+  ): number {
+    const dS = kingSuji - suji;
+    const dD = kingDan - dan;
+    if (Math.abs(dS) !== Math.abs(dD) || dS === 0) return 0;
+
+    const stepS = dS > 0 ? 1 : -1;
+    const stepD = dD > 0 ? 1 : -1;
+    let blockers = 0;
+    for (let i = 1; i < Math.abs(dS); i++) {
+      const p = this.getAt(suji + stepS * i, dan + stepD * i);
+      if (p !== EMPTY) blockers++;
+      if (blockers > 1) break;
+    }
+    if (blockers === 0) return 28;
+    if (blockers === 1) return 12;
+    return 0;
   }
 
   // Helper: Get piece at position using suji/dan coordinates

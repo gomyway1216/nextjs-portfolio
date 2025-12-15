@@ -3,6 +3,8 @@
  * Based on Thell 3.0.3 implementation
  */
 
+import type { Difficulty as DifficultyCommon } from '../common/types';
+
 // Board constants
 export const BOARD_SIZE = 8;
 export const BOARD_POWER_SIZE = 6561; // 3^8
@@ -81,7 +83,7 @@ export enum GameState {
 /**
  * AI difficulty levels
  */
-export type Difficulty = 'easy' | 'medium' | 'hard';
+export type Difficulty = DifficultyCommon;
 
 /**
  * AI parameters
@@ -99,6 +101,9 @@ export const AI_PARAMETERS: Record<Difficulty, AIParameter> = {
   easy: { midDepth: 2, wldDepth: 8, exactDepth: 6 },
   medium: { midDepth: 4, wldDepth: 12, exactDepth: 10 },
   hard: { midDepth: 6, wldDepth: 16, exactDepth: 14 },
+  // Keep these aligned with "hard" by default to avoid unexpectedly heavy computation.
+  expert: { midDepth: 6, wldDepth: 16, exactDepth: 14 },
+  master: { midDepth: 6, wldDepth: 16, exactDepth: 14 },
 };
 
 /**

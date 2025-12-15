@@ -40,6 +40,10 @@ Why this mattered:
 - a previous 48-bit Java-style LCG approach can silently collapse in JS because bitwise operations are 32-bit,
   which can produce all-zero seeds → **every position hashes to the same value** → TT becomes useless.
 
+Additionally, the TT key now includes **side-to-move (`teban`)**:
+- `HashVal = BanHash ^ HandHash ^ TebanHashSeed(when GOTE to move)`
+- Without this, the same board+hand state for SENTE and GOTE would collide and corrupt TT cutoffs / best-move ordering.
+
 ---
 
 ## 2) The New Search Algorithm (ShogiAIImproved)
@@ -51,10 +55,12 @@ Implemented in `src/components/game/ShogiImproved/ShogiAIImproved.ts`.
 - **Iterative deepening**: search depth 1 → depth N while time remains
 - **Negamax + alpha-beta pruning**
 - **Principal Variation Search (PVS)** for extra pruning after the first move
+- **Aspiration windows (Hard+)**: narrow alpha/beta window around the previous iteration’s score, with full-window fallback
 - **Check extension**: extend depth by +1 when side-to-move is in check (tactically sharp positions)
 - **Quiescence search** at depth 0:
   - when *not* in check: expand only captures/promotions to reduce horizon effect
   - when *in* check: expand all legal evasion moves (otherwise you miss mates)
+- **Late Move Reductions (Lv4/Lv5)**: late quiet non-drop moves are searched at reduced depth first
 
 ### Move ordering (critical for strength)
 
@@ -74,6 +80,8 @@ Difficulty maps to a time budget and depth cap in `ShogiAIImproved.getNextTe()`:
 - easy: `maxDepth <= 4`, `maxTimeMs ~= 250ms`
 - medium: `maxDepth <= 6`, `maxTimeMs ~= 800ms`
 - hard: `maxDepth <= 8`, `maxTimeMs ~= 2000ms`
+- expert: `maxDepth <= 10`, `maxTimeMs ~= 5000ms` (runs in a Web Worker in `/games/shogi` + `/games/shogi-improved`)
+- master: `maxDepth <= 12`, `maxTimeMs ~= 10000ms` (runs in a Web Worker)
 
 You can tune this in:
 - `src/components/game/ShogiImproved/ShogiAIImproved.ts` (defaults in `getNextTe()`)
@@ -91,6 +99,10 @@ You can tune this in:
 - small **hand bonus** (pieces-in-hand are flexible due to drops)
 - **file defense** heuristics (prevents immediate opening disasters)
 - **promotion threats** heuristics
+
+Additional lightweight terms:
+- **king safety** (defenders around king + basic shelter)
+- **major piece activity** (rook/bishop mobility + lines toward enemy king)
 
 The evaluation is intentionally simple: most strength comes from deeper search + better ordering.
 
@@ -110,10 +122,27 @@ Search must do:
 4. toggle `k.teban` back
 5. `k.back(te)`
 
+### Don’t assign `teban` directly (hash consistency)
+
+Because `HashVal` includes side-to-move, prefer:
+- `k.setTeban(SENTE | GOTE)` when forcing a specific side
+- `k.toggleTeban()` inside search
+
+Directly assigning `k.teban = ...` will desync `HashVal` unless you recompute the hash from scratch.
+
 ### `Te.capture` must be correct
 
 Undo logic (`back()`) relies on `Te.capture` to restore the destination square.
 Move generation fills it, but legality checks also enforce it before doing move/unmove.
+
+### Major piece promotion (角/飛)
+
+In the improved move generator, **bishop/rook (角/飛) promotions are forced when promotion is legal**.
+
+Rationale:
+- `角→馬` and `飛→竜` are strictly stronger (same moves + extra king-like steps), so keeping them unpromoted
+  never increases your options.
+- Pruning the non-promote variant reduces branching factor → deeper search for the same time budget.
 
 ---
 
@@ -156,7 +185,6 @@ This is still present and may affect the fallback clone-based engine, but the pr
 
 If you want even stronger play without freezing the UI:
 
-- Run the search inside a Web Worker (keep UI thread responsive even with 5–10s budgets)
 - Add repetition (sennichite) detection and draw handling
 - Add better evaluation features (king safety, piece activity, endgame heuristics)
-- Add additional pruning (late move reductions, null-move pruning) once legality/check handling is solid
+- Add additional pruning (null-move pruning) once legality/check handling is solid

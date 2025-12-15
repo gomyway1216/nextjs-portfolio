@@ -4,7 +4,7 @@
 
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { RotateCcw, AlertCircle } from 'lucide-react';
 import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStats } from '../common';
 import { KyokumenImproved } from './KyokumenImproved';
@@ -12,12 +12,35 @@ import { Te, Position, SENTE, GOTE, EMPTY, getKomashu, toString, isSente } from 
 import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { getBestMove } from './ShogiAIImproved';
 import { InitialPositionImproved } from './InitialPositionImproved';
+import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
+import type { SerializedKyokumenImproved, SerializedTeImproved, ShogiAiWorkerClient } from './shogiAiWorkerClient';
 
 const DIFFICULTY_OPTIONS = [
-  { label: 'Easy', value: 'easy' as Difficulty, description: 'Fast (~250ms), depth ≤4' },
-  { label: 'Medium', value: 'medium' as Difficulty, description: 'Balanced (~800ms), depth ≤6' },
-  { label: 'Hard', value: 'hard' as Difficulty, description: 'Strong (~2s), depth ≤8' },
+  { label: 'Level 1 (Easy)', value: 'easy' as Difficulty, description: 'Fast (~250ms), depth ≤4' },
+  { label: 'Level 2 (Medium)', value: 'medium' as Difficulty, description: 'Balanced (~800ms), depth ≤6' },
+  { label: 'Level 3 (Hard)', value: 'hard' as Difficulty, description: 'Strong (~2s), depth ≤8' },
+  { label: 'Level 4 (Expert)', value: 'expert' as Difficulty, description: 'Very strong (~5s, Worker), depth ≤10' },
+  { label: 'Level 5 (Master)', value: 'master' as Difficulty, description: 'Strongest (~10s, Worker), depth ≤12' },
 ];
+
+const isWorkerDifficulty = (difficulty: Difficulty): boolean =>
+  difficulty === 'expert' || difficulty === 'master';
+
+function serializeForWorker(k: KyokumenImproved): SerializedKyokumenImproved {
+  const board: number[] = new Array(81);
+  let idx = 0;
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      board[idx++] = k.ban[(suji << 4) + dan];
+    }
+  }
+
+  return { board, hand: [...k.hand], teban: k.teban };
+}
+
+function convertWorkerMoveToImprovedTe(move: SerializedTeImproved): Te {
+  return new Te(move.koma, move.from, move.to, move.promote, 0);
+}
 
 interface GameState {
   kyokumen: KyokumenImproved;
@@ -37,6 +60,19 @@ const ShogiImproved = () => {
   const [showPromotionDialog, setShowPromotionDialog] = useState<boolean>(false);
   const [pendingMove, setPendingMove] = useState<Te | null>(null);
 
+  const workerRef = useRef<ShogiAiWorkerClient | null>(null);
+  const aiRequestIdRef = useRef(0);
+  const getWorker = useCallback((): ShogiAiWorkerClient => {
+    if (!workerRef.current) workerRef.current = createShogiAiWorkerClient();
+    return workerRef.current;
+  }, []);
+  useEffect(() => {
+    return () => {
+      workerRef.current?.terminate();
+      workerRef.current = null;
+    };
+  }, []);
+
   const [gameState, setGameState] = useState<GameState>({
     kyokumen: InitialPositionImproved.createInitialPosition(),
     selectedPosition: null,
@@ -54,6 +90,10 @@ const ShogiImproved = () => {
 
   // Initialize game
   const initGame = useCallback(() => {
+    // Invalidate any in-flight worker request.
+    aiRequestIdRef.current++;
+    workerRef.current?.clearTT();
+
     setGameState({
       kyokumen: InitialPositionImproved.createInitialPosition(),
       selectedPosition: null,
@@ -82,7 +122,7 @@ const ShogiImproved = () => {
     const newKyokumen = gameState.kyokumen.clone();
     te.promote = promote;
     newKyokumen.move(te);
-    newKyokumen.teban = GOTE;
+    newKyokumen.setTeban(GOTE);
 
     const { isOver, winner } = checkGameOver(newKyokumen);
 
@@ -140,18 +180,22 @@ const ShogiImproved = () => {
       );
 
       if (move) {
-        // Check if promotion is possible
-        const canPromote = gameState.validMoves.some(
+        const promoteMove = gameState.validMoves.find(
           m => m.to === clickedPosInt && m.from === selectedPosInt && m.promote
         );
+        const nonPromoteMove = gameState.validMoves.find(
+          m => m.to === clickedPosInt && m.from === selectedPosInt && !m.promote
+        );
 
-        if (canPromote) {
-          // Show promotion dialog
-          setPendingMove(move);
+        // Show dialog only when the player actually has a choice.
+        if (promoteMove && nonPromoteMove) {
+          setPendingMove(nonPromoteMove);
           setShowPromotionDialog(true);
-        } else {
-          // Execute move without promotion
-          executeMove(move, false);
+        } else if (promoteMove) {
+          // Forced promotion (e.g., pawn/lance/knight reaching last ranks) or always-promote heuristics.
+          executeMove(promoteMove, true);
+        } else if (nonPromoteMove) {
+          executeMove(nonPromoteMove, false);
         }
       } else if (clickedPiece !== EMPTY && isSente(clickedPiece)) {
         // Select different piece
@@ -203,9 +247,12 @@ const ShogiImproved = () => {
       !gameState.gameOver &&
       !gameState.isAIThinking
     ) {
+      const requestId = ++aiRequestIdRef.current;
       setGameState(prev => ({ ...prev, isAIThinking: true }));
 
       setTimeout(() => {
+        if (aiRequestIdRef.current !== requestId) return;
+
         // Check if AI has any legal moves first
         const legalMoves = GenerateMovesImproved.generateLegalMoves(gameState.kyokumen);
 
@@ -221,36 +268,83 @@ const ShogiImproved = () => {
           return;
         }
 
-        const aiMove = getBestMove(gameState.kyokumen, GOTE, difficulty);
+        if (!isWorkerDifficulty(difficulty)) {
+          const aiMove = getBestMove(gameState.kyokumen, GOTE, difficulty);
 
-        if (aiMove) {
-          const newKyokumen = gameState.kyokumen.clone();
-          newKyokumen.move(aiMove);
-          newKyokumen.teban = SENTE;
+          if (aiMove) {
+            const newKyokumen = gameState.kyokumen.clone();
+            newKyokumen.move(aiMove);
+            newKyokumen.setTeban(SENTE);
 
-          const { isOver, winner } = checkGameOver(newKyokumen);
+            const { isOver, winner } = checkGameOver(newKyokumen);
 
-          setGameState(prev => ({
-            ...prev,
-            kyokumen: newKyokumen,
-            isAIThinking: false,
-            gameOver: isOver,
-            winner,
-          }));
+            setGameState(prev => ({
+              ...prev,
+              kyokumen: newKyokumen,
+              isAIThinking: false,
+              gameOver: isOver,
+              winner,
+            }));
 
-          if (isOver && winner === GOTE) {
-            setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+            if (isOver && winner === GOTE) {
+              setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+            }
+          } else {
+            // AI couldn't find a move (shouldn't happen if legalMoves > 0)
+            setGameState(prev => ({
+              ...prev,
+              isAIThinking: false,
+              gameOver: true,
+              winner: SENTE,
+            }));
+            setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
           }
-        } else {
-          // AI couldn't find a move (shouldn't happen if legalMoves > 0)
-          setGameState(prev => ({
-            ...prev,
-            isAIThinking: false,
-            gameOver: true,
-            winner: SENTE,
-          }));
-          setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+          return;
         }
+
+        const worker = getWorker();
+        const position = serializeForWorker(gameState.kyokumen);
+        worker
+          .requestBestMove(position, difficulty)
+          .then((move) => {
+            if (aiRequestIdRef.current !== requestId) return;
+
+            const aiMove = move ? convertWorkerMoveToImprovedTe(move) : null;
+            if (!aiMove) {
+              setGameState(prev => ({
+                ...prev,
+                isAIThinking: false,
+                gameOver: true,
+                winner: SENTE,
+              }));
+              setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+              return;
+            }
+
+            const newKyokumen = gameState.kyokumen.clone();
+            newKyokumen.move(aiMove);
+            newKyokumen.setTeban(SENTE);
+
+            const { isOver, winner } = checkGameOver(newKyokumen);
+
+            setGameState(prev => ({
+              ...prev,
+              kyokumen: newKyokumen,
+              isAIThinking: false,
+              gameOver: isOver,
+              winner,
+            }));
+
+            if (isOver && winner === GOTE) {
+              setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+            }
+          })
+          .catch(() => {
+            if (aiRequestIdRef.current !== requestId) return;
+            setGameState(prev => ({ ...prev, isAIThinking: false }));
+          });
+        return;
+
       }, 500);
     }
   }, [gameState.kyokumen.teban, gameState.gameOver, gameState.isAIThinking, difficulty]);

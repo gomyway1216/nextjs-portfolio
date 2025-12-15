@@ -283,10 +283,21 @@ export class GenerateMovesImproved {
         v.push(te);
       } else if (((to & 0x0f) <= 3 || (from & 0x0f) <= 3) && canPromote[koma]) {
         // Can promote in enemy camp
+        //
+        // NOTE on bishop/rook:
+        // For KA/HI, promotion to UM/RY is *strictly better* because the promoted piece keeps all original moves
+        // and gains extra king-like steps (UM: orthogonal 1-step, RY: diagonal 1-step).
+        // There is no practical reason to keep them unpromoted when promotion is available, and pruning the
+        // non-promote option reduces branching factor (stronger + faster search).
+        const komashu = getKomashu(koma);
+        const forcePromoteMajor = komashu === KA || komashu === HI;
+
         const te1 = new Te(koma, from, to, true, k.get(to));
         v.push(te1);
-        const te2 = new Te(koma, from, to, false, k.get(to));
-        v.push(te2);
+        if (!forcePromoteMajor) {
+          const te2 = new Te(koma, from, to, false, k.get(to));
+          v.push(te2);
+        }
       } else {
         // Normal move
         const te = new Te(koma, from, to, false, k.get(to));
@@ -303,11 +314,16 @@ export class GenerateMovesImproved {
         const te = new Te(koma, from, to, true, k.get(to));
         v.push(te);
       } else if (((to & 0x0f) >= 7 || (from & 0x0f) >= 7) && canPromote[koma]) {
-        // Can promote in enemy camp
+        // Can promote in enemy camp (see bishop/rook note above).
+        const komashu = getKomashu(koma);
+        const forcePromoteMajor = komashu === KA || komashu === HI;
+
         const te1 = new Te(koma, from, to, true, k.get(to));
         v.push(te1);
-        const te2 = new Te(koma, from, to, false, k.get(to));
-        v.push(te2);
+        if (!forcePromoteMajor) {
+          const te2 = new Te(koma, from, to, false, k.get(to));
+          v.push(te2);
+        }
       } else {
         // Normal move
         const te = new Te(koma, from, to, false, k.get(to));
@@ -355,7 +371,7 @@ export class GenerateMovesImproved {
     // Try the move
     const test = k.clone();
     test.move(te);
-    test.teban = tebanAite;
+    test.setTeban(tebanAite);
 
     // Check if opponent has any legal moves
     const v = this.generateLegalMoves(test);

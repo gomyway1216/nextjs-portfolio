@@ -6,7 +6,7 @@ import { Kyokumen } from './Kyokumen';
 import { Te, Position, SENTE, GOTE, EMPTY, komaValue, KA, HI, getKomashu } from './types';
 import { generateLegalMoves } from './GenerateMoves';
 import { Difficulty } from '../common/types';
-import { getOpeningMoveComprehensive } from './OpeningBookComprehensive';
+import { getOpeningMoveValidated } from './OpeningBookValidated';
 import { KyokumenImproved } from '../ShogiImproved/KyokumenImproved';
 import { getBestMove as getBestMoveImproved } from '../ShogiImproved/ShogiAIImproved';
 import { Te as TeImproved } from '../ShogiImproved/types';
@@ -18,6 +18,8 @@ export class ShogiAI {
   // Principal variation (kept for debugging / future use)
   private best: (Te | null)[][];
 
+  private difficulty: Difficulty;
+
   private leaf: number;
   private node: number;
   private depthMax: number;
@@ -28,6 +30,7 @@ export class ShogiAI {
   private quiescenceDepthMax: number;
 
   constructor(difficulty: Difficulty = 'medium') {
+    this.difficulty = difficulty;
     this.best = Array(LIMIT_DEPTH)
       .fill(null)
       .map(() => Array(LIMIT_DEPTH).fill(null));
@@ -500,12 +503,7 @@ export class ShogiAI {
   ): Te | null {
     // Opening book for first 12 plies
     if (moveNumber <= 12) {
-      const openingMove = getOpeningMoveComprehensive(
-        k,
-        moveNumber,
-        k.teban,
-        moveHistory
-      );
+      const openingMove = getOpeningMoveValidated(k, moveNumber, k.teban, moveHistory, { difficulty: this.difficulty });
       if (openingMove) {
         console.log(`Using opening book move (move ${moveNumber})`);
         return openingMove;
@@ -599,7 +597,7 @@ export function getBestMove(
 
   // Opening book for first 12 plies (keeps variety and avoids slow early searches).
   if (moveNumber <= 12) {
-    const openingMove = getOpeningMoveComprehensive(k, moveNumber, k.teban, moveHistory);
+    const openingMove = getOpeningMoveValidated(k, moveNumber, k.teban, moveHistory, { difficulty });
     if (openingMove) {
       console.log(`Using opening book move (move ${moveNumber})`);
       return openingMove;

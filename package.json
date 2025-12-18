@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "node --test -r tsx/cjs tests/*.test.js",
     "seed:hobbies": "npx tsx scripts/seed-hobbies.ts",
-    "migrate:hobby-images": "npx tsx scripts/migrate-hobby-images.ts"
+    "migrate:hobby-images": "npx tsx scripts/migrate-hobby-images.ts",
+    "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts"
   },
   "dependencies": {
     "@babel/runtime": "^7.28.4",

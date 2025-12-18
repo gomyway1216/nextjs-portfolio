@@ -312,17 +312,23 @@ function matchesOpeningSequence(
     const historyMove = moveHistory[i];
     const bookMove = opening.moves[i];
 
-    // Check if move matches (within 1 square tolerance for flexibility)
+    // Opening-book matching must be strict.
+    //
+    // A previous "±1 square tolerance" was too permissive and could incorrectly keep an opening "alive"
+    // even after the game diverged (e.g., confusing P-7f with P-7e / P-7d sequences).
+    // That caused the AI to "forget" the real line and suggest unrelated book moves.
     const fromMatches =
-      Math.abs(historyMove.from.suji - bookMove.from.suji) <= 1 &&
-      Math.abs(historyMove.from.dan - bookMove.from.dan) <= 1;
+      historyMove.from.suji === bookMove.from.suji &&
+      historyMove.from.dan === bookMove.from.dan;
 
     const toMatches =
-      Math.abs(historyMove.to.suji - bookMove.to.suji) <= 1 &&
-      Math.abs(historyMove.to.dan - bookMove.to.dan) <= 1;
+      historyMove.to.suji === bookMove.to.suji &&
+      historyMove.to.dan === bookMove.to.dan;
+
+    const promoteMatches = historyMove.promote === bookMove.promote;
 
     // If moves don't match reasonably, sequence is broken
-    if (!fromMatches || !toMatches) {
+    if (!fromMatches || !toMatches || !promoteMatches) {
       return false;
     }
   }
@@ -330,18 +336,32 @@ function matchesOpeningSequence(
   return true;
 }
 
+export interface OpeningMoveCandidate {
+  name: string;
+  category: string;
+  priority: number;
+  move: Te;
+}
+
+function candidateKey(move: Te): string {
+  return `${move.koma}:${move.from.suji},${move.from.dan}->${move.to.suji},${move.to.dan}:${move.promote ? 1 : 0}`;
+}
+
 /**
- * Get best opening move based on current position
+ * Get all viable opening-book moves for the current position.
+ *
+ * This is useful when callers want to apply additional validation (e.g., quick static evaluation / safety checks)
+ * before committing to a book move.
  */
-export function getOpeningMoveComprehensive(
+export function getOpeningMoveCandidatesComprehensive(
   kyokumen: Kyokumen,
   moveNumber: number,
   teban: number,
   moveHistory: Te[] = []
-): Te | null {
+): OpeningMoveCandidate[] {
   // Only use opening book for first 12 moves AND only in quiet positions
   if (moveNumber > 12) {
-    return null;
+    return [];
   }
 
   // Don't use opening book if we're under attack or have tactical opportunities
@@ -351,13 +371,12 @@ export function getOpeningMoveComprehensive(
   // If position is tactical/unbalanced (> 200 points), don't use book moves
   // Lowered from 300 to 200 to catch promotion threats earlier
   if (Math.abs(evalForThisSide) > 200) {
-    console.log(`Position too tactical (eval: ${evalForThisSide}), skipping opening book`);
-    return null;
+    return [];
   }
 
   // Try to find matching opening sequence
   const legalMoves = generateLegalMoves(kyokumen);
-  if (legalMoves.length === 0) return null;
+  if (legalMoves.length === 0) return [];
 
   // moveNumber starts at 1, so we need to get the right index
   const moveIndex = moveNumber - 1;
@@ -377,45 +396,73 @@ export function getOpeningMoveComprehensive(
   });
 
   if (viableOpenings.length === 0) {
+    return [];
+  }
+
+  // Sort by priority and return candidates (deduped by exact move).
+  viableOpenings.sort((a, b) => b.priority - a.priority);
+
+  const seen = new Set<string>();
+  const candidates: OpeningMoveCandidate[] = [];
+
+  for (const opening of viableOpenings) {
+    const bookMove = opening.moves[moveIndex];
+
+    // Verify the move is legal
+    const from = new Position(bookMove.from.suji, bookMove.from.dan);
+    const to = new Position(bookMove.to.suji, bookMove.to.dan);
+    const koma = kyokumen.get(from);
+
+    if (koma === 0) {
+      continue;
+    }
+
+    // Find matching legal move
+    const matchingMove = legalMoves.find(
+      move =>
+        move.from.suji === from.suji &&
+        move.from.dan === from.dan &&
+        move.to.suji === to.suji &&
+        move.to.dan === to.dan &&
+        move.promote === bookMove.promote
+    );
+
+    if (!matchingMove) continue;
+
+    const key = candidateKey(matchingMove);
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    candidates.push({
+      name: opening.name,
+      category: opening.category,
+      priority: opening.priority,
+      move: matchingMove,
+    });
+  }
+
+  return candidates;
+}
+
+/**
+ * Get best opening move based on current position
+ */
+export function getOpeningMoveComprehensive(
+  kyokumen: Kyokumen,
+  moveNumber: number,
+  teban: number,
+  moveHistory: Te[] = []
+): Te | null {
+  const candidates = getOpeningMoveCandidatesComprehensive(kyokumen, moveNumber, teban, moveHistory);
+  if (candidates.length === 0) {
     console.log(`No matching opening sequences found for move ${moveNumber}`);
     return null;
   }
 
-  // Sort by priority and pick one of the top openings
-  viableOpenings.sort((a, b) => b.priority - a.priority);
-
-  const selectedOpening = viableOpenings[0]; // Take the best match
-
-  const bookMove = selectedOpening.moves[moveIndex];
-
-  console.log(`Opening book: ${selectedOpening.name} (move ${moveNumber})`);
-
-  // Verify the move is legal
-  const from = new Position(bookMove.from.suji, bookMove.from.dan);
-  const to = new Position(bookMove.to.suji, bookMove.to.dan);
-  const koma = kyokumen.get(from);
-
-  if (koma === 0) {
-    console.log(`No piece at ${from.suji}-${from.dan}, abandoning opening book`);
-    return null;
-  }
-
-  // Find matching legal move
-  const matchingMove = legalMoves.find(
-    move =>
-      move.from.suji === from.suji &&
-      move.from.dan === from.dan &&
-      move.to.suji === to.suji &&
-      move.to.dan === to.dan
-  );
-
-  if (matchingMove) {
-    console.log(`Using book move: ${from.suji}${from.dan} -> ${to.suji}${to.dan}`);
-  } else {
-    console.log(`Book move not legal, abandoning opening book`);
-  }
-
-  return matchingMove || null;
+  const best = candidates[0];
+  console.log(`Opening book: ${best.name} (move ${moveNumber})`);
+  console.log(`Using book move: ${best.move.from.suji}${best.move.from.dan} -> ${best.move.to.suji}${best.move.to.dan}`);
+  return best.move;
 }
 
 /**

@@ -14,6 +14,10 @@
  * - Transposition Table (TT) keyed by Zobrist hash (`KyokumenImproved.HashVal`) to reuse work across branches.
  * - Move ordering: TT move first, killer moves, history heuristic, MVV-LVA captures, promotion bonus, drop heuristics.
  *
+ * V3 additions:
+ * - Repetition (sennichite) detection inside search/quiescence to avoid getting stuck in loops.
+ * - Null-move pruning (Expert/Master only) to search deeper under the same time budget.
+ *
  * Important invariants:
  * - `KyokumenImproved.move(te)` and `KyokumenImproved.back(te)` DO NOT flip `teban`. The search toggles it explicitly.
  * - `Te.capture` must be correct before `move()` / `back()`; move generation populates it and legality checks must keep it.
@@ -73,7 +77,7 @@ class TimeUpError extends Error {
  * - Most strength comes from being able to search deeper (speed), then from move ordering, then evaluation.
  * - The evaluation is intentionally simple; this project prioritizes responsiveness.
  */
-export class ShogiAIImproved {
+export class ShogiAIImprovedV3 {
   private static readonly INFINITE = 99_999_999;
   private static readonly MATE = 90_000_000;
   private static readonly MAX_PLY = 64;
@@ -87,13 +91,23 @@ export class ShogiAIImproved {
   private quiescenceDepthMax = 0;
   private evaluationMode: 'v1' | 'v2' = 'v2';
 
+  // Repetition handling (sennichite) within the current search path.
+  // HashVal already includes side-to-move, so a repeated `HashVal` means an actual repetition state.
+  private enableRepetition = true;
+  private repetitionCount = new Map<number, number>();
+  private repetitionStack: number[] = [];
+
+  // Null-move pruning (enabled only for higher difficulties to keep early levels stable).
+  private enableNullMove = false;
+  private nullMoveReduction = 2;
+
   // Extra strength/speed knobs (enabled by higher difficulties).
   private enableAspiration = false;
   private aspirationWindow = 0;
   private enableLMR = false;
 
-  private killer1: number[] = new Array(ShogiAIImproved.MAX_PLY).fill(0);
-  private killer2: number[] = new Array(ShogiAIImproved.MAX_PLY).fill(0);
+  private killer1: number[] = new Array(ShogiAIImprovedV3.MAX_PLY).fill(0);
+  private killer2: number[] = new Array(ShogiAIImprovedV3.MAX_PLY).fill(0);
   private history = new Map<number, number>();
 
   private rootBest: Te | null = null;
@@ -160,6 +174,26 @@ export class ShogiAIImproved {
     return k.teban === SENTE ? evalSente : -evalSente;
   }
 
+  private pushRepetition(hash: number): boolean {
+    // Shogi sennichite is 4 occurrences of the same position+turn.
+    // If we've already seen this position 3 times on the current path, the 4th would be a draw.
+    const prev = this.repetitionCount.get(hash) ?? 0;
+    if (prev >= 3) return false;
+
+    this.repetitionCount.set(hash, prev + 1);
+    this.repetitionStack.push(hash);
+    return true;
+  }
+
+  private popRepetition(): void {
+    const hash = this.repetitionStack.pop();
+    if (hash === undefined) return;
+
+    const prev = this.repetitionCount.get(hash) ?? 0;
+    if (prev <= 1) this.repetitionCount.delete(hash);
+    else this.repetitionCount.set(hash, prev - 1);
+  }
+
   private moveKey(te: Te): number {
     // Compact stable encoding used for killer/history heuristics.
     // (Not required to be globally unique; just needs to be consistent within a run.)
@@ -173,7 +207,7 @@ export class ShogiAIImproved {
   private recordKiller(ply: number, key: number): void {
     // "Killer moves" are non-captures that caused a beta cutoff at the same ply elsewhere.
     // They are often good again in similar tactical shapes.
-    if (ply < 0 || ply >= ShogiAIImproved.MAX_PLY) return;
+    if (ply < 0 || ply >= ShogiAIImprovedV3.MAX_PLY) return;
     if (this.killer1[ply] !== key) {
       this.killer2[ply] = this.killer1[ply];
       this.killer1[ply] = key;
@@ -250,45 +284,53 @@ export class ShogiAIImproved {
     this.leaf++;
     this.maybeThrowOnTime();
 
-    const inCheck = GenerateMovesImproved.isKingInCheck(k, k.teban);
+    const pushed = this.enableRepetition ? this.pushRepetition(k.HashVal) : true;
+    if (!pushed) return 0;
 
-    const standPat = this.evalForSideToMove(k);
-    if (!inCheck) {
-      if (standPat >= beta) return standPat;
-      if (standPat > alpha) alpha = standPat;
-      if (depthLeft <= 0) return standPat;
-    } else {
-      // In check: no stand-pat (must respond)
-      if (depthLeft <= 0) depthLeft = 1;
-    }
+    try {
+      const inCheck = GenerateMovesImproved.isKingInCheck(k, k.teban);
 
-    const allMoves = GenerateMovesImproved.generateLegalMoves(k);
-    if (allMoves.length === 0) {
-      // No legal moves while side to move is in check => checkmate.
-      return -ShogiAIImproved.MATE + ply;
-    }
-
-    const moves = inCheck ? allMoves : allMoves.filter((m) => m.capture !== EMPTY || m.promote);
-    if (moves.length === 0) return standPat;
-
-    this.scoreAndSortMoves(k, moves, ply, 0);
-
-    for (const te of moves) {
-      k.move(te);
-      this.toggleTeban(k);
-
-      const score = -this.quiescence(k, -beta, -alpha, ply + 1, depthLeft - 1);
-
-      this.toggleTeban(k);
-      k.back(te);
-
-      if (score > alpha) {
-        alpha = score;
-        if (alpha >= beta) break;
+      const standPat = this.evalForSideToMove(k);
+      if (!inCheck) {
+        if (standPat >= beta) return standPat;
+        if (standPat > alpha) alpha = standPat;
+        if (depthLeft <= 0) return standPat;
+      } else {
+        // In check: no stand-pat (must respond)
+        if (depthLeft <= 0) depthLeft = 1;
       }
-    }
 
-    return alpha;
+      const allMoves = GenerateMovesImproved.generateLegalMoves(k);
+      if (allMoves.length === 0) {
+        // In shogi, "no legal moves while in check" is checkmate.
+        // If somehow not in check, treat it as a draw (stalemate-like).
+        return inCheck ? -ShogiAIImprovedV3.MATE + ply : 0;
+      }
+
+      const moves = inCheck ? allMoves : allMoves.filter((m) => m.capture !== EMPTY || m.promote);
+      if (moves.length === 0) return standPat;
+
+      this.scoreAndSortMoves(k, moves, ply, 0);
+
+      for (const te of moves) {
+        k.move(te);
+        this.toggleTeban(k);
+
+        const score = -this.quiescence(k, -beta, -alpha, ply + 1, depthLeft - 1);
+
+        this.toggleTeban(k);
+        k.back(te);
+
+        if (score > alpha) {
+          alpha = score;
+          if (alpha >= beta) break;
+        }
+      }
+
+      return alpha;
+    } finally {
+      if (this.enableRepetition) this.popRepetition();
+    }
   }
 
   private search(k: KyokumenImproved, depthLeft: number, alpha: number, beta: number, ply: number): number {
@@ -299,102 +341,133 @@ export class ShogiAIImproved {
     this.node++;
     this.maybeThrowOnTime();
 
-    const alphaOrig = alpha;
+    const pushed = this.enableRepetition ? this.pushRepetition(k.HashVal) : true;
+    if (!pushed) return 0;
 
-    // Transposition table probe
-    const entry = this.tt.get(k.HashVal);
-    let ttMoveKey = 0;
-    if (entry && entry.best) ttMoveKey = this.moveKey(entry.best);
-    if (entry && entry.remainDepth >= depthLeft) {
-      if (entry.flag === TTEntryImproved.EXACTLY_VALUE) {
-        if (ply === 0 && entry.best) this.rootBest = entry.best.clone();
-        return entry.value;
+    try {
+      const alphaOrig = alpha;
+
+      // Transposition table probe
+      const entry = this.tt.get(k.HashVal);
+      let ttMoveKey = 0;
+      if (entry && entry.best) ttMoveKey = this.moveKey(entry.best);
+      if (entry && entry.remainDepth >= depthLeft) {
+        if (entry.flag === TTEntryImproved.EXACTLY_VALUE) {
+          if (ply === 0 && entry.best) this.rootBest = entry.best.clone();
+          return entry.value;
+        }
+        if (entry.flag === TTEntryImproved.LOWER_BOUND && entry.value >= beta) return entry.value;
+        if (entry.flag === TTEntryImproved.UPPER_BOUND && entry.value <= alpha) return entry.value;
       }
-      if (entry.flag === TTEntryImproved.LOWER_BOUND && entry.value >= beta) return entry.value;
-      if (entry.flag === TTEntryImproved.UPPER_BOUND && entry.value <= alpha) return entry.value;
-    }
 
-    // Check extension: being in check is tactically sharp.
-    const parentInCheck = GenerateMovesImproved.isKingInCheck(k, k.teban);
-    if (parentInCheck) depthLeft++;
+      // Check extension: being in check is tactically sharp.
+      const parentInCheck = GenerateMovesImproved.isKingInCheck(k, k.teban);
+      if (parentInCheck) depthLeft++;
 
-    const moves = GenerateMovesImproved.generateLegalMoves(k);
-    if (moves.length === 0) return -ShogiAIImproved.MATE + ply;
+      // Null-move pruning:
+      // - If a simple "pass" still holds beta, this node is likely so good we can cut it off.
+      // - Disabled while in check, and enabled only at higher difficulties to keep early levels stable.
+      if (this.enableNullMove && !parentInCheck && ply > 0 && depthLeft >= 3) {
+        const standPat = this.evalForSideToMove(k);
+        if (standPat >= beta) {
+          const reducedDepth = depthLeft - 1 - this.nullMoveReduction;
 
-    this.scoreAndSortMoves(k, moves, ply, ttMoveKey);
+          this.toggleTeban(k);
+          let score: number;
+          try {
+            score = -this.search(k, reducedDepth, -beta, -beta + 1, ply + 1);
+          } finally {
+            this.toggleTeban(k);
+          }
 
-    let bestMove: Te | null = null;
-    let searched = 0;
-
-    for (const te of moves) {
-      // IMPORTANT: move()/back() do not flip side; we do it explicitly for correctness.
-      k.move(te);
-      this.toggleTeban(k);
-
-      // Principal Variation Search (PVS):
-      // - First move searched with full window.
-      // - Later moves searched with a null window (alpha..alpha+1) to prove they don't beat alpha.
-      // - If a null-window search beats alpha, re-search with full window.
-      const depthNext = depthLeft - 1;
-      let score: number;
-      if (searched === 0) {
-        score = -this.search(k, depthNext, -beta, -alpha, ply + 1);
-      } else {
-        // Late Move Reductions (LMR):
-        // - On deeper nodes, most late "quiet" moves are unlikely to beat alpha.
-        // - We search them at reduced depth first; only if they look promising do we re-search fully.
-        //
-        // This is enabled only on higher difficulties to preserve behavior for Levels 1-3.
-        const canLMR =
-          this.enableLMR &&
-          !parentInCheck &&
-          depthNext >= 3 &&
-          searched >= 4 &&
-          te.from !== 0 && // do not reduce drops; drops are tactically critical in shogi
-          te.capture === EMPTY &&
-          !te.promote;
-
-        let reducedDepth = depthNext;
-        if (canLMR) {
-          // Avoid reducing checking moves (tactical) even if they're quiet.
-          const givesCheck = GenerateMovesImproved.isKingInCheck(k, k.teban);
-          if (!givesCheck) reducedDepth = depthNext - 1;
+          if (score >= beta) return score;
         }
+      }
 
-        // PVS with (optional) reduced-depth probe
-        score = -this.search(k, reducedDepth, -alpha - 1, -alpha, ply + 1);
+      const moves = GenerateMovesImproved.generateLegalMoves(k);
+      if (moves.length === 0) {
+        // In shogi, the loss condition is "no legal evasion while in check".
+        // If not in check, treat it as a draw (stalemate-like, extremely rare in shogi).
+        return parentInCheck ? -ShogiAIImprovedV3.MATE + ply : 0;
+      }
 
-        // If the reduced probe looks better than alpha, verify at full depth.
-        if (reducedDepth !== depthNext && score > alpha) {
-          score = -this.search(k, depthNext, -alpha - 1, -alpha, ply + 1);
-        }
+      this.scoreAndSortMoves(k, moves, ply, ttMoveKey);
 
-        if (score > alpha && score < beta) {
+      let bestMove: Te | null = null;
+      let searched = 0;
+
+      for (const te of moves) {
+        // IMPORTANT: move()/back() do not flip side; we do it explicitly for correctness.
+        k.move(te);
+        this.toggleTeban(k);
+
+        // Principal Variation Search (PVS):
+        // - First move searched with full window.
+        // - Later moves searched with a null window (alpha..alpha+1) to prove they don't beat alpha.
+        // - If a null-window search beats alpha, re-search with full window.
+        const depthNext = depthLeft - 1;
+        let score: number;
+        if (searched === 0) {
           score = -this.search(k, depthNext, -beta, -alpha, ply + 1);
+        } else {
+          // Late Move Reductions (LMR):
+          // - On deeper nodes, most late "quiet" moves are unlikely to beat alpha.
+          // - We search them at reduced depth first; only if they look promising do we re-search fully.
+          //
+          // This is enabled only on higher difficulties to preserve behavior for Levels 1-3.
+          const canLMR =
+            this.enableLMR &&
+            !parentInCheck &&
+            depthNext >= 3 &&
+            searched >= 4 &&
+            te.from !== 0 && // do not reduce drops; drops are tactically critical in shogi
+            te.capture === EMPTY &&
+            !te.promote;
+
+          let reducedDepth = depthNext;
+          if (canLMR) {
+            // Avoid reducing checking moves (tactical) even if they're quiet.
+            const givesCheck = GenerateMovesImproved.isKingInCheck(k, k.teban);
+            if (!givesCheck) reducedDepth = depthNext - 1;
+          }
+
+          // PVS with (optional) reduced-depth probe
+          score = -this.search(k, reducedDepth, -alpha - 1, -alpha, ply + 1);
+
+          // If the reduced probe looks better than alpha, verify at full depth.
+          if (reducedDepth !== depthNext && score > alpha) {
+            score = -this.search(k, depthNext, -alpha - 1, -alpha, ply + 1);
+          }
+
+          if (score > alpha && score < beta) {
+            score = -this.search(k, depthNext, -beta, -alpha, ply + 1);
+          }
+        }
+
+        this.toggleTeban(k);
+        k.back(te);
+        searched++;
+
+        if (score > alpha) {
+          alpha = score;
+          bestMove = te;
+          if (ply === 0) this.rootBest = te.clone();
+
+          if (alpha >= beta) {
+            // Beta cutoff heuristics: record ordering info for sibling branches.
+            const key = this.moveKey(te);
+            if (te.capture === EMPTY) this.recordKiller(ply, key);
+            this.recordHistory(key, depthLeft);
+            break;
+          }
         }
       }
 
-      this.toggleTeban(k);
-      k.back(te);
-      searched++;
-
-      if (score > alpha) {
-        alpha = score;
-        bestMove = te;
-        if (ply === 0) this.rootBest = te.clone();
-
-        if (alpha >= beta) {
-          // Beta cutoff heuristics: record ordering info for sibling branches.
-          const key = this.moveKey(te);
-          if (te.capture === EMPTY) this.recordKiller(ply, key);
-          this.recordHistory(key, depthLeft);
-          break;
-        }
-      }
+      this.tt.add(k.HashVal, alpha, alphaOrig, beta, bestMove ? bestMove.clone() : null, ply, depthLeft, 0);
+      return alpha;
+    } finally {
+      if (this.enableRepetition) this.popRepetition();
     }
-
-    this.tt.add(k.HashVal, alpha, alphaOrig, beta, bestMove ? bestMove.clone() : null, ply, depthLeft, 0);
-    return alpha;
   }
 
   getNextTe(k: KyokumenImproved, tesu: number = 0, options: ShogiAISearchOptions = {}): Te | null {
@@ -431,6 +504,8 @@ export class ShogiAIImproved {
           : difficulty === 'master' ? 700
             : 0;
     this.enableLMR = difficulty === 'expert' || difficulty === 'master';
+    this.enableNullMove = difficulty === 'expert' || difficulty === 'master';
+    this.nullMoveReduction = difficulty === 'master' ? 3 : 2;
 
     this.node = 0;
     this.leaf = 0;
@@ -438,6 +513,8 @@ export class ShogiAIImproved {
     this.killer1.fill(0);
     this.killer2.fill(0);
     this.history.clear();
+    this.repetitionCount.clear();
+    this.repetitionStack.length = 0;
 
     const start = this.nowMs();
     this.startTime = start;
@@ -446,7 +523,7 @@ export class ShogiAIImproved {
     const position = k.clone();
 
     let bestMove: Te | null = null;
-    let bestScore = -ShogiAIImproved.INFINITE;
+    let bestScore = -ShogiAIImprovedV3.INFINITE;
     let completedDepth = 0;
 
     for (let depth = 1; depth <= maxDepth; depth++) {
@@ -460,14 +537,14 @@ export class ShogiAIImproved {
         //
         // Benefit: fewer nodes on average at deeper depths because most searches stay inside the window.
         const useAspiration = this.enableAspiration && depth >= 2 && bestMove !== null;
-        const alpha0 = useAspiration ? bestScore - this.aspirationWindow : -ShogiAIImproved.INFINITE;
-        const beta0 = useAspiration ? bestScore + this.aspirationWindow : ShogiAIImproved.INFINITE;
+        const alpha0 = useAspiration ? bestScore - this.aspirationWindow : -ShogiAIImprovedV3.INFINITE;
+        const beta0 = useAspiration ? bestScore + this.aspirationWindow : ShogiAIImprovedV3.INFINITE;
 
         let score = this.search(position, depth, alpha0, beta0, 0);
         if (useAspiration && (score <= alpha0 || score >= beta0)) {
           // Fail-high/low: re-search full window to get an exact score and stable PV.
           this.resetRootBest();
-          score = this.search(position, depth, -ShogiAIImproved.INFINITE, ShogiAIImproved.INFINITE, 0);
+          score = this.search(position, depth, -ShogiAIImprovedV3.INFINITE, ShogiAIImprovedV3.INFINITE, 0);
         }
 
         const rootBest = this.rootBest;
@@ -478,7 +555,7 @@ export class ShogiAIImproved {
         }
 
         // If a forced mate is found, stop early.
-        if (bestScore >= ShogiAIImproved.MATE - 10_000) break;
+        if (bestScore >= ShogiAIImprovedV3.MATE - 10_000) break;
       } catch (e) {
         if (e instanceof TimeUpError) break;
         throw e;
@@ -490,7 +567,7 @@ export class ShogiAIImproved {
     if (options.debug) {
       const elapsed = this.nowMs() - start;
       console.log(
-        `[ShogiAIImproved] depth=${completedDepth}/${maxDepth} score=${bestScore} nodes=${this.node} leaves=${this.leaf} time=${Math.round(elapsed)}ms`
+        `[ShogiAIImprovedV3] depth=${completedDepth}/${maxDepth} score=${bestScore} nodes=${this.node} leaves=${this.leaf} time=${Math.round(elapsed)}ms`
       );
     }
 
@@ -500,13 +577,14 @@ export class ShogiAIImproved {
 
 // Shared instance so the TT can persist across moves during a single game.
 // This noticeably improves strength at the same time budget because many positions reoccur (especially via transpositions).
-const sharedAI = new ShogiAIImproved();
+const sharedAIV3 = new ShogiAIImprovedV3();
 
 /**
- * Export getBestMove function for UI compatibility.
+ * Exported helper for UI/script compatibility.
+ * (Not used by default UI; the main shogi page uses the V2 engine unless wired otherwise.)
  */
-export function getBestMove(k: KyokumenImproved, teban: number, difficulty: Difficulty): Te | null {
+export function getBestMoveV3(k: KyokumenImproved, teban: number, difficulty: Difficulty): Te | null {
   // The UI passes `teban` explicitly; keep the position consistent.
   k.setTeban(teban);
-  return sharedAI.getNextTe(k, 0, { difficulty });
+  return sharedAIV3.getNextTe(k, 0, { difficulty });
 }

@@ -440,9 +440,23 @@ export class KyokumenImproved {
     // Add positional evaluation
     score += this.evaluateFileDefense();
     score += this.evaluatePromotionThreats();
-    score += this.evaluateKingSafety();
+    score += this.evaluateKingSafetyV2();
     score += this.evaluateMajorPieceActivity();
 
+    return score;
+  }
+
+  /**
+   * Baseline evaluation (v1) kept for benchmarking/regression comparisons.
+   * The current `evaluate()` uses the stronger v2 king-safety evaluation.
+   */
+  evaluateV1(): number {
+    let score = this.eval;
+    score += this.evaluateHandBonus();
+    score += this.evaluateFileDefense();
+    score += this.evaluatePromotionThreats();
+    score += this.evaluateKingSafetyV1();
+    score += this.evaluateMajorPieceActivity();
     return score;
   }
 
@@ -495,7 +509,7 @@ export class KyokumenImproved {
    * - penalizes enemy pieces adjacent to the king (danger)
    * - small "home rank" bonus so the engine doesn't keep the king in the open forever
    */
-  private evaluateKingSafety(): number {
+  private evaluateKingSafetyV1(): number {
     let score = 0;
 
     if (this.kingS <= 0) {
@@ -507,12 +521,12 @@ export class KyokumenImproved {
       return 50_000;
     }
 
-    score += this.evaluateOneKingSafety(SENTE, this.kingS);
-    score -= this.evaluateOneKingSafety(GOTE, this.kingG);
+    score += this.evaluateOneKingSafetyV1(SENTE, this.kingS);
+    score -= this.evaluateOneKingSafetyV1(GOTE, this.kingG);
     return score;
   }
 
-  private evaluateOneKingSafety(teban: number, kingPos: number): number {
+  private evaluateOneKingSafetyV1(teban: number, kingPos: number): number {
     const suji = kingPos >> 4;
     const dan = kingPos & 0x0f;
 
@@ -591,6 +605,206 @@ export class KyokumenImproved {
     safety += distFromCenter; // very small
 
     return safety;
+  }
+
+  /**
+   * King safety v2 (stronger, still lightweight).
+   *
+   * Design goals:
+   * - Encourage building a reasonable castle (囲い) in the opening without hard-forcing a specific pattern.
+   * - Avoid "keep castling forever" by using phase-aware weights and diminishing returns.
+   * - When the king is under pressure (enemy pieces close), reduce the "castle-building" incentive so defense/tactics take priority.
+   */
+  private evaluateKingSafetyV2(): number {
+    let score = 0;
+
+    if (this.kingS <= 0) return -50_000;
+    if (this.kingG <= 0) return 50_000;
+
+    score += this.evaluateOneKingSafetyV2(SENTE, this.kingS);
+    score -= this.evaluateOneKingSafetyV2(GOTE, this.kingG);
+    return score;
+  }
+
+  private totalHandPieces(): number {
+    let total = 0;
+    for (let koma = SFU; koma <= GRY; koma++) {
+      total += this.hand[koma] | 0;
+    }
+    return total;
+  }
+
+  private openingPhaseFactor(): number {
+    // A cheap, stable phase proxy:
+    // - Opening: few trades (low hand counts)
+    // - Midgame: moderate trades
+    // - Endgame: many trades
+    const hand = this.totalHandPieces();
+    if (hand <= 2) return 1.0;
+    if (hand <= 6) return 0.7;
+    if (hand <= 10) return 0.45;
+    return 0.25;
+  }
+
+  private enemyProximityDanger(teban: number, kingSuji: number, kingDan: number): number {
+    const dangerByKomashu: number[] = [
+      0,
+      6,   // FU
+      10,  // KY
+      12,  // KE
+      16,  // GI
+      18,  // KI
+      22,  // KA
+      26,  // HI
+      0,   // OU
+      14,  // TO
+      12,  // NY
+      12,  // NK
+      12,  // NG
+      0,   // (unused)
+      26,  // UM
+      30,  // RY
+    ];
+
+    let danger = 0;
+    for (let ds = -2; ds <= 2; ds++) {
+      for (let dd = -2; dd <= 2; dd++) {
+        if (ds === 0 && dd === 0) continue;
+        const p = this.getAt(kingSuji + ds, kingDan + dd);
+        if (p === EMPTY || p === WALL) continue;
+        if (isSelf(teban, p)) continue;
+        danger += dangerByKomashu[this.getKomashu(p)] ?? 0;
+      }
+    }
+    return danger;
+  }
+
+  private evaluateOneKingSafetyV2(teban: number, kingPos: number): number {
+    const suji = kingPos >> 4;
+    const dan = kingPos & 0x0f;
+
+    const defenderWeight: number[] = [
+      0,
+      10,  // FU
+      18,  // KY
+      16,  // KE
+      24,  // GI
+      32,  // KI
+      14,  // KA
+      16,  // HI
+      0,   // OU
+      30,  // TO (gold-like)
+      26,  // NY
+      26,  // NK
+      26,  // NG
+      0,   // (unused)
+      18,  // UM
+      18,  // RY
+    ];
+
+    const enemyAdjPenalty: number[] = [
+      0,
+      10,  // FU
+      16,  // KY
+      16,  // KE
+      24,  // GI
+      28,  // KI
+      24,  // KA
+      24,  // HI
+      0,   // OU
+      22,  // TO
+      22,  // NY
+      22,  // NK
+      22,  // NG
+      0,   // (unused)
+      24,  // UM
+      26,  // RY
+    ];
+
+    let shelter = 0;
+
+    // 1) Immediate 3x3 shelter around the king.
+    for (let dSuji = -1; dSuji <= 1; dSuji++) {
+      for (let dDan = -1; dDan <= 1; dDan++) {
+        if (dSuji === 0 && dDan === 0) continue;
+        const p = this.getAt(suji + dSuji, dan + dDan);
+        if (p === WALL) continue;
+        if (p === EMPTY) {
+          shelter -= 5;
+          continue;
+        }
+        const komashu = this.getKomashu(p);
+        if (isSelf(teban, p)) shelter += defenderWeight[komashu] ?? 0;
+        else shelter -= enemyAdjPenalty[komashu] ?? 0;
+      }
+    }
+
+    // 2) Pawn-shield / forward shelter.
+    //
+    // IMPORTANT (Shogi-specific):
+    // In the initial position, the pawn line is typically 2 squares in front of the king.
+    // A naive "1-square-ahead" shield heuristic incorrectly rewards central king pushes like K-5h (☗５八玉),
+    // because the king becomes directly adjacent to pawns.
+    //
+    // To avoid this, we consider both 1 and 2 squares ahead:
+    // - If either is occupied by a friendly pawn, it's a shield.
+    // - We penalize a file only when BOTH are empty (open line).
+    const forward = teban === SENTE ? -1 : 1;
+    for (let dSuji = -1; dSuji <= 1; dSuji++) {
+      const p1 = this.getAt(suji + dSuji, dan + forward);
+      const p2 = this.getAt(suji + dSuji, dan + forward * 2);
+      if (p1 === WALL) continue;
+
+      // If both squares are empty, this file is "open" toward the king.
+      if ((p1 === EMPTY || p1 === WALL) && (p2 === EMPTY || p2 === WALL)) {
+        shelter -= 5;
+        continue;
+      }
+
+      // Prefer a pawn at distance 2 (typical pawn line) over distance 1.
+      const pawn1 = p1 !== WALL && p1 !== EMPTY && isSelf(teban, p1) && this.getKomashu(p1) === FU;
+      const pawn2 = p2 !== WALL && p2 !== EMPTY && isSelf(teban, p2) && this.getKomashu(p2) === FU;
+      if (pawn2) shelter += 12;
+      else if (pawn1) shelter += 6;
+
+      // Enemy presence in the shield lane is dangerous.
+      if (p1 !== WALL && p1 !== EMPTY && !isSelf(teban, p1)) shelter -= 10;
+      if (p2 !== WALL && p2 !== EMPTY && !isSelf(teban, p2)) shelter -= 6;
+    }
+
+    // 3) Phase-aware "castle progress" incentive with diminishing returns.
+    const phase = this.openingPhaseFactor();
+    const distFromCenter = Math.abs(suji - 5) + Math.abs(dan - 5);
+
+    // Home-camp bonus (opening only): keep the king out of the center early.
+    let homeCamp = 0;
+    if (teban === SENTE) {
+      if (dan >= 8) homeCamp += 12;
+      if (dan === 9) homeCamp += 10;
+    } else {
+      if (dan <= 2) homeCamp += 12;
+      if (dan === 1) homeCamp += 10;
+    }
+
+    // Edge bonus: reaching an edge file is usually part of forming a castle.
+    const edgeDist = Math.min(suji - 1, 9 - suji);
+    const edgeBonus = Math.max(0, 4 - edgeDist) * 4;
+
+    // Diminishing returns: cap the "progress" part so the engine doesn't keep shuffling the king for tiny gains.
+    const progressRaw = distFromCenter * 2 + homeCamp + edgeBonus;
+    const progress = Math.min(progressRaw, 60);
+
+    // 4) Urgency override: if enemy pieces are already close, stop incentivizing slow castling.
+    const danger = this.enemyProximityDanger(teban, suji, dan);
+    const progressFactor = danger >= 70 ? 0.15 : danger >= 45 ? 0.4 : 1.0;
+
+    shelter += Math.round(progress * phase * progressFactor);
+    shelter -= Math.min(danger, 160); // cap danger so evaluation stays stable
+
+    // Final cap (diminishing returns).
+    if (shelter > 220) shelter = 220;
+    if (shelter < -220) shelter = -220;
+    return shelter;
   }
 
   /**

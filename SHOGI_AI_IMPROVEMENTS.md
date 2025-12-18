@@ -89,6 +89,17 @@ You can tune this in:
   - `src/components/game/Shogi/Shogi.tsx`
   - `src/components/game/ShogiImproved/ShogiImproved.tsx`
 
+### Experimental engine variant: `ShogiAIImprovedV3`
+
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV3.ts`.
+
+This keeps the same public API as the V2 engine but adds:
+
+- **Repetition (sennichite) detection** inside search/quiescence (prevents many loop-y lines)
+- **Null-move pruning (Expert/Master only)** to search deeper within the same time budget
+
+This variant is not wired into the UI by default; use self-play to compare it to V2.
+
 ---
 
 ## 3) Evaluation (KyokumenImproved)
@@ -157,6 +168,20 @@ Use Node + the tsx register instead:
 node -r tsx/cjs src/components/game/ShogiImproved/test.ts
 ```
 
+### Run A/B self-play (engine vs engine)
+
+Compare V2 vs V3:
+
+```bash
+npm run shogi:match -- --engineA v2 --engineB v3 --difficulty medium --games 10 --maxDepth 4 --maxTimeMs 60
+```
+
+You can also compare evaluation modes within the same engine:
+
+```bash
+npm run shogi:match -- --engineA v2 --engineB v2 --evalA v1 --evalB v2 --difficulty medium --games 10 --maxDepth 4 --maxTimeMs 60
+```
+
 ### Benchmark the `/games/shogi` AI entry point
 
 This forces search by bypassing the opening book (`moveNumber > 12`):
@@ -185,6 +210,5 @@ This is still present and may affect the fallback clone-based engine, but the pr
 
 If you want even stronger play without freezing the UI:
 
-- Add repetition (sennichite) detection and draw handling
 - Add better evaluation features (king safety, piece activity, endgame heuristics)
-- Add additional pruning (null-move pruning) once legality/check handling is solid
+- Add more pruning/ordering (SEE, delta pruning, singular extensions, etc.) once correctness is solid

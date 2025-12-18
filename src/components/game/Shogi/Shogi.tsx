@@ -13,7 +13,7 @@ import { generateLegalMoves } from './GenerateMoves';
 import { getBestMove } from './ShogiAI';
 import { createInitialPosition } from './InitialPosition';
 import { toFugo } from './FugoNotation';
-import { getOpeningMoveComprehensive } from './OpeningBookComprehensive';
+import { getOpeningMoveValidated } from './OpeningBookValidated';
 import { createShogiAiWorkerClient } from '../ShogiImproved/shogiAiWorkerClient';
 import type { SerializedKyokumenImproved, SerializedTeImproved, ShogiAiWorkerClient } from '../ShogiImproved/shogiAiWorkerClient';
 
@@ -302,7 +302,7 @@ const Shogi = () => {
 
         // Opening book first (keeps variety and reduces early compute).
         if (moveNumber <= 12) {
-          const opening = getOpeningMoveComprehensive(gameState.kyokumen, moveNumber, aiSide, gameState.moveHistory);
+          const opening = getOpeningMoveValidated(gameState.kyokumen, moveNumber, aiSide, gameState.moveHistory, { difficulty });
           if (opening) {
             const newKyokumen = gameState.kyokumen.clone();
             newKyokumen.move(opening);

@@ -218,10 +218,30 @@ export class GenerateMovesImproved {
     const gyokuPosition = k.searchGyoku(teban);
     if (gyokuPosition < 0) return true;
 
+    return this.isSquareAttacked(k, gyokuPosition, teban);
+  }
+
+  /**
+   * Returns true if `target` is attacked by the enemy of `teban`.
+   *
+   * This is a generalization of `isKingInCheck()`:
+   * - `isKingInCheck(k, teban)` is equivalent to `isSquareAttacked(k, kingSquare, teban)`
+   *
+   * Why this exists:
+   * - Move ordering heuristics sometimes need to know if a dropped/moved piece is immediately capturable.
+   * - Doing a full `generateLegalMoves()` for the opponent is much more expensive than this direct attack test.
+   *
+   * Notes:
+   * - This function does NOT modify the position.
+   * - `teban` is the *defender* (the side that owns the piece sitting on `target`).
+   */
+  static isSquareAttacked(k: KyokumenImproved, target: number, teban: number): boolean {
+    if (target <= 0 || k.get(target) === WALL) return false;
+
     // Check all 12 directions for direct (non-sliding) attacks.
     // The move tables are encoded so that "subtract diff" walks from king outwards, matching the old Java logic.
     for (let direct = 0; direct < 12; direct++) {
-      const pos = gyokuPosition - diff[direct];
+      const pos = target - diff[direct];
       const koma = k.get(pos);
       if (isEnemy(teban, koma) && canMove[direct][koma]) {
         return true;
@@ -231,7 +251,7 @@ export class GenerateMovesImproved {
     // Check 8 directions for sliding attacks (rook/bishop/lance and promoted variants).
     for (let direct = 0; direct < 8; direct++) {
       for (
-        let pos = gyokuPosition - diff[direct], koma = k.get(pos);
+        let pos = target - diff[direct], koma = k.get(pos);
         koma !== WALL;
         pos -= diff[direct], koma = k.get(pos)
       ) {

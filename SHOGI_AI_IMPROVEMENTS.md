@@ -100,6 +100,46 @@ This keeps the same public API as the V2 engine but adds:
 
 This variant is not wired into the UI by default; use self-play to compare it to V2.
 
+### Experimental engine variant: `ShogiAIImprovedV4`
+
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV4.ts`.
+
+This keeps the same public API as V2/V3 and adds:
+
+- **Repetition draw contempt**: discourages repeating when ahead, accepts when behind *(currently disabled by default in code until tuned)*
+- **Check extensions**: improves tactical accuracy on forcing lines *(currently disabled by default in code until tuned)*
+- **Quiescence delta pruning**: speeds up capture/promotion-only search so main search can go deeper *(currently disabled by default in code until tuned)*
+- **Root fallback move**: always returns a legal move even with very small time budgets
+
+This variant is also not wired into the UI by default; use self-play to compare.
+
+### Experimental engine variant: `ShogiAIImprovedV5`
+
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV5.ts`.
+
+Adds:
+
+- **Mate-distance bounds** (more stable mate scoring)
+- **Check-aware quiescence** (includes quiet checking moves in leaf search; bounded)
+
+### Experimental engine variant: `ShogiAIImprovedV6`
+
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV6.ts`.
+
+Adds:
+
+- **Evaluation caching (direct-mapped)** keyed by `(BanHash ^ HandHash)` to reduce repeated evaluation work
+- **Opening-aware root move ordering** (quiet development + 1-step pawn pushes) to reduce “random-looking” openings
+
+### Experimental engine variant: `ShogiAIImprovedV7`
+
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
+
+Adds:
+
+- **Root-only check extensions (Master)** to improve tactical accuracy on forcing lines
+- **Root-only drop-safety ordering** using `GenerateMovesImproved.isSquareAttacked()` to penalize hanging drops
+
 ---
 
 ## 3) Evaluation (KyokumenImproved)
@@ -170,10 +210,22 @@ node -r tsx/cjs src/components/game/ShogiImproved/test.ts
 
 ### Run A/B self-play (engine vs engine)
 
-Compare V2 vs V3:
+Compare engines (V2/V3/V4/V5/V6/V7):
 
 ```bash
-npm run shogi:match -- --engineA v2 --engineB v3 --difficulty medium --games 10 --maxDepth 4 --maxTimeMs 60
+npm run shogi:match -- --engineA v2 --engineB v5 --difficulty medium --games 10 --maxDepth 4 --maxTimeMs 60
+```
+
+To break symmetry (recommended), randomize the starting position via a small number of seeded opening plies:
+
+```bash
+npm run shogi:match -- --engineA v2 --engineB v5 --difficulty master --games 20 --maxDepth 5 --maxTimeMs 200 --openingPlies 4 --openingMode curated --seed 1
+```
+
+To output an evaluation graph (SVG + CSV) for the first game:
+
+```bash
+npm run shogi:match -- --engineA v2 --engineB v5 --difficulty master --games 10 --maxDepth 5 --maxTimeMs 200 --openingPlies 4 --openingMode curated --seed 1 --graph true
 ```
 
 You can also compare evaluation modes within the same engine:

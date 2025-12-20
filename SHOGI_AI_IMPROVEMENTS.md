@@ -19,7 +19,7 @@ Call flow:
 2. `src/components/game/Shogi/ShogiAI.ts`:
    - uses opening book for the first 12 plies (`getOpeningMoveComprehensive()`)
    - converts `Kyokumen` → `KyokumenImproved`
-   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV9.ts` (default)
+   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV10.ts` (default)
    - converts the chosen move back to UI `Te`
 
 This keeps the existing UI logic (and opening book) intact, but replaces the slow clone-heavy search with a much faster make/unmake engine.
@@ -59,9 +59,9 @@ Additionally, the TT key now includes **side-to-move (`teban`)**:
 
 ---
 
-## 2) The Search Algorithm (ShogiAIImprovedV9 default)
+## 2) The Search Algorithm (ShogiAIImprovedV10 default)
 
-Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV9.ts`.
+Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV10.ts`.
 
 The original “base” implementation is still available as:
 - `src/components/game/ShogiImproved/ShogiAIImproved.ts` (V2)
@@ -100,7 +100,7 @@ Difficulty maps to a time budget and depth cap in `ShogiAIImproved.getNextTe()`:
 - master: `maxDepth <= 12`, `maxTimeMs ~= 10000ms` (runs in a Web Worker)
 
 You can tune this in:
-- `src/components/game/ShogiImproved/ShogiAIImprovedV9.ts` (defaults in `getNextTe()`)
+- `src/components/game/ShogiImproved/ShogiAIImprovedV10.ts` (defaults in `getNextTe()`)
 - UI text in:
   - `src/components/game/Shogi/Shogi.tsx`
   - `src/components/game/ShogiImproved/ShogiImproved.tsx`
@@ -151,9 +151,9 @@ Adds:
 
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
 
-### Current default: `ShogiAIImprovedV9`
+### Current default: `ShogiAIImprovedV10`
 
-Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV9.ts`.
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV10.ts`.
 
 It keeps V8’s tactics/order improvements and adds:
 
@@ -164,6 +164,7 @@ Adds:
 - **Opening-aware root move ordering** (quiet development + 1-step pawn pushes) to reduce “random-looking” openings when the book doesn’t apply
 - **Root SEE-lite / “hanging” ordering** (bounded) to reduce obviously losing drops/loose moves without slowing the full tree
 - **Root ordering cache** so the expensive root heuristics run once per move (faster + stronger under tight time budgets)
+- **Packed TT (V10)**: stores move keys instead of cloning `Te` objects at most nodes (less GC, deeper search)
 
 ---
 

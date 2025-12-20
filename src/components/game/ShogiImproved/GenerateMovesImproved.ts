@@ -432,20 +432,31 @@ export class GenerateMovesImproved {
       }
     }
 
-    // Try the move
-    const test = k.clone();
-    test.move(te);
-    test.setTeban(tebanAite);
-
-    // Check if opponent has any legal moves
-    const v = this.generateLegalMoves(test);
-    if (v.length === 0) {
-      // No legal moves - pawn drop checkmate
-      return true;
-    }
-
-    return false;
-  }
+	    // Try the move (make/unmake) instead of cloning.
+	    //
+	    // This is significantly faster than:
+	    // - cloning the entire position
+	    // - recalculating eval/hash/king positions on the clone
+	    //
+	    // Correctness notes:
+	    // - `move()` / `back()` do not flip turns, so we explicitly `setTeban()` to the opponent
+	    //   while generating legal replies.
+	    // - We must restore `te.capture` if the caller passes a reused `Te` object.
+	    const captureOrig = te.capture;
+	    te.capture = k.get(te.to);
+	
+	    const tebanOrig = k.teban;
+	    k.move(te);
+	    k.setTeban(tebanAite);
+	    try {
+	      // If the opponent has no legal replies, the pawn drop is an illegal "uchifuzume" (打ち歩詰め).
+	      return this.generateLegalMoves(k).length === 0;
+	    } finally {
+	      k.setTeban(tebanOrig);
+	      k.back(te);
+	      te.capture = captureOrig;
+	    }
+	  }
 
   // Generate all legal moves for the position
   static generateLegalMoves(k: KyokumenImproved): Te[] {

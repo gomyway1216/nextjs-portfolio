@@ -8,6 +8,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { RotateCcw, Pause, Play } from 'lucide-react';
 import { GameTopBar, InfoModal, GameStats } from '../common';
+import { useHighScore } from '@/hooks/useHighScore';
 import {
   GameState,
   InputState,
@@ -220,12 +221,20 @@ const SpaceInvaders: React.FC = () => {
   const [showStartScreen, setShowStartScreen] = useState(true);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
   const [gameMode, setGameMode] = useState<GameMode>('menu');
+  const [highScore, updateHighScore] = useHighScore('spaceinvaders');
   const inputRef = useRef<InputState>({ left: false, right: false, shoot: false });
   const lastTimeRef = useRef<number>(0);
   const animationFrameRef = useRef<number>(0);
 
   // Multiplayer hook
   const multiplayer = useMultiplayer();
+
+  // Update high score when game score changes
+  useEffect(() => {
+    if (gameState) {
+      updateHighScore(gameState.score);
+    }
+  }, [gameState?.score, updateHighScore]);
 
   // Start single player game
   const startSinglePlayer = useCallback(() => {
@@ -420,7 +429,12 @@ const SpaceInvaders: React.FC = () => {
     ctx.textBaseline = 'top';
     ctx.fillText(`SCORE: ${state.score}`, 10, 10);
 
+    // High Score
+    ctx.fillStyle = '#eab308';
+    ctx.fillText(`HI: ${highScore}`, 10, 35);
+
     // Level
+    ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.fillText(`LEVEL ${state.level}`, CANVAS_WIDTH / 2, 10);
 
@@ -485,9 +499,9 @@ const SpaceInvaders: React.FC = () => {
       ctx.font = 'bold 16px Arial';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'top';
-      ctx.fillText(`Team Score: ${state.score + (otherPlayer.score || 0)}`, 10, 35);
+      ctx.fillText(`Team Score: ${state.score + (otherPlayer.score || 0)}`, 10, 60);
     }
-  }, [gameMode]);
+  }, [gameMode, highScore]);
 
   // Game loop
   useEffect(() => {

@@ -5,8 +5,9 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Pause, Play, RotateCcw } from 'lucide-react';
+import { Pause, Play, RotateCcw, Trophy } from 'lucide-react';
 import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStats } from '../common';
+import { useHighScore } from '@/hooks/useHighScore';
 import {
   Board,
   Tetromino,
@@ -47,6 +48,7 @@ const Tetris = () => {
   const [showDifficultySelect, setShowDifficultySelect] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
+  const [highScore, updateHighScore] = useHighScore('tetris');
 
   const gameLoopRef = useRef<NodeJS.Timeout | null>(null);
   const lastDropTimeRef = useRef<number>(0);
@@ -117,7 +119,11 @@ const Tetris = () => {
 
     if (linesCleared > 0) {
       const points = calculateScore(linesCleared, level);
-      setScore(prev => prev + points);
+      setScore(prev => {
+        const newScore = prev + points;
+        updateHighScore(newScore);
+        return newScore;
+      });
       setLines(prev => {
         const newLines = prev + linesCleared;
         const newLevel = Math.floor(newLines / GAME_CONSTANTS.LINES_PER_LEVEL);
@@ -520,6 +526,23 @@ const Tetris = () => {
                 </div>
                 <div style={{ color: '#0ea5e9', fontSize: '1.5rem', fontWeight: 'bold' }}>
                   {score}
+                </div>
+              </div>
+
+              {/* High Score */}
+              <div style={{
+                background: 'rgba(234, 179, 8, 0.1)',
+                border: '1px solid rgba(234, 179, 8, 0.3)',
+                borderRadius: '0.5rem',
+                padding: '1rem',
+                textAlign: 'center'
+              }}>
+                <div style={{ color: '#94a3b8', fontSize: '0.75rem', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.25rem' }}>
+                  <Trophy size={12} />
+                  HIGH SCORE
+                </div>
+                <div style={{ color: '#eab308', fontSize: '1.5rem', fontWeight: 'bold' }}>
+                  {highScore}
                 </div>
               </div>
 

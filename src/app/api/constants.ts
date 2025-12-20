@@ -36,6 +36,9 @@ export const LEARNING_STATS_COLLECTION = 'learning_stats';
 export const HOBBIES_COLLECTION = 'hobbies';
 export const HOBBY_ITEMS_COLLECTION = 'hobby_items';
 
+// Game System collection names
+export const GAME_SCORES_COLLECTION = 'game_scores';
+
 // Firebase Cloud Functions base URL (v2 uses individual URLs per function)
 // Format: https://{functionname-lowercase}-{project-hash}-uc.a.run.app
 export const FIREBASE_FUNCTIONS_URL = process.env.FIREBASE_FUNCTIONS_URL || 'https://us-central1-yudai-portfolio.cloudfunctions.net';

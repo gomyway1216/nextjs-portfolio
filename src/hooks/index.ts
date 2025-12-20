@@ -22,3 +22,4 @@ export * from './useProfile';
 export * from './useTasks';
 export * from './useImageUpload';
 export * from './useResume';
+export * from './useHighScore';

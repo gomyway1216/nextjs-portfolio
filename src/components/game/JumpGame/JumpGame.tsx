@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { Info, X, Trophy, Zap, Volume2, VolumeX, Heart } from 'lucide-react';
+import { useHighScore } from '@/hooks/useHighScore';
 
 enum Scene {
   GameMain = 'GameMain',
@@ -54,7 +55,7 @@ interface GameState {
 const JumpGame = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isGameStarted, setIsGameStarted] = useState(false);
-  const [highScore, setHighScore] = useState(0);
+  const [highScore, updateHighScore] = useHighScore('jumpgame');
   const [showInfo, setShowInfo] = useState(false);
   const [showDifficultySelect, setShowDifficultySelect] = useState(true);
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium');
@@ -406,9 +407,7 @@ const JumpGame = () => {
           }
 
           // Update high score
-          if (state.score > highScore) {
-            setHighScore(state.score);
-          }
+          updateHighScore(state.score);
         }
       }
 

@@ -7,6 +7,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { RotateCcw, Pause, Play } from 'lucide-react';
 import { GameTopBar, InfoModal, GameStats } from '../common';
+import { useHighScore } from '@/hooks/useHighScore';
 import {
   GameState,
   InputState,
@@ -24,9 +25,17 @@ const Breakout: React.FC = () => {
   const [showInfo, setShowInfo] = useState(false);
   const [showStartScreen, setShowStartScreen] = useState(true);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
+  const [highScore, updateHighScore] = useHighScore('breakout');
   const inputRef = useRef<InputState>({ left: false, right: false });
   const lastTimeRef = useRef<number>(0);
   const animationFrameRef = useRef<number>(0);
+
+  // Update high score when game score changes
+  useEffect(() => {
+    if (gameState) {
+      updateHighScore(gameState.score);
+    }
+  }, [gameState?.score, updateHighScore]);
 
   // Start new game
   const startNewGame = useCallback(() => {
@@ -218,7 +227,12 @@ const Breakout: React.FC = () => {
     ctx.textBaseline = 'top';
     ctx.fillText(`Score: ${state.score}`, 10, 10);
 
+    // High Score
+    ctx.fillStyle = '#eab308';
+    ctx.fillText(`HI: ${highScore}`, 10, 35);
+
     // Level
+    ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.fillText(`Level ${state.level}`, CANVAS_WIDTH / 2, 10);
 
@@ -235,7 +249,7 @@ const Breakout: React.FC = () => {
     if (state.activeEffects.length > 0) {
       ctx.textAlign = 'left';
       ctx.font = '14px Arial';
-      let y = 35;
+      let y = 60;
       for (const effect of state.activeEffects) {
         const remaining = Math.max(0, Math.ceil((effect.endTime - Date.now()) / 1000));
         let effectName = '';
@@ -312,7 +326,7 @@ const Breakout: React.FC = () => {
       ctx.font = '24px Arial';
       ctx.fillText(`Final Score: ${state.score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 20);
     }
-  }, []);
+  }, [highScore]);
 
   // Game loop
   useEffect(() => {

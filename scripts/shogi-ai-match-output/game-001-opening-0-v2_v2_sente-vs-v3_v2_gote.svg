@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="320" viewBox="0 0 960 320">
+  <rect x="0" y="0" width="960" height="320" fill="white"/>
+  <text x="48" y="30" font-family="ui-sans-serif, system-ui" font-size="14" fill="#111827">v2/v2(SENTE) vs v3/v2(GOTE)</text>
+  <text x="48" y="46" font-family="ui-sans-serif, system-ui" font-size="12" fill="#6b7280">eval: +SENTE / -GOTE (0 is even)</text>
+  <rect x="48" y="48" width="864" height="224" fill="none" stroke="#e5e7eb"/>
+  <line x1="48" y1="160" x2="912" y2="160" stroke="#9ca3af" stroke-dasharray="4 4"/>
+  <polyline points="48.00,160.00 66.78,159.91 85.57,174.28 104.35,174.19 123.13,174.75 141.91,174.38 160.70,174.87 179.48,174.31 198.26,270.87 217.04,174.24 235.83,182.70 254.61,158.49 273.39,272.00 292.17,173.95 310.96,188.05 329.74,179.80 348.52,180.81 367.30,181.71 386.09,175.04 404.87,174.99 423.65,175.08 442.43,175.25 461.22,174.75 480.00,174.64 498.78,189.63 517.57,183.71 536.35,219.06 555.13,174.09 573.91,173.58 592.70,174.40 611.48,174.24 630.26,140.81 649.04,173.08 667.83,142.98 686.61,194.41 705.39,160.80 724.17,172.77 742.96,149.11 761.74,153.99 780.52,144.52 799.30,143.31 818.09,144.11 836.87,217.11 855.65,169.07 874.43,208.76 893.22,192.05 912.00,205.37" fill="none" stroke="#2563eb" stroke-width="2"/>
+  <text x="908" y="60" text-anchor="end" font-family="ui-sans-serif, system-ui" font-size="12" fill="#6b7280">+4752</text>
+  <text x="908" y="268" text-anchor="end" font-family="ui-sans-serif, system-ui" font-size="12" fill="#6b7280">-4752</text>
+  <text x="908" y="154" text-anchor="end" font-family="ui-sans-serif, system-ui" font-size="12" fill="#6b7280">0</text>
+</svg>

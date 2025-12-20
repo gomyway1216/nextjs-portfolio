@@ -1,6 +1,7 @@
 import type { Difficulty } from '../src/components/game/common/types';
 import fs from 'node:fs';
 import path from 'node:path';
+import { deflateSync } from 'node:zlib';
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '../src/components/game/ShogiImproved/InitialPositionImproved';
 import type { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
@@ -382,6 +383,165 @@ function writeEvalSvg(filePath: string, trace: GameTrace, title: string): void {
   fs.writeFileSync(filePath, svg);
 }
 
+function crc32(bytes: Buffer): number {
+  // Standard CRC32 used by PNG chunks.
+  // Implementation is small and dependency-free so this script can run anywhere.
+  const table = crc32Table;
+  let crc = 0xffffffff;
+  for (let i = 0; i < bytes.length; i++) {
+    crc = table[(crc ^ bytes[i]!) & 0xff]! ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+const crc32Table: Uint32Array = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) {
+      c = (c & 1) !== 0 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    }
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+
+function pngChunk(type: string, data: Buffer): Buffer {
+  const typeBuf = Buffer.from(type, 'ascii');
+  const lenBuf = Buffer.alloc(4);
+  lenBuf.writeUInt32BE(data.length >>> 0, 0);
+  const crcBuf = Buffer.alloc(4);
+  const crc = crc32(Buffer.concat([typeBuf, data]));
+  crcBuf.writeUInt32BE(crc >>> 0, 0);
+  return Buffer.concat([lenBuf, typeBuf, data, crcBuf]);
+}
+
+function writePng(filePath: string, width: number, height: number, rgba: Uint8Array): void {
+  const signature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width >>> 0, 0);
+  ihdr.writeUInt32BE(height >>> 0, 4);
+  ihdr[8] = 8; // bit depth
+  ihdr[9] = 6; // color type: RGBA
+  ihdr[10] = 0; // compression
+  ihdr[11] = 0; // filter
+  ihdr[12] = 0; // interlace
+
+  const rowBytes = width * 4;
+  const raw = Buffer.alloc((rowBytes + 1) * height);
+  for (let y = 0; y < height; y++) {
+    const rowStart = y * (rowBytes + 1);
+    raw[rowStart] = 0; // filter type 0: None
+    raw.set(rgba.subarray(y * rowBytes, y * rowBytes + rowBytes), rowStart + 1);
+  }
+
+  const compressed = deflateSync(raw, { level: 9 });
+  const png = Buffer.concat([
+    signature,
+    pngChunk('IHDR', ihdr),
+    pngChunk('IDAT', compressed),
+    pngChunk('IEND', Buffer.alloc(0)),
+  ]);
+  fs.writeFileSync(filePath, png);
+}
+
+function writeEvalPng(filePath: string, trace: GameTrace): void {
+  // Basic raster graph (no text labels) so the Codex CLI can preview it.
+  // SVG is still written separately for high-quality viewing.
+  const width = 960;
+  const height = 320;
+  const pad = 48;
+  const plotW = width - pad * 2;
+  const plotH = height - pad * 2;
+
+  const values = trace.evalByPly;
+  const maxAbs = Math.max(1, ...values.map((v) => Math.abs(v)));
+  const scaleY = plotH / (maxAbs * 2);
+
+  const xFor = (i: number): number => (values.length <= 1 ? pad : pad + (i * plotW) / (values.length - 1));
+  const yFor = (v: number): number => pad + (maxAbs - v) * scaleY;
+
+  const rgba = new Uint8Array(width * height * 4);
+  const setPixel = (x: number, y: number, r: number, g: number, b: number, a: number = 255): void => {
+    if (x < 0 || x >= width || y < 0 || y >= height) return;
+    const idx = (y * width + x) * 4;
+    rgba[idx] = r;
+    rgba[idx + 1] = g;
+    rgba[idx + 2] = b;
+    rgba[idx + 3] = a;
+  };
+
+  // Fill background white.
+  for (let i = 0; i < rgba.length; i += 4) {
+    rgba[i] = 255;
+    rgba[i + 1] = 255;
+    rgba[i + 2] = 255;
+    rgba[i + 3] = 255;
+  }
+
+  const drawLine = (x0: number, y0: number, x1: number, y1: number, r: number, g: number, b: number): void => {
+    // Bresenham line drawing (integer-only).
+    let x = x0 | 0;
+    let y = y0 | 0;
+    const x2 = x1 | 0;
+    const y2 = y1 | 0;
+    const dx = Math.abs(x2 - x);
+    const dy = Math.abs(y2 - y);
+    const sx = x < x2 ? 1 : -1;
+    const sy = y < y2 ? 1 : -1;
+    let err = dx - dy;
+    while (true) {
+      setPixel(x, y, r, g, b);
+      if (x === x2 && y === y2) break;
+      const e2 = err * 2;
+      if (e2 > -dy) {
+        err -= dy;
+        x += sx;
+      }
+      if (e2 < dx) {
+        err += dx;
+        y += sy;
+      }
+    }
+  };
+
+  // Plot border.
+  const xL = pad;
+  const xR = pad + plotW;
+  const yT = pad;
+  const yB = pad + plotH;
+  drawLine(xL, yT, xR, yT, 229, 231, 235);
+  drawLine(xL, yB, xR, yB, 229, 231, 235);
+  drawLine(xL, yT, xL, yB, 229, 231, 235);
+  drawLine(xR, yT, xR, yB, 229, 231, 235);
+
+  // Zero line.
+  const zeroY = Math.round(yFor(0));
+  drawLine(xL, zeroY, xR, zeroY, 156, 163, 175);
+
+  // Polyline.
+  if (values.length >= 2) {
+    let px = Math.round(xFor(0));
+    let py = Math.round(yFor(values[0]!));
+    for (let i = 1; i < values.length; i++) {
+      const x = Math.round(xFor(i));
+      const y = Math.round(yFor(values[i]!));
+      drawLine(px, py, x, y, 37, 99, 235);
+      px = x;
+      py = y;
+    }
+  } else if (values.length === 1) {
+    const x = Math.round(xFor(0));
+    const y = Math.round(yFor(values[0]!));
+    // Draw a small dot.
+    for (let dy = -2; dy <= 2; dy++) {
+      for (let dx = -2; dx <= 2; dx++) setPixel(x + dx, y + dy, 37, 99, 235);
+    }
+  }
+
+  writePng(filePath, width, height, rgba);
+}
+
 function createEngine(name: EngineName): EngineInstance {
   switch (name) {
     case 'v2':
@@ -463,21 +623,24 @@ function main(): void {
     }
 
     const shouldGraph = config.graph && (config.graphAll || gameIndex === 0);
-    if (shouldGraph) {
-      const base =
-        `game-${String(gameIndex + 1).padStart(3, '0')}` +
-        `-opening-${openingIndex}` +
-        `-${sanitizeFileToken(labelA)}-vs-${sanitizeFileToken(labelB)}`;
-      const csvPath = path.join(graphOutDir, `${base}.csv`);
-      const svgPath = path.join(graphOutDir, `${base}.svg`);
-
-      writeEvalCsv(csvPath, result.trace);
-      writeEvalSvg(svgPath, result.trace, `${labelA} vs ${labelB}`);
-
-      console.log(`[shogi-ai-match] graph: wrote ${path.relative(process.cwd(), svgPath)}`);
-      console.log(`[shogi-ai-match] graph: wrote ${path.relative(process.cwd(), csvPath)}`);
-    }
-  }
+	    if (shouldGraph) {
+	      const base =
+	        `game-${String(gameIndex + 1).padStart(3, '0')}` +
+	        `-opening-${openingIndex}` +
+	        `-${sanitizeFileToken(labelA)}-vs-${sanitizeFileToken(labelB)}`;
+	      const csvPath = path.join(graphOutDir, `${base}.csv`);
+	      const svgPath = path.join(graphOutDir, `${base}.svg`);
+	      const pngPath = path.join(graphOutDir, `${base}.png`);
+	
+	      writeEvalCsv(csvPath, result.trace);
+	      writeEvalSvg(svgPath, result.trace, `${labelA} vs ${labelB}`);
+	      writeEvalPng(pngPath, result.trace);
+	
+	      console.log(`[shogi-ai-match] graph: wrote ${path.relative(process.cwd(), svgPath)}`);
+	      console.log(`[shogi-ai-match] graph: wrote ${path.relative(process.cwd(), csvPath)}`);
+	      console.log(`[shogi-ai-match] graph: wrote ${path.relative(process.cwd(), pngPath)}`);
+	    }
+	  }
 
   console.log('\n[shogi-ai-match] summary');
   console.log(`A (engine=${config.engineA}, eval=${config.evalA}) wins: ${aWins}`);

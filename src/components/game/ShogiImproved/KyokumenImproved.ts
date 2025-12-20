@@ -2,7 +2,7 @@ import {
   SENTE, GOTE, EMPTY, WALL,
   SFU, SKY, SKE, SGI, SKI, SKA, SHI, SOU, STO, SNY, SNK, SNG, SUM, SRY,
   GFU, GKY, GKE, GGI, GKI, GKA, GHI, GOU, GTO, GNY, GNK, GNG, GUM, GRY,
-  FU, KY, KE, GI, KI, KA, HI, OU, UM, RY, PROMOTE,
+  FU, KY, KE, GI, KI, KA, HI, OU, TO, NY, NK, NG, UM, RY, PROMOTE,
   Te, komaValue, isSente, isGote, isSelf
 } from './types';
 
@@ -31,6 +31,15 @@ export class KyokumenImproved {
   // Evaluation value from current position
   eval: number;
 
+  /**
+   * Incremental piece-square-table evaluation (SENTE perspective).
+   *
+   * Notes:
+   * - Used only by `evaluate()` (v2). `evaluateV1()` intentionally ignores this as a baseline.
+   * - Updated in `move()` / `back()` so leaf evaluation stays fast.
+   */
+  psqtEval: number;
+
   // King positions (-34 when not on board)
   kingS: number;
   kingG: number;
@@ -46,11 +55,16 @@ export class KyokumenImproved {
   static TebanHashSeed = 0;
   static hashInitialized = false;
 
+  // Piece-square tables (SENTE perspective). Indexed by (koma & 0x0f) then 81-square index.
+  static PSQT: Int16Array[] = [];
+  static psqtInitialized = false;
+
   constructor() {
     this.ban = new Array(16 * 11);
     this.hand = new Array(GHI + 1).fill(0);
     this.teban = SENTE;
     this.eval = 0;
+    this.psqtEval = 0;
     this.kingS = -34;
     this.kingG = -34;
     this.HashVal = 0;
@@ -72,6 +86,10 @@ export class KyokumenImproved {
     // Initialize hash if not done
     if (!KyokumenImproved.hashInitialized) {
       KyokumenImproved.initializeHash();
+    }
+
+    if (!KyokumenImproved.psqtInitialized) {
+      KyokumenImproved.initializePsqt();
     }
   }
 
@@ -124,6 +142,93 @@ export class KyokumenImproved {
     this.hashInitialized = true;
   }
 
+  /**
+   * Initialize PSQT tables (static).
+   *
+   * Conventions:
+   * - Tables are defined from SENTE's perspective.
+   * - For GOTE pieces we mirror the rank (dan' = 10 - dan) and flip the sign.
+   *
+   * Magnitudes are intentionally small compared to material (歩=100) so tactics still dominate.
+   */
+  static initializePsqt(): void {
+    const make81 = (valueAt: (suji: number, dan: number) => number): Int16Array => {
+      const t = new Int16Array(81);
+      let idx = 0;
+      for (let dan = 1; dan <= 9; dan++) {
+        for (let suji = 1; suji <= 9; suji++) {
+          t[idx++] = valueAt(suji, dan);
+        }
+      }
+      return t;
+    };
+
+    const centerFile = (suji: number): number => 4 - Math.abs(suji - 5); // 0..4
+    const centerRank = (dan: number): number => 4 - Math.abs(dan - 5);   // 0..4
+
+    // Rank bonus arrays are indexed by dan (1..9). Values are from SENTE perspective:
+    // smaller dan => more advanced (closer to promotion zone).
+    const pawnRank = [0, 0, 18, 16, 14, 12, 10, 6, 2, 0];
+    const lanceRank = [0, 0, 14, 12, 10, 8, 6, 4, 2, 0];
+    const knightRank = [0, 0, 0, 10, 14, 16, 14, 10, 4, 0];
+    const silverRank = [0, 0, 6, 10, 12, 14, 16, 14, 10, 0];
+    // Golds are mostly defensive: prefer home camp squares (dan 8-9) but keep the gradient gentle.
+    const goldRank = [0, 0, 2, 4, 6, 8, 10, 12, 14, 16];
+    // Promoted pawn/lance/knight/silver behave like golds but become more valuable deep in the enemy camp.
+    const goldLikeAdvanced = [0, 0, 18, 16, 14, 12, 10, 8, 6, 4];
+
+    // Allocate by piece type (0..15). Index 13 is unused.
+    this.PSQT = new Array(16);
+    for (let i = 0; i < this.PSQT.length; i++) this.PSQT[i] = new Int16Array(81);
+
+    // FU / KY / KE / GI / KI
+    this.PSQT[FU] = make81((suji, dan) => pawnRank[dan] + centerFile(suji));
+    this.PSQT[KY] = make81((suji, dan) => lanceRank[dan] + centerFile(suji));
+    this.PSQT[KE] = make81((suji, dan) => knightRank[dan] + centerFile(suji) * 2);
+    this.PSQT[GI] = make81((suji, dan) => silverRank[dan] + centerFile(suji));
+    this.PSQT[KI] = make81((suji, dan) => goldRank[dan] + centerFile(suji));
+
+    // KA / HI: prefer central squares (mobility is evaluated separately, so keep modest).
+    this.PSQT[KA] = make81((suji, dan) => centerFile(suji) * 3 + centerRank(dan) * 3);
+    this.PSQT[HI] = make81((suji, dan) => centerFile(suji) * 2 + centerRank(dan) * 2);
+
+    // OU: tiny guidance only (king safety is handled by `evaluateKingSafetyV2()`).
+    this.PSQT[OU] = make81((suji, dan) => {
+      const distFromCenter = Math.abs(suji - 5) + Math.abs(dan - 5);
+      const home = dan >= 8 ? 4 : 0;
+      return Math.min(18, distFromCenter * 2 + home);
+    });
+
+    // Promoted pieces (gold-like).
+    this.PSQT[TO] = make81((suji, dan) => goldLikeAdvanced[dan] + centerFile(suji));
+    this.PSQT[NY] = make81((suji, dan) => goldLikeAdvanced[dan] + centerFile(suji));
+    this.PSQT[NK] = make81((suji, dan) => goldLikeAdvanced[dan] + centerFile(suji));
+    this.PSQT[NG] = make81((suji, dan) => goldLikeAdvanced[dan] + centerFile(suji));
+
+    // UM / RY: reward activity and centralization slightly more.
+    this.PSQT[UM] = make81((suji, dan) => 6 + centerFile(suji) * 3 + centerRank(dan) * 3);
+    this.PSQT[RY] = make81((suji, dan) => 6 + centerFile(suji) * 3 + centerRank(dan) * 3);
+
+    this.psqtInitialized = true;
+  }
+
+  private static psqtValue(koma: number, pos: number): number {
+    if (koma === EMPTY || koma === WALL) return 0;
+    const suji = pos >> 4;
+    const dan0 = pos & 0x0f;
+    if (suji < 1 || suji > 9 || dan0 < 1 || dan0 > 9) return 0;
+
+    const type = koma & 0x0f;
+    const table = KyokumenImproved.PSQT[type];
+    if (!table) return 0;
+
+    const isS = isSente(koma);
+    const dan = isS ? dan0 : 10 - dan0;
+    const idx = (dan - 1) * 9 + (suji - 1);
+    const v = table[idx] | 0;
+    return isS ? v : -v;
+  }
+
   // Clone the position
   clone(): KyokumenImproved {
     const k = new KyokumenImproved();
@@ -141,6 +246,7 @@ export class KyokumenImproved {
     // Copy other properties
     k.teban = this.teban;
     k.eval = this.eval;
+    k.psqtEval = this.psqtEval;
     k.kingS = this.kingS;
     k.kingG = this.kingG;
     k.HashVal = this.HashVal;
@@ -216,6 +322,18 @@ export class KyokumenImproved {
     // NOTE:
     // - `teban` is NOT changed here (search/UI must toggle).
     // - `te.capture` must be accurate for undo logic (back()).
+    //
+    // PSQT incremental update:
+    // - remove captured piece from destination
+    // - remove moved piece from source (if not a drop)
+    // - add moved/promoted piece on destination (done after the board update)
+    const capturedKoma = this.get(te.to);
+    if (capturedKoma !== EMPTY) {
+      this.psqtEval -= KyokumenImproved.psqtValue(capturedKoma, te.to);
+    }
+    if (te.from !== 0) {
+      this.psqtEval -= KyokumenImproved.psqtValue(te.koma, te.from);
+    }
     // Remove piece from destination (for hash)
     this.BanHash ^= KyokumenImproved.HashSeed[this.get(te.to)][te.to];
 
@@ -276,6 +394,8 @@ export class KyokumenImproved {
     this.put(te.to, koma);
     this.BanHash ^= KyokumenImproved.HashSeed[koma][te.to];
 
+    this.psqtEval += KyokumenImproved.psqtValue(koma, te.to);
+
     // Update king position
     if (te.koma === SOU) {
       this.kingS = te.to;
@@ -295,9 +415,19 @@ export class KyokumenImproved {
     // Remove piece from destination (for hash)
     this.BanHash ^= KyokumenImproved.HashSeed[this.get(te.to)][te.to];
 
+    // PSQT incremental update:
+    // - remove the moved piece currently sitting on `to`
+    // - add back the captured piece (if any)
+    // - add back the mover on `from` (if not a drop)
+    this.psqtEval -= KyokumenImproved.psqtValue(this.get(te.to), te.to);
+
     // Restore captured piece
     this.put(te.to, te.capture);
     this.BanHash ^= KyokumenImproved.HashSeed[te.capture][te.to];
+
+    if (te.capture !== EMPTY) {
+      this.psqtEval += KyokumenImproved.psqtValue(te.capture, te.to);
+    }
 
     // Restore evaluation
     this.eval += komaValue[te.capture];
@@ -335,6 +465,8 @@ export class KyokumenImproved {
       this.put(te.from, te.koma);
       this.BanHash ^= KyokumenImproved.HashSeed[EMPTY][te.from];
       this.BanHash ^= KyokumenImproved.HashSeed[te.koma][te.from];
+
+      this.psqtEval += KyokumenImproved.psqtValue(te.koma, te.from);
 
       if (te.promote) {
         // Restore evaluation for unpromotion
@@ -426,13 +558,30 @@ export class KyokumenImproved {
   initAll(): void {
     this.initEval();
     this.initKingPos();
+    this.initPsqt();
     this.calcHash();
+  }
+
+  // Initialize PSQT evaluation from scratch (board only; pieces in hand have no square value).
+  initPsqt(): void {
+    this.psqtEval = 0;
+    for (let suji = 0x10; suji <= 0x90; suji += 0x10) {
+      for (let dan = 1; dan <= 9; dan++) {
+        const pos = suji + dan;
+        const p = this.ban[pos];
+        if (p === EMPTY || p === WALL) continue;
+        this.psqtEval += KyokumenImproved.psqtValue(p, pos);
+      }
+    }
   }
 
   // Evaluate position - comprehensive evaluation beyond just material
   evaluate(): number {
     // `this.eval` is an incremental material score from SENTE's perspective.
     let score = this.eval; // Start with material evaluation
+
+    // PSQT (piece-square tables): basic development / placement signal.
+    score += this.psqtEval;
 
     // Pieces in hand are generally more valuable due to drop flexibility.
     score += this.evaluateHandBonus();

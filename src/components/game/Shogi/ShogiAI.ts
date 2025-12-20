@@ -6,10 +6,10 @@ import { Kyokumen } from './Kyokumen';
 import { Te, Position, SENTE, GOTE, EMPTY, komaValue, KA, HI, getKomashu } from './types';
 import { generateLegalMoves } from './GenerateMoves';
 import { Difficulty } from '../common/types';
-import { getOpeningMoveValidated } from './OpeningBookValidated';
-import { KyokumenImproved } from '../ShogiImproved/KyokumenImproved';
-import { getBestMove as getBestMoveImproved } from '../ShogiImproved/ShogiAIImproved';
-import { Te as TeImproved } from '../ShogiImproved/types';
+	import { getOpeningMoveValidated } from './OpeningBookValidated';
+	import { KyokumenImproved } from '../ShogiImproved/KyokumenImproved';
+	import { getBestMoveV7 as getBestMoveImproved } from '../ShogiImproved/ShogiAIImprovedV7';
+	import { Te as TeImproved } from '../ShogiImproved/types';
 
 const INFINITE = 99999999;
 const LIMIT_DEPTH = 16;

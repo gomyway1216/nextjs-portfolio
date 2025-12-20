@@ -8,12 +8,13 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { RotateCcw, AlertCircle } from 'lucide-react';
 import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStats } from '../common';
 import { KyokumenImproved } from './KyokumenImproved';
-import { Te, Position, SENTE, GOTE, EMPTY, getKomashu, toString, isSente } from './types';
-import { GenerateMovesImproved } from './GenerateMovesImproved';
-import { getBestMove } from './ShogiAIImproved';
-import { InitialPositionImproved } from './InitialPositionImproved';
-import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
-import type { SerializedKyokumenImproved, SerializedTeImproved, ShogiAiWorkerClient } from './shogiAiWorkerClient';
+	import { Te, Position, SENTE, GOTE, EMPTY, getKomashu, toString, isSente } from './types';
+	import { GenerateMovesImproved } from './GenerateMovesImproved';
+	import { getBestMoveV7 } from './ShogiAIImprovedV7';
+	import { getOpeningMoveImproved } from './OpeningBookImproved';
+	import { InitialPositionImproved } from './InitialPositionImproved';
+	import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
+	import type { SerializedKyokumenImproved, SerializedTeImproved, ShogiAiWorkerClient } from './shogiAiWorkerClient';
 
 const DIFFICULTY_OPTIONS = [
   { label: 'Level 1 (Easy)', value: 'easy' as Difficulty, description: 'Fast (~250ms), depth ≤4' },
@@ -256,24 +257,46 @@ const ShogiImproved = () => {
         // Check if AI has any legal moves first
         const legalMoves = GenerateMovesImproved.generateLegalMoves(gameState.kyokumen);
 
-        if (legalMoves.length === 0) {
-          // AI is in checkmate
-          setGameState(prev => ({
-            ...prev,
+	        if (legalMoves.length === 0) {
+	          // AI is in checkmate
+	          setGameState(prev => ({
+	            ...prev,
             isAIThinking: false,
             gameOver: true,
             winner: SENTE,
           }));
           setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-          return;
-        }
+	          return;
+	        }
 
-        if (!isWorkerDifficulty(difficulty)) {
-          const aiMove = getBestMove(gameState.kyokumen, GOTE, difficulty);
+	        const bookMove = getOpeningMoveImproved(gameState.kyokumen.clone(), difficulty);
+	        if (bookMove) {
+	          const newKyokumen = gameState.kyokumen.clone();
+	          newKyokumen.move(bookMove);
+	          newKyokumen.setTeban(SENTE);
 
-          if (aiMove) {
-            const newKyokumen = gameState.kyokumen.clone();
-            newKyokumen.move(aiMove);
+	          const { isOver, winner } = checkGameOver(newKyokumen);
+
+	          setGameState(prev => ({
+	            ...prev,
+	            kyokumen: newKyokumen,
+	            isAIThinking: false,
+	            gameOver: isOver,
+	            winner,
+	          }));
+
+	          if (isOver && winner === GOTE) {
+	            setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+	          }
+	          return;
+	        }
+
+	        if (!isWorkerDifficulty(difficulty)) {
+	          const aiMove = getBestMoveV7(gameState.kyokumen, GOTE, difficulty);
+	
+	          if (aiMove) {
+	            const newKyokumen = gameState.kyokumen.clone();
+	            newKyokumen.move(aiMove);
             newKyokumen.setTeban(SENTE);
 
             const { isOver, winner } = checkGameOver(newKyokumen);

@@ -14,9 +14,10 @@
  * - The caller should still ignore stale responses if the user moved/reset while the worker was thinking.
  */
 
-import { KyokumenImproved } from './KyokumenImproved';
-import { ShogiAIImproved } from './ShogiAIImproved';
-import { Difficulty } from '../common/types';
+	import { KyokumenImproved } from './KyokumenImproved';
+	import { getOpeningMoveImproved } from './OpeningBookImproved';
+	import { ShogiAIImprovedV7 } from './ShogiAIImprovedV7';
+	import { Difficulty } from '../common/types';
 
 export type SerializedKyokumenImproved = {
   /**
@@ -48,7 +49,7 @@ type WorkerResponse =
   | { type: 'bestMoveResult'; id: number; move: SerializedTeImproved | null }
   | { type: 'error'; id: number; message: string };
 
-const ai = new ShogiAIImproved();
+	const ai = new ShogiAIImprovedV7();
 
 const ctx: {
   postMessage: (message: WorkerResponse) => void;
@@ -88,12 +89,13 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
 
   if (msg.type !== 'bestMove') return;
 
-  try {
-    const k = buildPosition(msg.position);
-    const best = ai.getNextTe(k, 0, { difficulty: msg.difficulty });
-    const move: SerializedTeImproved | null = best
-      ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
-      : null;
+	  try {
+	    const k = buildPosition(msg.position);
+	    const book = getOpeningMoveImproved(k, msg.difficulty);
+	    const best = book ?? ai.getNextTe(k, 0, { difficulty: msg.difficulty });
+	    const move: SerializedTeImproved | null = best
+	      ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
+	      : null;
 
     ctx.postMessage({ type: 'bestMoveResult', id: msg.id, move });
   } catch (e) {
@@ -103,4 +105,3 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
 };
 
 export {};
-

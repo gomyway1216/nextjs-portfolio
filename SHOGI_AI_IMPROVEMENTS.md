@@ -19,10 +19,23 @@ Call flow:
 2. `src/components/game/Shogi/ShogiAI.ts`:
    - uses opening book for the first 12 plies (`getOpeningMoveComprehensive()`)
    - converts `Kyokumen` → `KyokumenImproved`
-   - searches via `src/components/game/ShogiImproved/ShogiAIImproved.ts`
+   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts` (default)
    - converts the chosen move back to UI `Te`
 
 This keeps the existing UI logic (and opening book) intact, but replaces the slow clone-heavy search with a much faster make/unmake engine.
+
+### `/games/shogi-improved` now uses a small built-in opening book
+
+`src/components/game/ShogiImproved/OpeningBookImproved.ts` provides a small curated set of opening lines (戦法/定跡).
+
+The AI now tries a safe book move before searching:
+- UI: `src/components/game/ShogiImproved/ShogiImproved.tsx`
+- Worker (Lv4/Lv5): `src/components/game/ShogiImproved/shogi-ai.worker.ts`
+
+The book is guarded by:
+- an opening-phase proxy (`hand` totals small)
+- a “do not use book while in check” rule
+- a simple 1-ply static-eval threshold vs the best legal move (difficulty-dependent)
 
 ### Move legality filtering no longer clones positions
 
@@ -46,9 +59,12 @@ Additionally, the TT key now includes **side-to-move (`teban`)**:
 
 ---
 
-## 2) The New Search Algorithm (ShogiAIImproved)
+## 2) The Search Algorithm (ShogiAIImprovedV7 default)
 
-Implemented in `src/components/game/ShogiImproved/ShogiAIImproved.ts`.
+Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
+
+The original “base” implementation is still available as:
+- `src/components/game/ShogiImproved/ShogiAIImproved.ts` (V2)
 
 ### Core loop
 
@@ -84,7 +100,7 @@ Difficulty maps to a time budget and depth cap in `ShogiAIImproved.getNextTe()`:
 - master: `maxDepth <= 12`, `maxTimeMs ~= 10000ms` (runs in a Web Worker)
 
 You can tune this in:
-- `src/components/game/ShogiImproved/ShogiAIImproved.ts` (defaults in `getNextTe()`)
+- `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts` (defaults in `getNextTe()`)
 - UI text in:
   - `src/components/game/Shogi/Shogi.tsx`
   - `src/components/game/ShogiImproved/ShogiImproved.tsx`
@@ -147,6 +163,7 @@ Adds:
 `src/components/game/ShogiImproved/KyokumenImproved.ts` implements evaluation as:
 
 - incremental material (`eval`, SENTE perspective)
+- incremental **piece-square table** term (`psqtEval`, SENTE perspective) used by `evaluate()` (v2 only)
 - small **hand bonus** (pieces-in-hand are flexible due to drops)
 - **file defense** heuristics (prevents immediate opening disasters)
 - **promotion threats** heuristics
@@ -227,6 +244,11 @@ To output an evaluation graph (SVG + CSV) for the first game:
 ```bash
 npm run shogi:match -- --engineA v2 --engineB v5 --difficulty master --games 10 --maxDepth 5 --maxTimeMs 200 --openingPlies 4 --openingMode curated --seed 1 --graph true
 ```
+
+`--graph true` writes:
+- `.svg` (high quality)
+- `.png` (preview-friendly)
+- `.csv` (data you can plot elsewhere)
 
 You can also compare evaluation modes within the same engine:
 

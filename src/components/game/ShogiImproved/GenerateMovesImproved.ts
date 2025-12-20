@@ -3,7 +3,7 @@ import {
   FU, KY, KE, GI, KI, KA, HI, OU,
   SFU, SKY, SKE, SGI, SKI, SKA, SHI, SOU,
   GFU, GKY, GKE, GGI, GKI, GKA, GHI, GOU,
-  Te, isSente, isGote, isSelf, isEnemy, getKomashu, canPromote
+  Te, isSente, isGote, isSelf, isEnemy, getKomashu, canPromote, komaValue
 } from './types';
 import { KyokumenImproved } from './KyokumenImproved';
 import { TTEntryImproved } from './TTEntryImproved';
@@ -264,6 +264,50 @@ export class GenerateMovesImproved {
     }
 
     return false;
+  }
+
+  /**
+   * Returns the absolute value (material) of the least valuable *enemy* attacker of `target`,
+   * or `Infinity` if `target` is not attacked.
+   *
+   * Conventions:
+   * - `teban` is the *defender* (the side that owns the piece sitting on `target`).
+   * - Attackers are the enemy of `teban`.
+   */
+  static getLeastAttackerValue(k: KyokumenImproved, target: number, teban: number): number {
+    if (target <= 0 || k.get(target) === WALL) return Infinity;
+
+    let best = Infinity;
+
+    // Direct attacks (non-sliding).
+    for (let direct = 0; direct < 12; direct++) {
+      const pos = target - diff[direct];
+      const koma = k.get(pos);
+      if (isEnemy(teban, koma) && canMove[direct][koma]) {
+        const value = Math.abs(komaValue[koma]) | 0;
+        if (value < best) best = value;
+      }
+    }
+
+    // Sliding attacks (rook/bishop/lance and promoted variants).
+    for (let direct = 0; direct < 8; direct++) {
+      for (
+        let pos = target - diff[direct], koma = k.get(pos);
+        koma !== WALL;
+        pos -= diff[direct], koma = k.get(pos)
+      ) {
+        if (isSelf(teban, koma)) break;
+        if (isEnemy(teban, koma)) {
+          if (canJump[direct][koma]) {
+            const value = Math.abs(komaValue[koma]) | 0;
+            if (value < best) best = value;
+          }
+          break;
+        }
+      }
+    }
+
+    return best;
   }
 
   // Remove self-mate moves

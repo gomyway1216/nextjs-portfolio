@@ -590,9 +590,87 @@ export class KyokumenImproved {
     score += this.evaluateFileDefense();
     score += this.evaluatePromotionThreats();
     score += this.evaluateKingSafetyV2();
+    score += this.evaluateCastleShapes();
     score += this.evaluateMajorPieceActivity();
 
     return score;
+  }
+
+  /**
+   * Castle (囲い) evaluation.
+   *
+   * Why this exists:
+   * - Pure material/king-safety heuristics can still allow "technically safe but aimless" moves early.
+   * - A small castle-shape term helps the engine prefer coherent king safety plans (矢倉/美濃/穴熊の方向性).
+   *
+   * Notes:
+   * - Kept intentionally small vs material (歩=100) so tactics still dominate.
+   * - Uses only the current board (no history/opening recognition).
+   */
+  private evaluateCastleShapes(): number {
+    const sente = this.castleScoreForSide(SENTE, this.kingS);
+    const gote = this.castleScoreForSide(GOTE, this.kingG);
+    return sente - gote;
+  }
+
+  private castleScoreForSide(teban: number, kingPos: number): number {
+    if (kingPos <= 0) return 0;
+
+    const kingSuji = kingPos >> 4;
+    const kingDan = kingPos & 0x0f;
+    // Map the side's king position into "SENTE perspective" (bottom side).
+    const ks = teban === SENTE ? kingSuji : 10 - kingSuji;
+    const kd = teban === SENTE ? kingDan : 10 - kingDan;
+
+    const at = (sujiSente: number, danSente: number): number => {
+      const suji = teban === SENTE ? sujiSente : 10 - sujiSente;
+      const dan = teban === SENTE ? danSente : 10 - danSente;
+      return this.get((suji << 4) + dan);
+    };
+
+    const has = (sujiSente: number, danSente: number, type: number): boolean => {
+      const p = at(sujiSente, danSente);
+      return p !== EMPTY && p !== WALL && isSelf(teban, p) && this.getKomashu(p) === type;
+    };
+
+    const anaguma = (() => {
+      let score = 0;
+      if (ks === 9 && kd === 9) score += 90;
+      else if (ks === 8 && kd === 9) score += 55;
+      else if (ks === 9 && kd === 8) score += 45;
+      else return 0;
+
+      if (has(8, 9, KI)) score += 40;
+      if (has(9, 8, KI)) score += 40;
+      if (has(8, 8, GI)) score += 25;
+      return score;
+    })();
+
+    const mino = (() => {
+      let score = 0;
+      if (ks === 8 && kd === 8) score += 70;
+      else if (ks === 9 && kd === 8) score += 60;
+      else return 0;
+
+      if (has(7, 8, KI)) score += 35;
+      if (has(8, 9, KI)) score += 30;
+      if (has(7, 9, GI)) score += 20;
+      return score;
+    })();
+
+    const yagura = (() => {
+      let score = 0;
+      if (ks === 7 && kd === 8) score += 65;
+      else if (ks === 7 && kd === 9) score += 50;
+      else return 0;
+
+      if (has(6, 8, KI)) score += 35;
+      if (has(7, 9, KI)) score += 30;
+      if (has(7, 7, GI)) score += 20;
+      return score;
+    })();
+
+    return Math.max(anaguma, mino, yagura);
   }
 
   /**

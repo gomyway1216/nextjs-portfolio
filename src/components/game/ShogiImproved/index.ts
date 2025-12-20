@@ -9,6 +9,7 @@ export { ShogiAIImprovedV5 } from './ShogiAIImprovedV5';
 export { ShogiAIImprovedV6 } from './ShogiAIImprovedV6';
 export { ShogiAIImprovedV7 } from './ShogiAIImprovedV7';
 export { ShogiAIImprovedV8 } from './ShogiAIImprovedV8';
+export { ShogiAIImprovedV9 } from './ShogiAIImprovedV9';
 export { TranspositionTableImproved } from './TranspositionTableImproved';
 export { TTEntryImproved } from './TTEntryImproved';
 export { InitialPositionImproved } from './InitialPositionImproved';

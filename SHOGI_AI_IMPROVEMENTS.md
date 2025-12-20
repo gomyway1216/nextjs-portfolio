@@ -19,7 +19,7 @@ Call flow:
 2. `src/components/game/Shogi/ShogiAI.ts`:
    - uses opening book for the first 12 plies (`getOpeningMoveComprehensive()`)
    - converts `Kyokumen` → `KyokumenImproved`
-   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV8.ts` (default)
+   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV9.ts` (default)
    - converts the chosen move back to UI `Te`
 
 This keeps the existing UI logic (and opening book) intact, but replaces the slow clone-heavy search with a much faster make/unmake engine.
@@ -59,9 +59,9 @@ Additionally, the TT key now includes **side-to-move (`teban`)**:
 
 ---
 
-## 2) The Search Algorithm (ShogiAIImprovedV8 default)
+## 2) The Search Algorithm (ShogiAIImprovedV9 default)
 
-Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV8.ts`.
+Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV9.ts`.
 
 The original “base” implementation is still available as:
 - `src/components/game/ShogiImproved/ShogiAIImproved.ts` (V2)
@@ -100,7 +100,7 @@ Difficulty maps to a time budget and depth cap in `ShogiAIImproved.getNextTe()`:
 - master: `maxDepth <= 12`, `maxTimeMs ~= 10000ms` (runs in a Web Worker)
 
 You can tune this in:
-- `src/components/game/ShogiImproved/ShogiAIImprovedV8.ts` (defaults in `getNextTe()`)
+- `src/components/game/ShogiImproved/ShogiAIImprovedV9.ts` (defaults in `getNextTe()`)
 - UI text in:
   - `src/components/game/Shogi/Shogi.tsx`
   - `src/components/game/ShogiImproved/ShogiImproved.tsx`
@@ -151,16 +151,19 @@ Adds:
 
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
 
-### Current default: `ShogiAIImprovedV8`
+### Current default: `ShogiAIImprovedV9`
 
-Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV8.ts`.
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV9.ts`.
 
-It keeps V7’s tactics/order improvements and adds a direct-mapped evaluation cache (from V6) to search deeper under the same time budget.
+It keeps V8’s tactics/order improvements and adds:
 
 Adds:
 
 - **Root-only check extensions (Master)** to improve tactical accuracy on forcing lines
-- **Root-only drop-safety ordering** using `GenerateMovesImproved.isSquareAttacked()` to penalize hanging drops
+- **Root-only drop-safety ordering** using cheap attack tests to penalize hanging drops
+- **Opening-aware root move ordering** (quiet development + 1-step pawn pushes) to reduce “random-looking” openings when the book doesn’t apply
+- **Root SEE-lite / “hanging” ordering** (bounded) to reduce obviously losing drops/loose moves without slowing the full tree
+- **Root ordering cache** so the expensive root heuristics run once per move (faster + stronger under tight time budgets)
 
 ---
 
@@ -176,6 +179,7 @@ Adds:
 
 Additional lightweight terms:
 - **king safety** (defenders around king + basic shelter)
+- **castle shapes (囲い)** (small bonuses for coherent king safety plans like 美濃/矢倉/穴熊)
 - **major piece activity** (rook/bishop mobility + lines toward enemy king)
 
 The evaluation is intentionally simple: most strength comes from deeper search + better ordering.

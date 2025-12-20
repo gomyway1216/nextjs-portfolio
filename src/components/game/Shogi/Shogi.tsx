@@ -374,7 +374,7 @@ const Shogi = () => {
         const worker = getWorker();
         const position = serializeForWorker(gameState.kyokumen);
         worker
-          .requestBestMove(position, difficulty)
+          .requestBestMove(position, difficulty, moveNumber - 1)
           .then((move) => {
             if (aiRequestIdRef.current !== requestId) return;
 

@@ -606,7 +606,8 @@ export function getBestMove(
 
   // Fast engine: convert position and search with make/unmake + TT.
   const kImproved = convertToImprovedKyokumen(k);
-  const bestImproved = getBestMoveImproved(kImproved, teban, difficulty);
+  // `moveNumber` is 1-based in the UI; the improved engine expects 0-based ply (`tesu`).
+  const bestImproved = getBestMoveImproved(kImproved, teban, difficulty, Math.max(0, moveNumber - 1));
   if (bestImproved) return convertToMainTe(bestImproved);
 
   // Fallback (should be rare): legacy clone-based engine.

@@ -14,9 +14,16 @@
  * - Transposition Table (TT) keyed by Zobrist hash (`KyokumenImproved.HashVal`) to reuse work across branches.
  * - Move ordering: TT move first, killer moves, history heuristic, MVV-LVA captures, promotion bonus, drop heuristics.
  *
- * V11 additions:
+ * V13 additions:
  * - Pooled move generation (`generateLegalMovesPooled`) to reuse `Te` objects and reduce per-node allocations.
  * - Keeps V10’s packed TT + V9’s root ordering and evaluation cache.
+ * - Improves drop ordering to reduce "random" ineffective drops:
+ *   - much lower base drop bias
+ *   - prioritize drops near enemy king (attack) or own king (defense)
+ *   - penalize hanging (undefended) drops more consistently
+ * - Expands tactical search slightly on higher levels:
+ *   - check extensions beyond root (bounded)
+ *   - enable limited quiescence checks on Expert as well
  *
  * It also includes V7/V8 features:
  * - Root-only check extensions (Master): deepen checking moves at the root to improve tactical accuracy.
@@ -34,7 +41,7 @@
  * - `KyokumenImproved.evaluate()` returns a score from SENTE's perspective; this search converts it to "side-to-move"
  *   perspective via `evalForSideToMove()` for negamax.
  */
-	import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, SENTE, Te, getKomashu, komaValue } from './types';
+	import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, SENTE, Te, WALL, getKomashu, isSelf, komaValue } from './types';
 		import { KyokumenImproved } from './KyokumenImproved';
 		import { GenerateMovesImproved } from './GenerateMovesImproved';
 		import { MoveListImproved } from './MoveListImproved';
@@ -87,7 +94,7 @@ class TimeUpError extends Error {
  * - Most strength comes from being able to search deeper (speed), then from move ordering, then evaluation.
  * - The evaluation is intentionally simple; this project prioritizes responsiveness.
  */
-export class ShogiAIImprovedV11 {
+	export class ShogiAIImprovedV13 {
   private static readonly INFINITE = 99_999_999;
   private static readonly MATE = 90_000_000;
   private static readonly MAX_PLY = 64;
@@ -141,8 +148,8 @@ export class ShogiAIImprovedV11 {
   private aspirationWindow = 0;
   private enableLMR = false;
 
-  private killer1: number[] = new Array(ShogiAIImprovedV11.MAX_PLY).fill(0);
-  private killer2: number[] = new Array(ShogiAIImprovedV11.MAX_PLY).fill(0);
+  private killer1: number[] = new Array(ShogiAIImprovedV13.MAX_PLY).fill(0);
+  private killer2: number[] = new Array(ShogiAIImprovedV13.MAX_PLY).fill(0);
   private history = new Map<number, number>();
 
   private rootBest: Te | null = null;
@@ -151,13 +158,14 @@ export class ShogiAIImprovedV11 {
   private rootTesu = 0;
   private rootHandTotal = 0;
   private rootInCheck = false;
+  private rootKingDanger = 0;
   // Root-only ordering cache: avoids re-running expensive safety heuristics every iterative-deepening pass.
   // Keyed by `moveKey(te)` (capture is implicit in the root position).
   private rootOrderBonusCache = new Map<number, number>();
 
   // Per-ply move list pool (V11): reduces allocations by reusing `Te` objects across nodes.
   private moveLists: MoveListImproved[] = Array.from(
-    { length: ShogiAIImprovedV11.MAX_PLY },
+    { length: ShogiAIImprovedV13.MAX_PLY },
     () => new MoveListImproved()
   );
 
@@ -167,20 +175,20 @@ export class ShogiAIImprovedV11 {
   constructor(tt: TranspositionTableImprovedPacked = new TranspositionTableImprovedPacked()) {
     this.tt = tt;
 
-    this.evalCacheKeyV1 = new Int32Array(ShogiAIImprovedV11.EVAL_CACHE_SIZE);
-    this.evalCacheValV1 = new Int32Array(ShogiAIImprovedV11.EVAL_CACHE_SIZE);
-    this.evalCacheKeyV2 = new Int32Array(ShogiAIImprovedV11.EVAL_CACHE_SIZE);
-    this.evalCacheValV2 = new Int32Array(ShogiAIImprovedV11.EVAL_CACHE_SIZE);
+    this.evalCacheKeyV1 = new Int32Array(ShogiAIImprovedV13.EVAL_CACHE_SIZE);
+    this.evalCacheValV1 = new Int32Array(ShogiAIImprovedV13.EVAL_CACHE_SIZE);
+    this.evalCacheKeyV2 = new Int32Array(ShogiAIImprovedV13.EVAL_CACHE_SIZE);
+    this.evalCacheValV2 = new Int32Array(ShogiAIImprovedV13.EVAL_CACHE_SIZE);
 
-    this.evalCacheKeyV1.fill(ShogiAIImprovedV11.EVAL_CACHE_SENTINEL);
-    this.evalCacheKeyV2.fill(ShogiAIImprovedV11.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV1.fill(ShogiAIImprovedV13.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV2.fill(ShogiAIImprovedV13.EVAL_CACHE_SENTINEL);
   }
 
   clearTT(): void {
     this.tt.clear();
     // Also clear eval caches for reproducibility across games (optional but helps deterministic benchmarks).
-    this.evalCacheKeyV1.fill(ShogiAIImprovedV11.EVAL_CACHE_SENTINEL);
-    this.evalCacheKeyV2.fill(ShogiAIImprovedV11.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV1.fill(ShogiAIImprovedV13.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV2.fill(ShogiAIImprovedV13.EVAL_CACHE_SENTINEL);
   }
 
   getStats(): { nodes: number; leaves: number; ttUsage: number } {
@@ -236,7 +244,7 @@ export class ShogiAIImprovedV11 {
 
   private evaluateSenteCached(k: KyokumenImproved): number {
     const key = (k.BanHash ^ k.HandHash) | 0;
-    const index = key & (ShogiAIImprovedV11.EVAL_CACHE_SIZE - 1);
+    const index = key & (ShogiAIImprovedV13.EVAL_CACHE_SIZE - 1);
 
     if (this.evaluationMode === 'v1') {
       if (this.evalCacheKeyV1[index] === key) return this.evalCacheValV1[index] | 0;
@@ -321,7 +329,7 @@ export class ShogiAIImprovedV11 {
   private recordKiller(ply: number, key: number): void {
     // "Killer moves" are non-captures that caused a beta cutoff at the same ply elsewhere.
     // They are often good again in similar tactical shapes.
-    if (ply < 0 || ply >= ShogiAIImprovedV11.MAX_PLY) return;
+    if (ply < 0 || ply >= ShogiAIImprovedV13.MAX_PLY) return;
     if (this.killer1[ply] !== key) {
       this.killer2[ply] = this.killer1[ply];
       this.killer1[ply] = key;
@@ -330,6 +338,62 @@ export class ShogiAIImprovedV11 {
 
   private otherSide(teban: number): number {
     return teban === SENTE ? GOTE : SENTE;
+  }
+
+  /**
+   * Cheap "king is under pressure" proxy for the opening phase.
+   *
+   * Motivation:
+   * - In very low time budgets, root move ordering can dominate the move choice.
+   * - If we keep pushing slow castling/development moves while the king is already surrounded,
+   *   the AI looks (and plays) irrational.
+   *
+   * This returns an uncalibrated danger score (higher = more pressure).
+   * It is intentionally local (5x5 around the king) and does not require generating moves.
+   */
+  private computeKingDanger(k: KyokumenImproved, teban: number, kingPos: number): number {
+    if (kingPos <= 0) return 0;
+    const kingSuji = kingPos >> 4;
+    const kingDan = kingPos & 0x0f;
+
+    // Same rough scale as `KyokumenImproved.enemyProximityDanger()` but reimplemented here
+    // (that method is intentionally private to keep evaluation encapsulated).
+    const dangerByKomashu: number[] = [
+      0,
+      6,  // FU
+      10, // KY
+      12, // KE
+      16, // GI
+      18, // KI
+      22, // KA
+      26, // HI
+      0,  // OU
+      14, // TO
+      12, // NY
+      12, // NK
+      12, // NG
+      0,  // (unused)
+      26, // UM
+      30, // RY
+    ];
+
+    let danger = 0;
+    for (let ds = -2; ds <= 2; ds++) {
+      for (let dd = -2; dd <= 2; dd++) {
+        if (ds === 0 && dd === 0) continue;
+        const p = k.getAt(kingSuji + ds, kingDan + dd);
+        if (p === EMPTY || p === WALL) continue;
+        if (isSelf(teban, p)) continue;
+
+        const base = dangerByKomashu[getKomashu(p)] ?? 0;
+        if (!base) continue;
+
+        // Adjacent squares are especially urgent.
+        const dist = Math.abs(ds) + Math.abs(dd);
+        danger += base + (dist <= 1 ? 6 : dist <= 2 ? 3 : 0);
+      }
+    }
+    return danger;
   }
 
   private recordHistory(key: number, depthLeft: number): void {
@@ -369,22 +433,65 @@ export class ShogiAIImprovedV11 {
     }
 
 	    if (te.from === 0) {
-	      // 5) Drops: drops are a big part of shogi tactics; prioritize major drops and "near-king" drops.
+	      // 5) Drops: drops are a huge part of shogi tactics.
+	      //
+	      // Ordering goals:
+	      // - Keep strong drop bias (tactical strength depends on it).
+	      // - Slightly prioritize "purposeful" drops:
+	      //   - near the enemy king (attack)
+	      //   - near our own king (defense / urgent blocking)
+	      // - Penalize hanging (undefended) drops, but avoid killing real sacrifices:
+	      //   - do not apply the hanging penalty to very close-to-enemy-king drops (often forcing)
 	      const pieceType = getKomashu(te.koma);
+	      const selfKing = k.teban === SENTE ? k.kingS : k.kingG;
+
+	      const distToEnemyKing =
+	        enemyKing > 0
+	          ? Math.abs((te.to >> 4) - (enemyKing >> 4)) + Math.abs((te.to & 0x0f) - (enemyKing & 0x0f))
+	          : 99;
+	      const distToSelfKing =
+	        selfKing > 0
+	          ? Math.abs((te.to >> 4) - (selfKing >> 4)) + Math.abs((te.to & 0x0f) - (selfKing & 0x0f))
+	          : 99;
+
+	      // Base drop bias (keep large).
 	      score += 150_000;
 
-      if (pieceType === HI) score += 250_000;
-      else if (pieceType === KA) score += 180_000;
-      else if (pieceType === KI) score += 120_000;
-      else if (pieceType === GI) score += 90_000;
-      else if (pieceType === KE) score += 40_000;
-      else if (pieceType === KY) score += 25_000;
-      else if (pieceType === FU) score += 10_000;
+	      // Piece-type tie-breaker.
+	      if (pieceType === HI) score += 250_000;
+	      else if (pieceType === KA) score += 180_000;
+	      else if (pieceType === KI) score += 120_000;
+	      else if (pieceType === GI) score += 90_000;
+	      else if (pieceType === KE) score += 40_000;
+	      else if (pieceType === KY) score += 25_000;
+	      else if (pieceType === FU) score += 10_000;
 
-	      if (enemyKing > 0) {
-	        const dist =
-	          Math.abs((te.to >> 4) - (enemyKing >> 4)) + Math.abs((te.to & 0x0f) - (enemyKing & 0x0f));
-	        if (dist <= 4) score += (5 - dist) * 35_000;
+	      // Attack proximity: drops near the enemy king are often forcing.
+	      if (distToEnemyKing <= 4) score += (5 - distToEnemyKing) * 35_000;
+
+	      // Defense proximity: drops near our king can be urgent defense / line blocking.
+	      if (distToSelfKing <= 3) score += (4 - distToSelfKing) * 30_000;
+
+	      // Penalize drops that are far from both kings (often "random" tempo losses).
+	      if (distToEnemyKing >= 7 && distToSelfKing >= 7) score -= 45_000;
+
+	      // Hanging-drop safety (ordering-only).
+	      // If the dropped piece is immediately capturable and not defended, it is often ineffective.
+	      // Keep the penalty bounded and skip it for very close-to-enemy-king drops (commonly sacrifices/checks).
+	      if (distToEnemyKing > 2) {
+	        const enemyLeastAttacker = GenerateMovesImproved.getLeastAttackerValue(k, te.to, k.teban);
+	        if (Number.isFinite(enemyLeastAttacker)) {
+	          const selfLeastDefender = GenerateMovesImproved.getLeastAttackerValue(k, te.to, this.otherSide(k.teban));
+	          if (Number.isFinite(selfLeastDefender)) {
+	            // Prefer defended drops slightly, especially when defended by an equal-or-cheaper piece.
+	            score += selfLeastDefender <= enemyLeastAttacker ? 18_000 : 4_000;
+	          } else {
+	            const pieceValue = Math.abs(komaValue[te.koma]) | 0;
+	            // Pawns are sometimes dropped as sacrifices/blocks; keep the penalty minimal for low-value pieces.
+	            const penalty = pieceValue <= 200 ? 20_000 : Math.min(180_000, pieceValue * 60);
+	            score -= penalty;
+	          }
+	        }
 	      }
 	    } else {
 	      // 6) Quiet attacker moves that approach the enemy king are often tactical and good to search earlier,
@@ -442,15 +549,17 @@ export class ShogiAIImprovedV11 {
 	    const toDan = te.to & 0x0f;
 
 	    let bonus = 0;
+	    const underPressure = this.rootKingDanger >= 45;
 
 	    // 1) One-step pawn pushes from the starting pawn rank.
 	    const pawnStartDan = k.teban === SENTE ? 7 : 3;
 	    const pawnNextDan = k.teban === SENTE ? 6 : 4;
 	    if (pieceType === FU && fromDan === pawnStartDan && toDan === pawnNextDan) {
-	      bonus += 140_000;
+	      // When the king is already under pressure, don't over-reward slow pawn pushes.
+	      bonus += underPressure ? 90_000 : 140_000;
 	      // Prefer central pawn pushes slightly (openings are often built from central files).
 	      const distFromCenterFile = Math.abs(fromSuji - 5);
-	      bonus += Math.max(0, 3 - distFromCenterFile) * 18_000;
+	      bonus += Math.max(0, 3 - distFromCenterFile) * (underPressure ? 10_000 : 18_000);
 	    }
 
 	    // 2) Development (silvers/golds are core defenders and help start building a castle).
@@ -468,6 +577,10 @@ export class ShogiAIImprovedV11 {
 
 	    // 4) King move (castling) tie-breaker: prefer moving away from center while staying in home camp.
 	    if (pieceType === OU) {
+	      // If we are already under pressure, prioritise defense/tactics over slow king walks.
+	      // Also, avoid suggesting king moves in the first couple of plies (looks unnatural and is rarely best).
+	      if (underPressure || this.rootTesu < 4) return bonus;
+
 	      const fromDist = Math.abs(fromSuji - 5) + Math.abs(fromDan - 5);
 	      const toDist = Math.abs(toSuji - 5) + Math.abs(toDan - 5);
 	      const away = toDist - fromDist;
@@ -598,7 +711,7 @@ export class ShogiAIImprovedV11 {
       if (allMoves.length === 0) {
         // In shogi, "no legal moves while in check" is checkmate.
         // If somehow not in check, treat it as a draw (stalemate-like).
-        return inCheck ? -ShogiAIImprovedV11.MATE + ply : 0;
+        return inCheck ? -ShogiAIImprovedV13.MATE + ply : 0;
       }
 
       const moves = allMoves;
@@ -684,9 +797,9 @@ export class ShogiAIImprovedV11 {
 
       // Mate-distance bounds:
       // Stabilize the search around mate scores and avoid searching outside possible mate-in-N ranges.
-      const alphaMate = -ShogiAIImprovedV11.MATE + ply;
+      const alphaMate = -ShogiAIImprovedV13.MATE + ply;
       if (alpha < alphaMate) alpha = alphaMate;
-      const betaMate = ShogiAIImprovedV11.MATE - ply;
+      const betaMate = ShogiAIImprovedV13.MATE - ply;
       if (beta > betaMate) beta = betaMate;
       if (alpha >= beta) return alpha;
 
@@ -740,7 +853,7 @@ export class ShogiAIImprovedV11 {
       if (moves.length === 0) {
         // In shogi, the loss condition is "no legal evasion while in check".
         // If not in check, treat it as a draw (stalemate-like, extremely rare in shogi).
-        return parentInCheck ? -ShogiAIImprovedV11.MATE + ply : 0;
+        return parentInCheck ? -ShogiAIImprovedV13.MATE + ply : 0;
       }
 
       this.scoreAndSortMoves(k, moves, ply, ttMoveKey, ttSecondMoveKey);
@@ -872,25 +985,33 @@ export class ShogiAIImprovedV11 {
     this.enableNullMove = difficulty === 'expert' || difficulty === 'master';
     this.nullMoveReduction = difficulty === 'master' ? 3 : 2;
     // Tuning notes:
-    // - Check extensions / delta pruning / contempt can be powerful but also risky; keep them off until tuned.
-    this.enableCheckExtension = difficulty === 'master';
-    this.checkExtensionMaxPly = 0; // root-only (ply=0)
+    // - Check extensions / delta pruning / contempt can be powerful but also risky; keep them bounded.
+    // - In shogi, forcing check sequences matter; a small bounded check extension improves tactics noticeably.
+    this.enableCheckExtension = difficulty === 'expert' || difficulty === 'master';
+    // Keep it small to avoid search explosion.
+    this.checkExtensionMaxPly = difficulty === 'master' ? 2 : difficulty === 'expert' ? 1 : 0;
     this.enableDeltaPruning = difficulty === 'master';
     // Keep the margin small (≈ 2 pawns) to avoid pruning away real tactics; this is purely a quiescence speed knob.
     this.deltaPruningMargin = this.enableDeltaPruning ? 200 : 0;
     this.drawContempt = 0;
-    this.enableQuiescenceChecks = difficulty === 'master';
+    this.enableQuiescenceChecks = difficulty === 'expert' || difficulty === 'master';
     if (this.enableQuiescenceChecks) {
       // Check-aware quiescence is useful for finding "quiet check" tactics near the horizon,
       // but it can also slow the engine significantly if we probe too many quiet moves.
       //
       // Tuning approach:
-      // - keep it enabled only on Level 5 (Master)
+      // - keep it enabled only on Level 4/5 (Expert/Master)
       // - bound the number of *actual checking moves searched*
       // - bound the number of *quiet moves probed for check* (most quiet moves aren't checks)
       const timeBudget = this.maxTimeMs;
-      this.quiescenceCheckMoveLimit = timeBudget >= 2000 ? 2 : 1;
-      this.quiescenceCheckTryLimit = timeBudget >= 2000 ? 8 : 2;
+      if (difficulty === 'master') {
+        this.quiescenceCheckMoveLimit = timeBudget >= 2000 ? 2 : 1;
+        this.quiescenceCheckTryLimit = timeBudget >= 2000 ? 12 : 4;
+      } else {
+        // Expert: smaller limits to keep responsiveness.
+        this.quiescenceCheckMoveLimit = 1;
+        this.quiescenceCheckTryLimit = timeBudget >= 2000 ? 6 : 2;
+      }
     } else {
       this.quiescenceCheckMoveLimit = 0;
       this.quiescenceCheckTryLimit = 0;
@@ -916,6 +1037,8 @@ export class ShogiAIImprovedV11 {
     for (let i = 0; i < position.hand.length; i++) handTotal += position.hand[i] | 0;
     this.rootHandTotal = handTotal;
     this.rootInCheck = GenerateMovesImproved.isKingInCheck(position, position.teban);
+    const selfKing = position.teban === SENTE ? position.kingS : position.kingG;
+    this.rootKingDanger = this.rootInCheck ? 999 : this.computeKingDanger(position, position.teban, selfKing);
 
     // Root fallback:
     // Even if the time budget is extremely small, we must return *some* legal move.
@@ -929,7 +1052,7 @@ export class ShogiAIImprovedV11 {
 	    this.scoreAndSortMoves(position, rootMoves, 0, ttMoveKeyAtRoot, ttSecondMoveKeyAtRoot);
 
     let bestMove: Te | null = rootMoves[0].clone();
-    let bestScore = -ShogiAIImprovedV11.INFINITE;
+    let bestScore = -ShogiAIImprovedV13.INFINITE;
     // Small 1-ply sanity selection among the top candidates (cheap but helps a lot under tight time limits).
     for (let i = 0; i < Math.min(6, rootMoves.length); i++) {
       const te = rootMoves[i];
@@ -959,14 +1082,14 @@ export class ShogiAIImprovedV11 {
         //
         // Benefit: fewer nodes on average at deeper depths because most searches stay inside the window.
         const useAspiration = this.enableAspiration && depth >= 2 && bestMove !== null;
-        const alpha0 = useAspiration ? bestScore - this.aspirationWindow : -ShogiAIImprovedV11.INFINITE;
-        const beta0 = useAspiration ? bestScore + this.aspirationWindow : ShogiAIImprovedV11.INFINITE;
+        const alpha0 = useAspiration ? bestScore - this.aspirationWindow : -ShogiAIImprovedV13.INFINITE;
+        const beta0 = useAspiration ? bestScore + this.aspirationWindow : ShogiAIImprovedV13.INFINITE;
 
         let score = this.search(position, depth, alpha0, beta0, 0);
         if (useAspiration && (score <= alpha0 || score >= beta0)) {
           // Fail-high/low: re-search full window to get an exact score and stable PV.
           this.resetRootBest();
-          score = this.search(position, depth, -ShogiAIImprovedV11.INFINITE, ShogiAIImprovedV11.INFINITE, 0);
+          score = this.search(position, depth, -ShogiAIImprovedV13.INFINITE, ShogiAIImprovedV13.INFINITE, 0);
         }
 
         const rootBest = this.rootBest;
@@ -977,7 +1100,7 @@ export class ShogiAIImprovedV11 {
         }
 
         // If a forced mate is found, stop early.
-        if (bestScore >= ShogiAIImprovedV11.MATE - 10_000) break;
+        if (bestScore >= ShogiAIImprovedV13.MATE - 10_000) break;
       } catch (e) {
         if (e instanceof TimeUpError) break;
         throw e;
@@ -989,7 +1112,7 @@ export class ShogiAIImprovedV11 {
     if (options.debug) {
       const elapsed = this.nowMs() - start;
       console.log(
-        `[ShogiAIImprovedV11] depth=${completedDepth}/${maxDepth} score=${bestScore} nodes=${this.node} leaves=${this.leaf} time=${Math.round(elapsed)}ms`
+        `[ShogiAIImprovedV13] depth=${completedDepth}/${maxDepth} score=${bestScore} nodes=${this.node} leaves=${this.leaf} time=${Math.round(elapsed)}ms`
       );
     }
 
@@ -999,14 +1122,14 @@ export class ShogiAIImprovedV11 {
 
 // Shared instance so the TT can persist across moves during a single game.
 // This noticeably improves strength at the same time budget because many positions reoccur (especially via transpositions).
-const sharedAIV11 = new ShogiAIImprovedV11();
+const sharedAIV13 = new ShogiAIImprovedV13();
 
 /**
  * Exported helper for UI/script compatibility.
  * (Not used by default UI; the main shogi page uses the V2 engine unless wired otherwise.)
  */
-export function getBestMoveV11(k: KyokumenImproved, teban: number, difficulty: Difficulty, tesu: number = 0): Te | null {
+export function getBestMoveV13(k: KyokumenImproved, teban: number, difficulty: Difficulty, tesu: number = 0): Te | null {
   // The UI passes `teban` explicitly; keep the position consistent.
   k.setTeban(teban);
-  return sharedAIV11.getNextTe(k, tesu, { difficulty });
+  return sharedAIV13.getNextTe(k, tesu, { difficulty });
 }

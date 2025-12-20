@@ -51,6 +51,7 @@ interface GameState {
   gameOver: boolean;
   winner: number | null;
   isAIThinking: boolean;
+  ply: number; // 0-based ply count from game start
 }
 
 const ShogiImproved = () => {
@@ -74,15 +75,16 @@ const ShogiImproved = () => {
     };
   }, []);
 
-  const [gameState, setGameState] = useState<GameState>({
-    kyokumen: InitialPositionImproved.createInitialPosition(),
-    selectedPosition: null,
-    selectedCapturedIndex: -1,
-    validMoves: [],
-    gameOver: false,
-    winner: null,
-    isAIThinking: false,
-  });
+	  const [gameState, setGameState] = useState<GameState>({
+	    kyokumen: InitialPositionImproved.createInitialPosition(),
+	    selectedPosition: null,
+	    selectedCapturedIndex: -1,
+	    validMoves: [],
+	    gameOver: false,
+	    winner: null,
+	    isAIThinking: false,
+	    ply: 0,
+	  });
 
   // Convert hand counts to arrays for UI compatibility
   const capturedPieces = React.useMemo(() => {
@@ -90,20 +92,21 @@ const ShogiImproved = () => {
   }, [gameState.kyokumen]);
 
   // Initialize game
-  const initGame = useCallback(() => {
+	  const initGame = useCallback(() => {
     // Invalidate any in-flight worker request.
     aiRequestIdRef.current++;
     workerRef.current?.clearTT();
 
-    setGameState({
-      kyokumen: InitialPositionImproved.createInitialPosition(),
-      selectedPosition: null,
-      selectedCapturedIndex: -1,
-      validMoves: [],
-      gameOver: false,
-      winner: null,
-      isAIThinking: false,
-    });
+	    setGameState({
+	      kyokumen: InitialPositionImproved.createInitialPosition(),
+	      selectedPosition: null,
+	      selectedCapturedIndex: -1,
+	      validMoves: [],
+	      gameOver: false,
+	      winner: null,
+	      isAIThinking: false,
+	      ply: 0,
+	    });
     setShowPromotionDialog(false);
     setPendingMove(null);
   }, []);
@@ -119,23 +122,24 @@ const ShogiImproved = () => {
   };
 
   // Execute move
-  const executeMove = (te: Te, promote: boolean) => {
-    const newKyokumen = gameState.kyokumen.clone();
-    te.promote = promote;
-    newKyokumen.move(te);
-    newKyokumen.setTeban(GOTE);
+	  const executeMove = (te: Te, promote: boolean) => {
+	    const newKyokumen = gameState.kyokumen.clone();
+	    te.promote = promote;
+	    newKyokumen.move(te);
+	    newKyokumen.setTeban(GOTE);
 
     const { isOver, winner } = checkGameOver(newKyokumen);
 
-    setGameState(prev => ({
-      ...prev,
-      kyokumen: newKyokumen,
-      selectedPosition: null,
-      selectedCapturedIndex: -1,
-      validMoves: [],
-      gameOver: isOver,
-      winner,
-    }));
+	    setGameState(prev => ({
+	      ...prev,
+	      kyokumen: newKyokumen,
+	      selectedPosition: null,
+	      selectedCapturedIndex: -1,
+	      validMoves: [],
+	      gameOver: isOver,
+	      winner,
+	      ply: prev.ply + 1,
+	    }));
 
     if (isOver && winner === SENTE) {
       setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
@@ -291,23 +295,24 @@ const ShogiImproved = () => {
 	          return;
 	        }
 
-	        if (!isWorkerDifficulty(difficulty)) {
-	          const aiMove = getBestMoveV11(gameState.kyokumen, GOTE, difficulty);
-	
-	          if (aiMove) {
-	            const newKyokumen = gameState.kyokumen.clone();
-	            newKyokumen.move(aiMove);
-            newKyokumen.setTeban(SENTE);
+		        if (!isWorkerDifficulty(difficulty)) {
+		          const aiMove = getBestMoveV11(gameState.kyokumen, GOTE, difficulty, gameState.ply);
+		
+		          if (aiMove) {
+		            const newKyokumen = gameState.kyokumen.clone();
+		            newKyokumen.move(aiMove);
+	            newKyokumen.setTeban(SENTE);
 
             const { isOver, winner } = checkGameOver(newKyokumen);
 
-            setGameState(prev => ({
-              ...prev,
-              kyokumen: newKyokumen,
-              isAIThinking: false,
-              gameOver: isOver,
-              winner,
-            }));
+	            setGameState(prev => ({
+	              ...prev,
+	              kyokumen: newKyokumen,
+	              isAIThinking: false,
+	              gameOver: isOver,
+	              winner,
+	              ply: prev.ply + 1,
+	            }));
 
             if (isOver && winner === GOTE) {
               setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
@@ -325,11 +330,11 @@ const ShogiImproved = () => {
           return;
         }
 
-        const worker = getWorker();
-        const position = serializeForWorker(gameState.kyokumen);
-        worker
-          .requestBestMove(position, difficulty)
-          .then((move) => {
+		        const worker = getWorker();
+		        const position = serializeForWorker(gameState.kyokumen);
+		        worker
+		          .requestBestMove(position, difficulty, gameState.ply)
+		          .then((move) => {
             if (aiRequestIdRef.current !== requestId) return;
 
             const aiMove = move ? convertWorkerMoveToImprovedTe(move) : null;
@@ -344,19 +349,20 @@ const ShogiImproved = () => {
               return;
             }
 
-            const newKyokumen = gameState.kyokumen.clone();
-            newKyokumen.move(aiMove);
-            newKyokumen.setTeban(SENTE);
+	            const newKyokumen = gameState.kyokumen.clone();
+	            newKyokumen.move(aiMove);
+	            newKyokumen.setTeban(SENTE);
 
             const { isOver, winner } = checkGameOver(newKyokumen);
 
-            setGameState(prev => ({
-              ...prev,
-              kyokumen: newKyokumen,
-              isAIThinking: false,
-              gameOver: isOver,
-              winner,
-            }));
+	            setGameState(prev => ({
+	              ...prev,
+	              kyokumen: newKyokumen,
+	              isAIThinking: false,
+	              gameOver: isOver,
+	              winner,
+	              ply: prev.ply + 1,
+	            }));
 
             if (isOver && winner === GOTE) {
               setStats(prev => ({ ...prev, losses: prev.losses + 1 }));

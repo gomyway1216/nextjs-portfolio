@@ -151,9 +151,12 @@ Adds:
 
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
 
-### Current default: `ShogiAIImprovedV11`
+### Current default: `ShogiAIImprovedV11` (Lv1-3)
 
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV11.ts`.
+
+Notes:
+- Lv4/Lv5 (Worker) uses `ShogiAIImprovedV12` via `src/components/game/ShogiImproved/shogi-ai.worker.ts`.
 
 It keeps V8’s tactics/order improvements and adds:
 
@@ -166,6 +169,17 @@ Adds:
 - **Root ordering cache** so the expensive root heuristics run once per move (faster + stronger under tight time budgets)
 - **Packed TT (V10+)**: stores move keys instead of cloning `Te` objects at most nodes (less GC, deeper search)
 - **Pooled move generation (V11)**: reuses `Te` objects per ply to reduce allocations (more nodes per time budget)
+
+### Experimental engine variant: `ShogiAIImprovedV12`
+
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV12.ts`.
+
+Adds:
+
+- **Hanging-drop safety ordering (all plies)**: mildly penalizes immediately-capturable, undefended drops to reduce ineffective piece drops
+- **Opening pressure gating**: reduces castling/development ordering bias when the king is already under pressure (prevents “castle while dying” behavior)
+
+This variant is currently used for Lv4/Lv5 Worker searches (higher time budgets), and is also available for A/B testing via `npm run shogi:match`.
 
 ---
 

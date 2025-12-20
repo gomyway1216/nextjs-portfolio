@@ -16,7 +16,7 @@
 
 	import { KyokumenImproved } from './KyokumenImproved';
 	import { getOpeningMoveImproved } from './OpeningBookImproved';
-		import { ShogiAIImprovedV11 } from './ShogiAIImprovedV11';
+		import { ShogiAIImprovedV12 } from './ShogiAIImprovedV12';
 	import { Difficulty } from '../common/types';
 
 export type SerializedKyokumenImproved = {
@@ -42,14 +42,14 @@ export type SerializedTeImproved = {
 };
 
 type WorkerRequest =
-  | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty }
+  | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty; tesu: number }
   | { type: 'clearTT' };
 
 type WorkerResponse =
   | { type: 'bestMoveResult'; id: number; move: SerializedTeImproved | null }
   | { type: 'error'; id: number; message: string };
 
-		const ai = new ShogiAIImprovedV11();
+		const ai = new ShogiAIImprovedV12();
 
 const ctx: {
   postMessage: (message: WorkerResponse) => void;
@@ -92,10 +92,10 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
 	  try {
 	    const k = buildPosition(msg.position);
 	    const book = getOpeningMoveImproved(k, msg.difficulty);
-	    const best = book ?? ai.getNextTe(k, 0, { difficulty: msg.difficulty });
-	    const move: SerializedTeImproved | null = best
-	      ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
-	      : null;
+		    const best = book ?? ai.getNextTe(k, msg.tesu | 0, { difficulty: msg.difficulty });
+		    const move: SerializedTeImproved | null = best
+		      ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
+		      : null;
 
     ctx.postMessage({ type: 'bestMoveResult', id: msg.id, move });
   } catch (e) {

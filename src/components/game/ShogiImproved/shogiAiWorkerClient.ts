@@ -11,7 +11,7 @@ import { Difficulty } from '../common/types';
 import type { SerializedKyokumenImproved, SerializedTeImproved } from './shogi-ai.worker';
 
 type WorkerRequest =
-  | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty }
+  | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty; tesu: number }
   | { type: 'clearTT' };
 
 type WorkerResponse =
@@ -21,7 +21,11 @@ type WorkerResponse =
 export type { SerializedKyokumenImproved, SerializedTeImproved };
 
 export interface ShogiAiWorkerClient {
-  requestBestMove: (position: SerializedKyokumenImproved, difficulty: Difficulty) => Promise<SerializedTeImproved | null>;
+  requestBestMove: (
+    position: SerializedKyokumenImproved,
+    difficulty: Difficulty,
+    tesu: number
+  ) => Promise<SerializedTeImproved | null>;
   clearTT: () => void;
   terminate: () => void;
 }
@@ -66,11 +70,11 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
   };
 
   return {
-    requestBestMove(position: SerializedKyokumenImproved, difficulty: Difficulty) {
+    requestBestMove(position: SerializedKyokumenImproved, difficulty: Difficulty, tesu: number) {
       const id = nextId++;
       return new Promise<SerializedTeImproved | null>((resolve, reject) => {
         pending.set(id, { resolve, reject });
-        const req: WorkerRequest = { type: 'bestMove', id, position, difficulty };
+        const req: WorkerRequest = { type: 'bestMove', id, position, difficulty, tesu: tesu | 0 };
         worker.postMessage(req);
       });
     },
@@ -84,4 +88,3 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
     },
   };
 }
-

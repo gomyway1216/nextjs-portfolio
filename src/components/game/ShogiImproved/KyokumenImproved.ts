@@ -19,6 +19,25 @@ import {
  */
 
 export class KyokumenImproved {
+  private static readonly EVAL_V3_SHIFT = 7; // fixed-point scale: 1.0 === 1<<7
+  private static readonly EVAL_V3_HALF = 1 << (KyokumenImproved.EVAL_V3_SHIFT - 1);
+  // Phase buckets are indexed as: 0=endgame ... 3=opening (based on total captured pieces in hand).
+  // Weights are scaled by 1<<EVAL_V3_SHIFT (128).
+  // - Keep opening heuristics strong in the opening (weight=128) so shallow searches avoid basic disasters.
+  // - Gradually down-weight them as trades accumulate so they don't dominate mid/endgame evaluation.
+  private static readonly EVAL_V3_PSQT_W = new Int16Array([96, 112, 128, 160]);
+  private static readonly EVAL_V3_CASTLE_W = new Int16Array([32, 64, 96, 128]);
+  private static readonly EVAL_V3_FILE_DEFENSE_W = new Int16Array([32, 64, 96, 128]);
+  private static readonly EVAL_V3_PROMO_THREAT_W = new Int16Array([64, 96, 112, 128]);
+
+  private static scaleEvalV3(value: number, weight: number): number {
+    // `weight` is fixed-point with denominator 1<<EVAL_V3_SHIFT (128).
+    // Use symmetric rounding so negative values don't bias toward 0.
+    const product = Math.imul(value | 0, weight | 0);
+    return product >= 0
+      ? (product + KyokumenImproved.EVAL_V3_HALF) >> KyokumenImproved.EVAL_V3_SHIFT
+      : (product - KyokumenImproved.EVAL_V3_HALF) >> KyokumenImproved.EVAL_V3_SHIFT;
+  }
   // Board array (1D array with encoding (suji<<4)+dan)
   ban: number[];
 
@@ -597,6 +616,57 @@ export class KyokumenImproved {
   }
 
   /**
+   * Tuned evaluation (v3).
+   *
+   * Goal:
+   * - Improve stability/variety in human-like openings without slowing the engine down.
+   *
+   * Approach:
+   * - Keep the exact same evaluation terms as v2.
+   * - Reweight only the two most opening-specific (and previously "spiky") heuristics by phase:
+   *   - file defense
+   *   - promotion threats
+   *
+   * Performance:
+   * - No new board scans vs v2; this is only phase-aware scaling.
+   */
+  evaluateV3(): number {
+    // Base: material + the same lightweight terms as v2.
+    let score = this.eval | 0;
+
+    // Phase proxy: total number of captured pieces in both hands.
+    // - opening: few trades (low counts)
+    // - endgame: many trades (high counts)
+    const handTotal = this.totalHandPieces();
+    const phaseBucket = handTotal <= 2 ? 3 : handTotal <= 6 ? 2 : handTotal <= 10 ? 1 : 0;
+    const phase = this.openingPhaseFactorFromHand(handTotal);
+
+    score += KyokumenImproved.scaleEvalV3(
+      this.psqtEval | 0,
+      KyokumenImproved.EVAL_V3_PSQT_W[phaseBucket] ?? 128
+    );
+    score += this.evaluateHandBonus() | 0;
+    score += this.evaluateKingSafetyV2WithPhase(phase) | 0;
+    score += KyokumenImproved.scaleEvalV3(
+      this.evaluateCastleShapes() | 0,
+      KyokumenImproved.EVAL_V3_CASTLE_W[phaseBucket] ?? 128
+    );
+    score += this.evaluateMajorPieceActivity() | 0;
+
+    // Phase-aware scaling for large opening heuristics.
+    score += KyokumenImproved.scaleEvalV3(
+      this.evaluateFileDefense() | 0,
+      KyokumenImproved.EVAL_V3_FILE_DEFENSE_W[phaseBucket] ?? 0
+    );
+    score += KyokumenImproved.scaleEvalV3(
+      this.evaluatePromotionThreats() | 0,
+      KyokumenImproved.EVAL_V3_PROMO_THREAT_W[phaseBucket] ?? 0
+    );
+
+    return score;
+  }
+
+  /**
    * Castle (囲い) evaluation.
    *
    * Why this exists:
@@ -843,13 +913,17 @@ export class KyokumenImproved {
    * - When the king is under pressure (enemy pieces close), reduce the "castle-building" incentive so defense/tactics take priority.
    */
   private evaluateKingSafetyV2(): number {
+    return this.evaluateKingSafetyV2WithPhase(this.openingPhaseFactor());
+  }
+
+  private evaluateKingSafetyV2WithPhase(phase: number): number {
     let score = 0;
 
     if (this.kingS <= 0) return -50_000;
     if (this.kingG <= 0) return 50_000;
 
-    score += this.evaluateOneKingSafetyV2(SENTE, this.kingS);
-    score -= this.evaluateOneKingSafetyV2(GOTE, this.kingG);
+    score += this.evaluateOneKingSafetyV2(SENTE, this.kingS, phase);
+    score -= this.evaluateOneKingSafetyV2(GOTE, this.kingG, phase);
     return score;
   }
 
@@ -866,7 +940,10 @@ export class KyokumenImproved {
     // - Opening: few trades (low hand counts)
     // - Midgame: moderate trades
     // - Endgame: many trades
-    const hand = this.totalHandPieces();
+    return this.openingPhaseFactorFromHand(this.totalHandPieces());
+  }
+
+  private openingPhaseFactorFromHand(hand: number): number {
     if (hand <= 2) return 1.0;
     if (hand <= 6) return 0.7;
     if (hand <= 10) return 0.45;
@@ -906,7 +983,7 @@ export class KyokumenImproved {
     return danger;
   }
 
-  private evaluateOneKingSafetyV2(teban: number, kingPos: number): number {
+  private evaluateOneKingSafetyV2(teban: number, kingPos: number, phase: number): number {
     const suji = kingPos >> 4;
     const dan = kingPos & 0x0f;
 
@@ -1000,7 +1077,6 @@ export class KyokumenImproved {
     }
 
     // 3) Phase-aware "castle progress" incentive with diminishing returns.
-    const phase = this.openingPhaseFactor();
     const distFromCenter = Math.abs(suji - 5) + Math.abs(dan - 5);
 
     // Home-camp bonus (opening only): keep the king out of the center early.

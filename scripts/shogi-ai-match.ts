@@ -19,7 +19,7 @@ import { ShogiAIImprovedV12 } from '../src/components/game/ShogiImproved/ShogiAI
 import { ShogiAIImprovedV13 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV13';
 import { EMPTY, FU, GOTE, OU, SENTE, Te, getKomashu } from '../src/components/game/ShogiImproved/types';
 
-type EvalMode = 'v1' | 'v2';
+type EvalMode = 'v1' | 'v2' | 'v3';
 type EngineName = 'v2' | 'v3' | 'v4' | 'v5' | 'v6' | 'v7' | 'v8' | 'v9' | 'v10' | 'v11' | 'v12' | 'v13';
 type OpeningMode = 'none' | 'random' | 'quiet' | 'curated';
 
@@ -38,6 +38,7 @@ interface MatchConfig {
   engineB: EngineName;
   evalA: EvalMode; // "baseline" or "new"
   evalB: EvalMode;
+  traceEval: EvalMode;
   seed: number;
   openingPlies: number;
   openingMode: OpeningMode;
@@ -45,6 +46,7 @@ interface MatchConfig {
   graphAll: boolean;
   graphOutDir: string;
   swapColors: boolean;
+  quiet: boolean;
   verbose: boolean;
 }
 
@@ -79,7 +81,7 @@ function parseEngineArg(value: string | undefined, fallback: EngineName): Engine
 }
 
 function parseEvalArg(value: string | undefined, fallback: EvalMode): EvalMode {
-  if (value === 'v1' || value === 'v2') return value;
+  if (value === 'v1' || value === 'v2' || value === 'v3') return value;
   return fallback;
 }
 
@@ -133,6 +135,7 @@ function parseArgs(argv: string[]): MatchConfig {
   const engineB = parseEngineArg(argMap.get('engineB'), 'v5');
   const evalA = parseEvalArg(argMap.get('evalA'), 'v2');
   const evalB = parseEvalArg(argMap.get('evalB'), 'v2');
+  const traceEval = parseEvalArg(argMap.get('traceEval'), 'v3');
   const seed = parseIntArg(argMap.get('seed'), 1);
   const openingPlies = Math.max(0, parseIntArg(argMap.get('openingPlies'), 0));
   const openingMode =
@@ -148,6 +151,12 @@ function parseArgs(argv: string[]): MatchConfig {
     graphValue === 'yes' ||
     graphValue === 'on';
   const graphOutDir = argMap.get('graphOutDir') || 'scripts/shogi-ai-match-output';
+  const quietValue = argMap.get('quiet');
+  const quiet =
+    quietValue === 'true' ||
+    quietValue === '1' ||
+    quietValue === 'yes' ||
+    quietValue === 'on';
   const verboseValue = argMap.get('verbose');
   const verbose =
     verboseValue === 'true' ||
@@ -167,6 +176,7 @@ function parseArgs(argv: string[]): MatchConfig {
     engineB,
     evalA,
     evalB,
+    traceEval,
     seed,
     openingPlies,
     openingMode,
@@ -174,12 +184,28 @@ function parseArgs(argv: string[]): MatchConfig {
     graphAll,
     graphOutDir,
     swapColors: argMap.get('swapColors') !== 'false',
+    quiet,
     verbose,
   };
 }
 
 function otherSide(teban: number): number {
   return teban === SENTE ? GOTE : SENTE;
+}
+
+function evaluateSente(k: KyokumenImproved, mode: EvalMode): number {
+  switch (mode) {
+    case 'v1':
+      return k.evaluateV1();
+    case 'v2':
+      return k.evaluate();
+    case 'v3':
+      return k.evaluateV3();
+    default: {
+      const exhaustive: never = mode;
+      return exhaustive;
+    }
+  }
 }
 
 type GameResult =
@@ -283,7 +309,7 @@ function playOneGame(
   const k = InitialPositionImproved.createInitialPosition();
   k.setTeban(SENTE);
 
-  const trace: GameTrace = { evalByPly: [k.evaluate()], moves: [] };
+  const trace: GameTrace = { evalByPly: [evaluateSente(k, config.traceEval)], moves: [] };
 
   // Apply the fixed opening line first (same for both engines).
   for (const openingMove of openingMoves) {
@@ -297,7 +323,7 @@ function playOneGame(
     trace.moves.push(te.toString());
     k.move(te);
     k.toggleTeban();
-    trace.evalByPly.push(k.evaluate());
+    trace.evalByPly.push(evaluateSente(k, config.traceEval));
   }
 
   const repetitionCount = new Map<number, number>();
@@ -341,7 +367,7 @@ function playOneGame(
     trace.moves.push(move.toString());
     k.move(move);
     k.toggleTeban();
-    trace.evalByPly.push(k.evaluate());
+    trace.evalByPly.push(evaluateSente(k, config.traceEval));
   }
 
   return { outcome: 'draw', plies: config.maxPlies, reason: 'maxPlies', trace };
@@ -598,7 +624,7 @@ function createEngine(name: EngineName): EngineInstance {
 function main(): void {
   const config = parseArgs(process.argv.slice(2));
 
-  console.log('[shogi-ai-match] config:', config);
+  if (!config.quiet) console.log('[shogi-ai-match] config:', config);
 
   let aWins = 0;
   let bWins = 0;
@@ -644,14 +670,16 @@ function main(): void {
     const labelA = `${config.engineA}/${config.evalA}${swap ? '(GOTE)' : '(SENTE)'}`;
     const labelB = `${config.engineB}/${config.evalB}${swap ? '(SENTE)' : '(GOTE)'}`;
 
-    if (result.outcome === 'win') {
-      console.log(
-        `game ${gameIndex + 1}/${config.games}: ${labelA} vs ${labelB} => WIN ${formatSide(result.winner)} (${result.reason}) plies=${result.plies}`
-      );
-    } else {
-      console.log(
-        `game ${gameIndex + 1}/${config.games}: ${labelA} vs ${labelB} => DRAW (${result.reason}) plies=${result.plies}`
-      );
+    if (!config.quiet) {
+      if (result.outcome === 'win') {
+        console.log(
+          `game ${gameIndex + 1}/${config.games}: ${labelA} vs ${labelB} => WIN ${formatSide(result.winner)} (${result.reason}) plies=${result.plies}`
+        );
+      } else {
+        console.log(
+          `game ${gameIndex + 1}/${config.games}: ${labelA} vs ${labelB} => DRAW (${result.reason}) plies=${result.plies}`
+        );
+      }
     }
 
     const shouldGraph = config.graph && (config.graphAll || gameIndex === 0);

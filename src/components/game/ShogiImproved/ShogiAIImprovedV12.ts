@@ -72,10 +72,11 @@ export interface ShogiAISearchOptions {
 
   /**
    * Evaluation profile selector.
-   * - `v2` is the default and includes stronger king-safety/castling heuristics.
+   * - `v3` is the tuned default (same cost, more stable openings).
+   * - `v2` is the previous default and includes stronger king-safety/castling heuristics.
    * - `v1` is kept for regression/self-play comparisons.
    */
-  evaluationMode?: 'v1' | 'v2';
+  evaluationMode?: 'v1' | 'v2' | 'v3';
 }
 
 class TimeUpError extends Error {
@@ -106,13 +107,15 @@ class TimeUpError extends Error {
   private evalCacheValV1: Int32Array;
   private evalCacheKeyV2: Int32Array;
   private evalCacheValV2: Int32Array;
+  private evalCacheKeyV3: Int32Array;
+  private evalCacheValV3: Int32Array;
 
   private leaf = 0;
   private node = 0;
   private startTime = 0;
   private maxTimeMs = 0;
   private quiescenceDepthMax = 0;
-  private evaluationMode: 'v1' | 'v2' = 'v2';
+  private evaluationMode: 'v1' | 'v2' | 'v3' = 'v3';
 
   // Repetition handling (sennichite) within the current search path.
   // HashVal already includes side-to-move, so a repeated `HashVal` means an actual repetition state.
@@ -174,9 +177,12 @@ class TimeUpError extends Error {
     this.evalCacheValV1 = new Int32Array(ShogiAIImprovedV12.EVAL_CACHE_SIZE);
     this.evalCacheKeyV2 = new Int32Array(ShogiAIImprovedV12.EVAL_CACHE_SIZE);
     this.evalCacheValV2 = new Int32Array(ShogiAIImprovedV12.EVAL_CACHE_SIZE);
+    this.evalCacheKeyV3 = new Int32Array(ShogiAIImprovedV12.EVAL_CACHE_SIZE);
+    this.evalCacheValV3 = new Int32Array(ShogiAIImprovedV12.EVAL_CACHE_SIZE);
 
     this.evalCacheKeyV1.fill(ShogiAIImprovedV12.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV2.fill(ShogiAIImprovedV12.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV3.fill(ShogiAIImprovedV12.EVAL_CACHE_SENTINEL);
   }
 
   clearTT(): void {
@@ -184,6 +190,7 @@ class TimeUpError extends Error {
     // Also clear eval caches for reproducibility across games (optional but helps deterministic benchmarks).
     this.evalCacheKeyV1.fill(ShogiAIImprovedV12.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV2.fill(ShogiAIImprovedV12.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV3.fill(ShogiAIImprovedV12.EVAL_CACHE_SENTINEL);
   }
 
   getStats(): { nodes: number; leaves: number; ttUsage: number } {
@@ -249,10 +256,19 @@ class TimeUpError extends Error {
       return value;
     }
 
-    if (this.evalCacheKeyV2[index] === key) return this.evalCacheValV2[index] | 0;
-    const value = k.evaluate() | 0;
-    this.evalCacheKeyV2[index] = key;
-    this.evalCacheValV2[index] = value;
+    if (this.evaluationMode === 'v2') {
+      if (this.evalCacheKeyV2[index] === key) return this.evalCacheValV2[index] | 0;
+      const value = k.evaluate() | 0;
+      this.evalCacheKeyV2[index] = key;
+      this.evalCacheValV2[index] = value;
+      return value;
+    }
+
+    // v3
+    if (this.evalCacheKeyV3[index] === key) return this.evalCacheValV3[index] | 0;
+    const value = k.evaluateV3() | 0;
+    this.evalCacheKeyV3[index] = key;
+    this.evalCacheValV3[index] = value;
     return value;
   }
 
@@ -946,7 +962,7 @@ class TimeUpError extends Error {
 	    const depthCap = maxTimeMs > 0 ? 32 : defaults.maxDepth;
 	    const maxDepth = Math.max(1, Math.min(options.maxDepth ?? depthCap, 32));
 	    this.quiescenceDepthMax = Math.max(0, options.quiescenceDepthMax ?? defaults.quiescenceDepthMax);
-    this.evaluationMode = options.evaluationMode ?? 'v2';
+    this.evaluationMode = options.evaluationMode ?? 'v3';
 
     // Enable extra search techniques only for higher levels to keep Levels 1-3 stable.
     this.enableAspiration = difficulty === 'hard' || difficulty === 'expert' || difficulty === 'master';

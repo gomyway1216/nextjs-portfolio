@@ -19,7 +19,7 @@ Call flow:
 2. `src/components/game/Shogi/ShogiAI.ts`:
    - uses opening book for the first 12 plies (`getOpeningMoveComprehensive()`)
    - converts `Kyokumen` → `KyokumenImproved`
-   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV11.ts` (default)
+   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV12.ts` (default)
    - converts the chosen move back to UI `Te`
 
 This keeps the existing UI logic (and opening book) intact, but replaces the slow clone-heavy search with a much faster make/unmake engine.
@@ -59,9 +59,9 @@ Additionally, the TT key now includes **side-to-move (`teban`)**:
 
 ---
 
-## 2) The Search Algorithm (ShogiAIImprovedV11 default)
+## 2) The Search Algorithm (ShogiAIImprovedV12 default)
 
-Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV11.ts`.
+Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV12.ts`.
 
 The original “base” implementation is still available as:
 - `src/components/game/ShogiImproved/ShogiAIImproved.ts` (V2)
@@ -100,7 +100,7 @@ Difficulty maps to a time budget and depth cap in `ShogiAIImproved.getNextTe()`:
 - master: `maxDepth <= 12`, `maxTimeMs ~= 10000ms` (runs in a Web Worker)
 
 You can tune this in:
-- `src/components/game/ShogiImproved/ShogiAIImprovedV11.ts` (defaults in `getNextTe()`)
+- `src/components/game/ShogiImproved/ShogiAIImprovedV12.ts` (defaults in `getNextTe()`)
 - UI text in:
   - `src/components/game/Shogi/Shogi.tsx`
   - `src/components/game/ShogiImproved/ShogiImproved.tsx`
@@ -151,35 +151,34 @@ Adds:
 
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
 
-### Current default: `ShogiAIImprovedV11` (Lv1-3)
-
-Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV11.ts`.
-
-Notes:
-- Lv4/Lv5 (Worker) uses `ShogiAIImprovedV12` via `src/components/game/ShogiImproved/shogi-ai.worker.ts`.
-
-It keeps V8’s tactics/order improvements and adds:
-
-Adds:
-
-- **Root-only check extensions (Master)** to improve tactical accuracy on forcing lines
-- **Root-only drop-safety ordering** using cheap attack tests to penalize hanging drops
-- **Opening-aware root move ordering** (quiet development + 1-step pawn pushes) to reduce “random-looking” openings when the book doesn’t apply
-- **Root SEE-lite / “hanging” ordering** (bounded) to reduce obviously losing drops/loose moves without slowing the full tree
-- **Root ordering cache** so the expensive root heuristics run once per move (faster + stronger under tight time budgets)
-- **Packed TT (V10+)**: stores move keys instead of cloning `Te` objects at most nodes (less GC, deeper search)
-- **Pooled move generation (V11)**: reuses `Te` objects per ply to reduce allocations (more nodes per time budget)
-
-### Experimental engine variant: `ShogiAIImprovedV12`
+### Current default: `ShogiAIImprovedV12` (Lv1-5)
 
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV12.ts`.
 
+Notes:
+- Lv4/Lv5 still run in a Web Worker (`src/components/game/ShogiImproved/shogi-ai.worker.ts`) to avoid blocking the UI.
+- V11 is kept as a stable baseline for A/B testing (`src/components/game/ShogiImproved/ShogiAIImprovedV11.ts`).
+
 Adds:
 
+- Inherits V11’s improvements:
+  - **Root-only check extensions (Master)** to improve tactical accuracy on forcing lines
+  - **Root-only drop-safety ordering** using cheap attack tests to penalize hanging drops
+  - **Opening-aware root move ordering** (quiet development + 1-step pawn pushes) to reduce “random-looking” openings when the book doesn’t apply
+  - **Root SEE-lite / “hanging” ordering** (bounded) to reduce obviously losing drops/loose moves without slowing the full tree
+  - **Root ordering cache** so the expensive root heuristics run once per move (faster + stronger under tight time budgets)
+  - **Packed TT (V10+)**: stores move keys instead of cloning `Te` objects at most nodes (less GC, deeper search)
+  - **Pooled move generation (V11)**: reuses `Te` objects per ply to reduce allocations (more nodes per time budget)
 - **Hanging-drop safety ordering (all plies)**: mildly penalizes immediately-capturable, undefended drops to reduce ineffective piece drops
 - **Opening pressure gating**: reduces castling/development ordering bias when the king is already under pressure (prevents “castle while dying” behavior)
 
-This variant is currently used for Lv4/Lv5 Worker searches (higher time budgets), and is also available for A/B testing via `npm run shogi:match`.
+### Experimental engine variant: `ShogiAIImprovedV13`
+
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV13.ts`.
+
+Notes:
+- This is an experimental branch used for testing more aggressive search ideas.
+- In self-play it has been **less stable / weaker** than V11/V12, so it is **not** wired into the UI defaults.
 
 ---
 
@@ -188,7 +187,7 @@ This variant is currently used for Lv4/Lv5 Worker searches (higher time budgets)
 `src/components/game/ShogiImproved/KyokumenImproved.ts` implements evaluation as:
 
 - incremental material (`eval`, SENTE perspective)
-- incremental **piece-square table** term (`psqtEval`, SENTE perspective) used by `evaluate()` (v2 only)
+- incremental **piece-square table** term (`psqtEval`, SENTE perspective)
 - small **hand bonus** (pieces-in-hand are flexible due to drops)
 - **file defense** heuristics (prevents immediate opening disasters)
 - **promotion threats** heuristics
@@ -197,6 +196,17 @@ Additional lightweight terms:
 - **king safety** (defenders around king + basic shelter)
 - **castle shapes (囲い)** (small bonuses for coherent king safety plans like 美濃/矢倉/穴熊)
 - **major piece activity** (rook/bishop mobility + lines toward enemy king)
+
+### Evaluation modes
+
+- `evaluateV1()`:
+  - baseline used for regression/self-play comparisons
+- `evaluate()` (v2):
+  - full evaluation (material + PSQT + king safety v2 + castle shapes + activity + opening heuristics)
+- `evaluateV3()`:
+  - tuned weights (same terms, same computational structure)
+  - phase-aware scaling so opening-only heuristics (file defense / promotion threats) don’t dominate mid/endgame
+  - keeps opening weights strong to avoid shallow-search blunders
 
 The evaluation is intentionally simple: most strength comes from deeper search + better ordering.
 

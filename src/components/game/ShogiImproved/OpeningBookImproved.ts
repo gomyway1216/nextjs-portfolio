@@ -54,7 +54,7 @@ function moveKey(te: Te): string {
 }
 
 function evalForSideToMove(k: KyokumenImproved): number {
-  const evalSente = k.evaluate();
+  const evalSente = k.evaluateV3();
   return k.teban === SENTE ? evalSente : -evalSente;
 }
 

@@ -56,10 +56,11 @@ export interface ShogiAISearchOptions {
 
   /**
    * Evaluation profile selector.
-   * - `v2` is the default and includes stronger king-safety/castling heuristics.
+   * - `v3` is the tuned default (same cost, more stable openings).
+   * - `v2` is the previous default and includes stronger king-safety/castling heuristics.
    * - `v1` is kept for regression/self-play comparisons.
    */
-  evaluationMode?: 'v1' | 'v2';
+  evaluationMode?: 'v1' | 'v2' | 'v3';
 }
 
 class TimeUpError extends Error {
@@ -85,7 +86,7 @@ export class ShogiAIImproved {
   private startTime = 0;
   private maxTimeMs = 0;
   private quiescenceDepthMax = 0;
-  private evaluationMode: 'v1' | 'v2' = 'v2';
+  private evaluationMode: 'v1' | 'v2' | 'v3' = 'v3';
 
   // Extra strength/speed knobs (enabled by higher difficulties).
   private enableAspiration = false;
@@ -156,7 +157,12 @@ export class ShogiAIImproved {
   private evalForSideToMove(k: KyokumenImproved): number {
     // `KyokumenImproved.evaluate()` is a SENTE-centric score.
     // Negamax wants "side to move" centric scoring, so we flip the sign when it's GOTE's turn.
-    const evalSente = this.evaluationMode === 'v1' ? k.evaluateV1() : k.evaluate();
+    const evalSente =
+      this.evaluationMode === 'v1'
+        ? k.evaluateV1()
+        : this.evaluationMode === 'v2'
+          ? k.evaluate()
+          : k.evaluateV3();
     return k.teban === SENTE ? evalSente : -evalSente;
   }
 
@@ -421,7 +427,7 @@ export class ShogiAIImproved {
     const maxDepth = Math.max(1, Math.min(options.maxDepth ?? defaults.maxDepth, 32));
     this.maxTimeMs = options.maxTimeMs ?? defaults.maxTimeMs;
     this.quiescenceDepthMax = Math.max(0, options.quiescenceDepthMax ?? defaults.quiescenceDepthMax);
-    this.evaluationMode = options.evaluationMode ?? 'v2';
+    this.evaluationMode = options.evaluationMode ?? 'v3';
 
     // Enable extra search techniques only for higher levels to keep Levels 1-3 stable.
     this.enableAspiration = difficulty === 'hard' || difficulty === 'expert' || difficulty === 'master';
@@ -445,7 +451,13 @@ export class ShogiAIImproved {
     // Search on a clone to guarantee we never mutate the caller's position.
     const position = k.clone();
 
-    let bestMove: Te | null = null;
+    // Root fallback:
+    // Even if the time budget is extremely small, we must return *some* legal move.
+    // This avoids "null move" timeouts (UI/match harness) and makes benchmarks more stable.
+    const rootMoves = GenerateMovesImproved.generateLegalMoves(position);
+    if (rootMoves.length === 0) return null;
+    this.scoreAndSortMoves(position, rootMoves, 0, 0);
+    let bestMove: Te | null = rootMoves[0]!.clone();
     let bestScore = -ShogiAIImproved.INFINITE;
     let completedDepth = 0;
 

@@ -72,6 +72,7 @@ export interface DaifugoNetworkState {
   jackBack: boolean;
   lockSignature: string | null;
   lastPlaySignature: string | null;
+  gekishibaNextRank: number | null; // 激縛り: expected next rank when active
   startedAt: number;
   log: DaifugoLogEntry[];
   lastUpdate: number;
@@ -84,6 +85,7 @@ export type DaifugoAction =
     playerId: string;
     cardIds: string[];
     giveCardIds?: string[];
+    discardCardIds?: string[]; // 10捨て用
     timestamp: number;
   }
   | {

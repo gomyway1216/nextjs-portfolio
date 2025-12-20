@@ -25,24 +25,28 @@ export interface DaifugoRules {
   eightCut: boolean;
   elevenBack: boolean;
   shibari: boolean;
+  gekishiba: boolean; // 激縛り: same suit + consecutive rank locks to exact sequence
   spade3BeatsJoker: boolean;
   revolutionByFour: boolean;
   agariKinshi: boolean;
   capitalFall: boolean;
   fiveSkip: boolean;
   sevenGive: boolean;
+  tenDiscard: boolean; // 10捨て: playing 10 lets you discard cards
 }
 
 export const DEFAULT_RULES: DaifugoRules = {
   eightCut: true,
   elevenBack: true,
   shibari: true,
+  gekishiba: true,
   spade3BeatsJoker: true,
   revolutionByFour: true,
   agariKinshi: true,
   capitalFall: true,
   fiveSkip: true,
   sevenGive: true,
+  tenDiscard: true,
 };
 
 export type DaifugoPlayShape =
@@ -57,6 +61,7 @@ export type DaifugoPlayShape =
     containsJack: boolean;
     containsFive: boolean;
     containsSeven: boolean;
+    containsTen: boolean;
   }
   | {
     kind: 'straight';
@@ -70,6 +75,7 @@ export type DaifugoPlayShape =
     containsJack: boolean;
     containsFive: boolean;
     containsSeven: boolean;
+    containsTen: boolean;
   };
 
 function createId(prefix: string): string {
@@ -164,6 +170,7 @@ export function getPlayShape(cards: Card[]): DaifugoPlayShape | null {
   const containsJack = cards.some(c => !isJoker(c) && c.rank === 11);
   const containsFive = cards.some(c => !isJoker(c) && c.rank === 5);
   const containsSeven = cards.some(c => !isJoker(c) && c.rank === 7);
+  const containsTen = cards.some(c => !isJoker(c) && c.rank === 10);
 
   if (cards.length === 1) {
     const card = cards[0]!;
@@ -179,6 +186,7 @@ export function getPlayShape(cards: Card[]): DaifugoPlayShape | null {
         containsJack,
         containsFive,
         containsSeven,
+        containsTen,
       };
     }
 
@@ -194,6 +202,7 @@ export function getPlayShape(cards: Card[]): DaifugoPlayShape | null {
       containsJack,
       containsFive,
       containsSeven,
+      containsTen,
     };
   }
 
@@ -210,6 +219,7 @@ export function getPlayShape(cards: Card[]): DaifugoPlayShape | null {
       containsJack,
       containsFive,
       containsSeven,
+      containsTen,
     };
   }
 
@@ -233,6 +243,7 @@ export function getPlayShape(cards: Card[]): DaifugoPlayShape | null {
         containsJack,
         containsFive,
         containsSeven,
+        containsTen,
       };
     }
   }
@@ -432,6 +443,7 @@ export function createInitialDaifugoState(
     jackBack: false,
     lockSignature: null,
     lastPlaySignature: null,
+    gekishibaNextRank: null,
     startedAt,
     log,
     lastUpdate: startedAt,
@@ -508,6 +520,17 @@ function canPlayOnPile(
     // Joker ignores shibari
     if (!(play.kind === 'group' && play.isJokerSingle)) {
       return { ok: false, error: 'Shibari: suit locked' };
+    }
+  }
+
+  // 激縛り (gekishiba) - must play exact next rank
+  if (rules.gekishiba && state.gekishibaNextRank !== null) {
+    // Joker cannot satisfy gekishiba
+    if (play.kind === 'group' && play.isJokerSingle) {
+      return { ok: false, error: '激縛り中はジョーカーは出せません' };
+    }
+    if (play.rankKey !== state.gekishibaNextRank) {
+      return { ok: false, error: `激縛り: ${state.gekishibaNextRank}のみ出せます` };
     }
   }
 
@@ -593,6 +616,7 @@ export function applyAction(
           jackBack: false,
           lockSignature: null,
           lastPlaySignature: null,
+          gekishibaNextRank: null,
           log: [...state.log, logEntry, trickEndEntry],
           lastUpdate: Date.now(),
         },
@@ -652,6 +676,21 @@ export function applyAction(
     newHands[toPlayerId] = sortHand([...(newHands[toPlayerId] ?? []), ...selectedGiveCards]);
   }
 
+  // 10捨て (ten discard): playing 10 lets you discard cards equal to the number of 10s
+  if (rules.tenDiscard && shape.containsTen && shape.kind === 'group' && remainingHand.length > 0) {
+    const discardCount = Math.min(shape.count, remainingHand.length);
+    const discardIds = action.discardCardIds?.slice(0, discardCount) ?? [];
+
+    if (discardIds.length > 0) {
+      const discardCards = getSelectedCards(remainingHand, discardIds);
+      if (discardCards) {
+        const discardSet = new Set(discardCards.map(c => c.id));
+        remainingHand = sortHand(removeCardsById(remainingHand, discardSet));
+        newHands[action.playerId] = remainingHand;
+      }
+    }
+  }
+
   // Determine pile + signatures
   const nextPile: DaifugoPile = {
     kind: shape.kind,
@@ -662,19 +701,43 @@ export function applyAction(
     playedBy: action.playerId,
   };
 
-  // しばり detection (only when there is an existing pile)
+  // しばり detection - Fixed logic
   let lockSignature = state.lockSignature;
   let lastPlaySignature = state.lastPlaySignature;
-  if (rules.shibari && state.pile && shape.signature) {
+
+  if (!state.pile) {
+    // First play of the trick - start tracking signature
+    lockSignature = null;
+    lastPlaySignature = shape.signature; // Track the first play's signature
+  } else if (rules.shibari && shape.signature) {
+    // Subsequent play - check for shibari
     if (lastPlaySignature && lastPlaySignature === shape.signature) {
+      // Two consecutive plays with same signature = lock!
       lockSignature = shape.signature;
     }
     lastPlaySignature = shape.signature;
-  } else if (!state.pile) {
-    lockSignature = null;
-    lastPlaySignature = null;
-  } else if (state.pile && shape.signature) {
+  } else if (shape.signature) {
+    // Not shibari rule but still track signature
     lastPlaySignature = shape.signature;
+  }
+
+  // 激縛り (gekishiba) detection - same suit + consecutive rank
+  let gekishibaNextRank: number | null = null;
+  if (!state.pile) {
+    // First play - no gekishiba yet
+    gekishibaNextRank = null;
+  } else if (rules.gekishiba && shape.signature && shape.signature === state.pile.signature) {
+    // Same suit as pile - check if consecutive
+    const reversedForGekishiba = state.revolution !== state.jackBack;
+    const step = reversedForGekishiba ? -1 : 1;
+    const isConsecutive = shape.rankKey === state.pile.rankKey + step;
+
+    if (isConsecutive) {
+      // Consecutive! Gekishiba activates or continues
+      gekishibaNextRank = shape.rankKey + step;
+      // Also ensure suit is locked
+      lockSignature = shape.signature;
+    }
   }
 
   // Apply revolution / eleven-back
@@ -694,6 +757,7 @@ export function applyAction(
     lastPlayedBy: action.playerId,
     lockSignature,
     lastPlaySignature,
+    gekishibaNextRank,
     revolution,
     jackBack,
   };
@@ -752,6 +816,7 @@ export function applyAction(
     passes = [];
     lockSignature = null;
     lastPlaySignature = null;
+    gekishibaNextRank = null;
     jackBack = false;
 
     currentTurnPlayerId = finishedOrder.includes(leaderCandidate)
@@ -794,6 +859,7 @@ export function applyAction(
     passes = [];
     lockSignature = null;
     lastPlaySignature = null;
+    gekishibaNextRank = null;
     jackBack = false;
     currentTurnPlayerId = actualWinnerId ?? action.playerId;
     lastPlayedBy = action.playerId;
@@ -814,6 +880,7 @@ export function applyAction(
         jackBack,
         lockSignature,
         lastPlaySignature,
+        gekishibaNextRank,
         log,
         lastUpdate: Date.now(),
       },
@@ -855,6 +922,7 @@ export function applyAction(
     jackBack,
     lockSignature,
     lastPlaySignature,
+    gekishibaNextRank,
     log,
     lastUpdate: Date.now(),
   };

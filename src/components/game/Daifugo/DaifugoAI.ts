@@ -12,7 +12,7 @@ import { isJoker, JOKER_RANK } from './types';
 import { applyAction, getPlayShape, sortHand } from './gameLogic';
 
 export type DaifugoAIDecision =
-  | { type: 'play'; cardIds: string[]; giveCardIds?: string[] }
+  | { type: 'play'; cardIds: string[]; giveCardIds?: string[]; discardCardIds?: string[] }
   | { type: 'pass' };
 
 function groupByRank(hand: Card[]): Map<number, Card[]> {
@@ -121,6 +121,12 @@ function pickGiveCards(hand: Card[], count: number): string[] {
   return sorted.slice(0, Math.max(0, Math.min(count, sorted.length))).map(c => c.id);
 }
 
+function pickDiscardCards(hand: Card[], count: number): string[] {
+  // AI prefers to discard weak cards (lowest ranks)
+  const sorted = sortHand(hand);
+  return sorted.slice(0, Math.max(0, Math.min(count, sorted.length))).map(c => c.id);
+}
+
 export function decideDaifugoAction(state: DaifugoNetworkState, playerId: string): DaifugoAIDecision {
   const hand = state.hands[playerId] ?? [];
   if (state.finished) return { type: 'pass' };
@@ -142,8 +148,19 @@ export function decideDaifugoAction(state: DaifugoNetworkState, playerId: string
     const shape = getPlayShape(cards);
     if (!shape) continue;
 
+    const remainingHand = hand.filter(c => !cardIds.includes(c.id));
+
     const giveCardIds = (shape.kind === 'group' && shape.rankKey === 7)
-      ? pickGiveCards(hand.filter(c => !cardIds.includes(c.id)), Math.min(shape.count, hand.length))
+      ? pickGiveCards(remainingHand, Math.min(shape.count, remainingHand.length))
+      : undefined;
+
+    // For 10-discard, calculate remaining after give
+    const afterGiveHand = giveCardIds
+      ? remainingHand.filter(c => !giveCardIds.includes(c.id))
+      : remainingHand;
+
+    const discardCardIds = (shape.kind === 'group' && shape.containsTen)
+      ? pickDiscardCards(afterGiveHand, Math.min(shape.count, afterGiveHand.length))
       : undefined;
 
     const action = {
@@ -152,12 +169,13 @@ export function decideDaifugoAction(state: DaifugoNetworkState, playerId: string
       playerId,
       cardIds,
       giveCardIds,
+      discardCardIds,
       timestamp: Date.now(),
     };
 
     const result = applyAction(state, action);
     if (result.ok) {
-      return { type: 'play', cardIds, giveCardIds };
+      return { type: 'play', cardIds, giveCardIds, discardCardIds };
     }
   }
 

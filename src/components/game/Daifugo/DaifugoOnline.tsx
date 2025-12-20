@@ -9,8 +9,9 @@ import { GameTopBar, InfoModal, GameStats } from '../common';
 import { DaifugoMultiplayerLobby } from './DaifugoMultiplayerLobby';
 import { useDaifugoMultiplayer } from './useDaifugoMultiplayer';
 import { applyAction, createInitialDaifugoState, getPlayShape, getSelectedCards, getNextPlayerId, sortHand } from './gameLogic';
-import { cardToShortLabel, isJoker, rankToLabel } from './types';
+import { isJoker, rankToLabel } from './types';
 import type { Card } from './types';
+import { PlayingCard, PlayingCardStyles } from './PlayingCard';
 import { DAIFUGO_RANK_PRIORITY, daifugoRankToLabel } from './multiplayerTypes';
 import type { DaifugoAction, DaifugoLogEntry } from './multiplayerTypes';
 
@@ -29,6 +30,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
 
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [selectedGiveCardIds, setSelectedGiveCardIds] = useState<string[]>([]);
+  const [selectedDiscardCardIds, setSelectedDiscardCardIds] = useState<string[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const lastProcessedActionId = useRef<string | null>(null);
@@ -128,6 +130,42 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
     return [...effectiveGiveCardIds, ...rest].slice(0, sevenGiveContext.giveCount);
   }, [effectiveGiveCardIds, sevenGiveCandidates, sevenGiveContext.giveCount, sevenGiveContext.needed]);
 
+  // 10捨て context
+  const tenDiscardContext = useMemo(() => {
+    if (!gameState) return { needed: false as const, discardCount: 0 };
+    if (!isMyTurn || isSubmitting || gameState.finished) return { needed: false as const, discardCount: 0 };
+    if (!selectedShape || selectedShape.kind !== 'group' || !selectedShape.containsTen) {
+      return { needed: false as const, discardCount: 0 };
+    }
+    const remainingCount = myHand.length - effectiveSelectedCardIds.length;
+    if (remainingCount <= 0) return { needed: false as const, discardCount: 0 };
+
+    const discardCount = Math.min(selectedShape.count, remainingCount);
+    return { needed: true as const, discardCount };
+  }, [
+    effectiveSelectedCardIds.length,
+    gameState,
+    isMyTurn,
+    isSubmitting,
+    myHand.length,
+    selectedShape,
+  ]);
+
+  const tenDiscardCandidates = useMemo(() => {
+    if (!tenDiscardContext.needed) return [];
+    const selectedSet = new Set(effectiveSelectedCardIds);
+    const giveSet = new Set(finalGiveCardIds);
+    return myHand.filter(c => !selectedSet.has(c.id) && !giveSet.has(c.id));
+  }, [effectiveSelectedCardIds, myHand, tenDiscardContext.needed, finalGiveCardIds]);
+
+  const effectiveDiscardCardIds = useMemo(() => {
+    if (!tenDiscardContext.needed) return [];
+    const available = new Set(tenDiscardCandidates.map(c => c.id));
+    return selectedDiscardCardIds
+      .filter(id => available.has(id))
+      .slice(0, tenDiscardContext.discardCount);
+  }, [selectedDiscardCardIds, tenDiscardCandidates, tenDiscardContext.discardCount, tenDiscardContext.needed]);
+
   const canPlaySelected = useMemo(() => {
     if (!gameState || !isMyTurn) return { ok: false, error: 'Not your turn' };
     if (!selectedShape) return { ok: false, error: 'Select cards' };
@@ -154,6 +192,15 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
     setSelectedGiveCardIds((prev) => {
       if (prev.includes(cardId)) return prev.filter(id => id !== cardId);
       if (prev.length >= sevenGiveContext.giveCount) return prev;
+      return [...prev, cardId];
+    });
+  };
+
+  const toggleDiscardCard = (cardId: string) => {
+    if (!tenDiscardContext.needed) return;
+    setSelectedDiscardCardIds((prev) => {
+      if (prev.includes(cardId)) return prev.filter(id => id !== cardId);
+      if (prev.length >= tenDiscardContext.discardCount) return prev;
       return [...prev, cardId];
     });
   };
@@ -232,11 +279,13 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
       playerId: multiplayer.context.playerId,
       cardIds: effectiveSelectedCardIds,
       giveCardIds: sevenGiveContext.needed ? finalGiveCardIds : undefined,
+      discardCardIds: tenDiscardContext.needed ? effectiveDiscardCardIds : undefined,
       timestamp: Date.now(),
     };
 
     setSelectedCardIds([]);
     setSelectedGiveCardIds([]);
+    setSelectedDiscardCardIds([]);
 
     if (multiplayer.context.isHost) {
       await applyAndBroadcast(action);
@@ -260,6 +309,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
 
     setSelectedCardIds([]);
     setSelectedGiveCardIds([]);
+    setSelectedDiscardCardIds([]);
 
     if (multiplayer.context.isHost) {
       await applyAndBroadcast(action);
@@ -278,6 +328,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
     });
     setSelectedCardIds([]);
     setSelectedGiveCardIds([]);
+    setSelectedDiscardCardIds([]);
     setLocalError(null);
     await multiplayer.clearPendingAction();
     await multiplayer.updateGameState(nextState);
@@ -359,38 +410,19 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
 
   const renderCard = (card: Card, idx: number) => {
     const selected = effectiveSelectedCardIds.includes(card.id);
-    const isRed = card.suit === 'H' || card.suit === 'D';
     const disabled = !isMyTurn || isSubmitting || gameState?.finished;
 
     return (
-      <button
+      <PlayingCard
         key={card.id}
-        onClick={() => toggleCard(card.id)}
+        card={card}
+        selected={selected}
         disabled={disabled}
-        style={{
-          width: '3.1rem',
-          height: '4.2rem',
-          borderRadius: '0.5rem',
-          border: selected ? '2px solid #0ea5e9' : '1px solid rgba(55, 65, 81, 1)',
-          background: selected ? 'rgba(14, 165, 233, 0.15)' : 'rgba(17, 24, 39, 0.8)',
-          color: isJoker(card) ? '#fbbf24' : isRed ? '#fb7185' : '#e5e7eb',
-          fontWeight: 800,
-          fontSize: '1rem',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          transform: selected ? 'translateY(-6px)' : 'translateY(0)',
-          transition: 'transform 0.12s, background 0.12s, border-color 0.12s',
-          animation: gameState ? 'deal 260ms ease-out both' : undefined,
-          animationDelay: gameState ? `${Math.min(idx * 18, 180)}ms` : undefined,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          userSelect: 'none',
-          flex: '0 0 auto',
-          opacity: disabled ? 0.7 : 1,
-        }}
-      >
-        {cardToShortLabel(card)}
-      </button>
+        onClick={() => toggleCard(card.id)}
+        size="medium"
+        variant="hand"
+        animationDelay={Math.min(idx * 25, 200)}
+      />
     );
   };
 
@@ -578,25 +610,15 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                       {pileCards.length === 0 ? (
                         <div style={{ color: '#6b7280', fontStyle: 'italic' }}>No cards on table</div>
                       ) : (
-                        pileCards.map((c) => (
-                          <div
+                        pileCards.map((c, idx) => (
+                          <PlayingCard
                             key={c.id}
-                            style={{
-                              width: '3.1rem',
-                              height: '4.2rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid rgba(55, 65, 81, 1)',
-                              background: 'rgba(0,0,0,0.6)',
-                              animation: 'toTable 180ms ease-out both',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: 900,
-                              color: isJoker(c) ? '#fbbf24' : (c.suit === 'H' || c.suit === 'D') ? '#fb7185' : '#e5e7eb',
-                            }}
-                          >
-                            {cardToShortLabel(c)}
-                          </div>
+                            card={c}
+                            size="medium"
+                            variant="table"
+                            disabled
+                            animationDelay={idx * 30}
+                          />
                         ))
                       )}
                     </div>
@@ -664,6 +686,13 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                       >
                         Clear
                       </button>
+
+                      {/* Show why play is disabled */}
+                      {!canPlaySelected.ok && canPlaySelected.error && effectiveSelectedCardIds.length > 0 && (
+                        <div style={{ color: '#fca5a5', fontSize: '0.8rem', alignSelf: 'center' }}>
+                          {canPlaySelected.error}
+                        </div>
+                      )}
                     </div>
 
                     <button
@@ -747,42 +776,60 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                         overflowX: 'auto',
                         paddingBottom: '0.25rem',
                       }}>
-                        {sevenGiveCandidates.map((card) => {
-                          const selected = effectiveGiveCardIds.includes(card.id);
-                          const isRed = card.suit === 'H' || card.suit === 'D';
-                          const disabled = !isMyTurn || isSubmitting || !!gameState?.finished;
-                          return (
-                            <button
-                              key={card.id}
-                              onClick={() => toggleGiveCard(card.id)}
-                              disabled={disabled}
-                              style={{
-                                width: '3.1rem',
-                                height: '4.2rem',
-                                borderRadius: '0.5rem',
-                                border: selected ? '2px solid #fbbf24' : '1px solid rgba(55, 65, 81, 1)',
-                                background: selected ? 'rgba(251, 191, 36, 0.12)' : 'rgba(17, 24, 39, 0.5)',
-                                color: isJoker(card) ? '#fbbf24' : isRed ? '#fb7185' : '#e5e7eb',
-                                fontWeight: 800,
-                                fontSize: '1rem',
-                                cursor: disabled ? 'not-allowed' : 'pointer',
-                                transform: selected ? 'translateY(-4px)' : 'translateY(0)',
-                                transition: 'transform 0.12s, background 0.12s, border-color 0.12s',
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                userSelect: 'none',
-                                flex: '0 0 auto',
-                                opacity: disabled ? 0.7 : 1,
-                              }}
-                            >
-                              {cardToShortLabel(card)}
-                            </button>
-                          );
-                        })}
+                        {sevenGiveCandidates.map((card, idx) => (
+                          <PlayingCard
+                            key={card.id}
+                            card={card}
+                            giveSelected={effectiveGiveCardIds.includes(card.id)}
+                            disabled={!isMyTurn || isSubmitting || !!gameState?.finished}
+                            onClick={() => toggleGiveCard(card.id)}
+                            size="medium"
+                            variant="hand"
+                            animationDelay={idx * 20}
+                          />
+                        ))}
                       </div>
                     </div>
                   )}
+
+                  {tenDiscardContext.needed && (
+                    <div style={{
+                      marginTop: '0.75rem',
+                      background: 'rgba(239, 68, 68, 0.12)',
+                      border: '1px solid rgba(239, 68, 68, 0.35)',
+                      borderRadius: '0.75rem',
+                      padding: '0.75rem',
+                    }}>
+                      <div style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.9rem' }}>
+                        10捨て: 最大{tenDiscardContext.discardCount}枚を捨てられます
+                      </div>
+                      <div style={{ color: '#9ca3af', fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                        捨てるカードを選択（選択しなければ捨てません）
+                      </div>
+                      <div style={{
+                        marginTop: '0.5rem',
+                        display: 'flex',
+                        gap: '0.5rem',
+                        flexWrap: 'nowrap',
+                        overflowX: 'auto',
+                        paddingBottom: '0.25rem',
+                      }}>
+                        {tenDiscardCandidates.map((card, idx) => (
+                          <PlayingCard
+                            key={card.id}
+                            card={card}
+                            discardSelected={effectiveDiscardCardIds.includes(card.id)}
+                            disabled={!isMyTurn || isSubmitting || !!gameState?.finished}
+                            onClick={() => toggleDiscardCard(card.id)}
+                            size="medium"
+                            variant="hand"
+                            animationDelay={idx * 20}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{
                     marginTop: '0.75rem',
                     display: 'flex',
@@ -849,6 +896,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
             <div style={{ color: '#cbd5e1' }}>
               8-cut clears the table. Playing 4+ cards triggers revolution. J triggers eleven-back (temporary reverse) except in stairs.
               Consecutive identical suit signatures cause shibari (suit lock). 3♠ can beat a single Joker. 5 skips next player. 7 gives card(s) to next player.
+              10 lets you discard cards from your hand (10捨て).
             </div>
           </div>
           <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
@@ -856,28 +904,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
           </div>
         </div>
       </InfoModal>
-      <style jsx>{`
-        @keyframes deal {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes toTable {
-          from {
-            opacity: 0;
-            transform: scale(0.96) translateY(-6px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-      `}</style>
+      <PlayingCardStyles />
     </div>
   );
 }

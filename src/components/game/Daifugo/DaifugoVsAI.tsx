@@ -15,13 +15,15 @@ import {
   sortHand,
 } from './gameLogic';
 import { decideDaifugoAction } from './DaifugoAI';
-import { cardToShortLabel, isJoker, rankToLabel } from './types';
+import { isJoker, rankToLabel } from './types';
 import type { Card } from './types';
+import { PlayingCard, PlayingCardStyles } from './PlayingCard';
 import {
   DAIFUGO_RANK_PRIORITY,
   daifugoRankToLabel,
 } from './multiplayerTypes';
 import type { DaifugoAction, DaifugoLogEntry, DaifugoNetworkState } from './multiplayerTypes';
+import { DaifugoTableView } from './DaifugoTableView';
 
 interface DaifugoVsAIProps {
   onBackToMenu: () => void;
@@ -46,6 +48,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [selectedGiveCardIds, setSelectedGiveCardIds] = useState<string[]>([]);
+  const [selectedDiscardCardIds, setSelectedDiscardCardIds] = useState<string[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const [humanId] = useState(() => createLocalId('human'));
@@ -181,6 +184,42 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     return [...effectiveGiveCardIds, ...rest].slice(0, sevenGiveContext.giveCount);
   }, [effectiveGiveCardIds, sevenGiveCandidates, sevenGiveContext.giveCount, sevenGiveContext.needed]);
 
+  // 10捨て context - detect when playing 10s
+  const tenDiscardContext = useMemo(() => {
+    if (!gameState) return { needed: false as const, discardCount: 0 };
+    if (!isMyTurn || gameState.finished) return { needed: false as const, discardCount: 0 };
+    if (!selectedShape || selectedShape.kind !== 'group' || !selectedShape.containsTen) {
+      return { needed: false as const, discardCount: 0 };
+    }
+    const remainingCount = myHand.length - effectiveSelectedCardIds.length;
+    if (remainingCount <= 0) return { needed: false as const, discardCount: 0 };
+
+    const discardCount = Math.min(selectedShape.count, remainingCount);
+    return { needed: true as const, discardCount };
+  }, [
+    effectiveSelectedCardIds.length,
+    gameState,
+    isMyTurn,
+    myHand.length,
+    selectedShape,
+  ]);
+
+  const tenDiscardCandidates = useMemo(() => {
+    if (!tenDiscardContext.needed) return [];
+    const selectedSet = new Set(effectiveSelectedCardIds);
+    // Exclude cards that are being given away (7渡し)
+    const giveSet = new Set(finalGiveCardIds);
+    return myHand.filter(c => !selectedSet.has(c.id) && !giveSet.has(c.id));
+  }, [effectiveSelectedCardIds, myHand, tenDiscardContext.needed, finalGiveCardIds]);
+
+  const effectiveDiscardCardIds = useMemo(() => {
+    if (!tenDiscardContext.needed) return [];
+    const available = new Set(tenDiscardCandidates.map(c => c.id));
+    return selectedDiscardCardIds
+      .filter(id => available.has(id))
+      .slice(0, tenDiscardContext.discardCount);
+  }, [selectedDiscardCardIds, tenDiscardCandidates, tenDiscardContext.discardCount, tenDiscardContext.needed]);
+
   const startGame = () => {
     setLocalError(null);
     const clampedAI = Math.max(2, Math.min(5, aiCount));
@@ -207,12 +246,14 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     setGameState(initial);
     setSelectedCardIds([]);
     setSelectedGiveCardIds([]);
+    setSelectedDiscardCardIds([]);
   };
 
   const resetToSetup = () => {
     setLocalError(null);
     setSelectedCardIds([]);
     setSelectedGiveCardIds([]);
+    setSelectedDiscardCardIds([]);
     setGameState(null);
     setPlayers({});
     if (aiTimeoutRef.current) {
@@ -251,6 +292,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
             playerId: currentPlayerId,
             cardIds: decision.cardIds,
             giveCardIds: decision.giveCardIds,
+            discardCardIds: decision.discardCardIds,
             timestamp: Date.now(),
           }
           : {
@@ -290,6 +332,15 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     });
   };
 
+  const toggleDiscardCard = (cardId: string) => {
+    if (!tenDiscardContext.needed) return;
+    setSelectedDiscardCardIds((prev) => {
+      if (prev.includes(cardId)) return prev.filter(id => id !== cardId);
+      if (prev.length >= tenDiscardContext.discardCount) return prev;
+      return [...prev, cardId];
+    });
+  };
+
   const handlePlay = () => {
     if (!gameState) return;
     setLocalError(null);
@@ -305,11 +356,13 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
       playerId: humanId,
       cardIds: effectiveSelectedCardIds,
       giveCardIds: sevenGiveContext.needed ? finalGiveCardIds : undefined,
+      discardCardIds: tenDiscardContext.needed ? effectiveDiscardCardIds : undefined,
       timestamp: Date.now(),
     };
 
     setSelectedCardIds([]);
     setSelectedGiveCardIds([]);
+    setSelectedDiscardCardIds([]);
 
     const result = applyAction(gameState, action);
     if (!result.ok) {
@@ -333,6 +386,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 
     setSelectedCardIds([]);
     setSelectedGiveCardIds([]);
+    setSelectedDiscardCardIds([]);
 
     const result = applyAction(gameState, action);
     if (!result.ok) {
@@ -376,6 +430,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     setGameState(nextState);
     setSelectedCardIds([]);
     setSelectedGiveCardIds([]);
+    setSelectedDiscardCardIds([]);
     setLocalError(null);
   };
 
@@ -397,38 +452,19 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 
   const renderCard = (card: Card, idx: number) => {
     const selected = effectiveSelectedCardIds.includes(card.id);
-    const isRed = card.suit === 'H' || card.suit === 'D';
     const disabled = !isMyTurn || gameState?.finished;
 
     return (
-      <button
+      <PlayingCard
         key={card.id}
-        onClick={() => toggleCard(card.id)}
+        card={card}
+        selected={selected}
         disabled={disabled}
-        style={{
-          width: '3.1rem',
-          height: '4.2rem',
-          borderRadius: '0.5rem',
-          border: selected ? '2px solid #0ea5e9' : '1px solid rgba(55, 65, 81, 1)',
-          background: selected ? 'rgba(14, 165, 233, 0.15)' : 'rgba(17, 24, 39, 0.8)',
-          color: isJoker(card) ? '#fbbf24' : isRed ? '#fb7185' : '#e5e7eb',
-          fontWeight: 800,
-          fontSize: '1rem',
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          transform: selected ? 'translateY(-6px)' : 'translateY(0)',
-          transition: 'transform 0.12s, background 0.12s, border-color 0.12s',
-          animation: gameState ? 'deal 260ms ease-out both' : undefined,
-          animationDelay: gameState ? `${Math.min(idx * 18, 180)}ms` : undefined,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          userSelect: 'none',
-          flex: '0 0 auto',
-          opacity: disabled ? 0.7 : 1,
-        }}
-      >
-        {cardToShortLabel(card)}
-      </button>
+        onClick={() => toggleCard(card.id)}
+        size="medium"
+        variant="hand"
+        animationDelay={Math.min(idx * 25, 200)}
+      />
     );
   };
 
@@ -557,11 +593,12 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                 borderRadius: '1rem',
                 padding: '1rem',
               }}>
+                {/* Header */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                     <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>Daifugo (Vs AI)</div>
                     <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                      {isMyTurn ? 'Your turn' : `${playerNameOf(gameState.currentTurnPlayerId)}'s turn`}
+                      Round {gameState.round} · {isMyTurn ? 'Your turn' : `${playerNameOf(gameState.currentTurnPlayerId)}'s turn`}
                     </div>
                     {gameState.finished && (
                       <div style={{ color: '#fbbf24', fontWeight: 800, fontSize: '0.95rem' }}>
@@ -569,129 +606,50 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                       </div>
                     )}
                   </div>
+                </div>
 
-	                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'stretch', justifyContent: 'flex-end' }}>
-	                    {playerSummaries.map((p) => (
-	                      <div
-	                        key={p.id}
-	                        style={{
-	                          background: p.isTurn ? 'rgba(34, 197, 94, 0.16)' : 'rgba(255, 255, 255, 0.06)',
-	                          border: p.isTurn ? '1px solid rgba(34, 197, 94, 0.55)' : '1px solid rgba(55, 65, 81, 1)',
-	                          borderRadius: '0.75rem',
-	                          padding: '0.45rem 0.75rem',
-	                          color: '#e5e7eb',
-	                          minWidth: '9rem',
-	                        }}
-	                      >
-	                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: p.isMe ? '#fbbf24' : '#e5e7eb' }}>
-	                          {p.name}{p.isMe ? ' (You)' : ''}
-	                        </div>
-	                        <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>{p.handCount} cards</div>
-	                        {gameState.ranks && p.rank && (
-	                          <div style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: 900, marginTop: '0.25rem' }}>
-	                            {daifugoRankToLabel(p.rank)}
-	                          </div>
-	                        )}
-	                        {!gameState.ranks && p.finishedPos >= 0 && (
-	                          <div style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: 900, marginTop: '0.25rem' }}>
-	                            Finished #{p.finishedPos + 1}
-	                          </div>
-	                        )}
-	                      </div>
-	                    ))}
-	                  </div>
-	                </div>
-
-	                {gameState.finished && gameState.ranks && (
-	                  <div style={{
-	                    marginTop: '0.75rem',
-	                    background: 'rgba(251, 191, 36, 0.08)',
-	                    border: '1px solid rgba(251, 191, 36, 0.35)',
-	                    borderRadius: '0.75rem',
-	                    padding: '0.75rem',
-	                  }}>
-	                    <div style={{ color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>Results</div>
-	                    <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-	                      {resultRows.map((row) => (
-	                        <div
-	                          key={row.id}
-	                          style={{
-	                            background: 'rgba(0,0,0,0.35)',
-	                            border: '1px solid rgba(55, 65, 81, 1)',
-	                            borderRadius: '0.75rem',
-	                            padding: '0.45rem 0.75rem',
-	                            color: '#e5e7eb',
-	                            fontSize: '0.85rem',
-	                            fontWeight: 800,
-	                          }}
-	                        >
-	                          {daifugoRankToLabel(row.rank)}: {row.name}
-	                        </div>
-	                      ))}
-	                    </div>
-	                  </div>
-	                )}
-
-	                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginTop: '1rem' }}>
-	                  {/* Table */}
-	                  <div style={{
-	                    background: 'rgba(17, 24, 39, 0.6)',
-                    border: '1px solid rgba(55, 65, 81, 1)',
+                {gameState.finished && gameState.ranks && (
+                  <div style={{
+                    marginTop: '0.75rem',
+                    background: 'rgba(251, 191, 36, 0.08)',
+                    border: '1px solid rgba(251, 191, 36, 0.35)',
                     borderRadius: '0.75rem',
-                    padding: '1rem',
-                    minHeight: '8rem',
+                    padding: '0.75rem',
                   }}>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                      <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700 }}>Table</div>
-                      <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                        {gameState.pile
-                          ? `Need ${gameState.pile.count} · ${isReversed ? 'Lower' : 'Higher'} than ${rankToLabel(gameState.pile.rankKey)}`
-                          : 'Free play'}
-                      </div>
+                    <div style={{ color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>Results</div>
+                    <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      {resultRows.map((row) => (
+                        <div
+                          key={row.id}
+                          style={{
+                            background: 'rgba(0,0,0,0.35)',
+                            border: '1px solid rgba(55, 65, 81, 1)',
+                            borderRadius: '0.75rem',
+                            padding: '0.45rem 0.75rem',
+                            color: '#e5e7eb',
+                            fontSize: '0.85rem',
+                            fontWeight: 800,
+                          }}
+                        >
+                          {daifugoRankToLabel(row.rank)}: {row.name}
+                        </div>
+                      ))}
                     </div>
-
-                    <div style={{
-                      marginTop: '0.75rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      flexWrap: 'wrap',
-                      minHeight: '4.5rem',
-                    }}>
-                      {pileCards.length === 0 ? (
-                        <div style={{ color: '#6b7280', fontStyle: 'italic' }}>No cards on table</div>
-                      ) : (
-                        pileCards.map((c) => (
-                          <div
-                            key={c.id}
-                            style={{
-                              width: '3.1rem',
-                              height: '4.2rem',
-                              borderRadius: '0.5rem',
-                              border: '1px solid rgba(55, 65, 81, 1)',
-                              background: 'rgba(0,0,0,0.6)',
-                              animation: 'toTable 180ms ease-out both',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontWeight: 900,
-                              color: isJoker(c) ? '#fbbf24' : (c.suit === 'H' || c.suit === 'D') ? '#fb7185' : '#e5e7eb',
-                            }}
-                          >
-                            {cardToShortLabel(c)}
-                          </div>
-                        ))
-                      )}
-                    </div>
-
-                    {gameState.passes.length ? (
-                      <div style={{ marginTop: '0.5rem', color: '#6b7280', fontSize: '0.8rem' }}>
-                        Passed: {gameState.passes.map(pid => playerNameOf(pid)).join(', ')}
-                      </div>
-                    ) : null}
                   </div>
+                )}
 
-	                  {/* Controls */}
+                {/* Table View */}
+                <DaifugoTableView
+                  gameState={gameState}
+                  myPlayerId={humanId}
+                  playerSummaries={playerSummaries}
+                  pileCards={pileCards}
+                  isReversed={isReversed}
+                  playerNameOf={playerNameOf}
+                />
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginTop: '1rem' }}>
+                  {/* Controls */}
 	                  <div style={{
 	                    display: 'flex',
 	                    gap: '0.75rem',
@@ -747,6 +705,17 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                       >
                         Clear
                       </button>
+
+                      {/* Show why play is disabled */}
+                      {!canPlaySelected.ok && canPlaySelected.error && effectiveSelectedCardIds.length > 0 && (
+                        <div style={{
+                          color: '#fca5a5',
+                          fontSize: '0.8rem',
+                          alignSelf: 'center',
+                        }}>
+                          {canPlaySelected.error}
+                        </div>
+                      )}
                     </div>
 
                     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -845,38 +814,56 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 	                        overflowX: 'auto',
 	                        paddingBottom: '0.25rem',
 	                      }}>
-	                        {sevenGiveCandidates.map((card) => {
-	                          const selected = effectiveGiveCardIds.includes(card.id);
-	                          const isRed = card.suit === 'H' || card.suit === 'D';
-	                          return (
-	                            <button
-	                              key={card.id}
-	                              onClick={() => toggleGiveCard(card.id)}
-	                              disabled={!isMyTurn || gameState?.finished}
-	                              style={{
-	                                width: '3.1rem',
-	                                height: '4.2rem',
-	                                borderRadius: '0.5rem',
-	                                border: selected ? '2px solid #fbbf24' : '1px solid rgba(55, 65, 81, 1)',
-	                                background: selected ? 'rgba(251, 191, 36, 0.12)' : 'rgba(17, 24, 39, 0.5)',
-	                                color: isJoker(card) ? '#fbbf24' : isRed ? '#fb7185' : '#e5e7eb',
-	                                fontWeight: 800,
-	                                fontSize: '1rem',
-	                                cursor: (!isMyTurn || gameState?.finished) ? 'not-allowed' : 'pointer',
-	                                transform: selected ? 'translateY(-4px)' : 'translateY(0)',
-	                                transition: 'transform 0.12s, background 0.12s, border-color 0.12s',
-	                                display: 'flex',
-	                                alignItems: 'center',
-	                                justifyContent: 'center',
-	                                userSelect: 'none',
-	                                flex: '0 0 auto',
-	                                opacity: (!isMyTurn || gameState?.finished) ? 0.7 : 1,
-	                              }}
-	                            >
-	                              {cardToShortLabel(card)}
-	                            </button>
-	                          );
-	                        })}
+	                        {sevenGiveCandidates.map((card, idx) => (
+                          <PlayingCard
+                            key={card.id}
+                            card={card}
+                            giveSelected={effectiveGiveCardIds.includes(card.id)}
+                            disabled={!isMyTurn || gameState?.finished}
+                            onClick={() => toggleGiveCard(card.id)}
+                            size="medium"
+                            variant="hand"
+                            animationDelay={idx * 20}
+                          />
+                        ))}
+	                      </div>
+	                    </div>
+	                  )}
+
+	                  {tenDiscardContext.needed && (
+	                    <div style={{
+	                      marginTop: '0.75rem',
+	                      background: 'rgba(239, 68, 68, 0.12)',
+	                      border: '1px solid rgba(239, 68, 68, 0.35)',
+	                      borderRadius: '0.75rem',
+	                      padding: '0.75rem',
+	                    }}>
+	                      <div style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.9rem' }}>
+	                        10捨て: 最大{tenDiscardContext.discardCount}枚を捨てられます
+	                      </div>
+	                      <div style={{ color: '#9ca3af', fontSize: '0.8rem', marginTop: '0.25rem' }}>
+	                        捨てるカードを選択（選択しなければ捨てません）
+	                      </div>
+	                      <div style={{
+	                        marginTop: '0.5rem',
+	                        display: 'flex',
+	                        gap: '0.5rem',
+	                        flexWrap: 'nowrap',
+	                        overflowX: 'auto',
+	                        paddingBottom: '0.25rem',
+	                      }}>
+	                        {tenDiscardCandidates.map((card, idx) => (
+                          <PlayingCard
+                            key={card.id}
+                            card={card}
+                            discardSelected={effectiveDiscardCardIds.includes(card.id)}
+                            disabled={!isMyTurn || gameState?.finished}
+                            onClick={() => toggleDiscardCard(card.id)}
+                            size="medium"
+                            variant="hand"
+                            animationDelay={idx * 20}
+                          />
+                        ))}
 	                      </div>
 	                    </div>
 	                  )}
@@ -947,6 +934,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
             <div style={{ color: '#cbd5e1' }}>
               8-cut clears the table. Playing 4+ cards triggers revolution. J triggers eleven-back (temporary reverse) except in stairs.
               Consecutive identical suit signatures cause shibari (suit lock). 3♠ can beat a single Joker. 5 skips next player. 7 gives card(s) to next player.
+              10 lets you discard cards from your hand (10捨て).
             </div>
           </div>
           <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
@@ -954,28 +942,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
           </div>
         </div>
       </InfoModal>
-      <style jsx>{`
-        @keyframes deal {
-          from {
-            opacity: 0;
-            transform: translateY(10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-        @keyframes toTable {
-          from {
-            opacity: 0;
-            transform: scale(0.96) translateY(-6px);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-      `}</style>
+      <PlayingCardStyles />
     </div>
   );
 }

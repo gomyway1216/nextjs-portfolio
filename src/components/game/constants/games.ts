@@ -94,4 +94,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Arcade',
   },
+  {
+    id: 'daifugo',
+    title: 'Daifugo',
+    description: 'Play Daifugo (大富豪) vs AI (3–6 players) or online (3–6 players). Create a room, share the code, and battle to empty your hand first!',
+    thumbnail: '🃏',
+    path: '/games/daifugo',
+    difficulty: 'Medium',
+    category: 'Card',
+  },
 ];

@@ -39,6 +39,15 @@ function hashPassword(password: string): string {
   return hash.toString(36);
 }
 
+function getPlayerLimits(gameType: string): { minPlayers: number; maxPlayers: number } {
+  if (gameType === 'daifugo') {
+    return { minPlayers: 3, maxPlayers: 6 };
+  }
+
+  // Default (2P)
+  return { minPlayers: 2, maxPlayers: 2 };
+}
+
 // Generate a short room ID
 function generateRoomId(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -115,7 +124,8 @@ export async function joinRoom(
   }
 
   const playerCount = Object.keys(room.players || {}).length;
-  if (playerCount >= 2) {
+  const { maxPlayers } = getPlayerLimits(room.gameType);
+  if (playerCount >= maxPlayers) {
     return { success: false, error: 'Room is full' };
   }
 
@@ -196,7 +206,10 @@ export async function setPlayerReady(
   }
 
   const players = Object.values(room.players || {});
-  const allReady = players.length === 2 && players.every(p => p.ready);
+  const { minPlayers, maxPlayers } = getPlayerLimits(room.gameType);
+  const allReady = players.length >= minPlayers
+    && players.length <= maxPlayers
+    && players.every(p => p.ready);
 
   return { success: true, allReady };
 }
@@ -224,8 +237,13 @@ export async function startGame(
   }
 
   const players = Object.values(room.players || {});
-  if (players.length < 2) {
-    return { success: false, error: 'Need 2 players to start' };
+  const { minPlayers, maxPlayers } = getPlayerLimits(room.gameType);
+  if (players.length < minPlayers) {
+    return { success: false, error: `Need ${minPlayers} players to start` };
+  }
+
+  if (players.length > maxPlayers) {
+    return { success: false, error: `Too many players (max ${maxPlayers})` };
   }
 
   if (!players.every(p => p.ready)) {

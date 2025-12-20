@@ -7,6 +7,7 @@ import {
 } from './types';
 import { KyokumenImproved } from './KyokumenImproved';
 import { TTEntryImproved } from './TTEntryImproved';
+import { MoveListImproved } from './MoveListImproved';
 
 // Move directions (matching KomaMoves.java)
 const diffDan = [1, 1, 1, 0, 0, -1, -1, -1, -2, -2, 2, 2];
@@ -592,6 +593,173 @@ export class GenerateMovesImproved {
 
     // Remove self-mate moves
     return this.removeSelfMate(k, v);
+  }
+
+  /**
+   * Generate all legal moves, but reuse `Te` objects inside `out` to avoid per-node allocations.
+   *
+   * Intended usage:
+   * - engines that search deeply (V11+) should call this instead of `generateLegalMoves()`
+   *   to reduce GC pressure and search deeper within the same time budget.
+   *
+   * Notes:
+   * - The returned array is `out.moves` and is only valid until the next call that mutates `out`.
+   * - This function mutates `out.size` and trims `out.moves.length` to `out.size`.
+   */
+  static generateLegalMovesPooled(k: KyokumenImproved, out: MoveListImproved): Te[] {
+    out.reset();
+
+    // Generate piece moves.
+    for (let suji = 0x10; suji <= 0x90; suji += 0x10) {
+      for (let dan = 1; dan <= 9; dan++) {
+        const from = dan + suji;
+        const koma = k.get(from);
+
+        if (!isSelf(k.teban, koma)) continue;
+
+        // Direct moves.
+        for (let direct = 0; direct < 12; direct++) {
+          if (!canMove[direct][koma]) continue;
+          const to = from + diff[direct];
+          if (1 <= (to >> 4) && (to >> 4) <= 9 && 1 <= (to & 0x0f) && (to & 0x0f) <= 9) {
+            if (isSelf(k.teban, k.get(to))) continue;
+            this.addTePooled(k, out, k.teban, koma, from, to);
+          }
+        }
+
+        // Sliding moves.
+        for (let direct = 0; direct < 8; direct++) {
+          if (!canJump[direct][koma]) continue;
+          for (let i = 1; i < 9; i++) {
+            const to = from + diff[direct] * i;
+            if (k.get(to) === WALL) break;
+            if (isSelf(k.teban, k.get(to))) break;
+            this.addTePooled(k, out, k.teban, koma, from, to);
+            if (k.get(to) !== EMPTY) break; // captured: stop sliding
+          }
+        }
+      }
+    }
+
+    // Generate drop moves.
+    for (let i = FU; i <= HI; i++) {
+      const koma = i | k.teban;
+      if (k.hand[koma] <= 0) continue;
+
+      const komashu = getKomashu(koma);
+
+      for (let suji = 0x10; suji <= 0x90; suji += 0x10) {
+        // Nifu (double pawn) restriction.
+        if (komashu === FU) {
+          let isNifu = false;
+          for (let dan = 1; dan <= 9; dan++) {
+            const p = suji + dan;
+            if (k.get(p) === (k.teban | FU)) {
+              isNifu = true;
+              break;
+            }
+          }
+          if (isNifu) continue;
+        }
+
+        for (let dan = 1; dan <= 9; dan++) {
+          // Knight restrictions.
+          if (komashu === KE) {
+            if (k.teban === SENTE && dan <= 2) continue;
+            if (k.teban === GOTE && dan >= 8) continue;
+          }
+
+          // Pawn and lance restrictions.
+          if (komashu === FU || komashu === KY) {
+            if (k.teban === SENTE && dan === 1) continue;
+            if (k.teban === GOTE && dan === 9) continue;
+          }
+
+          const to = suji + dan;
+          if (k.get(to) !== EMPTY) continue;
+
+          const before = out.size;
+          out.push(koma, 0, to, false, EMPTY);
+          const te = out.moves[before]!;
+
+          // Pawn drop checkmate (uchifuzume) is illegal.
+          if (komashu === FU && this.isUtiFuDume(k, te)) {
+            out.size = before;
+            continue;
+          }
+        }
+      }
+    }
+
+    this.removeSelfMateInPlace(k, out);
+    return out.trim();
+  }
+
+  private static addTePooled(k: KyokumenImproved, out: MoveListImproved, teban: number, koma: number, from: number, to: number): void {
+    const capture = k.get(to);
+    if (teban === SENTE) {
+      if ((getKomashu(koma) === KY || getKomashu(koma) === FU) && (to & 0x0f) === 1) {
+        out.push(koma, from, to, true, capture);
+      } else if (getKomashu(koma) === KE && (to & 0x0f) <= 2) {
+        out.push(koma, from, to, true, capture);
+      } else if (((to & 0x0f) <= 3 || (from & 0x0f) <= 3) && canPromote[koma]) {
+        const komashu = getKomashu(koma);
+        const forcePromoteMajor = komashu === KA || komashu === HI;
+        out.push(koma, from, to, true, capture);
+        if (!forcePromoteMajor) out.push(koma, from, to, false, capture);
+      } else {
+        out.push(koma, from, to, false, capture);
+      }
+      return;
+    }
+
+    // GOTE
+    if ((getKomashu(koma) === KY || getKomashu(koma) === FU) && (to & 0x0f) === 9) {
+      out.push(koma, from, to, true, capture);
+    } else if (getKomashu(koma) === KE && (to & 0x0f) >= 8) {
+      out.push(koma, from, to, true, capture);
+    } else if (((to & 0x0f) >= 7 || (from & 0x0f) >= 7) && canPromote[koma]) {
+      const komashu = getKomashu(koma);
+      const forcePromoteMajor = komashu === KA || komashu === HI;
+      out.push(koma, from, to, true, capture);
+      if (!forcePromoteMajor) out.push(koma, from, to, false, capture);
+    } else {
+      out.push(koma, from, to, false, capture);
+    }
+  }
+
+  /**
+   * Filter out moves that leave the mover's king in check (王手放置).
+   *
+   * This is the pooled equivalent of `removeSelfMate()`:
+   * - It does not allocate a new array.
+   * - It compacts the list in-place by swapping `Te` object references.
+   */
+  private static removeSelfMateInPlace(k: KyokumenImproved, out: MoveListImproved): void {
+    const moves = out.moves;
+    let write = 0;
+
+    for (let read = 0; read < out.size; read++) {
+      const te = moves[read]!;
+
+      // Ensure `capture` is correct for undo.
+      te.capture = k.get(te.to);
+
+      k.move(te);
+      const isOuteHouchi = this.isKingInCheck(k, k.teban);
+      k.back(te);
+
+      if (isOuteHouchi) continue;
+
+      if (write !== read) {
+        const tmp = moves[write]!;
+        moves[write] = te;
+        moves[read] = tmp;
+      }
+      write++;
+    }
+
+    out.size = write;
   }
 
   // Evaluate moves for ordering

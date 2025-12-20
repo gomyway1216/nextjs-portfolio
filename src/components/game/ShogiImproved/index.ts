@@ -11,6 +11,7 @@ export { ShogiAIImprovedV7 } from './ShogiAIImprovedV7';
 export { ShogiAIImprovedV8 } from './ShogiAIImprovedV8';
 export { ShogiAIImprovedV9 } from './ShogiAIImprovedV9';
 export { ShogiAIImprovedV10 } from './ShogiAIImprovedV10';
+export { ShogiAIImprovedV11 } from './ShogiAIImprovedV11';
 export { TranspositionTableImproved } from './TranspositionTableImproved';
 export { TranspositionTableImprovedPacked } from './TranspositionTableImprovedPacked';
 export { TTEntryImproved } from './TTEntryImproved';

@@ -362,10 +362,10 @@ class TimeUpError extends Error {
    * This returns an uncalibrated danger score (higher = more pressure).
    * It is intentionally local (5x5 around the king) and does not require generating moves.
    */
-  private computeKingDanger(k: KyokumenImproved, teban: number, kingPos: number): number {
-    if (kingPos <= 0) return 0;
-    const kingSuji = kingPos >> 4;
-    const kingDan = kingPos & 0x0f;
+	  private computeKingDanger(k: KyokumenImproved, teban: number, kingPos: number): number {
+	    if (kingPos <= 0) return 0;
+	    const kingSuji = kingPos >> 4;
+	    const kingDan = kingPos & 0x0f;
 
     // Same rough scale as `KyokumenImproved.enemyProximityDanger()` but reimplemented here
     // (that method is intentionally private to keep evaluation encapsulated).
@@ -388,13 +388,17 @@ class TimeUpError extends Error {
       30, // RY
     ];
 
-    let danger = 0;
-    for (let ds = -2; ds <= 2; ds++) {
-      for (let dd = -2; dd <= 2; dd++) {
-        if (ds === 0 && dd === 0) continue;
-        const p = k.getAt(kingSuji + ds, kingDan + dd);
-        if (p === EMPTY || p === WALL) continue;
-        if (isSelf(teban, p)) continue;
+	    let danger = 0;
+	    for (let ds = -2; ds <= 2; ds++) {
+	      for (let dd = -2; dd <= 2; dd++) {
+	        if (ds === 0 && dd === 0) continue;
+	        const suji = kingSuji + ds;
+	        const dan = kingDan + dd;
+	        if (suji < 1 || suji > 9 || dan < 1 || dan > 9) continue;
+
+	        const p = k.get((suji << 4) + dan);
+	        if (p === EMPTY || p === WALL) continue;
+	        if (isSelf(teban, p)) continue;
 
         const base = dangerByKomashu[getKomashu(p)] ?? 0;
         if (!base) continue;

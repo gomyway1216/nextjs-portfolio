@@ -667,6 +667,46 @@ export class KyokumenImproved {
   }
 
   /**
+   * Opening-book evaluation (fast).
+   *
+   * Used only for `OpeningBookImproved` safety validation:
+   * - It needs to score many 1-ply candidates quickly.
+   * - The full evaluation includes mobility-style scans (major piece activity) that are relatively expensive
+   *   and not very informative in the first few moves.
+   *
+   * This intentionally matches v3's terms/weights except it omits `evaluateMajorPieceActivity()`.
+   */
+  evaluateForOpeningBook(): number {
+    let score = this.eval | 0;
+
+    const handTotal = this.totalHandPieces();
+    const phaseBucket = handTotal <= 2 ? 3 : handTotal <= 6 ? 2 : handTotal <= 10 ? 1 : 0;
+    const phase = this.openingPhaseFactorFromHand(handTotal);
+
+    score += KyokumenImproved.scaleEvalV3(
+      this.psqtEval | 0,
+      KyokumenImproved.EVAL_V3_PSQT_W[phaseBucket] ?? 128
+    );
+    score += this.evaluateHandBonus() | 0;
+    score += this.evaluateKingSafetyV2WithPhase(phase) | 0;
+    score += KyokumenImproved.scaleEvalV3(
+      this.evaluateCastleShapes() | 0,
+      KyokumenImproved.EVAL_V3_CASTLE_W[phaseBucket] ?? 128
+    );
+
+    score += KyokumenImproved.scaleEvalV3(
+      this.evaluateFileDefense() | 0,
+      KyokumenImproved.EVAL_V3_FILE_DEFENSE_W[phaseBucket] ?? 0
+    );
+    score += KyokumenImproved.scaleEvalV3(
+      this.evaluatePromotionThreats() | 0,
+      KyokumenImproved.EVAL_V3_PROMO_THREAT_W[phaseBucket] ?? 0
+    );
+
+    return score;
+  }
+
+  /**
    * Castle (囲い) evaluation.
    *
    * Why this exists:
@@ -1314,32 +1354,35 @@ export class KyokumenImproved {
 
     if (senteAttacking) {
       if (goteBishopOn33) {
-        score -= 600; // Good defense for GOTE (negative because GOTE is negative in eval)
+        // Good defense for GOTE: bishop actively covers the 2-file attack.
+        // Keep this significant but not overwhelming so it doesn't dominate the opening eval.
+        score -= 200;
       } else if (goteGoldOn32 && gotePawnOn23) {
-        score -= 400;
+        score -= 150;
       } else {
         // NO PROPER DEFENSE - penalize GOTE (add to score since GOTE values are negative)
         if (sentePawnOn24) {
           if (!gotePawnOn23) {
-            score += 1500; // Disaster for GOTE
+            score += 1000; // Serious danger for GOTE
           } else {
-            score += 800;
+            score += 500;
           }
         } else if (sentePawnOn25) {
-          score += 1000;
-        } else if (sentePawnOn26) {
           score += 600;
+        } else if (sentePawnOn26) {
+          // Early signal only: a single pawn push to 2六 is not yet a concrete disaster.
+          score += 150;
         }
 
         // Extra penalty if bishop moved to wrong square
         if (goteBishopMissing && !goteBishopOn22) {
-          score += 400;
+          score += 250;
         }
       }
 
       // Bishop trapped on 22
       if (goteBishopOn22 && (sentePawnOn25 || sentePawnOn24)) {
-        score += 500;
+        score += 300;
       }
     }
 
@@ -1357,26 +1400,28 @@ export class KyokumenImproved {
 
     if (goteAttacking) {
       if (senteBishopOn77) {
-        score += 600; // Good defense for SENTE
+        // Good defense for SENTE: bishop actively covers the 8-file attack.
+        score += 200;
       } else if (senteGoldOn78 && sentePawnOn87) {
-        score += 400;
+        score += 150;
       } else {
         // NO PROPER DEFENSE - penalize SENTE
         if (gotePawnOn86) {
           if (!sentePawnOn87) {
-            score -= 1500;
+            score -= 1000;
           } else {
-            score -= 800;
+            score -= 500;
           }
         } else if (gotePawnOn85) {
-          score -= 1000;
-        } else if (gotePawnOn84) {
           score -= 600;
+        } else if (gotePawnOn84) {
+          // Early signal only: a single pawn push to 8四 is not yet a concrete disaster.
+          score -= 150;
         }
       }
 
       if (senteBishopOn88 && (gotePawnOn85 || gotePawnOn86)) {
-        score -= 500;
+        score -= 300;
       }
     }
 

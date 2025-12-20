@@ -17,10 +17,12 @@ import { ShogiAIImprovedV10 } from '../src/components/game/ShogiImproved/ShogiAI
 import { ShogiAIImprovedV11 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV11';
 import { ShogiAIImprovedV12 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV12';
 import { ShogiAIImprovedV13 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV13';
+import { ShogiAIImprovedV14 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV14';
+import { ShogiAIImprovedV15 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV15';
 import { EMPTY, FU, GOTE, OU, SENTE, Te, getKomashu } from '../src/components/game/ShogiImproved/types';
 
 type EvalMode = 'v1' | 'v2' | 'v3';
-type EngineName = 'v2' | 'v3' | 'v4' | 'v5' | 'v6' | 'v7' | 'v8' | 'v9' | 'v10' | 'v11' | 'v12' | 'v13';
+type EngineName = 'v2' | 'v3' | 'v4' | 'v5' | 'v6' | 'v7' | 'v8' | 'v9' | 'v10' | 'v11' | 'v12' | 'v13' | 'v14' | 'v15';
 type OpeningMode = 'none' | 'random' | 'quiet' | 'curated';
 
 type EngineInstance = {
@@ -74,7 +76,9 @@ function parseEngineArg(value: string | undefined, fallback: EngineName): Engine
     value === 'v10' ||
     value === 'v11' ||
     value === 'v12' ||
-    value === 'v13'
+    value === 'v13' ||
+    value === 'v14' ||
+    value === 'v15'
   )
     return value;
   return fallback;
@@ -303,7 +307,7 @@ function playOneGame(
   aiGote: { ai: EngineInstance; evalMode: EvalMode },
   config: Pick<
     MatchConfig,
-    'difficulty' | 'maxDepth' | 'maxTimeMs' | 'quiescenceDepthMax' | 'maxPlies' | 'verbose'
+    'difficulty' | 'maxDepth' | 'maxTimeMs' | 'quiescenceDepthMax' | 'maxPlies' | 'verbose' | 'traceEval'
   >
 ): GameResult {
   const k = InitialPositionImproved.createInitialPosition();
@@ -614,6 +618,10 @@ function createEngine(name: EngineName): EngineInstance {
       return new ShogiAIImprovedV12();
     case 'v13':
       return new ShogiAIImprovedV13();
+    case 'v14':
+      return new ShogiAIImprovedV14();
+    case 'v15':
+      return new ShogiAIImprovedV15();
     default: {
       const exhaustive: never = name;
       throw new Error(`unknown engine: ${exhaustive}`);

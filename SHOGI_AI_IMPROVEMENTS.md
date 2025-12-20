@@ -37,6 +37,15 @@ The book is guarded by:
 - a “do not use book while in check” rule
 - a simple 1-ply static-eval threshold vs the best legal move (difficulty-dependent)
 
+V14 updates:
+- Expanded the curated book with more “shape” lines and better balance of 居飛車/振り飛車.
+- Made book validation faster/cheaper by using `KyokumenImproved.evaluateForOpeningBook()` (omits expensive activity scans).
+- Reduced per-call allocations in the book (pooled move generation + small caches).
+
+V15 updates:
+- New “fast + strong” engine that combines V11’s speed with V12’s “under pressure” opening-order gating.
+- Uses `OpeningBookImproved` first inside the engine (book move → search fallback).
+
 ### Move legality filtering no longer clones positions
 
 The largest performance killer in both engines was cloning during king-safety checks.
@@ -196,6 +205,12 @@ Additional lightweight terms:
 - **king safety** (defenders around king + basic shelter)
 - **castle shapes (囲い)** (small bonuses for coherent king safety plans like 美濃/矢倉/穴熊)
 - **major piece activity** (rook/bishop mobility + lines toward enemy king)
+
+### Opening-book evaluation (fast)
+
+`KyokumenImproved.evaluateForOpeningBook()` exists only to make opening-book safety validation fast:
+- matches the tuned `evaluateV3()` structure/weights
+- intentionally omits expensive mobility-style terms (major piece activity)
 
 ### Evaluation modes
 

@@ -1247,7 +1247,7 @@ const sharedAIV18 = new ShogiAIImprovedV18();
 
 /**
  * Exported helper for UI/script compatibility.
- * (Not used by default UI; the main shogi page uses the V2 engine unless wired otherwise.)
+ * Used by `/games/shogi-improved` and the fast-search path in `/games/shogi`.
  */
 export function getBestMoveV18(k: KyokumenImproved, teban: number, difficulty: Difficulty, tesu: number = 0): Te | null {
   // The UI passes `teban` explicitly; keep the position consistent.

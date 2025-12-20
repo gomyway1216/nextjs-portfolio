@@ -19,7 +19,7 @@ Call flow:
 2. `src/components/game/Shogi/ShogiAI.ts`:
    - uses opening book for the first 12 plies (`getOpeningMoveComprehensive()`)
    - converts `Kyokumen` → `KyokumenImproved`
-   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV12.ts` (default)
+   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV18.ts` (default)
    - converts the chosen move back to UI `Te`
 
 This keeps the existing UI logic (and opening book) intact, but replaces the slow clone-heavy search with a much faster make/unmake engine.
@@ -83,9 +83,9 @@ Additionally, the TT key now includes **side-to-move (`teban`)**:
 
 ---
 
-## 2) The Search Algorithm (ShogiAIImprovedV12 default)
+## 2) The Search Algorithm (ShogiAIImprovedV18 default)
 
-Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV12.ts`.
+Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV18.ts`.
 
 The original “base” implementation is still available as:
 - `src/components/game/ShogiImproved/ShogiAIImproved.ts` (V2)
@@ -175,9 +175,9 @@ Adds:
 
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
 
-### Current default: `ShogiAIImprovedV12` (Lv1-5)
+### Current default: `ShogiAIImprovedV18` (Lv1-5)
 
-Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV12.ts`.
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV18.ts`.
 
 Notes:
 - Lv4/Lv5 still run in a Web Worker (`src/components/game/ShogiImproved/shogi-ai.worker.ts`) to avoid blocking the UI.

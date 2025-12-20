@@ -10,7 +10,7 @@ import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStats } from
 import { KyokumenImproved } from './KyokumenImproved';
 	import { Te, Position, SENTE, GOTE, EMPTY, getKomashu, toString, isSente } from './types';
 	import { GenerateMovesImproved } from './GenerateMovesImproved';
-			import { getBestMoveV16 } from './ShogiAIImprovedV16';
+			import { getBestMoveV18 } from './ShogiAIImprovedV18';
 	import { getOpeningMoveImproved } from './OpeningBookImproved';
 	import { InitialPositionImproved } from './InitialPositionImproved';
 	import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
@@ -296,7 +296,7 @@ const ShogiImproved = () => {
 	        }
 
 		        if (!isWorkerDifficulty(difficulty)) {
-		          const aiMove = getBestMoveV16(gameState.kyokumen, GOTE, difficulty, gameState.ply);
+		          const aiMove = getBestMoveV18(gameState.kyokumen, GOTE, difficulty, gameState.ply);
 		
 		          if (aiMove) {
 		            const newKyokumen = gameState.kyokumen.clone();

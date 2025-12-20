@@ -8,7 +8,7 @@ import { generateLegalMoves } from './GenerateMoves';
 import { Difficulty } from '../common/types';
 	import { getOpeningMoveValidated } from './OpeningBookValidated';
 	import { KyokumenImproved } from '../ShogiImproved/KyokumenImproved';
-		import { getBestMoveV12 as getBestMoveImproved } from '../ShogiImproved/ShogiAIImprovedV12';
+		import { getBestMoveV18 as getBestMoveImproved } from '../ShogiImproved/ShogiAIImprovedV18';
 	import { Te as TeImproved } from '../ShogiImproved/types';
 
 const INFINITE = 99999999;

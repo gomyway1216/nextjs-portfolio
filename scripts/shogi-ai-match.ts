@@ -20,10 +20,29 @@ import { ShogiAIImprovedV13 } from '../src/components/game/ShogiImproved/ShogiAI
 import { ShogiAIImprovedV14 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV14';
 import { ShogiAIImprovedV15 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV15';
 import { ShogiAIImprovedV16 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV16';
+import { ShogiAIImprovedV17 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV17';
+import { ShogiAIImprovedV18 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV18';
 import { EMPTY, FU, GOTE, OU, SENTE, Te, getKomashu } from '../src/components/game/ShogiImproved/types';
 
 type EvalMode = 'v1' | 'v2' | 'v3';
-type EngineName = 'v2' | 'v3' | 'v4' | 'v5' | 'v6' | 'v7' | 'v8' | 'v9' | 'v10' | 'v11' | 'v12' | 'v13' | 'v14' | 'v15' | 'v16';
+type EngineName =
+  | 'v2'
+  | 'v3'
+  | 'v4'
+  | 'v5'
+  | 'v6'
+  | 'v7'
+  | 'v8'
+  | 'v9'
+  | 'v10'
+  | 'v11'
+  | 'v12'
+  | 'v13'
+  | 'v14'
+  | 'v15'
+  | 'v16'
+  | 'v17'
+  | 'v18';
 type OpeningMode = 'none' | 'random' | 'quiet' | 'curated';
 
 type EngineInstance = {
@@ -80,7 +99,9 @@ function parseEngineArg(value: string | undefined, fallback: EngineName): Engine
     value === 'v13' ||
     value === 'v14' ||
     value === 'v15' ||
-    value === 'v16'
+    value === 'v16' ||
+    value === 'v17' ||
+    value === 'v18'
   )
     return value;
   return fallback;
@@ -626,6 +647,10 @@ function createEngine(name: EngineName): EngineInstance {
       return new ShogiAIImprovedV15();
     case 'v16':
       return new ShogiAIImprovedV16();
+    case 'v17':
+      return new ShogiAIImprovedV17();
+    case 'v18':
+      return new ShogiAIImprovedV18();
     default: {
       const exhaustive: never = name;
       throw new Error(`unknown engine: ${exhaustive}`);

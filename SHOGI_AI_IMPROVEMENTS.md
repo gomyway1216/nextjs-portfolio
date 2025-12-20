@@ -50,6 +50,17 @@ V16 updates:
 - Improves drop move ordering (attack/defense proximity + anti-random far drops) to reduce ineffective drops.
 - Adds small repetition contempt + conservative quiescence delta pruning on Level 4/5 for better practical results.
 
+OpeningBookImproved updates:
+- Adds a lightweight “resync” fallback move when the current position is not in the curated book (keeps openings coherent after deviations).
+- Adds more curated branching lines (e.g. 相振り飛車 / 右四間飛車).
+
+V17 updates (experimental):
+- Adds lightweight SEE-ish ordering with a per-node cached attack scan to reduce obviously hanging drops/captures.
+- Enables bounded check extensions + limited quiet-check probing in quiescence for Expert/Master.
+
+V18 updates (experimental, conservative):
+- Keeps V16 search behavior but adds a per-node cached attack scan and a cheap “hanging drop” ordering at all plies (high-value drops only).
+
 ### Move legality filtering no longer clones positions
 
 The largest performance killer in both engines was cloning during king-safety checks.

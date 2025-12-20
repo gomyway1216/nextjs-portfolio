@@ -144,6 +144,103 @@ function varietyPoolSizeByDifficulty(difficulty: Difficulty): number {
   }
 }
 
+function isQuiet(te: Te): boolean {
+  return te.from !== 0 && te.capture === EMPTY && !te.promote;
+}
+
+function scoreResyncMove(k: KyokumenImproved, te: Te): number {
+  // A cheap "opening-like" scorer used when:
+  // - the exact position is not in the curated book, or
+  // - the opponent deviated and all book candidates became unsafe.
+  //
+  // This is intentionally light and deterministic; the safety filter still applies.
+  if (!isQuiet(te)) return -1_000_000_000;
+
+  let score = 0;
+  const pieceType = getKomashu(te.koma);
+  const fromSuji = te.from >> 4;
+  const fromDan = te.from & 0x0f;
+  const toSuji = te.to >> 4;
+  const toDan = te.to & 0x0f;
+
+  // Pawn one-step push from the starting rank.
+  const pawnStartDan = k.teban === SENTE ? 7 : 3;
+  const pawnNextDan = k.teban === SENTE ? 6 : 4;
+  if (pieceType === FU && fromDan === pawnStartDan && toDan === pawnNextDan) {
+    score += 1400;
+    // Prefer central pawn pushes slightly.
+    score += Math.max(0, 3 - Math.abs(fromSuji - 5)) * 140;
+  }
+
+  // Basic development.
+  if (pieceType === GI || pieceType === KI) {
+    score += 900;
+    // Prefer moving off the back rank (tie-break only).
+    if (k.teban === SENTE && toDan <= fromDan) score += 100;
+    if (k.teban === GOTE && toDan >= fromDan) score += 100;
+  }
+
+  // Unblocking long-range pieces.
+  if (pieceType === KA || pieceType === HI) score += 650;
+
+  // Rook shift for 振り飛車 directions (very common resync move).
+  // SENTE rook starts on 2八, GOTE rook starts on 8二.
+  if (pieceType === HI) {
+    if (k.teban === SENTE && fromSuji === 2 && fromDan === 8 && toDan === 8) {
+      if (toSuji === 6 || toSuji === 5 || toSuji === 4) score += 900;
+    }
+    if (k.teban === GOTE && fromSuji === 8 && fromDan === 2 && toDan === 2) {
+      if (toSuji === 4 || toSuji === 5 || toSuji === 6) score += 900;
+    }
+  }
+
+  // Prefer not moving the king extremely early in resync (let search handle tactical king moves).
+  if (pieceType === OU) score -= 800;
+
+  return score;
+}
+
+function pickResyncMove(
+  root: KyokumenImproved,
+  legal: Te[],
+  difficulty: Difficulty,
+  baselineScore: number
+): Te | null {
+  const threshold = openingThresholdByDifficulty(difficulty);
+
+  const candidates = legal
+    .map((m) => ({ move: m, heuristic: scoreResyncMove(root, m) }))
+    .filter((c) => c.heuristic > -1_000_000_000)
+    .sort((a, b) => b.heuristic - a.heuristic)
+    .slice(0, 10); // keep it small: this runs before search
+
+  if (candidates.length === 0) return null;
+
+  const scored: Array<{ move: Te; score: number; heuristic: number }> = [];
+  for (const c of candidates) {
+    const score = staticEvalAfterMove(root, c.move);
+    if (score < baselineScore - threshold) continue;
+    scored.push({ move: c.move, score, heuristic: c.heuristic });
+  }
+  if (scored.length === 0) return null;
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    if (b.heuristic !== a.heuristic) return b.heuristic - a.heuristic;
+    return moveKey(a.move).localeCompare(moveKey(b.move));
+  });
+
+  const topScore = scored[0]!.score;
+  const margin = varietyMarginByDifficulty(difficulty);
+  const poolSize = varietyPoolSizeByDifficulty(difficulty);
+  const pool =
+    margin <= 0
+      ? scored.slice(0, 1)
+      : scored.filter((c) => topScore - c.score <= margin).slice(0, Math.min(poolSize, scored.length));
+
+  return pickDeterministic(pool.length > 0 ? pool : scored.slice(0, 1), root.HashVal).move;
+}
+
 // A small curated set of lines. These are intentionally short and "shape oriented".
 // The safety validation step prevents obvious blunders when the opponent deviates.
 const OPENING_LINES: OpeningLine[] = [
@@ -321,6 +418,21 @@ const OPENING_LINES: OpeningLine[] = [
     ],
   },
   {
+    name: '相振り飛車 (basic)',
+    category: '相振り',
+    priority: 74,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 6, dan: 2 } },  // ☖６二飛 (後手四間方向)
+      { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩
+      { teban: GOTE, from: { suji: 6, dan: 3 }, to: { suji: 6, dan: 4 } },  // ☖６四歩
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 6, dan: 8 } }, // ☗６八飛 (先手四間方向)
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八玉
+      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
+    ],
+  },
+  {
     name: '中飛車 (basic)',
     category: '振り飛車',
     priority: 80,
@@ -378,6 +490,21 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
       { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
       { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+    ],
+  },
+  {
+    name: '右四間飛車 (basic)',
+    category: '相居飛車',
+    priority: 66,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 4, dan: 7 }, to: { suji: 4, dan: 6 } }, // ☗４六歩
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 4, dan: 6 }, to: { suji: 4, dan: 5 } }, // ☗４五歩
+      { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 4, dan: 8 } }, // ☗４八飛
+      { teban: GOTE, from: { suji: 4, dan: 3 }, to: { suji: 4, dan: 4 } },  // ☖４四歩
     ],
   },
   {
@@ -602,23 +729,11 @@ export function getOpeningMoveImproved(
   if (!looksLikeOpening(k)) return null;
   if (GenerateMovesImproved.isKingInCheck(k, k.teban)) return null;
 
-  const candidates = getBook().get(k.HashVal);
-  if (!candidates || candidates.length === 0) return null;
-
   // Validate candidates against current legal moves (the opponent may have deviated).
   const legal = GenerateMovesImproved.generateLegalMovesPooled(k, runtimeMoves);
   if (legal.length === 0) return null;
   const legalByKey = new Map<string, Te>();
   for (const m of legal) legalByKey.set(moveKey(m), m);
-
-  const filtered: BookCandidate[] = [];
-  for (const c of candidates) {
-    const m = legalByKey.get(moveKey(c.move));
-    if (!m) continue;
-    // Keep the `Te` reference from `legal` (allocation-free); we clone only for the return value.
-    filtered.push({ ...c, move: m });
-  }
-  if (filtered.length === 0) return null;
 
   // Compute best static eval among *all* legal moves (for safety threshold).
   // Cache per-position because the same early hashes reoccur across games.
@@ -651,14 +766,37 @@ export function getOpeningMoveImproved(
       ? bestInfo.secondBestScore
       : bestInfo.bestScore;
 
-  // Evaluate candidates and keep the ones close enough to the best move.
+  const candidates = getBook().get(k.HashVal);
+  const filtered: BookCandidate[] = [];
+  if (candidates && candidates.length > 0) {
+    for (const c of candidates) {
+      const m = legalByKey.get(moveKey(c.move));
+      if (!m) continue;
+      // Keep the `Te` reference from `legal` (allocation-free); we clone only for the return value.
+      filtered.push({ ...c, move: m });
+    }
+  }
+
+  // Evaluate book candidates and keep the ones close enough to the best move.
   const scored: Array<BookCandidate & { score: number }> = [];
   for (const c of filtered) {
     const score = staticEvalAfterMove(root, c.move);
     if (score < baselineScore - threshold) continue;
     scored.push({ ...c, score });
   }
-  if (scored.length === 0) return null;
+
+  // If the current hash isn't in the book (or all candidates became unsafe), try a "resync" move.
+  // This keeps openings coherent even after small opponent deviations.
+  if (scored.length === 0) {
+    const resync = pickResyncMove(root, legal, difficulty, baselineScore);
+    if (!resync) return null;
+    if (options.debug) {
+      console.log(
+        `[OpeningBookImproved] resync picked=${resync.toString()} baseline=${baselineScore} best=${bestInfo.bestScore}`
+      );
+    }
+    return resync.clone();
+  }
 
   // Selection strategy:
   // - Master/Expert: pick the best score (tie-break by priority)

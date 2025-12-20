@@ -46,6 +46,10 @@ V15 updates:
 - New “fast + strong” engine that combines V11’s speed with V12’s “under pressure” opening-order gating.
 - Uses `OpeningBookImproved` first inside the engine (book move → search fallback).
 
+V16 updates:
+- Improves drop move ordering (attack/defense proximity + anti-random far drops) to reduce ineffective drops.
+- Adds small repetition contempt + conservative quiescence delta pruning on Level 4/5 for better practical results.
+
 ### Move legality filtering no longer clones positions
 
 The largest performance killer in both engines was cloning during king-safety checks.

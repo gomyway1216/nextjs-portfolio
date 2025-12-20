@@ -11,10 +11,11 @@ import { ShogiAIImprovedV4 } from '../src/components/game/ShogiImproved/ShogiAII
 import { ShogiAIImprovedV5 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV5';
 import { ShogiAIImprovedV6 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV6';
 import { ShogiAIImprovedV7 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV7';
+import { ShogiAIImprovedV8 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV8';
 import { EMPTY, FU, GOTE, OU, SENTE, Te, getKomashu } from '../src/components/game/ShogiImproved/types';
 
 type EvalMode = 'v1' | 'v2';
-type EngineName = 'v2' | 'v3' | 'v4' | 'v5' | 'v6' | 'v7';
+type EngineName = 'v2' | 'v3' | 'v4' | 'v5' | 'v6' | 'v7' | 'v8';
 type OpeningMode = 'none' | 'random' | 'quiet' | 'curated';
 
 type EngineInstance = {
@@ -54,7 +55,16 @@ function parseOpeningModeArg(value: string | undefined, fallback: OpeningMode): 
 }
 
 function parseEngineArg(value: string | undefined, fallback: EngineName): EngineName {
-  if (value === 'v2' || value === 'v3' || value === 'v4' || value === 'v5' || value === 'v6' || value === 'v7') return value;
+  if (
+    value === 'v2' ||
+    value === 'v3' ||
+    value === 'v4' ||
+    value === 'v5' ||
+    value === 'v6' ||
+    value === 'v7' ||
+    value === 'v8'
+  )
+    return value;
   return fallback;
 }
 
@@ -556,6 +566,8 @@ function createEngine(name: EngineName): EngineInstance {
       return new ShogiAIImprovedV6();
     case 'v7':
       return new ShogiAIImprovedV7();
+    case 'v8':
+      return new ShogiAIImprovedV8();
     default: {
       const exhaustive: never = name;
       throw new Error(`unknown engine: ${exhaustive}`);

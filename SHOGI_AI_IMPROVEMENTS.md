@@ -19,7 +19,7 @@ Call flow:
 2. `src/components/game/Shogi/ShogiAI.ts`:
    - uses opening book for the first 12 plies (`getOpeningMoveComprehensive()`)
    - converts `Kyokumen` → `KyokumenImproved`
-   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts` (default)
+   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV8.ts` (default)
    - converts the chosen move back to UI `Te`
 
 This keeps the existing UI logic (and opening book) intact, but replaces the slow clone-heavy search with a much faster make/unmake engine.
@@ -59,9 +59,9 @@ Additionally, the TT key now includes **side-to-move (`teban`)**:
 
 ---
 
-## 2) The Search Algorithm (ShogiAIImprovedV7 default)
+## 2) The Search Algorithm (ShogiAIImprovedV8 default)
 
-Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
+Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV8.ts`.
 
 The original “base” implementation is still available as:
 - `src/components/game/ShogiImproved/ShogiAIImproved.ts` (V2)
@@ -100,7 +100,7 @@ Difficulty maps to a time budget and depth cap in `ShogiAIImproved.getNextTe()`:
 - master: `maxDepth <= 12`, `maxTimeMs ~= 10000ms` (runs in a Web Worker)
 
 You can tune this in:
-- `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts` (defaults in `getNextTe()`)
+- `src/components/game/ShogiImproved/ShogiAIImprovedV8.ts` (defaults in `getNextTe()`)
 - UI text in:
   - `src/components/game/Shogi/Shogi.tsx`
   - `src/components/game/ShogiImproved/ShogiImproved.tsx`
@@ -150,6 +150,12 @@ Adds:
 ### Experimental engine variant: `ShogiAIImprovedV7`
 
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
+
+### Current default: `ShogiAIImprovedV8`
+
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV8.ts`.
+
+It keeps V7’s tactics/order improvements and adds a direct-mapped evaluation cache (from V6) to search deeper under the same time budget.
 
 Adds:
 

@@ -5,6 +5,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { GameTopBar, InfoModal, GameStats } from '../common';
 import {
   applyAction,
@@ -15,15 +16,15 @@ import {
   sortHand,
 } from './gameLogic';
 import { decideDaifugoAction } from './DaifugoAI';
-import { isJoker, rankToLabel } from './types';
+import { rankToLabel } from './types';
 import type { Card } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
 import {
   DAIFUGO_RANK_PRIORITY,
-  daifugoRankToLabel,
 } from './multiplayerTypes';
 import type { DaifugoAction, DaifugoLogEntry, DaifugoNetworkState } from './multiplayerTypes';
 import { DaifugoTableView } from './DaifugoTableView';
+import type { DaifugoUITranslations } from '../constants/gameTranslations';
 
 interface DaifugoVsAIProps {
   onBackToMenu: () => void;
@@ -42,6 +43,75 @@ function createLocalId(prefix: string): string {
 export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
   const stats = useMemo<GameStats>(() => ({ wins: 0, losses: 0, draws: 0 }), []);
   const [showInfo, setShowInfo] = useState(false);
+  const { t: translate } = useTranslation();
+
+  // Build translation objects from i18next
+  const gameT = {
+    title: translate('games.daifugo.title'),
+    longDescription: translate('games.daifugo.longDescription'),
+    howToPlay: translate('games.daifugo.howToPlay', { returnObjects: true }) as string[],
+    features: translate('games.daifugo.features', { returnObjects: true }) as string[],
+  };
+
+  const d: DaifugoUITranslations = {
+    vsAI: translate('games.daifugo.ui.vsAI'),
+    online: translate('games.daifugo.ui.online'),
+    chooseAICount: translate('games.daifugo.ui.chooseAICount'),
+    yourName: translate('games.daifugo.ui.yourName'),
+    aiPlayers: translate('games.daifugo.ui.aiPlayers'),
+    total: translate('games.daifugo.ui.total'),
+    startGame: translate('games.daifugo.ui.startGame'),
+    back: translate('games.daifugo.ui.back'),
+    round: translate('games.daifugo.ui.round'),
+    yourTurn: translate('games.daifugo.ui.yourTurn'),
+    playerTurn: translate('games.daifugo.ui.playerTurn'),
+    result: translate('games.daifugo.ui.result'),
+    isDaifugo: translate('games.daifugo.ui.isDaifugo'),
+    finished: translate('games.daifugo.ui.finished'),
+    results: translate('games.daifugo.ui.results'),
+    pass: translate('games.daifugo.ui.pass'),
+    play: translate('games.daifugo.ui.play'),
+    clear: translate('games.daifugo.ui.clear'),
+    nextRound: translate('games.daifugo.ui.nextRound'),
+    newGame: translate('games.daifugo.ui.newGame'),
+    yourHand: translate('games.daifugo.ui.yourHand'),
+    selectCards: translate('games.daifugo.ui.selectCards'),
+    selectedStraight: translate('games.daifugo.ui.selectedStraight'),
+    selectedGroup: translate('games.daifugo.ui.selectedGroup'),
+    sevenGive: translate('games.daifugo.ui.sevenGive'),
+    sevenGiveDesc: translate('games.daifugo.ui.sevenGiveDesc'),
+    giveToPlayer: translate('games.daifugo.ui.giveToPlayer'),
+    tenDiscard: translate('games.daifugo.ui.tenDiscard'),
+    tenDiscardDesc: translate('games.daifugo.ui.tenDiscardDesc'),
+    discardUpTo: translate('games.daifugo.ui.discardUpTo'),
+    log: translate('games.daifugo.ui.log'),
+    noActionsYet: translate('games.daifugo.ui.noActionsYet'),
+    logPlayed: translate('games.daifugo.ui.logPlayed'),
+    logPass: translate('games.daifugo.ui.logPass'),
+    logTableCleared: translate('games.daifugo.ui.logTableCleared'),
+    logRoundEnd: translate('games.daifugo.ui.logRoundEnd'),
+    logNextRound: translate('games.daifugo.ui.logNextRound'),
+    logStraight: translate('games.daifugo.ui.logStraight'),
+    daifugo: translate('games.daifugo.ui.ranks.daifugo'),
+    fugo: translate('games.daifugo.ui.ranks.fugo'),
+    heimin: translate('games.daifugo.ui.ranks.heimin'),
+    hinmin: translate('games.daifugo.ui.ranks.hinmin'),
+    daihinmin: translate('games.daifugo.ui.ranks.daihinmin'),
+    revolution: translate('games.daifugo.ui.status.revolution'),
+    elevenBack: translate('games.daifugo.ui.status.elevenBack'),
+    shibari: translate('games.daifugo.ui.status.shibari'),
+    gekishiba: translate('games.daifugo.ui.status.gekishiba'),
+    rankOnly: translate('games.daifugo.ui.status.rankOnly'),
+    cards: translate('games.daifugo.ui.table.cards'),
+    finishedLabel: translate('games.daifugo.ui.table.finishedLabel'),
+    anyCard: translate('games.daifugo.ui.table.anyCard'),
+    tableCard: translate('games.daifugo.ui.table.tableCard'),
+    weak: translate('games.daifugo.ui.table.weak'),
+    strong: translate('games.daifugo.ui.table.strong'),
+    passLabel: translate('games.daifugo.ui.table.passLabel'),
+    players: translate('games.daifugo.ui.table.players'),
+    you: translate('games.daifugo.ui.table.you'),
+  };
 
   const [playerName, setPlayerName] = useState('You');
   const [aiCount, setAiCount] = useState<number>(2); // total players = aiCount + 1 (min 3, max 6)
@@ -404,17 +474,17 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
       if (entry.type === 'play' && entry.cardCount && entry.rankKey) {
         if (entry.playKind === 'straight') {
           const start = entry.rankKey - entry.cardCount + 1;
-          return `${name}: straight ${entry.cardCount} (${rankToLabel(start)}-${rankToLabel(entry.rankKey)})`;
+          return `${name}: ${d.logStraight} ${entry.cardCount} (${rankToLabel(start)}-${rankToLabel(entry.rankKey)})`;
         }
-        return `${name}: played ${entry.cardCount} × ${rankToLabel(entry.rankKey)}`;
+        return `${name}: ${d.logPlayed} ${entry.cardCount} × ${rankToLabel(entry.rankKey)}`;
       }
-      if (entry.type === 'pass') return `${name}: pass`;
-      if (entry.type === 'trick_end') return `${name}: table cleared`;
-      if (entry.type === 'round_end') return `${name}: round end`;
-      if (entry.type === 'next_round') return `${name}: next round`;
+      if (entry.type === 'pass') return `${name}: ${d.logPass}`;
+      if (entry.type === 'trick_end') return `${name}: ${d.logTableCleared}`;
+      if (entry.type === 'round_end') return `${name}: ${d.logRoundEnd}`;
+      if (entry.type === 'next_round') return `${name}: ${d.logNextRound}`;
       return `${name}: ...`;
     });
-  }, [gameState?.log, playerNameOf]);
+  }, [gameState?.log, playerNameOf, d]);
 
   const daifugoId = useMemo(() => {
     if (!gameState?.ranks) return null;
@@ -500,8 +570,8 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                 <div>
-                  <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.25rem' }}>Daifugo vs AI</div>
-                  <div style={{ color: '#9ca3af', fontSize: '0.9rem' }}>Choose AI count (min 2, max 5) — total 3–6 players.</div>
+                  <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.25rem' }}>{d.vsAI}</div>
+                  <div style={{ color: '#9ca3af', fontSize: '0.9rem' }}>{d.chooseAICount}</div>
                 </div>
                 <button
                   onClick={handleBack}
@@ -515,7 +585,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                     cursor: 'pointer',
                   }}
                 >
-                  Back
+                  {d.back}
                 </button>
               </div>
 
@@ -524,7 +594,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                   type="text"
                   value={playerName}
                   onChange={(e) => setPlayerName(e.target.value)}
-                  placeholder="Your name"
+                  placeholder={d.yourName}
                   maxLength={20}
                   style={{
                     width: '16rem',
@@ -538,7 +608,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                 />
 
                 <label style={{ color: '#9ca3af', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  AI players
+                  {d.aiPlayers}
                   <select
                     value={aiCount}
                     onChange={(e) => setAiCount(Number(e.target.value))}
@@ -556,7 +626,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                     <option value={4}>4</option>
                     <option value={5}>5</option>
                   </select>
-                  <span style={{ color: '#6b7280' }}>total {aiCount + 1}</span>
+                  <span style={{ color: '#6b7280' }}>{d.total} {aiCount + 1}</span>
                 </label>
 
                 <button
@@ -571,7 +641,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                     cursor: 'pointer',
                   }}
                 >
-                  Start Game
+                  {d.startGame}
                 </button>
               </div>
 
@@ -596,13 +666,13 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                 {/* Header */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>Daifugo (Vs AI)</div>
+                    <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>{d.vsAI}</div>
                     <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-                      Round {gameState.round} · {isMyTurn ? 'Your turn' : `${playerNameOf(gameState.currentTurnPlayerId)}'s turn`}
+                      {d.round} {gameState.round} · {isMyTurn ? d.yourTurn : `${playerNameOf(gameState.currentTurnPlayerId)}${d.playerTurn}`}
                     </div>
                     {gameState.finished && (
                       <div style={{ color: '#fbbf24', fontWeight: 800, fontSize: '0.95rem' }}>
-                        Result: {daifugoId ? `${playerNameOf(daifugoId)} is Daifugo` : 'Finished'}
+                        {d.result}: {daifugoId ? `${playerNameOf(daifugoId)} ${d.isDaifugo}` : d.finished}
                       </div>
                     )}
                   </div>
@@ -616,24 +686,32 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                     borderRadius: '0.75rem',
                     padding: '0.75rem',
                   }}>
-                    <div style={{ color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>Results</div>
+                    <div style={{ color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>{d.results}</div>
                     <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      {resultRows.map((row) => (
-                        <div
-                          key={row.id}
-                          style={{
-                            background: 'rgba(0,0,0,0.35)',
-                            border: '1px solid rgba(55, 65, 81, 1)',
-                            borderRadius: '0.75rem',
-                            padding: '0.45rem 0.75rem',
-                            color: '#e5e7eb',
-                            fontSize: '0.85rem',
-                            fontWeight: 800,
-                          }}
-                        >
-                          {daifugoRankToLabel(row.rank)}: {row.name}
-                        </div>
-                      ))}
+                      {resultRows.map((row) => {
+                        const rankLabel = row.rank === 'daifugo' ? d.daifugo
+                          : row.rank === 'fugo' ? d.fugo
+                          : row.rank === 'heimin' ? d.heimin
+                          : row.rank === 'hinmin' ? d.hinmin
+                          : row.rank === 'daihinmin' ? d.daihinmin
+                          : row.rank;
+                        return (
+                          <div
+                            key={row.id}
+                            style={{
+                              background: 'rgba(0,0,0,0.35)',
+                              border: '1px solid rgba(55, 65, 81, 1)',
+                              borderRadius: '0.75rem',
+                              padding: '0.45rem 0.75rem',
+                              color: '#e5e7eb',
+                              fontSize: '0.85rem',
+                              fontWeight: 800,
+                            }}
+                          >
+                            {rankLabel}: {row.name}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -646,6 +724,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                   pileCards={pileCards}
                   isReversed={isReversed}
                   playerNameOf={playerNameOf}
+                  translations={d}
                 />
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginTop: '1rem' }}>
@@ -671,7 +750,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                           cursor: (!isMyTurn || !gameState.pile || gameState.finished) ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Pass
+                        {d.pass}
                       </button>
 
                       <button
@@ -687,7 +766,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                           cursor: (!canPlaySelected.ok || gameState.finished) ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Play
+                        {d.play}
                       </button>
 
                       <button
@@ -703,7 +782,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                           cursor: effectiveSelectedCardIds.length === 0 ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Clear
+                        {d.clear}
                       </button>
 
                       {/* Show why play is disabled */}
@@ -732,7 +811,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                             cursor: 'pointer',
                           }}
                         >
-                          Next Round
+                          {d.nextRound}
                         </button>
                       )}
                       <button
@@ -747,7 +826,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                           cursor: 'pointer',
                         }}
                       >
-                        New Game
+                        {d.newGame}
                       </button>
                       <button
                         onClick={handleBack}
@@ -761,7 +840,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                           cursor: 'pointer',
                         }}
                       >
-                        Back
+                        {d.back}
                       </button>
                     </div>
                   </div>
@@ -782,13 +861,13 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                   padding: '1rem',
                 }}>
 	                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-	                    <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700 }}>Your Hand</div>
+	                    <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700 }}>{d.yourHand}</div>
 	                    <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
 	                      {selectedShape
 	                        ? selectedShape.kind === 'straight'
-	                          ? `Selected: straight ${selectedShape.count} (${rankToLabel(selectedShape.startRank)}-${rankToLabel(selectedShape.endRank)})`
-	                          : `Selected: ${selectedShape.count} × ${rankToLabel(selectedShape.rankKey)}`
-	                        : 'Select cards to play'}
+	                          ? `${d.selectedStraight} ${selectedShape.count} (${rankToLabel(selectedShape.startRank)}-${rankToLabel(selectedShape.endRank)})`
+	                          : `${d.selectedGroup} ${selectedShape.count} × ${rankToLabel(selectedShape.rankKey)}`
+	                        : d.selectCards}
 	                    </div>
 	                  </div>
 
@@ -801,10 +880,10 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 	                      padding: '0.75rem',
 	                    }}>
 	                      <div style={{ color: '#fbbf24', fontWeight: 900, fontSize: '0.9rem' }}>
-	                        7渡し: {sevenGiveContext.giveCount}枚を {sevenGiveContext.toPlayerId ? playerNameOf(sevenGiveContext.toPlayerId) : 'next player'} に渡す
+	                        {d.sevenGive}: {translate('games.daifugo.ui.giveToPlayer', { count: sevenGiveContext.giveCount, player: sevenGiveContext.toPlayerId ? playerNameOf(sevenGiveContext.toPlayerId) : '' })}
 	                      </div>
 	                      <div style={{ color: '#9ca3af', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-	                        渡すカードを選択（未選択分は自動で弱いカードになります）
+	                        {d.sevenGiveDesc}
 	                      </div>
 	                      <div style={{
 	                        marginTop: '0.5rem',
@@ -839,10 +918,10 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 	                      padding: '0.75rem',
 	                    }}>
 	                      <div style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.9rem' }}>
-	                        10捨て: 最大{tenDiscardContext.discardCount}枚を捨てられます
+	                        {d.tenDiscard}: {translate('games.daifugo.ui.discardUpTo', { count: tenDiscardContext.discardCount })}
 	                      </div>
 	                      <div style={{ color: '#9ca3af', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-	                        捨てるカードを選択（選択しなければ捨てません）
+	                        {d.tenDiscardDesc}
 	                      </div>
 	                      <div style={{
 	                        marginTop: '0.5rem',
@@ -888,9 +967,9 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                   borderRadius: '0.75rem',
                   padding: '1rem',
                 }}>
-                  <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem' }}>Log</div>
+                  <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem' }}>{d.log}</div>
                   {logLines.length === 0 ? (
-                    <div style={{ color: '#6b7280', fontStyle: 'italic' }}>No actions yet</div>
+                    <div style={{ color: '#6b7280', fontStyle: 'italic' }}>{d.noActionsYet}</div>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', color: '#e5e7eb', fontSize: '0.85rem' }}>
                       {logLines.map((line, idx) => (
@@ -910,35 +989,27 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
       <InfoModal
         isOpen={showInfo}
         onClose={() => setShowInfo(false)}
-        title="How to Play Daifugo"
+        title={`${translate('games.howToPlay')} - ${gameT.title}`}
       >
         <div style={{ color: '#e5e7eb', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Goal</div>
-            <div style={{ color: '#cbd5e1' }}>Get rid of all your cards first.</div>
+          <div style={{ color: '#cbd5e1', marginBottom: '0.5rem' }}>
+            {gameT.longDescription}
           </div>
           <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Plays</div>
-            <div style={{ color: '#cbd5e1' }}>
-              Play groups (same rank) or stairs (same suit, 3+ consecutive). Joker is a single only.
-            </div>
+            <div style={{ fontWeight: 800, color: '#fbbf24', marginBottom: '0.5rem' }}>{translate('games.howToPlay')}</div>
+            <ul style={{ margin: 0, paddingLeft: '1.25rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+              {gameT.howToPlay.map((item, idx) => (
+                <li key={idx} style={{ marginBottom: '0.25rem' }}>{item}</li>
+              ))}
+            </ul>
           </div>
           <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Beating the table</div>
-            <div style={{ color: '#cbd5e1' }}>
-              Match type + card count, then play a stronger set (order can reverse during revolution / eleven-back).
-            </div>
-          </div>
-          <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Special Rules</div>
-            <div style={{ color: '#cbd5e1' }}>
-              8-cut clears the table. Playing 4+ cards triggers revolution. J triggers eleven-back (temporary reverse) except in stairs.
-              Consecutive identical suit signatures cause shibari (suit lock). 3♠ can beat a single Joker. 5 skips next player. 7 gives card(s) to next player.
-              10 lets you discard cards from your hand (10捨て).
-            </div>
-          </div>
-          <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-            Note: Multi-round play includes ranking + card exchange from round 2.
+            <div style={{ fontWeight: 800, color: '#fbbf24', marginBottom: '0.5rem' }}>{translate('games.features')}</div>
+            <ul style={{ margin: 0, paddingLeft: '1.25rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+              {gameT.features.map((item, idx) => (
+                <li key={idx} style={{ marginBottom: '0.25rem' }}>{item}</li>
+              ))}
+            </ul>
           </div>
         </div>
       </InfoModal>

@@ -2,9 +2,13 @@
  * Reusable top bar for games
  */
 
+'use client';
+
 import Link from 'next/link';
 import { Info, Trophy } from 'lucide-react';
 import { GameStats } from './types';
+import { useGameLanguage, LanguageSelector } from '../contexts/GameLanguageContext';
+import { getUITranslation } from '../constants/gameTranslations';
 
 interface GameTopBarProps {
   stats: GameStats;
@@ -17,6 +21,12 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
   onInfoClick,
   additionalContent
 }) => {
+  const { language } = useGameLanguage();
+  const ui = getUITranslation(language);
+
+  const backLabel = language === 'ja' ? '← ゲーム一覧へ' : '← Back to Games';
+  const recordLabel = language === 'ja' ? '記録' : 'Record';
+
   return (
     <div style={{
       position: 'fixed',
@@ -44,10 +54,13 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
         onMouseEnter={(e) => e.currentTarget.style.color = '#0ea5e9'}
         onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
       >
-        ← Back to Games
+        {backLabel}
       </Link>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        {/* Language Selector */}
+        <LanguageSelector />
+
         {additionalContent}
 
         {/* Stats */}
@@ -62,7 +75,7 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
         }}>
           <Trophy style={{ width: '1.25rem', height: '1.25rem', color: '#0ea5e9' }} />
           <div>
-            <div style={{ fontSize: '0.625rem', color: '#94a3b8', textTransform: 'uppercase' }}>Record</div>
+            <div style={{ fontSize: '0.625rem', color: '#94a3b8', textTransform: 'uppercase' }}>{recordLabel}</div>
             <div style={{ fontSize: '1rem', fontWeight: 'bold', color: '#0ea5e9' }}>
               {stats.wins}W - {stats.losses}L - {stats.draws}D
             </div>
@@ -90,7 +103,7 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
         onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(14, 165, 233, 0.2)'}
       >
         <Info style={{ width: '1rem', height: '1rem' }} />
-        How to Play
+        {ui.howToPlay}
       </button>
     </div>
   );

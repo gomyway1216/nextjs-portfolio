@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Rubik, Playfair_Display } from "next/font/google";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { PostsProvider } from "@/providers/PostsProvider";
+import { I18nProvider } from "@/components/providers/I18nProvider";
 import AOSInitializer from "./AOSInitializer";
 import { Toaster } from "@/components/ui/sonner";
 import "../assets/scss/main.scss";
@@ -48,11 +49,13 @@ export default function RootLayout({
       <body className={`${rubik.variable} ${playfair.variable}`} suppressHydrationWarning>
         <AOSInitializer />
         <Toaster />
-        <AuthProvider>
-          <PostsProvider>
-            {children}
-          </PostsProvider>
-        </AuthProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <PostsProvider>
+              {children}
+            </PostsProvider>
+          </AuthProvider>
+        </I18nProvider>
         <div id="modal-root"></div>
       </body>
     </html>

@@ -5,15 +5,17 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { GameTopBar, InfoModal, GameStats } from '../common';
 import { DaifugoMultiplayerLobby } from './DaifugoMultiplayerLobby';
 import { useDaifugoMultiplayer } from './useDaifugoMultiplayer';
 import { applyAction, createInitialDaifugoState, getPlayShape, getSelectedCards, getNextPlayerId, sortHand } from './gameLogic';
-import { isJoker, rankToLabel } from './types';
+import { rankToLabel } from './types';
 import type { Card } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
 import { DAIFUGO_RANK_PRIORITY, daifugoRankToLabel } from './multiplayerTypes';
 import type { DaifugoAction, DaifugoLogEntry } from './multiplayerTypes';
+import type { DaifugoUITranslations } from '../constants/gameTranslations';
 
 function createActionId(): string {
   return `act_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
@@ -27,6 +29,75 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
   const multiplayer = useDaifugoMultiplayer();
   const stats = useMemo<GameStats>(() => ({ wins: 0, losses: 0, draws: 0 }), []);
   const [showInfo, setShowInfo] = useState(false);
+  const { t: translate } = useTranslation();
+
+  // Build translation objects from i18next
+  const gameT = {
+    title: translate('games.daifugo.title'),
+    longDescription: translate('games.daifugo.longDescription'),
+    howToPlay: translate('games.daifugo.howToPlay', { returnObjects: true }) as string[],
+    features: translate('games.daifugo.features', { returnObjects: true }) as string[],
+  };
+
+  const d: DaifugoUITranslations = {
+    vsAI: translate('games.daifugo.ui.vsAI'),
+    online: translate('games.daifugo.ui.online'),
+    chooseAICount: translate('games.daifugo.ui.chooseAICount'),
+    yourName: translate('games.daifugo.ui.yourName'),
+    aiPlayers: translate('games.daifugo.ui.aiPlayers'),
+    total: translate('games.daifugo.ui.total'),
+    startGame: translate('games.daifugo.ui.startGame'),
+    back: translate('games.daifugo.ui.back'),
+    round: translate('games.daifugo.ui.round'),
+    yourTurn: translate('games.daifugo.ui.yourTurn'),
+    playerTurn: translate('games.daifugo.ui.playerTurn'),
+    result: translate('games.daifugo.ui.result'),
+    isDaifugo: translate('games.daifugo.ui.isDaifugo'),
+    finished: translate('games.daifugo.ui.finished'),
+    results: translate('games.daifugo.ui.results'),
+    pass: translate('games.daifugo.ui.pass'),
+    play: translate('games.daifugo.ui.play'),
+    clear: translate('games.daifugo.ui.clear'),
+    nextRound: translate('games.daifugo.ui.nextRound'),
+    newGame: translate('games.daifugo.ui.newGame'),
+    yourHand: translate('games.daifugo.ui.yourHand'),
+    selectCards: translate('games.daifugo.ui.selectCards'),
+    selectedStraight: translate('games.daifugo.ui.selectedStraight'),
+    selectedGroup: translate('games.daifugo.ui.selectedGroup'),
+    sevenGive: translate('games.daifugo.ui.sevenGive'),
+    sevenGiveDesc: translate('games.daifugo.ui.sevenGiveDesc'),
+    giveToPlayer: translate('games.daifugo.ui.giveToPlayer'),
+    tenDiscard: translate('games.daifugo.ui.tenDiscard'),
+    tenDiscardDesc: translate('games.daifugo.ui.tenDiscardDesc'),
+    discardUpTo: translate('games.daifugo.ui.discardUpTo'),
+    log: translate('games.daifugo.ui.log'),
+    noActionsYet: translate('games.daifugo.ui.noActionsYet'),
+    logPlayed: translate('games.daifugo.ui.logPlayed'),
+    logPass: translate('games.daifugo.ui.logPass'),
+    logTableCleared: translate('games.daifugo.ui.logTableCleared'),
+    logRoundEnd: translate('games.daifugo.ui.logRoundEnd'),
+    logNextRound: translate('games.daifugo.ui.logNextRound'),
+    logStraight: translate('games.daifugo.ui.logStraight'),
+    daifugo: translate('games.daifugo.ui.ranks.daifugo'),
+    fugo: translate('games.daifugo.ui.ranks.fugo'),
+    heimin: translate('games.daifugo.ui.ranks.heimin'),
+    hinmin: translate('games.daifugo.ui.ranks.hinmin'),
+    daihinmin: translate('games.daifugo.ui.ranks.daihinmin'),
+    revolution: translate('games.daifugo.ui.status.revolution'),
+    elevenBack: translate('games.daifugo.ui.status.elevenBack'),
+    shibari: translate('games.daifugo.ui.status.shibari'),
+    gekishiba: translate('games.daifugo.ui.status.gekishiba'),
+    rankOnly: translate('games.daifugo.ui.status.rankOnly'),
+    cards: translate('games.daifugo.ui.table.cards'),
+    finishedLabel: translate('games.daifugo.ui.table.finishedLabel'),
+    anyCard: translate('games.daifugo.ui.table.anyCard'),
+    tableCard: translate('games.daifugo.ui.table.tableCard'),
+    weak: translate('games.daifugo.ui.table.weak'),
+    strong: translate('games.daifugo.ui.table.strong'),
+    passLabel: translate('games.daifugo.ui.table.passLabel'),
+    players: translate('games.daifugo.ui.table.players'),
+    you: translate('games.daifugo.ui.table.you'),
+  };
 
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [selectedGiveCardIds, setSelectedGiveCardIds] = useState<string[]>([]);
@@ -342,17 +413,17 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
       if (entry.type === 'play' && entry.cardCount && entry.rankKey) {
         if (entry.playKind === 'straight') {
           const start = entry.rankKey - entry.cardCount + 1;
-          return `${name}: straight ${entry.cardCount} (${rankToLabel(start)}-${rankToLabel(entry.rankKey)})`;
+          return `${name}: ${d.logStraight} ${entry.cardCount} (${rankToLabel(start)}-${rankToLabel(entry.rankKey)})`;
         }
-        return `${name}: played ${entry.cardCount} × ${rankToLabel(entry.rankKey)}`;
+        return `${name}: ${d.logPlayed} ${entry.cardCount} × ${rankToLabel(entry.rankKey)}`;
       }
-      if (entry.type === 'pass') return `${name}: pass`;
-      if (entry.type === 'trick_end') return `${name}: table cleared`;
-      if (entry.type === 'round_end') return `${name}: round end`;
-      if (entry.type === 'next_round') return `${name}: next round`;
+      if (entry.type === 'pass') return `${name}: ${d.logPass}`;
+      if (entry.type === 'trick_end') return `${name}: ${d.logTableCleared}`;
+      if (entry.type === 'round_end') return `${name}: ${d.logRoundEnd}`;
+      if (entry.type === 'next_round') return `${name}: ${d.logNextRound}`;
       return `${name}: ...`;
     });
-  }, [gameState?.log, playerNameOf]);
+  }, [gameState?.log, playerNameOf, d]);
 
   const daifugoId = useMemo(() => {
     if (!gameState?.ranks) return null;
@@ -483,7 +554,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                     cursor: 'pointer',
                   }}
                 >
-                  Back
+                  {d.back}
                 </button>
               </div>
               <DaifugoMultiplayerLobby multiplayer={multiplayer} onGameStart={handleStartGame} />
@@ -508,46 +579,54 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
               }}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-	                    <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>Daifugo (Online)</div>
+	                    <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>{gameT.title} (Online)</div>
 	                    <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
-	                      Round {gameState?.round ?? 1} · {gameState?.playerOrder.length ?? 0} players · {isMyTurn ? 'Your turn' : `${playerNameOf(gameState?.currentTurnPlayerId ?? '')}'s turn`}
+	                      {d.round} {gameState?.round ?? 1} · {gameState?.playerOrder.length ?? 0} {d.players} · {isMyTurn ? d.yourTurn : `${playerNameOf(gameState?.currentTurnPlayerId ?? '')}${d.playerTurn}`}
 	                    </div>
 	                    {gameState?.finished && (
 	                      <div style={{ color: '#fbbf24', fontWeight: 800, fontSize: '0.95rem' }}>
-	                        Result: {daifugoId ? `${playerNameOf(daifugoId)} is ${daifugoRankToLabel('daifugo')}` : 'Finished'}
+	                        {d.result}: {daifugoId ? `${playerNameOf(daifugoId)} ${d.isDaifugo}` : d.finished}
                       </div>
                     )}
                   </div>
 
 	                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'stretch', justifyContent: 'flex-end' }}>
-	                    {playerSummaries.map((p) => (
-	                      <div
-	                        key={p.id}
-	                        style={{
-	                          background: p.isTurn ? 'rgba(34, 197, 94, 0.16)' : 'rgba(255, 255, 255, 0.06)',
-	                          border: p.isTurn ? '1px solid rgba(34, 197, 94, 0.55)' : '1px solid rgba(55, 65, 81, 1)',
-	                          borderRadius: '0.75rem',
-	                          padding: '0.45rem 0.75rem',
-	                          color: '#e5e7eb',
-	                          minWidth: '9rem',
-	                        }}
-	                      >
-	                        <div style={{ fontSize: '0.85rem', fontWeight: 800, color: p.isMe ? '#fbbf24' : '#e5e7eb' }}>
-	                          {p.name}{p.isMe ? ' (You)' : ''}
+	                    {playerSummaries.map((p) => {
+	                      const rankLabel = p.rank === 'daifugo' ? d.daifugo
+	                        : p.rank === 'fugo' ? d.fugo
+	                        : p.rank === 'heimin' ? d.heimin
+	                        : p.rank === 'hinmin' ? d.hinmin
+	                        : p.rank === 'daihinmin' ? d.daihinmin
+	                        : p.rank ? daifugoRankToLabel(p.rank) : null;
+	                      return (
+	                        <div
+	                          key={p.id}
+	                          style={{
+	                            background: p.isTurn ? 'rgba(34, 197, 94, 0.16)' : 'rgba(255, 255, 255, 0.06)',
+	                            border: p.isTurn ? '1px solid rgba(34, 197, 94, 0.55)' : '1px solid rgba(55, 65, 81, 1)',
+	                            borderRadius: '0.75rem',
+	                            padding: '0.45rem 0.75rem',
+	                            color: '#e5e7eb',
+	                            minWidth: '9rem',
+	                          }}
+	                        >
+	                          <div style={{ fontSize: '0.85rem', fontWeight: 800, color: p.isMe ? '#fbbf24' : '#e5e7eb' }}>
+	                            {p.name}{p.isMe ? ` (${d.you})` : ''}
+	                          </div>
+	                          <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>{p.handCount} {d.cards}</div>
+	                          {gameState?.ranks && rankLabel && (
+	                            <div style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: 900, marginTop: '0.25rem' }}>
+	                              {rankLabel}
+	                            </div>
+	                          )}
+	                          {!gameState?.ranks && p.finishedPos >= 0 && (
+	                            <div style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: 900, marginTop: '0.25rem' }}>
+	                              {d.finishedLabel} #{p.finishedPos + 1}
+	                            </div>
+	                          )}
 	                        </div>
-	                        <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>{p.handCount} cards</div>
-	                        {gameState?.ranks && p.rank && (
-	                          <div style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: 900, marginTop: '0.25rem' }}>
-	                            {daifugoRankToLabel(p.rank)}
-	                          </div>
-	                        )}
-	                        {!gameState?.ranks && p.finishedPos >= 0 && (
-	                          <div style={{ fontSize: '0.8rem', color: '#fbbf24', fontWeight: 900, marginTop: '0.25rem' }}>
-	                            Finished #{p.finishedPos + 1}
-	                          </div>
-	                        )}
-	                      </div>
-	                    ))}
+	                      );
+	                    })}
 	                  </div>
 	                </div>
 
@@ -559,24 +638,32 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                     borderRadius: '0.75rem',
                     padding: '0.75rem',
                   }}>
-                    <div style={{ color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>Results</div>
+                    <div style={{ color: '#fbbf24', fontWeight: 900, fontSize: '0.95rem' }}>{d.results}</div>
                     <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                      {resultRows.map((row) => (
-                        <div
-                          key={row.id}
-                          style={{
-                            background: 'rgba(0,0,0,0.35)',
-                            border: '1px solid rgba(55, 65, 81, 1)',
-                            borderRadius: '0.75rem',
-                            padding: '0.45rem 0.75rem',
-                            color: '#e5e7eb',
-                            fontSize: '0.85rem',
-                            fontWeight: 800,
-                          }}
-                        >
-                          {daifugoRankToLabel(row.rank)}: {row.name}
-                        </div>
-                      ))}
+                      {resultRows.map((row) => {
+                        const rankLabel = row.rank === 'daifugo' ? d.daifugo
+                          : row.rank === 'fugo' ? d.fugo
+                          : row.rank === 'heimin' ? d.heimin
+                          : row.rank === 'hinmin' ? d.hinmin
+                          : row.rank === 'daihinmin' ? d.daihinmin
+                          : row.rank;
+                        return (
+                          <div
+                            key={row.id}
+                            style={{
+                              background: 'rgba(0,0,0,0.35)',
+                              border: '1px solid rgba(55, 65, 81, 1)',
+                              borderRadius: '0.75rem',
+                              padding: '0.45rem 0.75rem',
+                              color: '#e5e7eb',
+                              fontSize: '0.85rem',
+                              fontWeight: 800,
+                            }}
+                          >
+                            {rankLabel}: {row.name}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -591,11 +678,11 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                     minHeight: '8rem',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                      <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700 }}>Table</div>
+                      <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700 }}>{d.tableCard}</div>
                       <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
                         {gameState?.pile
-                          ? `Need ${gameState.pile.count} · ${isReversed ? 'Lower' : 'Higher'} than ${rankToLabel(gameState.pile.rankKey)}`
-                          : 'Free play'}
+                          ? `${gameState.pile.count}${d.cards} · ${isReversed ? d.weak : d.strong} > ${rankToLabel(gameState.pile.rankKey)}`
+                          : d.anyCard}
                       </div>
                     </div>
 
@@ -608,7 +695,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                       minHeight: '4.5rem',
                     }}>
                       {pileCards.length === 0 ? (
-                        <div style={{ color: '#6b7280', fontStyle: 'italic' }}>No cards on table</div>
+                        <div style={{ color: '#6b7280', fontStyle: 'italic' }}>{d.noActionsYet}</div>
                       ) : (
                         pileCards.map((c, idx) => (
                           <PlayingCard
@@ -625,7 +712,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
 
                     {gameState?.passes?.length ? (
                       <div style={{ marginTop: '0.5rem', color: '#6b7280', fontSize: '0.8rem' }}>
-                        Passed: {gameState.passes.map(pid => playerNameOf(pid)).join(', ')}
+                        {d.passLabel} {gameState.passes.map(pid => playerNameOf(pid)).join(', ')}
                       </div>
                     ) : null}
                   </div>
@@ -652,7 +739,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                           cursor: (!isMyTurn || isSubmitting || !gameState?.pile || !!gameState?.finished) ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Pass
+                        {d.pass}
                       </button>
 
                       <button
@@ -668,7 +755,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                           cursor: (!canPlaySelected.ok || isSubmitting || !!gameState?.finished) ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Play
+                        {d.play}
                       </button>
 
                       <button
@@ -684,7 +771,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                           cursor: isSubmitting || effectiveSelectedCardIds.length === 0 ? 'not-allowed' : 'pointer',
                         }}
                       >
-                        Clear
+                        {d.clear}
                       </button>
 
                       {/* Show why play is disabled */}
@@ -707,7 +794,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                         cursor: 'pointer',
                       }}
                     >
-                      Back
+                      {d.back}
                     </button>
 
                     {multiplayer.context.isHost && gameState?.finished && (
@@ -723,7 +810,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                           cursor: 'pointer',
                         }}
                       >
-                        Next Round
+                        {d.nextRound}
                       </button>
                     )}
                   </div>
@@ -744,13 +831,13 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                   padding: '1rem',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700 }}>Your Hand</div>
+                    <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700 }}>{d.yourHand}</div>
                     <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
                       {selectedShape
                         ? selectedShape.kind === 'straight'
-                          ? `Selected: straight ${selectedShape.count} (${rankToLabel(selectedShape.startRank)}-${rankToLabel(selectedShape.endRank)})`
-                          : `Selected: ${selectedShape.count} × ${rankToLabel(selectedShape.rankKey)}`
-                        : 'Select cards to play'}
+                          ? `${d.selectedStraight} ${selectedShape.count} (${rankToLabel(selectedShape.startRank)}-${rankToLabel(selectedShape.endRank)})`
+                          : `${d.selectedGroup} ${selectedShape.count} × ${rankToLabel(selectedShape.rankKey)}`
+                        : d.selectCards}
                     </div>
                   </div>
 
@@ -763,10 +850,10 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                       padding: '0.75rem',
                     }}>
                       <div style={{ color: '#fbbf24', fontWeight: 900, fontSize: '0.9rem' }}>
-                        7渡し: {sevenGiveContext.giveCount}枚を {sevenGiveContext.toPlayerId ? playerNameOf(sevenGiveContext.toPlayerId) : 'next player'} に渡す
+                        {d.sevenGive}: {translate('games.daifugo.ui.giveToPlayer', { count: sevenGiveContext.giveCount, player: sevenGiveContext.toPlayerId ? playerNameOf(sevenGiveContext.toPlayerId) : '' })}
                       </div>
                       <div style={{ color: '#9ca3af', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                        渡すカードを選択（未選択分は自動で弱いカードになります）
+                        {d.sevenGiveDesc}
                       </div>
                       <div style={{
                         marginTop: '0.5rem',
@@ -801,10 +888,10 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
                       padding: '0.75rem',
                     }}>
                       <div style={{ color: '#ef4444', fontWeight: 900, fontSize: '0.9rem' }}>
-                        10捨て: 最大{tenDiscardContext.discardCount}枚を捨てられます
+                        {d.tenDiscard}: {translate('games.daifugo.ui.discardUpTo', { count: tenDiscardContext.discardCount })}
                       </div>
                       <div style={{ color: '#9ca3af', fontSize: '0.8rem', marginTop: '0.25rem' }}>
-                        捨てるカードを選択（選択しなければ捨てません）
+                        {d.tenDiscardDesc}
                       </div>
                       <div style={{
                         marginTop: '0.5rem',
@@ -872,35 +959,27 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
       <InfoModal
         isOpen={showInfo}
         onClose={() => setShowInfo(false)}
-        title="How to Play Daifugo"
+        title={`${translate('games.howToPlay')} - ${gameT.title}`}
       >
         <div style={{ color: '#e5e7eb', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Goal</div>
-            <div style={{ color: '#cbd5e1' }}>Get rid of all your cards first.</div>
+          <div style={{ color: '#cbd5e1', marginBottom: '0.5rem' }}>
+            {gameT.longDescription}
           </div>
           <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Plays</div>
-            <div style={{ color: '#cbd5e1' }}>
-              Play groups (same rank) or stairs (same suit, 3+ consecutive). Joker is a single only.
-            </div>
+            <div style={{ fontWeight: 800, color: '#fbbf24', marginBottom: '0.5rem' }}>{translate('games.howToPlay')}</div>
+            <ul style={{ margin: 0, paddingLeft: '1.25rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+              {gameT.howToPlay.map((item, idx) => (
+                <li key={idx} style={{ marginBottom: '0.25rem' }}>{item}</li>
+              ))}
+            </ul>
           </div>
           <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Beating the table</div>
-            <div style={{ color: '#cbd5e1' }}>
-              Match type + card count, then play a stronger set (order can reverse during revolution / eleven-back).
-            </div>
-          </div>
-          <div>
-            <div style={{ fontWeight: 800, color: '#fbbf24' }}>Special Rules</div>
-            <div style={{ color: '#cbd5e1' }}>
-              8-cut clears the table. Playing 4+ cards triggers revolution. J triggers eleven-back (temporary reverse) except in stairs.
-              Consecutive identical suit signatures cause shibari (suit lock). 3♠ can beat a single Joker. 5 skips next player. 7 gives card(s) to next player.
-              10 lets you discard cards from your hand (10捨て).
-            </div>
-          </div>
-          <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-            Note: Rules include stairs/revolution/8-cut/eleven-back/shibari and multi-round exchange.
+            <div style={{ fontWeight: 800, color: '#fbbf24', marginBottom: '0.5rem' }}>{translate('games.features')}</div>
+            <ul style={{ margin: 0, paddingLeft: '1.25rem', color: '#cbd5e1', lineHeight: 1.6 }}>
+              {gameT.features.map((item, idx) => (
+                <li key={idx} style={{ marginBottom: '0.25rem' }}>{item}</li>
+              ))}
+            </ul>
           </div>
         </div>
       </InfoModal>

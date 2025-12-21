@@ -1,0 +1,309 @@
+{
+  "app": {
+    "title": "Yudai Yaguchi - Portfolio",
+    "description": "Software Engineer Portfolio"
+  },
+  "navigation": {
+    "games": "Games",
+    "backToGames": "Back to Games",
+    "backToPortfolio": "Back to Portfolio"
+  },
+  "games": {
+    "collection": "Games Collection",
+    "subtitle": "Explore interactive browser games built with TypeScript and HTML5 Canvas. Challenge yourself and beat the high scores!",
+    "interactive": "Interactive",
+    "browserBased": "Browser-Based",
+    "playNow": "Play Now",
+    "comingSoon": "More Games Coming Soon!",
+    "comingSoonText": "New games are being developed. Check back later for more interactive experiences.",
+    "viewAllGames": "View All Games",
+    "clickToPlay": "Click to Play",
+    "howToPlay": "How to Play",
+    "features": "Features",
+    "difficulty": {
+      "label": "Difficulty",
+      "easy": "Easy",
+      "medium": "Medium",
+      "hard": "Hard"
+    },
+    "category": {
+      "label": "Category",
+      "arcade": "Arcade",
+      "strategy": "Strategy",
+      "puzzle": "Puzzle",
+      "rpg": "RPG",
+      "card": "Card"
+    },
+    "jump-game": {
+      "title": "Jump Game",
+      "description": "A classic jump-and-dodge arcade game. Press any key to jump over obstacles and rack up points!",
+      "longDescription": "Test your reflexes in this fast-paced endless runner! Your character automatically runs forward while you time your jumps to avoid obstacles. The game speeds up as your score increases, making it progressively more challenging. How far can you go?",
+      "howToPlay": [
+        "Press SPACE or click to jump",
+        "Avoid obstacles by timing your jumps",
+        "The game speeds up as you progress",
+        "Try to beat your high score!"
+      ],
+      "features": [
+        "Simple one-button controls",
+        "Progressive difficulty",
+        "High score tracking",
+        "Smooth animations"
+      ]
+    },
+    "tic-tac-toe": {
+      "title": "Tic Tac Toe",
+      "description": "Challenge the AI in this classic strategy game! Choose from Easy, Medium, or Hard difficulty and test your skills.",
+      "longDescription": "The timeless game of X's and O's! Play against an AI opponent with three difficulty levels. On Easy, the AI makes random moves. Medium uses basic strategy, while Hard implements the perfect Minimax algorithm - can you force a draw against an unbeatable opponent?",
+      "howToPlay": [
+        "Click on any empty cell to place your mark",
+        "Get three in a row (horizontal, vertical, or diagonal) to win",
+        "Block your opponent from getting three in a row",
+        "Choose your difficulty before starting"
+      ],
+      "features": [
+        "Three AI difficulty levels",
+        "Perfect Minimax algorithm on Hard",
+        "Win/Loss/Draw statistics",
+        "Clean, responsive design"
+      ]
+    },
+    "gomoku": {
+      "title": "Gomoku",
+      "description": "Five in a Row! Strategic board game with AI using minimax and alpha-beta pruning. Can you outsmart the algorithm?",
+      "longDescription": "Also known as Five in a Row or Gobang, this ancient strategy game originated in Japan. Place stones on a 15x15 board and try to get exactly five in a row before your opponent. Our AI uses the Minimax algorithm with Alpha-Beta pruning for efficient decision making. A perfect blend of simple rules and deep strategy!",
+      "howToPlay": [
+        "Click on any intersection to place your stone",
+        "Get exactly five stones in a row to win",
+        "Horizontal, vertical, and diagonal lines count",
+        "Block your opponent while building your own lines"
+      ],
+      "features": [
+        "Advanced AI with Minimax + Alpha-Beta pruning",
+        "15x15 traditional board",
+        "Move history tracking",
+        "Visual winning line highlight"
+      ]
+    },
+    "tetris": {
+      "title": "Tetris",
+      "description": "Classic block-stacking puzzle game. Clear lines by completing horizontal rows. Speed increases as you level up!",
+      "longDescription": "The legendary puzzle game that has captivated players for decades! Rotate and position falling tetrominoes to complete horizontal lines. Clear multiple lines at once for bonus points. Watch out - the pieces fall faster as you level up! Features the classic seven tetromino shapes and ghost piece preview.",
+      "howToPlay": [
+        "Arrow keys: Move left/right and soft drop",
+        "Up arrow or Z: Rotate piece",
+        "Space: Hard drop (instant placement)",
+        "Complete full horizontal lines to clear them"
+      ],
+      "features": [
+        "All 7 classic tetromino shapes",
+        "Ghost piece preview",
+        "Level progression with speed increase",
+        "Line clear combos and scoring",
+        "Next piece preview"
+      ]
+    },
+    "shogi": {
+      "title": "Shogi",
+      "description": "Japanese Chess! Strategic board game with piece drops and promotions. Challenge the AI in this classic strategy game!",
+      "longDescription": "Experience the depth of Japanese chess! Unlike Western chess, captured pieces can be dropped back onto the board as your own - adding incredible strategic complexity. Pieces promote when reaching the enemy camp, gaining new powers. Our AI uses advanced evaluation with multiple difficulty levels. Master the way of the general!",
+      "howToPlay": [
+        "Click a piece to select, then click destination",
+        "Captured pieces appear in your hand",
+        "Drop captured pieces by selecting from your hand",
+        "Pieces promote when reaching the last 3 rows",
+        "Checkmate the opponent's King to win"
+      ],
+      "features": [
+        "Full Shogi rules implementation",
+        "Piece dropping (unique to Shogi)",
+        "Piece promotion system",
+        "Multiple AI difficulty levels",
+        "Move analysis and suggestions"
+      ]
+    },
+    "othello": {
+      "title": "Othello",
+      "description": "Classic strategy board game with AI using alpha-beta search. Flip your opponent's discs to win!",
+      "longDescription": "Also known as Reversi, this elegant strategy game is simple to learn but difficult to master. Place your disc to flip opponent's pieces trapped between your discs. Control the corners and edges for strategic advantage! Our AI uses Alpha-Beta search with position evaluation to provide a challenging opponent.",
+      "howToPlay": [
+        "Click on a valid position to place your disc",
+        "Flip opponent's discs by trapping them",
+        "A move must flip at least one opponent disc",
+        "Game ends when neither player can move",
+        "Most discs on the board wins!"
+      ],
+      "features": [
+        "Alpha-Beta search AI",
+        "Valid move highlighting",
+        "Disc count display",
+        "Strategic corner control",
+        "Multiple difficulty levels"
+      ]
+    },
+    "mini-adventure": {
+      "title": "Mini Adventure",
+      "description": "Roguelike dungeon crawler! Descend 10 floors, manage your torch, and defeat the Dragon boss!",
+      "longDescription": "Embark on a procedurally generated dungeon adventure! Navigate through 10 increasingly difficult floors, managing your health, torch light, and resources. Encounter various enemies, find treasures, and prepare for the ultimate challenge - the Dragon boss on floor 10! Every run is different thanks to random generation.",
+      "howToPlay": [
+        "Arrow keys or WASD to move",
+        "Bump into enemies to attack",
+        "Collect items and gold",
+        "Manage your torch - darkness is dangerous!",
+        "Reach floor 10 and defeat the Dragon"
+      ],
+      "features": [
+        "Procedurally generated dungeons",
+        "Torch/light management system",
+        "Multiple enemy types",
+        "Boss battle on floor 10",
+        "Permadeath roguelike mechanics"
+      ]
+    },
+    "breakout": {
+      "title": "Breakout",
+      "description": "Classic brick-breaking arcade game! Use your paddle to bounce the ball and destroy all bricks. Collect power-ups!",
+      "longDescription": "The arcade classic that started it all! Control your paddle to keep the ball in play and break all the bricks. Different colored bricks have different durability. Collect falling power-ups for paddle size changes, multi-ball, and more! Clear all bricks to advance to the next level.",
+      "howToPlay": [
+        "Move mouse or arrow keys to control paddle",
+        "Bounce the ball to break bricks",
+        "Catch falling power-ups",
+        "Don't let the ball fall below the paddle!",
+        "Break all bricks to win"
+      ],
+      "features": [
+        "Multiple brick types with different HP",
+        "Power-up system",
+        "Level progression",
+        "Score multipliers",
+        "Smooth paddle controls"
+      ]
+    },
+    "space-invaders": {
+      "title": "Space Invaders",
+      "description": "Defend Earth from alien invasion! Destroy waves of enemies, use shields for cover, and shoot the mystery UFO for bonus points.",
+      "longDescription": "The legendary 1978 arcade shooter comes to your browser! Defend Earth against waves of descending aliens. Use your destructible shields for cover, and don't miss the mystery UFO flying across the top for bonus points! As waves progress, aliens move faster and become more aggressive. How many waves can you survive?",
+      "howToPlay": [
+        "Arrow keys: Move left/right",
+        "Space: Fire laser",
+        "Destroy all aliens to complete the wave",
+        "Use shields for protection",
+        "Shoot the mystery UFO for bonus points"
+      ],
+      "features": [
+        "Classic wave-based gameplay",
+        "Destructible shield barriers",
+        "Mystery UFO bonus",
+        "Progressive difficulty",
+        "Retro pixel graphics"
+      ]
+    },
+    "daifugo": {
+      "title": "Daifugo",
+      "description": "Play Daifugo (Rich Man Poor Man) vs AI (3-6 players) or online (3-6 players). Create a room, share the code, and battle to empty your hand first!",
+      "longDescription": "The popular Japanese card game also known as \"Rich Man, Poor Man\"! Play against AI opponents or challenge friends online. Features include Revolution, Eight-cut, Eleven-back, Suit lock (Shibari), and Gekishiba. The goal is to be the first to empty your hand. Rankings carry over between rounds with card exchanges!",
+      "howToPlay": [
+        "Play cards that beat the previous play",
+        "Same suit consecutive = Shibari (suit lock)",
+        "Same suit + consecutive rank = Gekishiba (exact rank required)",
+        "Play 4+ cards for Revolution (reverses strength)",
+        "J triggers Eleven-back (temporary reverse)",
+        "8 clears the table (Eight-cut)",
+        "First to empty hand becomes Daifugo!"
+      ],
+      "features": [
+        "VS AI mode (3-6 players)",
+        "Online multiplayer (3-6 players)",
+        "Full Japanese rules: Revolution, 8-cut, 11-back",
+        "Shibari (suit lock) and Gekishiba (intense lock)",
+        "7-give, 10-discard special rules",
+        "Card exchange between rounds"
+      ],
+      "ui": {
+        "vsAI": "Daifugo vs AI",
+        "online": "Daifugo Online",
+        "chooseAICount": "Choose AI count (min 2, max 5) — total 3–6 players.",
+        "yourName": "Your name",
+        "aiPlayers": "AI players",
+        "total": "total",
+        "startGame": "Start Game",
+        "back": "Back",
+        "round": "Round",
+        "yourTurn": "Your turn",
+        "playerTurn": "'s turn",
+        "result": "Result",
+        "isDaifugo": "is Daifugo",
+        "finished": "Finished",
+        "results": "Results",
+        "pass": "Pass",
+        "play": "Play",
+        "clear": "Clear",
+        "nextRound": "Next Round",
+        "newGame": "New Game",
+        "yourHand": "Your Hand",
+        "selectCards": "Select cards to play",
+        "selectedStraight": "Selected: straight",
+        "selectedGroup": "Selected:",
+        "sevenGive": "7-Give",
+        "sevenGiveDesc": "Select cards to give (unselected will auto-pick weakest)",
+        "giveToPlayer": "Give {{count}} card(s) to {{player}}",
+        "tenDiscard": "10-Discard",
+        "tenDiscardDesc": "Select cards to discard (optional)",
+        "discardUpTo": "Discard up to {{count}} card(s)",
+        "log": "Log",
+        "noActionsYet": "No actions yet",
+        "logPlayed": "played",
+        "logPass": "pass",
+        "logTableCleared": "table cleared",
+        "logRoundEnd": "round end",
+        "logNextRound": "next round",
+        "logStraight": "straight",
+        "ranks": {
+          "daifugo": "Daifugo",
+          "fugo": "Fugo",
+          "heimin": "Heimin",
+          "hinmin": "Hinmin",
+          "daihinmin": "Daihinmin"
+        },
+        "status": {
+          "revolution": "Revolution",
+          "elevenBack": "11-Back",
+          "shibari": "Shibari",
+          "gekishiba": "Gekishiba",
+          "rankOnly": "only"
+        },
+        "table": {
+          "cards": "cards",
+          "finishedLabel": "finished",
+          "anyCard": "Anything OK",
+          "tableCard": "Table",
+          "weak": "Weak",
+          "strong": "Strong",
+          "passLabel": "Pass:",
+          "players": "players",
+          "you": "You"
+        },
+        "menu": {
+          "chooseMode": "Choose a mode to start playing.",
+          "vsAIMode": "Play vs AI (3–6 players)",
+          "onlineMode": "Online Room (3–6 players)",
+          "modeDesc": "AI mode lets you choose how many AI opponents to include (minimum 2, maximum 5). Online mode uses room codes to play with friends (3–6 players)."
+        }
+      }
+    }
+  },
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "confirm": "Confirm",
+    "yes": "Yes",
+    "no": "No",
+    "record": "Record"
+  }
+}

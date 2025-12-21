@@ -6,6 +6,7 @@ import { rankToLabel } from './types';
 import type { Card } from './types';
 import { daifugoRankToLabel } from './multiplayerTypes';
 import type { DaifugoNetworkState, DaifugoRank } from './multiplayerTypes';
+import type { DaifugoUITranslations } from '../constants/gameTranslations';
 
 interface PlayerPosition {
   id: string;
@@ -24,6 +25,7 @@ interface DaifugoTableViewProps {
   pileCards: Card[];
   isReversed: boolean;
   playerNameOf: (id: string) => string;
+  translations?: DaifugoUITranslations;
 }
 
 // Avatar colors based on player index
@@ -40,11 +42,22 @@ function PlayerAvatar({
   player,
   colorIndex,
   showCardsBelow,
+  translations,
 }: {
   player: PlayerPosition;
   colorIndex: number;
   showCardsBelow?: boolean;
+  translations?: DaifugoUITranslations;
 }) {
+  const cardsLabel = translations?.cards ?? '枚';
+  const finishedLabel = translations?.finishedLabel ?? 'あがり';
+  const rankLabels = translations ? {
+    daifugo: translations.daifugo,
+    fugo: translations.fugo,
+    heimin: translations.heimin,
+    hinmin: translations.hinmin,
+    daihinmin: translations.daihinmin,
+  } : null;
   const color = AVATAR_COLORS[colorIndex % AVATAR_COLORS.length];
   const initial = player.name.charAt(0).toUpperCase();
 
@@ -100,7 +113,7 @@ function PlayerAvatar({
           color: '#9ca3af',
           fontSize: '0.6rem',
         }}>
-          {player.handCount > 0 ? `${player.handCount}枚` : 'あがり'}
+          {player.handCount > 0 ? `${player.handCount}${cardsLabel}` : finishedLabel}
         </div>
         {player.rank && (
           <div style={{
@@ -108,7 +121,7 @@ function PlayerAvatar({
             fontSize: '0.55rem',
             fontWeight: 700,
           }}>
-            {daifugoRankToLabel(player.rank)}
+            {rankLabels ? (rankLabels[player.rank] ?? daifugoRankToLabel(player.rank)) : daifugoRankToLabel(player.rank)}
           </div>
         )}
         {!player.rank && player.finishedPos >= 0 && (
@@ -162,9 +175,24 @@ export function DaifugoTableView({
   pileCards,
   isReversed,
   playerNameOf,
+  translations,
 }: DaifugoTableViewProps) {
   // Get other players (not me)
   const otherPlayers = playerSummaries.filter(p => !p.isMe);
+
+  // Translation helpers
+  const d = translations;
+  const cardsLabel = d?.cards ?? '枚';
+  const anyCardLabel = d?.anyCard ?? '何でもOK';
+  const tableCardLabel = d?.tableCard ?? '場札';
+  const weakLabel = d?.weak ?? '弱';
+  const strongLabel = d?.strong ?? '強';
+  const passLabelText = d?.passLabel ?? 'パス:';
+  const revolutionLabel = d?.revolution ?? '革命';
+  const elevenBackLabel = d?.elevenBack ?? '11バック';
+  const gekishibaLabel = d?.gekishiba ?? '激縛り';
+  const shibariLabel = d?.shibari ?? '縛り';
+  const rankOnlyLabel = d?.rankOnly ?? 'のみ';
 
   // Split players into top row and side positions
   const topPlayers = otherPlayers.slice(0, Math.min(3, otherPlayers.length));
@@ -197,6 +225,7 @@ export function DaifugoTableView({
               player={player}
               colorIndex={originalIndex}
               showCardsBelow
+              translations={translations}
             />
           );
         })}
@@ -217,6 +246,7 @@ export function DaifugoTableView({
               player={leftPlayer}
               colorIndex={playerSummaries.findIndex(p => p.id === leftPlayer.id)}
               showCardsBelow
+              translations={translations}
             />
           )}
         </div>
@@ -265,8 +295,8 @@ export function DaifugoTableView({
             zIndex: 1,
           }}>
             {gameState.pile
-              ? `${gameState.pile.count}枚 · ${isReversed ? '弱' : '強'} > ${rankToLabel(gameState.pile.rankKey)}`
-              : '何でもOK'}
+              ? `${gameState.pile.count}${cardsLabel} · ${isReversed ? weakLabel : strongLabel} > ${rankToLabel(gameState.pile.rankKey)}`
+              : anyCardLabel}
           </div>
 
           {/* Pile cards */}
@@ -293,7 +323,7 @@ export function DaifugoTableView({
                   fontSize: '0.65rem',
                 }}
               >
-                場札
+                {tableCardLabel}
               </div>
             ) : (
               pileCards.map((c, idx) => (
@@ -337,7 +367,7 @@ export function DaifugoTableView({
               textShadow: '0 1px 2px rgba(0,0,0,0.5)',
               zIndex: 1,
             }}>
-              パス: {gameState.passes.map(pid => playerNameOf(pid)).join(', ')}
+              {passLabelText} {gameState.passes.map(pid => playerNameOf(pid)).join(', ')}
             </div>
           )}
 
@@ -356,7 +386,7 @@ export function DaifugoTableView({
                 padding: '0.15rem 0.4rem',
                 borderRadius: '0.25rem',
               }}>
-                革命
+                {revolutionLabel}
               </div>
             )}
             {gameState.jackBack && (
@@ -368,7 +398,7 @@ export function DaifugoTableView({
                 padding: '0.15rem 0.4rem',
                 borderRadius: '0.25rem',
               }}>
-                11バック
+                {elevenBackLabel}
               </div>
             )}
             {gameState.gekishibaNextRank !== null ? (
@@ -380,7 +410,7 @@ export function DaifugoTableView({
                 padding: '0.15rem 0.4rem',
                 borderRadius: '0.25rem',
               }}>
-                激縛り ({rankToLabel(gameState.gekishibaNextRank)}のみ)
+                {gekishibaLabel} ({rankToLabel(gameState.gekishibaNextRank)}{rankOnlyLabel})
               </div>
             ) : gameState.lockSignature && (
               <div style={{
@@ -391,7 +421,7 @@ export function DaifugoTableView({
                 padding: '0.15rem 0.4rem',
                 borderRadius: '0.25rem',
               }}>
-                縛り
+                {shibariLabel}
               </div>
             )}
           </div>
@@ -404,6 +434,7 @@ export function DaifugoTableView({
               player={rightPlayer}
               colorIndex={playerSummaries.findIndex(p => p.id === rightPlayer.id)}
               showCardsBelow
+              translations={translations}
             />
           )}
         </div>

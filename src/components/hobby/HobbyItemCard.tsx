@@ -107,18 +107,25 @@ export default function HobbyItemCard({ item, hobby, showLink = true, language =
     }
   };
 
-  // Get custom fields to display on card (excluding description fields)
-  // Prioritize score field if it exists
+  // Get custom fields to display on card
+  // Exclude: name fields (already in title/subtitle), description fields, score (handled separately)
+  const excludedFields = [
+    'nameKanji',
+    'nameKana',
+    'nameEnglish',
+    'descriptionJa',
+    'descriptionEn',
+    'animeDescription',
+    'score',
+  ];
+
   const scoreField = hobby.fields.find(
     (f) => f.name === 'score' && item.customFields[f.name] !== undefined
   );
   const otherFields = hobby.fields
     .filter((f) =>
       item.customFields[f.name] !== undefined &&
-      f.name !== 'descriptionJa' &&
-      f.name !== 'descriptionEn' &&
-      f.name !== 'animeDescription' &&
-      f.name !== 'score'
+      !excludedFields.includes(f.name)
     )
     .slice(0, scoreField ? 2 : 3);
   const displayFields = scoreField ? [scoreField, ...otherFields] : otherFields;

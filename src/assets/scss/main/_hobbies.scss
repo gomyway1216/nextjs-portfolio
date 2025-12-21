@@ -179,7 +179,7 @@ $hobby-transition: all 0.3s ease;
 
   &__hero {
     position: relative;
-    padding: 120px 20px 60px;
+    padding: 24px 20px 12px;
     background-size: cover;
     background-position: center;
     background-color: rgba(15, 23, 42, 0.9);
@@ -202,11 +202,11 @@ $hobby-transition: all 0.3s ease;
   &__back {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
     color: #94a3b8;
     text-decoration: none;
-    font-size: 14px;
-    margin-bottom: 24px;
+    font-size: 12px;
+    margin-bottom: 6px;
     transition: $hobby-transition;
 
     &:hover {
@@ -215,52 +215,53 @@ $hobby-transition: all 0.3s ease;
   }
 
   &__title {
-    font-size: 48px;
+    font-size: 24px;
     font-weight: 700;
     color: #fff;
-    margin-bottom: 16px;
+    margin-bottom: 4px;
 
     @media (max-width: 768px) {
-      font-size: 32px;
+      font-size: 22px;
     }
   }
 
   &__description {
-    font-size: 18px;
+    font-size: 14px;
     color: #cbd5e1;
-    line-height: 1.6;
+    line-height: 1.4;
   }
 
   &__actions {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 16px;
-    margin-top: 24px;
+    gap: 8px;
+    margin-top: 10px;
     flex-wrap: wrap;
   }
 
   &__lang-toggle {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 24px;
+    gap: 4px;
+    padding: 6px 12px;
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 12px;
+    border-radius: 6px;
     color: #fff;
     font-weight: 500;
-    font-size: 14px;
+    font-size: 12px;
     cursor: pointer;
     transition: $hobby-transition;
 
     &:hover {
       background: rgba(255, 255, 255, 0.15);
       border-color: rgba(255, 255, 255, 0.3);
-      transform: translateY(-2px);
     }
 
     svg {
+      width: 14px;
+      height: 14px;
       color: #a855f7;
     }
   }
@@ -268,26 +269,30 @@ $hobby-transition: all 0.3s ease;
   &__quiz-btn {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    padding: 12px 24px;
+    gap: 4px;
+    padding: 6px 12px;
     background: linear-gradient(to right, #a855f7, #ec4899);
-    border-radius: 12px;
+    border-radius: 6px;
     color: #fff;
     text-decoration: none;
     font-weight: 500;
-    font-size: 14px;
+    font-size: 12px;
     transition: $hobby-transition;
 
     &:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 20px rgba(168, 85, 247, 0.3);
+      box-shadow: 0 4px 12px rgba(168, 85, 247, 0.3);
+    }
+
+    svg {
+      width: 14px;
+      height: 14px;
     }
   }
 
   &__container {
     max-width: 1200px;
     margin: 0 auto;
-    padding: 40px 20px;
+    padding: 16px 20px;
   }
 
   &__loading,

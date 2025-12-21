@@ -582,12 +582,12 @@ export async function searchStudyContent(
 // ============================================================================
 
 export async function getReadHistory(): Promise<{
-  readHistory: Array<{ id: string; articleId: string; userId: string; readAt: string; timeSpentSeconds?: number }>;
+  readHistory: Array<{ id: string; articleId: string; userId: string; readAt: string; timeSpentSeconds?: number; timeSpentMultiplier?: number }>;
   readArticleIds: Record<string, string>;
 }> {
   const data = await apiCall<{
     success: boolean;
-    readHistory: Array<{ id: string; articleId: string; userId: string; readAt: string; timeSpentSeconds?: number }>;
+    readHistory: Array<{ id: string; articleId: string; userId: string; readAt: string; timeSpentSeconds?: number; timeSpentMultiplier?: number }>;
     readArticleIds: Record<string, string>;
   }>('/api/study/articles/read-history');
   return { readHistory: data.readHistory, readArticleIds: data.readArticleIds };

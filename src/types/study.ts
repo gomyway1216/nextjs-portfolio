@@ -604,6 +604,7 @@ export interface ArticleReadHistory {
   userId: string;
   readAt: string;
   timeSpentSeconds?: number;
+  timeSpentMultiplier?: number;
 }
 
 // Extended article type with read status for admin view

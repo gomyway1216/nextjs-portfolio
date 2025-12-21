@@ -1,6 +1,6 @@
 // Study Articles API
 import { NextRequest, NextResponse } from 'next/server';
-import { getCloudFunctionUrl, STUDY_READ_HISTORY_COLLECTION } from '../../constants';
+import { getCloudFunctionUrl, STUDY_ARTICLES_COLLECTION, STUDY_READ_HISTORY_COLLECTION } from '../../constants';
 import { logCloudFunctionError, logApiError } from '../../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 import { getFirestore } from '@/lib/firebase-admin';
@@ -157,6 +157,26 @@ export async function POST(request: NextRequest) {
         endpoint: '/api/study/articles',
         response: { status: response.status, error: data.error, details: data.details, message: data.message },
       });
+    }
+
+    if (
+      data?.success &&
+      data?.article?.id &&
+      typeof data.article.readingTimeMinutes === 'number' &&
+      data.article.readingTimeMultiplier !== 5
+    ) {
+      const adjustedReadingTimeMinutes = data.article.readingTimeMinutes * 5;
+      try {
+        const db = getFirestore();
+        await db.collection(STUDY_ARTICLES_COLLECTION).doc(data.article.id).update({
+          readingTimeMinutes: adjustedReadingTimeMinutes,
+          readingTimeMultiplier: 5,
+        });
+        data.article.readingTimeMinutes = adjustedReadingTimeMinutes;
+        data.article.readingTimeMultiplier = 5;
+      } catch (updateError) {
+        console.error('[Study API] Failed to update reading time multiplier:', updateError);
+      }
     }
 
     return NextResponse.json(data, { status: response.status });

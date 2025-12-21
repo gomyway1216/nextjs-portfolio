@@ -6,6 +6,8 @@ import { STUDY_READ_HISTORY_COLLECTION } from '../../../constants';
 import { logApiError } from '../../../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 
+const TIME_SPENT_MULTIPLIER = 5;
+
 // GET /api/study/articles/read-history - Get all read articles for the admin
 export async function GET(request: NextRequest) {
   try {
@@ -73,6 +75,10 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const { articleId, timeSpentSeconds } = body;
+    const hasTimeSpent = typeof timeSpentSeconds === 'number';
+    const adjustedTimeSpentSeconds = hasTimeSpent
+      ? Math.round(timeSpentSeconds * TIME_SPENT_MULTIPLIER)
+      : undefined;
 
     if (!articleId) {
       return NextResponse.json(
@@ -94,10 +100,14 @@ export async function POST(request: NextRequest) {
     if (!existingSnapshot.empty) {
       // Already marked as read, update the timestamp and time spent
       const existingDoc = existingSnapshot.docs[0];
-      await existingDoc.ref.update({
+      const updatePayload: Record<string, number | string> = {
         readAt: new Date().toISOString(),
-        timeSpentSeconds: timeSpentSeconds || existingDoc.data().timeSpentSeconds,
-      });
+      };
+      if (hasTimeSpent && typeof adjustedTimeSpentSeconds === 'number') {
+        updatePayload.timeSpentSeconds = adjustedTimeSpentSeconds;
+        updatePayload.timeSpentMultiplier = TIME_SPENT_MULTIPLIER;
+      }
+      await existingDoc.ref.update(updatePayload);
 
       return NextResponse.json({
         success: true,
@@ -111,7 +121,8 @@ export async function POST(request: NextRequest) {
       articleId,
       userId: user.uid,
       readAt: new Date().toISOString(),
-      timeSpentSeconds: timeSpentSeconds || 0,
+      timeSpentSeconds: hasTimeSpent ? adjustedTimeSpentSeconds : 0,
+      timeSpentMultiplier: TIME_SPENT_MULTIPLIER,
     };
 
     const docRef = await db.collection(STUDY_READ_HISTORY_COLLECTION).add(readHistoryData);

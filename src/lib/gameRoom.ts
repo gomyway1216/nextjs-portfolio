@@ -40,7 +40,7 @@ function hashPassword(password: string): string {
 }
 
 function getPlayerLimits(gameType: string): { minPlayers: number; maxPlayers: number } {
-  if (gameType === 'daifugo') {
+  if (gameType === 'daifugo' || gameType === 'shichinarabe' || gameType === 'doubt') {
     return { minPlayers: 3, maxPlayers: 6 };
   }
 

@@ -290,6 +290,44 @@
           "modeDesc": "AI mode lets you choose how many AI opponents to include (minimum 2, maximum 5). Online mode uses room codes to play with friends (3–6 players)."
         }
       }
+    },
+    "shichinarabe": {
+      "title": "Shichinarabe",
+      "description": "Play Shichinarabe (Sevens) vs AI (3–6 players) or online (3–6 players). Build sequences around the 7s and be the first to empty your hand!",
+      "longDescription": "Shichinarabe, also known as \"Sevens\", is a classic card game where all 7s start on the table. On your turn, play a card that extends a suit sequence (e.g., 6 or 8 next to a 7), or pass if you can't. Pass too many times and you'll be eliminated—so plan ahead and manage your hand carefully.",
+      "howToPlay": [
+        "All 7s are placed on the table at the start",
+        "On your turn, play a card adjacent to an existing sequence in the same suit",
+        "If you have no playable cards, pass",
+        "After 3 passes, you are eliminated",
+        "The game ends when everyone has finished or been eliminated"
+      ],
+      "features": [
+        "VS AI mode (3–6 players)",
+        "Online multiplayer (3–6 players)",
+        "Clear playable-card highlights",
+        "Pass limit and elimination",
+        "Round results and placement"
+      ]
+    },
+    "doubt": {
+      "title": "Doubt",
+      "description": "Play Doubt (Cheat/Bluff) vs AI (3–6 players) or online (3–6 players). Play cards face-down, claim the rank, and call Doubt to catch liars!",
+      "longDescription": "Doubt (also known as \"Cheat\" or \"I Doubt It\") is a bluffing card game. Players take turns placing 1–4 cards face-down while claiming they match the required rank (A→K loop). The next player can accept the claim or call Doubt. If the claim was false, the liar takes the pile; if it was true, the doubter takes the pile. Get rid of all your cards to win!",
+      "howToPlay": [
+        "On your turn, place 1–4 cards face-down and claim the required rank",
+        "The next player chooses Accept or calls Doubt",
+        "If the claim was a lie, the claimant takes the pile",
+        "If the claim was true, the doubter takes the pile",
+        "Be the first to get rid of all your cards"
+      ],
+      "features": [
+        "VS AI mode (3–6 players)",
+        "Online multiplayer (3–6 players)",
+        "Playing-card visuals with drag-and-drop selection",
+        "Turn-based challenge flow (Accept / Doubt)",
+        "Results with placement"
+      ]
     }
   },
   "common": {

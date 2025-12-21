@@ -103,4 +103,22 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Card',
   },
+  {
+    id: 'shichinarabe',
+    title: 'Shichinarabe',
+    description: 'Play Shichinarabe (七並べ) vs AI (3–6 players) or online (3–6 players). Place cards around 7s and race to empty your hand!',
+    thumbnail: '🃏',
+    path: '/games/shichinarabe',
+    difficulty: 'Easy',
+    category: 'Card',
+  },
+  {
+    id: 'doubt',
+    title: 'Doubt',
+    description: 'Play Doubt (ダウト) vs AI (3–6 players) or online (3–6 players). Play face-down cards, claim the rank, and call Doubt to catch bluffs!',
+    thumbnail: '🃏',
+    path: '/games/doubt',
+    difficulty: 'Medium',
+    category: 'Card',
+  },
 ];

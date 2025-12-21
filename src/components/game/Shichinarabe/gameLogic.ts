@@ -1,0 +1,322 @@
+/**
+ * Shichinarabe (七並べ) - Core Rules
+ *
+ * Default rules:
+ * - 7 of each suit is placed at start (removed from hands)
+ * - Each turn, play exactly 1 card adjacent to the current run for that suit
+ * - You may pass up to `maxPasses` times; hitting the limit eliminates you
+ * - Game ends when everyone is finished or eliminated
+ */
+
+import type { Card, CardSuit } from './types';
+import { MAX_RANK, MIN_RANK, SEVEN_RANK, SUITS } from './types';
+import type { ShichinarabeAction, ShichinarabeLogEntry, ShichinarabeNetworkState } from './multiplayerTypes';
+
+function createId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export function createDeck(options?: { deckId?: string }): Card[] {
+  const deckId = options?.deckId ?? createId('deck');
+  const deck: Card[] = [];
+
+  for (const suit of SUITS) {
+    for (let rank = MIN_RANK; rank <= MAX_RANK; rank++) {
+      deck.push({
+        id: `${deckId}_${suit}_${rank}`,
+        suit,
+        rank,
+      });
+    }
+  }
+
+  return deck;
+}
+
+export function shuffleDeck(deck: Card[]): Card[] {
+  const copy = [...deck];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+export function sortHand(hand: Card[]): Card[] {
+  const suitOrder: Record<CardSuit, number> = { S: 0, H: 1, D: 2, C: 3 };
+  return [...hand].sort((a, b) => {
+    const ra = a.rank;
+    const rb = b.rank;
+    if (ra !== rb) return ra - rb;
+    return suitOrder[a.suit] - suitOrder[b.suit];
+  });
+}
+
+export function dealHands(deck: Card[], playerOrder: string[]): Record<string, Card[]> {
+  const hands: Record<string, Card[]> = {};
+  for (const playerId of playerOrder) hands[playerId] = [];
+
+  deck.forEach((card, index) => {
+    const playerId = playerOrder[index % playerOrder.length];
+    hands[playerId]!.push(card);
+  });
+
+  for (const playerId of playerOrder) {
+    hands[playerId] = sortHand(hands[playerId] ?? []);
+  }
+
+  return hands;
+}
+
+export function getNextPlayerId(playerOrder: string[], fromPlayerId: string): string {
+  const idx = playerOrder.indexOf(fromPlayerId);
+  if (idx === -1) return playerOrder[0] ?? fromPlayerId;
+  return playerOrder[(idx + 1) % playerOrder.length] ?? fromPlayerId;
+}
+
+function isDone(state: ShichinarabeNetworkState, playerId: string): boolean {
+  return state.finishedOrder.includes(playerId) || state.eliminatedOrder.includes(playerId);
+}
+
+function getNextActivePlayerId(state: ShichinarabeNetworkState, fromPlayerId: string): string {
+  let current = fromPlayerId;
+  for (let step = 0; step < state.playerOrder.length * 2; step++) {
+    current = getNextPlayerId(state.playerOrder, current);
+    if (isDone(state, current)) continue;
+    return current;
+  }
+  return fromPlayerId;
+}
+
+export function getPlayableRanksForSuit(bounds: { low: number; high: number }): number[] {
+  const playable: number[] = [];
+  if (bounds.low > MIN_RANK) playable.push(bounds.low - 1);
+  if (bounds.high < MAX_RANK) playable.push(bounds.high + 1);
+  return playable;
+}
+
+export function isCardPlayable(state: ShichinarabeNetworkState, card: Card): boolean {
+  const bounds = state.table[card.suit];
+  if (!bounds) return false;
+  const playable = getPlayableRanksForSuit(bounds);
+  return playable.includes(card.rank);
+}
+
+export function getPlayableCardsForPlayer(state: ShichinarabeNetworkState, playerId: string): Card[] {
+  if (state.finished || isDone(state, playerId)) return [];
+  const hand = state.hands[playerId] ?? [];
+  return hand.filter(card => isCardPlayable(state, card));
+}
+
+export function createInitialShichinarabeState(
+  playerOrder: string[],
+  options?: { maxPasses?: number }
+): ShichinarabeNetworkState {
+  const startedAt = Date.now();
+  const deck = shuffleDeck(createDeck());
+  const dealtHands = dealHands(deck, playerOrder);
+
+  // Place all 7s at the start (remove from hands)
+  const hands: Record<string, Card[]> = {};
+  for (const [playerId, hand] of Object.entries(dealtHands)) {
+    hands[playerId] = sortHand(hand.filter(c => c.rank !== SEVEN_RANK));
+  }
+
+  const table: ShichinarabeNetworkState['table'] = {
+    S: { low: SEVEN_RANK, high: SEVEN_RANK },
+    H: { low: SEVEN_RANK, high: SEVEN_RANK },
+    D: { low: SEVEN_RANK, high: SEVEN_RANK },
+    C: { low: SEVEN_RANK, high: SEVEN_RANK },
+  };
+
+  const maxPasses = Math.max(0, Math.floor(options?.maxPasses ?? 3));
+
+  const passCounts: Record<string, number> = {};
+  for (const playerId of playerOrder) passCounts[playerId] = 0;
+
+  const currentTurnPlayerId = playerOrder[0] ?? '';
+
+  const log: ShichinarabeLogEntry[] = [{
+    id: createId('log'),
+    type: 'start',
+    playerId: currentTurnPlayerId,
+    detail: 'Game started',
+    timestamp: startedAt,
+  }];
+
+  return {
+    version: 1,
+    playerOrder,
+    hands,
+    table,
+    currentTurnPlayerId,
+    passCounts,
+    maxPasses,
+    finishedOrder: [],
+    eliminatedOrder: [],
+    finished: false,
+    winnerId: null,
+    resultOrder: [],
+    ranks: null,
+    startedAt,
+    log,
+    lastUpdate: startedAt,
+  };
+}
+
+export function applyAction(
+  state: ShichinarabeNetworkState,
+  action: ShichinarabeAction
+): { ok: true; state: ShichinarabeNetworkState } | { ok: false; error: string } {
+  if (state.finished) return { ok: false, error: 'Game is finished' };
+  if (action.playerId !== state.currentTurnPlayerId) return { ok: false, error: 'Not your turn' };
+  if (isDone(state, action.playerId)) return { ok: false, error: 'Player is not active' };
+
+  if (action.type === 'pass') {
+    const nextPassCounts = { ...state.passCounts };
+    nextPassCounts[action.playerId] = (nextPassCounts[action.playerId] ?? 0) + 1;
+
+    const logEntries: ShichinarabeLogEntry[] = [{
+      id: createId('log'),
+      type: 'pass',
+      playerId: action.playerId,
+      passCount: nextPassCounts[action.playerId],
+      timestamp: action.timestamp,
+    }];
+
+    let eliminatedOrder = state.eliminatedOrder;
+    if ((nextPassCounts[action.playerId] ?? 0) >= state.maxPasses && !state.eliminatedOrder.includes(action.playerId)) {
+      eliminatedOrder = [...state.eliminatedOrder, action.playerId];
+      logEntries.push({
+        id: createId('log'),
+        type: 'eliminate',
+        playerId: action.playerId,
+        detail: 'Eliminated (pass limit)',
+        timestamp: action.timestamp,
+      });
+    }
+
+    const nextStateBase: ShichinarabeNetworkState = {
+      ...state,
+      passCounts: nextPassCounts,
+      eliminatedOrder,
+      log: [...state.log, ...logEntries],
+      lastUpdate: Date.now(),
+    };
+
+    const doneCount = state.playerOrder.filter(pid => (
+      nextStateBase.finishedOrder.includes(pid) || nextStateBase.eliminatedOrder.includes(pid)
+    )).length;
+
+    if (doneCount >= state.playerOrder.length) {
+      const resultOrder = [
+        ...nextStateBase.finishedOrder,
+        ...nextStateBase.eliminatedOrder,
+        ...state.playerOrder.filter(pid => !nextStateBase.finishedOrder.includes(pid) && !nextStateBase.eliminatedOrder.includes(pid)),
+      ];
+      const ranks: Record<string, number> = {};
+      resultOrder.forEach((pid, idx) => { ranks[pid] = idx + 1; });
+      const winnerId = nextStateBase.finishedOrder[0] ?? null;
+      return {
+        ok: true,
+        state: {
+          ...nextStateBase,
+          finished: true,
+          winnerId,
+          resultOrder,
+          ranks,
+          currentTurnPlayerId: winnerId ?? action.playerId,
+          log: [...nextStateBase.log, {
+            id: createId('log'),
+            type: 'finish',
+            playerId: winnerId ?? action.playerId,
+            detail: 'Game finished',
+            timestamp: Date.now(),
+          }],
+          lastUpdate: Date.now(),
+        },
+      };
+    }
+
+    const currentTurnPlayerId = getNextActivePlayerId(nextStateBase, action.playerId);
+    return { ok: true, state: { ...nextStateBase, currentTurnPlayerId } };
+  }
+
+  // play
+  const hand = state.hands[action.playerId] ?? [];
+  const card = hand.find(c => c.id === action.cardId);
+  if (!card) return { ok: false, error: 'Card not in hand' };
+  if (!isCardPlayable(state, card)) return { ok: false, error: 'Card not playable' };
+
+  const remainingHand = sortHand(hand.filter(c => c.id !== action.cardId));
+  const hands = { ...state.hands, [action.playerId]: remainingHand };
+
+  const bounds = state.table[card.suit];
+  if (!bounds) return { ok: false, error: 'Invalid suit' };
+  const nextBounds = { ...bounds };
+  if (card.rank === bounds.low - 1) nextBounds.low = bounds.low - 1;
+  else if (card.rank === bounds.high + 1) nextBounds.high = bounds.high + 1;
+  else return { ok: false, error: 'Card not adjacent' };
+
+  const table = { ...state.table, [card.suit]: nextBounds };
+
+  let finishedOrder = state.finishedOrder;
+  if (remainingHand.length === 0 && !finishedOrder.includes(action.playerId)) {
+    finishedOrder = [...finishedOrder, action.playerId];
+  }
+
+  const logEntry: ShichinarabeLogEntry = {
+    id: createId('log'),
+    type: 'play',
+    playerId: action.playerId,
+    card: { suit: card.suit, rank: card.rank },
+    timestamp: action.timestamp,
+  };
+
+  const nextStateBase: ShichinarabeNetworkState = {
+    ...state,
+    hands,
+    table,
+    finishedOrder,
+    log: [...state.log, logEntry],
+    lastUpdate: Date.now(),
+  };
+
+  const doneCount = state.playerOrder.filter(pid => (
+    nextStateBase.finishedOrder.includes(pid) || nextStateBase.eliminatedOrder.includes(pid)
+  )).length;
+
+  if (doneCount >= state.playerOrder.length) {
+    const resultOrder = [
+      ...nextStateBase.finishedOrder,
+      ...nextStateBase.eliminatedOrder,
+      ...state.playerOrder.filter(pid => !nextStateBase.finishedOrder.includes(pid) && !nextStateBase.eliminatedOrder.includes(pid)),
+    ];
+    const ranks: Record<string, number> = {};
+    resultOrder.forEach((pid, idx) => { ranks[pid] = idx + 1; });
+    const winnerId = nextStateBase.finishedOrder[0] ?? null;
+    return {
+      ok: true,
+      state: {
+        ...nextStateBase,
+        finished: true,
+        winnerId,
+        resultOrder,
+        ranks,
+        currentTurnPlayerId: winnerId ?? action.playerId,
+        log: [...nextStateBase.log, {
+          id: createId('log'),
+          type: 'finish',
+          playerId: winnerId ?? action.playerId,
+          detail: 'Game finished',
+          timestamp: Date.now(),
+        }],
+        lastUpdate: Date.now(),
+      },
+    };
+  }
+
+  const currentTurnPlayerId = getNextActivePlayerId(nextStateBase, action.playerId);
+  return { ok: true, state: { ...nextStateBase, currentTurnPlayerId } };
+}
+

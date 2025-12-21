@@ -13,8 +13,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { user, response } = await ensureValidUser(request);
-    if (response) return response;
+    const { user, response: authResponse } = await ensureValidUser(request);
+    if (authResponse) return authResponse;
     if (!user) {
       return NextResponse.json(
         { success: false, error: 'Authentication required' },

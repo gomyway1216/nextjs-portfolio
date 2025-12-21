@@ -334,3 +334,96 @@ export function useHobbyItem(itemId: string): UseHobbyItemResult {
 
   return { item, loading, error, refetch: fetchItem };
 }
+
+// ============================================================================
+// RELATED ITEMS HOOKS
+// ============================================================================
+
+interface UseRelatedItemsOptions {
+  hobbyId: string;
+  fieldName: string;
+  targetItemId: string;
+}
+
+interface UseRelatedItemsResult {
+  items: HobbyItem[];
+  loading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
+}
+
+export function useRelatedItems(options: UseRelatedItemsOptions): UseRelatedItemsResult {
+  const [items, setItems] = useState<HobbyItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchItems = useCallback(async () => {
+    if (!options.hobbyId || !options.fieldName || !options.targetItemId) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await hobbyService.getRelatedItems(
+        options.hobbyId,
+        options.fieldName,
+        options.targetItemId
+      );
+      setItems(response.items);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch related items');
+    } finally {
+      setLoading(false);
+    }
+  }, [options.hobbyId, options.fieldName, options.targetItemId]);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+  return { items, loading, error, refetch: fetchItems };
+}
+
+// ============================================================================
+// RESOLVED RELATION HOOK
+// ============================================================================
+
+interface UseResolvedRelationResult {
+  item: HobbyItem | null;
+  loading: boolean;
+  error: string | null;
+}
+
+export function useResolvedRelation(itemId: string | null | undefined): UseResolvedRelationResult {
+  const [item, setItem] = useState<HobbyItem | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!itemId) {
+      setItem(null);
+      setLoading(false);
+      return;
+    }
+
+    const fetchItem = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await hobbyService.getHobbyItemById(itemId);
+        setItem(result);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch related item');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchItem();
+  }, [itemId]);
+
+  return { item, loading, error };
+}

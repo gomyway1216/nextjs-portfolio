@@ -1,0 +1,1704 @@
+{
+  "animeItems": [
+    {
+      "id": "01HEp7QjNKoXW8l5Sz6L",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621849287,
+        "nanoseconds": 571000000
+      },
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fcitrus.jpg?alt=media&token=dc0ff6fb-01cf-434a-b309-7aa1a25dc89a",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622439482,
+        "nanoseconds": 909000000
+      },
+      "score": 7.1,
+      "description": "preparing…",
+      "name_english": "Citrus",
+      "name_japanese_ruby": "しとらす",
+      "name_japanese": "citrus"
+    },
+    {
+      "id": "0FSmEHzW65274qDfIfej",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "score": 7.7,
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621849396,
+        "nanoseconds": 569000000
+      },
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1625546543,
+        "nanoseconds": 299000000
+      },
+      "name_japanese_ruby": "しゅうまつなにしてますか？いそがしいですか？すくってもらっていいですか？",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fworld-end.jpg?alt=media&token=3daf1db1-764e-4227-bb4c-dbbecada203e",
+      "description": "preparing…",
+      "name_english": "WorldEnd (Suka Suka)",
+      "name_japanese": "終末なにしてますか？忙しいですか？救ってもらっていいですか？"
+    },
+    {
+      "id": "2eRE5yhZVTK6fIVbMdD2",
+      "score": 8.1,
+      "name_japanese": "かぐや様は告らせたい",
+      "name_japanese_ruby": "かぐやさまはこくらせたい",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622838085,
+        "nanoseconds": 772000000
+      },
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fkaguya-sama.png?alt=media&token=eac01b67-5614-412d-b082-f5fa57569647",
+      "name_english": "Kaguya-sama: Love Is War",
+      "description": "preparing…",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621848855,
+        "nanoseconds": 370000000
+      }
+    },
+    {
+      "id": "3hGgWcQOspulzM0t2To0",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621919979,
+        "nanoseconds": 182000000
+      },
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622440465,
+        "nanoseconds": 420000000
+      },
+      "name_japanese_ruby": "わんぴーす",
+      "name_english": "One Piece",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fone-piece.jpg?alt=media&token=29ea7687-7caf-4839-995a-2dac4885056f",
+      "score": 6.5,
+      "name_japanese": "ONE PIECE",
+      "description": "preparing…"
+    },
+    {
+      "id": "4cQSvLbzTXLD90W36qGL",
+      "tags": [
+        {
+          "name": "Romantic Comedy",
+          "id": "C63rWE1Z6pyUjD9O4bKA"
+        }
+      ],
+      "name_english": "Rent a Girlfriend",
+      "name_japanese_ruby": "かのじょ、おかりします",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1644189143,
+        "nanoseconds": 774000000
+      },
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Frent-a-girlfriend.jpeg?alt=media&token=97e14751-be04-4888-9317-b3edb3c5428f",
+      "score": 8,
+      "description": "I enjoyed the main character: Kazuya’s growths of becoming a reliable and earnest guy who makes his peers happy. After the breakup with his girlfriend, he felt powerless and valueless. He started opening up his mind throughout meeting so-called rental-girlfriends and seeking what he can do to others. With his hardworking and gentle mind, these girls began to feel that he might be a guy who would love them and make their lives delightful forever. I was so motivated by his pure love for her. I felt grateful for his effort, and his values are being recognized gradually. This manga encourages people that hardworking and passionate can achieve bigger goals.",
+      "name_japanese": "彼女、お借りします ",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621848548,
+        "nanoseconds": 111000000
+      }
+    },
+    {
+      "id": "4xo3g7MldZ6d2GmglmOp",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621920482,
+        "nanoseconds": 4000000
+      },
+      "name_english": "One Punch Man",
+      "name_japanese_ruby": "わんぱんまん",
+      "score": 4.2,
+      "name_japanese": "ワンパンマン",
+      "description": "The main character (Saitama) is too strong to kill enemies with regular one punch: this makes this Anime funny but not a complete battle Anime like Naruto. The character design is good, but the author sometimes draws Saitama weirdly, which adds up additional laughter.",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622439095,
+        "nanoseconds": 569000000
+      },
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fone-punch-man.jpg?alt=media&token=b096c33a-4043-4c35-8f40-532795a30d87"
+    },
+    {
+      "id": "6VI3w7juwSVqDA0qbf2I",
+      "name_japanese": "進撃の巨人",
+      "name_english": "Attack on Titan",
+      "score": 8.7,
+      "name_japanese_ruby": "しんげきのきょじん",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621918465,
+        "nanoseconds": 906000000
+      },
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1624466065,
+        "nanoseconds": 694000000
+      },
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fattack-on-titan.jpg?alt=media&token=7d436143-4542-45ee-9327-e330edfb5c58",
+      "description": "preparing…",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2"
+    },
+    {
+      "id": "7W7E1k3DYPvdo5yPVHWq",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "score": 7.4,
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622420758,
+        "nanoseconds": 84000000
+      },
+      "name_japanese": "それでも歩は寄せてくる",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2F194e9b9a15247ac502e0a2d2534ffe4a%20copy.jpeg?alt=media&token=1be6200c-a756-4c29-8b62-a2b64c36383a",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622420863,
+        "nanoseconds": 983000000
+      },
+      "description": "preparing…",
+      "name_english": "When Will Ayumu Make His Move?",
+      "name_japanese_ruby": "それでもあゆむはよせてくる"
+    },
+    {
+      "id": "8TZ4gMeEoCQnep5NGyQE",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621924042,
+        "nanoseconds": 815000000
+      },
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese": "ドラゴンボール",
+      "name_japanese_ruby": "どらごんぼーる",
+      "name_english": "Dragon Ball",
+      "description": "This is one of the most famous Anime for battle, and I enjoyed watching it when I was young. But it is too monotone, and the same characters keep getting stronger with higher combat power.",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622438978,
+        "nanoseconds": 531000000
+      },
+      "score": 4.8,
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fdragon-ball.jpg?alt=media&token=0479491e-70bb-4181-98fe-2dcd9e655538"
+    },
+    {
+      "id": "8Ys620biuJa0imi7Zho5",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fhikaru-no-go.jpg?alt=media&token=dec99a0c-c918-4faf-893f-c7ef5a2b5be7",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622439303,
+        "nanoseconds": 393000000
+      },
+      "score": 6.7,
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621849544,
+        "nanoseconds": 251000000
+      },
+      "name_english": "Hikaru no Go",
+      "description": "preparing…",
+      "name_japanese_ruby": "ひかるのご",
+      "name_japanese": "ヒカルの碁",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2"
+    },
+    {
+      "id": "C75xrwbqBONm249hlv9S",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1623207843,
+        "nanoseconds": 535000000
+      },
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fsuper-radical-gag-family.jpeg?alt=media&token=ff28ac1c-1f22-4cb7-9241-2a32b04eba7b",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "score": 5.9,
+      "name_japanese_ruby": "うらやすてっきんかぞく",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621921470,
+        "nanoseconds": 355000000
+      },
+      "name_english": "Super Radical Gag Family",
+      "description": "This is one of the traditional Japanese comedy comics that people around my age or older growing up reading when young. Oosawagi (means very noisy) family is the main ones and this comic depicts the ordinary life of them and Kotetsu (main character from the family) and his school friends. The quality of the story is not as good but it sometimes makes me laugh. The style of drawing is quite different between the first season (Super Radical Gag Family) and second season (Original! Super Radical Gag Family). The first one is drawn in very old way and more of old comedy where some strange characters appear do strange stuff. The second season focused on more of main character building and the design of the characters much improved. But first season was funnier. You may like it if you are looking for simple jokes. It is funny for elementary kids.\n\n\\\n\\\n",
+      "name_japanese": "浦安鉄筋家族"
+    },
+    {
+      "id": "EYOmcEKtL40Ar2oPlCm0",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fwp5132043-why-the-hell-are-you-here-teacher-wallpapers.jpg?alt=media&token=42115703-baaa-4e07-9fd3-06e33b3f9f10",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622443844,
+        "nanoseconds": 688000000
+      },
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622443844,
+        "nanoseconds": 688000000
+      },
+      "name_japanese": "なんでここに先生が！？",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese_ruby": "なんでここにせんせいが！？",
+      "name_english": "Why the Hell are You Here, Teacher!?",
+      "score": 4,
+      "description": "preparing…"
+    },
+    {
+      "id": "Fh3stm2opzw2Hapj0tFX",
+      "score": 6.6,
+      "name_japanese_ruby": "どめすてぃっくなかのじょ",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622314947,
+        "nanoseconds": 566000000
+      },
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621922643,
+        "nanoseconds": 782000000
+      },
+      "description": "preparing…",
+      "name_japanese": "ドメスティックな彼女",
+      "name_english": "Domestic Girlfriend",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fdomestic-girlfriend.jpg?alt=media&token=62bc09e8-6147-464b-866e-3d88b7824618",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2"
+    },
+    {
+      "id": "GmlYZwf34toiRYpn5M99",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1644188740,
+        "nanoseconds": 233000000
+      },
+      "name_english": "Jujutsu Kaisen",
+      "name_japanese": "呪術廻戦",
+      "tags": [
+        {
+          "id": "Lt7JcqY5Am7xchw7I7Ih",
+          "name": "Psychic Powers"
+        },
+        {
+          "id": "ZvphuGsbQjbWIK3fYh72",
+          "name": "Action"
+        },
+        {
+          "name": "Violence",
+          "id": "opquoIQHvGg9AuGHRtHh"
+        }
+      ],
+      "score": 7.6,
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese_ruby": "じゅじゅつかいせん",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fjujutsukaisen_image.jpg?alt=media&token=57f0c6cf-9c13-4474-a234-e14810832a9b",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1648022452,
+        "nanoseconds": 769000000
+      },
+      "description": "Hello!"
+    },
+    {
+      "id": "HCpi0dmWu39tjs6l2cI8",
+      "name_japanese_ruby": "はつこいりみてっど",
+      "name_japanese": "初恋限定。",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2F160.jpeg?alt=media&token=dc06a197-4434-4b68-93b7-d4967c36ca7b",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622429386,
+        "nanoseconds": 766000000
+      },
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622429362,
+        "nanoseconds": 139000000
+      },
+      "score": 6.2,
+      "name_english": "First Love Limited (Hatsukoi Limited)",
+      "description": "preparing…",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2"
+    },
+    {
+      "id": "KeW5oOjC5U40IqKyNZQe",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622422107,
+        "nanoseconds": 658000000
+      },
+      "name_english": "365 Ho no Yuuki!!!",
+      "name_japanese_ruby": "365ほのゆうき！！！",
+      "score": 3.5,
+      "name_japanese": "365歩のユウキ！！！",
+      "description": "preparing…",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622422107,
+        "nanoseconds": 658000000
+      },
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2F091261350000d0000000%20copy.jpeg?alt=media&token=f4c3330a-4f21-4a39-b822-a60779f1d88c"
+    },
+    {
+      "id": "Lnm2irsAKlGn3h20BPfG",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621917360,
+        "nanoseconds": 987000000
+      },
+      "name_english": "Rosario + Vampire",
+      "description": "preparing…",
+      "name_japanese_ruby": "ろざりおとばんぱいあ",
+      "score": 6.8,
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1624474370,
+        "nanoseconds": 730000000
+      },
+      "name_japanese": "ロザリオとバンパイア",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2FRosario%20%2B%20Vampire.jpg?alt=media&token=8852f6cd-dc3b-46f9-b33d-a8a1efefe338"
+    },
+    {
+      "id": "OnIj3oOnHU5vsXSwPlbC",
+      "score": 5.5,
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fwp4947557-toradora-desktop-wallpapers.png?alt=media&token=67160e8c-112f-4729-9f10-cfcf5c9fd5f0",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622443107,
+        "nanoseconds": 596000000
+      },
+      "name_japanese": "とらドラ！",
+      "description": "preparing…",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622443107,
+        "nanoseconds": 596000000
+      },
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese_ruby": "とらどら！",
+      "name_english": "Toradora!"
+    },
+    {
+      "id": "QSmrrJe3bx3jeDpVgVpp",
+      "description": "preparing…",
+      "name_english": "Miss Caretaker of Sunohara-sou",
+      "name_japanese_ruby": "すのはらそうのかんりにんさん",
+      "score": 5.1,
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fmiss-caretaker-of-sunohara-sou.jpeg?alt=media&token=2e447ed4-aaad-4a09-9694-fafe202175fa",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622439626,
+        "nanoseconds": 358000000
+      },
+      "name_japanese": "すのはら荘の管理人さん",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621922017,
+        "nanoseconds": 751000000
+      }
+    },
+    {
+      "id": "R5WvQShZ1PzXBnyI41p3",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fnaruto.jpg?alt=media&token=0f18bacf-67f8-4232-ad79-fab64340645f",
+      "score": 7.1,
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622438955,
+        "nanoseconds": 934000000
+      },
+      "description": "preparing…",
+      "name_english": "Naruto",
+      "name_japanese": "NARUTO－ナルト",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621916857,
+        "nanoseconds": 10000000
+      },
+      "name_japanese_ruby": "なると"
+    },
+    {
+      "id": "RPGb5wffLjnUc6x6zMIY",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fdagashi-kashi.jpeg?alt=media&token=28fab674-f634-44c9-933f-27b9829768fa",
+      "name_japanese": "だがしかし",
+      "name_english": "Dagashi Kashi",
+      "score": 6.4,
+      "name_japanese_ruby": "だがしかし",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621923404,
+        "nanoseconds": 188000000
+      },
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622313831,
+        "nanoseconds": 755000000
+      },
+      "description": "It is a romantic youth story that talks about Dagashi (Japanese snack). If you grew up eating those in the show, I am sure it would make you nostalgic. Making Dagashi's story into an engaging one is quite challenging; this Anime did a pretty good job. Hotaru has a Rinnegan, by the way.\n\n ![](https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2F2598084%20copy.jpg?alt=media&token=6898af6d-2b8d-42f5-92b6-c46b9252ff21)\n\n\\\n"
+    },
+    {
+      "id": "Rc8A0zHNV95LOZEW44Ue",
+      "description": "preparing…",
+      "score": 7.5,
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621924601,
+        "nanoseconds": 648000000
+      },
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fteasing-master-takagi-san.jpeg?alt=media&token=dcde152c-8547-4bf8-b107-6fbcf52f6d7e",
+      "name_english": "Teasing Master Takagi-san",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622439414,
+        "nanoseconds": 499000000
+      },
+      "name_japanese_ruby": "からかいじょうずのたかぎさん",
+      "name_japanese": "からかい上手の高木さん"
+    },
+    {
+      "id": "Rdjyu4ot4u4b04iSTU5H",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1624466160,
+        "nanoseconds": 256000000
+      },
+      "name_english": "Sword Art Online",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fsword-art-online.jpg?alt=media&token=4b9aa2d3-1a1b-497c-a88c-1c629cac15c5",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "description": "preparing…",
+      "name_japanese": "ソードアート・オンライン",
+      "name_japanese_ruby": "そーどあーと・おんらいん",
+      "score": 8.2,
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621849703,
+        "nanoseconds": 146000000
+      }
+    },
+    {
+      "id": "Rwh0t27Okc8h7wR5BeBL",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622439714,
+        "nanoseconds": 834000000
+      },
+      "name_english": "Gintama",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fgintama.png?alt=media&token=0668dcd8-9d02-44cf-af2b-c8599dc77739",
+      "score": 7.3,
+      "name_japanese_ruby": "ぎんたま",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621849581,
+        "nanoseconds": 63000000
+      },
+      "description": "preparing…",
+      "name_japanese": "銀魂"
+    },
+    {
+      "id": "SAJSM6xBAzgfzHWJHAhT",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621849195,
+        "nanoseconds": 268000000
+      },
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fkonosuba.jpeg?alt=media&token=6848af0b-6147-426e-a951-cabb0c982dd4",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_english": "Kono Subarashii Sekai ni Shukufuku wo! (KonoSuba)",
+      "description": "It is a very comical Isekai anime. You could enjoy the gap between what you were dreaming about when you are young toward pretty girls and how they are different in reality. The main character: Kazuma, is consistently being a little pervert but witty to support his team and carry out the story, which makes you feel that you are him. It is hilarious and relaxing, but the story is made well enough to not get bored.",
+      "name_japanese_ruby": "このすばらしいせかいにしゅくふくを！",
+      "name_japanese": "この素晴らしい世界に祝福を！ ",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1625546557,
+        "nanoseconds": 34000000
+      },
+      "score": 7.8
+    },
+    {
+      "id": "SZMqruWIPuEreCjwc7g5",
+      "score": 6.1,
+      "name_english": "Crayon Shin-chan",
+      "name_japanese_ruby": "くれよんしんちゃん",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2F1281961.jpg?alt=media&token=9f658268-2874-4122-916d-0f3c23897b74",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622448163,
+        "nanoseconds": 49000000
+      },
+      "name_japanese": "クレヨンしんちゃん",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622448163,
+        "nanoseconds": 49000000
+      },
+      "description": "preparing…"
+    },
+    {
+      "id": "URqGnk6rVkWep9YszG3s",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "score": 8.3,
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622282782,
+        "nanoseconds": 171000000
+      },
+      "name_japanese_ruby": "しんせいきえゔぁんげりおん",
+      "name_japanese": "新世紀エヴァンゲリオン",
+      "name_english": "Neon Genesis Evangelion",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2F489902.jpg?alt=media&token=64d586ae-ae1c-43a4-b274-8bd8e966ca7b",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622324531,
+        "nanoseconds": 634000000
+      },
+      "description": "preparing…"
+    },
+    {
+      "id": "Vx44GNg6lwet8c0eCQ4O",
+      "name_english": "Case Closed (Detective Conan)",
+      "description": "preparing…",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fcase-closed.jpg?alt=media&token=3652263f-d911-4f2c-b071-ee9f47cf063d",
+      "name_japanese_ruby": "めいたんていこなん",
+      "name_japanese": "名探偵コナン",
+      "score": 8.5,
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622314670,
+        "nanoseconds": 219000000
+      },
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621849497,
+        "nanoseconds": 511000000
+      }
+    },
+    {
+      "id": "XokQVIaqXwTZRjqcGLre",
+      "score": 6.9,
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622449739,
+        "nanoseconds": 822000000
+      },
+      "name_japanese_ruby": "どらえもん",
+      "name_japanese": "ドラえもん",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2F1331730%20copy.jpg?alt=media&token=4a4707a7-9421-4aaa-abb0-4a34ea8db820",
+      "name_english": "Doraemon",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622449739,
+        "nanoseconds": 822000000
+      },
+      "description": "preparing…",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2"
+    },
+    {
+      "id": "eGuZ2Po7x9l4zXa1Wlmw",
+      "score": 7.9,
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1644221115,
+        "nanoseconds": 301000000
+      },
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621849002,
+        "nanoseconds": 476000000
+      },
+      "name_japanese_ruby": "ごとうぶんのはなよめ",
+      "name_english": "The Quintessential Quintuplets",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese": "五等分の花嫁",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fthe-quintessential-quintuplets.jpg?alt=media&token=7612678a-8205-43b5-b161-61878ebbd645",
+      "description": "The story starts with the main character guy: Futaro trace back his memory of meeting quintuplets in his school. His family was poor, and he was assigned a job to teach wealthy students from the same school, which turned out to be quintuplets: Ichika, Nino, Miku, Yotsuba, and Itsuki. He thought it was an easy job as he being a top student. However, he was rejected a lot by them despite the many trials.\n\nThese girls started to acknowledge how much they have improved even though their score was low, starting to appreciate Futaro's passion and willingness to improve their score. He gradually became attractive to the quintuplets. As he had no taste in romance, he sometimes hurt them by not knowing how to treat friends properly, but his pure and innocent words and actions move their hearts, resulting in opening up their minds.\n\nWhile Futaro was chasing the quintuplets for studying, the quintuplets started to chase him more, with each girl in her own way. As the quintuplets grew up together with very close looking, they hoped to be together forever and want to think, feel, and act the same way. But the more time they spend with Futaro, they gradually found that they have completely different hobbies, ideas, and mentality. As they grow the individual characteristic and independence, they started to fear that the solid quintessential bond would disappear. After the quarrel between Nino and Itsuki, Nino left the house, and the relationship became messy.\n\nEven though Futaro was not responsible for anything except bringing up their score, he made lots of effort to unite the quintuplets back. His endless effort came true, and they became one team, including Futaro, at the end. Thanks to that, quintuplets gained the courage to be independent and being different. Their decision made them be apart from their dad, who always wants them to follow his way, ending up leaving his gorgeous house and back to poor life in a small room in an old building.\n\nBecause of the decision, they couldn't pay Futaro, but he insisted on supporting them until they find their passion besides improving the score. Even though the quintuplets caused some issues and nuisance, Futaro never gave up being a top student and supporting them even though his family was poor. Because of that, each girl started to develop stronger feelings towards him, resulting in more battles within the quintuplets.\nAs these girls try to approach him, he also started to have feelings for them as well. Then the critical story of Futaro starts to play a role: the memory of meeting a girl in school traveling to Kyoto who made Futaro such a hardworking guy out of an outraged little boy. The girl turned out to be one among the quintuplets, and he started seeking who that was, which forces him to learn about the quintuples, like how they are different from each other besides the appearance. This made the romance battle more dramatic and exciting.\n\nTo find out whether Futaro really understands the quintuplets or not, they played the \"quintuplets game\" to him: they dress up as Ituki and fool Futaro. He wasn't able to tell one from the other initially, but he never gave up knowing about them; he finally recognized individuals, which made the quintuplets very happy and really willing to be his girlfriend.\nAs their approach toward him becomes more aggressive, each tries to deceive others and make him own, which caused lots of conflicts again, but in the end, they reconcile again by respect each other and try to be \"fair rather than equal.\" At the end of this love game, he finally picks one among them who he disclosed his favor from the beginning of his tutoring. He ended up marrying her.\n\nI enjoyed how his passionate and innocent actions influenced the quintuplets' minds and changed their lives in a good way. He not only taught about studying but also find their passion and what they are skillful at. As Futaro helps them, he also grew up a lot by also getting out of his box. It is very satisfying to see the characters' growth besides the romance battle. Also, I liked the process that Futaro and the quintuplets gradually get to know each other and care about each other while they were conflicted at the beginning.\n\nPeople usually enjoy guessing who would be Futaro's fiance and who they like the most. I have heard a lot of discussions and who is better than others. I picked Yotsuba among the quintuplets, as I liked how much she cares about others and making her friends happy. There is a scene that she looks so excited to see Futaro smiling. This is convincing that she is the one who could enjoy other's happiness instead of being materialistic, so I liked her the better.",
+      "tags": [
+        {
+          "id": "C63rWE1Z6pyUjD9O4bKA",
+          "name": "Romantic Comedy"
+        },
+        {
+          "name": "School Life",
+          "id": "Thfii2jBiyqgm1kEwhdy"
+        }
+      ]
+    },
+    {
+      "id": "fVOwYxJeD16KDo4MeorX",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fwp6341825-anime-reborn-wallpapers.jpg?alt=media&token=8b404dcb-5f59-4f2a-b6fa-55cfe1e51b07",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622447708,
+        "nanoseconds": 14000000
+      },
+      "description": "preparing…",
+      "name_english": "Reborn!",
+      "name_japanese_ruby": "かてきょーひっとまんりぼーん",
+      "name_japanese": "家庭教師ヒットマンREBORN!",
+      "score": 6.3,
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622447708,
+        "nanoseconds": 14000000
+      }
+    },
+    {
+      "id": "gTdFfTBjCGj7eFXhbPVC",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "description": "preparing…",
+      "score": 5.7,
+      "name_english": "Uzaki-chan Wants to Hang Out!",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622442042,
+        "nanoseconds": 220000000
+      },
+      "name_japanese": "宇崎ちゃんは遊びたい！",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622442042,
+        "nanoseconds": 220000000
+      },
+      "name_japanese_ruby": "うざきちゃんはあそびたい！",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fwp6982734-uzaki-chan-wants-to-hang-out-wallpapers.jpg?alt=media&token=2a0ce41a-b176-4ac2-ba6d-04edb951be85"
+    },
+    {
+      "id": "gzeucODbyCLwv5TSvSes",
+      "description": "preparing…",
+      "name_japanese_ruby": "かわいいだけじゃないしきもりさん",
+      "name_english": "Kawaii dake ja Nai Shikimori-san",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2FEygBithU8AcsuuT%20copy.jpeg?alt=media&token=f4f881fe-586c-4829-9388-8c27db417139",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622426408,
+        "nanoseconds": 226000000
+      },
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622426408,
+        "nanoseconds": 226000000
+      },
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese": "可愛いだけじゃない式守さん",
+      "score": 6.3
+    },
+    {
+      "id": "hFMNpnloSojwP1a3tFN4",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622280937,
+        "nanoseconds": 942000000
+      },
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese_ruby": "ごちゅうもんはうさぎですか？",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622439034,
+        "nanoseconds": 476000000
+      },
+      "name_english": "Is the Order a Rabbit?",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2F759689.jpg?alt=media&token=139435f8-129a-4c9c-8e5d-b2778231d7b9",
+      "score": 4.3,
+      "description": "It is a so light Anime that you can listen to while you are doing other work. It depicts the ordinary youth life of school girls. As the story isn't that deep and doesn't encounter any troubles, if you are looking for a relaxing Anime with cute girls, it is the right one for you.",
+      "name_japanese": "ご注文はうさぎですか？"
+    },
+    {
+      "id": "hRtuAyYbQgRO4W88S2Uk",
+      "description": "preparing…",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese": "妻、小学生になる。",
+      "name_japanese_ruby": "つま、しょうがくせいになる。",
+      "score": 7.3,
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2FScreen%20Shot%202021-05-30%20at%207.36.49%20PM.png?alt=media&token=85c7247b-9de2-4077-94ff-2b631f9b06a2",
+      "name_english": "If My Wife Became an Elementary School Student",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622428690,
+        "nanoseconds": 987000000
+      },
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622428690,
+        "nanoseconds": 987000000
+      }
+    },
+    {
+      "id": "jo4ZQhDSMGzGxpc4WH17",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "score": 9.2,
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621849096,
+        "nanoseconds": 867000000
+      },
+      "name_japanese_ruby": "り・ぜろからはじめるいせかいせいかつ",
+      "name_english": "Re:Zero − Starting Life in Another World",
+      "name_japanese": "Re:ゼロから始める異世界生活",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fre-zero.jpg?alt=media&token=776fae06-6b8c-4256-be3a-35e6c3718a91",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622439375,
+        "nanoseconds": 614000000
+      },
+      "description": "preparing…"
+    },
+    {
+      "id": "jvwPXyHxOlWXSfUBfqwh",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2FoFWP04Y-to-love-ru-pictures.jpg?alt=media&token=b542eac3-27ec-46ce-8880-0ae59c8e6327",
+      "description": "preparing…",
+      "name_japanese_ruby": "とらぶる",
+      "name_english": "To Love Ru",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622444862,
+        "nanoseconds": 164000000
+      },
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese": "To LOVEる",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622444862,
+        "nanoseconds": 164000000
+      },
+      "score": 4.7
+    },
+    {
+      "id": "mIcNhyDm9XPYCrukA3C7",
+      "name_japanese_ruby": "やはりおれのせいしゅんらぶこめはまちがっている。",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621845314,
+        "nanoseconds": 807000000
+      },
+      "description": "One can be so unmotivated and servile when the world works against his/her will. The manga depicts an ordinary life of a high school student who was left alone but confident in his beliefs and personality. His teacher Shizuka who has unique justice, put him into a volunteer club to save him. There, he encounters Yukino, gifted with both brains and beauty but very sarcastic. Yui, who is very charming but always hesitant, also joined the club. They were gathered to the club as they had own issue and would tackle their life challenges throughout resolving the requests comes into the club. They were put into various demands and always able to resolve them, but with one flaw. Hachiman always sacrifices himself to save others, which he got used to. While Yukino and Yui were making fun of him, they started to feel frustrated as they built a friendship.\nThey started to seek a genuine friendship, and that is very complicated...\nThere is more stuff to write about.. so I will update this later.",
+      "name_english": "My Youth Romantic Comedy Is Wrong, As I Expected (OreGairu)",
+      "tags": [
+        {
+          "name": "Romantic Comedy",
+          "id": "C63rWE1Z6pyUjD9O4bKA"
+        }
+      ],
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese": "やはり俺の青春ラブコメはまちがっている。",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Foregairu.jpeg?alt=media&token=f4ebcd74-668b-4695-b143-100a9ee54eb9",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1644189190,
+        "nanoseconds": 316000000
+      },
+      "score": 9.5
+    },
+    {
+      "id": "mqD1f6vfw6fzP6j2wYld",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622441127,
+        "nanoseconds": 900000000
+      },
+      "name_japanese_ruby": "そらよりもとおいばしょ",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2F4067585.jpg?alt=media&token=9ad1296f-a3cc-4e54-abe8-bc06b2bffd7c",
+      "score": 5.8,
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622448229,
+        "nanoseconds": 912000000
+      },
+      "name_japanese": "宇宙よりも遠い場所",
+      "name_english": "A Place Further Than the Universe",
+      "description": "preparing…"
+    },
+    {
+      "id": "tfvPDozb3Z47yh5s3dkU",
+      "description": "preparing…",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621919462,
+        "nanoseconds": 805000000
+      },
+      "name_english": "My First Girlfriend Is a Gal",
+      "name_japanese_ruby": "はじめてのぎゃる",
+      "name_japanese": "はじめてのギャル",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622439910,
+        "nanoseconds": 447000000
+      },
+      "score": 6.2,
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2FMy%20First%20Girlfriend%20Is%20a%20Gal.jpeg?alt=media&token=c89bef9f-2738-4a66-a3c9-bd1495ef7013"
+    },
+    {
+      "id": "vcyJgK8AVXwA0lGEUXgh",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622423700,
+        "nanoseconds": 518000000
+      },
+      "description": "preparing…",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622440483,
+        "nanoseconds": 992000000
+      },
+      "name_japanese": "その着せ替え人形は恋をする",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese_ruby": "そのきせかえにんぎょうはこいをする",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2FSono-Bisque-Doll-wa-Koi-wo-suru-destacado-1000x600-1.webp?alt=media&token=833bca02-5e98-46b7-8254-67c444805aa5",
+      "score": 6.3,
+      "name_english": "My Dress-Up Darling"
+    },
+    {
+      "id": "wx3B1QstzzsFxGzw0fvU",
+      "score": 7.6,
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fslam-dunk.jpg?alt=media&token=b93ca023-c7cd-476d-9175-07a32b5fa997",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622439268,
+        "nanoseconds": 358000000
+      },
+      "name_japanese": "SLAM DUNK",
+      "description": "preparing…",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621849620,
+        "nanoseconds": 986000000
+      },
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese_ruby": "すらむだんく",
+      "name_english": "Slam Dunk"
+    },
+    {
+      "id": "xv8JMG0iQhS0ksA4ZEBv",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622421289,
+        "nanoseconds": 397000000
+      },
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2F__hige_habahiro_and_wakabayashi_iori_ojisan_to_marshmallow_drawn_by_otoi_rekomaru__sample-5546c0e24cab5b31c90a1b02a7deed25.jpeg?alt=media&token=c505b3f0-7a79-4306-8ffc-185752732a99",
+      "name_japanese": "おじさんとマシュマロ",
+      "score": 6.4,
+      "description": "preparing…",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622439673,
+        "nanoseconds": 730000000
+      },
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese_ruby": "おじさんとましゅまろ",
+      "name_english": "Ojisan and marshmallow"
+    },
+    {
+      "id": "ykpieE3KNkpqBHFYWevD",
+      "name_japanese_ruby": "ぶりーち",
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_english": "Bleach",
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fbleach.jpeg?alt=media&token=8dcbdf79-47c8-4b70-a435-2de9b741cac2",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622449815,
+        "nanoseconds": 715000000
+      },
+      "score": 9,
+      "name_japanese": "BLEACH",
+      "description": "Still editing. This one is the most favorite battle anime I have ever watched. The way they incorporate the context and music is an art. Each character has own sad background and that was well considered.  There are limited number of characters and name of attack.",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621848927,
+        "nanoseconds": 462000000
+      }
+    },
+    {
+      "id": "zfap9B3lHBRPYoFTqgEj",
+      "description": "preparing…",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1622439833,
+        "nanoseconds": 536000000
+      },
+      "name_japanese": "化物語",
+      "name_english": "Bakemonogatari",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1621849247,
+        "nanoseconds": 924000000
+      },
+      "user": "0gAk2mm1A8hi2sEY7mgBagqkbko2",
+      "name_japanese_ruby": "ばけものがたり",
+      "score": 8.4,
+      "mainImage": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/anime%2Fbakemonogatari.jpeg?alt=media&token=f06bf818-4c09-4eba-8694-2bb7be7ca0e6"
+    }
+  ],
+  "voiceActors": [
+    {
+      "id": "1AVG8Pt4bf7EEpTiF7Rb",
+      "name_japanese_ruby": "たけたつあやな",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643698259,
+        "nanoseconds": 294000000
+      },
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643698259,
+        "nanoseconds": 294000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fayana_takatatsu_image.jpeg?alt=media&token=94add6f6-5895-44f8-8a72-f823d8084ce1",
+      "name_japanese": "竹達彩奈",
+      "name_english": "Ayana Taketatsu"
+    },
+    {
+      "id": "1MsfyRT5nleqizswMCh9",
+      "name_japanese": "悠木碧",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789025,
+        "nanoseconds": 953000000
+      },
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789025,
+        "nanoseconds": 953000000
+      },
+      "name_japanese_ruby": "ゆうきあおい",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Faoi_yuki_image.jpeg?alt=media&token=a6af804a-51fa-4ccf-93d5-6a5fc3c101e5",
+      "name_english": "Aoi Yuki"
+    },
+    {
+      "id": "2TH3pg5Z5TVqUHiDlcPt",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fmikako_komatsu_image.jpeg?alt=media&token=bb49293e-bf4a-4899-b6c3-513d0f3c3475",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789793,
+        "nanoseconds": 214000000
+      },
+      "name_japanese_ruby": "こまつみかこ",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789793,
+        "nanoseconds": 214000000
+      },
+      "name_english": "Mikako Komatsu",
+      "name_japanese": "小松未可子"
+    },
+    {
+      "id": "3DM8ZzQVlpbowJn6xEnD",
+      "name_english": "Ryoka Yuzuki",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fryoka_yuzuki_image.jpeg?alt=media&token=1eac9d0a-f68e-435e-9da5-6cef7aa7f3fa",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789585,
+        "nanoseconds": 390000000
+      },
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789585,
+        "nanoseconds": 390000000
+      },
+      "name_japanese": "柚木涼香",
+      "name_japanese_ruby": "ゆずきりょうか"
+    },
+    {
+      "id": "3VnMM12VJ43l1zzfYEMU",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643672108,
+        "nanoseconds": 189000000
+      },
+      "name_japanese_ruby": "いとうみく",
+      "name_english": "Miku Ito",
+      "name_japanese": "伊藤美来",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fmiku_ito_image.jpeg?alt=media&token=0b6c3ca9-c2bd-4060-bb0b-e19839f6b03e",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643672108,
+        "nanoseconds": 189000000
+      }
+    },
+    {
+      "id": "6eCEOnS3PTNIIjPUdCTl",
+      "name_english": "Ayane Sakura",
+      "name_japanese": "佐倉綾音",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643017852,
+        "nanoseconds": 894000000
+      },
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643017852,
+        "nanoseconds": 894000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fayane_sakura_image.jpeg?alt=media&token=86b712cc-34e5-4eb1-9ab5-54001f9f5d3c",
+      "name_japanese_ruby": "さくらあやね"
+    },
+    {
+      "id": "BYab7bU2gLIRU9vjIVrO",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643674438,
+        "nanoseconds": 824000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fkana_hanazawa_image.jpeg?alt=media&token=b5be7cfe-d5c8-4e3a-a25d-b043617c5b66",
+      "name_japanese": "花澤香菜",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643674438,
+        "nanoseconds": 824000000
+      },
+      "name_english": "Kana Hanazawa",
+      "name_japanese_ruby": "はなざわかな"
+    },
+    {
+      "id": "FdLsyXbnitstI4hfriuu",
+      "name_japanese_ruby": "はやみさおり",
+      "name_english": "Saori Hayami",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1642752000,
+        "nanoseconds": 0
+      },
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1642752000,
+        "nanoseconds": 0
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fsaori_hayami_image.jpeg?alt=media&token=8c236e20-6d3b-440d-a96e-a34f93ba4680",
+      "name_japanese": "早見沙織"
+    },
+    {
+      "id": "KGoZ1Emw32YAACt3jblC",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643671262,
+        "nanoseconds": 476000000
+      },
+      "name_japanese_ruby": "まつおかよしつぐ",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fyoshitsugu_matsuoka_image.jpeg?alt=media&token=e195b585-f146-423e-9d4e-ff35a56f4186",
+      "name_japanese": "松岡禎丞",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643671262,
+        "nanoseconds": 476000000
+      },
+      "name_english": "Yoshitsugu Matsuoka"
+    },
+    {
+      "id": "QWvS4eJX32vXCAGf01wC",
+      "name_english": "Ai Kayano",
+      "name_japanese": "茅野愛衣",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643096046,
+        "nanoseconds": 491000000
+      },
+      "name_japanese_ruby": "かやのあい",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fai_kayano_image.jpeg?alt=media&token=cb375659-1583-4001-a60a-448ab9f44a31",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643096046,
+        "nanoseconds": 491000000
+      }
+    },
+    {
+      "id": "QeK59uHC0MkV91U5Tgk4",
+      "name_japanese_ruby": "みなせいのり",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643671798,
+        "nanoseconds": 232000000
+      },
+      "name_english": "Inori Minase",
+      "name_japanese": "水瀬いのり",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Finori_minase_image.jpeg?alt=media&token=c13132bb-5be6-450e-b14e-ed74057c9d42",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643671798,
+        "nanoseconds": 232000000
+      }
+    },
+    {
+      "id": "TNlYpiKCXdkBuZQGkUkg",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643790028,
+        "nanoseconds": 698000000
+      },
+      "name_japanese": "戸松遥",
+      "name_japanese_ruby": "とまつはるか",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fharuka_tomatsu_image.jpeg?alt=media&token=75b96c8a-54fc-4f6f-92f3-b80ff447ca87",
+      "name_english": "Haruka Tomatsu",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643790028,
+        "nanoseconds": 698000000
+      }
+    },
+    {
+      "id": "VecHmnD0nwva9A6Vsqae",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Ftakashi_kondo_image.jpeg?alt=media&token=76e74e86-cd66-45f7-b1a7-fe3060078ee9",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789429,
+        "nanoseconds": 944000000
+      },
+      "name_japanese": "近藤隆",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789429,
+        "nanoseconds": 944000000
+      },
+      "name_japanese_ruby": "こんどうたかし",
+      "name_english": "Takashi Kondo"
+    },
+    {
+      "id": "XEQglDwIoIEINFgcAu7B",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789940,
+        "nanoseconds": 539000000
+      },
+      "name_japanese": "檜山修之",
+      "name_english": "Nobuyuki Hiyama",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789940,
+        "nanoseconds": 539000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fnobuyuki_hiyama_image.jpeg?alt=media&token=9e72519b-0420-4aeb-968d-35ed7fb8599e",
+      "name_japanese_ruby": "ひやまのぶゆき"
+    },
+    {
+      "id": "amFBc8ntQmXVgNfcDbl4",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789179,
+        "nanoseconds": 653000000
+      },
+      "name_english": "Ami Koshimizu",
+      "name_japanese": "小清水亜美",
+      "name_japanese_ruby": "こしみずあみ",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789179,
+        "nanoseconds": 653000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fami_koshimizu_image.jpeg?alt=media&token=9d0e5bdd-a111-4ba3-84a3-f67b8f73a478"
+    },
+    {
+      "id": "dVLujlfFgD2VfB7aSd3Z",
+      "name_japanese": "高森奈津美",
+      "name_japanese_ruby": "たかもりなつみ",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643700541,
+        "nanoseconds": 840000000
+      },
+      "name_english": "Natsumi Takamori",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643700541,
+        "nanoseconds": 840000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fnatsumi_takamori_image.jpeg?alt=media&token=69eed6f0-b6b4-4e59-b4c7-b219e1f4eae2"
+    },
+    {
+      "id": "iozYxpp1uZrDRj9aU5DP",
+      "name_japanese_ruby": "なかはらまい",
+      "name_english": "Mai Nakahara",
+      "name_japanese": "中原麻衣",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789298,
+        "nanoseconds": 279000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fmai_nakahara_image.jpeg?alt=media&token=f37a8735-744a-4e17-9e10-4fcd5591281d",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789298,
+        "nanoseconds": 279000000
+      }
+    },
+    {
+      "id": "nVesFtGzdXjK2VsayQqN",
+      "name_japanese": "東山奈央",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643788568,
+        "nanoseconds": 579000000
+      },
+      "name_english": "Nao Toyama",
+      "name_japanese_ruby": "とおやまなお",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Fnao_toyama_image.jpeg?alt=media&token=b6462463-8b4e-4628-8d50-039df5a2696a",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643788568,
+        "nanoseconds": 579000000
+      }
+    },
+    {
+      "id": "slWk96ZfLvpaKj71KaJU",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/voice_actor%2Ftakuya_eguchi_image.jpeg?alt=media&token=b8343df9-1a77-4d3c-86e3-16824013ec88",
+      "name_english": "Takuya Eguchi",
+      "name_japanese": "江口拓也",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643788339,
+        "nanoseconds": 606000000
+      },
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643788339,
+        "nanoseconds": 606000000
+      },
+      "name_japanese_ruby": "えぐちたくや"
+    }
+  ],
+  "characters": [
+    {
+      "id": "1EOjv4MNBr7SIV64EV8u",
+      "name_english": "Raiha Uesugi",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643700699,
+        "nanoseconds": 969000000
+      },
+      "voice_actor_id": "dVLujlfFgD2VfB7aSd3Z",
+      "anime_id": "eGuZ2Po7x9l4zXa1Wlmw",
+      "name_japanese": "上杉らいは",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fraiha_uesugi_image.jpeg?alt=media&token=6d008de5-0077-41f4-89e6-de2b947ef6c4",
+      "name_japanese_ruby": "うえすぎらいは",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643700699,
+        "nanoseconds": 969000000
+      }
+    },
+    {
+      "id": "20Viv7NUoG9ohNlK1xpX",
+      "voice_actor_id": "3DM8ZzQVlpbowJn6xEnD",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789657,
+        "nanoseconds": 49000000
+      },
+      "name_english": "Shizuka Hiratsuka",
+      "anime_id": "mIcNhyDm9XPYCrukA3C7",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789657,
+        "nanoseconds": 49000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fshizuka_hiratsuka_image.jpeg?alt=media&token=a7c3ca01-9e06-4f9f-aa91-a5b2932b2fb7",
+      "name_japanese_ruby": "ひらつかしずか",
+      "name_japanese": "平塚静"
+    },
+    {
+      "id": "9oM8MdeEJbcx2VP5pY8A",
+      "name_japanese": "白石結月",
+      "name_japanese_ruby": "しらいしゆづき",
+      "anime_id": "mqD1f6vfw6fzP6j2wYld",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fyuzuki_shiraishi_image.webp?alt=media&token=bb431664-553e-4456-ba20-c6e04305b106",
+      "name_english": "Yuzuki Shiraishi",
+      "voice_actor_id": "FdLsyXbnitstI4hfriuu",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643665410,
+        "nanoseconds": 733000000
+      },
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643665410,
+        "nanoseconds": 733000000
+      }
+    },
+    {
+      "id": "BX8MAe9J2He8CiLVVCyh",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fblue_mountain_aoyama_image.jpeg?alt=media&token=18754f00-8ada-470a-ae56-6529c920cb63",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643618116,
+        "nanoseconds": 832000000
+      },
+      "name_japanese": "青山ブルーマウンテン",
+      "name_japanese_ruby": "あおやまぶるーまうんてん",
+      "anime_id": "hFMNpnloSojwP1a3tFN4",
+      "voice_actor_id": "FdLsyXbnitstI4hfriuu",
+      "name_english": "Blue Mountain Aoyama",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643618116,
+        "nanoseconds": 832000000
+      }
+    },
+    {
+      "id": "FZGeIpFQc2nMeL7w6Ep9",
+      "name_japanese_ruby": "なかのよつば",
+      "voice_actor_id": "6eCEOnS3PTNIIjPUdCTl",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fyotsuba_nakano_image.jpeg?alt=media&token=9c181503-a65e-4760-a5ed-835f8ed3fc35",
+      "name_japanese": "中野四葉",
+      "name_english": "Yotsuba Nakano",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643699102,
+        "nanoseconds": 484000000
+      },
+      "anime_id": "eGuZ2Po7x9l4zXa1Wlmw",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643699102,
+        "nanoseconds": 484000000
+      }
+    },
+    {
+      "id": "Hh9xraXyQETC7r7XBcqv",
+      "voice_actor_id": "KGoZ1Emw32YAACt3jblC",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643699773,
+        "nanoseconds": 510000000
+      },
+      "name_japanese_ruby": "うえすぎふうたろう",
+      "name_japanese": "上杉風太郎",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643699773,
+        "nanoseconds": 510000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Ffuutarou_uesugi_image.jpeg?alt=media&token=81ba8ce9-7665-4da3-833e-a3465b7034b5",
+      "anime_id": "eGuZ2Po7x9l4zXa1Wlmw",
+      "name_english": "Fuutarou Uesugi"
+    },
+    {
+      "id": "JKoTpxS3g0MsQTyJXQby",
+      "name_english": "Saika Totsuka",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789876,
+        "nanoseconds": 709000000
+      },
+      "anime_id": "mIcNhyDm9XPYCrukA3C7",
+      "voice_actor_id": "2TH3pg5Z5TVqUHiDlcPt",
+      "name_japanese": "戸塚彩加",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fsaika_totsuka_image.jpeg?alt=media&token=621c8e6c-5f1e-4c10-a2e5-0c16a683adf9",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789876,
+        "nanoseconds": 709000000
+      },
+      "name_japanese_ruby": "とつかさいか"
+    },
+    {
+      "id": "JROHR5XgxkqqoVvuYbiA",
+      "name_japanese": "中野三玖",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643699053,
+        "nanoseconds": 613000000
+      },
+      "name_japanese_ruby": "なかのみく",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643699053,
+        "nanoseconds": 613000000
+      },
+      "voice_actor_id": "3VnMM12VJ43l1zzfYEMU",
+      "name_english": "Miku Nakano",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fmiku_nakano_image.jpeg?alt=media&token=532b4652-5a5f-4079-8d93-1188386a535a",
+      "anime_id": "eGuZ2Po7x9l4zXa1Wlmw"
+    },
+    {
+      "id": "Klnw20GaA9WS3AsejVHY",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643788411,
+        "nanoseconds": 559000000
+      },
+      "voice_actor_id": "slWk96ZfLvpaKj71KaJU",
+      "name_english": "Hachiman Hikigaya",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fhachiman_hikigaya_image.jpeg?alt=media&token=efb439ec-e66c-434f-96f1-8fe48329cdc4",
+      "anime_id": "mIcNhyDm9XPYCrukA3C7",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643788411,
+        "nanoseconds": 559000000
+      },
+      "name_japanese": "比企谷八幡",
+      "name_japanese_ruby": "ひきがやはちまん"
+    },
+    {
+      "id": "LNZfFgzkKgUyvAVKoVNO",
+      "voice_actor_id": "BYab7bU2gLIRU9vjIVrO",
+      "name_japanese_ruby": "なかのいちか",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fichika_nakano_image.jpeg?alt=media&token=aeb1e81f-7ff1-4e84-8f76-e91fbe8e3a11",
+      "name_english": "Ichika Nakano",
+      "anime_id": "eGuZ2Po7x9l4zXa1Wlmw",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643698891,
+        "nanoseconds": 314000000
+      },
+      "name_japanese": "中野一花",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643698891,
+        "nanoseconds": 314000000
+      }
+    },
+    {
+      "id": "LfKiaE4ASrKWcmv4ZrYA",
+      "name_japanese": "葉山隼人",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789489,
+        "nanoseconds": 16000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fhayato_hayama_image.jpeg?alt=media&token=5fdaa882-9b9d-4d28-86f8-94564dcc40e5",
+      "voice_actor_id": "VecHmnD0nwva9A6Vsqae",
+      "name_japanese_ruby": "はやまはやと",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789489,
+        "nanoseconds": 16000000
+      },
+      "anime_id": "mIcNhyDm9XPYCrukA3C7",
+      "name_english": "Hayato Hayama"
+    },
+    {
+      "id": "PgRxDf4HeSSKEwARR722",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643699168,
+        "nanoseconds": 468000000
+      },
+      "name_japanese_ruby": "なかのいつき",
+      "anime_id": "eGuZ2Po7x9l4zXa1Wlmw",
+      "name_japanese": "中野五月",
+      "name_english": "Itsuki Nakano",
+      "voice_actor_id": "QeK59uHC0MkV91U5Tgk4",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643699168,
+        "nanoseconds": 468000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fitsuki_nakano_image.jpeg?alt=media&token=c4d11aad-3bbe-4f39-882f-043f8dc4a602"
+    },
+    {
+      "id": "YRhK4Ytr6XhOUQ0nyX5N",
+      "name_japanese_ruby": "ざいもくざよしてる",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789990,
+        "nanoseconds": 756000000
+      },
+      "name_english": "Yoshiteru Zaimokuza",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fyoshiteru_zaimokuza_image.jpeg?alt=media&token=2a44a89a-1683-4872-82c6-a700a78c1756",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789990,
+        "nanoseconds": 756000000
+      },
+      "anime_id": "mIcNhyDm9XPYCrukA3C7",
+      "voice_actor_id": "XEQglDwIoIEINFgcAu7B",
+      "name_japanese": "材木座義輝"
+    },
+    {
+      "id": "dWZlcnp151hh8OAtW2hu",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789247,
+        "nanoseconds": 592000000
+      },
+      "name_english": "Saki Kawasaki",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fsaki_kawasaki_image.jpeg?alt=media&token=06c8d335-9ffe-4221-bf90-63c1965400e2",
+      "anime_id": "mIcNhyDm9XPYCrukA3C7",
+      "voice_actor_id": "amFBc8ntQmXVgNfcDbl4",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789247,
+        "nanoseconds": 592000000
+      },
+      "name_japanese_ruby": "かわさきさき",
+      "name_japanese": "川崎沙希"
+    },
+    {
+      "id": "f784DoQEE2BfSF0hCLkV",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643698990,
+        "nanoseconds": 79000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fnino_nakano_image.jpeg?alt=media&token=0403f128-073a-42ae-ba64-b5a9866276b9",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643698990,
+        "nanoseconds": 79000000
+      },
+      "voice_actor_id": "1AVG8Pt4bf7EEpTiF7Rb",
+      "anime_id": "eGuZ2Po7x9l4zXa1Wlmw",
+      "name_japanese": "中野二乃",
+      "name_japanese_ruby": "なかのにの",
+      "name_english": "Nino Nakano"
+    },
+    {
+      "id": "iyfBh4npTW36GBrklZNj",
+      "name_english": "Yotsugi Ononoki",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643617360,
+        "nanoseconds": 463000000
+      },
+      "voice_actor_id": "FdLsyXbnitstI4hfriuu",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643617360,
+        "nanoseconds": 463000000
+      },
+      "anime_id": "zfap9B3lHBRPYoFTqgEj",
+      "name_japanese_ruby": "おののきよつぎ",
+      "name_japanese": "斧乃木余接",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fyotsugi_ononoki_image.png?alt=media&token=6de3802c-12c3-48ba-80e2-20262a9804aa"
+    },
+    {
+      "id": "n49ep5ROdF2O3skIui71",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789093,
+        "nanoseconds": 357000000
+      },
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789093,
+        "nanoseconds": 357000000
+      },
+      "name_english": "Komachi Hikigaya",
+      "name_japanese": "比企谷小町",
+      "voice_actor_id": "1MsfyRT5nleqizswMCh9",
+      "name_japanese_ruby": "ひきがやこまち",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fkomachi_hikigaya_image.jpeg?alt=media&token=14fc0226-721a-4eee-9d3a-127d6cfad592",
+      "anime_id": "mIcNhyDm9XPYCrukA3C7"
+    },
+    {
+      "id": "oFg1d3nidMJMx7bwVnlz",
+      "name_english": "Yukino Yukinoshita",
+      "anime_id": "mIcNhyDm9XPYCrukA3C7",
+      "voice_actor_id": "FdLsyXbnitstI4hfriuu",
+      "name_japanese_ruby": "ゆきのしたゆきの",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643618283,
+        "nanoseconds": 580000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fyukino_yukinoshita_image.jpeg?alt=media&token=f56f0ea1-1442-4c97-b1a0-42999be49be0",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643618283,
+        "nanoseconds": 580000000
+      },
+      "name_japanese": "雪ノ下雪乃"
+    },
+    {
+      "id": "oxcY9pVScAZSDhMA9ooV",
+      "name_japanese_ruby": "ゆいがはまゆい",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fyui_yuigahama_image.jpeg?alt=media&token=bdbdf39a-e4bf-4189-b233-00a99367c6b4",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643788635,
+        "nanoseconds": 433000000
+      },
+      "anime_id": "mIcNhyDm9XPYCrukA3C7",
+      "name_japanese": "由比ヶ浜結衣",
+      "name_english": "Yui Yuigahama",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643788635,
+        "nanoseconds": 433000000
+      },
+      "voice_actor_id": "nVesFtGzdXjK2VsayQqN"
+    },
+    {
+      "id": "qJb0eIbG4yalzYfBA2Cr",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643666188,
+        "nanoseconds": 76000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fgabi_braun_image.jpeg?alt=media&token=abf74a09-9a29-4fd8-a654-49d02de9f78d",
+      "voice_actor_id": "6eCEOnS3PTNIIjPUdCTl",
+      "name_japanese_ruby": "がびぶらうん",
+      "anime_id": "6VI3w7juwSVqDA0qbf2I",
+      "name_english": "Gabi Braun",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643666188,
+        "nanoseconds": 76000000
+      },
+      "name_japanese": "ガビ・ブラウン"
+    },
+    {
+      "id": "qOMRaedNtqe7ygzwOrL7",
+      "anime_id": "mIcNhyDm9XPYCrukA3C7",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643790088,
+        "nanoseconds": 384000000
+      },
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fkaori_orimoto_image.jpeg?alt=media&token=705cd88d-c902-4b2a-8645-97af8a4b24e5",
+      "name_english": "Kaori Orimoto",
+      "voice_actor_id": "TNlYpiKCXdkBuZQGkUkg",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643790088,
+        "nanoseconds": 384000000
+      },
+      "name_japanese_ruby": "おりもとかおり",
+      "name_japanese": "折本かおり"
+    },
+    {
+      "id": "xCzdk5B59jnwc3OpKaPq",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789388,
+        "nanoseconds": 282000000
+      },
+      "name_japanese_ruby": "ゆきのしたはるの",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643789388,
+        "nanoseconds": 282000000
+      },
+      "anime_id": "mIcNhyDm9XPYCrukA3C7",
+      "name_japanese": "雪ノ下春乃",
+      "name_english": "Haruno Yukinoshita",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Fharuno_yukinoshita_image.jpeg?alt=media&token=6ed4413b-0216-413a-a294-f262833b16cc",
+      "voice_actor_id": "iozYxpp1uZrDRj9aU5DP"
+    },
+    {
+      "id": "yxN1VaYZ2Mg5XxtjsD8N",
+      "name_japanese": "一色いろは",
+      "name_english": "Iroha Isshiki",
+      "voice_actor_id": "6eCEOnS3PTNIIjPUdCTl",
+      "anime_id": "mIcNhyDm9XPYCrukA3C7",
+      "lastUpdated": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643788753,
+        "nanoseconds": 322000000
+      },
+      "name_japanese_ruby": "いっしきいろは",
+      "image": "https://firebasestorage.googleapis.com/v0/b/yudai-blog.appspot.com/o/character%2Firoha_isshiki_image.jpeg?alt=media&token=f1d6412d-6045-4bec-84f3-c14e417181e2",
+      "created": {
+        "type": "firestore/timestamp/1.0",
+        "seconds": 1643788753,
+        "nanoseconds": 322000000
+      }
+    }
+  ]
+}

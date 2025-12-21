@@ -68,6 +68,35 @@ export default function HobbyItemCard({ item, hobby, showLink = true, language =
           </a>
         );
 
+      case 'number' as CustomFieldType:
+        // Special handling for score field (0-10)
+        if (fieldName === 'score') {
+          const scoreValue = Number(value);
+          const starRating = Math.round(scoreValue / 2); // Convert 0-10 to 0-5 stars
+          return (
+            <div className="hobby-item-card__field hobby-item-card__field--score">
+              <div className="hobby-item-card__score-badge">
+                <span className="hobby-item-card__score-value">{scoreValue.toFixed(1)}</span>
+              </div>
+              <div className="hobby-item-card__score-stars">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star
+                    key={star}
+                    size={12}
+                    className={star <= starRating ? 'filled' : ''}
+                  />
+                ))}
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div className="hobby-item-card__field">
+            <span className="hobby-item-card__field-label">{fieldDef.label}:</span>
+            <span>{Number(value).toLocaleString()}</span>
+          </div>
+        );
+
       default:
         return (
           <div className="hobby-item-card__field">
@@ -78,14 +107,21 @@ export default function HobbyItemCard({ item, hobby, showLink = true, language =
     }
   };
 
-  // Get first few custom fields to display on card (excluding description fields)
-  const displayFields = hobby.fields
-    .slice(0, 3)
+  // Get custom fields to display on card (excluding description fields)
+  // Prioritize score field if it exists
+  const scoreField = hobby.fields.find(
+    (f) => f.name === 'score' && item.customFields[f.name] !== undefined
+  );
+  const otherFields = hobby.fields
     .filter((f) =>
       item.customFields[f.name] !== undefined &&
       f.name !== 'descriptionJa' &&
-      f.name !== 'descriptionEn'
-    );
+      f.name !== 'descriptionEn' &&
+      f.name !== 'animeDescription' &&
+      f.name !== 'score'
+    )
+    .slice(0, scoreField ? 2 : 3);
+  const displayFields = scoreField ? [scoreField, ...otherFields] : otherFields;
 
   // Get the appropriate description based on language
   const getDescription = () => {

@@ -22,6 +22,13 @@ export enum CustomFieldType {
   LOCATION = 'location',
   RATING = 'rating',
   BOOLEAN = 'boolean',
+  RELATION = 'relation',  // Reference to another hobby item
+}
+
+// Configuration for RELATION type fields
+export interface RelationConfig {
+  hobbySlug: string;      // Slug of the hobby category to reference
+  multiple: boolean;      // Allow multiple references
 }
 
 // ============================================================================
@@ -37,6 +44,7 @@ export interface CustomField {
   options?: string[];     // For select/multiselect
   placeholder?: string;
   order: number;
+  relationConfig?: RelationConfig;  // For RELATION type fields
 }
 
 // ============================================================================
@@ -179,6 +187,31 @@ export const TRAIN_CATALOG_FIELDS: Omit<CustomField, 'id'>[] = [
   { name: 'rating', label: '評価', type: CustomFieldType.RATING, required: false, order: 8 },
   { name: 'impression', label: '感想', type: CustomFieldType.TEXTAREA, required: false, placeholder: '乗った感想など', order: 9 },
   { name: 'rideDate', label: '乗車日', type: CustomFieldType.DATE, required: false, order: 10 },
+];
+
+// Anime catalog - for tracking anime/manga rankings
+export const ANIME_CATALOG_FIELDS: Omit<CustomField, 'id'>[] = [
+  { name: 'nameKanji', label: '名前（漢字）', type: CustomFieldType.TEXT, required: false, placeholder: '例: 進撃の巨人', order: 1 },
+  { name: 'nameKana', label: '名前（かな）', type: CustomFieldType.TEXT, required: false, placeholder: '例: しんげきのきょじん', order: 2 },
+  { name: 'nameEnglish', label: 'English Name', type: CustomFieldType.TEXT, required: false, placeholder: 'e.g., Attack on Titan', order: 3 },
+  { name: 'score', label: 'スコア (0-10)', type: CustomFieldType.NUMBER, required: false, placeholder: '0-10', order: 4 },
+  { name: 'animeDescription', label: '説明', type: CustomFieldType.TEXTAREA, required: false, placeholder: 'あらすじや感想', order: 5 },
+];
+
+// Voice actor catalog
+export const VOICE_ACTOR_FIELDS: Omit<CustomField, 'id'>[] = [
+  { name: 'nameKanji', label: '名前（漢字）', type: CustomFieldType.TEXT, required: false, placeholder: '例: 花澤香菜', order: 1 },
+  { name: 'nameKana', label: '名前（かな）', type: CustomFieldType.TEXT, required: false, placeholder: '例: はなざわかな', order: 2 },
+  { name: 'nameEnglish', label: 'English Name', type: CustomFieldType.TEXT, required: false, placeholder: 'e.g., Kana Hanazawa', order: 3 },
+];
+
+// Anime character catalog
+export const ANIME_CHARACTER_FIELDS: Omit<CustomField, 'id'>[] = [
+  { name: 'nameKanji', label: '名前（漢字）', type: CustomFieldType.TEXT, required: false, placeholder: '例: 御坂美琴', order: 1 },
+  { name: 'nameKana', label: '名前（かな）', type: CustomFieldType.TEXT, required: false, placeholder: '例: みさかみこと', order: 2 },
+  { name: 'nameEnglish', label: 'English Name', type: CustomFieldType.TEXT, required: false, placeholder: 'e.g., Mikoto Misaka', order: 3 },
+  { name: 'animeId', label: 'アニメ', type: CustomFieldType.RELATION, required: false, order: 4, relationConfig: { hobbySlug: 'anime', multiple: false } },
+  { name: 'voiceActorId', label: '声優', type: CustomFieldType.RELATION, required: false, order: 5, relationConfig: { hobbySlug: 'voice-actors', multiple: false } },
 ];
 
 // ============================================================================

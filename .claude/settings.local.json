@@ -9,7 +9,12 @@
       "Bash(ls:*)",
       "Bash(grep:*)",
       "Bash(cat:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(npx tsx:*)",
+      "Bash(HELLOALONE_USER_ID=yyaguchi npx tsx:*)",
+      "Bash(DRY_RUN=false CATEGORIES_ONLY=true npx tsx:*)",
+      "Bash(DRY_RUN=false npx tsx:*)",
+      "Bash(lsof:*)"
     ],
     "deny": [],
     "ask": []

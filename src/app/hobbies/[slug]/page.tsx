@@ -1,9 +1,11 @@
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { useHobbyCategory, useHobbyItems } from '@/hooks/useHobbies';
 import { HobbyGrid } from '@/components/hobby';
+import HobbySearchSort from '@/components/hobby/HobbySearchSort';
+import { applyFiltersAndSort, type SortType } from '@/lib/animeUtils';
 import { ArrowLeft, Loader2, HelpCircle, Languages } from 'lucide-react';
 
 interface HobbyPageProps {
@@ -15,6 +17,8 @@ export type Language = 'en' | 'ja';
 export default function HobbyPage({ params }: HobbyPageProps) {
   const { slug } = use(params);
   const [language, setLanguage] = useState<Language>('en');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortType, setSortType] = useState<SortType>('alphabetical');
   const { hobby, loading: hobbyLoading, error: hobbyError } = useHobbyCategory(slug, true);
   const {
     items,
@@ -26,6 +30,27 @@ export default function HobbyPage({ params }: HobbyPageProps) {
     hobbyId: hobby?.id || '',
     includePrivate: false,
   });
+
+  // Check if this hobby has score field (for anime)
+  const hasScoreField = useMemo(() => {
+    return hobby?.fields.some(f => f.name === 'score') ?? false;
+  }, [hobby?.fields]);
+
+  // Apply search and sort to items
+  const filteredItems = useMemo(() => {
+    return applyFiltersAndSort(items, {
+      searchQuery,
+      sortType,
+    });
+  }, [items, searchQuery, sortType]);
+
+  const handleSearchChange = useCallback((query: string) => {
+    setSearchQuery(query);
+  }, []);
+
+  const handleSortChange = useCallback((sort: SortType) => {
+    setSortType(sort);
+  }, []);
 
   if (hobbyLoading) {
     return (
@@ -93,17 +118,40 @@ export default function HobbyPage({ params }: HobbyPageProps) {
 
       {/* Items Section */}
       <div className="hobby-page__container">
+        {/* Search and Sort */}
+        {items.length > 0 && (
+          <HobbySearchSort
+            onSearchChange={handleSearchChange}
+            onSortChange={handleSortChange}
+            initialSearch={searchQuery}
+            initialSort={sortType}
+            showScoreSort={hasScoreField}
+            language={language}
+            placeholder={language === 'ja' ? '名前で検索...' : 'Search by name...'}
+          />
+        )}
+
         {itemsError && (
           <div className="hobby-page__items-error">
             <p>Failed to load items: {itemsError}</p>
           </div>
         )}
 
+        {/* Show result count if searching */}
+        {searchQuery && !itemsLoading && (
+          <div className="hobby-page__results-count">
+            {filteredItems.length} {language === 'ja' ? '件の結果' : 'results'}
+            {filteredItems.length !== items.length && (
+              <span> ({language === 'ja' ? `全${items.length}件中` : `of ${items.length} total`})</span>
+            )}
+          </div>
+        )}
+
         <HobbyGrid
-          items={items}
+          items={filteredItems}
           hobby={hobby}
           loading={itemsLoading}
-          hasMore={hasMore}
+          hasMore={hasMore && !searchQuery}
           onLoadMore={loadMore}
           language={language}
         />

@@ -44,8 +44,6 @@
     "dayjs": "^1.11.19",
     "dompurify": "^3.3.0",
     "embla-carousel-react": "^8.6.0",
-    "firebase": "^12.6.0",
-    "firebase-admin": "^13.6.0",
     "html-to-text": "^9.0.5",
     "i18next": "^25.7.3",
     "i18next-browser-languagedetector": "^8.2.0",
@@ -80,8 +78,12 @@
     "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "16.0.7",
+    "firebase": "^12.7.0",
+    "firebase-admin": "^13.6.0",
+    "node-fetch": "^3.3.2",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "uuid": "^13.0.0"
   }
 }

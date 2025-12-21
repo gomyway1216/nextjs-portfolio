@@ -14,7 +14,17 @@ import type {
   CreateHobbyCategoryInput,
   CreateHobbyItemInput,
 } from '@/types/hobby';
-import { HobbyTemplateType, CustomFieldType, FISH_CATALOG_FIELDS, SKI_RESORT_FIELDS, TRAIN_CATALOG_FIELDS, generateSlug } from '@/types/hobby';
+import {
+  HobbyTemplateType,
+  CustomFieldType,
+  FISH_CATALOG_FIELDS,
+  SKI_RESORT_FIELDS,
+  TRAIN_CATALOG_FIELDS,
+  ANIME_CATALOG_FIELDS,
+  VOICE_ACTOR_FIELDS,
+  ANIME_CHARACTER_FIELDS,
+  generateSlug
+} from '@/types/hobby';
 import * as imageApi from '@/services/imageService';
 import {
   Plus,
@@ -32,6 +42,9 @@ import {
   Fish,
   Mountain,
   Train,
+  Tv,
+  Mic,
+  User,
 } from 'lucide-react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -453,7 +466,7 @@ export default function HobbiesAdminPanel() {
     }));
   };
 
-  const handleApplyTemplate = (template: 'fish' | 'ski' | 'train') => {
+  const handleApplyTemplate = (template: 'fish' | 'ski' | 'train' | 'anime' | 'voice-actor' | 'anime-character') => {
     let templateFields;
     let name, slug, description, icon;
 
@@ -478,6 +491,27 @@ export default function HobbiesAdminPanel() {
         slug = 'trains';
         description = '乗った日本の列車のコレクション';
         icon = 'train';
+        break;
+      case 'anime':
+        templateFields = ANIME_CATALOG_FIELDS;
+        name = 'アニメ';
+        slug = 'anime';
+        description = 'アニメ・漫画のランキング';
+        icon = 'tv';
+        break;
+      case 'voice-actor':
+        templateFields = VOICE_ACTOR_FIELDS;
+        name = '声優';
+        slug = 'voice-actors';
+        description = '声優一覧';
+        icon = 'mic';
+        break;
+      case 'anime-character':
+        templateFields = ANIME_CHARACTER_FIELDS;
+        name = 'アニメキャラクター';
+        slug = 'anime-characters';
+        description = 'アニメキャラクター一覧';
+        icon = 'user';
         break;
     }
 
@@ -601,6 +635,41 @@ export default function HobbiesAdminPanel() {
             }
             style={{ width: '20px', height: '20px', cursor: 'pointer' }}
           />
+        );
+
+      case CustomFieldType.RELATION:
+        // Find items from the related hobby category
+        const relationConfig = field.relationConfig;
+        if (!relationConfig) return null;
+
+        const relatedCategory = categories.find(c => c.slug === relationConfig.hobbySlug);
+        if (!relatedCategory) {
+          return (
+            <div style={{ color: '#94a3b8', fontSize: '14px' }}>
+              カテゴリ "{relationConfig.hobbySlug}" が見つかりません
+            </div>
+          );
+        }
+
+        // For now, show a text input for item ID (we'll add a selector later when data exists)
+        return (
+          <div>
+            <input
+              type="text"
+              value={(value as string) || ''}
+              onChange={(e) =>
+                setItemForm((prev) => ({
+                  ...prev,
+                  customFields: { ...prev.customFields, [field.name]: e.target.value },
+                }))
+              }
+              placeholder={`${relatedCategory.name}のアイテムIDを入力`}
+              style={styles.input}
+            />
+            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+              {relatedCategory.name}から選択
+            </p>
+          </div>
         );
 
       default:
@@ -804,19 +873,37 @@ export default function HobbiesAdminPanel() {
                     onClick={() => handleApplyTemplate('fish')}
                     style={{ ...styles.button, ...styles.outlineButton }}
                   >
-                    <Fish size={16} /> 魚図鑑テンプレート
+                    <Fish size={16} /> 魚図鑑
                   </button>
                   <button
                     onClick={() => handleApplyTemplate('ski')}
                     style={{ ...styles.button, ...styles.outlineButton }}
                   >
-                    <Mountain size={16} /> スキーテンプレート
+                    <Mountain size={16} /> スキー
                   </button>
                   <button
                     onClick={() => handleApplyTemplate('train')}
                     style={{ ...styles.button, ...styles.outlineButton }}
                   >
-                    <Train size={16} /> 鉄道テンプレート
+                    <Train size={16} /> 鉄道
+                  </button>
+                  <button
+                    onClick={() => handleApplyTemplate('anime')}
+                    style={{ ...styles.button, ...styles.outlineButton }}
+                  >
+                    <Tv size={16} /> アニメ
+                  </button>
+                  <button
+                    onClick={() => handleApplyTemplate('voice-actor')}
+                    style={{ ...styles.button, ...styles.outlineButton }}
+                  >
+                    <Mic size={16} /> 声優
+                  </button>
+                  <button
+                    onClick={() => handleApplyTemplate('anime-character')}
+                    style={{ ...styles.button, ...styles.outlineButton }}
+                  >
+                    <User size={16} /> キャラクター
                   </button>
                 </div>
               )}
@@ -1029,6 +1116,7 @@ export default function HobbiesAdminPanel() {
                                 <option value={CustomFieldType.URL}>URL</option>
                                 <option value={CustomFieldType.LOCATION}>Location</option>
                                 <option value={CustomFieldType.BOOLEAN}>Boolean</option>
+                                <option value={CustomFieldType.RELATION}>Relation</option>
                               </select>
                             </div>
                             <button
@@ -1051,6 +1139,30 @@ export default function HobbiesAdminPanel() {
                                 placeholder="Option 1, Option 2, Option 3"
                                 style={{ ...styles.input, fontSize: '13px', padding: '8px 12px' }}
                               />
+                            </div>
+                          )}
+                          {field.type === CustomFieldType.RELATION && (
+                            <div style={{ marginTop: '12px' }}>
+                              <label style={{ ...styles.label, fontSize: '12px' }}>参照先カテゴリ (slug)</label>
+                              <select
+                                value={field.relationConfig?.hobbySlug || ''}
+                                onChange={(e) =>
+                                  handleUpdateField(field.id, {
+                                    relationConfig: {
+                                      hobbySlug: e.target.value,
+                                      multiple: field.relationConfig?.multiple || false,
+                                    },
+                                  })
+                                }
+                                style={{ ...styles.select, fontSize: '13px', padding: '8px 12px' }}
+                              >
+                                <option value="">カテゴリを選択...</option>
+                                {categories.map((cat) => (
+                                  <option key={cat.id} value={cat.slug}>
+                                    {cat.name} ({cat.slug})
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                           )}
                         </div>

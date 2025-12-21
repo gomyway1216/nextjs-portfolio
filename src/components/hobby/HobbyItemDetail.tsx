@@ -1,9 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import type { HobbyItem, HobbyCategory, CustomFieldType } from '@/types/hobby';
+import type { HobbyItem, HobbyCategory, CustomFieldType, CustomField } from '@/types/hobby';
+import { useResolvedRelation, useHobbyCategories } from '@/hooks/useHobbies';
+import RelatedItemsList from './RelatedItemsList';
 import {
   Star,
   MapPin,
@@ -13,26 +15,92 @@ import {
   ChevronLeft,
   ChevronRight,
   X,
+  Link2,
 } from 'lucide-react';
 
 interface HobbyItemDetailProps {
   item: HobbyItem;
   hobby: HobbyCategory;
+  language?: 'en' | 'ja';
 }
 
-export default function HobbyItemDetail({ item, hobby }: HobbyItemDetailProps) {
+// Component to render a relation field as a link
+function RelationFieldValue({
+  itemId,
+  hobbySlug,
+  label
+}: {
+  itemId: string;
+  hobbySlug: string;
+  label: string;
+}) {
+  const { item, loading } = useResolvedRelation(itemId);
+
+  if (loading) {
+    return <span className="hobby-detail__field-value">Loading...</span>;
+  }
+
+  if (!item) {
+    return null;
+  }
+
+  const displayName = (item.customFields.nameKanji as string) ||
+                      (item.customFields.nameEnglish as string) ||
+                      item.title;
+
+  return (
+    <Link
+      href={`/hobbies/${hobbySlug}/${itemId}`}
+      className="hobby-detail__relation-link"
+    >
+      {item.thumbImage && (
+        <Image
+          src={item.thumbImage}
+          alt={displayName}
+          width={32}
+          height={32}
+          className="hobby-detail__relation-image"
+        />
+      )}
+      <span>{displayName}</span>
+      <Link2 size={14} />
+    </Link>
+  );
+}
+
+export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyItemDetailProps) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showLightbox, setShowLightbox] = useState(false);
+  const { categories } = useHobbyCategories();
 
   const allImages = item.thumbImage
     ? [item.thumbImage, ...item.images.filter((img) => img !== item.thumbImage)]
     : item.images;
+
+  // Find category by slug for relation fields
+  const getCategoryBySlug = (slug: string) => categories.find(c => c.slug === slug);
 
   const renderCustomField = (fieldName: string, value: unknown) => {
     const fieldDef = hobby.fields.find((f) => f.name === fieldName);
     if (!fieldDef || value === undefined || value === null || value === '') return null;
 
     switch (fieldDef.type) {
+      case 'relation' as CustomFieldType:
+        const relationConfig = fieldDef.relationConfig;
+        if (!relationConfig || !value) return null;
+        const relatedCategory = getCategoryBySlug(relationConfig.hobbySlug);
+        if (!relatedCategory) return null;
+
+        return (
+          <div className="hobby-detail__field">
+            <span className="hobby-detail__field-label">{fieldDef.label}</span>
+            <RelationFieldValue
+              itemId={String(value)}
+              hobbySlug={relationConfig.hobbySlug}
+              label={fieldDef.label}
+            />
+          </div>
+        );
       case 'rating' as CustomFieldType:
         const rating = Number(value) || 0;
         return (
@@ -207,6 +275,29 @@ export default function HobbyItemDetail({ item, hobby }: HobbyItemDetailProps) {
           )}
         </div>
       </div>
+
+      {/* Related Items - Show characters for anime/voice-actors */}
+      {hobby.slug === 'anime' && (
+        <RelatedItemsList
+          hobbyId={categories.find(c => c.slug === 'anime-characters')?.id || ''}
+          hobbySlug="anime-characters"
+          fieldName="animeId"
+          targetItemId={item.id}
+          title={language === 'ja' ? 'キャラクター' : 'Characters'}
+          language={language}
+        />
+      )}
+
+      {hobby.slug === 'voice-actors' && (
+        <RelatedItemsList
+          hobbyId={categories.find(c => c.slug === 'anime-characters')?.id || ''}
+          hobbySlug="anime-characters"
+          fieldName="voiceActorId"
+          targetItemId={item.id}
+          title={language === 'ja' ? '演じたキャラクター' : 'Characters Voiced'}
+          language={language}
+        />
+      )}
 
       {/* Lightbox */}
       {showLightbox && (

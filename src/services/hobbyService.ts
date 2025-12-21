@@ -149,3 +149,51 @@ export async function deleteHobbyItem(itemId: string): Promise<void> {
     method: 'DELETE',
   });
 }
+
+// ============================================================================
+// RELATED ITEMS (for RELATION type fields)
+// ============================================================================
+
+export interface RelatedItemsResponse {
+  items: HobbyItem[];
+  total: number;
+}
+
+/**
+ * Get items that reference a specific item via a RELATION field
+ * e.g., Get all characters that have animeId = 'some-anime-id'
+ */
+export async function getRelatedItems(
+  hobbyId: string,
+  fieldName: string,
+  targetItemId: string
+): Promise<RelatedItemsResponse> {
+  const url = new URL(`${BASE_URL}/items/related`, window.location.origin);
+  url.searchParams.set('hobbyId', hobbyId);
+  url.searchParams.set('fieldName', fieldName);
+  url.searchParams.set('targetItemId', targetItemId);
+  return apiCall<RelatedItemsResponse>(url.toString());
+}
+
+/**
+ * Get a single item by ID (for resolving RELATION references)
+ */
+export async function getHobbyItemById(itemId: string): Promise<HobbyItem | null> {
+  try {
+    return await apiCall<HobbyItem>(`${BASE_URL}/items/${itemId}`);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get multiple items by IDs (for batch resolving RELATION references)
+ */
+export async function getHobbyItemsByIds(itemIds: string[]): Promise<HobbyItem[]> {
+  if (itemIds.length === 0) return [];
+
+  // Fetch items in parallel
+  const promises = itemIds.map(id => getHobbyItemById(id));
+  const results = await Promise.all(promises);
+  return results.filter((item): item is HobbyItem => item !== null);
+}

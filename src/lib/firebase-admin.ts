@@ -7,9 +7,18 @@ let auth: admin.auth.Auth;
 let storage: admin.storage.Storage;
 let realtimeDb: admin.database.Database;
 
+const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
+
+function assertRuntimePhase() {
+  if (isBuildPhase) {
+    throw new Error('[Firebase Admin] Initialization attempted during build phase');
+  }
+}
+
 export function getAdminSDK() {
   if (!app) {
     try {
+      assertRuntimePhase();
       // Check if already initialized
       if (admin.apps.length > 0 && admin.apps[0]) {
         console.log('[Firebase Admin] Using existing initialized app');
@@ -86,21 +95,31 @@ export function getAdminSDK() {
 }
 
 export function getFirestore() {
+  assertRuntimePhase();
   const { db } = getAdminSDK();
   return db;
 }
 
 export function getAuth() {
+  assertRuntimePhase();
   const { auth } = getAdminSDK();
   return auth;
 }
 
 export function getStorage() {
+  assertRuntimePhase();
   const { storage } = getAdminSDK();
   return storage;
 }
 
 export function getRealtimeDatabase() {
+  assertRuntimePhase();
   const { realtimeDb } = getAdminSDK();
   return realtimeDb;
+}
+
+export function getServerTimestamp() {
+  assertRuntimePhase();
+  getAdminSDK();
+  return admin.firestore.FieldValue.serverTimestamp();
 }

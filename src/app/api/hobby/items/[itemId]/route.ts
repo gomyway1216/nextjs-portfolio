@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
-import { getFirestore } from '@/lib/firebase-admin';
+import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { ensureAdmin, verifyIdToken, isAdmin } from '@/lib/auth-utils';
 import { HOBBY_ITEMS_COLLECTION } from '../../../constants';
 import type { HobbyItem, UpdateHobbyItemInput } from '@/types/hobby';
@@ -91,7 +90,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     }
 
     const updateData: Record<string, unknown> = {
-      updatedAt: FieldValue.serverTimestamp(),
+      updatedAt: getServerTimestamp(),
     };
 
     if (body.title !== undefined) updateData.title = body.title;

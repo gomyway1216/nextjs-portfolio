@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
-import { getFirestore } from '@/lib/firebase-admin';
+import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { ensureAdmin, getOptionalUser, verifyIdToken } from '@/lib/auth-utils';
 import { HOBBIES_COLLECTION } from '../constants';
 import type { HobbyCategory, CreateHobbyCategoryInput, CustomField } from '@/types/hobby';
@@ -122,8 +121,8 @@ export async function POST(request: NextRequest) {
       isPublic: body.isPublic ?? false,
       order: body.order ?? nextOrder,
       fields: fieldsWithIds,
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: getServerTimestamp(),
+      updatedAt: getServerTimestamp(),
     };
 
     const docRef = await db.collection(HOBBIES_COLLECTION).add(newHobby);

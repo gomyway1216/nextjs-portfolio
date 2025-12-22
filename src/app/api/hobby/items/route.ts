@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { FieldValue } from 'firebase-admin/firestore';
-import { getFirestore } from '@/lib/firebase-admin';
+import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { ensureAdmin, verifyIdToken, isAdmin } from '@/lib/auth-utils';
 import { HOBBIES_COLLECTION, HOBBY_ITEMS_COLLECTION } from '../../constants';
 import type { HobbyItem, CreateHobbyItemInput } from '@/types/hobby';
@@ -152,8 +151,8 @@ export async function POST(request: NextRequest) {
       order: body.order ?? nextOrder,
       customFields: body.customFields || {},
       tags: body.tags || [],
-      createdAt: FieldValue.serverTimestamp(),
-      updatedAt: FieldValue.serverTimestamp(),
+      createdAt: getServerTimestamp(),
+      updatedAt: getServerTimestamp(),
     };
 
     const docRef = await db.collection(HOBBY_ITEMS_COLLECTION).add(newItem);

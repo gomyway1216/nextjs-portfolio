@@ -30,7 +30,7 @@ export async function POST(
       : undefined;
     const authHeader = request.headers.get('authorization');
 
-    const response = await fetch(getCloudFunctionUrl('markArticleAsRead'), {
+    const cloudResponse = await fetch(getCloudFunctionUrl('markArticleAsRead'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -39,18 +39,18 @@ export async function POST(
       body: JSON.stringify({ articleId: id, ...body }),
     });
 
-    const data = await response.json();
+    const data = await cloudResponse.json();
 
-    if (!response.ok || !data.success) {
+    if (!cloudResponse.ok || !data.success) {
       await logCloudFunctionError({
         functionName: 'markArticleAsRead',
         endpoint: `/api/study/articles/${id}/read`,
-        response: { status: response.status, error: data.error, details: data.details, message: data.message },
+        response: { status: cloudResponse.status, error: data.error, details: data.details, message: data.message },
         metadata: { articleId: id },
       });
     }
 
-    if (response.ok && data?.success && hasTimeSpent && typeof adjustedTimeSpentSeconds === 'number') {
+    if (cloudResponse.ok && data?.success && hasTimeSpent && typeof adjustedTimeSpentSeconds === 'number') {
       try {
         const db = getFirestore();
         const snapshot = await db
@@ -70,7 +70,7 @@ export async function POST(
       }
     }
 
-    return NextResponse.json(data, { status: response.status });
+    return NextResponse.json(data, { status: cloudResponse.status });
   } catch (error) {
     console.error('Error marking article as read:', error);
     await logCloudFunctionError({

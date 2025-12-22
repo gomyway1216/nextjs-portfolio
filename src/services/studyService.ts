@@ -1013,15 +1013,48 @@ export async function getLearningPath(pathId: string): Promise<LearningPath> {
 export async function createLearningPath(
   request: GenerateLearningPathRequest
 ): Promise<{ path: LearningPath; recommendations: LearningPathRecommendations }> {
-  const data = await apiCall<{
-    success: boolean;
-    path: LearningPath;
-    recommendations: LearningPathRecommendations;
-  }>('/api/study/learning/paths', {
+  const headers = await getAuthHeaders();
+  const response = await fetch('/api/study/learning/paths', {
     method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
     body: JSON.stringify(request),
   });
-  return { path: data.path, recommendations: data.recommendations };
+
+  const responseText = await response.text();
+  let data: {
+    success?: boolean;
+    path?: LearningPath;
+    recommendations?: LearningPathRecommendations;
+    error?: string;
+    details?: string;
+    message?: string;
+    source?: string;
+    requestId?: string;
+  } | null = null;
+
+  try {
+    data = responseText ? JSON.parse(responseText) : null;
+  } catch (parseError) {
+    const statusLabel = response.status ? ` (status ${response.status})` : '';
+    const snippet = responseText ? ` - ${responseText.slice(0, 200)}` : '';
+    throw new Error(`Failed to create learning path: invalid response${statusLabel}${snippet}`);
+  }
+
+  if (!response.ok || !data?.success) {
+    const baseMessage = data?.error || 'Failed to create learning path';
+    const detailMessage = data?.details || data?.message;
+    const sourceLabel = data?.source ? `[${data.source}] ` : '';
+    const requestIdLabel = data?.requestId ? ` (requestId: ${data.requestId})` : '';
+    const fullMessage = detailMessage
+      ? `${sourceLabel}${baseMessage} - ${detailMessage}${requestIdLabel}`
+      : `${sourceLabel}${baseMessage}${requestIdLabel}`;
+    throw new Error(fullMessage);
+  }
+
+  return { path: data.path as LearningPath, recommendations: data.recommendations as LearningPathRecommendations };
 }
 
 export async function updateLearningPath(

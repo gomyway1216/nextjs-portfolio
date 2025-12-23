@@ -1183,11 +1183,27 @@ export interface StartTopicRequest {
   pathId: string;
   topicId: string;
   generateContent?: boolean;
+  generateFlashcards?: boolean;
+  generateTerms?: boolean;
+  generateQuiz?: boolean;
 }
 
 export interface StartTopicResponse {
   message: string;
   entry?: LearningEntry;
+  flashcards?: {
+    count: number;
+    ids: string[];
+  };
+  dictionaryTerms?: {
+    count: number;
+    ids: string[];
+  };
+  quiz?: {
+    id: string;
+    title: string;
+    questionCount: number;
+  };
 }
 
 export interface CompleteTopicRequest {

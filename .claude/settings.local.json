@@ -14,7 +14,8 @@
       "Bash(HELLOALONE_USER_ID=yyaguchi npx tsx:*)",
       "Bash(DRY_RUN=false CATEGORIES_ONLY=true npx tsx:*)",
       "Bash(DRY_RUN=false npx tsx:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(firebase functions:log:*)"
     ],
     "deny": [],
     "ask": []

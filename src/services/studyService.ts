@@ -1090,7 +1090,13 @@ export async function startLearningPathTopic(
       body: JSON.stringify(request),
     }
   );
-  return { message: data.message, entry: data.entry };
+  return {
+    message: data.message,
+    entry: data.entry,
+    flashcards: data.flashcards,
+    dictionaryTerms: data.dictionaryTerms,
+    quiz: data.quiz,
+  };
 }
 
 export async function completeLearningPathTopic(

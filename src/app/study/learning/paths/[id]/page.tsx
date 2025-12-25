@@ -27,7 +27,7 @@ interface GenerationResult {
 
 export default function LearningPathDetailPage({ params }: PageProps) {
   const { id } = use(params);
-  const { path, loading, error, updating, startTopic, completeTopic } = useLearningPath(id);
+  const { path, loading, error, updating, startTopic, completeTopic, resetTopic } = useLearningPath(id);
   const [activeTopicId, setActiveTopicId] = useState<string | null>(null);
   const [showGenerationModal, setShowGenerationModal] = useState(false);
   const [generationResult, setGenerationResult] = useState<GenerationResult | null>(null);
@@ -98,6 +98,17 @@ export default function LearningPathDetailPage({ params }: PageProps) {
       await completeTopic(topicId);
     } catch (err) {
       console.error('Failed to complete topic:', err);
+    } finally {
+      setActiveTopicId(null);
+    }
+  };
+
+  const handleResetTopic = async (topicId: string) => {
+    setActiveTopicId(topicId);
+    try {
+      await resetTopic(topicId);
+    } catch (err) {
+      console.error('Failed to reset topic:', err);
     } finally {
       setActiveTopicId(null);
     }
@@ -213,6 +224,7 @@ export default function LearningPathDetailPage({ params }: PageProps) {
               activeTopicId={activeTopicId}
               onStartTopic={handleStartTopic}
               onCompleteTopic={handleCompleteTopic}
+              onResetTopic={handleResetTopic}
               getStatusIcon={getStatusIcon}
               getImportanceBadge={getImportanceBadge}
             />
@@ -362,6 +374,7 @@ interface PhaseCardProps {
   activeTopicId: string | null;
   onStartTopic: (topicId: string, topicTitle: string) => void;
   onCompleteTopic: (topicId: string) => void;
+  onResetTopic: (topicId: string) => void;
   getStatusIcon: (status: LearningPathStatus) => string;
   getImportanceBadge: (importance: TopicImportance) => React.ReactNode;
 }
@@ -375,6 +388,7 @@ function PhaseCard({
   activeTopicId,
   onStartTopic,
   onCompleteTopic,
+  onResetTopic,
   getStatusIcon,
   getImportanceBadge,
 }: PhaseCardProps) {
@@ -428,6 +442,7 @@ function PhaseCard({
               activeTopicId={activeTopicId}
               onStart={() => onStartTopic(topic.id, topic.title)}
               onComplete={() => onCompleteTopic(topic.id)}
+              onReset={() => onResetTopic(topic.id)}
               getStatusIcon={getStatusIcon}
               getImportanceBadge={getImportanceBadge}
             />
@@ -462,6 +477,7 @@ interface TopicRowProps {
   activeTopicId: string | null;
   onStart: () => void;
   onComplete: () => void;
+  onReset: () => void;
   getStatusIcon: (status: LearningPathStatus) => string;
   getImportanceBadge: (importance: TopicImportance) => React.ReactNode;
 }
@@ -473,6 +489,7 @@ function TopicRow({
   activeTopicId,
   onStart,
   onComplete,
+  onReset,
   getStatusIcon,
   getImportanceBadge,
 }: TopicRowProps) {
@@ -545,7 +562,7 @@ function TopicRow({
         </div>
 
         {/* Action Buttons */}
-        <div className="ml-4">
+        <div className="ml-4 flex flex-col gap-2 items-end">
           {isNotStarted && (
             <button
               onClick={onStart}
@@ -556,16 +573,54 @@ function TopicRow({
             </button>
           )}
           {isInProgress && (
-            <button
-              onClick={onComplete}
-              disabled={updating}
-              className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:bg-gray-300"
-            >
-              {isActive ? 'Completing...' : 'Complete'}
-            </button>
+            <div className="flex flex-col gap-2 items-end">
+              {topic.entryId && (
+                <Link
+                  href={`/study/learning/entries/${topic.entryId}`}
+                  className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded-lg hover:bg-gray-700"
+                >
+                  View Entry
+                </Link>
+              )}
+              {!topic.entryId && (
+                <button
+                  onClick={onReset}
+                  disabled={updating}
+                  className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 disabled:bg-gray-300"
+                >
+                  {isActive ? 'Resetting...' : 'Reset'}
+                </button>
+              )}
+              <button
+                onClick={onComplete}
+                disabled={updating}
+                className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 disabled:bg-gray-300"
+              >
+                {isActive ? 'Completing...' : 'Complete'}
+              </button>
+            </div>
           )}
           {isCompleted && (
-            <span className="text-green-600 text-sm">Done ✓</span>
+            <div className="flex flex-col gap-2 items-end">
+              {topic.entryId && (
+                <Link
+                  href={`/study/learning/entries/${topic.entryId}`}
+                  className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200"
+                >
+                  View Entry
+                </Link>
+              )}
+              {!topic.entryId && (
+                <button
+                  onClick={onReset}
+                  disabled={updating}
+                  className="px-3 py-1.5 bg-orange-500 text-white text-sm rounded-lg hover:bg-orange-600 disabled:bg-gray-300"
+                >
+                  {isActive ? 'Resetting...' : 'Reset'}
+                </button>
+              )}
+              <span className="text-green-600 text-sm">Done ✓</span>
+            </div>
           )}
         </div>
       </div>

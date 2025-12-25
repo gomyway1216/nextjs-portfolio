@@ -15,7 +15,10 @@
       "Bash(DRY_RUN=false CATEGORIES_ONLY=true npx tsx:*)",
       "Bash(DRY_RUN=false npx tsx:*)",
       "Bash(lsof:*)",
-      "Bash(firebase functions:log:*)"
+      "Bash(firebase functions:log:*)",
+      "Bash(firebase functions:list:*)",
+      "Bash(firebase functions:delete:*)",
+      "Bash(firebase deploy:*)"
     ],
     "deny": [],
     "ask": []

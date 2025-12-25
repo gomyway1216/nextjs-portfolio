@@ -965,8 +965,35 @@ export function useLearningInsights() {
 // CONFIG HOOK
 // ============================================================================
 
+// Default config to use when no config exists in database
+const DEFAULT_STUDY_CONFIG: StudyConfig = {
+  id: 'default',
+  aiConfig: {
+    defaultProvider: AIProvider.CLAUDE,
+    claudeModel: 'claude-sonnet-4-20250514',
+    chatgptModel: 'gpt-4o',
+    maxTokens: 8192,
+    temperature: 0.7,
+  },
+  emailConfig: {
+    enabled: false,
+  },
+  defaultArticleSettings: {
+    difficulty: QuizDifficulty.INTERMEDIATE,
+    numberOfQuestions: 5,
+    includeCodeExamples: true,
+    includeExternalLinks: true,
+    defaultCodeLanguage: 'typescript',
+  },
+  defaultScheduleSettings: {
+    timezone: 'America/Los_Angeles',
+    defaultTime: '09:00',
+  },
+  updatedAt: new Date().toISOString(),
+};
+
 export function useStudyConfig() {
-  const [config, setConfig] = useState<StudyConfig | null>(null);
+  const [config, setConfig] = useState<StudyConfig>(DEFAULT_STUDY_CONFIG);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -975,9 +1002,11 @@ export function useStudyConfig() {
       setLoading(true);
       setError(null);
       const data = await studyService.getStudyConfig();
-      setConfig(data);
+      // Use fetched config or fall back to default
+      setConfig(data || DEFAULT_STUDY_CONFIG);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch config'));
+      // Keep default config on error
     } finally {
       setLoading(false);
     }
@@ -985,8 +1014,29 @@ export function useStudyConfig() {
 
   const updateConfig = useCallback(
     async (updates: Partial<StudyConfig>) => {
-      await studyService.updateStudyConfig(updates);
-      setConfig((prev) => (prev ? { ...prev, ...updates } : prev));
+      try {
+        await studyService.updateStudyConfig(updates);
+        setConfig((prev) => {
+          // Deep merge the updates
+          const merged = { ...prev };
+          if (updates.aiConfig) {
+            merged.aiConfig = { ...prev.aiConfig, ...updates.aiConfig };
+          }
+          if (updates.emailConfig) {
+            merged.emailConfig = { ...prev.emailConfig, ...updates.emailConfig };
+          }
+          if (updates.defaultArticleSettings) {
+            merged.defaultArticleSettings = { ...prev.defaultArticleSettings, ...updates.defaultArticleSettings };
+          }
+          if (updates.defaultScheduleSettings) {
+            merged.defaultScheduleSettings = { ...prev.defaultScheduleSettings, ...updates.defaultScheduleSettings };
+          }
+          return merged;
+        });
+      } catch (err) {
+        console.error('Failed to update config:', err);
+        throw err;
+      }
     },
     []
   );
@@ -1825,6 +1875,30 @@ export function useLearningPath(pathId: string | null) {
     [pathId, fetchPath]
   );
 
+  const resetTopic = useCallback(
+    async (topicId: string) => {
+      if (!pathId) return;
+
+      try {
+        setUpdating(true);
+        setError(null);
+        const result = await studyService.resetLearningPathTopic({
+          pathId,
+          topicId,
+        });
+        // Refresh path to get updated state
+        await fetchPath();
+        return result;
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to reset topic'));
+        throw err;
+      } finally {
+        setUpdating(false);
+      }
+    },
+    [pathId, fetchPath]
+  );
+
   const updatePath = useCallback(
     async (updates: UpdateLearningPath) => {
       if (!pathId) return;
@@ -1853,6 +1927,7 @@ export function useLearningPath(pathId: string | null) {
     fetchPath,
     startTopic,
     completeTopic,
+    resetTopic,
     updatePath,
   };
 }

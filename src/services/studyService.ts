@@ -1116,6 +1116,28 @@ export async function completeLearningPathTopic(
   };
 }
 
+export async function resetLearningPathTopic(
+  request: { pathId: string; topicId: string }
+): Promise<{ message: string; progress: number; completedTopics: number }> {
+  const data = await apiCall<{
+    success: boolean;
+    message: string;
+    progress: number;
+    completedTopics: number;
+  }>(
+    '/api/study/learning/paths/topics?action=reset',
+    {
+      method: 'POST',
+      body: JSON.stringify(request),
+    }
+  );
+  return {
+    message: data.message,
+    progress: data.progress,
+    completedTopics: data.completedTopics,
+  };
+}
+
 // ============================================================================
 // DAILY LEARNING PLANS
 // ============================================================================

@@ -459,6 +459,7 @@ export interface StudyConfig {
     numberOfQuestions: number;
     includeCodeExamples: boolean;
     includeExternalLinks: boolean;
+    defaultCodeLanguage?: string;
   };
   defaultScheduleSettings: {
     timezone: string;

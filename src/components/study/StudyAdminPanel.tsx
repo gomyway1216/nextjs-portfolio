@@ -1893,6 +1893,31 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                           style={{ ...styles.input, width: '80px' }}
                         />
                       </div>
+                      <div style={{ marginTop: '12px' }}>
+                        <label style={styles.label}>Default Code Language</label>
+                        <select
+                          value={config?.defaultArticleSettings.defaultCodeLanguage || 'typescript'}
+                          onChange={(e) => config && updateConfig({
+                            defaultArticleSettings: { ...config.defaultArticleSettings, defaultCodeLanguage: e.target.value }
+                          })}
+                          style={{ ...styles.select, maxWidth: '200px' }}
+                        >
+                          <option value="typescript">TypeScript</option>
+                          <option value="javascript">JavaScript</option>
+                          <option value="python">Python</option>
+                          <option value="java">Java</option>
+                          <option value="go">Go</option>
+                          <option value="rust">Rust</option>
+                          <option value="sql">SQL</option>
+                          <option value="bash">Bash</option>
+                          <option value="json">JSON</option>
+                          <option value="yaml">YAML</option>
+                          <option value="css">CSS</option>
+                        </select>
+                        <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                          Used as default language for code blocks in learning entries
+                        </p>
+                      </div>
                     </div>
                   </div>
 

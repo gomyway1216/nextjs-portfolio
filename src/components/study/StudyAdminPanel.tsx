@@ -1822,8 +1822,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       <div>
                         <label style={styles.label}>Default AI Provider</label>
                         <select
-                          value={config?.aiConfig.defaultProvider || AIProvider.CLAUDE}
-                          onChange={(e) => config && updateConfig({
+                          value={config.aiConfig.defaultProvider}
+                          onChange={(e) => updateConfig({
                             aiConfig: { ...config.aiConfig, defaultProvider: e.target.value as AIProvider }
                           })}
                           style={styles.select}
@@ -1835,8 +1835,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       <div>
                         <label style={styles.label}>Default Difficulty</label>
                         <select
-                          value={config?.defaultArticleSettings.difficulty || QuizDifficulty.INTERMEDIATE}
-                          onChange={(e) => config && updateConfig({
+                          value={config.defaultArticleSettings.difficulty}
+                          onChange={(e) => updateConfig({
                             defaultArticleSettings: { ...config.defaultArticleSettings, difficulty: e.target.value as QuizDifficulty }
                           })}
                           style={styles.select}
@@ -1856,8 +1856,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                         <input
                           type="checkbox"
                           id="include-code"
-                          checked={config?.defaultArticleSettings.includeCodeExamples ?? true}
-                          onChange={(e) => config && updateConfig({
+                          checked={config.defaultArticleSettings.includeCodeExamples}
+                          onChange={(e) => updateConfig({
                             defaultArticleSettings: { ...config.defaultArticleSettings, includeCodeExamples: e.target.checked }
                           })}
                           style={{ width: '20px', height: '20px', cursor: 'pointer' }}
@@ -1870,8 +1870,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                         <input
                           type="checkbox"
                           id="include-links"
-                          checked={config?.defaultArticleSettings.includeExternalLinks ?? true}
-                          onChange={(e) => config && updateConfig({
+                          checked={config.defaultArticleSettings.includeExternalLinks}
+                          onChange={(e) => updateConfig({
                             defaultArticleSettings: { ...config.defaultArticleSettings, includeExternalLinks: e.target.checked }
                           })}
                           style={{ width: '20px', height: '20px', cursor: 'pointer' }}
@@ -1884,8 +1884,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                         <label style={{ color: '#cbd5e1' }}>Default quiz questions:</label>
                         <input
                           type="number"
-                          value={config?.defaultArticleSettings.numberOfQuestions || 5}
-                          onChange={(e) => config && updateConfig({
+                          value={config.defaultArticleSettings.numberOfQuestions}
+                          onChange={(e) => updateConfig({
                             defaultArticleSettings: { ...config.defaultArticleSettings, numberOfQuestions: parseInt(e.target.value) || 5 }
                           })}
                           min={1}
@@ -1896,8 +1896,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                       <div style={{ marginTop: '12px' }}>
                         <label style={styles.label}>Default Code Language</label>
                         <select
-                          value={config?.defaultArticleSettings.defaultCodeLanguage || 'typescript'}
-                          onChange={(e) => config && updateConfig({
+                          value={config.defaultArticleSettings.defaultCodeLanguage || 'typescript'}
+                          onChange={(e) => updateConfig({
                             defaultArticleSettings: { ...config.defaultArticleSettings, defaultCodeLanguage: e.target.value }
                           })}
                           style={{ ...styles.select, maxWidth: '200px' }}
@@ -1928,8 +1928,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                         <input
                           type="checkbox"
                           id="email-enabled"
-                          checked={config?.emailConfig.enabled ?? false}
-                          onChange={(e) => config && updateConfig({
+                          checked={config.emailConfig.enabled}
+                          onChange={(e) => updateConfig({
                             emailConfig: { ...config.emailConfig, enabled: e.target.checked }
                           })}
                           style={{ width: '20px', height: '20px', cursor: 'pointer' }}
@@ -1938,13 +1938,13 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                           Enable email notifications
                         </label>
                       </div>
-                      {config?.emailConfig.enabled && (
+                      {config.emailConfig.enabled && (
                         <div>
                           <label style={styles.label}>Default Email</label>
                           <input
                             type="email"
-                            value={config?.emailConfig.defaultEmail || ''}
-                            onChange={(e) => config && updateConfig({
+                            value={config.emailConfig.defaultEmail || ''}
+                            onChange={(e) => updateConfig({
                               emailConfig: { ...config.emailConfig, defaultEmail: e.target.value }
                             })}
                             placeholder="your@email.com"

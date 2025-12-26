@@ -316,6 +316,14 @@ const styles: Record<string, CSSProperties> = {
   },
 };
 
+// Helper to get section from URL hash
+const getSectionFromHash = (): AdminSection => {
+  if (typeof window === 'undefined') return 'dashboard';
+  const hash = window.location.hash.replace('#', '');
+  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'jobs', 'study', 'hobbies', 'errors'];
+  return validSections.includes(hash as AdminSection) ? (hash as AdminSection) : 'dashboard';
+};
+
 const AdminPage = () => {
   const { currentUser, isAdmin } = useAuth();
   const router = useRouter();
@@ -329,6 +337,25 @@ const AdminPage = () => {
   const { errors: appErrors, loading: errorsLoading, fetchErrors, resolveError, unresolveError, deleteError } = useAppErrors();
 
   const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
+
+  // Sync activeSection with URL hash
+  useEffect(() => {
+    // Set initial section from hash on mount
+    setActiveSection(getSectionFromHash());
+
+    // Listen for hash changes (back/forward navigation)
+    const handleHashChange = () => {
+      setActiveSection(getSectionFromHash());
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Update URL hash when section changes
+  const handleSectionChange = (section: AdminSection) => {
+    setActiveSection(section);
+    window.location.hash = section;
+  };
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -802,7 +829,7 @@ const AdminPage = () => {
             {sidebarItems.map((item) => (
               <button
                 key={item.id}
-                onClick={() => setActiveSection(item.id)}
+                onClick={() => handleSectionChange(item.id)}
                 style={{
                   ...styles.navButton,
                   ...(activeSection === item.id ? styles.navButtonActive : styles.navButtonInactive),
@@ -896,13 +923,13 @@ const AdminPage = () => {
                   <p style={{ color: '#94a3b8', marginBottom: '16px' }}>Create new content quickly</p>
                   <div style={{ display: 'flex', gap: '12px' }}>
                     <button
-                      onClick={() => { setActiveSection('projects'); handleOpenProjectModal(); }}
+                      onClick={() => { handleSectionChange('projects'); handleOpenProjectModal(); }}
                       style={{ ...styles.button, ...styles.primaryButton }}
                     >
                       <Plus size={16} /> New Project
                     </button>
                     <button
-                      onClick={() => { setActiveSection('posts'); handleOpenPostModal(); }}
+                      onClick={() => { handleSectionChange('posts'); handleOpenPostModal(); }}
                       style={{ ...styles.button, ...styles.outlineButton }}
                     >
                       <Plus size={16} /> New Post
@@ -922,7 +949,7 @@ const AdminPage = () => {
                       <div key={project.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
                         <span style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.title}</span>
                         <button
-                          onClick={() => { setActiveSection('projects'); handleOpenProjectModal(project); }}
+                          onClick={() => { handleSectionChange('projects'); handleOpenProjectModal(project); }}
                           style={{ ...styles.ghostButton, borderRadius: '8px' }}
                         >
                           <Pencil size={16} />
@@ -942,7 +969,7 @@ const AdminPage = () => {
                       <div key={post.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
                         <span style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.title}</span>
                         <button
-                          onClick={() => { setActiveSection('posts'); handleOpenPostModal(post); }}
+                          onClick={() => { handleSectionChange('posts'); handleOpenPostModal(post); }}
                           style={{ ...styles.ghostButton, borderRadius: '8px' }}
                         >
                           <Pencil size={16} />

@@ -390,7 +390,7 @@ export default function LearningHubPage() {
               {filteredEntries.slice(0, 10).map((entry) => (
                 <Link
                   key={entry.id}
-                  href={`/study/learning/entry/${entry.id}`}
+                  href={`/study/learning/entries/${entry.id}`}
                   style={{ textDecoration: 'none' }}
                 >
                   <div

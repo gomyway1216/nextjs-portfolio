@@ -354,7 +354,7 @@ function LearningItemRow({ item, updating, onComplete }: LearningItemRowProps) {
     if (!item.linkedId) return undefined;
     switch (item.type) {
       case 'read_entry':
-        return `/study/learning/entry/${item.linkedId}`;
+        return `/study/learning/entries/${item.linkedId}`;
       case 'review_flashcards':
         return `/study/learning/review?deckId=${item.linkedId}`;
       case 'review_terms':

@@ -413,6 +413,7 @@ export default function StudyArticlePage() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showDesktopSidebar, setShowDesktopSidebar] = useState(true);
+  const [isMarkingRead, setIsMarkingRead] = useState(false);
 
   // Data hooks
   const { article, loading: articleLoading, error: articleError } = useStudyArticle(articleId);
@@ -451,7 +452,8 @@ export default function StudyArticlePage() {
 
   // Handler for admin "Mark Read" button
   const handleMarkAsReadAdmin = async () => {
-    if (!articleId || !currentUser) return;
+    if (!articleId || !currentUser || isMarkingRead) return;
+    setIsMarkingRead(true);
     const timeSpent = Math.round((Date.now() - readStartTime) / 1000);
     try {
       await markAsRead(articleId, timeSpent);
@@ -462,16 +464,21 @@ export default function StudyArticlePage() {
       }
     } catch (error) {
       console.error('Failed to mark as read:', error);
+    } finally {
+      setIsMarkingRead(false);
     }
   };
 
   // Handler for admin "Unmark Read" button
   const handleUnmarkAsRead = async () => {
-    if (!articleId || !currentUser) return;
+    if (!articleId || !currentUser || isMarkingRead) return;
+    setIsMarkingRead(true);
     try {
       await unmarkAsRead(articleId);
     } catch (error) {
       console.error('Failed to unmark as read:', error);
+    } finally {
+      setIsMarkingRead(false);
     }
   };
 
@@ -961,6 +968,7 @@ export default function StudyArticlePage() {
                 !isRead(articleId) ? (
                   <button
                     onClick={handleMarkAsReadAdmin}
+                    disabled={isMarkingRead}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -970,17 +978,23 @@ export default function StudyArticlePage() {
                       backgroundColor: '#10a37f',
                       color: '#ffffff',
                       border: 'none',
-                      cursor: 'pointer',
+                      cursor: isMarkingRead ? 'not-allowed' : 'pointer',
                       fontWeight: '500',
                       fontSize: '12px',
+                      opacity: isMarkingRead ? 0.7 : 1,
                     }}
                   >
-                    <Check size={14} />
-                    <span className="sm-show">Mark Read</span>
+                    {isMarkingRead ? (
+                      <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                    ) : (
+                      <Check size={14} />
+                    )}
+                    <span className="sm-show">{isMarkingRead ? 'Marking...' : 'Mark Read'}</span>
                   </button>
                 ) : (
                   <button
                     onClick={handleUnmarkAsRead}
+                    disabled={isMarkingRead}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -990,14 +1004,19 @@ export default function StudyArticlePage() {
                       backgroundColor: '#d1fae5',
                       color: '#065f46',
                       border: '1px solid #a7f3d0',
-                      cursor: 'pointer',
+                      cursor: isMarkingRead ? 'not-allowed' : 'pointer',
                       fontSize: '12px',
                       fontWeight: '500',
+                      opacity: isMarkingRead ? 0.7 : 1,
                     }}
                     title="Click to unmark as read"
                   >
-                    <CheckCircle size={14} />
-                    <span className="sm-show">Read</span>
+                    {isMarkingRead ? (
+                      <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                    ) : (
+                      <CheckCircle size={14} />
+                    )}
+                    <span className="sm-show">{isMarkingRead ? 'Updating...' : 'Read'}</span>
                   </button>
                 )
               )}

@@ -373,6 +373,7 @@ const AdminPage = () => {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ type: 'project' | 'post' | 'job'; id: string; name: string; category?: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Edit states
   const [editingProject, setEditingProject] = useState<any | null>(null);
@@ -677,14 +678,18 @@ const AdminPage = () => {
   };
 
   const handleDeleteProject = async (id: string) => {
+    if (isDeleting) return;
+    setIsDeleting(true);
     try {
       await projectMutations.deleteProject(id);
       showMessage('success', 'Project deleted successfully!');
       refetchProjects();
+      setShowDeleteConfirm(null);
     } catch (error) {
       showMessage('error', `Failed to delete project: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
     }
-    setShowDeleteConfirm(null);
   };
 
   // Post handlers
@@ -743,14 +748,18 @@ const AdminPage = () => {
   };
 
   const handleDeletePost = async (id: string, category: string) => {
+    if (isDeleting) return;
+    setIsDeleting(true);
     try {
       await postMutations.deletePost(id, category);
       showMessage('success', 'Post deleted successfully!');
       refetchPosts();
+      setShowDeleteConfirm(null);
     } catch (error) {
       showMessage('error', `Failed to delete post: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
     }
-    setShowDeleteConfirm(null);
   };
 
   // Job handlers
@@ -1979,7 +1988,7 @@ const AdminPage = () => {
               </p>
             </div>
             <div style={styles.modalFooter}>
-              <button onClick={() => setShowDeleteConfirm(null)} style={{ ...styles.button, ...styles.outlineButton }}>
+              <button onClick={() => setShowDeleteConfirm(null)} disabled={isDeleting} style={{ ...styles.button, ...styles.outlineButton, opacity: isDeleting ? 0.5 : 1 }}>
                 Cancel
               </button>
               <button
@@ -1990,9 +1999,15 @@ const AdminPage = () => {
                     handleDeletePost(showDeleteConfirm.id, showDeleteConfirm.category);
                   }
                 }}
-                style={{ ...styles.button, ...styles.dangerButton }}
+                disabled={isDeleting}
+                style={{ ...styles.button, ...styles.dangerButton, opacity: isDeleting ? 0.7 : 1, cursor: isDeleting ? 'not-allowed' : 'pointer' }}
               >
-                <Trash2 size={16} /> Delete
+                {isDeleting ? (
+                  <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                ) : (
+                  <Trash2 size={16} />
+                )}
+                {isDeleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>

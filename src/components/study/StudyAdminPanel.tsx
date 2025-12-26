@@ -290,6 +290,9 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   const [seedingCategories, setSeedingCategories] = useState(false);
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [deletingSchedule, setDeletingSchedule] = useState(false);
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [savingTopic, setSavingTopic] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
 
   // Article multi-select state
   const [selectedArticleIds, setSelectedArticleIds] = useState<Set<string>>(new Set());
@@ -407,6 +410,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   };
 
   const handleSaveCategory = async () => {
+    if (savingCategory) return;
+    setSavingCategory(true);
     try {
       if (editingCategory) {
         await updateCategory(editingCategory.id, categoryForm);
@@ -421,6 +426,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
       setShowCategoryModal(false);
     } catch (error) {
       showMessageToast('error', `Failed to save category: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSavingCategory(false);
     }
   };
 
@@ -475,6 +482,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   };
 
   const handleSaveTopic = async () => {
+    if (savingTopic) return;
+    setSavingTopic(true);
     try {
       const topicData = {
         ...topicForm,
@@ -491,6 +500,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
       setShowTopicModal(false);
     } catch (error) {
       showMessageToast('error', `Failed to save topic: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSavingTopic(false);
     }
   };
 
@@ -765,12 +776,15 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
 
   // Config handlers
   const handleSaveConfig = async () => {
-    if (!config) return;
+    if (!config || savingConfig) return;
+    setSavingConfig(true);
     try {
       await updateConfig(config);
       showMessageToast('success', 'Configuration saved successfully!');
     } catch (error) {
       showMessageToast('error', `Failed to save config: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setSavingConfig(false);
     }
   };
 
@@ -1955,8 +1969,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                     </div>
                   </div>
 
-                  <button onClick={handleSaveConfig} style={{ ...styles.button, ...styles.primaryButton }}>
-                    <Save size={16} /> Save Settings
+                  <button onClick={handleSaveConfig} disabled={savingConfig} style={{ ...styles.button, ...styles.primaryButton, opacity: savingConfig ? 0.7 : 1, cursor: savingConfig ? 'not-allowed' : 'pointer' }}>
+                    {savingConfig ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />} {savingConfig ? 'Saving...' : 'Save Settings'}
                   </button>
                 </div>
               </div>
@@ -2016,8 +2030,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
               <button onClick={() => setShowCategoryModal(false)} style={{ ...styles.button, ...styles.outlineButton }}>
                 Cancel
               </button>
-              <button onClick={handleSaveCategory} style={{ ...styles.button, ...styles.primaryButton }}>
-                <Save size={16} /> {editingCategory ? 'Update' : 'Create'}
+              <button onClick={handleSaveCategory} disabled={savingCategory} style={{ ...styles.button, ...styles.primaryButton, opacity: savingCategory ? 0.7 : 1, cursor: savingCategory ? 'not-allowed' : 'pointer' }}>
+                {savingCategory ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />} {savingCategory ? 'Saving...' : (editingCategory ? 'Update' : 'Create')}
               </button>
             </div>
           </div>
@@ -2112,8 +2126,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
               <button onClick={() => setShowTopicModal(false)} style={{ ...styles.button, ...styles.outlineButton }}>
                 Cancel
               </button>
-              <button onClick={handleSaveTopic} style={{ ...styles.button, ...styles.primaryButton }}>
-                <Save size={16} /> {editingTopic ? 'Update' : 'Create'}
+              <button onClick={handleSaveTopic} disabled={savingTopic} style={{ ...styles.button, ...styles.primaryButton, opacity: savingTopic ? 0.7 : 1, cursor: savingTopic ? 'not-allowed' : 'pointer' }}>
+                {savingTopic ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />} {savingTopic ? 'Saving...' : (editingTopic ? 'Update' : 'Create')}
               </button>
             </div>
           </div>

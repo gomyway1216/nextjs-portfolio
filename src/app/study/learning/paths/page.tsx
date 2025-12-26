@@ -33,6 +33,7 @@ export default function LearningPathsPage() {
   const [context, setContext] = useState<LearningPathContext>({});
   const [recommendations, setRecommendations] = useState<LearningPathRecommendations | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [deletingPathId, setDeletingPathId] = useState<string | null>(null);
 
   const handleGenerate = async () => {
     if (!goal.trim()) return;
@@ -76,8 +77,14 @@ export default function LearningPathsPage() {
   const handleDelete = async (pathId: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
+    if (deletingPathId) return;
     if (confirm('Are you sure you want to delete this learning path?')) {
-      await deletePath(pathId);
+      setDeletingPathId(pathId);
+      try {
+        await deletePath(pathId);
+      } finally {
+        setDeletingPathId(null);
+      }
     }
   };
 
@@ -369,9 +376,10 @@ export default function LearningPathsPage() {
                     </div>
                     <button
                       onClick={(e) => handleDelete(path.id, e)}
-                      className="ml-4 p-2 text-gray-400 hover:text-red-600"
+                      disabled={deletingPathId === path.id}
+                      className={`ml-4 p-2 ${deletingPathId === path.id ? 'text-gray-300 cursor-not-allowed' : 'text-gray-400 hover:text-red-600'}`}
                     >
-                      🗑️
+                      {deletingPathId === path.id ? '⏳' : '🗑️'}
                     </button>
                   </div>
                 </Link>

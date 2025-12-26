@@ -56,64 +56,78 @@ export default function FlashcardsPage() {
   const [aiCardCount, setAiCardCount] = useState(5);
   const [aiDifficulty, setAiDifficulty] = useState<CardContentDifficulty>("medium");
 
+  // Loading states
+  const [creatingDeck, setCreatingDeck] = useState(false);
+  const [creatingCard, setCreatingCard] = useState(false);
+
   useEffect(() => {
     fetchDecks();
     fetchFlashcards();
   }, []);
 
   const handleCreateDeck = async () => {
-    if (!newDeckName.trim()) return;
+    if (!newDeckName.trim() || creatingDeck) return;
 
-    const deckData = {
-      name: newDeckName.trim(),
-      description: newDeckDescription.trim() || undefined,
-      flashcardIds: [] as string[],
-      tags: newDeckTags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean),
-      isPublic: false,
-      lastStudiedAt: undefined,
-    };
+    setCreatingDeck(true);
+    try {
+      const deckData = {
+        name: newDeckName.trim(),
+        description: newDeckDescription.trim() || undefined,
+        flashcardIds: [] as string[],
+        tags: newDeckTags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+        isPublic: false,
+        lastStudiedAt: undefined,
+      };
 
-    await createDeck(deckData);
-    setShowCreateDeckModal(false);
-    setNewDeckName("");
-    setNewDeckDescription("");
-    setNewDeckTags("");
+      await createDeck(deckData);
+      setShowCreateDeckModal(false);
+      setNewDeckName("");
+      setNewDeckDescription("");
+      setNewDeckTags("");
+    } finally {
+      setCreatingDeck(false);
+    }
   };
 
   const handleCreateCard = async () => {
-    if (!newCardFront.trim() || !newCardBack.trim()) return;
+    if (!newCardFront.trim() || !newCardBack.trim() || creatingCard) return;
 
-    const cardData = {
-      front: newCardFront.trim(),
-      back: newCardBack.trim(),
-      frontType: 'text' as const,
-      backType: 'text' as const,
-      difficulty: newCardDifficulty,
-      hint: newCardHint.trim() || undefined,
-      tags: newCardTags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean),
-      deckId: selectedDeck?.id,
-      easeFactor: 2.5,
-      interval: 0,
-      repetitions: 0,
-      nextReviewDate: new Date().toISOString(),
-      reviewCount: 0,
-      correctCount: 0,
-      masteryLevel: 0,
-    };
+    setCreatingCard(true);
+    try {
+      const cardData = {
+        front: newCardFront.trim(),
+        back: newCardBack.trim(),
+        frontType: 'text' as const,
+        backType: 'text' as const,
+        difficulty: newCardDifficulty,
+        hint: newCardHint.trim() || undefined,
+        tags: newCardTags
+          .split(",")
+          .map((t) => t.trim())
+          .filter(Boolean),
+        deckId: selectedDeck?.id,
+        easeFactor: 2.5,
+        interval: 0,
+        repetitions: 0,
+        nextReviewDate: new Date().toISOString(),
+        reviewCount: 0,
+        correctCount: 0,
+        masteryLevel: 0,
+      };
 
-    await createFlashcard(cardData);
-    setShowCreateCardModal(false);
-    setNewCardFront("");
-    setNewCardBack("");
-    setNewCardDifficulty("medium");
-    setNewCardHint("");
-    setNewCardTags("");
+      await createFlashcard(cardData);
+      setShowCreateCardModal(false);
+      setNewCardFront("");
+      setNewCardBack("");
+      setNewCardDifficulty("medium");
+      setNewCardHint("");
+      setNewCardTags("");
+    } finally {
+      setCreatingCard(false);
+    }
   };
 
   const handleAIGenerate = async () => {
@@ -606,10 +620,13 @@ export default function FlashcardsPage() {
               </button>
               <button
                 onClick={handleCreateDeck}
-                disabled={!newDeckName.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!newDeckName.trim() || creatingDeck}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Create Deck
+                {creatingDeck && (
+                  <span className="animate-spin">⏳</span>
+                )}
+                {creatingDeck ? 'Creating...' : 'Create Deck'}
               </button>
             </div>
           </div>
@@ -716,10 +733,13 @@ export default function FlashcardsPage() {
               </button>
               <button
                 onClick={handleCreateCard}
-                disabled={!newCardFront.trim() || !newCardBack.trim()}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!newCardFront.trim() || !newCardBack.trim() || creatingCard}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                Create Card
+                {creatingCard && (
+                  <span className="animate-spin">⏳</span>
+                )}
+                {creatingCard ? 'Creating...' : 'Create Card'}
               </button>
             </div>
           </div>

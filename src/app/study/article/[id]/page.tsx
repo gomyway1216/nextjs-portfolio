@@ -414,6 +414,9 @@ export default function StudyArticlePage() {
   const [showMobileSidebar, setShowMobileSidebar] = useState(false);
   const [showDesktopSidebar, setShowDesktopSidebar] = useState(true);
   const [isMarkingRead, setIsMarkingRead] = useState(false);
+  const [savingNoteId, setSavingNoteId] = useState<string | null>(null);
+  const [deletingNoteId, setDeletingNoteId] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
 
   // Data hooks
   const { article, loading: articleLoading, error: articleError } = useStudyArticle(articleId);
@@ -496,10 +499,14 @@ export default function StudyArticlePage() {
   };
 
   const handleGenerateSummary = async () => {
+    if (isGeneratingSummary) return;
+    setIsGeneratingSummary(true);
     try {
       await generateSummary();
     } catch (error) {
       console.error('Failed to generate summary:', error);
+    } finally {
+      setIsGeneratingSummary(false);
     }
   };
 
@@ -514,22 +521,29 @@ export default function StudyArticlePage() {
   };
 
   const handleUpdateNote = async (noteId: string) => {
-    if (!editNoteContent.trim()) return;
+    if (!editNoteContent.trim() || savingNoteId) return;
+    setSavingNoteId(noteId);
     try {
       await updateNote(noteId, editNoteContent);
       setEditingNoteId(null);
       setEditNoteContent('');
     } catch (error) {
       console.error('Failed to update note:', error);
+    } finally {
+      setSavingNoteId(null);
     }
   };
 
   const handleDeleteNote = async (noteId: string) => {
     if (!confirm('Are you sure you want to delete this note?')) return;
+    if (deletingNoteId) return;
+    setDeletingNoteId(noteId);
     try {
       await deleteNote(noteId);
     } catch (error) {
       console.error('Failed to delete note:', error);
+    } finally {
+      setDeletingNoteId(null);
     }
   };
 
@@ -1599,17 +1613,25 @@ export default function StudyArticlePage() {
                                   </button>
                                   <button
                                     onClick={() => handleUpdateNote(note.id)}
+                                    disabled={savingNoteId === note.id}
                                     style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px',
                                       padding: '6px 12px',
                                       borderRadius: '6px',
                                       backgroundColor: '#10a37f',
                                       color: '#ffffff',
                                       border: 'none',
-                                      cursor: 'pointer',
+                                      cursor: savingNoteId === note.id ? 'not-allowed' : 'pointer',
                                       fontSize: '13px',
+                                      opacity: savingNoteId === note.id ? 0.7 : 1,
                                     }}
                                   >
-                                    Save
+                                    {savingNoteId === note.id ? (
+                                      <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />
+                                    ) : null}
+                                    {savingNoteId === note.id ? 'Saving...' : 'Save'}
                                   </button>
                                 </div>
                               </>
@@ -1653,6 +1675,7 @@ export default function StudyArticlePage() {
                                     </button>
                                     <button
                                       onClick={() => handleDeleteNote(note.id)}
+                                      disabled={deletingNoteId === note.id}
                                       style={{
                                         display: 'flex',
                                         alignItems: 'center',
@@ -1662,12 +1685,17 @@ export default function StudyArticlePage() {
                                         border: 'none',
                                         backgroundColor: 'transparent',
                                         color: '#ef4444',
-                                        cursor: 'pointer',
+                                        cursor: deletingNoteId === note.id ? 'not-allowed' : 'pointer',
                                         fontSize: '12px',
+                                        opacity: deletingNoteId === note.id ? 0.7 : 1,
                                       }}
                                     >
-                                      <Trash2 size={12} />
-                                      Delete
+                                      {deletingNoteId === note.id ? (
+                                        <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} />
+                                      ) : (
+                                        <Trash2 size={12} />
+                                      )}
+                                      {deletingNoteId === note.id ? 'Deleting...' : 'Delete'}
                                     </button>
                                   </div>
                                 </div>

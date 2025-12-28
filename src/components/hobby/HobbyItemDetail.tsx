@@ -68,6 +68,35 @@ function RelationFieldValue({
   );
 }
 
+// Field label translations
+const fieldLabelTranslations: Record<string, { ja: string; en: string }> = {
+  nameKanji: { ja: '名前（漢字）', en: 'Name (Kanji)' },
+  nameKana: { ja: '名前（かな）', en: 'Name (Kana)' },
+  nameEnglish: { ja: 'English Name', en: 'English Name' },
+  score: { ja: 'スコア', en: 'Score' },
+  animeDescription: { ja: '説明', en: 'Description' },
+  descriptionJa: { ja: '説明', en: 'Description' },
+  descriptionEn: { ja: '説明（英語）', en: 'Description' },
+  genre: { ja: 'ジャンル', en: 'Genre' },
+  broadcaster: { ja: '放送局', en: 'Broadcaster' },
+  yearStart: { ja: '放送開始年', en: 'Start Year' },
+  yearEnd: { ja: '放送終了年', en: 'End Year' },
+  tvDescription: { ja: '説明', en: 'Description' },
+  animeId: { ja: 'アニメ', en: 'Anime' },
+  voiceActorId: { ja: '声優', en: 'Voice Actor' },
+  rating: { ja: '評価', en: 'Rating' },
+  hasEaten: { ja: '食べたことある', en: 'Have Eaten' },
+  taste: { ja: '味の感想', en: 'Taste Review' },
+  favoritePreparation: { ja: 'おすすめの食べ方', en: 'Favorite Preparation' },
+  season: { ja: '旬の季節', en: 'Season' },
+};
+
+// Fields to exclude from detail view (shown in title/subtitle or handled separately)
+const excludedDetailFields = [
+  'nameKanji', 'nameKana', 'nameEnglish',
+  'animeDescription', 'descriptionEn', 'tvDescription', 'descriptionJa',
+];
+
 export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyItemDetailProps) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [showLightbox, setShowLightbox] = useState(false);
@@ -80,9 +109,67 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
   // Find category by slug for relation fields
   const getCategoryBySlug = (slug: string) => categories.find(c => c.slug === slug);
 
+  // Get localized field label
+  const getFieldLabel = (fieldName: string, defaultLabel: string): string => {
+    const translation = fieldLabelTranslations[fieldName];
+    if (translation) {
+      return language === 'en' ? translation.en : translation.ja;
+    }
+    return defaultLabel;
+  };
+
+  // Get display title based on language
+  const getDisplayTitle = () => {
+    const nameEnglish = item.customFields?.nameEnglish as string | undefined;
+    const nameKanji = item.customFields?.nameKanji as string | undefined;
+
+    if (language === 'en' && nameEnglish) {
+      return nameEnglish;
+    }
+    return nameKanji || item.title;
+  };
+
+  // Get secondary name
+  const getSecondaryName = () => {
+    const nameEnglish = item.customFields?.nameEnglish as string | undefined;
+    const nameKanji = item.customFields?.nameKanji as string | undefined;
+
+    if (language === 'en') {
+      return nameKanji || null;
+    }
+    return nameEnglish || null;
+  };
+
+  // Get description based on language
+  const getDescription = () => {
+    const descriptionEn = item.customFields?.descriptionEn as string | undefined;
+    const descriptionJa = (item.customFields?.animeDescription ||
+                          item.customFields?.tvDescription ||
+                          item.customFields?.descriptionJa) as string | undefined;
+
+    // Filter out placeholder text
+    const isPlaceholder = (text?: string) =>
+      !text || text === 'preparing…' || text === 'preparing...';
+
+    if (language === 'en') {
+      if (!isPlaceholder(descriptionEn)) return descriptionEn;
+      if (!isPlaceholder(descriptionJa)) return descriptionJa;
+    } else {
+      if (!isPlaceholder(descriptionJa)) return descriptionJa;
+      if (!isPlaceholder(descriptionEn)) return descriptionEn;
+    }
+
+    return item.description || null;
+  };
+
   const renderCustomField = (fieldName: string, value: unknown) => {
     const fieldDef = hobby.fields.find((f) => f.name === fieldName);
     if (!fieldDef || value === undefined || value === null || value === '') return null;
+
+    // Skip excluded fields
+    if (excludedDetailFields.includes(fieldName)) return null;
+
+    const label = getFieldLabel(fieldName, fieldDef.label);
 
     switch (fieldDef.type) {
       case 'relation' as CustomFieldType:
@@ -93,11 +180,11 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
 
         return (
           <div className="hobby-detail__field">
-            <span className="hobby-detail__field-label">{fieldDef.label}</span>
+            <span className="hobby-detail__field-label">{label}</span>
             <RelationFieldValue
               itemId={String(value)}
               hobbySlug={relationConfig.hobbySlug}
-              label={fieldDef.label}
+              label={label}
             />
           </div>
         );
@@ -105,7 +192,7 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
         const rating = Number(value) || 0;
         return (
           <div className="hobby-detail__field">
-            <span className="hobby-detail__field-label">{fieldDef.label}</span>
+            <span className="hobby-detail__field-label">{label}</span>
             <div className="hobby-detail__rating">
               {[1, 2, 3, 4, 5].map((star) => (
                 <Star
@@ -122,10 +209,10 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
         const date = new Date(value as string);
         return (
           <div className="hobby-detail__field">
-            <span className="hobby-detail__field-label">{fieldDef.label}</span>
+            <span className="hobby-detail__field-label">{label}</span>
             <div className="hobby-detail__field-value">
               <Calendar size={16} />
-              <span>{date.toLocaleDateString('ja-JP')}</span>
+              <span>{date.toLocaleDateString(language === 'en' ? 'en-US' : 'ja-JP')}</span>
             </div>
           </div>
         );
@@ -133,7 +220,7 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
       case 'location' as CustomFieldType:
         return (
           <div className="hobby-detail__field">
-            <span className="hobby-detail__field-label">{fieldDef.label}</span>
+            <span className="hobby-detail__field-label">{label}</span>
             <div className="hobby-detail__field-value">
               <MapPin size={16} />
               <span>{String(value)}</span>
@@ -144,7 +231,7 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
       case 'url' as CustomFieldType:
         return (
           <div className="hobby-detail__field">
-            <span className="hobby-detail__field-label">{fieldDef.label}</span>
+            <span className="hobby-detail__field-label">{label}</span>
             <a
               href={String(value)}
               target="_blank"
@@ -152,7 +239,7 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
               className="hobby-detail__field-link"
             >
               <ExternalLink size={16} />
-              <span>Visit Website</span>
+              <span>{language === 'en' ? 'Visit Website' : 'ウェブサイト'}</span>
             </a>
           </div>
         );
@@ -160,7 +247,7 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
       case 'textarea' as CustomFieldType:
         return (
           <div className="hobby-detail__field hobby-detail__field--full">
-            <span className="hobby-detail__field-label">{fieldDef.label}</span>
+            <span className="hobby-detail__field-label">{label}</span>
             <p className="hobby-detail__field-text">{String(value)}</p>
           </div>
         );
@@ -170,15 +257,37 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
         const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
         return (
           <div className="hobby-detail__field">
-            <span className="hobby-detail__field-label">{fieldDef.label}</span>
+            <span className="hobby-detail__field-label">{label}</span>
             <span className="hobby-detail__field-badge">{displayValue}</span>
           </div>
         );
 
       case 'number' as CustomFieldType:
+        // Special handling for score field
+        if (fieldName === 'score') {
+          const scoreValue = Number(value);
+          const starRating = Math.round(scoreValue / 2);
+          return (
+            <div className="hobby-detail__field">
+              <span className="hobby-detail__field-label">{label}</span>
+              <div className="hobby-detail__score">
+                <span className="hobby-detail__score-value">{scoreValue.toFixed(1)}</span>
+                <div className="hobby-detail__score-stars">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      size={16}
+                      className={star <= starRating ? 'filled' : ''}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        }
         return (
           <div className="hobby-detail__field">
-            <span className="hobby-detail__field-label">{fieldDef.label}</span>
+            <span className="hobby-detail__field-label">{label}</span>
             <span className="hobby-detail__field-value">{Number(value).toLocaleString()}</span>
           </div>
         );
@@ -186,7 +295,7 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
       default:
         return (
           <div className="hobby-detail__field">
-            <span className="hobby-detail__field-label">{fieldDef.label}</span>
+            <span className="hobby-detail__field-label">{label}</span>
             <span className="hobby-detail__field-value">{String(value)}</span>
           </div>
         );
@@ -201,12 +310,16 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
     setSelectedImageIndex((prev) => (prev === allImages.length - 1 ? 0 : prev + 1));
   };
 
+  const displayTitle = getDisplayTitle();
+  const secondaryName = getSecondaryName();
+  const description = getDescription();
+
   return (
     <div className="hobby-detail">
       {/* Back Link */}
       <Link href={`/hobbies/${hobby.slug}`} className="hobby-detail__back">
         <ArrowLeft size={20} />
-        <span>Back to {hobby.name}</span>
+        <span>{language === 'en' ? `Back to ${hobby.name}` : `${hobby.name}に戻る`}</span>
       </Link>
 
       <div className="hobby-detail__container">
@@ -219,7 +332,7 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
             >
               <Image
                 src={allImages[selectedImageIndex]}
-                alt={item.title}
+                alt={displayTitle}
                 fill
                 sizes="(max-width: 768px) 100vw, 60vw"
                 className="hobby-detail__image"
@@ -237,7 +350,7 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
                   >
                     <Image
                       src={img}
-                      alt={`${item.title} ${index + 1}`}
+                      alt={`${displayTitle} ${index + 1}`}
                       fill
                       sizes="80px"
                     />
@@ -250,10 +363,18 @@ export default function HobbyItemDetail({ item, hobby, language = 'ja' }: HobbyI
 
         {/* Info Section */}
         <div className="hobby-detail__info">
-          <h1 className="hobby-detail__title">{item.title}</h1>
+          <h1 className="hobby-detail__title">{displayTitle}</h1>
+          {secondaryName && (
+            <p className="hobby-detail__secondary-name">{secondaryName}</p>
+          )}
 
-          {item.description && (
-            <p className="hobby-detail__description">{item.description}</p>
+          {description && (
+            <div className="hobby-detail__description-section">
+              <span className="hobby-detail__field-label">
+                {language === 'en' ? 'Description' : '説明'}
+              </span>
+              <p className="hobby-detail__description">{description}</p>
+            </div>
           )}
 
           <div className="hobby-detail__fields">

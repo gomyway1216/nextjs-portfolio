@@ -590,6 +590,36 @@ $hobby-transition: all 0.3s ease;
     margin: 0 auto;
   }
 
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 16px;
+  }
+
+  &__lang-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    color: #fff;
+    font-weight: 500;
+    font-size: 12px;
+    cursor: pointer;
+    transition: $hobby-transition;
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    svg {
+      color: #a855f7;
+    }
+  }
+
   &__loading,
   &__error {
     display: flex;
@@ -719,10 +749,48 @@ $hobby-transition: all 0.3s ease;
     }
   }
 
+  &__secondary-name {
+    font-size: 18px;
+    color: #a78bfa;
+    margin-top: -16px;
+  }
+
+  &__description-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
   &__description {
     font-size: 16px;
     color: #cbd5e1;
     line-height: 1.7;
+  }
+
+  &__score {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  &__score-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #fbbf24;
+  }
+
+  &__score-stars {
+    display: flex;
+    gap: 4px;
+
+    svg {
+      color: #475569;
+
+      &.filled {
+        color: #fbbf24;
+        fill: #fbbf24;
+      }
+    }
   }
 
   &__fields {

@@ -134,11 +134,16 @@ export default function HobbyItemCard({ item, hobby, showLink = true, language =
   const getDescription = () => {
     const descriptionEn = item.customFields?.descriptionEn as string | undefined;
     const descriptionJa = item.customFields?.descriptionJa as string | undefined;
+    const animeDescription = item.customFields?.animeDescription as string | undefined;
+    const tvDescription = item.customFields?.tvDescription as string | undefined;
+
+    // Japanese description can be in different fields depending on hobby type
+    const jaDescription = descriptionJa || animeDescription || tvDescription;
 
     if (language === 'en') {
-      return descriptionEn || descriptionJa || item.description;
+      return descriptionEn || jaDescription || item.description;
     } else {
-      return descriptionJa || descriptionEn || item.description;
+      return jaDescription || descriptionEn || item.description;
     }
   };
 

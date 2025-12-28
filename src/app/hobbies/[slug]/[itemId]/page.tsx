@@ -4,7 +4,8 @@ import { use } from 'react';
 import Link from 'next/link';
 import { useHobbyCategory, useHobbyItem } from '@/hooks/useHobbies';
 import { HobbyItemDetail } from '@/components/hobby';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { ArrowLeft, Loader2, Languages } from 'lucide-react';
 
 interface HobbyItemPageProps {
   params: Promise<{ slug: string; itemId: string }>;
@@ -12,6 +13,7 @@ interface HobbyItemPageProps {
 
 export default function HobbyItemPage({ params }: HobbyItemPageProps) {
   const { slug, itemId } = use(params);
+  const { language, toggleLanguage } = useLanguage();
   const { hobby, loading: hobbyLoading, error: hobbyError } = useHobbyCategory(slug, true);
   const { item, loading: itemLoading, error: itemError } = useHobbyItem(itemId);
 
@@ -61,7 +63,18 @@ export default function HobbyItemPage({ params }: HobbyItemPageProps) {
   return (
     <div className="hobby-item-page">
       <div className="hobby-item-page__container">
-        <HobbyItemDetail item={item} hobby={hobby} />
+        {/* Language Toggle */}
+        <div className="hobby-item-page__actions">
+          <button
+            className="hobby-item-page__lang-toggle"
+            onClick={toggleLanguage}
+            title={language === 'en' ? 'Switch to Japanese' : 'Switch to English'}
+          >
+            <Languages size={16} />
+            <span>{language === 'en' ? 'English' : '日本語'}</span>
+          </button>
+        </div>
+        <HobbyItemDetail item={item} hobby={hobby} language={language} />
       </div>
     </div>
   );

@@ -6,17 +6,16 @@ import { useHobbyCategory, useHobbyItems } from '@/hooks/useHobbies';
 import { HobbyGrid } from '@/components/hobby';
 import HobbySearchSort from '@/components/hobby/HobbySearchSort';
 import { applyFiltersAndSort, type SortType } from '@/lib/animeUtils';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { ArrowLeft, Loader2, HelpCircle, Languages } from 'lucide-react';
 
 interface HobbyPageProps {
   params: Promise<{ slug: string }>;
 }
 
-export type Language = 'en' | 'ja';
-
 export default function HobbyPage({ params }: HobbyPageProps) {
   const { slug } = use(params);
-  const [language, setLanguage] = useState<Language>('en');
+  const { language, toggleLanguage } = useLanguage();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortType, setSortType] = useState<SortType>('alphabetical');
   const { hobby, loading: hobbyLoading, error: hobbyError } = useHobbyCategory(slug, true);
@@ -100,10 +99,10 @@ export default function HobbyPage({ params }: HobbyPageProps) {
             {/* Language Toggle */}
             <button
               className="hobby-page__lang-toggle"
-              onClick={() => setLanguage(language === 'en' ? 'ja' : 'en')}
+              onClick={toggleLanguage}
               title={language === 'en' ? 'Switch to Japanese' : 'Switch to English'}
             >
-              <Languages size={20} />
+              <Languages size={16} />
               <span>{language === 'en' ? 'English' : '日本語'}</span>
             </button>
             {items.length >= 4 && (

@@ -13,7 +13,7 @@ function getTokenFromRequest(request: NextRequest): string | null {
   return authHeader.substring(7);
 }
 
-// GET /api/hobby/items/related - Get related items
+// GET /api/hobbies/items/related - Get related items
 // Query params:
 // - hobbyId: The hobby category containing the items that reference another item
 // - fieldName: The name of the RELATION field (e.g., 'animeId', 'voiceActorId')

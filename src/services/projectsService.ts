@@ -25,7 +25,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 }
 
 export async function getProjects() {
-  const response = await fetch('/api/project', {
+  const response = await fetch('/api/projects', {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -40,7 +40,7 @@ export async function getProjects() {
 }
 
 export async function getProject(id: string) {
-  const response = await fetch(`/api/project/${id}`, {
+  const response = await fetch(`/api/projects/${id}`, {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -55,7 +55,7 @@ export async function getProject(id: string) {
 }
 
 export async function getProjectCategories() {
-  const response = await fetch('/api/project/categories', {
+  const response = await fetch('/api/projects/categories', {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -70,7 +70,7 @@ export async function getProjectCategories() {
 }
 
 export async function getUrlTypeList() {
-  const response = await fetch('/api/project/url-types', {
+  const response = await fetch('/api/projects/url-types', {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -110,7 +110,7 @@ export async function createProject(project: {
 }) {
   const headers = await getAuthHeaders();
 
-  const response = await fetch('/api/project', {
+  const response = await fetch('/api/projects', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -141,7 +141,7 @@ export async function updateProject(id: string, project: {
 }) {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`/api/project/${id}`, {
+  const response = await fetch(`/api/projects/${id}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -158,7 +158,7 @@ export async function updateProject(id: string, project: {
 export async function deleteProject(id: string) {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`/api/project/${id}`, {
+  const response = await fetch(`/api/projects/${id}`, {
     method: 'DELETE',
     headers: {
       ...headers,

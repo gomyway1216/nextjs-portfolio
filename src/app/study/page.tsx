@@ -757,7 +757,7 @@ export default function StudyListPage() {
                 return (
                   <Link
                     key={article.id}
-                    href={`/study/article/${article.id}`}
+                    href={`/study/articles/${article.id}`}
                     style={{ textDecoration: 'none' }}
                   >
                     <div style={{

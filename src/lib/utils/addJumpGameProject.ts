@@ -53,7 +53,7 @@ export async function addJumpGameProject(getAuthToken: () => Promise<string>) {
     };
 
     const token = await getAuthToken();
-    const response = await fetch('/api/project', {
+    const response = await fetch('/api/projects', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

@@ -10,7 +10,7 @@ import { ErrorSeverity } from '@/types/errors';
  * Get all projects
  */
 export async function GET() {
-  const endpoint = '/api/project';
+  const endpoint = '/api/projects';
   try {
     const db = getFirestore();
     const snapshot = await db.collection(PROJECTS_COLLECTION).get();
@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
       message: 'Failed to create project',
       details: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
-      endpoint: '/api/project',
+      endpoint: '/api/projects',
     });
     return NextResponse.json(
       { error: 'Failed to create project' },

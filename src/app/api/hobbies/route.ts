@@ -5,7 +5,7 @@ import { HOBBIES_COLLECTION } from '../constants';
 import type { HobbyCategory, CreateHobbyCategoryInput, CustomField } from '@/types/hobby';
 import { v4 as uuidv4 } from 'uuid';
 
-// GET /api/hobby - Get all hobby categories
+// GET /api/hobbies - Get all hobby categories
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/hobby - Create a new hobby category
+// POST /api/hobbies - Create a new hobby category
 export async function POST(request: NextRequest) {
   try {
     // Verify admin authentication

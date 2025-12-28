@@ -17,7 +17,7 @@ function getTokenFromRequest(request: NextRequest): string | null {
   return authHeader.substring(7);
 }
 
-// GET /api/hobby/items/[itemId] - Get a single hobby item
+// GET /api/hobbies/items/[itemId] - Get a single hobby item
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
     const { itemId } = await params;
@@ -69,7 +69,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// PUT /api/hobby/items/[itemId] - Update a hobby item
+// PUT /api/hobbies/items/[itemId] - Update a hobby item
 export async function PUT(request: NextRequest, { params }: RouteParams) {
   try {
     // Verify admin authentication
@@ -114,7 +114,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
   }
 }
 
-// DELETE /api/hobby/items/[itemId] - Delete a hobby item
+// DELETE /api/hobbies/items/[itemId] - Delete a hobby item
 export async function DELETE(request: NextRequest, { params }: RouteParams) {
   try {
     // Verify admin authentication

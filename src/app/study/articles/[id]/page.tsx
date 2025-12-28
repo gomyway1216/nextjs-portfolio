@@ -557,8 +557,8 @@ export default function StudyArticlePage() {
   const handleTabChange = (tab: 'article' | 'chat' | 'notes') => {
     setActiveTab(tab);
     const url = tab === 'article'
-      ? `/study/article/${articleId}`
-      : `/study/article/${articleId}?tab=${tab}`;
+      ? `/study/articles/${articleId}`
+      : `/study/articles/${articleId}?tab=${tab}`;
     router.replace(url, { scroll: false });
   };
 
@@ -751,7 +751,7 @@ export default function StudyArticlePage() {
                   {quiz.questions.length} questions • {quiz.difficulty}
                 </p>
                 <button
-                  onClick={() => router.push(`/study/quiz/${quiz.id}`)}
+                  onClick={() => router.push(`/study/quizzes/${quiz.id}`)}
                   style={{
                     width: '100%',
                     padding: '8px',
@@ -858,7 +858,7 @@ export default function StudyArticlePage() {
           </button>
           {currentUser && (
             <button
-              onClick={() => router.push(`/study/article/${articleId}/edit`)}
+              onClick={() => router.push(`/study/articles/${articleId}/edit`)}
               style={{
                 display: 'flex',
                 alignItems: 'center',

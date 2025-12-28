@@ -10,7 +10,7 @@ import type {
   HobbyItemsResponse,
 } from '@/types/hobby';
 
-const BASE_URL = '/api/hobby';
+const BASE_URL = '/api/hobbies';
 
 // Helper to get auth headers (returns empty object if not logged in)
 async function getAuthHeaders(): Promise<Record<string, string>> {

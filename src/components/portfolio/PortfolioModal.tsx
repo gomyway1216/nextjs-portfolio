@@ -54,7 +54,7 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
   };
 
   const handleEdit = () => {
-    router.push(`/project/${project.id}/edit`);
+    router.push(`/projects/${project.id}/edit`);
   };
 
   return (

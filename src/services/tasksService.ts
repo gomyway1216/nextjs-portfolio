@@ -18,7 +18,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 export async function getTasks(userId: string) {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`/api/task?userId=${userId}`, {
+  const response = await fetch(`/api/tasks?userId=${userId}`, {
     headers: {
       'Content-Type': 'application/json',
       ...headers,
@@ -36,7 +36,7 @@ export async function getTasks(userId: string) {
 export async function updateTaskCompletion(userId: string, taskId: string) {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`/api/task/${taskId}?userId=${userId}`, {
+  const response = await fetch(`/api/tasks/${taskId}?userId=${userId}`, {
     method: 'PUT',
     headers: {
       ...headers,

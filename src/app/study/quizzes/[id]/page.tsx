@@ -563,7 +563,7 @@ export default function StudyQuizPage() {
               </button>
             )}
             <button
-              onClick={() => router.push(`/study/article/${quiz.articleId}`)}
+              onClick={() => router.push(`/study/articles/${quiz.articleId}`)}
               style={{
                 flex: 1,
                 minWidth: '140px',

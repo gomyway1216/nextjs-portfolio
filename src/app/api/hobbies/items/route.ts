@@ -13,7 +13,7 @@ function getTokenFromRequest(request: NextRequest): string | null {
   return authHeader.substring(7);
 }
 
-// GET /api/hobby/items - Get hobby items
+// GET /api/hobbies/items - Get hobby items
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/hobby/items - Create a new hobby item
+// POST /api/hobbies/items - Create a new hobby item
 export async function POST(request: NextRequest) {
   try {
     // Verify admin authentication

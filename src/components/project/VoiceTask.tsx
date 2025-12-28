@@ -101,7 +101,7 @@ const VoiceTask = () => {
   };
 
   const handleCreateList = () => {
-    router.push('/voice-task/create-list');
+    router.push('/voice-tasks/create-list');
   };
 
   const handleCreateTask = async () => {
@@ -302,7 +302,7 @@ const VoiceTask = () => {
           <h3 className="text-lg font-semibold p-4">Pending Tasks</h3>
           <div className="space-y-2">
             {incompleteTasks.map((task) => (
-              <div key={task.id} className="flex items-center gap-2 p-3 hover:bg-muted rounded-lg cursor-pointer" onClick={() => router.push(`/voice-task/${task.id}`)}>
+              <div key={task.id} className="flex items-center gap-2 p-3 hover:bg-muted rounded-lg cursor-pointer" onClick={() => router.push(`/voice-tasks/${task.id}`)}>
                 <Button
                   variant="ghost"
                   size="icon"

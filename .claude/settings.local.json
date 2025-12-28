@@ -19,7 +19,8 @@
       "Bash(firebase functions:list:*)",
       "Bash(firebase functions:delete:*)",
       "Bash(firebase deploy:*)",
-      "Bash(firebase firestore:indexes:*)"
+      "Bash(firebase firestore:indexes:*)",
+      "Bash(firebase storage:ls:*)"
     ],
     "deny": [],
     "ask": []

@@ -144,6 +144,14 @@ export function useHobbyItems(options: UseHobbyItemsOptions): UseHobbyItemsResul
   const limit = options.limit || 50;
 
   const fetchItems = useCallback(async (reset = true) => {
+    // Skip fetch if hobbyId is empty
+    if (!options.hobbyId) {
+      setItems([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);

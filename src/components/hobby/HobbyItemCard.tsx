@@ -2,10 +2,46 @@
 
 import Link from 'next/link';
 import Image from 'next/image';
-import type { HobbyItem, HobbyCategory, CustomFieldType } from '@/types/hobby';
+import type { HobbyItem, HobbyCategory, CustomFieldType, CustomField } from '@/types/hobby';
 import { Star, MapPin, Calendar, ExternalLink } from 'lucide-react';
+import { useResolvedRelation } from '@/hooks/useHobbies';
 
 export type Language = 'en' | 'ja';
+
+// Component to render a relation field value in card view
+function RelationFieldValueCard({
+  itemId,
+  label,
+}: {
+  itemId: string;
+  label: string;
+}) {
+  const { item, loading } = useResolvedRelation(itemId);
+
+  if (loading) {
+    return (
+      <div className="hobby-item-card__field">
+        <span className="hobby-item-card__field-label">{label}:</span>
+        <span className="hobby-item-card__field-loading">...</span>
+      </div>
+    );
+  }
+
+  if (!item) {
+    return null;
+  }
+
+  const displayName = (item.customFields?.nameKanji as string) ||
+                      (item.customFields?.nameEnglish as string) ||
+                      item.title;
+
+  return (
+    <div className="hobby-item-card__field">
+      <span className="hobby-item-card__field-label">{label}:</span>
+      <span>{displayName}</span>
+    </div>
+  );
+}
 
 interface HobbyItemCardProps {
   item: HobbyItem;
@@ -15,11 +51,19 @@ interface HobbyItemCardProps {
 }
 
 export default function HobbyItemCard({ item, hobby, showLink = true, language = 'en' }: HobbyItemCardProps) {
-  const renderCustomField = (fieldName: string, value: unknown) => {
-    const fieldDef = hobby.fields.find((f) => f.name === fieldName);
+  const renderCustomField = (fieldName: string, value: unknown, fieldDef: CustomField) => {
     if (!fieldDef || value === undefined || value === null || value === '') return null;
 
     switch (fieldDef.type) {
+      case 'relation' as CustomFieldType:
+        if (!value) return null;
+        return (
+          <RelationFieldValueCard
+            itemId={String(value)}
+            label={fieldDef.label}
+          />
+        );
+
       case 'rating' as CustomFieldType:
         const rating = Number(value) || 0;
         return (
@@ -214,7 +258,7 @@ export default function HobbyItemCard({ item, hobby, showLink = true, language =
         <div className="hobby-item-card__fields">
           {displayFields.map((field) => (
             <div key={field.id}>
-              {renderCustomField(field.name, item.customFields[field.name])}
+              {renderCustomField(field.name, item.customFields[field.name], field)}
             </div>
           ))}
         </div>

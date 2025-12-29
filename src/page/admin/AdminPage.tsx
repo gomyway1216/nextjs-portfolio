@@ -3,7 +3,7 @@
 import { useState, useEffect, CSSProperties } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useProfile, updateProfile } from '@/hooks/useProfile';
-import { useProjects, useProjectMutations, useProjectCategories } from '@/hooks/useProjects';
+import { useProjects, useProjectMutations, useProjectCategories, useUrlTypes } from '@/hooks/useProjects';
 import { usePosts, usePostMutations, usePostCategories } from '@/hooks/usePosts';
 import { useRouter } from 'next/navigation';
 import * as technologyApi from '@/services/technologiesService';
@@ -48,6 +48,12 @@ interface Job {
   jobPosition: string;
   jobDuration: string;
   technologies?: (string | { name: string; id?: string; type?: string })[];
+}
+
+interface UrlData {
+  name: string;
+  link: string;
+  type: string;
 }
 
 // Helper function to get technology name (handles both string and object formats)
@@ -331,6 +337,7 @@ const AdminPage = () => {
   const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
   const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts({ limit: 100 });
   const { categories: projectCategories } = useProjectCategories();
+  const { urlTypes } = useUrlTypes();
   const { categories: postCategories } = usePostCategories();
   const projectMutations = useProjectMutations();
   const postMutations = usePostMutations();
@@ -402,6 +409,7 @@ const AdminPage = () => {
     industry: '',
     thumbImage: '',
     images: [] as string[],
+    urls: [] as UrlData[],
     technologies: '',
     categories: '',
   });
@@ -507,6 +515,7 @@ const AdminPage = () => {
         industry: project.industry || '',
         thumbImage: project.thumbImage || '',
         images: project.images || [],
+        urls: project.urls || [],
         technologies: techNames.join(', '),
         categories: project.categories?.join(', ') || '',
       });
@@ -520,6 +529,7 @@ const AdminPage = () => {
         industry: '',
         thumbImage: '',
         images: [],
+        urls: [],
         technologies: '',
         categories: '',
       });
@@ -602,6 +612,30 @@ const AdminPage = () => {
     }));
   };
 
+  // URL management handlers
+  const handleAddUrl = () => {
+    setProjectForm(prev => ({
+      ...prev,
+      urls: [...prev.urls, { name: '', link: '', type: urlTypes[0] || '' }]
+    }));
+  };
+
+  const handleUpdateUrl = (index: number, field: keyof UrlData, value: string) => {
+    setProjectForm(prev => ({
+      ...prev,
+      urls: prev.urls.map((url, i) =>
+        i === index ? { ...url, [field]: value } : url
+      )
+    }));
+  };
+
+  const handleRemoveUrl = (index: number) => {
+    setProjectForm(prev => ({
+      ...prev,
+      urls: prev.urls.filter((_, i) => i !== index)
+    }));
+  };
+
   const handleDragThumb = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -658,7 +692,7 @@ const AdminPage = () => {
         industry: projectForm.industry,
         thumbImage: projectForm.thumbImage,
         images: projectForm.images,
-        urls: editingProject?.urls || [],
+        urls: projectForm.urls,
         technologies: technologiesData,
         categories: projectForm.categories.split(',').map(c => c.trim()).filter(c => c),
       };
@@ -1846,6 +1880,81 @@ const AdminPage = () => {
                         </div>
                       ))}
                     </div>
+                  )}
+                </div>
+
+                {/* URLs Section */}
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <label style={{ ...styles.label, marginBottom: 0 }}>Project URLs</label>
+                    <button
+                      type="button"
+                      onClick={handleAddUrl}
+                      style={{ ...styles.button, ...styles.outlineButton, padding: '6px 12px', fontSize: '13px' }}
+                    >
+                      <Plus size={14} /> Add URL
+                    </button>
+                  </div>
+                  {projectForm.urls.length === 0 ? (
+                    <p style={{ color: '#64748b', fontSize: '14px' }}>No URLs added yet. Click &quot;Add URL&quot; to add project links.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {projectForm.urls.map((url, index) => (
+                        <div
+                          key={index}
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1fr 2fr 1fr auto',
+                            gap: '8px',
+                            alignItems: 'center',
+                            padding: '12px',
+                            backgroundColor: 'rgba(15, 23, 42, 0.3)',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                          }}
+                        >
+                          <input
+                            value={url.name}
+                            onChange={(e) => handleUpdateUrl(index, 'name', e.target.value)}
+                            placeholder="Name (e.g., Live Demo)"
+                            style={{ ...styles.input, padding: '8px 10px' }}
+                          />
+                          <input
+                            value={url.link}
+                            onChange={(e) => handleUpdateUrl(index, 'link', e.target.value)}
+                            placeholder="URL (e.g., https://...)"
+                            style={{ ...styles.input, padding: '8px 10px' }}
+                          />
+                          <select
+                            value={url.type}
+                            onChange={(e) => handleUpdateUrl(index, 'type', e.target.value)}
+                            style={{ ...styles.select, padding: '8px 10px' }}
+                          >
+                            <option value="">Select type</option>
+                            {urlTypes.map((type) => (
+                              <option key={type} value={type}>{type}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveUrl(index)}
+                            style={{
+                              ...styles.ghostButton,
+                              borderRadius: '8px',
+                              color: '#f87171',
+                              padding: '8px',
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {urlTypes.length > 0 && (
+                    <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>
+                      Available types: {urlTypes.join(', ')}
+                    </p>
                   )}
                 </div>
 

@@ -123,12 +123,15 @@ interface UseHobbyItemsOptions {
   hobbyId: string;
   includePrivate?: boolean;
   limit?: number;
+  sortType?: string;
+  search?: string;
 }
 
 interface UseHobbyItemsResult {
   items: HobbyItem[];
   total: number;
   loading: boolean;
+  loadingMore: boolean;
   error: string | null;
   refetch: () => Promise<void>;
   loadMore: () => Promise<void>;
@@ -138,64 +141,75 @@ interface UseHobbyItemsResult {
 export function useHobbyItems(options: UseHobbyItemsOptions): UseHobbyItemsResult {
   const [items, setItems] = useState<HobbyItem[]>([]);
   const [total, setTotal] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [offset, setOffset] = useState(0);
   const limit = options.limit || 50;
 
-  const fetchItems = useCallback(async (reset = true) => {
+  const fetchItems = useCallback(async (lastId?: string) => {
     // Skip fetch if hobbyId is empty
     if (!options.hobbyId) {
       setItems([]);
       setTotal(0);
+      setHasMore(false);
       setLoading(false);
       return;
     }
 
     try {
-      setLoading(true);
+      if (!lastId) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
       setError(null);
-      const newOffset = reset ? 0 : offset;
+
       const response = await hobbyService.getHobbyItems(options.hobbyId, {
         includePrivate: options.includePrivate,
         limit,
-        offset: newOffset,
+        lastId,
+        sortType: options.sortType,
+        search: options.search,
       });
 
-      if (reset) {
+      if (!lastId) {
+        // Initial load - replace items
         setItems(response.items);
-        setOffset(response.items.length);
       } else {
+        // Load more - append items
         setItems((prev) => [...prev, ...response.items]);
-        setOffset((prev) => prev + response.items.length);
       }
       setTotal(response.total);
+      setHasMore(response.hasMore);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch items');
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
-  }, [options.hobbyId, options.includePrivate, limit, offset]);
+  }, [options.hobbyId, options.includePrivate, options.sortType, options.search, limit]);
 
+  // Refetch when options change
   useEffect(() => {
-    fetchItems(true);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [options.hobbyId, options.includePrivate]);
+    fetchItems();
+  }, [fetchItems]);
 
-  const loadMore = async () => {
-    if (items.length < total) {
-      await fetchItems(false);
-    }
-  };
+  const loadMore = useCallback(async () => {
+    if (loadingMore || loading || !hasMore || items.length === 0) return;
+    const lastId = items[items.length - 1].id;
+    await fetchItems(lastId);
+  }, [loadingMore, loading, hasMore, items, fetchItems]);
 
   return {
     items,
     total,
     loading,
+    loadingMore,
     error,
-    refetch: () => fetchItems(true),
+    refetch: () => fetchItems(),
     loadMore,
-    hasMore: items.length < total,
+    hasMore,
   };
 }
 

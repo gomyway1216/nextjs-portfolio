@@ -9,6 +9,7 @@ interface HobbyGridProps {
   items: HobbyItem[];
   hobby: HobbyCategory;
   loading?: boolean;
+  loadingMore?: boolean;
   hasMore?: boolean;
   onLoadMore?: () => void;
   language?: Language;
@@ -18,6 +19,7 @@ export default function HobbyGrid({
   items,
   hobby,
   loading,
+  loadingMore,
   hasMore,
   onLoadMore,
   language = 'en',
@@ -37,15 +39,15 @@ export default function HobbyGrid({
           <HobbyItemCard key={item.id} item={item} hobby={hobby} language={language} />
         ))}
       </div>
-      {loading && (
+      {loadingMore && (
         <div className="hobby-grid__loading">
           <div className="hobby-grid__spinner" />
         </div>
       )}
-      {hasMore && !loading && (
+      {hasMore && !loadingMore && (
         <div className="hobby-grid__load-more">
           <button onClick={onLoadMore} className="hobby-grid__load-more-btn">
-            Load More
+            {language === 'en' ? 'Load More' : 'もっと見る'}
           </button>
         </div>
       )}

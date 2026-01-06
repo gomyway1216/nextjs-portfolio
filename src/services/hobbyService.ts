@@ -102,7 +102,9 @@ export async function getHobbyItems(
   options: {
     includePrivate?: boolean;
     limit?: number;
-    offset?: number;
+    lastId?: string;
+    sortType?: string;
+    search?: string;
   } = {}
 ): Promise<HobbyItemsResponse> {
   const url = new URL(`${BASE_URL}/items`, window.location.origin);
@@ -114,8 +116,14 @@ export async function getHobbyItems(
   if (options.limit) {
     url.searchParams.set('limit', options.limit.toString());
   }
-  if (options.offset) {
-    url.searchParams.set('offset', options.offset.toString());
+  if (options.lastId) {
+    url.searchParams.set('lastId', options.lastId);
+  }
+  if (options.sortType) {
+    url.searchParams.set('sortType', options.sortType);
+  }
+  if (options.search) {
+    url.searchParams.set('search', options.search);
   }
 
   return apiCall<HobbyItemsResponse>(url.toString());

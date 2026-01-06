@@ -144,6 +144,7 @@ export interface HobbyCategoriesResponse {
 export interface HobbyItemsResponse {
   items: HobbyItem[];
   total: number;
+  hasMore: boolean;
   hobbyId: string;
 }
 

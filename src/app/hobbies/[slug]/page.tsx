@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useHobbyCategory, useHobbyItems } from '@/hooks/useHobbies';
 import { HobbyGrid } from '@/components/hobby';
 import HobbySearchSort from '@/components/hobby/HobbySearchSort';
-import { applyFiltersAndSort, type SortType } from '@/lib/animeUtils';
+import { type SortType } from '@/lib/animeUtils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { ArrowLeft, Loader2, HelpCircle, Languages } from 'lucide-react';
 
@@ -19,29 +19,27 @@ export default function HobbyPage({ params }: HobbyPageProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortType, setSortType] = useState<SortType>('alphabetical');
   const { hobby, loading: hobbyLoading, error: hobbyError } = useHobbyCategory(slug, true);
+
+  // Pass sortType and search to backend for proper pagination
   const {
     items,
+    total,
     loading: itemsLoading,
+    loadingMore,
     error: itemsError,
     hasMore,
     loadMore,
   } = useHobbyItems({
     hobbyId: hobby?.id || '',
     includePrivate: false,
+    sortType,
+    search: searchQuery || undefined,
   });
 
   // Check if this hobby has score field (for anime)
   const hasScoreField = useMemo(() => {
     return hobby?.fields.some(f => f.name === 'score') ?? false;
   }, [hobby?.fields]);
-
-  // Apply search and sort to items
-  const filteredItems = useMemo(() => {
-    return applyFiltersAndSort(items, {
-      searchQuery,
-      sortType,
-    });
-  }, [items, searchQuery, sortType]);
 
   const handleSearchChange = useCallback((query: string) => {
     setSearchQuery(query);
@@ -139,18 +137,19 @@ export default function HobbyPage({ params }: HobbyPageProps) {
         {/* Show result count if searching */}
         {searchQuery && !itemsLoading && (
           <div className="hobby-page__results-count">
-            {filteredItems.length} {language === 'ja' ? '件の結果' : 'results'}
-            {filteredItems.length !== items.length && (
-              <span> ({language === 'ja' ? `全${items.length}件中` : `of ${items.length} total`})</span>
+            {items.length} {language === 'ja' ? '件の結果' : 'results'}
+            {items.length !== total && (
+              <span> ({language === 'ja' ? `全${total}件中` : `of ${total} total`})</span>
             )}
           </div>
         )}
 
         <HobbyGrid
-          items={filteredItems}
+          items={items}
           hobby={hobby}
           loading={itemsLoading}
-          hasMore={hasMore && !searchQuery}
+          loadingMore={loadingMore}
+          hasMore={hasMore}
           onLoadMore={loadMore}
           language={language}
         />

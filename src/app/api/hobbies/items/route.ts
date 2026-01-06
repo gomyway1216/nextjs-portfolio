@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { ensureAdmin, verifyIdToken, isAdmin } from '@/lib/auth-utils';
-import { HOBBIES_COLLECTION, HOBBY_ITEMS_COLLECTION } from '../../constants';
+import { HOBBIES_COLLECTION, HOBBY_ITEMS_COLLECTION, getCloudFunctionUrl } from '../../constants';
 import type { HobbyItem, CreateHobbyItemInput } from '@/types/hobby';
 
 // Helper to extract token from request
@@ -13,85 +13,41 @@ function getTokenFromRequest(request: NextRequest): string | null {
   return authHeader.substring(7);
 }
 
-// GET /api/hobbies/items - Get hobby items
+// GET /api/hobbies/items - Get hobby items (proxies to Cloud Function)
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const hobbyId = searchParams.get('hobbyId');
-    const includePrivate = searchParams.get('includePrivate') === 'true';
-    const limit = parseInt(searchParams.get('limit') || '50', 10);
-    const offset = parseInt(searchParams.get('offset') || '0', 10);
+    const searchParams = request.nextUrl.searchParams;
+    const url = new URL(getCloudFunctionUrl('getHobbyItems'));
 
-    if (!hobbyId) {
+    // Forward query parameters to Cloud Function
+    const params = ['hobbyId', 'sortType', 'search', 'limit', 'lastId', 'includePrivate'];
+    params.forEach((param) => {
+      const value = searchParams.get(param);
+      if (value) url.searchParams.set(param, value);
+    });
+
+    console.log('[Hobby API] GET items:', url.toString());
+
+    const response = await fetch(url.toString());
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      console.error('[Hobby API] Error from Cloud Function:', {
+        status: response.status,
+        error: data.error,
+      });
       return NextResponse.json(
-        { error: 'hobbyId query parameter is required' },
-        { status: 400 }
+        { error: data.error || 'Failed to fetch hobby items' },
+        { status: response.status }
       );
     }
 
-    const db = getFirestore();
-
-    // Verify the hobby exists
-    const hobbyDoc = await db.collection(HOBBIES_COLLECTION).doc(hobbyId).get();
-    if (!hobbyDoc.exists) {
-      return NextResponse.json({ error: 'Hobby not found' }, { status: 404 });
-    }
-
-    // Check if user is admin
-    let isAdminUser = false;
-    if (includePrivate) {
-      const token = getTokenFromRequest(request);
-      if (token) {
-        const decodedToken = await verifyIdToken(token);
-        if (decodedToken && isAdmin(decodedToken)) {
-          isAdminUser = true;
-        }
-      }
-    }
-
-    // Fetch items by hobbyId only (avoid composite index requirement)
-    const snapshot = await db.collection(HOBBY_ITEMS_COLLECTION)
-      .where('hobbyId', '==', hobbyId)
-      .get();
-
-    let items: HobbyItem[] = [];
-
-    snapshot.forEach((doc) => {
-      const data = doc.data();
-      items.push({
-        id: doc.id,
-        hobbyId: data.hobbyId,
-        title: data.title,
-        description: data.description,
-        images: data.images || [],
-        thumbImage: data.thumbImage || '',
-        isPublic: data.isPublic,
-        order: data.order ?? 0,
-        customFields: data.customFields || {},
-        tags: data.tags || [],
-        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
-        updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
-      });
-    });
-
-    // Filter by public unless admin
-    if (!isAdminUser) {
-      items = items.filter(item => item.isPublic);
-    }
-
-    // Sort by order
-    items.sort((a, b) => a.order - b.order);
-
-    // Get total before pagination
-    const total = items.length;
-
-    // Apply pagination
-    items = items.slice(offset, offset + limit);
-
+    // Return in the format expected by the frontend
     return NextResponse.json({
-      items,
-      total,
-      hobbyId,
+      items: data.items,
+      total: data.total,
+      hasMore: data.hasMore,
+      hobbyId: searchParams.get('hobbyId'),
     });
   } catch (error) {
     console.error('Error fetching hobby items:', error);

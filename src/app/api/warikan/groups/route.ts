@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     const members: Member[] = (body.members || []).map((m) => ({
       id: uuidv4(),
       name: m.name,
-      email: m.email,
+      email: m.email || null,
       weight: m.weight ?? 1,
       joinedAt: new Date().toISOString(),
       isActive: true,
@@ -179,8 +179,9 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('Error creating warikan group:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to create warikan group' },
+      { error: 'Failed to create warikan group', details: errorMessage },
       { status: 500 }
     );
   }

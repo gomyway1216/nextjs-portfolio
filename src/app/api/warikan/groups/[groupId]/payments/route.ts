@@ -1,0 +1,150 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
+import { getOptionalUser } from '@/lib/auth-utils';
+import {
+  WARIKAN_GROUPS_COLLECTION,
+  WARIKAN_PAYMENTS_COLLECTION,
+} from '../../../../constants';
+import type { Payment, CreatePaymentInput } from '@/types/warikan';
+
+interface RouteParams {
+  params: Promise<{ groupId: string }>;
+}
+
+// GET /api/warikan/groups/[groupId]/payments - Get all payments for a group
+export async function GET(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { groupId } = await params;
+    const db = getFirestore();
+
+    // Verify group exists
+    const groupDoc = await db.collection(WARIKAN_GROUPS_COLLECTION).doc(groupId).get();
+    if (!groupDoc.exists) {
+      return NextResponse.json({ error: 'Group not found' }, { status: 404 });
+    }
+
+    const snapshot = await db
+      .collection(WARIKAN_PAYMENTS_COLLECTION)
+      .where('groupId', '==', groupId)
+      .orderBy('date', 'desc')
+      .get();
+
+    const payments: Payment[] = snapshot.docs.map((doc) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        groupId: data.groupId,
+        payerId: data.payerId,
+        amount: data.amount,
+        currency: data.currency,
+        description: data.description,
+        category: data.category,
+        date: data.date?.toDate?.()?.toISOString() || data.date,
+        splitType: data.splitType,
+        participants: data.participants || [],
+        createdBy: data.createdBy,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
+        updatedAt: data.updatedAt?.toDate?.()?.toISOString() || data.updatedAt,
+      };
+    });
+
+    return NextResponse.json({
+      payments,
+      total: payments.length,
+    });
+  } catch (error) {
+    console.error('Error fetching payments:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch payments' },
+      { status: 500 }
+    );
+  }
+}
+
+// POST /api/warikan/groups/[groupId]/payments - Add a new payment
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  try {
+    const { groupId } = await params;
+    const body: CreatePaymentInput = await request.json();
+    const user = await getOptionalUser(request);
+    const db = getFirestore();
+
+    // Validate required fields
+    if (!body.payerId || !body.amount || !body.description || !body.splitType) {
+      return NextResponse.json(
+        { error: 'Missing required fields: payerId, amount, description, splitType' },
+        { status: 400 }
+      );
+    }
+
+    if (body.amount <= 0) {
+      return NextResponse.json(
+        { error: 'Amount must be greater than 0' },
+        { status: 400 }
+      );
+    }
+
+    // Verify group exists and get currency
+    const groupDoc = await db.collection(WARIKAN_GROUPS_COLLECTION).doc(groupId).get();
+    if (!groupDoc.exists) {
+      return NextResponse.json({ error: 'Group not found' }, { status: 404 });
+    }
+
+    const groupData = groupDoc.data()!;
+    const members = groupData.members || [];
+
+    // Validate payer exists
+    const payerExists = members.some((m: { id: string }) => m.id === body.payerId);
+    if (!payerExists) {
+      return NextResponse.json({ error: 'Payer not found in group' }, { status: 400 });
+    }
+
+    // Validate participants exist
+    const participantIds = body.participants.map((p) => p.memberId);
+    const allParticipantsExist = participantIds.every((id) =>
+      members.some((m: { id: string }) => m.id === id)
+    );
+    if (!allParticipantsExist) {
+      return NextResponse.json(
+        { error: 'One or more participants not found in group' },
+        { status: 400 }
+      );
+    }
+
+    const newPayment = {
+      groupId,
+      payerId: body.payerId,
+      amount: body.amount,
+      currency: body.currency || groupData.currency,
+      description: body.description,
+      category: body.category || null,
+      date: body.date ? new Date(body.date) : getServerTimestamp(),
+      splitType: body.splitType,
+      participants: body.participants,
+      createdBy: user?.uid || null,
+      createdAt: getServerTimestamp(),
+      updatedAt: getServerTimestamp(),
+    };
+
+    const docRef = await db.collection(WARIKAN_PAYMENTS_COLLECTION).add(newPayment);
+
+    // Update group's updatedAt
+    await db.collection(WARIKAN_GROUPS_COLLECTION).doc(groupId).update({
+      updatedAt: getServerTimestamp(),
+    });
+
+    return NextResponse.json(
+      {
+        id: docRef.id,
+        message: 'Payment added successfully',
+      },
+      { status: 201 }
+    );
+  } catch (error) {
+    console.error('Error adding payment:', error);
+    return NextResponse.json(
+      { error: 'Failed to add payment' },
+      { status: 500 }
+    );
+  }
+}

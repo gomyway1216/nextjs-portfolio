@@ -1,0 +1,168 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Share2, Copy, Check, QrCode, Link } from 'lucide-react';
+import { toast } from 'sonner';
+import type { QRCodeResponse } from '@/types/warikan';
+
+interface ShareDialogProps {
+  groupId: string;
+  groupName: string;
+  shareCode: string;
+  onGenerateQR: () => Promise<QRCodeResponse>;
+}
+
+export function ShareDialog({
+  groupName,
+  shareCode,
+  onGenerateQR,
+}: ShareDialogProps) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [qrData, setQrData] = useState<QRCodeResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const baseUrl =
+    typeof window !== 'undefined'
+      ? window.location.origin
+      : process.env.NEXT_PUBLIC_BASE_URL || '';
+  const shareUrl = `${baseUrl}/tools/warikan/join/${shareCode}`;
+
+  useEffect(() => {
+    if (open && !qrData) {
+      generateQR();
+    }
+  }, [open]);
+
+  const generateQR = async () => {
+    setLoading(true);
+    try {
+      const data = await onGenerateQR();
+      setQrData(data);
+    } catch (error) {
+      console.error('Failed to generate QR code:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      toast.success('リンクをコピーしました');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('コピーに失敗しました');
+    }
+  };
+
+  const shareNative = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${groupName} - ワリカン`,
+          text: `「${groupName}」の割り勘グループに参加してください`,
+          url: shareUrl,
+        });
+      } catch (error) {
+        // User cancelled share
+        if ((error as Error).name !== 'AbortError') {
+          console.error('Share failed:', error);
+        }
+      }
+    } else {
+      copyToClipboard();
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline">
+          <Share2 className="h-4 w-4 mr-2" />
+          共有
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>グループを共有</DialogTitle>
+          <DialogDescription>
+            リンクまたはQRコードでメンバーを招待できます
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6 py-4">
+          {/* QR Code */}
+          <div className="flex flex-col items-center gap-4">
+            {loading ? (
+              <div className="w-48 h-48 bg-muted animate-pulse rounded-lg flex items-center justify-center">
+                <QrCode className="h-8 w-8 text-muted-foreground" />
+              </div>
+            ) : qrData?.qrCodeDataUrl ? (
+              <img
+                src={qrData.qrCodeDataUrl}
+                alt="Share QR Code"
+                className="w-48 h-48 rounded-lg border"
+              />
+            ) : (
+              <div className="w-48 h-48 bg-muted rounded-lg flex items-center justify-center">
+                <QrCode className="h-8 w-8 text-muted-foreground" />
+              </div>
+            )}
+            <p className="text-sm text-muted-foreground text-center">
+              スマートフォンでQRコードをスキャン
+            </p>
+          </div>
+
+          {/* Share Link */}
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Link className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">共有リンク</span>
+            </div>
+            <div className="flex gap-2">
+              <Input value={shareUrl} readOnly className="text-sm" />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={copyToClipboard}
+                className="shrink-0"
+              >
+                {copied ? (
+                  <Check className="h-4 w-4 text-green-500" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {/* Share Code */}
+          <div className="p-4 bg-muted rounded-lg text-center">
+            <p className="text-sm text-muted-foreground mb-1">共有コード</p>
+            <p className="text-2xl font-mono font-bold tracking-widest">
+              {shareCode}
+            </p>
+          </div>
+
+          {/* Share Button */}
+          <Button onClick={shareNative} className="w-full">
+            <Share2 className="h-4 w-4 mr-2" />
+            共有する
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

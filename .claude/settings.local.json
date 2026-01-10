@@ -20,7 +20,14 @@
       "Bash(firebase functions:delete:*)",
       "Bash(firebase deploy:*)",
       "Bash(firebase firestore:indexes:*)",
-      "Bash(firebase storage:ls:*)"
+      "Bash(firebase storage:ls:*)",
+      "Bash(tee:*)",
+      "Bash(npx tsc:*)",
+      "Bash(curl:*)",
+      "WebFetch(domain:walica.jp)",
+      "WebSearch",
+      "Bash(xargs ls:*)",
+      "Bash(wc:*)"
     ],
     "deny": [],
     "ask": []

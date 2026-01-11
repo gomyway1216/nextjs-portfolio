@@ -59,8 +59,19 @@ export async function getGroups(): Promise<GroupsResponse> {
   return apiCall<GroupsResponse>(`${BASE_URL}/groups`);
 }
 
-export async function getGroup(groupId: string): Promise<WarikanGroup> {
-  return apiCall<WarikanGroup>(`${BASE_URL}/groups/${groupId}`);
+export async function getGroup(groupId: string, verified = false): Promise<WarikanGroup> {
+  const url = verified ? `${BASE_URL}/groups/${groupId}?verified=true` : `${BASE_URL}/groups/${groupId}`;
+  return apiCall<WarikanGroup>(url);
+}
+
+export async function verifyPasscode(
+  groupId: string,
+  passcode: string
+): Promise<{ verified: boolean }> {
+  return apiCall<{ verified: boolean }>(`${BASE_URL}/groups/${groupId}/verify`, {
+    method: 'POST',
+    body: JSON.stringify({ passcode }),
+  });
 }
 
 export async function getGroupByShareCode(shareCode: string): Promise<WarikanGroup> {

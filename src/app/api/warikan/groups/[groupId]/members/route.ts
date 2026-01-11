@@ -49,7 +49,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const newMember: Member = {
       id: uuidv4(),
       name: body.name,
-      email: body.email || null,
+      email: body.email || undefined,
       weight: body.weight ?? 1,
       joinedAt: new Date().toISOString(),
       isActive: true,

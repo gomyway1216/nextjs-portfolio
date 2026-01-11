@@ -104,6 +104,7 @@ export interface WarikanGroup {
   exchangeRates?: Record<string, number>;
   createdBy: string | null; // null for anonymous users
   shareCode: string;
+  hasPasscode: boolean; // Whether passcode is set
   members: Member[];
   isSettled: boolean;
   settledAt?: string;
@@ -115,6 +116,7 @@ export interface CreateGroupInput {
   name: string;
   description?: string;
   currency?: Currency;
+  passcode?: string; // Optional 4-6 digit passcode
   members?: CreateMemberInput[];
 }
 
@@ -123,7 +125,12 @@ export interface UpdateGroupInput {
   description?: string;
   currency?: Currency;
   exchangeRates?: Record<string, number>;
+  passcode?: string | null; // Set to null to remove passcode
   isSettled?: boolean;
+}
+
+export interface VerifyPasscodeInput {
+  passcode: string;
 }
 
 // ============================================================================

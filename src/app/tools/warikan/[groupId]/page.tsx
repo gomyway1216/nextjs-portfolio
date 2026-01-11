@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,14 +28,16 @@ import {
   SettlementList,
   BalanceSummary,
   ShareDialog,
+  PasscodeDialog,
 } from '@/components/warikan';
 import type { CreatePaymentInput } from '@/types/warikan';
 
 export default function WarikanGroupPage() {
   const params = useParams();
+  const router = useRouter();
   const groupId = params.groupId as string;
 
-  const { group, loading: groupLoading, refetch: refetchGroup } = useWarikanGroup(groupId);
+  const { group, loading: groupLoading, refetch: refetchGroup, requiresPasscode, verifyPasscode } = useWarikanGroup(groupId);
   const { payments, loading: paymentsLoading, refetch: refetchPayments } = useWarikanPayments(groupId);
   const { settlements, loading: settlementsLoading, refetch: refetchSettlements } = useWarikanSettlements(groupId);
   const { addMember, updateMember, removeMember, createPayment, deletePayment, generateQRCode, loading: mutationLoading } = useWarikanMutations();
@@ -110,6 +112,18 @@ export default function WarikanGroupPage() {
       <div className="flex items-center justify-center min-h-[400px]">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
+    );
+  }
+
+  // Show passcode dialog if required
+  if (requiresPasscode && group) {
+    return (
+      <PasscodeDialog
+        open={true}
+        groupName={group.name}
+        onVerify={verifyPasscode}
+        onCancel={() => router.push('/tools/warikan')}
+      />
     );
   }
 

@@ -24,6 +24,8 @@ interface UseWarikanGroupResult {
   group: WarikanGroup | null;
   loading: boolean;
   error: string | null;
+  requiresPasscode: boolean;
+  verifyPasscode: (passcode: string) => Promise<boolean>;
   refetch: () => Promise<void>;
 }
 
@@ -31,6 +33,8 @@ export function useWarikanGroup(groupId: string | null): UseWarikanGroupResult {
   const [group, setGroup] = useState<WarikanGroup | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [requiresPasscode, setRequiresPasscode] = useState(false);
+  const [verified, setVerified] = useState(false);
 
   const fetchGroup = useCallback(async () => {
     if (!groupId) {
@@ -42,13 +46,44 @@ export function useWarikanGroup(groupId: string | null): UseWarikanGroupResult {
     setError(null);
 
     try {
-      const data = await warikanService.getGroup(groupId);
-      setGroup(data);
+      const data = await warikanService.getGroup(groupId, verified);
+
+      // Check if passcode verification is required
+      if ((data as any).requiresPasscode) {
+        setRequiresPasscode(true);
+        setGroup({
+          id: data.id,
+          name: data.name,
+          hasPasscode: true,
+        } as WarikanGroup);
+      } else {
+        setRequiresPasscode(false);
+        setGroup(data);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch group');
       setGroup(null);
     } finally {
       setLoading(false);
+    }
+  }, [groupId, verified]);
+
+  const handleVerifyPasscode = useCallback(async (passcode: string): Promise<boolean> => {
+    if (!groupId) return false;
+
+    try {
+      const result = await warikanService.verifyPasscode(groupId, passcode);
+      if (result.verified) {
+        setVerified(true);
+        setRequiresPasscode(false);
+        // Refetch with verified flag
+        const data = await warikanService.getGroup(groupId, true);
+        setGroup(data);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
     }
   }, [groupId]);
 
@@ -56,7 +91,14 @@ export function useWarikanGroup(groupId: string | null): UseWarikanGroupResult {
     fetchGroup();
   }, [fetchGroup]);
 
-  return { group, loading, error, refetch: fetchGroup };
+  return {
+    group,
+    loading,
+    error,
+    requiresPasscode,
+    verifyPasscode: handleVerifyPasscode,
+    refetch: fetchGroup
+  };
 }
 
 // ============================================================================
@@ -94,7 +136,17 @@ export function useWarikanGroupByShareCode(
     fetchGroup();
   }, [fetchGroup]);
 
-  return { group, loading, error, refetch: fetchGroup };
+  // Share code access doesn't require passcode verification (for now)
+  const noOpVerify = useCallback(async (): Promise<boolean> => true, []);
+
+  return {
+    group,
+    loading,
+    error,
+    requiresPasscode: false,
+    verifyPasscode: noOpVerify,
+    refetch: fetchGroup,
+  };
 }
 
 // ============================================================================

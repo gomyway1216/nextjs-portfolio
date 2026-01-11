@@ -15,7 +15,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ArrowLeft, Plus, X, Users } from 'lucide-react';
+import { ArrowLeft, Plus, X, Users, Lock } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { useWarikanMutations } from '@/hooks/useWarikan';
 import { Currency, CURRENCY_NAMES, type CreateMemberInput } from '@/types/warikan';
@@ -27,6 +28,8 @@ export default function NewWarikanGroupPage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [currency, setCurrency] = useState<Currency>(Currency.JPY);
+  const [usePasscode, setUsePasscode] = useState(false);
+  const [passcode, setPasscode] = useState('');
   const [members, setMembers] = useState<CreateMemberInput[]>([
     { name: '' },
     { name: '' },
@@ -62,12 +65,18 @@ export default function NewWarikanGroupPage() {
       return;
     }
 
+    if (usePasscode && passcode.length < 4) {
+      toast.error('パスコードは4桁以上で入力してください');
+      return;
+    }
+
     try {
       const result = await createGroup({
         name: name.trim(),
         description: description.trim() || undefined,
         currency,
         members: validMembers.map((m) => ({ name: m.name.trim() })),
+        passcode: usePasscode && passcode ? passcode : undefined,
       });
 
       toast.success('グループを作成しました');
@@ -136,6 +145,39 @@ export default function NewWarikanGroupPage() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Passcode Section */}
+            <div className="space-y-4 pt-4 border-t">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-muted-foreground" />
+                  <Label htmlFor="usePasscode">パスコードで保護</Label>
+                </div>
+                <Switch
+                  id="usePasscode"
+                  checked={usePasscode}
+                  onCheckedChange={setUsePasscode}
+                  disabled={loading}
+                />
+              </div>
+              {usePasscode && (
+                <div className="space-y-2">
+                  <Label htmlFor="passcode">パスコード</Label>
+                  <Input
+                    id="passcode"
+                    type="password"
+                    value={passcode}
+                    onChange={(e) => setPasscode(e.target.value)}
+                    placeholder="4桁以上のパスコード"
+                    minLength={4}
+                    disabled={loading}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    グループにアクセスする際にパスコードの入力が必要になります
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

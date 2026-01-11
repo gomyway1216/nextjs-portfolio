@@ -39,6 +39,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       exchangeRates: data.exchangeRates,
       createdBy: data.createdBy,
       shareCode: data.shareCode,
+      hasPasscode: data.hasPasscode || false,
       members: data.members || [],
       isSettled: data.isSettled || false,
       settledAt: data.settledAt?.toDate?.()?.toISOString(),

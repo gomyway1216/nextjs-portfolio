@@ -25,6 +25,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     }
 
     const data = groupDoc.data()!;
+
+    // Check if passcode verification is needed
+    const hasPasscode = data.hasPasscode || false;
+    const { searchParams } = new URL(request.url);
+    const verified = searchParams.get('verified') === 'true';
+
+    // If passcode is set and not verified, return limited info
+    if (hasPasscode && !verified) {
+      return NextResponse.json({
+        id: groupDoc.id,
+        name: data.name,
+        hasPasscode: true,
+        requiresPasscode: true,
+      });
+    }
+
     const group: WarikanGroup = {
       id: groupDoc.id,
       name: data.name,
@@ -33,6 +49,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       exchangeRates: data.exchangeRates,
       createdBy: data.createdBy,
       shareCode: data.shareCode,
+      hasPasscode,
       members: data.members || [],
       isSettled: data.isSettled || false,
       settledAt: data.settledAt?.toDate?.()?.toISOString(),

@@ -5,9 +5,20 @@ import {
   WARIKAN_GROUPS_COLLECTION,
   WARIKAN_USER_HISTORY_COLLECTION,
 } from '../../constants';
-import type { WarikanGroup, CreateGroupInput, Member, Currency } from '@/types/warikan';
+import type { WarikanGroup, CreateGroupInput, Member } from '@/types/warikan';
 import { v4 as uuidv4 } from 'uuid';
 import { generateShareCode } from '@/lib/warikanAlgorithm';
+import * as crypto from 'crypto';
+
+// Simple hash function for passcode
+function simpleHash(passcode: string): string {
+  return crypto.createHash('sha256').update(passcode).digest('hex');
+}
+
+// Verify passcode against hash
+export function verifyPasscode(passcode: string, hash: string): boolean {
+  return simpleHash(passcode) === hash;
+}
 
 // GET /api/warikan/groups - Get user's groups (requires auth)
 export async function GET(request: NextRequest) {
@@ -53,6 +64,7 @@ export async function GET(request: NextRequest) {
           exchangeRates: data.exchangeRates,
           createdBy: data.createdBy,
           shareCode: data.shareCode,
+          hasPasscode: data.hasPasscode || false,
           members: data.members || [],
           isSettled: data.isSettled || false,
           settledAt: data.settledAt?.toDate?.()?.toISOString(),
@@ -109,7 +121,7 @@ export async function POST(request: NextRequest) {
     const members: Member[] = (body.members || []).map((m) => ({
       id: uuidv4(),
       name: m.name,
-      email: m.email || null,
+      email: m.email || undefined,
       weight: m.weight ?? 1,
       joinedAt: new Date().toISOString(),
       isActive: true,
@@ -138,6 +150,10 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Hash passcode if provided (simple hash for now)
+    const hasPasscode = !!body.passcode;
+    const passcodeHash = body.passcode ? simpleHash(body.passcode) : null;
+
     const newGroup = {
       name: body.name,
       description: body.description || '',
@@ -145,6 +161,8 @@ export async function POST(request: NextRequest) {
       exchangeRates: {},
       createdBy: user?.uid || null,
       shareCode,
+      hasPasscode,
+      passcodeHash,
       members,
       isSettled: false,
       createdAt: getServerTimestamp(),

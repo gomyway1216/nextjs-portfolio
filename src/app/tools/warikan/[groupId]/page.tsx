@@ -30,11 +30,48 @@ import {
   ShareDialog,
   PasscodeDialog,
 } from '@/components/warikan';
+import { useAuth } from '@/providers/AuthProvider';
 import type { CreatePaymentInput } from '@/types/warikan';
+
+// Local storage key for anonymous users
+const LOCAL_STORAGE_KEY = 'warikan_recent_groups';
+const MAX_LOCAL_GROUPS = 10;
+
+interface LocalGroupEntry {
+  id: string;
+  name: string;
+  accessedAt: string;
+}
+
+// Helper function to save group to localStorage
+function saveToLocalStorage(groupId: string, groupName: string) {
+  try {
+    const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
+    let groups: LocalGroupEntry[] = stored ? JSON.parse(stored) : [];
+
+    // Remove existing entry if present
+    groups = groups.filter((g) => g.id !== groupId);
+
+    // Add new entry at the beginning
+    groups.unshift({
+      id: groupId,
+      name: groupName,
+      accessedAt: new Date().toISOString(),
+    });
+
+    // Keep only the most recent entries
+    groups = groups.slice(0, MAX_LOCAL_GROUPS);
+
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(groups));
+  } catch {
+    // Ignore localStorage errors
+  }
+}
 
 export default function WarikanGroupPage() {
   const params = useParams();
   const router = useRouter();
+  const { currentUser } = useAuth();
   const groupId = params.groupId as string;
 
   const { group, loading: groupLoading, refetch: refetchGroup, requiresPasscode, verifyPasscode } = useWarikanGroup(groupId);
@@ -44,6 +81,13 @@ export default function WarikanGroupPage() {
 
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [activeTab, setActiveTab] = useState('payments');
+
+  // Save to localStorage for anonymous users when group is loaded
+  useEffect(() => {
+    if (group && !requiresPasscode && !currentUser) {
+      saveToLocalStorage(group.id, group.name);
+    }
+  }, [group, requiresPasscode, currentUser]);
 
   // Refetch settlements when payments change
   useEffect(() => {

@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowRight, CheckCircle2 } from 'lucide-react';
 import type { SettlementCalculation } from '@/types/settli';
 import { formatAmount } from '@/lib/settliAlgorithm';
+import { useTranslation } from 'react-i18next';
 
 interface SettlementListProps {
   calculations: SettlementCalculation[];
@@ -11,14 +12,15 @@ interface SettlementListProps {
 }
 
 export function SettlementList({ calculations, totalSettlementCount }: SettlementListProps) {
+  const { t } = useTranslation();
   if (totalSettlementCount === 0) {
     return (
       <Card>
         <CardContent className="p-8 text-center">
           <CheckCircle2 className="h-12 w-12 mx-auto mb-4 text-green-500" />
-          <p className="text-lg font-medium">精算完了!</p>
+          <p className="text-lg font-medium">{t('settli.settlement.completedTitle')}</p>
           <p className="text-muted-foreground">
-            全員の収支がバランスしています
+            {t('settli.settlement.completedDescription')}
           </p>
         </CardContent>
       </Card>
@@ -34,9 +36,9 @@ export function SettlementList({ calculations, totalSettlementCount }: Settlemen
           <Card key={calc.currency}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                精算リスト ({calc.currency})
+                {t('settli.settlement.listTitle')} ({calc.currency})
                 <span className="text-sm font-normal text-muted-foreground">
-                  ({calc.settlements.length}件の送金)
+                  ({t('settli.settlement.transferCount', { count: calc.settlements.length })})
                 </span>
               </CardTitle>
             </CardHeader>
@@ -75,7 +77,7 @@ export function SettlementList({ calculations, totalSettlementCount }: Settlemen
       })}
 
       <p className="text-sm text-muted-foreground text-center">
-        最適化された精算で、送金回数を最小限にしています
+        {t('settli.settlement.optimizedNote')}
       </p>
     </div>
   );

@@ -35,6 +35,7 @@ import { GroupCard, SettliLogo } from '@/components/settli';
 import { useSettliHistory } from '@/hooks/useSettli';
 import * as settliService from '@/services/settliService';
 import type { SettliGroup } from '@/types/settli';
+import { useTranslation } from 'react-i18next';
 
 // Local storage key for anonymous users
 const LOCAL_STORAGE_KEY = 'settli_recent_groups';
@@ -46,6 +47,7 @@ interface LocalGroupEntry {
 }
 
 export default function SettliPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { currentUser } = useAuth();
   const { history, loading: historyLoading } = useSettliHistory();
@@ -94,7 +96,7 @@ export default function SettliPage() {
     const code = joinCode.trim().toUpperCase();
 
     if (!code) {
-      toast.error('共有コードを入力してください');
+      toast.error(t('settli.page.toast.enterShareCode'));
       return;
     }
 
@@ -103,7 +105,7 @@ export default function SettliPage() {
       const group = await settliService.getGroupByShareCode(code);
       router.push(`/tools/settli/${group.id}`);
     } catch {
-      toast.error('グループが見つかりません');
+      toast.error(t('settli.page.toast.groupNotFound'));
     } finally {
       setJoining(false);
     }
@@ -126,10 +128,10 @@ export default function SettliPage() {
           {/* Tagline */}
           <div className="space-y-4 max-w-2xl mx-auto">
             <p className="text-xl md:text-2xl text-muted-foreground">
-              グループの精算を、スマートに。
+              {t('settli.page.hero.title')}
             </p>
             <p className="text-sm md:text-base text-muted-foreground/80">
-              旅行、飲み会、イベント。複雑な割り勘も、最適な精算方法を自動で計算。
+              {t('settli.page.hero.subtitle')}
             </p>
           </div>
 
@@ -138,14 +140,14 @@ export default function SettliPage() {
             <Link href="/tools/settli/new">
               <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-lg shadow-indigo-500/25" style={{ borderRadius: '9999px' }}>
                 <Plus className="h-5 w-5 mr-2" />
-                新しいグループを作成
+                {t('settli.page.hero.createGroup')}
               </Button>
             </Link>
             {currentUser && (
               <Link href="/tools/settli/history">
                 <Button size="lg" variant="outline" className="w-full sm:w-auto" style={{ borderRadius: '9999px' }}>
                   <History className="h-5 w-5 mr-2" />
-                  履歴を見る
+                  {t('settli.page.hero.viewHistory')}
                 </Button>
               </Link>
             )}
@@ -156,11 +158,11 @@ export default function SettliPage() {
       {/* Join by Code Section */}
       <div className="container mx-auto px-4 pt-6 pb-2 max-w-md">
         <form onSubmit={handleJoinByCode} className="flex gap-2 items-center">
-          <span className="text-sm text-muted-foreground shrink-0">コードで参加</span>
+          <span className="text-sm text-muted-foreground shrink-0">{t('settli.page.joinByCode')}</span>
           <Input
             value={joinCode}
             onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-            placeholder="ABC123"
+            placeholder={t('settli.page.shareCodePlaceholder')}
             className="font-mono text-center uppercase tracking-widest"
             style={{ borderRadius: '9999px' }}
             maxLength={10}
@@ -178,11 +180,11 @@ export default function SettliPage() {
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-base font-semibold flex items-center gap-1.5">
               <Clock className="h-4 w-4 text-muted-foreground" />
-              最近のグループ
+              {t('settli.page.recentGroups')}
             </h2>
             <Link href="/tools/settli/history">
               <Button variant="ghost" size="sm" style={{ borderRadius: '9999px' }} className="text-xs h-7 px-2">
-                すべて見る <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+                {t('settli.page.viewAll')} <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
               </Button>
             </Link>
           </div>
@@ -207,7 +209,7 @@ export default function SettliPage() {
         <div className="container mx-auto px-4 py-6 max-w-2xl">
           <h2 className="text-base font-semibold flex items-center gap-1.5 mb-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
-            最近アクセスしたグループ
+            {t('settli.page.recentAccessed')}
           </h2>
           <div className="divide-y rounded-xl border overflow-hidden">
             {localGroups.map((entry) => (
@@ -225,11 +227,11 @@ export default function SettliPage() {
         <div className="text-center mb-12">
           <h2 className="text-3xl font-bold mb-4">
             <span className="bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
-              シンプルで、パワフル
+              {t('settli.page.featuresTitle')}
             </span>
           </h2>
           <p className="text-muted-foreground max-w-xl mx-auto">
-            複雑な割り勘計算を、誰でも簡単に。
+            {t('settli.page.featuresSubtitle')}
           </p>
         </div>
 
@@ -237,38 +239,38 @@ export default function SettliPage() {
           {[
             {
               icon: Zap,
-              title: '最適精算アルゴリズム',
-              description: '送金回数を最小限に。AIが最も効率的な精算方法を瞬時に計算。',
+              title: t('settli.page.features.items.optimize.title'),
+              description: t('settli.page.features.items.optimize.description'),
               gradient: 'from-yellow-500 to-orange-500',
             },
             {
               icon: Users,
-              title: '柔軟な傾斜配分',
-              description: '途中参加、お酒を飲まない人など、一人ひとりの負担割合をカスタマイズ。',
+              title: t('settli.page.features.items.weighted.title'),
+              description: t('settli.page.features.items.weighted.description'),
               gradient: 'from-green-500 to-emerald-500',
             },
             {
               icon: Share2,
-              title: 'ワンクリック共有',
-              description: 'リンクやQRコードで即座に共有。アプリのインストール不要。',
+              title: t('settli.page.features.items.share.title'),
+              description: t('settli.page.features.items.share.description'),
               gradient: 'from-blue-500 to-cyan-500',
             },
             {
               icon: Shield,
-              title: 'パスコード保護',
-              description: 'グループをパスコードで保護。プライバシーを守ります。',
+              title: t('settli.page.features.items.passcode.title'),
+              description: t('settli.page.features.items.passcode.description'),
               gradient: 'from-red-500 to-pink-500',
             },
             {
               icon: Globe,
-              title: '多通貨対応',
-              description: '日本円、ドル、ユーロなど。海外旅行でもそのまま使える。',
+              title: t('settli.page.features.items.multicurrency.title'),
+              description: t('settli.page.features.items.multicurrency.description'),
               gradient: 'from-purple-500 to-indigo-500',
             },
             {
               icon: Sparkles,
-              title: 'ログイン不要',
-              description: 'すぐに使い始められる。ログインすれば履歴も保存。',
+              title: t('settli.page.features.items.noLogin.title'),
+              description: t('settli.page.features.items.noLogin.description'),
               gradient: 'from-pink-500 to-rose-500',
             },
           ].map(({ icon: Icon, title, description, gradient }) => (
@@ -288,13 +290,13 @@ export default function SettliPage() {
       {/* How it Works */}
       <div className="bg-muted/30 py-16">
         <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">使い方</h2>
+        <h2 className="text-3xl font-bold text-center mb-12">{t('settli.page.howToUseTitle')}</h2>
           <div className="grid gap-8 md:grid-cols-4 max-w-4xl mx-auto">
             {[
-              { step: 1, title: 'グループ作成', desc: 'メンバーを追加', icon: Users },
-              { step: 2, title: '支払いを記録', desc: '誰が何を払ったか', icon: Calculator },
-              { step: 3, title: '精算を確認', desc: '自動で最適計算', icon: Zap },
-              { step: 4, title: '共有', desc: 'リンクで共有', icon: Share2 },
+              { step: 1, title: t('settli.page.howToUse.step1.title'), desc: t('settli.page.howToUse.step1.desc'), icon: Users },
+              { step: 2, title: t('settli.page.howToUse.step2.title'), desc: t('settli.page.howToUse.step2.desc'), icon: Calculator },
+              { step: 3, title: t('settli.page.howToUse.step3.title'), desc: t('settli.page.howToUse.step3.desc'), icon: Zap },
+              { step: 4, title: t('settli.page.howToUse.step4.title'), desc: t('settli.page.howToUse.step4.desc'), icon: Share2 },
             ].map(({ step, title, desc, icon: Icon }) => (
               <div key={step} className="flex flex-col items-center text-center">
                 <div className="relative mb-4">
@@ -315,34 +317,30 @@ export default function SettliPage() {
 
       {/* FAQ */}
       <div className="container mx-auto px-4 py-16">
-        <h2 className="text-3xl font-bold text-center mb-12">よくある質問</h2>
+        <h2 className="text-3xl font-bold text-center mb-12">{t('settli.page.faqTitle')}</h2>
         <Accordion type="single" collapsible className="max-w-2xl mx-auto">
           <AccordionItem value="item-1">
-            <AccordionTrigger>ログインしなくても使えますか？</AccordionTrigger>
+            <AccordionTrigger>{t('settli.page.faq.q1')}</AccordionTrigger>
             <AccordionContent>
-              はい、ログインなしでもすべての機能が使えます。
-              ログインすると履歴が保存され、後から簡単にアクセスできます。
+              {t('settli.page.faq.a1')}
             </AccordionContent>
           </AccordionItem>
           <AccordionItem value="item-2">
-            <AccordionTrigger>グループのURLを忘れてしまいました</AccordionTrigger>
+            <AccordionTrigger>{t('settli.page.faq.q2')}</AccordionTrigger>
             <AccordionContent>
-              ログインしていた場合は「履歴」から確認できます。
-              そうでない場合は、共有した相手にリンクを聞いてください。
+              {t('settli.page.faq.a2')}
             </AccordionContent>
           </AccordionItem>
           <AccordionItem value="item-3">
-            <AccordionTrigger>途中参加の人の負担を減らせますか？</AccordionTrigger>
+            <AccordionTrigger>{t('settli.page.faq.q3')}</AccordionTrigger>
             <AccordionContent>
-              はい、メンバーごとに「重み」を設定できます。
-              例：途中参加 → 0.5倍、幹事 → 0倍など。
+              {t('settli.page.faq.a3')}
             </AccordionContent>
           </AccordionItem>
           <AccordionItem value="item-4">
-            <AccordionTrigger>データは安全ですか？</AccordionTrigger>
+            <AccordionTrigger>{t('settli.page.faq.q4')}</AccordionTrigger>
             <AccordionContent>
-              はい、データはクラウドに安全に保存されます。
-              パスコードを設定すれば、第三者のアクセスを防げます。
+              {t('settli.page.faq.a4')}
             </AccordionContent>
           </AccordionItem>
         </Accordion>
@@ -353,18 +351,18 @@ export default function SettliPage() {
         <div className="container mx-auto px-4 py-8 pb-16">
           <Card className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border-indigo-500/20">
             <CardContent className="p-8 text-center space-y-4">
-              <h3 className="text-xl font-semibold">アカウントを作成して履歴を保存</h3>
+              <h3 className="text-xl font-semibold">{t('settli.page.cta.title')}</h3>
               <p className="text-muted-foreground max-w-md mx-auto">
-                ログインすると、作成したグループの履歴が保存され、いつでもアクセスできます。
+                {t('settli.page.cta.subtitle')}
               </p>
               <div className="flex gap-3 justify-center pt-2">
                 <Link href="/signin">
                   <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600" style={{ borderRadius: '9999px' }}>
-                    ログイン / 新規登録
+                    {t('settli.page.cta.login')}
                   </Button>
                 </Link>
                 <Link href="/tools/settli/new">
-                  <Button variant="outline" style={{ borderRadius: '9999px' }}>まずは試してみる</Button>
+                  <Button variant="outline" style={{ borderRadius: '9999px' }}>{t('settli.page.cta.tryNow')}</Button>
                 </Link>
               </div>
             </CardContent>

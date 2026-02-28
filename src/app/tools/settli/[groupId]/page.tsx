@@ -32,6 +32,7 @@ import {
 } from '@/components/settli';
 import { useAuth } from '@/providers/AuthProvider';
 import type { CreatePaymentInput, UpdatePaymentInput, Payment } from '@/types/settli';
+import { useTranslation } from 'react-i18next';
 
 // Local storage key for anonymous users
 const LOCAL_STORAGE_KEY = 'settli_recent_groups';
@@ -69,6 +70,7 @@ function saveToLocalStorage(groupId: string, groupName: string) {
 }
 
 export default function SettliGroupPage() {
+  const { t } = useTranslation();
   const params = useParams();
   const router = useRouter();
   const { currentUser } = useAuth();
@@ -101,9 +103,9 @@ export default function SettliGroupPage() {
     try {
       await addMember(groupId, { name, email, weight });
       await refetchGroup();
-      toast.success('メンバーを追加しました');
+      toast.success(t('settli.group.toast.memberAdded'));
     } catch {
-      toast.error('メンバーの追加に失敗しました');
+      toast.error(t('settli.group.toast.memberAddFailed'));
     }
   };
 
@@ -111,9 +113,9 @@ export default function SettliGroupPage() {
     try {
       await updateMember(groupId, memberId, { name, weight });
       await refetchGroup();
-      toast.success('メンバーを更新しました');
+      toast.success(t('settli.group.toast.memberUpdated'));
     } catch {
-      toast.error('メンバーの更新に失敗しました');
+      toast.error(t('settli.group.toast.memberUpdateFailed'));
     }
   };
 
@@ -121,9 +123,9 @@ export default function SettliGroupPage() {
     try {
       await removeMember(groupId, memberId);
       await refetchGroup();
-      toast.success('メンバーを削除しました');
+      toast.success(t('settli.group.toast.memberRemoved'));
     } catch {
-      toast.error('メンバーの削除に失敗しました');
+      toast.error(t('settli.group.toast.memberRemoveFailed'));
     }
   };
 
@@ -132,9 +134,9 @@ export default function SettliGroupPage() {
       await createPayment(input);
       await refetchPayments();
       setShowPaymentForm(false);
-      toast.success('支払いを追加しました');
+      toast.success(t('settli.group.toast.paymentAdded'));
     } catch {
-      toast.error('支払いの追加に失敗しました');
+      toast.error(t('settli.group.toast.paymentAddFailed'));
     }
   };
 
@@ -154,9 +156,9 @@ export default function SettliGroupPage() {
       await updatePayment(groupId, editingPayment.id, updateInput);
       await refetchPayments();
       setEditingPayment(null);
-      toast.success('支払いを更新しました');
+      toast.success(t('settli.group.toast.paymentUpdated'));
     } catch {
-      toast.error('支払いの更新に失敗しました');
+      toast.error(t('settli.group.toast.paymentUpdateFailed'));
     }
   };
 
@@ -164,9 +166,9 @@ export default function SettliGroupPage() {
     try {
       await deletePayment(groupId, paymentId);
       await refetchPayments();
-      toast.success('支払いを削除しました');
+      toast.success(t('settli.group.toast.paymentDeleted'));
     } catch {
-      toast.error('支払いの削除に失敗しました');
+      toast.error(t('settli.group.toast.paymentDeleteFailed'));
     }
   };
 
@@ -198,13 +200,13 @@ export default function SettliGroupPage() {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
         <SettliLogo size={48} className="mx-auto mb-6" />
-        <h2 className="text-xl font-semibold mb-2">グループが見つかりません</h2>
+        <h2 className="text-xl font-semibold mb-2">{t('settli.group.notFoundTitle')}</h2>
         <p className="text-muted-foreground mb-6">
-          このグループは存在しないか、アクセス権限がありません
+          {t('settli.group.notFoundDescription')}
         </p>
         <Link href="/tools/settli">
           <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600" style={{ borderRadius: '9999px' }}>
-            トップに戻る
+            {t('settli.group.backToTop')}
           </Button>
         </Link>
       </div>
@@ -244,19 +246,19 @@ export default function SettliGroupPage() {
         <span className="flex items-center gap-1.5">
           <Users className="h-3.5 w-3.5" />
           <span className="font-medium text-foreground">{group.members.filter((m) => m.isActive !== false).length}</span>
-          人
+          {t('settli.common.peopleSuffix')}
         </span>
         <span className="text-border">|</span>
         <span className="flex items-center gap-1.5">
           <Receipt className="h-3.5 w-3.5" />
           <span className="font-medium text-foreground">{payments.length}</span>
-          件
+          {t('settli.common.itemsSuffix')}
         </span>
         <span className="text-border">|</span>
         <span className="flex items-center gap-1.5">
           <Calculator className="h-3.5 w-3.5" />
           <span className="font-medium text-foreground">{settlements?.totalSettlementCount || 0}</span>
-          精算
+          {t('settli.group.settlement')}
         </span>
       </div>
 
@@ -265,15 +267,15 @@ export default function SettliGroupPage() {
         <TabsList className="w-full grid grid-cols-3">
           <TabsTrigger value="payments" className="flex items-center gap-1">
             <Receipt className="h-4 w-4" />
-            支払い
+            {t('settli.group.tabs.payments')}
           </TabsTrigger>
           <TabsTrigger value="members" className="flex items-center gap-1">
             <Users className="h-4 w-4" />
-            メンバー
+            {t('settli.group.tabs.members')}
           </TabsTrigger>
           <TabsTrigger value="settlements" className="flex items-center gap-1">
             <Calculator className="h-4 w-4" />
-            精算
+            {t('settli.group.tabs.settlements')}
           </TabsTrigger>
         </TabsList>
 
@@ -301,7 +303,7 @@ export default function SettliGroupPage() {
                 disabled={group.members.filter((m) => m.isActive !== false).length < 2}
               >
                 <Plus className="h-4 w-4 mr-2" />
-                支払いを追加
+                {t('settli.group.addPayment')}
               </Button>
               <Button
                 onClick={() => setShowPaymentForm(true)}
@@ -324,9 +326,7 @@ export default function SettliGroupPage() {
               <CardContent className="p-8 text-center">
                 <Receipt className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                 <p className="text-muted-foreground">
-                  まだ支払いがありません。
-                  <br />
-                  上のボタンから支払いを追加してください。
+                  {t('settli.group.emptyPayments')}
                 </p>
               </CardContent>
             </Card>
@@ -376,7 +376,7 @@ export default function SettliGroupPage() {
               <CardContent className="p-8 text-center">
                 <Calculator className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                 <p className="text-muted-foreground">
-                  精算情報を読み込み中...
+                  {t('settli.group.loadingSettlement')}
                 </p>
               </CardContent>
             </Card>

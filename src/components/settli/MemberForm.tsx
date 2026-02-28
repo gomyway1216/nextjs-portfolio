@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useTranslation } from 'react-i18next';
 
 interface MemberFormProps {
   initialName?: string;
@@ -24,6 +25,7 @@ export function MemberForm({
   loading,
   isEdit,
 }: MemberFormProps) {
+  const { t } = useTranslation();
   const [name, setName] = useState(initialName);
   const [email, setEmail] = useState(initialEmail);
   const [weight, setWeight] = useState(initialWeight);
@@ -40,19 +42,19 @@ export function MemberForm({
       className="p-4 border rounded-lg bg-background space-y-3"
     >
       <div className="space-y-2">
-        <Label htmlFor="member-name">名前 *</Label>
+        <Label htmlFor="member-name">{t('settli.member.name')} *</Label>
         <Input
           id="member-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          placeholder="山田 太郎"
+          placeholder={t('settli.member.namePlaceholder')}
           required
           disabled={loading}
         />
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="member-email">メール (任意)</Label>
+        <Label htmlFor="member-email">{t('settli.member.email')} ({t('settli.common.optional')})</Label>
         <Input
           id="member-email"
           type="email"
@@ -64,9 +66,7 @@ export function MemberForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="member-weight">
-          負担割合 (デフォルト: 1)
-        </Label>
+        <Label htmlFor="member-weight">{t('settli.member.weight')}</Label>
         <Input
           id="member-weight"
           type="number"
@@ -78,7 +78,7 @@ export function MemberForm({
           disabled={loading}
         />
         <p className="text-xs text-muted-foreground">
-          1より大きいと多く負担、小さいと少なく負担
+          {t('settli.member.weightHint')}
         </p>
       </div>
 
@@ -89,10 +89,10 @@ export function MemberForm({
           onClick={onCancel}
           disabled={loading}
         >
-          キャンセル
+          {t('settli.common.cancel')}
         </Button>
         <Button type="submit" disabled={loading || !name.trim()}>
-          {isEdit ? '更新' : '追加'}
+          {isEdit ? t('settli.common.update') : t('settli.common.add')}
         </Button>
       </div>
     </form>

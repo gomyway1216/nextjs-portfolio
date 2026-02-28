@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Share2, Copy, Check, QrCode, Link } from 'lucide-react';
 import { toast } from 'sonner';
 import type { QRCodeResponse } from '@/types/settli';
+import { useTranslation } from 'react-i18next';
 
 interface ShareDialogProps {
   groupId: string;
@@ -27,6 +28,7 @@ export function ShareDialog({
   shareCode,
   onGenerateQR,
 }: ShareDialogProps) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [qrData, setQrData] = useState<QRCodeResponse | null>(null);
@@ -60,10 +62,10 @@ export function ShareDialog({
     try {
       await navigator.clipboard.writeText(shareUrl);
       setCopied(true);
-      toast.success('リンクをコピーしました');
+      toast.success(t('settli.share.toast.copied'));
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error('コピーに失敗しました');
+      toast.error(t('settli.share.toast.copyFailed'));
     }
   };
 
@@ -71,8 +73,8 @@ export function ShareDialog({
     if (navigator.share) {
       try {
         await navigator.share({
-          title: `${groupName} - ワリカン`,
-          text: `「${groupName}」の割り勘グループに参加してください`,
+          title: t('settli.share.native.title', { groupName }),
+          text: t('settli.share.native.text', { groupName }),
           url: shareUrl,
         });
       } catch (error) {
@@ -91,14 +93,14 @@ export function ShareDialog({
       <DialogTrigger asChild>
         <Button variant="outline" style={{ borderRadius: '9999px' }}>
           <Share2 className="h-4 w-4 mr-2" />
-          共有
+          {t('settli.share.button')}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>グループを共有</DialogTitle>
+          <DialogTitle>{t('settli.share.title')}</DialogTitle>
           <DialogDescription>
-            リンクまたはQRコードでメンバーを招待できます
+            {t('settli.share.description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -121,7 +123,7 @@ export function ShareDialog({
               </div>
             )}
             <p className="text-sm text-muted-foreground text-center">
-              スマートフォンでQRコードをスキャン
+              {t('settli.share.scanQr')}
             </p>
           </div>
 
@@ -129,7 +131,7 @@ export function ShareDialog({
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <Link className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-medium">共有リンク</span>
+              <span className="text-sm font-medium">{t('settli.share.linkLabel')}</span>
             </div>
             <div className="flex gap-2">
               <Input value={shareUrl} readOnly className="text-sm" />
@@ -150,7 +152,7 @@ export function ShareDialog({
 
           {/* Share Code */}
           <div className="p-4 bg-muted rounded-lg text-center">
-            <p className="text-sm text-muted-foreground mb-1">共有コード</p>
+            <p className="text-sm text-muted-foreground mb-1">{t('settli.share.codeLabel')}</p>
             <p className="text-2xl font-mono font-bold tracking-widest">
               {shareCode}
             </p>
@@ -159,7 +161,7 @@ export function ShareDialog({
           {/* Share Button */}
           <Button onClick={shareNative} className="w-full">
             <Share2 className="h-4 w-4 mr-2" />
-            共有する
+            {t('settli.share.shareNow')}
           </Button>
         </div>
       </DialogContent>

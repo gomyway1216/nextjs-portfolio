@@ -1,36 +1,48 @@
 /**
  * Custom hook for persisting game high scores to Firebase
  * Uses localStorage for immediate display and syncs with Firebase
+ * When logged in, uses Firebase Auth uid as playerId
  */
 
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth } from '@/providers/AuthProvider';
 import * as gameScoreService from '@/services/gameScoreService';
 
 const STORAGE_PREFIX = 'game_high_score_';
 
 /**
  * Hook to manage persistent high scores for games
- * - Displays from localStorage immediately (fast)
- * - Syncs with Firebase in background
- * @param gameKey - Unique identifier for the game (e.g., 'jumpgame', 'tetris')
- * @returns [highScore, updateHighScore] - Current high score and function to update it
+ * - Logged-in users: uses Firebase Auth uid as playerId
+ * - Guests: uses a locally-generated playerId
+ * - On login, migrates guest scores to uid
  */
 export function useHighScore(gameKey: string): [number, (score: number) => void] {
   const [highScore, setHighScore] = useState<number>(0);
+  const { currentUser } = useAuth();
+  const uid = currentUser?.uid as string | undefined;
+  const playerId = gameScoreService.resolvePlayerId(uid);
   const storageKey = `${STORAGE_PREFIX}${gameKey}`;
   const pendingUpdateRef = useRef<number | null>(null);
   const isMountedRef = useRef(true);
+  const hasMigratedRef = useRef(false);
 
-  // Load high score on mount
+  // Migrate guest scores when user logs in
+  useEffect(() => {
+    if (uid && !hasMigratedRef.current) {
+      hasMigratedRef.current = true;
+      gameScoreService.migrateGuestScores(uid);
+    }
+  }, [uid]);
+
+  // Load high score on mount or when playerId changes
   useEffect(() => {
     isMountedRef.current = true;
 
     const loadHighScore = async () => {
       let localScore = 0;
 
-      // Load from localStorage first (immediate)
       if (typeof window !== 'undefined') {
         try {
           const stored = localStorage.getItem(storageKey);
@@ -38,9 +50,7 @@ export function useHighScore(gameKey: string): [number, (score: number) => void]
             const parsed = parseInt(stored, 10);
             if (!isNaN(parsed) && parsed > 0) {
               localScore = parsed;
-              if (isMountedRef.current) {
-                setHighScore(parsed);
-              }
+              if (isMountedRef.current) setHighScore(parsed);
             }
           }
         } catch (e) {
@@ -48,25 +58,20 @@ export function useHighScore(gameKey: string): [number, (score: number) => void]
         }
       }
 
-      // Then try to get from Firebase and merge
       try {
-        const firebaseScore = await gameScoreService.getHighScore(gameKey);
+        const firebaseScore = await gameScoreService.getHighScore(gameKey, playerId);
         if (isMountedRef.current) {
           const finalScore = Math.max(localScore, firebaseScore);
           setHighScore(finalScore);
 
-          // Sync the higher score to both places
           if (localScore > firebaseScore && localScore > 0) {
-            // Local has higher score, sync to Firebase
-            await gameScoreService.updateHighScore(gameKey, localScore);
+            await gameScoreService.updateHighScore(gameKey, localScore, playerId);
           } else if (firebaseScore > localScore && typeof window !== 'undefined') {
-            // Firebase has higher score, update localStorage
             localStorage.setItem(storageKey, firebaseScore.toString());
           }
         }
       } catch (e) {
         console.warn('Failed to sync high score with Firebase:', e);
-        // Keep using localStorage score
       }
     };
 
@@ -75,16 +80,12 @@ export function useHighScore(gameKey: string): [number, (score: number) => void]
     return () => {
       isMountedRef.current = false;
     };
-  }, [gameKey, storageKey]);
+  }, [gameKey, storageKey, playerId]);
 
-  // Update high score if new score is higher
   const updateHighScore = useCallback((score: number) => {
-    setHighScore(current => {
-      if (score <= current) {
-        return current;
-      }
+    setHighScore((current) => {
+      if (score <= current) return current;
 
-      // Save to localStorage immediately
       if (typeof window !== 'undefined') {
         try {
           localStorage.setItem(storageKey, score.toString());
@@ -93,14 +94,13 @@ export function useHighScore(gameKey: string): [number, (score: number) => void]
         }
       }
 
-      // Debounce Firebase updates
       if (pendingUpdateRef.current !== null) {
         clearTimeout(pendingUpdateRef.current);
       }
 
       pendingUpdateRef.current = window.setTimeout(async () => {
         try {
-          await gameScoreService.updateHighScore(gameKey, score);
+          await gameScoreService.updateHighScore(gameKey, score, playerId);
         } catch (e) {
           console.warn('Failed to save high score to Firebase:', e);
         }
@@ -109,9 +109,8 @@ export function useHighScore(gameKey: string): [number, (score: number) => void]
 
       return score;
     });
-  }, [storageKey, gameKey]);
+  }, [storageKey, gameKey, playerId]);
 
-  // Cleanup pending updates on unmount
   useEffect(() => {
     return () => {
       if (pendingUpdateRef.current !== null) {
@@ -138,9 +137,7 @@ export function getAllHighScores(): Record<string, number> {
           const value = localStorage.getItem(key);
           if (value) {
             const parsed = parseInt(value, 10);
-            if (!isNaN(parsed)) {
-              scores[gameKey] = parsed;
-            }
+            if (!isNaN(parsed)) scores[gameKey] = parsed;
           }
         }
       }

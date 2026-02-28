@@ -14,6 +14,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Check } from 'lucide-react';
 import type { Member, CreatePaymentInput, Payment, Participant } from '@/types/settli';
+import { useTranslation } from 'react-i18next';
 import {
   SplitType,
   PaymentCategory,
@@ -42,6 +43,7 @@ export function PaymentForm({
   onCancel,
   loading,
 }: PaymentFormProps) {
+  const { t } = useTranslation();
   const [payerId, setPayerId] = useState(initialPayment?.payerId || '');
   const [amount, setAmount] = useState(initialPayment?.amount?.toString() || '');
   const [description, setDescription] = useState(initialPayment?.description || '');
@@ -109,22 +111,26 @@ export function PaymentForm({
   };
 
   const allSelected = selectedParticipants.length === activeMembers.length;
+  const currencyName = (key: string, fallback: string) =>
+    t(`settli.currency.${key}`, { defaultValue: fallback });
+  const categoryLabel = (key: string, fallback: string) =>
+    t(`settli.payment.categories.${key}`, { defaultValue: fallback });
 
   return (
     <Card>
       <CardHeader className="pb-4">
         <CardTitle className="text-lg">
-          {initialPayment ? '支払いを編集' : '支払いを追加'}
+          {initialPayment ? t('settli.payment.editTitle') : t('settli.payment.addTitle')}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Payer */}
           <div className="space-y-1.5">
-            <Label htmlFor="payer" className="text-sm font-medium">支払った人 *</Label>
+            <Label htmlFor="payer" className="text-sm font-medium">{t('settli.payment.payer')} *</Label>
             <Select value={payerId} onValueChange={setPayerId}>
               <SelectTrigger id="payer" className="w-full">
-                <SelectValue placeholder="選択してください" />
+                <SelectValue placeholder={t('settli.common.select')} />
               </SelectTrigger>
               <SelectContent>
                 {activeMembers.map((member) => (
@@ -138,7 +144,7 @@ export function PaymentForm({
 
           {/* Amount + Currency */}
           <div className="space-y-1.5">
-            <Label htmlFor="amount" className="text-sm font-medium">金額 *</Label>
+            <Label htmlFor="amount" className="text-sm font-medium">{t('settli.payment.amount')} *</Label>
             <div className="flex gap-2">
               <div
                 className="flex items-center h-9 w-full rounded-md border border-input bg-transparent shadow-sm focus-within:outline-none focus-within:ring-1 focus-within:ring-ring min-w-0"
@@ -176,7 +182,7 @@ export function PaymentForm({
                 <SelectContent>
                   {Object.entries(CURRENCY_NAMES).map(([key, label]) => (
                     <SelectItem key={key} value={key}>
-                      {key} - {label}
+                      {key} - {currencyName(key, label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -186,12 +192,12 @@ export function PaymentForm({
 
           {/* Description */}
           <div className="space-y-1.5">
-            <Label htmlFor="description" className="text-sm font-medium">内容 *</Label>
+            <Label htmlFor="description" className="text-sm font-medium">{t('settli.payment.description')} *</Label>
             <Input
               id="description"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="ランチ、タクシー代など"
+              placeholder={t('settli.payment.descriptionPlaceholder')}
               required
               disabled={loading}
             />
@@ -200,25 +206,25 @@ export function PaymentForm({
           {/* Category & Date row */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <Label htmlFor="category" className="text-sm font-medium">カテゴリ</Label>
+              <Label htmlFor="category" className="text-sm font-medium">{t('settli.payment.category')}</Label>
               <Select
                 value={category}
                 onValueChange={(v) => setCategory(v as PaymentCategory)}
               >
                 <SelectTrigger id="category" className="w-full">
-                  <SelectValue placeholder="任意" />
+                  <SelectValue placeholder={t('settli.common.optional')} />
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(PAYMENT_CATEGORY_LABELS).map(([key, label]) => (
                     <SelectItem key={key} value={key}>
-                      {label}
+                      {categoryLabel(key, label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="date" className="text-sm font-medium">日付</Label>
+              <Label htmlFor="date" className="text-sm font-medium">{t('settli.payment.date')}</Label>
               <Input
                 id="date"
                 type="date"
@@ -233,7 +239,7 @@ export function PaymentForm({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label className="text-sm font-medium">
-                割り勘メンバー *
+                {t('settli.payment.splitMembers')} *
                 <span className="text-muted-foreground font-normal ml-1">
                   ({selectedParticipants.length}/{activeMembers.length})
                 </span>
@@ -245,7 +251,7 @@ export function PaymentForm({
                 className="h-7 text-xs px-2"
                 onClick={allSelected ? clearAllParticipants : selectAllParticipants}
               >
-                {allSelected ? '全解除' : '全選択'}
+                {allSelected ? t('settli.common.clearAll') : t('settli.common.selectAll')}
               </Button>
             </div>
             <div className="space-y-1.5">
@@ -302,7 +308,7 @@ export function PaymentForm({
               disabled={loading}
               className="flex-1"
             >
-              キャンセル
+              {t('settli.common.cancel')}
             </Button>
             <Button
               type="submit"
@@ -315,7 +321,11 @@ export function PaymentForm({
               }
               className="flex-1"
             >
-              {loading ? '処理中...' : initialPayment ? '更新' : '追加'}
+              {loading
+                ? t('settli.common.processing')
+                : initialPayment
+                  ? t('settli.common.update')
+                  : t('settli.common.add')}
             </Button>
           </div>
         </form>

@@ -6,51 +6,55 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/providers/AuthProvider';
-import { AlertCircle, Shield, ArrowLeft, Mail, Phone, MessageSquare, Loader2, Lock } from 'lucide-react';
+import { AlertCircle, Shield, ArrowLeft, Mail, Phone, MessageSquare, Loader2, Lock, UserPlus } from 'lucide-react';
 import { resetPassword } from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
 
-const defaultInput = {
-  email: '',
-  password: ''
-};
+type AuthMode = 'signin' | 'signup';
 
 const SignInPage = () => {
-  const [itemInput, setItemInput] = useState(defaultInput);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [errorText, setErrorText] = useState(defaultInput);
-  const [error, setError] = useState<string>('');
-  const [twoFactorCode, setTwoFactorCode] = useState<string>('');
-  const [codeSent, setCodeSent] = useState<boolean>(false);
-  const [sendingCode, setSendingCode] = useState<boolean>(false);
-  const [verifying, setVerifying] = useState<boolean>(false);
-  const [resetSent, setResetSent] = useState<boolean>(false);
-  const [resetLoading, setResetLoading] = useState<boolean>(false);
+  const [mode, setMode] = useState<AuthMode>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [codeSent, setCodeSent] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectPath = searchParams.get('redirect') || '/';
+
   const {
+    signIn,
+    signUp,
     signInWithTwoFactor,
     sendMfaCode,
     verifyTwoFactorAndComplete,
     twoFactorRequired,
     mfaPhoneHint,
     cancelTwoFactor,
-    currentUser
+    currentUser,
   } = useAuth();
 
-  // reCAPTCHA
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
-  // Redirect if already logged in
   useEffect(() => {
     if (currentUser) {
-      router.push('/');
+      router.push(redirectPath);
     }
-  }, [currentUser, router]);
+  }, [currentUser, router, redirectPath]);
 
-  // Clean up reCAPTCHA on unmount
   useEffect(() => {
     return () => {
       if (recaptchaVerifierRef.current) {
@@ -60,107 +64,118 @@ const SignInPage = () => {
     };
   }, []);
 
-  const onSignIn = async () => {
-    const { email, password } = itemInput;
-    let validated = true;
-    const newErrorText = { ...errorText };
+  const validate = (): boolean => {
+    const errors: Record<string, string> = {};
 
-    const emailValid = email.match(/^([\w.%+-]+)@([\w-]+\.)+([\w]{2,})$/i);
-    if(!emailValid) {
-      validated = false;
-      newErrorText.email = 'Email is invalid';
-    } else {
-      newErrorText.email = '';
+    if (!email.match(/^([\w.%+-]+)@([\w-]+\.)+([\w]{2,})$/i)) {
+      errors.email = 'メールアドレスが正しくありません';
+    }
+    if (!password || password.length < 8) {
+      errors.password = 'パスワードは8文字以上にしてください';
+    }
+    if (mode === 'signup') {
+      if (!displayName.trim()) {
+        errors.displayName = '表示名を入力してください';
+      }
+      if (password !== confirmPassword) {
+        errors.confirmPassword = 'パスワードが一致しません';
+      }
     }
 
-    if(!password || password.length < 8) {
-      validated = false;
-      newErrorText.password = 'Password should be at least 8 characters';
-    } else {
-      newErrorText.password = '';
-    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
 
-    if(!validated) {
-      setErrorText(newErrorText);
-      return;
-    }
-
-    setErrorText(defaultInput);
+  const handleSignIn = async () => {
+    if (!validate()) return;
+    setError('');
+    setLoading(true);
 
     try {
-      setError('');
-      setLoading(true);
-
       const result = await signInWithTwoFactor(email, password);
-
       if (!result.requiresTwoFactor) {
-        // No 2FA required, redirect will happen via useEffect when currentUser updates
+        // Redirect handled by useEffect
       }
-      setLoading(false);
     } catch (e: any) {
-      console.error('Sign-in error:', e.code, e.message);
-      let errorMessage = e.message;
-      if (e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential') {
-        errorMessage = 'Invalid email or password';
-      } else if (e.code === 'auth/user-not-found') {
-        errorMessage = 'No account found with this email';
-      } else if (e.code === 'auth/too-many-requests') {
-        errorMessage = 'Too many failed attempts. Please wait a few minutes and try again.';
-      } else if (e.code === 'auth/user-disabled') {
-        errorMessage = 'This account has been disabled';
+      const code = e.code;
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        setError('メールアドレスまたはパスワードが正しくありません');
+      } else if (code === 'auth/user-not-found') {
+        setError('このメールアドレスのアカウントが見つかりません');
+      } else if (code === 'auth/too-many-requests') {
+        setError('ログイン試行回数が多すぎます。しばらく待ってから再試行してください');
+      } else if (code === 'auth/user-disabled') {
+        setError('このアカウントは無効化されています');
+      } else {
+        setError(e.message);
       }
-      setError(errorMessage);
+    } finally {
       setLoading(false);
     }
+  };
+
+  const handleSignUp = async () => {
+    if (!validate()) return;
+    setError('');
+    setLoading(true);
+
+    try {
+      await signUp(email, password, displayName.trim());
+    } catch (e: any) {
+      const code = e.code;
+      if (code === 'auth/email-already-in-use') {
+        setError('このメールアドレスは既に使用されています');
+      } else if (code === 'auth/weak-password') {
+        setError('パスワードが弱すぎます。より強いパスワードを設定してください');
+      } else {
+        setError(e.message);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (mode === 'signin') handleSignIn();
+    else handleSignUp();
   };
 
   const onSendCode = async () => {
     setSendingCode(true);
     setError('');
-
     try {
-      // Clear and reinitialize reCAPTCHA
       if (recaptchaVerifierRef.current) {
         recaptchaVerifierRef.current.clear();
         recaptchaVerifierRef.current = null;
       }
-
-      await new Promise(resolve => setTimeout(resolve, 300));
-
+      await new Promise((resolve) => setTimeout(resolve, 300));
       recaptchaVerifierRef.current = twoFactorService.initRecaptchaVerifier('recaptcha-signin-container');
       await sendMfaCode(recaptchaVerifierRef.current);
       setCodeSent(true);
     } catch (e: any) {
-      console.error('Send code error:', e);
       if (e.code === 'auth/too-many-requests') {
-        setError('Too many attempts. Please wait a few minutes and try again.');
-      } else if (e.code === 'auth/invalid-app-credential') {
-        setError('reCAPTCHA verification failed. Please try again.');
+        setError('試行回数が多すぎます。しばらく待ってください');
       } else {
-        setError(e.message || 'Failed to send verification code');
+        setError(e.message || '認証コードの送信に失敗しました');
       }
       if (recaptchaVerifierRef.current) {
         recaptchaVerifierRef.current.clear();
         recaptchaVerifierRef.current = null;
       }
     }
-
     setSendingCode(false);
   };
 
   const onVerifyTwoFactor = async () => {
     if (!twoFactorCode || twoFactorCode.length < 6) {
-      setError('Please enter a valid 6-digit code');
+      setError('6桁の認証コードを入力してください');
       return;
     }
-
+    setError('');
+    setVerifying(true);
     try {
-      setError('');
-      setVerifying(true);
-
       await verifyTwoFactorAndComplete(twoFactorCode);
-
-      router.push('/');
+      router.push(redirectPath);
     } catch (e: any) {
       setError(e.message);
       setVerifying(false);
@@ -182,22 +197,18 @@ const SignInPage = () => {
   };
 
   const onResetPassword = async () => {
-    const { email } = itemInput;
-
-    if (!email || !email.match(/^([\w.%+-]+)@([\w-]+\.)+([\w]{2,})$/i)) {
-      setError('Please enter a valid email address first');
+    if (!email.match(/^([\w.%+-]+)@([\w-]+\.)+([\w]{2,})$/i)) {
+      setError('まずメールアドレスを入力してください');
       return;
     }
-
+    setResetLoading(true);
+    setError('');
     try {
-      setResetLoading(true);
-      setError('');
       await resetPassword(email);
       setResetSent(true);
     } catch (e: any) {
-      console.error('Reset password error:', e.code, e.message);
       if (e.code === 'auth/user-not-found') {
-        setError('No account found with this email');
+        setError('このメールアドレスのアカウントが見つかりません');
       } else {
         setError(e.message);
       }
@@ -205,205 +216,80 @@ const SignInPage = () => {
     setResetLoading(false);
   };
 
-  const onItemInputChange = (e: any) => {
-    setItemInput({
-      ...itemInput,
-      [e.target.name]: e.target.value,
-    });
-    if (e.target.name === 'email') {
-      setResetSent(false);
-    }
-  };
-
-  // Two-Factor Authentication Form (SMS)
+  // 2FA screen
   if (twoFactorRequired) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: '#f9fafb',
-        padding: '24px',
-      }}>
-        <div style={{
-          width: '100%',
-          maxWidth: '420px',
-          backgroundColor: '#ffffff',
-          borderRadius: '12px',
-          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-          padding: '32px',
-        }}>
-          {/* Hidden reCAPTCHA container */}
-          <div id="recaptcha-signin-container" ref={recaptchaContainerRef}></div>
+      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+        <div className="w-full max-w-md bg-card rounded-2xl shadow-lg border p-8 space-y-6">
+          <div id="recaptcha-signin-container" ref={recaptchaContainerRef} />
 
-          {/* Header */}
-          <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-            <div style={{
-              width: '56px',
-              height: '56px',
-              backgroundColor: '#eff6ff',
-              borderRadius: '50%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
-            }}>
-              <Shield size={28} style={{ color: '#3b82f6' }} />
+          <div className="text-center space-y-2">
+            <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto">
+              <Shield className="h-7 w-7 text-blue-600 dark:text-blue-400" />
             </div>
-            <h1 style={{ fontSize: '24px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
-              Two-Factor Authentication
-            </h1>
-            <p style={{ color: '#6b7280', fontSize: '14px' }}>
-              Verify your identity to continue
-            </p>
+            <h1 className="text-xl font-semibold">二段階認証</h1>
+            <p className="text-sm text-muted-foreground">本人確認をしてください</p>
           </div>
 
-          {/* Error Alert */}
           {error && (
-            <Alert variant="destructive" style={{ marginBottom: '20px' }}>
+            <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error</AlertTitle>
+              <AlertTitle>エラー</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
 
-          {/* Step 1: Send Code */}
-          {!codeSent && (
-            <>
-              <div style={{
-                backgroundColor: '#f3f4f6',
-                borderRadius: '8px',
-                padding: '16px',
-                marginBottom: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-              }}>
-                <Phone size={20} style={{ color: '#6b7280' }} />
+          {!codeSent ? (
+            <div className="space-y-4">
+              <div className="bg-muted rounded-lg p-4 flex items-center gap-3">
+                <Phone className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p style={{ color: '#374151', fontSize: '14px', fontWeight: '500' }}>
-                    Phone: {mfaPhoneHint || 'your registered number'}
-                  </p>
-                  <p style={{ color: '#6b7280', fontSize: '13px' }}>
-                    We&apos;ll send a verification code via SMS
-                  </p>
+                  <p className="text-sm font-medium">{mfaPhoneHint || 'お使いの電話番号'}</p>
+                  <p className="text-xs text-muted-foreground">SMSで認証コードを送信します</p>
                 </div>
               </div>
-
-              <Button
-                onClick={onSendCode}
-                disabled={sendingCode}
-                style={{ width: '100%' }}
-              >
-                {sendingCode ? (
-                  <>
-                    <Loader2 className="animate-spin mr-2" size={16} />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <MessageSquare size={16} className="mr-2" />
-                    Send Verification Code
-                  </>
-                )}
+              <Button onClick={onSendCode} disabled={sendingCode} className="w-full" style={{ borderRadius: '9999px' }}>
+                {sendingCode ? <><Loader2 className="animate-spin mr-2 h-4 w-4" />送信中...</> : <><MessageSquare className="h-4 w-4 mr-2" />認証コードを送信</>}
               </Button>
-            </>
-          )}
-
-          {/* Step 2: Enter Code */}
-          {codeSent && (
-            <>
-              <div style={{
-                backgroundColor: '#f0fdf4',
-                border: '1px solid #bbf7d0',
-                borderRadius: '8px',
-                padding: '12px 16px',
-                marginBottom: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-              }}>
-                <Phone size={18} style={{ color: '#16a34a' }} />
-                <p style={{ color: '#166534', fontSize: '14px' }}>
-                  Code sent to {mfaPhoneHint || 'your phone'}
-                </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 flex items-center gap-2">
+                <Phone className="h-4 w-4 text-green-600" />
+                <p className="text-sm text-green-700 dark:text-green-300">コードを {mfaPhoneHint || 'お使いの電話番号'} に送信しました</p>
               </div>
-
-              <div style={{ marginBottom: '20px' }}>
-                <Label htmlFor="twoFactorCode" style={{ marginBottom: '8px', display: 'block' }}>
-                  Verification Code
-                </Label>
+              <div className="space-y-1.5">
+                <Label htmlFor="twoFactorCode">認証コード</Label>
                 <Input
                   id="twoFactorCode"
-                  name="twoFactorCode"
                   type="text"
                   placeholder="000000"
                   value={twoFactorCode}
                   onChange={(e) => setTwoFactorCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
                   autoComplete="one-time-code"
                   autoFocus
-                  style={{
-                    fontFamily: 'monospace',
-                    fontSize: '24px',
-                    letterSpacing: '8px',
-                    textAlign: 'center',
-                    padding: '12px',
-                  }}
+                  className="font-mono text-2xl tracking-[8px] text-center"
                 />
               </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <Button
-                  onClick={onVerifyTwoFactor}
-                  disabled={verifying}
-                  style={{ width: '100%' }}
-                >
-                  {verifying ? (
-                    <>
-                      <Loader2 className="animate-spin mr-2" size={16} />
-                      Verifying...
-                    </>
-                  ) : (
-                    'Verify & Sign In'
-                  )}
-                </Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setCodeSent(false);
-                    setTwoFactorCode('');
-                    setError('');
-                  }}
-                  disabled={sendingCode || verifying}
-                  style={{ width: '100%' }}
-                >
-                  Resend Code
-                </Button>
-              </div>
-            </>
+              <Button onClick={onVerifyTwoFactor} disabled={verifying} className="w-full" style={{ borderRadius: '9999px' }}>
+                {verifying ? <><Loader2 className="animate-spin mr-2 h-4 w-4" />確認中...</> : '確認してログイン'}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => { setCodeSent(false); setTwoFactorCode(''); setError(''); }}
+                disabled={sendingCode || verifying}
+                className="w-full"
+                style={{ borderRadius: '9999px' }}
+              >
+                コードを再送信
+              </Button>
+            </div>
           )}
 
-          {/* Back to sign in */}
-          <div style={{ marginTop: '24px', textAlign: 'center' }}>
-            <button
-              type="button"
-              onClick={onCancelTwoFactor}
-              disabled={sendingCode || verifying}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#6b7280',
-                fontSize: '14px',
-                cursor: 'pointer',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-              }}
-            >
-              <ArrowLeft size={16} />
-              Back to sign in
+          <div className="text-center">
+            <button type="button" onClick={onCancelTwoFactor} disabled={sendingCode || verifying} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
+              <ArrowLeft className="h-4 w-4" />
+              ログインに戻る
             </button>
           </div>
         </div>
@@ -411,129 +297,138 @@ const SignInPage = () => {
     );
   }
 
-  // Standard Sign-In Form
+  // Sign in / Sign up form
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: '#f9fafb',
-      padding: '24px',
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '420px',
-        backgroundColor: '#ffffff',
-        borderRadius: '12px',
-        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-        padding: '32px',
-      }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <div style={{
-            width: '56px',
-            height: '56px',
-            backgroundColor: '#eff6ff',
-            borderRadius: '50%',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 16px',
-          }}>
-            <Lock size={28} style={{ color: '#3b82f6' }} />
+    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="w-full max-w-md bg-card rounded-2xl shadow-lg border p-8 space-y-6">
+        <div className="text-center space-y-2">
+          <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto">
+            {mode === 'signin' ? (
+              <Lock className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+            ) : (
+              <UserPlus className="h-7 w-7 text-blue-600 dark:text-blue-400" />
+            )}
           </div>
-          <h1 style={{ fontSize: '24px', fontWeight: '600', color: '#111827', marginBottom: '8px' }}>
-            Welcome Back
+          <h1 className="text-xl font-semibold">
+            {mode === 'signin' ? 'ログイン' : 'アカウント作成'}
           </h1>
-          <p style={{ color: '#6b7280', fontSize: '14px' }}>
-            Sign in to your account
+          <p className="text-sm text-muted-foreground">
+            {mode === 'signin' ? 'meetyudai.com にログイン' : '新しいアカウントを作成'}
           </p>
         </div>
 
-        {/* Error Alert */}
+        {/* Mode toggle */}
+        <div className="flex bg-muted p-1 gap-1" style={{ borderRadius: '9999px' }}>
+          <button
+            type="button"
+            onClick={() => { setMode('signin'); setError(''); setFieldErrors({}); }}
+            className={`flex-1 text-sm font-medium py-2 transition-all ${mode === 'signin' ? 'bg-background text-foreground shadow' : 'text-muted-foreground'}`}
+            style={{ borderRadius: '9999px' }}
+          >
+            ログイン
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode('signup'); setError(''); setFieldErrors({}); }}
+            className={`flex-1 text-sm font-medium py-2 transition-all ${mode === 'signup' ? 'bg-background text-foreground shadow' : 'text-muted-foreground'}`}
+            style={{ borderRadius: '9999px' }}
+          >
+            新規登録
+          </button>
+        </div>
+
         {error && (
-          <Alert variant="destructive" style={{ marginBottom: '20px' }}>
+          <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Error</AlertTitle>
+            <AlertTitle>エラー</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        {/* Form */}
-        <div style={{ marginBottom: '16px' }}>
-          <Label htmlFor="email" style={{ marginBottom: '8px', display: 'block' }}>Email</Label>
-          <Input
-            id="email"
-            name="email"
-            type="email"
-            placeholder="you@example.com"
-            value={itemInput.email}
-            onChange={onItemInputChange}
-            className={errorText.email ? 'border-destructive' : ''}
-          />
-          {errorText.email && <p className="text-sm text-destructive mt-1">{errorText.email}</p>}
+        <div className="space-y-4">
+          {mode === 'signup' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="displayName">表示名</Label>
+              <Input
+                id="displayName"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="田中太郎"
+                className={fieldErrors.displayName ? 'border-destructive' : ''}
+              />
+              {fieldErrors.displayName && <p className="text-xs text-destructive">{fieldErrors.displayName}</p>}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="email">メールアドレス</Label>
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setResetSent(false); }}
+              placeholder="you@example.com"
+              className={fieldErrors.email ? 'border-destructive' : ''}
+            />
+            {fieldErrors.email && <p className="text-xs text-destructive">{fieldErrors.email}</p>}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="password">パスワード</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              className={fieldErrors.password ? 'border-destructive' : ''}
+            />
+            {fieldErrors.password && <p className="text-xs text-destructive">{fieldErrors.password}</p>}
+          </div>
+
+          {mode === 'signup' && (
+            <div className="space-y-1.5">
+              <Label htmlFor="confirmPassword">パスワード確認</Label>
+              <Input
+                id="confirmPassword"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                className={fieldErrors.confirmPassword ? 'border-destructive' : ''}
+              />
+              {fieldErrors.confirmPassword && <p className="text-xs text-destructive">{fieldErrors.confirmPassword}</p>}
+            </div>
+          )}
         </div>
 
-        <div style={{ marginBottom: '24px' }}>
-          <Label htmlFor="password" style={{ marginBottom: '8px', display: 'block' }}>Password</Label>
-          <Input
-            id="password"
-            name="password"
-            type="password"
-            placeholder="••••••••"
-            value={itemInput.password}
-            onChange={onItemInputChange}
-            className={errorText.password ? 'border-destructive' : ''}
-          />
-          {errorText.password && <p className="text-sm text-destructive mt-1">{errorText.password}</p>}
-        </div>
-
-        <Button onClick={onSignIn} disabled={loading} style={{ width: '100%' }}>
+        <Button onClick={handleSubmit} disabled={loading} className="w-full" style={{ borderRadius: '9999px' }}>
           {loading ? (
-            <>
-              <Loader2 className="animate-spin mr-2" size={16} />
-              Signing in...
-            </>
+            <><Loader2 className="animate-spin mr-2 h-4 w-4" />{mode === 'signin' ? 'ログイン中...' : 'アカウント作成中...'}</>
           ) : (
-            'Sign In'
+            mode === 'signin' ? 'ログイン' : 'アカウントを作成'
           )}
         </Button>
 
-        {/* Password Reset */}
-        <div style={{ marginTop: '20px', textAlign: 'center' }}>
-          {resetSent ? (
-            <p style={{
-              color: '#16a34a',
-              fontSize: '14px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
-              backgroundColor: '#f0fdf4',
-              padding: '10px',
-              borderRadius: '8px',
-            }}>
-              <Mail size={16} />
-              Password reset email sent! Check your inbox.
-            </p>
-          ) : (
-            <button
-              type="button"
-              onClick={onResetPassword}
-              disabled={resetLoading}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#6b7280',
-                fontSize: '14px',
-                cursor: 'pointer',
-              }}
-            >
-              {resetLoading ? 'Sending...' : 'Forgot password?'}
-            </button>
-          )}
-        </div>
+        {mode === 'signin' && (
+          <div className="text-center">
+            {resetSent ? (
+              <p className="text-sm text-green-600 bg-green-50 dark:bg-green-900/20 p-2 rounded-lg flex items-center justify-center gap-1">
+                <Mail className="h-4 w-4" />
+                パスワードリセットメールを送信しました
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={onResetPassword}
+                disabled={resetLoading}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                {resetLoading ? '送信中...' : 'パスワードを忘れた場合'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Users, ChevronRight, CheckCircle2 } from 'lucide-react';
 import type { SettliGroup } from '@/types/settli';
 import { formatAmount } from '@/lib/settliAlgorithm';
+import { useTranslation } from 'react-i18next';
 
 interface GroupCardProps {
   group: SettliGroup;
@@ -12,6 +13,7 @@ interface GroupCardProps {
 }
 
 export function GroupCard({ group, totalAmount }: GroupCardProps) {
+  const { t } = useTranslation();
   const activeMembers = group.members.filter((m) => m.isActive !== false);
 
   return (
@@ -25,14 +27,14 @@ export function GroupCard({ group, totalAmount }: GroupCardProps) {
           {group.isSettled && (
             <Badge variant="secondary" className="text-[10px] px-1 py-0 shrink-0">
               <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
-              済
+              {t('settli.common.settledBadge')}
             </Badge>
           )}
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
           <span className="flex items-center gap-0.5">
             <Users className="h-3 w-3" />
-            {activeMembers.length}人
+            {t('settli.common.memberCount', { count: activeMembers.length })}
           </span>
           {totalAmount !== undefined && (
             <span className="font-medium text-foreground">

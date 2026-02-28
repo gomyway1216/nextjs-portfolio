@@ -2,7 +2,7 @@
 
 import React, { createContext, useEffect, useContext, useState, ReactNode, useCallback, useRef } from 'react';
 import { MultiFactorResolver, RecaptchaVerifier, User } from 'firebase/auth';
-import { auth, signInWithEmail, signOutUser }
+import { auth, signInWithEmail, signUpWithEmail, signOutUser }
   from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
 
@@ -17,6 +17,7 @@ interface AuthContextType {
   twoFactorRequired: boolean;
   mfaPhoneHint: string | null;
   signIn: (email: string, password: string) => Promise<any>;
+  signUp: (email: string, password: string, displayName?: string) => Promise<any>;
   signInWithTwoFactor: (email: string, password: string) => Promise<{ requiresTwoFactor: boolean }>;
   sendMfaCode: (recaptchaVerifier: RecaptchaVerifier) => Promise<void>;
   verifyTwoFactorAndComplete: (code: string) => Promise<void>;
@@ -46,6 +47,39 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // Use ref for MFA resolver to avoid re-renders and state serialization issues
   const mfaResolverRef = useRef<MultiFactorResolver | null>(null);
 
+  const syncSessionCookie = useCallback(async (user: User | null) => {
+    try {
+      if (user) {
+        const idToken = await user.getIdToken();
+        await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ idToken }),
+        });
+      } else {
+        await fetch('/api/auth/session', { method: 'DELETE' });
+      }
+    } catch (error) {
+      console.error('Session cookie sync error:', error);
+    }
+  }, []);
+
+  const createUserDocument = useCallback(async (user: User, displayName?: string) => {
+    try {
+      const idToken = await user.getIdToken();
+      await fetch('/api/auth/user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ displayName: displayName || user.displayName || '' }),
+      });
+    } catch (error) {
+      console.error('User document creation error:', error);
+    }
+  }, []);
+
   // Check if user has admin claim
   const checkAdminStatus = useCallback(async (user: User | null) => {
     if (!user) {
@@ -74,6 +108,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const signIn = useCallback((email: string, password: string) => {
     return signInWithEmail(email, password);
   }, []);
+
+  // Sign-up with user document creation
+  const signUp = useCallback(async (email: string, password: string, displayName?: string) => {
+    const credential = await signUpWithEmail(email, password, displayName);
+    await createUserDocument(credential.user, displayName);
+    await syncSessionCookie(credential.user);
+    return credential;
+  }, [createUserDocument, syncSessionCookie]);
 
   // Sign-in with MFA handling
   const signInWithTwoFactor = useCallback(async (email: string, password: string): Promise<{ requiresTwoFactor: boolean }> => {
@@ -137,7 +179,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setMfaPhoneHint(null);
   }, []);
 
-  const signOut = useCallback(() => {
+  const signOut = useCallback(async () => {
+    await fetch('/api/auth/session', { method: 'DELETE' });
     signOutUser();
     setIsAdmin(false);
     setIsEnrolledInMFA(false);
@@ -151,19 +194,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
       setCurrentUser(user);
 
-      // Check admin status and MFA status when user signs in
       if (user) {
         await checkAdminStatus(user);
         refreshMFAStatus();
+        await syncSessionCookie(user);
       } else {
         setIsAdmin(false);
+        await syncSessionCookie(null);
       }
 
       setLoading(false);
     });
 
     return unsubscribe;
-  }, [checkAdminStatus, refreshMFAStatus]);
+  }, [checkAdminStatus, refreshMFAStatus, syncSessionCookie]);
 
   const value: AuthContextType = {
     currentUser,
@@ -172,6 +216,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     twoFactorRequired,
     mfaPhoneHint,
     signIn,
+    signUp,
     signInWithTwoFactor,
     sendMfaCode,
     verifyTwoFactorAndComplete,

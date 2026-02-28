@@ -15,6 +15,7 @@ import type { SettlementCalculation, Currency, OptimizedSettlement } from '@/typ
 import { CURRENCY_NAMES } from '@/types/settli';
 import { formatAmount } from '@/lib/settliAlgorithm';
 import * as settliService from '@/services/settliService';
+import { useTranslation } from 'react-i18next';
 
 interface BalanceSummaryProps {
   calculations: SettlementCalculation[];
@@ -38,7 +39,11 @@ export function BalanceSummary({
   calculations,
   defaultCurrency,
 }: BalanceSummaryProps) {
+  const { t } = useTranslation();
   const [displayCurrency, setDisplayCurrency] = useState<Currency>(defaultCurrency);
+  const currencyName = (key: string, fallback: string) =>
+    t(`settli.currency.${key}`, { defaultValue: fallback });
+
   const [rates, setRates] = useState<Record<string, number> | null>(null);
   const [ratesLoading, setRatesLoading] = useState(false);
 
@@ -201,7 +206,7 @@ export function BalanceSummary({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between gap-2">
-              <span>精算方法</span>
+              <span>{t('settli.balance.settlementMethod')}</span>
               <Select
                 value={displayCurrency}
                 onValueChange={(v) => setDisplayCurrency(v as Currency)}
@@ -212,7 +217,7 @@ export function BalanceSummary({
                 <SelectContent>
                   {Object.entries(CURRENCY_NAMES).map(([key, label]) => (
                     <SelectItem key={key} value={key}>
-                      {key} - {label}
+                      {key} - {currencyName(key, label)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -222,8 +227,8 @@ export function BalanceSummary({
           <CardContent>
             <Tabs defaultValue="consolidated">
               <TabsList className="w-full grid grid-cols-2 mb-4">
-                <TabsTrigger value="consolidated">まとめて精算</TabsTrigger>
-                <TabsTrigger value="by-currency">通貨ごと</TabsTrigger>
+                <TabsTrigger value="consolidated">{t('settli.balance.consolidatedTab')}</TabsTrigger>
+                <TabsTrigger value="by-currency">{t('settli.balance.byCurrencyTab')}</TabsTrigger>
               </TabsList>
 
               {/* Consolidated tab */}
@@ -231,7 +236,7 @@ export function BalanceSummary({
                 {ratesLoading && needsConversion ? (
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                    <span className="ml-2 text-sm text-muted-foreground">為替レート取得中...</span>
+                    <span className="ml-2 text-sm text-muted-foreground">{t('settli.balance.loadingRates')}</span>
                   </div>
                 ) : consolidatedSettlements.length > 0 ? (
                   <>
@@ -246,11 +251,13 @@ export function BalanceSummary({
                       />
                     ))}
                     <p className="text-xs text-muted-foreground text-center pt-1">
-                      全通貨を{CURRENCY_NAMES[displayCurrency]}に換算してまとめています（概算）
+                      {t('settli.balance.consolidatedNote', {
+                        currency: currencyName(displayCurrency, CURRENCY_NAMES[displayCurrency]),
+                      })}
                     </p>
                   </>
                 ) : (
-                  <p className="text-center text-muted-foreground py-4">精算不要です</p>
+                  <p className="text-center text-muted-foreground py-4">{t('settli.balance.noSettlementNeeded')}</p>
                 )}
               </TabsContent>
 
@@ -262,7 +269,7 @@ export function BalanceSummary({
                     <div key={calc.currency} className="space-y-2">
                       {hasMultipleCurrencies && (
                         <p className="text-sm font-medium text-muted-foreground">
-                          {calc.currency} - {CURRENCY_NAMES[calc.currency]}
+                          {calc.currency} - {currencyName(calc.currency, CURRENCY_NAMES[calc.currency])}
                         </p>
                       )}
                       {calc.settlements.map((settlement, idx) => (
@@ -279,7 +286,7 @@ export function BalanceSummary({
                   );
                 })}
                 <p className="text-xs text-muted-foreground text-center pt-1">
-                  各通貨の実額で精算してください
+                  {t('settli.balance.byCurrencyNote')}
                 </p>
               </TabsContent>
             </Tabs>
@@ -291,9 +298,9 @@ export function BalanceSummary({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between gap-2">
-            <span>収支サマリー</span>
+            <span>{t('settli.balance.summaryTitle')}</span>
             <span className="text-sm font-normal text-muted-foreground whitespace-nowrap">
-              合計: {formatAmount(totalAmount, displayCurrency)}
+              {t('settli.balance.total')}: {formatAmount(totalAmount, displayCurrency)}
             </span>
           </CardTitle>
         </CardHeader>
@@ -301,13 +308,13 @@ export function BalanceSummary({
           {ratesLoading && needsConversion ? (
             <div className="flex items-center justify-center py-4">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-sm text-muted-foreground">為替レート取得中...</span>
+              <span className="ml-2 text-sm text-muted-foreground">{t('settli.balance.loadingRates')}</span>
             </div>
           ) : (
             <>
               {needsConversion && !rates && (
                 <p className="text-xs text-amber-600 dark:text-amber-400">
-                  為替レートの取得に失敗しました。通貨換算なしで表示しています。
+                  {t('settli.balance.ratesFailed')}
                 </p>
               )}
               {memberSummaries.map((summary) => (
@@ -322,7 +329,7 @@ export function BalanceSummary({
                     <div>
                       <span className="font-medium">{summary.memberName}</span>
                       <div className="text-xs text-muted-foreground">
-                        支払い: {formatAmount(summary.totalPaid, displayCurrency)} / 負担: {formatAmount(summary.totalOwed, displayCurrency)}
+                        {t('settli.balance.paid')}: {formatAmount(summary.totalPaid, displayCurrency)} / {t('settli.balance.owed')}: {formatAmount(summary.totalOwed, displayCurrency)}
                       </div>
                     </div>
                   </div>
@@ -359,11 +366,11 @@ export function BalanceSummary({
           )}
 
           <div className="pt-2 text-xs text-muted-foreground">
-            <span className="text-green-600 dark:text-green-400">+</span> 受け取る金額
+            <span className="text-green-600 dark:text-green-400">+</span> {t('settli.balance.receiveAmount')}
             {' / '}
-            <span className="text-red-600 dark:text-red-400">-</span> 支払う金額
+            <span className="text-red-600 dark:text-red-400">-</span> {t('settli.balance.payAmount')}
             {needsConversion && rates && (
-              <span className="ml-1">（為替レートによる概算）</span>
+              <span className="ml-1">{t('settli.balance.estimatedByRate')}</span>
             )}
           </div>
         </CardContent>

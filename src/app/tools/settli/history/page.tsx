@@ -9,8 +9,10 @@ import { useAuth } from '@/providers/AuthProvider';
 import { GroupCard, SettliLogo } from '@/components/settli';
 import * as settliService from '@/services/settliService';
 import type { SettliGroup } from '@/types/settli';
+import { useTranslation } from 'react-i18next';
 
 export default function SettliHistoryPage() {
+  const { t } = useTranslation();
   const { currentUser } = useAuth();
   const [groups, setGroups] = useState<SettliGroup[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +67,7 @@ export default function SettliHistoryPage() {
           </Link>
           <div className="flex items-center gap-3">
             <SettliLogo size={32} />
-            <h1 className="text-2xl font-bold">履歴</h1>
+            <h1 className="text-2xl font-bold">{t('settli.history.title')}</h1>
           </div>
         </div>
 
@@ -74,15 +76,13 @@ export default function SettliHistoryPage() {
             <div className="w-16 h-16 rounded-full bg-gradient-to-r from-indigo-500/10 to-purple-500/10 flex items-center justify-center mx-auto mb-4">
               <LogIn className="h-8 w-8 text-indigo-500" />
             </div>
-            <h2 className="text-xl font-semibold mb-2">ログインが必要です</h2>
+            <h2 className="text-xl font-semibold mb-2">{t('settli.history.loginRequiredTitle')}</h2>
             <p className="text-muted-foreground mb-6">
-              履歴を見るにはログインしてください。
-              <br />
-              ログインすると過去のグループにいつでもアクセスできます。
+              {t('settli.history.loginRequiredDescription')}
             </p>
             <Link href="/signin">
               <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600">
-                ログイン
+                {t('settli.history.loginButton')}
               </Button>
             </Link>
           </CardContent>
@@ -102,7 +102,7 @@ export default function SettliHistoryPage() {
         </Link>
         <div className="flex items-center gap-3">
           <SettliLogo size={32} />
-          <h1 className="text-2xl font-bold">履歴</h1>
+          <h1 className="text-2xl font-bold">{t('settli.history.title')}</h1>
         </div>
       </div>
 
@@ -112,13 +112,13 @@ export default function SettliHistoryPage() {
             <div className="w-16 h-16 rounded-full bg-gradient-to-r from-indigo-500/10 to-purple-500/10 flex items-center justify-center mx-auto mb-4">
               <History className="h-8 w-8 text-indigo-500" />
             </div>
-            <h2 className="text-xl font-semibold mb-2">履歴がありません</h2>
+            <h2 className="text-xl font-semibold mb-2">{t('settli.history.emptyTitle')}</h2>
             <p className="text-muted-foreground mb-6">
-              まだグループを作成していません。
+              {t('settli.history.emptyDescription')}
             </p>
             <Link href="/tools/settli/new">
               <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600">
-                新しいグループを作成
+                {t('settli.history.createGroup')}
               </Button>
             </Link>
           </CardContent>

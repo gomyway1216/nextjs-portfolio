@@ -428,6 +428,260 @@
       "leaveReply": "Leave a Reply"
     }
   },
+  "settli": {
+    "common": {
+      "settledBadge": "Done",
+      "memberCount": "{{count}} members",
+      "peopleSuffix": "people",
+      "itemsSuffix": "items",
+      "select": "Select",
+      "optional": "optional",
+      "selectAll": "Select all",
+      "clearAll": "Clear all",
+      "cancel": "Cancel",
+      "add": "Add",
+      "update": "Update",
+      "processing": "Processing..."
+    },
+    "currency": {
+      "JPY": "Japanese Yen",
+      "USD": "US Dollar",
+      "EUR": "Euro",
+      "GBP": "British Pound",
+      "CNY": "Chinese Yuan",
+      "KRW": "Korean Won",
+      "TWD": "Taiwan Dollar",
+      "THB": "Thai Baht",
+      "AUD": "Australian Dollar"
+    },
+    "page": {
+      "toast": {
+        "enterShareCode": "Please enter a share code",
+        "groupNotFound": "Group not found"
+      },
+      "hero": {
+        "title": "Smart group settlement",
+        "subtitle": "Trips, dinners, and events. Automatically calculate the best way to settle complex split bills.",
+        "createGroup": "Create new group",
+        "viewHistory": "View history"
+      },
+      "joinByCode": "Join with code",
+      "shareCodePlaceholder": "ABC123",
+      "recentGroups": "Recent groups",
+      "recentAccessed": "Recently accessed groups",
+      "viewAll": "View all",
+      "featuresTitle": "Simple and powerful",
+      "featuresSubtitle": "Make complex split-bill calculations easy for everyone.",
+      "features": {
+        "items": {
+          "optimize": {
+            "title": "Optimized settlement algorithm",
+            "description": "Minimize transfer count. Instantly computes the most efficient settlement route."
+          },
+          "weighted": {
+            "title": "Flexible weighted split",
+            "description": "Customize burden per member for late joiners or non-drinkers."
+          },
+          "share": {
+            "title": "One-click sharing",
+            "description": "Share instantly by link or QR code. No app install required."
+          },
+          "passcode": {
+            "title": "Passcode protection",
+            "description": "Protect your group with a passcode and keep privacy safe."
+          },
+          "multicurrency": {
+            "title": "Multi-currency",
+            "description": "Supports JPY, USD, EUR and more. Great for international trips."
+          },
+          "noLogin": {
+            "title": "No login needed",
+            "description": "Start immediately. Login only if you want saved history."
+          }
+        }
+      },
+      "howToUseTitle": "How it works",
+      "howToUse": {
+        "step1": { "title": "Create group", "desc": "Add members" },
+        "step2": { "title": "Record payments", "desc": "Who paid what" },
+        "step3": { "title": "Check settlements", "desc": "Auto optimized" },
+        "step4": { "title": "Share", "desc": "Share by link" }
+      },
+      "faqTitle": "FAQ",
+      "faq": {
+        "q1": "Can I use it without login?",
+        "a1": "Yes. All core features are available without login. If you log in, your history is saved for easy access later.",
+        "q2": "I forgot the group URL",
+        "a2": "If you logged in before, check History. Otherwise, ask someone who has the shared link.",
+        "q3": "Can I reduce cost for partial participants?",
+        "a3": "Yes. You can set per-member weights. Example: late joiner = 0.5x, organizer = 0x.",
+        "q4": "Is my data secure?",
+        "a4": "Yes. Data is securely stored in the cloud. You can add a passcode for extra protection."
+      },
+      "cta": {
+        "title": "Create an account to save history",
+        "subtitle": "With login, your created groups are saved and accessible anytime.",
+        "login": "Login / Sign up",
+        "tryNow": "Try now"
+      }
+    },
+    "new": {
+      "title": "Create new group",
+      "groupInfo": "Group info",
+      "groupName": "Group name",
+      "groupNamePlaceholder": "Okinawa Trip 2024",
+      "description": "Description",
+      "descriptionPlaceholder": "4-day Okinawa trip",
+      "currency": "Currency",
+      "protectWithPasscode": "Protect with passcode",
+      "passcode": "Passcode",
+      "passcodePlaceholder": "At least 4 digits",
+      "passcodeHint": "Passcode input is required when accessing the group.",
+      "memberHint": "Enter participant names (you can edit later).",
+      "createGroup": "Create group",
+      "creating": "Creating...",
+      "toast": {
+        "enterGroupName": "Please enter a group name",
+        "addTwoMembers": "Please add at least two members",
+        "passcodeMin": "Passcode must be at least 4 characters",
+        "created": "Group created",
+        "createFailed": "Failed to create group"
+      }
+    },
+    "history": {
+      "title": "History",
+      "loginRequiredTitle": "Login required",
+      "loginRequiredDescription": "Please log in to view history. Once logged in, you can access past groups anytime.",
+      "loginButton": "Login",
+      "emptyTitle": "No history yet",
+      "emptyDescription": "You haven't created any groups yet.",
+      "createGroup": "Create a new group"
+    },
+    "group": {
+      "toast": {
+        "memberAdded": "Member added",
+        "memberAddFailed": "Failed to add member",
+        "memberUpdated": "Member updated",
+        "memberUpdateFailed": "Failed to update member",
+        "memberRemoved": "Member removed",
+        "memberRemoveFailed": "Failed to remove member",
+        "paymentAdded": "Payment added",
+        "paymentAddFailed": "Failed to add payment",
+        "paymentUpdated": "Payment updated",
+        "paymentUpdateFailed": "Failed to update payment",
+        "paymentDeleted": "Payment deleted",
+        "paymentDeleteFailed": "Failed to delete payment"
+      },
+      "notFoundTitle": "Group not found",
+      "notFoundDescription": "This group doesn't exist or you don't have access.",
+      "backToTop": "Back to top",
+      "settlement": "settlements",
+      "tabs": {
+        "payments": "Payments",
+        "members": "Members",
+        "settlements": "Settlement"
+      },
+      "addPayment": "Add payment",
+      "emptyPayments": "No payments yet. Add one using the button above.",
+      "loadingSettlement": "Loading settlement info..."
+    },
+    "join": {
+      "loading": "Loading group...",
+      "notFoundTitle": "Group not found",
+      "notFoundDescription": "This link is invalid or the group may have been deleted.",
+      "backToTop": "Back to Settli top",
+      "successTitle": "Joined!",
+      "memberCount": "{{count}} members",
+      "redirecting": "Moving to group page...",
+      "goNow": "Go now"
+    },
+    "share": {
+      "button": "Share",
+      "title": "Share group",
+      "description": "Invite members via link or QR code.",
+      "scanQr": "Scan this QR code with your smartphone",
+      "linkLabel": "Share link",
+      "codeLabel": "Share code",
+      "shareNow": "Share now",
+      "native": {
+        "title": "{{groupName}} - Split Bill",
+        "text": "Join the split-bill group \"{{groupName}}\""
+      },
+      "toast": {
+        "copied": "Link copied",
+        "copyFailed": "Failed to copy"
+      }
+    },
+    "payment": {
+      "categories": {
+        "food": "Food",
+        "drink": "Drinks",
+        "transport": "Transport",
+        "accommodation": "Accommodation",
+        "activity": "Activity",
+        "shopping": "Shopping",
+        "other": "Other"
+      },
+      "paidBy": "paid",
+      "addTitle": "Add payment",
+      "editTitle": "Edit payment",
+      "payer": "Paid by",
+      "amount": "Amount",
+      "description": "Description",
+      "descriptionPlaceholder": "Lunch, taxi fare, etc.",
+      "category": "Category",
+      "date": "Date",
+      "splitMembers": "Split members"
+    },
+    "member": {
+      "members": "Members",
+      "memberN": "Member",
+      "name": "Name",
+      "namePlaceholder": "John Doe",
+      "email": "Email",
+      "weight": "Weight (default: 1)",
+      "weightHint": "More than 1 = pays more, less than 1 = pays less",
+      "empty": "No members yet. Please add members.",
+      "inactive": "Inactive"
+    },
+    "passcode": {
+      "title": "Enter passcode",
+      "description": "\"{{groupName}}\" is protected with a passcode",
+      "label": "Passcode",
+      "placeholder": "Enter passcode",
+      "verifying": "Verifying...",
+      "confirm": "Confirm",
+      "errors": {
+        "required": "Please enter passcode",
+        "invalid": "Incorrect passcode",
+        "verifyFailed": "Verification failed"
+      }
+    },
+    "balance": {
+      "settlementMethod": "Settlement method",
+      "consolidatedTab": "Consolidated",
+      "byCurrencyTab": "By currency",
+      "loadingRates": "Loading exchange rates...",
+      "consolidatedNote": "All currencies are converted into {{currency}} and consolidated (estimated).",
+      "noSettlementNeeded": "No settlement needed",
+      "byCurrencyNote": "Please settle in each original currency.",
+      "summaryTitle": "Balance summary",
+      "total": "Total",
+      "ratesFailed": "Failed to fetch exchange rates. Showing without conversion.",
+      "paid": "Paid",
+      "owed": "Owed",
+      "receiveAmount": "Amount to receive",
+      "payAmount": "Amount to pay",
+      "estimatedByRate": "(estimated by exchange rates)"
+    },
+    "settlement": {
+      "listTitle": "Settlement list",
+      "completedTitle": "Settlement completed!",
+      "completedDescription": "Everyone's balance is even.",
+      "transferCount": "{{count}} transfers",
+      "optimizedNote": "Optimized to minimize transfer count."
+    }
+  },
   "common": {
     "loading": "Loading...",
     "error": "Error",

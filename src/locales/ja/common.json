@@ -450,6 +450,260 @@
       "leaveReply": "コメントを残す"
     }
   },
+  "settli": {
+    "common": {
+      "settledBadge": "済",
+      "memberCount": "{{count}}人",
+      "peopleSuffix": "人",
+      "itemsSuffix": "件",
+      "select": "選択してください",
+      "optional": "任意",
+      "selectAll": "全選択",
+      "clearAll": "全解除",
+      "cancel": "キャンセル",
+      "add": "追加",
+      "update": "更新",
+      "processing": "処理中..."
+    },
+    "currency": {
+      "JPY": "日本円",
+      "USD": "米ドル",
+      "EUR": "ユーロ",
+      "GBP": "英ポンド",
+      "CNY": "人民元",
+      "KRW": "韓国ウォン",
+      "TWD": "台湾ドル",
+      "THB": "タイバーツ",
+      "AUD": "豪ドル"
+    },
+    "page": {
+      "toast": {
+        "enterShareCode": "共有コードを入力してください",
+        "groupNotFound": "グループが見つかりません"
+      },
+      "hero": {
+        "title": "グループの精算を、スマートに。",
+        "subtitle": "旅行、飲み会、イベント。複雑な割り勘も、最適な精算方法を自動で計算。",
+        "createGroup": "新しいグループを作成",
+        "viewHistory": "履歴を見る"
+      },
+      "joinByCode": "コードで参加",
+      "shareCodePlaceholder": "ABC123",
+      "recentGroups": "最近のグループ",
+      "recentAccessed": "最近アクセスしたグループ",
+      "viewAll": "すべて見る",
+      "featuresTitle": "シンプルで、パワフル",
+      "featuresSubtitle": "複雑な割り勘計算を、誰でも簡単に。",
+      "features": {
+        "items": {
+          "optimize": {
+            "title": "最適精算アルゴリズム",
+            "description": "送金回数を最小限に。最も効率的な精算方法を瞬時に計算。"
+          },
+          "weighted": {
+            "title": "柔軟な傾斜配分",
+            "description": "途中参加や飲酒なしなど、一人ひとりの負担割合を調整。"
+          },
+          "share": {
+            "title": "ワンクリック共有",
+            "description": "リンクやQRコードで即共有。アプリのインストール不要。"
+          },
+          "passcode": {
+            "title": "パスコード保護",
+            "description": "グループをパスコードで保護し、プライバシーを守ります。"
+          },
+          "multicurrency": {
+            "title": "多通貨対応",
+            "description": "日本円、ドル、ユーロなどに対応。海外旅行でも使えます。"
+          },
+          "noLogin": {
+            "title": "ログイン不要",
+            "description": "すぐに利用開始。ログインすれば履歴保存も可能。"
+          }
+        }
+      },
+      "howToUseTitle": "使い方",
+      "howToUse": {
+        "step1": { "title": "グループ作成", "desc": "メンバーを追加" },
+        "step2": { "title": "支払いを記録", "desc": "誰が何を払ったか" },
+        "step3": { "title": "精算を確認", "desc": "自動で最適計算" },
+        "step4": { "title": "共有", "desc": "リンクで共有" }
+      },
+      "faqTitle": "よくある質問",
+      "faq": {
+        "q1": "ログインしなくても使えますか？",
+        "a1": "はい、ログインなしでもすべての機能が使えます。ログインすると履歴が保存され、後から簡単にアクセスできます。",
+        "q2": "グループのURLを忘れてしまいました",
+        "a2": "ログインしていた場合は「履歴」から確認できます。そうでない場合は、共有した相手にリンクを聞いてください。",
+        "q3": "途中参加の人の負担を減らせますか？",
+        "a3": "はい、メンバーごとに「重み」を設定できます。例：途中参加 → 0.5倍、幹事 → 0倍。",
+        "q4": "データは安全ですか？",
+        "a4": "はい、データはクラウドに安全に保存されます。パスコードを設定すれば第三者アクセスを防げます。"
+      },
+      "cta": {
+        "title": "アカウントを作成して履歴を保存",
+        "subtitle": "ログインすると、作成したグループの履歴が保存され、いつでもアクセスできます。",
+        "login": "ログイン / 新規登録",
+        "tryNow": "まずは試してみる"
+      }
+    },
+    "new": {
+      "title": "新しいグループを作成",
+      "groupInfo": "グループ情報",
+      "groupName": "グループ名",
+      "groupNamePlaceholder": "沖縄旅行 2024",
+      "description": "説明",
+      "descriptionPlaceholder": "3泊4日の沖縄旅行",
+      "currency": "通貨",
+      "protectWithPasscode": "パスコードで保護",
+      "passcode": "パスコード",
+      "passcodePlaceholder": "4桁以上のパスコード",
+      "passcodeHint": "グループにアクセスする際にパスコードの入力が必要になります",
+      "memberHint": "参加メンバーの名前を入力してください（後から追加・変更できます）",
+      "createGroup": "グループを作成",
+      "creating": "作成中...",
+      "toast": {
+        "enterGroupName": "グループ名を入力してください",
+        "addTwoMembers": "2人以上のメンバーを追加してください",
+        "passcodeMin": "パスコードは4桁以上で入力してください",
+        "created": "グループを作成しました",
+        "createFailed": "グループの作成に失敗しました"
+      }
+    },
+    "history": {
+      "title": "履歴",
+      "loginRequiredTitle": "ログインが必要です",
+      "loginRequiredDescription": "履歴を見るにはログインしてください。ログインすると過去のグループにいつでもアクセスできます。",
+      "loginButton": "ログイン",
+      "emptyTitle": "履歴がありません",
+      "emptyDescription": "まだグループを作成していません。",
+      "createGroup": "新しいグループを作成"
+    },
+    "group": {
+      "toast": {
+        "memberAdded": "メンバーを追加しました",
+        "memberAddFailed": "メンバーの追加に失敗しました",
+        "memberUpdated": "メンバーを更新しました",
+        "memberUpdateFailed": "メンバーの更新に失敗しました",
+        "memberRemoved": "メンバーを削除しました",
+        "memberRemoveFailed": "メンバーの削除に失敗しました",
+        "paymentAdded": "支払いを追加しました",
+        "paymentAddFailed": "支払いの追加に失敗しました",
+        "paymentUpdated": "支払いを更新しました",
+        "paymentUpdateFailed": "支払いの更新に失敗しました",
+        "paymentDeleted": "支払いを削除しました",
+        "paymentDeleteFailed": "支払いの削除に失敗しました"
+      },
+      "notFoundTitle": "グループが見つかりません",
+      "notFoundDescription": "このグループは存在しないか、アクセス権限がありません",
+      "backToTop": "トップに戻る",
+      "settlement": "精算",
+      "tabs": {
+        "payments": "支払い",
+        "members": "メンバー",
+        "settlements": "精算"
+      },
+      "addPayment": "支払いを追加",
+      "emptyPayments": "まだ支払いがありません。上のボタンから支払いを追加してください。",
+      "loadingSettlement": "精算情報を読み込み中..."
+    },
+    "join": {
+      "loading": "グループを読み込み中...",
+      "notFoundTitle": "グループが見つかりません",
+      "notFoundDescription": "このリンクは無効か、グループが削除された可能性があります。",
+      "backToTop": "Settliのトップへ",
+      "successTitle": "参加しました!",
+      "memberCount": "{{count}}人のメンバー",
+      "redirecting": "グループページへ移動中...",
+      "goNow": "今すぐ移動する"
+    },
+    "share": {
+      "button": "共有",
+      "title": "グループを共有",
+      "description": "リンクまたはQRコードでメンバーを招待できます",
+      "scanQr": "スマートフォンでQRコードをスキャン",
+      "linkLabel": "共有リンク",
+      "codeLabel": "共有コード",
+      "shareNow": "共有する",
+      "native": {
+        "title": "{{groupName}} - ワリカン",
+        "text": "「{{groupName}}」の割り勘グループに参加してください"
+      },
+      "toast": {
+        "copied": "リンクをコピーしました",
+        "copyFailed": "コピーに失敗しました"
+      }
+    },
+    "payment": {
+      "categories": {
+        "food": "食事",
+        "drink": "飲み物",
+        "transport": "交通費",
+        "accommodation": "宿泊",
+        "activity": "アクティビティ",
+        "shopping": "買い物",
+        "other": "その他"
+      },
+      "paidBy": "が支払い",
+      "addTitle": "支払いを追加",
+      "editTitle": "支払いを編集",
+      "payer": "支払った人",
+      "amount": "金額",
+      "description": "内容",
+      "descriptionPlaceholder": "ランチ、タクシー代など",
+      "category": "カテゴリ",
+      "date": "日付",
+      "splitMembers": "割り勘メンバー"
+    },
+    "member": {
+      "members": "メンバー",
+      "memberN": "メンバー",
+      "name": "名前",
+      "namePlaceholder": "山田 太郎",
+      "email": "メール",
+      "weight": "負担割合 (デフォルト: 1)",
+      "weightHint": "1より大きいと多く負担、小さいと少なく負担",
+      "empty": "メンバーがいません。追加してください。",
+      "inactive": "非アクティブ"
+    },
+    "passcode": {
+      "title": "パスコードを入力",
+      "description": "「{{groupName}}」はパスコードで保護されています",
+      "label": "パスコード",
+      "placeholder": "パスコードを入力",
+      "verifying": "確認中...",
+      "confirm": "確認",
+      "errors": {
+        "required": "パスコードを入力してください",
+        "invalid": "パスコードが正しくありません",
+        "verifyFailed": "確認に失敗しました"
+      }
+    },
+    "balance": {
+      "settlementMethod": "精算方法",
+      "consolidatedTab": "まとめて精算",
+      "byCurrencyTab": "通貨ごと",
+      "loadingRates": "為替レート取得中...",
+      "consolidatedNote": "全通貨を{{currency}}に換算してまとめています（概算）",
+      "noSettlementNeeded": "精算不要です",
+      "byCurrencyNote": "各通貨の実額で精算してください",
+      "summaryTitle": "収支サマリー",
+      "total": "合計",
+      "ratesFailed": "為替レートの取得に失敗しました。通貨換算なしで表示しています。",
+      "paid": "支払い",
+      "owed": "負担",
+      "receiveAmount": "受け取る金額",
+      "payAmount": "支払う金額",
+      "estimatedByRate": "（為替レートによる概算）"
+    },
+    "settlement": {
+      "listTitle": "精算リスト",
+      "completedTitle": "精算完了!",
+      "completedDescription": "全員の収支がバランスしています",
+      "transferCount": "{{count}}件の送金",
+      "optimizedNote": "最適化された精算で、送金回数を最小限にしています"
+    }
+  },
   "common": {
     "loading": "読み込み中...",
     "error": "エラー",

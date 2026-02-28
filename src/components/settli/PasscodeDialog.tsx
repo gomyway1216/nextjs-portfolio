@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Lock, AlertCircle } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 interface PasscodeDialogProps {
   open: boolean;
@@ -26,6 +27,7 @@ export function PasscodeDialog({
   onVerify,
   onCancel,
 }: PasscodeDialogProps) {
+  const { t } = useTranslation();
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -34,7 +36,7 @@ export function PasscodeDialog({
     e.preventDefault();
 
     if (!passcode.trim()) {
-      setError('パスコードを入力してください');
+      setError(t('settli.passcode.errors.required'));
       return;
     }
 
@@ -44,11 +46,11 @@ export function PasscodeDialog({
     try {
       const success = await onVerify(passcode);
       if (!success) {
-        setError('パスコードが正しくありません');
+        setError(t('settli.passcode.errors.invalid'));
         setPasscode('');
       }
     } catch {
-      setError('確認に失敗しました');
+      setError(t('settli.passcode.errors.verifyFailed'));
     } finally {
       setLoading(false);
     }
@@ -60,16 +62,16 @@ export function PasscodeDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Lock className="h-5 w-5" />
-            パスコードを入力
+            {t('settli.passcode.title')}
           </DialogTitle>
           <DialogDescription>
-            「{groupName}」はパスコードで保護されています
+            {t('settli.passcode.description', { groupName })}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="passcode">パスコード</Label>
+            <Label htmlFor="passcode">{t('settli.passcode.label')}</Label>
             <Input
               id="passcode"
               type="password"
@@ -78,7 +80,7 @@ export function PasscodeDialog({
                 setPasscode(e.target.value);
                 setError('');
               }}
-              placeholder="パスコードを入力"
+              placeholder={t('settli.passcode.placeholder')}
               autoFocus
               disabled={loading}
             />
@@ -99,10 +101,10 @@ export function PasscodeDialog({
               onClick={onCancel}
               disabled={loading}
             >
-              キャンセル
+              {t('settli.common.cancel')}
             </Button>
             <Button type="submit" className="flex-1" disabled={loading}>
-              {loading ? '確認中...' : '確認'}
+              {loading ? t('settli.passcode.verifying') : t('settli.passcode.confirm')}
             </Button>
           </div>
         </form>

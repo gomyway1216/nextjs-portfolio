@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, signOut, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_API_KEY,
@@ -15,6 +15,14 @@ export const auth = getAuth(app);
 
 export const signInWithEmail = (email: string, password: string) => {
   return signInWithEmailAndPassword(auth, email, password);
+};
+
+export const signUpWithEmail = async (email: string, password: string, displayName?: string) => {
+  const credential = await createUserWithEmailAndPassword(auth, email, password);
+  if (displayName) {
+    await updateProfile(credential.user, { displayName });
+  }
+  return credential;
 };
 
 export const signOutUser = () => {

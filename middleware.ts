@@ -1,38 +1,70 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-// List of protected routes that require authentication
-const protectedRoutes = [
-  '/admin',
+const SESSION_COOKIE_NAME = '__session';
+
+const AUTH_REQUIRED_ROUTES = [
   '/new-post',
   '/new-project',
   '/achievements',
 ];
 
-// Routes that start with these patterns are also protected
-const protectedPatterns = [
-  '/blog/.*/edit',
-  '/project/.*/edit',
+const AUTH_REQUIRED_PATTERNS = [
+  /^\/blog\/.*\/edit$/,
+  /^\/project\/.*\/edit$/,
 ];
 
-export function middleware(request: NextRequest) {
+const ADMIN_ROUTES = [
+  '/admin',
+];
+
+function isAuthRequired(pathname: string): boolean {
+  if (AUTH_REQUIRED_ROUTES.some((route) => pathname.startsWith(route))) return true;
+  if (AUTH_REQUIRED_PATTERNS.some((pattern) => pattern.test(pathname))) return true;
+  return false;
+}
+
+function isAdminRoute(pathname: string): boolean {
+  return ADMIN_ROUTES.some((route) => pathname.startsWith(route));
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Check if the current path is a protected route
-  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route)) ||
-    protectedPatterns.some(pattern => new RegExp(pattern).test(pathname));
+  if (!isAuthRequired(pathname) && !isAdminRoute(pathname)) {
+    return NextResponse.next();
+  }
 
-  if (isProtectedRoute) {
-    // In Next.js App Router, we can't directly access Firebase auth state in middleware
-    // Instead, we'll check for an auth cookie or token
-    // For now, we'll let the client-side handle the redirect through the page components
-    // This is a placeholder for future authentication implementation
+  const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
-    // You can implement cookie-based auth checking here
-    // const authToken = request.cookies.get('auth-token');
-    // if (!authToken) {
-    //   return NextResponse.redirect(new URL('/signin', request.url));
-    // }
+  if (!sessionCookie) {
+    const signInUrl = new URL('/signin', request.url);
+    signInUrl.searchParams.set('redirect', pathname);
+    return NextResponse.redirect(signInUrl);
+  }
+
+  if (isAdminRoute(pathname)) {
+    try {
+      const verifyUrl = new URL('/api/auth/verify', request.url);
+      const res = await fetch(verifyUrl, {
+        headers: { Cookie: `${SESSION_COOKIE_NAME}=${sessionCookie}` },
+      });
+
+      if (!res.ok) {
+        const signInUrl = new URL('/signin', request.url);
+        signInUrl.searchParams.set('redirect', pathname);
+        return NextResponse.redirect(signInUrl);
+      }
+
+      const data = await res.json();
+      if (!data.isAdmin) {
+        return NextResponse.redirect(new URL('/', request.url));
+      }
+    } catch {
+      const signInUrl = new URL('/signin', request.url);
+      signInUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(signInUrl);
+    }
   }
 
   return NextResponse.next();
@@ -40,13 +72,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     '/((?!api|_next/static|_next/image|favicon.ico).*)',
   ],
 };

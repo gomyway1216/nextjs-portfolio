@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Users, UserPlus, Edit2, Trash2, Scale } from 'lucide-react';
 import type { Member } from '@/types/settli';
 import { MemberForm } from './MemberForm';
+import { useTranslation } from 'react-i18next';
 
 interface MemberListProps {
   members: Member[];
@@ -23,6 +24,7 @@ export function MemberList({
   onRemoveMember,
   loading,
 }: MemberListProps) {
+  const { t } = useTranslation();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
 
@@ -46,7 +48,7 @@ export function MemberList({
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
           <Users className="h-5 w-5" />
-          メンバー ({activeMembers.length}人)
+          {t('settli.member.members')} ({t('settli.common.memberCount', { count: activeMembers.length })})
         </CardTitle>
         <Button
           variant="outline"
@@ -55,7 +57,7 @@ export function MemberList({
           disabled={loading}
         >
           <UserPlus className="h-4 w-4 mr-1" />
-          追加
+          {t('settli.common.add')}
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -81,7 +83,7 @@ export function MemberList({
 
         {activeMembers.length === 0 && !showAddForm ? (
           <p className="text-sm text-muted-foreground text-center py-4">
-            メンバーがいません。追加してください。
+            {t('settli.member.empty')}
           </p>
         ) : (
           <ul className="space-y-2">
@@ -135,7 +137,7 @@ export function MemberList({
         {inactiveMembers.length > 0 && (
           <div className="mt-4 pt-4 border-t">
             <p className="text-sm text-muted-foreground mb-2">
-              非アクティブ ({inactiveMembers.length}人)
+              {t('settli.member.inactive')} ({t('settli.common.memberCount', { count: inactiveMembers.length })})
             </p>
             <ul className="space-y-1">
               {inactiveMembers.map((member) => (

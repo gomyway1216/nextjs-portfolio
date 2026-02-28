@@ -21,8 +21,10 @@ import { toast } from 'sonner';
 import { useSettliMutations } from '@/hooks/useSettli';
 import { SettliLogo } from '@/components/settli';
 import { Currency, CURRENCY_NAMES, type CreateMemberInput } from '@/types/settli';
+import { useTranslation } from 'react-i18next';
 
 export default function NewSettliGroupPage() {
+  const { t } = useTranslation();
   const router = useRouter();
   const { createGroup, loading } = useSettliMutations();
 
@@ -56,18 +58,18 @@ export default function NewSettliGroupPage() {
     e.preventDefault();
 
     if (!name.trim()) {
-      toast.error('グループ名を入力してください');
+      toast.error(t('settli.new.toast.enterGroupName'));
       return;
     }
 
     const validMembers = members.filter((m) => m.name.trim());
     if (validMembers.length < 2) {
-      toast.error('2人以上のメンバーを追加してください');
+      toast.error(t('settli.new.toast.addTwoMembers'));
       return;
     }
 
     if (usePasscode && passcode.length < 4) {
-      toast.error('パスコードは4桁以上で入力してください');
+      toast.error(t('settli.new.toast.passcodeMin'));
       return;
     }
 
@@ -80,10 +82,10 @@ export default function NewSettliGroupPage() {
         passcode: usePasscode && passcode ? passcode : undefined,
       });
 
-      toast.success('グループを作成しました');
+      toast.success(t('settli.new.toast.created'));
       router.push(`/tools/settli/${result.id}`);
     } catch {
-      toast.error('グループの作成に失敗しました');
+      toast.error(t('settli.new.toast.createFailed'));
     }
   };
 
@@ -98,7 +100,7 @@ export default function NewSettliGroupPage() {
         </Link>
         <div className="flex items-center gap-3">
           <SettliLogo size={32} />
-          <h1 className="text-2xl font-bold">新しいグループを作成</h1>
+          <h1 className="text-2xl font-bold">{t('settli.new.title')}</h1>
         </div>
       </div>
 
@@ -106,34 +108,34 @@ export default function NewSettliGroupPage() {
         {/* Group Info */}
         <Card>
           <CardHeader>
-            <CardTitle>グループ情報</CardTitle>
+            <CardTitle>{t('settli.new.groupInfo')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="name">グループ名 *</Label>
+              <Label htmlFor="name">{t('settli.new.groupName')} *</Label>
               <Input
                 id="name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="沖縄旅行 2024"
+                placeholder={t('settli.new.groupNamePlaceholder')}
                 required
                 disabled={loading}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="description">説明 (任意)</Label>
+              <Label htmlFor="description">{t('settli.new.description')} ({t('settli.common.optional')})</Label>
               <Textarea
                 id="description"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="3泊4日の沖縄旅行"
+                placeholder={t('settli.new.descriptionPlaceholder')}
                 disabled={loading}
               />
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="currency">通貨</Label>
+              <Label htmlFor="currency">{t('settli.new.currency')}</Label>
               <Select
                 value={currency}
                 onValueChange={(v) => setCurrency(v as Currency)}
@@ -144,7 +146,7 @@ export default function NewSettliGroupPage() {
                 <SelectContent>
                   {Object.entries(CURRENCY_NAMES).map(([key, label]) => (
                     <SelectItem key={key} value={key}>
-                      {key} - {label}
+                      {key} - {t(`settli.currency.${key}`, { defaultValue: label })}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -156,7 +158,7 @@ export default function NewSettliGroupPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Lock className="h-4 w-4 text-muted-foreground" />
-                  <Label htmlFor="usePasscode">パスコードで保護</Label>
+                  <Label htmlFor="usePasscode">{t('settli.new.protectWithPasscode')}</Label>
                 </div>
                 <Switch
                   id="usePasscode"
@@ -167,18 +169,18 @@ export default function NewSettliGroupPage() {
               </div>
               {usePasscode && (
                 <div className="space-y-2">
-                  <Label htmlFor="passcode">パスコード</Label>
+                  <Label htmlFor="passcode">{t('settli.new.passcode')}</Label>
                   <Input
                     id="passcode"
                     type="password"
                     value={passcode}
                     onChange={(e) => setPasscode(e.target.value)}
-                    placeholder="4桁以上のパスコード"
+                    placeholder={t('settli.new.passcodePlaceholder')}
                     minLength={4}
                     disabled={loading}
                   />
                   <p className="text-xs text-muted-foreground">
-                    グループにアクセスする際にパスコードの入力が必要になります
+                    {t('settli.new.passcodeHint')}
                   </p>
                 </div>
               )}
@@ -191,7 +193,7 @@ export default function NewSettliGroupPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              メンバー
+              {t('settli.member.members')}
             </CardTitle>
             <Button
               type="button"
@@ -201,19 +203,19 @@ export default function NewSettliGroupPage() {
               disabled={loading}
             >
               <Plus className="h-4 w-4 mr-1" />
-              追加
+              {t('settli.common.add')}
             </Button>
           </CardHeader>
           <CardContent className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              参加メンバーの名前を入力してください（後から追加・変更できます）
+              {t('settli.new.memberHint')}
             </p>
             {members.map((member, index) => (
               <div key={index} className="flex gap-2">
                 <Input
                   value={member.name}
                   onChange={(e) => updateMemberName(index, e.target.value)}
-                  placeholder={`メンバー ${index + 1}`}
+                  placeholder={`${t('settli.member.memberN')} ${index + 1}`}
                   disabled={loading}
                 />
                 {members.length > 2 && (
@@ -241,11 +243,11 @@ export default function NewSettliGroupPage() {
               className="w-full"
               disabled={loading}
             >
-              キャンセル
+              {t('settli.common.cancel')}
             </Button>
           </Link>
           <Button type="submit" className="flex-1" disabled={loading}>
-            {loading ? '作成中...' : 'グループを作成'}
+            {loading ? t('settli.new.creating') : t('settli.new.createGroup')}
           </Button>
         </div>
       </form>

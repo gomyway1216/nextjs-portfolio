@@ -1,11 +1,11 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Settli - グループ精算をスマートに',
-  description: 'グループ旅行や飲み会の精算を簡単に。最適な支払い方法を自動計算。ログイン不要、無料で使えます。',
+  title: 'Settli - Smart Group Settlement',
+  description: 'Simplify trip and event bill splitting. Automatically calculate optimized settlements. Free and no login required.',
   openGraph: {
-    title: 'Settli - グループ精算をスマートに',
-    description: 'グループ旅行や飲み会の精算を簡単に。最適な支払い方法を自動計算。',
+    title: 'Settli - Smart Group Settlement',
+    description: 'Simplify trip and event bill splitting with optimized settlement calculations.',
   },
 };
 

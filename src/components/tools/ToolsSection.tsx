@@ -38,7 +38,7 @@ const ToolsSection: React.FC = () => {
         t('home.tools.settli.features.weighted'),
         t('home.tools.settli.features.qrShare'),
       ],
-      gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7)',
+      gradient: 'linear-gradient(135deg, #2563eb, #0ea5e9, #0284c7)',
     },
   ];
 

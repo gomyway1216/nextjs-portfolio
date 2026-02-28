@@ -7,6 +7,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { SettliIcon } from '@/components/settli';
+import { KaimonoLogo } from '@/components/kaimono';
 import { useTranslation } from 'react-i18next';
 import './tools-section.scss';
 
@@ -39,6 +40,20 @@ const ToolsSection: React.FC = () => {
         t('home.tools.settli.features.qrShare'),
       ],
       gradient: 'linear-gradient(135deg, #2563eb, #0ea5e9, #0284c7)',
+    },
+    {
+      id: 'kaimono',
+      title: t('home.tools.kaimono.title'),
+      subtitle: t('home.tools.kaimono.subtitle'),
+      description: t('home.tools.kaimono.description'),
+      path: '/tools/kaimono',
+      icon: <KaimonoLogo size={32} variant="mono" />,
+      features: [
+        t('home.tools.kaimono.features.budget'),
+        t('home.tools.kaimono.features.recurring'),
+        t('home.tools.kaimono.features.share'),
+      ],
+      gradient: 'linear-gradient(135deg, #059669, #10b981, #34d399)',
     },
   ];
 

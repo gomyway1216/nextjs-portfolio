@@ -43,7 +43,13 @@ const Header = () => {
         <div className="scroll-bar">
           <div className="hl-top">
             <div className="hl-logo">
-              <Link href="/">Y</Link>
+              <Link
+                href="/"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content="Home"
+              >
+                Y
+              </Link>
             </div>
           </div>
           {/* End htl-top */}
@@ -58,144 +64,88 @@ const Header = () => {
               <a
                 className="nav-link "
                 href="#home"
-                data-tip
-                data-for="HOME"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content="Home"
                 onClick={handleClick}
               >
                 <span style={{ fontSize: '20px' }}>🏠</span>
-                <Tooltip
-                  id="HOME"
-                  place="right"
-                  variant="dark"
-                >
-                  <span>Home</span>
-                </Tooltip>
               </a>
             </li>
             <li>
               <a
                 className="nav-link"
                 href="#about"
-                data-tip
-                data-for="ABOUT"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content="About"
                 onClick={handleClick}
               >
                 <span style={{ fontSize: '20px' }}>👨‍💼</span>
-                <Tooltip
-                  id="ABOUT"
-                  place="right"
-                  variant="dark"
-                >
-                  <span>About</span>
-                </Tooltip>
               </a>
             </li>
             <li>
               <a
                 className="nav-link"
                 href="#resume"
-                data-tip
-                data-for="RESUME"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content="Resume"
                 onClick={handleClick}
               >
                 <span style={{ fontSize: '20px' }}>📄</span>
-                <Tooltip
-                  id="RESUME"
-                  place="right"
-                  variant="dark"
-                >
-                  <span>Resume</span>
-                </Tooltip>
               </a>
             </li>
             <li>
               <a
                 className="nav-link"
                 href="#work"
-                data-tip
-                data-for="WORK"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content="Work"
                 onClick={handleClick}
               >
                 <span style={{ fontSize: '20px' }}>💼</span>
-                <Tooltip
-                  id="WORK"
-                  place="right"
-                  variant="dark"
-                >
-                  <span>Work</span>
-                </Tooltip>
               </a>
             </li>
             <li>
               <a
                 className="nav-link"
                 href="#games"
-                data-tip
-                data-for="GAMES"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content="Games"
                 onClick={handleClick}
               >
                 <span style={{ fontSize: '20px' }}>🎮</span>
-                <Tooltip
-                  id="GAMES"
-                  place="right"
-                  variant="dark"
-                >
-                  <span>Games</span>
-                </Tooltip>
               </a>
             </li>
             <li>
               <a
                 className="nav-link"
                 href="#tools"
-                data-tip
-                data-for="TOOLS"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content="Tools"
                 onClick={handleClick}
               >
                 <span style={{ fontSize: '20px' }}>🛠️</span>
-                <Tooltip
-                  id="TOOLS"
-                  place="right"
-                  variant="dark"
-                >
-                  <span>Tools</span>
-                </Tooltip>
               </a>
             </li>
             <li>
               <a
                 className="nav-link"
                 href="#blog"
-                data-tip
-                data-for="BLOG"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content="Blog"
                 onClick={handleClick}
               >
                 <span style={{ fontSize: '20px' }}>📝</span>
-                <Tooltip
-                  id="BLOG"
-                  place="right"
-                  variant="dark"
-                >
-                  <span>Blog</span>
-                </Tooltip>
               </a>
             </li>
             <li>
               <a
                 className="nav-link"
                 href="/hobbies"
-                data-tip
-                data-for="HOBBIES"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content="Hobbies"
                 onClick={handleClick}
               >
                 <span style={{ fontSize: '20px' }}>❤️</span>
-                <Tooltip
-                  id="HOBBIES"
-                  place="right"
-                  variant="dark"
-                >
-                  <span>Hobbies</span>
-                </Tooltip>
               </a>
             </li>
             {/* <li>
@@ -221,8 +171,8 @@ const Header = () => {
                 <a
                   className="nav-link"
                   href="/study"
-                  data-tip
-                  data-for="STUDY"
+                  data-tooltip-id="left-menu-tooltip"
+                  data-tooltip-content="Study"
                   onClick={(e) => {
                     e.preventDefault();
                     handleClick();
@@ -230,13 +180,6 @@ const Header = () => {
                   }}
                 >
                   <span style={{ fontSize: '20px' }}>📚</span>
-                  <Tooltip
-                    id="STUDY"
-                    place="right"
-                    variant="dark"
-                  >
-                    <span>Study</span>
-                  </Tooltip>
                 </a>
               </li>
             )}
@@ -246,17 +189,10 @@ const Header = () => {
                   <DropdownMenuTrigger asChild>
                     <a
                       className="nav-link"
-                      data-tip
-                      data-for="ADMIN"
+                      data-tooltip-id="left-menu-tooltip"
+                      data-tooltip-content="Admin"
                     >
                       <span style={{ fontSize: '20px' }}>⚙️</span>
-                      <Tooltip
-                        id="ADMIN"
-                        place="right"
-                        variant="dark"
-                      >
-                        <span>Admin</span>
-                      </Tooltip>
                     </a>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
@@ -271,6 +207,7 @@ const Header = () => {
               </li>
             )}
           </Scrollspy>
+          <Tooltip id="left-menu-tooltip" place="right" variant="dark" />
         </div>
       </header>
       {/* End Header */}

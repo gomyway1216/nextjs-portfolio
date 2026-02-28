@@ -39,10 +39,10 @@ export const HOBBY_ITEMS_COLLECTION = 'hobby_items';
 // Game System collection names
 export const GAME_SCORES_COLLECTION = 'game_scores';
 
-// Warikan System collection names
-export const WARIKAN_GROUPS_COLLECTION = 'warikan_groups';
-export const WARIKAN_PAYMENTS_COLLECTION = 'warikan_payments';
-export const WARIKAN_USER_HISTORY_COLLECTION = 'warikan_user_history';
+// Settli System collection names
+export const SETTLI_GROUPS_COLLECTION = 'settli_groups';
+export const SETTLI_PAYMENTS_COLLECTION = 'settli_payments';
+export const SETTLI_USER_HISTORY_COLLECTION = 'settli_user_history';
 
 // Firebase Cloud Functions base URL (v2 uses individual URLs per function)
 // Format: https://{functionname-lowercase}-{project-hash}-uc.a.run.app

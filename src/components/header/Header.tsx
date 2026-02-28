@@ -50,7 +50,7 @@ const Header = () => {
 
           <Scrollspy
             className="nav nav-menu"
-            items={['home', 'about', 'resume', 'work', 'games', 'blog', 'contactus', 'admin']}
+            items={['home', 'about', 'resume', 'work', 'games', 'tools', 'blog', 'contactus', 'admin']}
             currentClassName="active"
             offset={-30}
           >
@@ -141,6 +141,24 @@ const Header = () => {
                   variant="dark"
                 >
                   <span>Games</span>
+                </Tooltip>
+              </a>
+            </li>
+            <li>
+              <a
+                className="nav-link"
+                href="#tools"
+                data-tip
+                data-for="TOOLS"
+                onClick={handleClick}
+              >
+                <span style={{ fontSize: '20px' }}>🛠️</span>
+                <Tooltip
+                  id="TOOLS"
+                  place="right"
+                  variant="dark"
+                >
+                  <span>Tools</span>
                 </Tooltip>
               </a>
             </li>

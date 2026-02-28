@@ -7,6 +7,7 @@ import About from '@/components/about/AboutAnimation';
 import Resume from '@/components/resume/ResumeAnimation';
 import Portfolio from '@/components/portfolio/PortfolioAnimation';
 import GamesSlideshow from '@/components/games/GamesSlideshow';
+import ToolsSection from '@/components/tools/ToolsSection';
 import Blog from '@/components/blog/BlogAnimation';
 import Contact from '@/components/contact/Contact';
 import ContactInfo from '@/components/contact/ContactInfo';
@@ -52,7 +53,17 @@ const HomeOne = () => {
       </section>
       {/* End Games Section */}
 
-      <section id="blog" className="section theme-light dark-bg">
+      <section id="tools" className="section theme-light dark-bg">
+        <div className="container">
+          <div className="title">
+            <h3>Useful Tools.</h3>
+          </div>
+          <ToolsSection />
+        </div>
+      </section>
+      {/* End Tools Section */}
+
+      <section id="blog" className="section">
         <div className="container">
           <div className="title">
             <h3>Latest Blog.</h3>

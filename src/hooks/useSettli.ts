@@ -5,7 +5,7 @@ import * as settliService from '@/services/settliService';
 import type {
   SettliGroup,
   Payment,
-  SettlementCalculation,
+  MultiCurrencySettlement,
   UserHistory,
   CreateGroupInput,
   UpdateGroupInput,
@@ -197,7 +197,7 @@ export function useSettliPayments(groupId: string | null): UseSettliPaymentsResu
 // ============================================================================
 
 interface UseSettliSettlementsResult {
-  settlements: SettlementCalculation | null;
+  settlements: MultiCurrencySettlement | null;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -206,7 +206,7 @@ interface UseSettliSettlementsResult {
 export function useSettliSettlements(
   groupId: string | null
 ): UseSettliSettlementsResult {
-  const [settlements, setSettlements] = useState<SettlementCalculation | null>(null);
+  const [settlements, setSettlements] = useState<MultiCurrencySettlement | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

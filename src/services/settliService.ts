@@ -11,7 +11,7 @@ import type {
   PaymentsResponse,
   CreatePaymentInput,
   UpdatePaymentInput,
-  SettlementCalculation,
+  MultiCurrencySettlement,
   HistoryResponse,
   QRCodeResponse,
 } from '@/types/settli';
@@ -200,9 +200,26 @@ export async function deletePayment(
 
 export async function calculateSettlements(
   groupId: string
-): Promise<SettlementCalculation> {
-  return apiCall<SettlementCalculation>(
+): Promise<MultiCurrencySettlement> {
+  return apiCall<MultiCurrencySettlement>(
     `${BASE_URL}/groups/${groupId}/settlements`
+  );
+}
+
+// ============================================================================
+// EXCHANGE RATES
+// ============================================================================
+
+export interface ExchangeRatesResponse {
+  base: string;
+  rates: Record<string, number>;
+}
+
+export async function getExchangeRates(
+  base: string = 'USD'
+): Promise<ExchangeRatesResponse> {
+  return apiCall<ExchangeRatesResponse>(
+    `${BASE_URL}/exchange-rates?base=${base}`
   );
 }
 

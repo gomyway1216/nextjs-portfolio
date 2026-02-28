@@ -25,7 +25,6 @@ import {
   MemberList,
   PaymentCard,
   PaymentForm,
-  SettlementList,
   BalanceSummary,
   ShareDialog,
   PasscodeDialog,
@@ -252,7 +251,7 @@ export default function SettliGroupPage() {
             </div>
             <div>
               <p className="text-2xl font-bold">
-                {settlements?.settlements.length || 0}
+                {settlements?.totalSettlementCount || 0}
               </p>
               <p className="text-sm text-muted-foreground">精算件数</p>
             </div>
@@ -348,17 +347,10 @@ export default function SettliGroupPage() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : settlements ? (
-            <>
-              <BalanceSummary
-                summaries={settlements.summaries}
-                totalAmount={settlements.totalAmount}
-                currency={settlements.currency}
-              />
-              <SettlementList
-                settlements={settlements.settlements}
-                currency={settlements.currency}
-              />
-            </>
+            <BalanceSummary
+              calculations={settlements.byCurrency}
+              defaultCurrency={group.currency}
+            />
           ) : (
             <Card>
               <CardContent className="p-8 text-center">

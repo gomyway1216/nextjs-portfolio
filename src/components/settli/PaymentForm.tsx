@@ -11,13 +11,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Check } from 'lucide-react';
 import type { Member, CreatePaymentInput, Payment, Participant } from '@/types/settli';
 import {
   SplitType,
   PaymentCategory,
   Currency,
+  CURRENCY_NAMES,
+  CURRENCY_SYMBOLS,
   PAYMENT_CATEGORY_LABELS,
 } from '@/types/settli';
 
@@ -45,6 +47,9 @@ export function PaymentForm({
   const [description, setDescription] = useState(initialPayment?.description || '');
   const [category, setCategory] = useState<PaymentCategory | ''>(
     initialPayment?.category || ''
+  );
+  const [paymentCurrency, setPaymentCurrency] = useState<Currency>(
+    (initialPayment?.currency as Currency) || currency
   );
   const [date, setDate] = useState(
     initialPayment?.date
@@ -76,6 +81,7 @@ export function PaymentForm({
       groupId,
       payerId,
       amount: parseFloat(amount),
+      currency: paymentCurrency,
       description,
       category: category || undefined,
       date,
@@ -102,20 +108,22 @@ export function PaymentForm({
     setSelectedParticipants([]);
   };
 
+  const allSelected = selectedParticipants.length === activeMembers.length;
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>
+      <CardHeader className="pb-4">
+        <CardTitle className="text-lg">
           {initialPayment ? '支払いを編集' : '支払いを追加'}
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
           {/* Payer */}
-          <div className="space-y-2">
-            <Label htmlFor="payer">支払った人 *</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="payer" className="text-sm font-medium">支払った人 *</Label>
             <Select value={payerId} onValueChange={setPayerId}>
-              <SelectTrigger id="payer">
+              <SelectTrigger id="payer" className="w-full">
                 <SelectValue placeholder="選択してください" />
               </SelectTrigger>
               <SelectContent>
@@ -128,25 +136,57 @@ export function PaymentForm({
             </Select>
           </div>
 
-          {/* Amount */}
-          <div className="space-y-2">
-            <Label htmlFor="amount">金額 ({currency}) *</Label>
-            <Input
-              id="amount"
-              type="number"
-              min="0"
-              step="1"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="1000"
-              required
-              disabled={loading}
-            />
+          {/* Amount + Currency */}
+          <div className="space-y-1.5">
+            <Label htmlFor="amount" className="text-sm font-medium">金額 *</Label>
+            <div className="flex gap-2">
+              <div
+                className="flex items-center h-9 w-full rounded-md border border-input bg-transparent shadow-sm focus-within:outline-none focus-within:ring-1 focus-within:ring-ring min-w-0"
+                style={{ flex: '1 1 0' }}
+              >
+                <span className="pl-3 text-muted-foreground text-sm select-none shrink-0">
+                  {CURRENCY_SYMBOLS[paymentCurrency]}
+                </span>
+                <input
+                  id="amount"
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*\.?[0-9]*"
+                  value={amount}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (v === '' || /^\d*\.?\d*$/.test(v)) {
+                      setAmount(v);
+                    }
+                  }}
+                  placeholder="0"
+                  required
+                  disabled={loading}
+                  className="flex-1 min-w-0 h-full bg-transparent pl-1 pr-3 py-1 text-base md:text-sm placeholder:text-muted-foreground outline-none border-none shadow-none ring-0 focus:outline-none focus:border-none focus:shadow-none focus:ring-0 disabled:cursor-not-allowed disabled:opacity-50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  style={{ WebkitAppearance: 'none', outline: 'none', boxShadow: 'none' }}
+                />
+              </div>
+              <Select
+                value={paymentCurrency}
+                onValueChange={(v) => setPaymentCurrency(v as Currency)}
+              >
+                <SelectTrigger className="shrink-0" style={{ width: '5.5rem' }}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(CURRENCY_NAMES).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {key} - {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           {/* Description */}
-          <div className="space-y-2">
-            <Label htmlFor="description">内容 *</Label>
+          <div className="space-y-1.5">
+            <Label htmlFor="description" className="text-sm font-medium">内容 *</Label>
             <Input
               id="description"
               value={description}
@@ -157,85 +197,110 @@ export function PaymentForm({
             />
           </div>
 
-          {/* Category */}
-          <div className="space-y-2">
-            <Label htmlFor="category">カテゴリ (任意)</Label>
-            <Select
-              value={category}
-              onValueChange={(v) => setCategory(v as PaymentCategory)}
-            >
-              <SelectTrigger id="category">
-                <SelectValue placeholder="選択してください" />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(PAYMENT_CATEGORY_LABELS).map(([key, label]) => (
-                  <SelectItem key={key} value={key}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Date */}
-          <div className="space-y-2">
-            <Label htmlFor="date">日付</Label>
-            <Input
-              id="date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              disabled={loading}
-            />
+          {/* Category & Date row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="category" className="text-sm font-medium">カテゴリ</Label>
+              <Select
+                value={category}
+                onValueChange={(v) => setCategory(v as PaymentCategory)}
+              >
+                <SelectTrigger id="category" className="w-full">
+                  <SelectValue placeholder="任意" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(PAYMENT_CATEGORY_LABELS).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="date" className="text-sm font-medium">日付</Label>
+              <Input
+                id="date"
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                disabled={loading}
+              />
+            </div>
           </div>
 
           {/* Participants */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <Label>割り勘メンバー *</Label>
-              <div className="flex gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={selectAllParticipants}
-                >
-                  全選択
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={clearAllParticipants}
-                >
-                  全解除
-                </Button>
-              </div>
+              <Label className="text-sm font-medium">
+                割り勘メンバー *
+                <span className="text-muted-foreground font-normal ml-1">
+                  ({selectedParticipants.length}/{activeMembers.length})
+                </span>
+              </Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs px-2"
+                onClick={allSelected ? clearAllParticipants : selectAllParticipants}
+              >
+                {allSelected ? '全解除' : '全選択'}
+              </Button>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {activeMembers.map((member) => (
-                <label
-                  key={member.id}
-                  className="flex items-center gap-2 p-2 rounded-lg border cursor-pointer hover:bg-muted/50"
-                >
-                  <Checkbox
-                    checked={selectedParticipants.includes(member.id)}
-                    onCheckedChange={() => toggleParticipant(member.id)}
-                    disabled={loading}
-                  />
-                  <span>{member.name}</span>
-                </label>
-              ))}
+            <div className="space-y-1.5">
+              {activeMembers.map((member) => {
+                const isSelected = selectedParticipants.includes(member.id);
+                return (
+                  <div
+                    key={member.id}
+                    role="checkbox"
+                    aria-checked={isSelected}
+                    tabIndex={0}
+                    onClick={() => !loading && toggleParticipant(member.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === ' ' || e.key === 'Enter') {
+                        e.preventDefault();
+                        if (!loading) toggleParticipant(member.id);
+                      }
+                    }}
+                    className={`flex items-center gap-3 w-full p-3 rounded-lg border cursor-pointer select-none transition-colors ${
+                      isSelected
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:bg-muted/50'
+                    } ${loading ? 'opacity-50 pointer-events-none' : ''}`}
+                  >
+                    <div className={`w-5 h-5 rounded-sm border shrink-0 flex items-center justify-center transition-colors ${
+                      isSelected
+                        ? 'bg-primary border-primary text-primary-foreground'
+                        : 'border-primary'
+                    }`}>
+                      {isSelected && <Check className="h-3.5 w-3.5" />}
+                    </div>
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium shrink-0 ${
+                        isSelected
+                          ? 'bg-primary/10 text-primary'
+                          : 'bg-muted text-muted-foreground'
+                      }`}>
+                        {member.name.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="truncate text-sm">{member.name}</span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
           {/* Actions */}
-          <div className="flex gap-2 justify-end pt-4">
+          <div className="flex gap-3 pt-2">
             <Button
               type="button"
               variant="outline"
               onClick={onCancel}
               disabled={loading}
+              className="flex-1"
             >
               キャンセル
             </Button>
@@ -248,8 +313,9 @@ export function PaymentForm({
                 !description ||
                 selectedParticipants.length === 0
               }
+              className="flex-1"
             >
-              {initialPayment ? '更新' : '追加'}
+              {loading ? '処理中...' : initialPayment ? '更新' : '追加'}
             </Button>
           </div>
         </form>

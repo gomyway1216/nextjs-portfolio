@@ -209,6 +209,11 @@ export interface SettlementCalculation {
   currency: Currency;
 }
 
+export interface MultiCurrencySettlement {
+  byCurrency: SettlementCalculation[];
+  totalSettlementCount: number;
+}
+
 // ============================================================================
 // USER HISTORY TYPES
 // ============================================================================

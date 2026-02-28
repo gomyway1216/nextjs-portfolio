@@ -4,8 +4,8 @@ import {
   SETTLI_GROUPS_COLLECTION,
   SETTLI_PAYMENTS_COLLECTION,
 } from '../../../../constants';
-import type { Payment, Member, SettlementCalculation } from '@/types/settli';
-import { calculateFullSettlement } from '@/lib/settliAlgorithm';
+import type { Payment, Member } from '@/types/settli';
+import { calculateMultiCurrencySettlement } from '@/lib/settliAlgorithm';
 
 interface RouteParams {
   params: Promise<{ groupId: string }>;
@@ -51,8 +51,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       };
     });
 
-    // Calculate settlements using the algorithm
-    const calculation: SettlementCalculation = calculateFullSettlement(
+    // Calculate settlements grouped by currency
+    const calculation = calculateMultiCurrencySettlement(
       payments,
       members,
       groupData.currency

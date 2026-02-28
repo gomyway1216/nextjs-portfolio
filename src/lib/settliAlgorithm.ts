@@ -6,6 +6,7 @@ import {
   OptimizedSettlement,
   Balance,
   SettlementCalculation,
+  MultiCurrencySettlement,
   Currency,
 } from '@/types/settli';
 
@@ -83,11 +84,22 @@ export function calculateParticipantAmounts(
 }
 
 /**
+ * Round for calculation: JPY/KRW to nearest 1, others to nearest 0.01
+ */
+function calcRound(amount: number, currency: Currency): number {
+  if (currency === Currency.JPY || currency === Currency.KRW) {
+    return Math.round(amount);
+  }
+  return Math.round(amount * 100) / 100;
+}
+
+/**
  * Calculate each member's balance based on all payments
  */
 export function calculateBalances(
   payments: Payment[],
-  members: Member[]
+  members: Member[],
+  currency: Currency
 ): SettlementSummary[] {
   const summaries = new Map<string, SettlementSummary>();
 
@@ -123,12 +135,11 @@ export function calculateBalances(
     });
   });
 
-  // Calculate final balance for each member
+  // Calculate final balance for each member with currency-aware rounding
   summaries.forEach((summary) => {
-    // Round to avoid floating point issues
-    summary.totalPaid = Math.round(summary.totalPaid);
-    summary.totalOwed = Math.round(summary.totalOwed);
-    summary.balance = summary.totalPaid - summary.totalOwed;
+    summary.totalPaid = calcRound(summary.totalPaid, currency);
+    summary.totalOwed = calcRound(summary.totalOwed, currency);
+    summary.balance = calcRound(summary.totalPaid - summary.totalOwed, currency);
   });
 
   return Array.from(summaries.values());
@@ -141,20 +152,22 @@ export function calculateBalances(
  */
 export function calculateOptimalSettlements(
   balances: Balance[],
-  members: Member[]
+  members: Member[],
+  currency: Currency
 ): OptimizedSettlement[] {
   const settlements: OptimizedSettlement[] = [];
+  const threshold = (currency === Currency.JPY || currency === Currency.KRW) ? 0.5 : 0.005;
 
   // Separate creditors (positive balance) and debtors (negative balance)
   const creditors = balances
-    .filter((b) => b.amount > 0)
+    .filter((b) => b.amount > threshold)
     .map((b) => ({ ...b }))
-    .sort((a, b) => b.amount - a.amount); // Sort descending
+    .sort((a, b) => b.amount - a.amount);
 
   const debtors = balances
-    .filter((b) => b.amount < 0)
+    .filter((b) => b.amount < -threshold)
     .map((b) => ({ ...b, amount: Math.abs(b.amount) }))
-    .sort((a, b) => b.amount - a.amount); // Sort descending
+    .sort((a, b) => b.amount - a.amount);
 
   let i = 0;
   let j = 0;
@@ -164,7 +177,7 @@ export function calculateOptimalSettlements(
     const debtor = debtors[j];
     const settleAmount = Math.min(creditor.amount, debtor.amount);
 
-    if (settleAmount > 0) {
+    if (settleAmount > threshold) {
       const fromMember = members.find((m) => m.id === debtor.memberId);
       const toMember = members.find((m) => m.id === creditor.memberId);
 
@@ -172,7 +185,7 @@ export function calculateOptimalSettlements(
         settlements.push({
           from: fromMember,
           to: toMember,
-          amount: Math.round(settleAmount),
+          amount: calcRound(settleAmount, currency),
         });
       }
     }
@@ -180,9 +193,8 @@ export function calculateOptimalSettlements(
     creditor.amount -= settleAmount;
     debtor.amount -= settleAmount;
 
-    // Move to next creditor/debtor if current one is settled
-    if (creditor.amount <= 0.01) i++;
-    if (debtor.amount <= 0.01) j++;
+    if (creditor.amount <= threshold) i++;
+    if (debtor.amount <= threshold) j++;
   }
 
   return settlements;
@@ -196,28 +208,61 @@ export function calculateFullSettlement(
   members: Member[],
   currency: Currency
 ): SettlementCalculation {
-  // Calculate summaries for all members
-  const summaries = calculateBalances(payments, members);
+  const summaries = calculateBalances(payments, members, currency);
 
-  // Convert summaries to balances for settlement calculation
   const balances: Balance[] = summaries.map((s) => ({
     memberId: s.memberId,
     memberName: s.memberName,
     amount: s.balance,
   }));
 
-  // Calculate optimal settlements
-  const settlements = calculateOptimalSettlements(balances, members);
-
-  // Calculate total amount
+  const settlements = calculateOptimalSettlements(balances, members, currency);
   const totalAmount = payments.reduce((sum, p) => sum + p.amount, 0);
 
   return {
     summaries,
     settlements,
-    totalAmount: Math.round(totalAmount),
+    totalAmount: calcRound(totalAmount, currency),
     currency,
   };
+}
+
+/**
+ * Calculate settlements grouped by currency.
+ * Each currency gets its own independent balance sheet and settlement list.
+ */
+export function calculateMultiCurrencySettlement(
+  payments: Payment[],
+  members: Member[],
+  groupCurrency: Currency
+): MultiCurrencySettlement {
+  const paymentsByCurrency = new Map<string, Payment[]>();
+
+  for (const payment of payments) {
+    const cur = payment.currency || groupCurrency;
+    const list = paymentsByCurrency.get(cur) || [];
+    list.push(payment);
+    paymentsByCurrency.set(cur, list);
+  }
+
+  // Sort currencies: group currency first, then alphabetically
+  const sortedCurrencies = Array.from(paymentsByCurrency.keys()).sort((a, b) => {
+    if (a === groupCurrency) return -1;
+    if (b === groupCurrency) return 1;
+    return a.localeCompare(b);
+  });
+
+  const byCurrency: SettlementCalculation[] = sortedCurrencies.map((cur) => {
+    const curPayments = paymentsByCurrency.get(cur)!;
+    return calculateFullSettlement(curPayments, members, cur as Currency);
+  });
+
+  const totalSettlementCount = byCurrency.reduce(
+    (sum, c) => sum + c.settlements.length,
+    0
+  );
+
+  return { byCurrency, totalSettlementCount };
 }
 
 /**

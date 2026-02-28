@@ -49,7 +49,7 @@ export function PaymentCard({
               )}
             </div>
             <div className="text-2xl font-bold text-primary">
-              {formatAmount(payment.amount, currency)}
+              {formatAmount(payment.amount, (payment.currency as Currency) || currency)}
             </div>
             <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
               <span>

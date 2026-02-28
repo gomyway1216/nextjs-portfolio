@@ -136,14 +136,14 @@ export default function SettliPage() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
             <Link href="/tools/settli/new">
-              <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-lg shadow-indigo-500/25">
+              <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-lg shadow-indigo-500/25" style={{ borderRadius: '9999px' }}>
                 <Plus className="h-5 w-5 mr-2" />
                 新しいグループを作成
               </Button>
             </Link>
             {currentUser && (
               <Link href="/tools/settli/history">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto" style={{ borderRadius: '9999px' }}>
                   <History className="h-5 w-5 mr-2" />
                   履歴を見る
                 </Button>
@@ -154,85 +154,66 @@ export default function SettliPage() {
       </div>
 
       {/* Join by Code Section */}
-      <div className="container mx-auto px-4 py-8">
-        <Card className="max-w-md mx-auto border-2 border-dashed">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-gradient-to-r from-green-500 to-emerald-500 flex items-center justify-center">
-                <QrCode className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h3 className="font-semibold">共有コードで参加</h3>
-                <p className="text-sm text-muted-foreground">招待されたグループに参加</p>
-              </div>
-            </div>
-            <form onSubmit={handleJoinByCode} className="flex gap-2">
-              <Input
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                placeholder="ABC123"
-                className="font-mono text-center uppercase text-lg tracking-widest"
-                maxLength={10}
-                disabled={joining}
-              />
-              <Button type="submit" disabled={joining || !joinCode.trim()}>
-                {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
+      <div className="container mx-auto px-4 pt-6 pb-2 max-w-md">
+        <form onSubmit={handleJoinByCode} className="flex gap-2 items-center">
+          <span className="text-sm text-muted-foreground shrink-0">コードで参加</span>
+          <Input
+            value={joinCode}
+            onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+            placeholder="ABC123"
+            className="font-mono text-center uppercase tracking-widest"
+            style={{ borderRadius: '9999px' }}
+            maxLength={10}
+            disabled={joining}
+          />
+          <Button type="submit" size="icon" disabled={joining || !joinCode.trim()} style={{ borderRadius: '9999px' }} className="shrink-0">
+            {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
+          </Button>
+        </form>
       </div>
 
       {/* Recent Groups */}
       {(currentUser && recentGroups.length > 0) && (
-        <div className="container mx-auto px-4 py-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold flex items-center gap-2">
-              <Clock className="h-5 w-5 text-muted-foreground" />
+        <div className="container mx-auto px-4 py-6 max-w-2xl">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-base font-semibold flex items-center gap-1.5">
+              <Clock className="h-4 w-4 text-muted-foreground" />
               最近のグループ
             </h2>
             <Link href="/tools/settli/history">
-              <Button variant="ghost" size="sm">
-                すべて見る <ChevronRight className="h-4 w-4 ml-1" />
+              <Button variant="ghost" size="sm" style={{ borderRadius: '9999px' }} className="text-xs h-7 px-2">
+                すべて見る <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
               </Button>
             </Link>
           </div>
-          <div className="space-y-3">
-            {(loading || historyLoading) ? (
-              <div className="space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <Card key={i}>
-                    <CardContent className="p-4">
-                      <div className="h-12 bg-muted animate-pulse rounded" />
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : (
-              recentGroups.map((group) => (
+          {(loading || historyLoading) ? (
+            <div className="space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-10 bg-muted animate-pulse rounded-lg" />
+              ))}
+            </div>
+          ) : (
+            <div className="divide-y rounded-xl border overflow-hidden">
+              {recentGroups.map((group) => (
                 <GroupCard key={group.id} group={group} />
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
       {/* Local Groups for anonymous users */}
       {!currentUser && localGroups.length > 0 && (
-        <div className="container mx-auto px-4 py-8">
-          <h2 className="text-xl font-semibold flex items-center gap-2 mb-4">
-            <Clock className="h-5 w-5 text-muted-foreground" />
+        <div className="container mx-auto px-4 py-6 max-w-2xl">
+          <h2 className="text-base font-semibold flex items-center gap-1.5 mb-2">
+            <Clock className="h-4 w-4 text-muted-foreground" />
             最近アクセスしたグループ
           </h2>
-          <div className="space-y-2">
+          <div className="divide-y rounded-xl border overflow-hidden">
             {localGroups.map((entry) => (
-              <Link key={entry.id} href={`/tools/settli/${entry.id}`}>
-                <Card className="hover:border-indigo-500 transition-colors cursor-pointer">
-                  <CardContent className="p-4 flex items-center justify-between">
-                    <span className="font-medium">{entry.name}</span>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </CardContent>
-                </Card>
+              <Link key={entry.id} href={`/tools/settli/${entry.id}`} className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors">
+                <span className="font-medium text-sm">{entry.name}</span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
               </Link>
             ))}
           </div>
@@ -293,7 +274,7 @@ export default function SettliPage() {
           ].map(({ icon: Icon, title, description, gradient }) => (
             <Card key={title} className="group hover:shadow-lg transition-all duration-300 overflow-hidden">
               <CardContent className="p-6">
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-r ${gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
                   <Icon className="h-6 w-6 text-white" />
                 </div>
                 <h3 className="font-semibold text-lg mb-2">{title}</h3>
@@ -378,12 +359,12 @@ export default function SettliPage() {
               </p>
               <div className="flex gap-3 justify-center pt-2">
                 <Link href="/signin">
-                  <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600">
+                  <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600" style={{ borderRadius: '9999px' }}>
                     ログイン / 新規登録
                   </Button>
                 </Link>
                 <Link href="/tools/settli/new">
-                  <Button variant="outline">まずは試してみる</Button>
+                  <Button variant="outline" style={{ borderRadius: '9999px' }}>まずは試してみる</Button>
                 </Link>
               </div>
             </CardContent>

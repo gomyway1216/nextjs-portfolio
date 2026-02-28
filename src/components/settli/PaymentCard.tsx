@@ -1,6 +1,5 @@
 'use client';
 
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Edit2, Trash2, Users } from 'lucide-react';
@@ -36,57 +35,55 @@ export function PaymentCard({
   });
 
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="font-medium">{payment.description}</span>
-              {payment.category && (
-                <Badge variant="secondary" className="text-xs">
-                  {PAYMENT_CATEGORY_LABELS[payment.category as PaymentCategory]}
-                </Badge>
-              )}
-            </div>
-            <div className="text-2xl font-bold text-primary">
-              {formatAmount(payment.amount, (payment.currency as Currency) || currency)}
-            </div>
-            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-              <span>
-                <span className="font-medium text-foreground">{payer?.name}</span>
-                {' '}が支払い
-              </span>
-              <span className="flex items-center gap-1">
-                <Users className="h-3 w-3" />
-                {participantNames.length}人で割り勘
-              </span>
-              <span>{dateStr}</span>
-            </div>
-          </div>
-          <div className="flex gap-1">
-            {onEdit && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onEdit}
-                disabled={loading}
-              >
-                <Edit2 className="h-4 w-4" />
-              </Button>
-            )}
-            {onDelete && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={onDelete}
-                disabled={loading}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
+    <div className="flex items-center justify-between gap-2 py-3 border-b last:border-b-0">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium text-sm truncate">{payment.description}</span>
+          {payment.category && (
+            <Badge variant="secondary" className="text-[10px] px-1 py-0 shrink-0 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+              {PAYMENT_CATEGORY_LABELS[payment.category as PaymentCategory]}
+            </Badge>
+          )}
         </div>
-      </CardContent>
-    </Card>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-0 mt-0.5 text-[11px] text-muted-foreground">
+          <span>
+            <span className="font-medium text-foreground">{payer?.name}</span>
+            {' '}が支払い
+          </span>
+          <span className="flex items-center gap-0.5">
+            <Users className="h-3 w-3" />
+            {participantNames.length}人
+          </span>
+          <span>{dateStr}</span>
+        </div>
+      </div>
+      <div className="text-right font-semibold text-sm shrink-0">
+        {formatAmount(payment.amount, (payment.currency as Currency) || currency)}
+      </div>
+      <div className="flex gap-0 shrink-0">
+        {onEdit && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onEdit}
+            disabled={loading}
+          >
+            <Edit2 className="h-3 w-3" />
+          </Button>
+        )}
+        {onDelete && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={onDelete}
+            disabled={loading}
+          >
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }

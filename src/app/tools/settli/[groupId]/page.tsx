@@ -31,7 +31,7 @@ import {
   SettliLogo,
 } from '@/components/settli';
 import { useAuth } from '@/providers/AuthProvider';
-import type { CreatePaymentInput } from '@/types/settli';
+import type { CreatePaymentInput, UpdatePaymentInput, Payment } from '@/types/settli';
 
 // Local storage key for anonymous users
 const LOCAL_STORAGE_KEY = 'settli_recent_groups';
@@ -77,9 +77,10 @@ export default function SettliGroupPage() {
   const { group, loading: groupLoading, refetch: refetchGroup, requiresPasscode, verifyPasscode } = useSettliGroup(groupId);
   const { payments, loading: paymentsLoading, refetch: refetchPayments } = useSettliPayments(groupId);
   const { settlements, loading: settlementsLoading, refetch: refetchSettlements } = useSettliSettlements(groupId);
-  const { addMember, updateMember, removeMember, createPayment, deletePayment, generateQRCode, loading: mutationLoading } = useSettliMutations();
+  const { addMember, updateMember, removeMember, createPayment, updatePayment, deletePayment, generateQRCode, loading: mutationLoading } = useSettliMutations();
 
   const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
   const [activeTab, setActiveTab] = useState('payments');
 
   // Save to localStorage for anonymous users when group is loaded
@@ -137,6 +138,28 @@ export default function SettliGroupPage() {
     }
   };
 
+  const handleUpdatePayment = async (input: CreatePaymentInput) => {
+    if (!editingPayment) return;
+    try {
+      const updateInput: UpdatePaymentInput = {
+        payerId: input.payerId,
+        amount: input.amount,
+        currency: input.currency,
+        description: input.description,
+        category: input.category,
+        date: input.date,
+        splitType: input.splitType,
+        participants: input.participants,
+      };
+      await updatePayment(groupId, editingPayment.id, updateInput);
+      await refetchPayments();
+      setEditingPayment(null);
+      toast.success('支払いを更新しました');
+    } catch {
+      toast.error('支払いの更新に失敗しました');
+    }
+  };
+
   const handleDeletePayment = async (paymentId: string) => {
     try {
       await deletePayment(groupId, paymentId);
@@ -180,7 +203,7 @@ export default function SettliGroupPage() {
           このグループは存在しないか、アクセス権限がありません
         </p>
         <Link href="/tools/settli">
-          <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600">
+          <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600" style={{ borderRadius: '9999px' }}>
             トップに戻る
           </Button>
         </Link>
@@ -216,47 +239,25 @@ export default function SettliGroupPage() {
         />
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-              <Users className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">
-                {group.members.filter((m) => m.isActive !== false).length}
-              </p>
-              <p className="text-sm text-muted-foreground">メンバー</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-              <Receipt className="h-5 w-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">{payments.length}</p>
-              <p className="text-sm text-muted-foreground">支払い</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-              <Calculator className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold">
-                {settlements?.totalSettlementCount || 0}
-              </p>
-              <p className="text-sm text-muted-foreground">精算件数</p>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Summary Stats */}
+      <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <Users className="h-3.5 w-3.5" />
+          <span className="font-medium text-foreground">{group.members.filter((m) => m.isActive !== false).length}</span>
+          人
+        </span>
+        <span className="text-border">|</span>
+        <span className="flex items-center gap-1.5">
+          <Receipt className="h-3.5 w-3.5" />
+          <span className="font-medium text-foreground">{payments.length}</span>
+          件
+        </span>
+        <span className="text-border">|</span>
+        <span className="flex items-center gap-1.5">
+          <Calculator className="h-3.5 w-3.5" />
+          <span className="font-medium text-foreground">{settlements?.totalSettlementCount || 0}</span>
+          精算
+        </span>
       </div>
 
       {/* Main Content */}
@@ -277,25 +278,41 @@ export default function SettliGroupPage() {
         </TabsList>
 
         {/* Payments Tab */}
-        <TabsContent value="payments" className="space-y-4 mt-4">
-          {showPaymentForm ? (
+        <TabsContent value="payments" className="space-y-3 mt-4">
+          {showPaymentForm || editingPayment ? (
             <PaymentForm
               members={group.members}
               groupId={group.id}
               currency={group.currency}
-              onSubmit={handleAddPayment}
-              onCancel={() => setShowPaymentForm(false)}
+              initialPayment={editingPayment || undefined}
+              onSubmit={editingPayment ? handleUpdatePayment : handleAddPayment}
+              onCancel={() => {
+                setShowPaymentForm(false);
+                setEditingPayment(null);
+              }}
               loading={mutationLoading}
             />
           ) : (
-            <Button
-              onClick={() => setShowPaymentForm(true)}
-              className="w-full"
-              disabled={group.members.filter((m) => m.isActive !== false).length < 2}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              支払いを追加
-            </Button>
+            <>
+              <Button
+                onClick={() => setShowPaymentForm(true)}
+                className="w-full mb-3 hidden md:flex"
+                style={{ borderRadius: '9999px' }}
+                disabled={group.members.filter((m) => m.isActive !== false).length < 2}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                支払いを追加
+              </Button>
+              <Button
+                onClick={() => setShowPaymentForm(true)}
+                disabled={group.members.filter((m) => m.isActive !== false).length < 2}
+                size="icon"
+                className="md:hidden fixed bottom-6 right-6 z-50 h-14 w-14 shadow-lg bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 [&_svg]:size-6"
+                style={{ borderRadius: '9999px' }}
+              >
+                <Plus className="h-6 w-6" />
+              </Button>
+            </>
           )}
 
           {paymentsLoading ? (
@@ -314,18 +331,21 @@ export default function SettliGroupPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="space-y-3">
-              {payments.map((payment) => (
-                <PaymentCard
-                  key={payment.id}
-                  payment={payment}
-                  members={group.members}
-                  currency={group.currency}
-                  onDelete={() => handleDeletePayment(payment.id)}
-                  loading={mutationLoading}
-                />
-              ))}
-            </div>
+            <Card className="py-0 gap-0">
+              <CardContent className="px-4">
+                {payments.map((payment) => (
+                  <PaymentCard
+                    key={payment.id}
+                    payment={payment}
+                    members={group.members}
+                    currency={group.currency}
+                    onEdit={() => setEditingPayment(payment)}
+                    onDelete={() => handleDeletePayment(payment.id)}
+                    loading={mutationLoading}
+                  />
+                ))}
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 

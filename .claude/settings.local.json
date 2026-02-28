@@ -27,7 +27,8 @@
       "WebFetch(domain:walica.jp)",
       "WebSearch",
       "Bash(xargs ls:*)",
-      "Bash(wc:*)"
+      "Bash(wc:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

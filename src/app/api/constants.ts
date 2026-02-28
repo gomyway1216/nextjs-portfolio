@@ -44,6 +44,12 @@ export const SETTLI_GROUPS_COLLECTION = 'settli_groups';
 export const SETTLI_PAYMENTS_COLLECTION = 'settli_payments';
 export const SETTLI_USER_HISTORY_COLLECTION = 'settli_user_history';
 
+// Kaimono System collection names
+export const KAIMONO_LISTS_COLLECTION = 'kaimono_lists';
+export const KAIMONO_USER_HISTORY_COLLECTION = 'kaimono_user_history';
+export const KAIMONO_RECURRING_ITEMS_COLLECTION = 'kaimono_recurring_items';
+export const KAIMONO_FREQUENT_ITEMS_COLLECTION = 'kaimono_frequent_items';
+
 // Firebase Cloud Functions base URL (v2 uses individual URLs per function)
 // Format: https://{functionname-lowercase}-{project-hash}-uc.a.run.app
 export const FIREBASE_FUNCTIONS_URL = process.env.FIREBASE_FUNCTIONS_URL || 'https://us-central1-yudai-portfolio.cloudfunctions.net';

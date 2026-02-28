@@ -391,6 +391,16 @@
           "qrShare": "QR共有"
         }
       },
+      "kaimono": {
+        "title": "Kaimono",
+        "subtitle": "買い物リスト",
+        "description": "予算管理、カテゴリ分類、共有機能、定期購入リマインダー付きのスマート買い物リスト。",
+        "features": {
+          "budget": "予算管理",
+          "recurring": "定期購入",
+          "share": "QR共有"
+        }
+      },
       "comingSoon": {
         "title": "Coming Soon...",
         "description": "新しい便利ツールを準備中です。"

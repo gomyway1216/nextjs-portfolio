@@ -391,6 +391,16 @@
           "qrShare": "QR Share"
         }
       },
+      "kaimono": {
+        "title": "Kaimono",
+        "subtitle": "Shopping List",
+        "description": "Smart shopping lists with budgets, categories, sharing, and recurring item reminders.",
+        "features": {
+          "budget": "Budget Tracking",
+          "recurring": "Recurring Items",
+          "share": "QR Share"
+        }
+      },
       "comingSoon": {
         "title": "Coming Soon...",
         "description": "More practical tools are on the way."

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --test -r tsx/cjs tests/*.test.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "seed:hobbies": "npx tsx scripts/seed-hobbies.ts",
     "migrate:hobby-images": "npx tsx scripts/migrate-hobby-images.ts",
     "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts"
@@ -83,6 +84,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5.1.4",
     "dotenv": "^17.2.3",
     "eslint": "^9",
     "eslint-config-next": "^16.0.10",
@@ -90,6 +92,7 @@
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "vitest": "^4.0.18"
   }
 }

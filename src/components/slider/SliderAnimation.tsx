@@ -15,7 +15,7 @@ const sliderContent = {
     'create solutions that benefit people and communities. Enthusiastic about ' +
     'the transformative potential of machine learning, I aspire to blend my ' +
     'technical knowledge with innovative ideas to deliver impactful digital experiences.',
-  btnText: ' Donwload CV',
+  btnText: 'Download CV',
 };
 
 const Slider = () => {
@@ -33,10 +33,10 @@ const Slider = () => {
   return (
     <>
       {/*  Home Banner */}
-      <section id="home" className="home-banner">
+      <section id="home" className="home-banner modern-hero">
         <div className="hb-top-fixed d-flex">
           <div className="hb-info">
-            <a href="mailto:mail%20to:uwyudai@gmail.com">
+            <a href="mailto:uwyudai@gmail.com">
               {conctInfo.email}
             </a>
           </div>
@@ -56,9 +56,12 @@ const Slider = () => {
         <div className="container">
           <div className="row full-screen align-items-center">
             <div className="col-lg-7">
-              <div className="type-box">
+              <div className="type-box modern-type-box">
+                <span className="hero-badge" data-aos="fade-up" data-aos-duration="1200">
+                  Full-stack Engineer
+                </span>
                 <h6 data-aos="fade-up" data-aos-duration="1200">
-                  Hello, My name is
+                  Hello, my name is
                 </h6>
                 <h1
                   className="font-alt"
@@ -98,17 +101,24 @@ const Slider = () => {
                   {sliderContent.description}
                 </p>
                 <div
-                  className="mt-4"
+                  className="hero-actions"
                   data-aos="fade-up"
                   data-aos-duration="1200"
                   data-aos-delay="400"
                 >
                   <a
-                    className="px-btn px-btn-white"
+                    className="px-btn px-btn-theme"
                     href={resumeLink}
                     download
+                    aria-label="Download resume"
                   >
                     {sliderContent.btnText}
+                  </a>
+                  <a className="px-btn px-btn-outline" href="#work" aria-label="View featured work">
+                    View Projects
+                  </a>
+                  <a className="px-btn px-btn-white" href="#tools" aria-label="Jump to tools section">
+                    Explore Tools
                   </a>
                 </div>
               </div>

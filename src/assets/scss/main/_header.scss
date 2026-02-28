@@ -43,6 +43,8 @@
     padding-bottom: 45px;
     li {
       width: 100%;
+      display: flex;
+      align-items: center;
       + li {
         border-top: 1px solid rgba($px-white, 0.1);
         .theme-light & {
@@ -51,12 +53,18 @@
       }
       .nav-link {
         margin: 0;
-        padding: 10px 0;
+        width: 100%;
+        min-height: 56px;
+        padding: 12px 0;
         color: $px-white;
         text-decoration: none;
         @include transition(ease all 0.35s);
         text-align: center;
         font-size: 27px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1;
         .theme-light & {
           color: #333;
         }
@@ -65,6 +73,13 @@
           height: 40px;
           line-height: 40px;
           font-size: 25px;
+        }
+
+        svg {
+          display: block;
+          width: 22px;
+          height: 22px;
+          margin: 0 auto;
         }
       }
       @include up-sm {

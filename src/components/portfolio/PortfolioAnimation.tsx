@@ -70,7 +70,18 @@ const PortfolioAnimation = () => {
                     data-aos-duration="1200"
                     key={category + ':' + j}
                   >
-                    <div className="blog-grid" onClick={() => handleProjectClick(project)}>
+                    <div
+                      className="blog-grid modern-card"
+                      onClick={() => handleProjectClick(project)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                          event.preventDefault();
+                          handleProjectClick(project);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                    >
                       <div className="blog-img">
                         <img src={project.thumbImage} alt="blog post"></img>
                       </div>

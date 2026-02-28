@@ -3,11 +3,8 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  Users,
-  Share2,
   ArrowRight,
   Wrench,
-  Zap,
 } from 'lucide-react';
 import { SettliIcon } from '@/components/settli';
 import './tools-section.scss';
@@ -50,8 +47,16 @@ const ToolsSection: React.FC = () => {
         {tools.map((tool) => (
           <div
             key={tool.id}
-            className="tool-card tool-card--featured"
+            className="tool-card tool-card--featured modern-card"
             onClick={() => handleToolClick(tool.path)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                handleToolClick(tool.path);
+              }
+            }}
+            role="button"
+            tabIndex={0}
             data-aos="fade-up"
             data-aos-duration="1200"
           >
@@ -80,7 +85,7 @@ const ToolsSection: React.FC = () => {
 
         {/* Coming Soon Card */}
         <div
-          className="tool-card tool-card--coming-soon"
+          className="tool-card tool-card--coming-soon modern-card"
           data-aos="fade-up"
           data-aos-duration="1200"
           data-aos-delay="100"

@@ -1,0 +1,268 @@
+.home-modern {
+  --surface-base: #f8fafc;
+  --surface-elevated: #ffffff;
+  --surface-contrast: #eef2ff;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --accent: #6366f1;
+  --accent-strong: #4f46e5;
+  --border-soft: rgba(15, 23, 42, 0.1);
+  --shadow-soft: 0 14px 40px rgba(15, 23, 42, 0.08);
+  --shadow-hover: 0 20px 48px rgba(99, 102, 241, 0.18);
+
+  background:
+    radial-gradient(90rem 45rem at -12% -10%, rgba(99, 102, 241, 0.12), transparent 60%),
+    radial-gradient(85rem 40rem at 110% -12%, rgba(139, 92, 246, 0.1), transparent 60%),
+    var(--surface-base);
+  color: var(--text-primary);
+}
+
+.home-modern .section.modern-section {
+  padding-top: 96px;
+  padding-bottom: 96px;
+}
+
+.home-modern .modern-title {
+  max-width: 760px;
+  margin-bottom: 2.5rem;
+}
+
+.home-modern .modern-title h3 {
+  font-size: clamp(2rem, 3.4vw, 2.85rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.75rem;
+}
+
+.home-modern .modern-title p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: clamp(1rem, 1.3vw, 1.15rem);
+  line-height: 1.75;
+}
+
+.modern-hero {
+  min-height: 100vh;
+}
+
+.modern-hero .modern-type-box {
+  max-width: 660px;
+}
+
+.modern-hero .hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(99, 102, 241, 0.12);
+  color: var(--accent-strong);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 1rem;
+}
+
+.modern-hero .type-box h1 {
+  letter-spacing: -0.03em;
+}
+
+.modern-hero .type-box .desc {
+  max-width: 580px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+  font-size: 1.05rem;
+}
+
+.modern-hero .hero-actions {
+  margin-top: 2rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.home-modern .px-btn {
+  border-radius: 12px;
+  height: 48px;
+  line-height: 46px;
+  font-weight: 600;
+  padding: 0 1.15rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.home-modern .px-btn:focus-visible,
+.home-modern .nav-link:focus-visible,
+.home-modern .modern-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.home-modern .px-btn:hover {
+  transform: translateY(-2px);
+}
+
+.home-modern .px-btn.px-btn-theme {
+  box-shadow: 0 10px 24px rgba(99, 102, 241, 0.3);
+}
+
+.home-modern .px-btn.px-btn-white {
+  border: 1px solid var(--border-soft);
+  background: #ffffff;
+  color: var(--text-primary);
+}
+
+.home-modern .px-btn.px-btn-outline {
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  color: var(--accent-strong);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.home-modern .header-left {
+  backdrop-filter: saturate(180%) blur(8px);
+  background: rgba(255, 255, 255, 0.9);
+  border-right: 1px solid var(--border-soft);
+}
+
+.home-modern .header-left .nav-menu .nav-link {
+  border-radius: 12px;
+  margin: 0.1rem 0.35rem;
+}
+
+.home-modern .header-left .nav-menu li.active .nav-link {
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.home-modern .modern-card {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-soft);
+  border-radius: 18px;
+  box-shadow: var(--shadow-soft);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.home-modern .modern-card:hover {
+  transform: translateY(-6px);
+  box-shadow: var(--shadow-hover);
+  border-color: rgba(99, 102, 241, 0.25);
+}
+
+.home-modern .games-carousel__button {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid var(--border-soft);
+  color: #1e293b;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+}
+
+.home-modern .blog-grid .blog-info {
+  padding: 1rem 1rem 1.15rem;
+}
+
+.home-modern .game-card-wrapper .game-thumbnail {
+  color: #ffffff;
+}
+
+.home-modern .game-card-wrapper .blog-img {
+  border-radius: 16px 16px 0 0;
+}
+
+.home-modern .blog-grid .blog-info h6 {
+  font-size: 1.1rem;
+  line-height: 1.45;
+}
+
+.home-modern .separated {
+  opacity: 0.45;
+}
+
+.home-modern #about,
+.home-modern #resume {
+  background: transparent;
+}
+
+.home-modern .about-me .img-in {
+  border-width: 4px;
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow: var(--shadow-soft);
+}
+
+.home-modern .about-info .about-text p {
+  color: var(--text-secondary);
+  line-height: 1.85;
+}
+
+.home-modern .resume-row,
+.home-modern .aducation-box {
+  background: var(--surface-elevated);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-soft);
+}
+
+.home-modern .resume-row .rb-left .rb-time {
+  border-radius: 999px;
+  padding: 0.3rem 0.75rem;
+}
+
+.home-modern .modern-footer {
+  border-top: 1px solid var(--border-soft);
+  background: rgba(255, 255, 255, 0.65);
+}
+
+@media (max-width: 991px) {
+  .home-modern .section.modern-section {
+    padding-top: 80px;
+    padding-bottom: 80px;
+  }
+
+  .modern-hero .type-box {
+    padding-top: 60px;
+    padding-bottom: 30px;
+  }
+
+  .modern-hero .hero-actions {
+    gap: 0.65rem;
+  }
+
+  .home-modern .games-carousel {
+    padding: 0 52px;
+  }
+}
+
+@media (max-width: 767px) {
+  .home-modern {
+    --shadow-soft: 0 8px 24px rgba(15, 23, 42, 0.08);
+  }
+
+  .home-modern .section.modern-section {
+    padding-top: 64px;
+    padding-bottom: 64px;
+  }
+
+  .home-modern .modern-title {
+    margin-bottom: 1.75rem;
+  }
+
+  .modern-hero .hero-actions {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .modern-hero .hero-actions .px-btn {
+    width: 100%;
+    text-align: center;
+  }
+
+  .home-modern .games-carousel {
+    padding: 0 42px;
+  }
+
+  .home-modern .games-carousel__button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .home-modern .header-left .nav-menu .nav-link {
+    margin: 0.15rem 0.5rem;
+    padding: 0.75rem 0;
+  }
+}

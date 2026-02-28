@@ -59,7 +59,18 @@ const Blogs = () => {
             data-aos-delay={200 * index}
             key={index + 'id:' + post.id}
           >
-            <div className="blog-grid" onClick={() => handlePostClick(post)}>
+            <div
+              className="blog-grid modern-card"
+              onClick={() => handlePostClick(post)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  handlePostClick(post);
+                }
+              }}
+              role="button"
+              tabIndex={0}
+            >
               <div className="blog-img">
                 <img src={post.image} alt="blog image"></img>
               </div>

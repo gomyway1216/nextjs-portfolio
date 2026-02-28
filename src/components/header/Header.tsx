@@ -10,6 +10,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import {
+  House,
+  UserRound,
+  FileText,
+  BriefcaseBusiness,
+  Gamepad2,
+  Wrench,
+  NotebookPen,
+  Palette,
+  BookOpenText,
+  Shield,
+} from 'lucide-react';
 import { useAuth } from '@/providers/AuthProvider';
 
 const Header = () => {
@@ -56,7 +68,7 @@ const Header = () => {
 
           <Scrollspy
             className="nav nav-menu"
-            items={['home', 'about', 'resume', 'work', 'games', 'tools', 'blog', 'contactus', 'admin']}
+            items={['home', 'work', 'tools', 'games', 'blog', 'about', 'resume']}
             currentClassName="active"
             offset={-30}
           >
@@ -68,29 +80,7 @@ const Header = () => {
                 data-tooltip-content="Home"
                 onClick={handleClick}
               >
-                <span style={{ fontSize: '20px' }}>🏠</span>
-              </a>
-            </li>
-            <li>
-              <a
-                className="nav-link"
-                href="#about"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content="About"
-                onClick={handleClick}
-              >
-                <span style={{ fontSize: '20px' }}>👨‍💼</span>
-              </a>
-            </li>
-            <li>
-              <a
-                className="nav-link"
-                href="#resume"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content="Resume"
-                onClick={handleClick}
-              >
-                <span style={{ fontSize: '20px' }}>📄</span>
+                <House size={20} />
               </a>
             </li>
             <li>
@@ -101,18 +91,7 @@ const Header = () => {
                 data-tooltip-content="Work"
                 onClick={handleClick}
               >
-                <span style={{ fontSize: '20px' }}>💼</span>
-              </a>
-            </li>
-            <li>
-              <a
-                className="nav-link"
-                href="#games"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content="Games"
-                onClick={handleClick}
-              >
-                <span style={{ fontSize: '20px' }}>🎮</span>
+                <BriefcaseBusiness size={20} />
               </a>
             </li>
             <li>
@@ -123,7 +102,18 @@ const Header = () => {
                 data-tooltip-content="Tools"
                 onClick={handleClick}
               >
-                <span style={{ fontSize: '20px' }}>🛠️</span>
+                <Wrench size={20} />
+              </a>
+            </li>
+            <li>
+              <a
+                className="nav-link"
+                href="#games"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content="Games"
+                onClick={handleClick}
+              >
+                <Gamepad2 size={20} />
               </a>
             </li>
             <li>
@@ -134,7 +124,29 @@ const Header = () => {
                 data-tooltip-content="Blog"
                 onClick={handleClick}
               >
-                <span style={{ fontSize: '20px' }}>📝</span>
+                <NotebookPen size={20} />
+              </a>
+            </li>
+            <li>
+              <a
+                className="nav-link"
+                href="#about"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content="About"
+                onClick={handleClick}
+              >
+                <UserRound size={20} />
+              </a>
+            </li>
+            <li>
+              <a
+                className="nav-link"
+                href="#resume"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content="Resume"
+                onClick={handleClick}
+              >
+                <FileText size={20} />
               </a>
             </li>
             <li>
@@ -145,27 +157,9 @@ const Header = () => {
                 data-tooltip-content="Hobbies"
                 onClick={handleClick}
               >
-                <span style={{ fontSize: '20px' }}>❤️</span>
+                <Palette size={20} />
               </a>
             </li>
-            {/* <li>
-              <a
-                className="nav-link"
-                href="#contactus"
-                data-tip
-                data-for="CONTACT"
-                onClick={handleClick}
-              >
-                <FiPhoneOutgoing />
-                <Tooltip
-                  id="CONTACT"
-                  place="right"
-                  variant="dark"
-                >
-                  <span>Contact</span>
-                </Tooltip>
-              </a>
-            </li> */}
             {currentUser && (
               <li>
                 <a
@@ -179,7 +173,7 @@ const Header = () => {
                     router.push('/study');
                   }}
                 >
-                  <span style={{ fontSize: '20px' }}>📚</span>
+                  <BookOpenText size={20} />
                 </a>
               </li>
             )}
@@ -192,7 +186,7 @@ const Header = () => {
                       data-tooltip-id="left-menu-tooltip"
                       data-tooltip-content="Admin"
                     >
-                      <span style={{ fontSize: '20px' }}>⚙️</span>
+                      <Shield size={20} />
                     </a>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">

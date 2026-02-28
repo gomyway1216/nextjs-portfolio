@@ -2,7 +2,15 @@
 
 import React, { useCallback, useEffect } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
-import { ChevronLeft, ChevronRight, Gamepad2 } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Gamepad2,
+  Swords,
+  Puzzle,
+  Rocket,
+  CreditCard,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { games } from '@/components/game/constants/games';
@@ -17,8 +25,9 @@ function GamesSlideshowContent() {
   const { t } = useTranslation();
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
-    loop: true,
+    loop: false,
     align: 'start',
+    containScroll: 'trimSnaps',
   });
 
   const scrollPrev = useCallback(() => {
@@ -90,6 +99,21 @@ function GamesSlideshowContent() {
     }
   };
 
+  const getGameIcon = (category: string) => {
+    switch (category) {
+      case 'Strategy':
+        return <Swords size={56} strokeWidth={1.8} />;
+      case 'Puzzle':
+        return <Puzzle size={56} strokeWidth={1.8} />;
+      case 'RPG':
+        return <Rocket size={56} strokeWidth={1.8} />;
+      case 'Card':
+        return <CreditCard size={56} strokeWidth={1.8} />;
+      default:
+        return <Gamepad2 size={56} strokeWidth={1.8} />;
+    }
+  };
+
   return (
     <>
       {/* Language Selector */}
@@ -118,10 +142,21 @@ function GamesSlideshowContent() {
                   data-aos="fade-right"
                   data-aos-duration="1200"
                 >
-                  <div className="game-card-wrapper" onClick={() => handleGameClick(game.path)}>
-                    <div className="blog-grid">
+                  <div
+                    className="game-card-wrapper"
+                    onClick={() => handleGameClick(game.path)}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        handleGameClick(game.path);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    <div className="blog-grid modern-card">
                       <div className="blog-img">
-                        <div className="game-thumbnail">{game.thumbnail}</div>
+                        <div className="game-thumbnail">{getGameIcon(game.category)}</div>
                         <div className="game-overlay">
                           <Gamepad2 size={40} strokeWidth={2} />
                           <p>{t('games.clickToPlay')}</p>
@@ -148,7 +183,7 @@ function GamesSlideshowContent() {
         </div>
 
         <button
-          className="games-carousel__button games-carousel__button--prev px-btn px-btn-white"
+          className="games-carousel__button games-carousel__button--prev"
           onClick={scrollPrev}
           type="button"
           aria-label="Previous slide"
@@ -157,7 +192,7 @@ function GamesSlideshowContent() {
         </button>
 
         <button
-          className="games-carousel__button games-carousel__button--next px-btn px-btn-white"
+          className="games-carousel__button games-carousel__button--next"
           onClick={scrollNext}
           type="button"
           aria-label="Next slide"

@@ -2,8 +2,9 @@
 import { useMemo } from 'react';
 import { differenceInMonths, parse } from 'date-fns';
 import { useJobs, useEducation } from '@/hooks';
+import { useTranslation } from 'react-i18next';
 
-const formatDate = (dateString: any) => {
+const formatDate = (dateString: string) => {
   // Handle present case
   if (dateString.toLowerCase() === 'present') {
     return new Date();
@@ -12,7 +13,7 @@ const formatDate = (dateString: any) => {
   return parse(dateString, 'MMM yyyy', new Date());
 };
 
-const calculateDuration = (jobDuration: any) => {
+const calculateDuration = (jobDuration: string, language: 'en' | 'ja') => {
   const [start, end] = jobDuration.split(' - ');
   const startDate = formatDate(start);
   const endDate = formatDate(end);
@@ -21,13 +22,99 @@ const calculateDuration = (jobDuration: any) => {
   // Convert months to years and months
   const years = Math.floor(months / 12);
   const remainingMonths = months % 12;
-  // Create a string representation
+
+  if (language === 'ja') {
+    return `${years > 0 ? `${years}年 ` : ''}${remainingMonths}ヶ月`;
+  }
+
   return `${years > 0 ? `${years} yrs ` : ''}${remainingMonths} mos`;
 };
 
+const slugify = (value: string) =>
+  value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '');
+
+const getNestedValue = (obj: Record<string, unknown>, path: string) => {
+  const keys = path.split('.');
+  let current: unknown = obj;
+  for (const key of keys) {
+    if (!current || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[key];
+  }
+  return current;
+};
+
+const getLocalizedJobValue = (
+  job: Record<string, unknown>,
+  baseField: string,
+  language: 'en' | 'ja',
+  t: (key: string, options?: Record<string, unknown>) => string,
+  exists: (key: string) => boolean
+) => {
+  const jobId = String(job.id ?? '');
+  const companyKey = slugify(String(job.companyName ?? ''));
+  const translationCandidates = [
+    `home.resume.jobs.${jobId}.${baseField}`,
+    `home.resume.jobsByCompany.${companyKey}.${baseField}`,
+  ];
+
+  for (const key of translationCandidates) {
+    if (exists(key)) {
+      return t(key);
+    }
+  }
+
+  if (language === 'ja') {
+    const jaPaths = [
+      `${baseField}Ja`,
+      `${baseField}JA`,
+      `${baseField}Japanese`,
+      `${baseField}_ja`,
+      `${baseField}_jp`,
+      `ja.${baseField}`,
+      `jp.${baseField}`,
+      `japanese.${baseField}`,
+      `translations.ja.${baseField}`,
+      `translations.jp.${baseField}`,
+      `localized.ja.${baseField}`,
+      `locale.ja.${baseField}`,
+    ];
+
+    for (const path of jaPaths) {
+      const value = getNestedValue(job, path);
+      if (typeof value === 'string' && value.trim()) return value;
+    }
+  }
+
+  const enPaths = [
+    `${baseField}En`,
+    `${baseField}EN`,
+    `${baseField}_en`,
+    `en.${baseField}`,
+    `translations.en.${baseField}`,
+    `localized.en.${baseField}`,
+    `locale.en.${baseField}`,
+    baseField,
+  ];
+
+  for (const path of enPaths) {
+    const value = getNestedValue(job, path);
+    if (typeof value === 'string' && value.trim()) return value;
+  }
+
+  return '';
+};
+
+const normalizeJobType = (value: string) => value.trim().toLowerCase();
+
 const Resume = () => {
+  const { t, i18n } = useTranslation();
   const { jobs: fetchedJobs, loading: jobsLoading } = useJobs();
   const { education: fetchedEducation, loading: educationLoading } = useEducation();
+  const language = i18n.language === 'ja' ? 'ja' : 'en';
 
   const jobs = useMemo(() => {
     const sorted = [...fetchedJobs].sort((a: any, b: any) => a.order - b.order);
@@ -42,12 +129,29 @@ const Resume = () => {
     return [...fetchedEducation].sort((a: any, b: any) => a.order - b.order);
   }, [fetchedEducation]);
 
+  const translateJobType = (jobType: string) => {
+    const normalized = normalizeJobType(jobType);
+    const mapping: Record<string, string> = {
+      'full-time': t('home.resume.jobType.fullTime'),
+      fulltime: t('home.resume.jobType.fullTime'),
+      parttime: t('home.resume.jobType.partTime'),
+      'part-time': t('home.resume.jobType.partTime'),
+      contract: t('home.resume.jobType.contract'),
+      internship: t('home.resume.jobType.internship'),
+      intern: t('home.resume.jobType.internship'),
+      freelance: t('home.resume.jobType.freelance'),
+      remote: t('home.resume.jobType.remote'),
+    };
+
+    return mapping[normalized] || jobType;
+  };
+
   return (
     <>
       <section id="resume" className="section">
         <div className="container">
           <div className="title">
-            <h3>Experience</h3>
+            <h3>{t('home.resume.experienceTitle')}</h3>
           </div>
           {/* End title */}
           <div className="resume-box">
@@ -62,20 +166,20 @@ const Resume = () => {
                 <div className="row">
                   <div className="col-md-4 col-xl-3">
                     <div className="rb-left">
-                      <h6>{val.jobPosition}</h6>
-                      <div className="rob-title">{val.companyName}</div>
-                      <label>{val.jobType}</label>
+                      <h6>{getLocalizedJobValue(val, 'jobPosition', language, t, i18n.exists.bind(i18n))}</h6>
+                      <div className="rob-title">{getLocalizedJobValue(val, 'companyName', language, t, i18n.exists.bind(i18n))}</div>
+                      <label>{translateJobType(getLocalizedJobValue(val, 'jobType', language, t, i18n.exists.bind(i18n)))}</label>
                       <p>{val.jobDuration}</p>
-                      <div className="rb-time">{calculateDuration(val.jobDuration)}</div>
+                      <div className="rb-time">{calculateDuration(val.jobDuration, language)}</div>
                     </div>
                   </div>
                   <div className="col-md-8 col-xl-9">
                     <div className="rb-right">
-                      <h6>{val.compnayName}</h6>
-                      <p>{val.jobDescription}</p>
+                      <h6>{getLocalizedJobValue(val, 'companyName', language, t, i18n.exists.bind(i18n))}</h6>
+                      <p>{getLocalizedJobValue(val, 'jobDescription', language, t, i18n.exists.bind(i18n))}</p>
                       {val.technologies && val.technologies.length > 0 && (
                         <div className="mt-3" style={{ marginTop: '1rem' }}>
-                          <strong style={{ fontSize: '14px', marginRight: '8px' }}>Technologies:</strong>
+                          <strong style={{ fontSize: '14px', marginRight: '8px' }}>{t('home.resume.technologiesLabel')}</strong>
                           {val.technologies.map((tech: string, techIndex: number) => (
                             <span
                               key={techIndex}
@@ -114,7 +218,7 @@ const Resume = () => {
           {/* End separated */}
 
           <div className="title">
-            <h3>Education</h3>
+            <h3>{t('home.resume.educationTitle')}</h3>
           </div>
 
           <div className="row justify-content-center">

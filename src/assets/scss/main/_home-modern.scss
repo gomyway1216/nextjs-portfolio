@@ -171,8 +171,46 @@
   line-height: 1.45;
 }
 
+.home-modern #blog.section {
+  background:
+    linear-gradient(180deg, rgba(219, 234, 254, 0.5) 0%, rgba(239, 246, 255, 0.6) 100%),
+    transparent;
+}
+
+.home-modern #blog .title h3::after {
+  background: rgba(37, 99, 235, 0.35);
+}
+
+.home-modern #blog .blog-grid.modern-card {
+  border-color: rgba(59, 130, 246, 0.2);
+}
+
+.home-modern #blog .blog-grid.modern-card:hover {
+  border-color: rgba(37, 99, 235, 0.42);
+  box-shadow: 0 20px 48px rgba(37, 99, 235, 0.2);
+}
+
+.home-modern #blog .blog-grid .meta {
+  color: #2563eb;
+  font-weight: 600;
+}
+
+.home-modern #blog .blog-grid .blog-info a {
+  color: #0f172a;
+  background-image: linear-gradient(130deg, #2563eb, #2563eb);
+}
+
 .home-modern .separated {
   opacity: 0.45;
+}
+
+.home-modern #about .separated {
+  padding-top: 28px;
+  padding-bottom: 28px;
+}
+
+.home-modern #resume.section {
+  padding-top: 56px;
 }
 
 .home-modern #about,
@@ -184,6 +222,31 @@
   border-width: 4px;
   border-color: rgba(99, 102, 241, 0.35);
   box-shadow: var(--shadow-soft);
+}
+
+.home-modern .about-me .social-icons {
+  bottom: -18px;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.home-modern .about-me .social-icons a {
+  top: 0 !important;
+  margin: 0;
+  width: 34px;
+  height: 34px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.home-modern .about-me .social-icons a svg {
+  width: 16px;
+  height: 16px;
+  display: block;
 }
 
 .home-modern .about-info .about-text p {
@@ -226,6 +289,10 @@
   .home-modern .games-carousel {
     padding: 0 52px;
   }
+
+  .home-modern #resume.section {
+    padding-top: 44px;
+  }
 }
 
 @media (max-width: 767px) {
@@ -236,6 +303,15 @@
   .home-modern .section.modern-section {
     padding-top: 64px;
     padding-bottom: 64px;
+  }
+
+  .home-modern #about .separated {
+    padding-top: 18px;
+    padding-bottom: 18px;
+  }
+
+  .home-modern #resume.section {
+    padding-top: 36px;
   }
 
   .home-modern .modern-title {

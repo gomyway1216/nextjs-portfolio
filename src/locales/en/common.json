@@ -330,6 +330,104 @@
       ]
     }
   },
+  "home": {
+    "language": {
+      "switch": "Switch language"
+    },
+    "nav": {
+      "home": "Home",
+      "work": "Work",
+      "tools": "Tools",
+      "games": "Games",
+      "blog": "Blog",
+      "about": "About",
+      "resume": "Resume",
+      "hobbies": "Hobbies",
+      "study": "Study",
+      "admin": "Admin"
+    },
+    "hero": {
+      "badge": "Full-stack Engineer",
+      "greeting": "Hello, my name is",
+      "name": "Yudai Yaguchi",
+      "description": "Guided by a desire to craft technology with purpose, I am dedicated to learning and applying my full-stack development skills to create solutions that benefit people and communities. Enthusiastic about the transformative potential of machine learning, I aspire to blend my technical knowledge with innovative ideas to deliver impactful digital experiences.",
+      "roles": {
+        "fullstackDeveloper": "Full-stack Developer",
+        "softwareEngineer": "Software Engineer",
+        "webDeveloper": "Web Developer"
+      },
+      "cta": {
+        "downloadCv": "Download CV",
+        "viewProjects": "View Projects",
+        "exploreTools": "Explore Tools"
+      }
+    },
+    "sections": {
+      "work": {
+        "title": "Featured Work",
+        "subtitle": "Selected projects that blend product thinking, clean code, and practical impact."
+      },
+      "tools": {
+        "title": "Useful Tools",
+        "subtitle": "Production-ready utilities built to solve real-world day-to-day problems."
+      },
+      "games": {
+        "title": "Interactive Games",
+        "subtitle": "Playable experiments focused on UX, performance, and game logic design."
+      },
+      "blog": {
+        "title": "Latest Blog",
+        "subtitle": "Notes on engineering, lessons learned, and ideas explored in public."
+      }
+    },
+    "tools": {
+      "settli": {
+        "title": "Settli",
+        "subtitle": "Settlement Tool",
+        "description": "Smart group payment settlement. Automatically finds the optimal transfer plan for complex bill splits.",
+        "features": {
+          "optimize": "Optimized Settlement",
+          "weighted": "Weighted Split",
+          "qrShare": "QR Share"
+        }
+      },
+      "comingSoon": {
+        "title": "Coming Soon...",
+        "description": "More practical tools are on the way."
+      }
+    },
+    "about": {
+      "title": "Biography",
+      "role": "Software Engineer",
+      "biographyText": "Hi, I'm Yudai, a full-stack engineer cultivating solutions from the vibrant tech hub of San Francisco. My career is a testament to the practical application of classroom knowledge, where concepts learned have been transformed into functional digital tools. I've had the pleasure of creating the Tokachi Musubi website, a platform that allows food truck owners to seamlessly manage their culinary offerings. My portfolio also includes engaging applications like a custom AI for Gomoku, showcasing my commitment to interactive and thoughtful software design. In the professional sphere, I've contributed to robust payment systems, honing my skills in a high-volume, team-oriented environment. Beyond my work, I am dedicated to personal growth, exploring AI and machine learning as part of my continuous learning journey. It's this blend of professional experience and personal exploration that fuels my passion for developing technologies that not only function but also fascinate and inspire.",
+      "labels": {
+        "age": "Age:",
+        "location": "Location:",
+        "email": "Email:",
+        "language": "Language:"
+      },
+      "values": {
+        "ageYears": "{{age}} years"
+      }
+    },
+    "resume": {
+      "experienceTitle": "Experience",
+      "educationTitle": "Education",
+      "technologiesLabel": "Technologies:",
+      "jobType": {
+        "fullTime": "Full-time",
+        "partTime": "Part-time",
+        "contract": "Contract",
+        "internship": "Internship",
+        "freelance": "Freelance",
+        "remote": "Remote"
+      }
+    },
+    "blog": {
+      "comingSoon": "Coming soon...",
+      "leaveReply": "Leave a Reply"
+    }
+  },
   "common": {
     "loading": "Loading...",
     "error": "Error",

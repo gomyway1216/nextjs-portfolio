@@ -330,6 +330,126 @@
       ]
     }
   },
+  "home": {
+    "language": {
+      "switch": "言語を切り替え"
+    },
+    "nav": {
+      "home": "ホーム",
+      "work": "作品",
+      "tools": "ツール",
+      "games": "ゲーム",
+      "blog": "ブログ",
+      "about": "自己紹介",
+      "resume": "経歴",
+      "hobbies": "趣味",
+      "study": "学習",
+      "admin": "管理"
+    },
+    "hero": {
+      "badge": "フルスタックエンジニア",
+      "greeting": "こんにちは、私は",
+      "name": "矢口 雄大",
+      "description": "目的のある技術をつくるという思いを軸に、フルスタック開発の力を磨き、使う人の役に立つプロダクトを届けることに取り組んでいます。機械学習の可能性にも強い関心があり、実装力とアイデアを掛け合わせながら、実用性と体験価値の両立を目指しています。",
+      "roles": {
+        "fullstackDeveloper": "フルスタック開発",
+        "softwareEngineer": "ソフトウェアエンジニア",
+        "webDeveloper": "Web開発"
+      },
+      "cta": {
+        "downloadCv": "履歴書をダウンロード",
+        "viewProjects": "プロジェクトを見る",
+        "exploreTools": "ツールを見る"
+      }
+    },
+    "sections": {
+      "work": {
+        "title": "注目プロジェクト",
+        "subtitle": "プロダクト思考と実装品質を両立した取り組みを掲載しています。"
+      },
+      "tools": {
+        "title": "便利ツール",
+        "subtitle": "日常の課題を解決するために作成した、実用的なツールです。"
+      },
+      "games": {
+        "title": "インタラクティブゲーム",
+        "subtitle": "UXやロジック設計を重視した、ブラウザで遊べる実験的な作品です。"
+      },
+      "blog": {
+        "title": "最新ブログ",
+        "subtitle": "開発で得た知見や学びを、技術メモとして公開しています。"
+      }
+    },
+    "tools": {
+      "settli": {
+        "title": "Settli",
+        "subtitle": "セトリ",
+        "description": "グループ精算をスマートに。複雑な割り勘でも最適な送金パターンを自動で計算します。",
+        "features": {
+          "optimize": "最適精算",
+          "weighted": "傾斜配分",
+          "qrShare": "QR共有"
+        }
+      },
+      "comingSoon": {
+        "title": "Coming Soon...",
+        "description": "新しい便利ツールを準備中です。"
+      }
+    },
+    "about": {
+      "title": "Biography",
+      "role": "ソフトウェアエンジニア",
+      "biographyText": "こんにちは、矢口雄大です。サンフランシスコを拠点に、フルスタックエンジニアとして実用的なプロダクト開発に取り組んでいます。これまでに、フードトラック向けサイトの構築や、五目並べAIなどのインタラクティブなアプリケーションを制作してきました。業務では決済関連システムにも携わり、チームでの開発力と品質への意識を高めてきました。現在はAI・機械学習の学習も継続し、技術的な深さと使いやすさを両立するものづくりを目指しています。",
+      "labels": {
+        "age": "年齢:",
+        "location": "所在地:",
+        "email": "メール:",
+        "language": "言語:"
+      },
+      "values": {
+        "ageYears": "{{age}}歳"
+      }
+    },
+    "resume": {
+      "experienceTitle": "職務経歴",
+      "educationTitle": "学歴",
+      "technologiesLabel": "使用技術:",
+      "jobsByCompany": {
+        "atlas": {
+          "jobPosition": "ソフトウェアエンジニア",
+          "companyName": "Atlas",
+          "jobDescription": "Flutter・TypeScript・Firebaseを活用し、低クレジットスコア層の顧客を対象としたクレジット改善モバイルアプリにおいて、ユーザー中心の機能開発を担当。ユーザー体験とスケーラビリティの向上に注力するとともに、アプリのパフォーマンス監視および課題解決を推進。さらに、クロスファンクショナルチームと連携し、決済処理、リワード、実効性の高いクレジット構築機能の最適化に貢献。"
+        },
+        "paypal": {
+          "jobPosition": "ソフトウェアエンジニア",
+          "companyName": "PayPal",
+          "jobDescription": "JavaとSpring Frameworkを用いて、日次で数百万リクエストを処理する大規模アーキテクチャの開発・運用に従事。HTTPクライアント、ActiveMQメッセージサービス、バッチ処理、キャッシュ（Oracle）を活用した決済失敗時のリカバリー機能を設計・実装し、決済基盤の信頼性向上に貢献。"
+        },
+        "university-of-wisconsin-madison": {
+          "jobPosition": "フルスタックエンジニア",
+          "companyName": "University of Wisconsin-Madison",
+          "jobDescription": "学生の予約管理と管理者向け監査機能を備えたチューター・スケジューリングシステムを構築。React、JavaScript、PHPを用いて実装し、運用効率とユーザー体験の改善を実現。"
+        },
+        "so-net-media-networks-corp": {
+          "jobPosition": "フロントエンドエンジニア（インターン）",
+          "companyName": "So-net Media Networks Corp",
+          "jobDescription": "React・Redux・TypeScriptを用いて、企業向けオンライン広告パフォーマンスを可視化するWebクライアントを開発。加えて、データサイエンス領域の研究を通じて、広告選定機械学習モデルの精度改善に取り組む。"
+        }
+      },
+      "jobType": {
+        "fullTime": "正社員",
+        "partTime": "パート・アルバイト",
+        "contract": "契約社員",
+        "internship": "インターン",
+        "freelance": "業務委託",
+        "remote": "リモート"
+      }
+    },
+    "blog": {
+      "comingSoon": "準備中...",
+      "leaveReply": "コメントを残す"
+    }
+  },
   "common": {
     "loading": "読み込み中...",
     "error": "エラー",

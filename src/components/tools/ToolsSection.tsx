@@ -7,6 +7,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import { SettliIcon } from '@/components/settli';
+import { useTranslation } from 'react-i18next';
 import './tools-section.scss';
 
 interface Tool {
@@ -20,22 +21,26 @@ interface Tool {
   gradient: string;
 }
 
-const tools: Tool[] = [
-  {
-    id: 'settli',
-    title: 'Settli',
-    subtitle: 'セトリ',
-    description: 'グループの精算を、スマートに。複雑な割り勘も最適な方法を自動計算。',
-    path: '/tools/settli',
-    icon: <SettliIcon size={32} />,
-    features: ['最適精算', '傾斜配分', 'QR共有'],
-    gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7)',
-  },
-  // Future tools can be added here
-];
-
 const ToolsSection: React.FC = () => {
   const router = useRouter();
+  const { t } = useTranslation();
+
+  const tools: Tool[] = [
+    {
+      id: 'settli',
+      title: t('home.tools.settli.title'),
+      subtitle: t('home.tools.settli.subtitle'),
+      description: t('home.tools.settli.description'),
+      path: '/tools/settli',
+      icon: <SettliIcon size={32} />,
+      features: [
+        t('home.tools.settli.features.optimize'),
+        t('home.tools.settli.features.weighted'),
+        t('home.tools.settli.features.qrShare'),
+      ],
+      gradient: 'linear-gradient(135deg, #6366f1, #8b5cf6, #a855f7)',
+    },
+  ];
 
   const handleToolClick = (path: string) => {
     router.push(path);
@@ -94,8 +99,8 @@ const ToolsSection: React.FC = () => {
             <Wrench size={32} />
           </div>
           <div className="tool-card__content">
-            <h4 className="tool-card__title">Coming Soon...</h4>
-            <p className="tool-card__description">新しい便利ツールを準備中です。お楽しみに！</p>
+            <h4 className="tool-card__title">{t('home.tools.comingSoon.title')}</h4>
+            <p className="tool-card__description">{t('home.tools.comingSoon.description')}</p>
           </div>
         </div>
       </div>

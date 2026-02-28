@@ -11,10 +11,12 @@ import ToolsSection from '@/components/tools/ToolsSection';
 import Blog from '@/components/blog/BlogAnimation';
 import Footer from '@/components/footer/FooterAnimation';
 import useDocumentTitle from '@/components/useDocumentTitle';
+import { useTranslation } from 'react-i18next';
 
 const HomeOne = () => {
+  const { t } = useTranslation();
   useDocumentTitle(
-    'Yudai Portfolio'
+    t('app.title')
   );
 
   useEffect(() => {
@@ -33,8 +35,8 @@ const HomeOne = () => {
       <section id="work" className="section theme-light dark-bg modern-section">
         <div className="container">
           <div className="title modern-title">
-            <h3>Featured Work</h3>
-            <p>Selected projects that blend product thinking, clean code, and practical impact.</p>
+            <h3>{t('home.sections.work.title')}</h3>
+            <p>{t('home.sections.work.subtitle')}</p>
           </div>
           <Portfolio />
         </div>
@@ -44,8 +46,8 @@ const HomeOne = () => {
       <section id="tools" className="section theme-light dark-bg modern-section">
         <div className="container">
           <div className="title modern-title">
-            <h3>Useful Tools</h3>
-            <p>Production-ready utilities built to solve real-world day-to-day problems.</p>
+            <h3>{t('home.sections.tools.title')}</h3>
+            <p>{t('home.sections.tools.subtitle')}</p>
           </div>
           <ToolsSection />
         </div>
@@ -55,8 +57,8 @@ const HomeOne = () => {
       <section id="games" className="section modern-section">
         <div className="container">
           <div className="title modern-title">
-            <h3>Interactive Games</h3>
-            <p>Playable experiments focused on UX, performance, and game logic design.</p>
+            <h3>{t('home.sections.games.title')}</h3>
+            <p>{t('home.sections.games.subtitle')}</p>
           </div>
           <GamesSlideshow />
         </div>
@@ -66,8 +68,8 @@ const HomeOne = () => {
       <section id="blog" className="section modern-section">
         <div className="container">
           <div className="title modern-title">
-            <h3>Latest Blog</h3>
-            <p>Notes on engineering, lessons learned, and ideas explored in public.</p>
+            <h3>{t('home.sections.blog.title')}</h3>
+            <p>{t('home.sections.blog.subtitle')}</p>
           </div>
           <Blog />
           {/* <div onClick={() => navigate('/all')}>Check more blogs</div> */}

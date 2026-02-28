@@ -22,6 +22,7 @@ import {
   BookOpenText,
   Shield,
 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
 
 const Header = () => {
@@ -31,9 +32,16 @@ const Header = () => {
   const toggleDropdown = () => setShowDropdown(!showDropdown);
   const router = useRouter();
   const { currentUser, signOut } = useAuth();
+  const { t, i18n } = useTranslation();
 
   const handleSignOut = () => {
     signOut();
+  };
+
+  const language = i18n.language === 'ja' ? 'ja' : 'en';
+
+  const setLanguage = (lang: 'en' | 'ja') => {
+    i18n.changeLanguage(lang);
   };
 
   return (
@@ -58,10 +66,26 @@ const Header = () => {
               <Link
                 href="/"
                 data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content="Home"
+                data-tooltip-content={t('home.nav.home')}
               >
                 Y
               </Link>
+              <div className="hl-lang-toggle" aria-label={t('home.language.switch')}>
+                <button
+                  type="button"
+                  className={language === 'en' ? 'active' : ''}
+                  onClick={() => setLanguage('en')}
+                >
+                  EN
+                </button>
+                <button
+                  type="button"
+                  className={language === 'ja' ? 'active' : ''}
+                  onClick={() => setLanguage('ja')}
+                >
+                  JA
+                </button>
+              </div>
             </div>
           </div>
           {/* End htl-top */}
@@ -77,7 +101,7 @@ const Header = () => {
                 className="nav-link "
                 href="#home"
                 data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content="Home"
+                data-tooltip-content={t('home.nav.home')}
                 onClick={handleClick}
               >
                 <House size={20} />
@@ -88,7 +112,7 @@ const Header = () => {
                 className="nav-link"
                 href="#work"
                 data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content="Work"
+                data-tooltip-content={t('home.nav.work')}
                 onClick={handleClick}
               >
                 <BriefcaseBusiness size={20} />
@@ -99,7 +123,7 @@ const Header = () => {
                 className="nav-link"
                 href="#tools"
                 data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content="Tools"
+                data-tooltip-content={t('home.nav.tools')}
                 onClick={handleClick}
               >
                 <Wrench size={20} />
@@ -110,7 +134,7 @@ const Header = () => {
                 className="nav-link"
                 href="#games"
                 data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content="Games"
+                data-tooltip-content={t('home.nav.games')}
                 onClick={handleClick}
               >
                 <Gamepad2 size={20} />
@@ -121,7 +145,7 @@ const Header = () => {
                 className="nav-link"
                 href="#blog"
                 data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content="Blog"
+                data-tooltip-content={t('home.nav.blog')}
                 onClick={handleClick}
               >
                 <NotebookPen size={20} />
@@ -132,7 +156,7 @@ const Header = () => {
                 className="nav-link"
                 href="#about"
                 data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content="About"
+                data-tooltip-content={t('home.nav.about')}
                 onClick={handleClick}
               >
                 <UserRound size={20} />
@@ -143,7 +167,7 @@ const Header = () => {
                 className="nav-link"
                 href="#resume"
                 data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content="Resume"
+                data-tooltip-content={t('home.nav.resume')}
                 onClick={handleClick}
               >
                 <FileText size={20} />
@@ -154,7 +178,7 @@ const Header = () => {
                 className="nav-link"
                 href="/hobbies"
                 data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content="Hobbies"
+                data-tooltip-content={t('home.nav.hobbies')}
                 onClick={handleClick}
               >
                 <Palette size={20} />
@@ -166,7 +190,7 @@ const Header = () => {
                   className="nav-link"
                   href="/study"
                   data-tooltip-id="left-menu-tooltip"
-                  data-tooltip-content="Study"
+                  data-tooltip-content={t('home.nav.study')}
                   onClick={(e) => {
                     e.preventDefault();
                     handleClick();
@@ -184,7 +208,7 @@ const Header = () => {
                     <a
                       className="nav-link"
                       data-tooltip-id="left-menu-tooltip"
-                      data-tooltip-content="Admin"
+                      data-tooltip-content={t('home.nav.admin')}
                     >
                       <Shield size={20} />
                     </a>

@@ -5,11 +5,13 @@ import Contact from '../contact/Contact';
 import * as postApi from '@/services/postsService';
 import DOMPurify from 'dompurify';
 import * as util from '@/lib/utils/util';
+import { useTranslation } from 'react-i18next';
 
 
 // Modal.setAppElement('#root');
 
 const Blogs = () => {
+  const { t } = useTranslation();
   // const [isOpen, setIsOpen] = useState(false);
   // const [isOpen2, setIsOpen2] = useState(false);
   // const [isOpen3, setIsOpen3] = useState(false);
@@ -44,7 +46,7 @@ const Blogs = () => {
   };
 
   if (posts.length === 0) {
-    return <div>Coming soon...</div>;
+    return <div>{t('home.blog.comingSoon')}</div>;
   }
 
   return (
@@ -144,7 +146,7 @@ const Blogs = () => {
                 {/* End Article */}
 
                 <div className="contact-form article-comment">
-                  <h4>Leave a Reply</h4>
+                  <h4>{t('home.blog.leaveReply')}</h4>
                   <Contact blogId={selectedPost.id}/>
                 </div>
                 {/* End .contact Form */}

@@ -1,8 +1,10 @@
 import Social from '../Social';
 import { differenceInYears } from 'date-fns';
 import { useProfile } from '@/hooks/useProfile';
+import { useTranslation } from 'react-i18next';
 
 const About = () => {
+  const { t } = useTranslation();
   const { profile } = useProfile();
 
   // Calculate age dynamically from birthdate
@@ -18,7 +20,7 @@ const About = () => {
     languages: ['English', 'Japanese'],
   };
 
-  const aboutText = "Hi, I'm Yudai, a full-stack engineer cultivating solutions from the vibrant tech hub of San Francisco. My career is a testament to the practical application of classroom knowledge, where concepts learned have been transformed into functional digital tools. I've had the pleasure of creating the Tokachi Musubi website, a platform that allows food truck owners to seamlessly manage their culinary offerings. My portfolio also includes engaging applications like a custom AI for Gomoku, showcasing my commitment to interactive and thoughtful software design. In the professional sphere, I've contributed to robust payment systems, honing my skills in a high-volume, team-oriented environment. Beyond my work, I am dedicated to personal growth, exploring AI and machine learning as part of my continuous learning journey. It's this blend of professional experience and personal exploration that fuels my passion for developing technologies that not only function but also fascinate and inspire.";
+  const aboutText = t('home.about.biographyText');
 
   const age = calculateAge(profileData.birthdate);
 
@@ -44,8 +46,8 @@ const About = () => {
                 </div>
                 {/* End img */}
                 <div className="info">
-                  <p>Software Engineer</p>
-                  <h3>Yudai Yaguchi</h3>
+                  <p>{t('home.about.role')}</p>
+                  <h3>{t('home.hero.name')}</h3>
                 </div>
                 {/* End info */}
               </div>
@@ -61,7 +63,7 @@ const About = () => {
             >
               <div className="about-info">
                 <div className="title">
-                  <h3>Biography</h3>
+                  <h3>{t('home.about.title')}</h3>
                 </div>
 
                 <div className="about-text">
@@ -72,11 +74,11 @@ const About = () => {
                     <div className="col-sm-6">
                       <ul>
                         <li>
-                          <label>Age: </label>
-                          <span>{age} years</span>
+                          <label>{t('home.about.labels.age')} </label>
+                          <span>{t('home.about.values.ageYears', { age })}</span>
                         </li>
                         <li>
-                          <label>Location: </label>
+                          <label>{t('home.about.labels.location')} </label>
                           <span>{profileData.location}</span>
                         </li>
                       </ul>
@@ -84,11 +86,11 @@ const About = () => {
                     <div className="col-sm-6">
                       <ul>
                         <li>
-                          <label>Email: </label>
+                          <label>{t('home.about.labels.email')} </label>
                           <span>{profileData.email}</span>
                         </li>
                         <li>
-                          <label>Language: </label>
+                          <label>{t('home.about.labels.language')} </label>
                           <span>{profileData.languages.join(', ')}</span>
                         </li>
                       </ul>

@@ -2,24 +2,15 @@
 import React, { useEffect, useState } from 'react';
 import { TypeAnimation } from 'react-type-animation';
 import * as profileApi from '@/services/profileService';
+import { useTranslation } from 'react-i18next';
 
 const conctInfo = {
   email: 'uwyudai@gmail.com',
 };
 
-const sliderContent = {
-  name: 'Yudai Yaguchi',
-  designation: 'Software Engineer',
-  description: 'Guided by a desire to craft technology with purpose, ' +
-    'I am dedicated to learning and applying my full-stack development skills to ' +
-    'create solutions that benefit people and communities. Enthusiastic about ' +
-    'the transformative potential of machine learning, I aspire to blend my ' +
-    'technical knowledge with innovative ideas to deliver impactful digital experiences.',
-  btnText: 'Download CV',
-};
-
 const Slider = () => {
   const [resumeLink, setResumeLink] = useState('');
+  const { t } = useTranslation();
 
   const fetchLink = async () => {
     const link = await profileApi.getResumeLink();
@@ -58,10 +49,10 @@ const Slider = () => {
             <div className="col-lg-7">
               <div className="type-box modern-type-box">
                 <span className="hero-badge" data-aos="fade-up" data-aos-duration="1200">
-                  Full-stack Engineer
+                  {t('home.hero.badge')}
                 </span>
                 <h6 data-aos="fade-up" data-aos-duration="1200">
-                  Hello, my name is
+                  {t('home.hero.greeting')}
                 </h6>
                 <h1
                   className="font-alt"
@@ -69,7 +60,7 @@ const Slider = () => {
                   data-aos-duration="1200"
                   data-aos-delay="100"
                 >
-                  {sliderContent.name}
+                  {t('home.hero.name')}
                 </h1>
                 <div
                   data-aos="fade-up"
@@ -78,11 +69,11 @@ const Slider = () => {
                 >
                   <TypeAnimation
                     sequence={[
-                      'Full-stack Developer',
+                      t('home.hero.roles.fullstackDeveloper'),
                       2000,
-                      'Software Engineer',
+                      t('home.hero.roles.softwareEngineer'),
                       2000,
-                      'Web Developer',
+                      t('home.hero.roles.webDeveloper'),
                       2000,
                     ]}
                     wrapper="p"
@@ -98,7 +89,7 @@ const Slider = () => {
                   data-aos-duration="1200"
                   data-aos-delay="300"
                 >
-                  {sliderContent.description}
+                  {t('home.hero.description')}
                 </p>
                 <div
                   className="hero-actions"
@@ -112,13 +103,13 @@ const Slider = () => {
                     download
                     aria-label="Download resume"
                   >
-                    {sliderContent.btnText}
+                    {t('home.hero.cta.downloadCv')}
                   </a>
                   <a className="px-btn px-btn-outline" href="#work" aria-label="View featured work">
-                    View Projects
+                    {t('home.hero.cta.viewProjects')}
                   </a>
                   <a className="px-btn px-btn-white" href="#tools" aria-label="Jump to tools section">
-                    Explore Tools
+                    {t('home.hero.cta.exploreTools')}
                   </a>
                 </div>
               </div>

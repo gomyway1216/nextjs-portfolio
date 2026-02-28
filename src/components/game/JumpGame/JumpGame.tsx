@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
 import { Info, X, Trophy, Zap, Volume2, VolumeX, Heart } from 'lucide-react';
 import { useHighScore } from '@/hooks/useHighScore';
+import { useGameToolbar } from '@/contexts/GameToolbarContext';
 
 enum Scene {
   GameMain = 'GameMain',
@@ -54,6 +54,7 @@ interface GameState {
 
 const JumpGame = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { setContent } = useGameToolbar();
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [highScore, updateHighScore] = useHighScore('jumpgame');
   const [showInfo, setShowInfo] = useState(false);
@@ -848,6 +849,80 @@ const JumpGame = () => {
     };
   }, []);
 
+  useEffect(() => {
+    const toggleMute = () => {
+      const newMutedState = !isMuted;
+      setIsMuted(newMutedState);
+      isMutedRef.current = newMutedState;
+      if (!newMutedState && audioContextRef.current) {
+        try {
+          const audioContext = audioContextRef.current;
+          if (audioContext.state === 'suspended') audioContext.resume();
+        } catch {}
+      }
+    };
+    setContent({
+      center: (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {isGameStarted && currentStage > 1 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: '0.5rem',
+              background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)',
+              borderRadius: '0.5rem', padding: '0.5rem 1rem'
+            }}>
+              <Zap style={{ width: '1.25rem', height: '1.25rem', color: '#eab308' }} />
+              <div>
+                <div style={{ fontSize: '0.625rem', color: '#94a3b8', textTransform: 'uppercase' }}>Stage</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#eab308' }}>{currentStage}</div>
+              </div>
+            </div>
+          )}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '0.5rem',
+            background: 'rgba(14, 165, 233, 0.1)', border: '1px solid rgba(14, 165, 233, 0.3)',
+            borderRadius: '0.5rem', padding: '0.5rem 1rem'
+          }}>
+            <Trophy style={{ width: '1.25rem', height: '1.25rem', color: '#0ea5e9' }} />
+            <div>
+              <div style={{ fontSize: '0.625rem', color: '#94a3b8', textTransform: 'uppercase' }}>High Score</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#0ea5e9' }}>{highScore}</div>
+            </div>
+          </div>
+        </div>
+      ),
+      right: (
+        <>
+          <button
+            onClick={toggleMute}
+            style={{
+              background: isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(14, 165, 233, 0.2)',
+              border: `1px solid ${isMuted ? 'rgba(239, 68, 68, 0.5)' : 'rgba(14, 165, 233, 0.5)'}`,
+              borderRadius: '0.5rem', color: isMuted ? '#ef4444' : '#0ea5e9',
+              padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: '500',
+              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem'
+            }}
+          >
+            {isMuted ? <VolumeX style={{ width: '1rem', height: '1rem' }} /> : <Volume2 style={{ width: '1rem', height: '1rem' }} />}
+            {isMuted ? 'Muted' : 'Sound'}
+          </button>
+          <button
+            onClick={() => setShowInfo(!showInfo)}
+            style={{
+              background: 'rgba(14, 165, 233, 0.2)', border: '1px solid rgba(14, 165, 233, 0.5)',
+              borderRadius: '0.5rem', color: '#0ea5e9', padding: '0.5rem 1rem',
+              fontSize: '0.875rem', fontWeight: '500', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', gap: '0.5rem'
+            }}
+          >
+            <Info style={{ width: '1rem', height: '1rem' }} />
+            How to Play
+          </button>
+        </>
+      )
+    });
+    return () => setContent(null);
+  }, [isGameStarted, currentStage, highScore, isMuted, showInfo, setContent]);
+
   const getDifficultyColor = (diff: Difficulty) => {
     switch (diff) {
       case 'easy':
@@ -871,161 +946,6 @@ const JumpGame = () => {
       overflow: 'hidden',
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
-      {/* Top Bar */}
-      <div style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '1rem',
-        background: 'rgba(0, 0, 0, 0.8)',
-        backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid rgba(14, 165, 233, 0.3)',
-        zIndex: 10
-      }}>
-        <Link
-          href="/games"
-          style={{
-            color: '#94a3b8',
-            textDecoration: 'none',
-            fontSize: '0.875rem',
-            fontWeight: '500',
-            transition: 'color 0.2s'
-          }}
-          onMouseEnter={(e) => e.currentTarget.style.color = '#0ea5e9'}
-          onMouseLeave={(e) => e.currentTarget.style.color = '#94a3b8'}
-        >
-          ← Back to Games
-        </Link>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {/* Stage indicator */}
-          {isGameStarted && currentStage > 1 && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              background: 'rgba(234, 179, 8, 0.1)',
-              border: '1px solid rgba(234, 179, 8, 0.3)',
-              borderRadius: '0.5rem',
-              padding: '0.5rem 1rem'
-            }}>
-              <Zap style={{ width: '1.25rem', height: '1.25rem', color: '#eab308' }} />
-              <div>
-                <div style={{ fontSize: '0.625rem', color: '#94a3b8', textTransform: 'uppercase' }}>Stage</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#eab308' }}>{currentStage}</div>
-              </div>
-            </div>
-          )}
-
-          {/* High score */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            background: 'rgba(14, 165, 233, 0.1)',
-            border: '1px solid rgba(14, 165, 233, 0.3)',
-            borderRadius: '0.5rem',
-            padding: '0.5rem 1rem'
-          }}>
-            <Trophy style={{ width: '1.25rem', height: '1.25rem', color: '#0ea5e9' }} />
-            <div>
-              <div style={{ fontSize: '0.625rem', color: '#94a3b8', textTransform: 'uppercase' }}>High Score</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#0ea5e9' }}>{highScore}</div>
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button
-            onClick={() => {
-              const newMutedState = !isMuted;
-              setIsMuted(newMutedState);
-              isMutedRef.current = newMutedState; // Update ref immediately
-              console.log('Mute toggled:', newMutedState ? 'MUTED' : 'UNMUTED');
-              // Play a test sound when unmuting to confirm it's working
-              if (!newMutedState && audioContextRef.current) {
-                try {
-                  const audioContext = audioContextRef.current;
-                  if (audioContext.state === 'suspended') {
-                    audioContext.resume();
-                  }
-                  const oscillator = audioContext.createOscillator();
-                  const gainNode = audioContext.createGain();
-                  oscillator.connect(gainNode);
-                  gainNode.connect(audioContext.destination);
-                  oscillator.frequency.value = 800;
-                  oscillator.type = 'sine';
-                  gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-                  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
-                  oscillator.start(audioContext.currentTime);
-                  oscillator.stop(audioContext.currentTime + 0.1);
-                } catch (e) {
-                  console.log('Could not play test sound');
-                }
-              }
-            }}
-            style={{
-              background: isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(14, 165, 233, 0.2)',
-              border: `1px solid ${isMuted ? 'rgba(239, 68, 68, 0.5)' : 'rgba(14, 165, 233, 0.5)'}`,
-              borderRadius: '0.5rem',
-              color: isMuted ? '#ef4444' : '#0ea5e9',
-              padding: '0.5rem 1rem',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = isMuted ? 'rgba(239, 68, 68, 0.3)' : 'rgba(14, 165, 233, 0.3)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(14, 165, 233, 0.2)';
-            }}
-          >
-            {isMuted ? (
-              <VolumeX style={{ width: '1rem', height: '1rem' }} />
-            ) : (
-              <Volume2 style={{ width: '1rem', height: '1rem' }} />
-            )}
-            {isMuted ? 'Muted' : 'Sound'}
-          </button>
-
-          <button
-            onClick={() => setShowInfo(!showInfo)}
-            style={{
-              background: 'rgba(14, 165, 233, 0.2)',
-              border: '1px solid rgba(14, 165, 233, 0.5)',
-              borderRadius: '0.5rem',
-              color: '#0ea5e9',
-              padding: '0.5rem 1rem',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(14, 165, 233, 0.3)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(14, 165, 233, 0.2)';
-            }}
-          >
-            <Info style={{ width: '1rem', height: '1rem' }} />
-            How to Play
-          </button>
-        </div>
-      </div>
-
       {/* Game Canvas */}
       <div style={{ position: 'relative' }}>
         <canvas

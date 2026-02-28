@@ -668,7 +668,7 @@ const Shogi = () => {
         }
       />
 
-      <div style={{ maxWidth: '1600px', margin: '80px auto 0', display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'stretch' }}>
+      <div style={{ maxWidth: '1600px', margin: '4rem auto 0', display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'stretch' }}>
         {/* AI Captured Pieces - Left side */}
         <div style={{ flex: '0 0 100px', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: '10px', fontSize: '0.9rem', textAlign: 'center' }}>

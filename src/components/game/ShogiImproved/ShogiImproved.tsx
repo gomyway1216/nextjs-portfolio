@@ -448,7 +448,7 @@ const ShogiImproved = () => {
         }
       />
 
-      <div style={{ maxWidth: '1200px', margin: '80px auto 0', display: 'flex', gap: '40px', flexWrap: 'wrap', justifyContent: 'center' }}>
+      <div style={{ maxWidth: '1200px', margin: '4rem auto 0', display: 'flex', gap: '40px', flexWrap: 'wrap', justifyContent: 'center' }}>
         {/* Gote Captured Pieces */}
         <div style={{ flex: '0 0 auto' }}>
           <h3 style={{ marginBottom: '10px' }}>AI Pieces (後手)</h3>

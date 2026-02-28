@@ -522,7 +522,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
 
       <div style={{
         flex: 1,
-        paddingTop: '5.5rem',
+        paddingTop: '4rem',
         paddingBottom: '1.25rem',
         display: 'flex',
         justifyContent: 'center',

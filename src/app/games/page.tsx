@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import { games } from '@/components/game/constants/games';
 import {
   GameLanguageProvider,
-  LanguageSelector,
 } from '@/components/game/contexts/GameLanguageContext';
 
 function GamesContent() {
@@ -51,11 +50,6 @@ function GamesContent() {
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-          {/* Language Selector */}
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-            <LanguageSelector />
-          </div>
-
           <h1 style={{
             fontSize: '3rem',
             fontWeight: 'bold',
@@ -199,20 +193,20 @@ function GamesContent() {
                         background: game.difficulty === 'Easy'
                           ? 'rgba(34, 197, 94, 0.2)'
                           : game.difficulty === 'Medium'
-                          ? 'rgba(234, 179, 8, 0.2)'
-                          : 'rgba(239, 68, 68, 0.2)',
+                            ? 'rgba(234, 179, 8, 0.2)'
+                            : 'rgba(239, 68, 68, 0.2)',
                         border: `1px solid ${game.difficulty === 'Easy'
                           ? '#22c55e'
                           : game.difficulty === 'Medium'
-                          ? '#eab308'
-                          : '#ef4444'}`,
+                            ? '#eab308'
+                            : '#ef4444'}`,
                         borderRadius: '0.375rem',
                         padding: '0.25rem 0.75rem',
                         color: game.difficulty === 'Easy'
                           ? '#22c55e'
                           : game.difficulty === 'Medium'
-                          ? '#eab308'
-                          : '#ef4444',
+                            ? '#eab308'
+                            : '#ef4444',
                         fontSize: '0.75rem',
                         fontWeight: '600',
                         whiteSpace: 'nowrap'

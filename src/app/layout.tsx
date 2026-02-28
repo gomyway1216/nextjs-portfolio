@@ -6,6 +6,7 @@ import { I18nProvider } from "@/components/providers/I18nProvider";
 import AOSInitializer from "./AOSInitializer";
 import { Toaster } from "@/components/ui/sonner";
 import { GlobalToolbar } from "@/components/GlobalToolbar";
+import { GameToolbarProvider } from "@/contexts/GameToolbarContext";
 import "../assets/scss/main.scss";
 import "aos/dist/aos.css";
 import "./globals.css";
@@ -53,8 +54,10 @@ export default function RootLayout({
         <I18nProvider>
           <AuthProvider>
             <PostsProvider>
-              <GlobalToolbar />
-              {children}
+              <GameToolbarProvider>
+                <GlobalToolbar />
+                {children}
+              </GameToolbarProvider>
             </PostsProvider>
           </AuthProvider>
         </I18nProvider>

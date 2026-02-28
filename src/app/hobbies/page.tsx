@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useHobbyCategories } from '@/hooks/useHobbies';
 import { HobbyCard } from '@/components/hobby';
 import { Loader2 } from 'lucide-react';
@@ -15,6 +16,9 @@ export default function HobbiesPage() {
           <p className="hobbies-page__subtitle">
             Explore my interests and passions
           </p>
+          <Link href="/#tools" className="hobbies-page__back-home">
+            Back to Home Tools
+          </Link>
         </header>
 
         {loading && (

@@ -186,11 +186,7 @@ const Header = () => {
                 href="/hobbies"
                 data-tip
                 data-for="HOBBIES"
-                onClick={(e) => {
-                  e.preventDefault();
-                  handleClick();
-                  router.push('/hobbies');
-                }}
+                onClick={handleClick}
               >
                 <span style={{ fontSize: '20px' }}>❤️</span>
                 <Tooltip

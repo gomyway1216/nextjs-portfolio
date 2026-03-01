@@ -50,6 +50,15 @@ export const KAIMONO_USER_HISTORY_COLLECTION = 'kaimono_user_history';
 export const KAIMONO_RECURRING_ITEMS_COLLECTION = 'kaimono_recurring_items';
 export const KAIMONO_FREQUENT_ITEMS_COLLECTION = 'kaimono_frequent_items';
 
+// Kuizu System collection names
+export const KUIZU_QUESTIONS_COLLECTION = 'kuizu_questions';
+export const KUIZU_CUSTOM_QUIZZES_COLLECTION = 'kuizu_custom_quizzes';
+export const KUIZU_DAILY_CHALLENGES_COLLECTION = 'kuizu_daily_challenges';
+export const KUIZU_DAILY_LEADERBOARD_COLLECTION = 'kuizu_daily_leaderboard';
+export const KUIZU_USER_STATS_COLLECTION = 'kuizu_user_stats';
+export const KUIZU_USER_HISTORY_COLLECTION = 'kuizu_user_history';
+export const KUIZU_SOLO_RESULTS_COLLECTION = 'kuizu_solo_results';
+
 // Firebase Cloud Functions base URL (v2 uses individual URLs per function)
 // Format: https://{functionname-lowercase}-{project-hash}-uc.a.run.app
 export const FIREBASE_FUNCTIONS_URL = process.env.FIREBASE_FUNCTIONS_URL || 'https://us-central1-yudai-portfolio.cloudfunctions.net';

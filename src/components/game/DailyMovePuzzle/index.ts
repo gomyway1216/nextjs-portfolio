@@ -1,0 +1,1 @@
+export { DailyMovePuzzle } from './DailyMovePuzzle';

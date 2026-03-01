@@ -1,0 +1,1 @@
+export { GhostTetris } from './GhostTetris';

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
 import { AlertCircle, Shield, ArrowLeft, Mail, Phone, MessageSquare, Loader2, Lock, UserPlus } from 'lucide-react';
 import { resetPassword } from '@/lib/firebaseConnect';
@@ -15,6 +16,8 @@ import * as twoFactorService from '@/services/twoFactorService';
 type AuthMode = 'signin' | 'signup';
 
 const SignInPage = () => {
+  const { t, i18n } = useTranslation();
+  const currentLang = i18n.language?.startsWith('ja') ? 'ja' : 'en';
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -68,17 +71,17 @@ const SignInPage = () => {
     const errors: Record<string, string> = {};
 
     if (!email.match(/^([\w.%+-]+)@([\w-]+\.)+([\w]{2,})$/i)) {
-      errors.email = 'メールアドレスが正しくありません';
+      errors.email = t('signin.errors.invalidEmail');
     }
     if (!password || password.length < 8) {
-      errors.password = 'パスワードは8文字以上にしてください';
+      errors.password = t('signin.errors.passwordMin');
     }
     if (mode === 'signup') {
       if (!displayName.trim()) {
-        errors.displayName = '表示名を入力してください';
+        errors.displayName = t('signin.errors.displayNameRequired');
       }
       if (password !== confirmPassword) {
-        errors.confirmPassword = 'パスワードが一致しません';
+        errors.confirmPassword = t('signin.errors.passwordMismatch');
       }
     }
 
@@ -99,13 +102,13 @@ const SignInPage = () => {
     } catch (e: any) {
       const code = e.code;
       if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
-        setError('メールアドレスまたはパスワードが正しくありません');
+        setError(t('signin.errors.wrongPassword'));
       } else if (code === 'auth/user-not-found') {
-        setError('このメールアドレスのアカウントが見つかりません');
+        setError(t('signin.errors.userNotFound'));
       } else if (code === 'auth/too-many-requests') {
-        setError('ログイン試行回数が多すぎます。しばらく待ってから再試行してください');
+        setError(t('signin.errors.tooManyRequests'));
       } else if (code === 'auth/user-disabled') {
-        setError('このアカウントは無効化されています');
+        setError(t('signin.errors.userDisabled'));
       } else {
         setError(e.message);
       }
@@ -124,9 +127,9 @@ const SignInPage = () => {
     } catch (e: any) {
       const code = e.code;
       if (code === 'auth/email-already-in-use') {
-        setError('このメールアドレスは既に使用されています');
+        setError(t('signin.errors.emailInUse'));
       } else if (code === 'auth/weak-password') {
-        setError('パスワードが弱すぎます。より強いパスワードを設定してください');
+        setError(t('signin.errors.weakPassword'));
       } else {
         setError(e.message);
       }
@@ -154,9 +157,9 @@ const SignInPage = () => {
       setCodeSent(true);
     } catch (e: any) {
       if (e.code === 'auth/too-many-requests') {
-        setError('試行回数が多すぎます。しばらく待ってください');
+        setError(t('signin.errors.tooManyAttempts'));
       } else {
-        setError(e.message || '認証コードの送信に失敗しました');
+        setError(e.message || t('signin.errors.sendCodeFailed'));
       }
       if (recaptchaVerifierRef.current) {
         recaptchaVerifierRef.current.clear();
@@ -168,7 +171,7 @@ const SignInPage = () => {
 
   const onVerifyTwoFactor = async () => {
     if (!twoFactorCode || twoFactorCode.length < 6) {
-      setError('6桁の認証コードを入力してください');
+      setError(t('signin.errors.codeRequired'));
       return;
     }
     setError('');
@@ -198,7 +201,7 @@ const SignInPage = () => {
 
   const onResetPassword = async () => {
     if (!email.match(/^([\w.%+-]+)@([\w-]+\.)+([\w]{2,})$/i)) {
-      setError('まずメールアドレスを入力してください');
+      setError(t('signin.errors.enterEmailFirst'));
       return;
     }
     setResetLoading(true);
@@ -208,7 +211,7 @@ const SignInPage = () => {
       setResetSent(true);
     } catch (e: any) {
       if (e.code === 'auth/user-not-found') {
-        setError('このメールアドレスのアカウントが見つかりません');
+        setError(t('signin.errors.userNotFound'));
       } else {
         setError(e.message);
       }
@@ -219,7 +222,23 @@ const SignInPage = () => {
   // 2FA screen
   if (twoFactorRequired) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-6">
+      <div className="min-h-screen flex items-center justify-center bg-background p-6 relative">
+        <div className="absolute top-4 right-4 flex gap-1">
+          <button
+            type="button"
+            onClick={() => i18n.changeLanguage('en')}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${currentLang === 'en' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+          >
+            EN
+          </button>
+          <button
+            type="button"
+            onClick={() => i18n.changeLanguage('ja')}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${currentLang === 'ja' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+          >
+            JA
+          </button>
+        </div>
         <div className="w-full max-w-md bg-card rounded-2xl shadow-lg border p-8 space-y-6">
           <div id="recaptcha-signin-container" ref={recaptchaContainerRef} />
 
@@ -227,14 +246,14 @@ const SignInPage = () => {
             <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto">
               <Shield className="h-7 w-7 text-blue-600 dark:text-blue-400" />
             </div>
-            <h1 className="text-xl font-semibold">二段階認証</h1>
-            <p className="text-sm text-muted-foreground">本人確認をしてください</p>
+            <h1 className="text-xl font-semibold">{t('signin.twoFactor.title')}</h1>
+            <p className="text-sm text-muted-foreground">{t('signin.twoFactor.subtitle')}</p>
           </div>
 
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="h-4 w-4" />
-              <AlertTitle>エラー</AlertTitle>
+              <AlertTitle>{t('signin.error')}</AlertTitle>
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
@@ -244,22 +263,22 @@ const SignInPage = () => {
               <div className="bg-muted rounded-lg p-4 flex items-center gap-3">
                 <Phone className="h-5 w-5 text-muted-foreground" />
                 <div>
-                  <p className="text-sm font-medium">{mfaPhoneHint || 'お使いの電話番号'}</p>
-                  <p className="text-xs text-muted-foreground">SMSで認証コードを送信します</p>
+                  <p className="text-sm font-medium">{mfaPhoneHint || t('signin.twoFactor.phoneHint')}</p>
+                  <p className="text-xs text-muted-foreground">{t('signin.twoFactor.smsDescription')}</p>
                 </div>
               </div>
               <Button onClick={onSendCode} disabled={sendingCode} className="w-full" style={{ borderRadius: '9999px' }}>
-                {sendingCode ? <><Loader2 className="animate-spin mr-2 h-4 w-4" />送信中...</> : <><MessageSquare className="h-4 w-4 mr-2" />認証コードを送信</>}
+                {sendingCode ? <><Loader2 className="animate-spin mr-2 h-4 w-4" />{t('signin.twoFactor.sendingCode')}</> : <><MessageSquare className="h-4 w-4 mr-2" />{t('signin.twoFactor.sendCode')}</>}
               </Button>
             </div>
           ) : (
             <div className="space-y-4">
               <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 flex items-center gap-2">
                 <Phone className="h-4 w-4 text-green-600" />
-                <p className="text-sm text-green-700 dark:text-green-300">コードを {mfaPhoneHint || 'お使いの電話番号'} に送信しました</p>
+                <p className="text-sm text-green-700 dark:text-green-300">{t('signin.twoFactor.codeSent', { phone: mfaPhoneHint || t('signin.twoFactor.phoneHint') })}</p>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="twoFactorCode">認証コード</Label>
+                <Label htmlFor="twoFactorCode">{t('signin.twoFactor.codeLabel')}</Label>
                 <Input
                   id="twoFactorCode"
                   type="text"
@@ -272,7 +291,7 @@ const SignInPage = () => {
                 />
               </div>
               <Button onClick={onVerifyTwoFactor} disabled={verifying} className="w-full" style={{ borderRadius: '9999px' }}>
-                {verifying ? <><Loader2 className="animate-spin mr-2 h-4 w-4" />確認中...</> : '確認してログイン'}
+                {verifying ? <><Loader2 className="animate-spin mr-2 h-4 w-4" />{t('signin.twoFactor.verifying')}</> : t('signin.twoFactor.verifyAndLogin')}
               </Button>
               <Button
                 variant="outline"
@@ -281,7 +300,7 @@ const SignInPage = () => {
                 className="w-full"
                 style={{ borderRadius: '9999px' }}
               >
-                コードを再送信
+                {t('signin.twoFactor.resendCode')}
               </Button>
             </div>
           )}
@@ -289,7 +308,7 @@ const SignInPage = () => {
           <div className="text-center">
             <button type="button" onClick={onCancelTwoFactor} disabled={sendingCode || verifying} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
               <ArrowLeft className="h-4 w-4" />
-              ログインに戻る
+              {t('signin.twoFactor.backToLogin')}
             </button>
           </div>
         </div>
@@ -299,7 +318,23 @@ const SignInPage = () => {
 
   // Sign in / Sign up form
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-6">
+    <div className="min-h-screen flex items-center justify-center bg-background p-6 relative">
+      <div className="absolute top-4 right-4 flex gap-1">
+        <button
+          type="button"
+          onClick={() => i18n.changeLanguage('en')}
+          className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${currentLang === 'en' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+        >
+          EN
+        </button>
+        <button
+          type="button"
+          onClick={() => i18n.changeLanguage('ja')}
+          className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${currentLang === 'ja' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}
+        >
+          JA
+        </button>
+      </div>
       <div className="w-full max-w-md bg-card rounded-2xl shadow-lg border p-8 space-y-6">
         <div className="text-center space-y-2">
           <div className="w-14 h-14 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto">
@@ -310,10 +345,10 @@ const SignInPage = () => {
             )}
           </div>
           <h1 className="text-xl font-semibold">
-            {mode === 'signin' ? 'ログイン' : 'アカウント作成'}
+            {mode === 'signin' ? t('signin.title') : t('signin.titleSignup')}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {mode === 'signin' ? 'meetyudai.com にログイン' : '新しいアカウントを作成'}
+            {mode === 'signin' ? t('signin.subtitle') : t('signin.subtitleSignup')}
           </p>
         </div>
 
@@ -325,7 +360,7 @@ const SignInPage = () => {
             className={`flex-1 text-sm font-medium py-2 transition-all ${mode === 'signin' ? 'bg-background text-foreground shadow' : 'text-muted-foreground'}`}
             style={{ borderRadius: '9999px' }}
           >
-            ログイン
+            {t('signin.login')}
           </button>
           <button
             type="button"
@@ -333,14 +368,14 @@ const SignInPage = () => {
             className={`flex-1 text-sm font-medium py-2 transition-all ${mode === 'signup' ? 'bg-background text-foreground shadow' : 'text-muted-foreground'}`}
             style={{ borderRadius: '9999px' }}
           >
-            新規登録
+            {t('signin.signup')}
           </button>
         </div>
 
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>エラー</AlertTitle>
+            <AlertTitle>{t('signin.error')}</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
@@ -348,12 +383,12 @@ const SignInPage = () => {
         <div className="space-y-4">
           {mode === 'signup' && (
             <div className="space-y-1.5">
-              <Label htmlFor="displayName">表示名</Label>
+              <Label htmlFor="displayName">{t('signin.displayName')}</Label>
               <Input
                 id="displayName"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="田中太郎"
+                placeholder={t('signin.displayNamePlaceholder')}
                 className={fieldErrors.displayName ? 'border-destructive' : ''}
               />
               {fieldErrors.displayName && <p className="text-xs text-destructive">{fieldErrors.displayName}</p>}
@@ -361,7 +396,7 @@ const SignInPage = () => {
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="email">メールアドレス</Label>
+            <Label htmlFor="email">{t('signin.email')}</Label>
             <Input
               id="email"
               type="email"
@@ -374,7 +409,7 @@ const SignInPage = () => {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password">パスワード</Label>
+            <Label htmlFor="password">{t('signin.password')}</Label>
             <Input
               id="password"
               type="password"
@@ -388,7 +423,7 @@ const SignInPage = () => {
 
           {mode === 'signup' && (
             <div className="space-y-1.5">
-              <Label htmlFor="confirmPassword">パスワード確認</Label>
+              <Label htmlFor="confirmPassword">{t('signin.confirmPassword')}</Label>
               <Input
                 id="confirmPassword"
                 type="password"
@@ -404,9 +439,9 @@ const SignInPage = () => {
 
         <Button onClick={handleSubmit} disabled={loading} className="w-full" style={{ borderRadius: '9999px' }}>
           {loading ? (
-            <><Loader2 className="animate-spin mr-2 h-4 w-4" />{mode === 'signin' ? 'ログイン中...' : 'アカウント作成中...'}</>
+            <><Loader2 className="animate-spin mr-2 h-4 w-4" />{mode === 'signin' ? t('signin.loggingIn') : t('signin.creatingAccount')}</>
           ) : (
-            mode === 'signin' ? 'ログイン' : 'アカウントを作成'
+            mode === 'signin' ? t('signin.login') : t('signin.createAccount')
           )}
         </Button>
 
@@ -415,7 +450,7 @@ const SignInPage = () => {
             {resetSent ? (
               <p className="text-sm text-green-600 bg-green-50 dark:bg-green-900/20 p-2 rounded-lg flex items-center justify-center gap-1">
                 <Mail className="h-4 w-4" />
-                パスワードリセットメールを送信しました
+                {t('signin.resetEmailSent')}
               </p>
             ) : (
               <button
@@ -424,7 +459,7 @@ const SignInPage = () => {
                 disabled={resetLoading}
                 className="text-sm text-muted-foreground hover:text-foreground"
               >
-                {resetLoading ? '送信中...' : 'パスワードを忘れた場合'}
+                {resetLoading ? t('signin.sending') : t('signin.forgotPassword')}
               </button>
             )}
           </div>

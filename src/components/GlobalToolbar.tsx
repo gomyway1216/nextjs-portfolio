@@ -78,6 +78,16 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
     },
   },
   {
+    prefix: '/tools/kaimono',
+    theme: {
+      bg: 'rgba(16,185,129,0.06)',
+      border: 'rgba(16,185,129,0.2)',
+      accent: '#10b981',
+      avatarBg: 'rgba(16,185,129,0.12)',
+      avatarText: '#10b981',
+    },
+  },
+  {
     prefix: '/blog',
     theme: {
       bg: 'rgba(34,197,94,0.06)',
@@ -106,7 +116,7 @@ function getTheme(pathname: string): ThemeConfig {
 
 export function GlobalToolbar() {
   const pathname = usePathname();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { currentUser, isAdmin, signOut } = useAuth();
   const { content: gameContent } = useGameToolbar();
   const currentLang = i18n.language?.startsWith('ja') ? 'ja' : 'en';
@@ -194,7 +204,7 @@ export function GlobalToolbar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <div className="px-2 py-1.5">
-                  <p className="text-sm font-medium truncate">{currentUser.displayName || 'ユーザー'}</p>
+                  <p className="text-sm font-medium truncate">{currentUser.displayName || t('auth.userDefault')}</p>
                   <p className="text-xs text-muted-foreground truncate">{currentUser.email}</p>
                 </div>
                 <DropdownMenuSeparator />
@@ -202,13 +212,13 @@ export function GlobalToolbar() {
                   <DropdownMenuItem asChild>
                     <Link href="/admin" className="cursor-pointer">
                       <Settings className="h-4 w-4 mr-2" />
-                      管理画面
+                      {t('auth.admin')}
                     </Link>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onClick={() => signOut()} className="cursor-pointer text-destructive focus:text-destructive">
                   <LogOut className="h-4 w-4 mr-2" />
-                  ログアウト
+                  {t('auth.logout')}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -221,7 +231,7 @@ export function GlobalToolbar() {
                 style={{ borderRadius: '9999px', color: theme.accent }}
               >
                 <LogIn className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">ログイン</span>
+                <span className="hidden sm:inline">{t('auth.login')}</span>
               </Button>
             </Link>
           )}

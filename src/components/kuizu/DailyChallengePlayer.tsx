@@ -32,7 +32,9 @@ export function DailyChallengePlayer({
     timePerQuestion: 30, // Default 30 seconds per question
     isCustom: false,
     hasPasscode: false,
+    createdBy: null,
     createdAt: challenge.date,
+    updatedAt: challenge.date,
   };
 
   const handleComplete = (answers: SoloAnswer[], totalPoints: number) => {

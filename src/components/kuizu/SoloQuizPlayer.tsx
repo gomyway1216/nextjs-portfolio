@@ -26,6 +26,7 @@ export function SoloQuizPlayer({ quiz, onComplete, onExit }: SoloQuizPlayerProps
   const [answerStartTime, setAnswerStartTime] = useState<number>(Date.now());
   const [showFeedback, setShowFeedback] = useState(false);
   const [lastAnswerCorrect, setLastAnswerCorrect] = useState(false);
+  const [selectedAnswer, setSelectedAnswer] = useState<string | undefined>(undefined);
   const [timeRemaining, setTimeRemaining] = useState(quiz.timePerQuestion * 1000);
 
   const currentQuestion = quiz.questions[currentQuestionIndex];
@@ -53,6 +54,8 @@ export function SoloQuizPlayer({ quiz, onComplete, onExit }: SoloQuizPlayerProps
   const handleAnswer = useCallback(
     (selectedOptionId?: string, textAnswer?: string) => {
       if (showFeedback) return;
+
+      setSelectedAnswer(selectedOptionId || textAnswer);
 
       const timeTaken = Date.now() - answerStartTime;
       const isCorrect =
@@ -86,6 +89,7 @@ export function SoloQuizPlayer({ quiz, onComplete, onExit }: SoloQuizPlayerProps
           // Next question
           setCurrentQuestionIndex((prev) => prev + 1);
           setShowFeedback(false);
+          setSelectedAnswer(undefined);
           setAnswerStartTime(Date.now());
           setTimeRemaining(timeLimitMs);
         }
@@ -137,10 +141,12 @@ export function SoloQuizPlayer({ quiz, onComplete, onExit }: SoloQuizPlayerProps
         <Card className="border-orange-200">
           <QuestionDisplay
             question={currentQuestion}
+            questionNumber={currentQuestionIndex + 1}
+            totalQuestions={totalQuestions}
             onAnswer={handleAnswer}
             disabled={showFeedback}
-            showFeedback={showFeedback}
-            isCorrect={lastAnswerCorrect}
+            showResult={showFeedback}
+            selectedAnswer={selectedAnswer}
           />
         </Card>
 

@@ -3,6 +3,62 @@
     "title": "矢口雄大 - ポートフォリオ",
     "description": "ソフトウェアエンジニア ポートフォリオ"
   },
+  "auth": {
+    "login": "ログイン",
+    "logout": "ログアウト",
+    "admin": "管理画面",
+    "userDefault": "ユーザー"
+  },
+  "signin": {
+    "title": "ログイン",
+    "titleSignup": "アカウント作成",
+    "subtitle": "meetyudai.com にログイン",
+    "subtitleSignup": "新しいアカウントを作成",
+    "login": "ログイン",
+    "signup": "新規登録",
+    "displayName": "表示名",
+    "displayNamePlaceholder": "田中太郎",
+    "email": "メールアドレス",
+    "password": "パスワード",
+    "confirmPassword": "パスワード確認",
+    "error": "エラー",
+    "createAccount": "アカウントを作成",
+    "loggingIn": "ログイン中...",
+    "creatingAccount": "アカウント作成中...",
+    "forgotPassword": "パスワードを忘れた場合",
+    "sending": "送信中...",
+    "resetEmailSent": "パスワードリセットメールを送信しました",
+    "twoFactor": {
+      "title": "二段階認証",
+      "subtitle": "本人確認をしてください",
+      "phoneHint": "お使いの電話番号",
+      "smsDescription": "SMSで認証コードを送信します",
+      "sendCode": "認証コードを送信",
+      "sendingCode": "送信中...",
+      "codeSent": "コードを {{phone}} に送信しました",
+      "codeLabel": "認証コード",
+      "verifyAndLogin": "確認してログイン",
+      "verifying": "確認中...",
+      "resendCode": "コードを再送信",
+      "backToLogin": "ログインに戻る"
+    },
+    "errors": {
+      "invalidEmail": "メールアドレスが正しくありません",
+      "passwordMin": "パスワードは8文字以上にしてください",
+      "displayNameRequired": "表示名を入力してください",
+      "passwordMismatch": "パスワードが一致しません",
+      "wrongPassword": "メールアドレスまたはパスワードが正しくありません",
+      "userNotFound": "このメールアドレスのアカウントが見つかりません",
+      "tooManyRequests": "ログイン試行回数が多すぎます。しばらく待ってから再試行してください",
+      "userDisabled": "このアカウントは無効化されています",
+      "emailInUse": "このメールアドレスは既に使用されています",
+      "weakPassword": "パスワードが弱すぎます。より強いパスワードを設定してください",
+      "enterEmailFirst": "まずメールアドレスを入力してください",
+      "codeRequired": "6桁の認証コードを入力してください",
+      "tooManyAttempts": "試行回数が多すぎます。しばらく待ってください",
+      "sendCodeFailed": "認証コードの送信に失敗しました"
+    }
+  },
   "navigation": {
     "games": "ゲーム",
     "backToGames": "ゲーム一覧へ",
@@ -159,6 +215,129 @@
         "10階でボス戦",
         "パーマデスのローグライクメカニクス"
       ]
+    },
+    "animal-roleplay": {
+      "title": "動物なりきりサバイバル",
+      "description": "動物になりきって10ターン生き残ろう。毎ターン行動を選び、HPと空腹を管理して高スコアを目指そう。",
+      "longDescription": "動物を1匹選んで、自然の中で10ターン生き残るターン制ゲームです。毎ターン異なるイベントが発生します。動物ごとの得意能力に合わせて行動を選びましょう。HPか空腹が0になるとその時点で終了です。",
+      "howToPlay": [
+        "開始前に1匹の動物を選ぶ",
+        "毎ターン、イベントを見て行動を1つ選ぶ",
+        "HPと空腹を管理しながらスコアを稼ぐ",
+        "10ターン生き残ればクリア",
+        "HPか空腹が0になるとゲームオーバー"
+      ],
+      "features": [
+        "能力値が異なる4種類の動物",
+        "毎ターン発生するランダムイベント",
+        "行動によって変化する結果とスコア",
+        "HP/空腹/スコア変化が見える直近ログ",
+        "同じ動物でも別の動物でもすぐ再挑戦"
+      ],
+      "ui": {
+        "selectAnimalDescription": "動物を選んでサバイバル開始。得意能力に合う行動を選ぶと有利です。",
+        "startAs": "{{animal}}で開始",
+        "currentAnimal": "現在の動物",
+        "hpLabel": "HP",
+        "hungerLabel": "空腹",
+        "scoreLabel": "スコア",
+        "turnLabel": "ターン {{current}} / {{total}}",
+        "eventNow": "現在のイベント",
+        "chooseAction": "行動を選択",
+        "latestResult": "直近の結果",
+        "logTitle": "直近ターンログ",
+        "logEmpty": "まだログはありません。",
+        "playAgain": "もう一度プレイ",
+        "changeAnimal": "動物を変更",
+        "stats": {
+          "speed": "素早さ",
+          "strength": "力",
+          "stealth": "隠密",
+          "intelligence": "知性"
+        },
+        "animals": {
+          "fox": {
+            "name": "キツネ",
+            "passive": "隠密が得意"
+          },
+          "rabbit": {
+            "name": "ウサギ",
+            "passive": "逃走が得意"
+          },
+          "bear": {
+            "name": "クマ",
+            "passive": "狩りが得意"
+          },
+          "owl": {
+            "name": "フクロウ",
+            "passive": "判断が得意"
+          }
+        },
+        "actions": {
+          "hide": {
+            "label": "隠れる",
+            "description": "隠密で危険をやり過ごす。"
+          },
+          "escape": {
+            "label": "逃げる",
+            "description": "素早くその場から離脱する。"
+          },
+          "forage": {
+            "label": "採集する",
+            "description": "比較的安全に食べ物を探す。"
+          },
+          "hunt": {
+            "label": "狩りをする",
+            "description": "リスクは高いが食料を多く狙える。"
+          },
+          "rest": {
+            "label": "休む",
+            "description": "HPを回復するが空腹を消費する。"
+          }
+        },
+        "events": {
+          "predator": {
+            "title": "天敵の気配",
+            "description": "近くを危険な捕食者がうろついています。"
+          },
+          "storm": {
+            "title": "激しい嵐",
+            "description": "強い風雨で移動や採食が難しくなっています。"
+          },
+          "food": {
+            "title": "豊かな餌場",
+            "description": "食べ物が豊富に見つかる場所に出ました。"
+          },
+          "rival": {
+            "title": "縄張り争い",
+            "description": "他の動物グループの縄張りに入っています。"
+          },
+          "trap": {
+            "title": "人間の罠",
+            "description": "近くに人間が仕掛けた罠の痕跡があります。"
+          },
+          "calm": {
+            "title": "静かな時間",
+            "description": "周囲は落ち着いていて比較的安全です。"
+          }
+        },
+        "result": {
+          "waiting": "最初の行動を選んでターンを開始してください。",
+          "success": "成功: {{event}}で{{action}}がうまくいきました。",
+          "fail": "失敗: {{event}}で{{action}}がうまくいきませんでした。"
+        },
+        "resultTag": {
+          "success": "成功",
+          "fail": "失敗"
+        },
+        "outcomes": {
+          "winTitle": "サバイバル達成",
+          "loseTitle": "ゲームオーバー",
+          "winMessage": "10ターン生存しました。スコア: {{score}} / HP: {{hp}} / 空腹: {{hunger}}",
+          "loseHpMessage": "HPが0になりました。今回は自然の厳しさに耐えられませんでした。",
+          "loseHungerMessage": "空腹が0になりました。十分にエネルギーを確保できませんでした。"
+        }
+      }
     },
     "breakout": {
       "title": "ブロック崩し",
@@ -458,6 +637,162 @@
     "blog": {
       "comingSoon": "準備中...",
       "leaveReply": "コメントを残す"
+    }
+  },
+  "kaimono": {
+    "common": {
+      "cancel": "キャンセル",
+      "signIn": "ログイン",
+      "completedBadge": "完了",
+      "itemsSuffix": "件"
+    },
+    "page": {
+      "hero": {
+        "title": "みんなのスマート買い物リスト",
+        "subtitle": "予算・カテゴリ・共有機能付きの買い物リスト。無料でログイン不要。",
+        "createList": "リストを作成",
+        "viewHistory": "履歴を見る"
+      },
+      "joinByCode": "参加:",
+      "shareCodePlaceholder": "共有コード",
+      "recentLists": "最近のリスト",
+      "recentAccessed": "最近アクセスしたリスト",
+      "viewAll": "すべて見る",
+      "featuresTitle": "機能",
+      "featuresSubtitle": "スマートな買い物に必要なすべて",
+      "features": {
+        "checklist": { "title": "スマートチェックリスト", "description": "購入チェックボックス付きリストで進捗を管理" },
+        "categories": { "title": "カテゴリ", "description": "食品、日用品、衣類などでアイテムを整理" },
+        "budget": { "title": "予算管理", "description": "予算を設定してリアルタイムで支出を追跡" },
+        "frequent": { "title": "スマート提案", "description": "購入履歴からアイテムを自動提案" },
+        "recurring": { "title": "定期購入", "description": "定期的に買うアイテムのリマインダーを設定" },
+        "share": { "title": "共有・共同編集", "description": "QRコードやリンクで家族とリストを共有" },
+        "stores": { "title": "店舗別リスト", "description": "店舗ごとにアイテムをグループ化して効率的に買い物" },
+        "priority": { "title": "優先度", "description": "必須・あれば便利をマーク" },
+        "notes": { "title": "メモ", "description": "ブランド、セール情報、特記事項を追加" }
+      },
+      "howToUseTitle": "使い方",
+      "howToUse": {
+        "step1": { "title": "リストを作成", "desc": "リスト名と予算（任意）を設定" },
+        "step2": { "title": "アイテムを追加", "desc": "カテゴリ、価格、メモ付きでアイテムを追加" },
+        "step3": { "title": "買い物・チェック", "desc": "買い物しながらチェックして支出を追跡" },
+        "step4": { "title": "共有・再利用", "desc": "家族と共有して買い物習慣を構築" }
+      },
+      "faqTitle": "よくある質問",
+      "faq": {
+        "q1": "アカウントは必要ですか？",
+        "a1": "いいえ！ログインなしで買い物リストを作成・利用できます。履歴と定期購入にはログインが必要です。",
+        "q2": "他の人とリストを共有できますか？",
+        "a2": "はい！QRコード、リンク、共有コードで共有できます。相手もチェックできます。",
+        "q3": "定期購入とは？",
+        "a3": "定期的に買うアイテムです。スケジュールを設定して、次に買う時期になったらリマインダーを受け取れます。",
+        "q4": "データは安全ですか？",
+        "a4": "はい。データはクラウドに安全に保存されます。パスコードでリストを保護することもできます。"
+      },
+      "cta": {
+        "title": "買い物履歴を保存",
+        "subtitle": "ログインすると購入履歴、スマート提案、定期購入を利用できます。",
+        "login": "ログイン",
+        "tryNow": "まず試す"
+      },
+      "toast": {
+        "enterShareCode": "共有コードを入力してください",
+        "listNotFound": "リストが見つかりません"
+      }
+    },
+    "new": {
+      "title": "新しい買い物リスト",
+      "listInfo": "リスト情報",
+      "listName": "リスト名",
+      "listNamePlaceholder": "例：今日の買い物",
+      "date": "日付",
+      "budget": "予算",
+      "budgetPlaceholder": "任意",
+      "currency": "通貨",
+      "protectWithPasscode": "パスコードで保護",
+      "passcode": "パスコード",
+      "passcodePlaceholder": "4文字以上",
+      "stores": "店舗",
+      "storesHint": "店舗を追加してアイテムを場所別にグループ化（任意）",
+      "storeNamePlaceholder": "店舗名",
+      "cancel": "キャンセル",
+      "creating": "作成中...",
+      "createList": "リストを作成",
+      "toast": {
+        "enterListName": "リスト名を入力してください",
+        "created": "リストを作成しました！",
+        "createFailed": "リストの作成に失敗しました"
+      }
+    },
+    "history": {
+      "title": "買い物履歴",
+      "loginRequired": "ログインが必要です",
+      "loginDescription": "買い物履歴を見るにはログインしてください。",
+      "empty": "まだ買い物履歴がありません。最初のリストを作成しましょう！"
+    },
+    "store": { "namePlaceholder": "店舗名" },
+    "list": {
+      "emptyItems": "まだアイテムがありません。買い物リストを始めましょう！",
+      "purchased": "購入済み",
+      "noStore": "店舗なし"
+    },
+    "item": {
+      "addItem": "アイテムを追加",
+      "editItem": "アイテムを編集",
+      "name": "アイテム名",
+      "namePlaceholder": "例：牛乳",
+      "category": "カテゴリ",
+      "priority": "優先度",
+      "quantity": "数量",
+      "unit": "単位",
+      "unitPlaceholder": "個",
+      "price": "価格",
+      "pricePlaceholder": "概算",
+      "store": "店舗",
+      "selectStore": "店舗を選択",
+      "noStore": "店舗なし",
+      "note": "メモ",
+      "notePlaceholder": "ブランド、セール情報など",
+      "add": "追加",
+      "save": "保存"
+    },
+    "share": {
+      "button": "共有",
+      "title": "リストを共有",
+      "description": "この買い物リストを他の人と共有",
+      "scanQr": "QRコードをスキャンしてこのリストを開く",
+      "linkLabel": "共有リンク",
+      "codeLabel": "共有コード",
+      "shareNow": "今すぐ共有",
+      "native": { "title": "{{listName}} - 買い物リスト", "text": "この買い物リストを見てください：{{listName}}" },
+      "toast": { "copied": "クリップボードにコピーしました！", "copyFailed": "コピーに失敗しました" }
+    },
+    "passcode": {
+      "title": "パスコードを入力",
+      "description": "「{{listName}}」にアクセスするにはパスコードを入力してください",
+      "label": "パスコード",
+      "placeholder": "パスコードを入力",
+      "verifying": "確認中...",
+      "confirm": "確認",
+      "errors": { "required": "パスコードを入力してください", "invalid": "パスコードが正しくありません", "verifyFailed": "確認に失敗しました" }
+    },
+    "budget": { "spent": "支出", "over": "超過", "remaining": "残り", "items": "アイテム", "budget": "予算" },
+    "frequent": { "title": "よく買うもの" },
+    "recurring": {
+      "title": "定期購入",
+      "empty": "まだ定期購入アイテムがありません。定期的に買うものを追加しましょう！",
+      "add": "追加",
+      "addItem": "定期購入アイテムを追加",
+      "editItem": "定期購入アイテムを編集",
+      "interval": "間隔",
+      "nextDue": "次回",
+      "nextLabel": "次",
+      "due": "期限",
+      "save": "保存",
+      "loginRequired": "ログインが必要です",
+      "loginDescription": "定期購入を管理するにはログインしてください。",
+      "dueAlert": "{{count}}件のアイテムが購入期限です",
+      "toast": { "created": "定期購入アイテムを作成しました", "createFailed": "作成に失敗しました", "updated": "更新しました", "updateFailed": "更新に失敗しました", "deleted": "削除しました", "deleteFailed": "削除に失敗しました" }
     }
   },
   "settli": {

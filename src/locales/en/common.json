@@ -3,6 +3,62 @@
     "title": "Yudai Yaguchi - Portfolio",
     "description": "Software Engineer Portfolio"
   },
+  "auth": {
+    "login": "Login",
+    "logout": "Log out",
+    "admin": "Admin",
+    "userDefault": "User"
+  },
+  "signin": {
+    "title": "Login",
+    "titleSignup": "Create Account",
+    "subtitle": "Sign in to meetyudai.com",
+    "subtitleSignup": "Create a new account",
+    "login": "Login",
+    "signup": "Sign up",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "John Doe",
+    "email": "Email",
+    "password": "Password",
+    "confirmPassword": "Confirm password",
+    "error": "Error",
+    "createAccount": "Create account",
+    "loggingIn": "Signing in...",
+    "creatingAccount": "Creating account...",
+    "forgotPassword": "Forgot password?",
+    "sending": "Sending...",
+    "resetEmailSent": "Password reset email sent",
+    "twoFactor": {
+      "title": "Two-Factor Authentication",
+      "subtitle": "Verify your identity",
+      "phoneHint": "Your phone number",
+      "smsDescription": "We'll send a verification code via SMS",
+      "sendCode": "Send verification code",
+      "sendingCode": "Sending...",
+      "codeSent": "Code sent to {{phone}}",
+      "codeLabel": "Verification code",
+      "verifyAndLogin": "Verify and sign in",
+      "verifying": "Verifying...",
+      "resendCode": "Resend code",
+      "backToLogin": "Back to login"
+    },
+    "errors": {
+      "invalidEmail": "Please enter a valid email address",
+      "passwordMin": "Password must be at least 8 characters",
+      "displayNameRequired": "Please enter a display name",
+      "passwordMismatch": "Passwords do not match",
+      "wrongPassword": "Invalid email or password",
+      "userNotFound": "No account found with this email",
+      "tooManyRequests": "Too many login attempts. Please try again later",
+      "userDisabled": "This account has been disabled",
+      "emailInUse": "This email is already in use",
+      "weakPassword": "Password is too weak. Please use a stronger password",
+      "enterEmailFirst": "Please enter your email first",
+      "codeRequired": "Please enter the 6-digit verification code",
+      "tooManyAttempts": "Too many attempts. Please try again later",
+      "sendCodeFailed": "Failed to send verification code"
+    }
+  },
   "navigation": {
     "games": "Games",
     "backToGames": "Back to Games",
@@ -159,6 +215,129 @@
         "Boss battle on floor 10",
         "Permadeath roguelike mechanics"
       ]
+    },
+    "animal-roleplay": {
+      "title": "Animal Roleplay Survival",
+      "description": "Become an animal and survive 10 turns. Choose actions each turn to manage HP and hunger and reach the best score.",
+      "longDescription": "Choose an animal and survive the wild for 10 turns. Each turn brings a new event. Pick the best action based on your animal's strengths. If HP or hunger reaches zero, the run ends immediately.",
+      "howToPlay": [
+        "Choose one animal before you start",
+        "Each turn, check the event and choose one action",
+        "Balance HP and hunger while earning score",
+        "Survive all 10 turns to clear the game",
+        "If HP or hunger reaches 0, the run ends"
+      ],
+      "features": [
+        "4 playable animals with different stat profiles",
+        "Random event system each turn",
+        "Action-based outcome and score changes",
+        "Recent turn log with HP/Hunger/Score deltas",
+        "Quick replay with same or different animal"
+      ],
+      "ui": {
+        "selectAnimalDescription": "Select an animal and start your survival run. Match your actions to your strengths.",
+        "startAs": "Start as {{animal}}",
+        "currentAnimal": "Current Animal",
+        "hpLabel": "HP",
+        "hungerLabel": "Hunger",
+        "scoreLabel": "Score",
+        "turnLabel": "Turn {{current}} / {{total}}",
+        "eventNow": "Current Event",
+        "chooseAction": "Choose an Action",
+        "latestResult": "Latest Result",
+        "logTitle": "Recent Turns",
+        "logEmpty": "No turns yet.",
+        "playAgain": "Play Again",
+        "changeAnimal": "Change Animal",
+        "stats": {
+          "speed": "Speed",
+          "strength": "Strength",
+          "stealth": "Stealth",
+          "intelligence": "Intelligence"
+        },
+        "animals": {
+          "fox": {
+            "name": "Fox",
+            "passive": "Stealth specialist"
+          },
+          "rabbit": {
+            "name": "Rabbit",
+            "passive": "Fast escape runner"
+          },
+          "bear": {
+            "name": "Bear",
+            "passive": "Powerful hunter"
+          },
+          "owl": {
+            "name": "Owl",
+            "passive": "Smart planner"
+          }
+        },
+        "actions": {
+          "hide": {
+            "label": "Hide",
+            "description": "Avoid danger using stealth."
+          },
+          "escape": {
+            "label": "Escape",
+            "description": "Run away quickly from trouble."
+          },
+          "forage": {
+            "label": "Forage",
+            "description": "Search for food with low risk."
+          },
+          "hunt": {
+            "label": "Hunt",
+            "description": "Take higher risk for better food."
+          },
+          "rest": {
+            "label": "Rest",
+            "description": "Recover HP but spend hunger."
+          }
+        },
+        "events": {
+          "predator": {
+            "title": "Predator Nearby",
+            "description": "A dangerous predator is moving around your area."
+          },
+          "storm": {
+            "title": "Heavy Storm",
+            "description": "Strong wind and rain make movement and food search harder."
+          },
+          "food": {
+            "title": "Rich Food Spot",
+            "description": "You found an area with lots of food sources."
+          },
+          "rival": {
+            "title": "Rival Territory",
+            "description": "Another animal group claims this territory."
+          },
+          "trap": {
+            "title": "Human Trap",
+            "description": "You notice traces of human traps nearby."
+          },
+          "calm": {
+            "title": "Calm Moment",
+            "description": "The area is quiet and relatively safe for now."
+          }
+        },
+        "result": {
+          "waiting": "Start your first turn by choosing an action.",
+          "success": "Success: {{action}} worked well during {{event}}.",
+          "fail": "Failure: {{action}} did not go well during {{event}}."
+        },
+        "resultTag": {
+          "success": "Success",
+          "fail": "Fail"
+        },
+        "outcomes": {
+          "winTitle": "Survival Complete",
+          "loseTitle": "Run Over",
+          "winMessage": "You survived all turns. Score: {{score}} / HP: {{hp}} / Hunger: {{hunger}}",
+          "loseHpMessage": "Your HP dropped to zero. The wild was too harsh this run.",
+          "loseHungerMessage": "Your hunger reached zero. You could not keep up your energy."
+        }
+      }
     },
     "breakout": {
       "title": "Breakout",
@@ -436,6 +615,162 @@
     "blog": {
       "comingSoon": "Coming soon...",
       "leaveReply": "Leave a Reply"
+    }
+  },
+  "kaimono": {
+    "common": {
+      "cancel": "Cancel",
+      "signIn": "Sign In",
+      "completedBadge": "Done",
+      "itemsSuffix": "items"
+    },
+    "page": {
+      "hero": {
+        "title": "Smart Shopping Lists for Everyone",
+        "subtitle": "Create shopping lists with budgets, categories, and sharing. Free and no login required.",
+        "createList": "Create List",
+        "viewHistory": "View History"
+      },
+      "joinByCode": "Join:",
+      "shareCodePlaceholder": "SHARE CODE",
+      "recentLists": "Recent Lists",
+      "recentAccessed": "Recently Accessed",
+      "viewAll": "View All",
+      "featuresTitle": "Features",
+      "featuresSubtitle": "Everything you need for smarter shopping",
+      "features": {
+        "checklist": { "title": "Smart Checklists", "description": "Create lists with purchase checkboxes and track progress" },
+        "categories": { "title": "Categories", "description": "Organize items by food, daily goods, clothing, and more" },
+        "budget": { "title": "Budget Tracking", "description": "Set budgets and track spending in real time" },
+        "frequent": { "title": "Smart Suggestions", "description": "Auto-suggest items from your purchase history" },
+        "recurring": { "title": "Recurring Items", "description": "Set reminders for items you buy regularly" },
+        "share": { "title": "Share & Collaborate", "description": "Share lists with family via QR code or share link" },
+        "stores": { "title": "Store-based Lists", "description": "Group items by store for efficient shopping trips" },
+        "priority": { "title": "Priority Levels", "description": "Mark items as must-buy or nice-to-have" },
+        "notes": { "title": "Item Notes", "description": "Add brand preferences, sale info, or special instructions" }
+      },
+      "howToUseTitle": "How to Use",
+      "howToUse": {
+        "step1": { "title": "Create a List", "desc": "Name your list and set an optional budget" },
+        "step2": { "title": "Add Items", "desc": "Add items with categories, prices, and notes" },
+        "step3": { "title": "Shop & Check", "desc": "Check off items as you shop and track spending" },
+        "step4": { "title": "Share & Reuse", "desc": "Share lists with family and build buying habits" }
+      },
+      "faqTitle": "FAQ",
+      "faq": {
+        "q1": "Do I need an account?",
+        "a1": "No! You can create and use shopping lists without logging in. Login is only needed for history and recurring items.",
+        "q2": "Can I share lists with others?",
+        "a2": "Yes! Share lists via QR code, link, or share code. Others can view and check off items too.",
+        "q3": "What are recurring items?",
+        "a3": "Recurring items are things you buy regularly. Set a schedule and get reminded when items are due to be purchased again.",
+        "q4": "Is my data safe?",
+        "a4": "Yes. Data is stored securely in the cloud. You can protect lists with a passcode for extra security."
+      },
+      "cta": {
+        "title": "Save Your Shopping History",
+        "subtitle": "Sign in to track your purchases, get smart suggestions, and set up recurring items.",
+        "login": "Sign In",
+        "tryNow": "Try Now"
+      },
+      "toast": {
+        "enterShareCode": "Enter a share code",
+        "listNotFound": "List not found"
+      }
+    },
+    "new": {
+      "title": "New Shopping List",
+      "listInfo": "List Info",
+      "listName": "List Name",
+      "listNamePlaceholder": "e.g. Today's groceries",
+      "date": "Date",
+      "budget": "Budget",
+      "budgetPlaceholder": "Optional",
+      "currency": "Currency",
+      "protectWithPasscode": "Protect with passcode",
+      "passcode": "Passcode",
+      "passcodePlaceholder": "4+ characters",
+      "stores": "Stores",
+      "storesHint": "Add stores to group items by location (optional)",
+      "storeNamePlaceholder": "Store name",
+      "cancel": "Cancel",
+      "creating": "Creating...",
+      "createList": "Create List",
+      "toast": {
+        "enterListName": "Please enter a list name",
+        "created": "List created!",
+        "createFailed": "Failed to create list"
+      }
+    },
+    "history": {
+      "title": "Shopping History",
+      "loginRequired": "Login Required",
+      "loginDescription": "Sign in to view your shopping history.",
+      "empty": "No shopping history yet. Create your first list!"
+    },
+    "store": { "namePlaceholder": "Store name" },
+    "list": {
+      "emptyItems": "No items yet. Add items to start your shopping list!",
+      "purchased": "purchased",
+      "noStore": "No store"
+    },
+    "item": {
+      "addItem": "Add Item",
+      "editItem": "Edit Item",
+      "name": "Item Name",
+      "namePlaceholder": "e.g. Milk",
+      "category": "Category",
+      "priority": "Priority",
+      "quantity": "Qty",
+      "unit": "Unit",
+      "unitPlaceholder": "pc",
+      "price": "Price",
+      "pricePlaceholder": "Est.",
+      "store": "Store",
+      "selectStore": "Select store",
+      "noStore": "No store",
+      "note": "Note",
+      "notePlaceholder": "Brand, sale info, etc.",
+      "add": "Add",
+      "save": "Save"
+    },
+    "share": {
+      "button": "Share",
+      "title": "Share List",
+      "description": "Share this shopping list with others",
+      "scanQr": "Scan QR code to open this list",
+      "linkLabel": "Share Link",
+      "codeLabel": "Share Code",
+      "shareNow": "Share Now",
+      "native": { "title": "{{listName}} - Shopping List", "text": "Check out this shopping list: {{listName}}" },
+      "toast": { "copied": "Copied to clipboard!", "copyFailed": "Failed to copy" }
+    },
+    "passcode": {
+      "title": "Enter Passcode",
+      "description": "Enter the passcode to access \"{{listName}}\"",
+      "label": "Passcode",
+      "placeholder": "Enter passcode",
+      "verifying": "Verifying...",
+      "confirm": "Confirm",
+      "errors": { "required": "Passcode is required", "invalid": "Invalid passcode", "verifyFailed": "Failed to verify" }
+    },
+    "budget": { "spent": "Spent", "over": "Over", "remaining": "Remaining", "items": "Items", "budget": "Budget" },
+    "frequent": { "title": "Frequently Bought" },
+    "recurring": {
+      "title": "Recurring Items",
+      "empty": "No recurring items yet. Add items that you buy regularly!",
+      "add": "Add",
+      "addItem": "Add Recurring Item",
+      "editItem": "Edit Recurring Item",
+      "interval": "Interval",
+      "nextDue": "Next Due",
+      "nextLabel": "Next",
+      "due": "Due",
+      "save": "Save",
+      "loginRequired": "Login Required",
+      "loginDescription": "Sign in to manage recurring items.",
+      "dueAlert": "{{count}} item(s) due for purchase",
+      "toast": { "created": "Recurring item created", "createFailed": "Failed to create", "updated": "Updated", "updateFailed": "Failed to update", "deleted": "Deleted", "deleteFailed": "Failed to delete" }
     }
   },
   "settli": {

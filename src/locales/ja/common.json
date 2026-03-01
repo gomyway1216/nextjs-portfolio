@@ -724,6 +724,16 @@
           "share": "QR共有"
         }
       },
+      "kuizu": {
+        "title": "Kuizu",
+        "subtitle": "クイズツール",
+        "description": "400問以上のクイズ、デイリーチャレンジ、カスタムクイズ、ライブスコアボード付きマルチプレイヤークイズプラットフォーム。",
+        "features": {
+          "multiplayer": "マルチプレイ対戦",
+          "daily": "デイリーチャレンジ",
+          "custom": "カスタムクイズ"
+        }
+      },
       "comingSoon": {
         "title": "Coming Soon...",
         "description": "新しい便利ツールを準備中です。"
@@ -1205,6 +1215,307 @@
     "confirm": "確認",
     "yes": "はい",
     "no": "いいえ",
-    "record": "記録"
+    "record": "記録",
+    "optional": "任意",
+    "copy": "コピー",
+    "copied": "コピーしました！",
+    "today": "今日",
+    "yesterday": "昨日",
+    "daysAgo": "{{count}}日前",
+    "you": "あなた",
+    "leave": "退出",
+    "signIn": "ログイン"
+  },
+  "kuizu": {
+    "accuracy": "正解率",
+    "correct": "正解",
+    "incorrect": "不正解",
+    "points": "点",
+    "score": "スコア",
+    "streak": "連続正解",
+    "questions": "問題",
+    "quizzes": "クイズ",
+    "time": "時間",
+    "question": "問題",
+    "true": "正しい",
+    "false": "間違い",
+    "answerSubmitted": "回答を送信しました！他のプレイヤーを待っています...",
+    "category": "カテゴリ",
+    "difficulty": "難易度",
+    "timePerQuestion": "1問あたりの時間",
+    "seconds": "秒",
+    "questionType": "問題タイプ",
+    "questionText": "問題文",
+    "quizComplete": "クイズ完了！",
+    "bestStreak": "最高連続正解",
+    "finalScore": "最終スコア",
+    "playAgain": "もう一度プレイ",
+    "playNow": "プレイする",
+    "home": "ホーム",
+    "saveResult": "結果を保存",
+    "reviewAnswers": "回答を確認",
+    "yourAnswer": "あなたの回答",
+    "correctAnswer": "正解",
+    "noAnswer": "未回答",
+    "explanation": "解説",
+    "yourScore": "あなたのスコア",
+    "timeTaken": "所要時間",
+    "completed": "完了",
+    "noChallengeToday": "今日のチャレンジはまだありません。明日また確認してください！",
+    "leaderboard": "ランキング",
+    "you": "あなた",
+    "beTheFirstToComplete": "今日のチャレンジに最初に挑戦しよう！",
+    "noEntriesYet": "まだエントリーがありません",
+    "dailyChallenge": "デイリーチャレンジ",
+    "quizNotFound": "クイズが見つかりません",
+    "resultNotFound": "結果が見つかりません",
+    "perQuestion": "1問あたり",
+    "enterAnswer": "回答を入力...",
+    "submit": "送信",
+    "questionNumber": "{{total}}問中{{current}}問目",
+    "categories": {
+      "general": "一般知識",
+      "science": "科学",
+      "history": "歴史",
+      "geography": "地理",
+      "entertainment": "エンタメ",
+      "sports": "スポーツ",
+      "technology": "テクノロジー",
+      "art": "芸術・文学",
+      "nature": "自然",
+      "food": "食べ物・飲み物",
+      "music": "音楽",
+      "movies": "映画・テレビ"
+    },
+    "difficulty": {
+      "easy": "やさしい",
+      "normal": "ふつう",
+      "hard": "むずかしい"
+    },
+    "multiplayer": {
+      "lobby": "ロビー",
+      "players": "プレイヤー",
+      "host": "ホスト",
+      "ready": "準備完了",
+      "notReady": "未準備",
+      "startGame": "ゲーム開始",
+      "scoreboard": "スコアボード",
+      "waitingForHost": "ホストの操作を待っています...",
+      "nextQuestion": "次の問題",
+      "topPlayers": "トッププレイヤー",
+      "youWon": "あなたの勝利！",
+      "playerWon": "{{name}}の勝利！",
+      "finalRankings": "最終順位",
+      "waitingForPlayers": "プレイヤーを待っています...",
+      "waitingForOthersToJoin": "他のプレイヤーの参加を待っています...",
+      "createRoom": "ルームを作成",
+      "joinRoom": "ルームに参加",
+      "createNewRoom": "新しいルームを作成",
+      "joinExistingRoom": "既存のルームに参加",
+      "yourName": "あなたの名前",
+      "namePlaceholder": "名前を入力",
+      "roomCode": "ルームコード",
+      "roomCodePlaceholder": "ルームコードを入力",
+      "roomPassword": "ルームパスワード",
+      "passwordPlaceholder": "パスワードを入力",
+      "passwordIfRequired": "パスワード（必要な場合）",
+      "create": "作成",
+      "join": "参加",
+      "enterName": "名前を入力してください",
+      "selectCategory": "カテゴリを選択してください",
+      "enterRoomCode": "ルームコードを入力してください",
+      "createFailed": "ルームの作成に失敗しました",
+      "joinFailed": "ルームへの参加に失敗しました",
+      "signInRequired": "ログインが必要です",
+      "signInDescription": "マルチプレイヤーモードにはログインが必要です。",
+      "creatingRoom": "ルーム作成中...",
+      "joiningRoom": "ルーム参加中...",
+      "backToLobby": "ロビーに戻る"
+    },
+    "custom": {
+      "createQuiz": "カスタムクイズを作成",
+      "quizTitle": "クイズタイトル",
+      "quizTitlePlaceholder": "クイズのタイトルを入力",
+      "description": "説明",
+      "descriptionPlaceholder": "クイズの説明を入力",
+      "answerOptions": "回答選択肢",
+      "selectCorrectOption": "正解を選択してください",
+      "correctAnswer": "正解",
+      "correctAnswerPlaceholder": "正解を入力",
+      "acceptableAnswers": "許容される回答",
+      "alternativeAnswer": "別の回答",
+      "addAlternative": "別の回答を追加",
+      "explanation": "解説",
+      "explanationPlaceholder": "回答の解説（任意）",
+      "option": "選択肢",
+      "editQuestion": "問題を編集",
+      "addQuestion": "問題を追加",
+      "questionTextPlaceholder": "問題文を入力",
+      "noQuestionsYet": "まだ問題がありません。最初の問題を追加しましょう！",
+      "passcode": "パスコード",
+      "passcodePlaceholder": "パスコードを入力",
+      "confirmDelete": "このクイズを削除してもよろしいですか？",
+      "wrongPasscode": "パスコードが正しくありません",
+      "enterPasscode": "パスコードを入力",
+      "passcodeRequired": "このクイズはパスコードで保護されています",
+      "protected": "保護済み",
+      "unlock": "解除",
+      "deleteSuccess": "クイズを削除しました",
+      "deleteFailed": "クイズの削除に失敗しました",
+      "updateSuccess": "クイズを更新しました",
+      "updateFailed": "クイズの更新に失敗しました",
+      "createSuccess": "クイズを作成しました！",
+      "createFailed": "クイズの作成に失敗しました"
+    },
+    "share": {
+      "shareQuiz": "クイズを共有",
+      "shareRoom": "ルームを共有",
+      "shareQuizDescription": "このクイズを友達と共有しよう",
+      "shareRoomDescription": "友達をルームに招待しよう",
+      "quizCode": "クイズコード",
+      "roomCode": "ルームコード",
+      "shareableLink": "共有リンク",
+      "qrCode": "QRコード",
+      "generateQR": "QRコードを生成",
+      "generatingQR": "生成中...",
+      "scanQRCode": "このQRコードをスキャンして参加",
+      "quizInstructions": "このコードまたはリンクを共有してクイズをプレイしてもらおう",
+      "roomInstructions": "このコードまたはリンクを共有してルームに参加してもらおう",
+      "share": "共有"
+    },
+    "stats": {
+      "title": "あなたの成績",
+      "categoryAccuracy": "カテゴリ別正解率",
+      "categoryBreakdown": "カテゴリ別詳細",
+      "totalQuizzes": "総クイズ数",
+      "totalCorrect": "総正解数",
+      "totalPoints": "総獲得ポイント",
+      "bestStreak": "最高連続正解",
+      "dailyChallenges": "デイリーチャレンジ",
+      "multiplayerGames": "マルチプレイ対戦",
+      "multiplayerWins": "マルチプレイ勝利",
+      "overallAccuracy": "総合正解率",
+      "noDataYet": "データがありません",
+      "best": "最高",
+      "bestScore": "最高スコア",
+      "quizzesTaken": "プレイ回数",
+      "correctAnswers": "正解数",
+      "excellent": "優秀",
+      "good": "良好",
+      "needsWork": "もう少し",
+      "signInRequired": "ログインして成績を確認しましょう",
+      "noStats": "まだ成績がありません。クイズをプレイして記録を残そう！"
+    },
+    "play": {
+      "title": "クイズをプレイ",
+      "selectCategory": "カテゴリを選択",
+      "selectDifficulty": "難易度を選択",
+      "questionCount": "問題数",
+      "startQuiz": "クイズを開始",
+      "generateFailed": "クイズの生成に失敗しました",
+      "resultSaved": "結果を保存しました！",
+      "saveFailed": "結果の保存に失敗しました"
+    },
+    "history": {
+      "title": "クイズ履歴",
+      "noHistory": "まだクイズ履歴がありません。クイズをプレイしよう！",
+      "signInRequired": "ログインしてクイズ履歴を確認"
+    },
+    "daily": {
+      "challengeComplete": "チャレンジ完了！",
+      "leaderboard": "今日のランキング",
+      "refresh": "更新",
+      "signInToSave": "ログインしてランキングにスコアを登録",
+      "submitFailed": "スコアの送信に失敗しました",
+      "alreadyCompleted": "今日のチャレンジは完了済みです"
+    },
+    "join": {
+      "loading": "クイズを読み込み中...",
+      "notFound": "クイズが見つかりません",
+      "sharedQuiz": "共有クイズ",
+      "sharedDescription": "クイズが共有されました！",
+      "playQuiz": "クイズをプレイ"
+    },
+    "backToHome": "Kuizuに戻る",
+    "page": {
+      "hero": {
+        "title": "知識を試そう",
+        "subtitle": "10以上のカテゴリから400問以上。ソロプレイ、友達とマルチプレイ対戦、デイリーチャレンジに挑戦。",
+        "playSolo": "ソロプレイ",
+        "multiplayer": "マルチプレイ"
+      },
+      "joinRoom": "ルームに参加",
+      "roomCodePlaceholder": "ルームコード",
+      "toast": {
+        "enterRoomCode": "ルームコードを入力してください"
+      },
+      "createQuiz": "クイズを作成",
+      "daily": "デイリーチャレンジ",
+      "history": "履歴",
+      "stats": "成績",
+      "featuresTitle": "機能紹介",
+      "features": {
+        "categories": {
+          "title": "10以上のカテゴリ",
+          "description": "科学からポップカルチャーまで、幅広いトピックで知識を試そう。"
+        },
+        "multiplayer": {
+          "title": "マルチプレイ対戦",
+          "description": "ルームを作成して友達とリアルタイムのクイズバトル。"
+        },
+        "daily": {
+          "title": "デイリーチャレンジ",
+          "description": "毎日新しいチャレンジとグローバルランキング。"
+        },
+        "streak": {
+          "title": "連続正解ボーナス",
+          "description": "連続正解でボーナスポイントを獲得しよう。"
+        },
+        "timed": {
+          "title": "タイム制限",
+          "description": "早く答えるほど高得点。1秒が勝負を分ける！"
+        },
+        "custom": {
+          "title": "カスタムクイズ",
+          "description": "自分だけのクイズを作成して友達と共有。"
+        },
+        "share": {
+          "title": "簡単共有",
+          "description": "コード、リンク、QRでクイズやルームを共有。"
+        },
+        "stats": {
+          "title": "成績トラッキング",
+          "description": "カテゴリ別の正解率、連続正解数、スコアを記録。"
+        },
+        "formats": {
+          "title": "多彩な出題形式",
+          "description": "4択、○×、穴埋め、画像問題など多様な形式。"
+        }
+      },
+      "howToUseTitle": "遊び方",
+      "howToUse": {
+        "step1": { "title": "モードを選ぶ", "desc": "ソロ、マルチプレイ、デイリーチャレンジ" },
+        "step2": { "title": "カテゴリを選ぶ", "desc": "10以上のトピックから選択" },
+        "step3": { "title": "問題に答える", "desc": "時間内に回答しよう" },
+        "step4": { "title": "結果を確認", "desc": "回答を確認して成績を記録" }
+      },
+      "faqTitle": "よくある質問",
+      "faq": {
+        "q1": "アカウントなしでもプレイできますか？",
+        "a1": "はい！ソロプレイとデイリーチャレンジはログインなしで遊べます。ログインすると履歴保存、成績記録、マルチプレイが利用可能です。",
+        "q2": "問題数はどのくらいありますか？",
+        "a2": "10以上のカテゴリにわたって400問以上あり、定期的に追加されています。",
+        "q3": "自分でクイズを作れますか？",
+        "a3": "はい！カスタムクイズを作成し、コードやQRで友達と共有できます。",
+        "q4": "スコアリングはどう計算されますか？",
+        "a4": "正解、回答速度、連続正解ボーナスに基づいてポイントが計算されます。早く答えるほど、連続正解が多いほど高得点！"
+      },
+      "cta": {
+        "title": "知識を試す準備はできた？",
+        "subtitle": "ログインして成績を記録し、ランキングで競い、友達と対戦しよう。",
+        "login": "ログイン",
+        "tryNow": "今すぐプレイ"
+      }
+    }
   }
 }

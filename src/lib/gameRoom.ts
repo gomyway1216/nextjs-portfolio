@@ -43,6 +43,9 @@ function getPlayerLimits(gameType: string): { minPlayers: number; maxPlayers: nu
   if (gameType === 'daifugo' || gameType === 'shichinarabe' || gameType === 'doubt') {
     return { minPlayers: 3, maxPlayers: 6 };
   }
+  if (gameType === 'kuizu') {
+    return { minPlayers: 2, maxPlayers: 8 };
+  }
 
   // Default (2P)
   return { minPlayers: 2, maxPlayers: 2 };

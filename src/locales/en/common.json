@@ -724,6 +724,16 @@
           "share": "QR Share"
         }
       },
+      "kuizu": {
+        "title": "Kuizu",
+        "subtitle": "Quiz Tool",
+        "description": "Multiplayer quiz platform with 400+ questions, daily challenges, custom quizzes, and live scoreboards.",
+        "features": {
+          "multiplayer": "Multiplayer Rooms",
+          "daily": "Daily Challenges",
+          "custom": "Custom Quizzes"
+        }
+      },
       "comingSoon": {
         "title": "Coming Soon...",
         "description": "More practical tools are on the way."
@@ -1183,6 +1193,307 @@
     "confirm": "Confirm",
     "yes": "Yes",
     "no": "No",
-    "record": "Record"
+    "record": "Record",
+    "optional": "Optional",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "daysAgo": "{{count}} days ago",
+    "you": "You",
+    "leave": "Leave",
+    "signIn": "Sign In"
+  },
+  "kuizu": {
+    "accuracy": "Accuracy",
+    "correct": "Correct",
+    "incorrect": "Incorrect",
+    "points": "pts",
+    "score": "Score",
+    "streak": "Streak",
+    "questions": "Questions",
+    "quizzes": "Quizzes",
+    "time": "Time",
+    "question": "Question",
+    "true": "True",
+    "false": "False",
+    "answerSubmitted": "Answer submitted! Waiting for others...",
+    "category": "Category",
+    "difficulty": "Difficulty",
+    "timePerQuestion": "Time per question",
+    "seconds": "seconds",
+    "questionType": "Question type",
+    "questionText": "Question text",
+    "quizComplete": "Quiz Complete!",
+    "bestStreak": "Best Streak",
+    "finalScore": "Final Score",
+    "playAgain": "Play Again",
+    "playNow": "Play Now",
+    "home": "Home",
+    "saveResult": "Save Result",
+    "reviewAnswers": "Review Answers",
+    "yourAnswer": "Your answer",
+    "correctAnswer": "Correct answer",
+    "noAnswer": "No answer",
+    "explanation": "Explanation",
+    "yourScore": "Your Score",
+    "timeTaken": "Time Taken",
+    "completed": "Completed",
+    "noChallengeToday": "No challenge available today. Check back tomorrow!",
+    "leaderboard": "Leaderboard",
+    "you": "You",
+    "beTheFirstToComplete": "Be the first to complete today's challenge!",
+    "noEntriesYet": "No entries yet",
+    "dailyChallenge": "Daily Challenge",
+    "quizNotFound": "Quiz not found",
+    "resultNotFound": "Result not found",
+    "perQuestion": "per question",
+    "enterAnswer": "Enter your answer...",
+    "submit": "Submit",
+    "questionNumber": "Question {{current}} of {{total}}",
+    "categories": {
+      "general": "General Knowledge",
+      "science": "Science",
+      "history": "History",
+      "geography": "Geography",
+      "entertainment": "Entertainment",
+      "sports": "Sports",
+      "technology": "Technology",
+      "art": "Art & Literature",
+      "nature": "Nature",
+      "food": "Food & Drink",
+      "music": "Music",
+      "movies": "Movies & TV"
+    },
+    "difficulty": {
+      "easy": "Easy",
+      "normal": "Normal",
+      "hard": "Hard"
+    },
+    "multiplayer": {
+      "lobby": "Lobby",
+      "players": "Players",
+      "host": "Host",
+      "ready": "Ready",
+      "notReady": "Not Ready",
+      "startGame": "Start Game",
+      "scoreboard": "Scoreboard",
+      "waitingForHost": "Waiting for host to continue...",
+      "nextQuestion": "Next Question",
+      "topPlayers": "Top Players",
+      "youWon": "You Won!",
+      "playerWon": "{{name}} Wins!",
+      "finalRankings": "Final Rankings",
+      "waitingForPlayers": "Waiting for players...",
+      "waitingForOthersToJoin": "Waiting for others to join...",
+      "createRoom": "Create Room",
+      "joinRoom": "Join Room",
+      "createNewRoom": "Create a New Room",
+      "joinExistingRoom": "Join an Existing Room",
+      "yourName": "Your Name",
+      "namePlaceholder": "Enter your name",
+      "roomCode": "Room Code",
+      "roomCodePlaceholder": "Enter room code",
+      "roomPassword": "Room Password",
+      "passwordPlaceholder": "Enter password",
+      "passwordIfRequired": "Password (if required)",
+      "create": "Create",
+      "join": "Join",
+      "enterName": "Please enter your name",
+      "selectCategory": "Please select a category",
+      "enterRoomCode": "Please enter a room code",
+      "createFailed": "Failed to create room",
+      "joinFailed": "Failed to join room",
+      "signInRequired": "Sign In Required",
+      "signInDescription": "You need to sign in to play multiplayer.",
+      "creatingRoom": "Creating room...",
+      "joiningRoom": "Joining room...",
+      "backToLobby": "Back to Lobby"
+    },
+    "custom": {
+      "createQuiz": "Create Custom Quiz",
+      "quizTitle": "Quiz Title",
+      "quizTitlePlaceholder": "Enter quiz title",
+      "description": "Description",
+      "descriptionPlaceholder": "Enter quiz description",
+      "answerOptions": "Answer Options",
+      "selectCorrectOption": "Select the correct option",
+      "correctAnswer": "Correct Answer",
+      "correctAnswerPlaceholder": "Enter the correct answer",
+      "acceptableAnswers": "Acceptable Answers",
+      "alternativeAnswer": "Alternative answer",
+      "addAlternative": "Add alternative",
+      "explanation": "Explanation",
+      "explanationPlaceholder": "Explain the answer (optional)",
+      "option": "Option",
+      "editQuestion": "Edit Question",
+      "addQuestion": "Add Question",
+      "questionTextPlaceholder": "Enter the question",
+      "noQuestionsYet": "No questions yet. Add your first question!",
+      "passcode": "Passcode",
+      "passcodePlaceholder": "Enter a passcode",
+      "confirmDelete": "Are you sure you want to delete this quiz?",
+      "wrongPasscode": "Wrong passcode",
+      "enterPasscode": "Enter Passcode",
+      "passcodeRequired": "This quiz is protected with a passcode",
+      "protected": "Protected",
+      "unlock": "Unlock",
+      "deleteSuccess": "Quiz deleted",
+      "deleteFailed": "Failed to delete quiz",
+      "updateSuccess": "Quiz updated",
+      "updateFailed": "Failed to update quiz",
+      "createSuccess": "Quiz created!",
+      "createFailed": "Failed to create quiz"
+    },
+    "share": {
+      "shareQuiz": "Share Quiz",
+      "shareRoom": "Share Room",
+      "shareQuizDescription": "Share this quiz with friends",
+      "shareRoomDescription": "Invite friends to join this room",
+      "quizCode": "Quiz Code",
+      "roomCode": "Room Code",
+      "shareableLink": "Shareable Link",
+      "qrCode": "QR Code",
+      "generateQR": "Generate QR Code",
+      "generatingQR": "Generating...",
+      "scanQRCode": "Scan this QR code to join",
+      "quizInstructions": "Share this code or link for others to play your quiz",
+      "roomInstructions": "Share this code or link for others to join the room",
+      "share": "Share"
+    },
+    "stats": {
+      "title": "Your Stats",
+      "categoryAccuracy": "Category Accuracy",
+      "categoryBreakdown": "Category Breakdown",
+      "totalQuizzes": "Total Quizzes",
+      "totalCorrect": "Total Correct",
+      "totalPoints": "Total Points",
+      "bestStreak": "Best Streak",
+      "dailyChallenges": "Daily Challenges",
+      "multiplayerGames": "Multiplayer Games",
+      "multiplayerWins": "Multiplayer Wins",
+      "overallAccuracy": "Overall Accuracy",
+      "noDataYet": "No data yet",
+      "best": "Best",
+      "bestScore": "Best Score",
+      "quizzesTaken": "Quizzes Taken",
+      "correctAnswers": "Correct Answers",
+      "excellent": "Excellent",
+      "good": "Good",
+      "needsWork": "Needs Work",
+      "signInRequired": "Sign in to track your quiz stats",
+      "noStats": "No stats yet. Play some quizzes to see your progress!"
+    },
+    "play": {
+      "title": "Play Quiz",
+      "selectCategory": "Select Category",
+      "selectDifficulty": "Select Difficulty",
+      "questionCount": "Number of Questions",
+      "startQuiz": "Start Quiz",
+      "generateFailed": "Failed to generate quiz",
+      "resultSaved": "Result saved!",
+      "saveFailed": "Failed to save result"
+    },
+    "history": {
+      "title": "Quiz History",
+      "noHistory": "No quiz history yet. Play some quizzes!",
+      "signInRequired": "Sign in to view your quiz history"
+    },
+    "daily": {
+      "challengeComplete": "Challenge Complete!",
+      "leaderboard": "Today's Leaderboard",
+      "refresh": "Refresh",
+      "signInToSave": "Sign in to save your score to the leaderboard",
+      "submitFailed": "Failed to submit score",
+      "alreadyCompleted": "You've already completed today's challenge"
+    },
+    "join": {
+      "loading": "Loading quiz...",
+      "notFound": "Quiz not found",
+      "sharedQuiz": "Shared Quiz",
+      "sharedDescription": "Someone shared a quiz with you!",
+      "playQuiz": "Play Quiz"
+    },
+    "backToHome": "Back to Kuizu",
+    "page": {
+      "hero": {
+        "title": "Test Your Knowledge",
+        "subtitle": "400+ questions across 10+ categories. Play solo, challenge friends in multiplayer, or try the daily challenge.",
+        "playSolo": "Play Solo",
+        "multiplayer": "Multiplayer"
+      },
+      "joinRoom": "Join Room",
+      "roomCodePlaceholder": "Room Code",
+      "toast": {
+        "enterRoomCode": "Please enter a room code"
+      },
+      "createQuiz": "Create Quiz",
+      "daily": "Daily Challenge",
+      "history": "History",
+      "stats": "Stats",
+      "featuresTitle": "Features",
+      "features": {
+        "categories": {
+          "title": "10+ Categories",
+          "description": "From science to pop culture, test your knowledge across diverse topics."
+        },
+        "multiplayer": {
+          "title": "Multiplayer Rooms",
+          "description": "Create rooms and challenge friends in real-time quiz battles."
+        },
+        "daily": {
+          "title": "Daily Challenge",
+          "description": "A new challenge every day with a global leaderboard."
+        },
+        "streak": {
+          "title": "Streak Bonus",
+          "description": "Build consecutive correct answer streaks for bonus points."
+        },
+        "timed": {
+          "title": "Timed Questions",
+          "description": "Answer faster for more points. Every second counts!"
+        },
+        "custom": {
+          "title": "Custom Quizzes",
+          "description": "Create and share your own quizzes with friends."
+        },
+        "share": {
+          "title": "Easy Sharing",
+          "description": "Share quizzes and rooms via code, link, or QR."
+        },
+        "stats": {
+          "title": "Progress Tracking",
+          "description": "Track your accuracy, streaks, and scores by category."
+        },
+        "formats": {
+          "title": "Multiple Formats",
+          "description": "4-choice, true/false, fill-in-the-blank, and image-based questions."
+        }
+      },
+      "howToUseTitle": "How to Play",
+      "howToUse": {
+        "step1": { "title": "Choose a Mode", "desc": "Solo, multiplayer, or daily challenge" },
+        "step2": { "title": "Pick a Category", "desc": "Select from 10+ topics" },
+        "step3": { "title": "Answer Questions", "desc": "Race against the clock" },
+        "step4": { "title": "See Results", "desc": "Review answers and track progress" }
+      },
+      "faqTitle": "FAQ",
+      "faq": {
+        "q1": "Do I need an account to play?",
+        "a1": "No! You can play solo and daily challenges without signing in. Sign in to save history, track stats, and play multiplayer.",
+        "q2": "How many questions are available?",
+        "a2": "Over 400 questions across 10+ categories, with more being added regularly.",
+        "q3": "Can I create my own quizzes?",
+        "a3": "Yes! Create custom quizzes with your own questions and share them with friends via code or QR.",
+        "q4": "How does scoring work?",
+        "a4": "You earn points based on correct answers, speed, and streak bonuses. Faster answers and longer streaks mean more points!"
+      },
+      "cta": {
+        "title": "Ready to Test Your Knowledge?",
+        "subtitle": "Sign in to track your progress, compete on leaderboards, and play with friends.",
+        "login": "Sign In",
+        "tryNow": "Play Now"
+      }
+    }
   }
 }

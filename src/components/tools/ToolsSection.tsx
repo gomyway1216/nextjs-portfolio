@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import { SettliIcon } from '@/components/settli';
 import { KaimonoLogo } from '@/components/kaimono';
+import { KuizuIcon } from '@/components/kuizu';
 import { useTranslation } from 'react-i18next';
 import './tools-section.scss';
 
@@ -54,6 +55,20 @@ const ToolsSection: React.FC = () => {
         t('home.tools.kaimono.features.share'),
       ],
       gradient: 'linear-gradient(135deg, #059669, #10b981, #34d399)',
+    },
+    {
+      id: 'kuizu',
+      title: t('home.tools.kuizu.title'),
+      subtitle: t('home.tools.kuizu.subtitle'),
+      description: t('home.tools.kuizu.description'),
+      path: '/tools/kuizu',
+      icon: <KuizuIcon size={32} />,
+      features: [
+        t('home.tools.kuizu.features.multiplayer'),
+        t('home.tools.kuizu.features.daily'),
+        t('home.tools.kuizu.features.custom'),
+      ],
+      gradient: 'linear-gradient(135deg, #d97706, #f59e0b, #fbbf24)',
     },
   ];
 

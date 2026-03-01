@@ -58,9 +58,9 @@ export function SoloQuizPlayer({ quiz, onComplete, onExit }: SoloQuizPlayerProps
       setSelectedAnswer(selectedOptionId || textAnswer);
 
       const timeTaken = Date.now() - answerStartTime;
-      const isCorrect =
+      const isCorrect: boolean =
         selectedOptionId === currentQuestion.correctOptionId ||
-        (textAnswer && textAnswer.toLowerCase().trim() === currentQuestion.correctText?.toLowerCase().trim());
+        !!(textAnswer && textAnswer.toLowerCase().trim() === currentQuestion.correctText?.toLowerCase().trim());
 
       const currentStreak = isCorrect ? streak + 1 : 0;
       const points = calculatePoints(isCorrect, timeTaken, timeLimitMs, currentStreak);

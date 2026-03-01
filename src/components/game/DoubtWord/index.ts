@@ -1,0 +1,1 @@
+export { DoubtWord } from './DoubtWord';

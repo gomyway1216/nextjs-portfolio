@@ -507,6 +507,150 @@
         "Turn-based challenge flow (Accept / Doubt)",
         "Results with placement"
       ]
+    },
+    "reverse-jump": {
+      "title": "Reverse Jump",
+      "description": "Controls reverse every 8 seconds. Jump low obstacles and duck high bars to survive.",
+      "longDescription": "Reverse Jump is an endless reflex game where your controls flip on a timer. One moment Space jumps, the next moment Space ducks. Low obstacles require jumps while overhead bars require crouching, so you need to react and rewire fast.",
+      "howToPlay": [
+        "Space / Up: primary action",
+        "Down: secondary action",
+        "Controls swap every 8 seconds",
+        "Jump low blocks and duck overhead bars",
+        "Survive as long as possible"
+      ],
+      "features": [
+        "Control inversion mechanic",
+        "Two obstacle types",
+        "Fast restart loop",
+        "High score tracking"
+      ]
+    },
+    "ghost-tetris": {
+      "title": "Ghost Tetris",
+      "description": "Locked blocks fade after 2 seconds. Remember the board and keep clearing lines.",
+      "longDescription": "A memory-focused Tetris variant. Once a piece locks, it starts fading quickly, forcing you to track the structure mentally rather than visually. The core controls stay classic, but your brain does the heavy lifting.",
+      "howToPlay": [
+        "Left/Right to move",
+        "Down to soft drop",
+        "Up or Z to rotate",
+        "Space to hard drop",
+        "Clear lines before your memory fails"
+      ],
+      "features": [
+        "Classic falling-block controls",
+        "2-second visibility window",
+        "Memory challenge twist",
+        "Score and line tracking"
+      ]
+    },
+    "chaos-breakout": {
+      "title": "Chaos Breakout",
+      "description": "Breakout with chaos pulses: gravity, speed, and paddle size change every 10 seconds.",
+      "longDescription": "Chaos Breakout keeps the classic brick-breaking core, then mutates it in real time. Every 10 seconds, the game applies a random modifier such as gravity direction changes, speed bursts, or paddle width shifts, creating unpredictable runs.",
+      "howToPlay": [
+        "Arrow keys or A/D to move paddle",
+        "Bounce the ball and break all bricks",
+        "Adapt to chaos events every 10 seconds",
+        "Avoid losing all lives",
+        "Clear stages to continue"
+      ],
+      "features": [
+        "Random chaos modifiers",
+        "Multi-stage progression",
+        "Live gravity direction changes",
+        "Arcade score system"
+      ]
+    },
+    "doubt-word": {
+      "title": "Doubt Word",
+      "description": "A bluff duel using claimed word initials and lengths. Believe or call Doubt.",
+      "longDescription": "Doubt Word is a social-deduction mini game versus AI. Players claim they have a word with a specific first letter and length, then the opponent decides to believe or challenge. Both truth and deception are viable strategies.",
+      "howToPlay": [
+        "Read AI claims and choose Believe or Doubt",
+        "On your turn, choose a word and optionally bluff",
+        "If a challenge is correct, challenger gains advantage",
+        "If challenge is wrong, challenger is punished",
+        "Reduce opponent lives to zero"
+      ],
+      "features": [
+        "Turn-based bluffing",
+        "Quick rounds",
+        "AI behaviour with uncertainty",
+        "Simple risk-reward decisions"
+      ]
+    },
+    "timed-button": {
+      "title": "Timed Button",
+      "description": "One button mind game: pass the bomb before the hidden timer explodes.",
+      "longDescription": "Timed Button is a minimal psychological duel. The bomb timer is always ticking and either player can pass it. Press too early and you give control away; press too late and it explodes in your hands.",
+      "howToPlay": [
+        "If you hold the bomb, press to pass it",
+        "Cooldown prevents spam passing",
+        "Explosion gives a point to the opponent",
+        "Rounds continue automatically",
+        "First to 5 points wins"
+      ],
+      "features": [
+        "Single-button core mechanic",
+        "Hidden-timer pressure",
+        "AI timing behavior",
+        "Fast rematch loop"
+      ]
+    },
+    "mirror-othello": {
+      "title": "Mirror Othello",
+      "description": "An Othello variant where the board mirrors every 4 turns.",
+      "longDescription": "Mirror Othello keeps the normal disc-flip rules but introduces a periodic board mirror effect. Every 4 moves, all discs flip left-right positions, breaking long-term plans and forcing on-the-fly adaptation.",
+      "howToPlay": [
+        "Place a disc to flip opponent discs",
+        "Valid moves are highlighted",
+        "Board mirrors every 4 total moves",
+        "Pass occurs when no legal move exists",
+        "Most discs at the end wins"
+      ],
+      "features": [
+        "Classic Othello rules",
+        "Mirror twist every 4 turns",
+        "AI opponent",
+        "Match result tracking"
+      ]
+    },
+    "memory-maze": {
+      "title": "Memory Maze",
+      "description": "Memorize the maze quickly, then navigate to the goal in near darkness.",
+      "longDescription": "Memory Maze gives you only a few seconds to study the full map. After that, walls are mostly hidden and you must rely on memory and partial local visibility to reach the goal before time runs out.",
+      "howToPlay": [
+        "Memorize the maze during preview",
+        "Use Arrow keys or WASD to move",
+        "Avoid walls while navigating in dark mode",
+        "Reach the green goal tile",
+        "Clear stages with shrinking time"
+      ],
+      "features": [
+        "Procedurally generated stages",
+        "Preview-then-darkness loop",
+        "Stage progression",
+        "Speedrun-friendly format"
+      ]
+    },
+    "daily-move-puzzle": {
+      "title": "Daily One-Move Puzzle",
+      "description": "A daily tic-tac-toe puzzle: find the winning move in one turn.",
+      "longDescription": "Each day you get one short tactical board and one objective: find the immediate winning move. The puzzle rotates daily by date, making it easy to share results and compare attempts.",
+      "howToPlay": [
+        "Read the side-to-move prompt",
+        "Tap an empty square for your answer",
+        "Find the instant winning move",
+        "Retry to lower attempt count",
+        "Copy and share your result"
+      ],
+      "features": [
+        "Date-based daily puzzle",
+        "Single-turn objective",
+        "Attempt counter",
+        "Result copy for sharing"
+      ]
     }
   },
   "home": {

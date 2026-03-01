@@ -1,0 +1,1 @@
+export { MirrorOthello } from './MirrorOthello';

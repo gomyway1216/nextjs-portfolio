@@ -216,6 +216,129 @@
         "Permadeath roguelike mechanics"
       ]
     },
+    "animal-roleplay": {
+      "title": "Animal Roleplay Survival",
+      "description": "Become an animal and survive 10 turns. Choose actions each turn to manage HP and hunger and reach the best score.",
+      "longDescription": "Choose an animal and survive the wild for 10 turns. Each turn brings a new event. Pick the best action based on your animal's strengths. If HP or hunger reaches zero, the run ends immediately.",
+      "howToPlay": [
+        "Choose one animal before you start",
+        "Each turn, check the event and choose one action",
+        "Balance HP and hunger while earning score",
+        "Survive all 10 turns to clear the game",
+        "If HP or hunger reaches 0, the run ends"
+      ],
+      "features": [
+        "4 playable animals with different stat profiles",
+        "Random event system each turn",
+        "Action-based outcome and score changes",
+        "Recent turn log with HP/Hunger/Score deltas",
+        "Quick replay with same or different animal"
+      ],
+      "ui": {
+        "selectAnimalDescription": "Select an animal and start your survival run. Match your actions to your strengths.",
+        "startAs": "Start as {{animal}}",
+        "currentAnimal": "Current Animal",
+        "hpLabel": "HP",
+        "hungerLabel": "Hunger",
+        "scoreLabel": "Score",
+        "turnLabel": "Turn {{current}} / {{total}}",
+        "eventNow": "Current Event",
+        "chooseAction": "Choose an Action",
+        "latestResult": "Latest Result",
+        "logTitle": "Recent Turns",
+        "logEmpty": "No turns yet.",
+        "playAgain": "Play Again",
+        "changeAnimal": "Change Animal",
+        "stats": {
+          "speed": "Speed",
+          "strength": "Strength",
+          "stealth": "Stealth",
+          "intelligence": "Intelligence"
+        },
+        "animals": {
+          "fox": {
+            "name": "Fox",
+            "passive": "Stealth specialist"
+          },
+          "rabbit": {
+            "name": "Rabbit",
+            "passive": "Fast escape runner"
+          },
+          "bear": {
+            "name": "Bear",
+            "passive": "Powerful hunter"
+          },
+          "owl": {
+            "name": "Owl",
+            "passive": "Smart planner"
+          }
+        },
+        "actions": {
+          "hide": {
+            "label": "Hide",
+            "description": "Avoid danger using stealth."
+          },
+          "escape": {
+            "label": "Escape",
+            "description": "Run away quickly from trouble."
+          },
+          "forage": {
+            "label": "Forage",
+            "description": "Search for food with low risk."
+          },
+          "hunt": {
+            "label": "Hunt",
+            "description": "Take higher risk for better food."
+          },
+          "rest": {
+            "label": "Rest",
+            "description": "Recover HP but spend hunger."
+          }
+        },
+        "events": {
+          "predator": {
+            "title": "Predator Nearby",
+            "description": "A dangerous predator is moving around your area."
+          },
+          "storm": {
+            "title": "Heavy Storm",
+            "description": "Strong wind and rain make movement and food search harder."
+          },
+          "food": {
+            "title": "Rich Food Spot",
+            "description": "You found an area with lots of food sources."
+          },
+          "rival": {
+            "title": "Rival Territory",
+            "description": "Another animal group claims this territory."
+          },
+          "trap": {
+            "title": "Human Trap",
+            "description": "You notice traces of human traps nearby."
+          },
+          "calm": {
+            "title": "Calm Moment",
+            "description": "The area is quiet and relatively safe for now."
+          }
+        },
+        "result": {
+          "waiting": "Start your first turn by choosing an action.",
+          "success": "Success: {{action}} worked well during {{event}}.",
+          "fail": "Failure: {{action}} did not go well during {{event}}."
+        },
+        "resultTag": {
+          "success": "Success",
+          "fail": "Fail"
+        },
+        "outcomes": {
+          "winTitle": "Survival Complete",
+          "loseTitle": "Run Over",
+          "winMessage": "You survived all turns. Score: {{score}} / HP: {{hp}} / Hunger: {{hunger}}",
+          "loseHpMessage": "Your HP dropped to zero. The wild was too harsh this run.",
+          "loseHungerMessage": "Your hunger reached zero. You could not keep up your energy."
+        }
+      }
+    },
     "breakout": {
       "title": "Breakout",
       "description": "Classic brick-breaking arcade game! Use your paddle to bounce the ball and destroy all bricks. Collect power-ups!",

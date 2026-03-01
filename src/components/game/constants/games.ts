@@ -77,6 +77,15 @@ export const games: Game[] = [
     category: 'RPG',
   },
   {
+    id: 'animal-roleplay',
+    title: 'Animal Roleplay',
+    description: 'Become an animal and survive 10 turns. Choose actions each turn to manage HP and hunger and reach the best score.',
+    thumbnail: '🦊',
+    path: '/games/animal-roleplay',
+    difficulty: 'Medium',
+    category: 'RPG',
+  },
+  {
     id: 'breakout',
     title: 'Breakout',
     description: 'Classic brick-breaking arcade game! Use your paddle to bounce the ball and destroy all bricks. Collect power-ups!',

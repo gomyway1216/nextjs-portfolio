@@ -216,6 +216,129 @@
         "パーマデスのローグライクメカニクス"
       ]
     },
+    "animal-roleplay": {
+      "title": "動物なりきりサバイバル",
+      "description": "動物になりきって10ターン生き残ろう。毎ターン行動を選び、HPと空腹を管理して高スコアを目指そう。",
+      "longDescription": "動物を1匹選んで、自然の中で10ターン生き残るターン制ゲームです。毎ターン異なるイベントが発生します。動物ごとの得意能力に合わせて行動を選びましょう。HPか空腹が0になるとその時点で終了です。",
+      "howToPlay": [
+        "開始前に1匹の動物を選ぶ",
+        "毎ターン、イベントを見て行動を1つ選ぶ",
+        "HPと空腹を管理しながらスコアを稼ぐ",
+        "10ターン生き残ればクリア",
+        "HPか空腹が0になるとゲームオーバー"
+      ],
+      "features": [
+        "能力値が異なる4種類の動物",
+        "毎ターン発生するランダムイベント",
+        "行動によって変化する結果とスコア",
+        "HP/空腹/スコア変化が見える直近ログ",
+        "同じ動物でも別の動物でもすぐ再挑戦"
+      ],
+      "ui": {
+        "selectAnimalDescription": "動物を選んでサバイバル開始。得意能力に合う行動を選ぶと有利です。",
+        "startAs": "{{animal}}で開始",
+        "currentAnimal": "現在の動物",
+        "hpLabel": "HP",
+        "hungerLabel": "空腹",
+        "scoreLabel": "スコア",
+        "turnLabel": "ターン {{current}} / {{total}}",
+        "eventNow": "現在のイベント",
+        "chooseAction": "行動を選択",
+        "latestResult": "直近の結果",
+        "logTitle": "直近ターンログ",
+        "logEmpty": "まだログはありません。",
+        "playAgain": "もう一度プレイ",
+        "changeAnimal": "動物を変更",
+        "stats": {
+          "speed": "素早さ",
+          "strength": "力",
+          "stealth": "隠密",
+          "intelligence": "知性"
+        },
+        "animals": {
+          "fox": {
+            "name": "キツネ",
+            "passive": "隠密が得意"
+          },
+          "rabbit": {
+            "name": "ウサギ",
+            "passive": "逃走が得意"
+          },
+          "bear": {
+            "name": "クマ",
+            "passive": "狩りが得意"
+          },
+          "owl": {
+            "name": "フクロウ",
+            "passive": "判断が得意"
+          }
+        },
+        "actions": {
+          "hide": {
+            "label": "隠れる",
+            "description": "隠密で危険をやり過ごす。"
+          },
+          "escape": {
+            "label": "逃げる",
+            "description": "素早くその場から離脱する。"
+          },
+          "forage": {
+            "label": "採集する",
+            "description": "比較的安全に食べ物を探す。"
+          },
+          "hunt": {
+            "label": "狩りをする",
+            "description": "リスクは高いが食料を多く狙える。"
+          },
+          "rest": {
+            "label": "休む",
+            "description": "HPを回復するが空腹を消費する。"
+          }
+        },
+        "events": {
+          "predator": {
+            "title": "天敵の気配",
+            "description": "近くを危険な捕食者がうろついています。"
+          },
+          "storm": {
+            "title": "激しい嵐",
+            "description": "強い風雨で移動や採食が難しくなっています。"
+          },
+          "food": {
+            "title": "豊かな餌場",
+            "description": "食べ物が豊富に見つかる場所に出ました。"
+          },
+          "rival": {
+            "title": "縄張り争い",
+            "description": "他の動物グループの縄張りに入っています。"
+          },
+          "trap": {
+            "title": "人間の罠",
+            "description": "近くに人間が仕掛けた罠の痕跡があります。"
+          },
+          "calm": {
+            "title": "静かな時間",
+            "description": "周囲は落ち着いていて比較的安全です。"
+          }
+        },
+        "result": {
+          "waiting": "最初の行動を選んでターンを開始してください。",
+          "success": "成功: {{event}}で{{action}}がうまくいきました。",
+          "fail": "失敗: {{event}}で{{action}}がうまくいきませんでした。"
+        },
+        "resultTag": {
+          "success": "成功",
+          "fail": "失敗"
+        },
+        "outcomes": {
+          "winTitle": "サバイバル達成",
+          "loseTitle": "ゲームオーバー",
+          "winMessage": "10ターン生存しました。スコア: {{score}} / HP: {{hp}} / 空腹: {{hunger}}",
+          "loseHpMessage": "HPが0になりました。今回は自然の厳しさに耐えられませんでした。",
+          "loseHungerMessage": "空腹が0になりました。十分にエネルギーを確保できませんでした。"
+        }
+      }
+    },
     "breakout": {
       "title": "ブロック崩し",
       "description": "定番のブロック崩しゲーム！パドルでボールを跳ね返してブロックを壊そう。パワーアップも集めよう！",

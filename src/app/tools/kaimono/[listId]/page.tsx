@@ -179,7 +179,8 @@ export default function KaimonoListPage() {
     );
   }
 
-  const purchasedCount = list.items.filter((i) => i.isPurchased).length;
+  const items = list.items ?? [];
+  const purchasedCount = items.filter((i) => i.isPurchased).length;
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl space-y-4">
@@ -212,7 +213,7 @@ export default function KaimonoListPage() {
         budget={list.budget}
         totalSpent={list.totalSpent}
         currency={list.currency}
-        itemCount={list.items.length}
+        itemCount={items.length}
         purchasedCount={purchasedCount}
       />
 
@@ -266,7 +267,7 @@ export default function KaimonoListPage() {
 
       {/* Items List */}
       <ShoppingItemList
-        items={list.items}
+        items={items}
         stores={list.stores}
         currency={list.currency}
         groupBy={groupBy}

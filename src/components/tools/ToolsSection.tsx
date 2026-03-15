@@ -4,6 +4,7 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
+  FileText,
   Wrench,
 } from 'lucide-react';
 import { SettliIcon } from '@/components/settli';
@@ -69,6 +70,20 @@ const ToolsSection: React.FC = () => {
         t('home.tools.kuizu.features.custom'),
       ],
       gradient: 'linear-gradient(135deg, #d97706, #f59e0b, #fbbf24)',
+    },
+    {
+      id: 'markdownPreview',
+      title: t('home.tools.markdownPreview.title'),
+      subtitle: t('home.tools.markdownPreview.subtitle'),
+      description: t('home.tools.markdownPreview.description'),
+      path: '/tools/markdown-preview',
+      icon: <FileText size={32} />,
+      features: [
+        t('home.tools.markdownPreview.features.dragDrop'),
+        t('home.tools.markdownPreview.features.clipboard'),
+        t('home.tools.markdownPreview.features.gfm'),
+      ],
+      gradient: 'linear-gradient(135deg, #7c3aed, #8b5cf6, #a78bfa)',
     },
   ];
 

@@ -734,6 +734,16 @@
           "custom": "Custom Quizzes"
         }
       },
+      "markdownPreview": {
+        "title": "MD Preview",
+        "subtitle": "Markdown Viewer",
+        "description": "Drag & drop or paste markdown files for instant full-screen preview with GitHub Flavored Markdown support.",
+        "features": {
+          "dragDrop": "Drag & Drop",
+          "clipboard": "Clipboard Paste",
+          "gfm": "GFM Support"
+        }
+      },
       "comingSoon": {
         "title": "Coming Soon...",
         "description": "More practical tools are on the way."

@@ -734,6 +734,16 @@
           "custom": "カスタムクイズ"
         }
       },
+      "markdownPreview": {
+        "title": "MD Preview",
+        "subtitle": "Markdownビューア",
+        "description": "ファイルのドラッグ&ドロップまたは貼り付けで、Markdownを全画面プレビュー。GitHub Flavored Markdown対応。",
+        "features": {
+          "dragDrop": "ドラッグ&ドロップ",
+          "clipboard": "クリップボード貼り付け",
+          "gfm": "GFM対応"
+        }
+      },
       "comingSoon": {
         "title": "Coming Soon...",
         "description": "新しい便利ツールを準備中です。"

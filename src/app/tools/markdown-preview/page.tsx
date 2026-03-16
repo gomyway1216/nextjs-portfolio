@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef, type DragEvent, type ChangeEvent } from 'react';
+import { useState, useCallback, useRef, useEffect, type DragEvent, type ChangeEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,24 @@ export default function MarkdownPreviewPage() {
 
   const hasContent = markdown.length > 0;
 
+  // Push a history entry when content is loaded so browser back returns to the drop zone
+  const pushPreviewState = useCallback(() => {
+    window.history.pushState({ mdPreview: true }, '');
+  }, []);
+
+  useEffect(() => {
+    const onPopState = (e: PopStateEvent) => {
+      // If we were in preview and user pressed back, clear content
+      if (!e.state?.mdPreview) {
+        setMarkdown('');
+        setFileName(null);
+        setEditMode(false);
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
   const handleFileRead = useCallback((file: File) => {
     if (!file.name.endsWith('.md') && !file.name.endsWith('.markdown') && !file.name.endsWith('.mdx') && !file.name.endsWith('.txt')) {
       toast.error(p('invalidFileType'));
@@ -33,6 +51,7 @@ export default function MarkdownPreviewPage() {
     reader.onload = (e) => {
       const text = e.target?.result;
       if (typeof text === 'string') {
+        pushPreviewState();
         setMarkdown(text);
         setFileName(file.name);
         setEditMode(false);
@@ -44,7 +63,7 @@ export default function MarkdownPreviewPage() {
     };
     reader.readAsText(file);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t]);
+  }, [t, pushPreviewState]);
 
   const handleDragOver = useCallback((e: DragEvent) => {
     e.preventDefault();
@@ -82,6 +101,7 @@ export default function MarkdownPreviewPage() {
     try {
       const text = await navigator.clipboard.readText();
       if (text) {
+        pushPreviewState();
         setMarkdown(text);
         setFileName(null);
         setEditMode(false);
@@ -93,7 +113,7 @@ export default function MarkdownPreviewPage() {
       toast.error(p('clipboardDenied'));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [t]);
+  }, [t, pushPreviewState]);
 
   const handleClear = useCallback(() => {
     setMarkdown('');

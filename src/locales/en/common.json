@@ -751,6 +751,7 @@
           "fromClipboard": "From clipboard",
           "preview": "Preview",
           "edit": "Edit",
+          "changeContent": "Change",
           "anotherFile": "Another file",
           "fileLoaded": "{{name}} loaded",
           "pastedFromClipboard": "Pasted from clipboard",

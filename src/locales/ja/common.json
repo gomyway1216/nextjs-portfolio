@@ -751,6 +751,7 @@
           "fromClipboard": "クリップボードから",
           "preview": "プレビュー",
           "edit": "編集",
+          "changeContent": "変更",
           "anotherFile": "別のファイル",
           "fileLoaded": "{{name}} を読み込みました",
           "pastedFromClipboard": "クリップボードから貼り付けました",

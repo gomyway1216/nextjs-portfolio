@@ -7,8 +7,10 @@ import { Button } from '@/components/ui/button';
 import { FileText, Upload, Clipboard, Pencil, Eye, X } from 'lucide-react';
 import { cn } from '@/lib/utils/util';
 import { toast } from 'sonner';
+import { useTranslation } from 'react-i18next';
 
 export default function MarkdownPreviewPage() {
+  const { t } = useTranslation();
   const [markdown, setMarkdown] = useState('');
   const [editMode, setEditMode] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -16,11 +18,14 @@ export default function MarkdownPreviewPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const p = (key: string, options?: Record<string, string>) =>
+    t(`tools.markdownPreview.page.${key}`, options);
+
   const hasContent = markdown.length > 0;
 
   const handleFileRead = useCallback((file: File) => {
     if (!file.name.endsWith('.md') && !file.name.endsWith('.markdown') && !file.name.endsWith('.mdx') && !file.name.endsWith('.txt')) {
-      toast.error('Markdownファイル (.md, .markdown, .mdx, .txt) を選択してください');
+      toast.error(p('invalidFileType'));
       return;
     }
 
@@ -31,14 +36,15 @@ export default function MarkdownPreviewPage() {
         setMarkdown(text);
         setFileName(file.name);
         setEditMode(false);
-        toast.success(`${file.name} を読み込みました`);
+        toast.success(p('fileLoaded', { name: file.name }));
       }
     };
     reader.onerror = () => {
-      toast.error('ファイルの読み込みに失敗しました');
+      toast.error(p('fileReadError'));
     };
     reader.readAsText(file);
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t]);
 
   const handleDragOver = useCallback((e: DragEvent) => {
     e.preventDefault();
@@ -79,14 +85,15 @@ export default function MarkdownPreviewPage() {
         setMarkdown(text);
         setFileName(null);
         setEditMode(false);
-        toast.success('クリップボードから貼り付けました');
+        toast.success(p('pastedFromClipboard'));
       } else {
-        toast.error('クリップボードにテキストがありません');
+        toast.error(p('clipboardEmpty'));
       }
     } catch {
-      toast.error('クリップボードへのアクセスが拒否されました');
+      toast.error(p('clipboardDenied'));
     }
-  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [t]);
 
   const handleClear = useCallback(() => {
     setMarkdown('');
@@ -115,7 +122,7 @@ export default function MarkdownPreviewPage() {
           <div className="text-center">
             <h1 className="text-2xl font-bold">Markdown Preview</h1>
             <p className="mt-2 text-muted-foreground">
-              ファイルをドロップするか、クリップボードから貼り付けてください
+              {p('dropOrPaste')}
             </p>
           </div>
           <div className="flex gap-4">
@@ -125,7 +132,7 @@ export default function MarkdownPreviewPage() {
               onClick={() => fileInputRef.current?.click()}
             >
               <Upload className="mr-2 h-4 w-4" />
-              ファイルを選択
+              {p('selectFile')}
             </Button>
             <Button
               variant="outline"
@@ -133,7 +140,7 @@ export default function MarkdownPreviewPage() {
               onClick={handlePaste}
             >
               <Clipboard className="mr-2 h-4 w-4" />
-              貼り付け
+              {p('paste')}
             </Button>
           </div>
         </div>
@@ -161,7 +168,7 @@ export default function MarkdownPreviewPage() {
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-primary p-16">
             <Upload className="h-12 w-12 text-primary" />
-            <p className="text-lg font-medium text-primary">ファイルをドロップ</p>
+            <p className="text-lg font-medium text-primary">{p('dropFile')}</p>
           </div>
         </div>
       )}
@@ -173,7 +180,7 @@ export default function MarkdownPreviewPage() {
           {fileName ? (
             <span>{fileName}</span>
           ) : (
-            <span>クリップボードから</span>
+            <span>{p('fromClipboard')}</span>
           )}
         </div>
         <div className="flex items-center gap-2">
@@ -185,12 +192,12 @@ export default function MarkdownPreviewPage() {
             {editMode ? (
               <>
                 <Eye className="mr-1 h-3.5 w-3.5" />
-                プレビュー
+                {p('preview')}
               </>
             ) : (
               <>
                 <Pencil className="mr-1 h-3.5 w-3.5" />
-                編集
+                {p('edit')}
               </>
             )}
           </Button>
@@ -200,7 +207,7 @@ export default function MarkdownPreviewPage() {
             onClick={() => fileInputRef.current?.click()}
           >
             <Upload className="mr-1 h-3.5 w-3.5" />
-            別のファイル
+            {p('anotherFile')}
           </Button>
           <Button
             variant="outline"
@@ -208,7 +215,7 @@ export default function MarkdownPreviewPage() {
             onClick={handlePaste}
           >
             <Clipboard className="mr-1 h-3.5 w-3.5" />
-            貼り付け
+            {p('paste')}
           </Button>
           <Button
             variant="ghost"

@@ -215,7 +215,7 @@ export default function MarkdownPreviewPage() {
   if (!hasContent) {
     return (
       <div
-        className="fixed inset-0 flex flex-col items-center justify-center bg-background"
+        className="flex min-h-[calc(100vh-3rem)] flex-col items-center justify-center bg-background"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -235,7 +235,7 @@ export default function MarkdownPreviewPage() {
   // Preview / Edit mode
   return (
     <div
-      className="fixed inset-0 flex flex-col bg-background"
+      className="relative flex h-[calc(100vh-3rem)] flex-col bg-background"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}

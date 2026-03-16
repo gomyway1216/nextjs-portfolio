@@ -742,6 +742,22 @@
           "dragDrop": "ドラッグ&ドロップ",
           "clipboard": "クリップボード貼り付け",
           "gfm": "GFM対応"
+        },
+        "page": {
+          "dropOrPaste": "ファイルをドロップするか、クリップボードから貼り付けてください",
+          "selectFile": "ファイルを選択",
+          "paste": "貼り付け",
+          "dropFile": "ファイルをドロップ",
+          "fromClipboard": "クリップボードから",
+          "preview": "プレビュー",
+          "edit": "編集",
+          "anotherFile": "別のファイル",
+          "fileLoaded": "{{name}} を読み込みました",
+          "pastedFromClipboard": "クリップボードから貼り付けました",
+          "invalidFileType": "Markdownファイル (.md, .markdown, .mdx, .txt) を選択してください",
+          "fileReadError": "ファイルの読み込みに失敗しました",
+          "clipboardEmpty": "クリップボードにテキストがありません",
+          "clipboardDenied": "クリップボードへのアクセスが拒否されました"
         }
       },
       "comingSoon": {

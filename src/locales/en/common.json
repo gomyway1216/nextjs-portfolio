@@ -742,6 +742,22 @@
           "dragDrop": "Drag & Drop",
           "clipboard": "Clipboard Paste",
           "gfm": "GFM Support"
+        },
+        "page": {
+          "dropOrPaste": "Drop a file or paste from clipboard",
+          "selectFile": "Select File",
+          "paste": "Paste",
+          "dropFile": "Drop file",
+          "fromClipboard": "From clipboard",
+          "preview": "Preview",
+          "edit": "Edit",
+          "anotherFile": "Another file",
+          "fileLoaded": "{{name}} loaded",
+          "pastedFromClipboard": "Pasted from clipboard",
+          "invalidFileType": "Please select a markdown file (.md, .markdown, .mdx, .txt)",
+          "fileReadError": "Failed to read file",
+          "clipboardEmpty": "No text in clipboard",
+          "clipboardDenied": "Clipboard access denied"
         }
       },
       "comingSoon": {

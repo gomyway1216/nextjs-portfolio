@@ -6,6 +6,7 @@ import {
   ArrowRight,
   FileText,
   Wrench,
+  CheckSquare,
 } from 'lucide-react';
 import { SettliIcon } from '@/components/settli';
 import { KaimonoLogo } from '@/components/kaimono';
@@ -84,6 +85,20 @@ const ToolsSection: React.FC = () => {
         t('home.tools.markdownPreview.features.gfm'),
       ],
       gradient: 'linear-gradient(135deg, #7c3aed, #8b5cf6, #a78bfa)',
+    },
+    {
+      id: 'todo',
+      title: 'Todo',
+      subtitle: 'AI Task Manager',
+      description: 'Extract tasks from screenshots or text with AI. Manage your todo list with smart input.',
+      path: '/tools/todo',
+      icon: <CheckSquare size={32} />,
+      features: [
+        'Screenshot to tasks',
+        'Text extraction',
+        'AI-powered',
+      ],
+      gradient: 'linear-gradient(135deg, #dc2626, #ef4444, #f87171)',
     },
   ];
 

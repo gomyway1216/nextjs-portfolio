@@ -158,7 +158,11 @@ function CopyButton({ text }: { text: string }) {
 // Component
 // ---------------------------------------------------------------------------
 
-export default function ActivityLogPanel() {
+interface ActivityLogPanelProps {
+  onNavigateToErrors?: () => void;
+}
+
+export default function ActivityLogPanel({ onNavigateToErrors }: ActivityLogPanelProps = {}) {
   const [logs, setLogs] = useState<ActivityLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -172,6 +176,19 @@ export default function ActivityLogPanel() {
   const [startDate, setStartDate] = useState(getTodayDateString);
   const [endDate, setEndDate] = useState('');
   const [limit, setLimit] = useState('100');
+
+  // Listen for cross-section navigation (from Errors → Activity Log with request_id)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail) {
+        setRequestIdFilter(detail);
+        setStartDate('');  // Clear date filter when searching by request_id
+      }
+    };
+    window.addEventListener('set-activity-log-request-id', handler);
+    return () => window.removeEventListener('set-activity-log-request-id', handler);
+  }, []);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
@@ -479,6 +496,28 @@ export default function ActivityLogPanel() {
                         >
                           {JSON.stringify(log.error_details, null, 2)}
                         </pre>
+                      </div>
+                    )}
+                    {log.result === 'error' && onNavigateToErrors && (
+                      <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
+                        <button
+                          onClick={() => onNavigateToErrors()}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '6px 14px',
+                            borderRadius: '8px',
+                            border: '1px solid rgba(239, 68, 68, 0.3)',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            color: '#fca5a5',
+                            fontSize: '13px',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          View in Error Monitoring
+                        </button>
                       </div>
                     )}
                   </div>

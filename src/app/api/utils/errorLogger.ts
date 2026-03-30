@@ -12,6 +12,7 @@ interface LogErrorParams {
   functionName?: string;
   endpoint?: string;
   metadata?: Record<string, unknown>;
+  request_id?: string;
 }
 
 /**
@@ -38,6 +39,7 @@ export async function logApiError(params: LogErrorParams): Promise<void> {
         functionName: params.functionName,
         endpoint: params.endpoint,
         metadata: params.metadata,
+        request_id: params.request_id,
       }),
     }).catch((err) => {
       // Silently log to console if error logging fails

@@ -1500,6 +1500,38 @@ const AdminPage = () => {
                                 <><br />Endpoint: {error.endpoint}</>
                               )}
                             </p>
+                            {error.request_id && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSectionChange('activity-logs');
+                                  // Small delay to allow section to mount, then set the filter
+                                  setTimeout(() => {
+                                    const event = new CustomEvent('set-activity-log-request-id', { detail: error.request_id });
+                                    window.dispatchEvent(event);
+                                  }, 100);
+                                }}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  marginTop: '6px',
+                                  padding: '3px 10px',
+                                  borderRadius: '6px',
+                                  border: '1px solid rgba(124, 58, 237, 0.3)',
+                                  backgroundColor: 'rgba(124, 58, 237, 0.1)',
+                                  color: '#a78bfa',
+                                  fontSize: '12px',
+                                  fontFamily: 'monospace',
+                                  cursor: 'pointer',
+                                  transition: 'all 0.2s',
+                                }}
+                                title="View in Activity Log"
+                              >
+                                <ScrollText size={12} />
+                                request_id: {error.request_id}
+                              </button>
+                            )}
                           </div>
                           <div style={{ display: 'flex', gap: '8px' }}>
                             <button
@@ -1640,7 +1672,7 @@ const AdminPage = () => {
 
           {/* Activity Log Section */}
           {activeSection === 'activity-logs' && (
-            <ActivityLogPanel />
+            <ActivityLogPanel onNavigateToErrors={() => handleSectionChange('errors')} />
           )}
         </main>
       </div>

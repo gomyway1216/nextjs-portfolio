@@ -33,14 +33,16 @@ import {
   ChevronDown,
   ChevronUp,
   Shield,
+  ScrollText,
 } from 'lucide-react';
 import Link from 'next/link';
 import StudyAdminPanel from '@/components/study/StudyAdminPanel';
 import HobbiesAdminPanel from '@/components/hobby/HobbiesAdminPanel';
+import ActivityLogPanel from '@/components/admin/ActivityLogPanel';
 import { useAppErrors } from '@/hooks/useErrors';
 import { ErrorSource, ErrorSeverity } from '@/types/errors';
 
-type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'hobbies' | 'errors';
+type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'hobbies' | 'errors' | 'activity-logs';
 
 interface Job {
   id: string;
@@ -326,7 +328,7 @@ const styles: Record<string, CSSProperties> = {
 const getSectionFromHash = (): AdminSection => {
   if (typeof window === 'undefined') return 'dashboard';
   const hash = window.location.hash.replace('#', '');
-  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'jobs', 'study', 'hobbies', 'errors'];
+  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'jobs', 'study', 'hobbies', 'errors', 'activity-logs'];
   return validSections.includes(hash as AdminSection) ? (hash as AdminSection) : 'dashboard';
 };
 
@@ -843,6 +845,7 @@ const AdminPage = () => {
     { id: 'study' as AdminSection, label: 'Study Tool', icon: BookOpen },
     { id: 'hobbies' as AdminSection, label: 'Hobbies', icon: Heart },
     { id: 'errors' as AdminSection, label: `Errors${unresolvedErrorCount > 0 ? ` (${unresolvedErrorCount})` : ''}`, icon: AlertCircle },
+    { id: 'activity-logs' as AdminSection, label: 'Activity Log', icon: ScrollText },
   ];
 
   return (
@@ -1633,6 +1636,11 @@ const AdminPage = () => {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Activity Log Section */}
+          {activeSection === 'activity-logs' && (
+            <ActivityLogPanel />
           )}
         </main>
       </div>

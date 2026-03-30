@@ -63,6 +63,7 @@ export async function logAppError(error: {
   endpoint?: string;
   userId?: string;
   metadata?: Record<string, unknown>;
+  request_id?: string;
 }): Promise<{ errorId: string; isNew: boolean }> {
   // Log errors without authentication requirement
   const response = await fetch('/api/errors', {

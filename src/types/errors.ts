@@ -25,6 +25,7 @@ export interface AppError {
   endpoint?: string;
   userId?: string;
   metadata?: Record<string, unknown>;
+  request_id?: string;
   resolved: boolean;
   resolvedAt?: string;
   resolvedBy?: string;

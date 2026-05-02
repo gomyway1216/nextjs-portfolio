@@ -4,13 +4,13 @@ import { ensureAdmin } from '@/lib/auth-utils';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
- * POST /api/images
+ * POST /api/image
  * Upload an image to Firebase Storage
  * Required form data:
  * - file: File (the image file)
  * - type: string (e.g., 'project', 'post')
  * - id: string (the ID of the entity)
- * Requires authentication
+ * Admin-only (ensureAdmin).
  */
 export const POST = withActivityLog('next_api.image.POST', async (request: NextRequest) => {
   try {

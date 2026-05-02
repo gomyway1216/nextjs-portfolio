@@ -1,6 +1,27 @@
 import type { NextConfig } from "next";
+import { execSync } from "node:child_process";
+import packageJson from "./package.json";
+
+function readGitSha(): string {
+  try {
+    return execSync("git rev-parse --short HEAD", { stdio: ["ignore", "pipe", "ignore"] })
+      .toString()
+      .trim();
+  } catch {
+    return "unknown";
+  }
+}
 
 const nextConfig: NextConfig = {
+  // Build metadata exposed to the browser. Used by the client-side activity
+  // log helper and the Cloud Function fetch wrapper to attach
+  // x-app-version / x-app-build-sha headers, which the backend stores on
+  // every activity_logs row for deploy correlation.
+  env: {
+    NEXT_PUBLIC_APP_VERSION: packageJson.version,
+    NEXT_PUBLIC_APP_BUILD_SHA: readGitSha(),
+  },
+
   // Disable React StrictMode to suppress warnings from third-party packages
   reactStrictMode: false,
 

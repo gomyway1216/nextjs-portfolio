@@ -2,7 +2,7 @@
 
 import React, { createContext, useEffect, useContext, useState, ReactNode, useCallback, useRef } from 'react';
 import { MultiFactorResolver, RecaptchaVerifier, User } from 'firebase/auth';
-import { auth, signInWithEmail, signUpWithEmail, signOutUser }
+import { auth, ensureSignedIn, signInWithEmail, signUpWithEmail, signOutUser }
   from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
 
@@ -189,18 +189,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setMfaPhoneHint(null);
   }, []);
 
-  // Listen to auth state changes
+  // Listen to auth state changes. If no user is signed in, fall back to
+  // Firebase Anonymous Auth so every visitor has a stable uid (used by
+  // client-side activity logging and Firestore rules).
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
+      if (!user) {
+        // Trigger anon sign-in; onAuthStateChanged will fire again with the
+        // anon user, so don't drop loading=false yet.
+        await ensureSignedIn();
+        setCurrentUser(null);
+        setIsAdmin(false);
+        await syncSessionCookie(null);
+        return;
+      }
+
       setCurrentUser(user);
 
-      if (user) {
+      if (user.isAnonymous) {
+        // Anonymous users never have admin or MFA — skip the extra calls.
+        setIsAdmin(false);
+      } else {
         await checkAdminStatus(user);
         refreshMFAStatus();
         await syncSessionCookie(user);
-      } else {
-        setIsAdmin(false);
-        await syncSessionCookie(null);
       }
 
       setLoading(false);

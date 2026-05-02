@@ -4,12 +4,13 @@ import { getOptionalUser } from '@/lib/auth-utils';
 import { KUIZU_CUSTOM_QUIZZES_COLLECTION } from '../../../constants';
 import type { Quiz, CreateCustomQuizInput } from '@/types/kuizu';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface RouteParams {
   params: Promise<{ quizId: string }>;
 }
 
 // GET /api/kuizu/custom/[quizId] - Get custom quiz by ID (optional auth)
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withActivityLog('next_api.kuizu.custom.quizId.GET', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { quizId } = await params;
     const { searchParams } = new URL(request.url);
@@ -58,10 +59,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/kuizu/custom/[quizId] - Update custom quiz (only creator can update)
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export const PUT = withActivityLog('next_api.kuizu.custom.quizId.PUT', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const user = await getOptionalUser(request);
     const { quizId } = await params;
@@ -114,10 +115,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/kuizu/custom/[quizId] - Delete custom quiz (only creator can delete)
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withActivityLog('next_api.kuizu.custom.quizId.DELETE', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const user = await getOptionalUser(request);
     const { quizId } = await params;
@@ -156,4 +157,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

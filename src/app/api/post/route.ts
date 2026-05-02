@@ -5,6 +5,7 @@ import { POSTS_COLLECTION } from '@/app/api/constants';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/posts
  * Get paginated posts with optional filtering by category and public status
@@ -15,7 +16,7 @@ import { ErrorSeverity } from '@/types/errors';
  * - limit: number (default: 10)
  * - lastVisibleTimestamp: number (optional, for pagination)
  */
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.post.GET', async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const category = searchParams.get('category') || 'all';
@@ -116,14 +117,14 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * POST /api/posts
  * Create a new post
  * Requires authentication
  */
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.post.POST', async (request: NextRequest) => {
   try {
     const { user, response } = await ensureValidUser(request);
     if (!user) {
@@ -172,4 +173,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

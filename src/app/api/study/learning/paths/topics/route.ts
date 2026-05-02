@@ -6,6 +6,7 @@ import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { verifyIdToken } from '@/lib/auth-utils';
 import { LearningPathStatus } from '@/types/study';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const endpoint = '/api/study/learning/paths/topics';
 const LEARNING_PATHS_COLLECTION = 'learning_paths';
 
@@ -156,7 +157,7 @@ async function handleResetTopic(request: NextRequest, body: { pathId: string; to
 // POST /api/study/learning/paths/topics?action=start - Start a topic
 // POST /api/study/learning/paths/topics?action=complete - Complete a topic
 // POST /api/study/learning/paths/topics?action=reset - Reset a topic to NOT_STARTED
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.study.learning.paths.topics.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -203,4 +204,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

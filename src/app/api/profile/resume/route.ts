@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { PROFILE_COLLECTION } from '@/app/api/constants';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/profile/resume
  * Get resume link from profile
  */
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.profile.resume.GET', async (request: NextRequest) => {
   try {
     const db = getFirestore();
     const snapshot = await db.collection(PROFILE_COLLECTION).get();
@@ -37,4 +38,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

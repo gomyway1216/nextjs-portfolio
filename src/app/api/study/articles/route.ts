@@ -5,6 +5,7 @@ import { logCloudFunctionError, logApiError } from '../../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 import { getFirestore } from '@/lib/firebase-admin';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // Helper function to get user's read article IDs
 async function getUserReadArticleIds(userId: string): Promise<Set<string>> {
   const db = getFirestore();
@@ -17,7 +18,7 @@ async function getUserReadArticleIds(userId: string): Promise<Set<string>> {
 }
 
 // GET /api/study/articles - Get articles with filters
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.articles.GET', async (request: NextRequest) => {
   const endpoint = '/api/study/articles';
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -111,10 +112,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/study/articles - Generate a new article
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.study.articles.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -192,10 +193,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/study/articles - Update an article
-export async function PUT(request: NextRequest) {
+export const PUT = withActivityLog('next_api.study.articles.PUT', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -233,10 +234,10 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/study/articles - Delete an article
-export async function DELETE(request: NextRequest) {
+export const DELETE = withActivityLog('next_api.study.articles.DELETE', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -274,4 +275,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

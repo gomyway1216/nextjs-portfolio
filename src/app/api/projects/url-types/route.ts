@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/projects/url-types
  * Get all URL types from Firestore
  */
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.projects.url-types.GET', async (request: NextRequest) => {
   try {
     const db = getFirestore();
     const snapshot = await db.collection('urlType').get();
@@ -26,4 +27,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

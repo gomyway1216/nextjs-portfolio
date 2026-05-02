@@ -3,12 +3,13 @@ import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { KAIMONO_LISTS_COLLECTION } from '../../../../../constants';
 import type { ShoppingItem, UpdateShoppingItemInput } from '@/types/kaimono';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface RouteParams {
   params: Promise<{ listId: string; itemId: string }>;
 }
 
 // PUT /api/kaimono/lists/[listId]/items/[itemId] - Update an item
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export const PUT = withActivityLog('next_api.kaimono.lists.listId.items.itemId.PUT', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { listId, itemId } = await params;
     const body: UpdateShoppingItemInput = await request.json();
@@ -66,10 +67,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/kaimono/lists/[listId]/items/[itemId] - Remove an item
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withActivityLog('next_api.kaimono.lists.listId.items.itemId.DELETE', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { listId, itemId } = await params;
     const db = getFirestore();
@@ -108,4 +109,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

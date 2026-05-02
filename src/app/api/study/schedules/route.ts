@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../constants';
 import { logCloudFunctionError } from '../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const endpoint = '/api/study/schedules';
 
 // GET /api/study/schedules - Get all schedules
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.schedules.GET', async (request: NextRequest) => {
   try {
     const authHeader = request.headers.get('authorization');
 
@@ -39,10 +40,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/study/schedules - Create a new schedule
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.study.schedules.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -79,10 +80,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/study/schedules - Update a schedule
-export async function PUT(request: NextRequest) {
+export const PUT = withActivityLog('next_api.study.schedules.PUT', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -120,10 +121,10 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/study/schedules - Delete a schedule
-export async function DELETE(request: NextRequest) {
+export const DELETE = withActivityLog('next_api.study.schedules.DELETE', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -161,4 +162,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

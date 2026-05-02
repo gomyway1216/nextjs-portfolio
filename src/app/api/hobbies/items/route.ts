@@ -4,6 +4,7 @@ import { ensureAdmin, verifyIdToken, isAdmin } from '@/lib/auth-utils';
 import { HOBBIES_COLLECTION, HOBBY_ITEMS_COLLECTION, getCloudFunctionUrl } from '../../constants';
 import type { HobbyItem, CreateHobbyItemInput } from '@/types/hobby';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // Helper to extract token from request
 function getTokenFromRequest(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
@@ -14,7 +15,7 @@ function getTokenFromRequest(request: NextRequest): string | null {
 }
 
 // GET /api/hobbies/items - Get hobby items (proxies to Cloud Function)
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.hobbies.items.GET', async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const url = new URL(getCloudFunctionUrl('getHobbyItems'));
@@ -56,10 +57,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/hobbies/items - Create a new hobby item
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.hobbies.items.POST', async (request: NextRequest) => {
   try {
     // Verify admin authentication
     const { user, response } = await ensureAdmin(request);
@@ -124,4 +125,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

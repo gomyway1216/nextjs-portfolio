@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureAdmin } from '@/lib/auth-utils';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/job
  * Get all jobs
  */
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.job.GET', async (request: NextRequest) => {
   try {
     const db = getFirestore();
     console.log('[API /job] Attempting to fetch jobs from Firestore...');
@@ -39,14 +40,14 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * PUT /api/job
  * Update a job by company name
  * SECURITY: Requires authentication
  */
-export async function PUT(request: NextRequest) {
+export const PUT = withActivityLog('next_api.job.PUT', async (request: NextRequest) => {
   // SECURITY: Require admin for job updates
   const { user, response: authResponse } = await ensureAdmin(request);
   if (!user) {
@@ -92,4 +93,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

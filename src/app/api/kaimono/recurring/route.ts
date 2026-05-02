@@ -4,8 +4,9 @@ import { getOptionalUser } from '@/lib/auth-utils';
 import { KAIMONO_RECURRING_ITEMS_COLLECTION } from '../../constants';
 import type { RecurringItem, CreateRecurringItemInput } from '@/types/kaimono';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/kaimono/recurring - Get recurring items (requires auth)
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.kaimono.recurring.GET', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -57,10 +58,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/kaimono/recurring - Create recurring item (requires auth)
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.kaimono.recurring.POST', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -119,4 +120,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

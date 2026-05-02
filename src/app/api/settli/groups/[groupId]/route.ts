@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { getOptionalUser } from '@/lib/auth-utils';
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import {
   SETTLI_GROUPS_COLLECTION,
   SETTLI_PAYMENTS_COLLECTION,
@@ -13,7 +14,7 @@ interface RouteParams {
 }
 
 // GET /api/settli/groups/[groupId] - Get a specific group
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withActivityLog('next_api.settli.groups.groupId.GET', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { groupId } = await params;
     const db = getFirestore();
@@ -65,10 +66,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/settli/groups/[groupId] - Update a group
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export const PUT = withActivityLog('next_api.settli.groups.groupId.PUT', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { groupId } = await params;
     const body: UpdateGroupInput = await request.json();
@@ -123,10 +124,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/settli/groups/[groupId] - Delete a group
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withActivityLog('next_api.settli.groups.groupId.DELETE', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { groupId } = await params;
     const user = await getOptionalUser(request);
@@ -184,4 +185,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

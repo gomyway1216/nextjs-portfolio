@@ -3,11 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../constants';
 import { logCloudFunctionError } from '../../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/study/articles/[id] - Get a single article
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withActivityLog('next_api.study.articles.id.GET', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { id } = await params;
     const url = new URL(getCloudFunctionUrl('getStudyArticle'));
@@ -38,13 +37,11 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/study/articles/[id] - Update an article
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const PUT = withActivityLog('next_api.study.articles.id.PUT', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { id } = await params;
     const body = await request.json();
@@ -83,13 +80,11 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/study/articles/[id] - Delete an article
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const DELETE = withActivityLog('next_api.study.articles.id.DELETE', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { id } = await params;
     const authHeader = request.headers.get('authorization');
@@ -127,4 +122,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

@@ -4,6 +4,7 @@ import { verifyIdToken, isAdmin } from '@/lib/auth-utils';
 import { HOBBY_ITEMS_COLLECTION } from '../../../constants';
 import type { HobbyItem } from '@/types/hobby';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // Helper to extract token from request
 function getTokenFromRequest(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
@@ -18,7 +19,7 @@ function getTokenFromRequest(request: NextRequest): string | null {
 // - hobbyId: The hobby category containing the items that reference another item
 // - fieldName: The name of the RELATION field (e.g., 'animeId', 'voiceActorId')
 // - targetItemId: The ID of the item being referenced
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.hobbies.items.related.GET', async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const hobbyId = searchParams.get('hobbyId');
@@ -106,4 +107,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

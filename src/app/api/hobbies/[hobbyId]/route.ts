@@ -5,6 +5,7 @@ import { HOBBIES_COLLECTION, HOBBY_ITEMS_COLLECTION } from '../../constants';
 import type { HobbyCategory, UpdateHobbyCategoryInput, CustomField } from '@/types/hobby';
 import { v4 as uuidv4 } from 'uuid';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface RouteParams {
   params: Promise<{ hobbyId: string }>;
 }
@@ -19,7 +20,7 @@ function getTokenFromRequest(request: NextRequest): string | null {
 }
 
 // GET /api/hobbies/[hobbyId] - Get a single hobby category
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withActivityLog('next_api.hobbies.hobbyId.GET', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { hobbyId } = await params;
     const db = getFirestore();
@@ -68,10 +69,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/hobbies/[hobbyId] - Update a hobby category
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export const PUT = withActivityLog('next_api.hobbies.hobbyId.PUT', async (request: NextRequest, { params }: RouteParams) => {
   try {
     // Verify admin authentication
     const { user, response } = await ensureAdmin(request);
@@ -139,10 +140,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/hobbies/[hobbyId] - Delete a hobby category
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withActivityLog('next_api.hobbies.hobbyId.DELETE', async (request: NextRequest, { params }: RouteParams) => {
   try {
     // Verify admin authentication
     const { user, response } = await ensureAdmin(request);
@@ -183,4 +184,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/posts/top
  * Get top 4 most recent public posts across all categories
  */
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.post.top.GET', async (request: NextRequest) => {
   try {
     const db = getFirestore();
     const categories = ['technology', 'life'];
@@ -53,4 +54,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

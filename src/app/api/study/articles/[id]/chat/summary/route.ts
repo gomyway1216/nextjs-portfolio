@@ -3,11 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../../../constants';
 import { logCloudFunctionError } from '../../../../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // POST /api/study/articles/[id]/chat/summary - Generate chat summary
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withActivityLog('next_api.study.articles.id.chat.summary.POST', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { id } = await params;
     const authHeader = request.headers.get('authorization');
@@ -45,4 +44,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});

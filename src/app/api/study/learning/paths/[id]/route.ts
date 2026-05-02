@@ -3,13 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../../constants';
 import { logCloudFunctionError } from '../../../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const endpoint = '/api/study/learning/paths/[id]';
 
 // GET /api/study/learning/paths/[id] - Get a single learning path
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withActivityLog('next_api.study.learning.paths.id.GET', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { id: pathId } = await params;
     const authHeader = request.headers.get('authorization');
@@ -45,4 +44,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

@@ -3,8 +3,9 @@ import { getRandomQuestions } from '@/lib/kuizuQuestionBank';
 import type { Quiz, QuizCategory, QuizDifficulty, QuestionType } from '@/types/kuizu';
 import { v4 as uuidv4 } from 'uuid';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // POST /api/kuizu/generate - Generate quiz from question bank
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.kuizu.generate.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const {
@@ -68,4 +69,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

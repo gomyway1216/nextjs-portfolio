@@ -3,6 +3,7 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { KUIZU_SOLO_RESULTS_COLLECTION } from '../../../constants';
 import type { SoloResult } from '@/types/kuizu';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface RouteParams {
   params: Promise<{
     resultId: string;
@@ -10,7 +11,7 @@ interface RouteParams {
 }
 
 // GET /api/kuizu/results/[resultId] - Get a specific solo result by ID
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withActivityLog('next_api.kuizu.results.resultId.GET', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { resultId } = await params;
 
@@ -57,4 +58,4 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

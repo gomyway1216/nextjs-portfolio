@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureValidUser } from '@/lib/auth-utils';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/tasks
  * Get tasks for a specific user
@@ -9,7 +10,7 @@ import { ensureValidUser } from '@/lib/auth-utils';
  * - userId: string (required)
  * Requires authentication
  */
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.tasks.GET', async (request: NextRequest) => {
   try {
     const { user, response } = await ensureValidUser(request);
     if (!user) {
@@ -45,4 +46,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

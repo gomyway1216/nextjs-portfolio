@@ -4,11 +4,10 @@ import { getCloudFunctionUrl, STUDY_ARTICLES_COLLECTION } from '../../../../cons
 import { logCloudFunctionError } from '../../../../utils/errorLogger';
 import { getFirestore } from '@/lib/firebase-admin';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // POST /api/study/schedules/[id]/run - Run a schedule immediately
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withActivityLog('next_api.study.schedules.id.run.POST', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { id } = await params;
     const authHeader = request.headers.get('authorization');
@@ -77,4 +76,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});

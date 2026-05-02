@@ -3,12 +3,13 @@ import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { SETTLI_GROUPS_COLLECTION, SETTLI_PAYMENTS_COLLECTION } from '../../../../../constants';
 import type { UpdateMemberInput, Member } from '@/types/settli';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface RouteParams {
   params: Promise<{ groupId: string; memberId: string }>;
 }
 
 // PUT /api/settli/groups/[groupId]/members/[memberId] - Update a member
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export const PUT = withActivityLog('next_api.settli.groups.groupId.members.memberId.PUT', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { groupId, memberId } = await params;
     const body: UpdateMemberInput = await request.json();
@@ -48,10 +49,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/settli/groups/[groupId]/members/[memberId] - Remove a member
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withActivityLog('next_api.settli.groups.groupId.members.memberId.DELETE', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { groupId, memberId } = await params;
     const db = getFirestore();
@@ -113,4 +114,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../constants';
 import { logCloudFunctionError } from '../../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const endpoint = '/api/study/progress/insights';
 
 // GET /api/study/progress/insights - Get AI-generated learning insights
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.progress.insights.GET', async (request: NextRequest) => {
   try {
     const authHeader = request.headers.get('authorization');
 
@@ -39,4 +40,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

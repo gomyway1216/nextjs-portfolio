@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../../constants';
 import { logCloudFunctionError } from '../../../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const endpoint = '/api/study/learning/flashcards/decks';
 
 // GET /api/study/learning/flashcards/decks - Get flashcard decks
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.learning.flashcards.decks.GET', async (request: NextRequest) => {
   try {
     const authHeader = request.headers.get('authorization');
 
@@ -38,10 +39,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/study/learning/flashcards/decks - Create a new flashcard deck
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.study.learning.flashcards.decks.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -78,4 +79,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

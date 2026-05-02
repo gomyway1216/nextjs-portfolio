@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { getOptionalUser } from '@/lib/auth-utils';
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import {
   KUIZU_DAILY_CHALLENGES_COLLECTION,
   KUIZU_DAILY_LEADERBOARD_COLLECTION,
@@ -10,7 +11,7 @@ import { QuizCategory, QuizDifficulty } from '@/types/kuizu';
 import { getRandomQuestions } from '@/lib/kuizuQuestionBank';
 
 // GET /api/kuizu/daily - Get today's daily challenge
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.kuizu.daily.GET', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
     const db = getFirestore();
@@ -117,4 +118,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

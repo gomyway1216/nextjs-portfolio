@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../constants';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const FORWARDED_FILTERS = [
   'agent_uid',
   'agent_email',
@@ -21,7 +22,7 @@ const FORWARDED_FILTERS = [
 ];
 
 // GET /api/activity-logs — query activity logs with filters
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.activity-logs.GET', async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const authHeader = request.headers.get('authorization');
@@ -47,4 +48,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

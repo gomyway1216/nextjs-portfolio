@@ -4,8 +4,9 @@ import { getCloudFunctionUrl } from '../../constants';
 import { logApiError, logCloudFunctionError } from '../../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/study/topics - Get topics with optional filters
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.topics.GET', async (request: NextRequest) => {
   const endpoint = '/api/study/topics';
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -46,10 +47,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/study/topics - Create a new topic
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.study.topics.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -86,10 +87,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/study/topics - Update a topic
-export async function PUT(request: NextRequest) {
+export const PUT = withActivityLog('next_api.study.topics.PUT', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -127,10 +128,10 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/study/topics - Delete a topic
-export async function DELETE(request: NextRequest) {
+export const DELETE = withActivityLog('next_api.study.topics.DELETE', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -168,4 +169,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

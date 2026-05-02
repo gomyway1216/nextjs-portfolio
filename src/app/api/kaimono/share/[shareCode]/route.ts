@@ -3,12 +3,13 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { KAIMONO_LISTS_COLLECTION } from '../../../constants';
 import type { ShoppingList } from '@/types/kaimono';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface RouteParams {
   params: Promise<{ shareCode: string }>;
 }
 
 // GET /api/kaimono/share/[shareCode] - Get list by share code
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withActivityLog('next_api.kaimono.share.shareCode.GET', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { shareCode } = await params;
     const db = getFirestore();
@@ -56,4 +57,4 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

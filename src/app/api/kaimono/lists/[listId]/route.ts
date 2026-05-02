@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { getOptionalUser } from '@/lib/auth-utils';
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import {
   KAIMONO_LISTS_COLLECTION,
   KAIMONO_USER_HISTORY_COLLECTION,
@@ -17,7 +18,7 @@ interface RouteParams {
 }
 
 // GET /api/kaimono/lists/[listId]
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withActivityLog('next_api.kaimono.lists.listId.GET', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { listId } = await params;
     const db = getFirestore();
@@ -71,10 +72,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/kaimono/lists/[listId]
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export const PUT = withActivityLog('next_api.kaimono.lists.listId.PUT', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { listId } = await params;
     const body: UpdateShoppingListInput = await request.json();
@@ -139,10 +140,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/kaimono/lists/[listId]
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withActivityLog('next_api.kaimono.lists.listId.DELETE', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { listId } = await params;
     const user = await getOptionalUser(request);
@@ -189,4 +190,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

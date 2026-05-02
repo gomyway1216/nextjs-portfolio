@@ -5,13 +5,12 @@ import { ensureValidUser } from '@/lib/auth-utils';
 import { getCloudFunctionUrl, STUDY_READ_HISTORY_COLLECTION } from '../../../../constants';
 import { logCloudFunctionError } from '../../../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const TIME_SPENT_MULTIPLIER = 5;
 
 // POST /api/study/articles/[id]/read - Mark article as read
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withActivityLog('next_api.study.articles.id.read.POST', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { user, response: authResponse } = await ensureValidUser(request);
     if (authResponse) return authResponse;
@@ -83,4 +82,4 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});

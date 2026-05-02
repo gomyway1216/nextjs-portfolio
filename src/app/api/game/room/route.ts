@@ -7,11 +7,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as gameRoom from '@/lib/gameRoom';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * POST /api/game/room
  * Create a new game room
  */
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.game.room.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { hostId, hostName, password, gameType } = body;
@@ -32,13 +33,13 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * GET /api/game/room?roomId=XXX
  * Get room info
  */
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.game.room.GET', async (request: NextRequest) => {
   try {
     const roomId = request.nextUrl.searchParams.get('roomId');
 
@@ -67,4 +68,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

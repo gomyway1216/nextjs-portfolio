@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { getOptionalUser } from '@/lib/auth-utils';
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import {
   KUIZU_SOLO_RESULTS_COLLECTION,
   KUIZU_USER_STATS_COLLECTION,
@@ -10,7 +11,7 @@ import type { SoloResult, KuizuUserStats, KuizuHistoryEntry, QuizMode } from '@/
 import { v4 as uuidv4 } from 'uuid';
 
 // POST /api/kuizu/results - Submit solo quiz result (optional auth)
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.kuizu.results.POST', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
     const body: Partial<SoloResult> = await request.json();
@@ -67,7 +68,7 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 async function updateUserStats(db: FirebaseFirestore.Firestore, userId: string, result: SoloResult) {
   const statsRef = db.collection(KUIZU_USER_STATS_COLLECTION).doc(userId);

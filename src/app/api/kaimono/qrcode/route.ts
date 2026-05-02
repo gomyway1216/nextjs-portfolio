@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import QRCode from 'qrcode';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // POST /api/kaimono/qrcode - Generate QR code for sharing
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.kaimono.qrcode.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { groupId } = body; // groupId is actually listId, matching Settli pattern
@@ -39,4 +40,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

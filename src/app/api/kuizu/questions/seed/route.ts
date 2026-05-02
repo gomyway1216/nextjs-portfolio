@@ -3,8 +3,9 @@ import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { KUIZU_QUESTIONS_COLLECTION } from '../../../constants';
 import { QUESTION_BANK } from '@/lib/kuizuQuestionBank';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // POST /api/kuizu/questions/seed - Seed built-in question bank
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.kuizu.questions.seed.POST', async (request: NextRequest) => {
   try {
     const db = getFirestore();
 
@@ -47,4 +48,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -4,8 +4,9 @@ import { getOptionalUser } from '@/lib/auth-utils';
 import { KAIMONO_FREQUENT_ITEMS_COLLECTION } from '../../constants';
 import type { FrequentItem } from '@/types/kaimono';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/kaimono/frequent-items - Get frequently purchased items (requires auth)
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.kaimono.frequent-items.GET', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -51,4 +52,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../constants';
 import { logCloudFunctionError } from '../../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // POST /api/study/topics/suggest - Get AI-suggested topics
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.study.topics.suggest.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -41,4 +42,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

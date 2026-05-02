@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 type Mark = 'X' | 'O' | null;
 
 interface Puzzle {
@@ -136,6 +137,7 @@ const getWinnerLine = (board: Mark[], mark: 'X' | 'O'): number[] | null => {
 };
 
 export const DailyMovePuzzle = () => {
+  useFeatureLifecycle('game.daily-move-puzzle');
   const dateKey = getDateKey();
   const puzzleIndex = hashString(dateKey) % PUZZLES.length;
   const puzzle = PUZZLES[puzzleIndex];

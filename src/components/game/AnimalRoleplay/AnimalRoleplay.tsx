@@ -11,6 +11,7 @@ import { GameTopBar, InfoModal, GameStats } from '../common';
 import { ACTION_DEFINITIONS, ANIMAL_PROFILES, createInitialState, resolveTurn, startGameWithAnimal } from './gameLogic';
 import { ActionId, AnimalId, TurnLogEntry, MAX_HP, MAX_HUNGER, MAX_TURNS } from './types';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 const statColors: Record<'hp' | 'hunger' | 'score', string> = {
   hp: '#ef4444',
   hunger: '#f59e0b',
@@ -28,6 +29,7 @@ function getMeterColor(value: number): string {
 }
 
 export function AnimalRoleplay() {
+  useFeatureLifecycle('game.animal-roleplay');
   const { t } = useTranslation();
   const [showInfo, setShowInfo] = useState(false);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });

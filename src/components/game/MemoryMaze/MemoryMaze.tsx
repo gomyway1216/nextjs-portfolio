@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 type Phase = 'menu' | 'preview' | 'playing' | 'won' | 'lost';
 
 interface Position {
@@ -119,6 +120,7 @@ const createInitial = (): GameState => ({
 });
 
 export const MemoryMaze = () => {
+  useFeatureLifecycle('game.memory-maze');
   const [game, setGame] = useState<GameState>(createInitial);
 
   const start = () => {

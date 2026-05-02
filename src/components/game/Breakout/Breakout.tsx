@@ -8,6 +8,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { RotateCcw, Pause, Play } from 'lucide-react';
 import { GameTopBar, InfoModal, GameStats } from '../common';
 import { useHighScore } from '@/hooks/useHighScore';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import {
   GameState,
   InputState,
@@ -20,6 +21,7 @@ import {
 import { createGameState, updateGame } from './GameEngine';
 
 const Breakout: React.FC = () => {
+  useFeatureLifecycle('game.breakout');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showInfo, setShowInfo] = useState(false);

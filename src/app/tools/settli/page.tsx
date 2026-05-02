@@ -105,6 +105,7 @@ export default function SettliPage() {
     setJoining(true);
     try {
       const group = await settliService.getGroupByShareCode(code);
+      lifecycle.trackEvent('share_join', { code_len: code.length });
       router.push(`/tools/settli/${group.id}`);
     } catch {
       toast.error(t('settli.page.toast.groupNotFound'));

@@ -191,16 +191,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Listen to auth state changes. If no user is signed in, fall back to
   // Firebase Anonymous Auth so every visitor has a stable uid (used by
-  // client-side activity logging and Firestore rules).
+  // client-side activity logging and Firestore rules). The app must
+  // render even if anonymous sign-in fails (e.g. provider disabled),
+  // so loading is always finalized inside this listener.
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
       if (!user) {
-        // Trigger anon sign-in; onAuthStateChanged will fire again with the
-        // anon user, so don't drop loading=false yet.
-        await ensureSignedIn();
         setCurrentUser(null);
         setIsAdmin(false);
         await syncSessionCookie(null);
+        // Trigger anon sign-in. onAuthStateChanged will fire again with
+        // the new user — but if it fails (e.g. Anonymous Auth disabled),
+        // we still need to render the app. Don't await loading on this.
+        void ensureSignedIn();
+        setLoading(false);
         return;
       }
 

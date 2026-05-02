@@ -1,6 +1,6 @@
 'use client';
 
-import { CSSProperties, useCallback, useEffect, useState } from 'react';
+import { CSSProperties, Fragment, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Check, ChevronDown, ChevronUp, Copy, Loader2, RefreshCw, Search } from 'lucide-react';
 import {
@@ -199,18 +199,22 @@ export default function ActivityLogPanel() {
 
   const syncUrlParams = useCallback(
     (filters: ActivityLogFilters) => {
+      if (typeof window === 'undefined') return;
       const usp = new URLSearchParams();
       for (const [k, v] of Object.entries(filters)) {
         if (v === undefined || v === null || v === '') continue;
         usp.set(k, String(v));
       }
       const next = usp.toString();
-      const current = searchParams?.toString() ?? '';
-      if (next !== current) {
-        router.replace(`?${next}`, { scroll: false });
-      }
+      const current = window.location.search.replace(/^\?/, '');
+      if (next === current) return;
+      // Preserve the URL hash — AdminPage uses it to pick the active section
+      // (e.g. `#activity-logs`). router.replace with just `?...` would drop it.
+      const hash = window.location.hash;
+      const path = window.location.pathname;
+      router.replace(`${path}${next ? `?${next}` : ''}${hash}`, { scroll: false });
     },
-    [router, searchParams]
+    [router]
   );
 
   const fetchLogs = useCallback(async () => {
@@ -428,8 +432,8 @@ export default function ActivityLogPanel() {
                 {logs.map((log) => {
                   const isExpanded = expandedLogId === log.id;
                   return (
-                    <>
-                      <tr key={log.id} style={{ cursor: 'pointer' }} onClick={() => setExpandedLogId(isExpanded ? null : log.id)}>
+                    <Fragment key={log.id}>
+                      <tr style={{ cursor: 'pointer' }} onClick={() => setExpandedLogId(isExpanded ? null : log.id)}>
                         <td style={styles.td}>
                           <span style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>{formatDateTime(log.created_at)}</span>
                         </td>
@@ -455,7 +459,7 @@ export default function ActivityLogPanel() {
                         </td>
                       </tr>
                       {isExpanded && (
-                        <tr key={`${log.id}-detail`}>
+                        <tr>
                           <td colSpan={8} style={{ padding: 0, borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
                             <div style={{ padding: '20px 24px', backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
@@ -500,7 +504,7 @@ export default function ActivityLogPanel() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>

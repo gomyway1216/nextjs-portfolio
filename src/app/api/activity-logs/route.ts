@@ -1,8 +1,10 @@
-// Activity Logs API — proxies to Cloud Function
+// Activity Logs API — proxies to Cloud Function.
+// NOT wrapped with withActivityLog: this route IS the admin viewing the
+// activity log, so wrapping it would create a feedback loop where every
+// admin refresh writes a new log row that admin then sees.
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../constants';
 
-import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const FORWARDED_FILTERS = [
   'agent_uid',
   'agent_email',
@@ -22,7 +24,7 @@ const FORWARDED_FILTERS = [
 ];
 
 // GET /api/activity-logs — query activity logs with filters
-export const GET = withActivityLog('next_api.activity-logs.GET', async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const authHeader = request.headers.get('authorization');
@@ -48,4 +50,4 @@ export const GET = withActivityLog('next_api.activity-logs.GET', async (request:
       { status: 500 }
     );
   }
-});
+}

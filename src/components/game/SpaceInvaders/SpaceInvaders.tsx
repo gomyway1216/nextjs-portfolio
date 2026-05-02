@@ -9,6 +9,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { RotateCcw, Pause, Play } from 'lucide-react';
 import { GameTopBar, InfoModal, GameStats } from '../common';
 import { useHighScore } from '@/hooks/useHighScore';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import {
   GameState,
   InputState,
@@ -215,6 +216,7 @@ function drawUFO(ctx: CanvasRenderingContext2D, x: number, y: number, width: num
 type GameMode = 'menu' | 'single' | 'multi';
 
 const SpaceInvaders: React.FC = () => {
+  useFeatureLifecycle('game.space-invaders');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showInfo, setShowInfo] = useState(false);

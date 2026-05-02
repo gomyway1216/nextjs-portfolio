@@ -211,6 +211,7 @@ export default function TodoPage() {
     setInputMode('image');
     try {
       const result = await extractTasksFromImage(file);
+      lifecycle.trackEvent('image_extract', { task_count: result.tasks.length });
       setPendingExtraction(result);
       toast.success(`Found ${result.tasks.length} tasks`);
     } catch (err) {

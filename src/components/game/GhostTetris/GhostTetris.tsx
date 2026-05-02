@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 type GamePhase = 'menu' | 'playing' | 'gameover';
 
 interface Piece {
@@ -196,6 +197,7 @@ const initialGameState = (): GameState => ({
 });
 
 export const GhostTetris = () => {
+  useFeatureLifecycle('game.ghost-tetris');
   const [game, setGame] = useState<GameState>(initialGameState);
   const [now, setNow] = useState(0);
 

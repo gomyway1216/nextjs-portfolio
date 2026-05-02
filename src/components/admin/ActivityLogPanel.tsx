@@ -663,11 +663,33 @@ function OverviewView({
   const { buckets, granularity, total, by_result, by_severity, by_source } = traffic;
   const totalCount = total.total;
 
+  // Volume + cost estimates. Firestore: $0.18 / 100K writes, $0.18/GB/month
+  // storage. Avg row size ~1KB → 1M rows ≈ 1GB. These are rough numbers, but
+  // good enough to know "is this getting expensive" at a glance.
+  const dailyAvg = buckets.length > 0 ? Math.round(totalCount / buckets.length) : 0;
+  const costForRange = (totalCount / 100_000) * 0.18; // USD
+  const projected30Day = dailyAvg * 30;
+  const projected30DayCost = (projected30Day / 100_000) * 0.18;
+  const storage30DayGB = (projected30Day * 1) / (1024 * 1024); // 1KB avg
+  const storageMonthlyCost = storage30DayGB * 0.18;
+  const errorCount = by_result.find((s) => s.key === 'error')?.total ?? 0;
+  const errorRate = totalCount > 0 ? (errorCount / totalCount) * 100 : 0;
+
+  const formatUsd = (n: number) => (n < 0.01 ? '<$0.01' : `$${n.toFixed(2)}`);
+
+  const volumeCard: CSSProperties = {
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    borderRadius: '16px',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '20px 24px',
+    marginBottom: '20px',
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
         <div style={{ color: '#94a3b8', fontSize: '13px' }}>
-          {buckets.length} buckets · granularity={granularity} · total={totalCount}
+          {buckets.length} buckets · granularity={granularity}
         </div>
         <button
           onClick={onRefresh}
@@ -682,6 +704,31 @@ function OverviewView({
           {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
           Refresh
         </button>
+      </div>
+
+      {/* Volume summary — answers "are we logging too much?" at a glance */}
+      <div style={volumeCard}>
+        <p style={{ color: '#fff', fontSize: '14px', fontWeight: 600, margin: 0, marginBottom: '4px' }}>
+          Volume & Cost
+        </p>
+        <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0, marginBottom: '16px' }}>
+          Estimates based on Firestore pricing ($0.18/100K writes, $0.18/GB/month storage, ~1KB avg row).
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
+          {[
+            { label: 'In selected range', value: totalCount.toLocaleString(), sub: formatUsd(costForRange), color: '#3b82f6' },
+            { label: 'Daily avg', value: dailyAvg.toLocaleString(), sub: '/ day', color: '#a855f7' },
+            { label: 'Projected 30-day writes', value: projected30Day.toLocaleString(), sub: formatUsd(projected30DayCost) + ' write cost', color: '#22c55e' },
+            { label: 'Projected 30-day storage', value: storage30DayGB < 0.01 ? '<0.01 GB' : `${storage30DayGB.toFixed(2)} GB`, sub: formatUsd(storageMonthlyCost) + '/mo', color: '#facc15' },
+            { label: 'Error rate', value: `${errorRate.toFixed(1)}%`, sub: `${errorCount.toLocaleString()} errors`, color: errorRate > 5 ? '#ef4444' : '#94a3b8' },
+          ].map((m) => (
+            <div key={m.label}>
+              <p style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, marginBottom: '4px' }}>{m.label}</p>
+              <p style={{ color: m.color, fontSize: '22px', fontWeight: 700, margin: 0, lineHeight: 1.2 }}>{m.value}</p>
+              <p style={{ color: '#64748b', fontSize: '11px', margin: 0, marginTop: '2px' }}>{m.sub}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div style={cardStyle}>

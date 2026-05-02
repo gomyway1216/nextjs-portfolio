@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 type GravityDirection = 'down' | 'up' | 'left' | 'right';
 type GamePhase = 'menu' | 'playing' | 'gameover';
 
@@ -110,6 +111,7 @@ const pickRandomGravity = (current: GravityDirection): GravityDirection => {
 };
 
 export const ChaosBreakout = () => {
+  useFeatureLifecycle('game.chaos-breakout');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const runtimeRef = useRef<RuntimeState>(createRuntimeState());
   const frameRef = useRef<number | null>(null);

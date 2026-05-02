@@ -17,6 +17,7 @@ import { getOpeningMoveValidated } from './OpeningBookValidated';
 import { createShogiAiWorkerClient } from '../ShogiImproved/shogiAiWorkerClient';
 import type { SerializedKyokumenImproved, SerializedTeImproved, ShogiAiWorkerClient } from '../ShogiImproved/shogiAiWorkerClient';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 const DIFFICULTY_OPTIONS = [
   { label: 'Level 1 (Easy)', value: 'easy' as Difficulty, description: 'Fast (~250ms), depth ≤4' },
   { label: 'Level 2 (Medium)', value: 'medium' as Difficulty, description: 'Balanced (~800ms), depth ≤6' },
@@ -66,6 +67,7 @@ function convertWorkerMoveToMainTe(move: SerializedTeImproved): Te {
 }
 
 const Shogi = () => {
+  useFeatureLifecycle('game.shogi');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [playerSide, setPlayerSide] = useState<number>(SENTE); // Player's side (SENTE or GOTE)
   const [showDifficultySelect, setShowDifficultySelect] = useState<boolean>(true);

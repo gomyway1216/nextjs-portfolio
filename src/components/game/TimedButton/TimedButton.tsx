@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 type Holder = 'player' | 'ai';
 type GamePhase = 'menu' | 'playing' | 'gameover';
 
@@ -45,6 +46,7 @@ const createInitialState = (): GameState => {
 };
 
 export const TimedButton = () => {
+  useFeatureLifecycle('game.timed-button');
   const [game, setGame] = useState<GameState>(createInitialState);
 
   const start = () => {

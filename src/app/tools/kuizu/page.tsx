@@ -41,6 +41,7 @@ export default function KuizuPage() {
       return;
     }
     setJoining(true);
+    lifecycle.trackEvent('multiplayer_join', { code_len: code.length });
     router.push(`/tools/kuizu/multiplayer/${code}`);
   };
 

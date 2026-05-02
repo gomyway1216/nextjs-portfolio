@@ -9,9 +9,11 @@ import React, { useState } from 'react';
 import { DoubtOnline } from './DoubtOnline';
 import { DoubtVsAI } from './DoubtVsAI';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 type DoubtMode = 'menu' | 'ai' | 'online';
 
 export function Doubt() {
+  useFeatureLifecycle('game.doubt');
   const [mode, setMode] = useState<DoubtMode>('menu');
 
   if (mode === 'ai') {

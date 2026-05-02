@@ -8,6 +8,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { RotateCcw, Heart, Sword, Shield, Flame, Package, Info } from 'lucide-react';
 import { GameTopBar, InfoModal, GameStats } from '../common';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import {
   GameState,
   ActionType,
@@ -39,6 +40,7 @@ const TILE_COLORS: Record<TileType, string> = {
 };
 
 const MiniAdventure: React.FC = () => {
+  useFeatureLifecycle('game.mini-adventure');
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showInventory, setShowInventory] = useState(false);

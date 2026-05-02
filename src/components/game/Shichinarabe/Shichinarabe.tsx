@@ -9,9 +9,11 @@ import React, { useState } from 'react';
 import { ShichinarabeOnline } from './ShichinarabeOnline';
 import { ShichinarabeVsAI } from './ShichinarabeVsAI';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 type ShichinarabeMode = 'menu' | 'ai' | 'online';
 
 export function Shichinarabe() {
+  useFeatureLifecycle('game.shichinarabe');
   const [mode, setMode] = useState<ShichinarabeMode>('menu');
 
   if (mode === 'ai') {

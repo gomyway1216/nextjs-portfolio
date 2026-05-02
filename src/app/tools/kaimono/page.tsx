@@ -106,6 +106,7 @@ export default function KaimonoPage() {
     setJoining(true);
     try {
       const list = await kaimonoService.getListByShareCode(code);
+      lifecycle.trackEvent('share_join', { code_len: code.length });
       router.push(`/tools/kaimono/${list.id}`);
     } catch {
       toast.error(t('kaimono.page.toast.listNotFound', 'List not found'));

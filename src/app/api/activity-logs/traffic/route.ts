@@ -1,6 +1,6 @@
-// Activity Log Traffic API — proxies to Cloud Function for the Overview tab
+// Activity Log Traffic API — proxies to Cloud Function for the Overview tab.
+// NOT wrapped with withActivityLog (admin self-query, would feedback-loop).
 import { NextRequest, NextResponse } from 'next/server';
-import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import { getCloudFunctionUrl } from '../../constants';
 
 const FORWARDED = [
@@ -8,7 +8,7 @@ const FORWARDED = [
   'is_anonymous', 'target_uid', 'start_date', 'end_date', 'granularity',
 ];
 
-export const GET = withActivityLog('next_api.activity-logs.traffic.GET', async (request: NextRequest) => {
+export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const authHeader = request.headers.get('authorization');
@@ -31,4 +31,4 @@ export const GET = withActivityLog('next_api.activity-logs.traffic.GET', async (
       { status: 500 },
     );
   }
-});
+}

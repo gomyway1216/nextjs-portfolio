@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 type Turn = 'ai' | 'player';
 type GamePhase = 'menu' | 'aiDecision' | 'playerClaim' | 'roundResult' | 'gameover';
 type AIReaction = 'believe' | 'doubt';
@@ -100,6 +101,7 @@ const createInitialState = (): GameState => ({
 });
 
 export const DoubtWord = () => {
+  useFeatureLifecycle('game.doubt-word');
   const [game, setGame] = useState<GameState>(createInitialState);
 
   const startGame = () => {

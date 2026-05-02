@@ -5,6 +5,7 @@ import { Info, X, Trophy, Zap, Volume2, VolumeX, Heart } from 'lucide-react';
 import { useHighScore } from '@/hooks/useHighScore';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 enum Scene {
   GameMain = 'GameMain',
   GameOver = 'GameOver',
@@ -53,6 +54,7 @@ interface GameState {
 }
 
 const JumpGame = () => {
+  useFeatureLifecycle('game.jump-game');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { setContent } = useGameToolbar();
   const [isGameStarted, setIsGameStarted] = useState(false);

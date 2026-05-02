@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 type Cell = -1 | 0 | 1;
 type Phase = 'menu' | 'playing' | 'gameover';
 
@@ -225,6 +226,7 @@ const playMove = (prev: GameState, point: Point, color: Cell): GameState => {
 };
 
 export const MirrorOthello = () => {
+  useFeatureLifecycle('game.mirror-othello');
   const [game, setGame] = useState<GameState>(createInitialState);
 
   const start = () => {

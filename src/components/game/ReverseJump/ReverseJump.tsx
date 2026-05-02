@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 type ObstacleType = 'ground' | 'overhead';
 
 interface Obstacle {
@@ -87,6 +88,7 @@ const createObstacle = (id: number): Obstacle => {
 };
 
 export const ReverseJump = () => {
+  useFeatureLifecycle('game.reverse-jump');
   const [game, setGame] = useState<GameState>(createInitialState);
   const [highScore, setHighScore] = useState(() => {
     if (typeof window === 'undefined') {

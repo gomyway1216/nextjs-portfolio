@@ -11,9 +11,11 @@ import { DaifugoVsAI } from './DaifugoVsAI';
 import { GameLanguageProvider, useGameLanguage, LanguageSelector } from '../contexts/GameLanguageContext';
 import { getGameTranslation } from '../constants/gameTranslations';
 
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 type DaifugoMode = 'menu' | 'ai' | 'online';
 
 function DaifugoContent() {
+  useFeatureLifecycle('game.daifugo');
   const [mode, setMode] = useState<DaifugoMode>('menu');
   const { language } = useGameLanguage();
   const t = getGameTranslation('daifugo', language);

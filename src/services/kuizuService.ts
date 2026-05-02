@@ -16,8 +16,6 @@ import type {
   CreateQuizResponse,
   QRCodeResponse,
   GenerateQuizResponse,
-  QuestionType,
-  QuestionTemplate,
   CreateQuestionInput,
 } from '@/types/kuizu';
 

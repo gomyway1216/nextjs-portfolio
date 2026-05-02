@@ -10,7 +10,6 @@ import type {
   HistoryResponse,
   FrequentItemsResponse,
   RecurringItemsResponse,
-  RecurringItem,
   CreateRecurringItemInput,
   UpdateRecurringItemInput,
   QRCodeResponse,

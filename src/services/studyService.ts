@@ -1037,7 +1037,7 @@ export async function createLearningPath(
 
   try {
     data = responseText ? JSON.parse(responseText) : null;
-  } catch (parseError) {
+  } catch {
     const statusLabel = response.status ? ` (status ${response.status})` : '';
     const snippet = responseText ? ` - ${responseText.slice(0, 200)}` : '';
     throw new Error(`Failed to create learning path: invalid response${statusLabel}${snippet}`);

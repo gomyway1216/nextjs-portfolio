@@ -1,12 +1,18 @@
 'use client';
 
-import { useState, useCallback, useEffect, CSSProperties } from 'react';
-import { Loader2, Search, RefreshCw, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
-import { getActivityLogs, type ActivityLogEntry, type ActivityLogFilters } from '@/services/activityLogService';
-
-// ---------------------------------------------------------------------------
-// Styles (matching AdminPage patterns)
-// ---------------------------------------------------------------------------
+import { CSSProperties, Fragment, useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Check, ChevronDown, ChevronUp, Copy, Loader2, RefreshCw, Search } from 'lucide-react';
+import {
+  getActivityLogs,
+  type ActivityCategory,
+  type ActivityEnv,
+  type ActivityLogEntry,
+  type ActivityLogFilters,
+  type ActivityResult,
+  type ActivitySeverity,
+  type ActivitySource,
+} from '@/services/activityLogService';
 
 const styles: Record<string, CSSProperties> = {
   card: {
@@ -40,6 +46,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: '14px',
     outline: 'none',
     cursor: 'pointer',
+    width: '100%',
   },
   button: {
     display: 'flex',
@@ -87,10 +94,6 @@ const styles: Record<string, CSSProperties> = {
   },
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function formatDateTime(iso: string): string {
   try {
     return new Date(iso).toLocaleString();
@@ -104,22 +107,28 @@ function getTodayDateString(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 }
 
-function ResultBadge({ result }: { result: string }) {
-  const isSuccess = result === 'success';
+function ResultBadge({ result, severity }: { result: ActivityResult; severity?: ActivitySeverity }) {
+  if (result === 'success') {
+    return (
+      <span style={{ ...styles.badge, backgroundColor: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }}>
+        success
+      </span>
+    );
+  }
+  const sev = severity ?? 'error';
+  const palette = sev === 'critical'
+    ? { bg: 'rgba(220, 38, 38, 0.2)', fg: '#fca5a5' }
+    : sev === 'warning'
+      ? { bg: 'rgba(234, 179, 8, 0.15)', fg: '#fde68a' }
+      : { bg: 'rgba(239, 68, 68, 0.15)', fg: '#ef4444' };
   return (
-    <span
-      style={{
-        ...styles.badge,
-        backgroundColor: isSuccess ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-        color: isSuccess ? '#22c55e' : '#ef4444',
-      }}
-    >
-      {result}
+    <span style={{ ...styles.badge, backgroundColor: palette.bg, color: palette.fg }}>
+      {sev}
     </span>
   );
 }
 
-function CategoryBadge({ category }: { category: string }) {
+function CategoryBadge({ category }: { category: ActivityCategory }) {
   const isQuery = category === 'query';
   return (
     <span
@@ -134,74 +143,99 @@ function CategoryBadge({ category }: { category: string }) {
   );
 }
 
+function SourceBadge({ source }: { source: ActivitySource }) {
+  const palette = source === 'cloud_function'
+    ? { bg: 'rgba(56, 189, 248, 0.15)', fg: '#38bdf8' }
+    : source === 'next_api'
+      ? { bg: 'rgba(45, 212, 191, 0.15)', fg: '#2dd4bf' }
+      : { bg: 'rgba(250, 204, 21, 0.15)', fg: '#facc15' };
+  return (
+    <span style={{ ...styles.badge, backgroundColor: palette.bg, color: palette.fg }}>
+      {source}
+    </span>
+  );
+}
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   return (
     <button
-      onClick={handleCopy}
+      onClick={(e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
       style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '2px' }}
-      title="Copy request ID"
+      title="Copy"
     >
       {copied ? <Check size={14} color="#22c55e" /> : <Copy size={14} />}
     </button>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
+export default function ActivityLogPanel() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-interface ActivityLogPanelProps {
-  onNavigateToErrors?: () => void;
-}
-
-export default function ActivityLogPanel({ onNavigateToErrors }: ActivityLogPanelProps = {}) {
   const [logs, setLogs] = useState<ActivityLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
 
-  // Filters
-  const [actionFilter, setActionFilter] = useState('');
-  const [resultFilter, setResultFilter] = useState<'' | 'success' | 'error'>('');
-  const [categoryFilter, setCategoryFilter] = useState<'' | 'query' | 'mutation'>('');
-  const [requestIdFilter, setRequestIdFilter] = useState('');
-  const [startDate, setStartDate] = useState(getTodayDateString);
-  const [endDate, setEndDate] = useState('');
-  const [limit, setLimit] = useState('100');
+  // Filters — initialized from URL query string for shareable deep-links
+  const [requestIdFilter, setRequestIdFilter] = useState(() => searchParams?.get('request_id') ?? '');
+  const [actionFilter, setActionFilter] = useState(() => searchParams?.get('action') ?? '');
+  const [agentUidFilter, setAgentUidFilter] = useState(() => searchParams?.get('agent_uid') ?? '');
+  const [resultFilter, setResultFilter] = useState<'' | ActivityResult>(() => (searchParams?.get('result') as ActivityResult | null) ?? '');
+  const [severityFilter, setSeverityFilter] = useState<'' | ActivitySeverity>(() => (searchParams?.get('severity') as ActivitySeverity | null) ?? '');
+  const [categoryFilter, setCategoryFilter] = useState<'' | ActivityCategory>(() => (searchParams?.get('category') as ActivityCategory | null) ?? '');
+  const [sourceFilter, setSourceFilter] = useState<'' | ActivitySource>(() => (searchParams?.get('source') as ActivitySource | null) ?? '');
+  const [envFilter, setEnvFilter] = useState<'' | ActivityEnv>(() => (searchParams?.get('env') as ActivityEnv | null) ?? 'prod');
+  const [anonFilter, setAnonFilter] = useState<'' | 'true' | 'false'>(() => (searchParams?.get('is_anonymous') as 'true' | 'false' | null) ?? '');
+  const [startDate, setStartDate] = useState(() => searchParams?.get('start_date') ?? getTodayDateString());
+  const [endDate, setEndDate] = useState(() => searchParams?.get('end_date') ?? '');
+  const [limit, setLimit] = useState(() => searchParams?.get('limit') ?? '100');
 
-  // Listen for cross-section navigation (from Errors → Activity Log with request_id)
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail) {
-        setRequestIdFilter(detail);
-        setStartDate('');  // Clear date filter when searching by request_id
+  const syncUrlParams = useCallback(
+    (filters: ActivityLogFilters) => {
+      if (typeof window === 'undefined') return;
+      const usp = new URLSearchParams();
+      for (const [k, v] of Object.entries(filters)) {
+        if (v === undefined || v === null || v === '') continue;
+        usp.set(k, String(v));
       }
-    };
-    window.addEventListener('set-activity-log-request-id', handler);
-    return () => window.removeEventListener('set-activity-log-request-id', handler);
-  }, []);
+      const next = usp.toString();
+      const current = window.location.search.replace(/^\?/, '');
+      if (next === current) return;
+      // Preserve the URL hash — AdminPage uses it to pick the active section
+      // (e.g. `#activity-logs`). router.replace with just `?...` would drop it.
+      const hash = window.location.hash;
+      const path = window.location.pathname;
+      router.replace(`${path}${next ? `?${next}` : ''}${hash}`, { scroll: false });
+    },
+    [router]
+  );
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const filters: ActivityLogFilters = {};
-      if (actionFilter) filters.action = actionFilter;
-      if (resultFilter) filters.result = resultFilter;
-      if (categoryFilter) filters.category = categoryFilter;
       if (requestIdFilter) filters.request_id = requestIdFilter;
+      if (actionFilter) filters.action = actionFilter;
+      if (agentUidFilter) filters.agent_uid = agentUidFilter;
+      if (resultFilter) filters.result = resultFilter;
+      if (severityFilter) filters.severity = severityFilter;
+      if (categoryFilter) filters.category = categoryFilter;
+      if (sourceFilter) filters.source = sourceFilter;
+      if (envFilter) filters.env = envFilter;
+      if (anonFilter) filters.is_anonymous = anonFilter === 'true';
       if (startDate) filters.start_date = startDate;
       if (endDate) filters.end_date = endDate;
       filters.limit = Number(limit) || 100;
+
+      syncUrlParams(filters);
 
       const data = await getActivityLogs(filters);
       setLogs(data);
@@ -210,16 +244,20 @@ export default function ActivityLogPanel({ onNavigateToErrors }: ActivityLogPane
     } finally {
       setLoading(false);
     }
-  }, [actionFilter, resultFilter, categoryFilter, requestIdFilter, startDate, endDate, limit]);
+  }, [
+    requestIdFilter, actionFilter, agentUidFilter, resultFilter, severityFilter,
+    categoryFilter, sourceFilter, envFilter, anonFilter, startDate, endDate, limit,
+    syncUrlParams,
+  ]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
 
-  // Summary stats
   const totalCount = logs.length;
   const successCount = logs.filter((l) => l.result === 'success').length;
   const errorCount = logs.filter((l) => l.result === 'error').length;
+  const anonCount = logs.filter((l) => l.is_anonymous).length;
 
   return (
     <div>
@@ -227,15 +265,16 @@ export default function ActivityLogPanel({ onNavigateToErrors }: ActivityLogPane
         Activity Log
       </h1>
       <p style={{ color: '#94a3b8', marginBottom: '32px' }}>
-        Monitor all API requests with request_id tracking
+        Unified view of every Cloud Function call, Next.js API request, and client event. Errors are inline (filter by result=error).
       </p>
 
-      {/* Summary Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {[
           { label: 'Total', value: totalCount, color: '#3b82f6' },
           { label: 'Success', value: successCount, color: '#22c55e' },
           { label: 'Errors', value: errorCount, color: '#ef4444' },
+          { label: 'Anonymous', value: anonCount, color: '#facc15' },
         ].map((card) => (
           <div key={card.label} style={styles.card}>
             <div style={{ padding: '20px 24px' }}>
@@ -266,22 +305,17 @@ export default function ActivityLogPanel({ onNavigateToErrors }: ActivityLogPane
 
             <div>
               <label style={{ ...styles.label, marginBottom: '4px' }}>Action</label>
-              <input
-                type="text"
-                placeholder="e.g. createTask"
-                value={actionFilter}
-                onChange={(e) => setActionFilter(e.target.value)}
-                style={styles.input}
-              />
+              <input type="text" placeholder="e.g. createTask" value={actionFilter} onChange={(e) => setActionFilter(e.target.value)} style={styles.input} />
+            </div>
+
+            <div>
+              <label style={{ ...styles.label, marginBottom: '4px' }}>Agent UID</label>
+              <input type="text" placeholder="firebase uid" value={agentUidFilter} onChange={(e) => setAgentUidFilter(e.target.value)} style={{ ...styles.input, fontFamily: 'monospace' }} />
             </div>
 
             <div>
               <label style={{ ...styles.label, marginBottom: '4px' }}>Result</label>
-              <select
-                value={resultFilter}
-                onChange={(e) => setResultFilter(e.target.value as '' | 'success' | 'error')}
-                style={styles.select}
-              >
+              <select value={resultFilter} onChange={(e) => setResultFilter(e.target.value as '' | ActivityResult)} style={styles.select}>
                 <option value="">All</option>
                 <option value="success">Success</option>
                 <option value="error">Error</option>
@@ -289,12 +323,28 @@ export default function ActivityLogPanel({ onNavigateToErrors }: ActivityLogPane
             </div>
 
             <div>
+              <label style={{ ...styles.label, marginBottom: '4px' }}>Severity</label>
+              <select value={severityFilter} onChange={(e) => setSeverityFilter(e.target.value as '' | ActivitySeverity)} style={styles.select}>
+                <option value="">All</option>
+                <option value="warning">Warning</option>
+                <option value="error">Error</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ ...styles.label, marginBottom: '4px' }}>Source</label>
+              <select value={sourceFilter} onChange={(e) => setSourceFilter(e.target.value as '' | ActivitySource)} style={styles.select}>
+                <option value="">All</option>
+                <option value="cloud_function">Cloud Function</option>
+                <option value="next_api">Next.js API</option>
+                <option value="client">Client</option>
+              </select>
+            </div>
+
+            <div>
               <label style={{ ...styles.label, marginBottom: '4px' }}>Category</label>
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value as '' | 'query' | 'mutation')}
-                style={styles.select}
-              >
+              <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value as '' | ActivityCategory)} style={styles.select}>
                 <option value="">All</option>
                 <option value="query">Query</option>
                 <option value="mutation">Mutation</option>
@@ -302,32 +352,36 @@ export default function ActivityLogPanel({ onNavigateToErrors }: ActivityLogPane
             </div>
 
             <div>
+              <label style={{ ...styles.label, marginBottom: '4px' }}>Env</label>
+              <select value={envFilter} onChange={(e) => setEnvFilter(e.target.value as '' | ActivityEnv)} style={styles.select}>
+                <option value="">All</option>
+                <option value="prod">Prod</option>
+                <option value="dev">Dev</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ ...styles.label, marginBottom: '4px' }}>Anonymous</label>
+              <select value={anonFilter} onChange={(e) => setAnonFilter(e.target.value as '' | 'true' | 'false')} style={styles.select}>
+                <option value="">All</option>
+                <option value="false">Logged-in</option>
+                <option value="true">Anonymous</option>
+              </select>
+            </div>
+
+            <div>
               <label style={{ ...styles.label, marginBottom: '4px' }}>Start Date</label>
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                style={styles.input}
-              />
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} style={styles.input} />
             </div>
 
             <div>
               <label style={{ ...styles.label, marginBottom: '4px' }}>End Date</label>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                style={styles.input}
-              />
+              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={styles.input} />
             </div>
 
             <div>
               <label style={{ ...styles.label, marginBottom: '4px' }}>Limit</label>
-              <select
-                value={limit}
-                onChange={(e) => setLimit(e.target.value)}
-                style={styles.select}
-              >
+              <select value={limit} onChange={(e) => setLimit(e.target.value)} style={styles.select}>
                 <option value="50">50</option>
                 <option value="100">100</option>
                 <option value="200">200</option>
@@ -335,16 +389,7 @@ export default function ActivityLogPanel({ onNavigateToErrors }: ActivityLogPane
               </select>
             </div>
 
-            <button
-              onClick={fetchLogs}
-              disabled={loading}
-              style={{
-                ...styles.button,
-                ...styles.primaryButton,
-                opacity: loading ? 0.7 : 1,
-                height: '38px',
-              }}
-            >
+            <button onClick={fetchLogs} disabled={loading} style={{ ...styles.button, ...styles.primaryButton, opacity: loading ? 0.7 : 1, height: '38px' }}>
               {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
               Refresh
             </button>
@@ -352,20 +397,12 @@ export default function ActivityLogPanel({ onNavigateToErrors }: ActivityLogPane
         </div>
       </div>
 
-      {/* Error message */}
       {error && (
-        <div
-          style={{
-            ...styles.card,
-            marginBottom: '24px',
-            borderColor: 'rgba(239, 68, 68, 0.3)',
-          }}
-        >
+        <div style={{ ...styles.card, marginBottom: '24px', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
           <div style={{ padding: '16px 24px', color: '#ef4444' }}>{error}</div>
         </div>
       )}
 
-      {/* Logs Table */}
       <div style={styles.card}>
         {loading && logs.length === 0 ? (
           <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>
@@ -383,147 +420,95 @@ export default function ActivityLogPanel({ onNavigateToErrors }: ActivityLogPane
                 <tr style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
                   <th style={styles.th}>Time</th>
                   <th style={styles.th}>Action</th>
+                  <th style={styles.th}>Source</th>
                   <th style={styles.th}>Category</th>
                   <th style={styles.th}>Result</th>
+                  <th style={styles.th}>Agent</th>
                   <th style={styles.th}>Request ID</th>
-                  <th style={styles.th}>Details</th>
+                  <th style={styles.th}></th>
                 </tr>
               </thead>
               <tbody>
                 {logs.map((log) => {
                   const isExpanded = expandedLogId === log.id;
                   return (
-                    <tr key={log.id} style={{ cursor: 'pointer' }} onClick={() => setExpandedLogId(isExpanded ? null : log.id)}>
-                      <td style={styles.td}>
-                        <span style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>
-                          {formatDateTime(log.created_at)}
-                        </span>
-                      </td>
-                      <td style={styles.td}>
-                        <code style={{ fontSize: '13px', color: '#e879f9', backgroundColor: 'rgba(168, 85, 247, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>
-                          {log.action}
-                        </code>
-                      </td>
-                      <td style={styles.td}>
-                        <CategoryBadge category={log.category} />
-                      </td>
-                      <td style={styles.td}>
-                        <ResultBadge result={log.result} />
-                      </td>
-                      <td style={styles.td}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <code style={{ fontSize: '12px', fontFamily: 'monospace', color: '#94a3b8' }}>
-                            {log.request_id}
-                          </code>
-                          <CopyButton text={log.request_id} />
-                        </div>
-                      </td>
-                      <td style={styles.td}>
-                        <button
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}
-                        >
-                          {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        </button>
-                      </td>
-                    </tr>
+                    <Fragment key={log.id}>
+                      <tr style={{ cursor: 'pointer' }} onClick={() => setExpandedLogId(isExpanded ? null : log.id)}>
+                        <td style={styles.td}>
+                          <span style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>{formatDateTime(log.created_at)}</span>
+                        </td>
+                        <td style={styles.td}>
+                          <code style={{ fontSize: '13px', color: '#e879f9', backgroundColor: 'rgba(168, 85, 247, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>{log.action}</code>
+                        </td>
+                        <td style={styles.td}><SourceBadge source={log.source} /></td>
+                        <td style={styles.td}><CategoryBadge category={log.category} /></td>
+                        <td style={styles.td}><ResultBadge result={log.result} severity={log.severity} /></td>
+                        <td style={styles.td}>
+                          <div style={{ fontSize: '12px', color: log.is_anonymous ? '#facc15' : '#cbd5e1' }}>
+                            {log.is_anonymous ? 'anon' : (log.agent_email ?? log.agent_uid.slice(0, 8))}
+                          </div>
+                        </td>
+                        <td style={styles.td}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <code style={{ fontSize: '12px', fontFamily: 'monospace', color: '#94a3b8' }}>{log.request_id}</code>
+                            <CopyButton text={log.request_id} />
+                          </div>
+                        </td>
+                        <td style={styles.td}>
+                          {isExpanded ? <ChevronUp size={16} color="#94a3b8" /> : <ChevronDown size={16} color="#94a3b8" />}
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr>
+                          <td colSpan={8} style={{ padding: 0, borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                            <div style={{ padding: '20px 24px', backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                                <div>
+                                  <p style={styles.label}>Agent UID</p>
+                                  <p style={{ color: '#e2e8f0', fontSize: '13px', fontFamily: 'monospace' }}>{log.agent_uid}</p>
+                                </div>
+                                <div>
+                                  <p style={styles.label}>Env / Build</p>
+                                  <p style={{ color: '#e2e8f0', fontSize: '13px' }}>
+                                    {log.env}
+                                    {log.app_version ? ` · v${log.app_version}` : ''}
+                                    {log.app_build_sha ? ` · ${log.app_build_sha}` : ''}
+                                  </p>
+                                </div>
+                                <div>
+                                  <p style={styles.label}>IP</p>
+                                  <p style={{ color: '#e2e8f0', fontSize: '13px' }}>{log.ip_address || 'N/A'}</p>
+                                </div>
+                                <div style={{ gridColumn: '1 / -1' }}>
+                                  <p style={styles.label}>Parameters</p>
+                                  <pre style={{ marginTop: '4px', padding: '12px', borderRadius: '8px', backgroundColor: 'rgba(0, 0, 0, 0.3)', color: '#94a3b8', fontSize: '12px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '200px' }}>
+                                    {JSON.stringify(log.params, null, 2)}
+                                  </pre>
+                                </div>
+                                {log.error_message && (
+                                  <div style={{ gridColumn: '1 / -1' }}>
+                                    <p style={{ ...styles.label, color: '#ef4444' }}>Error Message</p>
+                                    <p style={{ color: '#fca5a5', fontSize: '14px', marginTop: '4px' }}>{log.error_message}</p>
+                                  </div>
+                                )}
+                                {log.error_details && (
+                                  <div style={{ gridColumn: '1 / -1' }}>
+                                    <p style={{ ...styles.label, color: '#ef4444' }}>Error Details</p>
+                                    <pre style={{ marginTop: '4px', padding: '12px', borderRadius: '8px', backgroundColor: 'rgba(239, 68, 68, 0.05)', color: '#fca5a5', fontSize: '12px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '200px' }}>
+                                      {JSON.stringify(log.error_details, null, 2)}
+                                    </pre>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tbody>
             </table>
-
-            {/* Expanded detail */}
-            {expandedLogId && (() => {
-              const log = logs.find((l) => l.id === expandedLogId);
-              if (!log) return null;
-              return (
-                <div
-                  style={{
-                    padding: '20px 24px',
-                    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                  }}
-                >
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-                    <div>
-                      <p style={styles.label}>User</p>
-                      <p style={{ color: '#e2e8f0', fontSize: '14px' }}>{log.user_email}</p>
-                    </div>
-                    <div>
-                      <p style={styles.label}>IP Address</p>
-                      <p style={{ color: '#e2e8f0', fontSize: '14px' }}>{log.ip_address || 'N/A'}</p>
-                    </div>
-                    <div style={{ gridColumn: '1 / -1' }}>
-                      <p style={styles.label}>Parameters</p>
-                      <pre
-                        style={{
-                          marginTop: '4px',
-                          padding: '12px',
-                          borderRadius: '8px',
-                          backgroundColor: 'rgba(0, 0, 0, 0.3)',
-                          color: '#94a3b8',
-                          fontSize: '12px',
-                          fontFamily: 'monospace',
-                          overflow: 'auto',
-                          maxHeight: '200px',
-                        }}
-                      >
-                        {JSON.stringify(log.params, null, 2)}
-                      </pre>
-                    </div>
-                    {log.error_message && (
-                      <div style={{ gridColumn: '1 / -1' }}>
-                        <p style={{ ...styles.label, color: '#ef4444' }}>Error Message</p>
-                        <p style={{ color: '#fca5a5', fontSize: '14px', marginTop: '4px' }}>
-                          {log.error_message}
-                        </p>
-                      </div>
-                    )}
-                    {log.error_details && (
-                      <div style={{ gridColumn: '1 / -1' }}>
-                        <p style={{ ...styles.label, color: '#ef4444' }}>Error Details</p>
-                        <pre
-                          style={{
-                            marginTop: '4px',
-                            padding: '12px',
-                            borderRadius: '8px',
-                            backgroundColor: 'rgba(239, 68, 68, 0.05)',
-                            color: '#fca5a5',
-                            fontSize: '12px',
-                            fontFamily: 'monospace',
-                            overflow: 'auto',
-                            maxHeight: '200px',
-                          }}
-                        >
-                          {JSON.stringify(log.error_details, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-                    {log.result === 'error' && onNavigateToErrors && (
-                      <div style={{ gridColumn: '1 / -1', marginTop: '8px' }}>
-                        <button
-                          onClick={() => onNavigateToErrors()}
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '6px',
-                            padding: '6px 14px',
-                            borderRadius: '8px',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                            color: '#fca5a5',
-                            fontSize: '13px',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                          }}
-                        >
-                          View in Error Monitoring
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })()}
           </div>
         )}
       </div>

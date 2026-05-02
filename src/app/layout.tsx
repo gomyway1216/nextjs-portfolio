@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Rubik, Playfair_Display } from "next/font/google";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { PostsProvider } from "@/providers/PostsProvider";
@@ -7,6 +8,9 @@ import AOSInitializer from "./AOSInitializer";
 import { Toaster } from "@/components/ui/sonner";
 import { GlobalToolbar } from "@/components/GlobalToolbar";
 import { GameToolbarProvider } from "@/contexts/GameToolbarContext";
+import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
+import PageViewLogger from "@/components/PageViewLogger";
+import PrivacyFooter from "@/components/PrivacyFooter";
 import "../assets/scss/main.scss";
 import "aos/dist/aos.css";
 import "./globals.css";
@@ -51,6 +55,10 @@ export default function RootLayout({
       <body className={`${rubik.variable} ${playfair.variable}`} suppressHydrationWarning>
         <AOSInitializer />
         <Toaster />
+        <GlobalErrorBoundary />
+        <Suspense fallback={null}>
+          <PageViewLogger />
+        </Suspense>
         <I18nProvider>
           <AuthProvider>
             <PostsProvider>
@@ -61,6 +69,7 @@ export default function RootLayout({
             </PostsProvider>
           </AuthProvider>
         </I18nProvider>
+        <PrivacyFooter />
         <div id="modal-root"></div>
       </body>
     </html>

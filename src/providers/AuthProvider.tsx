@@ -2,7 +2,7 @@
 
 import React, { createContext, useEffect, useContext, useState, ReactNode, useCallback, useRef } from 'react';
 import { MultiFactorResolver, RecaptchaVerifier, User } from 'firebase/auth';
-import { auth, signInWithEmail, signUpWithEmail, signOutUser }
+import { auth, ensureSignedIn, signInWithEmail, signUpWithEmail, signOutUser }
   from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
 
@@ -189,18 +189,34 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setMfaPhoneHint(null);
   }, []);
 
-  // Listen to auth state changes
+  // Listen to auth state changes. If no user is signed in, fall back to
+  // Firebase Anonymous Auth so every visitor has a stable uid (used by
+  // client-side activity logging and Firestore rules). The app must
+  // render even if anonymous sign-in fails (e.g. provider disabled),
+  // so loading is always finalized inside this listener.
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
+      if (!user) {
+        setCurrentUser(null);
+        setIsAdmin(false);
+        await syncSessionCookie(null);
+        // Trigger anon sign-in. onAuthStateChanged will fire again with
+        // the new user — but if it fails (e.g. Anonymous Auth disabled),
+        // we still need to render the app. Don't await loading on this.
+        void ensureSignedIn();
+        setLoading(false);
+        return;
+      }
+
       setCurrentUser(user);
 
-      if (user) {
+      if (user.isAnonymous) {
+        // Anonymous users never have admin or MFA — skip the extra calls.
+        setIsAdmin(false);
+      } else {
         await checkAdminStatus(user);
         refreshMFAStatus();
         await syncSessionCookie(user);
-      } else {
-        setIsAdmin(false);
-        await syncSessionCookie(null);
       }
 
       setLoading(false);

@@ -2,18 +2,34 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../constants';
 
-// GET /api/activity-logs - Query activity logs with filters
+const FORWARDED_FILTERS = [
+  'agent_uid',
+  'agent_email',
+  'action',
+  'result',
+  'category',
+  'severity',
+  'env',
+  'source',
+  'is_anonymous',
+  'request_id',
+  'target_uid',
+  'start_date',
+  'end_date',
+  'limit',
+  'offset_doc_id',
+];
+
+// GET /api/activity-logs — query activity logs with filters
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const authHeader = request.headers.get('authorization');
     const url = new URL(getCloudFunctionUrl('activityLogs'));
 
-    // Forward query parameters
-    const params = ['action', 'result', 'category', 'request_id', 'start_date', 'end_date', 'limit', 'offset_doc_id'];
-    params.forEach((param) => {
+    FORWARDED_FILTERS.forEach((param) => {
       const value = searchParams.get(param);
-      if (value) url.searchParams.set(param, value);
+      if (value !== null && value !== '') url.searchParams.set(param, value);
     });
 
     const response = await fetch(url.toString(), {

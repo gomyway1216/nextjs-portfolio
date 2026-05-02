@@ -1,5 +1,14 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, signOut, sendPasswordResetEmail, sendEmailVerification } from 'firebase/auth';
+import {
+  createUserWithEmailAndPassword,
+  getAuth,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInAnonymously,
+  signInWithEmailAndPassword,
+  signOut,
+  updateProfile,
+} from 'firebase/auth';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_API_KEY,
@@ -40,3 +49,32 @@ export const sendVerificationEmail = () => {
   }
   return sendEmailVerification(user);
 };
+
+/**
+ * Ensure a Firebase Auth user exists. If no user is signed in, signs in
+ * anonymously so every visitor has a uid (required for activity logging
+ * and a stable identity that can later be linked to a real account).
+ *
+ * Returns true on success, false on failure (e.g. Anonymous Auth not
+ * enabled in Firebase Console). Concurrent callers share a single
+ * in-flight sign-in promise to avoid issuing parallel signInAnonymously
+ * requests during page load.
+ */
+let inFlightAnonSignIn: Promise<boolean> | null = null;
+
+export async function ensureSignedIn(): Promise<boolean> {
+  if (auth.currentUser) return true;
+  if (inFlightAnonSignIn) return inFlightAnonSignIn;
+
+  inFlightAnonSignIn = signInAnonymously(auth)
+    .then(() => true)
+    .catch((err) => {
+      console.error('[firebaseConnect] anonymous sign-in failed:', err);
+      return false;
+    })
+    .finally(() => {
+      inFlightAnonSignIn = null;
+    });
+
+  return inFlightAnonSignIn;
+}

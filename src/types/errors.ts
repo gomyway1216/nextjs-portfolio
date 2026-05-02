@@ -1,4 +1,12 @@
-// Application-wide Error Tracking Types
+/**
+ * Compatibility shim — the old enums are kept so existing API routes that
+ * pass `severity: ErrorSeverity.HIGH` etc. keep compiling. The shim in
+ * `app/api/utils/errorLogger.ts` maps these values to the atlas-style
+ * `'warning' | 'error' | 'critical'` severity stored in `activity_logs`.
+ *
+ * For new code, prefer importing from `@/services/activityLogService`:
+ *   import type { ActivitySeverity } from '@/services/activityLogService';
+ */
 
 export enum ErrorSource {
   FRONTEND = 'frontend',
@@ -11,25 +19,4 @@ export enum ErrorSeverity {
   MEDIUM = 'medium',
   HIGH = 'high',
   CRITICAL = 'critical',
-}
-
-export interface AppError {
-  id: string;
-  source: ErrorSource;
-  severity: ErrorSeverity;
-  errorType: string;
-  message: string;
-  details?: string;
-  stack?: string;
-  functionName?: string;
-  endpoint?: string;
-  userId?: string;
-  metadata?: Record<string, unknown>;
-  request_id?: string;
-  resolved: boolean;
-  resolvedAt?: string;
-  resolvedBy?: string;
-  createdAt: string;
-  occurrenceCount: number;
-  lastOccurredAt: string;
 }

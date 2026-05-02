@@ -11,8 +11,7 @@ import {
   LearningPathContext,
   LearningPathRecommendations,
 } from '@/types/study';
-import { ErrorSeverity, ErrorSource } from '@/types/errors';
-import { logAppError } from '@/services/errorService';
+import { logActivity } from '@/lib/activityLog';
 
 // Example goals for inspiration
 const EXAMPLE_GOALS = [
@@ -55,21 +54,20 @@ export default function LearningPathsPage() {
       setGenerateError(message);
       console.error('Failed to create learning path:', err);
       const goalText = goal.trim();
-      logAppError({
-        source: ErrorSource.FRONTEND,
-        severity: ErrorSeverity.MEDIUM,
-        errorType: 'LearningPathsUI:CreateError',
-        message,
-        details: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-        endpoint: '/study/learning/paths',
-        metadata: {
+      logActivity({
+        action: 'client.study.learning_paths.create_error',
+        result: 'error',
+        severity: 'error',
+        error_message: message,
+        error_details: {
+          stack: err instanceof Error ? err.stack : undefined,
+        },
+        params: {
+          endpoint: '/study/learning/paths',
           goalPreview: goalText.slice(0, 120),
           goalLength: goalText.length,
           hasContext: showContext,
         },
-      }).catch((logError) => {
-        console.error('Failed to log learning path error:', logError);
       });
     }
   };

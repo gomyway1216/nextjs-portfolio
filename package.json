@@ -95,7 +95,7 @@
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
     "typescript": "^5",
-    "uuid": "^13.0.0",
+    "uuid": "^14.0.0",
     "vitest": "^4.0.18"
   }
 }

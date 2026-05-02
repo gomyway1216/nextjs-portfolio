@@ -1,27 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { GAME_SCORES_COLLECTION } from '../../constants';
-
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
-/**
- * Game high scores stored per player
- * Structure: game_scores/{playerId}/scores/{gameKey}
- * No authentication required - uses a client-generated player ID
- */
+
+// Sanity bounds — game scores are stored under client-supplied playerIds
+// (guests use a localStorage-generated id; signed-in users use their uid).
+// We can't fully prevent leaderboard cheating without a server-authoritative
+// game loop, but capping score and validating id format blocks the obvious
+// abuse cases (NaN, Infinity, multi-megabyte ids, path traversal).
+const MAX_SCORE = 1_000_000_000;
+const ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
+
+function isValidId(id: unknown): id is string {
+  return typeof id === 'string' && ID_PATTERN.test(id);
+}
 
 /**
  * GET /api/game/scores?playerId=xxx
  * Get all high scores for a player
- * Returns: { scores: { [gameKey]: number } }
  */
 export const GET = withActivityLog('next_api.game.scores.GET', async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const playerId = searchParams.get('playerId');
 
-    if (!playerId) {
+    if (!isValidId(playerId)) {
       return NextResponse.json(
-        { error: 'Missing playerId parameter' },
+        { error: 'Missing or invalid playerId' },
         { status: 400 }
       );
     }
@@ -50,29 +55,27 @@ export const GET = withActivityLog('next_api.game.scores.GET', async (request: N
  * PUT /api/game/scores
  * Update a high score for a specific game
  * Body: { playerId: string, gameKey: string, score: number }
- * Only updates if the new score is higher than the existing score
- * Returns: { highScore: number, isNewHighScore: boolean }
  */
 export const PUT = withActivityLog('next_api.game.scores.PUT', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { playerId, gameKey, score } = body;
 
-    if (!playerId || typeof playerId !== 'string') {
+    if (!isValidId(playerId)) {
       return NextResponse.json(
         { error: 'Missing or invalid playerId' },
         { status: 400 }
       );
     }
 
-    if (!gameKey || typeof gameKey !== 'string') {
+    if (!isValidId(gameKey)) {
       return NextResponse.json(
         { error: 'Missing or invalid gameKey' },
         { status: 400 }
       );
     }
 
-    if (typeof score !== 'number' || score < 0) {
+    if (typeof score !== 'number' || !Number.isFinite(score) || score < 0 || score > MAX_SCORE) {
       return NextResponse.json(
         { error: 'Invalid score value' },
         { status: 400 }

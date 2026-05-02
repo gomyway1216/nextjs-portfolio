@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
-import { ensureValidUser, getOptionalUser } from '@/lib/auth-utils';
+import { ensureAdmin } from '@/lib/auth-utils';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
@@ -28,7 +28,7 @@ export const GET = withActivityLog('next_api.post.category.id.GET', async (reque
 
     // If post is not public, require authentication
     if (!data.isPublic) {
-      const { user, response } = await ensureValidUser(request);
+      const { user, response } = await ensureAdmin(request);
       if (!user) {
         return response!;
       }
@@ -64,7 +64,7 @@ export const GET = withActivityLog('next_api.post.category.id.GET', async (reque
 export const PUT = withActivityLog('next_api.post.category.id.PUT', async (request: NextRequest,
   { params }: { params: Promise<{ category: string; id: string }> }) => {
   try {
-    const { user, response } = await ensureValidUser(request);
+    const { user, response } = await ensureAdmin(request);
     if (!user) {
       return response!;
     }
@@ -119,7 +119,7 @@ export const PUT = withActivityLog('next_api.post.category.id.PUT', async (reque
 export const DELETE = withActivityLog('next_api.post.category.id.DELETE', async (request: NextRequest,
   { params }: { params: Promise<{ category: string; id: string }> }) => {
   try {
-    const { user, response } = await ensureValidUser(request);
+    const { user, response } = await ensureAdmin(request);
     if (!user) {
       return response!;
     }

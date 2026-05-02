@@ -1,19 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
+import { ensureAdmin } from '@/lib/auth-utils';
 import { KUIZU_QUESTIONS_COLLECTION } from '../../../constants';
 import { QUESTION_BANK } from '@/lib/kuizuQuestionBank';
-
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
-// POST /api/kuizu/questions/seed - Seed built-in question bank
+
+// POST /api/kuizu/questions/seed - Seed built-in question bank (admin only)
 export const POST = withActivityLog('next_api.kuizu.questions.seed.POST', async (request: NextRequest) => {
   try {
+    const { user, response } = await ensureAdmin(request);
+    if (!user) {
+      return response!;
+    }
+
     const db = getFirestore();
 
     let seeded = 0;
     let skipped = 0;
 
     for (const question of QUESTION_BANK) {
-      // Check if question already exists by id
       const existingDoc = await db.collection(KUIZU_QUESTIONS_COLLECTION).doc(question.id).get();
 
       if (existingDoc.exists) {
@@ -21,7 +26,6 @@ export const POST = withActivityLog('next_api.kuizu.questions.seed.POST', async 
         continue;
       }
 
-      // Add question with built-in flag
       await db.collection(KUIZU_QUESTIONS_COLLECTION).doc(question.id).set({
         ...question,
         isBuiltIn: true,
@@ -42,9 +46,8 @@ export const POST = withActivityLog('next_api.kuizu.questions.seed.POST', async 
     });
   } catch (error) {
     console.error('Error seeding kuizu questions:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to seed questions', details: errorMessage },
+      { error: 'Failed to seed questions' },
       { status: 500 }
     );
   }

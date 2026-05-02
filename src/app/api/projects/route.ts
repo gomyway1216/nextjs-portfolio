@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
-import { ensureValidUser } from '@/lib/auth-utils';
+import { ensureAdmin } from '@/lib/auth-utils';
 import { PROJECTS_COLLECTION } from '@/app/api/constants';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
@@ -58,7 +58,7 @@ export const GET = withActivityLog('next_api.projects.GET', async () => {
  */
 export const POST = withActivityLog('next_api.projects.POST', async (request: NextRequest) => {
   try {
-    const { user, response } = await ensureValidUser(request);
+    const { user, response } = await ensureAdmin(request);
     if (!user) {
       return response!;
     }

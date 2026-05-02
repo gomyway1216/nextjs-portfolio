@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getStorage } from '@/lib/firebase-admin';
-import { ensureValidUser } from '@/lib/auth-utils';
+import { ensureAdmin } from '@/lib/auth-utils';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
- * POST /api/images/menu
+ * POST /api/image/menu
  * Upload a menu/post image to Firebase Storage
  * Required form data:
  * - file: File (the image file)
- * Requires authentication
+ * Admin-only (ensureAdmin).
  */
 export const POST = withActivityLog('next_api.image.menu.POST', async (request: NextRequest) => {
   try {
-    const { user, response } = await ensureValidUser(request);
+    const { user, response } = await ensureAdmin(request);
     if (!user) {
       return response!;
     }

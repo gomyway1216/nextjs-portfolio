@@ -14,15 +14,24 @@ import { v4 as uuidv4 } from 'uuid';
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
-// helloalone Firebase config
+// helloalone Firebase config — apiKey is read from env. Set
+// HELLOALONE_FIREBASE_API_KEY in .env.local before running this script.
+const helloaloneApiKey = process.env.HELLOALONE_FIREBASE_API_KEY;
+if (!helloaloneApiKey) {
+  throw new Error(
+    'HELLOALONE_FIREBASE_API_KEY is not set. Add it to .env.local before running this script.'
+  );
+}
+
 const helloaloneConfig = {
-  apiKey: 'AIzaSyCa4GMC5AX8C_hUuW_EU1tVzGfnNX8Fcbs',
+  apiKey: helloaloneApiKey,
   authDomain: 'yudai-blog.firebaseapp.com',
   projectId: 'yudai-blog',
   storageBucket: 'yudai-blog.appspot.com',
 };
 
-const HELLOALONE_USER_ID = '0gAk2mm1A8hi2sEY7mgBagqkbko2';
+const HELLOALONE_USER_ID =
+  process.env.HELLOALONE_USER_ID || '0gAk2mm1A8hi2sEY7mgBagqkbko2';
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 
 // Field definitions for categories

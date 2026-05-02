@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
-import { ensureValidUser } from '@/lib/auth-utils';
+import { ensureAdmin } from '@/lib/auth-utils';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
@@ -20,7 +20,7 @@ export const GET = withActivityLog('next_api.post.category.GET', async (request:
     // If isPublic is not specified, show all posts (requires auth)
     // If isPublic is explicitly set to false, require authentication
     if (isPublicParam === 'false' || isPublicParam === null) {
-      const { user, response } = await ensureValidUser(request);
+      const { user, response } = await ensureAdmin(request);
       if (!user) {
         return response!;
       }

@@ -35,7 +35,13 @@ const SignInPage = () => {
 
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectPath = searchParams.get('redirect') || '/';
+  const rawRedirect = searchParams.get('redirect');
+  // Only allow same-origin relative paths (must start with `/` and not `//` to
+  // avoid protocol-relative open redirects like `//evil.com`).
+  const redirectPath =
+    rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//')
+      ? rawRedirect
+      : '/';
 
   const {
     signIn,

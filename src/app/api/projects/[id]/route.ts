@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
-import { ensureValidUser } from '@/lib/auth-utils';
+import { ensureAdmin } from '@/lib/auth-utils';
 import { PROJECTS_COLLECTION } from '@/app/api/constants';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
@@ -58,7 +58,7 @@ export const GET = withActivityLog('next_api.projects.id.GET', async (request: N
 export const PUT = withActivityLog('next_api.projects.id.PUT', async (request: NextRequest,
   { params }: { params: Promise<{ id: string }> }) => {
   try {
-    const { user, response } = await ensureValidUser(request);
+    const { user, response } = await ensureAdmin(request);
     if (!user) {
       return response!;
     }
@@ -128,7 +128,7 @@ export const PUT = withActivityLog('next_api.projects.id.PUT', async (request: N
 export const DELETE = withActivityLog('next_api.projects.id.DELETE', async (request: NextRequest,
   { params }: { params: Promise<{ id: string }> }) => {
   try {
-    const { user, response } = await ensureValidUser(request);
+    const { user, response } = await ensureAdmin(request);
     if (!user) {
       return response!;
     }

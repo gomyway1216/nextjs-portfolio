@@ -15,10 +15,10 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   };
 }
 
-export async function getTasks(userId: string) {
+export async function getTasks() {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`/api/tasks?userId=${userId}`, {
+  const response = await fetch(`/api/tasks`, {
     headers: {
       'Content-Type': 'application/json',
       ...headers,
@@ -33,10 +33,10 @@ export async function getTasks(userId: string) {
   return data.tasks;
 }
 
-export async function updateTaskCompletion(userId: string, taskId: string) {
+export async function updateTaskCompletion(taskId: string) {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`/api/tasks/${taskId}?userId=${userId}`, {
+  const response = await fetch(`/api/tasks/${taskId}`, {
     method: 'PUT',
     headers: {
       ...headers,

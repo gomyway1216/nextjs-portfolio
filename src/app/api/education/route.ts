@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/education
  * Get all education entries
  */
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.education.GET', async (request: NextRequest) => {
   try {
     const db = getFirestore();
     const snapshot = await db.collection('education').get();
@@ -25,4 +26,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

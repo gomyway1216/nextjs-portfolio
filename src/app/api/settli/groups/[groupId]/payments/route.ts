@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { getOptionalUser } from '@/lib/auth-utils';
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import {
   SETTLI_GROUPS_COLLECTION,
   SETTLI_PAYMENTS_COLLECTION,
@@ -12,7 +13,7 @@ interface RouteParams {
 }
 
 // GET /api/settli/groups/[groupId]/payments - Get all payments for a group
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withActivityLog('next_api.settli.groups.groupId.payments.GET', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { groupId } = await params;
     const db = getFirestore();
@@ -59,10 +60,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/settli/groups/[groupId]/payments - Add a new payment
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export const POST = withActivityLog('next_api.settli.groups.groupId.payments.POST', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { groupId } = await params;
     const body: CreatePaymentInput = await request.json();
@@ -147,4 +148,4 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@/lib/firebase-admin';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const SESSION_COOKIE_NAME = '__session';
 const SESSION_EXPIRY_MS = 60 * 60 * 24 * 14 * 1000; // 14 days
 
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.auth.session.POST', async (request: NextRequest) => {
   try {
     const { idToken } = await request.json();
 
@@ -37,9 +38,9 @@ export async function POST(request: NextRequest) {
     console.error('Session creation error:', error);
     return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
   }
-}
+});
 
-export async function DELETE() {
+export const DELETE = withActivityLog('next_api.auth.session.DELETE', async () => {
   const response = NextResponse.json({ status: 'ok' });
   response.cookies.set(SESSION_COOKIE_NAME, '', {
     maxAge: 0,
@@ -49,4 +50,4 @@ export async function DELETE() {
     path: '/',
   });
   return response;
-}
+});

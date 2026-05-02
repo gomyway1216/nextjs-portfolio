@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { TECHNOLOGIES_COLLECTION } from '@/app/api/constants';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/technologies/names
  * Get all technology names
  */
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.technology.names.GET', async (request: NextRequest) => {
   try {
     const db = getFirestore();
     const snapshot = await db.collection(TECHNOLOGIES_COLLECTION).get();
@@ -27,4 +28,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

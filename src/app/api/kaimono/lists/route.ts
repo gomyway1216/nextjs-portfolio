@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { getOptionalUser } from '@/lib/auth-utils';
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import {
   KAIMONO_LISTS_COLLECTION,
   KAIMONO_USER_HISTORY_COLLECTION,
@@ -16,7 +17,7 @@ function simpleHash(passcode: string): string {
 }
 
 // GET /api/kaimono/lists - Get user's lists (requires auth)
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.kaimono.lists.GET', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -75,10 +76,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/kaimono/lists - Create a new shopping list
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.kaimono.lists.POST', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
     const body: CreateShoppingListInput = await request.json();
@@ -193,4 +194,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

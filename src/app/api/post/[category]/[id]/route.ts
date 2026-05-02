@@ -3,14 +3,13 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { ensureValidUser, getOptionalUser } from '@/lib/auth-utils';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/posts/[category]/[id]
  * Get a single post by ID and category
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ category: string; id: string }> }
-) {
+export const GET = withActivityLog('next_api.post.category.id.GET', async (request: NextRequest,
+  { params }: { params: Promise<{ category: string; id: string }> }) => {
   try {
     const { category, id } = await params;
     const db = getFirestore();
@@ -55,17 +54,15 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * PUT /api/posts/[category]/[id]
  * Update a post
  * Requires authentication
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ category: string; id: string }> }
-) {
+export const PUT = withActivityLog('next_api.post.category.id.PUT', async (request: NextRequest,
+  { params }: { params: Promise<{ category: string; id: string }> }) => {
   try {
     const { user, response } = await ensureValidUser(request);
     if (!user) {
@@ -112,17 +109,15 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * DELETE /api/posts/[category]/[id]
  * Delete a post
  * Requires authentication
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ category: string; id: string }> }
-) {
+export const DELETE = withActivityLog('next_api.post.category.id.DELETE', async (request: NextRequest,
+  { params }: { params: Promise<{ category: string; id: string }> }) => {
   try {
     const { user, response } = await ensureValidUser(request);
     if (!user) {
@@ -152,4 +147,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

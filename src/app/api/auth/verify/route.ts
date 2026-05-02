@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuth } from '@/lib/firebase-admin';
 import { isAdmin } from '@/lib/auth-utils';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const SESSION_COOKIE_NAME = '__session';
 
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.auth.verify.GET', async (request: NextRequest) => {
   try {
     const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME)?.value;
 
@@ -24,4 +25,4 @@ export async function GET(request: NextRequest) {
     console.error('Session verification error:', error);
     return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
   }
-}
+});

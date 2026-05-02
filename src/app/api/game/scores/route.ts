@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { GAME_SCORES_COLLECTION } from '../../constants';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * Game high scores stored per player
  * Structure: game_scores/{playerId}/scores/{gameKey}
@@ -13,7 +14,7 @@ import { GAME_SCORES_COLLECTION } from '../../constants';
  * Get all high scores for a player
  * Returns: { scores: { [gameKey]: number } }
  */
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.game.scores.GET', async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const playerId = searchParams.get('playerId');
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * PUT /api/game/scores
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
  * Only updates if the new score is higher than the existing score
  * Returns: { highScore: number, isNewHighScore: boolean }
  */
-export async function PUT(request: NextRequest) {
+export const PUT = withActivityLog('next_api.game.scores.PUT', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { playerId, gameKey, score } = body;
@@ -109,4 +110,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

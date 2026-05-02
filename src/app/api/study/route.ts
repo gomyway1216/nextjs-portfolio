@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../constants';
 import { logCloudFunctionError } from '../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // Helper to forward requests to Firebase Functions
 async function forwardToFirebase(
   functionName: string,
@@ -57,7 +58,7 @@ async function forwardToFirebase(
 }
 
 // GET /api/study - Get study dashboard data
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.GET', async (request: NextRequest) => {
   const searchParams = request.nextUrl.searchParams;
   const action = searchParams.get('action');
 
@@ -89,4 +90,4 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
   }
-}
+});

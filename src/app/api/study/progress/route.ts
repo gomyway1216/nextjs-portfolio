@@ -6,10 +6,11 @@ import { STUDY_READ_HISTORY_COLLECTION, STUDY_PROGRESS_COLLECTION } from '../../
 import { logApiError } from '../../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const endpoint = '/api/study/progress';
 
 // GET /api/study/progress - Get user's study progress
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.progress.GET', async (request: NextRequest) => {
   try {
     // Require authentication
     const { user, response } = await ensureValidUser(request);
@@ -80,4 +81,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -5,12 +5,13 @@ import { SETTLI_GROUPS_COLLECTION, SETTLI_USER_HISTORY_COLLECTION } from '../../
 import type { CreateMemberInput, Member } from '@/types/settli';
 import { v4 as uuidv4 } from 'uuid';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface RouteParams {
   params: Promise<{ groupId: string }>;
 }
 
 // POST /api/settli/groups/[groupId]/members - Add a new member
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export const POST = withActivityLog('next_api.settli.groups.groupId.members.POST', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { groupId } = await params;
     const body: CreateMemberInput = await request.json();
@@ -109,4 +110,4 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

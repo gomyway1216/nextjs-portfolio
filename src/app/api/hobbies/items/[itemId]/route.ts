@@ -4,6 +4,7 @@ import { ensureAdmin, verifyIdToken, isAdmin } from '@/lib/auth-utils';
 import { HOBBY_ITEMS_COLLECTION } from '../../../constants';
 import type { HobbyItem, UpdateHobbyItemInput } from '@/types/hobby';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface RouteParams {
   params: Promise<{ itemId: string }>;
 }
@@ -18,7 +19,7 @@ function getTokenFromRequest(request: NextRequest): string | null {
 }
 
 // GET /api/hobbies/items/[itemId] - Get a single hobby item
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withActivityLog('next_api.hobbies.items.itemId.GET', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { itemId } = await params;
     const db = getFirestore();
@@ -67,10 +68,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/hobbies/items/[itemId] - Update a hobby item
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export const PUT = withActivityLog('next_api.hobbies.items.itemId.PUT', async (request: NextRequest, { params }: RouteParams) => {
   try {
     // Verify admin authentication
     const { user, response } = await ensureAdmin(request);
@@ -112,10 +113,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/hobbies/items/[itemId] - Delete a hobby item
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withActivityLog('next_api.hobbies.items.itemId.DELETE', async (request: NextRequest, { params }: RouteParams) => {
   try {
     // Verify admin authentication
     const { user, response } = await ensureAdmin(request);
@@ -143,4 +144,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

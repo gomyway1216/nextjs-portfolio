@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { getOptionalUser } from '@/lib/auth-utils';
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import {
   SETTLI_GROUPS_COLLECTION,
   SETTLI_USER_HISTORY_COLLECTION,
@@ -21,7 +22,7 @@ export function verifyPasscode(passcode: string, hash: string): boolean {
 }
 
 // GET /api/settli/groups - Get user's groups (requires auth)
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.settli.groups.GET', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -85,10 +86,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/settli/groups - Create a new group
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.settli.groups.POST', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
     const body: CreateGroupInput = await request.json();
@@ -209,4 +210,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

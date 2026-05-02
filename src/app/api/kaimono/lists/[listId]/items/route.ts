@@ -5,12 +5,13 @@ import type { ShoppingItem, CreateShoppingItemInput } from '@/types/kaimono';
 import { ItemCategory, ItemPriority } from '@/types/kaimono';
 import { v4 as uuidv4 } from 'uuid';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface RouteParams {
   params: Promise<{ listId: string }>;
 }
 
 // POST /api/kaimono/lists/[listId]/items - Add items to list
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export const POST = withActivityLog('next_api.kaimono.lists.listId.items.POST', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { listId } = await params;
     const body = await request.json();
@@ -62,4 +63,4 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

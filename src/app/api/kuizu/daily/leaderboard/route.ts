@@ -3,8 +3,9 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { KUIZU_DAILY_LEADERBOARD_COLLECTION } from '../../../constants';
 import type { DailyChallengeEntry } from '@/types/kuizu';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/kuizu/daily/leaderboard - Get daily leaderboard
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.kuizu.daily.leaderboard.GET', async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
@@ -45,4 +46,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

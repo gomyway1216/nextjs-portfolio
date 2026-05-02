@@ -3,11 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../../constants';
 import { logCloudFunctionError } from '../../../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/study/articles/[id]/notes - Get notes for an article
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withActivityLog('next_api.study.articles.id.notes.GET', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { id } = await params;
     const authHeader = request.headers.get('authorization');
@@ -50,13 +49,11 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/study/articles/[id]/notes - Create a note
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const POST = withActivityLog('next_api.study.articles.id.notes.POST', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { id } = await params;
     const body = await request.json();
@@ -102,10 +99,10 @@ export async function POST(
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/study/articles/[id]/notes - Update a note
-export async function PUT(request: NextRequest) {
+export const PUT = withActivityLog('next_api.study.articles.id.notes.PUT', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -143,10 +140,10 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/study/articles/[id]/notes - Delete a note
-export async function DELETE(request: NextRequest) {
+export const DELETE = withActivityLog('next_api.study.articles.id.notes.DELETE', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -184,4 +181,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

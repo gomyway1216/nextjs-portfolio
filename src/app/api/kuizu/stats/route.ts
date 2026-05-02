@@ -4,8 +4,9 @@ import { getOptionalUser } from '@/lib/auth-utils';
 import { KUIZU_USER_STATS_COLLECTION } from '../../constants';
 import type { KuizuUserStats } from '@/types/kuizu';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/kuizu/stats - Get user stats (auth required)
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.kuizu.stats.GET', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -61,4 +62,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -5,11 +5,12 @@ import { PROJECTS_COLLECTION } from '@/app/api/constants';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/projects
  * Get all projects
  */
-export async function GET() {
+export const GET = withActivityLog('next_api.projects.GET', async () => {
   const endpoint = '/api/projects';
   try {
     const db = getFirestore();
@@ -48,14 +49,14 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * POST /api/projects
  * Create a new project
  * Requires authentication
  */
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.projects.POST', async (request: NextRequest) => {
   try {
     const { user, response } = await ensureValidUser(request);
     if (!user) {
@@ -117,4 +118,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -3,11 +3,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../constants';
 import { logCloudFunctionError } from '../../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const endpoint = '/api/study/learning/ai';
 
 // POST /api/study/learning/ai - AI generation endpoints
 // Body should include 'action' field: 'flashcards', 'terms', 'summary', 'quiz'
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.study.learning.ai.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -67,4 +68,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

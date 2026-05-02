@@ -3,6 +3,7 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { KAIMONO_LISTS_COLLECTION } from '../../../../constants';
 import * as crypto from 'crypto';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 function simpleHash(passcode: string): string {
   return crypto.createHash('sha256').update(passcode).digest('hex');
 }
@@ -12,7 +13,7 @@ interface RouteParams {
 }
 
 // POST /api/kaimono/lists/[listId]/verify - Verify passcode
-export async function POST(request: NextRequest, { params }: RouteParams) {
+export const POST = withActivityLog('next_api.kaimono.lists.listId.verify.POST', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { listId } = await params;
     const body = await request.json();
@@ -55,4 +56,4 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

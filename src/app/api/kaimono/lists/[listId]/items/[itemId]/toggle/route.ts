@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import {
   KAIMONO_LISTS_COLLECTION,
   KAIMONO_FREQUENT_ITEMS_COLLECTION,
@@ -12,7 +13,7 @@ interface RouteParams {
 }
 
 // PATCH /api/kaimono/lists/[listId]/items/[itemId]/toggle - Toggle purchased
-export async function PATCH(request: NextRequest, { params }: RouteParams) {
+export const PATCH = withActivityLog('next_api.kaimono.lists.listId.items.itemId.toggle.PATCH', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { listId, itemId } = await params;
     const user = await getOptionalUser(request);
@@ -103,4 +104,4 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

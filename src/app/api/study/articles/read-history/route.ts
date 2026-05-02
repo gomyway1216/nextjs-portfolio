@@ -6,10 +6,11 @@ import { STUDY_READ_HISTORY_COLLECTION } from '../../../constants';
 import { logApiError } from '../../../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const TIME_SPENT_MULTIPLIER = 5;
 
 // GET /api/study/articles/read-history - Get all read articles for the admin
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.articles.read-history.GET', async (request: NextRequest) => {
   try {
     // Require authentication
     const { user, response } = await ensureValidUser(request);
@@ -58,10 +59,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/study/articles/read-history - Mark an article as read
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.study.articles.read-history.POST', async (request: NextRequest) => {
   try {
     // Require authentication
     const { user, response } = await ensureValidUser(request);
@@ -147,10 +148,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/study/articles/read-history - Unmark an article as read
-export async function DELETE(request: NextRequest) {
+export const DELETE = withActivityLog('next_api.study.articles.read-history.DELETE', async (request: NextRequest) => {
   try {
     // Require authentication
     const { user, response } = await ensureValidUser(request);
@@ -210,4 +211,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

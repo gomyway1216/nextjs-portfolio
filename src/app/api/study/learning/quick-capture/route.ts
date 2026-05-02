@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../constants';
 import { logCloudFunctionError } from '../../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const endpoint = '/api/study/learning/quick-capture';
 
 // GET /api/study/learning/quick-capture - Get quick captures
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.learning.quick-capture.GET', async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const authHeader = request.headers.get('authorization');
@@ -43,10 +44,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/study/learning/quick-capture - Create a new quick capture
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.study.learning.quick-capture.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -83,4 +84,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

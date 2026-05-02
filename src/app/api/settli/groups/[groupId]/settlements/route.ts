@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import {
   SETTLI_GROUPS_COLLECTION,
   SETTLI_PAYMENTS_COLLECTION,
@@ -12,7 +13,7 @@ interface RouteParams {
 }
 
 // GET /api/settli/groups/[groupId]/settlements - Calculate settlements
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withActivityLog('next_api.settli.groups.groupId.settlements.GET', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { groupId } = await params;
     const db = getFirestore();
@@ -66,4 +67,4 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

@@ -4,13 +4,14 @@ import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 import { ensureAdmin } from '@/lib/auth-utils';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const PROFILE_DOC_ID = 'main'; // Single document for the main profile
 
 /**
  * GET /api/profile
  * Get profile information
  */
-export async function GET() {
+export const GET = withActivityLog('next_api.profile.GET', async () => {
   const endpoint = '/api/profile';
   try {
     const db = getFirestore();
@@ -52,14 +53,14 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * PUT /api/profile
  * Update profile information
  * SECURITY: Requires authentication
  */
-export async function PUT(request: NextRequest) {
+export const PUT = withActivityLog('next_api.profile.PUT', async (request: NextRequest) => {
   const endpoint = '/api/profile';
 
   // SECURITY: Require admin for profile updates
@@ -106,4 +107,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -3,16 +3,15 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { ensureValidUser } from '@/lib/auth-utils';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/posts/[category]
  * Get all posts from a specific category
  * Query params:
  * - isPublic: boolean (optional)
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ category: string }> }
-) {
+export const GET = withActivityLog('next_api.post.category.GET', async (request: NextRequest,
+  { params }: { params: Promise<{ category: string }> }) => {
   try {
     const { category } = await params;
     const searchParams = request.nextUrl.searchParams;
@@ -61,4 +60,4 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});

@@ -3,14 +3,13 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { ensureValidUser } from '@/lib/auth-utils';
 import { PROJECTS_COLLECTION } from '@/app/api/constants';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/projects/[id]
  * Get a single project by ID
  */
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withActivityLog('next_api.projects.id.GET', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { id } = await params;
     const db = getFirestore();
@@ -49,17 +48,15 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * PUT /api/projects/[id]
  * Update a project
  * Requires authentication
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const PUT = withActivityLog('next_api.projects.id.PUT', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { user, response } = await ensureValidUser(request);
     if (!user) {
@@ -121,17 +118,15 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * DELETE /api/projects/[id]
  * Delete a project
  * Requires authentication
  */
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const DELETE = withActivityLog('next_api.projects.id.DELETE', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { user, response } = await ensureValidUser(request);
     if (!user) {
@@ -161,4 +156,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

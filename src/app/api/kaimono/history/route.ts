@@ -4,8 +4,9 @@ import { getOptionalUser } from '@/lib/auth-utils';
 import { KAIMONO_USER_HISTORY_COLLECTION } from '../../constants';
 import type { KaimonoUserHistory } from '@/types/kaimono';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/kaimono/history - Get user's shopping history (requires auth)
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.kaimono.history.GET', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -52,4 +53,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

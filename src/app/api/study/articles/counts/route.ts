@@ -5,8 +5,9 @@ import { logApiError } from '../../../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 import { getFirestore } from '@/lib/firebase-admin';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/study/articles/counts - Get article counts for a user
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.articles.counts.GET', async (request: NextRequest) => {
   const endpoint = '/api/study/articles/counts';
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -63,4 +64,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -3,7 +3,8 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { USERS_COLLECTION } from '@/app/api/constants';
 import { getOptionalUser } from '@/lib/auth-utils';
 
-export async function POST(request: NextRequest) {
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
+export const POST = withActivityLog('next_api.auth.user.POST', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
     if (!user) {
@@ -37,9 +38,9 @@ export async function POST(request: NextRequest) {
     console.error('User creation error:', error);
     return NextResponse.json({ error: 'Failed to create user' }, { status: 500 });
   }
-}
+});
 
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.auth.user.GET', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
     if (!user) {
@@ -58,4 +59,4 @@ export async function GET(request: NextRequest) {
     console.error('Get user error:', error);
     return NextResponse.json({ error: 'Failed to get user' }, { status: 500 });
   }
-}
+});

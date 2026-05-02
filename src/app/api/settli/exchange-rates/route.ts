@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface ExchangeRateAPIResponse {
   result: string;
   base_code: string;
@@ -11,7 +12,7 @@ let cachedRates: { rates: Record<string, number>; fetchedAt: number } | null = n
 const CACHE_DURATION_MS = 60 * 60 * 1000; // 1 hour
 
 // GET /api/settli/exchange-rates?base=USD
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.settli.exchange-rates.GET', async (request: NextRequest) => {
   const base = request.nextUrl.searchParams.get('base') || 'USD';
 
   try {
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * Convert USD-based rates to rates relative to a different base currency.

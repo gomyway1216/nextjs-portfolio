@@ -3,12 +3,13 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { ensureValidUser } from '@/lib/auth-utils';
 import { CONTACT_COLLECTION } from '@/app/api/constants';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/contacts
  * Get all contacts
  * Requires authentication
  */
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.contact.GET', async (request: NextRequest) => {
   try {
     const { user, response } = await ensureValidUser(request);
     if (!user) {
@@ -39,13 +40,13 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 /**
  * POST /api/contacts
  * Create a new contact message
  */
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.contact.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { blogId, name, email, subject, comment } = body;
@@ -79,4 +80,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

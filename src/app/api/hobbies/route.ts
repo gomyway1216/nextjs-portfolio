@@ -5,8 +5,9 @@ import { HOBBIES_COLLECTION } from '../constants';
 import type { HobbyCategory, CreateHobbyCategoryInput, CustomField } from '@/types/hobby';
 import { v4 as uuidv4 } from 'uuid';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/hobbies - Get all hobby categories
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.hobbies.GET', async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const includePrivate = searchParams.get('includePrivate') === 'true';
@@ -61,10 +62,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/hobbies - Create a new hobby category
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.hobbies.POST', async (request: NextRequest) => {
   try {
     // Verify admin authentication
     const { user, response } = await ensureAdmin(request);
@@ -138,4 +139,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

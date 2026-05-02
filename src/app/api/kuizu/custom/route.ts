@@ -7,12 +7,13 @@ import { QuizCategory, QuizDifficulty } from '@/types/kuizu';
 import { generateShareCode } from '@/lib/settliAlgorithm';
 import * as crypto from 'crypto';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 function simpleHash(passcode: string): string {
   return crypto.createHash('sha256').update(passcode).digest('hex');
 }
 
 // GET /api/kuizu/custom - Get user's custom quizzes (requires auth)
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.kuizu.custom.GET', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -59,10 +60,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/kuizu/custom - Create custom quiz (optional auth)
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.kuizu.custom.POST', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
     const body: CreateCustomQuizInput = await request.json();
@@ -130,4 +131,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

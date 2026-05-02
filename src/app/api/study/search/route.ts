@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../constants';
 import { logCloudFunctionError } from '../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const endpoint = '/api/study/search';
 
 // GET /api/study/search - Search study content
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.search.GET', async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const url = new URL(getCloudFunctionUrl('searchStudyContent'));
@@ -42,4 +43,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

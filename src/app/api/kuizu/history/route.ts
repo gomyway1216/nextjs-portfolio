@@ -4,8 +4,9 @@ import { getOptionalUser } from '@/lib/auth-utils';
 import { KUIZU_USER_HISTORY_COLLECTION } from '../../constants';
 import type { KuizuHistoryEntry } from '@/types/kuizu';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/kuizu/history - Get quiz history (auth required)
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.kuizu.history.GET', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -54,4 +55,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

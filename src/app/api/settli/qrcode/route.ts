@@ -3,8 +3,9 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { SETTLI_GROUPS_COLLECTION } from '../../constants';
 import QRCode from 'qrcode';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // POST /api/settli/qrcode - Generate QR code for a group
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.settli.qrcode.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { groupId } = body;
@@ -56,4 +57,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

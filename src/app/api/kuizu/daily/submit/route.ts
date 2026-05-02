@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { getOptionalUser } from '@/lib/auth-utils';
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import {
   KUIZU_DAILY_LEADERBOARD_COLLECTION,
   KUIZU_USER_STATS_COLLECTION,
@@ -15,7 +16,7 @@ interface SubmitDailyBody {
 }
 
 // POST /api/kuizu/daily/submit - Submit daily challenge result (requires auth)
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.kuizu.daily.submit.POST', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -100,4 +101,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

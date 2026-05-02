@@ -6,7 +6,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as gameRoom from '@/lib/gameRoom';
 
-export async function POST(request: NextRequest) {
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
+export const POST = withActivityLog('next_api.game.room.join.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { roomId, playerId, playerName, password } = body;
@@ -31,4 +32,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -4,8 +4,9 @@ import { getOptionalUser } from '@/lib/auth-utils';
 import { SETTLI_USER_HISTORY_COLLECTION } from '../../constants';
 import type { UserHistory } from '@/types/settli';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/settli/history - Get user's settli history
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.settli.history.GET', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -52,4 +53,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

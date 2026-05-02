@@ -4,8 +4,9 @@ import { getCloudFunctionUrl } from '../../constants';
 import { logApiError, logCloudFunctionError } from '../../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/study/categories - Get all categories
-export async function GET() {
+export const GET = withActivityLog('next_api.study.categories.GET', async () => {
   const endpoint = '/api/study/categories';
   try {
     const response = await fetch(getCloudFunctionUrl('getStudyCategories'));
@@ -35,10 +36,10 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/study/categories - Create a new category
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.study.categories.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -97,10 +98,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/study/categories - Update a category
-export async function PUT(request: NextRequest) {
+export const PUT = withActivityLog('next_api.study.categories.PUT', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -138,10 +139,10 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/study/categories - Delete a category
-export async function DELETE(request: NextRequest) {
+export const DELETE = withActivityLog('next_api.study.categories.DELETE', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -179,10 +180,10 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PATCH /api/study/categories - Seed all default categories
-export async function PATCH(request: NextRequest) {
+export const PATCH = withActivityLog('next_api.study.categories.PATCH', async (request: NextRequest) => {
   try {
     const authHeader = request.headers.get('authorization');
 
@@ -217,4 +218,4 @@ export async function PATCH(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

@@ -5,8 +5,9 @@ import { KUIZU_QUESTIONS_COLLECTION } from '../../constants';
 import type { QuestionTemplate, QuizCategory, QuizDifficulty, QuestionType } from '@/types/kuizu';
 import { v4 as uuidv4 } from 'uuid';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/kuizu/questions - Get questions by category/difficulty (optional auth)
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.kuizu.questions.GET', async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const category = searchParams.get('category') as QuizCategory | null;
@@ -65,10 +66,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/kuizu/questions - Create custom question (auth required)
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.kuizu.questions.POST', async (request: NextRequest) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -127,4 +128,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

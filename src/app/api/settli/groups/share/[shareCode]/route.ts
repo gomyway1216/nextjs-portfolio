@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { getOptionalUser } from '@/lib/auth-utils';
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import {
   SETTLI_GROUPS_COLLECTION,
   SETTLI_USER_HISTORY_COLLECTION,
@@ -12,7 +13,7 @@ interface RouteParams {
 }
 
 // GET /api/settli/groups/share/[shareCode] - Get group by share code
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withActivityLog('next_api.settli.groups.share.shareCode.GET', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { shareCode } = await params;
     const user = await getOptionalUser(request);
@@ -92,4 +93,4 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

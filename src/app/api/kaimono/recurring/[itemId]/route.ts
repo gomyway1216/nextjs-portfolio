@@ -4,12 +4,13 @@ import { getOptionalUser } from '@/lib/auth-utils';
 import { KAIMONO_RECURRING_ITEMS_COLLECTION } from '../../../constants';
 import type { UpdateRecurringItemInput } from '@/types/kaimono';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface RouteParams {
   params: Promise<{ itemId: string }>;
 }
 
 // PUT /api/kaimono/recurring/[itemId] - Update recurring item
-export async function PUT(request: NextRequest, { params }: RouteParams) {
+export const PUT = withActivityLog('next_api.kaimono.recurring.itemId.PUT', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -66,10 +67,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/kaimono/recurring/[itemId] - Delete recurring item
-export async function DELETE(request: NextRequest, { params }: RouteParams) {
+export const DELETE = withActivityLog('next_api.kaimono.recurring.itemId.DELETE', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const user = await getOptionalUser(request);
 
@@ -109,4 +110,4 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

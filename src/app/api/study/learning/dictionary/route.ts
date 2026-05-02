@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../constants';
 import { logCloudFunctionError } from '../../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const endpoint = '/api/study/learning/dictionary';
 
 // GET /api/study/learning/dictionary - Get dictionary terms
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.learning.dictionary.GET', async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const authHeader = request.headers.get('authorization');
@@ -47,10 +48,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // POST /api/study/learning/dictionary - Create a new dictionary term
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.study.learning.dictionary.POST', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -87,10 +88,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/study/learning/dictionary - Update a dictionary term
-export async function PUT(request: NextRequest) {
+export const PUT = withActivityLog('next_api.study.learning.dictionary.PUT', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -132,10 +133,10 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE /api/study/learning/dictionary - Delete a dictionary term
-export async function DELETE(request: NextRequest) {
+export const DELETE = withActivityLog('next_api.study.learning.dictionary.DELETE', async (request: NextRequest) => {
   try {
     const authHeader = request.headers.get('authorization');
     const termId = request.nextUrl.searchParams.get('termId');
@@ -175,4 +176,4 @@ export async function DELETE(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

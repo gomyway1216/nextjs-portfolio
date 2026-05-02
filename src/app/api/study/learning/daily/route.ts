@@ -3,10 +3,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../constants';
 import { logCloudFunctionError } from '../../../utils/errorLogger';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const endpoint = '/api/study/learning/daily';
 
 // GET /api/study/learning/daily - Get daily learning plan
-export async function GET(request: NextRequest) {
+export const GET = withActivityLog('next_api.study.learning.daily.GET', async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const authHeader = request.headers.get('authorization');
@@ -47,10 +48,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
 // PUT /api/study/learning/daily - Update daily plan item
-export async function PUT(request: NextRequest) {
+export const PUT = withActivityLog('next_api.study.learning.daily.PUT', async (request: NextRequest) => {
   try {
     const body = await request.json();
     const authHeader = request.headers.get('authorization');
@@ -88,4 +89,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

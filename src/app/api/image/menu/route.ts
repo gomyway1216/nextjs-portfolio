@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getStorage } from '@/lib/firebase-admin';
 import { ensureValidUser } from '@/lib/auth-utils';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * POST /api/images/menu
  * Upload a menu/post image to Firebase Storage
@@ -9,7 +10,7 @@ import { ensureValidUser } from '@/lib/auth-utils';
  * - file: File (the image file)
  * Requires authentication
  */
-export async function POST(request: NextRequest) {
+export const POST = withActivityLog('next_api.image.menu.POST', async (request: NextRequest) => {
   try {
     const { user, response } = await ensureValidUser(request);
     if (!user) {
@@ -58,4 +59,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

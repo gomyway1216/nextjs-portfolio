@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureValidUser } from '@/lib/auth-utils';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * PUT /api/tasks/[taskId]
  * Update task completion
@@ -9,10 +10,8 @@ import { ensureValidUser } from '@/lib/auth-utils';
  * - userId: string (required)
  * Requires authentication
  */
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ taskId: string }> }
-) {
+export const PUT = withActivityLog('next_api.tasks.taskId.PUT', async (request: NextRequest,
+  { params }: { params: Promise<{ taskId: string }> }) => {
   try {
     const { user, response } = await ensureValidUser(request);
     if (!user) {
@@ -55,4 +54,4 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+});

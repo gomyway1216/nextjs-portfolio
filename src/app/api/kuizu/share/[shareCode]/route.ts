@@ -3,12 +3,13 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { KUIZU_CUSTOM_QUIZZES_COLLECTION } from '../../../constants';
 import type { Quiz } from '@/types/kuizu';
 
+import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface RouteParams {
   params: Promise<{ shareCode: string }>;
 }
 
 // GET /api/kuizu/share/[shareCode] - Get custom quiz by share code
-export async function GET(request: NextRequest, { params }: RouteParams) {
+export const GET = withActivityLog('next_api.kuizu.share.shareCode.GET', async (request: NextRequest, { params }: RouteParams) => {
   try {
     const { shareCode } = await params;
     const db = getFirestore();
@@ -54,4 +55,4 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       { status: 500 }
     );
   }
-}
+});

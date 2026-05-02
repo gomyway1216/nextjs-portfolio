@@ -8,6 +8,7 @@ import { FileText, Upload, Clipboard, Pencil, Eye, X, Replace } from 'lucide-rea
 import { cn } from '@/lib/utils/util';
 import { toast } from 'sonner';
 import { useTranslation } from 'react-i18next';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 
 // Fallback translations so keys never show as raw text
 const FALLBACKS: Record<string, Record<string, string>> = {
@@ -46,6 +47,7 @@ const FALLBACKS: Record<string, Record<string, string>> = {
 };
 
 export default function MarkdownPreviewPage() {
+  const lifecycle = useFeatureLifecycle('tool.markdown-preview');
   const { t, i18n } = useTranslation();
   const [markdown, setMarkdown] = useState('');
   const [editMode, setEditMode] = useState(false);

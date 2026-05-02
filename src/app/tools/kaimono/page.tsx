@@ -38,6 +38,7 @@ import { useKaimonoHistory } from '@/hooks/useKaimono';
 import * as kaimonoService from '@/services/kaimonoService';
 import type { ShoppingList } from '@/types/kaimono';
 import { useTranslation } from 'react-i18next';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 
 const LOCAL_STORAGE_KEY = 'kaimono_recent_lists';
 
@@ -48,6 +49,7 @@ interface LocalListEntry {
 }
 
 export default function KaimonoPage() {
+  const lifecycle = useFeatureLifecycle('tool.kaimono');
   const { t } = useTranslation();
   const router = useRouter();
   const { currentUser } = useAuth();

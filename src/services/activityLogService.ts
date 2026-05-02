@@ -83,3 +83,62 @@ export async function getActivityLogs(
 
   return data.logs;
 }
+
+// ---------------------------------------------------------------------------
+// Traffic (admin Overview tab)
+// ---------------------------------------------------------------------------
+
+export type TrafficGranularity = 'day' | 'week' | 'month' | 'year';
+
+export interface TrafficSeriesPoint {
+  bucket: string;
+  count: number;
+}
+
+export interface TrafficSeries {
+  key: string;
+  label: string;
+  total: number;
+  points: TrafficSeriesPoint[];
+}
+
+export interface ActivityLogTraffic {
+  buckets: Array<{ key: string; label: string }>;
+  granularity: TrafficGranularity;
+  total: TrafficSeries;
+  by_result: TrafficSeries[];
+  by_severity: TrafficSeries[];
+  by_source: TrafficSeries[];
+}
+
+export interface TrafficFilters {
+  agent_uid?: string;
+  agent_email?: string;
+  action?: string;
+  category?: ActivityCategory;
+  env?: ActivityEnv;
+  source?: ActivitySource;
+  is_anonymous?: boolean;
+  target_uid?: string;
+  start_date?: string;
+  end_date?: string;
+  granularity?: TrafficGranularity;
+}
+
+export async function getActivityLogTraffic(
+  filters: TrafficFilters = {}
+): Promise<ActivityLogTraffic> {
+  const headers = await getAuthHeaders();
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value === undefined || value === null || value === '') continue;
+    params.set(key, String(value));
+  }
+  const url = `/api/activity-logs/traffic${params.toString() ? `?${params}` : ''}`;
+  const response = await fetch(url, { headers });
+  const data = await response.json();
+  if (!response.ok || !data.success) {
+    throw new Error(data.error || 'Failed to fetch activity log traffic');
+  }
+  return data.traffic;
+}

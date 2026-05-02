@@ -22,8 +22,10 @@ import { KuizuLogo } from '@/components/kuizu/KuizuLogo';
 import { DailyChallengeBanner } from '@/components/kuizu/DailyChallengeBanner';
 import { useKuizuDaily } from '@/hooks/useKuizu';
 import { useTranslation } from 'react-i18next';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 
 export default function KuizuPage() {
+  const lifecycle = useFeatureLifecycle('tool.kuizu');
   const { t } = useTranslation();
   const router = useRouter();
   const { currentUser } = useAuth();

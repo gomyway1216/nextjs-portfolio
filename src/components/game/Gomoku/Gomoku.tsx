@@ -9,6 +9,7 @@ import { RotateCcw } from 'lucide-react';
 import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStatus, GameStats } from '../common';
 import { Player, Position, BOARD_SIZE, PLAYER, AI } from './types';
 import { checkWinFromPosition, isBoardFull, getBestMove } from './GomokuAI';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 
 const DIFFICULTY_OPTIONS = [
   { value: 'easy' as Difficulty, label: 'Easy', description: 'AI searches 2 moves ahead' },
@@ -17,6 +18,7 @@ const DIFFICULTY_OPTIONS = [
 ];
 
 const Gomoku = () => {
+  const lifecycle = useFeatureLifecycle('game.gomoku');
   const [board, setBoard] = useState<Player[][]>(
     Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null))
   );

@@ -36,6 +36,7 @@ import { useSettliHistory } from '@/hooks/useSettli';
 import * as settliService from '@/services/settliService';
 import type { SettliGroup } from '@/types/settli';
 import { useTranslation } from 'react-i18next';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 
 // Local storage key for anonymous users
 const LOCAL_STORAGE_KEY = 'settli_recent_groups';
@@ -47,6 +48,7 @@ interface LocalGroupEntry {
 }
 
 export default function SettliPage() {
+  const lifecycle = useFeatureLifecycle('tool.settli');
   const { t } = useTranslation();
   const router = useRouter();
   const { currentUser } = useAuth();

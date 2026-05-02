@@ -24,6 +24,7 @@ import { initMobilityTables } from './MobilityTable';
 import { useOthelloMultiplayer } from './useOthelloMultiplayer';
 import { OthelloMultiplayerLobby } from './OthelloMultiplayerLobby';
 import { OthelloNetworkState, boardToNetwork, MoveHistoryEntry } from './multiplayerTypes';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 
 const DIFFICULTY_OPTIONS = [
   { label: 'Easy', value: 'easy' as Difficulty, description: 'Depth 2 search' },
@@ -45,6 +46,7 @@ interface OthelloState {
 type GameMode = 'menu' | 'ai' | 'multiplayer';
 
 const Othello = () => {
+  const lifecycle = useFeatureLifecycle('game.othello');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium');
   const [playerColor, setPlayerColor] = useState<Color>(BLACK);

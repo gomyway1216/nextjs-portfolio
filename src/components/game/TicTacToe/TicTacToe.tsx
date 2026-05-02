@@ -9,6 +9,7 @@ import { RotateCcw } from 'lucide-react';
 import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStatus, GameStats } from '../common';
 import { Player, PLAYER, AI } from './types';
 import { checkWinner, isBoardFull, getBestMove } from './TicTacToeAI';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 
 const DIFFICULTY_OPTIONS = [
   { value: 'easy' as Difficulty, label: 'Easy', description: 'AI makes random moves' },
@@ -17,6 +18,7 @@ const DIFFICULTY_OPTIONS = [
 ];
 
 const TicTacToe = () => {
+  const lifecycle = useFeatureLifecycle('game.tic-tac-toe');
   const [board, setBoard] = useState<Player[]>(Array(9).fill(null));
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [gameStatus, setGameStatus] = useState<GameStatus>('playing');

@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect, type DragEvent } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import {
   extractTasksFromImage,
   extractTasksFromText,
@@ -99,6 +100,7 @@ function dueDateColor(dateStr?: string | null): string {
 // ---------------------------------------------------------------------------
 
 export default function TodoPage() {
+  const lifecycle = useFeatureLifecycle('tool.todo');
   const { currentUser } = useAuth();
 
   // View mode

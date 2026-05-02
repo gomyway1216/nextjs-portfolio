@@ -15,6 +15,7 @@ import { KyokumenImproved } from './KyokumenImproved';
 	import { InitialPositionImproved } from './InitialPositionImproved';
 	import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
 	import type { SerializedKyokumenImproved, SerializedTeImproved, ShogiAiWorkerClient } from './shogiAiWorkerClient';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 
 const DIFFICULTY_OPTIONS = [
   { label: 'Level 1 (Easy)', value: 'easy' as Difficulty, description: 'Fast (~250ms), depth ≤4' },
@@ -55,6 +56,7 @@ interface GameState {
 }
 
 const ShogiImproved = () => {
+  const lifecycle = useFeatureLifecycle('game.shogi-improved');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [showDifficultySelect, setShowDifficultySelect] = useState<boolean>(true);
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);

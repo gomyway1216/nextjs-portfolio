@@ -8,6 +8,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Pause, Play, RotateCcw, Trophy } from 'lucide-react';
 import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStats } from '../common';
 import { useHighScore } from '@/hooks/useHighScore';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import {
   Board,
   Tetromino,
@@ -36,6 +37,7 @@ const DIFFICULTY_OPTIONS = [
 ];
 
 const Tetris = () => {
+  const lifecycle = useFeatureLifecycle('game.tetris');
   const [board, setBoard] = useState<Board>(createEmptyBoard());
   const [currentPiece, setCurrentPiece] = useState<Tetromino | null>(null);
   const [nextPiece, setNextPiece] = useState<Tetromino | null>(null);

@@ -2,17 +2,22 @@
 
 import { CSSProperties, Fragment, useCallback, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Check, ChevronDown, ChevronUp, Copy, Loader2, RefreshCw, Search } from 'lucide-react';
+import { BarChart3, Check, ChevronDown, ChevronUp, Copy, List, Loader2, RefreshCw, Search } from 'lucide-react';
 import {
   getActivityLogs,
+  getActivityLogTraffic,
   type ActivityCategory,
   type ActivityEnv,
   type ActivityLogEntry,
   type ActivityLogFilters,
+  type ActivityLogTraffic,
   type ActivityResult,
   type ActivitySeverity,
   type ActivitySource,
 } from '@/services/activityLogService';
+import TrafficLineChart from './TrafficLineChart';
+
+type TabKey = 'logs' | 'overview';
 
 const styles: Record<string, CSSProperties> = {
   card: {
@@ -178,10 +183,15 @@ export default function ActivityLogPanel() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const [activeTab, setActiveTab] = useState<TabKey>(() => (searchParams?.get('tab') as TabKey | null) ?? 'logs');
   const [logs, setLogs] = useState<ActivityLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+
+  const [traffic, setTraffic] = useState<ActivityLogTraffic | null>(null);
+  const [trafficLoading, setTrafficLoading] = useState(false);
+  const [trafficError, setTrafficError] = useState('');
 
   // Filters — initialized from URL query string for shareable deep-links
   const [requestIdFilter, setRequestIdFilter] = useState(() => searchParams?.get('request_id') ?? '');
@@ -251,8 +261,44 @@ export default function ActivityLogPanel() {
   ]);
 
   useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
+    if (activeTab === 'logs') fetchLogs();
+  }, [activeTab, fetchLogs]);
+
+  const fetchTraffic = useCallback(async () => {
+    setTrafficLoading(true);
+    setTrafficError('');
+    try {
+      const data = await getActivityLogTraffic({
+        env: envFilter || undefined,
+        source: sourceFilter || undefined,
+        action: actionFilter || undefined,
+        agent_uid: agentUidFilter || undefined,
+        is_anonymous: anonFilter ? anonFilter === 'true' : undefined,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
+      });
+      setTraffic(data);
+    } catch (err) {
+      setTrafficError(err instanceof Error ? err.message : 'Failed to fetch traffic');
+    } finally {
+      setTrafficLoading(false);
+    }
+  }, [envFilter, sourceFilter, actionFilter, agentUidFilter, anonFilter, startDate, endDate]);
+
+  useEffect(() => {
+    if (activeTab === 'overview') fetchTraffic();
+  }, [activeTab, fetchTraffic]);
+
+  const switchTab = (tab: TabKey) => {
+    setActiveTab(tab);
+    if (typeof window !== 'undefined') {
+      const usp = new URLSearchParams(window.location.search);
+      if (tab === 'logs') usp.delete('tab');
+      else usp.set('tab', tab);
+      const search = usp.toString();
+      router.replace(`${window.location.pathname}${search ? `?${search}` : ''}${window.location.hash}`, { scroll: false });
+    }
+  };
 
   const totalCount = logs.length;
   const successCount = logs.filter((l) => l.result === 'success').length;
@@ -264,9 +310,54 @@ export default function ActivityLogPanel() {
       <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#ffffff', marginBottom: '8px' }}>
         Activity Log
       </h1>
-      <p style={{ color: '#94a3b8', marginBottom: '32px' }}>
+      <p style={{ color: '#94a3b8', marginBottom: '20px' }}>
         Unified view of every Cloud Function call, Next.js API request, and client event. Errors are inline (filter by result=error).
       </p>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+        {([
+          { key: 'logs' as TabKey, label: 'Logs', icon: List },
+          { key: 'overview' as TabKey, label: 'Overview', icon: BarChart3 },
+        ]).map(({ key, label, icon: Icon }) => {
+          const isActive = activeTab === key;
+          return (
+            <button
+              key={key}
+              onClick={() => switchTab(key)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '10px 18px',
+                background: 'none',
+                border: 'none',
+                borderBottom: isActive ? '2px solid #7c3aed' : '2px solid transparent',
+                color: isActive ? '#ffffff' : '#94a3b8',
+                fontSize: '14px',
+                fontWeight: isActive ? 600 : 500,
+                cursor: 'pointer',
+                marginBottom: '-1px',
+              }}
+            >
+              <Icon size={16} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === 'overview' ? (
+        <OverviewView
+          traffic={traffic}
+          loading={trafficLoading}
+          error={trafficError}
+          onRefresh={fetchTraffic}
+        />
+      ) : null}
+
+      {activeTab === 'logs' ? (
+        <>
 
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
@@ -511,6 +602,110 @@ export default function ActivityLogPanel() {
             </table>
           </div>
         )}
+      </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Overview tab
+// ---------------------------------------------------------------------------
+
+function OverviewView({
+  traffic,
+  loading,
+  error,
+  onRefresh,
+}: {
+  traffic: ActivityLogTraffic | null;
+  loading: boolean;
+  error: string;
+  onRefresh: () => void;
+}) {
+  const cardStyle: CSSProperties = {
+    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+    borderRadius: '16px',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '20px 24px',
+    marginBottom: '20px',
+  };
+
+  const sectionTitle: CSSProperties = {
+    color: '#ffffff',
+    fontSize: '14px',
+    fontWeight: 600,
+    margin: 0,
+  };
+  const sectionSub: CSSProperties = {
+    color: '#94a3b8',
+    fontSize: '12px',
+    marginTop: '2px',
+    marginBottom: '12px',
+  };
+
+  if (loading && !traffic) {
+    return (
+      <div style={{ ...cardStyle, textAlign: 'center', padding: '48px', color: '#94a3b8' }}>
+        <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto 12px' }} />
+        <p>Loading traffic…</p>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div style={{ ...cardStyle, borderColor: 'rgba(239,68,68,0.3)', color: '#ef4444' }}>{error}</div>
+    );
+  }
+  if (!traffic) return null;
+
+  const { buckets, granularity, total, by_result, by_severity, by_source } = traffic;
+  const totalCount = total.total;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+        <div style={{ color: '#94a3b8', fontSize: '13px' }}>
+          {buckets.length} buckets · granularity={granularity} · total={totalCount}
+        </div>
+        <button
+          onClick={onRefresh}
+          disabled={loading}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '6px 12px', borderRadius: '8px', border: 'none',
+            background: '#7c3aed', color: '#fff', fontSize: '13px',
+            fontWeight: 500, cursor: 'pointer', opacity: loading ? 0.7 : 1,
+          }}
+        >
+          {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+          Refresh
+        </button>
+      </div>
+
+      <div style={cardStyle}>
+        <p style={sectionTitle}>All Traffic</p>
+        <p style={sectionSub}>Total requests across every source.</p>
+        <TrafficLineChart buckets={buckets} granularity={granularity} series={[total]} />
+      </div>
+
+      <div style={cardStyle}>
+        <p style={sectionTitle}>By Result</p>
+        <p style={sectionSub}>Success vs error over time.</p>
+        <TrafficLineChart buckets={buckets} granularity={granularity} series={by_result} />
+      </div>
+
+      <div style={cardStyle}>
+        <p style={sectionTitle}>By Severity</p>
+        <p style={sectionSub}>Error severity breakdown — flat lines = no errors.</p>
+        <TrafficLineChart buckets={buckets} granularity={granularity} series={by_severity} />
+      </div>
+
+      <div style={cardStyle}>
+        <p style={sectionTitle}>By Source</p>
+        <p style={sectionSub}>Cloud Function vs Next.js API vs client events.</p>
+        <TrafficLineChart buckets={buckets} granularity={granularity} series={by_source} />
       </div>
     </div>
   );

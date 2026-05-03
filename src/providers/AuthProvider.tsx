@@ -195,6 +195,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // render even if anonymous sign-in fails (e.g. provider disabled),
   // so loading is always finalized inside this listener.
   useEffect(() => {
+    let didFinishLoading = false;
+    const finishLoading = () => {
+      if (!didFinishLoading) {
+        didFinishLoading = true;
+        setLoading(false);
+      }
+    };
+
     const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
       if (!user) {
         setCurrentUser(null);
@@ -204,7 +212,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         // the new user — but if it fails (e.g. Anonymous Auth disabled),
         // we still need to render the app. Don't await loading on this.
         void ensureSignedIn();
-        setLoading(false);
+        finishLoading();
         return;
       }
 
@@ -219,10 +227,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         await syncSessionCookie(user);
       }
 
-      setLoading(false);
+      finishLoading();
     });
 
-    return unsubscribe;
+    // Hotfix: Firebase Auth's IndexedDB persistence can hang indefinitely
+    // when concurrent signInAnonymously calls (from PageViewLogger and
+    // useFeatureLifecycle, both of which fire on mount) race with
+    // onAuthStateChanged's initial state load. When that happens the
+    // callback above never fires and the entire app stays gated on
+    // `loading=true`, rendering as a blank page. Unblock after 2s; the
+    // listener still runs later if Firebase eventually recovers.
+    const fallbackTimer = setTimeout(finishLoading, 2000);
+
+    return () => {
+      clearTimeout(fallbackTimer);
+      unsubscribe();
+    };
   }, [checkAdminStatus, refreshMFAStatus, syncSessionCookie]);
 
   const value: AuthContextType = {

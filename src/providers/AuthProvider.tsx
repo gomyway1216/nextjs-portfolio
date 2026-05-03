@@ -194,34 +194,20 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // client-side activity logging and Firestore rules). The app must
   // render even if anonymous sign-in fails (e.g. provider disabled),
   // so loading is always finalized inside this listener.
-  //
-  // Race-condition guard: only auto-anon-sign-in BEFORE the first user
-  // has been observed. Once we've seen any user (anon or real), a
-  // subsequent null state means the user explicitly signed out OR is
-  // mid-flight to a different account (e.g. clicked "Sign in" — Firebase
-  // briefly clears auth state before swapping to the real user). Auto-
-  // anon-signing in either case races with and clobbers the intended
-  // sign-in / sign-up flow.
-  const hasObservedUserRef = useRef(false);
-
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
       if (!user) {
         setCurrentUser(null);
         setIsAdmin(false);
         await syncSessionCookie(null);
-        if (!hasObservedUserRef.current) {
-          // First fire and no persisted user — fresh visitor. Auto-anon.
-          void ensureSignedIn();
-        }
-        // Otherwise: explicit sign-out (or transient null between sessions).
-        // Leave the auth state at null; the next sign-in attempt or the
-        // user's manual visit will set a real user.
+        // Trigger anon sign-in. onAuthStateChanged will fire again with
+        // the new user — but if it fails (e.g. Anonymous Auth disabled),
+        // we still need to render the app. Don't await loading on this.
+        void ensureSignedIn();
         setLoading(false);
         return;
       }
 
-      hasObservedUserRef.current = true;
       setCurrentUser(user);
 
       if (user.isAnonymous) {

@@ -8,6 +8,7 @@ import { getCloudFunctionUrl } from '../constants';
 const FORWARDED_FILTERS = [
   'agent_uid',
   'agent_email',
+  'session_id',
   'action',
   'result',
   'category',

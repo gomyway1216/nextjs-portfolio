@@ -189,25 +189,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Auth state listener. Visitors who haven't signed in stay null —
   // their activity is tracked via the localStorage session_id (see
-  // src/lib/sessionId.ts), NOT via Firebase Anonymous Auth. Anon Firebase
-  // Auth was tried earlier and (a) consistently raced with the manual
-  // sign-in/up flow on full-page navigation, (b) deadlocked Firebase's
-  // IndexedDB persistence layer when concurrent signInAnonymously calls
-  // from logging code raced with onAuthStateChanged's initial load,
-  // making the whole app render blank. Session_id sidesteps both.
+  // src/lib/sessionId.ts), NOT via Firebase Anonymous Auth.
   //
-  // The 2s setTimeout fallback that previously gated the loading flag
-  // (added as a hotfix when anon-auth was deadlocking) is no longer
-  // needed: with no concurrent signInAnonymously calls there is nothing
-  // to deadlock with, so onAuthStateChanged's initial callback fires
-  // promptly with `null` for fresh visitors.
+  // Defensive timeout: Firebase Auth's IndexedDB persistence has been
+  // observed to hang during initial load on production (firebaseLocalStorageDb
+  // open() never fires onsuccess/onerror/onblocked). When that happens,
+  // onAuthStateChanged's initial callback never fires and the entire app
+  // stays gated on `loading=true`. Force-finalize loading after 2s so the
+  // UI renders as signed-out; the listener still fires later if Firebase
+  // recovers and updates state normally.
   useEffect(() => {
+    let didFinishLoading = false;
+    const finishLoading = () => {
+      if (!didFinishLoading) {
+        didFinishLoading = true;
+        setLoading(false);
+      }
+    };
+
     const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
       if (!user) {
         setCurrentUser(null);
         setIsAdmin(false);
         await syncSessionCookie(null);
-        setLoading(false);
+        finishLoading();
         return;
       }
 
@@ -222,10 +227,15 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         await syncSessionCookie(user);
       }
 
-      setLoading(false);
+      finishLoading();
     });
 
-    return unsubscribe;
+    const fallbackTimer = setTimeout(finishLoading, 2000);
+
+    return () => {
+      clearTimeout(fallbackTimer);
+      unsubscribe();
+    };
   }, [checkAdminStatus, refreshMFAStatus, syncSessionCookie]);
 
   const value: AuthContextType = {

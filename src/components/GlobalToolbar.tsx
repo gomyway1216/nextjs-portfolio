@@ -16,7 +16,14 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 
+// Exact-match paths that hide the GlobalToolbar.
 const HIDDEN_PATHS = ['/', '/signin'];
+
+// Path prefixes that hide the GlobalToolbar — useful for sections that
+// render their own chrome (e.g. /admin has its own sidebar with a built-in
+// "← meetyudai.com" link, so a second top toolbar is redundant + visually
+// collides with the fixed sidebar).
+const HIDDEN_PREFIXES = ['/admin'];
 
 interface ThemeConfig {
   bg: string;
@@ -126,6 +133,7 @@ export function GlobalToolbar() {
   const hasGameContent = isGameSubPage && gameContent && (gameContent.left || gameContent.center || gameContent.right);
 
   if (HIDDEN_PATHS.includes(pathname)) return null;
+  if (HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return null;
 
   const toggleLang = () => {
     i18n.changeLanguage(currentLang === 'en' ? 'ja' : 'en');

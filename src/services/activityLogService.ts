@@ -16,7 +16,6 @@ export interface ActivityLogEntry {
   agent_email?: string;
   agent_name?: string;
   is_anonymous: boolean;
-  session_id?: string;
 
   action: string;
   category: ActivityCategory;
@@ -41,7 +40,6 @@ export interface ActivityLogEntry {
 export interface ActivityLogFilters {
   agent_uid?: string;
   agent_email?: string;
-  session_id?: string;
   action?: string;
   result?: ActivityResult;
   category?: ActivityCategory;

@@ -197,7 +197,6 @@ export default function ActivityLogPanel() {
   const [requestIdFilter, setRequestIdFilter] = useState(() => searchParams?.get('request_id') ?? '');
   const [actionFilter, setActionFilter] = useState(() => searchParams?.get('action') ?? '');
   const [agentUidFilter, setAgentUidFilter] = useState(() => searchParams?.get('agent_uid') ?? '');
-  const [sessionIdFilter, setSessionIdFilter] = useState(() => searchParams?.get('session_id') ?? '');
   const [resultFilter, setResultFilter] = useState<'' | ActivityResult>(() => (searchParams?.get('result') as ActivityResult | null) ?? '');
   const [severityFilter, setSeverityFilter] = useState<'' | ActivitySeverity>(() => (searchParams?.get('severity') as ActivitySeverity | null) ?? '');
   const [categoryFilter, setCategoryFilter] = useState<'' | ActivityCategory>(() => (searchParams?.get('category') as ActivityCategory | null) ?? '');
@@ -236,7 +235,6 @@ export default function ActivityLogPanel() {
       if (requestIdFilter) filters.request_id = requestIdFilter;
       if (actionFilter) filters.action = actionFilter;
       if (agentUidFilter) filters.agent_uid = agentUidFilter;
-      if (sessionIdFilter) filters.session_id = sessionIdFilter;
       if (resultFilter) filters.result = resultFilter;
       if (severityFilter) filters.severity = severityFilter;
       if (categoryFilter) filters.category = categoryFilter;
@@ -257,7 +255,7 @@ export default function ActivityLogPanel() {
       setLoading(false);
     }
   }, [
-    requestIdFilter, actionFilter, agentUidFilter, sessionIdFilter, resultFilter, severityFilter,
+    requestIdFilter, actionFilter, agentUidFilter, resultFilter, severityFilter,
     categoryFilter, sourceFilter, envFilter, anonFilter, startDate, endDate, limit,
     syncUrlParams,
   ]);
@@ -404,11 +402,6 @@ export default function ActivityLogPanel() {
             <div>
               <label style={{ ...styles.label, marginBottom: '4px' }}>Agent UID</label>
               <input type="text" placeholder="firebase uid" value={agentUidFilter} onChange={(e) => setAgentUidFilter(e.target.value)} style={{ ...styles.input, fontFamily: 'monospace' }} />
-            </div>
-
-            <div>
-              <label style={{ ...styles.label, marginBottom: '4px' }}>Session ID</label>
-              <input type="text" placeholder="browser session uuid" value={sessionIdFilter} onChange={(e) => setSessionIdFilter(e.target.value)} style={{ ...styles.input, fontFamily: 'monospace' }} />
             </div>
 
             <div>
@@ -564,10 +557,6 @@ export default function ActivityLogPanel() {
                                 <div>
                                   <p style={styles.label}>Agent UID</p>
                                   <p style={{ color: '#e2e8f0', fontSize: '13px', fontFamily: 'monospace' }}>{log.agent_uid}</p>
-                                </div>
-                                <div>
-                                  <p style={styles.label}>Session ID</p>
-                                  <p style={{ color: '#e2e8f0', fontSize: '13px', fontFamily: 'monospace', wordBreak: 'break-all' }}>{log.session_id || 'N/A'}</p>
                                 </div>
                                 <div>
                                   <p style={styles.label}>Env / Build</p>

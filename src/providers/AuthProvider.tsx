@@ -89,9 +89,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     try {
       const tokenResult = await user.getIdTokenResult();
-      const hasAdminClaim = tokenResult.claims.admin === true;
-      console.log('Admin claim check:', { email: user.email, admin: tokenResult.claims.admin, hasAdminClaim });
-      setIsAdmin(hasAdminClaim);
+      setIsAdmin(tokenResult.claims.admin === true);
     } catch (error) {
       console.error('Error checking admin status:', error);
       setIsAdmin(false);

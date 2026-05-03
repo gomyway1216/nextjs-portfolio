@@ -1,7 +1,11 @@
 import { initializeApp, getApps } from 'firebase/app';
 import {
+  browserLocalPersistence,
+  browserSessionPersistence,
   createUserWithEmailAndPassword,
   getAuth,
+  inMemoryPersistence,
+  initializeAuth,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInAnonymously,
@@ -20,7 +24,37 @@ const firebaseConfig = {
 };
 
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-export const auth = getAuth(app);
+
+// Use initializeAuth with a persistence fallback array so Firebase tries
+// IndexedDB-backed `browserLocalPersistence` first, then falls back to
+// `browserSessionPersistence` (sessionStorage) and finally `inMemoryPersistence`.
+//
+// Why this matters: production was throwing `auth/network-request-failed`
+// before any network call was even attempted. Diagnosis showed
+// `firebaseLocalStorageDb.open()` hangs indefinitely (never fires
+// onsuccess/onerror/onblocked) for some browsers. With plain `getAuth()`,
+// Firebase only tries IndexedDB and surfaces the storage failure as a
+// network error, blocking sign-in entirely. The fallback chain lets sign-in
+// succeed even when IndexedDB is broken — the only tradeoff is that a
+// session-storage / in-memory user state is lost on tab close, which is an
+// acceptable degradation versus "can't sign in at all".
+//
+// Server-side (no `window`) `initializeAuth` would throw — fall back to
+// `getAuth()` there. Already-initialized apps (e.g. on hot reload) reuse
+// the existing auth instance via getAuth().
+function createAuth() {
+  if (typeof window === 'undefined') return getAuth(app);
+  try {
+    return initializeAuth(app, {
+      persistence: [browserLocalPersistence, browserSessionPersistence, inMemoryPersistence],
+    });
+  } catch {
+    // initializeAuth throws if called twice on the same app — reuse existing.
+    return getAuth(app);
+  }
+}
+
+export const auth = createAuth();
 
 export const signInWithEmail = (email: string, password: string) => {
   return signInWithEmailAndPassword(auth, email, password);

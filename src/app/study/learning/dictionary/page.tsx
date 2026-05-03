@@ -69,7 +69,7 @@ export default function DictionaryPage() {
     }
   };
 
-  if (!currentUser) {
+  if (!currentUser || currentUser.isAnonymous) {
     return (
       <div style={{ minHeight: '100vh', padding: '48px 16px', textAlign: 'center' }}>
         <p>Please sign in to access your dictionary.</p>

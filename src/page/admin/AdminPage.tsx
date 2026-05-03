@@ -32,6 +32,7 @@ import {
   Image as ImageIcon,
   Shield,
   ScrollText,
+  ArrowLeft,
 } from 'lucide-react';
 import Link from 'next/link';
 import StudyAdminPanel from '@/components/study/StudyAdminPanel';
@@ -849,6 +850,21 @@ const AdminPage = () => {
         {/* Sidebar */}
         <aside style={styles.sidebar}>
           <div style={styles.sidebarHeader}>
+            <Link
+              href="/"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '13px',
+                color: '#94a3b8',
+                textDecoration: 'none',
+                marginBottom: '12px',
+              }}
+            >
+              <ArrowLeft size={14} />
+              meetyudai.com
+            </Link>
             <h2 style={styles.sidebarTitle}>Admin Panel</h2>
             <p style={styles.sidebarEmail}>{currentUser?.email}</p>
           </div>

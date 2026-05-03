@@ -198,31 +198,26 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   // sign-in transitions cleanly.
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
-      // Render the app as soon as we know the user — never block on the
-      // session-cookie or admin-claim async work. A previous version
-      // awaited syncSessionCookie before flipping `loading=false`; if the
-      // /api/auth/session endpoint hung or 500'd, the AuthProvider stayed
-      // in loading forever and the children (including SignInPage) never
-      // rendered → blank page.
       if (!user) {
         setCurrentUser(null);
         setIsAdmin(false);
+        await syncSessionCookie(null);
         setLoading(false);
-        void syncSessionCookie(null);
         return;
       }
 
       setCurrentUser(user);
-      setLoading(false);
 
       if (user.isAnonymous) {
+        // Anonymous users never have admin or MFA — skip the extra calls.
         setIsAdmin(false);
       } else {
-        // Background — don't block render.
-        void checkAdminStatus(user);
+        await checkAdminStatus(user);
         refreshMFAStatus();
-        void syncSessionCookie(user);
+        await syncSessionCookie(user);
       }
+
+      setLoading(false);
     });
 
     return unsubscribe;

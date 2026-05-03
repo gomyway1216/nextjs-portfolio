@@ -77,7 +77,6 @@ const styles: Record<string, CSSProperties> = {
     position: 'fixed' as const,
     left: 0,
     top: 0,
-    paddingTop: '80px',
   },
   sidebarHeader: {
     padding: '24px',
@@ -126,7 +125,6 @@ const styles: Record<string, CSSProperties> = {
     marginLeft: '280px',
     flex: 1,
     padding: '32px',
-    paddingTop: '96px',
   },
   pageTitle: {
     fontSize: '36px',

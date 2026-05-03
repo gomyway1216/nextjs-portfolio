@@ -158,13 +158,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     try {
       const result = await twoFactorService.completeMfaSignIn(mfaResolverRef.current, code);
 
-      // Sync the session cookie *before* returning so the caller can navigate
-      // to a middleware-protected route immediately. Without this, callers
-      // (SignInPage) race with the async onAuthStateChanged listener: the
-      // explicit router.push fires while the listener (which sets the cookie
-      // via syncSessionCookie) hasn't run yet, middleware sees no cookie,
-      // and the user gets bounced back to /signin.
-      await syncSessionCookie(result.user);
+      // Set the session cookie inline (not via syncSessionCookie which silently
+      // swallows fetch errors). The middleware relies on this cookie being
+      // present when the caller navigates to /admin immediately after, so a
+      // silent failure here would manifest as "MFA succeeds but user keeps
+      // bouncing back to /signin" — which is exactly the symptom we hit
+      // previously. Force-refresh the ID token so the backend's
+      // createSessionCookie sees a fresh auth time.
+      const idToken = await result.user.getIdToken(true);
+      const sessionRes = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken }),
+      });
+      if (!sessionRes.ok) {
+        throw new Error(`Failed to set session cookie (status ${sessionRes.status})`);
+      }
 
       // Eagerly update React state so SignInPage's redirect useEffect (which
       // watches currentUser) fires now rather than waiting for the listener,
@@ -185,7 +194,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
       throw error;
     }
-  }, [syncSessionCookie, checkAdminStatus, refreshMFAStatus]);
+  }, [checkAdminStatus, refreshMFAStatus]);
 
   // Cancel MFA verification
   const cancelTwoFactor = useCallback(() => {

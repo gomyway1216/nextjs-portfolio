@@ -55,7 +55,7 @@ const AchievementManagementPage = () => {
     }
   };
 
-  if (!currentUser) {
+  if (!currentUser || currentUser.isAnonymous) {
     return <div>Please sign in to manage your achievements.</div>;
   }
 

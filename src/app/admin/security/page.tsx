@@ -27,7 +27,7 @@ import Link from 'next/link';
 
 export default function SecuritySettingsPage() {
   const router = useRouter();
-  const { currentUser, isAdmin, isEnrolledInMFA, refreshMFAStatus } = useAuth();
+  const { currentUser, isEnrolledInMFA, refreshMFAStatus } = useAuth();
 
   // Enrollment state
   const [enrollmentStep, setEnrollmentStep] = useState<'idle' | 'phone' | 'verify'>('idle');
@@ -44,17 +44,15 @@ export default function SecuritySettingsPage() {
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
-  // Redirect if not logged in or not admin
+  // Per-user 2FA settings — accessible to any signed-in real user.
+  // Anonymous users (auto-anon-signed via AuthProvider) and unauthenticated
+  // visitors are redirected to /signin to upgrade to a real account first.
   useEffect(() => {
-    if (!currentUser) {
+    if (!currentUser || currentUser.isAnonymous) {
       router.push('/signin');
       return;
     }
-    if (!isAdmin) {
-      router.push('/');
-      return;
-    }
-  }, [currentUser, isAdmin, router]);
+  }, [currentUser, router]);
 
   // Initialize reCAPTCHA when entering phone step
   useEffect(() => {
@@ -227,7 +225,7 @@ export default function SecuritySettingsPage() {
     }
   };
 
-  if (!currentUser || !isAdmin) {
+  if (!currentUser || currentUser.isAnonymous) {
     return null;
   }
 

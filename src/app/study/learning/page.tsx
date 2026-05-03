@@ -96,7 +96,7 @@ export default function LearningHubPage() {
     return matchesSearch && matchesSource;
   });
 
-  if (!currentUser) {
+  if (!currentUser || currentUser.isAnonymous) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', padding: '48px 16px' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>

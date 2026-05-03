@@ -59,7 +59,11 @@ const SignInPage = () => {
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
 
   useEffect(() => {
-    if (currentUser) {
+    // Anonymous users are NOT considered "signed in" for the purpose of this
+    // gate — they need to upgrade to a real account, which is exactly what
+    // this page is for. Without this check, every visitor (auto-anon-signed
+    // by AuthProvider) would be bounced before they could enter credentials.
+    if (currentUser && !currentUser.isAnonymous) {
       router.push(redirectPath);
     }
   }, [currentUser, router, redirectPath]);

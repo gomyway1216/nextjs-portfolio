@@ -10,7 +10,6 @@ import { GlobalToolbar } from "@/components/GlobalToolbar";
 import { GameToolbarProvider } from "@/contexts/GameToolbarContext";
 import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
 import PageViewLogger from "@/components/PageViewLogger";
-import PrivacyFooter from "@/components/PrivacyFooter";
 import "../assets/scss/main.scss";
 import "aos/dist/aos.css";
 import "./globals.css";
@@ -69,7 +68,6 @@ export default function RootLayout({
             </PostsProvider>
           </AuthProvider>
         </I18nProvider>
-        <PrivacyFooter />
         <div id="modal-root"></div>
       </body>
     </html>

@@ -156,7 +156,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
 
     try {
-      await twoFactorService.completeMfaSignIn(mfaResolverRef.current, code);
+      const result = await twoFactorService.completeMfaSignIn(mfaResolverRef.current, code);
+
+      // Sync the session cookie *before* returning so the caller can navigate
+      // to a middleware-protected route immediately. Without this, callers
+      // (SignInPage) race with the async onAuthStateChanged listener: the
+      // explicit router.push fires while the listener (which sets the cookie
+      // via syncSessionCookie) hasn't run yet, middleware sees no cookie,
+      // and the user gets bounced back to /signin.
+      await syncSessionCookie(result.user);
+
+      // Eagerly update React state so SignInPage's redirect useEffect (which
+      // watches currentUser) fires now rather than waiting for the listener,
+      // and so admin gating works on the first render.
+      setCurrentUser(result.user);
+      if (!result.user.isAnonymous) {
+        await checkAdminStatus(result.user);
+        refreshMFAStatus();
+      }
 
       // Clear pending state
       mfaResolverRef.current = null;
@@ -168,7 +185,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
       throw error;
     }
-  }, []);
+  }, [syncSessionCookie, checkAdminStatus, refreshMFAStatus]);
 
   // Cancel MFA verification
   const cancelTwoFactor = useCallback(() => {

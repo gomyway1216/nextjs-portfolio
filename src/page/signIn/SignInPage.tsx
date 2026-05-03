@@ -188,7 +188,9 @@ const SignInPage = () => {
     setVerifying(true);
     try {
       await verifyTwoFactorAndComplete(twoFactorCode);
-      router.push(redirectPath);
+      // Redirect handled by the currentUser useEffect — verifyTwoFactorAndComplete
+      // eagerly updates currentUser + syncs the session cookie before returning,
+      // so the redirect fires without racing the middleware.
     } catch (e: any) {
       setError(e.message);
       setVerifying(false);

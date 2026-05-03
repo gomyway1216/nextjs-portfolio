@@ -9,8 +9,9 @@
  * so client events get the same kind of trace ID as Cloud Function calls.
  */
 
-import { auth, ensureSignedIn } from '@/lib/firebaseConnect';
+import { auth } from '@/lib/firebaseConnect';
 import { APP_BUILD_SHA, APP_VERSION } from '@/lib/buildInfo';
+import { getSessionId } from '@/lib/sessionId';
 
 export type ActivityResult = 'success' | 'error';
 export type ActivitySeverity = 'warning' | 'error' | 'critical';
@@ -35,7 +36,9 @@ function generateRequestId(): string {
 }
 
 async function getAuthHeader(): Promise<Record<string, string>> {
-  await ensureSignedIn();
+  // Auth header is OPTIONAL now — backend logClientActivity accepts
+  // unauthenticated requests, attributing them to session_id only. We
+  // include it when available so signed-in events get the proper agent_uid.
   const user = auth.currentUser;
   if (!user) return {};
   try {
@@ -64,6 +67,7 @@ export function logActivity(entry: ClientActivityEntry): void {
       const body = JSON.stringify({
         action: entry.action,
         source: 'client',
+        session_id: getSessionId() ?? undefined,
         result: entry.result ?? 'success',
         severity: entry.severity,
         params: entry.params,

@@ -2,7 +2,7 @@
 
 import React, { createContext, useEffect, useContext, useState, ReactNode, useCallback, useRef } from 'react';
 import { MultiFactorResolver, RecaptchaVerifier, User } from 'firebase/auth';
-import { auth, ensureSignedIn, signInWithEmail, signUpWithEmail, signOutUser }
+import { auth, signInWithEmail, signUpWithEmail, signOutUser }
   from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
 
@@ -189,66 +189,38 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     setMfaPhoneHint(null);
   }, []);
 
-  // Listen to auth state changes. If no user is signed in, fall back to
-  // Firebase Anonymous Auth so every visitor has a stable uid (used by
-  // client-side activity logging and Firestore rules). The app must
-  // render even if anonymous sign-in fails (e.g. provider disabled),
-  // so loading is always finalized inside this listener.
-  //
-  // Race-condition guard: wait for `auth.authStateReady()` before deciding
-  // whether to auto-anon. Without this, the first onAuthStateChanged call
-  // can fire with `null` *before* Firebase finishes restoring the persisted
-  // user from IndexedDB, triggering ensureSignedIn() which races with the
-  // (about-to-resolve) persisted user. The anon sign-in often wins, replaces
-  // the real persisted user, and the visitor ends up signed out.
-  //
-  // Also: don't auto-anon after the listener has fired at least once with
-  // a user (sign-out should leave the user signed out, not bounce to anon).
+  // Auth state listener. Visitors who haven't signed in stay null —
+  // their activity is tracked via the localStorage session_id (see
+  // src/lib/sessionId.ts), NOT via Firebase Anonymous Auth. Anon Firebase
+  // Auth was tried earlier and consistently raced with the manual
+  // sign-in/up flow on full-page navigation (clobbered the persisted
+  // real user with a fresh anon). Session_id is simpler and survives
+  // sign-in transitions cleanly.
   useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-    let cancelled = false;
-
-    auth.authStateReady().then(() => {
-      if (cancelled) return;
-
-      // Persistence is loaded. If there's no user yet, this is a fresh
-      // visitor — kick off anon. Otherwise the listener will pick up the
-      // persisted user immediately.
-      if (!auth.currentUser) {
-        void ensureSignedIn();
+    const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
+      if (!user) {
+        setCurrentUser(null);
+        setIsAdmin(false);
+        await syncSessionCookie(null);
+        setLoading(false);
+        return;
       }
 
-      unsubscribe = auth.onAuthStateChanged(async (user: any) => {
-        if (!user) {
-          // Explicit sign-out (or anon sign-in failure). Don't auto-anon —
-          // that would prevent the user from reaching /signin to sign back
-          // in as a different account.
-          setCurrentUser(null);
-          setIsAdmin(false);
-          await syncSessionCookie(null);
-          setLoading(false);
-          return;
-        }
+      setCurrentUser(user);
 
-        setCurrentUser(user);
+      if (user.isAnonymous) {
+        // Anonymous users never have admin or MFA — skip the extra calls.
+        setIsAdmin(false);
+      } else {
+        await checkAdminStatus(user);
+        refreshMFAStatus();
+        await syncSessionCookie(user);
+      }
 
-        if (user.isAnonymous) {
-          // Anonymous users never have admin or MFA — skip the extra calls.
-          setIsAdmin(false);
-        } else {
-          await checkAdminStatus(user);
-          refreshMFAStatus();
-          await syncSessionCookie(user);
-        }
-
-        setLoading(false);
-      });
+      setLoading(false);
     });
 
-    return () => {
-      cancelled = true;
-      unsubscribe?.();
-    };
+    return unsubscribe;
   }, [checkAdminStatus, refreshMFAStatus, syncSessionCookie]);
 
   const value: AuthContextType = {

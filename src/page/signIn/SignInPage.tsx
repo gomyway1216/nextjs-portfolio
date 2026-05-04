@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
 import { AlertCircle, Shield, ArrowLeft, Mail, Phone, MessageSquare, Loader2, Lock, UserPlus } from 'lucide-react';
@@ -33,7 +33,6 @@ const SignInPage = () => {
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
 
-  const router = useRouter();
   const searchParams = useSearchParams();
   const rawRedirect = searchParams.get('redirect');
   // Only allow same-origin relative paths (must start with `/` and not `//` to
@@ -63,10 +62,16 @@ const SignInPage = () => {
     // gate — they need to upgrade to a real account, which is exactly what
     // this page is for. Without this check, every visitor (auto-anon-signed
     // by AuthProvider) would be bounced before they could enter credentials.
+    //
+    // Use a hard navigation (window.location) instead of router.push — when
+    // the redirect target is middleware-protected (e.g. /admin), Next.js's
+    // RSC prefetch fires while the just-set __session cookie is still
+    // committing to the cookie jar, so middleware sees no cookie and bounces
+    // straight back to /signin. A full HTTP navigation reads the jar fresh.
     if (currentUser && !currentUser.isAnonymous) {
-      router.push(redirectPath);
+      window.location.href = redirectPath;
     }
-  }, [currentUser, router, redirectPath]);
+  }, [currentUser, redirectPath]);
 
   useEffect(() => {
     return () => {

@@ -236,6 +236,19 @@ const SignInPage = () => {
     setResetLoading(false);
   };
 
+  // Already signed in (typically: MFA verify just completed and the
+  // window.location.href navigation in the redirect useEffect is still in
+  // flight). Show a loading screen rather than falling through to the
+  // login form, which would otherwise briefly flash on screen during the
+  // navigation latency.
+  if (currentUser && !currentUser.isAnonymous) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   // 2FA screen
   if (twoFactorRequired) {
     return (

@@ -202,4 +202,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Puzzle',
   },
+  {
+    id: 'bigger-number',
+    title: 'Bigger Number',
+    description: 'Pick a tile, reveal at the same time as your opponent — higher number wins. Vs AI or 2-player online.',
+    thumbnail: '🀄',
+    path: '/games/bigger-number',
+    difficulty: 'Easy',
+    category: 'Card',
+  },
 ];

@@ -420,6 +420,46 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
       ],
     },
   },
+  'bigger-number': {
+    en: {
+      title: 'Bigger Number',
+      description: 'Both players pick a tile (1–9 or Dragon) and reveal simultaneously. Higher number wins the round, first to N wins the match.',
+      longDescription: 'A 2-player mind game where each side holds tiles 1–9 plus one Dragon. Each round, both players secretly pick a tile and reveal at the same time. The higher number wins the round; the Dragon has its own special rule. First to N wins (configurable). Play vs AI with 3 difficulty levels, or share a room code with a friend for online play.',
+      howToPlay: [
+        'Each player starts with tiles 1–9 plus a Dragon',
+        'Pick one tile per round; both reveal simultaneously',
+        'Higher number wins the round',
+        'Dragon: by default loses to 1, beats everything else',
+        'First to 5 wins (or whatever the room rules say)',
+        'Read your opponent — are they saving their 9?',
+      ],
+      features: [
+        'Vs AI mode (Easy / Medium / Hard)',
+        'Online 2-player with shared room codes',
+        'Configurable rules: Dragon behavior, ties, win threshold',
+        'Hard AI uses opponent-modelling expected value',
+      ],
+    },
+    ja: {
+      title: '大きい数字を出せ',
+      description: '両プレイヤーが1〜9または龍タイルを1枚選び、同時にオープン！大きい数字が勝ち、先にN勝で勝利。',
+      longDescription: '2人用の読み合いゲーム。それぞれ1〜9の数字タイルと龍タイル1枚を持ちます。毎ラウンド、両者がタイルを伏せて選び、同時にオープン。大きい数字を出した方が勝ち、龍タイルには特殊ルールがあります。先にN勝（設定可能）した方が勝者。AI対戦（難易度3段階）またはルームコードを共有してオンライン対戦が可能。',
+      howToPlay: [
+        '各プレイヤーは1〜9の数字タイルと龍タイル1枚を持ちます',
+        '毎ラウンド、1枚を選んで同時にオープン',
+        '大きい数字を出した方が勝ち',
+        '龍タイルはデフォルトで1にだけ負け、他には勝ちます',
+        '先に5勝で勝利（ルームルールで変更可）',
+        '相手は強い札を温存しているか？読み合いを楽しもう',
+      ],
+      features: [
+        'AI対戦モード（弱い／普通／強い）',
+        '2人オンライン対戦（ルームコード共有）',
+        '設定可能なルール：龍タイル挙動、引き分け処理、勝利点数',
+        '強いAIは相手の手札を推定して期待値で選択',
+      ],
+    },
+  },
   'daifugo': {
     en: {
       title: 'Daifugo',

@@ -66,6 +66,16 @@ export function BiggerNumberMultiplayerLobby({
     }
   }, [roomRules, context.isHost]);
 
+  // Push host's rule edits to the room (debounced) so the joiner sees them.
+  // Only fires once a room exists; the initial rules are set by createRoom.
+  React.useEffect(() => {
+    if (!context.isHost || !context.roomId) return;
+    const handle = setTimeout(() => {
+      void multiplayer.updateRules(rules);
+    }, 250);
+    return () => clearTimeout(handle);
+  }, [rules, context.isHost, context.roomId, multiplayer]);
+
   const handleCreate = async () => {
     if (!playerName.trim() || !password.trim()) return;
     setIsLoading(true);
@@ -126,7 +136,8 @@ export function BiggerNumberMultiplayerLobby({
           maxLength={20}
         />
         <input
-          type="text"
+          type="password"
+          autoComplete="new-password"
           placeholder={ja ? 'ルームパスワード' : 'Room Password'}
           value={password}
           onChange={e => setPassword(e.target.value)}
@@ -173,7 +184,8 @@ export function BiggerNumberMultiplayerLobby({
           maxLength={6}
         />
         <input
-          type="text"
+          type="password"
+          autoComplete="current-password"
           placeholder={ja ? 'ルームパスワード' : 'Room Password'}
           value={password}
           onChange={e => setPassword(e.target.value)}

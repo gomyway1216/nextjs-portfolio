@@ -5,7 +5,7 @@
 
 'use client';
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BiggerNumberTable, type RoundPhase } from './BiggerNumberTable';
 import { RuleConfigEditor } from './RuleConfigEditor';
 import { pickAICard } from './BiggerNumberAI';
@@ -76,7 +76,18 @@ export function BiggerNumberVsAI({ onBackToMenu }: BiggerNumberVsAIProps) {
   const [lastResultText, setLastResultText] = useState<string | null>(null);
   const [finalMessage, setFinalMessage] = useState<string | null>(null);
 
+  // Track scheduled round-progression timeouts so we can cancel them on
+  // unmount (or when the user leaves mid-reveal) and avoid setting state
+  // on an unmounted component.
+  const pendingTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clearPendingTimeouts = useCallback(() => {
+    for (const id of pendingTimeoutsRef.current) clearTimeout(id);
+    pendingTimeoutsRef.current = [];
+  }, []);
+  useEffect(() => clearPendingTimeouts, [clearPendingTimeouts]);
+
   const resetMatch = useCallback(() => {
+    clearPendingTimeouts();
     setYouHand(freshHand());
     setAiHand(freshHand());
     setYouWins(0);
@@ -104,7 +115,7 @@ export function BiggerNumberVsAI({ onBackToMenu }: BiggerNumberVsAIProps) {
     setAiPick(aiDecision.card);
     setRoundPhase('revealing');
 
-    setTimeout(() => {
+    const revealId = setTimeout(() => {
       setYouReveal(card);
       setAiReveal(aiDecision.card);
 
@@ -127,28 +138,18 @@ export function BiggerNumberVsAI({ onBackToMenu }: BiggerNumberVsAIProps) {
         cardsReturnedToHand: result.cardsReturnedToHand,
       }));
 
-      setTimeout(() => {
+      const advanceId = setTimeout(() => {
         setYouHand(nextYouHand);
         setAiHand(nextAiHand);
         setYouWins(nextYouWins);
         setAiWins(nextAiWins);
 
-        const matchWinner = evaluateMatch(
+        const winner = evaluateMatch(
           rules,
           { p1Wins: nextYouWins, p2Wins: nextAiWins },
-          roundsPlayed + (result.cardsReturnedToHand ? 0 : 0),
+          roundsPlayed,
           { p1: HUMAN_ID, p2: AI_ID },
         );
-
-        // We use roundsPlayed AFTER incrementing for finished checks.
-        const completedRounds = result.cardsReturnedToHand ? round - 1 : round;
-        const finalCheck = evaluateMatch(
-          rules,
-          { p1Wins: nextYouWins, p2Wins: nextAiWins },
-          completedRounds,
-          { p1: HUMAN_ID, p2: AI_ID },
-        );
-        const winner = finalCheck !== undefined ? finalCheck : matchWinner;
 
         if (winner !== undefined) {
           setRoundPhase('finished');
@@ -171,14 +172,17 @@ export function BiggerNumberVsAI({ onBackToMenu }: BiggerNumberVsAIProps) {
           setRound(r => r + 1);
         }
       }, BETWEEN_DELAY_MS);
+      pendingTimeoutsRef.current.push(advanceId);
 
       setRoundPhase('between-rounds');
     }, REVEAL_DELAY_MS);
+    pendingTimeoutsRef.current.push(revealId);
   }, [roundPhase, rules, difficulty, aiHand, youHand, youWins, aiWins, round, ja]);
 
   const handleLeave = useCallback(() => {
+    clearPendingTimeouts();
     onBackToMenu();
-  }, [onBackToMenu]);
+  }, [clearPendingTimeouts, onBackToMenu]);
 
   if (phase === 'setup') {
     return (

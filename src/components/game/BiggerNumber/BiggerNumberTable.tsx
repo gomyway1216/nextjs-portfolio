@@ -337,7 +337,11 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
                 key={cardKey}
                 onClick={() => interactive && onPickCard(card)}
                 disabled={!interactive}
-                aria-label={isDragon(card) ? 'Dragon card' : `Card ${card}`}
+                aria-label={
+                  isDragon(card)
+                    ? (ja ? '龍タイル' : 'Dragon card')
+                    : (ja ? `${card}のカード` : `Card ${card}`)
+                }
                 style={{
                   padding: 0,
                   background: 'transparent',

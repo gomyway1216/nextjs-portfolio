@@ -11,7 +11,7 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useBiggerNumberMultiplayer } from './useBiggerNumberMultiplayer';
 import { BiggerNumberMultiplayerLobby } from './BiggerNumberMultiplayerLobby';
@@ -22,6 +22,7 @@ import {
   resolveRound,
   evaluateMatch,
   cardLabel,
+  handHas,
 } from './gameLogic';
 import type {
   BiggerNumberLastReveal,
@@ -72,8 +73,11 @@ export function BiggerNumberOnline({ onBackToMenu }: BiggerNumberOnlineProps) {
   const myId = context.playerId;
   const opponentId = otherPlayerId;
 
-  // Track last processed round to avoid double-resolving via the same snapshot.
-  const lastResolvedRoundRef = useRef<number>(0);
+  // Guard against double-resolving the same pair of picks. Tracks the
+  // composite key of both action IDs so that a tie+replay (which leaves
+  // `gameState.round` unchanged) still allows the next pair of picks to
+  // be resolved.
+  const lastResolvedActionsRef = useRef<string>('');
   const advancingRef = useRef(false);
 
   const handleStartGame = useCallback(async (rules: BiggerNumberRules) => {
@@ -90,15 +94,27 @@ export function BiggerNumberOnline({ onBackToMenu }: BiggerNumberOnlineProps) {
     if (!opponentId) return;
     if (advancingRef.current) return;
     if (gameState.lastReveal) return; // already in reveal phase
-    if (gameState.round === lastResolvedRoundRef.current) return;
 
     const myPick = pendingActions?.[context.playerId];
     const oppPick = pendingActions?.[opponentId];
     if (!myPick || !oppPick) return;
     if (myPick.round !== gameState.round || oppPick.round !== gameState.round) return;
 
+    const actionsKey = `${myPick.actionId}|${oppPick.actionId}`;
+    if (actionsKey === lastResolvedActionsRef.current) return;
+
+    // Anti-cheat: refuse to resolve if either player submitted a card they
+    // don't actually hold this round (modified client / replayed action).
+    const myHand = gameState.hands[context.playerId] ?? [];
+    const oppHand = gameState.hands[opponentId] ?? [];
+    if (!handHas(myHand, myPick.card) || !handHas(oppHand, oppPick.card)) {
+      // Drop the bad action(s) and let the players re-pick.
+      void multiplayer.clearPendingActions();
+      return;
+    }
+
     advancingRef.current = true;
-    lastResolvedRoundRef.current = gameState.round;
+    lastResolvedActionsRef.current = actionsKey;
 
     const result = resolveRound(gameState.rules, myPick.card, oppPick.card);
     const winnerId =

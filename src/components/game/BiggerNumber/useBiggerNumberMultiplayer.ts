@@ -42,6 +42,7 @@ export interface UseBiggerNumberMultiplayerReturn {
   setReady: (ready: boolean) => Promise<boolean>;
   startGame: (initialGameState: BiggerNumberNetworkState) => Promise<boolean>;
   updateGameState: (gameState: BiggerNumberNetworkState) => Promise<void>;
+  updateRules: (rules: BiggerNumberRules) => Promise<void>;
   endGame: (winnerId: string | null) => Promise<void>;
   submitPick: (card: CardValue, round: number) => Promise<void>;
   clearPendingActions: () => Promise<void>;
@@ -255,6 +256,11 @@ export function useBiggerNumberMultiplayer(): UseBiggerNumberMultiplayerReturn {
     await gameRoomService.updateGameState(context.roomId, nextState);
   }, [context.roomId, context.isHost]);
 
+  const updateRules = useCallback(async (nextRules: BiggerNumberRules): Promise<void> => {
+    if (!context.roomId || !context.isHost) return;
+    await setData(`gameRooms/${context.roomId}/rules`, nextRules);
+  }, [context.roomId, context.isHost]);
+
   const endGame = useCallback(async (winnerId: string | null): Promise<void> => {
     if (!context.roomId) return;
     try {
@@ -310,6 +316,7 @@ export function useBiggerNumberMultiplayer(): UseBiggerNumberMultiplayerReturn {
     setReady,
     startGame,
     updateGameState,
+    updateRules,
     endGame,
     submitPick,
     clearPendingActions,

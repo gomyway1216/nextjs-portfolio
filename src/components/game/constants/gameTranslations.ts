@@ -420,6 +420,46 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
       ],
     },
   },
+  'territory-number': {
+    en: {
+      title: 'Territory Number',
+      description: 'A 3×3 territory game where players take turns placing 1–9 cards. Most captured lines wins.',
+      longDescription: 'A 2-player tactical game on a 3×3 grid. Each turn you pick any unused number from the shared pool 1–9 and place it on an empty cell with your colour. After all 9 cells are filled, every row, column, and diagonal is scored: each side sums their cards on the line, the higher sum captures the line. Most lines wins. Number strength matters — but so does where you spend it. Tic-tac-toe meets number bluffing.',
+      howToPlay: [
+        'Take turns picking any unused number from 1–9',
+        'Place it on any empty cell, in your colour',
+        'After all 9 cells are filled, score 8 lines (3 rows, 3 cols, 2 diagonals)',
+        'Each line goes to whoever has the higher sum on it',
+        'Most captured lines wins; ties give a draw',
+        'Centre cell hits 4 lines, corners 3, edges 2 — placement matters',
+      ],
+      features: [
+        'Vs AI mode (Easy / Medium / Hard with alpha-beta minimax)',
+        'Online 2-player with shared room codes',
+        'Configurable first-player rule (host / guest / random)',
+        'Live line-capture summary as you play',
+      ],
+    },
+    ja: {
+      title: '陣取り数字',
+      description: '3×3の盤面に交互に1〜9の数字カードを置いて陣取り。獲得ライン数が多い方が勝ち。',
+      longDescription: '3×3のマスに交互で数字カード（1〜9）を置いていく2人用の戦略ゲーム。共有プールから1枚選んで空いているマスに自分の色で置きます。9マス埋まった後、各行・列・斜めの合計が大きい方がそのラインを獲得。獲得ライン数が多い方が勝ち。数字の強さだけじゃなく、置く場所が重要。三目並べ＋数字バトルのようなゲーム性。',
+      howToPlay: [
+        '共有プール（1〜9）から交互に1枚選ぶ',
+        '空いているマスに自分の色で置く',
+        '9マス埋まったら8ライン（行3＋列3＋斜め2）を採点',
+        '各ラインで合計が大きい方がそのラインを獲得',
+        '獲得ライン数が多い方が勝ち。同数なら引き分け',
+        '中央マスは4ライン、コーナーは3ライン、辺は2ライン — 置く場所が重要',
+      ],
+      features: [
+        'AI対戦モード（弱い／普通／強いはαβ剣除ミニマックス）',
+        '2人オンライン対戦（ルームコード共有）',
+        '先手設定（ホスト／ゲスト／ランダム）',
+        'ライン獲得サマリーをリアルタイムに表示',
+      ],
+    },
+  },
   'bigger-number': {
     en: {
       title: 'Bigger Number',

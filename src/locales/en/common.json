@@ -377,6 +377,25 @@
         "Retro pixel graphics"
       ]
     },
+    "bigger-number": {
+      "title": "Bigger Number",
+      "description": "Pick a tile, reveal at the same time as your opponent â higher number wins. Vs AI or 2-player online.",
+      "longDescription": "A 2-player mind game where each side holds tiles 1â9 plus one Dragon. Each round, both players secretly pick a tile and reveal at the same time. The higher number wins the round; the Dragon has its own special rule. First to N wins (configurable). Play vs AI with 3 difficulty levels, or share a room code with a friend for online play.",
+      "howToPlay": [
+        "Each player starts with tiles 1â9 plus a Dragon",
+        "Pick one tile per round; both reveal simultaneously",
+        "Higher number wins the round",
+        "Dragon: by default loses to 1, beats everything else",
+        "First to 5 wins (or whatever the room rules say)",
+        "Read your opponent â are they saving their 9?"
+      ],
+      "features": [
+        "Vs AI mode (Easy / Medium / Hard)",
+        "Online 2-player with shared room codes",
+        "Configurable rules: Dragon behavior, ties, win threshold",
+        "Hard AI uses opponent-modelling expected value"
+      ]
+    },
     "daifugo": {
       "title": "Daifugo",
       "description": "Play Daifugo (Rich Man Poor Man) vs AI (3-6 players) or online (3-6 players). Create a room, share the code, and battle to empty your hand first!",

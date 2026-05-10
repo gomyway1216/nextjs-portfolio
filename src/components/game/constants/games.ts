@@ -211,4 +211,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Card',
   },
+  {
+    id: 'territory-number',
+    title: 'Territory Number',
+    description: 'A 3×3 territory game where number cards capture lines. Place 1–9 strategically — most lines wins.',
+    thumbnail: '🎯',
+    path: '/games/territory-number',
+    difficulty: 'Medium',
+    category: 'Strategy',
+  },
 ];

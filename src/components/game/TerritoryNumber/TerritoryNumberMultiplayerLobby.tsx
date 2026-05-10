@@ -11,7 +11,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 
 interface TerritoryNumberMultiplayerLobbyProps {
   multiplayer: UseTerritoryNumberMultiplayerReturn;
-  onGameStart: (rules: TerritoryNumberRules) => void;
+  onGameStart: () => void;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -309,7 +309,7 @@ export function TerritoryNumberMultiplayerLobby({
           </button>
           {context.isHost && (
             <button
-              onClick={() => onGameStart(rules)}
+              onClick={() => onGameStart()}
               disabled={!allReady}
               style={buttonStyle('#2563eb', !allReady)}
             >

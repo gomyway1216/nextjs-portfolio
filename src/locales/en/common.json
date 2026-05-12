@@ -689,6 +689,24 @@
         "Attempt counter",
         "Result copy for sharing"
       ]
+    },
+    "memory-battle": {
+      "title": "Memory Battle",
+      "description": "Five cards flash for 3 seconds, then flip. Find the requested number to score before time runs out.",
+      "longDescription": "Memory Battle is a short-term memory speed game. Each round, five number cards are shown for three seconds and then flipped face-down. You are told a target number and must tap the card that holds it before the timer runs out.",
+      "howToPlay": [
+        "Memorize the five numbers during the 3 second preview",
+        "Cards flip face-down and a target number is shown",
+        "Tap the card you believe holds that number",
+        "Faster answers score bonus points",
+        "Three mistakes ends the game"
+      ],
+      "features": [
+        "3-second memory preview",
+        "Time-bonus scoring",
+        "Keyboard (1-5) or click input",
+        "Rapid replay loop"
+      ]
     }
   },
   "home": {

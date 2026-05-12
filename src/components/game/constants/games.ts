@@ -220,4 +220,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Strategy',
   },
+  {
+    id: 'memory-battle',
+    title: 'Memory Battle',
+    description: 'Five cards flash for 3 seconds, then flip. Find the requested number to score before time runs out.',
+    thumbnail: '🧠',
+    path: '/games/memory-battle',
+    difficulty: 'Easy',
+    category: 'Puzzle',
+  },
 ];

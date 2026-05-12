@@ -707,6 +707,24 @@
         "Keyboard (1-5) or click input",
         "Rapid replay loop"
       ]
+    },
+    "iq-test": {
+      "title": "IQ Test",
+      "description": "A short IQ-style quiz with procedurally generated questions: number sequences, odd-one-out, analogies, and more.",
+      "longDescription": "IQ Test is a 10-question quiz with questions generated on the fly. Each round serves a fresh mix of arithmetic, geometric, Fibonacci, and alternating sequences, odd-one-out puzzles, simple analogies, and letter sequences.",
+      "howToPlay": [
+        "Read the prompt and the displayed pattern",
+        "Pick one of four answers (or press 1-4)",
+        "See the explanation, press Enter for the next",
+        "Score +10 per correct answer",
+        "After 10 questions, view your final score"
+      ],
+      "features": [
+        "Procedurally generated questions",
+        "Multiple question types",
+        "Keyboard and click input",
+        "Per-question explanations"
+      ]
     }
   },
   "home": {

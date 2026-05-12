@@ -1,0 +1,1 @@
+export { IqTest } from './IqTest';

@@ -1,0 +1,1 @@
+export { MemoryBattle } from './MemoryBattle';

@@ -229,4 +229,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Puzzle',
   },
+  {
+    id: 'iq-test',
+    title: 'IQ Test',
+    description: 'A short IQ-style quiz with procedurally generated questions: number sequences, odd-one-out, analogies, and more.',
+    thumbnail: '🧩',
+    path: '/games/iq-test',
+    difficulty: 'Medium',
+    category: 'Puzzle',
+  },
 ];

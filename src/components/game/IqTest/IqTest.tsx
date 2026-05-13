@@ -4,7 +4,78 @@ import { useEffect, useState } from 'react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 
-import { Question, generateQuestion } from './questions';
+import { CellSpec, Question, generateQuestion } from './questions';
+
+const CellShapeSvg = ({ cell, size = 70 }: { cell: CellSpec; size?: number }) => {
+  const cy = size / 2;
+  const gap = size * 0.06;
+  const usable = size - gap * 2;
+  const shapeSize = Math.min(usable / cell.count - gap, size * 0.55);
+  const r = shapeSize / 2;
+  const startX = (size - (shapeSize * cell.count + gap * (cell.count - 1))) / 2 + r;
+
+  const shapes = Array.from({ length: cell.count }, (_, i) => {
+    const cx = startX + i * (shapeSize + gap);
+    if (cell.shape === 'circle') {
+      return <circle key={i} cx={cx} cy={cy} r={r} fill={cell.color} />;
+    }
+    if (cell.shape === 'square') {
+      return <rect key={i} x={cx - r} y={cy - r} width={2 * r} height={2 * r} fill={cell.color} rx={r * 0.12} />;
+    }
+    if (cell.shape === 'triangle') {
+      const pts = `${cx},${cy - r} ${cx - r},${cy + r * 0.85} ${cx + r},${cy + r * 0.85}`;
+      return <polygon key={i} points={pts} fill={cell.color} />;
+    }
+    const star: string[] = [];
+    for (let k = 0; k < 10; k += 1) {
+      const angle = (Math.PI / 5) * k - Math.PI / 2;
+      const radius = k % 2 === 0 ? r : r * 0.45;
+      star.push(`${cx + Math.cos(angle) * radius},${cy + Math.sin(angle) * radius}`);
+    }
+    return <polygon key={i} points={star.join(' ')} fill={cell.color} />;
+  });
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="matrix cell">
+      {shapes}
+    </svg>
+  );
+};
+
+const MatrixGridView = ({ grid }: { grid: (CellSpec | null)[][] }) => (
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      gap: '0.5rem',
+      maxWidth: '300px',
+      margin: '0.6rem auto 1.2rem',
+    }}
+  >
+    {grid.flatMap((row, r) =>
+      row.map((cell, c) => (
+        <div
+          key={`${r}-${c}`}
+          style={{
+            background: '#0b1224',
+            border: '1px solid #1e293b',
+            borderRadius: '10px',
+            aspectRatio: '1 / 1',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {cell ? (
+            <CellShapeSvg cell={cell} size={80} />
+          ) : (
+            <span style={{ fontSize: '1.8rem', color: '#facc15', fontWeight: 800 }}>?</span>
+          )}
+        </div>
+      )),
+    )}
+  </div>
+);
 
 const TOTAL_QUESTIONS = 10;
 
@@ -145,23 +216,27 @@ export const IqTest = () => {
           {(state.phase === 'question' || state.phase === 'feedback') && q && (
             <>
               <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '0.3rem' }}>{q.prompt}</div>
-              <div
-                style={{
-                  textAlign: 'center',
-                  fontSize: '1.8rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.08em',
-                  background: '#0b1224',
-                  border: '1px solid #1e293b',
-                  borderRadius: '12px',
-                  padding: '1.2rem 1rem',
-                  margin: '0.6rem 0 1.2rem',
-                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                  color: '#f1f5f9',
-                }}
-              >
-                {q.display}
-              </div>
+              {q.matrix ? (
+                <MatrixGridView grid={q.matrix.grid} />
+              ) : (
+                <div
+                  style={{
+                    textAlign: 'center',
+                    fontSize: '1.8rem',
+                    fontWeight: 700,
+                    letterSpacing: '0.08em',
+                    background: '#0b1224',
+                    border: '1px solid #1e293b',
+                    borderRadius: '12px',
+                    padding: '1.2rem 1rem',
+                    margin: '0.6rem 0 1.2rem',
+                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                    color: '#f1f5f9',
+                  }}
+                >
+                  {q.display}
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.6rem' }}>
                 {q.options.map((opt, i) => {
@@ -197,7 +272,13 @@ export const IqTest = () => {
                       onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
                     >
                       <span style={{ color: '#cbd5e1', fontSize: '0.8rem', marginRight: '0.5rem' }}>{i + 1}.</span>
-                      {opt}
+                      {q.matrix ? (
+                        <span style={{ display: 'inline-flex', verticalAlign: 'middle' }}>
+                          <CellShapeSvg cell={q.matrix.cellOptions[i]} size={64} />
+                        </span>
+                      ) : (
+                        opt
+                      )}
                     </button>
                   );
                 })}
@@ -252,10 +333,17 @@ export const IqTest = () => {
 
               <div style={{ marginTop: '1rem', textAlign: 'left', maxHeight: '240px', overflowY: 'auto', border: '1px solid #1e293b', borderRadius: '10px', padding: '0.6rem 0.8rem', background: '#0b1224' }}>
                 {state.history.map((h, i) => (
-                  <div key={i} style={{ display: 'flex', gap: '0.6rem', alignItems: 'baseline', padding: '0.25rem 0', borderBottom: '1px solid #1e293b' }}>
+                  <div key={i} style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', padding: '0.25rem 0', borderBottom: '1px solid #1e293b' }}>
                     <span style={{ color: h.correct ? '#4ade80' : '#fca5a5', fontWeight: 700, minWidth: '1.4rem' }}>{h.correct ? '◯' : '✗'}</span>
-                    <span style={{ color: '#cbd5e1', fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem', flex: 1 }}>
-                      {h.question.display.replace('?', h.question.options[h.question.answerIndex])}
+                    <span style={{ color: '#cbd5e1', fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem', flex: 1, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      {h.question.matrix ? (
+                        <>
+                          <span>マトリックス →</span>
+                          <CellShapeSvg cell={h.question.matrix.cellOptions[h.question.answerIndex]} size={32} />
+                        </>
+                      ) : (
+                        h.question.display.replace('?', h.question.options[h.question.answerIndex])
+                      )}
                     </span>
                     <span style={{ color: '#64748b', fontSize: '0.78rem' }}>{h.question.type}</span>
                   </div>

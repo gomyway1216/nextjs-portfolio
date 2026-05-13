@@ -1,3 +1,18 @@
+export type CellShape = 'circle' | 'square' | 'triangle' | 'star';
+export type CellColor = '#ef4444' | '#3b82f6' | '#22c55e' | '#f59e0b' | '#a855f7';
+export type CellCount = 1 | 2 | 3;
+
+export interface CellSpec {
+  shape: CellShape;
+  color: CellColor;
+  count: CellCount;
+}
+
+export interface MatrixData {
+  grid: (CellSpec | null)[][];
+  cellOptions: CellSpec[];
+}
+
 export interface Question {
   type: string;
   prompt: string;
@@ -5,6 +20,7 @@ export interface Question {
   options: string[];
   answerIndex: number;
   explanation: string;
+  matrix?: MatrixData;
 }
 
 const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
@@ -272,6 +288,145 @@ const generateLetterSequence = (): Question => {
   };
 };
 
+type MatrixAxis = 'shape' | 'color' | 'count';
+
+const ALL_SHAPES: CellShape[] = ['circle', 'square', 'triangle', 'star'];
+const ALL_COLORS: CellColor[] = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7'];
+const ALL_COUNTS: CellCount[] = [1, 2, 3];
+
+const axisLabel: Record<MatrixAxis, string> = {
+  shape: '形',
+  color: '色',
+  count: '個数',
+};
+
+const colorName: Record<CellColor, string> = {
+  '#ef4444': '赤',
+  '#3b82f6': '青',
+  '#22c55e': '緑',
+  '#f59e0b': '黄',
+  '#a855f7': '紫',
+};
+
+const shapeName: Record<CellShape, string> = {
+  circle: '円',
+  square: '四角',
+  triangle: '三角',
+  star: '星',
+};
+
+const valuesForAxis = (axis: MatrixAxis): (CellShape | CellColor | CellCount)[] => {
+  if (axis === 'shape') return shuffle(ALL_SHAPES).slice(0, 3);
+  if (axis === 'color') return shuffle(ALL_COLORS).slice(0, 3);
+  return shuffle(ALL_COUNTS).slice(0, 3);
+};
+
+const buildCell = (
+  base: CellSpec,
+  rowAxis: MatrixAxis,
+  colAxis: MatrixAxis,
+  rowValue: CellShape | CellColor | CellCount,
+  colValue: CellShape | CellColor | CellCount,
+): CellSpec => ({
+  ...base,
+  [rowAxis]: rowValue,
+  [colAxis]: colValue,
+});
+
+const cellKey = (c: CellSpec): string => `${c.shape}-${c.color}-${c.count}`;
+
+const generateMatrix = (): Question => {
+  const axes = shuffle(['shape', 'color', 'count'] as const).slice(0, 2);
+  const rowAxis = axes[0] as MatrixAxis;
+  const colAxis = axes[1] as MatrixAxis;
+  const fixedAxis = (['shape', 'color', 'count'] as const).find(
+    (a) => a !== rowAxis && a !== colAxis,
+  ) as MatrixAxis;
+
+  const base: CellSpec = {
+    shape: pick(ALL_SHAPES),
+    color: pick(ALL_COLORS),
+    count: pick(ALL_COUNTS),
+  };
+
+  const rowValues = valuesForAxis(rowAxis);
+  const colValues = valuesForAxis(colAxis);
+
+  const grid: (CellSpec | null)[][] = [];
+  for (let r = 0; r < 3; r += 1) {
+    const row: (CellSpec | null)[] = [];
+    for (let c = 0; c < 3; c += 1) {
+      const cell = buildCell(base, rowAxis, colAxis, rowValues[r], colValues[c]);
+      row.push(r === 2 && c === 2 ? null : cell);
+    }
+    grid.push(row);
+  }
+
+  const correct = buildCell(base, rowAxis, colAxis, rowValues[2], colValues[2]);
+
+  const candidates: CellSpec[] = [
+    correct,
+    buildCell(base, rowAxis, colAxis, rowValues[2], colValues[0]),
+    buildCell(base, rowAxis, colAxis, rowValues[0], colValues[2]),
+    buildCell(base, rowAxis, colAxis, rowValues[1], colValues[1]),
+    buildCell(base, rowAxis, colAxis, rowValues[2], colValues[1]),
+    buildCell(base, rowAxis, colAxis, rowValues[1], colValues[2]),
+    buildCell(base, rowAxis, colAxis, rowValues[0], colValues[0]),
+  ];
+
+  const seen = new Set<string>();
+  const unique: CellSpec[] = [];
+  for (const cand of candidates) {
+    const key = cellKey(cand);
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(cand);
+    }
+    if (unique.length >= 4) break;
+  }
+
+  while (unique.length < 4) {
+    const variant: CellSpec = { ...correct };
+    const ax = pick<MatrixAxis>(['shape', 'color', 'count']);
+    if (ax === 'shape') variant.shape = pick(ALL_SHAPES);
+    if (ax === 'color') variant.color = pick(ALL_COLORS);
+    if (ax === 'count') variant.count = pick(ALL_COUNTS);
+    const key = cellKey(variant);
+    if (!seen.has(key)) {
+      seen.add(key);
+      unique.push(variant);
+    }
+  }
+
+  const shuffledOpts = shuffle(unique);
+  const answerIndex = shuffledOpts.findIndex((c) => cellKey(c) === cellKey(correct));
+
+  const explainValue = (axis: MatrixAxis, value: CellShape | CellColor | CellCount): string => {
+    if (axis === 'shape') return shapeName[value as CellShape];
+    if (axis === 'color') return colorName[value as CellColor];
+    return `${value}個`;
+  };
+
+  const explanation =
+    `行ごとに${axisLabel[rowAxis]}が変化し、列ごとに${axisLabel[colAxis]}が変化。` +
+    `?は3行目(${explainValue(rowAxis, rowValues[2])})×3列目(${explainValue(colAxis, colValues[2])})` +
+    (fixedAxis === 'shape'
+      ? `、形は${shapeName[base.shape]}固定。`
+      : fixedAxis === 'color'
+        ? `、色は${colorName[base.color]}固定。`
+        : `、個数は${base.count}個固定。`);
+
+  return {
+    type: 'matrix',
+    prompt: '? に当てはまる図形は？',
+    display: '',
+    options: ['A', 'B', 'C', 'D'],
+    answerIndex,
+    explanation,
+    matrix: { grid, cellOptions: shuffledOpts },
+  };
+};
+
 const generators: Array<() => Question> = [
   generateArithmetic,
   generateArithmetic,
@@ -284,6 +439,9 @@ const generators: Array<() => Question> = [
   generateAnalogy,
   generateAnalogy,
   generateLetterSequence,
+  generateMatrix,
+  generateMatrix,
+  generateMatrix,
 ];
 
 export const generateQuestion = (): Question => pick(generators)();

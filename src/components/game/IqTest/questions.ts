@@ -315,7 +315,7 @@ const shapeName: Record<CellShape, string> = {
   star: '星',
 };
 
-const valuesForAxis = (axis: MatrixAxis): unknown[] => {
+const valuesForAxis = (axis: MatrixAxis): (CellShape | CellColor | CellCount)[] => {
   if (axis === 'shape') return shuffle(ALL_SHAPES).slice(0, 3);
   if (axis === 'color') return shuffle(ALL_COLORS).slice(0, 3);
   return shuffle(ALL_COUNTS).slice(0, 3);
@@ -325,8 +325,8 @@ const buildCell = (
   base: CellSpec,
   rowAxis: MatrixAxis,
   colAxis: MatrixAxis,
-  rowValue: unknown,
-  colValue: unknown,
+  rowValue: CellShape | CellColor | CellCount,
+  colValue: CellShape | CellColor | CellCount,
 ): CellSpec => ({
   ...base,
   [rowAxis]: rowValue,
@@ -401,7 +401,7 @@ const generateMatrix = (): Question => {
   const shuffledOpts = shuffle(unique);
   const answerIndex = shuffledOpts.findIndex((c) => cellKey(c) === cellKey(correct));
 
-  const explainValue = (axis: MatrixAxis, value: unknown): string => {
+  const explainValue = (axis: MatrixAxis, value: CellShape | CellColor | CellCount): string => {
     if (axis === 'shape') return shapeName[value as CellShape];
     if (axis === 'color') return colorName[value as CellColor];
     return `${value}個`;

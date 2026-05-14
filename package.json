@@ -14,7 +14,7 @@
     "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts"
   },
   "engines": {
-    "node": ">=20.9.0 <24",
+    "node": "^20.17.0 || >=22.9.0 <24",
     "npm": ">=11"
   },
   "packageManager": "npm@11.14.1",

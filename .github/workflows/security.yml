@@ -17,5 +17,8 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Pin npm to 11.14.1 (for min-release-age enforcement)
+        run: npm install -g npm@11.14.1
+
       - name: Run npm audit (fail on high or critical)
         run: npm audit --audit-level=high

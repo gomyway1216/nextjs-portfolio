@@ -19,7 +19,30 @@ import type {
   TerritoryNumberGameRoom,
   TerritoryNumberNetworkState,
 } from './multiplayerTypes';
-import type { TerritoryNumberRules } from './types';
+import type { Board, TerritoryNumberRules } from './types';
+
+/**
+ * The Cloud Function stores `gameState.board` as `boardJson` because RTDB
+ * strips fields whose value is `null` — empty cells are `{value:null,
+ * owner:null}`, which collapse to `{}` → stripped → the whole `board` array
+ * vanishes from the snapshot. The CF therefore writes the board as a JSON
+ * string and we rehydrate it here so the rest of the UI keeps working with
+ * the original `board: Board` shape.
+ */
+function rehydrateGameState(
+  raw: (TerritoryNumberNetworkState & { boardJson?: string }) | null | undefined,
+): TerritoryNumberNetworkState | null {
+  if (!raw) return null;
+  if (raw.board) return raw; // legacy / not-yet-migrated payload
+  if (typeof raw.boardJson === 'string') {
+    try {
+      return { ...raw, board: JSON.parse(raw.boardJson) as Board };
+    } catch {
+      return raw;
+    }
+  }
+  return raw;
+}
 
 const PLAYER_ID_KEY = 'territoryNumberPlayerId';
 
@@ -87,8 +110,12 @@ export function useTerritoryNumberMultiplayer(): UseTerritoryNumberMultiplayerRe
           setGameState(null);
           return;
         }
-        setRoom(roomData);
-        setGameState(roomData.gameState ?? null);
+        const rehydratedState = rehydrateGameState(roomData.gameState);
+        const rehydratedRoom = rehydratedState
+          ? { ...roomData, gameState: rehydratedState }
+          : roomData;
+        setRoom(rehydratedRoom);
+        setGameState(rehydratedState);
         setContext((prev) => ({
           ...prev,
           room: roomData as unknown as MultiplayerContext['room'],

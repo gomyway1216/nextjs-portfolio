@@ -163,3 +163,20 @@ export function advanceBiggerNumberRound(args: {
 }): Promise<GenericResponse> {
   return call<GenericResponse>({ action: 'submitAction', type: 'advance', ...args });
 }
+
+/**
+ * Othello — place a disc at 1-indexed (x, y). Server validates that the
+ * cell is empty, that it's the caller's colour (host = black, joiner =
+ * white), that `turn` matches the current `turnNumber`, and that the
+ * move actually flips at least one disc; auto-passes the opponent if
+ * they have no legal reply and ends the match when neither side can move.
+ */
+export function submitOthelloMove(args: {
+  roomId: string;
+  playerId: string;
+  x: number;
+  y: number;
+  turn: number;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', ...args });
+}

@@ -12,7 +12,12 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 
 interface BiggerNumberMultiplayerLobbyProps {
   multiplayer: UseBiggerNumberMultiplayerReturn;
-  onGameStart: (rules: BiggerNumberRules) => void;
+  /**
+   * Called when the host clicks Start. The CF now builds the initial state
+   * server-side from the room's persisted `rules`, so no rules arg is
+   * needed here. Lobby flushes any pending rule edit before calling.
+   */
+  onGameStart: () => void;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -94,6 +99,15 @@ export function BiggerNumberMultiplayerLobby({
     setIsLoading(true);
     await multiplayer.setReady(!myPlayer?.ready);
     setIsLoading(false);
+  };
+
+  const handleStart = async () => {
+    // CF builds initial state from persisted `rules`; flush any pending
+    // debounced rule edit so we don't start with a stale rule.
+    if (context.isHost) {
+      await multiplayer.updateRules(rules);
+    }
+    onGameStart();
   };
 
   // -- IDLE / MENU
@@ -305,7 +319,7 @@ export function BiggerNumberMultiplayerLobby({
           </button>
           {context.isHost && (
             <button
-              onClick={() => onGameStart(rules)}
+              onClick={handleStart}
               disabled={!allReady}
               style={buttonStyle('#2563eb', !allReady)}
             >

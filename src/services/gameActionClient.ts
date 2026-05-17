@@ -5,9 +5,9 @@
  * backend handler at:
  *   Yudai-new-portfolio-backend-ts:functions/src/gameRoom/dispatcher.ts
  *
- * Currently only Territory Number rooms route through this client.
- * Other multiplayer games keep using `gameRoomService.ts` (Next.js API
- * routes) until they're migrated.
+ * Territory Number and Bigger Number rooms route through this client.
+ * The remaining multiplayer games keep using `gameRoomService.ts` (Next.js
+ * API routes) until they're migrated.
  */
 
 import { fetchCloudFunction } from '@/lib/cloudFunctionFetch';
@@ -136,4 +136,30 @@ export function submitTerritoryNumberMove(args: {
   turn: number;
 }): Promise<GenericResponse> {
   return call<GenericResponse>({ action: 'submitAction', ...args });
+}
+
+/**
+ * Bigger Number — pick the card you'll reveal this round. If both players
+ * have picks the server resolves the round in the same call (atomically).
+ */
+export function submitBiggerNumberPick(args: {
+  roomId: string;
+  playerId: string;
+  round: number;
+  card: number | 'dragon';
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'pick', ...args });
+}
+
+/**
+ * Bigger Number — acknowledge the round-reveal hold and advance to the
+ * next round (or finish the match). Idempotent: either player may call
+ * after `REVEAL_HOLD_MS`; the first wins, the second is a no-op.
+ */
+export function advanceBiggerNumberRound(args: {
+  roomId: string;
+  playerId: string;
+  round: number;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'advance', ...args });
 }

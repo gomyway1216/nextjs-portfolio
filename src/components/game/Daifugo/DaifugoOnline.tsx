@@ -4,22 +4,18 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { GameTopBar, InfoModal, GameStats } from '../common';
 import { DaifugoMultiplayerLobby } from './DaifugoMultiplayerLobby';
 import { useDaifugoMultiplayer } from './useDaifugoMultiplayer';
-import { applyAction, createInitialDaifugoState, getPlayShape, getSelectedCards, getNextPlayerId, sortHand } from './gameLogic';
+import { getPlayShape, getSelectedCards, getNextPlayerId, sortHand } from './gameLogic';
 import { rankToLabel } from './types';
 import type { Card } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
 import { DAIFUGO_RANK_PRIORITY, daifugoRankToLabel } from './multiplayerTypes';
-import type { DaifugoAction, DaifugoLogEntry } from './multiplayerTypes';
+import type { DaifugoLogEntry } from './multiplayerTypes';
 import type { DaifugoUITranslations } from '../constants/gameTranslations';
-
-function createActionId(): string {
-  return `act_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
 
 interface DaifugoOnlineProps {
   onBackToMenu: () => void;
@@ -104,8 +100,6 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
   const [selectedDiscardCardIds, setSelectedDiscardCardIds] = useState<string[]>([]);
   const [localError, setLocalError] = useState<string | null>(null);
 
-  const lastProcessedActionId = useRef<string | null>(null);
-
   const room = multiplayer.room;
   const gameState = multiplayer.gameState;
   const isReversed = !!gameState && (gameState.revolution !== gameState.jackBack);
@@ -118,9 +112,7 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
   }, [gameState, multiplayer.context.playerId]);
 
   const isMyTurn = !!gameState && !gameState.finished && gameState.currentTurnPlayerId === multiplayer.context.playerId;
-
-  const isSubmitting = !multiplayer.context.isHost
-    && multiplayer.pendingAction?.playerId === multiplayer.context.playerId;
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const effectiveSelectedCardIds = useMemo(() => {
     if (selectedCardIds.length === 0) return [];
@@ -237,18 +229,19 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
       .slice(0, tenDiscardContext.discardCount);
   }, [selectedDiscardCardIds, tenDiscardCandidates, tenDiscardContext.discardCount, tenDiscardContext.needed]);
 
-  const canPlaySelected = useMemo(() => {
+  const canPlaySelected = useMemo<{ ok: boolean; error: string | null }>(() => {
     if (!gameState || !isMyTurn) return { ok: false, error: 'Not your turn' };
     if (!selectedShape) return { ok: false, error: 'Select cards' };
-    const probe: DaifugoAction = {
-      actionId: 'probe',
-      type: 'play',
-      playerId: multiplayer.context.playerId,
-      cardIds: effectiveSelectedCardIds,
-      timestamp: 0,
-    };
-    const result = applyAction(gameState, probe);
-    return result.ok ? { ok: true, error: null } : { ok: false, error: result.error };
+    // Soft client-side check: all selected cards are in the player's
+    // hand. The server runs the full Daifugo rule check (shibari,
+    // revolution, signature, …); on rejection the response error is
+    // surfaced to the user.
+    const hand = gameState.hands[multiplayer.context.playerId] ?? [];
+    const handIds = new Set(hand.map((c) => c.id));
+    if (!effectiveSelectedCardIds.every((id) => handIds.has(id))) {
+      return { ok: false, error: 'Card not in hand' };
+    }
+    return { ok: true, error: null };
   }, [gameState, isMyTurn, selectedShape, effectiveSelectedCardIds, multiplayer.context.playerId]);
 
   const toggleCard = (cardId: string) => {
@@ -279,61 +272,14 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
   const handleStartGame = async () => {
     setLocalError(null);
     if (!room || !multiplayer.context.isHost) return;
-    const players = Object.values(room.players || {}).sort((a, b) => (a.lastUpdate - b.lastUpdate) || a.id.localeCompare(b.id));
-    const playerIds = players.map(p => p.id);
-    if (playerIds.length < 3) {
+    const playerCount = Object.keys(room.players || {}).length;
+    if (playerCount < 3) {
       setLocalError('Need 3 players');
       return;
     }
-
-    const initialState = createInitialDaifugoState(playerIds);
-    await multiplayer.clearPendingAction();
-    const ok = await multiplayer.startGame(initialState);
+    const ok = await multiplayer.startGame();
     if (!ok) setLocalError('Failed to start game');
   };
-
-  const applyAndBroadcast = useCallback(async (action: DaifugoAction) => {
-    if (!gameState) return;
-    const result = applyAction(gameState, action);
-    if (!result.ok) {
-      setLocalError(result.error);
-      return;
-    }
-    await multiplayer.updateGameState(result.state);
-  }, [gameState, multiplayer]);
-
-  // Host processes pending actions from non-host players
-  useEffect(() => {
-    if (!multiplayer.context.isHost) return;
-    if (!multiplayer.pendingAction) return;
-    if (!gameState) return;
-
-    const action = multiplayer.pendingAction;
-    if (action.actionId === lastProcessedActionId.current) return;
-
-    lastProcessedActionId.current = action.actionId;
-
-    // Host ignores own pending actions
-    if (action.playerId === multiplayer.context.playerId) {
-      multiplayer.clearPendingAction().catch(() => {});
-      return;
-    }
-
-    const run = async () => {
-      try {
-        const result = applyAction(gameState, action);
-        await multiplayer.clearPendingAction();
-
-        if (!result.ok) return;
-
-        await multiplayer.updateGameState(result.state);
-      } catch {
-        // ignore
-      }
-    };
-
-    run();
-  }, [multiplayer.context.isHost, multiplayer.pendingAction, multiplayer.context.playerId, multiplayer, gameState]);
 
   const handlePlay = async () => {
     if (!gameState) return;
@@ -344,65 +290,51 @@ export function DaifugoOnline({ onBackToMenu }: DaifugoOnlineProps) {
       return;
     }
 
-    const action: DaifugoAction = {
-      actionId: createActionId(),
-      type: 'play',
-      playerId: multiplayer.context.playerId,
-      cardIds: effectiveSelectedCardIds,
-      giveCardIds: sevenGiveContext.needed ? finalGiveCardIds : undefined,
-      discardCardIds: tenDiscardContext.needed ? effectiveDiscardCardIds : undefined,
-      timestamp: Date.now(),
-    };
+    const cardIds = effectiveSelectedCardIds;
+    const giveCardIds = sevenGiveContext.needed ? finalGiveCardIds : undefined;
+    const discardCardIds = tenDiscardContext.needed ? effectiveDiscardCardIds : undefined;
 
     setSelectedCardIds([]);
     setSelectedGiveCardIds([]);
     setSelectedDiscardCardIds([]);
 
-    if (multiplayer.context.isHost) {
-      await applyAndBroadcast(action);
-      return;
+    setIsSubmitting(true);
+    try {
+      const res = await multiplayer.submitPlay(cardIds, { giveCardIds, discardCardIds });
+      if (!res.success) setLocalError(res.error ?? 'Play rejected');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    await multiplayer.sendAction(action);
   };
 
   const handlePass = async () => {
     if (!gameState) return;
     setLocalError(null);
     if (!isMyTurn) return;
-
-    const action: DaifugoAction = {
-      actionId: createActionId(),
-      type: 'pass',
-      playerId: multiplayer.context.playerId,
-      timestamp: Date.now(),
-    };
-
     setSelectedCardIds([]);
     setSelectedGiveCardIds([]);
     setSelectedDiscardCardIds([]);
-
-    if (multiplayer.context.isHost) {
-      await applyAndBroadcast(action);
-      return;
+    setIsSubmitting(true);
+    try {
+      const res = await multiplayer.submitPass();
+      if (!res.success) setLocalError(res.error ?? 'Pass rejected');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    await multiplayer.sendAction(action);
   };
 
   const handleNextRound = async () => {
-    if (!multiplayer.context.isHost) return;
-    if (!gameState?.finished) return;
-    const nextState = createInitialDaifugoState(gameState.playerOrder, {
-      round: gameState.round + 1,
-      previousRanks: gameState.ranks ?? undefined,
-    });
+    // Multi-round flow (post-game card exchange) isn't expressed as a
+    // single CF action yet. Drop back to the menu so the host can spin
+    // up a new room. (CF is the only writer; we can't reset state from
+    // the client.)
+    setLocalError(null);
     setSelectedCardIds([]);
     setSelectedGiveCardIds([]);
     setSelectedDiscardCardIds([]);
-    setLocalError(null);
-    await multiplayer.clearPendingAction();
-    await multiplayer.updateGameState(nextState);
+    await multiplayer.leaveRoom();
+    multiplayer.resetMultiplayer();
+    onBackToMenu();
   };
 
   const logLines = useMemo(() => {

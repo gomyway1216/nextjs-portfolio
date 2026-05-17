@@ -24,7 +24,7 @@ export default function KuizuGameRoomPage() {
   const {
     gameState, players, isHost, lobbyState, error,
     leaveRoom, setReady, submitAnswer, nextQuestion,
-  } = useKuizuMultiplayer(playerId);
+  } = useKuizuMultiplayer(playerId, roomId);
 
   const handleLeave = async () => {
     await leaveRoom();

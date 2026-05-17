@@ -273,3 +273,30 @@ export function submitDaifugoPass(args: {
 }): Promise<GenericResponse> {
   return call<GenericResponse>({ action: 'submitAction', type: 'pass', ...args });
 }
+
+/**
+ * kuizu — submit an answer for the current question. Server validates
+ * the phase is `question` and the questionIdx matches, scores the
+ * answer (correctness + time + streak bonuses), and flips to
+ * `answer_reveal` once everyone has answered.
+ */
+export function submitKuizuAnswer(args: {
+  roomId: string;
+  playerId: string;
+  questionIdx: number;
+  answer: string;
+  answerTime: number;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'answer', ...args });
+}
+
+/**
+ * kuizu — host advances past `answer_reveal` / `scoreboard` to the
+ * next question, or to `results` after the last question.
+ */
+export function submitKuizuNext(args: {
+  roomId: string;
+  playerId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'next', ...args });
+}

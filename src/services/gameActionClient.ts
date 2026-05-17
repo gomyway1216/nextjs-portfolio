@@ -180,3 +180,29 @@ export function submitOthelloMove(args: {
 }): Promise<GenericResponse> {
   return call<GenericResponse>({ action: 'submitAction', ...args });
 }
+
+/**
+ * Shichinarabe — play a card from hand. Server validates that it's the
+ * caller's turn, that the card is in their hand, and that it's adjacent
+ * to the current run for that suit. Auto-advances to the next active
+ * player and ends the match if everyone has finished or been eliminated.
+ */
+export function submitShichinarabePlay(args: {
+  roomId: string;
+  playerId: string;
+  cardId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'play', ...args });
+}
+
+/**
+ * Shichinarabe — pass your turn. Server increments the caller's pass
+ * count, eliminates them when the count hits `maxPasses`, and ends the
+ * match if no active player remains.
+ */
+export function submitShichinarabePass(args: {
+  roomId: string;
+  playerId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'pass', ...args });
+}

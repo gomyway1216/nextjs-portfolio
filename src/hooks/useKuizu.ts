@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as kuizuService from '@/services/kuizuService';
 import * as gameRoomService from '@/services/gameRoomService';
+import * as gameActionClient from '@/services/gameActionClient';
 import { subscribeToPath, setData } from '@/lib/firebaseRealtimeDb';
 import type {
   Quiz,
@@ -293,8 +294,43 @@ interface UseKuizuMultiplayerResult {
   endQuiz: () => Promise<void>;
 }
 
+type WireKuizuGameState = Partial<KuizuGameState> & {
+  questionsJson?: string;
+  playerScoresJson?: string;
+  playerStreaksJson?: string;
+  playerAnswersJson?: string;
+};
+
+function safeKuizuParse<T>(s: string | undefined, fallback: T): T {
+  if (typeof s !== 'string') return fallback;
+  try { return JSON.parse(s) as T; } catch { return fallback; }
+}
+
+function rehydrateKuizuGameState(raw: WireKuizuGameState | null | undefined): KuizuGameState | null {
+  if (!raw) return null;
+  const base = raw as KuizuGameState;
+  return {
+    ...base,
+    playerScores: safeKuizuParse<Record<string, number>>(raw.playerScoresJson, base.playerScores ?? {}),
+    playerStreaks: safeKuizuParse<Record<string, number>>(raw.playerStreaksJson, base.playerStreaks ?? {}),
+    playerAnswers: safeKuizuParse<Record<string, { answer: string; time: number; isCorrect: boolean }>>(
+      raw.playerAnswersJson, base.playerAnswers ?? {},
+    ),
+  };
+}
+
+/**
+ * kuizu multiplayer hook — Phase 3f CF migration.
+ *
+ * Pass `roomIdFromUrl` if you're landing on `/multiplayer/[roomId]` and
+ * you want to auto-subscribe (the old hook only subscribed inside
+ * createRoom/joinRoom, which broke for anyone who navigated directly to
+ * a room URL after a router.push). Backwards-compatible: omitting
+ * `roomIdFromUrl` preserves the old behavior.
+ */
 export function useKuizuMultiplayer(
-  playerId: string
+  playerId: string,
+  roomIdFromUrl?: string,
 ): UseKuizuMultiplayerResult {
   const [room, setRoom] = useState<GameRoom<KuizuGameState> | null>(null);
   const [gameState, setGameState] = useState<KuizuGameState | null>(null);
@@ -322,6 +358,33 @@ export function useKuizuMultiplayer(
     }
   }, []);
 
+  // Shared helper: subscribe to room + gameState for `roomId`, returning
+  // an unsubscribe. Routes RTDB snapshots through `rehydrateKuizuGameState`
+  // so consumers see the original (non-JSON-encoded) shape.
+  const setupSubscriptions = useCallback((roomId: string): void => {
+    cleanup();
+    unsubscribeRoomRef.current = subscribeToPath<GameRoom<KuizuGameState>>(
+      `gameRooms/${roomId}`, (data) => {
+        if (data) {
+          setRoom(data);
+          const playerList = Object.values(data.players || {});
+          setPlayers(playerList as KuizuPlayer[]);
+        }
+      },
+    );
+    unsubscribeGameStateRef.current = subscribeToPath<WireKuizuGameState>(
+      `gameRooms/${roomId}/gameState`, (data) => {
+        const rehydrated = rehydrateKuizuGameState(data);
+        setGameState(rehydrated);
+        if (rehydrated?.phase === 'question' || rehydrated?.phase === 'countdown') {
+          setLobbyState('playing');
+        } else if (rehydrated?.phase === 'results') {
+          setLobbyState('finished');
+        }
+      },
+    );
+  }, [cleanup]);
+
   const createRoom = useCallback(
     async (
       playerName: string,
@@ -331,69 +394,30 @@ export function useKuizuMultiplayer(
       setError(null);
       setLobbyState('creating');
       try {
-        const response = await gameRoomService.createRoom(
-          playerId,
-          playerName,
-          password,
-          'kuizu'
-        );
-
+        // Pass the quiz through `rules.quiz`; the CF reads it in
+        // `startKuizuGame` to build the initial gameState server-side.
+        const response = await gameActionClient.createRoom({
+          playerId, playerName, password,
+          gameType: 'kuizu',
+          rules: { quiz },
+        });
         if (response.success && response.roomId) {
           const roomId = response.roomId;
           setIsHost(true);
           setLobbyState('waiting');
-
-          // Subscribe to room updates
-          unsubscribeRoomRef.current = subscribeToPath<
-            GameRoom<KuizuGameState>
-          >(`gameRooms/${roomId}`, (data) => {
-            if (data) {
-              setRoom(data);
-              const playerList = Object.values(data.players || {});
-              setPlayers(playerList as KuizuPlayer[]);
-            }
-          });
-
-          // Subscribe to game state
-          unsubscribeGameStateRef.current = subscribeToPath<KuizuGameState>(
-            `gameRooms/${roomId}/gameState`,
-            (data) => {
-              setGameState(data);
-              if (data?.phase === 'question' || data?.phase === 'countdown') {
-                setLobbyState('playing');
-              } else if (data?.phase === 'results') {
-                setLobbyState('finished');
-              }
-            }
-          );
-
-          // Subscribe to pending actions (host only)
-          unsubscribePendingActionRef.current =
-            subscribeToPath<KuizuPendingAction>(
-              `gameRooms/${roomId}/pendingAction`,
-              async (action) => {
-                if (action && gameState) {
-                  // Host processes player actions
-                  await processPlayerAction(roomId, action, gameState);
-                }
-              }
-            );
-
+          setupSubscriptions(roomId);
           return roomId;
-        } else {
-          setError(response.error || 'Failed to create room');
-          setLobbyState('idle');
-          return null;
         }
+        setError(response.error || 'Failed to create room');
+        setLobbyState('idle');
+        return null;
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to create room'
-        );
+        setError(err instanceof Error ? err.message : 'Failed to create room');
         setLobbyState('idle');
         return null;
       }
     },
-    [playerId]
+    [playerId, setupSubscriptions]
   );
 
   const joinRoom = useCallback(
@@ -405,47 +429,18 @@ export function useKuizuMultiplayer(
       setError(null);
       setLobbyState('joining');
       try {
-        const response = await gameRoomService.joinRoom(
-          roomId,
-          playerId,
-          playerName,
-          password
-        );
-
+        const response = await gameActionClient.joinRoom({
+          roomId, playerId, playerName, password,
+        });
         if (response.success && response.room) {
-          setIsHost(false);
+          setIsHost(response.room.hostId === playerId);
           setLobbyState('waiting');
-
-          // Subscribe to room updates
-          unsubscribeRoomRef.current = subscribeToPath<
-            GameRoom<KuizuGameState>
-          >(`gameRooms/${roomId}`, (data) => {
-            if (data) {
-              setRoom(data);
-              const playerList = Object.values(data.players || {});
-              setPlayers(playerList as KuizuPlayer[]);
-            }
-          });
-
-          // Subscribe to game state
-          unsubscribeGameStateRef.current = subscribeToPath<KuizuGameState>(
-            `gameRooms/${roomId}/gameState`,
-            (data) => {
-              setGameState(data);
-              if (data?.phase === 'question' || data?.phase === 'countdown') {
-                setLobbyState('playing');
-              } else if (data?.phase === 'results') {
-                setLobbyState('finished');
-              }
-            }
-          );
-
+          setupSubscriptions(roomId);
           return true;
-        } else {
-          setError(response.error || 'Failed to join room');
-          setLobbyState('idle');
-          return false;
         }
+        setError(response.error || 'Failed to join room');
+        setLobbyState('idle');
+        return false;
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to join room');
         setLobbyState('idle');
@@ -457,65 +452,40 @@ export function useKuizuMultiplayer(
 
   const leaveRoom = useCallback(async () => {
     if (!room) return;
-
     try {
-      await gameRoomService.leaveRoom(room.id, playerId);
-      cleanup();
-      setRoom(null);
-      setGameState(null);
-      setPlayers([]);
-      setLobbyState('idle');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to leave room');
-    }
+      await gameActionClient.leaveRoom({ roomId: room.id, playerId });
+    } catch { /* ignore */ }
+    cleanup();
+    setRoom(null);
+    setGameState(null);
+    setPlayers([]);
+    setLobbyState('idle');
   }, [room, playerId, cleanup]);
 
   const setReady = useCallback(
     async (ready: boolean) => {
       if (!room) return;
-
       try {
-        await gameRoomService.setPlayerReady(room.id, playerId, ready);
+        await gameActionClient.setReady({ roomId: room.id, playerId, ready });
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to set ready status'
-        );
+        setError(err instanceof Error ? err.message : 'Failed to set ready status');
       }
     },
     [room, playerId]
   );
 
+  /**
+   * Host kicks off the match. The quiz was attached to `room.rules.quiz`
+   * at `createRoom` time, so the CF can build the initial state itself.
+   * The `quiz` arg is unused in the CF path; kept for backwards compat
+   * with the existing call sites.
+   */
   const startQuiz = useCallback(
-    async (quiz: Quiz) => {
+    async (_quiz: Quiz) => {
       if (!room || !isHost) return;
-
-      const initialGameState: KuizuGameState = {
-        phase: 'countdown' as MultiplayerPhase,
-        quizId: quiz.id,
-        category: quiz.category,
-        difficulty: quiz.difficulty,
-        currentQuestionIndex: 0,
-        totalQuestions: quiz.questions.length,
-        currentQuestion: quiz.questions[0],
-        questionStartTime: Date.now() + 3000, // 3 second countdown
-        timePerQuestion: quiz.timePerQuestion,
-        playerScores: {},
-        playerStreaks: {},
-        playerAnswers: {},
-        lastUpdate: Date.now(),
-      };
-
       try {
-        await gameRoomService.startGame(room.id, playerId, initialGameState);
-
-        // After countdown, move to first question
-        setTimeout(async () => {
-          await setData(`gameRooms/${room.id}/gameState`, {
-            ...initialGameState,
-            phase: 'question' as MultiplayerPhase,
-            questionStartTime: Date.now(),
-          });
-        }, 3000);
+        const r = await gameActionClient.startGame({ roomId: room.id, playerId });
+        if (!r.success) setError(r.error ?? 'Failed to start quiz');
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to start quiz');
       }
@@ -525,121 +495,45 @@ export function useKuizuMultiplayer(
 
   const submitAnswer = useCallback(
     async (answer: string, answerTime: number) => {
-      if (!room || isHost) return;
-
-      const action: KuizuPendingAction = {
-        playerId,
-        action: 'submit_answer',
-        payload: { answer, answerTime },
-        timestamp: Date.now(),
-      };
-
+      if (!room || !gameState) return;
       try {
-        await setData(`gameRooms/${room.id}/pendingAction`, action);
+        const r = await gameActionClient.submitKuizuAnswer({
+          roomId: room.id, playerId,
+          questionIdx: gameState.currentQuestionIndex,
+          answer, answerTime,
+        });
+        if (!r.success) setError(r.error ?? 'Failed to submit answer');
       } catch (err) {
-        setError(
-          err instanceof Error ? err.message : 'Failed to submit answer'
-        );
+        setError(err instanceof Error ? err.message : 'Failed to submit answer');
       }
     },
-    [room, isHost, playerId]
+    [room, playerId, gameState]
   );
 
-  const processPlayerAction = async (
-    roomId: string,
-    action: KuizuPendingAction,
-    currentState: KuizuGameState
-  ) => {
-    if (action.action === 'submit_answer') {
-      const { answer, answerTime } = action.payload;
-      const isCorrect =
-        currentState.currentQuestion?.correctOptionId === answer ||
-        currentState.currentQuestion?.correctText === answer;
-
-      const currentStreak = currentState.playerStreaks[action.playerId] || 0;
-      const newStreak = isCorrect ? currentStreak + 1 : 0;
-
-      const points = calculatePoints(
-        isCorrect,
-        answerTime,
-        currentState.timePerQuestion * 1000,
-        currentStreak
-      );
-
-      const updatedState: KuizuGameState = {
-        ...currentState,
-        playerScores: {
-          ...currentState.playerScores,
-          [action.playerId]:
-            (currentState.playerScores[action.playerId] || 0) + points,
-        },
-        playerStreaks: {
-          ...currentState.playerStreaks,
-          [action.playerId]: newStreak,
-        },
-        playerAnswers: {
-          ...currentState.playerAnswers,
-          [action.playerId]: { answer, time: answerTime, isCorrect },
-        },
-        lastUpdate: Date.now(),
-      };
-
-      await setData(`gameRooms/${roomId}/gameState`, updatedState);
-      // Clear the pending action
-      await setData(`gameRooms/${roomId}/pendingAction`, null);
-    }
-  };
-
   const nextQuestion = useCallback(async () => {
-    if (!room || !isHost || !gameState) return;
-
-    const nextIndex = gameState.currentQuestionIndex + 1;
-
-    if (nextIndex >= gameState.totalQuestions) {
-      // Quiz finished
-      const updatedState: KuizuGameState = {
-        ...gameState,
-        phase: 'results' as MultiplayerPhase,
-        lastUpdate: Date.now(),
-      };
-      await setData(`gameRooms/${room.id}/gameState`, updatedState);
-      return;
-    }
-
-    // Move to next question
-    const updatedState: KuizuGameState = {
-      ...gameState,
-      phase: 'question' as MultiplayerPhase,
-      currentQuestionIndex: nextIndex,
-      questionStartTime: Date.now(),
-      playerAnswers: {}, // Clear answers for new question
-      lastUpdate: Date.now(),
-    };
-
+    if (!room || !isHost) return;
     try {
-      await setData(`gameRooms/${room.id}/gameState`, updatedState);
+      const r = await gameActionClient.submitKuizuNext({ roomId: room.id, playerId });
+      if (!r.success) setError(r.error ?? 'Failed to advance question');
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : 'Failed to advance question'
-      );
+      setError(err instanceof Error ? err.message : 'Failed to advance question');
     }
-  }, [room, isHost, gameState]);
+  }, [room, isHost, playerId]);
 
   const endQuiz = useCallback(async () => {
-    if (!room || !isHost || !gameState) return;
+    // CF flips status to 'finished' + sets winnerId when `next` is
+    // called past the last question. Nothing for the client to do here.
+  }, []);
 
-    try {
-      // Determine winner (highest score)
-      const scores = gameState.playerScores;
-      const winnerId =
-        Object.entries(scores).sort(([, a], [, b]) => b - a)[0]?.[0] || null;
-
-      await gameRoomService.endGame(room.id, winnerId);
-      setLobbyState('finished');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to end quiz');
-    }
-  }, [room, isHost, gameState]);
+  // Auto-subscribe when the page is mounted with a roomId in the URL
+  // (e.g. `/multiplayer/[roomId]`). The old hook only subscribed inside
+  // createRoom / joinRoom, which broke for anyone navigating directly
+  // to a room URL after a router.push().
+  useEffect(() => {
+    if (!roomIdFromUrl) return;
+    if (room?.id === roomIdFromUrl) return; // already subscribed
+    setupSubscriptions(roomIdFromUrl);
+  }, [roomIdFromUrl, room?.id, setupSubscriptions]);
 
   useEffect(() => {
     return () => {

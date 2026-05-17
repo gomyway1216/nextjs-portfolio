@@ -102,7 +102,7 @@ const VoiceTaskItem = () => {
                 mode="single"
                 selected={selectedDate}
                 onSelect={setSelectedDate}
-                initialFocus
+                autoFocus
               />
             </PopoverContent>
           </Popover>

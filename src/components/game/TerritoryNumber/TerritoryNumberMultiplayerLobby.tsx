@@ -11,7 +11,7 @@ import { useGameLanguage } from '../contexts/GameLanguageContext';
 
 interface TerritoryNumberMultiplayerLobbyProps {
   multiplayer: UseTerritoryNumberMultiplayerReturn;
-  onGameStart: (rules: TerritoryNumberRules) => void;
+  onGameStart: () => void;
 }
 
 const inputStyle: React.CSSProperties = {
@@ -104,6 +104,16 @@ export function TerritoryNumberMultiplayerLobby({
     setIsLoading(true);
     await multiplayer.setReady(!myPlayer?.ready);
     setIsLoading(false);
+  };
+
+  const handleStart = async () => {
+    // The server builds the initial state from persisted `rules`. The host's
+    // rule edits are pushed on a 250ms debounce, so an immediate Start click
+    // could race and start with stale rules. Flush before starting.
+    if (context.isHost) {
+      await multiplayer.updateRules(rules);
+    }
+    onGameStart();
   };
 
   // -- IDLE / MENU
@@ -309,7 +319,7 @@ export function TerritoryNumberMultiplayerLobby({
           </button>
           {context.isHost && (
             <button
-              onClick={() => onGameStart(rules)}
+              onClick={handleStart}
               disabled={!allReady}
               style={buttonStyle('#2563eb', !allReady)}
             >

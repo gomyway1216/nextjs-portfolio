@@ -1,17 +1,20 @@
 /**
  * Territory Number — Online mode wrapper.
  *
- * Both clients render the same UI from `gameState`. The HOST is the only
- * one who advances state: it watches `pendingAction`, validates it, applies
- * it to the board (via gameLogic.placeCard), advances currentTurn, and
- * checks for match end.
+ * Phase 1 of the CF migration. Both clients render the same UI from
+ * `gameState`; nobody runs game logic locally — the host loop is gone.
+ * Each player just submits their move via `multiplayer.submitMove(...)`,
+ * which calls the `gameAction` Cloud Function. The CF validates and
+ * writes the new state to RTDB; both clients see the update via the
+ * existing RTDB onSnapshot subscription.
  *
- * Non-host clients render-only; they `submitAction` and wait.
+ * Match-end / `winnerId` is also set by the CF — the client just renders
+ * what `gameState.finished` and `gameState.winnerId` say.
  */
 
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { useTerritoryNumberMultiplayer } from './useTerritoryNumberMultiplayer';
 import { TerritoryNumberMultiplayerLobby } from './TerritoryNumberMultiplayerLobby';
@@ -19,53 +22,13 @@ import { TerritoryNumberBoard, type Phase } from './TerritoryNumberBoard';
 import {
   emptyBoard,
   evaluateBoard,
-  evaluateMatch,
-  isCellEmpty,
-  placeCard,
   remainingCards,
-  isBoardFull,
 } from './gameLogic';
-import type {
-  TerritoryNumberNetworkState,
-} from './multiplayerTypes';
-import type {
-  FirstPlayerRule,
-  PlayerSlot,
-  TerritoryNumberRules,
-} from './types';
+import type { PlayerSlot } from './types';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 
 interface TerritoryNumberOnlineProps {
   onBackToMenu: () => void;
-}
-
-function pickFirstPlayer(rule: FirstPlayerRule, hostId: string, guestId: string): string {
-  switch (rule) {
-    case 'host':   return hostId;
-    case 'guest':  return guestId;
-    case 'random': return Math.random() < 0.5 ? hostId : guestId;
-  }
-}
-
-function buildInitialGameState(
-  rules: TerritoryNumberRules,
-  hostId: string,
-  guestId: string,
-): TerritoryNumberNetworkState {
-  const firstId = pickFirstPlayer(rules.firstPlayer, hostId, guestId);
-  const secondId = firstId === hostId ? guestId : hostId;
-  return {
-    version: 1,
-    rules,
-    playerOrder: [firstId, secondId],
-    board: emptyBoard(),
-    currentTurnPlayerId: firstId,
-    log: [],
-    finished: false,
-    winnerId: null,
-    startedAt: Date.now(),
-    lastUpdate: Date.now(),
-  };
 }
 
 export function TerritoryNumberOnline({ onBackToMenu }: TerritoryNumberOnlineProps) {
@@ -75,7 +38,6 @@ export function TerritoryNumberOnline({ onBackToMenu }: TerritoryNumberOnlinePro
   const {
     context,
     gameState,
-    pendingAction,
     otherPlayerId,
     otherPlayerName,
   } = multiplayer;
@@ -83,104 +45,21 @@ export function TerritoryNumberOnline({ onBackToMenu }: TerritoryNumberOnlinePro
   const myId = context.playerId;
   const opponentId = otherPlayerId;
 
-  const advancingRef = useRef(false);
-  const lastResolvedActionIdRef = useRef<string>('');
-
-  const handleStartGame = useCallback(async (rules: TerritoryNumberRules) => {
+  const handleStartGame = useCallback(async () => {
     if (!context.isHost) return;
     if (!opponentId) return;
-    const initial = buildInitialGameState(rules, context.playerId, opponentId);
-    await multiplayer.startGame(initial);
-  }, [context.isHost, context.playerId, opponentId, multiplayer]);
+    // Server builds the initial state (incl. who goes first per rules);
+    // we just trigger the start.
+    await multiplayer.startGame();
+  }, [context.isHost, opponentId, multiplayer]);
 
-  // === HOST: apply a pending action ===
-  useEffect(() => {
-    if (!context.isHost) return;
-    if (!gameState || gameState.finished) return;
-    if (!opponentId) return;
-    if (advancingRef.current) return;
-    if (!pendingAction) return;
-    if (pendingAction.actionId === lastResolvedActionIdRef.current) return;
-
-    // Stale check: must match the current turn AND that player.
-    const expectedTurn = gameState.log.length + 1;
-    if (pendingAction.turn !== expectedTurn) {
-      void multiplayer.clearPendingAction();
-      return;
-    }
-    if (pendingAction.playerId !== gameState.currentTurnPlayerId) {
-      void multiplayer.clearPendingAction();
-      return;
-    }
-
-    // Anti-cheat validation: cell must be empty AND card must still be available.
-    if (!isCellEmpty(gameState.board[pendingAction.cellIndex])) {
-      void multiplayer.clearPendingAction();
-      return;
-    }
-    const remaining = remainingCards(gameState.board);
-    if (!remaining.includes(pendingAction.card)) {
-      void multiplayer.clearPendingAction();
-      return;
-    }
-
-    advancingRef.current = true;
-    lastResolvedActionIdRef.current = pendingAction.actionId;
-
-    const slot: PlayerSlot = pendingAction.playerId === gameState.playerOrder[0] ? 'p1' : 'p2';
-    const nextBoard = placeCard(gameState.board, pendingAction.cellIndex, pendingAction.card, slot);
-    const nextTurnPlayerId = pendingAction.playerId === gameState.playerOrder[0]
-      ? gameState.playerOrder[1]
-      : gameState.playerOrder[0];
-
-    const log = [
-      ...gameState.log,
-      {
-        turn: expectedTurn,
-        playerId: pendingAction.playerId,
-        card: pendingAction.card,
-        cellIndex: pendingAction.cellIndex,
-        timestamp: Date.now(),
-      },
-    ];
-
-    const matchOutcome = isBoardFull(nextBoard) ? evaluateMatch(nextBoard) : undefined;
-    const finished = matchOutcome !== undefined;
-    let winnerId: string | null = null;
-    if (finished) {
-      if (matchOutcome === 'p1') winnerId = gameState.playerOrder[0];
-      else if (matchOutcome === 'p2') winnerId = gameState.playerOrder[1];
-      // matchOutcome === null → draw, leave winnerId null
-    }
-
-    const updated: TerritoryNumberNetworkState = {
-      ...gameState,
-      board: nextBoard,
-      currentTurnPlayerId: nextTurnPlayerId,
-      log,
-      finished,
-      winnerId,
-      lastUpdate: Date.now(),
-    };
-
-    (async () => {
-      try {
-        await multiplayer.updateGameState(updated);
-        await multiplayer.clearPendingAction();
-        if (finished) {
-          await multiplayer.endGame(winnerId);
-        }
-      } finally {
-        advancingRef.current = false;
-      }
-    })();
-  }, [context.isHost, gameState, pendingAction, opponentId, multiplayer]);
-
-  // === BOTH: pick + place ===
+  // Local UI state only: which card is currently selected for placement.
   const [selectedCard, setSelectedCard] = React.useState<number | null>(null);
+  // Tracks an in-flight move so we don't double-submit.
+  const [submittingTurn, setSubmittingTurn] = React.useState<number | null>(null);
 
   const handleSelectCard = useCallback((card: number) => {
-    setSelectedCard(prev => (prev === card ? null : card));
+    setSelectedCard((prev) => (prev === card ? null : card));
   }, []);
 
   const handlePlaceOnCell = useCallback(async (cellIndex: number) => {
@@ -189,12 +68,22 @@ export function TerritoryNumberOnline({ onBackToMenu }: TerritoryNumberOnlinePro
     if (gameState.currentTurnPlayerId !== myId) return;
     if (gameState.board[cellIndex].value !== null) return;
     if (!remainingCards(gameState.board).includes(selectedCard)) return;
-    if (pendingAction && pendingAction.playerId === myId) return; // already submitted
 
     const turn = gameState.log.length + 1;
-    await multiplayer.submitAction(selectedCard, cellIndex, turn);
+    if (submittingTurn === turn) return;
+    setSubmittingTurn(turn);
+    const card = selectedCard;
     setSelectedCard(null);
-  }, [gameState, selectedCard, myId, pendingAction, multiplayer]);
+    try {
+      const result = await multiplayer.submitMove(card, cellIndex, turn);
+      if (!result.success) {
+        // Server rejected (e.g. someone else moved first). Re-select for retry.
+        setSelectedCard(card);
+      }
+    } finally {
+      setSubmittingTurn(null);
+    }
+  }, [gameState, selectedCard, myId, submittingTurn, multiplayer]);
 
   const handleLeave = useCallback(async () => {
     await multiplayer.leaveRoom();
@@ -215,7 +104,7 @@ export function TerritoryNumberOnline({ onBackToMenu }: TerritoryNumberOnlinePro
     [gameState],
   );
 
-  // Render lobby until we're playing/finished.
+  // Lobby until status flips to playing/finished.
   if (context.lobbyState !== 'playing' && context.lobbyState !== 'finished') {
     return (
       <div style={{

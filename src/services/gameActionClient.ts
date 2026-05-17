@@ -245,3 +245,31 @@ export function submitDoubtDoubt(args: {
 }): Promise<GenericResponse> {
   return call<GenericResponse>({ action: 'submitAction', type: 'doubt', ...args });
 }
+
+/**
+ * Daifugo — play 1+ cards. Server validates the play shape (group /
+ * straight), applies shibari / revolution / 8-cut / 11-back / 7-give /
+ * 10-discard rules, and advances the turn (skipping eliminated /
+ * skip-affected players).
+ */
+export function submitDaifugoPlay(args: {
+  roomId: string;
+  playerId: string;
+  cardIds: string[];
+  giveCardIds?: string[];   // 7-give: which cards to hand to the next player
+  discardCardIds?: string[]; // 10-discard: which cards to drop
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'play', ...args });
+}
+
+/**
+ * Daifugo — pass. Server records the pass; when everyone except the
+ * last player has passed the table clears and the last player leads
+ * the next trick.
+ */
+export function submitDaifugoPass(args: {
+  roomId: string;
+  playerId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'pass', ...args });
+}

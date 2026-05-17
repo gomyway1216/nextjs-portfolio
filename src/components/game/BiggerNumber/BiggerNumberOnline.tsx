@@ -1,61 +1,28 @@
 /**
- * Bigger Number — Online mode wrapper.
+ * Bigger Number — Online mode wrapper (Phase 1 CF migration).
  *
- * Both clients render the same UI from `gameState`. The HOST is the only
- * one who advances state: it watches `pendingActions`, resolves the round
- * once both picks have arrived, writes the new gameState, and then
- * transitions through reveal → between-rounds → next-round.
- *
- * Non-host clients are render-only; they submit their pick and wait.
+ * Both clients are now render-only. Picks land via the gameAction CF
+ * (`multiplayer.submitPick`); the CF resolves the round atomically when
+ * both picks arrive. After `REVEAL_HOLD_MS` either client may call
+ * `multiplayer.advanceRound` to clear the reveal and advance — idempotent
+ * on the server side, first call wins.
  */
 
 'use client';
 
-import React, { useCallback, useEffect, useRef } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useBiggerNumberMultiplayer } from './useBiggerNumberMultiplayer';
 import { BiggerNumberMultiplayerLobby } from './BiggerNumberMultiplayerLobby';
 import { BiggerNumberTable, type RoundPhase } from './BiggerNumberTable';
-import {
-  freshHand,
-  removeCard,
-  resolveRound,
-  evaluateMatch,
-  cardLabel,
-  handHas,
-} from './gameLogic';
-import type {
-  BiggerNumberLastReveal,
-  BiggerNumberNetworkState,
-} from './multiplayerTypes';
-import type { BiggerNumberRules, CardValue } from './types';
+import { cardLabel } from './gameLogic';
+import type { CardValue } from './types';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 
 const REVEAL_HOLD_MS = 1500;
 
 interface BiggerNumberOnlineProps {
   onBackToMenu: () => void;
-}
-
-function buildInitialGameState(
-  rules: BiggerNumberRules,
-  p1Id: string,
-  p2Id: string,
-): BiggerNumberNetworkState {
-  return {
-    version: 1,
-    rules,
-    playerOrder: [p1Id, p2Id],
-    round: 1,
-    scores: { [p1Id]: 0, [p2Id]: 0 },
-    hands: { [p1Id]: freshHand(), [p2Id]: freshHand() },
-    lastReveal: null,
-    log: [],
-    finished: false,
-    winnerId: null,
-    startedAt: Date.now(),
-    lastUpdate: Date.now(),
-  };
 }
 
 export function BiggerNumberOnline({ onBackToMenu }: BiggerNumberOnlineProps) {
@@ -73,136 +40,10 @@ export function BiggerNumberOnline({ onBackToMenu }: BiggerNumberOnlineProps) {
   const myId = context.playerId;
   const opponentId = otherPlayerId;
 
-  // Guard against double-resolving the same pair of picks. Tracks the
-  // composite key of both action IDs so that a tie+replay (which leaves
-  // `gameState.round` unchanged) still allows the next pair of picks to
-  // be resolved.
-  const lastResolvedActionsRef = useRef<string>('');
-  const advancingRef = useRef(false);
-
-  const handleStartGame = useCallback(async (rules: BiggerNumberRules) => {
+  const handleStartGame = useCallback(async () => {
     if (!context.isHost) return;
-    if (!opponentId) return;
-    const initial = buildInitialGameState(rules, context.playerId, opponentId);
-    await multiplayer.startGame(initial);
-  }, [context.isHost, context.playerId, opponentId, multiplayer]);
-
-  // === HOST: resolve a round once both picks have arrived ===
-  useEffect(() => {
-    if (!context.isHost) return;
-    if (!gameState || gameState.finished) return;
-    if (!opponentId) return;
-    if (advancingRef.current) return;
-    if (gameState.lastReveal) return; // already in reveal phase
-
-    const myPick = pendingActions?.[context.playerId];
-    const oppPick = pendingActions?.[opponentId];
-    if (!myPick || !oppPick) return;
-    if (myPick.round !== gameState.round || oppPick.round !== gameState.round) return;
-
-    const actionsKey = `${myPick.actionId}|${oppPick.actionId}`;
-    if (actionsKey === lastResolvedActionsRef.current) return;
-
-    // Anti-cheat: refuse to resolve if either player submitted a card they
-    // don't actually hold this round (modified client / replayed action).
-    const myHand = gameState.hands[context.playerId] ?? [];
-    const oppHand = gameState.hands[opponentId] ?? [];
-    if (!handHas(myHand, myPick.card) || !handHas(oppHand, oppPick.card)) {
-      // Drop the bad action(s) and let the players re-pick.
-      void multiplayer.clearPendingActions();
-      return;
-    }
-
-    advancingRef.current = true;
-    lastResolvedActionsRef.current = actionsKey;
-
-    const result = resolveRound(gameState.rules, myPick.card, oppPick.card);
-    const winnerId =
-      result.outcome === 'p1' ? context.playerId
-      : result.outcome === 'p2' ? opponentId
-      : null;
-
-    const nextScores = { ...gameState.scores };
-    if (winnerId) nextScores[winnerId] = (nextScores[winnerId] ?? 0) + 1;
-
-    const nextHands = { ...gameState.hands };
-    if (!result.cardsReturnedToHand) {
-      nextHands[context.playerId] = removeCard(nextHands[context.playerId] ?? [], myPick.card);
-      nextHands[opponentId] = removeCard(nextHands[opponentId] ?? [], oppPick.card);
-    }
-
-    const reveal: BiggerNumberLastReveal = {
-      round: gameState.round,
-      picks: { [context.playerId]: myPick.card, [opponentId]: oppPick.card },
-      winnerId,
-      involvedDragon: result.involvedDragon,
-      cardsReturnedToHand: result.cardsReturnedToHand,
-      revealedAt: Date.now(),
-    };
-
-    const log = [
-      ...gameState.log,
-      {
-        round: gameState.round,
-        p1Id: context.playerId,
-        p2Id: opponentId,
-        p1Card: myPick.card,
-        p2Card: oppPick.card,
-        winnerId,
-        involvedDragon: result.involvedDragon,
-        cardsReturnedToHand: result.cardsReturnedToHand,
-        timestamp: Date.now(),
-      },
-    ];
-
-    const completedRounds = result.cardsReturnedToHand ? gameState.round - 1 : gameState.round;
-    const matchWinner = evaluateMatch(
-      gameState.rules,
-      { p1Wins: nextScores[context.playerId] ?? 0, p2Wins: nextScores[opponentId] ?? 0 },
-      completedRounds,
-      { p1: context.playerId, p2: opponentId },
-    );
-
-    const updatedState: BiggerNumberNetworkState = {
-      ...gameState,
-      scores: nextScores,
-      hands: nextHands,
-      lastReveal: reveal,
-      log,
-      lastUpdate: Date.now(),
-    };
-
-    (async () => {
-      try {
-        await multiplayer.updateGameState(updatedState);
-        await multiplayer.clearPendingActions();
-
-        // Hold the reveal so both clients see it, then advance.
-        await new Promise(r => setTimeout(r, REVEAL_HOLD_MS));
-
-        if (matchWinner !== undefined) {
-          const finalState: BiggerNumberNetworkState = {
-            ...updatedState,
-            finished: true,
-            winnerId: matchWinner,
-            lastUpdate: Date.now(),
-          };
-          await multiplayer.updateGameState(finalState);
-          await multiplayer.endGame(matchWinner);
-        } else {
-          const advancedState: BiggerNumberNetworkState = {
-            ...updatedState,
-            round: result.cardsReturnedToHand ? gameState.round : gameState.round + 1,
-            lastReveal: null,
-            lastUpdate: Date.now(),
-          };
-          await multiplayer.updateGameState(advancedState);
-        }
-      } finally {
-        advancingRef.current = false;
-      }
-    })();
-  }, [context.isHost, context.playerId, opponentId, gameState, pendingActions, multiplayer]);
+    await multiplayer.startGame();
+  }, [context.isHost, multiplayer]);
 
   // === BOTH: handle pick ===
   const handlePickCard = useCallback(async (card: CardValue) => {
@@ -213,6 +54,22 @@ export function BiggerNumberOnline({ onBackToMenu }: BiggerNumberOnlineProps) {
     if (pendingActions?.[myId]?.round === gameState.round) return;
     await multiplayer.submitPick(card, gameState.round);
   }, [gameState, opponentId, pendingActions, myId, multiplayer]);
+
+  // === BOTH: ack reveal after REVEAL_HOLD_MS so the CF advances ===
+  // Server is the source of truth; whichever client's timer fires first
+  // calls advanceRound, the other is a no-op (idempotent).
+  useEffect(() => {
+    if (!gameState || gameState.finished) return;
+    if (!gameState.lastReveal) return;
+    const revealedRound = gameState.lastReveal.round;
+    if (gameState.round !== revealedRound) return; // already advanced
+    const elapsed = Date.now() - gameState.lastReveal.revealedAt;
+    const remaining = Math.max(0, REVEAL_HOLD_MS - elapsed);
+    const timer = setTimeout(() => {
+      void multiplayer.advanceRound(revealedRound);
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [gameState, multiplayer]);
 
   const handleLeave = useCallback(async () => {
     await multiplayer.leaveRoom();

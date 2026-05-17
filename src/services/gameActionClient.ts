@@ -206,3 +206,42 @@ export function submitShichinarabePass(args: {
 }): Promise<GenericResponse> {
   return call<GenericResponse>({ action: 'submitAction', type: 'pass', ...args });
 }
+
+/**
+ * Doubt — play 1–4 face-down cards declaring them as the required rank.
+ * Server validates that it's the caller's turn, that the phase is
+ * `play`, that the cards are in the caller's hand, and stores them in
+ * the pile + a `pendingClaim` for the next active player to accept or
+ * doubt.
+ */
+export function submitDoubtPlay(args: {
+  roomId: string;
+  playerId: string;
+  cardIds: string[];
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'play', ...args });
+}
+
+/**
+ * Doubt — accept the pending claim (no challenge). Server clears
+ * `pendingClaim`, marks the claimant as finished if they went out, and
+ * advances to the next active player.
+ */
+export function submitDoubtAccept(args: {
+  roomId: string;
+  playerId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'accept', ...args });
+}
+
+/**
+ * Doubt — challenge the pending claim. Server reveals the played
+ * cards: if the claim was truthful the doubter takes the pile;
+ * otherwise the claimant does. The pile taker plays next.
+ */
+export function submitDoubtDoubt(args: {
+  roomId: string;
+  playerId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'doubt', ...args });
+}

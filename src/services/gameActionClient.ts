@@ -51,8 +51,17 @@ async function call<T>(payload: GameActionRequest): Promise<T> {
   } catch {
     return { success: false, error: `HTTP ${res.status}` } as T;
   }
-  if (!res.ok && body && typeof body === 'object' && 'success' in body && (body as { success: unknown }).success !== false) {
-    return { success: false, error: `HTTP ${res.status}` } as T;
+  if (!res.ok) {
+    // If the CF already shaped it as {success: false, ...}, pass through.
+    if (body && typeof body === 'object' && 'success' in body && (body as { success: unknown }).success === false) {
+      return body as T;
+    }
+    // Otherwise normalize so callers can rely on the success flag, even
+    // when the server returned a bare `{error: "..."}` (or a non-object).
+    const errMsg = body && typeof body === 'object' && 'error' in body && typeof (body as { error: unknown }).error === 'string'
+      ? (body as { error: string }).error
+      : `HTTP ${res.status}`;
+    return { success: false, error: errMsg } as T;
   }
   return body as T;
 }
@@ -109,7 +118,7 @@ export function startGame(args: {
 }
 
 export function getRoom(args: { roomId: string }): Promise<{ success: boolean; room?: GameRoom; error?: string }> {
-  return call({ action: 'getRoom', ...args });
+  return call<{ success: boolean; room?: GameRoom; error?: string }>({ action: 'getRoom', ...args });
 }
 
 // ---- Game-specific moves --------------------------------------------------

@@ -106,6 +106,16 @@ export function TerritoryNumberMultiplayerLobby({
     setIsLoading(false);
   };
 
+  const handleStart = async () => {
+    // The server builds the initial state from persisted `rules`. The host's
+    // rule edits are pushed on a 250ms debounce, so an immediate Start click
+    // could race and start with stale rules. Flush before starting.
+    if (context.isHost) {
+      await multiplayer.updateRules(rules);
+    }
+    onGameStart();
+  };
+
   // -- IDLE / MENU
   if (context.lobbyState === 'idle' && mode === 'menu') {
     return (
@@ -309,7 +319,7 @@ export function TerritoryNumberMultiplayerLobby({
           </button>
           {context.isHost && (
             <button
-              onClick={() => onGameStart()}
+              onClick={handleStart}
               disabled={!allReady}
               style={buttonStyle('#2563eb', !allReady)}
             >

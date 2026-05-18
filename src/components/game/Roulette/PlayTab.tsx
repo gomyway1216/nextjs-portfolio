@@ -7,10 +7,53 @@ import { Bet, colorOf, payoutMultiplier, RED_NUMBERS, spin } from './engine';
 const CHIP_VALUES = [1, 5, 10, 25, 100];
 const INITIAL_BANKROLL = 1000;
 
+// Number-grid geometry: 12 cols × 3 rows. Row 0 is top (3, 6, 9, ...), row 2 is
+// bottom (1, 4, 7, ...). numberAt(col, row) returns the cell's number.
+const CELL_W = 100 / 12;
+const CELL_H = 100 / 3;
+const numberAt = (k: number, r: number) => 3 * k + (3 - r);
+
+// Precompute inside-bet metadata (number sets + grid positions). 0-involving
+// splits (0-1, 0-2, 0-3) and trios (0-1-2, 0-2-3) are intentionally omitted —
+// would need to bridge the standalone 0 cell to the main grid.
+const V_SPLITS: { k: number; r: number; numbers: [number, number] }[] = [];
+for (let k = 0; k < 11; k++) {
+  for (let r = 0; r < 3; r++) {
+    V_SPLITS.push({ k, r, numbers: [numberAt(k, r), numberAt(k + 1, r)] });
+  }
+}
+const H_SPLITS: { k: number; r: number; numbers: [number, number] }[] = [];
+for (let k = 0; k < 12; k++) {
+  for (let r = 0; r < 2; r++) {
+    H_SPLITS.push({ k, r, numbers: [numberAt(k, r), numberAt(k, r + 1)] });
+  }
+}
+const CORNERS: { k: number; r: number; numbers: [number, number, number, number] }[] = [];
+for (let k = 0; k < 11; k++) {
+  for (let r = 0; r < 2; r++) {
+    CORNERS.push({
+      k,
+      r,
+      numbers: [numberAt(k, r), numberAt(k + 1, r), numberAt(k, r + 1), numberAt(k + 1, r + 1)],
+    });
+  }
+}
+const STREETS: { numbers: [number, number, number] }[] = [];
+for (let k = 0; k < 12; k++) {
+  STREETS.push({ numbers: [3 * k + 1, 3 * k + 2, 3 * k + 3] });
+}
+const LINES: { k: number; numbers: [number, number, number, number, number, number] }[] = [];
+for (let k = 0; k < 11; k++) {
+  LINES.push({ k, numbers: [3 * k + 1, 3 * k + 2, 3 * k + 3, 3 * k + 4, 3 * k + 5, 3 * k + 6] });
+}
+
 type BetKey = string;
 const keyOf = (bet: Bet): BetKey => {
   if (bet.kind === 'straight') return `straight:${bet.number}`;
   if (bet.kind === 'dozen') return `dozen:${bet.which}`;
+  if (bet.kind === 'split' || bet.kind === 'street' || bet.kind === 'corner' || bet.kind === 'line') {
+    return `${bet.kind}:${[...bet.numbers].sort((a, b) => a - b).join('-')}`;
+  }
   return bet.kind;
 };
 
@@ -184,7 +227,7 @@ export const PlayTab = () => {
           ))}
         </div>
 
-        {/* Number grid (0 + 1-36) */}
+        {/* Number grid (0 + 1-36) with overlaid Split / Corner hit zones */}
         <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.4rem' }}>
           <BetCell
             label="0"
@@ -194,17 +237,113 @@ export const PlayTab = () => {
             disabled={spinning}
             style={{ flex: '0 0 36px', height: 'auto' }}
           />
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '0.2rem', flex: 1 }}>
-            {numberGrid.flat().map((n) => (
-              <BetCell
-                key={n}
-                label={String(n)}
-                bg={RED_NUMBERS.has(n) ? '#dc2626' : '#0f172a'}
-                chips={bets[`straight:${n}`]?.amount}
-                onClick={() => placeBet({ kind: 'straight', number: n })}
-                disabled={spinning}
-              />
-            ))}
+          <div style={{ position: 'relative', flex: 1 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 0 }}>
+              {numberGrid.flat().map((n) => (
+                <BetCell
+                  key={n}
+                  label={String(n)}
+                  bg={RED_NUMBERS.has(n) ? '#dc2626' : '#0f172a'}
+                  chips={bets[`straight:${n}`]?.amount}
+                  onClick={() => placeBet({ kind: 'straight', number: n })}
+                  disabled={spinning}
+                />
+              ))}
+            </div>
+
+            <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+              {V_SPLITS.map(({ k, r, numbers }) => {
+                const bet = { kind: 'split', numbers } as const;
+                return (
+                  <HitZone
+                    key={keyOf(bet)}
+                    chips={bets[keyOf(bet)]?.amount}
+                    disabled={spinning}
+                    onClick={() => placeBet(bet)}
+                    title={`Split ${[...numbers].sort((a, b) => a - b).join(', ')} (17:1)`}
+                    style={{ left: `${(k + 1) * CELL_W}%`, top: `${(r + 0.5) * CELL_H}%`, width: 14, height: `${CELL_H * 0.55}%`, transform: 'translate(-50%, -50%)' }}
+                  />
+                );
+              })}
+              {H_SPLITS.map(({ k, r, numbers }) => {
+                const bet = { kind: 'split', numbers } as const;
+                return (
+                  <HitZone
+                    key={keyOf(bet)}
+                    chips={bets[keyOf(bet)]?.amount}
+                    disabled={spinning}
+                    onClick={() => placeBet(bet)}
+                    title={`Split ${[...numbers].sort((a, b) => a - b).join(', ')} (17:1)`}
+                    style={{ left: `${(k + 0.5) * CELL_W}%`, top: `${(r + 1) * CELL_H}%`, width: `${CELL_W * 0.55}%`, height: 14, transform: 'translate(-50%, -50%)' }}
+                  />
+                );
+              })}
+              {CORNERS.map(({ k, r, numbers }) => {
+                const bet = { kind: 'corner', numbers } as const;
+                return (
+                  <HitZone
+                    key={keyOf(bet)}
+                    chips={bets[keyOf(bet)]?.amount}
+                    disabled={spinning}
+                    onClick={() => placeBet(bet)}
+                    title={`Corner ${[...numbers].sort((a, b) => a - b).join(', ')} (8:1)`}
+                    style={{ left: `${(k + 1) * CELL_W}%`, top: `${(r + 1) * CELL_H}%`, width: 18, height: 18, borderRadius: '50%', transform: 'translate(-50%, -50%)' }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Streets (1 per column, 11:1) */}
+        <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.4rem' }}>
+          <div style={{ flex: '0 0 36px' }} />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: 0, flex: 1 }}>
+            {STREETS.map(({ numbers }, k) => {
+              const bet = { kind: 'street', numbers } as const;
+              return (
+                <BetCell
+                  key={keyOf(bet)}
+                  label={`${3 * k + 1}-${3 * k + 3}`}
+                  bg="#1e293b"
+                  chips={bets[keyOf(bet)]?.amount}
+                  onClick={() => placeBet(bet)}
+                  disabled={spinning}
+                  style={{ fontSize: '0.65rem', minHeight: 24, color: '#94a3b8' }}
+                />
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Lines (2 streets = 6 nums, 5:1) — centered on column boundaries */}
+        <div style={{ display: 'flex', gap: '0.25rem', marginBottom: '0.4rem' }}>
+          <div style={{ flex: '0 0 36px' }} />
+          <div style={{ position: 'relative', flex: 1, height: 24 }}>
+            {LINES.map(({ k, numbers }) => {
+              const bet = { kind: 'line', numbers } as const;
+              return (
+                <BetCell
+                  key={keyOf(bet)}
+                  label={`${numbers[0]}-${numbers[5]}`}
+                  bg="#1e293b"
+                  chips={bets[keyOf(bet)]?.amount}
+                  onClick={() => placeBet(bet)}
+                  disabled={spinning}
+                  style={{
+                    position: 'absolute',
+                    left: `${(k + 1) * CELL_W}%`,
+                    top: 0,
+                    width: `${CELL_W}%`,
+                    height: '100%',
+                    transform: 'translateX(-50%)',
+                    fontSize: '0.65rem',
+                    minHeight: 24,
+                    color: '#94a3b8',
+                  }}
+                />
+              );
+            })}
           </div>
         </div>
 
@@ -266,7 +405,8 @@ export const PlayTab = () => {
         </div>
 
         <p style={{ marginTop: '0.75rem', color: '#64748b', fontSize: '0.8rem' }}>
-          チップを選んでベットエリアをクリック→SPIN。所持金がゼロになったら Reset で再開できます。
+          チップを選んでベットエリアをクリック→SPIN。所持金がゼロになったら Reset で再開できます。<br />
+          <strong style={{ color: '#94a3b8' }}>インサイドベット:</strong> 数字グリッドの境界線をクリック = Split (17:1)、交点 = Corner (8:1)、グリッド下の行 = Street (11:1) / Line (5:1)。
         </p>
       </div>
     </div>
@@ -330,3 +470,58 @@ const BetCell = ({ label, bg, chips, onClick, disabled, style }: BetCellProps) =
     )}
   </button>
 );
+
+interface HitZoneProps {
+  chips?: number;
+  onClick: () => void;
+  disabled?: boolean;
+  title: string;
+  style: React.CSSProperties;
+}
+
+/**
+ * Small invisible-by-default clickable region overlaid on the number grid for
+ * Split / Corner bets. Becomes visible (orange tint) on hover and stays filled
+ * when a chip has been placed on it.
+ */
+const HitZone = ({ chips, onClick, disabled, title, style }: HitZoneProps) => {
+  const isPlaced = chips !== undefined && chips > 0;
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      style={{
+        position: 'absolute',
+        pointerEvents: 'auto',
+        background: isPlaced ? '#f59e0b' : 'transparent',
+        color: '#0f172a',
+        border: isPlaced ? '2px solid #0f172a' : '1px dashed transparent',
+        borderRadius: style.borderRadius ?? 4,
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        padding: 0,
+        fontSize: '0.65rem',
+        fontWeight: 800,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'background 0.08s, border-color 0.08s',
+        zIndex: 2,
+        ...style,
+      }}
+      onMouseEnter={(e) => {
+        if (disabled) return;
+        if (!isPlaced) e.currentTarget.style.background = 'rgba(245, 158, 11, 0.55)';
+        e.currentTarget.style.borderColor = '#fbbf24';
+      }}
+      onMouseLeave={(e) => {
+        if (disabled) return;
+        e.currentTarget.style.background = isPlaced ? '#f59e0b' : 'transparent';
+        e.currentTarget.style.borderColor = isPlaced ? '#0f172a' : 'transparent';
+      }}
+    >
+      {isPlaced ? chips : ''}
+    </button>
+  );
+};

@@ -274,4 +274,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Puzzle',
   },
+  {
+    id: 'gamblers-ruin',
+    title: "Gambler's Ruin",
+    description: 'Even with a fair 50/50 game, finite bankroll means ruin probability is (N − a) / N. Make it 49/51 and ruin becomes nearly certain.',
+    thumbnail: '💸',
+    path: '/games/gamblers-ruin',
+    difficulty: 'Easy',
+    category: 'Puzzle',
+  },
 ];

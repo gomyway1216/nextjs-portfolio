@@ -238,4 +238,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Puzzle',
   },
+  {
+    id: 'roulette',
+    title: 'Roulette + Martingale Sim',
+    description: 'European roulette you can actually play, plus a Monte Carlo simulator that shows how the Martingale strategy goes bust.',
+    thumbnail: '🎡',
+    path: '/games/roulette',
+    difficulty: 'Easy',
+    category: 'Arcade',
+  },
 ];

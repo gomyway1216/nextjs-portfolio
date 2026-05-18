@@ -130,6 +130,8 @@ export function migrateLocalGroup(input: {
   name: string;
   description?: string;
   ownerName: string;
+  /** Local owner's member id, used server-side to remap session participants. */
+  ownerLocalId?: string;
   members: { id?: string; name: string }[];
   sessions: {
     date: string;

@@ -115,8 +115,10 @@ export function SessionFormDialog({
       return;
     }
     for (const r of validRows) {
-      if (Number.isNaN(Number(r.scoreText))) {
-        setError(`「${r.name}」の点数が数値ではありません`);
+      // Number.isFinite (not !isNaN) — rejects Infinity from e.g. "1e9999",
+      // which would otherwise round-trip as `null` and read back as 0.
+      if (!Number.isFinite(Number(r.scoreText))) {
+        setError(`「${r.name}」の点数が有効な数値ではありません`);
         return;
       }
     }
@@ -196,6 +198,7 @@ export function SessionFormDialog({
                         variant="ghost"
                         size="icon"
                         onClick={() => setRows((prev) => prev.filter((r) => r.id !== row.id))}
+                        aria-label={`${row.name || '参加者'}を削除`}
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>

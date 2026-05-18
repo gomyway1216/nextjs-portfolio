@@ -69,7 +69,13 @@ export function ShareDialog({ open, onOpenChange, shareCode, groupName }: ShareD
                 readOnly
                 className="font-mono text-center text-lg tracking-widest"
               />
-              <Button type="button" variant="outline" size="icon" onClick={() => copy(shareCode, 'code')}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => copy(shareCode, 'code')}
+                aria-label="招待コードをコピー"
+              >
                 {copiedField === 'code' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>
@@ -79,7 +85,13 @@ export function ShareDialog({ open, onOpenChange, shareCode, groupName }: ShareD
             <Label>招待リンク</Label>
             <div className="flex gap-2">
               <Input value={link} readOnly className="text-xs" />
-              <Button type="button" variant="outline" size="icon" onClick={() => copy(link, 'link')}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                onClick={() => copy(link, 'link')}
+                aria-label="招待リンクをコピー"
+              >
                 {copiedField === 'link' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
               </Button>
             </div>

@@ -114,8 +114,11 @@ export default function ScoreTrackerPage() {
     const code = joinCode.trim().toUpperCase();
     if (!code) return;
     if (!currentUser) {
-      toast.error('グループに参加するにはログインが必要です');
-      router.push('/signin');
+      // Don't router.push to /signin — that would drop the code from the URL
+      // and the user would have to find the invite again after login. The
+      // inline "ログイン" link below the input handles navigation; the code
+      // stays in the field so it's still here when they return.
+      toast.error('グループに参加するにはログインしてください');
       return;
     }
     setJoining(true);
@@ -137,10 +140,15 @@ export default function ScoreTrackerPage() {
     setMigratingId(g.id);
     try {
       const ownerName = currentUser.displayName || currentUser.email?.split('@')[0] || 'オーナー';
+      const localOwner = g.members.find((m) => m.role === 'owner');
       const { id } = await svc.migrateLocalGroup({
         name: g.name,
         description: g.description,
         ownerName,
+        // Pass the local owner id so the server can remap session participants
+        // to the new cloud owner — otherwise the owner's historical scores
+        // would degrade into guest totals after migration.
+        ownerLocalId: localOwner?.id,
         members: g.members
           .filter((m) => m.role !== 'owner')
           .map((m) => ({ id: m.id, name: m.name })),
@@ -203,8 +211,9 @@ export default function ScoreTrackerPage() {
               onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
               placeholder="ABCDEFGH"
               className="font-mono text-center uppercase tracking-widest"
-              maxLength={10}
+              maxLength={8}
               disabled={joining}
+              aria-label="招待コード"
             />
             <Button type="submit" size="icon" disabled={joining || !joinCode.trim()}>
               {joining ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}

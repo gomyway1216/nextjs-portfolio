@@ -283,4 +283,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Puzzle',
   },
+  {
+    id: 'blackjack',
+    title: 'Blackjack — Basic Strategy',
+    description: 'Play simplified Blackjack with a hint that shows what Basic Strategy says. Then simulate it vs Mimic-Dealer vs Always-Stand and see the edge gap.',
+    thumbnail: '🃏',
+    path: '/games/blackjack',
+    difficulty: 'Medium',
+    category: 'Card',
+  },
 ];

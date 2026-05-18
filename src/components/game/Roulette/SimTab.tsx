@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { BankrollChart, Histogram } from './charts';
 import {
   MartingaleConfig,
   MonteCarloSummary,
   RunResult,
   runMartingale,
-  runMonteCarlo,
+  runMonteCarloAsync,
 } from './engine';
 
 const defaults: MartingaleConfig = {
@@ -18,6 +18,14 @@ const defaults: MartingaleConfig = {
   side: 'red',
 };
 
+const LIMITS = {
+  initialBankroll: { min: 10, max: 10_000_000 },
+  baseBet: { min: 1, max: 1_000_000 },
+  tableMax: { min: 1, max: 10_000_000 },
+  maxSpins: { min: 10, max: 50_000 },
+  trials: { min: 1, max: 20_000 },
+};
+
 interface SimState {
   sample: RunResult;
   summary: MonteCarloSummary;
@@ -25,38 +33,87 @@ interface SimState {
   config: MartingaleConfig;
 }
 
+const clamp = (v: number, min: number, max: number) =>
+  Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : min;
+
+const sanitizeConfig = (raw: MartingaleConfig): MartingaleConfig => ({
+  initialBankroll: clamp(raw.initialBankroll, LIMITS.initialBankroll.min, LIMITS.initialBankroll.max),
+  baseBet: clamp(raw.baseBet, LIMITS.baseBet.min, LIMITS.baseBet.max),
+  tableMax: clamp(raw.tableMax, LIMITS.tableMax.min, LIMITS.tableMax.max),
+  maxSpins: clamp(raw.maxSpins, LIMITS.maxSpins.min, LIMITS.maxSpins.max),
+  side: raw.side,
+});
+
 export const SimTab = () => {
   const [config, setConfig] = useState<MartingaleConfig>(defaults);
   const [trials, setTrials] = useState(1000);
   const [result, setResult] = useState<SimState | null>(null);
   const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const runningRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const mountedRef = useRef(true);
+
+  useEffect(() => () => {
+    mountedRef.current = false;
+    abortRef.current?.abort();
+  }, []);
 
   const updateConfig = <K extends keyof MartingaleConfig>(key: K, value: MartingaleConfig[K]) => {
     setConfig((c) => ({ ...c, [key]: value }));
   };
 
-  const run = () => {
+  const run = async () => {
+    if (runningRef.current) return;
+    runningRef.current = true;
     setRunning(true);
-    // Defer to next frame so the "Running…" state can render before the heavy work.
-    window.setTimeout(() => {
-      const summary = runMonteCarlo(config, trials);
-      const sample = runMartingale(config);
-      setResult({ sample, summary, trials, config });
-      setRunning(false);
-    }, 30);
+    setProgress({ done: 0, total: trials });
+
+    const safeConfig = sanitizeConfig(config);
+    const safeTrials = clamp(trials, LIMITS.trials.min, LIMITS.trials.max);
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    try {
+      const summary = await runMonteCarloAsync(
+        safeConfig,
+        safeTrials,
+        {
+          signal: controller.signal,
+          onProgress: (done, total) => {
+            if (mountedRef.current) setProgress({ done, total });
+          },
+        },
+      );
+      if (!mountedRef.current || controller.signal.aborted || !summary) return;
+      const sample = runMartingale(safeConfig);
+      setResult({ sample, summary, trials: safeTrials, config: safeConfig });
+    } finally {
+      if (mountedRef.current) {
+        setRunning(false);
+        setProgress(null);
+      }
+      runningRef.current = false;
+      abortRef.current = null;
+    }
   };
+
+  const runLabel = running && progress
+    ? `Running… ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`
+    : 'シミュレーション実行';
 
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', marginBottom: '1rem' }}>
-        <NumField label="初期資金" value={config.initialBankroll} min={10} onChange={(v) => updateConfig('initialBankroll', v)} />
-        <NumField label="初期賭金" value={config.baseBet} min={1} onChange={(v) => updateConfig('baseBet', v)} />
-        <NumField label="テーブル上限" value={config.tableMax} min={1} onChange={(v) => updateConfig('tableMax', v)} />
-        <NumField label="1ランの最大スピン" value={config.maxSpins} min={10} onChange={(v) => updateConfig('maxSpins', v)} />
-        <NumField label="モンテカルロ試行数" value={trials} min={1} max={20000} onChange={setTrials} />
+        <NumField label="初期資金" value={config.initialBankroll} {...LIMITS.initialBankroll} onChange={(v) => updateConfig('initialBankroll', v)} />
+        <NumField label="初期賭金" value={config.baseBet} {...LIMITS.baseBet} onChange={(v) => updateConfig('baseBet', v)} />
+        <NumField label="テーブル上限" value={config.tableMax} {...LIMITS.tableMax} onChange={(v) => updateConfig('tableMax', v)} />
+        <NumField label="1ランの最大スピン" value={config.maxSpins} {...LIMITS.maxSpins} onChange={(v) => updateConfig('maxSpins', v)} />
+        <NumField label="モンテカルロ試行数" value={trials} {...LIMITS.trials} onChange={setTrials} />
       </div>
 
-      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem', alignItems: 'center', flexWrap: 'wrap' }}>
         <button
           onClick={run}
           disabled={running}
@@ -69,9 +126,10 @@ export const SimTab = () => {
             fontWeight: 800,
             cursor: running ? 'wait' : 'pointer',
             fontSize: '1rem',
+            minWidth: 220,
           }}
         >
-          {running ? 'Running…' : 'シミュレーション実行'}
+          {runLabel}
         </button>
         <button
           onClick={() => setConfig(defaults)}
@@ -81,7 +139,7 @@ export const SimTab = () => {
           デフォルトに戻す
         </button>
         <span style={{ color: '#64748b', fontSize: '0.8rem' }}>
-          試行数が多いと数秒かかります（最大 20000）
+          試行数が多いと数秒かかります（最大 {LIMITS.trials.max.toLocaleString()}）
         </span>
       </div>
 
@@ -165,12 +223,12 @@ const NumField = ({ label, value, min, max, onChange }: NumFieldProps) => (
       min={min}
       max={max}
       onChange={(e) => {
-        const v = Number(e.target.value);
-        if (!Number.isFinite(v)) return;
-        let clamped = v;
-        if (min !== undefined) clamped = Math.max(min, clamped);
-        if (max !== undefined) clamped = Math.min(max, clamped);
-        onChange(clamped);
+        const raw = e.target.value;
+        // Allow empty (interpret as 0) so users can clear and re-type.
+        // Out-of-range values are accepted here and clamped at run time.
+        if (raw === '') return onChange(0);
+        const v = Number(raw);
+        if (Number.isFinite(v)) onChange(v);
       }}
       style={{
         background: '#0f172a',

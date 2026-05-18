@@ -13,7 +13,12 @@ export const BankrollChart = ({ trajectory, initialBankroll, width = 600, height
   const innerW = width - padding.left - padding.right;
   const innerH = height - padding.top - padding.bottom;
 
-  const maxY = Math.max(...trajectory, initialBankroll) * 1.05;
+  // Single-pass max so 50k-entry trajectories don't risk a spread-arg stack overflow.
+  let trajMax = initialBankroll;
+  for (let i = 0; i < trajectory.length; i++) {
+    if (trajectory[i] > trajMax) trajMax = trajectory[i];
+  }
+  const maxY = trajMax * 1.05;
   const minY = 0;
   const xScale = (i: number) => padding.left + (i / Math.max(1, trajectory.length - 1)) * innerW;
   const yScale = (v: number) => padding.top + innerH - ((v - minY) / (maxY - minY)) * innerH;
@@ -72,8 +77,15 @@ export const Histogram = ({ values, bins = 24, width = 600, height = 200, color 
   const innerW = width - padding.left - padding.right;
   const innerH = height - padding.top - padding.bottom;
 
-  const min = Math.min(...values);
-  const max = Math.max(...values);
+  // Single-pass min/max so up-to-20k value arrays don't risk a spread-arg
+  // stack overflow on some engines.
+  let min = values[0];
+  let max = values[0];
+  for (let i = 1; i < values.length; i++) {
+    const v = values[i];
+    if (v < min) min = v;
+    else if (v > max) max = v;
+  }
   const range = max - min || 1;
   const binSize = range / bins;
   const counts = new Array(bins).fill(0);
@@ -81,7 +93,10 @@ export const Histogram = ({ values, bins = 24, width = 600, height = 200, color 
     const idx = Math.min(bins - 1, Math.floor((v - min) / binSize));
     counts[idx]++;
   }
-  const maxCount = Math.max(...counts);
+  let maxCount = 0;
+  for (let i = 0; i < counts.length; i++) {
+    if (counts[i] > maxCount) maxCount = counts[i];
+  }
   const barW = innerW / bins;
 
   return (

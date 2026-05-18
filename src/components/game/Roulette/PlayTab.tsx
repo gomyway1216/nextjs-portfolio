@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Wheel, WHEEL_SPIN_MS } from './Wheel';
 import { Bet, colorOf, payoutMultiplier, RED_NUMBERS, spin } from './engine';
 
@@ -29,16 +29,29 @@ export const PlayTab = () => {
   const [lastNet, setLastNet] = useState<number | null>(null);
   const [history, setHistory] = useState<number[]>([]);
 
+  // Refs guard against state-lag races: setSpinning(true) doesn't take effect
+  // until the next render, so a fast second click would otherwise schedule a
+  // duplicate spin. Same for placeBet reading stale totalWagered.
+  const spinningRef = useRef(false);
+  const settleTimer = useRef<number | null>(null);
+  const bankrollRef = useRef(bankroll);
+  bankrollRef.current = bankroll;
+
+  useEffect(() => () => {
+    if (settleTimer.current) window.clearTimeout(settleTimer.current);
+  }, []);
+
   const totalWagered = useMemo(
     () => Object.values(bets).reduce((sum, b) => sum + b.amount, 0),
     [bets],
   );
 
   const placeBet = (bet: Bet) => {
-    if (spinning) return;
-    if (chip > bankroll - totalWagered) return;
+    if (spinningRef.current) return;
     const k = keyOf(bet);
     setBets((prev) => {
+      const currentTotal = Object.values(prev).reduce((sum, b) => sum + b.amount, 0);
+      if (chip > bankrollRef.current - currentTotal) return prev;
       const existing = prev[k];
       const amount = (existing?.amount ?? 0) + chip;
       return { ...prev, [k]: { bet, amount } };
@@ -46,12 +59,13 @@ export const PlayTab = () => {
   };
 
   const clearBets = () => {
-    if (spinning) return;
+    if (spinningRef.current) return;
     setBets({});
   };
 
   const doSpin = () => {
-    if (spinning || totalWagered === 0) return;
+    if (spinningRef.current || totalWagered === 0) return;
+    spinningRef.current = true;
     setSpinning(true);
     setLastNet(null);
     const wagered = totalWagered;
@@ -60,7 +74,8 @@ export const PlayTab = () => {
     setResult(r);
     setSpinId((id) => id + 1);
 
-    window.setTimeout(() => {
+    settleTimer.current = window.setTimeout(() => {
+      settleTimer.current = null;
       let winnings = 0;
       for (const { bet, amount } of Object.values(snapshotBets)) {
         winnings += amount * payoutMultiplier(bet, r);
@@ -70,6 +85,7 @@ export const PlayTab = () => {
       setLastNet(net);
       setHistory((h) => [r, ...h].slice(0, 12));
       setBets({});
+      spinningRef.current = false;
       setSpinning(false);
     }, WHEEL_SPIN_MS + 100);
   };

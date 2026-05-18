@@ -104,6 +104,12 @@ export function runMartingale(
   rng: () => number = Math.random,
 ): RunResult {
   const { initialBankroll, baseBet, tableMax, maxSpins, side } = config;
+  if (initialBankroll <= 0) {
+    return { outcome: 'bust', spins: 0, finalBankroll: 0, peakBankroll: 0, maxBetReached: 0, hitTableMax: false, trajectory: [initialBankroll] };
+  }
+  if (baseBet <= 0 || tableMax <= 0 || maxSpins <= 0) {
+    throw new Error('runMartingale: baseBet, tableMax, and maxSpins must be positive');
+  }
   let bankroll = initialBankroll;
   let nextBet = baseBet;
   let peak = bankroll;
@@ -176,6 +182,9 @@ export function runMonteCarlo(
   trials: number,
   rng: () => number = Math.random,
 ): MonteCarloSummary {
+  if (!Number.isInteger(trials) || trials <= 0) {
+    throw new Error('runMonteCarlo: trials must be a positive integer');
+  }
   const finals: number[] = new Array(trials);
   const spins: number[] = new Array(trials);
   const bustSpins: number[] = [];
@@ -208,6 +217,72 @@ export function runMonteCarlo(
     tableMaxHitCount,
     finalBankrolls: finals,
     spinsCounts: spins,
+  };
+}
+
+export interface MonteCarloOptions {
+  /** AbortSignal — when aborted, the next chunk boundary stops and the promise resolves to null. */
+  signal?: AbortSignal;
+  /** Called between chunks with (completed, total). */
+  onProgress?: (done: number, total: number) => void;
+  /** Trials per chunk before yielding to the event loop. Default 200. */
+  chunkSize?: number;
+}
+
+/**
+ * Async variant of runMonteCarlo that yields to the event loop between chunks
+ * so a long run doesn't freeze the UI. Resolves to null if aborted.
+ */
+export async function runMonteCarloAsync(
+  config: MartingaleConfig,
+  trials: number,
+  options: MonteCarloOptions = {},
+  rng: () => number = Math.random,
+): Promise<MonteCarloSummary | null> {
+  if (!Number.isInteger(trials) || trials <= 0) {
+    throw new Error('runMonteCarloAsync: trials must be a positive integer');
+  }
+  const chunkSize = options.chunkSize ?? 200;
+  const finals: number[] = new Array(trials);
+  const spinsCounts: number[] = new Array(trials);
+  const bustSpins: number[] = [];
+  let bustCount = 0;
+  let cappedCount = 0;
+  let tableMaxHitCount = 0;
+  let totalFinal = 0;
+
+  for (let i = 0; i < trials; i += chunkSize) {
+    const end = Math.min(i + chunkSize, trials);
+    for (let j = i; j < end; j++) {
+      const r = runMartingale(config, rng);
+      finals[j] = r.finalBankroll;
+      spinsCounts[j] = r.spins;
+      totalFinal += r.finalBankroll;
+      if (r.outcome === 'bust') {
+        bustCount++;
+        bustSpins.push(r.spins);
+      }
+      if (r.outcome === 'capped') cappedCount++;
+      if (r.hitTableMax) tableMaxHitCount++;
+    }
+    options.onProgress?.(end, trials);
+    if (options.signal?.aborted) return null;
+    if (end < trials) {
+      await new Promise<void>((res) => setTimeout(res, 0));
+    }
+  }
+
+  return {
+    trials,
+    bustCount,
+    cappedCount,
+    bustRate: bustCount / trials,
+    medianSpinsToBust: bustSpins.length === 0 ? null : median(bustSpins),
+    meanFinalBankroll: totalFinal / trials,
+    medianFinalBankroll: median(finals),
+    tableMaxHitCount,
+    finalBankrolls: finals,
+    spinsCounts,
   };
 }
 

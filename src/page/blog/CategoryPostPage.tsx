@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import PostListItem from '@/components/blog/PostListItem';
 import * as postApi from '@/services/postsService';
 import SuggestionBar from '@/components/blog/SuggestionBar';
@@ -8,11 +8,38 @@ import { useParams, useRouter } from 'next/navigation';
 import { usePosts } from '@/providers/PostsProvider';
 import { useInView } from 'react-intersection-observer';
 
-const CategoryPostPage = () => {
+interface InitialPost {
+  id: string;
+  title: string;
+  body: string;
+  isPublic: boolean;
+  category: string;
+  image?: string;
+  language?: string;
+  created: string;
+  lastUpdated: string;
+}
+
+interface CategoryPostPageProps {
+  initialCategory?: string;
+  initialPosts?: InitialPost[];
+  initialLastVisibleTimestamp?: number | null;
+  initialHasMore?: boolean;
+}
+
+const PAGE_LIMIT = 5;
+
+const CategoryPostPage = ({
+  initialCategory,
+  initialPosts,
+  initialLastVisibleTimestamp,
+  initialHasMore,
+}: CategoryPostPageProps = {}) => {
   const { category: routeCategory } = useParams();
   const router = useRouter();
+  const category =
+    initialCategory || (Array.isArray(routeCategory) ? routeCategory[0] : routeCategory || 'all');
 
-  // Getting values and functions from the context
   const {
     postsByCategory,
     setPostsByCategory,
@@ -21,46 +48,23 @@ const CategoryPostPage = () => {
     scrollPosition,
     setScrollPosition,
     lastVisibleDocTimestamps,
-    setLastVisibleDocTimestamps
+    setLastVisibleDocTimestamps,
   } = usePosts();
 
   const [isLoading, setIsLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true); // To determine if there are more posts to fetch
-  const category = Array.isArray(routeCategory) ? routeCategory[0] : routeCategory || 'all';
+  const [hasMore, setHasMore] = useState(initialHasMore ?? true);
   const [tabValue, setTabValue] = useState(category);
-  // const observerRef = useRef(null);
 
-  // Setup intersection observer
-  const [ref, inView] = useInView({
-    threshold: 0.1, // Adjust this value as per your need. 0.1 means 10% of the target is visible.
-    triggerOnce: false, // Observe continuously, not just once.
-  });
-
-  const resetScrollPosition = () => {
-    window.scrollTo(0, 0);
-  };
-
-
-  const getPageLimitBasedOnScreenSize = () => {
-    return 5;
-    // if (window.innerWidth <= 480) {  // Small devices (e.g., mobile phones)
-    //   return 5;
-    // } else if (window.innerWidth <= 768) {  // Medium devices (e.g., tablets)
-    //   return 10;
-    // } else {  // Large devices (e.g., desktops)
-    //   return 20;
-    // }
-  };
+  const [ref, inView] = useInView({ threshold: 0.1, triggerOnce: false });
 
   const fetchPosts = async () => {
     setIsLoading(true);
-    const pageLimit = getPageLimitBasedOnScreenSize();
-    const currentCategoryPage = (currentPageByCategory as any)[category] || 1;
+    const currentCategoryPage = (currentPageByCategory as Record<string, number>)[category] || 1;
     const result = await postApi.getPosts({
       category,
       isPublic: true,
       page: currentCategoryPage,
-      limit: pageLimit,
+      limit: PAGE_LIMIT,
       lastVisibleTimestamp: lastVisibleDocTimestamps?.[category],
     });
 
@@ -69,10 +73,11 @@ const CategoryPostPage = () => {
     if (fetchedPosts.length === 0) {
       setHasMore(false);
     } else {
-      // Combining existing posts with the newly fetched ones
-      const updatedPosts = [...((postsByCategory as any)[category] || []), ...fetchedPosts];
+      const updatedPosts = [
+        ...((postsByCategory as Record<string, unknown[]>)[category] || []),
+        ...fetchedPosts,
+      ];
       setPostsByCategory(category, updatedPosts);
-
       setCurrentPageByCategory(category, currentCategoryPage + 1);
     }
 
@@ -80,42 +85,59 @@ const CategoryPostPage = () => {
   };
 
   const handleClickPost = (id: string, postCategory: string) => {
-    setScrollPosition(window.scrollY); // Store scroll position when navigating away
+    setScrollPosition(window.scrollY);
     router.push(`/blog/${postCategory}/${id}`);
   };
 
-  // When the component mounts or when category changes:
+  // On category change: prefer (a) existing context data, then
+  // (b) server-rendered initial data (SSR cold-load case), and only
+  // fall back to a client-side fetch if neither is available.
   useEffect(() => {
-    resetScrollPosition();
+    window.scrollTo(0, 0);
 
-    if (!(postsByCategory as any)[category]) {
-      setHasMore(true);
-      fetchPosts();
-    } else {
-      setHasMore((postsByCategory as any)[category].length > 0); 
-      // If there's data, set it based on the length
+    const existing = (postsByCategory as Record<string, InitialPost[]>)[category];
+    if (existing && existing.length > 0) {
+      setHasMore(existing.length > 0);
       window.scrollTo(0, scrollPosition);
+      return;
     }
+
+    if (
+      initialCategory === category &&
+      initialPosts &&
+      initialPosts.length > 0
+    ) {
+      setPostsByCategory(category, initialPosts);
+      setCurrentPageByCategory(category, 2);
+      if (initialLastVisibleTimestamp != null) {
+        setLastVisibleDocTimestamps((prev: Record<string, number>) => ({
+          ...prev,
+          [category]: initialLastVisibleTimestamp,
+        }));
+      }
+      setHasMore(initialHasMore ?? true);
+      return;
+    }
+
+    setHasMore(true);
+    fetchPosts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category]);
 
-  // Infinite scroll logic
+  // Infinite scroll
   useEffect(() => {
     const handleScroll = () => {
-      // We integrate inView into the scroll logic
       if (inView && !isLoading && hasMore) {
         fetchPosts();
       }
     };
-
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [inView, isLoading, hasMore, category]); // Note: we added inView here
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inView, isLoading, hasMore, category]);
 
   return (
-    <div
-      className="container"
-      style={{ display: 'flex', flexDirection: 'row' }}
-    >
+    <div className="container" style={{ display: 'flex', flexDirection: 'row' }}>
       <div
         className="postsList"
         style={{
@@ -138,50 +160,19 @@ const CategoryPostPage = () => {
             display: 'flex',
             flexDirection: 'column',
             gap: '30px',
-            marginTop: '22px'
+            marginTop: '22px',
           }}
         >
-          {(postsByCategory as any)[category]?.map((item: any, index: number) => {
-            const totalPosts = (postsByCategory as any)[category].length;
-            if (totalPosts - 3 === index) {
-              return (
-                <PostListItem
-                  key={item.id}
-                  ref={ref}
-                  id={item.id}
-                  title={item.title}
-                  body={item.body}
-                  isPublic={item.isPublic}
-                  created={item.created}
-                  lastUpdated={item.lastUpdated}
-                  category={item.category}
-                  image={item.image}
-                  language={item.language}
-                  handleClick={handleClickPost}
-                />
-              );
-            } else {
-              return (
-                <PostListItem
-                  key={item.id}
-                  id={item.id}
-                  title={item.title}
-                  body={item.body}
-                  isPublic={item.isPublic}
-                  created={item.created}
-                  lastUpdated={item.lastUpdated}
-                  category={item.category}
-                  image={item.image}
-                  language={item.language}
-                  handleClick={handleClickPost}
-                />
-              );
-            }
-          })}
-          {/* {postsByCategory[category as string]?.map((item) => {
+          {(
+            ((postsByCategory as Record<string, InitialPost[]>)[category] as InitialPost[]) ||
+            (initialCategory === category ? initialPosts : undefined) ||
+            []
+          ).map((item, index, arr) => {
+            const isLoadMoreAnchor = arr.length - 3 === index;
             return (
               <PostListItem
                 key={item.id}
+                ref={isLoadMoreAnchor ? ref : undefined}
                 id={item.id}
                 title={item.title}
                 body={item.body}
@@ -194,7 +185,7 @@ const CategoryPostPage = () => {
                 handleClick={handleClickPost}
               />
             );
-          })} */}
+          })}
           {isLoading && <p>Loading more posts...</p>}
         </div>
       </div>
@@ -212,7 +203,6 @@ const CategoryPostPage = () => {
       </div>
     </div>
   );
-
 };
 
 export default CategoryPostPage;

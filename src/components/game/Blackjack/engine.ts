@@ -146,6 +146,23 @@ export function basicStrategyDecision(playerHand: Card[], dealerUp: Card, canDou
 
 // ---------- Round play ----------
 
+/**
+ * Dealer hits until total >= 17 (S17 rules). Mutates `dealer` in place.
+ * `drawNext` returns the next card; callers should guard against an
+ * exhausted draw source (returns undefined → loop bails to avoid pushing
+ * undefined into the hand).
+ */
+export function playDealerTurn(dealer: Card[], drawNext: () => Card | undefined): void {
+  while (true) {
+    const v = handValue(dealer);
+    if (v.total >= 17) break;
+    const card = drawNext();
+    if (!card) break;
+    dealer.push(card);
+  }
+}
+
+
 export type Outcome = 'win' | 'lose' | 'push' | 'blackjack';
 
 export interface RoundResult {
@@ -183,6 +200,12 @@ export function playRound(
     }
     return { player, dealer, outcome: 'blackjack', bet, net: bet * 1.5, doubled };
   }
+  // Dealer Blackjack with player non-BJ: round ends immediately. Without this
+  // check the engine would let the player keep hitting against a guaranteed-21
+  // dealer, exaggerating the house edge in the sim.
+  if (isBlackjack(dealer)) {
+    return { player, dealer, outcome: 'lose', bet, net: -bet, doubled };
+  }
 
   // Player turn
   while (true) {
@@ -210,12 +233,7 @@ export function playRound(
     return { player, dealer, outcome: 'lose', bet: actualBet, net: -actualBet, doubled };
   }
 
-  // Dealer turn: stand on all 17 (S17).
-  while (true) {
-    const v = handValue(dealer);
-    if (v.total >= 17) break;
-    dealer.push(draw());
-  }
+  playDealerTurn(dealer, draw);
 
   const pV = handValue(player).total;
   const dV = handValue(dealer).total;

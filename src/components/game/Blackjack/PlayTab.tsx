@@ -10,6 +10,7 @@ import {
   isBlackjack,
   isBust,
   newDeck,
+  playDealerTurn,
   shuffle,
 } from './engine';
 
@@ -83,7 +84,9 @@ export const PlayTab = () => {
 
   const recordAction = (taken: Action) => {
     if (state.phase !== 'playing') return;
-    const canDouble = state.player.length === 2;
+    // Same canDouble logic as the live hint — otherwise a player who
+    // (correctly) Hits because they can't afford to Double gets penalized.
+    const canDouble = state.player.length === 2 && bankroll >= state.actualBet;
     const recommended = basicStrategyDecision(state.player, state.dealer[0], canDouble);
     setStats((s) => taken === recommended
       ? { ...s, hintFollows: s.hintFollows + 1 }
@@ -132,11 +135,7 @@ export const PlayTab = () => {
     }
     const dealer = [...s.dealer];
     let cursor = s.cursor;
-    while (true) {
-      const v = handValue(dealer);
-      if (v.total >= 17) break;
-      dealer.push(s.deck[cursor++]);
-    }
+    playDealerTurn(dealer, () => s.deck[cursor++]);
     const pV = handValue(s.player).total;
     const dV = handValue(dealer).total;
     let outcome: RoundResult['outcome'];
@@ -172,7 +171,7 @@ export const PlayTab = () => {
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: '1.25rem' }}>
       <div>
         <h3 style={{ margin: '0 0 0.5rem', color: '#fbbf24' }}>ディーラー</h3>
-        <CardRow cards={state.dealer} hideFirst={state.phase === 'playing'} />
+        <CardRow cards={state.dealer} hideHoleCard={state.phase === 'playing'} />
         <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.2rem' }}>
           {state.dealer.length === 0 ? '—' : state.phase === 'playing' ? `アップカード: ${cardText(state.dealer[0])}` : `合計: ${handValue(state.dealer).total}${isBust(state.dealer) ? ' (バスト)' : ''}`}
         </div>
@@ -261,7 +260,7 @@ const outcomeLabel: Record<RoundResult['outcome'], string> = {
 
 const cardText = (c: Card) => `${c.rank}${c.suit}`;
 
-const CardRow = ({ cards, hideFirst = false }: { cards: Card[]; hideFirst?: boolean }) => (
+const CardRow = ({ cards, hideHoleCard = false }: { cards: Card[]; hideHoleCard?: boolean }) => (
   <div style={{ display: 'flex', gap: '0.4rem', minHeight: 88 }}>
     {cards.map((c, i) => (
       <div
@@ -281,7 +280,7 @@ const CardRow = ({ cards, hideFirst = false }: { cards: Card[]; hideFirst?: bool
           fontWeight: 800,
         }}
       >
-        {hideFirst && i === 1 ? (
+        {hideHoleCard && i === 1 ? (
           <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #1e3a8a, #312e81)', borderRadius: 6 }} />
         ) : (
           <>

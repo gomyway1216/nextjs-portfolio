@@ -87,7 +87,7 @@ const HomeOne = () => {
             <div
               className="col-lg-5 col-xl-4 m-15px-tb"
               data-aos="fade-right"
-              data-aos-duration="1200"
+
             >
               <ContactInfo />
             </div>
@@ -95,7 +95,7 @@ const HomeOne = () => {
             <div
               className="col-lg-7 ml-auto m-15px-tb"
               data-aos="fade-right"
-              data-aos-duration="1200"
+
               data-aos-delay="200"
             >
               <div className="contact-form">
@@ -107,7 +107,7 @@ const HomeOne = () => {
             <div
               className="col-12"
               data-aos="fade-up"
-              data-aos-duration="1200"
+
               data-aos-delay="300"
             >
               <Map />

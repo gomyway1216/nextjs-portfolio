@@ -32,7 +32,7 @@ export default function Service() {
             className="col-md-6 col-lg-4 my-3"
             key={i}
             data-aos="fade-right"
-            data-aos-duration="1200"
+
             data-aos-delay={val.delayAnimation}
           >
             <div className="feature-box-01">

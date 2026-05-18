@@ -48,23 +48,23 @@ const Slider = () => {
           <div className="row full-screen align-items-center">
             <div className="col-lg-7">
               <div className="type-box modern-type-box">
-                <span className="hero-badge" data-aos="fade-up" data-aos-duration="1200">
+                <span className="hero-badge" data-aos="fade-up">
                   {t('home.hero.badge')}
                 </span>
-                <h6 data-aos="fade-up" data-aos-duration="1200">
+                <h6 data-aos="fade-up">
                   {t('home.hero.greeting')}
                 </h6>
                 <h1
                   className="font-alt"
                   data-aos="fade-up"
-                  data-aos-duration="1200"
+
                   data-aos-delay="100"
                 >
                   {t('home.hero.name')}
                 </h1>
                 <div
                   data-aos="fade-up"
-                  data-aos-duration="1200"
+
                   data-aos-delay="200"
                 >
                   <TypeAnimation
@@ -86,7 +86,7 @@ const Slider = () => {
                 <p
                   className="desc"
                   data-aos="fade-up"
-                  data-aos-duration="1200"
+
                   data-aos-delay="300"
                 >
                   {t('home.hero.description')}
@@ -94,7 +94,7 @@ const Slider = () => {
                 <div
                   className="hero-actions"
                   data-aos="fade-up"
-                  data-aos-duration="1200"
+
                   data-aos-delay="400"
                 >
                   <a

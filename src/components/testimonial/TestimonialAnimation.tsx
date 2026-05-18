@@ -59,7 +59,7 @@ export default function SimpleSlider() {
                 className="embla__slide"
                 style={{ flex: '0 0 calc(50% - 15px)', minWidth: 0 }}
                 data-aos="fade-up"
-                data-aos-duration="1200"
+
                 data-aos-delay={val.delayAnimation}
               >
                 <div className="testimonial-01 media">

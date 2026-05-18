@@ -74,8 +74,7 @@ export default async function GamesPage() {
         .game-card-link { text-decoration: none; display: block; transition: transform 0.2s; }
         .game-card-link:hover { transform: translateY(-4px); }
         .game-card {
-          background: rgba(31, 41, 55, 0.5);
-          backdrop-filter: blur(10px);
+          background: rgb(24, 32, 45);
           border: 1px solid rgba(55, 65, 81, 1);
           border-radius: 1rem;
           overflow: hidden;
@@ -284,8 +283,7 @@ export default async function GamesPage() {
 
         {/* Coming Soon */}
         <div style={{
-          background: 'rgba(31, 41, 55, 0.5)',
-          backdropFilter: 'blur(10px)',
+          background: 'rgb(24, 32, 45)',
           border: '1px solid rgba(55, 65, 81, 1)',
           borderRadius: '1rem',
           padding: '2rem',

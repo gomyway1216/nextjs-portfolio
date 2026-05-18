@@ -102,6 +102,9 @@ export async function runCollectorMonteCarloAsync(
   }
   const chunkSize = options.chunkSize ?? 2000;
   const drawCounts: number[] = new Array(trials);
+  // Reusable seen-flag buffer + counter — avoids allocating a Set per trial.
+  // At 200k trials that's a meaningful GC win.
+  const seen = new Uint8Array(n);
   let total = 0;
   let min = Infinity;
   let max = -Infinity;
@@ -109,11 +112,15 @@ export async function runCollectorMonteCarloAsync(
   for (let i = 0; i < trials; i += chunkSize) {
     const end = Math.min(i + chunkSize, trials);
     for (let j = i; j < end; j++) {
-      // Inline run to skip per-draw curve allocation (only needed for play mode).
-      const seen = new Set<number>();
+      seen.fill(0);
+      let unique = 0;
       let draws = 0;
-      while (seen.size < n) {
-        seen.add(Math.floor(rng() * n));
+      while (unique < n) {
+        const idx = Math.floor(rng() * n);
+        if (seen[idx] === 0) {
+          seen[idx] = 1;
+          unique++;
+        }
         draws++;
       }
       drawCounts[j] = draws;

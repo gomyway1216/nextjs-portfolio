@@ -37,8 +37,9 @@ export const SimTab = () => {
     setRunning(true);
     setResult(null);
     const safeP = clamp(trueP, LIMITS.trueP.min, LIMITS.trueP.max);
-    const safeSteps = clamp(steps, LIMITS.steps.min, LIMITS.steps.max);
-    const safeTrials = clamp(trials, LIMITS.trials.min, LIMITS.trials.max);
+    // Engine validates integers; floor here so a decimal slider input doesn't throw.
+    const safeSteps = Math.floor(clamp(steps, LIMITS.steps.min, LIMITS.steps.max));
+    const safeTrials = Math.floor(clamp(trials, LIMITS.trials.min, LIMITS.trials.max));
     setProgress({ done: 0, total: safeTrials });
     const controller = new AbortController();
     abortRef.current = controller;

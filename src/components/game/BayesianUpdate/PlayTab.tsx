@@ -48,9 +48,12 @@ export const PlayTab = () => {
     const mean = posteriorMean(posterior);
     const std = posteriorStd(posterior);
     const ci = credibleInterval(posterior);
-    const heads = history.filter((h) => h === 1).length;
-    return { mean, std, ci, heads, tails: history.length - heads };
-  }, [posterior, history]);
+    // Derive counts from the posterior (Beta(1+H, 1+T) prior is Beta(1, 1))
+    // not from `history`, which is capped at 1000 for display purposes.
+    const heads = Math.round(posterior.alpha - 1);
+    const tails = Math.round(posterior.beta - 1);
+    return { mean, std, ci, heads, tails };
+  }, [posterior]);
 
   const guessError = Math.abs(guess - trueP);
 

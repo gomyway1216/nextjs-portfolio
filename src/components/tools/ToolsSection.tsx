@@ -123,7 +123,7 @@ const ToolsSection: React.FC = () => {
             role="button"
             tabIndex={0}
             data-aos="fade-up"
-            data-aos-duration="1200"
+
           >
             <div className="tool-card__icon" style={{ background: tool.gradient }}>
               {tool.icon}
@@ -152,7 +152,7 @@ const ToolsSection: React.FC = () => {
         <div
           className="tool-card tool-card--coming-soon modern-card"
           data-aos="fade-up"
-          data-aos-duration="1200"
+
           data-aos-delay="100"
         >
           <div className="tool-card__icon tool-card__icon--muted">

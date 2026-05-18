@@ -160,7 +160,7 @@ const Resume = () => {
                 className="resume-row"
                 key={i}
                 data-aos="fade-up"
-                data-aos-duration="1200"
+
                 data-aos-delay={val.delayAnimation}
               >
                 <div className="row">
@@ -225,7 +225,7 @@ const Resume = () => {
             <div
               className="col-lg-10 col-xl-8 m-15px-tb"
               data-aos="fade-up"
-              data-aos-duration="1200"
+
             >
               <ul className="aducation-box">
                 {educations.map((val, i) => (

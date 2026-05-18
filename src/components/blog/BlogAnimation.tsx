@@ -56,7 +56,7 @@ const Blogs = () => {
           <div
             className="col-md-6 m-15px-tb"
             data-aos="fade-right"
-            data-aos-duration="1200"
+
             // data-aos-delay="200 * index"
             data-aos-delay={200 * index}
             key={index + 'id:' + post.id}

@@ -67,7 +67,7 @@ const PortfolioAnimation = () => {
                   <div
                     className="col-md-6 m-15px-tb"
                     data-aos="fade-right"
-                    data-aos-duration="1200"
+
                     key={category + ':' + j}
                   >
                     <div

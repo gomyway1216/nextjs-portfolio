@@ -32,7 +32,7 @@ const About = () => {
             <div
               className="col-md-6 col-lg-4"
               data-aos="fade-up"
-              data-aos-duration="1200"
+
             >
               <div className="about-me">
                 <div className="img">
@@ -58,7 +58,7 @@ const About = () => {
             <div
               className="col-lg-7 ml-auto"
               data-aos="fade-up"
-              data-aos-duration="1200"
+
               data-aos-delay="200"
             >
               <div className="about-info">

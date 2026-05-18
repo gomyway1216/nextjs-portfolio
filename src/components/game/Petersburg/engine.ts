@@ -84,35 +84,51 @@ export async function runPetersburgSweepAsync(
   }
   anchors.add(maxN);
 
-  const payoffs: number[] = new Array(maxN);
   let sum = 0;
   let max = 0;
-  const log2Hist: number[] = []; // index = log2(payoff) bucket
+  // Payoffs are powers of 2, so the log₂(payoff) buckets capture the full
+  // distribution. We use this for both the histogram AND for an O(buckets)
+  // median lookup at each anchor — much faster than the O(N log N) sort we
+  // were doing before (jank at N=10⁶).
+  const log2Hist: number[] = [];
   const points: SweepPoint[] = [];
+
+  const medianFromHist = (N: number): number => {
+    // The k-th order statistic in a bucketed power-of-2 distribution: walk the
+    // cumulative count until we cross N/2. Bucket k holds the value 2^k.
+    const targetLow = Math.floor((N - 1) / 2);
+    const targetHigh = Math.floor(N / 2);
+    let running = 0;
+    let lowVal = 0;
+    let highVal = 0;
+    for (let k = 0; k < log2Hist.length; k++) {
+      const c = log2Hist[k] ?? 0;
+      const prev = running;
+      running += c;
+      if (lowVal === 0 && prev <= targetLow && running > targetLow) lowVal = 2 ** k;
+      if (highVal === 0 && prev <= targetHigh && running > targetHigh) {
+        highVal = 2 ** k;
+        break;
+      }
+    }
+    return (lowVal + highVal) / 2;
+  };
 
   const chunk = 5000;
   for (let i = 0; i < maxN; i += chunk) {
     const end = Math.min(i + chunk, maxN);
     for (let j = i; j < end; j++) {
       const { payoff } = playGame(rng);
-      payoffs[j] = payoff;
       sum += payoff;
       if (payoff > max) max = payoff;
       const bucket = payoff >= Number.MAX_SAFE_INTEGER ? 60 : Math.floor(Math.log2(payoff));
       log2Hist[bucket] = (log2Hist[bucket] ?? 0) + 1;
       const N = j + 1;
       if (anchors.has(N)) {
-        // Median on a sorted snapshot is O(N log N); for the largest N (maxN)
-        // this is still under a few ms even at N=10⁶. We compute medians
-        // only at anchor points so total median work is tiny relative to
-        // the simulation.
-        const sorted = [...payoffs.slice(0, N)].sort((a, b) => a - b);
-        const mid = Math.floor(N / 2);
-        const median = N % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
         points.push({
           N,
           mean: sum / N,
-          median,
+          median: medianFromHist(N),
           max,
           fairPrice: Math.log2(N) / 2,
         });

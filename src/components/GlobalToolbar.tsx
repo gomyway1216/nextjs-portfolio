@@ -46,8 +46,13 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
   },
   {
     prefix: '/games',
+    // Fully opaque bg: the toolbar is sticky over the dark games pages,
+    // and the wrapper's backdrop-blur(8px) was making card text look
+    // hazy as it scrolled under the bar. Solid black neutralizes the
+    // blur (nothing translucent for it to act on) without changing the
+    // toolbar's appearance.
     theme: {
-      bg: 'rgba(0,0,0,0.85)',
+      bg: '#000',
       border: 'rgba(14,165,233,0.3)',
       accent: '#0ea5e9',
       avatarBg: 'rgba(14,165,233,0.15)',

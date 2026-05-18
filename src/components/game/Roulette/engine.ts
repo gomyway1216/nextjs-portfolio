@@ -26,12 +26,23 @@ export type OutsideBet =
   | { kind: 'red' | 'black' | 'odd' | 'even' | 'low' | 'high' };
 export type DozenBet = { kind: 'dozen'; which: 1 | 2 | 3 };
 export type StraightBet = { kind: 'straight'; number: number };
-export type Bet = OutsideBet | DozenBet | StraightBet;
+/**
+ * Inside multi-number bets: split (2 nums, 17:1), street (3, 11:1),
+ * corner (4, 8:1), line (6, 5:1). `numbers` is the exact set covered.
+ * 0-involving variants (0-1, 0-2, 0-3 splits, 0-1-2 / 0-2-3 trio) are
+ * not yet wired up — would need to bridge the 0-cell to the main grid.
+ */
+export type SplitBet = { kind: 'split'; numbers: [number, number] };
+export type StreetBet = { kind: 'street'; numbers: [number, number, number] };
+export type CornerBet = { kind: 'corner'; numbers: [number, number, number, number] };
+export type LineBet = { kind: 'line'; numbers: [number, number, number, number, number, number] };
+export type Bet = OutsideBet | DozenBet | StraightBet | SplitBet | StreetBet | CornerBet | LineBet;
 
 /** Returns payout multiplier (incl. stake) if bet wins, else 0. */
 export function payoutMultiplier(bet: Bet, result: number): number {
   if (result === 0) {
-    // Only straight-up 0 wins on green.
+    // Only straight-up 0 wins on green. Inside multi-number bets in this UI
+    // don't include 0, so they all lose on green.
     return bet.kind === 'straight' && bet.number === 0 ? 36 : 0;
   }
   switch (bet.kind) {
@@ -54,6 +65,14 @@ export function payoutMultiplier(bet: Bet, result: number): number {
     }
     case 'straight':
       return result === bet.number ? 36 : 0;
+    case 'split':
+      return bet.numbers.includes(result) ? 18 : 0;
+    case 'street':
+      return bet.numbers.includes(result) ? 12 : 0;
+    case 'corner':
+      return bet.numbers.includes(result) ? 9 : 0;
+    case 'line':
+      return bet.numbers.includes(result) ? 6 : 0;
   }
 }
 

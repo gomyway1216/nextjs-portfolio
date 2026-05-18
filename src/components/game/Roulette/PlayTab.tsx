@@ -25,16 +25,19 @@ for (let k = 0; k < 11; k++) {
 const H_SPLITS: { k: number; r: number; numbers: [number, number] }[] = [];
 for (let k = 0; k < 12; k++) {
   for (let r = 0; r < 2; r++) {
-    H_SPLITS.push({ k, r, numbers: [numberAt(k, r), numberAt(k, r + 1)] });
+    // Bottom row first so numbers are ascending — lets keyOf skip a runtime sort.
+    H_SPLITS.push({ k, r, numbers: [numberAt(k, r + 1), numberAt(k, r)] });
   }
 }
 const CORNERS: { k: number; r: number; numbers: [number, number, number, number] }[] = [];
 for (let k = 0; k < 11; k++) {
   for (let r = 0; r < 2; r++) {
+    // Ascending order: bottom-left, top-left, bottom-right, top-right
+    // (e.g. for k=0,r=1 → [1, 2, 4, 5]).
     CORNERS.push({
       k,
       r,
-      numbers: [numberAt(k, r), numberAt(k + 1, r), numberAt(k, r + 1), numberAt(k + 1, r + 1)],
+      numbers: [numberAt(k, r + 1), numberAt(k, r), numberAt(k + 1, r + 1), numberAt(k + 1, r)],
     });
   }
 }
@@ -48,11 +51,13 @@ for (let k = 0; k < 11; k++) {
 }
 
 type BetKey = string;
+// All bet metadata is built with `numbers` already sorted ascending, so keyOf
+// can join directly without a per-call sort.
 const keyOf = (bet: Bet): BetKey => {
   if (bet.kind === 'straight') return `straight:${bet.number}`;
   if (bet.kind === 'dozen') return `dozen:${bet.which}`;
   if (bet.kind === 'split' || bet.kind === 'street' || bet.kind === 'corner' || bet.kind === 'line') {
-    return `${bet.kind}:${[...bet.numbers].sort((a, b) => a - b).join('-')}`;
+    return `${bet.kind}:${bet.numbers.join('-')}`;
   }
   return bet.kind;
 };
@@ -260,7 +265,7 @@ export const PlayTab = () => {
                     chips={bets[keyOf(bet)]?.amount}
                     disabled={spinning}
                     onClick={() => placeBet(bet)}
-                    title={`Split ${[...numbers].sort((a, b) => a - b).join(', ')} (17:1)`}
+                    title={`Split ${numbers.join(', ')} (17:1)`}
                     style={{ left: `${(k + 1) * CELL_W}%`, top: `${(r + 0.5) * CELL_H}%`, width: 14, height: `${CELL_H * 0.55}%`, transform: 'translate(-50%, -50%)' }}
                   />
                 );
@@ -273,7 +278,7 @@ export const PlayTab = () => {
                     chips={bets[keyOf(bet)]?.amount}
                     disabled={spinning}
                     onClick={() => placeBet(bet)}
-                    title={`Split ${[...numbers].sort((a, b) => a - b).join(', ')} (17:1)`}
+                    title={`Split ${numbers.join(', ')} (17:1)`}
                     style={{ left: `${(k + 0.5) * CELL_W}%`, top: `${(r + 1) * CELL_H}%`, width: `${CELL_W * 0.55}%`, height: 14, transform: 'translate(-50%, -50%)' }}
                   />
                 );
@@ -286,7 +291,7 @@ export const PlayTab = () => {
                     chips={bets[keyOf(bet)]?.amount}
                     disabled={spinning}
                     onClick={() => placeBet(bet)}
-                    title={`Corner ${[...numbers].sort((a, b) => a - b).join(', ')} (8:1)`}
+                    title={`Corner ${numbers.join(', ')} (8:1)`}
                     style={{ left: `${(k + 1) * CELL_W}%`, top: `${(r + 1) * CELL_H}%`, width: 18, height: 18, borderRadius: '50%', transform: 'translate(-50%, -50%)' }}
                   />
                 );
@@ -483,21 +488,38 @@ interface HitZoneProps {
  * Small invisible-by-default clickable region overlaid on the number grid for
  * Split / Corner bets. Becomes visible (orange tint) on hover and stays filled
  * when a chip has been placed on it.
+ *
+ * Hover state lives in React state rather than direct DOM mutation so a parent
+ * re-render (e.g. bankroll change mid-hover) doesn't flicker the highlight.
  */
 const HitZone = ({ chips, onClick, disabled, title, style }: HitZoneProps) => {
+  const [hover, setHover] = useState(false);
   const isPlaced = chips !== undefined && chips > 0;
+  const background = isPlaced
+    ? '#f59e0b'
+    : hover && !disabled
+      ? 'rgba(245, 158, 11, 0.55)'
+      : 'transparent';
+  const borderColor = isPlaced
+    ? '#0f172a'
+    : hover && !disabled
+      ? '#fbbf24'
+      : 'transparent';
   return (
     <button
       onClick={onClick}
       disabled={disabled}
       title={title}
       aria-label={title}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
       style={{
         position: 'absolute',
         pointerEvents: 'auto',
-        background: isPlaced ? '#f59e0b' : 'transparent',
+        background,
         color: '#0f172a',
-        border: isPlaced ? '2px solid #0f172a' : '1px dashed transparent',
+        border: isPlaced ? '2px solid' : '1px dashed',
+        borderColor,
         borderRadius: style.borderRadius ?? 4,
         cursor: disabled ? 'not-allowed' : 'pointer',
         padding: 0,
@@ -509,16 +531,6 @@ const HitZone = ({ chips, onClick, disabled, title, style }: HitZoneProps) => {
         transition: 'background 0.08s, border-color 0.08s',
         zIndex: 2,
         ...style,
-      }}
-      onMouseEnter={(e) => {
-        if (disabled) return;
-        if (!isPlaced) e.currentTarget.style.background = 'rgba(245, 158, 11, 0.55)';
-        e.currentTarget.style.borderColor = '#fbbf24';
-      }}
-      onMouseLeave={(e) => {
-        if (disabled) return;
-        e.currentTarget.style.background = isPlaced ? '#f59e0b' : 'transparent';
-        e.currentTarget.style.borderColor = isPlaced ? '#0f172a' : 'transparent';
       }}
     >
       {isPlaced ? chips : ''}

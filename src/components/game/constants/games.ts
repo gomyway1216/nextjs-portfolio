@@ -247,4 +247,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Arcade',
   },
+  {
+    id: 'monty-hall',
+    title: 'Monty Hall',
+    description: 'The classic three-door problem. Play it, then run a Monte Carlo simulation that shows Switch beats Stay 2:1.',
+    thumbnail: '🚪',
+    path: '/games/monty-hall',
+    difficulty: 'Easy',
+    category: 'Puzzle',
+  },
 ];

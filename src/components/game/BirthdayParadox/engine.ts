@@ -101,11 +101,20 @@ export async function runBirthdaySweepAsync(
   }
 
   const points: SweepPoint[] = new Array(maxN);
+  // Reusable seen-flags buffer — avoids allocating a Set per trial. At maxN ~ 200
+  // and trialsPerN ~ 10000 that's 2M trial loops, where GC pressure shows up.
+  const seen = new Uint8Array(DAYS_IN_YEAR);
   for (let n = 1; n <= maxN; n++) {
     let matches = 0;
     for (let t = 0; t < trialsPerN; t++) {
-      const bd = generateBirthdays(n, rng);
-      if (hasCollision(bd)) matches++;
+      seen.fill(0);
+      let collided = false;
+      for (let i = 0; i < n; i++) {
+        const d = Math.floor(rng() * DAYS_IN_YEAR);
+        if (seen[d] === 1) { collided = true; break; }
+        seen[d] = 1;
+      }
+      if (collided) matches++;
     }
     points[n - 1] = {
       n,

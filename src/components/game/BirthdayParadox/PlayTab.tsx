@@ -124,7 +124,7 @@ export const PlayTab = () => {
 
         <div style={{ marginTop: '1rem', padding: '0.7rem 0.9rem', background: '#020617', border: '1px solid #1e293b', borderRadius: 10, color: '#cbd5e1', fontSize: '0.85rem', lineHeight: 1.6 }}>
           <strong style={{ color: '#fbbf24' }}>誕生日のパラドックス:</strong>
-          {' '}わずか <strong>{theoreticalMatchProb(23) > 0.5 ? '23' : '?'} 人</strong>集めれば誕生日が被る確率が <strong>50%</strong> を超える、というのが直感に反する点。
+          {' '}わずか <strong>23 人</strong>集めれば誕生日が被る確率が <strong>50%</strong> を超える、というのが直感に反する点。
           {' '}スライダーを動かして「同じ被り確率を得るのに何人必要か」を試してみてください。
         </div>
       </div>

@@ -292,4 +292,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Card',
   },
+  {
+    id: 'secretary-problem',
+    title: 'Secretary Problem',
+    description: 'Interview candidates one by one, decide on the spot, no second chances. Try beating the famous 37% rule — then simulate it.',
+    thumbnail: '👔',
+    path: '/games/secretary-problem',
+    difficulty: 'Medium',
+    category: 'Puzzle',
+  },
 ];

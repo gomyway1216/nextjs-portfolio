@@ -1,8 +1,12 @@
 'use client';
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { TypeAnimation } from 'react-type-animation';
 import * as profileApi from '@/services/profileService';
 import { useTranslation } from 'react-i18next';
+
+const HERO_IMAGE_URL =
+  'https://firebasestorage.googleapis.com/v0/b/yudai-portfolio.appspot.com/o/profile_image2.jpg?alt=media&token=24f54f49-e8cc-4c70-a52a-0edb97e456f0';
 
 const conctInfo = {
   email: 'uwyudai@gmail.com',
@@ -129,12 +133,22 @@ const Slider = () => {
           </div>
         </div>
         {/* End Container*/}
-        <div
-          className="hb-me"
-          style={{
-            backgroundImage: `url(${'https://firebasestorage.googleapis.com/v0/b/yudai-portfolio.appspot.com/o/profile_image2.jpg?alt=media&token=24f54f49-e8cc-4c70-a52a-0edb97e456f0'})`,
-          }}
-        ></div>
+        <div className="hb-me">
+          {/*
+           * Use next/image with `fill` so we get automatic responsive
+           * srcset + WebP optimization for the LCP image. `priority`
+           * makes it preloaded — this is the largest contentful paint
+           * on the home page.
+           */}
+          <Image
+            src={HERO_IMAGE_URL}
+            alt="Yudai Yaguchi"
+            fill
+            priority
+            sizes="(max-width: 768px) 80vw, 50vw"
+            style={{ objectFit: 'cover', objectPosition: 'top left' }}
+          />
+        </div>
       </section>
 
       {/* End Home Banner  */}

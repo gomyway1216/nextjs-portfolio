@@ -310,4 +310,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Puzzle',
   },
+  {
+    id: 'bayesian-update',
+    title: 'Bayesian Update',
+    description: 'A coin with hidden bias. Flip and watch the Beta posterior sharpen around the true p in real time — then simulate convergence.',
+    thumbnail: '🪙',
+    path: '/games/bayesian-update',
+    difficulty: 'Medium',
+    category: 'Puzzle',
+  },
 ];

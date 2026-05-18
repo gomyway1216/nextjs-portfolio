@@ -1,0 +1,1 @@
+export { BayesianUpdate } from './BayesianUpdate';

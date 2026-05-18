@@ -59,7 +59,7 @@ export const SimTab = () => {
   };
 
   const runLabel = running && progress
-    ? `Running… r=${progress.done} / ${progress.total}`
+    ? `Running… ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`
     : 'シミュレーション実行';
 
   return (
@@ -120,8 +120,7 @@ const Results = ({ summary }: { summary: SweepSummary }) => {
       <div>
         <h4 style={{ margin: '0 0 0.4rem', color: '#cbd5e1' }}>主要な r 比率のスナップショット</h4>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: '0.5rem' }}>
-          {[0, 0.1, 0.2, Math.round(summary.n / Math.E) / summary.n, 0.5, 0.7].map((ratio) => {
-            const r = Math.round(ratio * summary.n);
+          {Array.from(new Set([0, 0.1, 0.2, Math.round(summary.n / Math.E) / summary.n, 0.5, 0.7].map((ratio) => Math.round(ratio * summary.n)))).sort((a, b) => a - b).map((r) => {
             const p = summary.points[r];
             if (!p) return null;
             const isOptimum = r === summary.theoreticalBestR;

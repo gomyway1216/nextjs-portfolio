@@ -42,12 +42,14 @@ export const PlayTab = () => {
   const [showHint, setShowHint] = useState(true);
 
   const suggestedR = Math.round(n * SUGGESTED_R_RATIO);
-  const bestSoFarInSkip = useMemo(() => {
-    if (round.current < suggestedR) return null;
+  // Skip-phase max depends only on the candidates + suggestedR, not on
+  // round.current. Computing it once per round avoids per-step recompute.
+  const skipPhaseMax = useMemo(() => {
     let m = -Infinity;
     for (let i = 0; i < suggestedR; i++) m = Math.max(m, round.candidates[i]);
     return m === -Infinity ? null : m;
-  }, [round.candidates, round.current, suggestedR]);
+  }, [round.candidates, suggestedR]);
+  const bestSoFarInSkip = round.current >= suggestedR ? skipPhaseMax : null;
 
   const start = () => {
     setRound(freshRound(n));
@@ -82,19 +84,20 @@ export const PlayTab = () => {
 
   const reject = () => {
     if (phase !== 'interviewing' || currentVal === null) return;
-    setRound((r) => {
-      const nextRejected = [...r.rejected, currentVal];
-      const nextCurrent = r.current + 1;
-      if (nextCurrent >= r.candidates.length) {
-        // forced last
-        const last = r.candidates[r.candidates.length - 1];
-        const isBest = last === Math.max(...r.candidates);
-        setStats((s) => ({ games: s.games + 1, wins: s.wins + (isBest ? 1 : 0) }));
-        setPhase('done');
-        return { ...r, rejected: nextRejected.slice(0, -1), picked: last, pickedIndex: r.candidates.length - 1, forcedLast: true, current: r.candidates.length };
-      }
-      return { ...r, rejected: nextRejected, current: nextCurrent };
-    });
+    // Compute next state out-of-band first, then dispatch setters sequentially
+    // — calling other setters inside a setRound updater is an anti-pattern
+    // (updaters can re-run in Strict Mode, duplicating the side effects).
+    const nextCurrent = round.current + 1;
+    const reachedEnd = nextCurrent >= round.candidates.length;
+    if (reachedEnd) {
+      const last = round.candidates[round.candidates.length - 1];
+      const isBest = last === Math.max(...round.candidates);
+      setRound((r) => ({ ...r, picked: last, pickedIndex: r.candidates.length - 1, forcedLast: true, current: r.candidates.length }));
+      setStats((s) => ({ games: s.games + 1, wins: s.wins + (isBest ? 1 : 0) }));
+      setPhase('done');
+    } else {
+      setRound((r) => ({ ...r, rejected: [...r.rejected, currentVal], current: nextCurrent }));
+    }
   };
 
   const resetStats = () => setStats(INITIAL_STATS);

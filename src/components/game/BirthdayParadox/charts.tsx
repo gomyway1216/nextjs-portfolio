@@ -22,7 +22,7 @@ export const CurveChart = ({ points, annotations = [], width = 700, height = 300
   const theoreticalLine = points.map((p) => `${xScale(p.n).toFixed(1)},${yScale(p.theoretical).toFixed(1)}`).join(' ');
 
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ background: '#020617', borderRadius: 8, border: '1px solid #1e293b' }}>
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ background: '#020617', borderRadius: 8, border: '1px solid #1e293b' }}>
       {[0, 0.25, 0.5, 0.75, 1].map((p) => {
         const y = padding.top + innerH * (1 - p);
         return (

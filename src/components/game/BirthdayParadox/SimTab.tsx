@@ -33,6 +33,8 @@ export const SimTab = () => {
     if (runningRef.current) return;
     runningRef.current = true;
     setRunning(true);
+    // Clear stale chart so the user isn't reading old data while progress runs.
+    setResult(null);
     const safeMaxN = clamp(maxN, LIMITS.maxN.min, LIMITS.maxN.max);
     const safeTrials = clamp(trialsPerN, LIMITS.trialsPerN.min, LIMITS.trialsPerN.max);
     setProgress({ done: 0, total: safeMaxN });

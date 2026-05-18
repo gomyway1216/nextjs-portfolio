@@ -749,6 +749,22 @@
     "blackjack": {
       "title": "Blackjack — Basic Strategy",
       "description": "Play simplified Blackjack with a hint that shows what Basic Strategy says. Then simulate it vs Mimic-Dealer vs Always-Stand and see the edge gap."
+    },
+    "secretary-problem": {
+      "title": "Secretary Problem",
+      "description": "Interview candidates one by one, decide on the spot, no second chances. Try beating the famous 37% rule — then simulate it."
+    },
+    "bandit": {
+      "title": "K-armed Bandit",
+      "description": "Explore vs exploit — pick arms with hidden reward probs. Compare ε-greedy, UCB1, and Thompson Sampling regret curves."
+    },
+    "bayesian-update": {
+      "title": "Bayesian Update",
+      "description": "A coin with hidden bias. Flip and watch the Beta posterior sharpen around the true p in real time — then simulate convergence."
+    },
+    "petersburg": {
+      "title": "St. Petersburg Paradox",
+      "description": "Coin flips until first tails: payoff doubles each round. Expected value is infinite — yet nobody wants to pay much. Simulate why."
     }
   },
   "home": {

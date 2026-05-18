@@ -265,4 +265,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Puzzle',
   },
+  {
+    id: 'coupon-collector',
+    title: 'Coupon Collector',
+    description: 'How many draws to collect all n items? The classic gacha problem: expected draws ≈ n·ln(n) — the last few items take forever.',
+    thumbnail: '🎟️',
+    path: '/games/coupon-collector',
+    difficulty: 'Easy',
+    category: 'Puzzle',
+  },
 ];

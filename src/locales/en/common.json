@@ -725,6 +725,30 @@
         "Keyboard and click input",
         "Per-question explanations"
       ]
+    },
+    "roulette": {
+      "title": "Roulette + Martingale Sim",
+      "description": "European roulette you can actually play, plus a Monte Carlo simulator that shows how the Martingale strategy goes bust."
+    },
+    "monty-hall": {
+      "title": "Monty Hall",
+      "description": "The classic three-door problem. Play it, then run a Monte Carlo simulation that shows Switch beats Stay 2:1."
+    },
+    "birthday-paradox": {
+      "title": "Birthday Paradox",
+      "description": "How few people do you need before two share a birthday? Play it, then simulate the famous 50% / 99% thresholds."
+    },
+    "coupon-collector": {
+      "title": "Coupon Collector",
+      "description": "How many draws to collect all n items? The classic gacha problem: expected draws ≈ n·ln(n) — the last few items take forever."
+    },
+    "gamblers-ruin": {
+      "title": "Gambler's Ruin",
+      "description": "Even with a fair 50/50 game, finite bankroll means ruin probability is (N − a) / N. Make it 49/51 and ruin becomes nearly certain."
+    },
+    "blackjack": {
+      "title": "Blackjack — Basic Strategy",
+      "description": "Play simplified Blackjack with a hint that shows what Basic Strategy says. Then simulate it vs Mimic-Dealer vs Always-Stand and see the edge gap."
     }
   },
   "home": {

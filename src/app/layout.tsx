@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Rubik, Playfair_Display } from "next/font/google";
 import { AuthProvider } from "@/providers/AuthProvider";
-import { PostsProvider } from "@/providers/PostsProvider";
 import { I18nProvider } from "@/components/providers/I18nProvider";
 import AOSInitializer from "./AOSInitializer";
 import { Toaster } from "@/components/ui/sonner";
@@ -60,12 +59,10 @@ export default function RootLayout({
         </Suspense>
         <I18nProvider>
           <AuthProvider>
-            <PostsProvider>
-              <GameToolbarProvider>
-                <GlobalToolbar />
-                {children}
-              </GameToolbarProvider>
-            </PostsProvider>
+            <GameToolbarProvider>
+              <GlobalToolbar />
+              {children}
+            </GameToolbarProvider>
           </AuthProvider>
         </I18nProvider>
         <div id="modal-root"></div>

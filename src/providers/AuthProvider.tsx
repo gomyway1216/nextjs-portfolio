@@ -12,6 +12,7 @@ interface AuthProviderProps {
 
 interface AuthContextType {
   currentUser: any;
+  loading: boolean;
   isAdmin: boolean;
   isEnrolledInMFA: boolean;
   twoFactorRequired: boolean;
@@ -266,6 +267,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const value: AuthContextType = {
     currentUser,
+    loading,
     isAdmin,
     isEnrolledInMFA,
     twoFactorRequired,
@@ -282,7 +284,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   return (
     <AuthContext.Provider value={value}>
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };

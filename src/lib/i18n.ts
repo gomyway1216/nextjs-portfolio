@@ -46,10 +46,17 @@ i18n
       escapeValue: false, // React already escapes values
     },
 
-    // Language detection options
+    // Language detection options.
+    // `cookie` is in `caches` so server components (e.g. /games landing) can
+    // read the user's chosen language on first paint via the i18nextLng
+    // cookie, avoiding a hydration-time text swap when JA users land on
+    // SSR'd pages.
     detection: {
-      order: ['localStorage', 'navigator', 'htmlTag'],
-      caches: ['localStorage'],
+      order: ['cookie', 'localStorage', 'navigator', 'htmlTag'],
+      caches: ['cookie', 'localStorage'],
+      lookupCookie: 'i18nextLng',
+      cookieMinutes: 60 * 24 * 365,
+      cookieOptions: { path: '/', sameSite: 'lax' },
     },
   });
 

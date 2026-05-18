@@ -10,6 +10,7 @@ const conctInfo = {
 
 const Slider = () => {
   const [resumeLink, setResumeLink] = useState('');
+  const [mounted, setMounted] = useState(false);
   const { t } = useTranslation();
 
   const fetchLink = async () => {
@@ -19,6 +20,11 @@ const Slider = () => {
 
   useEffect(() => {
     fetchLink();
+    // TypeAnimation renders an empty wrapper on SSR and starts typing
+    // on the client, which produces a React #418 hydration mismatch.
+    // Gate it behind `mounted` and render a static fallback for the
+    // first paint so SSR + client first render agree.
+    setMounted(true);
   }, []);
 
   return (
@@ -67,20 +73,26 @@ const Slider = () => {
 
                   data-aos-delay="200"
                 >
-                  <TypeAnimation
-                    sequence={[
-                      t('home.hero.roles.fullstackDeveloper'),
-                      2000,
-                      t('home.hero.roles.softwareEngineer'),
-                      2000,
-                      t('home.hero.roles.webDeveloper'),
-                      2000,
-                    ]}
-                    wrapper="p"
-                    speed={50}
-                    className="loop-text lead"
-                    repeat={Infinity}
-                  />
+                  {mounted ? (
+                    <TypeAnimation
+                      sequence={[
+                        t('home.hero.roles.fullstackDeveloper'),
+                        2000,
+                        t('home.hero.roles.softwareEngineer'),
+                        2000,
+                        t('home.hero.roles.webDeveloper'),
+                        2000,
+                      ]}
+                      wrapper="p"
+                      speed={50}
+                      className="loop-text lead"
+                      repeat={Infinity}
+                    />
+                  ) : (
+                    <p className="loop-text lead">
+                      {t('home.hero.roles.fullstackDeveloper')}
+                    </p>
+                  )}
                 </div>
 
                 <p

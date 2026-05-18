@@ -319,4 +319,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Puzzle',
   },
+  {
+    id: 'petersburg',
+    title: 'St. Petersburg Paradox',
+    description: 'Coin flips until first tails: payoff doubles each round. Expected value is infinite — yet nobody wants to pay much. Simulate why.',
+    thumbnail: '🪙',
+    path: '/games/petersburg',
+    difficulty: 'Medium',
+    category: 'Puzzle',
+  },
 ];

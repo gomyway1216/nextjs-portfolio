@@ -1,12 +1,19 @@
-'use client';
-
 import Link from 'next/link';
-import { useHobbyCategories } from '@/hooks/useHobbies';
 import { HobbyCard } from '@/components/hobby';
-import { Loader2 } from 'lucide-react';
+import { getPublicHobbiesCached } from '@/lib/hobbies/getHobbiesServer';
+import type { HobbyCategory } from '@/types/hobby';
 
-export default function HobbiesPage() {
-  const { categories, loading, error } = useHobbyCategories();
+export const revalidate = 300;
+
+export default async function HobbiesPage() {
+  let categories: HobbyCategory[] = [];
+  let serverError = false;
+  try {
+    categories = await getPublicHobbiesCached();
+  } catch (err) {
+    console.error('[hobbies] server-side fetch failed', err);
+    serverError = true;
+  }
 
   return (
     <div className="hobbies-page">
@@ -21,26 +28,19 @@ export default function HobbiesPage() {
           </Link>
         </header>
 
-        {loading && (
-          <div className="hobbies-page__loading">
-            <Loader2 className="hobbies-page__spinner" size={32} />
-            <span>Loading hobbies...</span>
-          </div>
-        )}
-
-        {error && (
+        {serverError && (
           <div className="hobbies-page__error">
-            <p>Failed to load hobbies: {error}</p>
+            <p>Failed to load hobbies. Please try again later.</p>
           </div>
         )}
 
-        {!loading && !error && categories.length === 0 && (
+        {!serverError && categories.length === 0 && (
           <div className="hobbies-page__empty">
             <p>No hobbies available yet.</p>
           </div>
         )}
 
-        {!loading && !error && categories.length > 0 && (
+        {categories.length > 0 && (
           <div className="hobbies-page__grid">
             {categories.map((hobby) => (
               <HobbyCard key={hobby.id} hobby={hobby} />

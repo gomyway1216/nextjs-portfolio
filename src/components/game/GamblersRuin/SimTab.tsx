@@ -93,11 +93,11 @@ export const SimTab = () => {
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.6rem', marginBottom: '0.8rem' }}>
-        <NumField label="開始 a" value={config.start} {...LIMITS.start} onChange={(v) => updateConfig('start', v)} />
-        <NumField label="目標 N" value={config.target} {...LIMITS.target} onChange={(v) => updateConfig('target', v)} />
-        <FloatField label="勝率 p" value={config.winProb} {...LIMITS.winProb} step={0.01} onChange={(v) => updateConfig('winProb', v)} />
-        <NumField label="最大ステップ" value={maxSteps} {...LIMITS.maxSteps} onChange={setMaxSteps} />
-        <NumField label="試行回数" value={trials} {...LIMITS.trials} onChange={setTrials} />
+        <NumField label="開始 a" value={config.start} {...LIMITS.start} onChange={(v) => updateConfig('start', v)} disabled={running} />
+        <NumField label="目標 N" value={config.target} {...LIMITS.target} onChange={(v) => updateConfig('target', v)} disabled={running} />
+        <FloatField label="勝率 p" value={config.winProb} {...LIMITS.winProb} step={0.01} onChange={(v) => updateConfig('winProb', v)} disabled={running} />
+        <NumField label="最大ステップ" value={maxSteps} {...LIMITS.maxSteps} onChange={setMaxSteps} disabled={running} />
+        <NumField label="試行回数" value={trials} {...LIMITS.trials} onChange={setTrials} disabled={running} />
       </div>
 
       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1rem' }}>
@@ -193,14 +193,15 @@ const Stat = ({ label, value, color }: { label: string; value: string; color: st
   </div>
 );
 
-const NumField = ({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) => (
-  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+const NumField = ({ label, value, min, max, onChange, disabled }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void; disabled?: boolean }) => (
+  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', opacity: disabled ? 0.6 : 1 }}>
     <span style={{ color: '#94a3b8', fontSize: '0.72rem' }}>{label}</span>
     <input
       type="number"
       value={value}
       min={min}
       max={max}
+      disabled={disabled}
       onChange={(e) => {
         const v = Number(e.target.value);
         if (Number.isFinite(v)) onChange(v);
@@ -209,8 +210,8 @@ const NumField = ({ label, value, min, max, onChange }: { label: string; value: 
     />
   </label>
 );
-const FloatField = ({ label, value, min, max, step, onChange }: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void }) => (
-  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+const FloatField = ({ label, value, min, max, step, onChange, disabled }: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void; disabled?: boolean }) => (
+  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', opacity: disabled ? 0.6 : 1 }}>
     <span style={{ color: '#94a3b8', fontSize: '0.72rem' }}>{label}</span>
     <input
       type="number"
@@ -218,6 +219,7 @@ const FloatField = ({ label, value, min, max, step, onChange }: { label: string;
       min={min}
       max={max}
       step={step}
+      disabled={disabled}
       onChange={(e) => {
         const v = Number(e.target.value);
         if (Number.isFinite(v)) onChange(v);

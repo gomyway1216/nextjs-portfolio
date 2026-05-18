@@ -58,20 +58,22 @@ export const PlayTab = () => {
   const playOneStep = () => {
     if (running || result) return;
     const won = Math.random() < config.winProb;
-    setBankroll((b) => {
-      const nb = won ? b + 1 : b - 1;
-      setTrajectory((t) => [...t, nb]);
-      if (nb <= 0 || nb >= config.target) {
-        const outcome = nb <= 0 ? 'ruined' : 'reached';
-        setResult({ outcome, steps: steps + 1, finalBankroll: nb, trajectory: [] });
-        setSessionStats((s) => ({
-          ruined: s.ruined + (outcome === 'ruined' ? 1 : 0),
-          reached: s.reached + (outcome === 'reached' ? 1 : 0),
-        }));
-      }
-      return nb;
-    });
+    // Compute next state first, then dispatch the setters sequentially —
+    // calling other setters inside a functional updater is an anti-pattern
+    // (updaters can re-run in Strict Mode and would dispatch duplicate
+    // session-stat increments).
+    const nextBankroll = won ? bankroll + 1 : bankroll - 1;
+    setBankroll(nextBankroll);
+    setTrajectory((t) => [...t, nextBankroll]);
     setSteps((s) => s + 1);
+    if (nextBankroll <= 0 || nextBankroll >= config.target) {
+      const outcome = nextBankroll <= 0 ? 'ruined' : 'reached';
+      setResult({ outcome, steps: steps + 1, finalBankroll: nextBankroll, trajectory: [] });
+      setSessionStats((s) => ({
+        ruined: s.ruined + (outcome === 'ruined' ? 1 : 0),
+        reached: s.reached + (outcome === 'reached' ? 1 : 0),
+      }));
+    }
   };
 
   const autoPlay = () => {

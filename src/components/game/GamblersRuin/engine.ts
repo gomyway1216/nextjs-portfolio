@@ -37,7 +37,13 @@ export function theoreticalRuinProb(config: RuinConfig): number {
   if (p === 0.5) return (N - a) / N;
   const q = 1 - p;
   const r = q / p;
-  // P(ruin) = (r^a - r^N) / (1 - r^N)
+  // Standard form (r^a - r^N) / (1 - r^N) overflows when r > 1 and N is large
+  // (e.g., p=0.01, N=200 → r^N >> Number.MAX_VALUE → NaN). Divide num+denom
+  // by r^N to stay in [0, 1] for r > 1; for r < 1, r^N → 0 so the standard
+  // form is already safe.
+  if (r > 1) {
+    return (Math.pow(r, a - N) - 1) / (Math.pow(r, -N) - 1);
+  }
   return (Math.pow(r, a) - Math.pow(r, N)) / (1 - Math.pow(r, N));
 }
 

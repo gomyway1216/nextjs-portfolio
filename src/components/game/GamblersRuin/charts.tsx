@@ -40,8 +40,18 @@ export const TrajectoryChart = ({ trajectories, start, target, width = 700, heig
         const last = tr[tr.length - 1];
         const stroke = last <= 0 ? '#f87171' : last >= target ? '#4ade80' : '#94a3b8';
         const opacity = trajectories.length > 30 ? 0.25 : 0.55;
-        const pts = tr.map((v, i) => `${xScale(i).toFixed(1)},${yScale(v).toFixed(1)}`).join(' ');
-        return <polyline key={idx} points={pts} fill="none" stroke={stroke} strokeWidth={1} opacity={opacity} />;
+        // Downsample very long trajectories before serializing — at 30 paths
+        // × 200k pts the raw string is multi-megabyte and slows the DOM badly.
+        const step = Math.max(1, Math.floor(tr.length / 1000));
+        const pts: string[] = [];
+        for (let i = 0; i < tr.length; i += step) {
+          pts.push(`${xScale(i).toFixed(1)},${yScale(tr[i]).toFixed(1)}`);
+        }
+        // Always include the last point so endpoint colors land correctly.
+        if ((tr.length - 1) % step !== 0) {
+          pts.push(`${xScale(tr.length - 1).toFixed(1)},${yScale(tr[tr.length - 1]).toFixed(1)}`);
+        }
+        return <polyline key={idx} points={pts.join(' ')} fill="none" stroke={stroke} strokeWidth={1} opacity={opacity} />;
       })}
 
       <text x={padding.left} y={height - 8} fill="#64748b" fontSize="10">0 steps</text>

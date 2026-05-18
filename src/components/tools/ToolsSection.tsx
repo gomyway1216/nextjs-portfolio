@@ -11,6 +11,7 @@ import {
 import { SettliIcon } from '@/components/settli';
 import { KaimonoLogo } from '@/components/kaimono';
 import { KuizuIcon } from '@/components/kuizu';
+import { ScoreTrackerIcon } from '@/components/scoretracker';
 import { useTranslation } from 'react-i18next';
 import './tools-section.scss';
 
@@ -99,6 +100,20 @@ const ToolsSection: React.FC = () => {
         'AI-powered',
       ],
       gradient: 'linear-gradient(135deg, #dc2626, #ef4444, #f87171)',
+    },
+    {
+      id: 'scoreTracker',
+      title: 'スコアトラッカー',
+      subtitle: 'Score Tracker',
+      description: '麻雀の素点、ゴルフ、ボドゲ会など — 日付ごとの最終点を記録して累計を追跡。コードで友達と共有できます。',
+      path: '/tools/score-tracker',
+      icon: <ScoreTrackerIcon size={32} />,
+      features: [
+        '日次スコア記録',
+        '累計の自動集計',
+        'コード共有',
+      ],
+      gradient: 'linear-gradient(135deg, #0f766e, #14b8a6, #2dd4bf)',
     },
   ];
 

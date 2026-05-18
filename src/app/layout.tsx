@@ -3,15 +3,16 @@ import { Suspense } from "react";
 import { Rubik, Playfair_Display } from "next/font/google";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { I18nProvider } from "@/components/providers/I18nProvider";
-import AOSInitializer from "./AOSInitializer";
 import { Toaster } from "@/components/ui/sonner";
 import { GlobalToolbar } from "@/components/GlobalToolbar";
 import { GameToolbarProvider } from "@/contexts/GameToolbarContext";
 import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
 import PageViewLogger from "@/components/PageViewLogger";
 import "../assets/scss/main.scss";
-import "aos/dist/aos.css";
 import "./globals.css";
+// AOS CSS + initializer used to live here. Only the home page actually
+// uses `[data-aos]` elements, so both moved to src/app/page.tsx to keep
+// the cost off every other route.
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -51,7 +52,6 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" />
       </head>
       <body className={`${rubik.variable} ${playfair.variable}`} suppressHydrationWarning>
-        <AOSInitializer />
         <Toaster />
         <GlobalErrorBoundary />
         <Suspense fallback={null}>

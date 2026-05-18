@@ -15,13 +15,19 @@ const resources = {
   },
 };
 
-// Get the initial language from localStorage to prevent flashing
-const getInitialLanguage = () => {
+// Get the initial language from the i18nextLng cookie (set by either
+// the server or the detector below) or localStorage. Checking the
+// cookie first matches what server components see, so SSR and client
+// agree on the initial render.
+const getInitialLanguage = (): 'en' | 'ja' => {
+  if (typeof document !== 'undefined') {
+    const match = document.cookie.match(/(?:^|;\s*)i18nextLng=([^;]+)/);
+    const cookieLang = match?.[1];
+    if (cookieLang === 'en' || cookieLang === 'ja') return cookieLang;
+  }
   if (typeof window !== 'undefined') {
     const stored = localStorage.getItem('i18nextLng');
-    if (stored && (stored === 'en' || stored === 'ja')) {
-      return stored;
-    }
+    if (stored === 'en' || stored === 'ja') return stored;
   }
   return 'en';
 };
@@ -56,7 +62,11 @@ i18n
       caches: ['cookie', 'localStorage'],
       lookupCookie: 'i18nextLng',
       cookieMinutes: 60 * 24 * 365,
-      cookieOptions: { path: '/', sameSite: 'lax' },
+      cookieOptions: {
+        path: '/',
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+      },
     },
   });
 

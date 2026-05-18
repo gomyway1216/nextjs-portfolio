@@ -8,33 +8,35 @@ type Locale = 'en' | 'ja';
 
 async function getLocale(): Promise<Locale> {
   // The client writes to a cookie via i18next-browser-languagedetector
-  // (caches: ['localStorage']), so on first visit there's no cookie. We
-  // fall back to Accept-Language so JA visitors still get JA without a
-  // hydration flash later.
+  // (caches now include 'cookie' — see src/lib/i18n.ts). For first-time
+  // visitors with no cookie yet, fall back to the first language listed
+  // in Accept-Language so JA visitors get JA without a hydration flash.
   const cookieStore = await cookies();
   const cookieLang = cookieStore.get('i18nextLng')?.value;
   if (cookieLang === 'ja' || cookieLang === 'en') return cookieLang;
 
   const hdrs = await headers();
   const accept = hdrs.get('accept-language') ?? '';
-  if (accept.toLowerCase().startsWith('ja')) return 'ja';
+  const primary = accept.split(',')[0]?.trim().toLowerCase() ?? '';
+  if (primary.startsWith('ja')) return 'ja';
   return 'en';
+}
+
+function lookupKey(dict: unknown, key: string): string | null {
+  let cur: unknown = dict;
+  for (const p of key.split('.')) {
+    if (cur && typeof cur === 'object' && p in (cur as Record<string, unknown>)) {
+      cur = (cur as Record<string, unknown>)[p];
+    } else {
+      return null;
+    }
+  }
+  return typeof cur === 'string' ? cur : null;
 }
 
 function makeTranslator(locale: Locale) {
   const dict = locale === 'ja' ? jaCommon : enCommon;
-  return (key: string): string => {
-    const parts = key.split('.');
-    let cur: unknown = dict;
-    for (const p of parts) {
-      if (cur && typeof cur === 'object' && p in (cur as Record<string, unknown>)) {
-        cur = (cur as Record<string, unknown>)[p];
-      } else {
-        return key;
-      }
-    }
-    return typeof cur === 'string' ? cur : key;
-  };
+  return (key: string): string => lookupKey(dict, key) ?? lookupKey(enCommon, key) ?? key;
 }
 
 const difficultyKey = (d: string) => {
@@ -71,9 +73,28 @@ export default async function GamesPage() {
       <style>{`
         .game-card-link { text-decoration: none; display: block; transition: transform 0.2s; }
         .game-card-link:hover { transform: translateY(-4px); }
-        .game-card-link:hover .game-card { border-color: #0ea5e9 !important; }
-        .games-back-btn { transition: background 0.2s; }
-        .games-back-btn:hover { background: rgba(75, 85, 99, 0.8) !important; }
+        .game-card {
+          background: rgba(31, 41, 55, 0.5);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(55, 65, 81, 1);
+          border-radius: 1rem;
+          overflow: hidden;
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .game-card-link:hover .game-card { border-color: #0ea5e9; }
+        .games-back-btn {
+          display: inline-block;
+          background: rgba(55, 65, 81, 0.8);
+          border: 1px solid rgba(75, 85, 99, 1);
+          border-radius: 0.5rem;
+          color: #fff;
+          padding: 0.75rem 2rem;
+          font-size: 1rem;
+          font-weight: 600;
+          text-decoration: none;
+          transition: background 0.2s;
+        }
+        .games-back-btn:hover { background: rgba(75, 85, 99, 0.8); }
       `}</style>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {/* Header */}
@@ -155,17 +176,7 @@ export default async function GamesPage() {
                 href={game.path}
                 className="game-card-link"
               >
-                <div
-                  className="game-card"
-                  style={{
-                    background: 'rgba(31, 41, 55, 0.5)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(55, 65, 81, 1)',
-                    borderRadius: '1rem',
-                    overflow: 'hidden',
-                    transition: 'border-color 0.2s, box-shadow 0.2s'
-                  }}
-                >
+                <div className="game-card">
                   {/* Thumbnail */}
                   <div style={{
                     background: 'linear-gradient(135deg, #0ea5e9, #3b82f6, #8b5cf6)',
@@ -310,21 +321,7 @@ export default async function GamesPage() {
 
         {/* Back Button */}
         <div style={{ textAlign: 'center' }}>
-          <Link
-            href="/"
-            className="games-back-btn"
-            style={{
-              display: 'inline-block',
-              background: 'rgba(55, 65, 81, 0.8)',
-              border: '1px solid rgba(75, 85, 99, 1)',
-              borderRadius: '0.5rem',
-              color: '#fff',
-              padding: '0.75rem 2rem',
-              fontSize: '1rem',
-              fontWeight: '600',
-              textDecoration: 'none',
-            }}
-          >
+          <Link href="/" className="games-back-btn">
             ← {t('navigation.backToPortfolio')}
           </Link>
         </div>

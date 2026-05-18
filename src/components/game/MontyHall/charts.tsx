@@ -23,7 +23,7 @@ export const ConvergenceChart = ({ series, x, width = 600, height = 260, yMax = 
   const yScale = (v: number) => padding.top + innerH - (v / yMax) * innerH;
 
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ background: '#020617', borderRadius: 8, border: '1px solid #1e293b' }}>
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ background: '#020617', borderRadius: 8, border: '1px solid #1e293b' }}>
       {/* y-axis grid + labels */}
       {[0, 0.25, 0.5, 0.75, 1].map((p) => {
         const y = padding.top + innerH * (1 - p);
@@ -92,7 +92,7 @@ export const BarCompare = ({ bars, width = 600, height = 200, yMax = 1 }: BarCom
   const barW = slot * 0.55;
 
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ background: '#020617', borderRadius: 8, border: '1px solid #1e293b' }}>
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} style={{ background: '#020617', borderRadius: 8, border: '1px solid #1e293b' }}>
       {[0, 0.5, 1].map((p) => {
         const y = padding.top + innerH * (1 - p);
         return (

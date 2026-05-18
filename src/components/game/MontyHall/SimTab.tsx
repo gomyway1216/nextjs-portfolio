@@ -29,6 +29,8 @@ export const SimTab = () => {
     if (runningRef.current) return;
     runningRef.current = true;
     setRunning(true);
+    // Clear stale results so the user doesn't read old charts while the new run progresses.
+    setResult(null);
     const safeTrials = clamp(trials, TRIAL_LIMITS.min, TRIAL_LIMITS.max);
     setProgress({ done: 0, total: safeTrials });
 

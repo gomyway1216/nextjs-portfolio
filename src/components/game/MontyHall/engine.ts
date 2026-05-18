@@ -96,7 +96,7 @@ export async function runMontyCarloAsync(
   if (!Number.isInteger(trials) || trials <= 0) {
     throw new Error('runMontyCarloAsync: trials must be a positive integer');
   }
-  const chunkSize = options.chunkSize ?? 500;
+  const chunkSize = options.chunkSize ?? 5000;
   const sampleEvery = options.sampleEvery ?? Math.max(1, Math.floor(trials / 200));
 
   let stayWins = 0;

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 const ARM_PALETTE = ['#67e8f9', '#a78bfa', '#f472b6', '#4ade80', '#fbbf24'];
 const T_DEFAULT = 50;
@@ -23,7 +23,6 @@ export const PlayTab = () => {
   const [step, setStep] = useState(0);
   const [history, setHistory] = useState<{ arm: number; reward: number }[]>([]);
   const [reveal, setReveal] = useState(false);
-  const lastRewardRef = useRef<{ arm: number; reward: number } | null>(null);
 
   const totalReward = useMemo(() => arms.reduce((s, a) => s + a.rewards, 0), [arms]);
   const bestP = useMemo(() => Math.max(...probs), [probs]);
@@ -37,7 +36,6 @@ export const PlayTab = () => {
     setArms((a) => a.map((arm, idx) => (idx === i ? { ...arm, pulls: arm.pulls + 1, rewards: arm.rewards + reward } : arm)));
     setHistory((h) => [...h, { arm: i, reward }]);
     setStep((s) => s + 1);
-    lastRewardRef.current = { arm: i, reward };
   };
 
   const newGame = (nextK = k) => {
@@ -47,7 +45,6 @@ export const PlayTab = () => {
     setStep(0);
     setHistory([]);
     setReveal(false);
-    lastRewardRef.current = null;
   };
 
   const onKChange = (nextK: number) => {

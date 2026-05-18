@@ -155,7 +155,10 @@ const Intro = () => (
 );
 
 const Results = ({ results }: { results: StrategySummary[] }) => {
-  const meta = (name: StrategyName) => STRATEGIES.find((s) => s.name === name)!;
+  const meta = (name: StrategyName) => {
+    const found = STRATEGIES.find((s) => s.name === name);
+    return found ?? { name, label: name, color: '#94a3b8' };
+  };
   const rewardSeries = results.map((r) => ({ label: meta(r.strategy).label, color: meta(r.strategy).color, values: r.avgCumReward }));
   const regretSeries = results.filter((r) => r.strategy !== 'optimal').map((r) => ({ label: meta(r.strategy).label, color: meta(r.strategy).color, values: r.avgCumRegret }));
 

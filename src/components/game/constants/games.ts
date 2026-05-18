@@ -301,4 +301,13 @@ export const games: Game[] = [
     difficulty: 'Medium',
     category: 'Puzzle',
   },
+  {
+    id: 'bandit',
+    title: 'K-armed Bandit',
+    description: 'Explore vs exploit — pick arms with hidden reward probs. Compare ε-greedy, UCB1, and Thompson Sampling regret curves.',
+    thumbnail: '🎰',
+    path: '/games/bandit',
+    difficulty: 'Medium',
+    category: 'Puzzle',
+  },
 ];

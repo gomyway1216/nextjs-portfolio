@@ -56,11 +56,22 @@ export const PUT = withActivityLog('next_api.job.PUT', async (request: NextReque
 
   try {
     const body = await request.json();
-    const { companyName, technologies } = body;
+    const { companyName, technologies, hidden } = body;
 
     if (!companyName) {
       return NextResponse.json(
         { error: 'Company name is required' },
+        { status: 400 }
+      );
+    }
+
+    const updates: Record<string, unknown> = {};
+    if (technologies !== undefined) updates.technologies = technologies;
+    if (hidden !== undefined) updates.hidden = !!hidden;
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json(
+        { error: 'No updatable fields provided' },
         { status: 400 }
       );
     }
@@ -80,7 +91,7 @@ export const PUT = withActivityLog('next_api.job.PUT', async (request: NextReque
 
     // Update the first matching document
     const doc = snapshot.docs[0];
-    await doc.ref.update({ technologies });
+    await doc.ref.update(updates);
 
     return NextResponse.json({
       success: true,

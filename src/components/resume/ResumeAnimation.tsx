@@ -117,7 +117,8 @@ const Resume = () => {
   const language = i18n.language === 'ja' ? 'ja' : 'en';
 
   const jobs = useMemo(() => {
-    const sorted = [...fetchedJobs].sort((a: any, b: any) => a.order - b.order);
+    const visible = fetchedJobs.filter((job: any) => !job.hidden);
+    const sorted = [...visible].sort((a: any, b: any) => a.order - b.order);
     console.log('[Resume] Jobs data:', sorted);
     sorted.forEach(job => {
       console.log(`[Resume] ${job.companyName} - technologies:`, job.technologies);

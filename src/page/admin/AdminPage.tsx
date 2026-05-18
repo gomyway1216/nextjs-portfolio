@@ -47,6 +47,7 @@ interface Job {
   jobPosition: string;
   jobDuration: string;
   technologies?: (string | { name: string; id?: string; type?: string })[];
+  hidden?: boolean;
 }
 
 interface UrlData {
@@ -784,6 +785,27 @@ const AdminPage = () => {
   };
 
   // Job handlers
+  const handleToggleJobHidden = async (companyName: string, currentHidden: boolean) => {
+    const nextHidden = !currentHidden;
+    try {
+      const response = await fetch('/api/job', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyName, hidden: nextHidden }),
+      });
+
+      if (response.ok) {
+        showMessage('success', `${companyName} is now ${nextHidden ? 'hidden' : 'visible'}`);
+        fetchJobs();
+      } else {
+        const error = await response.json();
+        showMessage('error', `Failed: ${error.error}`);
+      }
+    } catch (error) {
+      showMessage('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const handleUpdateJobTechnologies = async (jobId: string, companyName: string) => {
     const techArray = techInput.split(',').map(t => t.trim()).filter(t => t);
     try {
@@ -1277,24 +1299,41 @@ const AdminPage = () => {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {jobs.map((job) => (
-                  <div key={job.id} style={styles.card}>
+                  <div key={job.id} style={{ ...styles.card, opacity: job.hidden ? 0.55 : 1 }}>
                     <div style={{ padding: '24px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                         <div>
-                          <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#ffffff' }}>{job.jobPosition}</h3>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#ffffff' }}>{job.jobPosition}</h3>
+                            {job.hidden && (
+                              <span style={{ ...styles.badge, backgroundColor: 'rgba(148, 163, 184, 0.2)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)' }}>
+                                Hidden
+                              </span>
+                            )}
+                          </div>
                           <p style={{ color: '#a855f7' }}>{job.companyName}</p>
                           <p style={{ fontSize: '14px', color: '#64748b' }}>{job.jobDuration}</p>
                         </div>
-                        <button
-                          onClick={() => {
-                            setEditingJob(job.id);
-                            const techNames = job.technologies?.map(t => getTechName(t)).filter(Boolean) || [];
-                            setTechInput(techNames.join(', '));
-                          }}
-                          style={{ ...styles.button, ...styles.outlineButton }}
-                        >
-                          <Pencil size={16} /> Edit Tech
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => handleToggleJobHidden(job.companyName, !!job.hidden)}
+                            style={{ ...styles.button, ...styles.outlineButton }}
+                            title={job.hidden ? 'Show on public resume' : 'Hide from public resume'}
+                          >
+                            {job.hidden ? <EyeOff size={16} /> : <Eye size={16} />}
+                            {job.hidden ? 'Show' : 'Hide'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingJob(job.id);
+                              const techNames = job.technologies?.map(t => getTechName(t)).filter(Boolean) || [];
+                              setTechInput(techNames.join(', '));
+                            }}
+                            style={{ ...styles.button, ...styles.outlineButton }}
+                          >
+                            <Pencil size={16} /> Edit Tech
+                          </button>
+                        </div>
                       </div>
 
                       <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>

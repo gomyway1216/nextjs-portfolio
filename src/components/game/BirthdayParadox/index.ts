@@ -1,0 +1,1 @@
+export { BirthdayParadox } from './BirthdayParadox';

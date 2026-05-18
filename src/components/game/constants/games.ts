@@ -256,4 +256,13 @@ export const games: Game[] = [
     difficulty: 'Easy',
     category: 'Puzzle',
   },
+  {
+    id: 'birthday-paradox',
+    title: 'Birthday Paradox',
+    description: 'How few people do you need before two share a birthday? Play it, then simulate the famous 50% / 99% thresholds.',
+    thumbnail: '🎂',
+    path: '/games/birthday-paradox',
+    difficulty: 'Easy',
+    category: 'Puzzle',
+  },
 ];

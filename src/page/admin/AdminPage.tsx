@@ -328,7 +328,7 @@ const getSectionFromHash = (): AdminSection => {
 };
 
 const AdminPage = () => {
-  const { currentUser, isAdmin } = useAuth();
+  const { currentUser, loading: authLoading, isAdmin } = useAuth();
   const router = useRouter();
   const { profile, loading: profileLoading } = useProfile();
   const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
@@ -421,6 +421,7 @@ const AdminPage = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!currentUser) {
       router.push('/signin');
       return;
@@ -432,7 +433,7 @@ const AdminPage = () => {
     }
     fetchJobs();
     fetchTechnologies();
-  }, [currentUser, isAdmin, router]);
+  }, [authLoading, currentUser, isAdmin, router]);
 
   const fetchTechnologies = async () => {
     try {

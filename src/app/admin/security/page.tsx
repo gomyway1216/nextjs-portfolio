@@ -27,7 +27,7 @@ import Link from 'next/link';
 
 export default function SecuritySettingsPage() {
   const router = useRouter();
-  const { currentUser, isEnrolledInMFA, refreshMFAStatus } = useAuth();
+  const { currentUser, loading: authLoading, isEnrolledInMFA, refreshMFAStatus } = useAuth();
 
   // Enrollment state
   const [enrollmentStep, setEnrollmentStep] = useState<'idle' | 'phone' | 'verify'>('idle');
@@ -48,11 +48,12 @@ export default function SecuritySettingsPage() {
   // Anonymous users (auto-anon-signed via AuthProvider) and unauthenticated
   // visitors are redirected to /signin to upgrade to a real account first.
   useEffect(() => {
+    if (authLoading) return;
     if (!currentUser || currentUser.isAnonymous) {
       router.push('/signin');
       return;
     }
-  }, [currentUser, router]);
+  }, [authLoading, currentUser, router]);
 
   // Initialize reCAPTCHA when entering phone step
   useEffect(() => {

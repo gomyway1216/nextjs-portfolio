@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { Suspense, useState, useRef, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   useStudyArticle,
@@ -390,7 +390,7 @@ function renderArticleMarkdown(text: string): React.ReactNode {
   return elements;
 }
 
-export default function StudyArticlePage() {
+function StudyArticlePageInner() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1793,5 +1793,13 @@ export default function StudyArticlePage() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function StudyArticlePage() {
+  return (
+    <Suspense fallback={null}>
+      <StudyArticlePageInner />
+    </Suspense>
   );
 }

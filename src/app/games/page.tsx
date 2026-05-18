@@ -1,44 +1,67 @@
-'use client';
-
 import Link from 'next/link';
-import { useTranslation } from 'react-i18next';
+import { cookies, headers } from 'next/headers';
 import { games } from '@/components/game/constants/games';
-import {
-  GameLanguageProvider,
-} from '@/components/game/contexts/GameLanguageContext';
+import enCommon from '@/locales/en/common.json';
+import jaCommon from '@/locales/ja/common.json';
 
-function GamesContent() {
-  const { t } = useTranslation();
+type Locale = 'en' | 'ja';
 
-  const getDifficultyKey = (difficulty: string) => {
-    switch (difficulty) {
-      case 'Easy':
-        return 'games.difficulty.easy';
-      case 'Medium':
-        return 'games.difficulty.medium';
-      case 'Hard':
-        return 'games.difficulty.hard';
-      default:
-        return 'games.difficulty.easy';
+async function getLocale(): Promise<Locale> {
+  // The client writes to a cookie via i18next-browser-languagedetector
+  // (caches now include 'cookie' — see src/lib/i18n.ts). For first-time
+  // visitors with no cookie yet, fall back to the first language listed
+  // in Accept-Language so JA visitors get JA without a hydration flash.
+  const cookieStore = await cookies();
+  const cookieLang = cookieStore.get('i18nextLng')?.value;
+  if (cookieLang === 'ja' || cookieLang === 'en') return cookieLang;
+
+  const hdrs = await headers();
+  const accept = hdrs.get('accept-language') ?? '';
+  const primary = accept.split(',')[0]?.trim().toLowerCase() ?? '';
+  if (primary.startsWith('ja')) return 'ja';
+  return 'en';
+}
+
+function lookupKey(dict: unknown, key: string): string | null {
+  let cur: unknown = dict;
+  for (const p of key.split('.')) {
+    if (cur && typeof cur === 'object' && p in (cur as Record<string, unknown>)) {
+      cur = (cur as Record<string, unknown>)[p];
+    } else {
+      return null;
     }
-  };
+  }
+  return typeof cur === 'string' ? cur : null;
+}
 
-  const getCategoryKey = (category: string) => {
-    switch (category) {
-      case 'Arcade':
-        return 'games.category.arcade';
-      case 'Strategy':
-        return 'games.category.strategy';
-      case 'Puzzle':
-        return 'games.category.puzzle';
-      case 'RPG':
-        return 'games.category.rpg';
-      case 'Card':
-        return 'games.category.card';
-      default:
-        return 'games.category.arcade';
-    }
-  };
+function makeTranslator(locale: Locale) {
+  const dict = locale === 'ja' ? jaCommon : enCommon;
+  return (key: string): string => lookupKey(dict, key) ?? lookupKey(enCommon, key) ?? key;
+}
+
+const difficultyKey = (d: string) => {
+  switch (d) {
+    case 'Easy': return 'games.difficulty.easy';
+    case 'Medium': return 'games.difficulty.medium';
+    case 'Hard': return 'games.difficulty.hard';
+    default: return 'games.difficulty.easy';
+  }
+};
+
+const categoryKey = (c: string) => {
+  switch (c) {
+    case 'Arcade': return 'games.category.arcade';
+    case 'Strategy': return 'games.category.strategy';
+    case 'Puzzle': return 'games.category.puzzle';
+    case 'RPG': return 'games.category.rpg';
+    case 'Card': return 'games.category.card';
+    default: return 'games.category.arcade';
+  }
+};
+
+export default async function GamesPage() {
+  const locale = await getLocale();
+  const t = makeTranslator(locale);
 
   return (
     <div style={{
@@ -47,6 +70,32 @@ function GamesContent() {
       padding: '3rem 1.5rem',
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
+      <style>{`
+        .game-card-link { text-decoration: none; display: block; transition: transform 0.2s; }
+        .game-card-link:hover { transform: translateY(-4px); }
+        .game-card {
+          background: rgba(31, 41, 55, 0.5);
+          backdrop-filter: blur(10px);
+          border: 1px solid rgba(55, 65, 81, 1);
+          border-radius: 1rem;
+          overflow: hidden;
+          transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        .game-card-link:hover .game-card { border-color: #0ea5e9; }
+        .games-back-btn {
+          display: inline-block;
+          background: rgba(55, 65, 81, 0.8);
+          border: 1px solid rgba(75, 85, 99, 1);
+          border-radius: 0.5rem;
+          color: #fff;
+          padding: 0.75rem 2rem;
+          font-size: 1rem;
+          font-weight: 600;
+          text-decoration: none;
+          transition: background 0.2s;
+        }
+        .games-back-btn:hover { background: rgba(75, 85, 99, 0.8); }
+      `}</style>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
@@ -116,43 +165,18 @@ function GamesContent() {
           marginBottom: '3rem'
         }}>
           {games.map((game) => {
-            const gameKey = game.id;
-            const title = t(`games.${gameKey}.title`);
-            const description = t(`games.${gameKey}.description`);
-            const difficultyLabel = t(getDifficultyKey(game.difficulty));
-            const categoryLabel = t(getCategoryKey(game.category));
+            const title = t(`games.${game.id}.title`);
+            const description = t(`games.${game.id}.description`);
+            const difficultyLabel = t(difficultyKey(game.difficulty));
+            const categoryLabel = t(categoryKey(game.category));
 
             return (
               <Link
                 key={game.id}
                 href={game.path}
-                style={{
-                  textDecoration: 'none',
-                  display: 'block',
-                  transition: 'transform 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-4px)';
-                  const card = e.currentTarget.querySelector('.game-card') as HTMLElement;
-                  if (card) card.style.borderColor = '#0ea5e9';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  const card = e.currentTarget.querySelector('.game-card') as HTMLElement;
-                  if (card) card.style.borderColor = 'rgba(55, 65, 81, 1)';
-                }}
+                className="game-card-link"
               >
-                <div
-                  className="game-card"
-                  style={{
-                    background: 'rgba(31, 41, 55, 0.5)',
-                    backdropFilter: 'blur(10px)',
-                    border: '1px solid rgba(55, 65, 81, 1)',
-                    borderRadius: '1rem',
-                    overflow: 'hidden',
-                    transition: 'border-color 0.2s, box-shadow 0.2s'
-                  }}
-                >
+                <div className="game-card">
                   {/* Thumbnail */}
                   <div style={{
                     background: 'linear-gradient(135deg, #0ea5e9, #3b82f6, #8b5cf6)',
@@ -297,35 +321,11 @@ function GamesContent() {
 
         {/* Back Button */}
         <div style={{ textAlign: 'center' }}>
-          <Link
-            href="/"
-            style={{
-              display: 'inline-block',
-              background: 'rgba(55, 65, 81, 0.8)',
-              border: '1px solid rgba(75, 85, 99, 1)',
-              borderRadius: '0.5rem',
-              color: '#fff',
-              padding: '0.75rem 2rem',
-              fontSize: '1rem',
-              fontWeight: '600',
-              textDecoration: 'none',
-              transition: 'background 0.2s'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(75, 85, 99, 0.8)'}
-            onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(55, 65, 81, 0.8)'}
-          >
+          <Link href="/" className="games-back-btn">
             ← {t('navigation.backToPortfolio')}
           </Link>
         </div>
       </div>
     </div>
-  );
-}
-
-export default function GamesPage() {
-  return (
-    <GameLanguageProvider>
-      <GamesContent />
-    </GameLanguageProvider>
   );
 }

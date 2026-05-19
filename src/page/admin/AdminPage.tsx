@@ -38,6 +38,7 @@ import Link from 'next/link';
 import StudyAdminPanel from '@/components/study/StudyAdminPanel';
 import HobbiesAdminPanel from '@/components/hobby/HobbiesAdminPanel';
 import ActivityLogPanel from '@/components/admin/ActivityLogPanel';
+import TiptapEditor from '@/components/editor/TiptapEditor';
 
 type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'hobbies' | 'activity-logs';
 
@@ -1792,10 +1793,10 @@ const AdminPage = () => {
                 )}
                 <div>
                   <label style={styles.label}>Content *</label>
-                  <textarea
+                  <TiptapEditor
                     value={postForm.body}
-                    onChange={(e) => setPostForm({ ...postForm, body: e.target.value })}
-                    style={{ ...styles.textarea, minHeight: '200px' }}
+                    onChange={(value) => setPostForm({ ...postForm, body: value })}
+                    onImageUpload={imageApi.getMenuImageRef}
                   />
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'center' }}>

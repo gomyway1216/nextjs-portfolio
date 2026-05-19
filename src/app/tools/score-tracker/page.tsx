@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -24,7 +24,27 @@ import * as local from '@/lib/scoreTrackerLocal';
 import type { LocalScoreGroup } from '@/lib/scoreTrackerLocal';
 import type { ScoreGroup } from '@/types/scoreTracker';
 
+// useSearchParams forces a CSR bailout, which Next.js requires to live inside
+// a Suspense boundary for static-rendered routes. Splitting the page into an
+// inner component lets us keep the static shell while still reading the
+// `?code=` invite-link param on mount.
 export default function ScoreTrackerPage() {
+  return (
+    <Suspense fallback={<ScoreTrackerLoading />}>
+      <ScoreTrackerPageInner />
+    </Suspense>
+  );
+}
+
+function ScoreTrackerLoading() {
+  return (
+    <div className="min-h-screen container mx-auto px-4 py-10 max-w-3xl">
+      <div className="h-16 w-16 mx-auto rounded-2xl bg-muted animate-pulse" />
+    </div>
+  );
+}
+
+function ScoreTrackerPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { currentUser } = useAuth();

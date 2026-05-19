@@ -35,6 +35,8 @@
   min-height: 400px;
   max-height: 600px;
   overflow-y: auto;
+  background-color: #ffffff;
+  color: #111827;
 
   :global(.ProseMirror) {
     outline: none;

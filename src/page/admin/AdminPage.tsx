@@ -1759,7 +1759,7 @@ const AdminPage = () => {
       {/* Post Modal */}
       {showPostModal && (
         <div style={styles.modal}>
-          <div style={styles.modalContent}>
+          <div style={{ ...styles.modalContent, maxWidth: 'none' }}>
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>{editingPost ? 'Edit Post' : 'New Post'}</h2>
               <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '4px' }}>

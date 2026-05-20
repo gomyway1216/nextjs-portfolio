@@ -17,6 +17,14 @@ export const GET = withActivityLog('next_api.post.categories.GET', async (reques
       categories.push(doc.id);
     });
 
+    // Firestore doesn't surface "phantom" parent docs of subcollections in
+    // a regular collection().get(), so until there is at least one post in
+    // a category we wouldn't see it here. Seed with the canonical pair so
+    // the admin dropdown is never empty.
+    for (const seed of ['technology', 'life']) {
+      if (!categories.includes(seed)) categories.push(seed);
+    }
+
     return NextResponse.json({ categories });
   } catch (error) {
     console.error('Error fetching post categories:', error);

@@ -4,6 +4,7 @@ import { ensureAdmin } from '@/lib/auth-utils';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
+import { postMatchesLanguage } from '@/lib/blog/postLanguage';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
@@ -15,6 +16,7 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
  * - page: number (default: 1)
  * - limit: number (default: 10)
  * - lastVisibleTimestamp: number (optional, for pagination)
+ * - language: string (optional, filters to posts in this locale)
  */
 export const GET = withActivityLog('next_api.post.GET', async (request: NextRequest) => {
   try {
@@ -24,6 +26,7 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
     const page = parseInt(searchParams.get('page') || '1');
     const limitNumber = parseInt(searchParams.get('limit') || '10');
     const lastVisibleTimestamp = searchParams.get('lastVisibleTimestamp');
+    const language = searchParams.get('language');
 
     // If fetching non-public posts, require authentication
     if (!isPublic) {
@@ -74,23 +77,25 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
       return NextResponse.json({ posts: [], lastVisibleTimestamp: null });
     }
 
-    const posts = snapshot.docs.map(doc => {
-      const data = doc.data();
-      // Determine the post's category based on the reference's path
-      const postCategory = category !== 'all' ? category : doc.ref.path.split('/')[1];
+    const posts = snapshot.docs
+      .map(doc => {
+        const data = doc.data();
+        // Determine the post's category based on the reference's path
+        const postCategory = category !== 'all' ? category : doc.ref.path.split('/')[1];
 
-      return {
-        id: doc.id,
-        title: data.title,
-        body: data.body,
-        isPublic: data.isPublic,
-        category: postCategory,
-        image: data.image,
-        language: data.language,
-        created: data.created?.toDate?.()?.toISOString() || data.created,
-        lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
-      };
-    });
+        return {
+          id: doc.id,
+          title: data.title,
+          body: data.body,
+          isPublic: data.isPublic,
+          category: postCategory,
+          image: data.image,
+          language: data.language,
+          created: data.created?.toDate?.()?.toISOString() || data.created,
+          lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
+        };
+      })
+      .filter((p) => postMatchesLanguage(p.language, language));
 
     // Get the last document's timestamp for pagination
     const lastDoc = snapshot.docs[snapshot.docs.length - 1];

@@ -28,6 +28,7 @@ export async function getPosts(params: {
   page?: number;
   limit?: number;
   lastVisibleTimestamp?: number;
+  language?: string;
 } = {}) {
   const {
     category = 'all',
@@ -35,6 +36,7 @@ export async function getPosts(params: {
     page = 1,
     limit = 10,
     lastVisibleTimestamp,
+    language,
   } = params;
 
   const queryParams = new URLSearchParams({
@@ -46,6 +48,10 @@ export async function getPosts(params: {
 
   if (lastVisibleTimestamp) {
     queryParams.append('lastVisibleTimestamp', String(lastVisibleTimestamp));
+  }
+
+  if (language) {
+    queryParams.append('language', language);
   }
 
   const headers = !isPublic ? await getAuthHeaders() : {};
@@ -64,10 +70,13 @@ export async function getPosts(params: {
   return await response.json();
 }
 
-export async function getPostsByCategory(category: string, isPublic?: boolean) {
+export async function getPostsByCategory(category: string, isPublic?: boolean, language?: string) {
   const queryParams = new URLSearchParams();
   if (isPublic !== undefined) {
     queryParams.append('isPublic', String(isPublic));
+  }
+  if (language) {
+    queryParams.append('language', language);
   }
 
   const headers = isPublic === false || isPublic === undefined ? await getAuthHeaders() : {};
@@ -117,8 +126,15 @@ export async function getPostCategories() {
   return data.categories;
 }
 
-export async function getTop4Posts() {
-  const response = await fetch('/api/post/top', {
+export async function getTop4Posts(language?: string) {
+  const queryParams = new URLSearchParams();
+  if (language) {
+    queryParams.append('language', language);
+  }
+  const qs = queryParams.toString();
+  const url = qs ? `/api/post/top?${qs}` : '/api/post/top';
+
+  const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
     },

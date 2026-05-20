@@ -315,6 +315,34 @@ export async function markArticleAsRead(
   });
 }
 
+export interface LinearArticleResult {
+  articleId: string;
+  articleUrl: string;
+  linearIssue: { identifier: string; title: string; url: string };
+}
+
+export async function generateArticleFromLinearTopic(
+  options: { linearIssueId?: string; language?: string; provider?: AIProvider; model?: string } = {}
+): Promise<LinearArticleResult> {
+  const cleanOptions = Object.fromEntries(
+    Object.entries(options).filter(([, v]) => v !== undefined && v !== '')
+  );
+  const data = await apiCall<{
+    success: boolean;
+    articleId: string;
+    articleUrl: string;
+    linearIssue: { identifier: string; title: string; url: string };
+  }>('/api/study/articles/from-linear', {
+    method: 'POST',
+    body: JSON.stringify(cleanOptions),
+  });
+  return {
+    articleId: data.articleId,
+    articleUrl: data.articleUrl,
+    linearIssue: data.linearIssue,
+  };
+}
+
 // ============================================================================
 // ARTICLE NOTES
 // ============================================================================

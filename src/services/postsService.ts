@@ -1,6 +1,21 @@
 import { auth } from '@/lib/firebaseConnect';
 import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations';
 
+// Try to surface the API's error message instead of just the HTTP status,
+// so the user sees something useful in the toast.
+async function throwApiError(response: Response): Promise<never> {
+  let message = `HTTP error! status: ${response.status}`;
+  try {
+    const data = await response.json();
+    if (data && typeof data.error === 'string') {
+      message = data.error;
+    }
+  } catch {
+    // body not JSON; keep status-based message
+  }
+  throw new Error(message);
+}
+
 // A "listing post" is a Firestore post flattened to a single locale by the
 // server. The full translations map is not included to keep responses small.
 export interface ListingPost {
@@ -85,7 +100,7 @@ export async function getPosts(params: {
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
   return await response.json();
@@ -110,7 +125,7 @@ export async function getPostsByCategory(category: string, isPublic?: boolean, l
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
   const data = await response.json();
@@ -125,7 +140,7 @@ export async function getPostByCategory(id: string, category: string): Promise<D
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
   const data = await response.json();
@@ -140,7 +155,7 @@ export async function getPostCategories(): Promise<string[]> {
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
   const data = await response.json();
@@ -162,7 +177,7 @@ export async function getTop4Posts(language?: PostLanguage): Promise<ListingPost
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
   const data = await response.json();
@@ -187,7 +202,7 @@ export async function createPost(post: {
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
   const data = await response.json();
@@ -215,7 +230,7 @@ export async function updatePost(
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 }
 
@@ -230,7 +245,7 @@ export async function deletePostByCategory(id: string, category: string): Promis
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
   return true;

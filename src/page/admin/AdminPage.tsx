@@ -6,16 +6,11 @@ import { useProfile, updateProfile } from '@/hooks/useProfile';
 import { useProjects, useProjectMutations, useProjectCategories, useUrlTypes } from '@/hooks/useProjects';
 import { usePosts, usePostMutations, usePostCategories } from '@/hooks/usePosts';
 import { useRouter } from 'next/navigation';
-import { useTranslation } from 'react-i18next';
 import * as technologyApi from '@/services/technologiesService';
 import type { Technology } from '@/services/technologiesService';
 import * as imageApi from '@/services/imageService';
 import * as postApi from '@/services/postsService';
-import {
-  normalizeLanguage,
-  type PostLanguage,
-  type PostTranslations,
-} from '@/lib/blog/postTranslations';
+import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations';
 import {
   LayoutDashboard,
   User,
@@ -418,9 +413,6 @@ const AdminPage = () => {
   const [dragOverImages, setDragOverImages] = useState(false);
 
   // Post form states
-  const { i18n } = useTranslation();
-  const editLanguage: PostLanguage = normalizeLanguage(i18n.language);
-
   const [postForm, setPostForm] = useState<{
     category: string;
     isPublic: boolean;
@@ -433,30 +425,15 @@ const AdminPage = () => {
     translations: {},
   });
 
-  const currentTitle = postForm.translations[editLanguage]?.title || '';
-  const currentBody = postForm.translations[editLanguage]?.body || '';
-
-  const setCurrentTitle = (title: string) => {
+  const setTranslationField = (lang: PostLanguage, field: 'title' | 'body', value: string) => {
     setPostForm((prev) => ({
       ...prev,
       translations: {
         ...prev.translations,
-        [editLanguage]: {
-          title,
-          body: prev.translations[editLanguage]?.body || '',
-        },
-      },
-    }));
-  };
-
-  const setCurrentBody = (body: string) => {
-    setPostForm((prev) => ({
-      ...prev,
-      translations: {
-        ...prev.translations,
-        [editLanguage]: {
-          title: prev.translations[editLanguage]?.title || '',
-          body,
+        [lang]: {
+          title: prev.translations[lang]?.title || '',
+          body: prev.translations[lang]?.body || '',
+          [field]: value,
         },
       },
     }));
@@ -788,10 +765,29 @@ const AdminPage = () => {
   };
 
   const handleSavePost = async () => {
+    // Strip out translations where both title and body are empty so we
+    // never persist a useless { title: '', body: '' } record.
+    const cleanedTranslations: PostTranslations = {};
+    (['en', 'ja'] as PostLanguage[]).forEach((lang) => {
+      const t = postForm.translations[lang];
+      if (t && ((t.title || '').trim() || (t.body || '').trim())) {
+        cleanedTranslations[lang] = { title: t.title || '', body: t.body || '' };
+      }
+    });
+
+    if (Object.keys(cleanedTranslations).length === 0) {
+      showMessage('error', 'Please fill in at least one language (Title or Content).');
+      return;
+    }
+    if (!editingPost && !postForm.category) {
+      showMessage('error', 'Please select a category.');
+      return;
+    }
+
     try {
       if (editingPost) {
         await postMutations.updatePost(editingPost.id, editingPost.category, {
-          translations: postForm.translations,
+          translations: cleanedTranslations,
           isPublic: postForm.isPublic,
           image: postForm.image,
         });
@@ -799,7 +795,7 @@ const AdminPage = () => {
       } else {
         await postMutations.createPost({
           category: postForm.category,
-          translations: postForm.translations,
+          translations: cleanedTranslations,
           isPublic: postForm.isPublic,
           image: postForm.image,
         });
@@ -1810,24 +1806,9 @@ const AdminPage = () => {
             </div>
             <div style={styles.modalBody}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <EditLanguageToggle
-                  active={editLanguage}
-                  filled={{
-                    en: !!(postForm.translations.en?.title?.trim() || postForm.translations.en?.body?.trim()),
-                    ja: !!(postForm.translations.ja?.title?.trim() || postForm.translations.ja?.body?.trim()),
-                  }}
-                  onChange={(lang) => i18n.changeLanguage(lang)}
-                />
-                <div>
-                  <label style={styles.label}>
-                    Title * <span style={{ color: '#64748b', fontWeight: 400 }}>({editLanguage === 'en' ? 'English' : 'Japanese'})</span>
-                  </label>
-                  <input
-                    value={currentTitle}
-                    onChange={(e) => setCurrentTitle(e.target.value)}
-                    style={styles.input}
-                  />
-                </div>
+                <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>
+                  Fill in either language, both, or one and skip the other — empty languages are not saved. Readers see the language matching their locale; if it doesn&apos;t exist, the other language is shown as a fallback.
+                </p>
                 {!editingPost && (
                   <div>
                     <label style={styles.label}>Category *</label>
@@ -1843,16 +1824,26 @@ const AdminPage = () => {
                     </select>
                   </div>
                 )}
-                <div>
-                  <label style={styles.label}>
-                    Content * <span style={{ color: '#64748b', fontWeight: 400 }}>({editLanguage === 'en' ? 'English' : 'Japanese'})</span>
-                  </label>
-                  <TiptapEditor
-                    key={editLanguage}
-                    value={currentBody}
-                    onChange={(value) => setCurrentBody(value)}
-                    onImageUpload={imageApi.getMenuImageRef}
-                  />
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
+                    gap: '24px',
+                  }}
+                >
+                  {(['en', 'ja'] as PostLanguage[]).map((lang) => (
+                    <TranslationFields
+                      key={lang}
+                      lang={lang}
+                      title={postForm.translations[lang]?.title || ''}
+                      body={postForm.translations[lang]?.body || ''}
+                      onTitleChange={(value) => setTranslationField(lang, 'title', value)}
+                      onBodyChange={(value) => setTranslationField(lang, 'body', value)}
+                      labelStyle={styles.label}
+                      inputStyle={styles.input}
+                      onImageUpload={imageApi.getMenuImageRef}
+                    />
+                  ))}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <input
@@ -1938,69 +1929,80 @@ const AdminPage = () => {
   );
 };
 
-interface EditLanguageToggleProps {
-  active: PostLanguage;
-  filled: Record<PostLanguage, boolean>;
-  onChange: (lang: PostLanguage) => void;
-}
-
-const EDIT_LANG_LABELS: Record<PostLanguage, string> = {
+const TRANSLATION_LABELS: Record<PostLanguage, string> = {
   en: 'English',
   ja: '日本語',
 };
 
-const EditLanguageToggle = ({ active, filled, onChange }: EditLanguageToggleProps) => (
-  <div
-    role="tablist"
-    aria-label="Editing language"
-    style={{
-      display: 'inline-flex',
-      gap: '4px',
-      padding: '4px',
-      border: '1px solid rgba(255, 255, 255, 0.1)',
-      borderRadius: '8px',
-      alignSelf: 'flex-start',
-    }}
-  >
-    {(['en', 'ja'] as PostLanguage[]).map((lang) => {
-      const isActive = lang === active;
-      const hasContent = filled[lang];
-      return (
-        <button
-          key={lang}
-          role="tab"
-          aria-selected={isActive}
-          onClick={() => onChange(lang)}
+interface TranslationFieldsProps {
+  lang: PostLanguage;
+  title: string;
+  body: string;
+  onTitleChange: (value: string) => void;
+  onBodyChange: (value: string) => void;
+  labelStyle: CSSProperties;
+  inputStyle: CSSProperties;
+  onImageUpload: (file: File) => Promise<string>;
+}
+
+const TranslationFields = ({
+  lang,
+  title,
+  body,
+  onTitleChange,
+  onBodyChange,
+  labelStyle,
+  inputStyle,
+  onImageUpload,
+}: TranslationFieldsProps) => {
+  const hasContent = !!(title.trim() || body.trim());
+  return (
+    <div
+      style={{
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: '12px',
+        padding: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h3 style={{ margin: 0, color: '#ffffff', fontSize: '15px', fontWeight: 600 }}>
+          {TRANSLATION_LABELS[lang]}
+        </h3>
+        <span
+          aria-hidden
           style={{
-            padding: '6px 14px',
-            border: 'none',
-            borderRadius: '6px',
-            backgroundColor: isActive ? '#6366f1' : 'transparent',
-            color: isActive ? '#ffffff' : '#cbd5e1',
-            fontSize: '13px',
-            fontWeight: 500,
-            cursor: isActive ? 'default' : 'pointer',
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            backgroundColor: hasContent ? '#10b981' : 'rgba(255, 255, 255, 0.15)',
           }}
-        >
-          {EDIT_LANG_LABELS[lang]}
-          {hasContent && (
-            <span
-              aria-label="has content"
-              style={{
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                backgroundColor: isActive ? '#a5b4fc' : '#10b981',
-              }}
-            />
-          )}
-        </button>
-      );
-    })}
-  </div>
-);
+        />
+        <span style={{ color: '#64748b', fontSize: '12px' }}>
+          {hasContent ? 'will be saved' : 'optional — leave empty to skip'}
+        </span>
+      </div>
+      <div>
+        <label style={labelStyle}>Title</label>
+        <input
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          style={inputStyle}
+        />
+      </div>
+      <div>
+        <label style={labelStyle}>Content</label>
+        <TiptapEditor
+          value={body}
+          onChange={onBodyChange}
+          onImageUpload={onImageUpload}
+        />
+      </div>
+    </div>
+  );
+};
 
 export default AdminPage;

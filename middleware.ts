@@ -4,13 +4,11 @@ import type { NextRequest } from 'next/server';
 const SESSION_COOKIE_NAME = '__session';
 
 const AUTH_REQUIRED_ROUTES = [
-  '/new-post',
   '/new-project',
   '/achievements',
 ];
 
 const AUTH_REQUIRED_PATTERNS = [
-  /^\/blog\/.*\/edit$/,
   /^\/project\/.*\/edit$/,
 ];
 

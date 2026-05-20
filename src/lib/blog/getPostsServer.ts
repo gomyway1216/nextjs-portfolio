@@ -2,7 +2,12 @@ import 'server-only';
 import { unstable_cache } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION } from '@/app/api/constants';
-import { postMatchesLanguage } from '@/lib/blog/postLanguage';
+import {
+  availableLanguages,
+  pickTranslation,
+  type PostLanguage,
+  type PostTranslations,
+} from '@/lib/blog/postTranslations';
 
 export interface ServerPost {
   id: string;
@@ -11,7 +16,8 @@ export interface ServerPost {
   isPublic: boolean;
   category: string;
   image?: string;
-  language?: string;
+  language: PostLanguage;
+  availableLanguages: PostLanguage[];
   created: string;
   lastUpdated: string;
 }
@@ -25,7 +31,7 @@ export interface PostsPage {
 async function fetchPostsPage(
   category: string,
   limit: number,
-  language: string | null,
+  language: PostLanguage,
 ): Promise<PostsPage> {
   const db = getFirestore();
 
@@ -44,23 +50,25 @@ async function fetchPostsPage(
     return { posts: [], lastVisibleTimestamp: null, hasMore: false };
   }
 
-  const posts: ServerPost[] = snapshot.docs
-    .map((doc) => {
-      const data = doc.data();
-      const postCategory = category !== 'all' ? category : doc.ref.path.split('/')[1];
-      return {
-        id: doc.id,
-        title: data.title,
-        body: data.body,
-        isPublic: data.isPublic,
-        category: postCategory,
-        image: data.image,
-        language: data.language,
-        created: data.created?.toDate?.()?.toISOString() || data.created,
-        lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
-      };
-    })
-    .filter((p) => postMatchesLanguage(p.language, language));
+  const posts: ServerPost[] = snapshot.docs.flatMap((doc): ServerPost[] => {
+    const data = doc.data();
+    const translations = (data.translations || {}) as PostTranslations;
+    const picked = pickTranslation(translations, language);
+    if (!picked) return [];
+    const postCategory = category !== 'all' ? category : doc.ref.path.split('/')[1];
+    return [{
+      id: doc.id,
+      title: picked.translation.title,
+      body: picked.translation.body,
+      isPublic: data.isPublic,
+      category: postCategory,
+      image: data.image,
+      language: picked.language,
+      availableLanguages: availableLanguages(translations),
+      created: data.created?.toDate?.()?.toISOString() || data.created,
+      lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
+    }];
+  });
 
   const lastDoc = snapshot.docs[snapshot.docs.length - 1];
   const lastVisibleTimestamp =
@@ -74,9 +82,7 @@ async function fetchPostsPage(
   };
 }
 
-// Cache the initial page of each blog category for 60s. Posts list updates
-// rarely (manual publishing), so this is plenty fresh and removes the
-// per-request Firestore round-trip from the critical path.
+// Cache the initial page of each blog category for 60s.
 export const getInitialPostsCached = unstable_cache(
   fetchPostsPage,
   ['blog-posts-initial'],

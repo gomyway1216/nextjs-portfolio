@@ -6,6 +6,7 @@ import * as postApi from '@/services/postsService';
 import DOMPurify from 'dompurify';
 import * as util from '@/lib/utils/util';
 import { useTranslation } from 'react-i18next';
+import { normalizeLanguage } from '@/lib/blog/postTranslations';
 
 
 // Modal.setAppElement('#root');
@@ -29,7 +30,7 @@ const Blogs = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const fetchedPosts = await postApi.getTop4Posts(i18n.language);
+      const fetchedPosts = await postApi.getTop4Posts(normalizeLanguage(i18n.language));
       if (!cancelled) setPosts(fetchedPosts);
     })();
     return () => {

@@ -2,15 +2,20 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureAdmin } from '@/lib/auth-utils';
 import { POSTS_COLLECTION } from '@/app/api/constants';
-import { postMatchesLanguage } from '@/lib/blog/postLanguage';
+import {
+  availableLanguages,
+  normalizeLanguage,
+  pickTranslation,
+  type PostTranslations,
+} from '@/lib/blog/postTranslations';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/posts/[category]
- * Get all posts from a specific category
+ * Get all posts in a category, flattened to the requested locale.
  * Query params:
  * - isPublic: boolean (optional)
- * - language: string (optional, filters to posts in this locale)
+ * - language: 'en' | 'ja' (default: 'en')
  */
 export const GET = withActivityLog('next_api.post.category.GET', async (request: NextRequest,
   { params }: { params: Promise<{ category: string }> }) => {
@@ -18,7 +23,7 @@ export const GET = withActivityLog('next_api.post.category.GET', async (request:
     const { category } = await params;
     const searchParams = request.nextUrl.searchParams;
     const isPublicParam = searchParams.get('isPublic');
-    const language = searchParams.get('language');
+    const language = normalizeLanguage(searchParams.get('language'));
 
     // If isPublic is not specified, show all posts (requires auth)
     // If isPublic is explicitly set to false, require authentication
@@ -32,7 +37,6 @@ export const GET = withActivityLog('next_api.post.category.GET', async (request:
     const db = getFirestore();
     let query = db.collection(`${POSTS_COLLECTION}/${category}/posts`);
 
-    // If isPublic is specified, filter by it
     if (isPublicParam !== null) {
       const isPublic = isPublicParam === 'true';
       query = query.where('isPublic', '==', isPublic) as any;
@@ -41,21 +45,25 @@ export const GET = withActivityLog('next_api.post.category.GET', async (request:
     const snapshot = await query.get();
 
     const posts = snapshot.docs
-      .map(doc => {
+      .map((doc) => {
         const data = doc.data();
+        const translations = (data.translations || {}) as PostTranslations;
+        const picked = pickTranslation(translations, language);
+        if (!picked) return null;
         return {
           id: doc.id,
-          title: data.title,
-          body: data.body,
+          category,
           isPublic: data.isPublic,
-          category: category,
           image: data.image,
-          language: data.language,
+          title: picked.translation.title,
+          body: picked.translation.body,
+          language: picked.language,
+          availableLanguages: availableLanguages(translations),
           created: data.created?.toDate?.()?.toISOString() || data.created,
           lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
         };
       })
-      .filter((p) => postMatchesLanguage(p.language, language));
+      .filter((p): p is NonNullable<typeof p> => p !== null);
 
     return NextResponse.json({ posts });
   } catch (error) {

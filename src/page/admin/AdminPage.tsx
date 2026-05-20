@@ -6,9 +6,16 @@ import { useProfile, updateProfile } from '@/hooks/useProfile';
 import { useProjects, useProjectMutations, useProjectCategories, useUrlTypes } from '@/hooks/useProjects';
 import { usePosts, usePostMutations, usePostCategories } from '@/hooks/usePosts';
 import { useRouter } from 'next/navigation';
+import { useTranslation } from 'react-i18next';
 import * as technologyApi from '@/services/technologiesService';
 import type { Technology } from '@/services/technologiesService';
 import * as imageApi from '@/services/imageService';
+import * as postApi from '@/services/postsService';
+import {
+  normalizeLanguage,
+  type PostLanguage,
+  type PostTranslations,
+} from '@/lib/blog/postTranslations';
 import {
   LayoutDashboard,
   User,
@@ -411,14 +418,49 @@ const AdminPage = () => {
   const [dragOverImages, setDragOverImages] = useState(false);
 
   // Post form states
-  const [postForm, setPostForm] = useState({
-    title: '',
-    body: '',
+  const { i18n } = useTranslation();
+  const editLanguage: PostLanguage = normalizeLanguage(i18n.language);
+
+  const [postForm, setPostForm] = useState<{
+    category: string;
+    isPublic: boolean;
+    image: string;
+    translations: PostTranslations;
+  }>({
     category: '',
     isPublic: true,
     image: '',
-    language: 'en',
+    translations: {},
   });
+
+  const currentTitle = postForm.translations[editLanguage]?.title || '';
+  const currentBody = postForm.translations[editLanguage]?.body || '';
+
+  const setCurrentTitle = (title: string) => {
+    setPostForm((prev) => ({
+      ...prev,
+      translations: {
+        ...prev.translations,
+        [editLanguage]: {
+          title,
+          body: prev.translations[editLanguage]?.body || '',
+        },
+      },
+    }));
+  };
+
+  const setCurrentBody = (body: string) => {
+    setPostForm((prev) => ({
+      ...prev,
+      translations: {
+        ...prev.translations,
+        [editLanguage]: {
+          title: prev.translations[editLanguage]?.title || '',
+          body,
+        },
+      },
+    }));
+  };
 
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
@@ -716,26 +758,30 @@ const AdminPage = () => {
   };
 
   // Post handlers
-  const handleOpenPostModal = (post?: any) => {
+  const handleOpenPostModal = async (post?: any) => {
     if (post) {
       setEditingPost(post);
-      setPostForm({
-        title: post.title || '',
-        body: post.body || '',
-        category: post.category || '',
-        isPublic: post.isPublic ?? true,
-        image: post.image || '',
-        language: post.language || 'en',
-      });
+      try {
+        // The list endpoint returns the flattened version; load the full
+        // post so we can edit every available translation.
+        const detail = await postApi.getPostByCategory(post.id, post.category);
+        setPostForm({
+          category: detail.category,
+          isPublic: detail.isPublic,
+          image: detail.image || '',
+          translations: detail.translations,
+        });
+      } catch (error) {
+        showMessage('error', `Failed to load post: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        return;
+      }
     } else {
       setEditingPost(null);
       setPostForm({
-        title: '',
-        body: '',
         category: postCategories[0] || '',
         isPublic: true,
         image: '',
-        language: 'en',
+        translations: {},
       });
     }
     setShowPostModal(true);
@@ -745,21 +791,17 @@ const AdminPage = () => {
     try {
       if (editingPost) {
         await postMutations.updatePost(editingPost.id, editingPost.category, {
-          title: postForm.title,
-          body: postForm.body,
+          translations: postForm.translations,
           isPublic: postForm.isPublic,
           image: postForm.image,
-          language: postForm.language,
         });
         showMessage('success', 'Post updated successfully!');
       } else {
         await postMutations.createPost({
-          title: postForm.title,
-          body: postForm.body,
           category: postForm.category,
+          translations: postForm.translations,
           isPublic: postForm.isPublic,
           image: postForm.image,
-          language: postForm.language,
         });
         showMessage('success', 'Post created successfully!');
       }
@@ -1768,11 +1810,21 @@ const AdminPage = () => {
             </div>
             <div style={styles.modalBody}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <EditLanguageToggle
+                  active={editLanguage}
+                  filled={{
+                    en: !!(postForm.translations.en?.title?.trim() || postForm.translations.en?.body?.trim()),
+                    ja: !!(postForm.translations.ja?.title?.trim() || postForm.translations.ja?.body?.trim()),
+                  }}
+                  onChange={(lang) => i18n.changeLanguage(lang)}
+                />
                 <div>
-                  <label style={styles.label}>Title *</label>
+                  <label style={styles.label}>
+                    Title * <span style={{ color: '#64748b', fontWeight: 400 }}>({editLanguage === 'en' ? 'English' : 'Japanese'})</span>
+                  </label>
                   <input
-                    value={postForm.title}
-                    onChange={(e) => setPostForm({ ...postForm, title: e.target.value })}
+                    value={currentTitle}
+                    onChange={(e) => setCurrentTitle(e.target.value)}
                     style={styles.input}
                   />
                 </div>
@@ -1792,35 +1844,25 @@ const AdminPage = () => {
                   </div>
                 )}
                 <div>
-                  <label style={styles.label}>Content *</label>
+                  <label style={styles.label}>
+                    Content * <span style={{ color: '#64748b', fontWeight: 400 }}>({editLanguage === 'en' ? 'English' : 'Japanese'})</span>
+                  </label>
                   <TiptapEditor
-                    value={postForm.body}
-                    onChange={(value) => setPostForm({ ...postForm, body: value })}
+                    key={editLanguage}
+                    value={currentBody}
+                    onChange={(value) => setCurrentBody(value)}
                     onImageUpload={imageApi.getMenuImageRef}
                   />
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'center' }}>
-                  <div>
-                    <label style={styles.label}>Language</label>
-                    <select
-                      value={postForm.language}
-                      onChange={(e) => setPostForm({ ...postForm, language: e.target.value })}
-                      style={styles.select}
-                    >
-                      <option value="en">English</option>
-                      <option value="ja">Japanese</option>
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingTop: '24px' }}>
-                    <input
-                      type="checkbox"
-                      id="post-public"
-                      checked={postForm.isPublic}
-                      onChange={(e) => setPostForm({ ...postForm, isPublic: e.target.checked })}
-                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                    />
-                    <label htmlFor="post-public" style={{ color: '#cbd5e1', cursor: 'pointer' }}>Public</label>
-                  </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input
+                    type="checkbox"
+                    id="post-public"
+                    checked={postForm.isPublic}
+                    onChange={(e) => setPostForm({ ...postForm, isPublic: e.target.checked })}
+                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="post-public" style={{ color: '#cbd5e1', cursor: 'pointer' }}>Public</label>
                 </div>
                 <div>
                   <label style={styles.label}>Image URL</label>
@@ -1895,5 +1937,70 @@ const AdminPage = () => {
     </div>
   );
 };
+
+interface EditLanguageToggleProps {
+  active: PostLanguage;
+  filled: Record<PostLanguage, boolean>;
+  onChange: (lang: PostLanguage) => void;
+}
+
+const EDIT_LANG_LABELS: Record<PostLanguage, string> = {
+  en: 'English',
+  ja: '日本語',
+};
+
+const EditLanguageToggle = ({ active, filled, onChange }: EditLanguageToggleProps) => (
+  <div
+    role="tablist"
+    aria-label="Editing language"
+    style={{
+      display: 'inline-flex',
+      gap: '4px',
+      padding: '4px',
+      border: '1px solid rgba(255, 255, 255, 0.1)',
+      borderRadius: '8px',
+      alignSelf: 'flex-start',
+    }}
+  >
+    {(['en', 'ja'] as PostLanguage[]).map((lang) => {
+      const isActive = lang === active;
+      const hasContent = filled[lang];
+      return (
+        <button
+          key={lang}
+          role="tab"
+          aria-selected={isActive}
+          onClick={() => onChange(lang)}
+          style={{
+            padding: '6px 14px',
+            border: 'none',
+            borderRadius: '6px',
+            backgroundColor: isActive ? '#6366f1' : 'transparent',
+            color: isActive ? '#ffffff' : '#cbd5e1',
+            fontSize: '13px',
+            fontWeight: 500,
+            cursor: isActive ? 'default' : 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '6px',
+          }}
+        >
+          {EDIT_LANG_LABELS[lang]}
+          {hasContent && (
+            <span
+              aria-label="has content"
+              style={{
+                width: '6px',
+                height: '6px',
+                borderRadius: '50%',
+                backgroundColor: isActive ? '#a5b4fc' : '#10b981',
+              }}
+            />
+          )}
+        </button>
+      );
+    })}
+  </div>
+);
 
 export default AdminPage;

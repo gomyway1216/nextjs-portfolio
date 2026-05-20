@@ -4,29 +4,35 @@ import { ensureAdmin } from '@/lib/auth-utils';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
-import { postMatchesLanguage } from '@/lib/blog/postLanguage';
+import {
+  availableLanguages,
+  normalizeLanguage,
+  pickTranslation,
+  type PostTranslations,
+} from '@/lib/blog/postTranslations';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/posts
- * Get paginated posts with optional filtering by category and public status
+ * Paginated public-listing endpoint. Each item is flattened to the
+ * requested locale (with fallback to the other available language).
+ *
  * Query params:
  * - category: string (default: 'all')
  * - isPublic: boolean (default: true)
  * - page: number (default: 1)
  * - limit: number (default: 10)
  * - lastVisibleTimestamp: number (optional, for pagination)
- * - language: string (optional, filters to posts in this locale)
+ * - language: 'en' | 'ja' (default: 'en')
  */
 export const GET = withActivityLog('next_api.post.GET', async (request: NextRequest) => {
   try {
     const searchParams = request.nextUrl.searchParams;
     const category = searchParams.get('category') || 'all';
     const isPublic = searchParams.get('isPublic') === 'false' ? false : true;
-    const page = parseInt(searchParams.get('page') || '1');
     const limitNumber = parseInt(searchParams.get('limit') || '10');
     const lastVisibleTimestamp = searchParams.get('lastVisibleTimestamp');
-    const language = searchParams.get('language');
+    const language = normalizeLanguage(searchParams.get('language'));
 
     // If fetching non-public posts, require authentication
     if (!isPublic) {
@@ -40,7 +46,6 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
     let query;
 
     if (category === 'all') {
-      // Query all posts across categories using collectionGroup
       if (!lastVisibleTimestamp) {
         query = db.collectionGroup('posts')
           .where('isPublic', '==', isPublic)
@@ -55,7 +60,6 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
           .limit(limitNumber);
       }
     } else {
-      // Query posts from specific category
       if (!lastVisibleTimestamp) {
         query = db.collection(`${POSTS_COLLECTION}/${category}/posts`)
           .where('isPublic', '==', isPublic)
@@ -78,26 +82,27 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
     }
 
     const posts = snapshot.docs
-      .map(doc => {
+      .map((doc) => {
         const data = doc.data();
-        // Determine the post's category based on the reference's path
+        const translations = (data.translations || {}) as PostTranslations;
+        const picked = pickTranslation(translations, language);
+        if (!picked) return null;
         const postCategory = category !== 'all' ? category : doc.ref.path.split('/')[1];
-
         return {
           id: doc.id,
-          title: data.title,
-          body: data.body,
-          isPublic: data.isPublic,
           category: postCategory,
+          isPublic: data.isPublic,
           image: data.image,
-          language: data.language,
+          title: picked.translation.title,
+          body: picked.translation.body,
+          language: picked.language,
+          availableLanguages: availableLanguages(translations),
           created: data.created?.toDate?.()?.toISOString() || data.created,
           lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
         };
       })
-      .filter((p) => postMatchesLanguage(p.language, language));
+      .filter((p): p is NonNullable<typeof p> => p !== null);
 
-    // Get the last document's timestamp for pagination
     const lastDoc = snapshot.docs[snapshot.docs.length - 1];
     const newLastVisibleTimestamp = lastDoc.data().lastUpdated?.seconds ||
       Math.floor(new Date(lastDoc.data().lastUpdated).getTime() / 1000);
@@ -126,8 +131,10 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
 
 /**
  * POST /api/posts
- * Create a new post
- * Requires authentication
+ * Create a new post.
+ * Body: { category, isPublic?, image?, translations: { en?, ja? } }
+ * At least one translation must have a non-empty title and body.
+ * Requires authentication.
  */
 export const POST = withActivityLog('next_api.post.POST', async (request: NextRequest) => {
   try {
@@ -137,11 +144,23 @@ export const POST = withActivityLog('next_api.post.POST', async (request: NextRe
     }
 
     const body = await request.json();
-    const { title, isPublic, body: postBody, category, image, language } = body;
+    const { category, isPublic, image, translations } = body as {
+      category?: string;
+      isPublic?: boolean;
+      image?: string;
+      translations?: PostTranslations;
+    };
 
-    if (!title || !category || !postBody) {
+    if (!category || !translations) {
       return NextResponse.json(
-        { error: 'Missing required fields: title, category, body' },
+        { error: 'Missing required fields: category, translations' },
+        { status: 400 }
+      );
+    }
+
+    if (availableLanguages(translations).length === 0) {
+      return NextResponse.json(
+        { error: 'At least one translation with a title and body is required' },
         { status: 400 }
       );
     }
@@ -150,13 +169,11 @@ export const POST = withActivityLog('next_api.post.POST', async (request: NextRe
     const now = new Date();
 
     const docRef = await db.collection(`${POSTS_COLLECTION}/${category}/posts`).add({
-      title,
       isPublic: isPublic ?? true,
-      body: postBody,
       created: now,
       lastUpdated: now,
       image: image || null,
-      language: language || 'en',
+      translations,
     });
 
     return NextResponse.json(

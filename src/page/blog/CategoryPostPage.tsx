@@ -7,6 +7,7 @@ import SuggestionBar from '@/components/blog/SuggestionBar';
 import { useParams, useRouter } from 'next/navigation';
 import { usePosts } from '@/providers/PostsProvider';
 import { useInView } from 'react-intersection-observer';
+import { useTranslation } from 'react-i18next';
 
 interface InitialPost {
   id: string;
@@ -25,6 +26,7 @@ interface CategoryPostPageProps {
   initialPosts?: InitialPost[];
   initialLastVisibleTimestamp?: number | null;
   initialHasMore?: boolean;
+  initialLanguage?: string;
 }
 
 const PAGE_LIMIT = 5;
@@ -34,11 +36,17 @@ const CategoryPostPage = ({
   initialPosts,
   initialLastVisibleTimestamp,
   initialHasMore,
+  initialLanguage,
 }: CategoryPostPageProps = {}) => {
   const { category: routeCategory } = useParams();
   const router = useRouter();
+  const { i18n } = useTranslation();
+  const language = i18n.language;
   const category =
     initialCategory || (Array.isArray(routeCategory) ? routeCategory[0] : routeCategory || 'all');
+  // Caches in PostsProvider are scoped by category + language so switching
+  // locales doesn't pollute the cached list with posts from the wrong locale.
+  const cacheKey = `${category}::${language}`;
 
   const {
     postsByCategory,
@@ -59,13 +67,14 @@ const CategoryPostPage = ({
 
   const fetchPosts = async () => {
     setIsLoading(true);
-    const currentCategoryPage = (currentPageByCategory as Record<string, number>)[category] || 1;
+    const currentCategoryPage = (currentPageByCategory as Record<string, number>)[cacheKey] || 1;
     const result = await postApi.getPosts({
       category,
       isPublic: true,
       page: currentCategoryPage,
       limit: PAGE_LIMIT,
-      lastVisibleTimestamp: lastVisibleDocTimestamps?.[category],
+      lastVisibleTimestamp: lastVisibleDocTimestamps?.[cacheKey],
+      language,
     });
 
     const fetchedPosts = result.posts || [];
@@ -74,11 +83,11 @@ const CategoryPostPage = ({
       setHasMore(false);
     } else {
       const updatedPosts = [
-        ...((postsByCategory as Record<string, unknown[]>)[category] || []),
+        ...((postsByCategory as Record<string, unknown[]>)[cacheKey] || []),
         ...fetchedPosts,
       ];
-      setPostsByCategory(category, updatedPosts);
-      setCurrentPageByCategory(category, currentCategoryPage + 1);
+      setPostsByCategory(cacheKey, updatedPosts);
+      setCurrentPageByCategory(cacheKey, currentCategoryPage + 1);
     }
 
     setIsLoading(false);
@@ -89,13 +98,13 @@ const CategoryPostPage = ({
     router.push(`/blog/${postCategory}/${id}`);
   };
 
-  // On category change: prefer (a) existing context data, then
+  // On category or language change: prefer (a) existing context data, then
   // (b) server-rendered initial data (SSR cold-load case), and only
   // fall back to a client-side fetch if neither is available.
   useEffect(() => {
     window.scrollTo(0, 0);
 
-    const existing = (postsByCategory as Record<string, InitialPost[]>)[category];
+    const existing = (postsByCategory as Record<string, InitialPost[]>)[cacheKey];
     if (existing && existing.length > 0) {
       setHasMore(existing.length > 0);
       window.scrollTo(0, scrollPosition);
@@ -104,15 +113,16 @@ const CategoryPostPage = ({
 
     if (
       initialCategory === category &&
+      initialLanguage === language &&
       initialPosts &&
       initialPosts.length > 0
     ) {
-      setPostsByCategory(category, initialPosts);
-      setCurrentPageByCategory(category, 2);
+      setPostsByCategory(cacheKey, initialPosts);
+      setCurrentPageByCategory(cacheKey, 2);
       if (initialLastVisibleTimestamp != null) {
         setLastVisibleDocTimestamps((prev: Record<string, number>) => ({
           ...prev,
-          [category]: initialLastVisibleTimestamp,
+          [cacheKey]: initialLastVisibleTimestamp,
         }));
       }
       setHasMore(initialHasMore ?? true);
@@ -122,7 +132,7 @@ const CategoryPostPage = ({
     setHasMore(true);
     fetchPosts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category]);
+  }, [category, language]);
 
   // Infinite scroll
   useEffect(() => {
@@ -134,7 +144,7 @@ const CategoryPostPage = ({
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inView, isLoading, hasMore, category]);
+  }, [inView, isLoading, hasMore, category, language]);
 
   return (
     <div className="container" style={{ display: 'flex', flexDirection: 'row' }}>
@@ -164,8 +174,8 @@ const CategoryPostPage = ({
           }}
         >
           {(
-            ((postsByCategory as Record<string, InitialPost[]>)[category] as InitialPost[]) ||
-            (initialCategory === category ? initialPosts : undefined) ||
+            ((postsByCategory as Record<string, InitialPost[]>)[cacheKey] as InitialPost[]) ||
+            (initialCategory === category && initialLanguage === language ? initialPosts : undefined) ||
             []
           ).map((item, index, arr) => {
             const isLoadMoreAnchor = arr.length - 3 === index;

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureAdmin } from '@/lib/auth-utils';
 import { POSTS_COLLECTION } from '@/app/api/constants';
+import { postMatchesLanguage } from '@/lib/blog/postLanguage';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
@@ -9,6 +10,7 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
  * Get all posts from a specific category
  * Query params:
  * - isPublic: boolean (optional)
+ * - language: string (optional, filters to posts in this locale)
  */
 export const GET = withActivityLog('next_api.post.category.GET', async (request: NextRequest,
   { params }: { params: Promise<{ category: string }> }) => {
@@ -16,6 +18,7 @@ export const GET = withActivityLog('next_api.post.category.GET', async (request:
     const { category } = await params;
     const searchParams = request.nextUrl.searchParams;
     const isPublicParam = searchParams.get('isPublic');
+    const language = searchParams.get('language');
 
     // If isPublic is not specified, show all posts (requires auth)
     // If isPublic is explicitly set to false, require authentication
@@ -37,20 +40,22 @@ export const GET = withActivityLog('next_api.post.category.GET', async (request:
 
     const snapshot = await query.get();
 
-    const posts = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        title: data.title,
-        body: data.body,
-        isPublic: data.isPublic,
-        category: category,
-        image: data.image,
-        language: data.language,
-        created: data.created?.toDate?.()?.toISOString() || data.created,
-        lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
-      };
-    });
+    const posts = snapshot.docs
+      .map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          title: data.title,
+          body: data.body,
+          isPublic: data.isPublic,
+          category: category,
+          image: data.image,
+          language: data.language,
+          created: data.created?.toDate?.()?.toISOString() || data.created,
+          lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
+        };
+      })
+      .filter((p) => postMatchesLanguage(p.language, language));
 
     return NextResponse.json({ posts });
   } catch (error) {

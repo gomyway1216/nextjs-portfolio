@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION } from '@/app/api/constants';
+import { postMatchesLanguage } from '@/lib/blog/postLanguage';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/posts/top
  * Get top 4 most recent public posts across all categories
+ * Query params:
+ * - language: string (optional, filters to posts in this locale)
  */
 export const GET = withActivityLog('next_api.post.top.GET', async (request: NextRequest) => {
   try {
+    const language = request.nextUrl.searchParams.get('language');
     const db = getFirestore();
     const categories = ['technology', 'life'];
 
@@ -35,7 +39,9 @@ export const GET = withActivityLog('next_api.post.top.GET', async (request: Next
     });
 
     const allPosts = await Promise.all(promises);
-    const combinedPosts = allPosts.flat();
+    const combinedPosts = allPosts
+      .flat()
+      .filter((p) => postMatchesLanguage(p.language, language));
 
     // Sort by lastUpdated descending and take top 4
     const sortedPosts = combinedPosts.sort((a, b) => {

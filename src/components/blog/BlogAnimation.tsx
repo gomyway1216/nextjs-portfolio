@@ -11,7 +11,7 @@ import { useTranslation } from 'react-i18next';
 // Modal.setAppElement('#root');
 
 const Blogs = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // const [isOpen, setIsOpen] = useState(false);
   // const [isOpen2, setIsOpen2] = useState(false);
   // const [isOpen3, setIsOpen3] = useState(false);
@@ -26,14 +26,16 @@ const Blogs = () => {
   //   Modal.setAppElement('#root');
   // }, []);
 
-  const getPosts = async () => {
-    const fetchedPosts = await postApi.getTop4Posts();
-    setPosts(fetchedPosts);
-  };
-
   useEffect(() => {
-    getPosts();
-  }, []);
+    let cancelled = false;
+    (async () => {
+      const fetchedPosts = await postApi.getTop4Posts(i18n.language);
+      if (!cancelled) setPosts(fetchedPosts);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [i18n.language]);
 
   const handlePostClick = (post: any) => {
     setSelectedPost(post);

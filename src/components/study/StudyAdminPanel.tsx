@@ -38,6 +38,8 @@ import {
   useStudyArticles,
 } from '@/hooks/useStudy';
 import * as studyService from '@/services/studyService';
+import GenerateAudioButton from '@/components/study/GenerateAudioButton';
+import type { ArticleAudio } from '@/types/study';
 import {
   StudyCategory,
   StudyTopic,
@@ -2634,6 +2636,23 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                     Created: {new Date(editingArticle.createdAt).toLocaleString()}
                   </p>
                 </div>
+                <GenerateAudioButton
+                  articleId={editingArticle.id}
+                  audio={editingArticle.audio}
+                  audioStatus={editingArticle.audioStatus}
+                  audioError={editingArticle.audioError}
+                  onUpdated={(audio: ArticleAudio | null) => {
+                    setEditingArticle((prev) => prev ? {
+                      ...prev,
+                      audio: audio ?? undefined,
+                      audioStatus: audio ? 'ready' : undefined,
+                      audioError: undefined,
+                    } : prev);
+                    setMessage({ type: 'success', text: audio ? 'Audio updated' : 'Audio deleted' });
+                    void fetchArticles();
+                  }}
+                  onError={(text) => setMessage({ type: 'error', text })}
+                />
               </div>
             </div>
             <div style={styles.modalFooter}>

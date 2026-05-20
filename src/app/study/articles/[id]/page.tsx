@@ -33,6 +33,7 @@ import {
   GraduationCap,
 } from 'lucide-react';
 import ArticleLearningIntegration from '@/components/study/ArticleLearningIntegration';
+import AudioPlayer from '@/components/study/AudioPlayer';
 // Prism.js for code highlighting
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
@@ -1121,6 +1122,9 @@ function StudyArticlePageInner() {
               <div className="tab-content" style={{ padding: '16px 8px' }}>
                 {activeTab === 'article' && (
                   <article style={{ maxWidth: '100%' }}>
+                    {/* Audio player */}
+                    {article.audio && <AudioPlayer audio={article.audio} />}
+
                     {/* Summary */}
                     <div style={{
                       backgroundColor: '#f0fdf4',

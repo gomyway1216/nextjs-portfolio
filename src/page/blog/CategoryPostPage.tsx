@@ -8,6 +8,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { usePosts } from '@/providers/PostsProvider';
 import { useInView } from 'react-intersection-observer';
 import { useTranslation } from 'react-i18next';
+import { normalizeLanguage, type PostLanguage } from '@/lib/blog/postTranslations';
 
 interface InitialPost {
   id: string;
@@ -16,7 +17,8 @@ interface InitialPost {
   isPublic: boolean;
   category: string;
   image?: string;
-  language?: string;
+  language: PostLanguage;
+  availableLanguages: PostLanguage[];
   created: string;
   lastUpdated: string;
 }
@@ -26,7 +28,7 @@ interface CategoryPostPageProps {
   initialPosts?: InitialPost[];
   initialLastVisibleTimestamp?: number | null;
   initialHasMore?: boolean;
-  initialLanguage?: string;
+  initialLanguage?: PostLanguage;
 }
 
 const PAGE_LIMIT = 5;
@@ -41,7 +43,7 @@ const CategoryPostPage = ({
   const { category: routeCategory } = useParams();
   const router = useRouter();
   const { i18n } = useTranslation();
-  const language = i18n.language;
+  const language = normalizeLanguage(i18n.language);
   const category =
     initialCategory || (Array.isArray(routeCategory) ? routeCategory[0] : routeCategory || 'all');
   // Caches in PostsProvider are scoped by category + language so switching
@@ -98,9 +100,6 @@ const CategoryPostPage = ({
     router.push(`/blog/${postCategory}/${id}`);
   };
 
-  // On category or language change: prefer (a) existing context data, then
-  // (b) server-rendered initial data (SSR cold-load case), and only
-  // fall back to a client-side fetch if neither is available.
   useEffect(() => {
     window.scrollTo(0, 0);
 
@@ -134,7 +133,6 @@ const CategoryPostPage = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, language]);
 
-  // Infinite scroll
   useEffect(() => {
     const handleScroll = () => {
       if (inView && !isLoading && hasMore) {

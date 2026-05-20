@@ -1,50 +1,57 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION } from '@/app/api/constants';
-import { postMatchesLanguage } from '@/lib/blog/postLanguage';
+import {
+  availableLanguages,
+  normalizeLanguage,
+  pickTranslation,
+  type PostTranslations,
+} from '@/lib/blog/postTranslations';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
  * GET /api/posts/top
- * Get top 4 most recent public posts across all categories
+ * Top 4 most-recent public posts across all categories, flattened to the
+ * requested locale (with fallback).
  * Query params:
- * - language: string (optional, filters to posts in this locale)
+ * - language: 'en' | 'ja' (default: 'en')
  */
 export const GET = withActivityLog('next_api.post.top.GET', async (request: NextRequest) => {
   try {
-    const language = request.nextUrl.searchParams.get('language');
+    const language = normalizeLanguage(request.nextUrl.searchParams.get('language'));
     const db = getFirestore();
     const categories = ['technology', 'life'];
 
-    // Fetch posts from all categories
     const promises = categories.map(async (category) => {
       const snapshot = await db.collection(`${POSTS_COLLECTION}/${category}/posts`)
         .where('isPublic', '==', true)
         .get();
 
-      return snapshot.docs.map(doc => {
-        const data = doc.data();
-        return {
-          id: doc.id,
-          title: data.title,
-          body: data.body,
-          isPublic: data.isPublic,
-          category: category,
-          image: data.image,
-          language: data.language,
-          created: data.created?.toDate?.()?.toISOString() || data.created,
-          lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
-        };
-      });
+      return snapshot.docs
+        .map((doc) => {
+          const data = doc.data();
+          const translations = (data.translations || {}) as PostTranslations;
+          const picked = pickTranslation(translations, language);
+          if (!picked) return null;
+          return {
+            id: doc.id,
+            category,
+            isPublic: data.isPublic,
+            image: data.image,
+            title: picked.translation.title,
+            body: picked.translation.body,
+            language: picked.language,
+            availableLanguages: availableLanguages(translations),
+            created: data.created?.toDate?.()?.toISOString() || data.created,
+            lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
+          };
+        })
+        .filter((p): p is NonNullable<typeof p> => p !== null);
     });
 
-    const allPosts = await Promise.all(promises);
-    const combinedPosts = allPosts
-      .flat()
-      .filter((p) => postMatchesLanguage(p.language, language));
+    const allPosts = (await Promise.all(promises)).flat();
 
-    // Sort by lastUpdated descending and take top 4
-    const sortedPosts = combinedPosts.sort((a, b) => {
+    const sortedPosts = allPosts.sort((a, b) => {
       const dateA = new Date(a.lastUpdated).getTime();
       const dateB = new Date(b.lastUpdated).getTime();
       return dateB - dateA;

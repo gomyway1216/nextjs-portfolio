@@ -2,23 +2,20 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import * as api from '@/services/postsService';
-import type { Post } from '@/services/postsService';
+import type { Post, DetailPost } from '@/services/postsService';
+import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations';
 
 export interface CreatePostData {
-  title: string;
-  body: string;
   category: string;
+  translations: PostTranslations;
   isPublic?: boolean;
   image?: string;
-  language?: string;
 }
 
 export interface UpdatePostData {
-  title: string;
-  body: string;
+  translations: PostTranslations;
   isPublic?: boolean;
   image?: string;
-  language?: string;
 }
 
 export interface GetPostsParams {
@@ -27,6 +24,7 @@ export interface GetPostsParams {
   page?: number;
   limit?: number;
   lastVisibleTimestamp?: number;
+  language?: PostLanguage;
 }
 
 /**
@@ -96,7 +94,7 @@ export function usePostsByCategory(category: string, isPublic?: boolean) {
  * Hook to fetch a single post
  */
 export function usePost(id: string | null, category: string | null) {
-  const [post, setPost] = useState<Post | null>(null);
+  const [post, setPost] = useState<DetailPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 

@@ -1,16 +1,37 @@
 import { auth } from '@/lib/firebaseConnect';
+import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations';
 
-export interface Post {
+// A "listing post" is a Firestore post flattened to a single locale by the
+// server. The full translations map is not included to keep responses small.
+export interface ListingPost {
   id: string;
   title: string;
   body: string;
   isPublic: boolean;
   category: string;
   image?: string;
-  language?: string;
+  language: PostLanguage;
+  availableLanguages: PostLanguage[];
   created: string;
   lastUpdated: string;
 }
+
+// A "detail post" includes the full translations map so the client can
+// switch languages without an extra round-trip.
+export interface DetailPost {
+  id: string;
+  isPublic: boolean;
+  category: string;
+  image?: string;
+  translations: PostTranslations;
+  availableLanguages: PostLanguage[];
+  created: string;
+  lastUpdated: string;
+}
+
+// Backwards-compatible alias for code that imports `Post`. Treat it as a
+// listing post for now.
+export type Post = ListingPost;
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const user = auth.currentUser;
@@ -28,7 +49,7 @@ export async function getPosts(params: {
   page?: number;
   limit?: number;
   lastVisibleTimestamp?: number;
-  language?: string;
+  language?: PostLanguage;
 } = {}) {
   const {
     category = 'all',
@@ -70,7 +91,7 @@ export async function getPosts(params: {
   return await response.json();
 }
 
-export async function getPostsByCategory(category: string, isPublic?: boolean, language?: string) {
+export async function getPostsByCategory(category: string, isPublic?: boolean, language?: PostLanguage): Promise<ListingPost[]> {
   const queryParams = new URLSearchParams();
   if (isPublic !== undefined) {
     queryParams.append('isPublic', String(isPublic));
@@ -96,7 +117,7 @@ export async function getPostsByCategory(category: string, isPublic?: boolean, l
   return data.posts;
 }
 
-export async function getPostByCategory(id: string, category: string) {
+export async function getPostByCategory(id: string, category: string): Promise<DetailPost> {
   const response = await fetch(`/api/post/${category}/${id}`, {
     headers: {
       'Content-Type': 'application/json',
@@ -111,7 +132,7 @@ export async function getPostByCategory(id: string, category: string) {
   return data.post;
 }
 
-export async function getPostCategories() {
+export async function getPostCategories(): Promise<string[]> {
   const response = await fetch('/api/post/categories', {
     headers: {
       'Content-Type': 'application/json',
@@ -126,7 +147,7 @@ export async function getPostCategories() {
   return data.categories;
 }
 
-export async function getTop4Posts(language?: string) {
+export async function getTop4Posts(language?: PostLanguage): Promise<ListingPost[]> {
   const queryParams = new URLSearchParams();
   if (language) {
     queryParams.append('language', language);
@@ -149,13 +170,11 @@ export async function getTop4Posts(language?: string) {
 }
 
 export async function createPost(post: {
-  title: string;
-  body: string;
   category: string;
+  translations: PostTranslations;
   isPublic?: boolean;
   image?: string;
-  language?: string;
-}) {
+}): Promise<string> {
   const headers = await getAuthHeaders();
 
   const response = await fetch('/api/post', {
@@ -179,13 +198,11 @@ export async function updatePost(
   id: string,
   category: string,
   post: {
-    title: string;
-    body: string;
+    translations: PostTranslations;
     isPublic?: boolean;
     image?: string;
-    language?: string;
   }
-) {
+): Promise<void> {
   const headers = await getAuthHeaders();
 
   const response = await fetch(`/api/post/${category}/${id}`, {
@@ -202,7 +219,7 @@ export async function updatePost(
   }
 }
 
-export async function deletePostByCategory(id: string, category: string) {
+export async function deletePostByCategory(id: string, category: string): Promise<boolean> {
   const headers = await getAuthHeaders();
 
   const response = await fetch(`/api/post/${category}/${id}`, {

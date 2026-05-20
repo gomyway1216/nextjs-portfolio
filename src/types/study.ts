@@ -362,7 +362,7 @@ export interface ArticleSchedule {
   aiProvider: AIProvider;
   aiModel?: string;
   numberOfArticles: number; // How many to generate per run
-  topicSelectionMode: 'sequential' | 'random' | 'ai_suggested';
+  topicSelectionMode: 'sequential' | 'random' | 'ai_suggested' | 'linear';
   suggestionType: TopicSuggestionType; // For AI suggestions
   language: string; // Article language (e.g., 'ja', 'en')
   codingLanguage: string; // Programming language for code examples

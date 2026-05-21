@@ -29,7 +29,7 @@ jobs:
 
       - name: Run unit tests
         run: npm test
-
-      - name: Build
-        # Catches type errors and bundler-time bugs the unit tests don't see.
-        run: npm run build
+        # `next build` is intentionally not run here — Vercel's preview
+        # deployment already builds against the real env vars and shows up
+        # as its own PR check. Re-running it here would just fail on the
+        # missing Firebase client config.

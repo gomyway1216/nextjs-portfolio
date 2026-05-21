@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Pin npm to 11.14.1 (matches package.json packageManager)
+        run: npm install -g npm@11.14.1
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+        # `next build` is intentionally not run here — Vercel's preview
+        # deployment already builds against the real env vars and shows up
+        # as its own PR check. Re-running it here would just fail on the
+        # missing Firebase client config.

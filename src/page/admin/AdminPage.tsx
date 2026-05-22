@@ -411,6 +411,9 @@ const AdminPage = () => {
   const [imagesProgress, setImagesProgress] = useState(0);
   const [dragOverThumb, setDragOverThumb] = useState(false);
   const [dragOverImages, setDragOverImages] = useState(false);
+  const [uploadingPostImage, setUploadingPostImage] = useState(false);
+  const [postImageProgress, setPostImageProgress] = useState(0);
+  const [dragOverPostImage, setDragOverPostImage] = useState(false);
 
   // Post form states
   const [postForm, setPostForm] = useState<{
@@ -806,6 +809,54 @@ const AdminPage = () => {
     } catch (error) {
       showMessage('error', `Failed to save post: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  };
+
+  // Post image upload mirrors the project thumbnail flow.
+  const handlePostImageUpload = async (file: File) => {
+    setUploadingPostImage(true);
+    setPostImageProgress(0);
+
+    const progressInterval = setInterval(() => {
+      setPostImageProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 100);
+
+    try {
+      const downloadURL = await imageApi.getImageRef(
+        file,
+        'blog',
+        editingPost?.id || 'undefined',
+      );
+      setPostForm((prev) => ({ ...prev, image: downloadURL }));
+      setPostImageProgress(100);
+    } catch (error) {
+      console.error('Error uploading post image:', error);
+      showMessage('error', `Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      clearInterval(progressInterval);
+      setUploadingPostImage(false);
+      setTimeout(() => setPostImageProgress(0), 1000);
+    }
+  };
+
+  const handleDropPostImage = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverPostImage(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files[0] && files[0].type.startsWith('image/')) {
+      handlePostImageUpload(files[0]);
+    }
+  };
+
+  const handleRemovePostImage = () => {
+    setPostForm((prev) => ({ ...prev, image: '' }));
   };
 
   const handleDeletePost = async (id: string, category: string) => {
@@ -1856,13 +1907,89 @@ const AdminPage = () => {
                   <label htmlFor="post-public" style={{ color: '#cbd5e1', cursor: 'pointer' }}>Public</label>
                 </div>
                 <div>
-                  <label style={styles.label}>Image URL</label>
-                  <input
-                    value={postForm.image}
-                    onChange={(e) => setPostForm({ ...postForm, image: e.target.value })}
-                    placeholder="https://..."
-                    style={styles.input}
-                  />
+                  <label style={styles.label}>Cover image</label>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverPostImage(true); }}
+                    onDragLeave={() => setDragOverPostImage(false)}
+                    onDrop={handleDropPostImage}
+                    style={{
+                      border: `2px dashed ${dragOverPostImage ? '#a855f7' : 'rgba(255, 255, 255, 0.2)'}`,
+                      borderRadius: '12px',
+                      padding: '20px',
+                      textAlign: 'center',
+                      backgroundColor: dragOverPostImage ? 'rgba(168, 85, 247, 0.1)' : 'rgba(15, 23, 42, 0.3)',
+                      transition: 'all 0.2s',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {postForm.image ? (
+                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <img
+                          src={postForm.image}
+                          alt="Cover"
+                          style={{ maxWidth: '320px', maxHeight: '200px', borderRadius: '8px' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRemovePostImage}
+                          style={{
+                            position: 'absolute',
+                            top: '-8px',
+                            right: '-8px',
+                            background: '#ef4444',
+                            border: 'none',
+                            borderRadius: '50%',
+                            padding: '4px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                          aria-label="Remove cover image"
+                        >
+                          <X size={14} color="#fff" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          id="post-image-upload"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handlePostImageUpload(e.target.files[0]);
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                        <label htmlFor="post-image-upload" style={{ cursor: 'pointer' }}>
+                          <ImageIcon size={40} color="#64748b" style={{ marginBottom: '8px' }} />
+                          <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                            Drag &amp; drop or click to upload cover image
+                          </p>
+                        </label>
+                      </div>
+                    )}
+                    {uploadingPostImage && (
+                      <div style={{ marginTop: '12px' }}>
+                        <div style={{
+                          height: '4px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          borderRadius: '2px',
+                          overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${postImageProgress}%`,
+                            background: 'linear-gradient(to right, #a855f7, #ec4899)',
+                            transition: 'width 0.2s',
+                          }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

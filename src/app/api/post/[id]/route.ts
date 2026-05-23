@@ -10,17 +10,17 @@ import {
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
 /**
- * GET /api/posts/[category]/[id]
- * Get a single post by ID and category. Returns the full `translations`
- * map so the client can switch languages without a re-fetch.
+ * GET /api/post/[id]
+ * Get a single post by id. Returns the full `translations` map so the
+ * client can switch languages without a re-fetch.
  */
-export const GET = withActivityLog('next_api.post.category.id.GET', async (request: NextRequest,
-  { params }: { params: Promise<{ category: string; id: string }> }) => {
+export const GET = withActivityLog('next_api.post.id.GET', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
-    const { category, id } = await params;
+    const { id } = await params;
     const db = getFirestore();
 
-    const docRef = db.collection(`${POSTS_COLLECTION}/${category}/posts`).doc(id);
+    const docRef = db.collection(POSTS_COLLECTION).doc(id);
     const doc = await docRef.get();
 
     if (!doc.exists) {
@@ -43,7 +43,7 @@ export const GET = withActivityLog('next_api.post.category.id.GET', async (reque
 
     const post = {
       id: doc.id,
-      category,
+      category: data.category,
       isPublic: data.isPublic,
       image: data.image,
       translations,
@@ -63,21 +63,23 @@ export const GET = withActivityLog('next_api.post.category.id.GET', async (reque
 });
 
 /**
- * PUT /api/posts/[category]/[id]
- * Update a post. Body: { isPublic?, image?, translations }
+ * PUT /api/post/[id]
+ * Update a post. Body: { category?, isPublic?, image?, translations }
+ * Changing category is just a field update — no doc move required.
  * Requires authentication.
  */
-export const PUT = withActivityLog('next_api.post.category.id.PUT', async (request: NextRequest,
-  { params }: { params: Promise<{ category: string; id: string }> }) => {
+export const PUT = withActivityLog('next_api.post.id.PUT', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { user, response } = await ensureAdmin(request);
     if (!user) {
       return response!;
     }
 
-    const { category, id } = await params;
+    const { id } = await params;
     const body = await request.json();
-    const { isPublic, image, translations } = body as {
+    const { category, isPublic, image, translations } = body as {
+      category?: string;
       isPublic?: boolean;
       image?: string;
       translations?: PostTranslations;
@@ -98,7 +100,7 @@ export const PUT = withActivityLog('next_api.post.category.id.PUT', async (reque
     }
 
     const db = getFirestore();
-    const docRef = db.collection(`${POSTS_COLLECTION}/${category}/posts`).doc(id);
+    const docRef = db.collection(POSTS_COLLECTION).doc(id);
 
     const doc = await docRef.get();
     if (!doc.exists) {
@@ -108,12 +110,17 @@ export const PUT = withActivityLog('next_api.post.category.id.PUT', async (reque
       );
     }
 
-    await docRef.update({
+    const update: Record<string, unknown> = {
       isPublic: isPublic ?? true,
       lastUpdated: new Date(),
       image: image || null,
       translations,
-    });
+    };
+    if (category) {
+      update.category = category;
+    }
+
+    await docRef.update(update);
 
     return NextResponse.json({ message: 'Post updated successfully' });
   } catch (error) {
@@ -126,20 +133,20 @@ export const PUT = withActivityLog('next_api.post.category.id.PUT', async (reque
 });
 
 /**
- * DELETE /api/posts/[category]/[id]
+ * DELETE /api/post/[id]
  * Delete a post. Requires authentication.
  */
-export const DELETE = withActivityLog('next_api.post.category.id.DELETE', async (request: NextRequest,
-  { params }: { params: Promise<{ category: string; id: string }> }) => {
+export const DELETE = withActivityLog('next_api.post.id.DELETE', async (request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { user, response } = await ensureAdmin(request);
     if (!user) {
       return response!;
     }
 
-    const { category, id } = await params;
+    const { id } = await params;
     const db = getFirestore();
-    const docRef = db.collection(`${POSTS_COLLECTION}/${category}/posts`).doc(id);
+    const docRef = db.collection(POSTS_COLLECTION).doc(id);
 
     const doc = await docRef.get();
     if (!doc.exists) {

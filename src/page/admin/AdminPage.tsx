@@ -744,7 +744,7 @@ const AdminPage = () => {
       try {
         // The list endpoint returns the flattened version; load the full
         // post so we can edit every available translation.
-        const detail = await postApi.getPostByCategory(post.id, post.category);
+        const detail = await postApi.getPostById(post.id);
         setPostForm({
           category: detail.category,
           isPublic: detail.isPublic,
@@ -782,14 +782,15 @@ const AdminPage = () => {
       showMessage('error', 'Please fill in at least one language (Title or Content).');
       return;
     }
-    if (!editingPost && !postForm.category) {
+    if (!postForm.category) {
       showMessage('error', 'Please select a category.');
       return;
     }
 
     try {
       if (editingPost) {
-        await postMutations.updatePost(editingPost.id, editingPost.category, {
+        await postMutations.updatePost(editingPost.id, {
+          category: postForm.category,
           translations: cleanedTranslations,
           isPublic: postForm.isPublic,
           image: postForm.image,
@@ -859,11 +860,11 @@ const AdminPage = () => {
     setPostForm((prev) => ({ ...prev, image: '' }));
   };
 
-  const handleDeletePost = async (id: string, category: string) => {
+  const handleDeletePost = async (id: string) => {
     if (isDeleting) return;
     setIsDeleting(true);
     try {
-      await postMutations.deletePost(id, category);
+      await postMutations.deletePost(id);
       showMessage('success', 'Post deleted successfully!');
       refetchPosts();
       setShowDeleteConfirm(null);
@@ -1860,21 +1861,19 @@ const AdminPage = () => {
                 <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>
                   Fill in either language, both, or one and skip the other — empty languages are not saved. Readers see the language matching their locale; if it doesn&apos;t exist, the other language is shown as a fallback.
                 </p>
-                {!editingPost && (
-                  <div>
-                    <label style={styles.label}>Category *</label>
-                    <select
-                      value={postForm.category}
-                      onChange={(e) => setPostForm({ ...postForm, category: e.target.value })}
-                      style={styles.select}
-                    >
-                      <option value="">Select category</option>
-                      {postCategories.map((cat) => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
+                <div>
+                  <label style={styles.label}>Category *</label>
+                  <select
+                    value={postForm.category}
+                    onChange={(e) => setPostForm({ ...postForm, category: e.target.value })}
+                    style={styles.select}
+                  >
+                    <option value="">Select category</option>
+                    {postCategories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                </div>
                 <div
                   style={{
                     display: 'grid',
@@ -2026,8 +2025,8 @@ const AdminPage = () => {
                 onClick={() => {
                   if (showDeleteConfirm.type === 'project') {
                     handleDeleteProject(showDeleteConfirm.id);
-                  } else if (showDeleteConfirm.type === 'post' && showDeleteConfirm.category) {
-                    handleDeletePost(showDeleteConfirm.id, showDeleteConfirm.category);
+                  } else if (showDeleteConfirm.type === 'post') {
+                    handleDeletePost(showDeleteConfirm.id);
                   }
                 }}
                 disabled={isDeleting}

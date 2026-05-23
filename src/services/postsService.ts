@@ -106,34 +106,18 @@ export async function getPosts(params: {
   return await response.json();
 }
 
+// Convenience wrapper around getPosts for category-scoped listings.
 export async function getPostsByCategory(category: string, isPublic?: boolean, language?: PostLanguage): Promise<ListingPost[]> {
-  const queryParams = new URLSearchParams();
-  if (isPublic !== undefined) {
-    queryParams.append('isPublic', String(isPublic));
-  }
-  if (language) {
-    queryParams.append('language', language);
-  }
-
-  const headers = isPublic === false || isPublic === undefined ? await getAuthHeaders() : {};
-
-  const response = await fetch(`/api/post/${category}?${queryParams}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers,
-    },
+  const data = await getPosts({
+    category,
+    isPublic: isPublic ?? true,
+    language,
   });
-
-  if (!response.ok) {
-    await throwApiError(response);
-  }
-
-  const data = await response.json();
   return data.posts;
 }
 
-export async function getPostByCategory(id: string, category: string): Promise<DetailPost> {
-  const response = await fetch(`/api/post/${category}/${id}`, {
+export async function getPostById(id: string): Promise<DetailPost> {
+  const response = await fetch(`/api/post/${id}`, {
     headers: {
       'Content-Type': 'application/json',
     },
@@ -211,16 +195,16 @@ export async function createPost(post: {
 
 export async function updatePost(
   id: string,
-  category: string,
   post: {
     translations: PostTranslations;
+    category?: string;
     isPublic?: boolean;
     image?: string;
   }
 ): Promise<void> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`/api/post/${category}/${id}`, {
+  const response = await fetch(`/api/post/${id}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -234,10 +218,10 @@ export async function updatePost(
   }
 }
 
-export async function deletePostByCategory(id: string, category: string): Promise<boolean> {
+export async function deletePost(id: string): Promise<boolean> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`/api/post/${category}/${id}`, {
+  const response = await fetch(`/api/post/${id}`, {
     method: 'DELETE',
     headers: {
       ...headers,

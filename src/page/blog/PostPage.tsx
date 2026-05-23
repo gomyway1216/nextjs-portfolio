@@ -28,13 +28,13 @@ const PostPage = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const p = await postApi.getPostByCategory(id, category);
+      const p = await postApi.getPostById(id);
       if (!cancelled) setPost(p);
     })();
     return () => {
       cancelled = true;
     };
-  }, [id, category]);
+  }, [id]);
 
   const handleEdit = () => {
     router.push('/admin#posts');

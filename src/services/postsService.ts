@@ -60,7 +60,9 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 
 export async function getPosts(params: {
   category?: string;
-  isPublic?: boolean;
+  // boolean -> filter to that value; null -> no filter (admin only,
+  // returns drafts + public); undefined -> defaults to `true` (public only)
+  isPublic?: boolean | null;
   page?: number;
   limit?: number;
   lastVisibleTimestamp?: number;
@@ -77,10 +79,13 @@ export async function getPosts(params: {
 
   const queryParams = new URLSearchParams({
     category,
-    isPublic: String(isPublic),
     page: String(page),
     limit: String(limit),
   });
+
+  if (isPublic !== null) {
+    queryParams.append('isPublic', String(isPublic));
+  }
 
   if (lastVisibleTimestamp) {
     queryParams.append('lastVisibleTimestamp', String(lastVisibleTimestamp));
@@ -90,7 +95,9 @@ export async function getPosts(params: {
     queryParams.append('language', language);
   }
 
-  const headers = !isPublic ? await getAuthHeaders() : {};
+  // Admin auth is needed unless the caller is explicitly asking for
+  // public-only posts. Both `null` (no filter) and `false` require it.
+  const headers = isPublic === true ? {} : await getAuthHeaders();
 
   const response = await fetch(`/api/post?${queryParams}`, {
     headers: {

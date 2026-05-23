@@ -336,7 +336,9 @@ const AdminPage = () => {
   const router = useRouter();
   const { profile, loading: profileLoading } = useProfile();
   const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
-  const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts({ limit: 100 });
+  // Admin sees every post including drafts, so pass `isPublic: null` to
+  // skip the public-only filter.
+  const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts({ limit: 100, isPublic: null });
   const { categories: projectCategories } = useProjectCategories();
   const { urlTypes } = useUrlTypes();
   const { categories: postCategories } = usePostCategories();
@@ -1305,6 +1307,7 @@ const AdminPage = () => {
                   <p style={{ color: '#94a3b8' }}>Manage your blog content</p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
+                  <InspectPostsButton onMessage={showMessage} />
                   <MigratePostsFlatButton onMessage={showMessage} onAfterMigrate={refetchPosts} />
                   <button onClick={() => handleOpenPostModal()} style={{ ...styles.button, ...styles.primaryButton }}>
                     <Plus size={16} /> Add Post
@@ -2131,6 +2134,57 @@ const TranslationFields = ({
         />
       </div>
     </div>
+  );
+};
+
+interface InspectPostsButtonProps {
+  onMessage: (type: 'success' | 'error', text: string) => void;
+}
+
+const InspectPostsButton = ({ onMessage }: InspectPostsButtonProps) => {
+  const { currentUser } = useAuth();
+  const [running, setRunning] = useState(false);
+
+  const handleClick = async () => {
+    if (!currentUser) return;
+    setRunning(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch('/api/admin/inspect-posts', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      // Dump the structured result to the console so it's easy to copy.
+      console.log('[inspect-posts]', data);
+      const summary = `flat=${data.flatCount} legacy=${data.legacyCount} — see browser console for details`;
+      onMessage('success', summary);
+    } catch (err) {
+      onMessage('error', `Inspect failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={running}
+      style={{
+        padding: '8px 14px',
+        border: '1px solid rgba(255,255,255,0.18)',
+        borderRadius: '8px',
+        background: 'transparent',
+        color: '#cbd5e1',
+        cursor: running ? 'not-allowed' : 'pointer',
+        fontSize: '13px',
+      }}
+      title="Counts docs at flat post/{id} and legacy post/{cat}/posts/{id} paths"
+    >
+      {running ? '…' : 'Inspect Firestore'}
+    </button>
   );
 };
 

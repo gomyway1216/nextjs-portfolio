@@ -12,18 +12,19 @@ import {
 } from '@/lib/blog/postTranslations';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
+
 /**
- * GET /api/posts
- * Paginated public-listing endpoint. Each item is flattened to the
- * requested locale (with fallback to the other available language).
+ * GET /api/post
+ * Paginated public-listing endpoint. Posts now live in a flat collection
+ * (`post/{id}`) with `category` as a regular field, so listings are just
+ * a single query against that collection.
  *
  * Query params:
- * - category: string (default: 'all')
+ * - category: string (default: 'all'; filters by the `category` field)
  * - isPublic: boolean (default: true)
- * - page: number (default: 1)
  * - limit: number (default: 10)
  * - lastVisibleTimestamp: number (optional, for pagination)
- * - language: 'en' | 'ja' (default: 'en')
+ * - language: 'en' | 'ja' (default: 'en'; selects which translation to flatten)
  */
 export const GET = withActivityLog('next_api.post.GET', async (request: NextRequest) => {
   try {
@@ -34,7 +35,6 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
     const lastVisibleTimestamp = searchParams.get('lastVisibleTimestamp');
     const language = normalizeLanguage(searchParams.get('language'));
 
-    // If fetching non-public posts, require authentication
     if (!isPublic) {
       const { user, response } = await ensureAdmin(request);
       if (!user) {
@@ -43,37 +43,21 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
     }
 
     const db = getFirestore();
-    let query;
+    let query = db.collection(POSTS_COLLECTION)
+      .where('isPublic', '==', isPublic) as FirebaseFirestore.Query;
 
-    if (category === 'all') {
-      if (!lastVisibleTimestamp) {
-        query = db.collectionGroup('posts')
-          .where('isPublic', '==', isPublic)
-          .orderBy('lastUpdated', 'desc')
-          .limit(limitNumber);
-      } else {
-        const lastVisible = new Date(Number(lastVisibleTimestamp) * 1000);
-        query = db.collectionGroup('posts')
-          .where('isPublic', '==', isPublic)
-          .orderBy('lastUpdated', 'desc')
-          .startAfter(lastVisible)
-          .limit(limitNumber);
-      }
-    } else {
-      if (!lastVisibleTimestamp) {
-        query = db.collection(`${POSTS_COLLECTION}/${category}/posts`)
-          .where('isPublic', '==', isPublic)
-          .orderBy('lastUpdated', 'desc')
-          .limit(limitNumber);
-      } else {
-        const lastVisible = new Date(Number(lastVisibleTimestamp) * 1000);
-        query = db.collection(`${POSTS_COLLECTION}/${category}/posts`)
-          .where('isPublic', '==', isPublic)
-          .orderBy('lastUpdated', 'desc')
-          .startAfter(lastVisible)
-          .limit(limitNumber);
-      }
+    if (category !== 'all') {
+      query = query.where('category', '==', category);
     }
+
+    query = query.orderBy('lastUpdated', 'desc');
+
+    if (lastVisibleTimestamp) {
+      const lastVisible = new Date(Number(lastVisibleTimestamp) * 1000);
+      query = query.startAfter(lastVisible);
+    }
+
+    query = query.limit(limitNumber);
 
     const snapshot = await query.get();
 
@@ -81,27 +65,24 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
       return NextResponse.json({ posts: [], lastVisibleTimestamp: null });
     }
 
-    const posts = snapshot.docs
-      .map((doc) => {
-        const data = doc.data();
-        const translations = (data.translations || {}) as PostTranslations;
-        const picked = pickTranslation(translations, language);
-        if (!picked) return null;
-        const postCategory = category !== 'all' ? category : doc.ref.path.split('/')[1];
-        return {
-          id: doc.id,
-          category: postCategory,
-          isPublic: data.isPublic,
-          image: data.image,
-          title: picked.translation.title,
-          body: picked.translation.body,
-          language: picked.language,
-          availableLanguages: availableLanguages(translations),
-          created: data.created?.toDate?.()?.toISOString() || data.created,
-          lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
-        };
-      })
-      .filter((p): p is NonNullable<typeof p> => p !== null);
+    const posts = snapshot.docs.flatMap((doc) => {
+      const data = doc.data();
+      const translations = (data.translations || {}) as PostTranslations;
+      const picked = pickTranslation(translations, language);
+      if (!picked) return [];
+      return [{
+        id: doc.id,
+        category: data.category,
+        isPublic: data.isPublic,
+        image: data.image,
+        title: picked.translation.title,
+        body: picked.translation.body,
+        language: picked.language,
+        availableLanguages: availableLanguages(translations),
+        created: data.created?.toDate?.()?.toISOString() || data.created,
+        lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
+      }];
+    });
 
     const lastDoc = snapshot.docs[snapshot.docs.length - 1];
     const newLastVisibleTimestamp = lastDoc.data().lastUpdated?.seconds ||
@@ -130,10 +111,9 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
 });
 
 /**
- * POST /api/posts
- * Create a new post.
- * Body: { category, isPublic?, image?, translations: { en?, ja? } }
- * At least one translation must have a non-empty title and body.
+ * POST /api/post
+ * Create a new post. Body: { category, isPublic?, image?, translations }
+ * `category` is now a doc field, not a path segment.
  * Requires authentication.
  */
 export const POST = withActivityLog('next_api.post.POST', async (request: NextRequest) => {
@@ -168,7 +148,8 @@ export const POST = withActivityLog('next_api.post.POST', async (request: NextRe
     const db = getFirestore();
     const now = new Date();
 
-    const docRef = await db.collection(`${POSTS_COLLECTION}/${category}/posts`).add({
+    const docRef = await db.collection(POSTS_COLLECTION).add({
+      category,
       isPublic: isPublic ?? true,
       created: now,
       lastUpdated: now,

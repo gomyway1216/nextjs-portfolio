@@ -35,15 +35,14 @@ async function fetchPostsPage(
 ): Promise<PostsPage> {
   const db = getFirestore();
 
-  const query = category === 'all'
-    ? db.collectionGroup('posts')
-        .where('isPublic', '==', true)
-        .orderBy('lastUpdated', 'desc')
-        .limit(limit)
-    : db.collection(`${POSTS_COLLECTION}/${category}/posts`)
-        .where('isPublic', '==', true)
-        .orderBy('lastUpdated', 'desc')
-        .limit(limit);
+  let query = db.collection(POSTS_COLLECTION)
+    .where('isPublic', '==', true) as FirebaseFirestore.Query;
+
+  if (category !== 'all') {
+    query = query.where('category', '==', category);
+  }
+
+  query = query.orderBy('lastUpdated', 'desc').limit(limit);
 
   const snapshot = await query.get();
   if (snapshot.empty) {
@@ -55,13 +54,12 @@ async function fetchPostsPage(
     const translations = (data.translations || {}) as PostTranslations;
     const picked = pickTranslation(translations, language);
     if (!picked) return [];
-    const postCategory = category !== 'all' ? category : doc.ref.path.split('/')[1];
     return [{
       id: doc.id,
       title: picked.translation.title,
       body: picked.translation.body,
       isPublic: data.isPublic,
-      category: postCategory,
+      category: data.category,
       image: data.image,
       language: picked.language,
       availableLanguages: availableLanguages(translations),

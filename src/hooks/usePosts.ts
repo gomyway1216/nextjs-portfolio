@@ -14,6 +14,7 @@ export interface CreatePostData {
 
 export interface UpdatePostData {
   translations: PostTranslations;
+  category?: string;
   isPublic?: boolean;
   image?: string;
 }
@@ -97,13 +98,13 @@ export function usePostsByCategory(category: string, isPublic?: boolean) {
 /**
  * Hook to fetch a single post
  */
-export function usePost(id: string | null, category: string | null) {
+export function usePost(id: string | null) {
   const [post, setPost] = useState<DetailPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchPost = useCallback(async () => {
-    if (!id || !category) {
+    if (!id) {
       setLoading(false);
       return;
     }
@@ -111,14 +112,14 @@ export function usePost(id: string | null, category: string | null) {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getPostByCategory(id, category);
+      const data = await api.getPostById(id);
       setPost(data);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch post'));
     } finally {
       setLoading(false);
     }
-  }, [id, category]);
+  }, [id]);
 
   useEffect(() => {
     fetchPost();
@@ -205,11 +206,11 @@ export function usePostMutations() {
     }
   };
 
-  const updatePost = async (id: string, category: string, post: UpdatePostData) => {
+  const updatePost = async (id: string, post: UpdatePostData) => {
     try {
       setLoading(true);
       setError(null);
-      await api.updatePost(id, category, post);
+      await api.updatePost(id, post);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to update post');
       setError(error);
@@ -219,11 +220,11 @@ export function usePostMutations() {
     }
   };
 
-  const deletePost = async (id: string, category: string) => {
+  const deletePost = async (id: string) => {
     try {
       setLoading(true);
       setError(null);
-      await api.deletePostByCategory(id, category);
+      await api.deletePost(id);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to delete post');
       setError(error);

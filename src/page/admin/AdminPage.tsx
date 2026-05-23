@@ -1304,9 +1304,12 @@ const AdminPage = () => {
                   <h1 style={styles.pageTitle}>Blog Posts</h1>
                   <p style={{ color: '#94a3b8' }}>Manage your blog content</p>
                 </div>
-                <button onClick={() => handleOpenPostModal()} style={{ ...styles.button, ...styles.primaryButton }}>
-                  <Plus size={16} /> Add Post
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <MigratePostsFlatButton onMessage={showMessage} onAfterMigrate={refetchPosts} />
+                  <button onClick={() => handleOpenPostModal()} style={{ ...styles.button, ...styles.primaryButton }}>
+                    <Plus size={16} /> Add Post
+                  </button>
+                </div>
               </div>
 
               {postsLoading ? (
@@ -2127,6 +2130,106 @@ const TranslationFields = ({
           onImageUpload={onImageUpload}
         />
       </div>
+    </div>
+  );
+};
+
+interface MigratePostsFlatButtonProps {
+  onMessage: (type: 'success' | 'error', text: string) => void;
+  onAfterMigrate?: () => void;
+}
+
+interface MigratePostsFlatResult {
+  dryRun: boolean;
+  keepOld: boolean;
+  scanned: number;
+  migrated: { from: string; to: string; id: string }[];
+  skipped: { path: string; reason: string }[];
+  failed: { path: string; error: string }[];
+}
+
+const MigratePostsFlatButton = ({ onMessage, onAfterMigrate }: MigratePostsFlatButtonProps) => {
+  const { currentUser } = useAuth();
+  const [running, setRunning] = useState(false);
+  const [lastResult, setLastResult] = useState<MigratePostsFlatResult | null>(null);
+
+  const callMigration = async (dryRun: boolean) => {
+    if (!currentUser) return;
+    setRunning(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const url = `/api/admin/migrate-posts-flat${dryRun ? '?dryRun=true' : ''}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      const result = data as MigratePostsFlatResult;
+      setLastResult(result);
+
+      const summary = `scanned=${result.scanned} migrated=${result.migrated.length} skipped=${result.skipped.length} failed=${result.failed.length}`;
+      if (dryRun) {
+        onMessage('success', `Dry run: ${summary}`);
+      } else if (result.failed.length > 0) {
+        onMessage('error', `Migration finished with failures: ${summary}`);
+      } else {
+        onMessage('success', `Migration complete: ${summary}`);
+        onAfterMigrate?.();
+      }
+    } catch (err) {
+      onMessage('error', `Migration failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button
+          onClick={() => callMigration(true)}
+          disabled={running}
+          style={{
+            padding: '8px 14px',
+            border: '1px solid rgba(255,255,255,0.18)',
+            borderRadius: '8px',
+            background: 'transparent',
+            color: '#cbd5e1',
+            cursor: running ? 'not-allowed' : 'pointer',
+            fontSize: '13px',
+          }}
+          title="Read-only scan; reports what would be migrated without writing"
+        >
+          {running ? '…' : 'Migrate legacy posts (dry-run)'}
+        </button>
+        <button
+          onClick={() => {
+            if (!confirm('Move all legacy post/{cat}/posts/{id} docs into the flat post/{id} collection? This will delete the legacy docs.')) return;
+            callMigration(false);
+          }}
+          disabled={running}
+          style={{
+            padding: '8px 14px',
+            border: '1px solid rgba(168,85,247,0.4)',
+            borderRadius: '8px',
+            background: 'rgba(168,85,247,0.12)',
+            color: '#e9d5ff',
+            cursor: running ? 'not-allowed' : 'pointer',
+            fontSize: '13px',
+          }}
+        >
+          {running ? '…' : 'Run migration'}
+        </button>
+      </div>
+      {lastResult && (
+        <div style={{ color: '#94a3b8', fontSize: '11px' }}>
+          last: scanned {lastResult.scanned} · migrated {lastResult.migrated.length} · skipped {lastResult.skipped.length} · failed {lastResult.failed.length}
+          {lastResult.dryRun && ' (dry-run)'}
+        </div>
+      )}
     </div>
   );
 };

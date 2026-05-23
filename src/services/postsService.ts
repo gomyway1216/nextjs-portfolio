@@ -1,3 +1,4 @@
+import type { User } from 'firebase/auth';
 import { auth } from '@/lib/firebaseConnect';
 import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations';
 
@@ -48,8 +49,30 @@ export interface DetailPost {
 // listing post for now.
 export type Post = ListingPost;
 
+// On a fresh page load `auth.currentUser` is `null` until the Firebase
+// auth listener has restored the session from local storage. Hooks that
+// fire on mount (like usePosts) hit this window and would otherwise send
+// the request with no auth header, getting a 401 from admin-gated
+// endpoints. Wait briefly for the auth state to settle before reading.
+async function waitForAuthUser(timeoutMs = 3000): Promise<User | null> {
+  if (auth.currentUser) return auth.currentUser;
+  return await new Promise<User | null>((resolve) => {
+    const timer = setTimeout(() => {
+      unsubscribe();
+      resolve(auth.currentUser);
+    }, timeoutMs);
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        clearTimeout(timer);
+        unsubscribe();
+        resolve(user);
+      }
+    });
+  });
+}
+
 async function getAuthHeaders(): Promise<Record<string, string>> {
-  const user = auth.currentUser;
+  const user = await waitForAuthUser();
   if (!user) return {};
 
   const token = await user.getIdToken();

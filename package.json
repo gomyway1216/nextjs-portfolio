@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "seed:hobbies": "npx tsx scripts/seed-hobbies.ts",
     "migrate:hobby-images": "npx tsx scripts/migrate-hobby-images.ts",
+    "migrate:posts-flat": "npx tsx scripts/migrate-posts-to-flat.ts",
     "shogi:match": "node -r tsx/cjs scripts/shogi-ai-match.ts"
   },
   "engines": {

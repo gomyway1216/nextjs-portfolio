@@ -21,7 +21,7 @@ export interface UpdatePostData {
 
 export interface GetPostsParams {
   category?: string;
-  isPublic?: boolean;
+  isPublic?: boolean | null;
   page?: number;
   limit?: number;
   lastVisibleTimestamp?: number;

@@ -30,12 +30,19 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
   try {
     const searchParams = request.nextUrl.searchParams;
     const category = searchParams.get('category') || 'all';
-    const isPublic = searchParams.get('isPublic') === 'false' ? false : true;
+    // isPublic semantics:
+    //  - absent     -> no filter (show all). Admin-only because drafts are
+    //                  not public information.
+    //  - "true"     -> only public posts (anonymous OK).
+    //  - "false"    -> only private posts (admin-only).
+    const isPublicParam = searchParams.get('isPublic');
+    const isPublic: boolean | null =
+      isPublicParam === null ? null : isPublicParam !== 'false';
     const limitNumber = parseInt(searchParams.get('limit') || '10');
     const lastVisibleTimestamp = searchParams.get('lastVisibleTimestamp');
     const language = normalizeLanguage(searchParams.get('language'));
 
-    if (!isPublic) {
+    if (isPublic !== true) {
       const { user, response } = await ensureAdmin(request);
       if (!user) {
         return response!;
@@ -43,8 +50,11 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
     }
 
     const db = getFirestore();
-    let query = db.collection(POSTS_COLLECTION)
-      .where('isPublic', '==', isPublic) as FirebaseFirestore.Query;
+    let query = db.collection(POSTS_COLLECTION) as FirebaseFirestore.Query;
+
+    if (isPublic !== null) {
+      query = query.where('isPublic', '==', isPublic);
+    }
 
     if (category !== 'all') {
       query = query.where('category', '==', category);

@@ -22,12 +22,13 @@ export const GET = withActivityLog('next_api.post.top.GET', async (request: Next
     const language = normalizeLanguage(request.nextUrl.searchParams.get('language'));
     const db = getFirestore();
 
-    // Posts live in a flat collection now, so the top-N query is just a
-    // single ordered fetch with no category fan-out.
+    // `where(isPublic).orderBy(lastUpdated)` would need a composite index
+    // that isn't always deployed alongside frontend rollouts. Since this
+    // endpoint only ever returns ~4 posts and the blog is small, we just
+    // fetch all public docs (single-field auto-index) and sort/slice in
+    // memory.
     const snapshot = await db.collection(POSTS_COLLECTION)
       .where('isPublic', '==', true)
-      .orderBy('lastUpdated', 'desc')
-      .limit(8) // small over-fetch in case some posts lack any translation
       .get();
 
     const posts = snapshot.docs.flatMap((doc) => {
@@ -47,6 +48,12 @@ export const GET = withActivityLog('next_api.post.top.GET', async (request: Next
         created: data.created?.toDate?.()?.toISOString() || data.created,
         lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
       }];
+    });
+
+    posts.sort((a, b) => {
+      const at = new Date(a.lastUpdated).getTime();
+      const bt = new Date(b.lastUpdated).getTime();
+      return bt - at;
     });
 
     return NextResponse.json({ posts: posts.slice(0, 4) });

@@ -14,6 +14,13 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
  * GET /api/post/top
  * Top 4 most-recent public posts across all categories, flattened to the
  * requested locale (with fallback).
+ *
+ * Uses a composite index `(isPublic ASC, lastUpdated DESC)` on the flat
+ * `post` collection — if it isn't deployed yet Firestore will throw, and
+ * the response body forwards the original error message (which includes
+ * the Firebase Console URL for one-click index creation) so the operator
+ * can fix it without checking server logs.
+ *
  * Query params:
  * - language: 'en' | 'ja' (default: 'en')
  */
@@ -22,13 +29,10 @@ export const GET = withActivityLog('next_api.post.top.GET', async (request: Next
     const language = normalizeLanguage(request.nextUrl.searchParams.get('language'));
     const db = getFirestore();
 
-    // `where(isPublic).orderBy(lastUpdated)` would need a composite index
-    // that isn't always deployed alongside frontend rollouts. Since this
-    // endpoint only ever returns ~4 posts and the blog is small, we just
-    // fetch all public docs (single-field auto-index) and sort/slice in
-    // memory.
     const snapshot = await db.collection(POSTS_COLLECTION)
       .where('isPublic', '==', true)
+      .orderBy('lastUpdated', 'desc')
+      .limit(8) // small over-fetch in case some docs lack any translation
       .get();
 
     const posts = snapshot.docs.flatMap((doc) => {
@@ -50,18 +54,16 @@ export const GET = withActivityLog('next_api.post.top.GET', async (request: Next
       }];
     });
 
-    posts.sort((a, b) => {
-      const at = new Date(a.lastUpdated).getTime();
-      const bt = new Date(b.lastUpdated).getTime();
-      return bt - at;
-    });
-
     return NextResponse.json({ posts: posts.slice(0, 4) });
   } catch (error) {
     console.error('Error fetching top posts:', error);
+    const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: 'Failed to fetch top posts' },
-      { status: 500 }
+      {
+        error: 'Failed to fetch top posts',
+        details: message,
+      },
+      { status: 500 },
     );
   }
 });

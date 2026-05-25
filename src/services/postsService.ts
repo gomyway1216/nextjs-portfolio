@@ -3,14 +3,17 @@ import { auth } from '@/lib/firebaseConnect';
 import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations';
 
 // Try to surface the API's error message instead of just the HTTP status,
-// so the user sees something useful in the toast.
+// so the user sees something useful in the toast / error UI. When the API
+// included a `details` field (e.g. a Firestore "needs an index" message
+// with a clickable URL), include it after the headline.
 async function throwApiError(response: Response): Promise<never> {
   let message = `HTTP error! status: ${response.status}`;
   try {
     const data = await response.json();
-    if (data && typeof data.error === 'string') {
-      message = data.error;
-    }
+    const parts: string[] = [];
+    if (data && typeof data.error === 'string') parts.push(data.error);
+    if (data && typeof data.details === 'string') parts.push(data.details);
+    if (parts.length > 0) message = parts.join('\n');
   } catch {
     // body not JSON; keep status-based message
   }

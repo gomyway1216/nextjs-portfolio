@@ -2,7 +2,8 @@
 
 import { useState, useEffect, CSSProperties } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
-import { useProfile, updateProfile } from '@/hooks/useProfile';
+import { useProfile, useResumeLink, updateProfile } from '@/hooks/useProfile';
+import { uploadResume } from '@/services/profileService';
 import { useProjects, useProjectMutations, useProjectCategories, useUrlTypes } from '@/hooks/useProjects';
 import { usePosts, usePostMutations, usePostCategories } from '@/hooks/usePosts';
 import { useRouter } from 'next/navigation';
@@ -335,6 +336,7 @@ const AdminPage = () => {
   const { currentUser, loading: authLoading, isAdmin } = useAuth();
   const router = useRouter();
   const { profile, loading: profileLoading } = useProfile();
+  const { resumeLink: fetchedResumeLink } = useResumeLink();
   const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
   // Admin sees every post including drafts, so pass `isPublic: null` to
   // skip the public-only filter.
@@ -416,6 +418,10 @@ const AdminPage = () => {
   const [uploadingPostImage, setUploadingPostImage] = useState(false);
   const [postImageProgress, setPostImageProgress] = useState(0);
   const [dragOverPostImage, setDragOverPostImage] = useState(false);
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const [resumeProgress, setResumeProgress] = useState(0);
+  const [dragOverResume, setDragOverResume] = useState(false);
+  const [currentResumeLink, setCurrentResumeLink] = useState<string>('');
 
   // Post form states
   const [postForm, setPostForm] = useState<{
@@ -480,6 +486,12 @@ const AdminPage = () => {
       });
     }
   }, [profile]);
+
+  useEffect(() => {
+    if (fetchedResumeLink) {
+      setCurrentResumeLink(fetchedResumeLink);
+    }
+  }, [fetchedResumeLink]);
 
   const fetchJobs = async () => {
     try {
@@ -862,6 +874,51 @@ const AdminPage = () => {
     setPostForm((prev) => ({ ...prev, image: '' }));
   };
 
+  const handleResumeUpload = async (file: File) => {
+    if (file.type !== 'application/pdf') {
+      showMessage('error', 'Resume must be a PDF file');
+      return;
+    }
+
+    setUploadingResume(true);
+    setResumeProgress(0);
+
+    const progressInterval = setInterval(() => {
+      setResumeProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 100);
+
+    try {
+      const downloadURL = await uploadResume(file);
+      setCurrentResumeLink(downloadURL);
+      setResumeProgress(100);
+      showMessage('success', 'Resume uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading resume:', error);
+      showMessage('error', `Failed to upload resume: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      clearInterval(progressInterval);
+      setUploadingResume(false);
+      setTimeout(() => setResumeProgress(0), 1000);
+    }
+  };
+
+  const handleDropResume = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverResume(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files[0]) {
+      handleResumeUpload(files[0]);
+    }
+  };
+
   const handleDeletePost = async (id: string) => {
     if (isDeleting) return;
     setIsDeleting(true);
@@ -1216,6 +1273,80 @@ const AdminPage = () => {
                       </button>
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div style={{ ...styles.card, maxWidth: '640px', marginTop: '24px' }}>
+                <div style={{ padding: '24px' }}>
+                  <h2 style={{ color: '#ffffff', fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>Resume</h2>
+                  <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '16px' }}>
+                    Drop a PDF to replace the resume linked from the site.
+                  </p>
+
+                  {currentResumeLink && (
+                    <div style={{ marginBottom: '16px', fontSize: '13px' }}>
+                      <span style={{ color: '#94a3b8', marginRight: '8px' }}>Current:</span>
+                      <a
+                        href={currentResumeLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#a855f7', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        View resume <ExternalLink size={12} />
+                      </a>
+                    </div>
+                  )}
+
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverResume(true); }}
+                    onDragLeave={() => setDragOverResume(false)}
+                    onDrop={handleDropResume}
+                    style={{
+                      border: `2px dashed ${dragOverResume ? '#a855f7' : 'rgba(255, 255, 255, 0.2)'}`,
+                      borderRadius: '12px',
+                      padding: '24px',
+                      textAlign: 'center',
+                      backgroundColor: dragOverResume ? 'rgba(168, 85, 247, 0.1)' : 'rgba(15, 23, 42, 0.3)',
+                      transition: 'all 0.2s',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      id="resume-upload"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          handleResumeUpload(e.target.files[0]);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <label htmlFor="resume-upload" style={{ cursor: 'pointer' }}>
+                      <ScrollText size={40} color="#64748b" style={{ marginBottom: '8px' }} />
+                      <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                        Drag &amp; drop a PDF or click to upload
+                      </p>
+                    </label>
+                    {uploadingResume && (
+                      <div style={{ marginTop: '12px' }}>
+                        <div style={{
+                          height: '4px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          borderRadius: '2px',
+                          overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${resumeProgress}%`,
+                            background: 'linear-gradient(to right, #a855f7, #ec4899)',
+                            transition: 'width 0.2s',
+                          }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

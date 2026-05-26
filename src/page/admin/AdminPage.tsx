@@ -392,6 +392,8 @@ const AdminPage = () => {
     location: '',
     email: '',
     languages: '',
+    bioEn: '',
+    bioJa: '',
   });
 
   // Project form states
@@ -483,6 +485,8 @@ const AdminPage = () => {
         location: profile.location || '',
         email: profile.email || '',
         languages: profile.languages?.join(', ') || '',
+        bioEn: profile.bioEn || '',
+        bioJa: profile.bioJa || '',
       });
     }
   }, [profile]);
@@ -519,6 +523,8 @@ const AdminPage = () => {
         location: profileForm.location,
         email: profileForm.email,
         languages: languagesArray,
+        bioEn: profileForm.bioEn,
+        bioJa: profileForm.bioJa,
       });
       showMessage('success', 'Profile updated successfully!');
       setEditingProfile(false);
@@ -1223,9 +1229,20 @@ const AdminPage = () => {
                         { label: 'Email', value: profile?.email },
                         { label: 'Languages', value: profile?.languages?.join(', ') },
                       ].map((item, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 0', borderBottom: i < 3 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none' }}>
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
                           <span style={{ color: '#94a3b8' }}>{item.label}</span>
                           <span style={{ color: '#ffffff', fontWeight: '500' }}>{item.value || 'Not set'}</span>
+                        </div>
+                      ))}
+                      {[
+                        { label: 'Bio (English)', value: profile?.bioEn },
+                        { label: 'Bio (Japanese)', value: profile?.bioJa },
+                      ].map((item, i) => (
+                        <div key={item.label} style={{ padding: '16px 0', borderBottom: i === 0 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none' }}>
+                          <div style={{ color: '#94a3b8', marginBottom: '6px' }}>{item.label}</div>
+                          <div style={{ color: '#ffffff', fontSize: '13px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                            {item.value || <span style={{ color: '#64748b' }}>Falls back to bundled translation</span>}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1266,6 +1283,26 @@ const AdminPage = () => {
                           onChange={(e) => setProfileForm({ ...profileForm, languages: e.target.value })}
                           placeholder="English, Japanese"
                           style={styles.input}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Bio (English)</label>
+                        <textarea
+                          value={profileForm.bioEn}
+                          onChange={(e) => setProfileForm({ ...profileForm, bioEn: e.target.value })}
+                          placeholder="Shown on the home page hero. Leave empty to fall back to the bundled translation."
+                          rows={5}
+                          style={{ ...styles.input, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Bio (Japanese)</label>
+                        <textarea
+                          value={profileForm.bioJa}
+                          onChange={(e) => setProfileForm({ ...profileForm, bioJa: e.target.value })}
+                          placeholder="ホーム画面の自己紹介文。空欄なら i18n のデフォルトが使われます。"
+                          rows={5}
+                          style={{ ...styles.input, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
                         />
                       </div>
                       <button onClick={handleUpdateProfile} style={{ ...styles.button, ...styles.primaryButton }}>

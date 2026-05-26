@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { TypeAnimation } from 'react-type-animation';
 import * as profileApi from '@/services/profileService';
+import { useProfile } from '@/hooks/useProfile';
 import { useTranslation } from 'react-i18next';
 
 const HERO_IMAGE_URL =
@@ -15,7 +16,11 @@ const conctInfo = {
 const Slider = () => {
   const [resumeLink, setResumeLink] = useState('');
   const [mounted, setMounted] = useState(false);
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const { profile } = useProfile();
+  const language = i18n.language === 'ja' ? 'ja' : 'en';
+  const bioFromProfile = language === 'ja' ? profile?.bioJa : profile?.bioEn;
+  const description = bioFromProfile?.trim() || t('home.hero.description');
 
   const fetchLink = async () => {
     const link = await profileApi.getResumeLink();
@@ -105,7 +110,7 @@ const Slider = () => {
 
                   data-aos-delay="300"
                 >
-                  {t('home.hero.description')}
+                  {description}
                 </p>
                 <div
                   className="hero-actions"

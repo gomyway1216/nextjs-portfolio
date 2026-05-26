@@ -9,6 +9,8 @@ export interface Profile {
   location: string;
   email: string;
   languages: string[];
+  bioEn?: string;
+  bioJa?: string;
 }
 
 /**

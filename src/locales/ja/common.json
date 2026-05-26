@@ -784,14 +784,14 @@
       "admin": "管理"
     },
     "hero": {
-      "badge": "フルスタックエンジニア",
+      "badge": "シニアフィンテックエンジニア",
       "greeting": "こんにちは、私は",
       "name": "矢口 雄大",
       "description": "目的のある技術をつくるという思いを軸に、フルスタック開発の力を磨き、使う人の役に立つプロダクトを届けることに取り組んでいます。機械学習の可能性にも強い関心があり、実装力とアイデアを掛け合わせながら、実用性と体験価値の両立を目指しています。",
       "roles": {
-        "fullstackDeveloper": "フルスタック開発",
-        "softwareEngineer": "ソフトウェアエンジニア",
-        "webDeveloper": "Web開発"
+        "seniorSoftwareEngineer": "シニアソフトウェアエンジニア",
+        "fintechEngineer": "フィンテックエンジニア",
+        "infrastructureEngineer": "インフラエンジニア"
       },
       "cta": {
         "downloadCv": "履歴書をダウンロード",

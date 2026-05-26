@@ -784,14 +784,14 @@
       "admin": "Admin"
     },
     "hero": {
-      "badge": "Full-stack Engineer",
+      "badge": "Senior Fintech Engineer",
       "greeting": "Hello, my name is",
       "name": "Yudai Yaguchi",
       "description": "Guided by a desire to craft technology with purpose, I am dedicated to learning and applying my full-stack development skills to create solutions that benefit people and communities. Enthusiastic about the transformative potential of machine learning, I aspire to blend my technical knowledge with innovative ideas to deliver impactful digital experiences.",
       "roles": {
-        "fullstackDeveloper": "Full-stack Developer",
-        "softwareEngineer": "Software Engineer",
-        "webDeveloper": "Web Developer"
+        "seniorSoftwareEngineer": "Senior Software Engineer",
+        "fintechEngineer": "Fintech Engineer",
+        "infrastructureEngineer": "Infrastructure Engineer"
       },
       "cta": {
         "downloadCv": "Download CV",

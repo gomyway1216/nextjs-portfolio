@@ -56,9 +56,9 @@ export const POST = withActivityLog('next_api.profile.resume.POST', async (reque
     }
 
     const formData = await request.formData();
-    const file = formData.get('file') as File | null;
+    const file = formData.get('file');
 
-    if (!file) {
+    if (!file || typeof file === 'string') {
       return NextResponse.json(
         { error: 'No file provided' },
         { status: 400 }
@@ -74,12 +74,15 @@ export const POST = withActivityLog('next_api.profile.resume.POST', async (reque
 
     const storage = getStorage();
     const bucket = storage.bucket();
-    const filePath = `resume/${Date.now()}-resume.pdf`;
+    const filePath = 'resume/resume.pdf';
     const fileBuffer = Buffer.from(await file.arrayBuffer());
 
     const fileRef = bucket.file(filePath);
     await fileRef.save(fileBuffer, {
-      metadata: { contentType: 'application/pdf' },
+      metadata: {
+        contentType: 'application/pdf',
+        cacheControl: 'public, max-age=0, must-revalidate',
+      },
     });
     await fileRef.makePublic();
 

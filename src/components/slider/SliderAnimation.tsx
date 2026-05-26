@@ -85,11 +85,11 @@ const Slider = () => {
                   {mounted ? (
                     <TypeAnimation
                       sequence={[
-                        t('home.hero.roles.fullstackDeveloper'),
+                        t('home.hero.roles.seniorSoftwareEngineer'),
                         2000,
-                        t('home.hero.roles.softwareEngineer'),
+                        t('home.hero.roles.fintechEngineer'),
                         2000,
-                        t('home.hero.roles.webDeveloper'),
+                        t('home.hero.roles.infrastructureEngineer'),
                         2000,
                       ]}
                       wrapper="p"
@@ -99,7 +99,7 @@ const Slider = () => {
                     />
                   ) : (
                     <p className="loop-text lead">
-                      {t('home.hero.roles.fullstackDeveloper')}
+                      {t('home.hero.roles.seniorSoftwareEngineer')}
                     </p>
                   )}
                 </div>

@@ -61,10 +61,8 @@ const SignInPage = () => {
   const redirectStartedRef = useRef(false);
 
   useEffect(() => {
-    // Anonymous users are NOT considered "signed in" for the purpose of this
-    // gate — they need to upgrade to a real account, which is exactly what
-    // this page is for. Without this check, every visitor (auto-anon-signed
-    // by AuthProvider) would be bounced before they could enter credentials.
+    // Anonymous Firebase users are NOT considered "signed in" for this gate;
+    // they need to upgrade to a real account before leaving the sign-in page.
     //
     // Keep this as a client navigation so AuthProvider state survives the
     // /signin -> /admin transition. verifyTwoFactorAndComplete and the auth

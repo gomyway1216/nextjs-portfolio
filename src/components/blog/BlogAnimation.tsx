@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import Image from 'next/image';
 import Modal from 'react-modal';
 import Contact from '../contact/Contact';
 import * as postApi from '@/services/postsService';
@@ -91,8 +92,16 @@ const Blogs = () => {
               role="button"
               tabIndex={0}
             >
-              <div className="blog-img">
-                <img src={post.image} alt="blog image"></img>
+              <div className="blog-img" style={{ position: 'relative', aspectRatio: '16 / 10' }}>
+                {post.image && (
+                  <Image
+                    src={post.image}
+                    alt={post.title || 'Blog post image'}
+                    fill
+                    sizes="(max-width: 700px) 100vw, 33vw"
+                    style={{ objectFit: 'cover' }}
+                  />
+                )}
               </div>
               <div className="blog-info">
                 <div className="meta">{util.formatDate(post.created)}</div>
@@ -119,15 +128,23 @@ const Blogs = () => {
       >
         <div>
           <button className="close-modal" onClick={() => setModalOpen(false)}>
-            <img src="/img/cancel.svg" alt="close icon" />
+            <Image src="/img/cancel.svg" alt="close icon" width={24} height={24} />
           </button>
           {/* End close icon */}
 
           <div className="box_inner">
             <div className="scrollable">
               <div className="blog-grid">
-                <div className="blog-img">
-                  <img src={selectedPost.image} alt="blog post"></img>
+                <div className="blog-img" style={{ position: 'relative', aspectRatio: '16 / 10' }}>
+                  {selectedPost.image && (
+                    <Image
+                      src={selectedPost.image}
+                      alt={selectedPost.title || 'Blog post'}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 70vw"
+                      style={{ objectFit: 'cover' }}
+                    />
+                  )}
                 </div>
                 {/* End blog-img */}
                 <article className="article">
@@ -136,8 +153,16 @@ const Blogs = () => {
                       {selectedPost.title}
                     </h2>
                     <div className="media">
-                      <div className="avatar">
-                        <img src={selectedPost.image} alt="thumbnail" />
+                      <div className="avatar" style={{ position: 'relative', width: 48, height: 48 }}>
+                        {selectedPost.image && (
+                          <Image
+                            src={selectedPost.image}
+                            alt="thumbnail"
+                            fill
+                            sizes="48px"
+                            style={{ objectFit: 'cover', borderRadius: '50%' }}
+                          />
+                        )}
                       </div>
                       <div className="media-body">
                         <span>{util.formatDate(selectedPost.created)}</span>

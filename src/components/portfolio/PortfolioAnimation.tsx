@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
 import 'photoswipe/dist/photoswipe.css';
 import PortfolioModal from './PortfolioModal';
@@ -82,8 +83,16 @@ const PortfolioAnimation = () => {
                       role="button"
                       tabIndex={0}
                     >
-                      <div className="blog-img">
-                        <img src={project.thumbImage} alt="blog post"></img>
+                      <div className="blog-img" style={{ position: 'relative', aspectRatio: '16 / 10' }}>
+                        {project.thumbImage && (
+                          <Image
+                            src={project.thumbImage}
+                            alt={project.title || 'Project thumbnail'}
+                            fill
+                            sizes="(max-width: 700px) 100vw, (max-width: 1100px) 50vw, 33vw"
+                            style={{ objectFit: 'cover' }}
+                          />
+                        )}
                       </div>
                       <div className="blog-info">
                         <div className="meta">{util.formatDate(project.date)}</div>

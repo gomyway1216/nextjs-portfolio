@@ -99,15 +99,27 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   }, []);
 
-  // Check if user has admin claim
+  // Use the same server-side admin decision as middleware. The server checks
+  // both custom claims and the ADMIN_EMAIL whitelist; the client token only
+  // exposes custom claims, so relying on it can incorrectly send admins home.
   const getAdminStatus = useCallback(async (user: User | null): Promise<boolean> => {
     if (!user) {
       return false;
     }
 
     try {
-      const tokenResult = await user.getIdTokenResult();
-      return tokenResult.claims.admin === true;
+      const response = await fetch('/api/auth/verify', {
+        cache: 'no-store',
+        credentials: 'same-origin',
+      });
+      if (!response.ok) {
+        throw new Error(`Admin status check failed with status ${response.status}`);
+      }
+      const data = await response.json() as { uid?: string; isAdmin?: boolean };
+      if (data.uid && data.uid !== user.uid) {
+        throw new Error('Verified session belongs to a different user');
+      }
+      return data.isAdmin === true;
     } catch (error) {
       console.error('Error checking admin status:', error);
       return false;

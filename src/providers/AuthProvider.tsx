@@ -47,6 +47,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Use ref for MFA resolver to avoid re-renders and state serialization issues
   const mfaResolverRef = useRef<MultiFactorResolver | null>(null);
+  const wasSignedInRef = useRef(false);
 
   const syncSessionCookie = useCallback(async (user: User | null) => {
     try {
@@ -238,7 +239,14 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (!user) {
         setCurrentUser(null);
         setIsAdmin(false);
-        await syncSessionCookie(null);
+        setIsEnrolledInMFA(false);
+        // Skip cookie deletion only on the initial idle/signed-out load. That
+        // avoids racing MFA session creation while still clearing the server
+        // cookie after a real signed-in -> signed-out transition.
+        if (wasSignedInRef.current) {
+          await syncSessionCookie(null);
+        }
+        wasSignedInRef.current = false;
         finishLoading();
         return;
       }
@@ -252,6 +260,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         await checkAdminStatus(user);
         refreshMFAStatus();
         await syncSessionCookie(user);
+        wasSignedInRef.current = true;
       }
 
       finishLoading();

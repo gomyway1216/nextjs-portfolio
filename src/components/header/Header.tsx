@@ -1,9 +1,9 @@
 'use client';
 import React, { useState } from 'react';
-import Scrollspy from 'react-scrollspy';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Tooltip } from 'react-tooltip';
+import { useActiveSection } from '@/hooks/useActiveSection';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +25,11 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
 
+// Section IDs the home-page nav scroll-spies on, in document order.
+// The first one whose top crosses into the viewport's top band gets
+// the `active` class.
+const SECTION_IDS = ['home', 'work', 'tools', 'games', 'blog', 'about', 'resume'] as const;
+
 const Header = () => {
   const [click, setClick] = useState<boolean>(false);
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
@@ -33,6 +38,7 @@ const Header = () => {
   const router = useRouter();
   const { currentUser, signOut } = useAuth();
   const { t, i18n } = useTranslation();
+  const activeSection = useActiveSection(SECTION_IDS);
 
   const handleSignOut = () => {
     signOut();
@@ -90,13 +96,8 @@ const Header = () => {
           </div>
           {/* End htl-top */}
 
-          <Scrollspy
-            className="nav nav-menu"
-            items={['home', 'work', 'tools', 'games', 'blog', 'about', 'resume']}
-            currentClassName="active"
-            offset={-30}
-          >
-            <li>
+          <ul className="nav nav-menu">
+            <li className={activeSection === 'home' ? 'active' : ''}>
               <a
                 className="nav-link "
                 href="#home"
@@ -107,7 +108,7 @@ const Header = () => {
                 <House size={20} />
               </a>
             </li>
-            <li>
+            <li className={activeSection === 'work' ? 'active' : ''}>
               <a
                 className="nav-link"
                 href="#work"
@@ -118,7 +119,7 @@ const Header = () => {
                 <BriefcaseBusiness size={20} />
               </a>
             </li>
-            <li>
+            <li className={activeSection === 'tools' ? 'active' : ''}>
               <a
                 className="nav-link"
                 href="#tools"
@@ -129,7 +130,7 @@ const Header = () => {
                 <Wrench size={20} />
               </a>
             </li>
-            <li>
+            <li className={activeSection === 'games' ? 'active' : ''}>
               <a
                 className="nav-link"
                 href="#games"
@@ -140,7 +141,7 @@ const Header = () => {
                 <Gamepad2 size={20} />
               </a>
             </li>
-            <li>
+            <li className={activeSection === 'blog' ? 'active' : ''}>
               <a
                 className="nav-link"
                 href="#blog"
@@ -151,7 +152,7 @@ const Header = () => {
                 <NotebookPen size={20} />
               </a>
             </li>
-            <li>
+            <li className={activeSection === 'about' ? 'active' : ''}>
               <a
                 className="nav-link"
                 href="#about"
@@ -162,7 +163,7 @@ const Header = () => {
                 <UserRound size={20} />
               </a>
             </li>
-            <li>
+            <li className={activeSection === 'resume' ? 'active' : ''}>
               <a
                 className="nav-link"
                 href="#resume"
@@ -224,7 +225,7 @@ const Header = () => {
                 </DropdownMenu>
               </li>
             )}
-          </Scrollspy>
+          </ul>
           <Tooltip id="left-menu-tooltip" place="right" variant="dark" />
         </div>
       </header>

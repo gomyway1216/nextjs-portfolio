@@ -251,16 +251,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return;
       }
 
-      setCurrentUser(user);
-
       if (user.isAnonymous) {
         // Anonymous users never have admin or MFA — skip the extra calls.
+        setCurrentUser(user);
         setIsAdmin(false);
       } else {
         await checkAdminStatus(user);
         refreshMFAStatus();
         await syncSessionCookie(user);
         wasSignedInRef.current = true;
+        setCurrentUser(user);
       }
 
       finishLoading();

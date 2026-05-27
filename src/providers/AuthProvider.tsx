@@ -47,6 +47,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Use ref for MFA resolver to avoid re-renders and state serialization issues
   const mfaResolverRef = useRef<MultiFactorResolver | null>(null);
+  const wasSignedInRef = useRef(false);
 
   const syncSessionCookie = useCallback(async (user: User | null) => {
     try {
@@ -239,12 +240,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         setCurrentUser(null);
         setIsAdmin(false);
         setIsEnrolledInMFA(false);
-        // Do not clear the server session from the passive auth listener.
-        // During MFA sign-in this initial signed-out callback can still have
-        // an in-flight DELETE when the verified user creates a fresh session
-        // cookie. If the stale DELETE returns last, middleware bounces the
-        // just-authenticated user back to /signin. Explicit signOut() remains
-        // responsible for deleting the cookie.
+        // Skip cookie deletion only on the initial idle/signed-out load. That
+        // avoids racing MFA session creation while still clearing the server
+        // cookie after a real signed-in -> signed-out transition.
+        if (wasSignedInRef.current) {
+          await syncSessionCookie(null);
+        }
+        wasSignedInRef.current = false;
         finishLoading();
         return;
       }
@@ -258,6 +260,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         await checkAdminStatus(user);
         refreshMFAStatus();
         await syncSessionCookie(user);
+        wasSignedInRef.current = true;
       }
 
       finishLoading();

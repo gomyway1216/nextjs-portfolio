@@ -238,7 +238,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       if (!user) {
         setCurrentUser(null);
         setIsAdmin(false);
-        await syncSessionCookie(null);
+        setIsEnrolledInMFA(false);
+        // Do not clear the server session from the passive auth listener.
+        // During MFA sign-in this initial signed-out callback can still have
+        // an in-flight DELETE when the verified user creates a fresh session
+        // cookie. If the stale DELETE returns last, middleware bounces the
+        // just-authenticated user back to /signin. Explicit signOut() remains
+        // responsible for deleting the cookie.
         finishLoading();
         return;
       }

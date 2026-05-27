@@ -32,6 +32,7 @@ const SignInPage = () => {
   const [verifying, setVerifying] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   const searchParams = useSearchParams();
   const rawRedirect = searchParams.get('redirect');
@@ -56,6 +57,7 @@ const SignInPage = () => {
 
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+  const redirectStartedRef = useRef(false);
 
   useEffect(() => {
     // Anonymous users are NOT considered "signed in" for the purpose of this
@@ -68,8 +70,12 @@ const SignInPage = () => {
     // RSC prefetch fires while the just-set __session cookie is still
     // committing to the cookie jar, so middleware sees no cookie and bounces
     // straight back to /signin. A full HTTP navigation reads the jar fresh.
-    if (currentUser && !currentUser.isAnonymous) {
-      window.location.href = redirectPath;
+    // Guard it so repeated Firebase user notifications do not start multiple
+    // full-page navigations before the first one completes.
+    if (currentUser && !currentUser.isAnonymous && !redirectStartedRef.current) {
+      redirectStartedRef.current = true;
+      setRedirecting(true);
+      window.location.replace(redirectPath);
     }
   }, [currentUser, redirectPath]);
 
@@ -237,11 +243,11 @@ const SignInPage = () => {
   };
 
   // Already signed in (typically: MFA verify just completed and the
-  // window.location.href navigation in the redirect useEffect is still in
+  // window.location navigation in the redirect useEffect is still in
   // flight). Show a loading screen rather than falling through to the
   // login form, which would otherwise briefly flash on screen during the
   // navigation latency.
-  if (currentUser && !currentUser.isAnonymous) {
+  if (redirecting || (currentUser && !currentUser.isAnonymous)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

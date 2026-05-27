@@ -27,6 +27,12 @@ interface AuthContextType {
   refreshMFAStatus: () => void;
 }
 
+interface AuthSessionState {
+  currentUser: any;
+  isAdmin: boolean;
+  isEnrolledInMFA: boolean;
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
@@ -38,31 +44,42 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authState, setAuthState] = useState<AuthSessionState>({
+    currentUser: null,
+    isAdmin: false,
+    isEnrolledInMFA: false,
+  });
   const [loading, setLoading] = useState<boolean>(true);
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [isEnrolledInMFA, setIsEnrolledInMFA] = useState<boolean>(false);
   const [twoFactorRequired, setTwoFactorRequired] = useState<boolean>(false);
   const [mfaPhoneHint, setMfaPhoneHint] = useState<string | null>(null);
 
   // Use ref for MFA resolver to avoid re-renders and state serialization issues
   const mfaResolverRef = useRef<MultiFactorResolver | null>(null);
   const wasSignedInRef = useRef(false);
+  const syncedSessionUidRef = useRef<string | null>(null);
+  const mfaSignInCompletingRef = useRef(false);
 
-  const syncSessionCookie = useCallback(async (user: User | null) => {
+  const syncSessionCookie = useCallback(async (user: User | null, forceRefresh = false): Promise<boolean> => {
     try {
+      let response: Response;
       if (user) {
-        const idToken = await user.getIdToken();
-        await fetch('/api/auth/session', {
+        const idToken = await user.getIdToken(forceRefresh);
+        response = await fetch('/api/auth/session', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ idToken }),
         });
       } else {
-        await fetch('/api/auth/session', { method: 'DELETE' });
+        response = await fetch('/api/auth/session', { method: 'DELETE' });
       }
+      if (!response.ok) {
+        throw new Error(`Session cookie sync failed with status ${response.status}`);
+      }
+      syncedSessionUidRef.current = user?.uid ?? null;
+      return true;
     } catch (error) {
       console.error('Session cookie sync error:', error);
+      return false;
     }
   }, []);
 
@@ -83,26 +100,28 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   // Check if user has admin claim
-  const checkAdminStatus = useCallback(async (user: User | null) => {
+  const getAdminStatus = useCallback(async (user: User | null): Promise<boolean> => {
     if (!user) {
-      setIsAdmin(false);
-      return;
+      return false;
     }
 
     try {
       const tokenResult = await user.getIdTokenResult();
-      setIsAdmin(tokenResult.claims.admin === true);
+      return tokenResult.claims.admin === true;
     } catch (error) {
       console.error('Error checking admin status:', error);
-      setIsAdmin(false);
+      return false;
     }
+  }, []);
+
+  const getMFAStatus = useCallback(() => {
+    return twoFactorService.isEnrolledInMFA();
   }, []);
 
   // Check MFA enrollment status
   const refreshMFAStatus = useCallback(() => {
-    const enrolled = twoFactorService.isEnrolledInMFA();
-    setIsEnrolledInMFA(enrolled);
-  }, []);
+    setAuthState((prev) => ({ ...prev, isEnrolledInMFA: getMFAStatus() }));
+  }, [getMFAStatus]);
 
   // Standard sign-in (for backwards compatibility)
   const signIn = useCallback((email: string, password: string) => {
@@ -113,7 +132,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const signUp = useCallback(async (email: string, password: string, displayName?: string) => {
     const credential = await signUpWithEmail(email, password, displayName);
     await createUserDocument(credential.user, displayName);
-    await syncSessionCookie(credential.user);
+    const sessionSynced = await syncSessionCookie(credential.user);
+    if (!sessionSynced) {
+      throw new Error('Failed to set session cookie after sign-up');
+    }
     return credential;
   }, [createUserDocument, syncSessionCookie]);
 
@@ -158,45 +180,42 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
 
     try {
+      mfaSignInCompletingRef.current = true;
       const result = await twoFactorService.completeMfaSignIn(mfaResolverRef.current, code);
 
-      // Set the session cookie inline (not via syncSessionCookie which silently
-      // swallows fetch errors). The middleware relies on this cookie being
-      // present when the caller navigates to /admin immediately after, so a
-      // silent failure here would manifest as "MFA succeeds but user keeps
-      // bouncing back to /signin" — which is exactly the symptom we hit
-      // previously. Force-refresh the ID token so the backend's
-      // createSessionCookie sees a fresh auth time.
-      const idToken = await result.user.getIdToken(true);
-      const sessionRes = await fetch('/api/auth/session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken }),
-      });
-      if (!sessionRes.ok) {
-        throw new Error(`Failed to set session cookie (status ${sessionRes.status})`);
+      // Force-refresh the ID token so createSessionCookie sees a fresh auth
+      // time, and expose currentUser only after the cookie write is confirmed.
+      const sessionSynced = await syncSessionCookie(result.user, true);
+      if (!sessionSynced) {
+        throw new Error('Failed to set session cookie after MFA sign-in');
       }
 
-      // Eagerly update React state so SignInPage's redirect useEffect (which
-      // watches currentUser) fires now rather than waiting for the listener,
-      // and so admin gating works on the first render.
-      setCurrentUser(result.user);
-      if (!result.user.isAnonymous) {
-        await checkAdminStatus(result.user);
-        refreshMFAStatus();
-      }
+      const adminStatus = result.user.isAnonymous ? false : await getAdminStatus(result.user);
+      const enrolledInMFA = result.user.isAnonymous ? false : getMFAStatus();
+
+      // Eagerly update React state so SignInPage's redirect useEffect fires
+      // now rather than waiting for the listener.
+      setAuthState({
+        currentUser: result.user,
+        isAdmin: adminStatus,
+        isEnrolledInMFA: enrolledInMFA,
+      });
+      wasSignedInRef.current = !result.user.isAnonymous;
 
       // Clear pending state
       mfaResolverRef.current = null;
       setTwoFactorRequired(false);
       setMfaPhoneHint(null);
     } catch (error: any) {
+      mfaSignInCompletingRef.current = false;
       if (error.code === 'auth/invalid-verification-code') {
         throw new Error('Invalid verification code. Please try again.');
       }
       throw error;
+    } finally {
+      mfaSignInCompletingRef.current = false;
     }
-  }, [checkAdminStatus, refreshMFAStatus]);
+  }, [getAdminStatus, getMFAStatus, syncSessionCookie]);
 
   // Cancel MFA verification
   const cancelTwoFactor = useCallback(() => {
@@ -208,8 +227,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const signOut = useCallback(async () => {
     await fetch('/api/auth/session', { method: 'DELETE' });
     signOutUser();
-    setIsAdmin(false);
-    setIsEnrolledInMFA(false);
+    setAuthState({ currentUser: null, isAdmin: false, isEnrolledInMFA: false });
     mfaResolverRef.current = null;
     setTwoFactorRequired(false);
     setMfaPhoneHint(null);
@@ -237,9 +255,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
       if (!user) {
-        setCurrentUser(null);
-        setIsAdmin(false);
-        setIsEnrolledInMFA(false);
+        setAuthState({ currentUser: null, isAdmin: false, isEnrolledInMFA: false });
         // Skip cookie deletion only on the initial idle/signed-out load. That
         // avoids racing MFA session creation while still clearing the server
         // cookie after a real signed-in -> signed-out transition.
@@ -251,15 +267,30 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return;
       }
 
-      setCurrentUser(user);
+      if (mfaSignInCompletingRef.current) {
+        finishLoading();
+        return;
+      }
 
       if (user.isAnonymous) {
         // Anonymous users never have admin or MFA — skip the extra calls.
-        setIsAdmin(false);
+        setAuthState({ currentUser: user, isAdmin: false, isEnrolledInMFA: false });
       } else {
-        await checkAdminStatus(user);
-        refreshMFAStatus();
-        await syncSessionCookie(user);
+        if (syncedSessionUidRef.current !== user.uid) {
+          const sessionSynced = await syncSessionCookie(user);
+          if (!sessionSynced) {
+            setAuthState({ currentUser: null, isAdmin: false, isEnrolledInMFA: false });
+            finishLoading();
+            return;
+          }
+        }
+        const adminStatus = await getAdminStatus(user);
+        const enrolledInMFA = getMFAStatus();
+        setAuthState({
+          currentUser: user,
+          isAdmin: adminStatus,
+          isEnrolledInMFA: enrolledInMFA,
+        });
         wasSignedInRef.current = true;
       }
 
@@ -272,13 +303,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       clearTimeout(fallbackTimer);
       unsubscribe();
     };
-  }, [checkAdminStatus, refreshMFAStatus, syncSessionCookie]);
+  }, [getAdminStatus, getMFAStatus, syncSessionCookie]);
 
   const value: AuthContextType = {
-    currentUser,
+    currentUser: authState.currentUser,
     loading,
-    isAdmin,
-    isEnrolledInMFA,
+    isAdmin: authState.isAdmin,
+    isEnrolledInMFA: authState.isEnrolledInMFA,
     twoFactorRequired,
     mfaPhoneHint,
     signIn,

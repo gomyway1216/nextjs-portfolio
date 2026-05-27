@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
 import { AlertCircle, Shield, ArrowLeft, Mail, Phone, MessageSquare, Loader2, Lock, UserPlus } from 'lucide-react';
@@ -17,6 +17,7 @@ type AuthMode = 'signin' | 'signup';
 
 const SignInPage = () => {
   const { t, i18n } = useTranslation();
+  const router = useRouter();
   const currentLang = i18n.language?.startsWith('ja') ? 'ja' : 'en';
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
@@ -60,24 +61,18 @@ const SignInPage = () => {
   const redirectStartedRef = useRef(false);
 
   useEffect(() => {
-    // Anonymous users are NOT considered "signed in" for the purpose of this
-    // gate — they need to upgrade to a real account, which is exactly what
-    // this page is for. Without this check, every visitor (auto-anon-signed
-    // by AuthProvider) would be bounced before they could enter credentials.
+    // Anonymous Firebase users are NOT considered "signed in" for this gate;
+    // they need to upgrade to a real account before leaving the sign-in page.
     //
-    // Use a hard navigation (window.location) instead of router.push — when
-    // the redirect target is middleware-protected (e.g. /admin), Next.js's
-    // RSC prefetch fires while the just-set __session cookie is still
-    // committing to the cookie jar, so middleware sees no cookie and bounces
-    // straight back to /signin. A full HTTP navigation reads the jar fresh.
-    // Guard it so repeated Firebase user notifications do not start multiple
-    // full-page navigations before the first one completes.
+    // Keep this as a client navigation so AuthProvider state survives the
+    // /signin -> /admin transition. verifyTwoFactorAndComplete and the auth
+    // listener only expose currentUser after the server session cookie is set.
     if (currentUser && !currentUser.isAnonymous && !redirectStartedRef.current) {
       redirectStartedRef.current = true;
       setRedirecting(true);
-      window.location.replace(redirectPath);
+      router.replace(redirectPath);
     }
-  }, [currentUser, redirectPath]);
+  }, [currentUser, redirectPath, router]);
 
   useEffect(() => {
     return () => {
@@ -243,10 +238,9 @@ const SignInPage = () => {
   };
 
   // Already signed in (typically: MFA verify just completed and the
-  // window.location navigation in the redirect useEffect is still in
-  // flight). Show a loading screen rather than falling through to the
-  // login form, which would otherwise briefly flash on screen during the
-  // navigation latency.
+  // router navigation in the redirect useEffect is still in flight). Show a
+  // loading screen rather than falling through to the login form, which would
+  // otherwise briefly flash on screen during the navigation latency.
   if (redirecting || (currentUser && !currentUser.isAnonymous)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">

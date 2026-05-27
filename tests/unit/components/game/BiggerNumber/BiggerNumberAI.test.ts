@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { pickAICard } from '../BiggerNumberAI';
-import { DEFAULT_RULES, type CardValue, type BiggerNumberRules } from '../types';
+import { pickAICard } from '@/components/game/BiggerNumber/BiggerNumberAI';
+import { DEFAULT_RULES, type CardValue, type BiggerNumberRules } from '@/components/game/BiggerNumber/types';
 
 const rules: BiggerNumberRules = { ...DEFAULT_RULES };
 

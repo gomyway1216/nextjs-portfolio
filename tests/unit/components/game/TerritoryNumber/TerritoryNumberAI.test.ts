@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { pickAIMove } from '../TerritoryNumberAI';
+import { pickAIMove } from '@/components/game/TerritoryNumber/TerritoryNumberAI';
 import {
   emptyBoard,
   placeCard,
   emptyCellIndices,
   remainingCards,
   evaluateBoard,
-} from '../gameLogic';
-import type { AIDifficulty, Board, PlayerSlot } from '../types';
+} from '@/components/game/TerritoryNumber/gameLogic';
+import type { AIDifficulty, Board, PlayerSlot } from '@/components/game/TerritoryNumber/types';
 
 function plays(board: Board, ...moves: Array<[number, number, PlayerSlot]>): Board {
   let b = board;

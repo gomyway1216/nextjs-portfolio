@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { Rubik, Playfair_Display } from "next/font/google";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { I18nProvider } from "@/components/providers/I18nProvider";
@@ -106,13 +107,21 @@ const personJsonLd = {
   description: SITE_DESCRIPTION,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read the i18nextLng cookie server-side and forward to I18nProvider so
+  // SSR uses the same locale as the client's first render. Without this,
+  // JA visitors get "Senior Fintech Engineer" in the SSR HTML and
+  // "シニアフィンテックエンジニア" after hydration — React #418.
+  const cookieStore = await cookies();
+  const cookieLang = cookieStore.get('i18nextLng')?.value;
+  const initialLang: 'en' | 'ja' = cookieLang === 'ja' ? 'ja' : 'en';
+
   return (
-    <html lang="en">
+    <html lang={initialLang}>
       <head>
         <link rel="preconnect" href="https://fonts.gstatic.com" />
         <script
@@ -126,7 +135,7 @@ export default function RootLayout({
         <Suspense fallback={null}>
           <PageViewLogger />
         </Suspense>
-        <I18nProvider>
+        <I18nProvider initialLang={initialLang}>
           <AuthProvider>
             <GameToolbarProvider>
               <GlobalToolbar />

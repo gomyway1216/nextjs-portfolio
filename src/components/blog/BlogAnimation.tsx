@@ -1,7 +1,7 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import Image from 'next/image';
-import Modal from 'react-modal';
+import * as Dialog from '@radix-ui/react-dialog';
 import Contact from '../contact/Contact';
 import * as postApi from '@/services/postsService';
 import DOMPurify from 'dompurify';
@@ -118,19 +118,17 @@ const Blogs = () => {
       {/* End .row */}
 
       {/* Start Modal for Blog-1 */}
-      <Modal
-        isOpen={modalOpen}
-        onRequestClose={() => setModalOpen(false)}
-        contentLabel="My dialog"
-        className="custom-modal"
-        overlayClassName="custom-overlay"
-        closeTimeoutMS={500}
-      >
-        <div>
-          <button className="close-modal" onClick={() => setModalOpen(false)}>
-            <Image src="/img/cancel.svg" alt="close icon" width={24} height={24} />
-          </button>
-          {/* End close icon */}
+      <Dialog.Root open={modalOpen} onOpenChange={setModalOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="custom-overlay" />
+          <Dialog.Content className="custom-modal" aria-describedby={undefined}>
+            <Dialog.Title className="sr-only">{selectedPost?.title || ''}</Dialog.Title>
+            <Dialog.Close asChild>
+              <button className="close-modal" aria-label="Close">
+                <Image src="/img/cancel.svg" alt="close icon" width={45} height={45} />
+              </button>
+            </Dialog.Close>
+            {/* End close icon */}
 
           <div className="box_inner">
             <div className="scrollable">
@@ -196,9 +194,10 @@ const Blogs = () => {
               </div>
             </div>
           </div>
-        </div>
-        {/* End modal box news */}
-      </Modal>
+          {/* End modal box news */}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
       {/* End  Modal for Blog-1 */}
     </>
   );

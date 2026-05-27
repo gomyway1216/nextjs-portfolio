@@ -1,12 +1,13 @@
 'use client';
 import React, { useMemo } from 'react';
+import Image from 'next/image';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useAuth } from '@/providers/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import * as util from '@/lib/utils/util';
 import DOMPurify from 'dompurify';
 import SimpleCarousel from './SimpleCarousel';
-import Modal from 'react-modal';
 
 interface PortfolioModalProps {
   project: {
@@ -32,11 +33,6 @@ interface PortfolioModalProps {
   setIsOpen: (open: boolean) => void;
 }
 
-// Set app element once outside component to avoid warning
-if (typeof window !== 'undefined') {
-  Modal.setAppElement('body');
-}
-
 const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => {
   const { currentUser } = useAuth();
   const router = useRouter();
@@ -58,19 +54,17 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onRequestClose={closeModal}
-      contentLabel="Project Details Modal"
-      className="custom-modal"
-      overlayClassName="custom-overlay"
-      closeTimeoutMS={500}
-    >
-      <div>
-        {currentUser && <Button onClick={handleEdit} className="mb-4">EDIT</Button>}
-        <button className="close-modal" onClick={closeModal}>
-          <img src="/img/cancel.svg" alt="close icon" />
-        </button>
+    <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="custom-overlay" />
+        <Dialog.Content className="custom-modal" aria-describedby={undefined}>
+          <Dialog.Title className="sr-only">{project.title}</Dialog.Title>
+          {currentUser && <Button onClick={handleEdit} className="mb-4">EDIT</Button>}
+          <Dialog.Close asChild>
+            <button className="close-modal" aria-label="Close">
+              <Image src="/img/cancel.svg" alt="close icon" width={45} height={45} />
+            </button>
+          </Dialog.Close>
 
         <div className="box_inner">
           <div className="scrollable">
@@ -153,8 +147,9 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
             </div>
           </div>
         </div>
-      </div>
-    </Modal>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 };
 

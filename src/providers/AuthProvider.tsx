@@ -27,6 +27,12 @@ interface AuthContextType {
   refreshMFAStatus: () => void;
 }
 
+interface AuthSessionState {
+  currentUser: any;
+  isAdmin: boolean;
+  isEnrolledInMFA: boolean;
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
@@ -38,10 +44,12 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: AuthProviderProps) => {
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [authState, setAuthState] = useState<AuthSessionState>({
+    currentUser: null,
+    isAdmin: false,
+    isEnrolledInMFA: false,
+  });
   const [loading, setLoading] = useState<boolean>(true);
-  const [isAdmin, setIsAdmin] = useState<boolean>(false);
-  const [isEnrolledInMFA, setIsEnrolledInMFA] = useState<boolean>(false);
   const [twoFactorRequired, setTwoFactorRequired] = useState<boolean>(false);
   const [mfaPhoneHint, setMfaPhoneHint] = useState<string | null>(null);
 
@@ -112,7 +120,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   // Check MFA enrollment status
   const refreshMFAStatus = useCallback(() => {
-    setIsEnrolledInMFA(getMFAStatus());
+    setAuthState((prev) => ({ ...prev, isEnrolledInMFA: getMFAStatus() }));
   }, [getMFAStatus]);
 
   // Standard sign-in (for backwards compatibility)
@@ -187,9 +195,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       // Eagerly update React state so SignInPage's redirect useEffect fires
       // now rather than waiting for the listener.
-      setCurrentUser(result.user);
-      setIsAdmin(adminStatus);
-      setIsEnrolledInMFA(enrolledInMFA);
+      setAuthState({
+        currentUser: result.user,
+        isAdmin: adminStatus,
+        isEnrolledInMFA: enrolledInMFA,
+      });
       wasSignedInRef.current = !result.user.isAnonymous;
 
       // Clear pending state
@@ -217,8 +227,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const signOut = useCallback(async () => {
     await fetch('/api/auth/session', { method: 'DELETE' });
     signOutUser();
-    setIsAdmin(false);
-    setIsEnrolledInMFA(false);
+    setAuthState({ currentUser: null, isAdmin: false, isEnrolledInMFA: false });
     mfaResolverRef.current = null;
     setTwoFactorRequired(false);
     setMfaPhoneHint(null);
@@ -246,9 +255,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
       if (!user) {
-        setCurrentUser(null);
-        setIsAdmin(false);
-        setIsEnrolledInMFA(false);
+        setAuthState({ currentUser: null, isAdmin: false, isEnrolledInMFA: false });
         // Skip cookie deletion only on the initial idle/signed-out load. That
         // avoids racing MFA session creation while still clearing the server
         // cookie after a real signed-in -> signed-out transition.
@@ -267,25 +274,23 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (user.isAnonymous) {
         // Anonymous users never have admin or MFA — skip the extra calls.
-        setCurrentUser(user);
-        setIsAdmin(false);
-        setIsEnrolledInMFA(false);
+        setAuthState({ currentUser: user, isAdmin: false, isEnrolledInMFA: false });
       } else {
         if (syncedSessionUidRef.current !== user.uid) {
           const sessionSynced = await syncSessionCookie(user);
           if (!sessionSynced) {
-            setCurrentUser(null);
-            setIsAdmin(false);
-            setIsEnrolledInMFA(false);
+            setAuthState({ currentUser: null, isAdmin: false, isEnrolledInMFA: false });
             finishLoading();
             return;
           }
         }
         const adminStatus = await getAdminStatus(user);
         const enrolledInMFA = getMFAStatus();
-        setCurrentUser(user);
-        setIsAdmin(adminStatus);
-        setIsEnrolledInMFA(enrolledInMFA);
+        setAuthState({
+          currentUser: user,
+          isAdmin: adminStatus,
+          isEnrolledInMFA: enrolledInMFA,
+        });
         wasSignedInRef.current = true;
       }
 
@@ -301,10 +306,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, [getAdminStatus, getMFAStatus, syncSessionCookie]);
 
   const value: AuthContextType = {
-    currentUser,
+    currentUser: authState.currentUser,
     loading,
-    isAdmin,
-    isEnrolledInMFA,
+    isAdmin: authState.isAdmin,
+    isEnrolledInMFA: authState.isEnrolledInMFA,
     twoFactorRequired,
     mfaPhoneHint,
     signIn,

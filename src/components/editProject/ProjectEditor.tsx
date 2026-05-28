@@ -139,8 +139,13 @@ const ProjectEditor = (props: ProjectEditorProps) => {
     setThumbImage(url); // Update the state with the new array of image URLs
   };
 
-  const toProjectDate = (value: Date | undefined): string | undefined =>
-    value ? value.toISOString().split('T')[0] : undefined;
+  const toProjectDate = (value: Date | undefined): string | undefined => {
+    if (!value) return undefined;
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
 
   const handleImageUrls = (urls: string[]) => {
     setImages(urls); // Update the state with the new array of image URLs
@@ -344,7 +349,7 @@ const ProjectEditor = (props: ProjectEditorProps) => {
   const handleClose = async () => {
     setStatus('updating');
     try {
-      if (original) {
+      if (props.projectId && original) {
         await props.updateProject(original);
       }
       router.push('/#work');

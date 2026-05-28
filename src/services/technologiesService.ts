@@ -2,10 +2,10 @@ export interface Technology {
   id: string;
   name: string;
   type: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
-export async function getTechnologies() {
+export async function getTechnologies(): Promise<Technology[]> {
   const response = await fetch('/api/technology', {
     headers: {
       'Content-Type': 'application/json',
@@ -20,7 +20,7 @@ export async function getTechnologies() {
   return data.technologies;
 }
 
-export async function getTechnologyNames() {
+export async function getTechnologyNames(): Promise<string[]> {
   const response = await fetch('/api/technology/names', {
     headers: {
       'Content-Type': 'application/json',

@@ -9,8 +9,10 @@ import { usePosts, usePostMutations, usePostCategories } from '@/hooks/usePosts'
 import { useRouter } from 'next/navigation';
 import * as technologyApi from '@/services/technologiesService';
 import type { Technology } from '@/services/technologiesService';
+import type { Project } from '@/services/projectsService';
 import * as imageApi from '@/services/imageService';
 import * as postApi from '@/services/postsService';
+import type { ListingPost } from '@/services/postsService';
 import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations';
 import {
   LayoutDashboard,
@@ -377,8 +379,8 @@ const AdminPage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Edit states
-  const [editingProject, setEditingProject] = useState<any | null>(null);
-  const [editingPost, setEditingPost] = useState<any | null>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editingPost, setEditingPost] = useState<ListingPost | null>(null);
   const [editingJob, setEditingJob] = useState<string | null>(null);
   const [techInput, setTechInput] = useState('');
 
@@ -534,10 +536,10 @@ const AdminPage = () => {
   };
 
   // Project handlers
-  const handleOpenProjectModal = (project?: any) => {
+  const handleOpenProjectModal = (project?: Project) => {
     if (project) {
       setEditingProject(project);
-      const techNames = project.technologies?.map((t: any) => getTechName(t)).filter(Boolean) || [];
+      const techNames = project.technologies?.map((t) => getTechName(t)).filter(Boolean) || [];
       setProjectForm({
         title: project.title || '',
         description: project.description || '',
@@ -758,7 +760,7 @@ const AdminPage = () => {
   };
 
   // Post handlers
-  const handleOpenPostModal = async (post?: any) => {
+  const handleOpenPostModal = async (post?: ListingPost) => {
     if (post) {
       setEditingPost(post);
       try {

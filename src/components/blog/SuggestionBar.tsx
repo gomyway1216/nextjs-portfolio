@@ -14,7 +14,7 @@ const DEFAULT_OPTIONS = [
 ];
 
 const SuggestionBar = ({ activeTab, setActiveTab }: SuggestionBarProps) => {
-  const [options, setOptions] = useState<any[]>(DEFAULT_OPTIONS);
+  const [options, setOptions] = useState(DEFAULT_OPTIONS);
 
   useEffect(() => {
 

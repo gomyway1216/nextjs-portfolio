@@ -8,29 +8,22 @@ import { useRouter } from 'next/navigation';
 import * as util from '@/lib/utils/util';
 import DOMPurify from 'dompurify';
 import SimpleCarousel from './SimpleCarousel';
+import type { Project, TechnologyData, UrlData } from '@/services/projectsService';
 
 interface PortfolioModalProps {
-  project: {
-    id: string;
-    title: string;
-    description: string;
-    images?: string[];
-    thumbImage: string;
-    client: string;
-    technologies: Array<{
-      name: string;
-      type: 'language' | 'framework' | string;
-    }>;
-    industry: string;
-    date: Date | string;
-    urls: Array<{
-      name: string;
-      link: string;
-      type: 'GitHub' | 'Website' | string;
-    }>;
-  };
+  project: Project;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
+}
+
+function normalizeTechnology(technology: string | TechnologyData): TechnologyData {
+  return typeof technology === 'string'
+    ? { id: technology, name: technology, type: '' }
+    : technology;
+}
+
+function normalizeUrl(url: UrlData): UrlData {
+  return url;
 }
 
 const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => {
@@ -77,7 +70,7 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
                   <div className="col-md-7">
                     <SimpleCarousel
                       images={project.images || []}
-                      thumbImage={project.thumbImage}
+                      thumbImage={project.thumbImage || ''}
                     />
                   </div>
                   <div className="col-md-5">
@@ -93,7 +86,7 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
                         <span className="text-dark fw-600 me-2">
                           Technologies:
                         </span>
-                        {project.technologies.map((tech, index) => {
+                        {project.technologies.map(normalizeTechnology).map((tech, index) => {
                           const badgeColor = tech.type === 'language' ? 'bg-primary'
                             : tech.type === 'framework' ? 'bg-secondary' : 'bg-success';
                           return (
@@ -119,7 +112,7 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
                         <span className="text-dark fw-600 me-2">
                           URL:
                         </span>
-                        {project.urls.map((url, index) => {
+                        {project.urls.map(normalizeUrl).map((url, index) => {
                           const badgeColor = url.type === 'GitHub' ? 'badge-github'
                             : url.type === 'Website' ? 'badge-website' : 'badge-secondary';
                           return (

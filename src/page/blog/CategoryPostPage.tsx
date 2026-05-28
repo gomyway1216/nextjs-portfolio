@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import PostListItem from '@/components/blog/PostListItem';
 import * as postApi from '@/services/postsService';
+import type { ListingPost } from '@/services/postsService';
 import SuggestionBar from '@/components/blog/SuggestionBar';
 import { useParams, useRouter } from 'next/navigation';
 import { usePosts } from '@/providers/PostsProvider';
@@ -10,22 +11,9 @@ import { useInView } from 'react-intersection-observer';
 import { useTranslation } from 'react-i18next';
 import { normalizeLanguage, type PostLanguage } from '@/lib/blog/postTranslations';
 
-interface InitialPost {
-  id: string;
-  title: string;
-  body: string;
-  isPublic: boolean;
-  category: string;
-  image?: string;
-  language: PostLanguage;
-  availableLanguages: PostLanguage[];
-  created: string;
-  lastUpdated: string;
-}
-
 interface CategoryPostPageProps {
   initialCategory?: string;
-  initialPosts?: InitialPost[];
+  initialPosts?: ListingPost[];
   initialLastVisibleTimestamp?: number | null;
   initialHasMore?: boolean;
   initialLanguage?: PostLanguage;
@@ -84,10 +72,10 @@ const CategoryPostPage = ({
     if (fetchedPosts.length === 0) {
       setHasMore(false);
     } else {
-      const updatedPosts = [
-        ...((postsByCategory as Record<string, unknown[]>)[cacheKey] || []),
-        ...fetchedPosts,
-      ];
+    const updatedPosts = [
+      ...(postsByCategory[cacheKey] || []),
+      ...fetchedPosts,
+    ];
       setPostsByCategory(cacheKey, updatedPosts);
       setCurrentPageByCategory(cacheKey, currentCategoryPage + 1);
     }
@@ -103,7 +91,7 @@ const CategoryPostPage = ({
   useEffect(() => {
     window.scrollTo(0, 0);
 
-    const existing = (postsByCategory as Record<string, InitialPost[]>)[cacheKey];
+    const existing = postsByCategory[cacheKey];
     if (existing && existing.length > 0) {
       setHasMore(existing.length > 0);
       window.scrollTo(0, scrollPosition);
@@ -169,7 +157,7 @@ const CategoryPostPage = ({
           }}
         >
           {(
-            ((postsByCategory as Record<string, InitialPost[]>)[cacheKey] as InitialPost[]) ||
+            postsByCategory[cacheKey] ||
             (initialCategory === category && initialLanguage === language ? initialPosts : undefined) ||
             []
           ).map((item, index, arr) => {

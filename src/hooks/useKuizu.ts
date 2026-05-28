@@ -28,6 +28,10 @@ import type {
 import { calculatePoints } from '@/types/kuizu';
 import type { GameRoom, LobbyState } from '@/services/gameRoomService';
 
+type PasscodeRequiredQuiz = Pick<Quiz, 'id' | 'title'> & {
+  requiresPasscode?: boolean;
+};
+
 // ============================================================================
 // useKuizuCustomQuiz - Single quiz management
 // ============================================================================
@@ -59,11 +63,12 @@ export function useKuizuCustomQuiz(
     setError(null);
     try {
       const data = await kuizuService.getCustomQuiz(quizId, verified);
-      if ((data as any).requiresPasscode) {
+      const passcodeData = data as Quiz | PasscodeRequiredQuiz;
+      if ('requiresPasscode' in passcodeData && passcodeData.requiresPasscode) {
         setRequiresPasscode(true);
         setQuiz({
-          id: data.id,
-          title: data.title,
+          id: passcodeData.id,
+          title: passcodeData.title,
           hasPasscode: true,
         } as Quiz);
       } else {

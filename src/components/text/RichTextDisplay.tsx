@@ -8,8 +8,8 @@ interface Post {
   id: string;
   title: string;
   body: string;
-  created: any;
-  lastUpdated?: any;
+  created: Parameters<typeof util.formatDate>[0];
+  lastUpdated?: Parameters<typeof util.formatDate>[0];
   category: string;
   image: string;
 }

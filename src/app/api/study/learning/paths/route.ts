@@ -10,6 +10,14 @@ const endpoint = '/api/study/learning/paths';
 const RESPONSE_SNIPPET_LIMIT = 300;
 const REQUEST_ID_HEADER = 'x-request-id';
 
+interface CloudFunctionResponseBody {
+  success?: boolean;
+  error?: string;
+  details?: string;
+  message?: string;
+  [key: string]: unknown;
+}
+
 function createRequestId() {
   try {
     return randomUUID();
@@ -32,7 +40,7 @@ function buildResponseMeta(response: Response, requestId: string, durationMs: nu
 }
 
 function parseResponseBody(bodyText: string): {
-  data: any | null;
+  data: CloudFunctionResponseBody | null;
   parseError?: string;
   snippet: string;
 } {

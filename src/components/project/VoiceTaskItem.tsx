@@ -16,13 +16,14 @@ import {
   Circle
 } from 'lucide-react';
 import * as voiceTaskApi from '@/services/voiceTaskService';
+import type { VoiceSubTask } from '@/services/voiceTaskService';
 import { useParams, useRouter } from 'next/navigation';
 
 const TEST_USER_ID = 'aoUPpC4gz7QlvbMcpNH5';
 
 const VoiceTaskItem = () => {
   const [taskName, setTaskName] = useState<string>('hello');
-  const [subtasks, setSubtasks] = useState<any[]>([]);
+  const [subtasks, setSubtasks] = useState<VoiceSubTask[]>([]);
   const [detailsText, setDetailsText] = useState<string>('');
   const [isDetailsOpen, setIsDetailsOpen] = useState<boolean>(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -39,7 +40,7 @@ const VoiceTaskItem = () => {
     setIsDetailsOpen(!isDetailsOpen);
   };
 
-  const handleDetailsTextChange = (event: any) => {
+  const handleDetailsTextChange = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setDetailsText(event.target.value);
   };
 

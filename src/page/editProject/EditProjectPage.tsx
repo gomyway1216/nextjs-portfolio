@@ -1,7 +1,8 @@
 'use client';
 
-import React, { FC } from 'react';
+import React from 'react';
 import * as api from '@/services/projectsService';
+import type { ProjectInput } from '@/services/projectsService';
 import { useParams } from 'next/navigation';
 import ProjectEditor from '@/components/editProject/ProjectEditor';
 
@@ -10,7 +11,7 @@ const EditProjectPage = () => {
   const id = Array.isArray(routeId) ? routeId[0] : routeId;
 
   // Wrapper function to adapt the API to ProjectEditor's expected interface
-  const handleUpdateProject = async (project: any) => {
+  const handleUpdateProject = async (project: ProjectInput) => {
     if (!id) throw new Error('Missing project id');
     await api.updateProject(id, project);
   };

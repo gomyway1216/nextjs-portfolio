@@ -1,14 +1,31 @@
 export interface Job {
   id: string;
-  [key: string]: any;
+  companyName?: string;
+  jobPosition?: string;
+  jobDuration?: string;
+  jobDescription?: string;
+  jobType?: string;
+  technologies?: string[];
+  hidden?: boolean;
+  order?: number;
+  delayAnimation?: number;
+  [key: string]: unknown;
 }
 
 export interface Education {
   id: string;
-  [key: string]: any;
+  school?: string;
+  degree?: string;
+  duration?: string;
+  passingYear?: string;
+  degreeTitle?: string;
+  instituteName?: string;
+  order?: number;
+  delayAnimation?: number;
+  [key: string]: unknown;
 }
 
-export async function getJobs() {
+export async function getJobs(): Promise<Job[]> {
   const response = await fetch('/api/job', {
     headers: {
       'Content-Type': 'application/json',
@@ -23,7 +40,7 @@ export async function getJobs() {
   return data.jobs;
 }
 
-export async function getEducation() {
+export async function getEducation(): Promise<Education[]> {
   const response = await fetch('/api/education', {
     headers: {
       'Content-Type': 'application/json',

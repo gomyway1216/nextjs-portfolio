@@ -54,7 +54,10 @@ type WorkerResponse =
 const ctx: {
   postMessage: (message: WorkerResponse) => void;
   onmessage: ((event: MessageEvent<WorkerRequest>) => void) | null;
-} = self as any;
+} = self as unknown as {
+  postMessage: (message: WorkerResponse) => void;
+  onmessage: ((event: MessageEvent<WorkerRequest>) => void) | null;
+};
 
 function buildPosition(pos: SerializedKyokumenImproved): KyokumenImproved {
   const k = new KyokumenImproved();

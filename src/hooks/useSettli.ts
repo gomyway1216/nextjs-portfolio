@@ -16,6 +16,10 @@ import type {
   QRCodeResponse,
 } from '@/types/settli';
 
+type PasscodeRequiredGroup = Pick<SettliGroup, 'id' | 'name'> & {
+  requiresPasscode?: boolean;
+};
+
 // ============================================================================
 // useSettliGroup - Single group management
 // ============================================================================
@@ -49,11 +53,12 @@ export function useSettliGroup(groupId: string | null): UseSettliGroupResult {
       const data = await settliService.getGroup(groupId, verified);
 
       // Check if passcode verification is required
-      if ((data as any).requiresPasscode) {
+      const passcodeData = data as SettliGroup | PasscodeRequiredGroup;
+      if ('requiresPasscode' in passcodeData && passcodeData.requiresPasscode) {
         setRequiresPasscode(true);
         setGroup({
-          id: data.id,
-          name: data.name,
+          id: passcodeData.id,
+          name: passcodeData.name,
           hasPasscode: true,
         } as SettliGroup);
       } else {

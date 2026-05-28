@@ -17,11 +17,11 @@ const Contact = ({ blogId }: ContactProps) => {
     handleSubmit,
     formState: { errors },
     reset,
-  } = useForm();
+  } = useForm<ContactFormData>();
 
   const { createContact, loading } = useContactMutations();
 
-  const onSubmit = async (data: any) => {
+  const onSubmit = async (data: ContactFormData) => {
     try {
       await createContact({
         blogId: blogId,
@@ -118,5 +118,12 @@ const Contact = ({ blogId }: ContactProps) => {
     </form>
   );
 };
+
+interface ContactFormData {
+  name: string;
+  email: string;
+  subject: string;
+  comment: string;
+}
 
 export default Contact;

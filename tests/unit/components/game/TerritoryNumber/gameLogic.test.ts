@@ -11,8 +11,8 @@ import {
   emptyCellIndices,
   turnSlotForBoard,
   placementsBy,
-} from '../gameLogic';
-import type { Board, PlayerSlot } from '../types';
+} from '@/components/game/TerritoryNumber/gameLogic';
+import type { Board, PlayerSlot } from '@/components/game/TerritoryNumber/types';
 
 /** Helper: build a board from a 9-element array of `[value, owner]` tuples. */
 function buildBoard(cells: Array<[number | null, PlayerSlot | null]>): Board {

@@ -15,7 +15,7 @@ jobs:
 
       - uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22.13.0'
 
       - name: Pin npm to 11.14.1 (for min-release-age enforcement)
         run: npm install -g npm@11.14.1

@@ -5,9 +5,9 @@ import {
   removeCard,
   freshHand,
   isDragon,
-} from '../gameLogic';
-import type { BiggerNumberRules } from '../types';
-import { DEFAULT_RULES } from '../types';
+} from '@/components/game/BiggerNumber/gameLogic';
+import type { BiggerNumberRules } from '@/components/game/BiggerNumber/types';
+import { DEFAULT_RULES } from '@/components/game/BiggerNumber/types';
 
 const baseRules: BiggerNumberRules = { ...DEFAULT_RULES };
 

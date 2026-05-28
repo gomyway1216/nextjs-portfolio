@@ -9,6 +9,7 @@ export default defineConfig({
   },
   test: {
     globals: true,
-    include: ['**/*.test.ts'],
+    include: ['tests/unit/**/*.test.ts'],
+    exclude: ['node_modules/**', '.next/**', '.claude/**'],
   },
 });

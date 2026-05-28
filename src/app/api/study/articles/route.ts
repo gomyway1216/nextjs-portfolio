@@ -6,6 +6,21 @@ import { ErrorSeverity } from '@/types/errors';
 import { getFirestore } from '@/lib/firebase-admin';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
+
+interface StudyArticleListItem {
+  id: string;
+  [key: string]: unknown;
+}
+
+interface StudyArticlesResponse {
+  success?: boolean;
+  error?: string;
+  details?: string;
+  message?: string;
+  articles?: StudyArticleListItem[];
+  [key: string]: unknown;
+}
+
 // Helper function to get user's read article IDs
 async function getUserReadArticleIds(userId: string): Promise<Set<string>> {
   const db = getFirestore();
@@ -38,7 +53,7 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
     console.log('[Study API] GET articles:', url.toString());
 
     const response = await fetch(url.toString());
-    const data = await response.json();
+    const data = await response.json() as StudyArticlesResponse;
 
     // Log error details from Cloud Function
     if (!response.ok || !data.success) {
@@ -65,7 +80,7 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
       return NextResponse.json(data, { status: response.status });
     }
 
-    let articles = data.articles || [];
+    let articles: StudyArticleListItem[] = data.articles || [];
     let readArticleIds = new Set<string>();
 
     // If userId is provided, get read history for filtering and sorting
@@ -74,12 +89,12 @@ export const GET = withActivityLog('next_api.study.articles.GET', async (request
 
       // Filter by read status if specified
       if (readStatus === 'unread') {
-        articles = articles.filter((a: any) => !readArticleIds.has(a.id));
+        articles = articles.filter((a) => !readArticleIds.has(a.id));
       } else if (readStatus === 'read') {
-        articles = articles.filter((a: any) => readArticleIds.has(a.id));
+        articles = articles.filter((a) => readArticleIds.has(a.id));
       } else {
         // Sort unread first for 'all' status
-        articles = articles.sort((a: any, b: any) => {
+        articles = articles.sort((a, b) => {
           const aRead = readArticleIds.has(a.id);
           const bRead = readArticleIds.has(b.id);
           if (aRead !== bRead) return aRead ? 1 : -1;

@@ -24,7 +24,7 @@ const ImageUpload = ({ id, type, handleImageUrl, originalImageUrl }: ImageUpload
     }
   }, [originalImageUrl]);
 
-  const onFileChange = async (imageFile: any) => {
+  const onFileChange = async (imageFile: File) => {
     setLoading(true);
     setProgress(0);
 

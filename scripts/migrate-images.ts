@@ -13,6 +13,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 const SOURCE_BUCKET = 'yudai-blog.appspot.com';
 const TARGET_BUCKET = 'yudai-portfolio.appspot.com';
+type StorageBucket = ReturnType<ReturnType<typeof admin.storage>['bucket']>;
 
 async function initializeFirebase() {
   if (admin.apps.length > 0) {
@@ -58,8 +59,7 @@ async function downloadImage(url: string): Promise<Buffer | null> {
   }
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function uploadImage(bucket: any, filePath: string, buffer: Buffer, contentType: string): Promise<string> {
+async function uploadImage(bucket: StorageBucket, filePath: string, buffer: Buffer, contentType: string): Promise<string> {
   const file = bucket.file(filePath);
 
   await file.save(buffer, {

@@ -20,7 +20,7 @@ declare module 'react-visibility-sensor' {
     resizeCheck?: boolean;
     resizeDelay?: number;
     resizeThrottle?: number;
-    containment?: any;
+    containment?: Element | Window | Document | null;
     delayedCall?: boolean;
     children?: ReactNode | ((args: { isVisible: boolean }) => ReactNode);
   }

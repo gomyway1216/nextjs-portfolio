@@ -10,7 +10,7 @@ import { ChevronsUpDown, X } from 'lucide-react';
 interface CategorySelectorProps {
   categoryList: string[];
   selectedCategories: string[];
-  onCategoryChange: (event: any) => void;
+  onCategoryChange: (event: { target: { value: string[] } }) => void;
 }
 
 const CategorySelector = ({ categoryList, selectedCategories, onCategoryChange }: CategorySelectorProps) => {

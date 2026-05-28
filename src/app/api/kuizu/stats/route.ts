@@ -28,7 +28,7 @@ export const GET = withActivityLog('next_api.kuizu.stats.GET', async (request: N
         totalCorrect: 0,
         totalPoints: 0,
         bestStreak: 0,
-        categoryStats: {} as any,
+        categoryStats: {},
         dailyChallengesCompleted: 0,
         multiplayerGamesPlayed: 0,
         multiplayerWins: 0,

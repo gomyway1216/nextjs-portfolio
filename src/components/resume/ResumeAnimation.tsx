@@ -2,6 +2,7 @@
 import { useMemo } from 'react';
 import { differenceInMonths, parse } from 'date-fns';
 import { useJobs, useEducation } from '@/hooks';
+import type { Education, Job } from '@/services/resumeService';
 import { useTranslation } from 'react-i18next';
 
 const formatDate = (dateString: string) => {
@@ -117,8 +118,8 @@ const Resume = () => {
   const language = i18n.language === 'ja' ? 'ja' : 'en';
 
   const jobs = useMemo(() => {
-    const visible = fetchedJobs.filter((job: any) => !job.hidden);
-    const sorted = [...visible].sort((a: any, b: any) => a.order - b.order);
+    const visible = fetchedJobs.filter((job) => !job.hidden);
+    const sorted = [...visible].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     console.log('[Resume] Jobs data:', sorted);
     sorted.forEach(job => {
       console.log(`[Resume] ${job.companyName} - technologies:`, job.technologies);
@@ -127,7 +128,7 @@ const Resume = () => {
   }, [fetchedJobs]);
 
   const educations = useMemo(() => {
-    return [...fetchedEducation].sort((a: any, b: any) => a.order - b.order);
+    return [...fetchedEducation].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [fetchedEducation]);
 
   const translateJobType = (jobType: string) => {
@@ -170,8 +171,8 @@ const Resume = () => {
                       <h6>{getLocalizedJobValue(val, 'jobPosition', language, t, i18n.exists.bind(i18n))}</h6>
                       <div className="rob-title">{getLocalizedJobValue(val, 'companyName', language, t, i18n.exists.bind(i18n))}</div>
                       <label>{translateJobType(getLocalizedJobValue(val, 'jobType', language, t, i18n.exists.bind(i18n)))}</label>
-                      <p>{val.jobDuration}</p>
-                      <div className="rb-time">{calculateDuration(val.jobDuration, language)}</div>
+                      <p>{val.jobDuration || ''}</p>
+                      <div className="rb-time">{val.jobDuration ? calculateDuration(val.jobDuration, language) : ''}</div>
                     </div>
                   </div>
                   <div className="col-md-8 col-xl-9">
@@ -181,7 +182,7 @@ const Resume = () => {
                       {val.technologies && val.technologies.length > 0 && (
                         <div className="mt-3" style={{ marginTop: '1rem' }}>
                           <strong style={{ fontSize: '14px', marginRight: '8px' }}>{t('home.resume.technologiesLabel')}</strong>
-                          {val.technologies.map((tech: string, techIndex: number) => (
+                          {val.technologies.map((tech, techIndex) => (
                             <span
                               key={techIndex}
                               className="inline-block bg-sky-500 text-white text-sm font-medium px-3 py-1 rounded-full mr-2 mb-2"

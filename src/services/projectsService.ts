@@ -9,8 +9,8 @@ export interface Project {
   industry: string;
   thumbImage?: string;
   images: string[];
-  urls: any[];
-  technologies: string[];
+  urls: UrlData[];
+  technologies: Array<string | TechnologyData>;
   categories: string[];
 }
 
@@ -24,7 +24,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   };
 }
 
-export async function getProjects() {
+export async function getProjects(): Promise<Project[]> {
   const response = await fetch('/api/projects', {
     headers: {
       'Content-Type': 'application/json',
@@ -39,7 +39,7 @@ export async function getProjects() {
   return data.projects;
 }
 
-export async function getProject(id: string) {
+export async function getProject(id: string): Promise<Project> {
   const response = await fetch(`/api/projects/${id}`, {
     headers: {
       'Content-Type': 'application/json',
@@ -54,7 +54,7 @@ export async function getProject(id: string) {
   return data.project;
 }
 
-export async function getProjectCategories() {
+export async function getProjectCategories(): Promise<string[]> {
   const response = await fetch('/api/projects/categories', {
     headers: {
       'Content-Type': 'application/json',
@@ -69,7 +69,7 @@ export async function getProjectCategories() {
   return data.categories;
 }
 
-export async function getUrlTypeList() {
+export async function getUrlTypeList(): Promise<string[]> {
   const response = await fetch('/api/projects/url-types', {
     headers: {
       'Content-Type': 'application/json',
@@ -84,19 +84,19 @@ export async function getUrlTypeList() {
   return data.urlTypes;
 }
 
-interface TechnologyData {
+export interface TechnologyData {
   id: string;
   name: string;
   type: string;
 }
 
-interface UrlData {
+export interface UrlData {
   name: string;
   link: string;
   type: string;
 }
 
-export async function createProject(project: {
+export interface ProjectInput {
   title: string;
   date?: string;
   description: string;
@@ -107,7 +107,9 @@ export async function createProject(project: {
   urls?: UrlData[];
   technologies?: TechnologyData[];
   categories?: string[];
-}) {
+}
+
+export async function createProject(project: ProjectInput): Promise<string> {
   const headers = await getAuthHeaders();
 
   const response = await fetch('/api/projects', {
@@ -127,18 +129,7 @@ export async function createProject(project: {
   return data.id;
 }
 
-export async function updateProject(id: string, project: {
-  title: string;
-  date?: string;
-  description: string;
-  client?: string;
-  industry?: string;
-  thumbImage?: string;
-  images?: string[];
-  urls?: UrlData[];
-  technologies?: TechnologyData[];
-  categories?: string[];
-}) {
+export async function updateProject(id: string, project: ProjectInput) {
   const headers = await getAuthHeaders();
 
   const response = await fetch(`/api/projects/${id}`, {

@@ -12,6 +12,7 @@ import styles from './technologies-selector.module.scss';
 interface Technology {
   id: string;
   name: string;
+  type: string;
 }
 
 interface TechnologiesSelectorProps {

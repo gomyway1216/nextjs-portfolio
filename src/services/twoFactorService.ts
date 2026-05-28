@@ -14,6 +14,7 @@ import {
   MultiFactorError,
   RecaptchaVerifier,
   PhoneInfoOptions,
+  PhoneMultiFactorInfo,
 } from 'firebase/auth';
 import { auth } from '@/lib/firebaseConnect';
 
@@ -201,8 +202,13 @@ export async function unenrollFromMfa(factorUid?: string): Promise<void> {
 /**
  * Check if an error is an MFA required error
  */
-export function isMfaError(error: any): error is MultiFactorError {
-  return error?.code === 'auth/multi-factor-auth-required';
+export function isMfaError(error: unknown): error is MultiFactorError {
+  return Boolean(
+    error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    error.code === 'auth/multi-factor-auth-required'
+  );
 }
 
 /**
@@ -211,7 +217,7 @@ export function isMfaError(error: any): error is MultiFactorError {
 export function getMaskedPhoneNumber(resolver: MultiFactorResolver, index: number = 0): string {
   const hint = resolver.hints[index];
   if (hint.factorId === PhoneMultiFactorGenerator.FACTOR_ID) {
-    return (hint as any).phoneNumber || 'Phone';
+    return (hint as PhoneMultiFactorInfo).phoneNumber || 'Phone';
   }
   return 'Unknown';
 }

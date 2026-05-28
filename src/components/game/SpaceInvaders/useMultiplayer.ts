@@ -94,7 +94,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
         setRoom(roomData);
         setContext(prev => ({
           ...prev,
-          room: roomData as any,
+          room: roomData,
           lobbyState: roomData.status === 'playing' ? 'playing' :
             roomData.status === 'finished' ? 'finished' : prev.lobbyState,
         }));

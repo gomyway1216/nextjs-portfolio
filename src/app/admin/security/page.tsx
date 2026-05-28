@@ -24,6 +24,7 @@ import {
 import * as twoFactorService from '@/services/twoFactorService';
 import { sendVerificationEmail } from '@/lib/firebaseConnect';
 import Link from 'next/link';
+import { getErrorCode, getErrorMessage } from '@/lib/errorUtils';
 
 export default function SecuritySettingsPage() {
   const router = useRouter();
@@ -88,12 +89,12 @@ export default function SecuritySettingsPage() {
       await sendVerificationEmail();
       setVerificationEmailSent(true);
       setSuccess('Verification email sent! Check your inbox and click the link to verify.');
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Send verification email error:', e);
-      if (e.code === 'auth/too-many-requests') {
+      if (getErrorCode(e) === 'auth/too-many-requests') {
         setError('Too many attempts. Please wait a few minutes and try again.');
       } else {
-        setError(e.message || 'Failed to send verification email');
+        setError(getErrorMessage(e, 'Failed to send verification email'));
       }
     }
 
@@ -112,7 +113,7 @@ export default function SecuritySettingsPage() {
       } else {
         setError('Email not yet verified. Please check your inbox and click the verification link.');
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       setError('Failed to refresh. Please try again.');
     }
     setLoading(false);
@@ -143,16 +144,16 @@ export default function SecuritySettingsPage() {
 
       await twoFactorService.startSmsEnrollment(phoneNumber, recaptchaVerifierRef.current);
       setEnrollmentStep('verify');
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Send code error:', e);
-      if (e.code === 'auth/requires-recent-login') {
+      if (getErrorCode(e) === 'auth/requires-recent-login') {
         setError('For security, you need to sign out and sign back in before enabling MFA. Please sign out, sign in again, and return to this page immediately.');
-      } else if (e.code === 'auth/invalid-phone-number') {
+      } else if (getErrorCode(e) === 'auth/invalid-phone-number') {
         setError('Invalid phone number. Please include country code (e.g., +12125551234 for US).');
-      } else if (e.code === 'auth/too-many-requests') {
+      } else if (getErrorCode(e) === 'auth/too-many-requests') {
         setError('Too many attempts. Please wait a few minutes and try again.');
       } else {
-        setError(e.message || 'Failed to send verification code');
+        setError(getErrorMessage(e, 'Failed to send verification code'));
       }
       // Reset reCAPTCHA on error
       if (recaptchaVerifierRef.current) {
@@ -181,12 +182,12 @@ export default function SecuritySettingsPage() {
       setPhoneNumber('');
       setVerificationCode('');
       refreshMFAStatus();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Verify code error:', e);
-      if (e.code === 'auth/invalid-verification-code') {
+      if (getErrorCode(e) === 'auth/invalid-verification-code') {
         setError('Invalid verification code. Please try again.');
       } else {
-        setError(e.message || 'Failed to verify code');
+        setError(getErrorMessage(e, 'Failed to verify code'));
       }
     }
 
@@ -202,12 +203,12 @@ export default function SecuritySettingsPage() {
       await twoFactorService.unenrollFromMfa();
       setSuccess('Two-factor authentication has been disabled.');
       refreshMFAStatus();
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Disable MFA error:', e);
-      if (e.code === 'auth/requires-recent-login') {
+      if (getErrorCode(e) === 'auth/requires-recent-login') {
         setError('For security, please sign out and sign in again before disabling MFA.');
       } else {
-        setError(e.message || 'Failed to disable MFA');
+        setError(getErrorMessage(e, 'Failed to disable MFA'));
       }
     }
 

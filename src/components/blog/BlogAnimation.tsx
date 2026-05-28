@@ -4,6 +4,7 @@ import Image from 'next/image';
 import * as Dialog from '@radix-ui/react-dialog';
 import Contact from '../contact/Contact';
 import * as postApi from '@/services/postsService';
+import type { ListingPost } from '@/services/postsService';
 import DOMPurify from 'dompurify';
 import * as util from '@/lib/utils/util';
 import { useTranslation } from 'react-i18next';
@@ -18,11 +19,11 @@ const Blogs = () => {
   // const [isOpen2, setIsOpen2] = useState(false);
   // const [isOpen3, setIsOpen3] = useState(false);
   // const [isOpen4, setIsOpen4] = useState(false);
-  const [posts, setPosts] = useState<any[]>([]);
+  const [posts, setPosts] = useState<ListingPost[]>([]);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
-  const [selectedPost, setSelectedPost] = useState<any>({});
-  const [body, setBody] = useState<any>();
+  const [selectedPost, setSelectedPost] = useState<ListingPost | null>(null);
+  const [body, setBody] = useState<string>('');
 
   // Set app element for accessibility once component has mounted
   // useEffect(() => {
@@ -49,7 +50,7 @@ const Blogs = () => {
     };
   }, [i18n.language]);
 
-  const handlePostClick = (post: any) => {
+  const handlePostClick = (post: ListingPost) => {
     setSelectedPost(post);
     setModalOpen(true);
     const purifiedBody = DOMPurify.sanitize(post.body, {
@@ -130,11 +131,11 @@ const Blogs = () => {
             </Dialog.Close>
             {/* End close icon */}
 
-          <div className="box_inner">
+          {selectedPost && <div className="box_inner">
             <div className="scrollable">
               <div className="blog-grid">
                 <div className="blog-img" style={{ position: 'relative', aspectRatio: '16 / 10' }}>
-                  {selectedPost.image && (
+                  {selectedPost?.image && (
                     <Image
                       src={selectedPost.image}
                       alt={selectedPost.title || 'Blog post'}
@@ -193,7 +194,7 @@ const Blogs = () => {
                 {/* End .contact Form */}
               </div>
             </div>
-          </div>
+          </div>}
           {/* End modal box news */}
           </Dialog.Content>
         </Dialog.Portal>

@@ -8,12 +8,29 @@ const AchievementStatus = {
   NOT_STARTED: 'NOT_STARTED',
   IN_PROGRESS: 'IN_PROGRESS',
   COMPLETED: 'COMPLETED'
-};
+} as const;
+
+type AchievementStatusValue = typeof AchievementStatus[keyof typeof AchievementStatus];
+
+interface Achievement {
+  id: string;
+  text: string;
+  status: AchievementStatusValue;
+  imageLink?: string;
+}
+
+type AchievementsByDate = Record<string, Achievement[]>;
+
+interface NewAchievement {
+  text: string;
+  status: AchievementStatusValue;
+  imageLink: string;
+}
 
 const AchievementManagementPage = () => {
   const { currentUser } = useAuth();
-  const [achievements, setAchievements] = useState<any>({});
-  const [newAchievement, setNewAchievement] = useState<any>({
+  const [achievements, setAchievements] = useState<AchievementsByDate>({});
+  const [newAchievement, setNewAchievement] = useState<NewAchievement>({
     text: '',
     status: AchievementStatus.NOT_STARTED,
     imageLink: ''
@@ -37,13 +54,13 @@ const AchievementManagementPage = () => {
     try {
       const getAchievements = httpsCallable(functions, 'getAchievementsGroupedByDate');
       const result = await getAchievements();
-      setAchievements(result.data as any);
+      setAchievements(result.data as AchievementsByDate);
     } catch (error) {
       console.error('Error fetching achievements:', error);
     }
   };
 
-  const createAchievement = async (e: any) => {
+  const createAchievement = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       const createAchievementFunction = httpsCallable(functions, 'createAchievement');
@@ -79,7 +96,7 @@ const AchievementManagementPage = () => {
         />
         <select
           value={newAchievement.status}
-          onChange={(e) => setNewAchievement({ ...newAchievement, status: e.target.value })}
+          onChange={(e) => setNewAchievement({ ...newAchievement, status: e.target.value as AchievementStatusValue })}
           required
         >
           {Object.values(AchievementStatus).map((status) => (
@@ -90,11 +107,11 @@ const AchievementManagementPage = () => {
       </form>
 
       <h2>Your Achievements</h2>
-      {Object.entries(achievements).map(([date, dailyAchievements]: [string, any]) => (
+      {Object.entries(achievements).map(([date, dailyAchievements]) => (
         <div key={date}>
           <h3>{date}</h3>
           <ul>
-            {dailyAchievements.map((achievement: any) => (
+            {dailyAchievements.map((achievement) => (
               <li key={achievement.id}>
                 {achievement.text} - {achievement.status}
                 {achievement.imageLink && <img src={achievement.imageLink}

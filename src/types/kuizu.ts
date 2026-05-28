@@ -251,7 +251,7 @@ export interface KuizuGameState {
 export interface KuizuPendingAction {
   playerId: string;
   action: string;
-  payload: any;
+  payload: unknown;
   timestamp: number;
 }
 
@@ -335,13 +335,13 @@ export interface KuizuUserStats {
   totalCorrect: number;
   totalPoints: number;
   bestStreak: number;
-  categoryStats: Record<QuizCategory, {
+  categoryStats: Partial<Record<QuizCategory, {
     quizzesTaken: number;
     correctAnswers: number;
     totalQuestions: number;
     accuracy: number;
     bestScore: number;
-  }>;
+  }>>;
   dailyChallengesCompleted: number;
   multiplayerGamesPlayed: number;
   multiplayerWins: number;

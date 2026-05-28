@@ -16,17 +16,17 @@ export const GET = withActivityLog('next_api.kuizu.questions.GET', async (reques
     const limit = parseInt(searchParams.get('limit') || '100', 10);
 
     const db = getFirestore();
-    let query = db.collection(KUIZU_QUESTIONS_COLLECTION);
+    let query: FirebaseFirestore.Query = db.collection(KUIZU_QUESTIONS_COLLECTION);
 
     // Apply filters
     if (category) {
-      query = query.where('category', '==', category) as any;
+      query = query.where('category', '==', category);
     }
     if (difficulty) {
-      query = query.where('difficulty', '==', difficulty) as any;
+      query = query.where('difficulty', '==', difficulty);
     }
     if (type) {
-      query = query.where('type', '==', type) as any;
+      query = query.where('type', '==', type);
     }
 
     const snapshot = await query.limit(limit).get();

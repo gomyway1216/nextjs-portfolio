@@ -3,6 +3,13 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { TECHNOLOGIES_COLLECTION } from '@/app/api/constants';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
+
+interface TechnologyResponseItem {
+  id: string;
+  name: string;
+  type: string;
+  [key: string]: unknown;
+}
 /**
  * GET /api/technologies
  * Get all technologies sorted by type and name
@@ -12,9 +19,15 @@ export const GET = withActivityLog('next_api.technology.GET', async (request: Ne
     const db = getFirestore();
     const snapshot = await db.collection(TECHNOLOGIES_COLLECTION).get();
 
-    const technologies: any[] = [];
+    const technologies: TechnologyResponseItem[] = [];
     snapshot.forEach((doc) => {
-      technologies.push({ id: doc.id, ...doc.data() });
+      const data = doc.data() as Partial<TechnologyResponseItem>;
+      technologies.push({
+        ...data,
+        id: doc.id,
+        name: data.name || '',
+        type: data.type || '',
+      });
     });
 
     // Sorting priorities for types

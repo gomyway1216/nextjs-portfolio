@@ -78,7 +78,13 @@ const JumpGame = () => {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
-        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const AudioContextConstructor =
+          window.AudioContext ||
+          (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!AudioContextConstructor) {
+          throw new Error('Web Audio API not available');
+        }
+        audioContextRef.current = new AudioContextConstructor();
       } catch (e) {
         console.warn('Web Audio API not available');
       }

@@ -12,6 +12,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { AlertCircle, Shield, ArrowLeft, Mail, Phone, MessageSquare, Loader2, Lock, UserPlus } from 'lucide-react';
 import { resetPassword } from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
+import { getErrorCode, getErrorMessage } from '@/lib/errorUtils';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -115,8 +116,8 @@ const SignInPage = () => {
       if (!result.requiresTwoFactor) {
         // Redirect handled by useEffect
       }
-    } catch (e: any) {
-      const code = e.code;
+    } catch (e: unknown) {
+      const code = getErrorCode(e);
       if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
         setError(t('signin.errors.wrongPassword'));
       } else if (code === 'auth/user-not-found') {
@@ -126,7 +127,7 @@ const SignInPage = () => {
       } else if (code === 'auth/user-disabled') {
         setError(t('signin.errors.userDisabled'));
       } else {
-        setError(e.message);
+        setError(getErrorMessage(e));
       }
     } finally {
       setLoading(false);
@@ -140,14 +141,14 @@ const SignInPage = () => {
 
     try {
       await signUp(email, password, displayName.trim());
-    } catch (e: any) {
-      const code = e.code;
+    } catch (e: unknown) {
+      const code = getErrorCode(e);
       if (code === 'auth/email-already-in-use') {
         setError(t('signin.errors.emailInUse'));
       } else if (code === 'auth/weak-password') {
         setError(t('signin.errors.weakPassword'));
       } else {
-        setError(e.message);
+        setError(getErrorMessage(e));
       }
     } finally {
       setLoading(false);
@@ -171,11 +172,11 @@ const SignInPage = () => {
       recaptchaVerifierRef.current = twoFactorService.initRecaptchaVerifier('recaptcha-signin-container');
       await sendMfaCode(recaptchaVerifierRef.current);
       setCodeSent(true);
-    } catch (e: any) {
-      if (e.code === 'auth/too-many-requests') {
+    } catch (e: unknown) {
+      if (getErrorCode(e) === 'auth/too-many-requests') {
         setError(t('signin.errors.tooManyAttempts'));
       } else {
-        setError(e.message || t('signin.errors.sendCodeFailed'));
+        setError(getErrorMessage(e, t('signin.errors.sendCodeFailed')));
       }
       if (recaptchaVerifierRef.current) {
         recaptchaVerifierRef.current.clear();
@@ -197,8 +198,8 @@ const SignInPage = () => {
       // Redirect handled by the currentUser useEffect — verifyTwoFactorAndComplete
       // eagerly updates currentUser + syncs the session cookie before returning,
       // so the redirect fires without racing the middleware.
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
       setVerifying(false);
     }
   };
@@ -227,11 +228,11 @@ const SignInPage = () => {
     try {
       await resetPassword(email);
       setResetSent(true);
-    } catch (e: any) {
-      if (e.code === 'auth/user-not-found') {
+    } catch (e: unknown) {
+      if (getErrorCode(e) === 'auth/user-not-found') {
         setError(t('signin.errors.userNotFound'));
       } else {
-        setError(e.message);
+        setError(getErrorMessage(e));
       }
     }
     setResetLoading(false);

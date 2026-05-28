@@ -52,6 +52,12 @@ export interface DetailPost {
 // listing post for now.
 export type Post = ListingPost;
 
+export interface PostsResponse {
+  posts: ListingPost[];
+  hasMore?: boolean;
+  lastVisibleTimestamp?: number | null;
+}
+
 // On a fresh page load `auth.currentUser` is `null` until the Firebase
 // auth listener has restored the session from local storage. Hooks that
 // fire on mount (like usePosts) hit this window and would otherwise send
@@ -93,7 +99,7 @@ export async function getPosts(params: {
   limit?: number;
   lastVisibleTimestamp?: number;
   language?: PostLanguage;
-} = {}) {
+} = {}): Promise<PostsResponse> {
   const {
     category = 'all',
     isPublic = true,
@@ -136,7 +142,7 @@ export async function getPosts(params: {
     await throwApiError(response);
   }
 
-  return await response.json();
+  return await response.json() as PostsResponse;
 }
 
 // Convenience wrapper around getPosts for category-scoped listings.

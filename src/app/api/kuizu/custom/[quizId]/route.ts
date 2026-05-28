@@ -92,7 +92,7 @@ export const PUT = withActivityLog('next_api.kuizu.custom.quizId.PUT', async (re
       );
     }
 
-    const updateData: any = {
+    const updateData: Record<string, unknown> = {
       updatedAt: getServerTimestamp(),
     };
 

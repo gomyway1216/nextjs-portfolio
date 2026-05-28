@@ -226,9 +226,9 @@ export class MidEvaluator implements Evaluator {
     const myMobility = board.getMovablePos().length;
 
     // Count opponent's mobility (need to temporarily switch)
-    (board as any).currentColor = -savedColor as Color;
+    board.setCurrentColor(-savedColor as Color);
     const oppMobility = board.getMovablePos().length;
-    (board as any).currentColor = savedColor;
+    board.setCurrentColor(savedColor);
 
     // Mobility difference (weighted)
     return (myMobility - oppMobility) * 1000;

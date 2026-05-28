@@ -1,24 +1,25 @@
 'use client';
 
 import React, { createContext, useEffect, useContext, useState, ReactNode, useCallback, useRef } from 'react';
-import { MultiFactorResolver, RecaptchaVerifier, User } from 'firebase/auth';
+import { MultiFactorResolver, RecaptchaVerifier, User, UserCredential } from 'firebase/auth';
 import { auth, signInWithEmail, signUpWithEmail, signOutUser }
   from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
+import { getErrorCode } from '@/lib/errorUtils';
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
 interface AuthContextType {
-  currentUser: any;
+  currentUser: User | null;
   loading: boolean;
   isAdmin: boolean;
   isEnrolledInMFA: boolean;
   twoFactorRequired: boolean;
   mfaPhoneHint: string | null;
-  signIn: (email: string, password: string) => Promise<any>;
-  signUp: (email: string, password: string, displayName?: string) => Promise<any>;
+  signIn: (email: string, password: string) => Promise<UserCredential>;
+  signUp: (email: string, password: string, displayName?: string) => Promise<UserCredential>;
   signInWithTwoFactor: (email: string, password: string) => Promise<{ requiresTwoFactor: boolean }>;
   sendMfaCode: (recaptchaVerifier: RecaptchaVerifier) => Promise<void>;
   verifyTwoFactorAndComplete: (code: string) => Promise<void>;
@@ -28,7 +29,7 @@ interface AuthContextType {
 }
 
 interface AuthSessionState {
-  currentUser: any;
+  currentUser: User | null;
   isAdmin: boolean;
   isEnrolledInMFA: boolean;
 }
@@ -157,7 +158,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       await signInWithEmail(email, password);
       // Sign-in succeeded without MFA
       return { requiresTwoFactor: false };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Check if MFA is required
       if (twoFactorService.isMfaError(error)) {
         // Store the resolver for completing MFA
@@ -218,9 +219,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       mfaResolverRef.current = null;
       setTwoFactorRequired(false);
       setMfaPhoneHint(null);
-    } catch (error: any) {
+    } catch (error: unknown) {
       mfaSignInCompletingRef.current = false;
-      if (error.code === 'auth/invalid-verification-code') {
+      if (getErrorCode(error) === 'auth/invalid-verification-code') {
         throw new Error('Invalid verification code. Please try again.');
       }
       throw error;
@@ -265,7 +266,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       }
     };
 
-    const unsubscribe = auth.onAuthStateChanged(async (user: any) => {
+    const unsubscribe = auth.onAuthStateChanged(async (user: User | null) => {
       if (!user) {
         setAuthState({ currentUser: null, isAdmin: false, isEnrolledInMFA: false });
         // Skip cookie deletion only on the initial idle/signed-out load. That

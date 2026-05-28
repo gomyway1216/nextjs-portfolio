@@ -21,7 +21,7 @@ const VoiceChat = () => {
   };
 
   const stopRecording = () => {
-    recorder.stop().getMp3().then(async ([buffer, blob]: any) => {
+    recorder.stop().getMp3().then(async ([buffer, blob]) => {
       const file = new File(buffer, 'input.mp3', {
         type: blob.type,
         lastModified: Date.now(),

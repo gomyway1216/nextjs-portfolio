@@ -139,7 +139,7 @@ export function runMartingale(
   let i = 0;
   for (; i < maxSpins; i++) {
     // Can we even place the desired bet? Cap to bankroll and table max.
-    let actualBet = Math.min(nextBet, tableMax, bankroll);
+    const actualBet = Math.min(nextBet, tableMax, bankroll);
     if (nextBet > tableMax) hitTableMax = true;
     if (actualBet <= 0) break;
     maxBetReached = Math.max(maxBetReached, actualBet);

@@ -58,7 +58,7 @@ function sampleGamma(shape: number, rng: () => number): number {
   }
   const d = shape - 1 / 3;
   const c = 1 / Math.sqrt(9 * d);
-  // eslint-disable-next-line no-constant-condition
+
   while (true) {
     let x = 0;
     let v = 0;

@@ -22,7 +22,7 @@ export const GET = withActivityLog('next_api.kuizu.daily.GET', async (request: N
     const challengeId = `daily_${dateStr}`;
 
     // Check if today's challenge exists
-    let challengeDoc = await db.collection(KUIZU_DAILY_CHALLENGES_COLLECTION).doc(challengeId).get();
+    const challengeDoc = await db.collection(KUIZU_DAILY_CHALLENGES_COLLECTION).doc(challengeId).get();
 
     let challenge: DailyChallenge;
 

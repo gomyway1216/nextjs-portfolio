@@ -115,7 +115,6 @@ export default function MarkdownPreviewPage() {
       toast.error(p('fileReadError'));
     };
     reader.readAsText(file);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p, pushPreviewState, hasContent]);
 
   const handleDragOver = useCallback((e: DragEvent) => {
@@ -165,7 +164,6 @@ export default function MarkdownPreviewPage() {
     } catch {
       toast.error(p('clipboardDenied'));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [p, pushPreviewState, hasContent]);
 
   const handleClear = useCallback(() => {

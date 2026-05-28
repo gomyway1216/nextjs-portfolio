@@ -489,7 +489,7 @@ export class KyokumenImproved {
 
       if (te.promote) {
         // Restore evaluation for unpromotion
-        let koma = te.koma | PROMOTE;
+        const koma = te.koma | PROMOTE;
         this.eval -= komaValue[koma];
         this.eval += komaValue[te.koma];
       }

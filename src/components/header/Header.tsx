@@ -1,7 +1,7 @@
 'use client';
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Tooltip } from 'react-tooltip';
 import { useActiveSection } from '@/hooks/useActiveSection';
 import {
@@ -28,7 +28,10 @@ import { useAuth } from '@/providers/AuthProvider';
 // Section IDs the home-page nav scroll-spies on, in document order.
 // The first one whose top crosses into the viewport's top band gets
 // the `active` class.
-const SECTION_IDS = ['home', 'work', 'tools', 'games', 'blog', 'about', 'resume'] as const;
+// 'work' is intentionally not in this list — the work nav item now
+// links to the standalone /work route (case studies), not the home
+// Portfolio anchor.
+const SECTION_IDS = ['home', 'tools', 'games', 'blog', 'about', 'resume'] as const;
 
 const Header = () => {
   const [click, setClick] = useState<boolean>(false);
@@ -36,6 +39,7 @@ const Header = () => {
   const handleClick = () => setClick(!click);
   const toggleDropdown = () => setShowDropdown(!showDropdown);
   const router = useRouter();
+  const pathname = usePathname();
   const { currentUser, signOut } = useAuth();
   const { t, i18n } = useTranslation();
   const activeSection = useActiveSection(SECTION_IDS);
@@ -108,16 +112,16 @@ const Header = () => {
                 <House size={20} />
               </a>
             </li>
-            <li className={activeSection === 'work' ? 'active' : ''}>
-              <a
+            <li className={pathname === '/work' || pathname?.startsWith('/work/') ? 'active' : ''}>
+              <Link
                 className="nav-link"
-                href="#work"
+                href="/work"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.work')}
                 onClick={handleClick}
               >
                 <BriefcaseBusiness size={20} />
-              </a>
+              </Link>
             </li>
             <li className={activeSection === 'tools' ? 'active' : ''}>
               <a

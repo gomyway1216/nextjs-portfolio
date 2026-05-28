@@ -102,17 +102,17 @@ const Header = () => {
 
           <ul className="nav nav-menu">
             <li className={activeSection === 'home' ? 'active' : ''}>
-              <a
+              <Link
                 className="nav-link "
-                href="#home"
+                href="/#home"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.home')}
                 onClick={handleClick}
               >
                 <House size={20} />
-              </a>
+              </Link>
             </li>
-            <li className={pathname === '/work' || pathname?.startsWith('/work/') ? 'active' : ''}>
+            <li className={pathname && (pathname === '/work' || pathname.startsWith('/work/')) ? 'active' : ''}>
               <Link
                 className="nav-link"
                 href="/work"
@@ -124,59 +124,59 @@ const Header = () => {
               </Link>
             </li>
             <li className={activeSection === 'tools' ? 'active' : ''}>
-              <a
+              <Link
                 className="nav-link"
-                href="#tools"
+                href="/#tools"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.tools')}
                 onClick={handleClick}
               >
                 <Wrench size={20} />
-              </a>
+              </Link>
             </li>
             <li className={activeSection === 'games' ? 'active' : ''}>
-              <a
+              <Link
                 className="nav-link"
-                href="#games"
+                href="/#games"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.games')}
                 onClick={handleClick}
               >
                 <Gamepad2 size={20} />
-              </a>
+              </Link>
             </li>
             <li className={activeSection === 'blog' ? 'active' : ''}>
-              <a
+              <Link
                 className="nav-link"
-                href="#blog"
+                href="/#blog"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.blog')}
                 onClick={handleClick}
               >
                 <NotebookPen size={20} />
-              </a>
+              </Link>
             </li>
             <li className={activeSection === 'about' ? 'active' : ''}>
-              <a
+              <Link
                 className="nav-link"
-                href="#about"
+                href="/#about"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.about')}
                 onClick={handleClick}
               >
                 <UserRound size={20} />
-              </a>
+              </Link>
             </li>
             <li className={activeSection === 'resume' ? 'active' : ''}>
-              <a
+              <Link
                 className="nav-link"
-                href="#resume"
+                href="/#resume"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.resume')}
                 onClick={handleClick}
               >
                 <FileText size={20} />
-              </a>
+              </Link>
             </li>
             <li>
               <a

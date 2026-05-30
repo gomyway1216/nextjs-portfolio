@@ -1,19 +1,35 @@
 .home-modern {
-  --surface-base: #f8fafc;
+  --surface-base: #f6f7f9;
   --surface-elevated: #ffffff;
-  --surface-contrast: #eff6ff;
+  --surface-contrast: #edf5f8;
   --text-primary: #0f172a;
   --text-secondary: #475569;
-  --accent: #2563eb;
-  --accent-strong: #1d4ed8;
+  --accent: #0f62fe;
+  --accent-strong: #0043ce;
+  --accent-secondary: #0f766e;
   --border-soft: rgba(15, 23, 42, 0.1);
   --shadow-soft: 0 14px 40px rgba(15, 23, 42, 0.08);
-  --shadow-hover: 0 20px 48px rgba(37, 99, 235, 0.2);
+  --shadow-hover: 0 18px 44px rgba(15, 23, 42, 0.14);
 
-  background:
-    radial-gradient(90rem 45rem at -12% -10%, rgba(37, 99, 235, 0.14), transparent 60%),
-    radial-gradient(85rem 40rem at 110% -12%, rgba(14, 165, 233, 0.12), transparent 60%),
-    var(--surface-base);
+  background: linear-gradient(180deg, #ffffff 0%, var(--surface-base) 44%, #eef3f7 100%);
+  color: var(--text-primary);
+}
+
+.dark .home-modern,
+.theme-dark .home-modern {
+  --surface-base: #05070b;
+  --surface-elevated: #11151c;
+  --surface-contrast: #151b24;
+  --text-primary: #f5f7fb;
+  --text-secondary: #a9b3c2;
+  --accent: #5aa2ff;
+  --accent-strong: #8fc3ff;
+  --accent-secondary: #55d6be;
+  --border-soft: rgba(229, 233, 240, 0.14);
+  --shadow-soft: 0 18px 54px rgba(0, 0, 0, 0.28);
+  --shadow-hover: 0 22px 58px rgba(0, 0, 0, 0.38);
+
+  background: linear-gradient(180deg, #05070b 0%, #0b1017 48%, #101720 100%);
   color: var(--text-primary);
 }
 
@@ -30,8 +46,9 @@
 .home-modern .modern-title h3 {
   font-size: clamp(2rem, 3.4vw, 2.85rem);
   font-weight: 700;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   margin-bottom: 0.75rem;
+  color: var(--text-primary);
 }
 
 .home-modern .modern-title p {
@@ -55,17 +72,18 @@
   gap: 0.5rem;
   padding: 0.35rem 0.9rem;
   border-radius: 999px;
-  background: rgba(37, 99, 235, 0.14);
+  background: color-mix(in srgb, var(--surface-elevated) 74%, var(--accent) 26%);
   color: var(--accent-strong);
   font-size: 0.82rem;
   font-weight: 600;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
   text-transform: uppercase;
   margin-bottom: 1rem;
 }
 
 .modern-hero .type-box h1 {
-  letter-spacing: -0.03em;
+  letter-spacing: 0;
+  color: var(--text-primary);
 }
 
 .modern-hero .type-box .desc {
@@ -83,7 +101,7 @@
 }
 
 .home-modern .px-btn {
-  border-radius: 12px;
+  border-radius: 8px;
   height: 48px;
   line-height: 46px;
   font-weight: 600;
@@ -103,24 +121,24 @@
 }
 
 .home-modern .px-btn.px-btn-theme {
-  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 
 .home-modern .px-btn.px-btn-white {
   border: 1px solid var(--border-soft);
-  background: #ffffff;
+  background: var(--surface-elevated);
   color: var(--text-primary);
 }
 
 .home-modern .px-btn.px-btn-outline {
-  border: 1px solid rgba(37, 99, 235, 0.28);
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
   color: var(--accent-strong);
-  background: rgba(255, 255, 255, 0.92);
+  background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
 }
 
 .home-modern .header-left {
   backdrop-filter: saturate(180%) blur(8px);
-  background: rgba(255, 255, 255, 0.9);
+  background: color-mix(in srgb, var(--surface-elevated) 90%, transparent);
   border-right: 1px solid var(--border-soft);
 }
 
@@ -130,27 +148,27 @@
 }
 
 .home-modern .header-left .nav-menu li.active .nav-link {
-  background: rgba(37, 99, 235, 0.12);
+  background: color-mix(in srgb, var(--surface-elevated) 72%, var(--accent) 28%);
 }
 
 .home-modern .modern-card {
   background: var(--surface-elevated);
   border: 1px solid var(--border-soft);
-  border-radius: 18px;
+  border-radius: 8px;
   box-shadow: var(--shadow-soft);
   transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
 .home-modern .modern-card:hover {
-  transform: translateY(-6px);
+  transform: translateY(-4px);
   box-shadow: var(--shadow-hover);
-  border-color: rgba(37, 99, 235, 0.3);
+  border-color: color-mix(in srgb, var(--accent) 36%, transparent);
 }
 
 .home-modern .games-carousel__button {
-  background: rgba(255, 255, 255, 0.96);
+  background: color-mix(in srgb, var(--surface-elevated) 92%, transparent);
   border: 1px solid var(--border-soft);
-  color: #1e293b;
+  color: var(--text-primary);
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
 }
 
@@ -163,7 +181,7 @@
 }
 
 .home-modern .game-card-wrapper .blog-img {
-  border-radius: 16px 16px 0 0;
+  border-radius: 8px 8px 0 0;
 }
 
 .home-modern .blog-grid .blog-info h6 {
@@ -172,32 +190,30 @@
 }
 
 .home-modern #blog.section {
-  background:
-    linear-gradient(180deg, rgba(219, 234, 254, 0.5) 0%, rgba(239, 246, 255, 0.6) 100%),
-    transparent;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface-contrast) 58%, transparent) 0%, transparent 100%);
 }
 
 .home-modern #blog .title h3::after {
-  background: rgba(37, 99, 235, 0.35);
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .home-modern #blog .blog-grid.modern-card {
-  border-color: rgba(59, 130, 246, 0.2);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--border-soft));
 }
 
 .home-modern #blog .blog-grid.modern-card:hover {
-  border-color: rgba(37, 99, 235, 0.42);
-  box-shadow: 0 20px 48px rgba(37, 99, 235, 0.2);
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  box-shadow: var(--shadow-hover);
 }
 
 .home-modern #blog .blog-grid .meta {
-  color: #2563eb;
+  color: var(--accent);
   font-weight: 600;
 }
 
 .home-modern #blog .blog-grid .blog-info a {
-  color: #0f172a;
-  background-image: linear-gradient(130deg, #2563eb, #2563eb);
+  color: var(--text-primary);
+  background-image: linear-gradient(130deg, var(--accent), var(--accent));
 }
 
 .home-modern .separated {
@@ -220,7 +236,7 @@
 
 .home-modern .about-me .img-in {
   border-width: 4px;
-  border-color: rgba(37, 99, 235, 0.35);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
   box-shadow: var(--shadow-soft);
 }
 
@@ -254,6 +270,22 @@
   line-height: 1.85;
 }
 
+.home-modern .about-info .info-list label,
+.home-modern .about-info .info-list span,
+.home-modern .resume-row .rb-right p,
+.home-modern .aducation-box p,
+.home-modern .loop-text,
+.home-modern .type-box h6 {
+  color: var(--text-secondary);
+}
+
+.home-modern .resume-row .rb-left h6,
+.home-modern .resume-row .rb-right h6,
+.home-modern .aducation-box h6,
+.home-modern .about-me .info h3 {
+  color: var(--text-primary);
+}
+
 .home-modern .resume-row,
 .home-modern .aducation-box {
   background: var(--surface-elevated);
@@ -268,7 +300,17 @@
 
 .home-modern .modern-footer {
   border-top: 1px solid var(--border-soft);
-  background: rgba(255, 255, 255, 0.65);
+  background: color-mix(in srgb, var(--surface-elevated) 74%, transparent);
+}
+
+.dark .home-modern .tool-card__feature,
+.theme-dark .home-modern .tool-card__feature {
+  color: var(--accent-strong);
+}
+
+.dark .home-modern .separated,
+.theme-dark .home-modern .separated {
+  opacity: 0.18;
 }
 
 @media (max-width: 991px) {

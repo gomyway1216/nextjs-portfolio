@@ -12,19 +12,22 @@ import Blog from '@/components/blog/BlogAnimation';
 import Footer from '@/components/footer/FooterAnimation';
 import useDocumentTitle from '@/components/useDocumentTitle';
 import { useTranslation } from 'react-i18next';
+import { useTheme } from 'next-themes';
 
 const HomeOne = () => {
   const { t } = useTranslation();
+  const { resolvedTheme } = useTheme();
   useDocumentTitle(
     t('app.title')
   );
 
   useEffect(() => {
-    document.body.classList.add('theme-light');
+    document.body.classList.remove('theme-light', 'theme-dark');
+    document.body.classList.add(resolvedTheme === 'dark' ? 'theme-dark' : 'theme-light');
     return () => {
-      document.body.classList.remove('theme-light');
+      document.body.classList.remove('theme-light', 'theme-dark');
     };
-  }, []);
+  }, [resolvedTheme]);
 
   return (
     <div className="main-left home-modern">

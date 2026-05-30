@@ -34,78 +34,74 @@ interface ThemeConfig {
   avatarText: string;
 }
 
-// Each theme's `bg` is the equivalent OPAQUE color for the original
-// `rgba(R,G,B,0.06)` blended over a white page. This preserves the
-// subtle color identity per section while keeping the toolbar fully
-// solid so content scrolling underneath stays sharp and readable.
 const THEMES: { prefix: string; theme: ThemeConfig }[] = [
   {
     prefix: '/tools/settli',
     theme: {
-      bg: 'rgb(246,246,254)',
-      border: 'rgba(99,102,241,0.2)',
+      bg: 'color-mix(in srgb, var(--background) 92%, #6366f1 8%)',
+      border: 'color-mix(in srgb, var(--border) 70%, #6366f1 30%)',
       accent: '#6366f1',
-      avatarBg: 'rgba(99,102,241,0.12)',
+      avatarBg: 'color-mix(in srgb, var(--background) 82%, #6366f1 18%)',
       avatarText: '#6366f1',
     },
   },
   {
     prefix: '/games',
     theme: {
-      bg: '#000',
-      border: 'rgba(14,165,233,0.3)',
+      bg: 'color-mix(in srgb, var(--background) 88%, #0ea5e9 12%)',
+      border: 'color-mix(in srgb, var(--border) 65%, #0ea5e9 35%)',
       accent: '#0ea5e9',
-      avatarBg: 'rgba(14,165,233,0.15)',
+      avatarBg: 'color-mix(in srgb, var(--background) 80%, #0ea5e9 20%)',
       avatarText: '#0ea5e9',
     },
   },
   {
     prefix: '/study',
     theme: {
-      bg: 'rgb(247,243,254)',
-      border: 'rgba(124,58,237,0.2)',
+      bg: 'color-mix(in srgb, var(--background) 92%, #7c3aed 8%)',
+      border: 'color-mix(in srgb, var(--border) 70%, #7c3aed 30%)',
       accent: '#7c3aed',
-      avatarBg: 'rgba(124,58,237,0.12)',
+      avatarBg: 'color-mix(in srgb, var(--background) 82%, #7c3aed 18%)',
       avatarText: '#7c3aed',
     },
   },
   {
     prefix: '/hobbies',
     theme: {
-      bg: 'rgb(250,245,255)',
-      border: 'rgba(168,85,247,0.2)',
+      bg: 'color-mix(in srgb, var(--background) 92%, #a855f7 8%)',
+      border: 'color-mix(in srgb, var(--border) 70%, #a855f7 30%)',
       accent: '#a855f7',
-      avatarBg: 'rgba(168,85,247,0.12)',
+      avatarBg: 'color-mix(in srgb, var(--background) 82%, #a855f7 18%)',
       avatarText: '#a855f7',
     },
   },
   {
     prefix: '/admin',
     theme: {
-      bg: 'rgb(250,245,255)',
-      border: 'rgba(168,85,247,0.2)',
+      bg: 'color-mix(in srgb, var(--background) 92%, #a855f7 8%)',
+      border: 'color-mix(in srgb, var(--border) 70%, #a855f7 30%)',
       accent: '#a855f7',
-      avatarBg: 'rgba(168,85,247,0.12)',
+      avatarBg: 'color-mix(in srgb, var(--background) 82%, #a855f7 18%)',
       avatarText: '#a855f7',
     },
   },
   {
     prefix: '/tools/kaimono',
     theme: {
-      bg: 'rgb(241,251,248)',
-      border: 'rgba(16,185,129,0.2)',
+      bg: 'color-mix(in srgb, var(--background) 92%, #10b981 8%)',
+      border: 'color-mix(in srgb, var(--border) 70%, #10b981 30%)',
       accent: '#10b981',
-      avatarBg: 'rgba(16,185,129,0.12)',
+      avatarBg: 'color-mix(in srgb, var(--background) 82%, #10b981 18%)',
       avatarText: '#10b981',
     },
   },
   {
     prefix: '/blog',
     theme: {
-      bg: 'rgb(242,252,246)',
-      border: 'rgba(34,197,94,0.2)',
+      bg: 'color-mix(in srgb, var(--background) 92%, #22c55e 8%)',
+      border: 'color-mix(in srgb, var(--border) 70%, #22c55e 30%)',
       accent: '#22c55e',
-      avatarBg: 'rgba(34,197,94,0.12)',
+      avatarBg: 'color-mix(in srgb, var(--background) 82%, #22c55e 18%)',
       avatarText: '#16a34a',
     },
   },

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 // Section IDs the home-page nav scroll-spies on, in document order.
 // The first one whose top crosses into the viewport's top band gets
@@ -58,7 +59,13 @@ const Header = () => {
     <>
       {/* Header */}
       <div className="mob-header">
-        <button className="toggler-menu" onClick={handleClick}>
+        <ThemeToggle />
+        <button
+          className="toggler-menu"
+          onClick={handleClick}
+          aria-label={click ? 'Close navigation menu' : 'Open navigation menu'}
+          aria-expanded={click}
+        >
           <div className={click ? 'active' : ''}>
             <span></span>
             <span></span>
@@ -95,6 +102,9 @@ const Header = () => {
                 >
                   JA
                 </button>
+              </div>
+              <div className="hl-theme-toggle">
+                <ThemeToggle />
               </div>
             </div>
           </div>

@@ -1,14 +1,14 @@
 'use client';
-import React, { useMemo } from 'react';
-import Image from 'next/image';
-import * as Dialog from '@radix-ui/react-dialog';
-import { useAuth } from '@/providers/AuthProvider';
 import { Button } from '@/components/ui/button';
-import { useRouter } from 'next/navigation';
 import * as util from '@/lib/utils/util';
+import { useAuth } from '@/providers/AuthProvider';
+import type { Project,TechnologyData,UrlData } from '@/services/projectsService';
+import * as Dialog from '@radix-ui/react-dialog';
 import DOMPurify from 'dompurify';
+import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { useMemo } from 'react';
 import SimpleCarousel from './SimpleCarousel';
-import type { Project, TechnologyData, UrlData } from '@/services/projectsService';
 
 interface PortfolioModalProps {
   project: Project;
@@ -38,7 +38,7 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
     });
   }, [project.description]);
 
-  const closeModal = () => {
+  const _closeModal = () => {
     setIsOpen(false);
   };
 

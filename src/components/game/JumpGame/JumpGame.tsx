@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Info, X, Trophy, Zap, Volume2, VolumeX, Heart } from 'lucide-react';
-import { useHighScore } from '@/hooks/useHighScore';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
+import { useHighScore } from '@/hooks/useHighScore';
+import { Info,Trophy,Volume2,VolumeX,X,Zap } from 'lucide-react';
+import { useEffect,useRef,useState } from 'react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 enum Scene {
@@ -85,7 +85,7 @@ const JumpGame = () => {
           throw new Error('Web Audio API not available');
         }
         audioContextRef.current = new AudioContextConstructor();
-      } catch (e) {
+      } catch (_e) {
         console.warn('Web Audio API not available');
       }
     }
@@ -121,7 +121,7 @@ const JumpGame = () => {
 
       oscillator.start(audioContext.currentTime);
       oscillator.stop(audioContext.currentTime + duration);
-    } catch (e) {
+    } catch (_e) {
       // Silently fail if audio context not available
     }
   };

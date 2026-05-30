@@ -9,17 +9,16 @@
  * - FFEvaluator: Mobility-based evaluation for move ordering
  */
 
+import { Board } from './Board';
 import {
-  BOARD_SIZE,
-  BOARD_POWER_SIZE,
-  BLACK,
-  WHITE,
-  EMPTY,
-  Color,
-  MULTIPLIER,
-  POWER3,
+BLACK,
+BOARD_POWER_SIZE,
+BOARD_SIZE,
+Color,
+EMPTY,
+MULTIPLIER,
+WHITE
 } from './types';
-import { Board, Indexer } from './Board';
 
 /**
  * Base Evaluator interface
@@ -105,10 +104,10 @@ function createDefaultWeights(): Weights {
 
   // Initialize with simple positional values
   // Corner positions are highly valuable
-  const cornerBonus = 10000;
-  const edgeBonus = 2000;
-  const xSquarePenalty = -5000;
-  const cSquarePenalty = -2000;
+  const _cornerBonus = 10000;
+  const _edgeBonus = 2000;
+  const _xSquarePenalty = -5000;
+  const _cSquarePenalty = -2000;
 
   // Generate simple positional weights for each pattern
   // This is a simplified version - real Thell uses learned weights
@@ -176,8 +175,8 @@ export class MidEvaluator implements Evaluator {
     if (board.countDisc(board.getCurrentColor()) === 0) return -destroyed;
     if (board.countDisc(-board.getCurrentColor() as Color) === 0) return destroyed;
 
-    const idx = board.getIndexTable();
-    const stage = Math.min(14, Math.floor(board.getTurns() / 4));
+    const _idx = board.getIndexTable();
+    const _stage = Math.min(14, Math.floor(board.getTurns() / 4));
 
     let evalScore = 0;
 

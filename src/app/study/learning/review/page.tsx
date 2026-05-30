@@ -1,38 +1,32 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import Link from 'next/link';
-import {
-  ArrowLeft,
-  Brain,
-  Check,
-  X,
-  RotateCcw,
-  ChevronRight,
-  Loader2,
-  Trophy,
-  Clock,
-  Flame,
-} from 'lucide-react';
-import { useAuth } from '@/providers/AuthProvider';
 import { useSpacedRepetition } from '@/hooks/useStudy';
-import { FlashcardDifficulty, Flashcard, DictionaryTerm } from '@/types/study';
+import { useAuth } from '@/providers/AuthProvider';
+import { DictionaryTerm,Flashcard,FlashcardDifficulty } from '@/types/study';
+import {
+ArrowLeft,
+Loader2,
+RotateCcw,
+Trophy
+} from 'lucide-react';
+import Link from 'next/link';
 import Prism from 'prismjs';
-import 'prismjs/themes/prism-tomorrow.css';
-import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-javascript';
 import 'prismjs/components/prism-python';
+import 'prismjs/components/prism-typescript';
+import 'prismjs/themes/prism-tomorrow.css';
+import { useEffect,useState } from 'react';
 
-type ReviewItem = (Flashcard | DictionaryTerm) & { type: 'flashcard' | 'dictionary_term' };
+type _ReviewItem = (Flashcard | DictionaryTerm) & { type: 'flashcard' | 'dictionary_term' };
 
 export default function ReviewSessionPage() {
   const { currentUser } = useAuth();
   const {
-    dueFlashcards,
-    dueTerms,
+    dueFlashcards: _dueFlashcards,
+    dueTerms: _dueTerms,
     totalDue,
     loading,
-    error,
+    error: _error,
     reviewing,
     isComplete,
     submitReview,
@@ -466,7 +460,7 @@ export default function ReviewSessionPage() {
 }
 
 function DifficultyButton({
-  difficulty,
+  difficulty: _difficulty,
   label,
   sublabel,
   color,

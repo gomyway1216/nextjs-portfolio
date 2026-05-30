@@ -1,26 +1,26 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useTranslation } from 'react-i18next';
-import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Trophy } from 'lucide-react';
-import { toast } from 'sonner';
-import { useAuth } from '@/providers/AuthProvider';
-import { KuizuLogo } from '@/components/kuizu/KuizuLogo';
+import { DailyChallengeBanner } from '@/components/kuizu/DailyChallengeBanner';
 import { DailyChallengePlayer } from '@/components/kuizu/DailyChallengePlayer';
 import { DailyLeaderboard } from '@/components/kuizu/DailyLeaderboard';
-import { DailyChallengeBanner } from '@/components/kuizu/DailyChallengeBanner';
-import { useKuizuDaily, useKuizuMutations } from '@/hooks/useKuizu';
-import type { DailyChallengeEntry } from '@/types/kuizu';
+import { KuizuLogo } from '@/components/kuizu/KuizuLogo';
+import { Button } from '@/components/ui/button';
+import { useKuizuDaily,useKuizuMutations } from '@/hooks/useKuizu';
+import { useAuth } from '@/providers/AuthProvider';
 import * as kuizuService from '@/services/kuizuService';
+import type { DailyChallengeEntry } from '@/types/kuizu';
+import { ArrowLeft,Loader2,Trophy } from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 
 type DailyState = 'overview' | 'playing' | 'completed';
 
 export default function KuizuDailyPage() {
   const { t } = useTranslation();
-  const router = useRouter();
+  const _router = useRouter();
   const { currentUser } = useAuth();
   const { challenge, userEntry, loading, refetch } = useKuizuDaily();
   const { submitDailyResult } = useKuizuMutations();

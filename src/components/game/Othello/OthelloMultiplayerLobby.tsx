@@ -4,9 +4,9 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import React,{ useState } from 'react';
+import { BLACK } from './types';
 import { UseOthelloMultiplayerReturn } from './useOthelloMultiplayer';
-import { BLACK, WHITE } from './types';
 
 interface OthelloMultiplayerLobbyProps {
   multiplayer: UseOthelloMultiplayerReturn;
@@ -19,7 +19,7 @@ export function OthelloMultiplayerLobby({
   onStartSinglePlayer,
   onGameStart,
 }: OthelloMultiplayerLobbyProps) {
-  const { context, room, otherPlayer, myColor } = multiplayer;
+  const { context, room, otherPlayer: _otherPlayer, myColor } = multiplayer;
   const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
   const [playerName, setPlayerName] = useState('');
   const [password, setPassword] = useState('');

@@ -3,35 +3,34 @@
  * Core game logic: turns, combat, movement, items
  */
 
+import { createBoss,getEnemyMove,isAdjacentToPlayer } from './Enemies';
+import { generateFloor,generateSurface,revealEntireMap,updateVisibility } from './MapGenerator';
 import {
-  GameState,
-  Player,
-  Enemy,
-  Item,
-  ItemType,
-  GameAction,
-  ActionType,
-  Direction,
-  DIRECTION_OFFSETS,
-  TileType,
-  Position,
-  StatusEffect,
-  ScrollEffect,
-  CardEffect,
-  PetType,
-  LogMessage,
-  TORCH_MAX,
-  TORCH_DECAY_RATE,
-  HP_REGEN_INTERVAL,
-  MAX_FLOORS,
-  INVENTORY_MAX,
-  getVisionRadius,
-  getExpForLevel,
-  positionsEqual,
-  EGG_HATCH_TURNS,
+ActionType,
+CardEffect,
+Direction,
+DIRECTION_OFFSETS,
+EGG_HATCH_TURNS,
+Enemy,
+GameAction,
+GameState,
+getExpForLevel,
+getVisionRadius,
+HP_REGEN_INTERVAL,
+INVENTORY_MAX,
+Item,
+ItemType,
+LogMessage,
+MAX_FLOORS,
+PetType,
+Player,
+Position,
+ScrollEffect,
+StatusEffect,
+TileType,
+TORCH_DECAY_RATE,
+TORCH_MAX
 } from './types';
-import { generateFloor, generateSurface, updateVisibility, revealEntireMap } from './MapGenerator';
-import { getEnemyMove, isAdjacentToPlayer, getEnemyChar, createBoss } from './Enemies';
 
 // Create initial player
 function createPlayer(x: number, y: number): Player {
@@ -210,7 +209,7 @@ function gainExp(state: GameState, exp: number): void {
 }
 
 // Use stairs
-function useStairs(state: GameState): boolean {
+function climbStairs(state: GameState): boolean {
   const { player, floor, currentFloor } = state;
   const tile = floor.tiles[player.y][player.x];
 
@@ -286,7 +285,7 @@ function pickUpItem(state: GameState): boolean {
 }
 
 // Use item from inventory
-function useItem(state: GameState, itemIndex: number, targetDirection?: Direction): boolean {
+function activateInventoryItem(state: GameState, itemIndex: number, targetDirection?: Direction): boolean {
   const { player } = state;
 
   if (itemIndex < 0 || itemIndex >= player.inventory.length) {
@@ -310,10 +309,10 @@ function useItem(state: GameState, itemIndex: number, targetDirection?: Directio
       return true;
 
     case ItemType.SCROLL:
-      return useScroll(state, item, itemIndex);
+      return readScroll(state, item, itemIndex);
 
     case ItemType.CARD:
-      return useCard(state, item, itemIndex, targetDirection);
+      return throwCard(state, item, itemIndex, targetDirection);
 
     case ItemType.WEAPON:
     case ItemType.ARMOR:
@@ -329,7 +328,7 @@ function useItem(state: GameState, itemIndex: number, targetDirection?: Directio
 }
 
 // Use scroll
-function useScroll(state: GameState, scroll: Item, itemIndex: number): boolean {
+function readScroll(state: GameState, scroll: Item, itemIndex: number): boolean {
   const { player, floor } = state;
 
   switch (scroll.scrollEffect) {
@@ -405,7 +404,7 @@ function useScroll(state: GameState, scroll: Item, itemIndex: number): boolean {
 }
 
 // Use card (throwable)
-function useCard(state: GameState, card: Item, itemIndex: number, direction?: Direction): boolean {
+function throwCard(state: GameState, card: Item, itemIndex: number, direction?: Direction): boolean {
   const { player, floor } = state;
 
   // Heal card can be used on self
@@ -521,7 +520,7 @@ function equipItem(state: GameState, itemIndex: number): boolean {
 }
 
 // Use pet ability
-function usePet(state: GameState): boolean {
+function activatePetAbility(state: GameState): boolean {
   const { player, floor } = state;
 
   if (!player.pet) {
@@ -726,7 +725,7 @@ export function processAction(state: GameState, action: GameAction): GameState {
       break;
 
     case ActionType.USE_STAIRS:
-      turnTaken = useStairs(newState);
+      turnTaken = climbStairs(newState);
       break;
 
     case ActionType.PICK_UP:
@@ -735,7 +734,7 @@ export function processAction(state: GameState, action: GameAction): GameState {
 
     case ActionType.USE_ITEM:
       if (action.itemIndex !== undefined) {
-        turnTaken = useItem(newState, action.itemIndex, action.direction);
+        turnTaken = activateInventoryItem(newState, action.itemIndex, action.direction);
       }
       break;
 
@@ -746,7 +745,7 @@ export function processAction(state: GameState, action: GameAction): GameState {
       break;
 
     case ActionType.USE_PET:
-      turnTaken = usePet(newState);
+      turnTaken = activatePetAbility(newState);
       break;
 
     case ActionType.WAIT:

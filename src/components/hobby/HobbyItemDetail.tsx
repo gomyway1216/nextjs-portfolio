@@ -1,22 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useHobbyCategories,useResolvedRelation } from '@/hooks/useHobbies';
+import type { CustomFieldType,HobbyCategory,HobbyItem } from '@/types/hobby';
+import {
+ArrowLeft,
+Calendar,
+ChevronLeft,
+ChevronRight,
+ExternalLink,
+Link2,
+MapPin,
+Star,
+X,
+} from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import type { HobbyItem, HobbyCategory, CustomFieldType, CustomField } from '@/types/hobby';
-import { useResolvedRelation, useHobbyCategories } from '@/hooks/useHobbies';
+import { useState } from 'react';
 import RelatedItemsList from './RelatedItemsList';
-import {
-  Star,
-  MapPin,
-  Calendar,
-  ExternalLink,
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  X,
-  Link2,
-} from 'lucide-react';
 
 interface HobbyItemDetailProps {
   item: HobbyItem;
@@ -28,7 +28,7 @@ interface HobbyItemDetailProps {
 function RelationFieldValue({
   itemId,
   hobbySlug,
-  label
+  label: _label
 }: {
   itemId: string;
   hobbySlug: string;

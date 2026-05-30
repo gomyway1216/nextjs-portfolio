@@ -1,34 +1,34 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+Select,
+SelectContent,
+SelectItem,
+SelectTrigger,
+SelectValue,
 } from '@/components/ui/select';
-import {
-  Search,
-  Filter,
-  BookOpen,
-  Clock,
-  ChevronRight,
-  Loader2,
-  X,
-  BarChart3,
-  Flame,
-  CheckCircle,
-  GraduationCap,
-  Brain,
-  BookMarked,
-  Menu,
-} from 'lucide-react';
-import { useStudyArticles, useStudyCategories, useStudyProgress, useArticleCounts } from '@/hooks/useStudy';
+import { useArticleCounts,useStudyArticles,useStudyCategories,useStudyProgress } from '@/hooks/useStudy';
 import { useAuth } from '@/providers/AuthProvider';
 import { QuizDifficulty } from '@/types/study';
+import {
+BarChart3,
+BookMarked,
+BookOpen,
+Brain,
+CheckCircle,
+ChevronRight,
+Clock,
+Filter,
+Flame,
+GraduationCap,
+Loader2,
+Menu,
+Search,
+X,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect,useState } from 'react';
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -48,7 +48,7 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function StudyListPage() {
-  const router = useRouter();
+  const _router = useRouter();
   const { currentUser } = useAuth();
   const isAuthenticated = !!currentUser;
   const { categories, loading: categoriesLoading } = useStudyCategories();

@@ -1,8 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo,useState } from 'react';
 import { UniqueCurveChart } from './charts';
-import { RunResult, expectedDraws, runCollection } from './engine';
+import { RunResult,expectedDraws } from './engine';
 
 const DEFAULT_N = 20;
 const MIN_N = 3;

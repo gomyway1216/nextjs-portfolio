@@ -14,10 +14,10 @@
  * Note: Run this script once after setting up the categories in the admin panel.
  */
 
-import * as admin from 'firebase-admin';
-import { v4 as uuidv4 } from 'uuid';
 import * as dotenv from 'dotenv';
+import * as admin from 'firebase-admin';
 import * as path from 'path';
+import { v4 as uuidv4 } from 'uuid';
 
 // Load environment variables from .env.local
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
@@ -30,7 +30,6 @@ const DRY_RUN = process.env.DRY_RUN !== 'false'; // Default to dry run for safet
 let SOURCE_ANIME_PATH = '';
 let SOURCE_VOICE_ACTOR_PATH = '';
 let SOURCE_CHARACTER_PATH = '';
-let SOURCE_TAG_PATH = '';
 
 // Target collection (new hobbies system)
 const TARGET_HOBBIES_COLLECTION = 'hobbies';
@@ -147,7 +146,7 @@ async function discoverSourceUserId(db: admin.firestore.Firestore): Promise<stri
         console.log(`  Found anime data in collection: ${collection.id}`);
         return collection.id;
       }
-    } catch (e) {
+    } catch (_e) {
       // Collection path doesn't exist, continue
     }
   }
@@ -334,7 +333,7 @@ async function migrateCharacters(
   console.log(`  Found ${sourceSnapshot.size} characters to migrate`);
 
   let migrated = 0;
-  let skipped = 0;
+  const skipped = 0;
 
   for (const doc of sourceSnapshot.docs) {
     const data = doc.data() as Omit<SourceCharacter, 'id'>;
@@ -387,7 +386,6 @@ function setSourcePaths(userId: string) {
   SOURCE_ANIME_PATH = `${userId}/anime/itemCollection`;
   SOURCE_VOICE_ACTOR_PATH = `${userId}/anime/voiceActorCollection`;
   SOURCE_CHARACTER_PATH = `${userId}/anime/animeCharacterCollection`;
-  SOURCE_TAG_PATH = `${userId}/anime/tagCollection`;
 }
 
 async function main() {

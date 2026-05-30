@@ -1,16 +1,14 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useFlashcards, useLearningAI } from "@/hooks/useStudy";
+import { useFlashcards,useLearningAI } from "@/hooks/useStudy";
 import {
-  Flashcard,
-  FlashcardDeck,
-  CreateFlashcard,
-  CreateFlashcardDeck,
-  CardContentDifficulty,
+CardContentDifficulty,
+Flashcard,
+FlashcardDeck
 } from "@/types/study";
 import { formatDistanceToNow } from "date-fns";
+import { useRouter } from "next/navigation";
+import { useEffect,useState } from "react";
 
 type TabType = "decks" | "cards" | "create";
 
@@ -25,7 +23,7 @@ export default function FlashcardsPage() {
     fetchDecks,
     createFlashcard,
     createDeck,
-    updateFlashcard,
+    updateFlashcard: _updateFlashcard,
     deleteDeck,
   } = useFlashcards();
   const { generateFlashcards, generating: aiLoading } = useLearningAI();

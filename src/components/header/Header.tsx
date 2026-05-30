@@ -1,30 +1,30 @@
 'use client';
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { useRouter, usePathname } from 'next/navigation';
-import { Tooltip } from 'react-tooltip';
-import { useActiveSection } from '@/hooks/useActiveSection';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import {
-  House,
-  UserRound,
-  FileText,
-  BriefcaseBusiness,
-  Gamepad2,
-  Wrench,
-  NotebookPen,
-  Palette,
-  BookOpenText,
-  Shield,
-} from 'lucide-react';
-import { useTranslation } from 'react-i18next';
-import { useAuth } from '@/providers/AuthProvider';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import {
+DropdownMenu,
+DropdownMenuContent,
+DropdownMenuItem,
+DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { useActiveSection } from '@/hooks/useActiveSection';
+import { useAuth } from '@/providers/AuthProvider';
+import {
+BookOpenText,
+BriefcaseBusiness,
+FileText,
+Gamepad2,
+House,
+NotebookPen,
+Palette,
+Shield,
+UserRound,
+Wrench,
+} from 'lucide-react';
+import Link from 'next/link';
+import { usePathname,useRouter } from 'next/navigation';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Tooltip } from 'react-tooltip';
 
 // Section IDs the home-page nav scroll-spies on, in document order.
 // The first one whose top crosses into the viewport's top band gets
@@ -38,7 +38,7 @@ const Header = () => {
   const [click, setClick] = useState<boolean>(false);
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const handleClick = () => setClick(!click);
-  const toggleDropdown = () => setShowDropdown(!showDropdown);
+  const _toggleDropdown = () => setShowDropdown(!showDropdown);
   const router = useRouter();
   const pathname = usePathname();
   const { currentUser, signOut } = useAuth();
@@ -191,7 +191,7 @@ const Header = () => {
               </Link>
             </li>
             <li>
-              <a
+              <Link
                 className="nav-link"
                 href="/hobbies"
                 data-tooltip-id="left-menu-tooltip"
@@ -199,7 +199,7 @@ const Header = () => {
                 onClick={handleClick}
               >
                 <Palette size={20} />
-              </a>
+              </Link>
             </li>
             {currentUser && (
               <li>

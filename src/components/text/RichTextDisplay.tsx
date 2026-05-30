@@ -1,7 +1,6 @@
 'use client';
-import React from 'react';
-import DOMPurify from 'dompurify';
 import * as util from '@/lib/utils/util';
+import DOMPurify from 'dompurify';
 import styles from './rich-text-display.module.scss';
 
 interface Post {
@@ -19,7 +18,7 @@ interface RichTextDisplayProps {
 }
 
 const RichTextDisplay = ({ post }: RichTextDisplayProps) => {
-  const { id, title, body, created, lastUpdated, category, image } = post;
+  const { id: _id, title, body, created, lastUpdated: _lastUpdated, category, image } = post;
 
   const purifiedBody = DOMPurify.sanitize(body, {
     ADD_TAGS: ['iframe'],

@@ -1,30 +1,30 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { RecaptchaVerifier } from 'firebase/auth';
-import { useAuth } from '@/providers/AuthProvider';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Alert,AlertDescription,AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import {
-  Shield,
-  ShieldCheck,
-  ShieldOff,
-  Check,
-  AlertCircle,
-  Loader2,
-  ArrowLeft,
-  Phone,
-  MessageSquare,
-  Mail,
-  AlertTriangle,
-} from 'lucide-react';
-import * as twoFactorService from '@/services/twoFactorService';
+import { getErrorCode,getErrorMessage } from '@/lib/errorUtils';
 import { sendVerificationEmail } from '@/lib/firebaseConnect';
+import { useAuth } from '@/providers/AuthProvider';
+import * as twoFactorService from '@/services/twoFactorService';
+import { RecaptchaVerifier } from 'firebase/auth';
+import {
+AlertCircle,
+AlertTriangle,
+ArrowLeft,
+Check,
+Loader2,
+Mail,
+MessageSquare,
+Phone,
+Shield,
+ShieldCheck,
+ShieldOff,
+} from 'lucide-react';
 import Link from 'next/link';
-import { getErrorCode, getErrorMessage } from '@/lib/errorUtils';
+import { useRouter } from 'next/navigation';
+import { useEffect,useRef,useState } from 'react';
 
 export default function SecuritySettingsPage() {
   const router = useRouter();
@@ -113,7 +113,7 @@ export default function SecuritySettingsPage() {
       } else {
         setError('Email not yet verified. Please check your inbox and click the verification link.');
       }
-    } catch (e: unknown) {
+    } catch (_e: unknown) {
       setError('Failed to refresh. Please try again.');
     }
     setLoading(false);

@@ -59,7 +59,7 @@ const nextConfig: NextConfig = {
   },
 
   // Webpack configuration to suppress source map warnings
-  webpack: (config, { isServer }) => {
+  webpack: (config, { isServer: _isServer }) => {
     // Suppress source map warnings from @google-cloud/firestore
     config.ignoreWarnings = [
       { module: /@google-cloud\/firestore/ },

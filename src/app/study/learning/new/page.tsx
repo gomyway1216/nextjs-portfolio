@@ -1,29 +1,29 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import {
-  ArrowLeft,
-  Save,
-  Loader2,
-  Book,
-  Video,
-  FileText,
-  BookOpen,
-  Mic,
-  Briefcase,
-  MessageCircle,
-  Code,
-  Globe,
-  MoreHorizontal,
-  Sparkles,
-  Plus,
-  X,
-} from 'lucide-react';
+import { useLearningAI,useLearningEntries,useStudyCategories } from '@/hooks/useStudy';
 import { useAuth } from '@/providers/AuthProvider';
-import { useLearningEntries, useStudyCategories, useLearningAI } from '@/hooks/useStudy';
-import { LearningSourceType, LearningSource, QuizDifficulty } from '@/types/study';
+import { LearningSource,LearningSourceType } from '@/types/study';
+import {
+ArrowLeft,
+Book,
+BookOpen,
+Briefcase,
+Code,
+FileText,
+Globe,
+Loader2,
+MessageCircle,
+Mic,
+MoreHorizontal,
+Plus,
+Save,
+Sparkles,
+Video,
+X,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { toast } from 'sonner';
 
 const SOURCE_TYPES = [
@@ -44,7 +44,7 @@ export default function NewLearningEntryPage() {
   const { currentUser } = useAuth();
   const { createEntry } = useLearningEntries();
   const { categories } = useStudyCategories();
-  const { generating, generateFlashcards, extractTerms, generateSummary } = useLearningAI();
+  const { generating: _generating, generateFlashcards: _generateFlashcards, extractTerms: _extractTerms, generateSummary: _generateSummary } = useLearningAI();
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');

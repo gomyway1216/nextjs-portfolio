@@ -1,8 +1,8 @@
 'use client';
 
+import { Card,CardContent,CardHeader,CardTitle } from '@/components/ui/card';
+import { KuizuUserStats,QUIZ_CATEGORY_EMOJI,QUIZ_CATEGORY_LABELS } from '@/types/kuizu';
 import { useTranslation } from 'react-i18next';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { KuizuUserStats, QUIZ_CATEGORY_LABELS, QUIZ_CATEGORY_EMOJI } from '@/types/kuizu';
 
 interface CategoryAccuracyChartProps {
   categoryStats: KuizuUserStats['categoryStats'];

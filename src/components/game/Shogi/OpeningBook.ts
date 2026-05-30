@@ -3,8 +3,8 @@
  * Contains opening moves for the first 10 moves
  */
 
-import { Te, Position } from './types';
 import { Kyokumen } from './Kyokumen';
+import { Position,Te } from './types';
 
 interface OpeningMove {
   from: { suji: number; dan: number };
@@ -49,7 +49,7 @@ const OPENING_SEQUENCES: OpeningMove[][] = [
 export function getOpeningMove(
   kyokumen: Kyokumen,
   moveNumber: number,
-  teban: number
+  _teban: number
 ): Te | null {
   // Only use opening book for first 10 moves
   if (moveNumber > 10) {

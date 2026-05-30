@@ -1,18 +1,18 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
-import * as postApi from '@/services/postsService';
-import type { DetailPost } from '@/services/postsService';
 import RichTextDisplay from '@/components/text/RichTextDisplay';
-import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/providers/AuthProvider';
-import { useTranslation } from 'react-i18next';
 import {
-  normalizeLanguage,
-  pickTranslation,
-  type PostLanguage,
+normalizeLanguage,
+pickTranslation,
+type PostLanguage,
 } from '@/lib/blog/postTranslations';
+import { useAuth } from '@/providers/AuthProvider';
+import type { DetailPost } from '@/services/postsService';
+import * as postApi from '@/services/postsService';
+import { useParams,useRouter } from 'next/navigation';
+import { useEffect,useMemo,useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const PostPage = () => {
   const { category: routeCategory, id: routeId } = useParams();
@@ -22,7 +22,7 @@ const PostPage = () => {
   const { i18n } = useTranslation();
   const activeLanguage = normalizeLanguage(i18n.language);
 
-  const category = Array.isArray(routeCategory) ? routeCategory[0] : routeCategory || '';
+  const _category = Array.isArray(routeCategory) ? routeCategory[0] : routeCategory || '';
   const id = Array.isArray(routeId) ? routeId[0] : routeId || '';
 
   useEffect(() => {

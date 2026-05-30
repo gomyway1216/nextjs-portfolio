@@ -4,7 +4,7 @@
 
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { UseMultiplayerReturn } from './useMultiplayer';
 
 interface MultiplayerLobbyProps {
@@ -18,7 +18,7 @@ export function MultiplayerLobby({
   onStartSinglePlayer,
   onGameStart,
 }: MultiplayerLobbyProps) {
-  const { context, room, otherPlayer, myColor, otherColor } = multiplayer;
+  const { context, room, otherPlayer: _otherPlayer, myColor, otherColor } = multiplayer;
   const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
   const [playerName, setPlayerName] = useState('');
   const [password, setPassword] = useState('');
@@ -43,7 +43,7 @@ export function MultiplayerLobby({
     if (!playerName.trim() || !password.trim() || !roomCode.trim()) return;
 
     setIsLoading(true);
-    const success = await multiplayer.joinRoom(
+    const _success = await multiplayer.joinRoom(
       roomCode.trim().toUpperCase(),
       playerName.trim(),
       password.trim()
@@ -229,7 +229,7 @@ export function MultiplayerLobby({
         <div className="w-80 bg-gray-800 rounded-lg p-4">
           <h4 className="text-lg font-bold text-white mb-3">Players</h4>
 
-          {players.map((player, index) => (
+          {players.map((player, _index) => (
             <div
               key={player.id}
               className="flex items-center justify-between py-2 border-b border-gray-700 last:border-0"

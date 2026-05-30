@@ -1,13 +1,17 @@
-import {
-  SENTE, GOTE, EMPTY,
-  SFU, SKY, SKE, SGI, SKI, SKA, SHI, SOU,
-  GFU, GKY, GKE, GGI, GKI, GKA, GHI, GOU,
-  Te
-} from './types';
-import { KyokumenImproved } from './KyokumenImproved';
 import { GenerateMovesImproved } from './GenerateMovesImproved';
+import { KyokumenImproved } from './KyokumenImproved';
 import { ShogiAIImproved } from './ShogiAIImproved';
-import { InitialPositionImproved } from './InitialPositionImproved';
+import {
+EMPTY,
+GFU,
+GHI,
+GOTE,
+GOU,
+SENTE,
+SFU,
+SOU,
+Te
+} from './types';
 
 // Test suite for ShogiImproved implementation
 export class ShogiImprovedTest {
@@ -285,7 +289,7 @@ export class ShogiImprovedTest {
 
     // Make AI search twice from same position
     const move1 = ai.getNextTe(k, 0, { maxDepth: 5, maxTimeMs: 0 });
-    const stats1 = ai.getStats();
+    const _stats1 = ai.getStats();
 
     // Search again - should hit transposition table
     const move2 = ai.getNextTe(k, 0, { maxDepth: 5, maxTimeMs: 0 });

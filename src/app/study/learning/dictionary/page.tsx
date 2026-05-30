@@ -1,29 +1,29 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import Link from 'next/link';
-import {
-  ArrowLeft,
-  Search,
-  Plus,
-  BookMarked,
-  ChevronDown,
-  ChevronRight,
-  Edit2,
-  Trash2,
-  X,
-  Save,
-  Loader2,
-} from 'lucide-react';
+import { useDictionary,useStudyCategories } from '@/hooks/useStudy';
 import { useAuth } from '@/providers/AuthProvider';
-import { useDictionary, useStudyCategories } from '@/hooks/useStudy';
-import { DictionaryTerm, QuizDifficulty, ReviewStatus } from '@/types/study';
+import { DictionaryTerm,QuizDifficulty,ReviewStatus } from '@/types/study';
+import {
+ArrowLeft,
+BookMarked,
+ChevronDown,
+ChevronRight,
+Edit2,
+Loader2,
+Plus,
+Save,
+Search,
+Trash2,
+X,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useMemo,useState } from 'react';
 import { toast } from 'sonner';
 
 export default function DictionaryPage() {
   const { currentUser } = useAuth();
-  const { terms, loading, createTerm, updateTerm, deleteTerm, fetchTerms } = useDictionary();
-  const { categories } = useStudyCategories();
+  const { terms, loading, createTerm, updateTerm, deleteTerm, fetchTerms: _fetchTerms } = useDictionary();
+  const { categories: _categories } = useStudyCategories();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -64,7 +64,7 @@ export default function DictionaryPage() {
     try {
       await deleteTerm(termId);
       toast.success('Term deleted');
-    } catch (err) {
+    } catch (_err) {
       toast.error('Failed to delete term');
     }
   };

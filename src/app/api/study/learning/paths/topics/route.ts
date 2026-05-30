@@ -1,10 +1,10 @@
 // Learning Path Topics API (Start/Complete/Reset)
-import { NextRequest, NextResponse } from 'next/server';
+import { verifyIdToken } from '@/lib/auth-utils';
+import { getFirestore,getServerTimestamp } from '@/lib/firebase-admin';
+import { LearningPathStatus } from '@/types/study';
+import { NextRequest,NextResponse } from 'next/server';
 import { getCloudFunctionUrl } from '../../../../constants';
 import { logCloudFunctionError } from '../../../../utils/errorLogger';
-import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
-import { verifyIdToken } from '@/lib/auth-utils';
-import { LearningPathStatus } from '@/types/study';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const endpoint = '/api/study/learning/paths/topics';
@@ -88,7 +88,7 @@ async function handleResetTopic(request: NextRequest, body: { pathId: string; to
           completedTopics--;
         }
         // Remove the fields we want to clear, keep the rest
-        const { entryId, completedAt, ...rest } = topic;
+        const { entryId: _entryId, completedAt: _completedAt, ...rest } = topic;
         return {
           ...rest,
           status: LearningPathStatus.NOT_STARTED,

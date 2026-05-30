@@ -20,6 +20,15 @@ const eslintConfig = defineConfig([
     rules: {
       "@next/next/no-html-link-for-pages": "warn",
       "@typescript-eslint/no-empty-object-type": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          argsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+          destructuredArrayIgnorePattern: "^_",
+          varsIgnorePattern: "^_",
+        },
+      ],
       "prefer-const": "warn",
       "react-hooks/immutability": "warn",
       "react-hooks/preserve-manual-memoization": "warn",

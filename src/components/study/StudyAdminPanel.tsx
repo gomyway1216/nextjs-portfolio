@@ -1,57 +1,56 @@
 'use client';
 
-import { useState, CSSProperties } from 'react';
+import GenerateAudioButton from '@/components/study/GenerateAudioButton';
 import {
-  BookOpen,
-  Tags,
-  FileText,
-  Calendar,
-  BarChart3,
-  Settings,
-  Plus,
-  Pencil,
-  Trash2,
-  Play,
-  Pause,
-  Loader2,
-  Save,
-  X,
-  Sparkles,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-} from 'lucide-react';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+Select,
+SelectContent,
+SelectItem,
+SelectTrigger,
+SelectValue,
 } from '@/components/ui/select';
 import {
-  useStudyCategories,
-  useStudyTopics,
-  useStudySchedules,
-  useStudyConfig,
-  useTopicSuggestions,
-  useArticleGeneration,
-  useStudyArticles,
+useArticleGeneration,
+useStudyArticles,
+useStudyCategories,
+useStudyConfig,
+useStudySchedules,
+useStudyTopics,
+useTopicSuggestions,
 } from '@/hooks/useStudy';
 import * as studyService from '@/services/studyService';
-import GenerateAudioButton from '@/components/study/GenerateAudioButton';
 import type { ArticleAudio } from '@/types/study';
 import {
-  StudyCategory,
-  StudyTopic,
-  StudyArticle,
-  ArticleSchedule,
-  AIProvider,
-  QuizDifficulty,
-  ScheduleStatus,
-  TopicSuggestionType,
-  ScheduleFrequency,
-  ArticleStatus,
+AIProvider,
+ArticleSchedule,
+ArticleStatus,
+QuizDifficulty,
+ScheduleFrequency,
+ScheduleStatus,
+StudyArticle,
+StudyCategory,
+StudyTopic,
+TopicSuggestionType,
 } from '@/types/study';
+import {
+AlertCircle,
+BarChart3,
+BookOpen,
+Calendar,
+CheckCircle,
+FileText,
+Loader2,
+Pause,
+Pencil,
+Play,
+Plus,
+Save,
+Settings,
+Sparkles,
+Tags,
+Trash2,
+X
+} from 'lucide-react';
+import { CSSProperties,useState } from 'react';
 
 type StudyAdminSection = 'overview' | 'categories' | 'topics' | 'articles' | 'schedules' | 'generate' | 'config';
 
@@ -264,8 +263,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Hooks
-  const { categories, loading: categoriesLoading, createCategory, updateCategory, deleteCategory, fetchCategories, seedCategories } = useStudyCategories();
-  const { topics, loading: topicsLoading, createTopic, updateTopic, deleteTopic, fetchTopics } = useStudyTopics();
+  const { categories, loading: categoriesLoading, createCategory, updateCategory, deleteCategory, fetchCategories: _fetchCategories, seedCategories } = useStudyCategories();
+  const { topics, loading: topicsLoading, createTopic, updateTopic, deleteTopic, fetchTopics: _fetchTopics } = useStudyTopics();
   const { schedules, loading: schedulesLoading, createSchedule, updateSchedule, deleteSchedule, runScheduleNow } = useStudySchedules();
   const { config, loading: configLoading, updateConfig } = useStudyConfig();
   const { suggestions, loading: suggestionsLoading, fetchSuggestions } = useTopicSuggestions();
@@ -730,7 +729,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
     });
   };
 
-  const handleSelectSuggestion = (suggestion: { name: string; description: string }) => {
+  const _handleSelectSuggestion = (suggestion: { name: string; description: string }) => {
     setGenerateForm(prev => ({
       ...prev,
       customPrompt: `Topic: ${suggestion.name}\n\n${suggestion.description}`,

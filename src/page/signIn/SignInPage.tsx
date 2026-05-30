@@ -1,19 +1,19 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { RecaptchaVerifier } from 'firebase/auth';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { Alert,AlertDescription,AlertTitle } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useTranslation } from 'react-i18next';
-import { useAuth } from '@/providers/AuthProvider';
-import { AlertCircle, Shield, ArrowLeft, Mail, Phone, MessageSquare, Loader2, Lock, UserPlus } from 'lucide-react';
+import { getErrorCode,getErrorMessage } from '@/lib/errorUtils';
 import { resetPassword } from '@/lib/firebaseConnect';
+import { useAuth } from '@/providers/AuthProvider';
 import * as twoFactorService from '@/services/twoFactorService';
-import { getErrorCode, getErrorMessage } from '@/lib/errorUtils';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { RecaptchaVerifier } from 'firebase/auth';
+import { AlertCircle,ArrowLeft,Loader2,Lock,Mail,MessageSquare,Phone,Shield,UserPlus } from 'lucide-react';
+import { useRouter,useSearchParams } from 'next/navigation';
+import { useEffect,useRef,useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -47,7 +47,7 @@ const SignInPage = () => {
       : '/';
 
   const {
-    signIn,
+    signIn: _signIn,
     signUp,
     signInWithTwoFactor,
     sendMfaCode,

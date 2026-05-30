@@ -295,7 +295,7 @@ export class Kyokumen {
 
     // Check sliding pieces (rook, bishop, etc.)
     for (let direct = 0; direct < 8; direct++) {
-      let checkPos = new Position(pos.suji, pos.dan);
+      const checkPos = new Position(pos.suji, pos.dan);
       checkPos.suji -= diffSuji[direct];
       checkPos.dan -= diffDan[direct];
 

@@ -4,18 +4,18 @@
 
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { RotateCcw, AlertCircle } from 'lucide-react';
-import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStats } from '../common';
-import { Kyokumen } from './Kyokumen';
-import { Te, Position, SENTE, GOTE, EMPTY, getKomashu, toString, isSente, komaValue } from './types';
-import { generateLegalMoves } from './GenerateMoves';
-import { getBestMove } from './ShogiAI';
-import { createInitialPosition } from './InitialPosition';
-import { toFugo } from './FugoNotation';
-import { getOpeningMoveValidated } from './OpeningBookValidated';
+import { RotateCcw } from 'lucide-react';
+import { useCallback,useEffect,useRef,useState } from 'react';
+import { Difficulty,GameStats,GameTopBar,InfoModal } from '../common';
+import type { SerializedKyokumenImproved,SerializedTeImproved,ShogiAiWorkerClient } from '../ShogiImproved/shogiAiWorkerClient';
 import { createShogiAiWorkerClient } from '../ShogiImproved/shogiAiWorkerClient';
-import type { SerializedKyokumenImproved, SerializedTeImproved, ShogiAiWorkerClient } from '../ShogiImproved/shogiAiWorkerClient';
+import { toFugo } from './FugoNotation';
+import { generateLegalMoves } from './GenerateMoves';
+import { createInitialPosition } from './InitialPosition';
+import { Kyokumen } from './Kyokumen';
+import { getOpeningMoveValidated } from './OpeningBookValidated';
+import { getBestMove } from './ShogiAI';
+import { EMPTY,GOTE,isSente,komaValue,Position,SENTE,Te,toString } from './types';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 const DIFFICULTY_OPTIONS = [
@@ -941,7 +941,7 @@ const Shogi = () => {
       <InfoModal isOpen={showInfoModal} onClose={() => setShowInfoModal(false)} title="How to Play Shogi">
         <div style={{ lineHeight: '1.6' }}>
           <p>
-            <strong>Objective:</strong> Capture the opponent's King (王/玉)
+            <strong>Objective:</strong> Capture the opponent&apos;s King (王/玉)
           </p>
           <p>
             <strong>Basic Rules:</strong>

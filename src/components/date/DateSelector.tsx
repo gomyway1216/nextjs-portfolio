@@ -33,7 +33,7 @@ const DateSelector = ({ date, setDate }: DateSelectorProps) => {
           mode="single"
           selected={date}
           onSelect={setDate}
-          initialFocus
+          autoFocus
         />
       </PopoverContent>
     </Popover>

@@ -27,7 +27,7 @@ describe('JumpGame gameLogic', () => {
     ], 2).map((enemy) => enemy.x)).toEqual([40]);
 
     expect(updatePowerups([
-      { x: 10, y: 200, r: 16, type: 'slowmo' },
+      { x: 10, y: 200, r: 16, type: 'slow' },
       { x: -50, y: 200, r: 16, type: 'shield' },
     ], 10, 1).map((powerup) => powerup.x)).toEqual([0]);
   });

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -23,6 +23,13 @@ import * as svc from '@/services/scoreTrackerService';
 import * as local from '@/lib/scoreTrackerLocal';
 import type { LocalScoreGroup } from '@/lib/scoreTrackerLocal';
 import type { ScoreGroup } from '@/types/scoreTracker';
+import styles from '../tool-landing.module.css';
+
+const scoreTrackerTheme = {
+  '--tool-accent': '#14b8a6',
+  '--tool-accent-strong': '#0f766e',
+  '--tool-accent-soft': '#2dd4bf',
+} as CSSProperties;
 
 // useSearchParams forces a CSR bailout, which Next.js requires to live inside
 // a Suspense boundary for static-rendered routes. Splitting the page into an
@@ -38,8 +45,10 @@ export default function ScoreTrackerPage() {
 
 function ScoreTrackerLoading() {
   return (
-    <div className="min-h-screen container mx-auto px-4 py-10 max-w-3xl">
-      <div className="h-16 w-16 mx-auto rounded-2xl bg-muted animate-pulse" />
+    <div className={styles.page} style={scoreTrackerTheme}>
+      <div className={styles.sectionNarrow}>
+        <div className="h-16 w-16 mx-auto rounded-lg bg-muted animate-pulse" />
+      </div>
     </div>
   );
 }
@@ -196,31 +205,32 @@ function ScoreTrackerPageInner() {
   }
 
   return (
-    <div className="min-h-screen container mx-auto px-4 py-10 max-w-3xl">
-      {/* Hero */}
-      <div className="flex flex-col items-center text-center space-y-4 mb-10">
-        <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center text-white shadow-lg"
-          style={{ background: 'linear-gradient(135deg, #0f766e, #14b8a6, #2dd4bf)' }}
-        >
-          <ScoreTrackerIcon size={36} />
+    <div className={styles.page} style={scoreTrackerTheme}>
+      <div className={styles.sectionNarrow}>
+        {/* Hero */}
+        <div className="flex flex-col items-center text-center space-y-4 mb-10">
+          <div
+            className="w-16 h-16 rounded-lg flex items-center justify-center text-white shadow-lg"
+            style={{ background: 'linear-gradient(135deg, #0f766e, #14b8a6, #2dd4bf)' }}
+          >
+            <ScoreTrackerIcon size={36} />
+          </div>
+          <div className="space-y-1">
+            <h1 className="text-3xl font-bold">スコアトラッカー</h1>
+            <p className="text-muted-foreground text-sm max-w-md">
+              麻雀の素点、ゴルフ、ボドゲ会など — 日付ごとの最終点を記録して累計を追跡。
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={() => setCreateOpen(true)} className="rounded-full">
+              <Plus className="h-4 w-4 mr-1.5" />
+              新規グループ
+            </Button>
+          </div>
         </div>
-        <div className="space-y-1">
-          <h1 className="text-3xl font-bold">スコアトラッカー</h1>
-          <p className="text-muted-foreground text-sm max-w-md">
-            麻雀の素点、ゴルフ、ボドゲ会など — 日付ごとの最終点を記録して累計を追跡。
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setCreateOpen(true)} className="rounded-full">
-            <Plus className="h-4 w-4 mr-1.5" />
-            新規グループ
-          </Button>
-        </div>
-      </div>
 
       {/* Join by code */}
-      <Card className="mb-6">
+      <Card className={`${styles.ctaCard} mb-6`}>
         <CardContent className="p-4">
           <form onSubmit={handleJoin} className="flex gap-2 items-center">
             <span className="text-sm text-muted-foreground shrink-0 hidden sm:block">
@@ -259,7 +269,7 @@ function ScoreTrackerPageInner() {
           ) : cloudGroups.length === 0 ? (
             <p className="text-sm text-muted-foreground italic">まだクラウドのグループはありません</p>
           ) : (
-            <div className="divide-y rounded-xl border overflow-hidden">
+            <div className={`divide-y ${styles.listFrame}`}>
               {cloudGroups.map((g) => (
                 <GroupRow key={g.id} id={g.id} name={g.name} memberCount={g.members.length} badge="cloud" />
               ))}
@@ -275,7 +285,7 @@ function ScoreTrackerPageInner() {
             <HardDrive className="h-4 w-4" />
             ローカルのグループ
           </h2>
-          <div className="divide-y rounded-xl border overflow-hidden">
+          <div className={`divide-y ${styles.listFrame}`}>
             {localGroups.map((g) => (
               <div key={g.id} className="flex items-center gap-2 px-4 py-2.5 hover:bg-muted/50">
                 <Link href={`/tools/score-tracker/${g.id}`} className="flex-1 min-w-0">
@@ -336,6 +346,7 @@ function ScoreTrackerPageInner() {
         defaultOwnerName={defaultOwnerName}
         onSubmit={handleCreate}
       />
+      </div>
     </div>
   );
 }

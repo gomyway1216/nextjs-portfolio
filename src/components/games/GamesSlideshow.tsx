@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect } from 'react';
+import Link from 'next/link';
 import useEmblaCarousel from 'embla-carousel-react';
 import {
   ChevronLeft,
@@ -11,7 +12,6 @@ import {
   Rocket,
   CreditCard,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { games } from '@/components/game/constants/games';
 import {
@@ -20,8 +20,19 @@ import {
 } from '@/components/game/contexts/GameLanguageContext';
 import './games-carousel.scss';
 
+function jumpToTopBeforeRouteChange() {
+  const root = document.documentElement;
+  const previousScrollBehavior = root.style.scrollBehavior;
+
+  root.style.scrollBehavior = 'auto';
+  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+
+  requestAnimationFrame(() => {
+    root.style.scrollBehavior = previousScrollBehavior;
+  });
+}
+
 function GamesSlideshowContent() {
-  const router = useRouter();
   const { t } = useTranslation();
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
@@ -47,14 +58,6 @@ function GamesSlideshowContent() {
       return () => clearInterval(interval);
     }
   }, [emblaApi]);
-
-  const handleGameClick = (path: string) => {
-    router.push(path);
-  };
-
-  const handleViewAllClick = () => {
-    router.push('/games');
-  };
 
   const getDifficultyClass = (difficulty: string) => {
     switch (difficulty) {
@@ -142,17 +145,11 @@ function GamesSlideshowContent() {
                   data-aos="fade-right"
 
                 >
-                  <div
+                  <Link
                     className="game-card-wrapper"
-                    onClick={() => handleGameClick(game.path)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        handleGameClick(game.path);
-                      }
-                    }}
-                    role="button"
-                    tabIndex={0}
+                    href={game.path}
+                    onClick={jumpToTopBeforeRouteChange}
+                    scroll={false}
                   >
                     <div className="blog-grid modern-card">
                       <div className="blog-img">
@@ -165,7 +162,7 @@ function GamesSlideshowContent() {
                       <div className="blog-info">
                         <div className="game-header">
                           <h6>
-                            <a>{title}</a>
+                            <span>{title}</span>
                           </h6>
                           <span className={`px-btn px-btn-sm difficulty-badge ${getDifficultyClass(game.difficulty)}`}>
                             {difficultyLabel}
@@ -175,7 +172,7 @@ function GamesSlideshowContent() {
                         <div className="meta game-category">{categoryLabel}</div>
                       </div>
                     </div>
-                  </div>
+                  </Link>
                 </div>
               );
             })}
@@ -202,12 +199,17 @@ function GamesSlideshowContent() {
       </div>
 
       <div className="games-view-all">
-        <button className="px-btn px-btn-theme" onClick={handleViewAllClick}>
+        <Link
+          className="px-btn px-btn-theme games-view-all__link"
+          href="/games"
+          onClick={jumpToTopBeforeRouteChange}
+          scroll={false}
+        >
           <span>
             {t('games.viewAllGames')}
             <ChevronRight size={20} />
           </span>
-        </button>
+        </Link>
       </div>
     </>
   );

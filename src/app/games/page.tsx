@@ -99,6 +99,8 @@ export default async function GamesPage() {
     category,
     count: games.filter((game) => game.category === category).length,
   }));
+  const categoryCountLabel = locale === 'en' ? 'Categories' : t('games.category.label');
+  const difficultyCountLabel = locale === 'en' ? 'Difficulties' : t('games.difficulty.label');
 
   return (
     <main className={styles.page}>
@@ -116,8 +118,8 @@ export default async function GamesPage() {
           </p>
           <div className={styles.stats} aria-label={t('games.collection')}>
             <span className={styles.statPill}>{games.length} {t('navigation.games')}</span>
-            <span className={styles.statPill}>{categoryCounts.length} {t('games.category.label')}</span>
-            <span className={styles.statPill}>3 {t('games.difficulty.label')}</span>
+            <span className={styles.statPill}>{categoryCounts.length} {categoryCountLabel}</span>
+            <span className={styles.statPill}>3 {difficultyCountLabel}</span>
           </div>
         </section>
 

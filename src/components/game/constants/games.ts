@@ -16,8 +16,8 @@ export const games: Game[] = [
   {
     id: 'jump-game',
     title: 'Jump Game',
-    description: 'A classic jump-and-dodge arcade game. Press any key to jump over obstacles and rack up points!',
-    thumbnail: '🎮',
+    description: 'Time your jumps, clear each obstacle, and keep the run alive for a new high score.',
+    thumbnail: '⬆️',
     path: '/games/jump-game',
     difficulty: 'Easy',
     category: 'Arcade',
@@ -25,8 +25,8 @@ export const games: Game[] = [
   {
     id: 'tic-tac-toe',
     title: 'Tic Tac Toe',
-    description: 'Challenge the AI in this classic strategy game! Choose from Easy, Medium, or Hard difficulty and test your skills.',
-    thumbnail: '⭕',
+    description: 'Play classic tic-tac-toe against an AI with three difficulty levels.',
+    thumbnail: '❌',
     path: '/games/tic-tac-toe',
     difficulty: 'Medium',
     category: 'Strategy',
@@ -34,7 +34,7 @@ export const games: Game[] = [
   {
     id: 'gomoku',
     title: 'Gomoku',
-    description: 'Five in a Row! Strategic board game with AI using minimax and alpha-beta pruning. Can you outsmart the algorithm?',
+    description: 'Place five stones in a row while the AI searches for threats and blocks.',
     thumbnail: '⚫',
     path: '/games/gomoku',
     difficulty: 'Hard',
@@ -43,7 +43,7 @@ export const games: Game[] = [
   {
     id: 'tetris',
     title: 'Tetris',
-    description: 'Classic block-stacking puzzle game. Clear lines by completing horizontal rows. Speed increases as you level up!',
+    description: 'Stack falling blocks, clear lines, and keep the board from filling up.',
     thumbnail: '🟦',
     path: '/games/tetris',
     difficulty: 'Medium',
@@ -52,7 +52,7 @@ export const games: Game[] = [
   {
     id: 'shogi',
     title: 'Shogi',
-    description: 'Japanese Chess! Strategic board game with piece drops and promotions. Challenge the AI in this classic strategy game!',
+    description: 'Play Japanese chess against an AI with drops, promotions, and tactical pressure.',
     thumbnail: '☗',
     path: '/games/shogi',
     difficulty: 'Hard',
@@ -61,8 +61,8 @@ export const games: Game[] = [
   {
     id: 'othello',
     title: 'Othello',
-    description: 'Classic strategy board game with AI using alpha-beta search. Flip your opponent\'s discs to win!',
-    thumbnail: '⚫',
+    description: 'Flip discs, claim corners, and outscore the AI by the final board.',
+    thumbnail: '⚪',
     path: '/games/othello',
     difficulty: 'Medium',
     category: 'Strategy',
@@ -70,7 +70,7 @@ export const games: Game[] = [
   {
     id: 'mini-adventure',
     title: 'Mini Adventure',
-    description: 'Roguelike dungeon crawler! Descend 10 floors, manage your torch, and defeat the Dragon boss!',
+    description: 'Explore a compact dungeon, manage torchlight, and survive to face the final boss.',
     thumbnail: '🗡️',
     path: '/games/mini-adventure',
     difficulty: 'Hard',
@@ -79,8 +79,8 @@ export const games: Game[] = [
   {
     id: 'animal-roleplay',
     title: 'Animal Roleplay',
-    description: 'Become an animal and survive 10 turns. Choose actions each turn to manage HP and hunger and reach the best score.',
-    thumbnail: '🦊',
+    description: 'Choose a survival role, manage HP and hunger, and score as many turns as you can.',
+    thumbnail: '🐾',
     path: '/games/animal-roleplay',
     difficulty: 'Medium',
     category: 'RPG',
@@ -88,7 +88,7 @@ export const games: Game[] = [
   {
     id: 'breakout',
     title: 'Breakout',
-    description: 'Classic brick-breaking arcade game! Use your paddle to bounce the ball and destroy all bricks. Collect power-ups!',
+    description: 'Move the paddle, break every brick, and catch power-ups to extend the run.',
     thumbnail: '🧱',
     path: '/games/breakout',
     difficulty: 'Easy',
@@ -97,7 +97,7 @@ export const games: Game[] = [
   {
     id: 'space-invaders',
     title: 'Space Invaders',
-    description: 'Defend Earth from alien invasion! Destroy waves of enemies, use shields for cover, and shoot the mystery UFO for bonus points.',
+    description: 'Clear enemy waves, take cover behind shields, and hit the bonus UFO.',
     thumbnail: '👾',
     path: '/games/space-invaders',
     difficulty: 'Medium',
@@ -106,7 +106,7 @@ export const games: Game[] = [
   {
     id: 'daifugo',
     title: 'Daifugo',
-    description: 'Play Daifugo (大富豪) vs AI (3–6 players) or online (3–6 players). Create a room, share the code, and battle to empty your hand first!',
+    description: 'Race to empty your hand in Daifugo, solo against AI or online with friends.',
     thumbnail: '🃏',
     path: '/games/daifugo',
     difficulty: 'Medium',
@@ -115,7 +115,7 @@ export const games: Game[] = [
   {
     id: 'shichinarabe',
     title: 'Shichinarabe',
-    description: 'Play Shichinarabe (七並べ) vs AI (3–6 players) or online (3–6 players). Place cards around 7s and race to empty your hand!',
+    description: 'Build from the sevens, manage blocked suits, and empty your hand first.',
     thumbnail: '🃏',
     path: '/games/shichinarabe',
     difficulty: 'Easy',
@@ -124,7 +124,7 @@ export const games: Game[] = [
   {
     id: 'doubt',
     title: 'Doubt',
-    description: 'Play Doubt (ダウト) vs AI (3–6 players) or online (3–6 players). Play face-down cards, claim the rank, and call Doubt to catch bluffs!',
+    description: 'Bluff with face-down cards, challenge suspicious claims, and catch the AI lying.',
     thumbnail: '🃏',
     path: '/games/doubt',
     difficulty: 'Medium',
@@ -133,7 +133,7 @@ export const games: Game[] = [
   {
     id: 'reverse-jump',
     title: 'Reverse Jump',
-    description: 'Controls flip every 8 seconds. Jump low obstacles, duck high bars, and survive the chaos.',
+    description: 'Jump, duck, and adapt when the controls invert mid-run.',
     thumbnail: '↕️',
     path: '/games/reverse-jump',
     difficulty: 'Medium',
@@ -142,7 +142,7 @@ export const games: Game[] = [
   {
     id: 'ghost-tetris',
     title: 'Ghost Tetris',
-    description: 'Locked blocks fade after 2 seconds. Rely on memory to keep clearing lines.',
+    description: 'Blocks fade after they lock, so every clear depends on memory.',
     thumbnail: '👻',
     path: '/games/ghost-tetris',
     difficulty: 'Hard',
@@ -151,7 +151,7 @@ export const games: Game[] = [
   {
     id: 'chaos-breakout',
     title: 'Chaos Breakout',
-    description: 'Every 10 seconds, gravity, speed, or paddle width changes. Adapt or lose.',
+    description: 'Break bricks while gravity, ball speed, and paddle size keep changing.',
     thumbnail: '💥',
     path: '/games/chaos-breakout',
     difficulty: 'Hard',
@@ -160,8 +160,8 @@ export const games: Game[] = [
   {
     id: 'doubt-word',
     title: 'Doubt Word',
-    description: 'A bluff battle with claimed first letters and word lengths. Believe or call Doubt.',
-    thumbnail: '🧠',
+    description: 'Claim letters and word lengths, then decide when to trust or challenge.',
+    thumbnail: '🔤',
     path: '/games/doubt-word',
     difficulty: 'Medium',
     category: 'Card',
@@ -169,8 +169,8 @@ export const games: Game[] = [
   {
     id: 'timed-button',
     title: 'Timed Button',
-    description: 'Pass the bomb before it explodes. One button, pure mind game.',
-    thumbnail: '⏱️',
+    description: 'Pass the bomb at the right moment before the hidden timer expires.',
+    thumbnail: '💣',
     path: '/games/timed-button',
     difficulty: 'Easy',
     category: 'Arcade',
@@ -178,7 +178,7 @@ export const games: Game[] = [
   {
     id: 'mirror-othello',
     title: 'Mirror Othello',
-    description: 'An Othello variant where the board mirrors every 4 turns.',
+    description: 'Play Othello on a board that mirrors every few turns.',
     thumbnail: '🪞',
     path: '/games/mirror-othello',
     difficulty: 'Hard',
@@ -187,8 +187,8 @@ export const games: Game[] = [
   {
     id: 'memory-maze',
     title: 'Memory Maze',
-    description: 'Memorize the maze in 3 seconds, then navigate in the dark to reach the goal.',
-    thumbnail: '🧩',
+    description: 'Study the maze, then navigate with limited vision before time runs out.',
+    thumbnail: '🗺️',
     path: '/games/memory-maze',
     difficulty: 'Medium',
     category: 'Puzzle',
@@ -196,7 +196,7 @@ export const games: Game[] = [
   {
     id: 'daily-move-puzzle',
     title: 'Daily One-Move Puzzle',
-    description: 'A new one-move winning puzzle every day. Solve and share your attempts.',
+    description: 'Solve one daily tactical puzzle and share how many attempts it took.',
     thumbnail: '📅',
     path: '/games/daily-move-puzzle',
     difficulty: 'Easy',
@@ -205,8 +205,8 @@ export const games: Game[] = [
   {
     id: 'bigger-number',
     title: 'Bigger Number',
-    description: 'Pick a tile, reveal at the same time as your opponent — higher number wins. Vs AI or 2-player online.',
-    thumbnail: '🀄',
+    description: 'Reveal numbered tiles at the same time; the higher number wins the round.',
+    thumbnail: '🔢',
     path: '/games/bigger-number',
     difficulty: 'Easy',
     category: 'Card',
@@ -214,8 +214,8 @@ export const games: Game[] = [
   {
     id: 'territory-number',
     title: 'Territory Number',
-    description: 'A 3×3 territory game where number cards capture lines. Place 1–9 strategically — most lines wins.',
-    thumbnail: '🎯',
+    description: 'Place number cards on a 3x3 board and capture the most scoring lines.',
+    thumbnail: '#️⃣',
     path: '/games/territory-number',
     difficulty: 'Medium',
     category: 'Strategy',
@@ -223,7 +223,7 @@ export const games: Game[] = [
   {
     id: 'memory-battle',
     title: 'Memory Battle',
-    description: 'Five cards flash for 3 seconds, then flip. Find the requested number to score before time runs out.',
+    description: 'Memorize five cards, then pick the requested number under time pressure.',
     thumbnail: '🧠',
     path: '/games/memory-battle',
     difficulty: 'Easy',
@@ -232,7 +232,7 @@ export const games: Game[] = [
   {
     id: 'iq-test',
     title: 'IQ Test',
-    description: 'A short IQ-style quiz with procedurally generated questions: number sequences, odd-one-out, analogies, and more.',
+    description: 'Answer ten generated pattern and logic questions with instant explanations.',
     thumbnail: '🧩',
     path: '/games/iq-test',
     difficulty: 'Medium',
@@ -240,9 +240,9 @@ export const games: Game[] = [
   },
   {
     id: 'roulette',
-    title: 'Roulette + Martingale Sim',
-    description: 'European roulette you can actually play, plus a Monte Carlo simulator that shows how the Martingale strategy goes bust.',
-    thumbnail: '🎡',
+    title: 'Roulette & Martingale',
+    description: 'Play European roulette, then simulate how Martingale betting fails under limits.',
+    thumbnail: '🎲',
     path: '/games/roulette',
     difficulty: 'Easy',
     category: 'Arcade',
@@ -250,7 +250,7 @@ export const games: Game[] = [
   {
     id: 'monty-hall',
     title: 'Monty Hall',
-    description: 'The classic three-door problem. Play it, then run a Monte Carlo simulation that shows Switch beats Stay 2:1.',
+    description: 'Pick a door, decide whether to switch, and compare the odds with simulation.',
     thumbnail: '🚪',
     path: '/games/monty-hall',
     difficulty: 'Easy',
@@ -259,7 +259,7 @@ export const games: Game[] = [
   {
     id: 'birthday-paradox',
     title: 'Birthday Paradox',
-    description: 'How few people do you need before two share a birthday? Play it, then simulate the famous 50% / 99% thresholds.',
+    description: 'See how quickly shared birthdays appear as the group gets larger.',
     thumbnail: '🎂',
     path: '/games/birthday-paradox',
     difficulty: 'Easy',
@@ -268,7 +268,7 @@ export const games: Game[] = [
   {
     id: 'coupon-collector',
     title: 'Coupon Collector',
-    description: 'How many draws to collect all n items? The classic gacha problem: expected draws ≈ n·ln(n) — the last few items take forever.',
+    description: 'Simulate the long tail of collecting every item in a random set.',
     thumbnail: '🎟️',
     path: '/games/coupon-collector',
     difficulty: 'Easy',
@@ -277,7 +277,7 @@ export const games: Game[] = [
   {
     id: 'gamblers-ruin',
     title: "Gambler's Ruin",
-    description: 'Even with a fair 50/50 game, finite bankroll means ruin probability is (N − a) / N. Make it 49/51 and ruin becomes nearly certain.',
+    description: 'Model how bankroll, target, and win rate change the risk of ruin.',
     thumbnail: '💸',
     path: '/games/gamblers-ruin',
     difficulty: 'Easy',
@@ -285,8 +285,8 @@ export const games: Game[] = [
   },
   {
     id: 'blackjack',
-    title: 'Blackjack — Basic Strategy',
-    description: 'Play simplified Blackjack with a hint that shows what Basic Strategy says. Then simulate it vs Mimic-Dealer vs Always-Stand and see the edge gap.',
+    title: 'Blackjack Strategy',
+    description: 'Play simplified blackjack with basic-strategy hints and strategy simulations.',
     thumbnail: '🃏',
     path: '/games/blackjack',
     difficulty: 'Medium',
@@ -295,8 +295,8 @@ export const games: Game[] = [
   {
     id: 'secretary-problem',
     title: 'Secretary Problem',
-    description: 'Interview candidates one by one, decide on the spot, no second chances. Try beating the famous 37% rule — then simulate it.',
-    thumbnail: '👔',
+    description: 'Interview candidates one by one and test the classic 37% stopping rule.',
+    thumbnail: '💼',
     path: '/games/secretary-problem',
     difficulty: 'Medium',
     category: 'Puzzle',
@@ -304,7 +304,7 @@ export const games: Game[] = [
   {
     id: 'bandit',
     title: 'K-armed Bandit',
-    description: 'Explore vs exploit — pick arms with hidden reward probs. Compare ε-greedy, UCB1, and Thompson Sampling regret curves.',
+    description: 'Balance explore vs exploit and compare bandit algorithms over many trials.',
     thumbnail: '🎰',
     path: '/games/bandit',
     difficulty: 'Medium',
@@ -313,8 +313,8 @@ export const games: Game[] = [
   {
     id: 'bayesian-update',
     title: 'Bayesian Update',
-    description: 'A coin with hidden bias. Flip and watch the Beta posterior sharpen around the true p in real time — then simulate convergence.',
-    thumbnail: '🪙',
+    description: 'Flip a biased coin and watch the posterior estimate update in real time.',
+    thumbnail: '📈',
     path: '/games/bayesian-update',
     difficulty: 'Medium',
     category: 'Puzzle',
@@ -322,7 +322,7 @@ export const games: Game[] = [
   {
     id: 'petersburg',
     title: 'St. Petersburg Paradox',
-    description: 'Coin flips until first tails: payoff doubles each round. Expected value is infinite — yet nobody wants to pay much. Simulate why.',
+    description: 'Simulate the paradox where infinite expected value still feels overpriced.',
     thumbnail: '🪙',
     path: '/games/petersburg',
     difficulty: 'Medium',

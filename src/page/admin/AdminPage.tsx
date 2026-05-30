@@ -384,6 +384,25 @@ const AdminPage = () => {
   const [editingJob, setEditingJob] = useState<string | null>(null);
   const [techInput, setTechInput] = useState('');
 
+  // Full-job edit / create form. `null` = no form open; `'new'` = create
+  // mode (POST), any other id = edit mode (PUT by id).
+  // `order` is kept as a string so the controlled <input type="number">
+  // accepts intermediate values like "" or "-" without being eagerly
+  // parsed into NaN/0. We coerce to a Number at submit.
+  const [jobFormMode, setJobFormMode] = useState<null | 'new' | string>(null);
+  const [jobForm, setJobForm] = useState({
+    companyName: '',
+    jobPosition: '',
+    jobPositionJa: '',
+    jobType: '',
+    jobTypeJa: '',
+    jobDuration: '',
+    jobDescription: '',
+    jobDescriptionJa: '',
+    order: '0',
+    technologies: '',
+  });
+
   // Available technologies from API
   const [availableTechnologies, setAvailableTechnologies] = useState<Technology[]>([]);
 
@@ -943,12 +962,23 @@ const AdminPage = () => {
   };
 
   // Job handlers
+  // Every Job mutation needs the admin's Firebase ID token attached, or
+  // the API rejects with "No authorization token provided" (the bug
+  // that surfaced when the auth check landed in #22 but the admin
+  // handlers were never updated).
+  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    if (!currentUser) return {};
+    const token = await currentUser.getIdToken();
+    return { Authorization: `Bearer ${token}` };
+  };
+
   const handleToggleJobHidden = async (companyName: string, currentHidden: boolean) => {
     const nextHidden = !currentHidden;
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch('/api/job', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ companyName, hidden: nextHidden }),
       });
 
@@ -967,9 +997,10 @@ const AdminPage = () => {
   const handleUpdateJobTechnologies = async (jobId: string, companyName: string) => {
     const techArray = techInput.split(',').map(t => t.trim()).filter(t => t);
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch('/api/job', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ companyName, technologies: techArray }),
       });
 
@@ -984,6 +1015,244 @@ const AdminPage = () => {
       }
     } catch (error) {
       showMessage('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const openJobEditForm = (job: Job) => {
+    const techNames = job.technologies?.map(t => getTechName(t)).filter(Boolean) || [];
+    setJobFormMode(job.id);
+    setEditingJob(null); // close the legacy tech-only inline editor if open
+    const j = job as unknown as Record<string, unknown>;
+    setJobForm({
+      companyName: typeof j.companyName === 'string' ? j.companyName : '',
+      jobPosition: typeof j.jobPosition === 'string' ? j.jobPosition : '',
+      jobPositionJa: typeof j.jobPositionJa === 'string' ? j.jobPositionJa : '',
+      jobType: typeof j.jobType === 'string' ? j.jobType : '',
+      jobTypeJa: typeof j.jobTypeJa === 'string' ? j.jobTypeJa : '',
+      jobDuration: typeof j.jobDuration === 'string' ? j.jobDuration : '',
+      jobDescription: typeof j.jobDescription === 'string' ? j.jobDescription : '',
+      jobDescriptionJa: typeof j.jobDescriptionJa === 'string' ? j.jobDescriptionJa : '',
+      order: typeof j.order === 'number' ? String(j.order) : '0',
+      technologies: techNames.join(', '),
+    });
+  };
+
+  const openJobCreateForm = () => {
+    setJobFormMode('new');
+    setEditingJob(null);
+    setJobForm({
+      companyName: '',
+      jobPosition: '',
+      jobPositionJa: '',
+      jobType: 'Full-time',
+      jobTypeJa: '',
+      jobDuration: '',
+      jobDescription: '',
+      jobDescriptionJa: '',
+      order: jobs.length > 0 ? String(Math.max(...jobs.map(j => (j as unknown as { order?: number }).order || 0)) + 1) : '0',
+      technologies: '',
+    });
+  };
+
+  const closeJobForm = () => setJobFormMode(null);
+
+  const handleSaveJobForm = async () => {
+    if (!jobFormMode) return;
+    const isCreate = jobFormMode === 'new';
+
+    if (!jobForm.companyName.trim() || !jobForm.jobPosition.trim()) {
+      showMessage('error', 'Company name and job position are required');
+      return;
+    }
+
+    const inputNames = jobForm.technologies
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+
+    // Preserve technology objects ({name, id, type}) when the user
+    // didn't rename them — otherwise every edit silently downgrades
+    // them to plain strings and loses the id/type metadata.
+    const originalTechs = (isCreate
+      ? []
+      : jobs.find(j => j.id === jobFormMode)?.technologies) || [];
+    const techArray = inputNames.map(name => {
+      const match = originalTechs.find(t => getTechName(t) === name);
+      return match ?? name;
+    });
+
+    const payload: Record<string, unknown> = {
+      companyName: jobForm.companyName.trim(),
+      jobPosition: jobForm.jobPosition.trim(),
+      jobPositionJa: jobForm.jobPositionJa,
+      jobType: jobForm.jobType,
+      jobTypeJa: jobForm.jobTypeJa,
+      jobDuration: jobForm.jobDuration,
+      jobDescription: jobForm.jobDescription,
+      jobDescriptionJa: jobForm.jobDescriptionJa,
+      order: Number(jobForm.order) || 0,
+      technologies: techArray,
+    };
+
+    if (!isCreate) {
+      payload.id = jobFormMode;
+    }
+
+    try {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch('/api/job', {
+        method: isCreate ? 'POST' : 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        showMessage('success', isCreate ? `Created ${jobForm.companyName}` : `Updated ${jobForm.companyName}`);
+        closeJobForm();
+        fetchJobs();
+      } else {
+        const error = await response.json().catch(() => ({}));
+        showMessage('error', `Failed: ${error.error || response.status}`);
+      }
+    } catch (error) {
+      showMessage('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Shared form body for both Create and Edit job. Reads from / writes
+  // to the single `jobForm` state object.
+  const renderJobFormFields = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div>
+          <label style={styles.label}>Company *</label>
+          <input
+            value={jobForm.companyName}
+            onChange={(e) => setJobForm({ ...jobForm, companyName: e.target.value })}
+            placeholder="Atlas"
+            style={styles.input}
+          />
+        </div>
+        <div>
+          <label style={styles.label}>Position (English) *</label>
+          <input
+            value={jobForm.jobPosition}
+            onChange={(e) => setJobForm({ ...jobForm, jobPosition: e.target.value })}
+            placeholder="Senior Software Engineer"
+            style={styles.input}
+          />
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+        <div>
+          <label style={styles.label}>Duration</label>
+          <input
+            value={jobForm.jobDuration}
+            onChange={(e) => setJobForm({ ...jobForm, jobDuration: e.target.value })}
+            placeholder="Jan 2025 - Present"
+            style={styles.input}
+          />
+        </div>
+        <div>
+          <label style={styles.label}>Type (English)</label>
+          <input
+            value={jobForm.jobType}
+            onChange={(e) => setJobForm({ ...jobForm, jobType: e.target.value })}
+            placeholder="Full-time"
+            style={styles.input}
+          />
+        </div>
+        <div>
+          <label style={styles.label}>Order (lower = first)</label>
+          <input
+            type="number"
+            value={jobForm.order}
+            onChange={(e) => setJobForm({ ...jobForm, order: e.target.value })}
+            style={styles.input}
+          />
+        </div>
+      </div>
+      <div>
+        <label style={styles.label}>Description (English)</label>
+        <textarea
+          value={jobForm.jobDescription}
+          onChange={(e) => setJobForm({ ...jobForm, jobDescription: e.target.value })}
+          rows={6}
+          placeholder="Lead engineer on the Infrastructure team, ..."
+          style={{ ...styles.input, fontFamily: 'inherit', resize: 'vertical' }}
+        />
+      </div>
+
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '14px', marginTop: '6px' }}>
+        <p style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
+          Japanese (optional)
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div>
+            <label style={styles.label}>Position (Japanese)</label>
+            <input
+              value={jobForm.jobPositionJa}
+              onChange={(e) => setJobForm({ ...jobForm, jobPositionJa: e.target.value })}
+              placeholder="シニアソフトウェアエンジニア"
+              style={styles.input}
+            />
+          </div>
+          <div>
+            <label style={styles.label}>Type (Japanese)</label>
+            <input
+              value={jobForm.jobTypeJa}
+              onChange={(e) => setJobForm({ ...jobForm, jobTypeJa: e.target.value })}
+              placeholder="正社員"
+              style={styles.input}
+            />
+          </div>
+        </div>
+        <div style={{ marginTop: '12px' }}>
+          <label style={styles.label}>Description (Japanese)</label>
+          <textarea
+            value={jobForm.jobDescriptionJa}
+            onChange={(e) => setJobForm({ ...jobForm, jobDescriptionJa: e.target.value })}
+            rows={6}
+            placeholder="Atlas のインフラチームのリードエンジニアとして..."
+            style={{ ...styles.input, fontFamily: 'inherit', resize: 'vertical' }}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label style={styles.label}>Technologies (comma-separated)</label>
+        <input
+          value={jobForm.technologies}
+          onChange={(e) => setJobForm({ ...jobForm, technologies: e.target.value })}
+          placeholder="TypeScript, Next.js, Firebase"
+          style={styles.input}
+        />
+      </div>
+    </div>
+  );
+
+  const handleDeleteJob = async (id: string, companyName: string) => {
+    if (isDeleting) return;
+    setIsDeleting(true);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`/api/job?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { ...authHeaders },
+      });
+
+      if (response.ok) {
+        showMessage('success', `Deleted ${companyName}`);
+        setShowDeleteConfirm(null);
+        fetchJobs();
+      } else {
+        const error = await response.json().catch(() => ({}));
+        showMessage('error', `Failed: ${error.error || response.status}`);
+      }
+    } catch (error) {
+      showMessage('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1561,8 +1830,32 @@ const AdminPage = () => {
           {/* Jobs Section */}
           {activeSection === 'jobs' && (
             <div>
-              <h1 style={styles.pageTitle}>Jobs & Experience</h1>
-              <p style={{ color: '#94a3b8', marginBottom: '32px' }}>Manage your work experience and technologies</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+                <div>
+                  <h1 style={styles.pageTitle}>Jobs & Experience</h1>
+                  <p style={{ color: '#94a3b8' }}>Manage your work experience, descriptions, and technologies</p>
+                </div>
+                <button onClick={openJobCreateForm} style={{ ...styles.button, ...styles.primaryButton }}>
+                  <Plus size={16} /> Add Job
+                </button>
+              </div>
+
+              {jobFormMode === 'new' && (
+                <div style={{ ...styles.card, marginBottom: '24px' }}>
+                  <div style={{ padding: '24px' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', marginBottom: '16px' }}>New Job</h3>
+                    {renderJobFormFields()}
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                      <button onClick={handleSaveJobForm} style={{ ...styles.button, ...styles.primaryButton }}>
+                        <Save size={16} /> Create
+                      </button>
+                      <button onClick={closeJobForm} style={{ ...styles.button, ...styles.outlineButton }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {jobs.map((job) => (
@@ -1591,14 +1884,16 @@ const AdminPage = () => {
                             {job.hidden ? 'Show' : 'Hide'}
                           </button>
                           <button
-                            onClick={() => {
-                              setEditingJob(job.id);
-                              const techNames = job.technologies?.map(t => getTechName(t)).filter(Boolean) || [];
-                              setTechInput(techNames.join(', '));
-                            }}
+                            onClick={() => openJobEditForm(job)}
                             style={{ ...styles.button, ...styles.outlineButton }}
                           >
-                            <Pencil size={16} /> Edit Tech
+                            <Pencil size={16} /> Edit
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm({ type: 'job', id: job.id, name: job.companyName })}
+                            style={{ ...styles.button, ...styles.dangerButton }}
+                          >
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </div>
@@ -1616,20 +1911,14 @@ const AdminPage = () => {
                         </div>
                       </div>
 
-                      {editingJob === job.id && (
+                      {jobFormMode === job.id && (
                         <div style={{ marginTop: '24px', padding: '16px', backgroundColor: 'rgba(15, 23, 42, 0.5)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                          <label style={styles.label}>Technologies (comma-separated)</label>
-                          <input
-                            value={techInput}
-                            onChange={(e) => setTechInput(e.target.value)}
-                            placeholder="React, TypeScript, Node.js"
-                            style={{ ...styles.input, marginBottom: '16px' }}
-                          />
-                          <div style={{ display: 'flex', gap: '12px' }}>
-                            <button onClick={() => handleUpdateJobTechnologies(job.id, job.companyName)} style={{ ...styles.button, ...styles.primaryButton }}>
+                          {renderJobFormFields()}
+                          <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                            <button onClick={handleSaveJobForm} style={{ ...styles.button, ...styles.primaryButton }}>
                               <Save size={16} /> Save
                             </button>
-                            <button onClick={() => { setEditingJob(null); setTechInput(''); }} style={{ ...styles.button, ...styles.outlineButton }}>
+                            <button onClick={closeJobForm} style={{ ...styles.button, ...styles.outlineButton }}>
                               Cancel
                             </button>
                           </div>
@@ -2203,6 +2492,8 @@ const AdminPage = () => {
                     handleDeleteProject(showDeleteConfirm.id);
                   } else if (showDeleteConfirm.type === 'post') {
                     handleDeletePost(showDeleteConfirm.id);
+                  } else if (showDeleteConfirm.type === 'job') {
+                    handleDeleteJob(showDeleteConfirm.id, showDeleteConfirm.name);
                   }
                 }}
                 disabled={isDeleting}

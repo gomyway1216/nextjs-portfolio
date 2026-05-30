@@ -36,7 +36,7 @@ export default function WorkIndex() {
             marginBottom: '24px',
           }}
         >
-          ← Back to home
+          <span aria-hidden="true">←</span> Back to home
         </Link>
         <h1
           style={{

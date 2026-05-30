@@ -12,6 +12,10 @@ export function generateStaticParams(): Params[] {
   return caseStudies.map((cs) => ({ slug: cs.slug }));
 }
 
+// Case studies are fully static; any slug not in generateStaticParams
+// should 404 at the routing level rather than attempt a dynamic render.
+export const dynamicParams = false;
+
 export async function generateMetadata({
   params,
 }: {
@@ -66,7 +70,7 @@ export default async function CaseStudyPage({
           marginBottom: '32px',
         }}
       >
-        ← Selected Work
+        <span aria-hidden="true">←</span> Selected Work
       </Link>
 
       <header style={{ marginBottom: '56px' }}>
@@ -180,7 +184,7 @@ export default async function CaseStudyPage({
             textDecoration: 'none',
           }}
         >
-          ← All case studies
+          <span aria-hidden="true">←</span> All case studies
         </Link>
         <Link
           href="/"

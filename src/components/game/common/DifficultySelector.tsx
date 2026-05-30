@@ -28,23 +28,27 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
 }) => {
   return (
     <div style={{
-      background: 'rgba(0, 0, 0, 0.95)',
-      border: '3px solid #0ea5e9',
+      width: 'min(92vw, 520px)',
+      maxWidth: 'calc(100vw - 2rem)',
+      background: 'color-mix(in srgb, var(--card) 82%, #020617 18%)',
+      border: '1px solid color-mix(in srgb, var(--border) 58%, #0ea5e9 42%)',
       borderRadius: '1rem',
-      padding: '3rem',
-      boxShadow: '0 0 50px rgba(14, 165, 233, 0.3)',
-      minWidth: '500px'
+      padding: 'clamp(1.25rem, 5vw, 3rem)',
+      boxShadow: '0 24px 70px rgba(14, 165, 233, 0.24)',
+      color: 'var(--card-foreground)'
     }}>
       <h1 style={{
-        color: '#fff',
-        fontSize: '2.5rem',
-        fontWeight: 'bold',
+        color: 'var(--foreground)',
+        fontSize: 'clamp(1.8rem, 7vw, 2.5rem)',
+        fontWeight: 760,
         marginBottom: '1rem',
         textAlign: 'center',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: '1rem'
+        gap: '0.75rem',
+        flexWrap: 'wrap',
+        lineHeight: 1.1
       }}>
         {icon}
         {title}
@@ -52,18 +56,19 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
 
       {subtitle && (
         <p style={{
-          color: '#9ca3af',
+          color: 'var(--muted-foreground)',
           textAlign: 'center',
-          marginBottom: '2rem'
+          marginBottom: '2rem',
+          lineHeight: 1.55
         }}>
           {subtitle}
         </p>
       )}
 
       <h2 style={{
-        color: '#fff',
-        fontSize: '1.5rem',
-        fontWeight: 'bold',
+        color: 'var(--foreground)',
+        fontSize: 'clamp(1.15rem, 4vw, 1.5rem)',
+        fontWeight: 720,
         marginBottom: '1rem',
         textAlign: 'center'
       }}>
@@ -89,12 +94,13 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
                 border: `2px solid ${isSelected ? colors.border : 'rgba(75, 85, 99, 1)'}`,
                 borderRadius: '0.5rem',
                 color: isSelected ? colors.text : '#9ca3af',
-                padding: '1rem',
-                fontSize: '1.125rem',
+                padding: '0.9rem 1rem',
+                fontSize: 'clamp(0.98rem, 3.4vw, 1.125rem)',
                 fontWeight: '600',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                textTransform: 'uppercase'
+                textTransform: 'uppercase',
+                textAlign: 'center'
               }}
               onMouseEnter={(e) => {
                 if (!isSelected) {
@@ -127,9 +133,9 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
           border: 'none',
           borderRadius: '0.5rem',
           color: '#fff',
-          fontSize: '1.5rem',
+          fontSize: 'clamp(1.1rem, 4vw, 1.5rem)',
           fontWeight: 'bold',
-          padding: '1.5rem 3rem',
+          padding: 'clamp(1rem, 4vw, 1.5rem) clamp(1.25rem, 6vw, 3rem)',
           cursor: 'pointer',
           transition: 'all 0.2s',
           boxShadow: '0 10px 40px rgba(14, 165, 233, 0.5)',
@@ -137,11 +143,11 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = '#0284c7';
-          e.currentTarget.style.transform = 'scale(1.05)';
+          e.currentTarget.style.transform = 'translateY(-1px)';
         }}
         onMouseLeave={(e) => {
           e.currentTarget.style.background = '#0ea5e9';
-          e.currentTarget.style.transform = 'scale(1)';
+          e.currentTarget.style.transform = 'translateY(0)';
         }}
       >
         Start Game

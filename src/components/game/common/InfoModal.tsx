@@ -2,6 +2,7 @@
  * Reusable info modal
  */
 
+import { useEffect } from 'react';
 import { X as XIcon } from 'lucide-react';
 
 interface InfoModalProps {
@@ -17,15 +18,29 @@ export const InfoModal: React.FC<InfoModalProps> = ({
   title,
   children
 }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (
     <div
+      role="presentation"
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0, 0, 0, 0.8)',
-        backdropFilter: 'blur(8px)',
+        background: 'rgba(0, 0, 0, 0.64)',
+        backdropFilter: 'blur(14px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -35,28 +50,34 @@ export const InfoModal: React.FC<InfoModalProps> = ({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
         style={{
-          background: '#1f2937',
-          border: '1px solid rgba(14, 165, 233, 0.3)',
+          background: 'rgba(15, 23, 42, 0.96)',
+          border: '1px solid rgba(14, 165, 233, 0.34)',
           borderRadius: '1rem',
-          padding: '2rem',
+          padding: 'clamp(1.25rem, 4vw, 2rem)',
           maxWidth: '600px',
-          maxHeight: '90vh',
+          maxHeight: 'min(88vh, 720px)',
           width: '100%',
           position: 'relative',
-          overflowY: 'auto'
+          overflowY: 'auto',
+          color: '#e5e7eb',
+          boxShadow: '0 28px 90px rgba(0, 0, 0, 0.34)'
         }}
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={onClose}
+          aria-label="Close dialog"
           style={{
             position: 'absolute',
-            top: '1rem',
-            right: '1rem',
+            top: '0.875rem',
+            right: '0.875rem',
             background: 'rgba(255, 255, 255, 0.1)',
-            border: 'none',
-            borderRadius: '0.375rem',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '999px',
             color: '#fff',
             cursor: 'pointer',
             padding: '0.5rem',
@@ -65,7 +86,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({
             justifyContent: 'center',
             transition: 'background 0.2s'
           }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
         >
           <XIcon style={{ width: '1.25rem', height: '1.25rem' }} />
@@ -73,10 +94,12 @@ export const InfoModal: React.FC<InfoModalProps> = ({
 
         <h2 style={{
           color: '#fff',
-          fontSize: '1.875rem',
-          fontWeight: 'bold',
+          fontSize: 'clamp(1.45rem, 5vw, 1.875rem)',
+          fontWeight: 760,
           marginBottom: '1.5rem',
-          textAlign: 'center'
+          paddingInline: '2rem',
+          textAlign: 'center',
+          lineHeight: 1.15
         }}>
           {title}
         </h2>

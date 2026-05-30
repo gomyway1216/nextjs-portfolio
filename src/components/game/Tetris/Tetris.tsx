@@ -326,11 +326,11 @@ const Tetris = () => {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: 'safe center',
       background: 'linear-gradient(to bottom, #111827, #000)',
       overflow: 'auto',
       fontFamily: 'system-ui, -apple-system, sans-serif',
-      padding: '1rem'
+      padding: '5rem 1rem 1.5rem'
     }}>
       <GameTopBar
         stats={stats}
@@ -369,7 +369,7 @@ const Tetris = () => {
         }
       />
 
-      <div style={{ marginTop: '5rem', marginBottom: '2rem' }}>
+      <div style={{ width: '100%', marginBottom: '2rem', display: 'flex', justifyContent: 'center' }}>
         {showDifficultySelect ? (
           <DifficultySelector
             title="Tetris"
@@ -385,10 +385,14 @@ const Tetris = () => {
             background: 'rgba(0, 0, 0, 0.95)',
             border: '3px solid #0ea5e9',
             borderRadius: '1rem',
-            padding: '2rem',
+            padding: 'clamp(1rem, 4vw, 2rem)',
             boxShadow: '0 0 50px rgba(14, 165, 233, 0.3)',
             display: 'flex',
-            gap: '2rem'
+            gap: 'clamp(1rem, 4vw, 2rem)',
+            alignItems: 'flex-start',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            maxWidth: '100%'
           }}>
             {/* Game Board */}
             <div>
@@ -513,6 +517,8 @@ const Tetris = () => {
               display: 'flex',
               flexDirection: 'column',
               gap: '1.5rem',
+              flex: '1 1 150px',
+              maxWidth: '220px',
               minWidth: '150px'
             }}>
               {/* Score */}

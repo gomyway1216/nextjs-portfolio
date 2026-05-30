@@ -1,15 +1,17 @@
-// Inline body bg override for the /games subtree.
-//
-// Why: globals.css sets `body { background: hsl(0 0% 100%) }` (white) via
-// Tailwind, but the games pages are dark-themed. On a cold visit the
-// stylesheet that paints `body` arrives ~120ms after first paint, so the
-// browser shows white at the top of the viewport until then. This
-// per-route `<style>` is inlined into the SSR HTML before any external
-// CSS, so the body is dark from the very first paint.
+// Inline first-paint colors for the /games subtree. The list page now supports
+// both light and dark mode, while several individual games still paint their
+// own dark canvas. Keep this route theme-aware so a cold visit does not flash
+// the wrong page color before the bundled CSS arrives.
 export default function GamesLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <style>{`html,body{background:#000}`}</style>
+      <style>{`
+        html,body{background:#f5f5f7;color:#1d1d1f}
+        html.dark,html.dark body{background:#050505;color:#f5f5f7}
+        @media (prefers-color-scheme: dark){
+          html:not(.light),html:not(.light) body{background:#050505;color:#f5f5f7}
+        }
+      `}</style>
       {children}
     </>
   );

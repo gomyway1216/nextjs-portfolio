@@ -59,7 +59,9 @@ const Header = () => {
     <>
       {/* Header */}
       <div className="mob-header">
-        <ThemeToggle />
+        <div className="mob-theme-toggle">
+          <ThemeToggle />
+        </div>
         <button
           className="toggler-menu"
           onClick={handleClick}

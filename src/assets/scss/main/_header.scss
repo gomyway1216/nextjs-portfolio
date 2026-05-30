@@ -209,7 +209,10 @@
   align-items: center;
   gap: 10px;
 
-  > button:not(.toggler-menu) {
+  .mob-theme-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 44px;
     height: 44px;
     border-radius: 999px;
@@ -224,6 +227,14 @@
       background: rgba($px-bg-3, 0.82);
       color: $px-white;
       box-shadow: 0 10px 30px rgba($px-black, 0.35);
+    }
+
+    > button,
+    > div {
+      width: 32px;
+      height: 32px;
+      color: inherit;
+      border-radius: 999px;
     }
   }
   > .d-flex {

@@ -89,8 +89,9 @@ export function RouteScrollBehaviorFix() {
     };
 
     const onPopState = () => {
-      popNavigationRef.current = true;
+      popNavigationRef.current = window.location.pathname !== pathname;
       disableSmoothScroll();
+      restoreAfterNavigationSettles();
     };
 
     document.addEventListener('click', onClick, true);
@@ -101,7 +102,7 @@ export function RouteScrollBehaviorFix() {
       window.removeEventListener('popstate', onPopState);
       restoreSmoothScroll();
     };
-  }, [disableSmoothScroll, restoreSmoothScroll]);
+  }, [disableSmoothScroll, restoreAfterNavigationSettles, restoreSmoothScroll, pathname]);
 
   useLayoutEffect(() => {
     const isPopNavigation = popNavigationRef.current;

@@ -111,7 +111,7 @@ const TicTacToe = () => {
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: 'safe center',
       background: 'linear-gradient(to bottom, #111827, #000)',
       overflow: 'auto',
       fontFamily: 'system-ui, -apple-system, sans-serif',

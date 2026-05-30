@@ -2,6 +2,7 @@
  * Reusable info modal
  */
 
+import { useEffect } from 'react';
 import { X as XIcon } from 'lucide-react';
 
 interface InfoModalProps {
@@ -17,6 +18,19 @@ export const InfoModal: React.FC<InfoModalProps> = ({
   title,
   children
 }) => {
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   return (

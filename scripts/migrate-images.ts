@@ -7,14 +7,14 @@ import * as admin from 'firebase-admin';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import fetch from 'node-fetch';
-import type { Bucket } from '@google-cloud/storage';
+import type { Storage } from 'firebase-admin/storage';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 
 const DRY_RUN = process.env.DRY_RUN !== 'false';
 const SOURCE_BUCKET = 'yudai-blog.appspot.com';
 const TARGET_BUCKET = 'yudai-portfolio.appspot.com';
-type StorageBucket = Bucket;
+type StorageBucket = ReturnType<Storage['bucket']>;
 
 async function initializeFirebase() {
   if (admin.apps.length > 0) {

@@ -169,7 +169,6 @@ function PlayerAvatar({
 
 export function DaifugoTableView({
   gameState,
-  myPlayerId: _myPlayerId,
   playerSummaries,
   pileCards,
   isReversed,

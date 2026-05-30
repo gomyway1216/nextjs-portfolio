@@ -23,7 +23,6 @@ export default function FlashcardsPage() {
     fetchDecks,
     createFlashcard,
     createDeck,
-    updateFlashcard: _updateFlashcard,
     deleteDeck,
   } = useFlashcards();
   const { generateFlashcards, generating: aiLoading } = useLearningAI();

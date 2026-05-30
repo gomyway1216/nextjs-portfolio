@@ -18,7 +18,7 @@ export function MultiplayerLobby({
   onStartSinglePlayer,
   onGameStart,
 }: MultiplayerLobbyProps) {
-  const { context, room, otherPlayer: _otherPlayer, myColor, otherColor } = multiplayer;
+  const { context, room, myColor, otherColor } = multiplayer;
   const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
   const [playerName, setPlayerName] = useState('');
   const [password, setPassword] = useState('');

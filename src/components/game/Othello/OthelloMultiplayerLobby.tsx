@@ -19,7 +19,7 @@ export function OthelloMultiplayerLobby({
   onStartSinglePlayer,
   onGameStart,
 }: OthelloMultiplayerLobbyProps) {
-  const { context, room, otherPlayer: _otherPlayer, myColor } = multiplayer;
+  const { context, room, myColor } = multiplayer;
   const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
   const [playerName, setPlayerName] = useState('');
   const [password, setPassword] = useState('');

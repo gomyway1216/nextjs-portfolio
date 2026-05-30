@@ -263,8 +263,8 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Hooks
-  const { categories, loading: categoriesLoading, createCategory, updateCategory, deleteCategory, fetchCategories: _fetchCategories, seedCategories } = useStudyCategories();
-  const { topics, loading: topicsLoading, createTopic, updateTopic, deleteTopic, fetchTopics: _fetchTopics } = useStudyTopics();
+  const { categories, loading: categoriesLoading, createCategory, updateCategory, deleteCategory, seedCategories } = useStudyCategories();
+  const { topics, loading: topicsLoading, createTopic, updateTopic, deleteTopic } = useStudyTopics();
   const { schedules, loading: schedulesLoading, createSchedule, updateSchedule, deleteSchedule, runScheduleNow } = useStudySchedules();
   const { config, loading: configLoading, updateConfig } = useStudyConfig();
   const { suggestions, loading: suggestionsLoading, fetchSuggestions } = useTopicSuggestions();

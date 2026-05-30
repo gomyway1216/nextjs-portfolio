@@ -1,6 +1,6 @@
 'use client';
 
-import { useLearningAI,useLearningEntries,useStudyCategories } from '@/hooks/useStudy';
+import { useLearningEntries,useStudyCategories } from '@/hooks/useStudy';
 import { useAuth } from '@/providers/AuthProvider';
 import { LearningSource,LearningSourceType } from '@/types/study';
 import {
@@ -44,7 +44,6 @@ export default function NewLearningEntryPage() {
   const { currentUser } = useAuth();
   const { createEntry } = useLearningEntries();
   const { categories } = useStudyCategories();
-  const { generating: _generating, generateFlashcards: _generateFlashcards, extractTerms: _extractTerms, generateSummary: _generateSummary } = useLearningAI();
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');

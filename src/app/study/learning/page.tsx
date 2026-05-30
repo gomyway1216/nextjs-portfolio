@@ -1,7 +1,6 @@
 'use client';
 
 import {
-useDictionary,
 useLearningEntries,
 useLearningStats,
 useQuickCapture,
@@ -63,9 +62,8 @@ const SOURCE_TYPE_LABELS: Record<LearningSourceType, string> = {
 export default function LearningHubPage() {
   const { currentUser } = useAuth();
   const { entries, loading: entriesLoading } = useLearningEntries();
-  const { stats, loading: _statsLoading } = useLearningStats();
-  const { totalDue, loading: _reviewLoading } = useSpacedRepetition();
-  const { terms: _terms, loading: _termsLoading } = useDictionary();
+  const { stats } = useLearningStats();
+  const { totalDue } = useSpacedRepetition();
   const { captures, createCapture } = useQuickCapture();
 
   const [searchQuery, setSearchQuery] = useState('');

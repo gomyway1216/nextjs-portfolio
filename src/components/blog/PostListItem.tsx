@@ -15,7 +15,7 @@ interface PostListItemProps {
 }
 
 const PostListItem = forwardRef<HTMLDivElement, PostListItemProps>(
-  ({ id, title, body, isPublic: _isPublic, created: _created, lastUpdated, category, image, handleClick }, ref) => {
+  ({ id, title, body, lastUpdated, category, image, handleClick }, ref) => {
     const bodyText = htmlToText(body);
     return (
       <div

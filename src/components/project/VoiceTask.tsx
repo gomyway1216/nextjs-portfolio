@@ -26,7 +26,6 @@ import Recorder from './Recorder';
 const TEST_USER_ID = 'aoUPpC4gz7QlvbMcpNH5';
 
 const VoiceTask = () => {
-  const [_botResponse, setBotResponse] = useState<string>('');
   const [completedTasks, setCompletedTasks] = useState<VoiceTaskItem[]>([]);
   const [incompleteTasks, setIncompleteTasks] = useState<VoiceTaskItem[]>([]);
 
@@ -153,9 +152,7 @@ const VoiceTask = () => {
     formData.append('user_id', TEST_USER_ID);
     formData.append('list_id', selectedListId);
     try {
-      const response = await voiceTaskApi.getResponse(formData);
-      const responseText = await response?.text();
-      setBotResponse(responseText || '');
+      await voiceTaskApi.getResponse(formData);
       await fetchIncompleteTasks(); // Fetch tasks after receiving the response
     } catch (error) {
       console.error('Error:', error);

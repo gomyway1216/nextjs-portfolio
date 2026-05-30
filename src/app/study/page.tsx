@@ -27,7 +27,6 @@ Search,
 X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect,useState } from 'react';
 
 // Debounce hook for search
@@ -48,7 +47,6 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function StudyListPage() {
-  const _router = useRouter();
   const { currentUser } = useAuth();
   const isAuthenticated = !!currentUser;
   const { categories, loading: categoriesLoading } = useStudyCategories();

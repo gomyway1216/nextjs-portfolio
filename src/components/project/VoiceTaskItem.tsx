@@ -19,7 +19,7 @@ import React,{ useState } from 'react';
 const TEST_USER_ID = 'aoUPpC4gz7QlvbMcpNH5';
 
 const VoiceTaskItem = () => {
-  const [taskName, _setTaskName] = useState<string>('hello');
+  const taskName = 'hello';
   const [subtasks, setSubtasks] = useState<VoiceSubTask[]>([]);
   const [detailsText, setDetailsText] = useState<string>('');
   const [isDetailsOpen, setIsDetailsOpen] = useState<boolean>(false);

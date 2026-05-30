@@ -4,7 +4,7 @@ import { getHobbyCategories,getHobbyItems } from '@/services/hobbyService';
 import type { HobbyCategory,HobbyItem } from '@/types/hobby';
 import { ArrowLeft,CheckCircle,HelpCircle,RefreshCw,Trophy,XCircle } from 'lucide-react';
 import Link from 'next/link';
-import { useParams,useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useEffect,useState } from 'react';
 
 type QuizMode = 'image-to-name' | 'japanese-to-english' | 'english-to-japanese';
@@ -19,7 +19,6 @@ interface QuizQuestion {
 
 export default function HobbyQuizPage() {
   const params = useParams();
-  const _router = useRouter();
   const slug = params.slug as string;
 
   const [hobby, setHobby] = useState<HobbyCategory | null>(null);

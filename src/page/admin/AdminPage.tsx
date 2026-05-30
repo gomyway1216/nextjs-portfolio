@@ -381,7 +381,6 @@ const AdminPage = () => {
   // Edit states
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editingPost, setEditingPost] = useState<ListingPost | null>(null);
-  const [_editingJob, setEditingJob] = useState<string | null>(null);
   const [techInput, setTechInput] = useState('');
 
   // Full-job edit / create form. `null` = no form open; `'new'` = create
@@ -1006,7 +1005,6 @@ const AdminPage = () => {
 
       if (response.ok) {
         showMessage('success', `Updated technologies for ${companyName}`);
-        setEditingJob(null);
         setTechInput('');
         fetchJobs();
       } else {
@@ -1021,7 +1019,6 @@ const AdminPage = () => {
   const openJobEditForm = (job: Job) => {
     const techNames = job.technologies?.map(t => getTechName(t)).filter(Boolean) || [];
     setJobFormMode(job.id);
-    setEditingJob(null); // close the legacy tech-only inline editor if open
     const j = job as unknown as Record<string, unknown>;
     setJobForm({
       companyName: typeof j.companyName === 'string' ? j.companyName : '',
@@ -1039,7 +1036,6 @@ const AdminPage = () => {
 
   const openJobCreateForm = () => {
     setJobFormMode('new');
-    setEditingJob(null);
     setJobForm({
       companyName: '',
       jobPosition: '',

@@ -18,7 +18,7 @@ interface RichTextDisplayProps {
 }
 
 const RichTextDisplay = ({ post }: RichTextDisplayProps) => {
-  const { id: _id, title, body, created, lastUpdated: _lastUpdated, category, image } = post;
+  const { title, body, created, category, image } = post;
 
   const purifiedBody = DOMPurify.sanitize(body, {
     ADD_TAGS: ['iframe'],

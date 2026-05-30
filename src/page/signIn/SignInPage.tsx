@@ -47,7 +47,6 @@ const SignInPage = () => {
       : '/';
 
   const {
-    signIn: _signIn,
     signUp,
     signInWithTwoFactor,
     sendMfaCode,

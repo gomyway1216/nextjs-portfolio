@@ -17,16 +17,11 @@ import 'prismjs/components/prism-typescript';
 import 'prismjs/themes/prism-tomorrow.css';
 import { useEffect,useState } from 'react';
 
-type _ReviewItem = (Flashcard | DictionaryTerm) & { type: 'flashcard' | 'dictionary_term' };
-
 export default function ReviewSessionPage() {
   const { currentUser } = useAuth();
   const {
-    dueFlashcards: _dueFlashcards,
-    dueTerms: _dueTerms,
     totalDue,
     loading,
-    error: _error,
     reviewing,
     isComplete,
     submitReview,

@@ -1,6 +1,6 @@
 'use client';
 
-import { useDictionary,useStudyCategories } from '@/hooks/useStudy';
+import { useDictionary } from '@/hooks/useStudy';
 import { useAuth } from '@/providers/AuthProvider';
 import { DictionaryTerm,QuizDifficulty,ReviewStatus } from '@/types/study';
 import {
@@ -22,8 +22,7 @@ import { toast } from 'sonner';
 
 export default function DictionaryPage() {
   const { currentUser } = useAuth();
-  const { terms, loading, createTerm, updateTerm, deleteTerm, fetchTerms: _fetchTerms } = useDictionary();
-  const { categories: _categories } = useStudyCategories();
+  const { terms, loading, createTerm, updateTerm, deleteTerm } = useDictionary();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');

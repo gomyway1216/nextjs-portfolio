@@ -11,7 +11,6 @@ import * as kuizuService from '@/services/kuizuService';
 import type { DailyChallengeEntry } from '@/types/kuizu';
 import { ArrowLeft,Loader2,Trophy } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
@@ -20,7 +19,6 @@ type DailyState = 'overview' | 'playing' | 'completed';
 
 export default function KuizuDailyPage() {
   const { t } = useTranslation();
-  const _router = useRouter();
   const { currentUser } = useAuth();
   const { challenge, userEntry, loading, refetch } = useKuizuDaily();
   const { submitDailyResult } = useKuizuMutations();

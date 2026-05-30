@@ -38,6 +38,8 @@ import {
   useStudyArticles,
 } from '@/hooks/useStudy';
 import * as studyService from '@/services/studyService';
+import GenerateAudioButton from '@/components/study/GenerateAudioButton';
+import type { ArticleAudio } from '@/types/study';
 import {
   StudyCategory,
   StudyTopic,
@@ -297,6 +299,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
   // Article multi-select state
   const [selectedArticleIds, setSelectedArticleIds] = useState<Set<string>>(new Set());
   const [deletingMultipleArticles, setDeletingMultipleArticles] = useState(false);
+  const [generatingFromLinear, setGeneratingFromLinear] = useState(false);
   const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
 
   // Form states
@@ -327,7 +330,7 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
     timezone: string;
     aiProvider: AIProvider;
     numberOfArticles: number;
-    topicSelectionMode: 'sequential' | 'random' | 'ai_suggested';
+    topicSelectionMode: 'sequential' | 'random' | 'ai_suggested' | 'linear';
     suggestionType: TopicSuggestionType;
     language: string;
     codingLanguage: string;
@@ -733,6 +736,24 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
       customPrompt: `Topic: ${suggestion.name}\n\n${suggestion.description}`,
     }));
     setShowSuggestions(false);
+  };
+
+  const handleGenerateFromLinear = async () => {
+    if (generatingFromLinear) return;
+    setGeneratingFromLinear(true);
+    try {
+      const result = await studyService.generateArticleFromLinearTopic({ language: 'ja' });
+      showMessageToast(
+        'success',
+        `Generated from Linear ${result.linearIssue.identifier}: "${result.linearIssue.title}"`,
+      );
+      void fetchArticles({ status: 'all' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      showMessageToast('error', `Linear generation failed: ${message}`);
+    } finally {
+      setGeneratingFromLinear(false);
+    }
   };
 
   const handleGenerateArticle = async () => {
@@ -1311,6 +1332,25 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                   <Trash2 size={16} /> Delete Selected ({selectedArticleIds.size})
                 </button>
               )}
+              <button
+                onClick={handleGenerateFromLinear}
+                disabled={generatingFromLinear}
+                style={{
+                  ...styles.button,
+                  backgroundColor: 'rgba(94, 106, 210, 0.15)',
+                  color: '#a5b4fc',
+                  border: '1px solid rgba(94, 106, 210, 0.4)',
+                  opacity: generatingFromLinear ? 0.6 : 1,
+                  cursor: generatingFromLinear ? 'not-allowed' : 'pointer',
+                }}
+                title="Pick the oldest Study Todo from Linear and generate an article from it"
+              >
+                {generatingFromLinear ? (
+                  <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Generating from Linear...</>
+                ) : (
+                  <><Sparkles size={16} /> From Linear</>
+                )}
+              </button>
               <button onClick={() => setShowGenerateModal(true)} style={{ ...styles.button, ...styles.primaryButton }}>
                 <Sparkles size={16} /> Generate New
               </button>
@@ -2328,12 +2368,13 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                     <label style={styles.label}>Topic Selection</label>
                     <select
                       value={scheduleForm.topicSelectionMode}
-                      onChange={(e) => setScheduleForm({ ...scheduleForm, topicSelectionMode: e.target.value as 'sequential' | 'random' | 'ai_suggested' })}
+                      onChange={(e) => setScheduleForm({ ...scheduleForm, topicSelectionMode: e.target.value as 'sequential' | 'random' | 'ai_suggested' | 'linear' })}
                       style={styles.select}
                     >
                       <option value="ai_suggested">AI Suggested</option>
                       <option value="sequential">Sequential</option>
                       <option value="random">Random</option>
+                      <option value="linear">Linear (Study backlog)</option>
                     </select>
                   </div>
                   <div>
@@ -2634,6 +2675,23 @@ export default function StudyAdminPanel({ onNavigateToArticles }: StudyAdminPane
                     Created: {new Date(editingArticle.createdAt).toLocaleString()}
                   </p>
                 </div>
+                <GenerateAudioButton
+                  articleId={editingArticle.id}
+                  audio={editingArticle.audio}
+                  audioStatus={editingArticle.audioStatus}
+                  audioError={editingArticle.audioError}
+                  onUpdated={(audio: ArticleAudio | null) => {
+                    setEditingArticle((prev) => prev ? {
+                      ...prev,
+                      audio: audio ?? undefined,
+                      audioStatus: audio ? 'ready' : undefined,
+                      audioError: undefined,
+                    } : prev);
+                    setMessage({ type: 'success', text: audio ? 'Audio updated' : 'Audio deleted' });
+                    void fetchArticles();
+                  }}
+                  onError={(text) => setMessage({ type: 'error', text })}
+                />
               </div>
             </div>
             <div style={styles.modalFooter}>

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { Suspense, useState, useRef, useEffect } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
   useStudyArticle,
@@ -33,6 +33,7 @@ import {
   GraduationCap,
 } from 'lucide-react';
 import ArticleLearningIntegration from '@/components/study/ArticleLearningIntegration';
+import AudioPlayer from '@/components/study/AudioPlayer';
 // Prism.js for code highlighting
 import Prism from 'prismjs';
 import 'prismjs/themes/prism-tomorrow.css';
@@ -390,7 +391,7 @@ function renderArticleMarkdown(text: string): React.ReactNode {
   return elements;
 }
 
-export default function StudyArticlePage() {
+function StudyArticlePageInner() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -1121,6 +1122,9 @@ export default function StudyArticlePage() {
               <div className="tab-content" style={{ padding: '16px 8px' }}>
                 {activeTab === 'article' && (
                   <article style={{ maxWidth: '100%' }}>
+                    {/* Audio player */}
+                    {article.audio && <AudioPlayer audio={article.audio} />}
+
                     {/* Summary */}
                     <div style={{
                       backgroundColor: '#f0fdf4',
@@ -1793,5 +1797,13 @@ export default function StudyArticlePage() {
         }
       `}</style>
     </div>
+  );
+}
+
+export default function StudyArticlePage() {
+  return (
+    <Suspense fallback={null}>
+      <StudyArticlePageInner />
+    </Suspense>
   );
 }

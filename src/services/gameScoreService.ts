@@ -82,7 +82,7 @@ export async function migrateGuestScores(uid: string): Promise<void> {
       getHighScores(uid),
     ]);
 
-    const updates: Promise<any>[] = [];
+    const updates: Array<ReturnType<typeof updateHighScore>> = [];
     for (const [gameKey, guestScore] of Object.entries(guestScores)) {
       const userScore = userScores[gameKey] || 0;
       if (guestScore > userScore) {

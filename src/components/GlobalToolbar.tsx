@@ -33,11 +33,15 @@ interface ThemeConfig {
   avatarText: string;
 }
 
+// Each theme's `bg` is the equivalent OPAQUE color for the original
+// `rgba(R,G,B,0.06)` blended over a white page. This preserves the
+// subtle color identity per section while keeping the toolbar fully
+// solid so content scrolling underneath stays sharp and readable.
 const THEMES: { prefix: string; theme: ThemeConfig }[] = [
   {
     prefix: '/tools/settli',
     theme: {
-      bg: 'rgba(99,102,241,0.06)',
+      bg: 'rgb(246,246,254)',
       border: 'rgba(99,102,241,0.2)',
       accent: '#6366f1',
       avatarBg: 'rgba(99,102,241,0.12)',
@@ -47,7 +51,7 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
   {
     prefix: '/games',
     theme: {
-      bg: 'rgba(0,0,0,0.85)',
+      bg: '#000',
       border: 'rgba(14,165,233,0.3)',
       accent: '#0ea5e9',
       avatarBg: 'rgba(14,165,233,0.15)',
@@ -57,7 +61,7 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
   {
     prefix: '/study',
     theme: {
-      bg: 'rgba(124,58,237,0.06)',
+      bg: 'rgb(247,243,254)',
       border: 'rgba(124,58,237,0.2)',
       accent: '#7c3aed',
       avatarBg: 'rgba(124,58,237,0.12)',
@@ -67,7 +71,7 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
   {
     prefix: '/hobbies',
     theme: {
-      bg: 'rgba(168,85,247,0.06)',
+      bg: 'rgb(250,245,255)',
       border: 'rgba(168,85,247,0.2)',
       accent: '#a855f7',
       avatarBg: 'rgba(168,85,247,0.12)',
@@ -77,7 +81,7 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
   {
     prefix: '/admin',
     theme: {
-      bg: 'rgba(168,85,247,0.06)',
+      bg: 'rgb(250,245,255)',
       border: 'rgba(168,85,247,0.2)',
       accent: '#a855f7',
       avatarBg: 'rgba(168,85,247,0.12)',
@@ -87,7 +91,7 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
   {
     prefix: '/tools/kaimono',
     theme: {
-      bg: 'rgba(16,185,129,0.06)',
+      bg: 'rgb(241,251,248)',
       border: 'rgba(16,185,129,0.2)',
       accent: '#10b981',
       avatarBg: 'rgba(16,185,129,0.12)',
@@ -97,7 +101,7 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
   {
     prefix: '/blog',
     theme: {
-      bg: 'rgba(34,197,94,0.06)',
+      bg: 'rgb(242,252,246)',
       border: 'rgba(34,197,94,0.2)',
       accent: '#22c55e',
       avatarBg: 'rgba(34,197,94,0.12)',
@@ -107,7 +111,12 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
 ];
 
 const DEFAULT_THEME: ThemeConfig = {
-  bg: 'transparent',
+  // `transparent` made the toolbar fully see-through on unthemed routes
+  // (e.g. /tools/kuizu, /voice-tasks); combined with the (now removed)
+  // backdrop-blur class, content scrolling underneath was blurred and
+  // hard to read. Match the page bg so the bar is opaque without being
+  // visually heavy.
+  bg: 'var(--background)',
   border: 'var(--border)',
   accent: 'var(--foreground)',
   avatarBg: 'var(--muted)',
@@ -141,7 +150,7 @@ export function GlobalToolbar() {
 
   return (
     <div
-      className="sticky top-0 z-50 backdrop-blur-sm"
+      className="sticky top-0 z-50"
       style={{ backgroundColor: theme.bg, borderBottom: `1px solid ${theme.border}` }}
     >
       <div className="container mx-auto px-4 flex items-center justify-between max-w-4xl gap-4 flex-wrap" style={{ minHeight: '3rem' }}>

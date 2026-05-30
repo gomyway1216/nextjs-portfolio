@@ -6,17 +6,19 @@ import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
 import { AlertCircle, Shield, ArrowLeft, Mail, Phone, MessageSquare, Loader2, Lock, UserPlus } from 'lucide-react';
 import { resetPassword } from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
+import { getErrorCode, getErrorMessage } from '@/lib/errorUtils';
 
 type AuthMode = 'signin' | 'signup';
 
 const SignInPage = () => {
   const { t, i18n } = useTranslation();
+  const router = useRouter();
   const currentLang = i18n.language?.startsWith('ja') ? 'ja' : 'en';
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
@@ -32,6 +34,7 @@ const SignInPage = () => {
   const [verifying, setVerifying] = useState(false);
   const [resetSent, setResetSent] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   const searchParams = useSearchParams();
   const rawRedirect = searchParams.get('redirect');
@@ -56,22 +59,21 @@ const SignInPage = () => {
 
   const recaptchaContainerRef = useRef<HTMLDivElement>(null);
   const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+  const redirectStartedRef = useRef(false);
 
   useEffect(() => {
-    // Anonymous users are NOT considered "signed in" for the purpose of this
-    // gate — they need to upgrade to a real account, which is exactly what
-    // this page is for. Without this check, every visitor (auto-anon-signed
-    // by AuthProvider) would be bounced before they could enter credentials.
+    // Anonymous Firebase users are NOT considered "signed in" for this gate;
+    // they need to upgrade to a real account before leaving the sign-in page.
     //
-    // Use a hard navigation (window.location) instead of router.push — when
-    // the redirect target is middleware-protected (e.g. /admin), Next.js's
-    // RSC prefetch fires while the just-set __session cookie is still
-    // committing to the cookie jar, so middleware sees no cookie and bounces
-    // straight back to /signin. A full HTTP navigation reads the jar fresh.
-    if (currentUser && !currentUser.isAnonymous) {
-      window.location.href = redirectPath;
+    // Keep this as a client navigation so AuthProvider state survives the
+    // /signin -> /admin transition. verifyTwoFactorAndComplete and the auth
+    // listener only expose currentUser after the server session cookie is set.
+    if (currentUser && !currentUser.isAnonymous && !redirectStartedRef.current) {
+      redirectStartedRef.current = true;
+      setRedirecting(true);
+      router.replace(redirectPath);
     }
-  }, [currentUser, redirectPath]);
+  }, [currentUser, redirectPath, router]);
 
   useEffect(() => {
     return () => {
@@ -114,8 +116,8 @@ const SignInPage = () => {
       if (!result.requiresTwoFactor) {
         // Redirect handled by useEffect
       }
-    } catch (e: any) {
-      const code = e.code;
+    } catch (e: unknown) {
+      const code = getErrorCode(e);
       if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
         setError(t('signin.errors.wrongPassword'));
       } else if (code === 'auth/user-not-found') {
@@ -125,7 +127,7 @@ const SignInPage = () => {
       } else if (code === 'auth/user-disabled') {
         setError(t('signin.errors.userDisabled'));
       } else {
-        setError(e.message);
+        setError(getErrorMessage(e));
       }
     } finally {
       setLoading(false);
@@ -139,14 +141,14 @@ const SignInPage = () => {
 
     try {
       await signUp(email, password, displayName.trim());
-    } catch (e: any) {
-      const code = e.code;
+    } catch (e: unknown) {
+      const code = getErrorCode(e);
       if (code === 'auth/email-already-in-use') {
         setError(t('signin.errors.emailInUse'));
       } else if (code === 'auth/weak-password') {
         setError(t('signin.errors.weakPassword'));
       } else {
-        setError(e.message);
+        setError(getErrorMessage(e));
       }
     } finally {
       setLoading(false);
@@ -170,11 +172,11 @@ const SignInPage = () => {
       recaptchaVerifierRef.current = twoFactorService.initRecaptchaVerifier('recaptcha-signin-container');
       await sendMfaCode(recaptchaVerifierRef.current);
       setCodeSent(true);
-    } catch (e: any) {
-      if (e.code === 'auth/too-many-requests') {
+    } catch (e: unknown) {
+      if (getErrorCode(e) === 'auth/too-many-requests') {
         setError(t('signin.errors.tooManyAttempts'));
       } else {
-        setError(e.message || t('signin.errors.sendCodeFailed'));
+        setError(getErrorMessage(e, t('signin.errors.sendCodeFailed')));
       }
       if (recaptchaVerifierRef.current) {
         recaptchaVerifierRef.current.clear();
@@ -196,8 +198,8 @@ const SignInPage = () => {
       // Redirect handled by the currentUser useEffect — verifyTwoFactorAndComplete
       // eagerly updates currentUser + syncs the session cookie before returning,
       // so the redirect fires without racing the middleware.
-    } catch (e: any) {
-      setError(e.message);
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
       setVerifying(false);
     }
   };
@@ -226,22 +228,21 @@ const SignInPage = () => {
     try {
       await resetPassword(email);
       setResetSent(true);
-    } catch (e: any) {
-      if (e.code === 'auth/user-not-found') {
+    } catch (e: unknown) {
+      if (getErrorCode(e) === 'auth/user-not-found') {
         setError(t('signin.errors.userNotFound'));
       } else {
-        setError(e.message);
+        setError(getErrorMessage(e));
       }
     }
     setResetLoading(false);
   };
 
   // Already signed in (typically: MFA verify just completed and the
-  // window.location.href navigation in the redirect useEffect is still in
-  // flight). Show a loading screen rather than falling through to the
-  // login form, which would otherwise briefly flash on screen during the
-  // navigation latency.
-  if (currentUser && !currentUser.isAnonymous) {
+  // router navigation in the redirect useEffect is still in flight). Show a
+  // loading screen rather than falling through to the login form, which would
+  // otherwise briefly flash on screen during the navigation latency.
+  if (redirecting || (currentUser && !currentUser.isAnonymous)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />

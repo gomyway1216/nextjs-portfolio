@@ -50,6 +50,11 @@ export const KAIMONO_USER_HISTORY_COLLECTION = 'kaimono_user_history';
 export const KAIMONO_RECURRING_ITEMS_COLLECTION = 'kaimono_recurring_items';
 export const KAIMONO_FREQUENT_ITEMS_COLLECTION = 'kaimono_frequent_items';
 
+// Score Tracker System collection names
+export const SCORE_TRACKER_GROUPS_COLLECTION = 'score_tracker_groups';
+export const SCORE_TRACKER_SESSIONS_SUBCOLLECTION = 'sessions';
+export const SCORE_TRACKER_USER_HISTORY_COLLECTION = 'score_tracker_user_history';
+
 // Kuizu System collection names
 export const KUIZU_QUESTIONS_COLLECTION = 'kuizu_questions';
 export const KUIZU_CUSTOM_QUIZZES_COLLECTION = 'kuizu_custom_quizzes';

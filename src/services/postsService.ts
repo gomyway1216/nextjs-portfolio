@@ -1,19 +1,87 @@
+import type { User } from 'firebase/auth';
 import { auth } from '@/lib/firebaseConnect';
+import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations';
 
-export interface Post {
+// Try to surface the API's error message instead of just the HTTP status,
+// so the user sees something useful in the toast / error UI. When the API
+// included a `details` field (e.g. a Firestore "needs an index" message
+// with a clickable URL), include it after the headline.
+async function throwApiError(response: Response): Promise<never> {
+  let message = `HTTP error! status: ${response.status}`;
+  try {
+    const data = await response.json();
+    const parts: string[] = [];
+    if (data && typeof data.error === 'string') parts.push(data.error);
+    if (data && typeof data.details === 'string') parts.push(data.details);
+    if (parts.length > 0) message = parts.join('\n');
+  } catch {
+    // body not JSON; keep status-based message
+  }
+  throw new Error(message);
+}
+
+// A "listing post" is a Firestore post flattened to a single locale by the
+// server. The full translations map is not included to keep responses small.
+export interface ListingPost {
   id: string;
   title: string;
   body: string;
   isPublic: boolean;
   category: string;
   image?: string;
-  language?: string;
+  language: PostLanguage;
+  availableLanguages: PostLanguage[];
   created: string;
   lastUpdated: string;
 }
 
+// A "detail post" includes the full translations map so the client can
+// switch languages without an extra round-trip.
+export interface DetailPost {
+  id: string;
+  isPublic: boolean;
+  category: string;
+  image?: string;
+  translations: PostTranslations;
+  availableLanguages: PostLanguage[];
+  created: string;
+  lastUpdated: string;
+}
+
+// Backwards-compatible alias for code that imports `Post`. Treat it as a
+// listing post for now.
+export type Post = ListingPost;
+
+export interface PostsResponse {
+  posts: ListingPost[];
+  hasMore?: boolean;
+  lastVisibleTimestamp?: number | null;
+}
+
+// On a fresh page load `auth.currentUser` is `null` until the Firebase
+// auth listener has restored the session from local storage. Hooks that
+// fire on mount (like usePosts) hit this window and would otherwise send
+// the request with no auth header, getting a 401 from admin-gated
+// endpoints. Wait briefly for the auth state to settle before reading.
+async function waitForAuthUser(timeoutMs = 3000): Promise<User | null> {
+  if (auth.currentUser) return auth.currentUser;
+  return await new Promise<User | null>((resolve) => {
+    const timer = setTimeout(() => {
+      unsubscribe();
+      resolve(auth.currentUser);
+    }, timeoutMs);
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        clearTimeout(timer);
+        unsubscribe();
+        resolve(user);
+      }
+    });
+  });
+}
+
 async function getAuthHeaders(): Promise<Record<string, string>> {
-  const user = auth.currentUser;
+  const user = await waitForAuthUser();
   if (!user) return {};
 
   const token = await user.getIdToken();
@@ -24,31 +92,44 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
 
 export async function getPosts(params: {
   category?: string;
-  isPublic?: boolean;
+  // boolean -> filter to that value; null -> no filter (admin only,
+  // returns drafts + public); undefined -> defaults to `true` (public only)
+  isPublic?: boolean | null;
   page?: number;
   limit?: number;
   lastVisibleTimestamp?: number;
-} = {}) {
+  language?: PostLanguage;
+} = {}): Promise<PostsResponse> {
   const {
     category = 'all',
     isPublic = true,
     page = 1,
     limit = 10,
     lastVisibleTimestamp,
+    language,
   } = params;
 
   const queryParams = new URLSearchParams({
     category,
-    isPublic: String(isPublic),
     page: String(page),
     limit: String(limit),
   });
+
+  if (isPublic !== null) {
+    queryParams.append('isPublic', String(isPublic));
+  }
 
   if (lastVisibleTimestamp) {
     queryParams.append('lastVisibleTimestamp', String(lastVisibleTimestamp));
   }
 
-  const headers = !isPublic ? await getAuthHeaders() : {};
+  if (language) {
+    queryParams.append('language', language);
+  }
+
+  // Admin auth is needed unless the caller is explicitly asking for
+  // public-only posts. Both `null` (no filter) and `false` require it.
+  const headers = isPublic === true ? {} : await getAuthHeaders();
 
   const response = await fetch(`/api/post?${queryParams}`, {
     headers: {
@@ -58,51 +139,38 @@ export async function getPosts(params: {
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
-  return await response.json();
+  return await response.json() as PostsResponse;
 }
 
-export async function getPostsByCategory(category: string, isPublic?: boolean) {
-  const queryParams = new URLSearchParams();
-  if (isPublic !== undefined) {
-    queryParams.append('isPublic', String(isPublic));
-  }
-
-  const headers = isPublic === false || isPublic === undefined ? await getAuthHeaders() : {};
-
-  const response = await fetch(`/api/post/${category}?${queryParams}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...headers,
-    },
+// Convenience wrapper around getPosts for category-scoped listings.
+export async function getPostsByCategory(category: string, isPublic?: boolean, language?: PostLanguage): Promise<ListingPost[]> {
+  const data = await getPosts({
+    category,
+    isPublic: isPublic ?? true,
+    language,
   });
-
-  if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
-  }
-
-  const data = await response.json();
   return data.posts;
 }
 
-export async function getPostByCategory(id: string, category: string) {
-  const response = await fetch(`/api/post/${category}/${id}`, {
+export async function getPostById(id: string): Promise<DetailPost> {
+  const response = await fetch(`/api/post/${id}`, {
     headers: {
       'Content-Type': 'application/json',
     },
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
   const data = await response.json();
   return data.post;
 }
 
-export async function getPostCategories() {
+export async function getPostCategories(): Promise<string[]> {
   const response = await fetch('/api/post/categories', {
     headers: {
       'Content-Type': 'application/json',
@@ -110,22 +178,29 @@ export async function getPostCategories() {
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
   const data = await response.json();
   return data.categories;
 }
 
-export async function getTop4Posts() {
-  const response = await fetch('/api/post/top', {
+export async function getTop4Posts(language?: PostLanguage): Promise<ListingPost[]> {
+  const queryParams = new URLSearchParams();
+  if (language) {
+    queryParams.append('language', language);
+  }
+  const qs = queryParams.toString();
+  const url = qs ? `/api/post/top?${qs}` : '/api/post/top';
+
+  const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
     },
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
   const data = await response.json();
@@ -133,13 +208,11 @@ export async function getTop4Posts() {
 }
 
 export async function createPost(post: {
-  title: string;
-  body: string;
   category: string;
+  translations: PostTranslations;
   isPublic?: boolean;
   image?: string;
-  language?: string;
-}) {
+}): Promise<string> {
   const headers = await getAuthHeaders();
 
   const response = await fetch('/api/post', {
@@ -152,7 +225,7 @@ export async function createPost(post: {
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
   const data = await response.json();
@@ -161,18 +234,16 @@ export async function createPost(post: {
 
 export async function updatePost(
   id: string,
-  category: string,
   post: {
-    title: string;
-    body: string;
+    translations: PostTranslations;
+    category?: string;
     isPublic?: boolean;
     image?: string;
-    language?: string;
   }
-) {
+): Promise<void> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`/api/post/${category}/${id}`, {
+  const response = await fetch(`/api/post/${id}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -182,14 +253,14 @@ export async function updatePost(
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 }
 
-export async function deletePostByCategory(id: string, category: string) {
+export async function deletePost(id: string): Promise<boolean> {
   const headers = await getAuthHeaders();
 
-  const response = await fetch(`/api/post/${category}/${id}`, {
+  const response = await fetch(`/api/post/${id}`, {
     method: 'DELETE',
     headers: {
       ...headers,
@@ -197,7 +268,7 @@ export async function deletePostByCategory(id: string, category: string) {
   });
 
   if (!response.ok) {
-    throw new Error(`HTTP error! status: ${response.status}`);
+    await throwApiError(response);
   }
 
   return true;

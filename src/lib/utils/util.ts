@@ -13,7 +13,9 @@ export const convertTimestampToFormattedDate = (timestampSeconds: number) => {
   return `${mo} ${da}, ${ye}`;
 };
 
-export const formatDate = (d: any) => {
+type DateLike = Date | string | number | { toDate: () => Date } | null | undefined;
+
+export const formatDate = (d: DateLike) => {
   if (!d) return '';
 
   // Convert to Date object if it's a string or timestamp
@@ -42,7 +44,7 @@ export const formatDate = (d: any) => {
   return `${mo} ${da}, ${ye}`;
 };
 
-export const formatJapaneseDate = (d: any) => {
+export const formatJapaneseDate = (d: DateLike) => {
   if (!d) return '';
 
   // Convert to Date object if it's a string or timestamp

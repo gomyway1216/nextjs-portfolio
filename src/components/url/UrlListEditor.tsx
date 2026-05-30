@@ -16,6 +16,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type DragEndEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -141,12 +142,12 @@ const UrlListEditor = ({ urls, setUrls }: UrlListEditorProps) => {
   };
 
   const handleRemoveUrl = (index: number) => {
-    const newUrls = urls.filter((_: any, i: number) => i !== index);
+    const newUrls = urls.filter((_, i) => i !== index);
     setUrls(newUrls);
   };
 
   const handleChangeUrl = (index: number, newName: string, newLink: string, newType: string) => {
-    const newUrls = urls.map((url: any, i: number) => {
+    const newUrls = urls.map((url, i) => {
       if (i === index) {
         return { ...url, name: newName, link: newLink, type: newType};
       }
@@ -155,12 +156,12 @@ const UrlListEditor = ({ urls, setUrls }: UrlListEditorProps) => {
     setUrls(newUrls);
   };
 
-  const handleDragEnd = (event: any) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
-    if (active.id !== over.id) {
-      const oldIndex = parseInt(active.id.replace('url-', ''));
-      const newIndex = parseInt(over.id.replace('url-', ''));
+    if (over && active.id !== over.id) {
+      const oldIndex = parseInt(String(active.id).replace('url-', ''));
+      const newIndex = parseInt(String(over.id).replace('url-', ''));
       setUrls(arrayMove(urls, oldIndex, newIndex));
     }
   };
@@ -176,7 +177,7 @@ const UrlListEditor = ({ urls, setUrls }: UrlListEditorProps) => {
           items={urls.map((_, index) => `url-${index}`)}
           strategy={verticalListSortingStrategy}
         >
-          {urls.map((url: any, index: number) => (
+          {urls.map((url, index) => (
             <SortableUrlItem
               key={`url-${index}`}
               url={url}

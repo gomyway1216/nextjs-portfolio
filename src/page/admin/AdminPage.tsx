@@ -2,13 +2,18 @@
 
 import { useState, useEffect, CSSProperties } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
-import { useProfile, updateProfile } from '@/hooks/useProfile';
+import { useProfile, useResumeLink, updateProfile } from '@/hooks/useProfile';
+import { uploadResume } from '@/services/profileService';
 import { useProjects, useProjectMutations, useProjectCategories, useUrlTypes } from '@/hooks/useProjects';
 import { usePosts, usePostMutations, usePostCategories } from '@/hooks/usePosts';
 import { useRouter } from 'next/navigation';
 import * as technologyApi from '@/services/technologiesService';
 import type { Technology } from '@/services/technologiesService';
+import type { Project } from '@/services/projectsService';
 import * as imageApi from '@/services/imageService';
+import * as postApi from '@/services/postsService';
+import type { ListingPost } from '@/services/postsService';
+import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations';
 import {
   LayoutDashboard,
   User,
@@ -38,6 +43,7 @@ import Link from 'next/link';
 import StudyAdminPanel from '@/components/study/StudyAdminPanel';
 import HobbiesAdminPanel from '@/components/hobby/HobbiesAdminPanel';
 import ActivityLogPanel from '@/components/admin/ActivityLogPanel';
+import TiptapEditor from '@/components/editor/TiptapEditor';
 
 type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'hobbies' | 'activity-logs';
 
@@ -47,6 +53,7 @@ interface Job {
   jobPosition: string;
   jobDuration: string;
   technologies?: (string | { name: string; id?: string; type?: string })[];
+  hidden?: boolean;
 }
 
 interface UrlData {
@@ -328,11 +335,14 @@ const getSectionFromHash = (): AdminSection => {
 };
 
 const AdminPage = () => {
-  const { currentUser, isAdmin } = useAuth();
+  const { currentUser, loading: authLoading, isAdmin } = useAuth();
   const router = useRouter();
   const { profile, loading: profileLoading } = useProfile();
+  const { resumeLink: fetchedResumeLink } = useResumeLink();
   const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
-  const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts({ limit: 100 });
+  // Admin sees every post including drafts, so pass `isPublic: null` to
+  // skip the public-only filter.
+  const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts({ limit: 100, isPublic: null });
   const { categories: projectCategories } = useProjectCategories();
   const { urlTypes } = useUrlTypes();
   const { categories: postCategories } = usePostCategories();
@@ -369,10 +379,29 @@ const AdminPage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Edit states
-  const [editingProject, setEditingProject] = useState<any | null>(null);
-  const [editingPost, setEditingPost] = useState<any | null>(null);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [editingPost, setEditingPost] = useState<ListingPost | null>(null);
   const [editingJob, setEditingJob] = useState<string | null>(null);
   const [techInput, setTechInput] = useState('');
+
+  // Full-job edit / create form. `null` = no form open; `'new'` = create
+  // mode (POST), any other id = edit mode (PUT by id).
+  // `order` is kept as a string so the controlled <input type="number">
+  // accepts intermediate values like "" or "-" without being eagerly
+  // parsed into NaN/0. We coerce to a Number at submit.
+  const [jobFormMode, setJobFormMode] = useState<null | 'new' | string>(null);
+  const [jobForm, setJobForm] = useState({
+    companyName: '',
+    jobPosition: '',
+    jobPositionJa: '',
+    jobType: '',
+    jobTypeJa: '',
+    jobDuration: '',
+    jobDescription: '',
+    jobDescriptionJa: '',
+    order: '0',
+    technologies: '',
+  });
 
   // Available technologies from API
   const [availableTechnologies, setAvailableTechnologies] = useState<Technology[]>([]);
@@ -384,6 +413,8 @@ const AdminPage = () => {
     location: '',
     email: '',
     languages: '',
+    bioEn: '',
+    bioJa: '',
   });
 
   // Project form states
@@ -407,20 +438,45 @@ const AdminPage = () => {
   const [imagesProgress, setImagesProgress] = useState(0);
   const [dragOverThumb, setDragOverThumb] = useState(false);
   const [dragOverImages, setDragOverImages] = useState(false);
+  const [uploadingPostImage, setUploadingPostImage] = useState(false);
+  const [postImageProgress, setPostImageProgress] = useState(0);
+  const [dragOverPostImage, setDragOverPostImage] = useState(false);
+  const [uploadingResume, setUploadingResume] = useState(false);
+  const [resumeProgress, setResumeProgress] = useState(0);
+  const [dragOverResume, setDragOverResume] = useState(false);
+  const [currentResumeLink, setCurrentResumeLink] = useState<string>('');
 
   // Post form states
-  const [postForm, setPostForm] = useState({
-    title: '',
-    body: '',
+  const [postForm, setPostForm] = useState<{
+    category: string;
+    isPublic: boolean;
+    image: string;
+    translations: PostTranslations;
+  }>({
     category: '',
     isPublic: true,
     image: '',
-    language: 'en',
+    translations: {},
   });
+
+  const setTranslationField = (lang: PostLanguage, field: 'title' | 'body', value: string) => {
+    setPostForm((prev) => ({
+      ...prev,
+      translations: {
+        ...prev.translations,
+        [lang]: {
+          title: prev.translations[lang]?.title || '',
+          body: prev.translations[lang]?.body || '',
+          [field]: value,
+        },
+      },
+    }));
+  };
 
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
+    if (authLoading) return;
     if (!currentUser) {
       router.push('/signin');
       return;
@@ -432,7 +488,7 @@ const AdminPage = () => {
     }
     fetchJobs();
     fetchTechnologies();
-  }, [currentUser, isAdmin, router]);
+  }, [authLoading, currentUser, isAdmin, router]);
 
   const fetchTechnologies = async () => {
     try {
@@ -450,9 +506,17 @@ const AdminPage = () => {
         location: profile.location || '',
         email: profile.email || '',
         languages: profile.languages?.join(', ') || '',
+        bioEn: profile.bioEn || '',
+        bioJa: profile.bioJa || '',
       });
     }
   }, [profile]);
+
+  useEffect(() => {
+    if (fetchedResumeLink) {
+      setCurrentResumeLink(fetchedResumeLink);
+    }
+  }, [fetchedResumeLink]);
 
   const fetchJobs = async () => {
     try {
@@ -480,6 +544,8 @@ const AdminPage = () => {
         location: profileForm.location,
         email: profileForm.email,
         languages: languagesArray,
+        bioEn: profileForm.bioEn,
+        bioJa: profileForm.bioJa,
       });
       showMessage('success', 'Profile updated successfully!');
       setEditingProfile(false);
@@ -489,10 +555,10 @@ const AdminPage = () => {
   };
 
   // Project handlers
-  const handleOpenProjectModal = (project?: any) => {
+  const handleOpenProjectModal = (project?: Project) => {
     if (project) {
       setEditingProject(project);
-      const techNames = project.technologies?.map((t: any) => getTechName(t)).filter(Boolean) || [];
+      const techNames = project.technologies?.map((t) => getTechName(t)).filter(Boolean) || [];
       setProjectForm({
         title: project.title || '',
         description: project.description || '',
@@ -713,50 +779,70 @@ const AdminPage = () => {
   };
 
   // Post handlers
-  const handleOpenPostModal = (post?: any) => {
+  const handleOpenPostModal = async (post?: ListingPost) => {
     if (post) {
       setEditingPost(post);
-      setPostForm({
-        title: post.title || '',
-        body: post.body || '',
-        category: post.category || '',
-        isPublic: post.isPublic ?? true,
-        image: post.image || '',
-        language: post.language || 'en',
-      });
+      try {
+        // The list endpoint returns the flattened version; load the full
+        // post so we can edit every available translation.
+        const detail = await postApi.getPostById(post.id);
+        setPostForm({
+          category: detail.category,
+          isPublic: detail.isPublic,
+          image: detail.image || '',
+          translations: detail.translations,
+        });
+      } catch (error) {
+        showMessage('error', `Failed to load post: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        return;
+      }
     } else {
       setEditingPost(null);
       setPostForm({
-        title: '',
-        body: '',
         category: postCategories[0] || '',
         isPublic: true,
         image: '',
-        language: 'en',
+        translations: {},
       });
     }
     setShowPostModal(true);
   };
 
   const handleSavePost = async () => {
+    // Strip out translations where both title and body are empty so we
+    // never persist a useless { title: '', body: '' } record.
+    const cleanedTranslations: PostTranslations = {};
+    (['en', 'ja'] as PostLanguage[]).forEach((lang) => {
+      const t = postForm.translations[lang];
+      if (t && ((t.title || '').trim() || (t.body || '').trim())) {
+        cleanedTranslations[lang] = { title: t.title || '', body: t.body || '' };
+      }
+    });
+
+    if (Object.keys(cleanedTranslations).length === 0) {
+      showMessage('error', 'Please fill in at least one language (Title or Content).');
+      return;
+    }
+    if (!postForm.category) {
+      showMessage('error', 'Please select a category.');
+      return;
+    }
+
     try {
       if (editingPost) {
-        await postMutations.updatePost(editingPost.id, editingPost.category, {
-          title: postForm.title,
-          body: postForm.body,
+        await postMutations.updatePost(editingPost.id, {
+          category: postForm.category,
+          translations: cleanedTranslations,
           isPublic: postForm.isPublic,
           image: postForm.image,
-          language: postForm.language,
         });
         showMessage('success', 'Post updated successfully!');
       } else {
         await postMutations.createPost({
-          title: postForm.title,
-          body: postForm.body,
           category: postForm.category,
+          translations: cleanedTranslations,
           isPublic: postForm.isPublic,
           image: postForm.image,
-          language: postForm.language,
         });
         showMessage('success', 'Post created successfully!');
       }
@@ -767,11 +853,104 @@ const AdminPage = () => {
     }
   };
 
-  const handleDeletePost = async (id: string, category: string) => {
+  // Post image upload mirrors the project thumbnail flow.
+  const handlePostImageUpload = async (file: File) => {
+    setUploadingPostImage(true);
+    setPostImageProgress(0);
+
+    const progressInterval = setInterval(() => {
+      setPostImageProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 100);
+
+    try {
+      const downloadURL = await imageApi.getImageRef(
+        file,
+        'blog',
+        editingPost?.id || 'undefined',
+      );
+      setPostForm((prev) => ({ ...prev, image: downloadURL }));
+      setPostImageProgress(100);
+    } catch (error) {
+      console.error('Error uploading post image:', error);
+      showMessage('error', `Failed to upload image: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      clearInterval(progressInterval);
+      setUploadingPostImage(false);
+      setTimeout(() => setPostImageProgress(0), 1000);
+    }
+  };
+
+  const handleDropPostImage = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverPostImage(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files[0] && files[0].type.startsWith('image/')) {
+      handlePostImageUpload(files[0]);
+    }
+  };
+
+  const handleRemovePostImage = () => {
+    setPostForm((prev) => ({ ...prev, image: '' }));
+  };
+
+  const handleResumeUpload = async (file: File) => {
+    if (file.type !== 'application/pdf') {
+      showMessage('error', 'Resume must be a PDF file');
+      return;
+    }
+
+    setUploadingResume(true);
+    setResumeProgress(0);
+
+    const progressInterval = setInterval(() => {
+      setResumeProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 100);
+
+    try {
+      const downloadURL = await uploadResume(file);
+      setCurrentResumeLink(downloadURL);
+      setResumeProgress(100);
+      showMessage('success', 'Resume uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading resume:', error);
+      showMessage('error', `Failed to upload resume: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      clearInterval(progressInterval);
+      setUploadingResume(false);
+      setTimeout(() => setResumeProgress(0), 1000);
+    }
+  };
+
+  const handleDropResume = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverResume(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files[0]) {
+      handleResumeUpload(files[0]);
+    }
+  };
+
+  const handleDeletePost = async (id: string) => {
     if (isDeleting) return;
     setIsDeleting(true);
     try {
-      await postMutations.deletePost(id, category);
+      await postMutations.deletePost(id);
       showMessage('success', 'Post deleted successfully!');
       refetchPosts();
       setShowDeleteConfirm(null);
@@ -783,12 +962,45 @@ const AdminPage = () => {
   };
 
   // Job handlers
+  // Every Job mutation needs the admin's Firebase ID token attached, or
+  // the API rejects with "No authorization token provided" (the bug
+  // that surfaced when the auth check landed in #22 but the admin
+  // handlers were never updated).
+  const getAuthHeaders = async (): Promise<Record<string, string>> => {
+    if (!currentUser) return {};
+    const token = await currentUser.getIdToken();
+    return { Authorization: `Bearer ${token}` };
+  };
+
+  const handleToggleJobHidden = async (companyName: string, currentHidden: boolean) => {
+    const nextHidden = !currentHidden;
+    try {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch('/api/job', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify({ companyName, hidden: nextHidden }),
+      });
+
+      if (response.ok) {
+        showMessage('success', `${companyName} is now ${nextHidden ? 'hidden' : 'visible'}`);
+        fetchJobs();
+      } else {
+        const error = await response.json();
+        showMessage('error', `Failed: ${error.error}`);
+      }
+    } catch (error) {
+      showMessage('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
   const handleUpdateJobTechnologies = async (jobId: string, companyName: string) => {
     const techArray = techInput.split(',').map(t => t.trim()).filter(t => t);
     try {
+      const authHeaders = await getAuthHeaders();
       const response = await fetch('/api/job', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         body: JSON.stringify({ companyName, technologies: techArray }),
       });
 
@@ -803,6 +1015,244 @@ const AdminPage = () => {
       }
     } catch (error) {
       showMessage('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const openJobEditForm = (job: Job) => {
+    const techNames = job.technologies?.map(t => getTechName(t)).filter(Boolean) || [];
+    setJobFormMode(job.id);
+    setEditingJob(null); // close the legacy tech-only inline editor if open
+    const j = job as unknown as Record<string, unknown>;
+    setJobForm({
+      companyName: typeof j.companyName === 'string' ? j.companyName : '',
+      jobPosition: typeof j.jobPosition === 'string' ? j.jobPosition : '',
+      jobPositionJa: typeof j.jobPositionJa === 'string' ? j.jobPositionJa : '',
+      jobType: typeof j.jobType === 'string' ? j.jobType : '',
+      jobTypeJa: typeof j.jobTypeJa === 'string' ? j.jobTypeJa : '',
+      jobDuration: typeof j.jobDuration === 'string' ? j.jobDuration : '',
+      jobDescription: typeof j.jobDescription === 'string' ? j.jobDescription : '',
+      jobDescriptionJa: typeof j.jobDescriptionJa === 'string' ? j.jobDescriptionJa : '',
+      order: typeof j.order === 'number' ? String(j.order) : '0',
+      technologies: techNames.join(', '),
+    });
+  };
+
+  const openJobCreateForm = () => {
+    setJobFormMode('new');
+    setEditingJob(null);
+    setJobForm({
+      companyName: '',
+      jobPosition: '',
+      jobPositionJa: '',
+      jobType: 'Full-time',
+      jobTypeJa: '',
+      jobDuration: '',
+      jobDescription: '',
+      jobDescriptionJa: '',
+      order: jobs.length > 0 ? String(Math.max(...jobs.map(j => (j as unknown as { order?: number }).order || 0)) + 1) : '0',
+      technologies: '',
+    });
+  };
+
+  const closeJobForm = () => setJobFormMode(null);
+
+  const handleSaveJobForm = async () => {
+    if (!jobFormMode) return;
+    const isCreate = jobFormMode === 'new';
+
+    if (!jobForm.companyName.trim() || !jobForm.jobPosition.trim()) {
+      showMessage('error', 'Company name and job position are required');
+      return;
+    }
+
+    const inputNames = jobForm.technologies
+      .split(',')
+      .map(t => t.trim())
+      .filter(Boolean);
+
+    // Preserve technology objects ({name, id, type}) when the user
+    // didn't rename them — otherwise every edit silently downgrades
+    // them to plain strings and loses the id/type metadata.
+    const originalTechs = (isCreate
+      ? []
+      : jobs.find(j => j.id === jobFormMode)?.technologies) || [];
+    const techArray = inputNames.map(name => {
+      const match = originalTechs.find(t => getTechName(t) === name);
+      return match ?? name;
+    });
+
+    const payload: Record<string, unknown> = {
+      companyName: jobForm.companyName.trim(),
+      jobPosition: jobForm.jobPosition.trim(),
+      jobPositionJa: jobForm.jobPositionJa,
+      jobType: jobForm.jobType,
+      jobTypeJa: jobForm.jobTypeJa,
+      jobDuration: jobForm.jobDuration,
+      jobDescription: jobForm.jobDescription,
+      jobDescriptionJa: jobForm.jobDescriptionJa,
+      order: Number(jobForm.order) || 0,
+      technologies: techArray,
+    };
+
+    if (!isCreate) {
+      payload.id = jobFormMode;
+    }
+
+    try {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch('/api/job', {
+        method: isCreate ? 'POST' : 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        showMessage('success', isCreate ? `Created ${jobForm.companyName}` : `Updated ${jobForm.companyName}`);
+        closeJobForm();
+        fetchJobs();
+      } else {
+        const error = await response.json().catch(() => ({}));
+        showMessage('error', `Failed: ${error.error || response.status}`);
+      }
+    } catch (error) {
+      showMessage('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  // Shared form body for both Create and Edit job. Reads from / writes
+  // to the single `jobForm` state object.
+  const renderJobFormFields = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div>
+          <label style={styles.label}>Company *</label>
+          <input
+            value={jobForm.companyName}
+            onChange={(e) => setJobForm({ ...jobForm, companyName: e.target.value })}
+            placeholder="Atlas"
+            style={styles.input}
+          />
+        </div>
+        <div>
+          <label style={styles.label}>Position (English) *</label>
+          <input
+            value={jobForm.jobPosition}
+            onChange={(e) => setJobForm({ ...jobForm, jobPosition: e.target.value })}
+            placeholder="Senior Software Engineer"
+            style={styles.input}
+          />
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+        <div>
+          <label style={styles.label}>Duration</label>
+          <input
+            value={jobForm.jobDuration}
+            onChange={(e) => setJobForm({ ...jobForm, jobDuration: e.target.value })}
+            placeholder="Jan 2025 - Present"
+            style={styles.input}
+          />
+        </div>
+        <div>
+          <label style={styles.label}>Type (English)</label>
+          <input
+            value={jobForm.jobType}
+            onChange={(e) => setJobForm({ ...jobForm, jobType: e.target.value })}
+            placeholder="Full-time"
+            style={styles.input}
+          />
+        </div>
+        <div>
+          <label style={styles.label}>Order (lower = first)</label>
+          <input
+            type="number"
+            value={jobForm.order}
+            onChange={(e) => setJobForm({ ...jobForm, order: e.target.value })}
+            style={styles.input}
+          />
+        </div>
+      </div>
+      <div>
+        <label style={styles.label}>Description (English)</label>
+        <textarea
+          value={jobForm.jobDescription}
+          onChange={(e) => setJobForm({ ...jobForm, jobDescription: e.target.value })}
+          rows={6}
+          placeholder="Lead engineer on the Infrastructure team, ..."
+          style={{ ...styles.input, fontFamily: 'inherit', resize: 'vertical' }}
+        />
+      </div>
+
+      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '14px', marginTop: '6px' }}>
+        <p style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
+          Japanese (optional)
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div>
+            <label style={styles.label}>Position (Japanese)</label>
+            <input
+              value={jobForm.jobPositionJa}
+              onChange={(e) => setJobForm({ ...jobForm, jobPositionJa: e.target.value })}
+              placeholder="シニアソフトウェアエンジニア"
+              style={styles.input}
+            />
+          </div>
+          <div>
+            <label style={styles.label}>Type (Japanese)</label>
+            <input
+              value={jobForm.jobTypeJa}
+              onChange={(e) => setJobForm({ ...jobForm, jobTypeJa: e.target.value })}
+              placeholder="正社員"
+              style={styles.input}
+            />
+          </div>
+        </div>
+        <div style={{ marginTop: '12px' }}>
+          <label style={styles.label}>Description (Japanese)</label>
+          <textarea
+            value={jobForm.jobDescriptionJa}
+            onChange={(e) => setJobForm({ ...jobForm, jobDescriptionJa: e.target.value })}
+            rows={6}
+            placeholder="Atlas のインフラチームのリードエンジニアとして..."
+            style={{ ...styles.input, fontFamily: 'inherit', resize: 'vertical' }}
+          />
+        </div>
+      </div>
+
+      <div>
+        <label style={styles.label}>Technologies (comma-separated)</label>
+        <input
+          value={jobForm.technologies}
+          onChange={(e) => setJobForm({ ...jobForm, technologies: e.target.value })}
+          placeholder="TypeScript, Next.js, Firebase"
+          style={styles.input}
+        />
+      </div>
+    </div>
+  );
+
+  const handleDeleteJob = async (id: string, companyName: string) => {
+    if (isDeleting) return;
+    setIsDeleting(true);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`/api/job?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { ...authHeaders },
+      });
+
+      if (response.ok) {
+        showMessage('success', `Deleted ${companyName}`);
+        setShowDeleteConfirm(null);
+        fetchJobs();
+      } else {
+        const error = await response.json().catch(() => ({}));
+        showMessage('error', `Failed: ${error.error || response.status}`);
+      }
+    } catch (error) {
+      showMessage('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -1050,9 +1500,20 @@ const AdminPage = () => {
                         { label: 'Email', value: profile?.email },
                         { label: 'Languages', value: profile?.languages?.join(', ') },
                       ].map((item, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 0', borderBottom: i < 3 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none' }}>
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
                           <span style={{ color: '#94a3b8' }}>{item.label}</span>
                           <span style={{ color: '#ffffff', fontWeight: '500' }}>{item.value || 'Not set'}</span>
+                        </div>
+                      ))}
+                      {[
+                        { label: 'Bio (English)', value: profile?.bioEn },
+                        { label: 'Bio (Japanese)', value: profile?.bioJa },
+                      ].map((item, i) => (
+                        <div key={item.label} style={{ padding: '16px 0', borderBottom: i === 0 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none' }}>
+                          <div style={{ color: '#94a3b8', marginBottom: '6px' }}>{item.label}</div>
+                          <div style={{ color: '#ffffff', fontSize: '13px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                            {item.value || <span style={{ color: '#64748b' }}>Falls back to bundled translation</span>}
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1095,11 +1556,105 @@ const AdminPage = () => {
                           style={styles.input}
                         />
                       </div>
+                      <div>
+                        <label style={styles.label}>Bio (English)</label>
+                        <textarea
+                          value={profileForm.bioEn}
+                          onChange={(e) => setProfileForm({ ...profileForm, bioEn: e.target.value })}
+                          placeholder="Shown on the home page hero. Leave empty to fall back to the bundled translation."
+                          rows={5}
+                          style={{ ...styles.input, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Bio (Japanese)</label>
+                        <textarea
+                          value={profileForm.bioJa}
+                          onChange={(e) => setProfileForm({ ...profileForm, bioJa: e.target.value })}
+                          placeholder="ホーム画面の自己紹介文。空欄なら i18n のデフォルトが使われます。"
+                          rows={5}
+                          style={{ ...styles.input, resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5 }}
+                        />
+                      </div>
                       <button onClick={handleUpdateProfile} style={{ ...styles.button, ...styles.primaryButton }}>
                         <Save size={16} /> Save Profile
                       </button>
                     </div>
                   )}
+                </div>
+              </div>
+
+              <div style={{ ...styles.card, maxWidth: '640px', marginTop: '24px' }}>
+                <div style={{ padding: '24px' }}>
+                  <h2 style={{ color: '#ffffff', fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>Resume</h2>
+                  <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '16px' }}>
+                    Drop a PDF to replace the resume linked from the site.
+                  </p>
+
+                  {currentResumeLink && (
+                    <div style={{ marginBottom: '16px', fontSize: '13px' }}>
+                      <span style={{ color: '#94a3b8', marginRight: '8px' }}>Current:</span>
+                      <a
+                        href={currentResumeLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#a855f7', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                      >
+                        View resume <ExternalLink size={12} />
+                      </a>
+                    </div>
+                  )}
+
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverResume(true); }}
+                    onDragLeave={() => setDragOverResume(false)}
+                    onDrop={handleDropResume}
+                    style={{
+                      border: `2px dashed ${dragOverResume ? '#a855f7' : 'rgba(255, 255, 255, 0.2)'}`,
+                      borderRadius: '12px',
+                      padding: '24px',
+                      textAlign: 'center',
+                      backgroundColor: dragOverResume ? 'rgba(168, 85, 247, 0.1)' : 'rgba(15, 23, 42, 0.3)',
+                      transition: 'all 0.2s',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      id="resume-upload"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        if (e.target.files && e.target.files[0]) {
+                          handleResumeUpload(e.target.files[0]);
+                          e.target.value = '';
+                        }
+                      }}
+                    />
+                    <label htmlFor="resume-upload" style={{ cursor: 'pointer' }}>
+                      <ScrollText size={40} color="#64748b" style={{ marginBottom: '8px' }} />
+                      <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                        Drag &amp; drop a PDF or click to upload
+                      </p>
+                    </label>
+                    {uploadingResume && (
+                      <div style={{ marginTop: '12px' }}>
+                        <div style={{
+                          height: '4px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          borderRadius: '2px',
+                          overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${resumeProgress}%`,
+                            background: 'linear-gradient(to right, #a855f7, #ec4899)',
+                            transition: 'width 0.2s',
+                          }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1190,9 +1745,13 @@ const AdminPage = () => {
                   <h1 style={styles.pageTitle}>Blog Posts</h1>
                   <p style={{ color: '#94a3b8' }}>Manage your blog content</p>
                 </div>
-                <button onClick={() => handleOpenPostModal()} style={{ ...styles.button, ...styles.primaryButton }}>
-                  <Plus size={16} /> Add Post
-                </button>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <InspectPostsButton onMessage={showMessage} />
+                  <MigratePostsFlatButton onMessage={showMessage} onAfterMigrate={refetchPosts} />
+                  <button onClick={() => handleOpenPostModal()} style={{ ...styles.button, ...styles.primaryButton }}>
+                    <Plus size={16} /> Add Post
+                  </button>
+                </div>
               </div>
 
               {postsLoading ? (
@@ -1271,29 +1830,72 @@ const AdminPage = () => {
           {/* Jobs Section */}
           {activeSection === 'jobs' && (
             <div>
-              <h1 style={styles.pageTitle}>Jobs & Experience</h1>
-              <p style={{ color: '#94a3b8', marginBottom: '32px' }}>Manage your work experience and technologies</p>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+                <div>
+                  <h1 style={styles.pageTitle}>Jobs & Experience</h1>
+                  <p style={{ color: '#94a3b8' }}>Manage your work experience, descriptions, and technologies</p>
+                </div>
+                <button onClick={openJobCreateForm} style={{ ...styles.button, ...styles.primaryButton }}>
+                  <Plus size={16} /> Add Job
+                </button>
+              </div>
+
+              {jobFormMode === 'new' && (
+                <div style={{ ...styles.card, marginBottom: '24px' }}>
+                  <div style={{ padding: '24px' }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', marginBottom: '16px' }}>New Job</h3>
+                    {renderJobFormFields()}
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                      <button onClick={handleSaveJobForm} style={{ ...styles.button, ...styles.primaryButton }}>
+                        <Save size={16} /> Create
+                      </button>
+                      <button onClick={closeJobForm} style={{ ...styles.button, ...styles.outlineButton }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                 {jobs.map((job) => (
-                  <div key={job.id} style={styles.card}>
+                  <div key={job.id} style={{ ...styles.card, opacity: job.hidden ? 0.55 : 1 }}>
                     <div style={{ padding: '24px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                         <div>
-                          <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#ffffff' }}>{job.jobPosition}</h3>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#ffffff' }}>{job.jobPosition}</h3>
+                            {job.hidden && (
+                              <span style={{ ...styles.badge, backgroundColor: 'rgba(148, 163, 184, 0.2)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)' }}>
+                                Hidden
+                              </span>
+                            )}
+                          </div>
                           <p style={{ color: '#a855f7' }}>{job.companyName}</p>
                           <p style={{ fontSize: '14px', color: '#64748b' }}>{job.jobDuration}</p>
                         </div>
-                        <button
-                          onClick={() => {
-                            setEditingJob(job.id);
-                            const techNames = job.technologies?.map(t => getTechName(t)).filter(Boolean) || [];
-                            setTechInput(techNames.join(', '));
-                          }}
-                          style={{ ...styles.button, ...styles.outlineButton }}
-                        >
-                          <Pencil size={16} /> Edit Tech
-                        </button>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => handleToggleJobHidden(job.companyName, !!job.hidden)}
+                            style={{ ...styles.button, ...styles.outlineButton }}
+                            title={job.hidden ? 'Show on public resume' : 'Hide from public resume'}
+                          >
+                            {job.hidden ? <EyeOff size={16} /> : <Eye size={16} />}
+                            {job.hidden ? 'Show' : 'Hide'}
+                          </button>
+                          <button
+                            onClick={() => openJobEditForm(job)}
+                            style={{ ...styles.button, ...styles.outlineButton }}
+                          >
+                            <Pencil size={16} /> Edit
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm({ type: 'job', id: job.id, name: job.companyName })}
+                            style={{ ...styles.button, ...styles.dangerButton }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
 
                       <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
@@ -1309,20 +1911,14 @@ const AdminPage = () => {
                         </div>
                       </div>
 
-                      {editingJob === job.id && (
+                      {jobFormMode === job.id && (
                         <div style={{ marginTop: '24px', padding: '16px', backgroundColor: 'rgba(15, 23, 42, 0.5)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                          <label style={styles.label}>Technologies (comma-separated)</label>
-                          <input
-                            value={techInput}
-                            onChange={(e) => setTechInput(e.target.value)}
-                            placeholder="React, TypeScript, Node.js"
-                            style={{ ...styles.input, marginBottom: '16px' }}
-                          />
-                          <div style={{ display: 'flex', gap: '12px' }}>
-                            <button onClick={() => handleUpdateJobTechnologies(job.id, job.companyName)} style={{ ...styles.button, ...styles.primaryButton }}>
+                          {renderJobFormFields()}
+                          <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                            <button onClick={handleSaveJobForm} style={{ ...styles.button, ...styles.primaryButton }}>
                               <Save size={16} /> Save
                             </button>
-                            <button onClick={() => { setEditingJob(null); setTechInput(''); }} style={{ ...styles.button, ...styles.outlineButton }}>
+                            <button onClick={closeJobForm} style={{ ...styles.button, ...styles.outlineButton }}>
                               Cancel
                             </button>
                           </div>
@@ -1718,7 +2314,7 @@ const AdminPage = () => {
       {/* Post Modal */}
       {showPostModal && (
         <div style={styles.modal}>
-          <div style={styles.modalContent}>
+          <div style={{ ...styles.modalContent, maxWidth: 'none' }}>
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>{editingPost ? 'Edit Post' : 'New Post'}</h2>
               <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '4px' }}>
@@ -1727,68 +2323,137 @@ const AdminPage = () => {
             </div>
             <div style={styles.modalBody}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>
+                  Fill in either language, both, or one and skip the other — empty languages are not saved. Readers see the language matching their locale; if it doesn&apos;t exist, the other language is shown as a fallback.
+                </p>
                 <div>
-                  <label style={styles.label}>Title *</label>
-                  <input
-                    value={postForm.title}
-                    onChange={(e) => setPostForm({ ...postForm, title: e.target.value })}
-                    style={styles.input}
-                  />
+                  <label style={styles.label}>Category *</label>
+                  <select
+                    value={postForm.category}
+                    onChange={(e) => setPostForm({ ...postForm, category: e.target.value })}
+                    style={styles.select}
+                  >
+                    <option value="">Select category</option>
+                    {postCategories.map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
                 </div>
-                {!editingPost && (
-                  <div>
-                    <label style={styles.label}>Category *</label>
-                    <select
-                      value={postForm.category}
-                      onChange={(e) => setPostForm({ ...postForm, category: e.target.value })}
-                      style={styles.select}
-                    >
-                      <option value="">Select category</option>
-                      {postCategories.map((cat) => (
-                        <option key={cat} value={cat}>{cat}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div>
-                  <label style={styles.label}>Content *</label>
-                  <textarea
-                    value={postForm.body}
-                    onChange={(e) => setPostForm({ ...postForm, body: e.target.value })}
-                    style={{ ...styles.textarea, minHeight: '200px' }}
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'center' }}>
-                  <div>
-                    <label style={styles.label}>Language</label>
-                    <select
-                      value={postForm.language}
-                      onChange={(e) => setPostForm({ ...postForm, language: e.target.value })}
-                      style={styles.select}
-                    >
-                      <option value="en">English</option>
-                      <option value="ja">Japanese</option>
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', paddingTop: '24px' }}>
-                    <input
-                      type="checkbox"
-                      id="post-public"
-                      checked={postForm.isPublic}
-                      onChange={(e) => setPostForm({ ...postForm, isPublic: e.target.checked })}
-                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))',
+                    gap: '24px',
+                  }}
+                >
+                  {(['en', 'ja'] as PostLanguage[]).map((lang) => (
+                    <TranslationFields
+                      key={lang}
+                      lang={lang}
+                      title={postForm.translations[lang]?.title || ''}
+                      body={postForm.translations[lang]?.body || ''}
+                      onTitleChange={(value) => setTranslationField(lang, 'title', value)}
+                      onBodyChange={(value) => setTranslationField(lang, 'body', value)}
+                      labelStyle={styles.label}
+                      inputStyle={styles.input}
+                      onImageUpload={imageApi.getMenuImageRef}
                     />
-                    <label htmlFor="post-public" style={{ color: '#cbd5e1', cursor: 'pointer' }}>Public</label>
-                  </div>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input
+                    type="checkbox"
+                    id="post-public"
+                    checked={postForm.isPublic}
+                    onChange={(e) => setPostForm({ ...postForm, isPublic: e.target.checked })}
+                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                  />
+                  <label htmlFor="post-public" style={{ color: '#cbd5e1', cursor: 'pointer' }}>Public</label>
                 </div>
                 <div>
-                  <label style={styles.label}>Image URL</label>
-                  <input
-                    value={postForm.image}
-                    onChange={(e) => setPostForm({ ...postForm, image: e.target.value })}
-                    placeholder="https://..."
-                    style={styles.input}
-                  />
+                  <label style={styles.label}>Cover image</label>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverPostImage(true); }}
+                    onDragLeave={() => setDragOverPostImage(false)}
+                    onDrop={handleDropPostImage}
+                    style={{
+                      border: `2px dashed ${dragOverPostImage ? '#a855f7' : 'rgba(255, 255, 255, 0.2)'}`,
+                      borderRadius: '12px',
+                      padding: '20px',
+                      textAlign: 'center',
+                      backgroundColor: dragOverPostImage ? 'rgba(168, 85, 247, 0.1)' : 'rgba(15, 23, 42, 0.3)',
+                      transition: 'all 0.2s',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {postForm.image ? (
+                      <div style={{ position: 'relative', display: 'inline-block' }}>
+                        <img
+                          src={postForm.image}
+                          alt="Cover"
+                          style={{ maxWidth: '320px', maxHeight: '200px', borderRadius: '8px' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={handleRemovePostImage}
+                          style={{
+                            position: 'absolute',
+                            top: '-8px',
+                            right: '-8px',
+                            background: '#ef4444',
+                            border: 'none',
+                            borderRadius: '50%',
+                            padding: '4px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                          aria-label="Remove cover image"
+                        >
+                          <X size={14} color="#fff" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          id="post-image-upload"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handlePostImageUpload(e.target.files[0]);
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                        <label htmlFor="post-image-upload" style={{ cursor: 'pointer' }}>
+                          <ImageIcon size={40} color="#64748b" style={{ marginBottom: '8px' }} />
+                          <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                            Drag &amp; drop or click to upload cover image
+                          </p>
+                        </label>
+                      </div>
+                    )}
+                    {uploadingPostImage && (
+                      <div style={{ marginTop: '12px' }}>
+                        <div style={{
+                          height: '4px',
+                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          borderRadius: '2px',
+                          overflow: 'hidden',
+                        }}>
+                          <div style={{
+                            height: '100%',
+                            width: `${postImageProgress}%`,
+                            background: 'linear-gradient(to right, #a855f7, #ec4899)',
+                            transition: 'width 0.2s',
+                          }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -1825,8 +2490,10 @@ const AdminPage = () => {
                 onClick={() => {
                   if (showDeleteConfirm.type === 'project') {
                     handleDeleteProject(showDeleteConfirm.id);
-                  } else if (showDeleteConfirm.type === 'post' && showDeleteConfirm.category) {
-                    handleDeletePost(showDeleteConfirm.id, showDeleteConfirm.category);
+                  } else if (showDeleteConfirm.type === 'post') {
+                    handleDeletePost(showDeleteConfirm.id);
+                  } else if (showDeleteConfirm.type === 'job') {
+                    handleDeleteJob(showDeleteConfirm.id, showDeleteConfirm.name);
                   }
                 }}
                 disabled={isDeleting}
@@ -1851,6 +2518,233 @@ const AdminPage = () => {
           to { transform: rotate(360deg); }
         }
       `}</style>
+    </div>
+  );
+};
+
+const TRANSLATION_LABELS: Record<PostLanguage, string> = {
+  en: 'English',
+  ja: '日本語',
+};
+
+interface TranslationFieldsProps {
+  lang: PostLanguage;
+  title: string;
+  body: string;
+  onTitleChange: (value: string) => void;
+  onBodyChange: (value: string) => void;
+  labelStyle: CSSProperties;
+  inputStyle: CSSProperties;
+  onImageUpload: (file: File) => Promise<string>;
+}
+
+const TranslationFields = ({
+  lang,
+  title,
+  body,
+  onTitleChange,
+  onBodyChange,
+  labelStyle,
+  inputStyle,
+  onImageUpload,
+}: TranslationFieldsProps) => {
+  const hasContent = !!(title.trim() || body.trim());
+  return (
+    <div
+      style={{
+        border: '1px solid rgba(255, 255, 255, 0.08)',
+        borderRadius: '12px',
+        padding: '16px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <h3 style={{ margin: 0, color: '#ffffff', fontSize: '15px', fontWeight: 600 }}>
+          {TRANSLATION_LABELS[lang]}
+        </h3>
+        <span
+          aria-hidden
+          style={{
+            width: '8px',
+            height: '8px',
+            borderRadius: '50%',
+            backgroundColor: hasContent ? '#10b981' : 'rgba(255, 255, 255, 0.15)',
+          }}
+        />
+        <span style={{ color: '#64748b', fontSize: '12px' }}>
+          {hasContent ? 'will be saved' : 'optional — leave empty to skip'}
+        </span>
+      </div>
+      <div>
+        <label style={labelStyle}>Title</label>
+        <input
+          value={title}
+          onChange={(e) => onTitleChange(e.target.value)}
+          style={inputStyle}
+        />
+      </div>
+      <div>
+        <label style={labelStyle}>Content</label>
+        <TiptapEditor
+          value={body}
+          onChange={onBodyChange}
+          onImageUpload={onImageUpload}
+        />
+      </div>
+    </div>
+  );
+};
+
+interface InspectPostsButtonProps {
+  onMessage: (type: 'success' | 'error', text: string) => void;
+}
+
+const InspectPostsButton = ({ onMessage }: InspectPostsButtonProps) => {
+  const { currentUser } = useAuth();
+  const [running, setRunning] = useState(false);
+
+  const handleClick = async () => {
+    if (!currentUser) return;
+    setRunning(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const res = await fetch('/api/admin/inspect-posts', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      // Dump the structured result to the console so it's easy to copy.
+      console.log('[inspect-posts]', data);
+      const summary = `flat=${data.flatCount} legacy=${data.legacyCount} — see browser console for details`;
+      onMessage('success', summary);
+    } catch (err) {
+      onMessage('error', `Inspect failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={running}
+      style={{
+        padding: '8px 14px',
+        border: '1px solid rgba(255,255,255,0.18)',
+        borderRadius: '8px',
+        background: 'transparent',
+        color: '#cbd5e1',
+        cursor: running ? 'not-allowed' : 'pointer',
+        fontSize: '13px',
+      }}
+      title="Counts docs at flat post/{id} and legacy post/{cat}/posts/{id} paths"
+    >
+      {running ? '…' : 'Inspect Firestore'}
+    </button>
+  );
+};
+
+interface MigratePostsFlatButtonProps {
+  onMessage: (type: 'success' | 'error', text: string) => void;
+  onAfterMigrate?: () => void;
+}
+
+interface MigratePostsFlatResult {
+  dryRun: boolean;
+  keepOld: boolean;
+  scanned: number;
+  migrated: { from: string; to: string; id: string }[];
+  skipped: { path: string; reason: string }[];
+  failed: { path: string; error: string }[];
+}
+
+const MigratePostsFlatButton = ({ onMessage, onAfterMigrate }: MigratePostsFlatButtonProps) => {
+  const { currentUser } = useAuth();
+  const [running, setRunning] = useState(false);
+  const [lastResult, setLastResult] = useState<MigratePostsFlatResult | null>(null);
+
+  const callMigration = async (dryRun: boolean) => {
+    if (!currentUser) return;
+    setRunning(true);
+    try {
+      const token = await currentUser.getIdToken();
+      const url = `/api/admin/migrate-posts-flat${dryRun ? '?dryRun=true' : ''}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || `HTTP ${res.status}`);
+      }
+      const result = data as MigratePostsFlatResult;
+      setLastResult(result);
+
+      const summary = `scanned=${result.scanned} migrated=${result.migrated.length} skipped=${result.skipped.length} failed=${result.failed.length}`;
+      if (dryRun) {
+        onMessage('success', `Dry run: ${summary}`);
+      } else if (result.failed.length > 0) {
+        onMessage('error', `Migration finished with failures: ${summary}`);
+      } else {
+        onMessage('success', `Migration complete: ${summary}`);
+        onAfterMigrate?.();
+      }
+    } catch (err) {
+      onMessage('error', `Migration failed: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '6px' }}>
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button
+          onClick={() => callMigration(true)}
+          disabled={running}
+          style={{
+            padding: '8px 14px',
+            border: '1px solid rgba(255,255,255,0.18)',
+            borderRadius: '8px',
+            background: 'transparent',
+            color: '#cbd5e1',
+            cursor: running ? 'not-allowed' : 'pointer',
+            fontSize: '13px',
+          }}
+          title="Read-only scan; reports what would be migrated without writing"
+        >
+          {running ? '…' : 'Migrate legacy posts (dry-run)'}
+        </button>
+        <button
+          onClick={() => {
+            if (!confirm('Move all legacy post/{cat}/posts/{id} docs into the flat post/{id} collection? This will delete the legacy docs.')) return;
+            callMigration(false);
+          }}
+          disabled={running}
+          style={{
+            padding: '8px 14px',
+            border: '1px solid rgba(168,85,247,0.4)',
+            borderRadius: '8px',
+            background: 'rgba(168,85,247,0.12)',
+            color: '#e9d5ff',
+            cursor: running ? 'not-allowed' : 'pointer',
+            fontSize: '13px',
+          }}
+        >
+          {running ? '…' : 'Run migration'}
+        </button>
+      </div>
+      {lastResult && (
+        <div style={{ color: '#94a3b8', fontSize: '11px' }}>
+          last: scanned {lastResult.scanned} · migrated {lastResult.migrated.length} · skipped {lastResult.skipped.length} · failed {lastResult.failed.length}
+          {lastResult.dryRun && ' (dry-run)'}
+        </div>
+      )}
     </div>
   );
 };

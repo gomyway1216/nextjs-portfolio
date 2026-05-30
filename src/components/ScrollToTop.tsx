@@ -37,7 +37,7 @@ export default function ScrollToTop() {
             onClick={scrollToTop}
             className="scroll_up"
             data-aos="fade-left"
-            data-aos-duration="1200"
+
             data-aos-delay="200"
           >
             <FiArrowUp />

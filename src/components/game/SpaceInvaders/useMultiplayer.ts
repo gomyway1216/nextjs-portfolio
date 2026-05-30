@@ -16,7 +16,8 @@ import {
 import {
   MultiplayerContext,
 } from '@/services/gameRoomService';
-import * as gameRoomService from '@/services/gameRoomService';
+import * as gameActionClient from '@/services/gameActionClient';
+import { setData } from '@/lib/firebaseRealtimeDb';
 import { subscribeToPath } from '@/lib/firebaseRealtimeDb';
 
 export interface UseMultiplayerReturn {
@@ -93,7 +94,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
         setRoom(roomData);
         setContext(prev => ({
           ...prev,
-          room: roomData as any,
+          room: roomData,
           lobbyState: roomData.status === 'playing' ? 'playing' :
             roomData.status === 'finished' ? 'finished' : prev.lobbyState,
         }));
@@ -117,7 +118,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
     setContext(prev => ({ ...prev, lobbyState: 'creating', error: null, playerName }));
 
     try {
-      const result = await gameRoomService.createRoom(playerId, playerName, password, 'space-invaders');
+      const result = await gameActionClient.createRoom({ playerId, playerName, password, gameType: 'space-invaders' });
 
       if (result.success && result.roomId) {
         setContext(prev => ({
@@ -155,7 +156,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
     setContext(prev => ({ ...prev, lobbyState: 'joining', error: null, playerName }));
 
     try {
-      const result = await gameRoomService.joinRoom(roomId, playerId, playerName, password);
+      const result = await gameActionClient.joinRoom({ roomId, playerId, playerName, password });
 
       if (result.success && result.room) {
         setContext(prev => ({
@@ -189,7 +190,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
     if (!context.roomId) return;
 
     try {
-      await gameRoomService.leaveRoom(context.roomId, playerId);
+      await gameActionClient.leaveRoom({ roomId: context.roomId, playerId });
     } catch {
       // Ignore errors when leaving
     }
@@ -210,14 +211,14 @@ export function useMultiplayer(): UseMultiplayerReturn {
     if (!context.roomId) return false;
 
     try {
-      const result = await gameRoomService.setPlayerReady(context.roomId, playerId, ready);
+      const result = await gameActionClient.setReady({ roomId: context.roomId, playerId, ready });
 
       if (result.success) {
         setContext(prev => ({
           ...prev,
           lobbyState: ready ? 'ready' : 'waiting',
         }));
-        return result.allReady;
+        return Boolean(result.allReady);
       }
       return false;
     } catch {
@@ -225,17 +226,24 @@ export function useMultiplayer(): UseMultiplayerReturn {
     }
   }, [context.roomId, playerId]);
 
-  // Start game
+  // Start game — CF flips room.status to 'playing' and writes a tiny
+  // sentinel gameState. The host then bootstraps the real game state on
+  // its first animation frame via `updateGameState`, which (for Space
+  // Invaders only) still writes directly to RTDB because 60 fps HTTP
+  // round-trips through the CF aren't viable.
   const startGame = useCallback(async (
     initialGameState: MultiplayerGameState
   ): Promise<boolean> => {
     if (!context.roomId || !context.isHost) return false;
-
     try {
-      const result = await gameRoomService.startGame(context.roomId, playerId, initialGameState);
-
+      const result = await gameActionClient.startGame({ roomId: context.roomId, playerId });
       if (result.success) {
         setContext(prev => ({ ...prev, lobbyState: 'playing' }));
+        // Seed the first real gameState immediately so peers don't
+        // briefly see the bootstrap sentinel.
+        try {
+          await setData(`gameRooms/${context.roomId}/gameState`, initialGameState);
+        } catch { /* ignore — host's next frame writes it anyway */ }
         return true;
       }
       return false;
@@ -277,7 +285,9 @@ export function useMultiplayer(): UseMultiplayerReturn {
     if (now - lastGameStateUpdate.current < 100) return; // 10 updates per second max
     lastGameStateUpdate.current = now;
 
-    gameRoomService.updateGameState(context.roomId, gameState).catch(() => {});
+    // Direct RTDB write — see `functions/src/gameRoom/games/spaceInvaders.ts`
+    // for why this isn't routed through the CF dispatcher.
+    setData(`gameRooms/${context.roomId}/gameState`, gameState).catch(() => {});
   }, [context.roomId, context.isHost]);
 
   // End game
@@ -285,7 +295,10 @@ export function useMultiplayer(): UseMultiplayerReturn {
     if (!context.roomId) return;
 
     try {
-      await gameRoomService.endGame(context.roomId, winnerId);
+      // Direct RTDB write — same rationale as updateGameState; no CF
+      // equivalent for end-of-match in the unified dispatcher yet.
+      await setData(`gameRooms/${context.roomId}/status`, 'finished');
+      if (winnerId) await setData(`gameRooms/${context.roomId}/winnerId`, winnerId);
       setContext(prev => ({ ...prev, lobbyState: 'finished' }));
     } catch {
       // Ignore errors

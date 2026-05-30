@@ -107,7 +107,7 @@ $hobby-transition: all 0.3s ease;
 
   &__image {
     object-fit: cover;
-    transition: transform 0.5s ease;
+    transition: transform 0.3s ease;
 
     .hobby-card:hover & {
       transform: scale(1.05);
@@ -429,7 +429,7 @@ $hobby-transition: all 0.3s ease;
 
   &__image {
     object-fit: cover;
-    transition: transform 0.5s ease;
+    transition: transform 0.3s ease;
 
     .hobby-item-card:hover & {
       transform: scale(1.05);

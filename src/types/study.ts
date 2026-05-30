@@ -199,6 +199,24 @@ export interface ArticleChat {
   updatedAt: string;
 }
 
+export type AudioTemplate = 'tech' | 'concept' | 'book';
+export type AudioGenerationStatus = 'generating' | 'ready' | 'failed';
+
+export interface ArticleAudio {
+  storageUrl: string;
+  storagePath: string;
+  duration: number;
+  script: string;
+  template: AudioTemplate;
+  contentHash: string;
+  model: string;
+  promptVersion: number;
+  hostVoice: string;
+  guestVoice: string;
+  bytes: number;
+  generatedAt: string;
+}
+
 export interface StudyArticle {
   id: string;
   topicId: string;
@@ -222,6 +240,9 @@ export interface StudyArticle {
   scheduledId?: string; // Reference to schedule that generated this
   quizIds: string[];
   chatSummary?: string; // Appended from chat discussions
+  audio?: ArticleAudio;
+  audioStatus?: AudioGenerationStatus;
+  audioError?: string;
   createdAt: string;
   updatedAt: string;
   publishedAt?: string;
@@ -341,7 +362,7 @@ export interface ArticleSchedule {
   aiProvider: AIProvider;
   aiModel?: string;
   numberOfArticles: number; // How many to generate per run
-  topicSelectionMode: 'sequential' | 'random' | 'ai_suggested';
+  topicSelectionMode: 'sequential' | 'random' | 'ai_suggested' | 'linear';
   suggestionType: TopicSuggestionType; // For AI suggestions
   language: string; // Article language (e.g., 'ja', 'en')
   codingLanguage: string; // Programming language for code examples

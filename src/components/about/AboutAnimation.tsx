@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Social from '../Social';
 import { differenceInYears } from 'date-fns';
 import { useProfile } from '@/hooks/useProfile';
@@ -32,12 +33,19 @@ const About = () => {
             <div
               className="col-md-6 col-lg-4"
               data-aos="fade-up"
-              data-aos-duration="1200"
+
             >
               <div className="about-me">
                 <div className="img">
                   <div className="img-in">
-                    <img src="img/about/about-me.jpg" alt="about" />
+                    <Image
+                      src="/img/about/about-me.jpg"
+                      alt="about"
+                      width={400}
+                      height={500}
+                      sizes="(max-width: 768px) 80vw, 400px"
+                      style={{ width: '100%', height: 'auto' }}
+                    />
                   </div>
 
                   <Social />
@@ -58,7 +66,7 @@ const About = () => {
             <div
               className="col-lg-7 ml-auto"
               data-aos="fade-up"
-              data-aos-duration="1200"
+
               data-aos-delay="200"
             >
               <div className="about-info">

@@ -23,7 +23,7 @@ import { OthelloAI } from './AI';
 import { initMobilityTables } from './MobilityTable';
 import { useOthelloMultiplayer } from './useOthelloMultiplayer';
 import { OthelloMultiplayerLobby } from './OthelloMultiplayerLobby';
-import { OthelloNetworkState, boardToNetwork, MoveHistoryEntry } from './multiplayerTypes';
+import type { MoveHistoryEntry } from './multiplayerTypes';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 
 const DIFFICULTY_OPTIONS = [
@@ -132,23 +132,6 @@ const Othello = () => {
     };
   }, []);
 
-  // Helper to create network state from board
-  const createNetworkState = useCallback((board: Board, lastMove: Point | null, isGameOver: boolean, winner: Color | null, moveHistory: MoveHistoryEntry[]): OthelloNetworkState => {
-    return {
-      board: boardToNetwork((x, y) => board.getColor(x, y)),
-      currentTurn: board.getCurrentColor(),
-      blackCount: board.countDisc(BLACK),
-      whiteCount: board.countDisc(WHITE),
-      lastMove,
-      validMoves: board.getMovablePos(),
-      gameOver: isGameOver,
-      winner,
-      turnNumber: board.getTurns(),
-      lastUpdate: Date.now(),
-      moveHistory,
-    };
-  }, []);
-
   // Handle player move (works for both AI and multiplayer modes)
   const handleCellClick = useCallback((x: number, y: number) => {
     if (gameState.gameOver || gameState.isAIThinking) return;
@@ -208,20 +191,19 @@ const Othello = () => {
         } else {
           setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
         }
-        // Send final state to Firebase
-        const networkState = createNetworkState(newBoard, point, true, winner, newMoveHistory);
-        multiplayer.updateGameState(networkState);
-        multiplayer.endGame(winner === multiplayer.myColor ? multiplayer.context.playerId :
-          winner === multiplayer.opponentColor ? multiplayer.otherPlayer?.id || null : null);
+        // Tell the CF about the winning move; it broadcasts the
+        // gameOver / winner fields. We don't write `gameState` from the
+        // client any more — the dispatcher is the single writer.
+        void multiplayer.makeMove(point);
       }
       return;
     }
 
-    // In multiplayer, send the move to Firebase
+    // In multiplayer, the CF flips discs and broadcasts the new state.
+    // The optimistic local update above keeps the UI snappy until the
+    // RTDB subscription overwrites it with the authoritative result.
     if (gameMode === 'multiplayer') {
-      multiplayer.makeMove(point);
-      const networkState = createNetworkState(newBoard, point, false, null, newMoveHistory);
-      multiplayer.updateGameState(networkState);
+      void multiplayer.makeMove(point);
     }
 
     setGameState(prev => ({
@@ -233,7 +215,7 @@ const Othello = () => {
       moveHistory: newMoveHistory,
       isAIThinking: gameMode === 'ai', // Only AI thinking in AI mode
     }));
-  }, [gameState, checkGameState, playerColor, aiColor, gameMode, multiplayer, createNetworkState]);
+  }, [gameState, checkGameState, playerColor, aiColor, gameMode, multiplayer]);
 
   // Effect to sync game state from Firebase (handles opponent moves and passes)
   useEffect(() => {
@@ -363,10 +345,7 @@ const Othello = () => {
         setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
       }
 
-      const networkState = createNetworkState(gameState.board, null, true, winner, gameState.moveHistory);
-      multiplayer.updateGameState(networkState);
-      multiplayer.endGame(winner === multiplayer.myColor ? multiplayer.context.playerId :
-        winner === multiplayer.opponentColor ? multiplayer.otherPlayer?.id || null : null);
+      // CF is the writer; gameOver/winner come back via the subscription.
       return;
     }
 
@@ -396,13 +375,14 @@ const Othello = () => {
         moveHistory: newMoveHistory,
       }));
 
-      // Send updated state to Firebase
-      const networkState = createNetworkState(passedBoard, null, false, null, newMoveHistory);
-      multiplayer.updateGameState(networkState);
+      // In the CF model the server already advanced past any forced
+      // pass when resolving the previous move, so we shouldn't normally
+      // reach this branch. Local UI state is still updated above for
+      // resilience against transient sync gaps.
     }, 1500); // 1.5 second delay to show "must pass" message
 
     return () => clearTimeout(timeoutId);
-  }, [gameMode, gameState.board, gameState.gameOver, gameState.validMoves, gameState.moveHistory, multiplayer.myColor, multiplayer, checkGameState, createNetworkState]);
+  }, [gameMode, gameState.board, gameState.gameOver, gameState.validMoves, gameState.moveHistory, multiplayer.myColor, multiplayer, checkGameState]);
 
   // AI move effect (only runs in AI mode)
   useEffect(() => {
@@ -545,12 +525,13 @@ const Othello = () => {
     setShowDifficultySelect(false);
     setGameMode('multiplayer');
 
-    // If host, send initial game state to Firebase
+    // If host, tell the CF to build + write the initial game state.
+    // The CF is the single writer; this call returns once the state is
+    // live in RTDB and our subscription will pick it up.
     if (multiplayer.context.isHost) {
-      const networkState = createNetworkState(board, null, false, null, initialMoveHistory);
-      await multiplayer.startGame(networkState);
+      await multiplayer.startGame();
     }
-  }, [multiplayer, createNetworkState]);
+  }, [multiplayer]);
 
   // Legacy startGame for backwards compatibility
   const startGame = startAIGame;

@@ -1,40 +1,29 @@
 'use client';
 import React, { useMemo } from 'react';
+import Image from 'next/image';
+import * as Dialog from '@radix-ui/react-dialog';
 import { useAuth } from '@/providers/AuthProvider';
 import { Button } from '@/components/ui/button';
 import { useRouter } from 'next/navigation';
 import * as util from '@/lib/utils/util';
 import DOMPurify from 'dompurify';
 import SimpleCarousel from './SimpleCarousel';
-import Modal from 'react-modal';
+import type { Project, TechnologyData, UrlData } from '@/services/projectsService';
 
 interface PortfolioModalProps {
-  project: {
-    id: string;
-    title: string;
-    description: string;
-    images?: string[];
-    thumbImage: string;
-    client: string;
-    technologies: Array<{
-      name: string;
-      type: 'language' | 'framework' | string;
-    }>;
-    industry: string;
-    date: Date | string;
-    urls: Array<{
-      name: string;
-      link: string;
-      type: 'GitHub' | 'Website' | string;
-    }>;
-  };
+  project: Project;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
 }
 
-// Set app element once outside component to avoid warning
-if (typeof window !== 'undefined') {
-  Modal.setAppElement('body');
+function normalizeTechnology(technology: string | TechnologyData): TechnologyData {
+  return typeof technology === 'string'
+    ? { id: technology, name: technology, type: '' }
+    : technology;
+}
+
+function normalizeUrl(url: UrlData): UrlData {
+  return url;
 }
 
 const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => {
@@ -58,19 +47,17 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onRequestClose={closeModal}
-      contentLabel="Project Details Modal"
-      className="custom-modal"
-      overlayClassName="custom-overlay"
-      closeTimeoutMS={500}
-    >
-      <div>
-        {currentUser && <Button onClick={handleEdit} className="mb-4">EDIT</Button>}
-        <button className="close-modal" onClick={closeModal}>
-          <img src="/img/cancel.svg" alt="close icon" />
-        </button>
+    <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="custom-overlay" />
+        <Dialog.Content className="custom-modal" aria-describedby={undefined}>
+          <Dialog.Title className="sr-only">{project.title}</Dialog.Title>
+          {currentUser && <Button onClick={handleEdit} className="mb-4">EDIT</Button>}
+          <Dialog.Close asChild>
+            <button className="close-modal" aria-label="Close">
+              <Image src="/img/cancel.svg" alt="close icon" width={45} height={45} />
+            </button>
+          </Dialog.Close>
 
         <div className="box_inner">
           <div className="scrollable">
@@ -83,7 +70,7 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
                   <div className="col-md-7">
                     <SimpleCarousel
                       images={project.images || []}
-                      thumbImage={project.thumbImage}
+                      thumbImage={project.thumbImage || ''}
                     />
                   </div>
                   <div className="col-md-5">
@@ -99,7 +86,7 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
                         <span className="text-dark fw-600 me-2">
                           Technologies:
                         </span>
-                        {project.technologies.map((tech, index) => {
+                        {project.technologies.map(normalizeTechnology).map((tech, index) => {
                           const badgeColor = tech.type === 'language' ? 'bg-primary'
                             : tech.type === 'framework' ? 'bg-secondary' : 'bg-success';
                           return (
@@ -125,7 +112,7 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
                         <span className="text-dark fw-600 me-2">
                           URL:
                         </span>
-                        {project.urls.map((url, index) => {
+                        {project.urls.map(normalizeUrl).map((url, index) => {
                           const badgeColor = url.type === 'GitHub' ? 'badge-github'
                             : url.type === 'Website' ? 'badge-website' : 'badge-secondary';
                           return (
@@ -153,8 +140,9 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
             </div>
           </div>
         </div>
-      </div>
-    </Modal>
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
   );
 };
 

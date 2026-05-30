@@ -15,13 +15,14 @@ import {
   Plus, CheckCircle, Undo2, Trash2, Star, User, Loader2
 } from 'lucide-react';
 import Recorder from './Recorder';
+import type { VoiceTask as VoiceTaskItem, VoiceTaskList } from '@/services/voiceTaskService';
 
 const TEST_USER_ID = 'aoUPpC4gz7QlvbMcpNH5';
 
 const VoiceTask = () => {
   const [botResponse, setBotResponse] = useState<string>('');
-  const [completedTasks, setCompletedTasks] = useState<any[]>([]);
-  const [incompleteTasks, setIncompleteTasks] = useState<any[]>([]);
+  const [completedTasks, setCompletedTasks] = useState<VoiceTaskItem[]>([]);
+  const [incompleteTasks, setIncompleteTasks] = useState<VoiceTaskItem[]>([]);
 
   const [openDialog, setOpenDialog] = useState<boolean>(false);
   const [newTaskName, setNewTaskName] = useState<string>('');
@@ -30,7 +31,7 @@ const VoiceTask = () => {
   const [completedExpanded, setCompletedExpanded] = useState<string | undefined>(undefined);
 
   const [selectedListId, setSelectedListId] = useState<string>('default');
-  const [lists, setLists] = useState<any[]>([]);
+  const [lists, setLists] = useState<VoiceTaskList[]>([]);
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -62,7 +63,7 @@ const VoiceTask = () => {
     }
   };
 
-  const fetchTasks = async (selectedId: any) => {
+  const fetchTasks = async (selectedId?: string) => {
     try {
       setIsLoading(true);
       const incompleteTasksData =
@@ -89,7 +90,7 @@ const VoiceTask = () => {
     }
   };
 
-  const handleListChange = (event: any, newListId: any) => {
+  const handleListChange = (_event: unknown, newListId: string) => {
     setSelectedListId(newListId);
     setCompletedTasks([]);
     setCompletedExpanded(undefined);
@@ -139,7 +140,7 @@ const VoiceTask = () => {
     }
   };
 
-  const handleRecordingComplete = async (file: any) => {
+  const handleRecordingComplete = async (file: File) => {
     setIsLoading(true);
     const formData = new FormData();
     formData.append('audio', file, 'input.mp3');
@@ -157,7 +158,7 @@ const VoiceTask = () => {
     }
   };
 
-  const toggleTaskCompletion = async (taskId: any, completed: boolean) => {
+  const toggleTaskCompletion = async (taskId: string, completed: boolean) => {
     if (completed) {
       setCompletedTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
       setIncompleteTasks((prevTasks) => {
@@ -172,7 +173,10 @@ const VoiceTask = () => {
       } catch (error) {
         console.error('Error marking task as incomplete:', error);
         setIncompleteTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
-        setCompletedTasks((prevTasks) => [...prevTasks, completedTasks.find((task) => task.id === taskId)]);
+        const taskToRestore = completedTasks.find((task) => task.id === taskId);
+        if (taskToRestore) {
+          setCompletedTasks((prevTasks) => [...prevTasks, taskToRestore]);
+        }
       }
     } else {
       setIncompleteTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
@@ -188,13 +192,16 @@ const VoiceTask = () => {
       } catch (error) {
         console.error('Error marking task as completed:', error);
         setCompletedTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
-        setIncompleteTasks((prevTasks) => [...prevTasks, incompleteTasks.find((task) => task.id === taskId)]);
+        const taskToRestore = incompleteTasks.find((task) => task.id === taskId);
+        if (taskToRestore) {
+          setIncompleteTasks((prevTasks) => [...prevTasks, taskToRestore]);
+        }
       }
     }
   };
 
-  const toggleTaskStar = async (taskId: any, starred: boolean) => {
-    let removedTask: any;
+  const toggleTaskStar = async (taskId: string, starred: boolean) => {
+    let removedTask: VoiceTaskItem | undefined;
     try {
       // change the star color of the task in imcompleted task before the api call and undo when receiving an erro
       // update incomplete tasks
@@ -208,7 +215,7 @@ const VoiceTask = () => {
       let taskListId = selectedListId;
       if (selectedListId === 'Favorites') {
         removedTask = incompleteTasks.find((task) => task.id === taskId);
-        taskListId = removedTask.list_id;
+        taskListId = removedTask?.list_id || selectedListId;
       } else {
         setIncompleteTasks((prevTasks) => prevTasks.map((task) => {
           if (task.id === taskId) {
@@ -233,7 +240,10 @@ const VoiceTask = () => {
       // undo the star color change
       if (selectedListId === 'Favorites') {
         // add back removedTask
-        setIncompleteTasks((prevTasks) => [...prevTasks, removedTask]);
+        const taskToRestore = removedTask;
+        if (taskToRestore) {
+          setIncompleteTasks((prevTasks) => [...prevTasks, taskToRestore]);
+        }
       } else {
         setIncompleteTasks((prevTasks) => prevTasks.map((task) => {
           if (task.id === taskId) {
@@ -245,7 +255,7 @@ const VoiceTask = () => {
     }
   };
 
-  const handleDeleteTask = async (taskId: any) => {
+  const handleDeleteTask = async (taskId: string) => {
     setCompletedTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
     setIncompleteTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
     try {
@@ -322,7 +332,7 @@ const VoiceTask = () => {
                   size="icon"
                   onClick={(e) => {
                     e.stopPropagation();
-                    toggleTaskStar(task.id, task.starred);
+                    toggleTaskStar(task.id, task.starred ?? false);
                   }}
                 >
                   <Star className={`h-5 w-5 ${task.starred ? 'fill-yellow-400 text-yellow-400' : ''}`} />

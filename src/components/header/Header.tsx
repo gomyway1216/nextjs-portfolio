@@ -1,9 +1,9 @@
 'use client';
 import React, { useState } from 'react';
-import Scrollspy from 'react-scrollspy';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Tooltip } from 'react-tooltip';
+import { useActiveSection } from '@/hooks/useActiveSection';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,14 +25,24 @@ import {
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
 
+// Section IDs the home-page nav scroll-spies on, in document order.
+// The first one whose top crosses into the viewport's top band gets
+// the `active` class.
+// 'work' is intentionally not in this list — the work nav item now
+// links to the standalone /work route (case studies), not the home
+// Portfolio anchor.
+const SECTION_IDS = ['home', 'tools', 'games', 'blog', 'about', 'resume'] as const;
+
 const Header = () => {
   const [click, setClick] = useState<boolean>(false);
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const handleClick = () => setClick(!click);
   const toggleDropdown = () => setShowDropdown(!showDropdown);
   const router = useRouter();
+  const pathname = usePathname();
   const { currentUser, signOut } = useAuth();
   const { t, i18n } = useTranslation();
+  const activeSection = useActiveSection(SECTION_IDS);
 
   const handleSignOut = () => {
     signOut();
@@ -90,88 +100,83 @@ const Header = () => {
           </div>
           {/* End htl-top */}
 
-          <Scrollspy
-            className="nav nav-menu"
-            items={['home', 'work', 'tools', 'games', 'blog', 'about', 'resume']}
-            currentClassName="active"
-            offset={-30}
-          >
-            <li>
-              <a
+          <ul className="nav nav-menu">
+            <li className={activeSection === 'home' ? 'active' : ''}>
+              <Link
                 className="nav-link "
-                href="#home"
+                href="/#home"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.home')}
                 onClick={handleClick}
               >
                 <House size={20} />
-              </a>
+              </Link>
             </li>
-            <li>
-              <a
+            <li className={pathname && (pathname === '/work' || pathname.startsWith('/work/')) ? 'active' : ''}>
+              <Link
                 className="nav-link"
-                href="#work"
+                href="/work"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.work')}
                 onClick={handleClick}
               >
                 <BriefcaseBusiness size={20} />
-              </a>
+              </Link>
             </li>
-            <li>
-              <a
+            <li className={activeSection === 'tools' ? 'active' : ''}>
+              <Link
                 className="nav-link"
-                href="#tools"
+                href="/#tools"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.tools')}
                 onClick={handleClick}
               >
                 <Wrench size={20} />
-              </a>
+              </Link>
             </li>
-            <li>
-              <a
+            <li className={activeSection === 'games' ? 'active' : ''}>
+              <Link
                 className="nav-link"
-                href="#games"
+                href="/#games"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.games')}
                 onClick={handleClick}
               >
                 <Gamepad2 size={20} />
-              </a>
+              </Link>
             </li>
-            <li>
-              <a
+            <li className={activeSection === 'blog' ? 'active' : ''}>
+              <Link
                 className="nav-link"
-                href="#blog"
+                href="/#blog"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.blog')}
                 onClick={handleClick}
               >
                 <NotebookPen size={20} />
-              </a>
+              </Link>
             </li>
-            <li>
-              <a
+            <li className={activeSection === 'about' ? 'active' : ''}>
+              <Link
                 className="nav-link"
-                href="#about"
+                href="/#about"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.about')}
                 onClick={handleClick}
               >
                 <UserRound size={20} />
-              </a>
+              </Link>
             </li>
-            <li>
-              <a
+            <li className={activeSection === 'resume' ? 'active' : ''}>
+              <Link
                 className="nav-link"
-                href="#resume"
+                href="/#resume"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.resume')}
                 onClick={handleClick}
               >
                 <FileText size={20} />
-              </a>
+              </Link>
             </li>
             <li>
               <a
@@ -224,7 +229,7 @@ const Header = () => {
                 </DropdownMenu>
               </li>
             )}
-          </Scrollspy>
+          </ul>
           <Tooltip id="left-menu-tooltip" place="right" variant="dark" />
         </div>
       </header>

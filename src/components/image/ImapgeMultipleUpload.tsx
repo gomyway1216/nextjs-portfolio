@@ -10,6 +10,7 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  type DragEndEvent,
 } from '@dnd-kit/core';
 import {
   arrayMove,
@@ -75,7 +76,7 @@ const SortableImageItem = ({ url, index, onRemove }: SortableImageItemProps) => 
 };
 
 const ImageMultipleUpload = ({ id, type, handleImageUrls, originalImageUrls }: ImageMultipleUploadProps) => {
-  const [selectedImages, setSelectedImages] = useState<any[]>([]);
+  const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imageUrls, setImageUrls] = useState<string[]>(originalImageUrls || []);
   const [loading, setLoading] = useState<boolean>(false);
   const [progress, setProgress] = useState<number>(0);
@@ -87,12 +88,12 @@ const ImageMultipleUpload = ({ id, type, handleImageUrls, originalImageUrls }: I
     })
   );
 
-  const handleDragEnd = (event: any) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
 
-    if (active.id !== over.id) {
-      const oldIndex = imageUrls.indexOf(active.id);
-      const newIndex = imageUrls.indexOf(over.id);
+    if (over && active.id !== over.id) {
+      const oldIndex = imageUrls.indexOf(String(active.id));
+      const newIndex = imageUrls.indexOf(String(over.id));
       const newImageUrls = arrayMove(imageUrls, oldIndex, newIndex);
       setImageUrls(newImageUrls);
       handleImageUrls(newImageUrls);
@@ -105,7 +106,7 @@ const ImageMultipleUpload = ({ id, type, handleImageUrls, originalImageUrls }: I
     }
   }, [originalImageUrls]);
 
-  const onFileChange = async (imageFile: any) => {
+  const onFileChange = async (imageFile: File) => {
     setLoading(true);
     setProgress(0);
 

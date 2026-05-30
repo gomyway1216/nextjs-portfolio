@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import * as api from '@/services/profileService';
+import { auth } from '@/lib/firebaseConnect';
 
 export interface Profile {
   id: string;
@@ -9,6 +10,8 @@ export interface Profile {
   location: string;
   email: string;
   languages: string[];
+  bioEn?: string;
+  bioJa?: string;
 }
 
 /**
@@ -78,10 +81,17 @@ export function useProfile() {
  * Function to update profile
  */
 export async function updateProfile(profileData: Partial<Omit<Profile, 'id'>>) {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('You must be signed in to update the profile');
+  }
+  const token = await user.getIdToken();
+
   const response = await fetch('/api/profile', {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(profileData),
   });

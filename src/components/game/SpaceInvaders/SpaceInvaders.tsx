@@ -271,6 +271,23 @@ const SpaceInvaders: React.FC = () => {
     }
   }, [multiplayer]);
 
+  // Joiner: when host starts the game, room.status flips to 'playing' which sets
+  // multiplayer.context.lobbyState='playing'. The lobby has no UI for that state,
+  // so we transition the joiner into the game canvas here.
+  useEffect(() => {
+    if (
+      multiplayer.context.lobbyState === 'playing' &&
+      !multiplayer.context.isHost &&
+      showStartScreen
+    ) {
+      initAudio();
+      Sounds.startGame();
+      setGameState(createGameState(1));
+      setGameMode('multi');
+      setShowStartScreen(false);
+    }
+  }, [multiplayer.context.lobbyState, multiplayer.context.isHost, showStartScreen]);
+
   // Legacy function for keyboard start
   const startNewGame = useCallback(() => {
     if (gameMode === 'menu') {

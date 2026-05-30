@@ -6,8 +6,13 @@ import AOS from 'aos';
 export default function AOSInitializer() {
   useEffect(() => {
     AOS.init({
-      duration: 1200,
-      once: false,
+      // 1200ms made the home page feel sluggish — every fade-up took
+      // over a second to land, and with `once: false` it re-ran on every
+      // scroll-back. 500ms is enough to read as motion without making
+      // the user wait for each element.
+      duration: 500,
+      easing: 'ease-out-quad',
+      once: true,
     });
   }, []);
 

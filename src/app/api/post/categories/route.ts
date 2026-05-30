@@ -3,21 +3,26 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
+
 /**
- * GET /api/posts/categories
- * Get all post categories
+ * GET /api/post/categories
+ * Distinct categories in use, plus the canonical seeded pair so the admin
+ * dropdown is never empty before any post exists.
  */
 export const GET = withActivityLog('next_api.post.categories.GET', async (request: NextRequest) => {
   try {
     const db = getFirestore();
     const snapshot = await db.collection(POSTS_COLLECTION).get();
 
-    const categories: string[] = [];
+    const set = new Set<string>();
     snapshot.forEach((doc) => {
-      categories.push(doc.id);
+      const cat = doc.data().category;
+      if (typeof cat === 'string' && cat) set.add(cat);
     });
 
-    return NextResponse.json({ categories });
+    for (const seed of ['technology', 'life']) set.add(seed);
+
+    return NextResponse.json({ categories: Array.from(set) });
   } catch (error) {
     console.error('Error fetching post categories:', error);
     return NextResponse.json(

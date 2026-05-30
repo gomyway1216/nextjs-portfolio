@@ -9,6 +9,13 @@ import { ErrorSeverity } from '@/types/errors';
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const TIME_SPENT_MULTIPLIER = 5;
 
+interface ReadHistoryItem {
+  id: string;
+  articleId?: string;
+  readAt?: string;
+  [key: string]: unknown;
+}
+
 // GET /api/study/articles/read-history - Get all read articles for the admin
 export const GET = withActivityLog('next_api.study.articles.read-history.GET', async (request: NextRequest) => {
   try {
@@ -28,15 +35,17 @@ export const GET = withActivityLog('next_api.study.articles.read-history.GET', a
       .where('userId', '==', user.uid)
       .get();
 
-    const readHistory = snapshot.docs.map(doc => ({
+    const readHistory: ReadHistoryItem[] = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     }));
 
     // Create a map of articleId -> readAt for quick lookup
     const readArticleIds: Record<string, string> = {};
-    readHistory.forEach((item: any) => {
-      readArticleIds[item.articleId] = item.readAt;
+    readHistory.forEach((item) => {
+      if (item.articleId && item.readAt) {
+        readArticleIds[item.articleId] = item.readAt;
+      }
     });
 
     return NextResponse.json({

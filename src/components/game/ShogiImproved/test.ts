@@ -296,8 +296,8 @@ export class ShogiImprovedTest {
   }
 }
 
-// Run tests if this file is executed directly
-if (typeof window === 'undefined') {
+// Keep this legacy runner opt-in so SSR/build imports do not execute tests.
+if (typeof window === 'undefined' && process.env.RUN_SHOGI_IMPROVED_TESTS === '1') {
   const tester = new ShogiImprovedTest();
   tester.runAll();
 }

@@ -4,19 +4,15 @@
 
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { GameTopBar, InfoModal, GameStats } from '../common';
 import { ShichinarabeMultiplayerLobby } from './ShichinarabeMultiplayerLobby';
 import { useShichinarabeMultiplayer } from './useShichinarabeMultiplayer';
-import { applyAction, createInitialShichinarabeState, getPlayableCardsForPlayer } from './gameLogic';
+import { getPlayableCardsForPlayer } from './gameLogic';
 import { rankToLabel, SUITS } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
 import type { Card, CardSuit } from './types';
-import type { ShichinarabeAction, ShichinarabeLogEntry } from './multiplayerTypes';
-
-function createActionId(): string {
-  return `act_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
+import type { ShichinarabeLogEntry } from './multiplayerTypes';
 
 function suitLabel(suit: CardSuit): string {
   if (suit === 'S') return '♠';
@@ -38,8 +34,7 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
   const [localError, setLocalError] = useState<string | null>(null);
   const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<string | null>(null);
-
-  const lastProcessedActionId = useRef<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const room = multiplayer.room;
   const gameState = multiplayer.gameState;
@@ -52,9 +47,6 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
   }, [gameState, multiplayer.context.playerId]);
 
   const isMyTurn = !!gameState && !gameState.finished && gameState.currentTurnPlayerId === multiplayer.context.playerId;
-
-  const isSubmitting = !multiplayer.context.isHost
-    && multiplayer.pendingAction?.playerId === multiplayer.context.playerId;
 
   const playerNameOf = useCallback((playerId: string): string => (
     room?.players?.[playerId]?.name
@@ -73,19 +65,17 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
     return myHand.find(c => c.id === draggingCardId) ?? null;
   }, [draggingCardId, myHand]);
 
-  const canPlaySelected = useMemo(() => {
+  const canPlaySelected = useMemo<{ ok: boolean; error: string | null }>(() => {
     if (!gameState || !isMyTurn) return { ok: false, error: 'Not your turn' };
     if (!selectedCardId) return { ok: false, error: 'Select a card' };
-    const probe: ShichinarabeAction = {
-      actionId: 'probe',
-      type: 'play',
-      playerId: multiplayer.context.playerId,
-      cardId: selectedCardId,
-      timestamp: 0,
-    };
-    const result = applyAction(gameState, probe);
-    return result.ok ? { ok: true, error: null } : { ok: false, error: result.error };
-  }, [gameState, isMyTurn, multiplayer.context.playerId, selectedCardId]);
+    const card = myHand.find((c) => c.id === selectedCardId);
+    if (!card) return { ok: false, error: 'Card not in hand' };
+    const bounds = gameState.table[card.suit];
+    const playable =
+      (bounds.low > 1 && card.rank === bounds.low - 1) ||
+      (bounds.high < 13 && card.rank === bounds.high + 1);
+    return playable ? { ok: true, error: null } : { ok: false, error: 'Card not adjacent' };
+  }, [gameState, isMyTurn, myHand, selectedCardId]);
 
   const playerSummaries = useMemo(() => {
     if (!gameState) return [];
@@ -120,57 +110,14 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
   const handleStartGame = async () => {
     setLocalError(null);
     if (!room || !multiplayer.context.isHost) return;
-    const players = Object.values(room.players || {}).sort((a, b) => (a.lastUpdate - b.lastUpdate) || a.id.localeCompare(b.id));
-    const playerIds = players.map(p => p.id);
-    if (playerIds.length < 3) {
+    const playerCount = Object.keys(room.players || {}).length;
+    if (playerCount < 3) {
       setLocalError('Need 3 players');
       return;
     }
-
-    const initialState = createInitialShichinarabeState(playerIds, { maxPasses: 3 });
-    await multiplayer.clearPendingAction();
-    const ok = await multiplayer.startGame(initialState);
+    const ok = await multiplayer.startGame();
     if (!ok) setLocalError('Failed to start game');
   };
-
-  const applyAndBroadcast = useCallback(async (action: ShichinarabeAction) => {
-    if (!gameState) return;
-    const result = applyAction(gameState, action);
-    if (!result.ok) {
-      setLocalError(result.error);
-      return;
-    }
-    await multiplayer.updateGameState(result.state);
-  }, [gameState, multiplayer]);
-
-  // Host processes pending actions from non-host players
-  useEffect(() => {
-    if (!multiplayer.context.isHost) return;
-    if (!multiplayer.pendingAction) return;
-    if (!gameState) return;
-
-    const action = multiplayer.pendingAction;
-    if (action.actionId === lastProcessedActionId.current) return;
-    lastProcessedActionId.current = action.actionId;
-
-    // Host ignores own pending actions
-    if (action.playerId === multiplayer.context.playerId) {
-      multiplayer.clearPendingAction().catch(() => {});
-      return;
-    }
-
-    const run = async () => {
-      try {
-        const result = applyAction(gameState, action);
-        await multiplayer.clearPendingAction();
-        if (!result.ok) return;
-        await multiplayer.updateGameState(result.state);
-      } catch {
-        // ignore
-      }
-    };
-    run();
-  }, [multiplayer.context.isHost, multiplayer.pendingAction, multiplayer.context.playerId, multiplayer, gameState]);
 
   const playCardById = useCallback(async (cardId: string) => {
     setLocalError(null);
@@ -180,31 +127,15 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
     if (!cardId) return;
     if (!isMyTurn || isSubmitting || gameState.finished) return;
 
-    const action: ShichinarabeAction = {
-      actionId: createActionId(),
-      type: 'play',
-      playerId: multiplayer.context.playerId,
-      cardId,
-      timestamp: Date.now(),
-    };
-
     setSelectedCardId(null);
-
-    if (multiplayer.context.isHost) {
-      await applyAndBroadcast(action);
-      return;
+    setIsSubmitting(true);
+    try {
+      const result = await multiplayer.submitPlay(cardId);
+      if (!result.success) setLocalError(result.error ?? 'Move rejected');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    // Validate locally before sending (non-host clients don't apply state directly).
-    const probe: ShichinarabeAction = { ...action, actionId: 'probe', timestamp: 0 };
-    const probeResult = applyAction(gameState, probe);
-    if (!probeResult.ok) {
-      setLocalError(probeResult.error);
-      return;
-    }
-
-    await multiplayer.sendAction(action);
-  }, [applyAndBroadcast, gameState, isMyTurn, isSubmitting, multiplayer]);
+  }, [gameState, isMyTurn, isSubmitting, multiplayer]);
 
   const handlePlay = async () => {
     setLocalError(null);
@@ -219,32 +150,25 @@ export function ShichinarabeOnline({ onBackToMenu }: ShichinarabeOnlineProps) {
     if (!gameState) return;
     setLocalError(null);
     if (!isMyTurn || isSubmitting) return;
-
-    const action: ShichinarabeAction = {
-      actionId: createActionId(),
-      type: 'pass',
-      playerId: multiplayer.context.playerId,
-      timestamp: Date.now(),
-    };
-
     setSelectedCardId(null);
-
-    if (multiplayer.context.isHost) {
-      await applyAndBroadcast(action);
-      return;
+    setIsSubmitting(true);
+    try {
+      const result = await multiplayer.submitPass();
+      if (!result.success) setLocalError(result.error ?? 'Pass rejected');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    await multiplayer.sendAction(action);
   };
 
   const handleNewGame = async () => {
-    if (!multiplayer.context.isHost) return;
-    if (!gameState?.finished) return;
-    const nextState = createInitialShichinarabeState(gameState.playerOrder, { maxPasses: gameState.maxPasses });
+    // Starting a fresh match needs a new room — CF is the only writer of
+    // gameState and doesn't expose a reset action. Drop us back to the
+    // lobby so the host can spin up a new room.
     setSelectedCardId(null);
     setLocalError(null);
-    await multiplayer.clearPendingAction();
-    await multiplayer.updateGameState(nextState);
+    await multiplayer.leaveRoom();
+    multiplayer.resetMultiplayer();
+    onBackToMenu();
   };
 
   const toggleCard = (cardId: string) => {

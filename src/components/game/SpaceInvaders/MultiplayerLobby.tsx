@@ -313,6 +313,17 @@ export function MultiplayerLobby({
     );
   }
 
+  // Game started / finished — parent transitions out of the start screen.
+  // Briefly show a spinner so we don't flash the Single Player menu.
+  if (context.lobbyState === 'playing' || context.lobbyState === 'finished') {
+    return (
+      <div className="flex flex-col items-center gap-4 p-8">
+        <div className="animate-spin w-12 h-12 border-4 border-green-400 border-t-transparent rounded-full" />
+        <p className="text-gray-400">Starting game...</p>
+      </div>
+    );
+  }
+
   // Default: show menu
   return (
     <div className="flex flex-col items-center gap-6 p-8">

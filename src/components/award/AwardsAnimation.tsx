@@ -1,4 +1,5 @@
 import React from 'react';
+import Image from 'next/image';
 
 const AwardContnet = [
   {
@@ -30,12 +31,17 @@ const Awards = () => {
             className="col-lg-4 m-15px-tb"
             key={i}
             data-aos="fade-right"
-            data-aos-duration="1200"
+
             data-aos-delay={val.delayAnimation}
           >
             <div className="feature-box-02 d-flex align-items-center">
               <div className="icon">
-                <img src={`img/award/${val.img}.png`} alt="award" />
+                <Image
+                  src={`/img/award/${val.img}.png`}
+                  alt={val.awardName}
+                  width={64}
+                  height={64}
+                />
               </div>
               <div className="media-body">
                 <h6>{val.awardName}</h6>

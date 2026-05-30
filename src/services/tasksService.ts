@@ -2,7 +2,7 @@ import { auth } from '@/lib/firebaseConnect';
 
 export interface Task {
   id: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 async function getAuthHeaders(): Promise<Record<string, string>> {
@@ -15,7 +15,7 @@ async function getAuthHeaders(): Promise<Record<string, string>> {
   };
 }
 
-export async function getTasks() {
+export async function getTasks(): Promise<Task[]> {
   const headers = await getAuthHeaders();
 
   const response = await fetch(`/api/tasks`, {

@@ -1,0 +1,1 @@
+export { MontyHall } from './MontyHall';

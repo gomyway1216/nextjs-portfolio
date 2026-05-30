@@ -25,7 +25,7 @@ const Recorder = ({ onRecordingComplete }: RecorderProps) => {
   };
 
   const stopRecording = () => {
-    recorder.stop().getMp3().then(([buffer, blob]: any) => {
+    recorder.stop().getMp3().then(([buffer, blob]) => {
       const file = new File(buffer, 'input.mp3', { type: blob.type, lastModified: Date.now() });
       onRecordingComplete(file);
       setIsRecording(false);

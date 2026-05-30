@@ -163,3 +163,140 @@ export function advanceBiggerNumberRound(args: {
 }): Promise<GenericResponse> {
   return call<GenericResponse>({ action: 'submitAction', type: 'advance', ...args });
 }
+
+/**
+ * Othello — place a disc at 1-indexed (x, y). Server validates that the
+ * cell is empty, that it's the caller's colour (host = black, joiner =
+ * white), that `turn` matches the current `turnNumber`, and that the
+ * move actually flips at least one disc; auto-passes the opponent if
+ * they have no legal reply and ends the match when neither side can move.
+ */
+export function submitOthelloMove(args: {
+  roomId: string;
+  playerId: string;
+  x: number;
+  y: number;
+  turn: number;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', ...args });
+}
+
+/**
+ * Shichinarabe — play a card from hand. Server validates that it's the
+ * caller's turn, that the card is in their hand, and that it's adjacent
+ * to the current run for that suit. Auto-advances to the next active
+ * player and ends the match if everyone has finished or been eliminated.
+ */
+export function submitShichinarabePlay(args: {
+  roomId: string;
+  playerId: string;
+  cardId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'play', ...args });
+}
+
+/**
+ * Shichinarabe — pass your turn. Server increments the caller's pass
+ * count, eliminates them when the count hits `maxPasses`, and ends the
+ * match if no active player remains.
+ */
+export function submitShichinarabePass(args: {
+  roomId: string;
+  playerId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'pass', ...args });
+}
+
+/**
+ * Doubt — play 1–4 face-down cards declaring them as the required rank.
+ * Server validates that it's the caller's turn, that the phase is
+ * `play`, that the cards are in the caller's hand, and stores them in
+ * the pile + a `pendingClaim` for the next active player to accept or
+ * doubt.
+ */
+export function submitDoubtPlay(args: {
+  roomId: string;
+  playerId: string;
+  cardIds: string[];
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'play', ...args });
+}
+
+/**
+ * Doubt — accept the pending claim (no challenge). Server clears
+ * `pendingClaim`, marks the claimant as finished if they went out, and
+ * advances to the next active player.
+ */
+export function submitDoubtAccept(args: {
+  roomId: string;
+  playerId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'accept', ...args });
+}
+
+/**
+ * Doubt — challenge the pending claim. Server reveals the played
+ * cards: if the claim was truthful the doubter takes the pile;
+ * otherwise the claimant does. The pile taker plays next.
+ */
+export function submitDoubtDoubt(args: {
+  roomId: string;
+  playerId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'doubt', ...args });
+}
+
+/**
+ * Daifugo — play 1+ cards. Server validates the play shape (group /
+ * straight), applies shibari / revolution / 8-cut / 11-back / 7-give /
+ * 10-discard rules, and advances the turn (skipping eliminated /
+ * skip-affected players).
+ */
+export function submitDaifugoPlay(args: {
+  roomId: string;
+  playerId: string;
+  cardIds: string[];
+  giveCardIds?: string[];   // 7-give: which cards to hand to the next player
+  discardCardIds?: string[]; // 10-discard: which cards to drop
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'play', ...args });
+}
+
+/**
+ * Daifugo — pass. Server records the pass; when everyone except the
+ * last player has passed the table clears and the last player leads
+ * the next trick.
+ */
+export function submitDaifugoPass(args: {
+  roomId: string;
+  playerId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'pass', ...args });
+}
+
+/**
+ * kuizu — submit an answer for the current question. Server validates
+ * the phase is `question` and the questionIdx matches, scores the
+ * answer (correctness + time + streak bonuses), and flips to
+ * `answer_reveal` once everyone has answered.
+ */
+export function submitKuizuAnswer(args: {
+  roomId: string;
+  playerId: string;
+  questionIdx: number;
+  answer: string;
+  answerTime: number;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'answer', ...args });
+}
+
+/**
+ * kuizu — host advances past `answer_reveal` / `scoreboard` to the
+ * next question, or to `results` after the last question.
+ */
+export function submitKuizuNext(args: {
+  roomId: string;
+  playerId: string;
+}): Promise<GenericResponse> {
+  return call<GenericResponse>({ action: 'submitAction', type: 'next', ...args });
+}

@@ -1,0 +1,1 @@
+export { CouponCollector } from './CouponCollector';

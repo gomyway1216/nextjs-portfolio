@@ -16,6 +16,10 @@ import type {
   QRCodeResponse,
 } from '@/types/kaimono';
 
+type PasscodeRequiredList = Pick<ShoppingList, 'id' | 'name'> & {
+  requiresPasscode?: boolean;
+};
+
 // ============================================================================
 // useKaimonoList - Single list management
 // ============================================================================
@@ -45,9 +49,10 @@ export function useKaimonoList(listId: string | null): UseKaimonoListResult {
     setError(null);
     try {
       const data = await kaimonoService.getList(listId, verified);
-      if ((data as any).requiresPasscode) {
+      const passcodeData = data as ShoppingList | PasscodeRequiredList;
+      if ('requiresPasscode' in passcodeData && passcodeData.requiresPasscode) {
         setRequiresPasscode(true);
-        setList({ id: data.id, name: data.name, hasPasscode: true } as ShoppingList);
+        setList({ id: passcodeData.id, name: passcodeData.name, hasPasscode: true } as ShoppingList);
       } else {
         setRequiresPasscode(false);
         setList(data);

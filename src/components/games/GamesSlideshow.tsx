@@ -140,7 +140,7 @@ function GamesSlideshowContent() {
                   key={game.id}
                   className="games-carousel__slide"
                   data-aos="fade-right"
-                  data-aos-duration="1200"
+
                 >
                   <div
                     className="game-card-wrapper"

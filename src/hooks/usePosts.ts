@@ -2,31 +2,30 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import * as api from '@/services/postsService';
-import type { Post } from '@/services/postsService';
+import type { Post, DetailPost } from '@/services/postsService';
+import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations';
 
 export interface CreatePostData {
-  title: string;
-  body: string;
   category: string;
+  translations: PostTranslations;
   isPublic?: boolean;
   image?: string;
-  language?: string;
 }
 
 export interface UpdatePostData {
-  title: string;
-  body: string;
+  translations: PostTranslations;
+  category?: string;
   isPublic?: boolean;
   image?: string;
-  language?: string;
 }
 
 export interface GetPostsParams {
   category?: string;
-  isPublic?: boolean;
+  isPublic?: boolean | null;
   page?: number;
   limit?: number;
   lastVisibleTimestamp?: number;
+  language?: PostLanguage;
 }
 
 /**
@@ -36,26 +35,30 @@ export function usePosts(params: GetPostsParams = {}) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const [lastVisibleTimestamp, setLastVisibleTimestamp] = useState<number | null>(null);
   const [hasMore, setHasMore] = useState(false);
 
+  // Always fetches the first page. Previously `lastVisibleTimestamp` was
+  // part of the callback's dependencies, so every successful fetch updated
+  // that state, which re-created the callback, which re-ran the effect,
+  // which fetched the next page — an infinite loop that only surfaced
+  // once a post actually existed for the cursor to advance past.
   const fetchPosts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getPosts({
-        ...params,
-        lastVisibleTimestamp: lastVisibleTimestamp || undefined,
-      });
+      const data = await api.getPosts(params);
       setPosts(data.posts);
-      setLastVisibleTimestamp(data.lastVisibleTimestamp);
-      setHasMore(data.hasMore);
+      setHasMore(!!data.hasMore);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch posts'));
     } finally {
       setLoading(false);
     }
-  }, [params.category, params.isPublic, params.page, params.limit, lastVisibleTimestamp]);
+    // params is intentionally spread into deps by individual fields below
+    // so that re-renders with a fresh-but-equivalent `params` object don't
+    // trigger an unnecessary refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.category, params.isPublic, params.page, params.limit, params.language]);
 
   useEffect(() => {
     fetchPosts();
@@ -95,13 +98,13 @@ export function usePostsByCategory(category: string, isPublic?: boolean) {
 /**
  * Hook to fetch a single post
  */
-export function usePost(id: string | null, category: string | null) {
-  const [post, setPost] = useState<Post | null>(null);
+export function usePost(id: string | null) {
+  const [post, setPost] = useState<DetailPost | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchPost = useCallback(async () => {
-    if (!id || !category) {
+    if (!id) {
       setLoading(false);
       return;
     }
@@ -109,14 +112,14 @@ export function usePost(id: string | null, category: string | null) {
     try {
       setLoading(true);
       setError(null);
-      const data = await api.getPostByCategory(id, category);
+      const data = await api.getPostById(id);
       setPost(data);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch post'));
     } finally {
       setLoading(false);
     }
-  }, [id, category]);
+  }, [id]);
 
   useEffect(() => {
     fetchPost();
@@ -203,11 +206,11 @@ export function usePostMutations() {
     }
   };
 
-  const updatePost = async (id: string, category: string, post: UpdatePostData) => {
+  const updatePost = async (id: string, post: UpdatePostData) => {
     try {
       setLoading(true);
       setError(null);
-      await api.updatePost(id, category, post);
+      await api.updatePost(id, post);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to update post');
       setError(error);
@@ -217,11 +220,11 @@ export function usePostMutations() {
     }
   };
 
-  const deletePost = async (id: string, category: string) => {
+  const deletePost = async (id: string) => {
     try {
       setLoading(true);
       setError(null);
-      await api.deletePostByCategory(id, category);
+      await api.deletePost(id);
     } catch (err) {
       const error = err instanceof Error ? err : new Error('Failed to delete post');
       setError(error);

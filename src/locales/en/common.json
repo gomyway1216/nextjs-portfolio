@@ -725,6 +725,46 @@
         "Keyboard and click input",
         "Per-question explanations"
       ]
+    },
+    "roulette": {
+      "title": "Roulette + Martingale Sim",
+      "description": "European roulette you can actually play, plus a Monte Carlo simulator that shows how the Martingale strategy goes bust."
+    },
+    "monty-hall": {
+      "title": "Monty Hall",
+      "description": "The classic three-door problem. Play it, then run a Monte Carlo simulation that shows Switch beats Stay 2:1."
+    },
+    "birthday-paradox": {
+      "title": "Birthday Paradox",
+      "description": "How few people do you need before two share a birthday? Play it, then simulate the famous 50% / 99% thresholds."
+    },
+    "coupon-collector": {
+      "title": "Coupon Collector",
+      "description": "How many draws to collect all n items? The classic gacha problem: expected draws ≈ n·ln(n) — the last few items take forever."
+    },
+    "gamblers-ruin": {
+      "title": "Gambler's Ruin",
+      "description": "Even with a fair 50/50 game, finite bankroll means ruin probability is (N − a) / N. Make it 49/51 and ruin becomes nearly certain."
+    },
+    "blackjack": {
+      "title": "Blackjack — Basic Strategy",
+      "description": "Play simplified Blackjack with a hint that shows what Basic Strategy says. Then simulate it vs Mimic-Dealer vs Always-Stand and see the edge gap."
+    },
+    "secretary-problem": {
+      "title": "Secretary Problem",
+      "description": "Interview candidates one by one, decide on the spot, no second chances. Try beating the famous 37% rule — then simulate it."
+    },
+    "bandit": {
+      "title": "K-armed Bandit",
+      "description": "Explore vs exploit — pick arms with hidden reward probs. Compare ε-greedy, UCB1, and Thompson Sampling regret curves."
+    },
+    "bayesian-update": {
+      "title": "Bayesian Update",
+      "description": "A coin with hidden bias. Flip and watch the Beta posterior sharpen around the true p in real time — then simulate convergence."
+    },
+    "petersburg": {
+      "title": "St. Petersburg Paradox",
+      "description": "Coin flips until first tails: payoff doubles each round. Expected value is infinite — yet nobody wants to pay much. Simulate why."
     }
   },
   "home": {
@@ -744,14 +784,14 @@
       "admin": "Admin"
     },
     "hero": {
-      "badge": "Full-stack Engineer",
+      "badge": "Senior Fintech Engineer",
       "greeting": "Hello, my name is",
       "name": "Yudai Yaguchi",
       "description": "Guided by a desire to craft technology with purpose, I am dedicated to learning and applying my full-stack development skills to create solutions that benefit people and communities. Enthusiastic about the transformative potential of machine learning, I aspire to blend my technical knowledge with innovative ideas to deliver impactful digital experiences.",
       "roles": {
-        "fullstackDeveloper": "Full-stack Developer",
-        "softwareEngineer": "Software Engineer",
-        "webDeveloper": "Web Developer"
+        "seniorSoftwareEngineer": "Senior Software Engineer",
+        "fintechEngineer": "Fintech Engineer",
+        "infrastructureEngineer": "Infrastructure Engineer"
       },
       "cta": {
         "downloadCv": "Download CV",
@@ -843,7 +883,7 @@
     "about": {
       "title": "Biography",
       "role": "Software Engineer",
-      "biographyText": "Hi, I'm Yudai, a full-stack engineer cultivating solutions from the vibrant tech hub of San Francisco. My career is a testament to the practical application of classroom knowledge, where concepts learned have been transformed into functional digital tools. I've had the pleasure of creating the Tokachi Musubi website, a platform that allows food truck owners to seamlessly manage their culinary offerings. My portfolio also includes engaging applications like a custom AI for Gomoku, showcasing my commitment to interactive and thoughtful software design. In the professional sphere, I've contributed to robust payment systems, honing my skills in a high-volume, team-oriented environment. Beyond my work, I am dedicated to personal growth, exploring AI and machine learning as part of my continuous learning journey. It's this blend of professional experience and personal exploration that fuels my passion for developing technologies that not only function but also fascinate and inspire.",
+      "biographyText": "Hi, I'm Yudai — a senior software engineer based in San Francisco with 6+ years building large-scale fintech systems. At Atlas and PayPal, I've owned the kind of work that quietly determines whether a fintech company stays solvent: payment rails, KYC/OFAC compliance, customer-support infrastructure, and the internal platforms operations teams rely on every day. I take complex initiatives end-to-end as the directly responsible individual — architecture, rollout, and the unglamorous edges that make production systems reliable. Outside of work, I lead an AI meetup community for engineers and keep exploring how machine learning fits into the everyday products people depend on. I'm pursuing an MS in Computer Science at Westcliff University while looking for the next role that blends deep engineering with cross-functional leadership.",
       "labels": {
         "age": "Age:",
         "location": "Location:",

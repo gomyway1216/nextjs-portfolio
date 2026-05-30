@@ -1,18 +1,19 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { Rubik, Playfair_Display } from "next/font/google";
 import { AuthProvider } from "@/providers/AuthProvider";
-import { PostsProvider } from "@/providers/PostsProvider";
 import { I18nProvider } from "@/components/providers/I18nProvider";
-import AOSInitializer from "./AOSInitializer";
 import { Toaster } from "@/components/ui/sonner";
 import { GlobalToolbar } from "@/components/GlobalToolbar";
 import { GameToolbarProvider } from "@/contexts/GameToolbarContext";
 import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
 import PageViewLogger from "@/components/PageViewLogger";
 import "../assets/scss/main.scss";
-import "aos/dist/aos.css";
 import "./globals.css";
+// AOS CSS + initializer used to live here. Only the home page actually
+// uses `[data-aos]` elements, so both moved to src/app/page.tsx to keep
+// the cost off every other route.
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -36,36 +37,110 @@ const playfair = Playfair_Display({
   display: 'swap',
 });
 
+const SITE_URL = 'https://meetyudai.com';
+const SITE_NAME = 'Yudai Yaguchi';
+const SITE_TITLE = 'Yudai Yaguchi — Senior Fintech Engineer';
+const SITE_DESCRIPTION =
+  'Senior software engineer with 6+ years building large-scale fintech systems — payments, KYC compliance, and customer-support infrastructure at Atlas and PayPal.';
+
 export const metadata: Metadata = {
-  title: "Yudai Portfolio",
-  description: "Portfolio website for Yudai Yaguchi",
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: SITE_TITLE,
+    template: '%s | Yudai Yaguchi',
+  },
+  description: SITE_DESCRIPTION,
+  applicationName: SITE_NAME,
+  keywords: [
+    'Yudai Yaguchi',
+    'Senior Software Engineer',
+    'Fintech Engineer',
+    'Payments',
+    'KYC',
+    'Next.js',
+    'TypeScript',
+    'San Francisco',
+  ],
+  authors: [{ name: SITE_NAME, url: SITE_URL }],
+  creator: SITE_NAME,
+  alternates: {
+    canonical: '/',
+    languages: {
+      'en-US': '/',
+      'ja-JP': '/',
+    },
+  },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    alternateLocale: ['ja_JP'],
+    url: SITE_URL,
+    siteName: SITE_NAME,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  icons: {
+    icon: '/favicon.ico',
+  },
 };
 
-export default function RootLayout({
+const personJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: SITE_NAME,
+  alternateName: '矢口 雄大',
+  url: SITE_URL,
+  jobTitle: 'Senior Software Engineer',
+  worksFor: {
+    '@type': 'Organization',
+    name: 'Atlas',
+  },
+  sameAs: [
+    'https://www.linkedin.com/in/yudai-yaguchi/',
+    'https://github.com/gomyway1216',
+  ],
+  description: SITE_DESCRIPTION,
+};
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Read the i18nextLng cookie server-side and forward to I18nProvider so
+  // SSR uses the same locale as the client's first render. Without this,
+  // JA visitors get "Senior Fintech Engineer" in the SSR HTML and
+  // "シニアフィンテックエンジニア" after hydration — React #418.
+  const cookieStore = await cookies();
+  const cookieLang = cookieStore.get('i18nextLng')?.value;
+  const initialLang: 'en' | 'ja' = cookieLang === 'ja' ? 'ja' : 'en';
+
   return (
-    <html lang="en">
+    <html lang={initialLang}>
       <head>
         <link rel="preconnect" href="https://fonts.gstatic.com" />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+        />
       </head>
       <body className={`${rubik.variable} ${playfair.variable}`} suppressHydrationWarning>
-        <AOSInitializer />
         <Toaster />
         <GlobalErrorBoundary />
         <Suspense fallback={null}>
           <PageViewLogger />
         </Suspense>
-        <I18nProvider>
+        <I18nProvider initialLang={initialLang}>
           <AuthProvider>
-            <PostsProvider>
-              <GameToolbarProvider>
-                <GlobalToolbar />
-                {children}
-              </GameToolbarProvider>
-            </PostsProvider>
+            <GameToolbarProvider>
+              <GlobalToolbar />
+              {children}
+            </GameToolbarProvider>
           </AuthProvider>
         </I18nProvider>
         <div id="modal-root"></div>

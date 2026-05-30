@@ -12,63 +12,81 @@ import { getProjectCategories } from '@/services/projectsService';
 import ImageUpload from '../image/ImageUpload';
 import TiptapEditor from '../editor/TiptapEditor';
 import * as imageApi from '@/services/imageService';
-import dayjs from 'dayjs';
 import ImageMultipleUpload from '../image/ImapgeMultipleUpload';
 import UrlListEditor from '../url/UrlListEditor';
 import CategorySelector from '../category/CategorySelector';
 import DateSelector from '../date/DateSelector';
 import TechnologiesSelector from '../technology/TechnologiesSelector';
+import type { Project, ProjectInput, TechnologyData, UrlData } from '@/services/projectsService';
 
 interface ProjectEditorProps {
   projectId?: string;
-  getProject: (id: string) => Promise<any>;
-  createProject: (project: any) => Promise<any>;
-  updateProject: (project: any) => Promise<any>;
+  getProject: (id: string) => Promise<Project | null>;
+  createProject: (project: ProjectInput) => Promise<unknown>;
+  updateProject: (project: EditableProjectInput) => Promise<unknown>;
   deleteProject: (id: string) => Promise<boolean>;
 }
 
+type EditableProjectInput = Omit<ProjectInput, 'date'> & {
+  id?: string;
+  date?: string;
+};
+
+interface EditableProject extends EditableProjectInput {
+  images: string[];
+  urls: UrlData[];
+  technologies: TechnologyData[];
+  categories: string[];
+  thumbImage: string;
+}
+
 const UPDATE_INTERVAL = 10000;
+
+const normalizeTechnology = (technology: string | TechnologyData): TechnologyData =>
+  typeof technology === 'string'
+    ? { id: technology, name: technology, type: '' }
+    : technology;
 
 const ProjectEditor = (props: ProjectEditorProps) => {
   const router = useRouter();
 
   // store the original record
-  const [original, setOriginal] = useState<any>();
+  const [original, setOriginal] = useState<EditableProject>();
 
   // project related states
   const [title, setTitle] = useState<string>('');
   // we need to make sure we only inlcude year, month and day.
   // probaly we should use some type of date picker
-  const [date, setDate] = useState<any>(dayjs());
+  const [date, setDate] = useState<Date | undefined>(new Date());
   const [description, setDescription] = useState<string>('');
   const [client, setClient] = useState<string>('');
   const [industry, setIndustry] = useState<string>('');
-  const [urls, setUrls] = useState<any[]>([{ name: '', link: '', type: '' }]); // Array of URLs
-  const [technologies, setTechnologies] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [urls, setUrls] = useState<UrlData[]>([{ name: '', link: '', type: '' }]); // Array of URLs
+  const [technologies, setTechnologies] = useState<TechnologyData[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [thumbImage, setThumbImage] = useState<string>('');
-  const [images, setImages] = useState<any[]>([]);
+  const [images, setImages] = useState<string[]>([]);
 
   // editor related states
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [deleteDialogOpen, setDeleteDialogOpen] = useState<boolean>(false);
-  const [intervalId, setIntervalId] = useState<any>(null);
+  const [intervalId, setIntervalId] = useState<number | null>(null);
 
   // auto save related states
   const [autoSave, setAutoSave] = useState<boolean>(false);
   const [autoSaveTitle, setAutoSaveTitle] = useState<string>('');
-  const [autoSaveDate, setAutoSaveDate] = useState<any>(null);
+  const [autoSaveDate, setAutoSaveDate] = useState<Date | undefined>(undefined);
   const [autoSaveDescription, setAutoSaveDescription] = useState<string>('');
   const [autoSaveClient, setAutoSaveClient] = useState<string>('');
   const [autoSaveIndustry, setAutoSaveIndustry] = useState<string>('');
-  const [autoSaveUrls, setAutoSaveUrls] = useState<any[]>([]);
-  const [autoSaveTechnologies, setAutoSaveTechnologies] = useState<any[]>([]);
-  const [autoSaveCategories, setAutoSaveCategories] = useState<any[]>([]);
+  const [autoSaveUrls, setAutoSaveUrls] = useState<UrlData[]>([]);
+  const [autoSaveTechnologies, setAutoSaveTechnologies] = useState<TechnologyData[]>([]);
+  const [autoSaveCategories, setAutoSaveCategories] = useState<string[]>([]);
   const [autoSaveThumbImage, setAutoSaveThumbImage] = useState<string>('');
-  const [autoSaveImages, setAutoSaveImages] = useState<any[]>([]);
+  const [autoSaveImages, setAutoSaveImages] = useState<string[]>([]);
 
   // values to be used in the editor
-  const [categoryList, setCategoryList] = useState<any[]>([]);
+  const [categoryList, setCategoryList] = useState<string[]>([]);
 
   // create refs to keep track of the changes
   const titleRef = useRef(title);
@@ -121,7 +139,15 @@ const ProjectEditor = (props: ProjectEditorProps) => {
     setThumbImage(url); // Update the state with the new array of image URLs
   };
 
-  const handleImageUrls = (urls: any[]) => {
+  const toProjectDate = (value: Date | undefined): string | undefined => {
+    if (!value) return undefined;
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, '0');
+    const day = String(value.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const handleImageUrls = (urls: string[]) => {
     setImages(urls); // Update the state with the new array of image URLs
   };
 
@@ -131,27 +157,30 @@ const ProjectEditor = (props: ProjectEditorProps) => {
     if (props.projectId) {
       const doc = await props.getProject(props.projectId);
       if (doc) {
+        const normalizedTechnologies = doc.technologies.map(normalizeTechnology);
         setOriginal({
           ...doc,
-          date: dayjs(doc.date) // Convert the date to a Day.js object
+          date: doc.date,
+          technologies: normalizedTechnologies,
+          thumbImage: doc.thumbImage || '',
         });
         // set the state with the data from the server
         setTitle(doc.title);
-        setDate(dayjs(doc.date));
+        setDate(doc.date ? new Date(doc.date) : undefined);
         setDescription(doc.description);
-        setClient(doc.client);
-        setIndustry(doc.industry);
+        setClient(doc.client || '');
+        setIndustry(doc.industry || '');
         setUrls(doc.urls);
-        setTechnologies(doc.technologies);
+        setTechnologies(normalizedTechnologies);
         setCategories(doc.categories);
-        setThumbImage(doc.thumbImage);
+        setThumbImage(doc.thumbImage || '');
         setImages(doc.images);
       } else {
         const msg = 'Project not found!';
         setErrorMessage(msg);
       }
     } else {
-      const doc = {
+      const doc: EditableProject = {
         id: '',
         title: '',
         description: '',
@@ -243,7 +272,7 @@ const ProjectEditor = (props: ProjectEditorProps) => {
         const item = {
           id: props.projectId,
           title: titleRef.current,
-          date: dateRef.current,
+          date: toProjectDate(dateRef.current),
           description: descriptionRef.current,
           client: clientRef.current,
           industry: industryRef.current,
@@ -285,12 +314,11 @@ const ProjectEditor = (props: ProjectEditorProps) => {
 
   const handleSave = async () => {
     setStatus('updating');
-    const handleFunction = props.projectId ? props.updateProject : props.createProject;
 
     const item = {
       id: props.projectId || '',
       title,
-      date,
+      date: toProjectDate(date),
       description,
       client,
       industry,
@@ -302,7 +330,11 @@ const ProjectEditor = (props: ProjectEditorProps) => {
     };
 
     try {
-      await handleFunction(item);
+      if (props.projectId) {
+        await props.updateProject(item);
+      } else {
+        await props.createProject(item);
+      }
       router.push('/#work');
     } catch (err) {
       if (err instanceof Error) {
@@ -317,7 +349,9 @@ const ProjectEditor = (props: ProjectEditorProps) => {
   const handleClose = async () => {
     setStatus('updating');
     try {
-      await props.updateProject(original);
+      if (props.projectId && original) {
+        await props.updateProject(original);
+      }
       router.push('/#work');
     } catch (err) {
       if (err instanceof Error) {
@@ -350,7 +384,7 @@ const ProjectEditor = (props: ProjectEditorProps) => {
     setErrorMessage('');
   };
 
-  const handleCategoriesChange = (event: any) => {
+  const handleCategoriesChange = (event: { target: { value: string[] | string } }) => {
     const value = event.target.value;
     setCategories(typeof value === 'string' ? value.split(',') : value);
   };

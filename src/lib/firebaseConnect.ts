@@ -1,5 +1,6 @@
 import { initializeApp, getApps } from 'firebase/app';
 import {
+  type Auth,
   browserSessionPersistence,
   createUserWithEmailAndPassword,
   getAuth,
@@ -22,7 +23,48 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_APP_ID,
 };
 
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const requiredFirebaseConfig = [
+  firebaseConfig.apiKey,
+  firebaseConfig.authDomain,
+  firebaseConfig.projectId,
+  firebaseConfig.appId,
+];
+
+export const isFirebaseClientConfigured = requiredFirebaseConfig.every(
+  (value) => typeof value === 'string' && value.trim().length > 0,
+);
+
+function createDisabledAuth(): Auth {
+  const notifySignedOut = (observer: Parameters<Auth['onAuthStateChanged']>[0]) => {
+    if (typeof observer === 'function') {
+      observer(null);
+      return;
+    }
+    observer.next?.(null);
+  };
+
+  return {
+    currentUser: null,
+    onAuthStateChanged(observer) {
+      if (typeof window === 'undefined') {
+        notifySignedOut(observer);
+      } else {
+        queueMicrotask(() => notifySignedOut(observer));
+      }
+      return () => {};
+    },
+  } as Partial<Auth> as Auth;
+}
+
+function getFirebaseUnavailableError() {
+  return new Error('Firebase client auth is not configured for this environment.');
+}
+
+const app = isFirebaseClientConfigured
+  ? getApps().length === 0
+    ? initializeApp(firebaseConfig)
+    : getApps()[0]
+  : null;
 
 // Skip IndexedDB-backed `browserLocalPersistence` entirely — production
 // has been hitting `firebaseLocalStorageDb.open()` *hangs* (never fires
@@ -40,23 +82,31 @@ const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0
 // Server-side (no `window`) `initializeAuth` throws — fall back to getAuth().
 // Already-initialized apps (hot reload) reuse the existing instance.
 function createAuth() {
+  if (!app) return createDisabledAuth();
   if (typeof window === 'undefined') return getAuth(app);
   try {
     return initializeAuth(app, {
       persistence: [browserSessionPersistence, inMemoryPersistence],
     });
   } catch {
-    return getAuth(app);
+    try {
+      return getAuth(app);
+    } catch (error) {
+      console.error('[firebaseConnect] Firebase Auth initialization failed:', error);
+      return createDisabledAuth();
+    }
   }
 }
 
 export const auth = createAuth();
 
 export const signInWithEmail = (email: string, password: string) => {
+  if (!app) return Promise.reject(getFirebaseUnavailableError());
   return signInWithEmailAndPassword(auth, email, password);
 };
 
 export const signUpWithEmail = async (email: string, password: string, displayName?: string) => {
+  if (!app) throw getFirebaseUnavailableError();
   const credential = await createUserWithEmailAndPassword(auth, email, password);
   if (displayName) {
     await updateProfile(credential.user, { displayName });
@@ -65,10 +115,12 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
 };
 
 export const signOutUser = () => {
+  if (!app) return Promise.resolve();
   return signOut(auth);
 };
 
 export const resetPassword = (email: string) => {
+  if (!app) return Promise.reject(getFirebaseUnavailableError());
   return sendPasswordResetEmail(auth, email);
 };
 

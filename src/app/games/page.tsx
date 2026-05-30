@@ -1,10 +1,13 @@
+import type { CSSProperties } from 'react';
 import Link from 'next/link';
 import { cookies, headers } from 'next/headers';
 import { games } from '@/components/game/constants/games';
 import enCommon from '@/locales/en/common.json';
 import jaCommon from '@/locales/ja/common.json';
+import styles from './games-page.module.css';
 
 type Locale = 'en' | 'ja';
+type Category = 'Arcade' | 'Strategy' | 'Puzzle' | 'RPG' | 'Card';
 
 async function getLocale(): Promise<Locale> {
   // The client writes to a cookie via i18next-browser-languagedetector
@@ -59,110 +62,79 @@ const categoryKey = (c: string) => {
   }
 };
 
+const categoryOrder: Category[] = ['Arcade', 'Strategy', 'Puzzle', 'RPG', 'Card'];
+
+const categoryAccent: Record<Category, { accent: string; surface: string; soft: string }> = {
+  Arcade: { accent: '#007aff', surface: '#9bd7ff', soft: '#5e5ce6' },
+  Strategy: { accent: '#34c759', surface: '#a8f0c6', soft: '#30b0c7' },
+  Puzzle: { accent: '#ff9500', surface: '#ffd59b', soft: '#ff375f' },
+  RPG: { accent: '#af52de', surface: '#d8b4fe', soft: '#64d2ff' },
+  Card: { accent: '#ff2d55', surface: '#ffb3c1', soft: '#bf5af2' },
+};
+
+const difficultyColor = {
+  Easy: '#34c759',
+  Medium: '#ff9f0a',
+  Hard: '#ff453a',
+} as const;
+
+function isCategory(category: string): category is Category {
+  return category in categoryAccent;
+}
+
+function getCardStyle(category: string, difficulty: keyof typeof difficultyColor): CSSProperties {
+  const accent = categoryAccent[isCategory(category) ? category : 'Arcade'];
+  return {
+    '--game-accent': accent.accent,
+    '--game-surface': accent.surface,
+    '--game-soft': accent.soft,
+    '--difficulty-color': difficultyColor[difficulty],
+  } as CSSProperties;
+}
+
 export default async function GamesPage() {
   const locale = await getLocale();
   const t = makeTranslator(locale);
+  const categoryCounts = categoryOrder.map((category) => ({
+    category,
+    count: games.filter((game) => game.category === category).length,
+  }));
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(to bottom, #111827, #000)',
-      padding: '3rem 1.5rem',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
-    }}>
-      <style>{`
-        .game-card-link { text-decoration: none; display: block; transition: transform 0.2s; }
-        .game-card-link:hover { transform: translateY(-4px); }
-        .game-card {
-          background: rgb(24, 32, 45);
-          border: 1px solid rgba(55, 65, 81, 1);
-          border-radius: 1rem;
-          overflow: hidden;
-          transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        .game-card-link:hover .game-card { border-color: #0ea5e9; }
-        .games-back-btn {
-          display: inline-block;
-          background: rgba(55, 65, 81, 0.8);
-          border: 1px solid rgba(75, 85, 99, 1);
-          border-radius: 0.5rem;
-          color: #fff;
-          padding: 0.75rem 2rem;
-          font-size: 1rem;
-          font-weight: 600;
-          text-decoration: none;
-          transition: background 0.2s;
-        }
-        .games-back-btn:hover { background: rgba(75, 85, 99, 0.8); }
-      `}</style>
-      <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '3rem' }}>
-          <h1 style={{
-            fontSize: '3rem',
-            fontWeight: 'bold',
-            color: '#fff',
-            marginBottom: '1rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '1rem'
-          }}>
-            <span style={{ fontSize: '3rem' }}>🎮</span>
+    <main className={styles.page}>
+      <div className={styles.shell}>
+        <section className={styles.hero} aria-labelledby="games-title">
+          <p className={styles.kicker}>
+            <span className={styles.statusDot} aria-hidden="true" />
+            {t('games.browserBased')}
+          </p>
+          <h1 id="games-title" className={styles.title}>
             {t('games.collection')}
           </h1>
-          <p style={{
-            fontSize: '1.125rem',
-            color: '#9ca3af',
-            maxWidth: '42rem',
-            margin: '0 auto 1.5rem'
-          }}>
+          <p className={styles.subtitle}>
             {t('games.subtitle')}
           </p>
-          <div style={{
-            display: 'flex',
-            gap: '0.75rem',
-            justifyContent: 'center',
-            flexWrap: 'wrap'
-          }}>
-            <span style={{
-              background: 'rgba(14, 165, 233, 0.1)',
-              border: '1px solid rgba(14, 165, 233, 0.5)',
-              borderRadius: '9999px',
-              padding: '0.5rem 1rem',
-              color: '#0ea5e9',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
-              🏆 {t('games.interactive')}
-            </span>
-            <span style={{
-              background: 'rgba(168, 85, 247, 0.1)',
-              border: '1px solid rgba(168, 85, 247, 0.5)',
-              borderRadius: '9999px',
-              padding: '0.5rem 1rem',
-              color: '#a855f7',
-              fontSize: '0.875rem',
-              fontWeight: '500',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem'
-            }}>
-              ⭐ {t('games.browserBased')}
-            </span>
+          <div className={styles.stats} aria-label={t('games.collection')}>
+            <span className={styles.statPill}>{games.length} {t('navigation.games')}</span>
+            <span className={styles.statPill}>{categoryCounts.length} {t('games.category.label')}</span>
+            <span className={styles.statPill}>3 {t('games.difficulty.label')}</span>
           </div>
+        </section>
+
+        <div className={styles.categoryBar} aria-label={t('games.category.label')}>
+          {categoryCounts.map(({ category, count }) => (
+            <span
+              key={category}
+              className={styles.categoryPill}
+              style={getCardStyle(category, 'Easy')}
+            >
+              <span className={styles.categoryMark} aria-hidden="true" />
+              {t(categoryKey(category))} {count}
+            </span>
+          ))}
         </div>
 
-        {/* Games Grid */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-          gap: '1.5rem',
-          marginBottom: '3rem'
-        }}>
+        <section className={styles.grid} aria-label={t('games.collection')}>
           {games.map((game) => {
             const title = t(`games.${game.id}.title`);
             const description = t(`games.${game.id}.description`);
@@ -173,157 +145,43 @@ export default async function GamesPage() {
               <Link
                 key={game.id}
                 href={game.path}
-                className="game-card-link"
+                className={styles.cardLink}
+                style={getCardStyle(game.category, game.difficulty)}
               >
-                <div className="game-card">
-                  {/* Thumbnail */}
-                  <div style={{
-                    background: 'linear-gradient(135deg, #0ea5e9, #3b82f6, #8b5cf6)',
-                    height: '200px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: '5rem',
-                    position: 'relative',
-                    overflow: 'hidden'
-                  }}>
-                    <div style={{
-                      position: 'absolute',
-                      inset: 0,
-                      background: 'rgba(0, 0, 0, 0.1)',
-                      transition: 'background 0.2s'
-                    }} />
-                    <span style={{ position: 'relative', zIndex: 1 }}>{game.thumbnail}</span>
+                <article className={styles.card}>
+                  <div className={styles.media} aria-hidden="true">
+                    <span className={styles.thumbnail}>{game.thumbnail}</span>
                   </div>
-
-                  {/* Content */}
-                  <div style={{ padding: '1.5rem' }}>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'start',
-                      justifyContent: 'space-between',
-                      marginBottom: '0.75rem'
-                    }}>
-                      <h2 style={{
-                        fontSize: '1.5rem',
-                        fontWeight: 'bold',
-                        color: '#fff',
-                        margin: 0
-                      }}>
-                        {title}
-                      </h2>
-                      <span style={{
-                        background: game.difficulty === 'Easy'
-                          ? 'rgba(34, 197, 94, 0.2)'
-                          : game.difficulty === 'Medium'
-                            ? 'rgba(234, 179, 8, 0.2)'
-                            : 'rgba(239, 68, 68, 0.2)',
-                        border: `1px solid ${game.difficulty === 'Easy'
-                          ? '#22c55e'
-                          : game.difficulty === 'Medium'
-                            ? '#eab308'
-                            : '#ef4444'}`,
-                        borderRadius: '0.375rem',
-                        padding: '0.25rem 0.75rem',
-                        color: game.difficulty === 'Easy'
-                          ? '#22c55e'
-                          : game.difficulty === 'Medium'
-                            ? '#eab308'
-                            : '#ef4444',
-                        fontSize: '0.75rem',
-                        fontWeight: '600',
-                        whiteSpace: 'nowrap'
-                      }}>
-                        {difficultyLabel}
-                      </span>
+                  <div className={styles.content}>
+                    <div className={styles.cardHeader}>
+                      <h2 className={styles.cardTitle}>{title}</h2>
+                      <span className={styles.difficulty}>{difficultyLabel}</span>
                     </div>
-
-                    <p style={{
-                      color: '#9ca3af',
-                      fontSize: '0.875rem',
-                      marginBottom: '1rem',
-                      lineHeight: '1.5'
-                    }}>
-                      {description}
-                    </p>
-
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
-                    }}>
-                      <span style={{
-                        background: 'rgba(14, 165, 233, 0.1)',
-                        border: '1px solid rgba(14, 165, 233, 0.5)',
-                        borderRadius: '0.375rem',
-                        padding: '0.25rem 0.75rem',
-                        color: '#0ea5e9',
-                        fontSize: '0.875rem',
-                        fontWeight: '600'
-                      }}>
+                    <p className={styles.description}>{description}</p>
+                    <div className={styles.cardFooter}>
+                      <span className={styles.category}>
+                        <span className={styles.categoryMark} aria-hidden="true" />
                         {categoryLabel}
                       </span>
-                      <span style={{
-                        color: '#0ea5e9',
-                        fontSize: '0.875rem',
-                        fontWeight: '600',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.25rem'
-                      }}>
-                        {t('games.playNow')} →
-                      </span>
+                      <span className={styles.play}>{t('games.playNow')} &rarr;</span>
                     </div>
                   </div>
-                </div>
+                </article>
               </Link>
             );
           })}
-        </div>
+        </section>
 
-        {/* Coming Soon */}
-        <div style={{
-          background: 'rgb(24, 32, 45)',
-          border: '1px solid rgba(55, 65, 81, 1)',
-          borderRadius: '1rem',
-          padding: '2rem',
-          textAlign: 'center',
-          marginBottom: '2rem'
-        }}>
-          <h3 style={{
-            fontSize: '1.5rem',
-            fontWeight: 'bold',
-            color: '#fff',
-            marginBottom: '0.75rem'
-          }}>
-            {t('games.comingSoon')}
-          </h3>
-          <p style={{
-            color: '#9ca3af',
-            marginBottom: '1.5rem'
-          }}>
-            {t('games.comingSoonText')}
-          </p>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '1.5rem',
-            fontSize: '3rem'
-          }}>
-            <span style={{ cursor: 'default', transition: 'transform 0.2s' }}>🎯</span>
-            <span style={{ cursor: 'default', transition: 'transform 0.2s' }}>🏃</span>
-            <span style={{ cursor: 'default', transition: 'transform 0.2s' }}>🧩</span>
-            <span style={{ cursor: 'default', transition: 'transform 0.2s' }}>🎲</span>
+        <section className={styles.closing}>
+          <div>
+            <h2 className={styles.closingTitle}>{t('games.comingSoon')}</h2>
+            <p className={styles.closingText}>{t('games.comingSoonText')}</p>
           </div>
-        </div>
-
-        {/* Back Button */}
-        <div style={{ textAlign: 'center' }}>
-          <Link href="/" className="games-back-btn">
-            ← {t('navigation.backToPortfolio')}
+          <Link href="/" className={styles.backLink}>
+            &larr; {t('navigation.backToPortfolio')}
           </Link>
-        </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

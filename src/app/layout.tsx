@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { Rubik, Playfair_Display } from "next/font/google";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { I18nProvider } from "@/components/providers/I18nProvider";
+import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { GlobalToolbar } from "@/components/GlobalToolbar";
 import { GameToolbarProvider } from "@/contexts/GameToolbarContext";
@@ -121,7 +122,7 @@ export default async function RootLayout({
   const initialLang: 'en' | 'ja' = cookieLang === 'ja' ? 'ja' : 'en';
 
   return (
-    <html lang={initialLang}>
+    <html lang={initialLang} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.gstatic.com" />
         <script
@@ -130,20 +131,22 @@ export default async function RootLayout({
         />
       </head>
       <body className={`${rubik.variable} ${playfair.variable}`} suppressHydrationWarning>
-        <Toaster />
-        <GlobalErrorBoundary />
-        <Suspense fallback={null}>
-          <PageViewLogger />
-        </Suspense>
-        <I18nProvider initialLang={initialLang}>
-          <AuthProvider>
-            <GameToolbarProvider>
-              <GlobalToolbar />
-              {children}
-            </GameToolbarProvider>
-          </AuthProvider>
-        </I18nProvider>
-        <div id="modal-root"></div>
+        <ThemeProvider>
+          <Toaster />
+          <GlobalErrorBoundary />
+          <Suspense fallback={null}>
+            <PageViewLogger />
+          </Suspense>
+          <I18nProvider initialLang={initialLang}>
+            <AuthProvider>
+              <GameToolbarProvider>
+                <GlobalToolbar />
+                {children}
+              </GameToolbarProvider>
+            </AuthProvider>
+          </I18nProvider>
+          <div id="modal-root"></div>
+        </ThemeProvider>
       </body>
     </html>
   );

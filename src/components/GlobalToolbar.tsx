@@ -8,6 +8,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
 import { Home, LogIn, LogOut, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -137,7 +138,10 @@ export function GlobalToolbar() {
   const { content: gameContent } = useGameToolbar();
   const currentLang = i18n.language?.startsWith('ja') ? 'ja' : 'en';
 
-  const theme = useMemo(() => getTheme(pathname), [pathname]);
+  const theme = useMemo(
+    () => (pathname === '/games' ? DEFAULT_THEME : getTheme(pathname)),
+    [pathname],
+  );
   const isGameSubPage = pathname.startsWith('/games/');
   const hasGameContent = isGameSubPage && gameContent && (gameContent.left || gameContent.center || gameContent.right);
 
@@ -197,6 +201,7 @@ export function GlobalToolbar() {
         <div className="flex items-center gap-2 shrink-0">
           {hasGameContent && gameContent?.right}
           {hasGameContent && gameContent?.right && <span style={{ color: theme.border }}>|</span>}
+          <ThemeToggle accent={theme.accent} />
           {/* Language toggle */}
           <button
             onClick={toggleLang}

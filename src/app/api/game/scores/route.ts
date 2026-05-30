@@ -15,6 +15,15 @@ function isValidId(id: unknown): id is string {
   return typeof id === 'string' && ID_PATTERN.test(id);
 }
 
+function isFirebaseAdminUnavailable(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('Firebase projectId is required') ||
+    message.includes('Initialization attempted during build phase') ||
+    message.includes('Could not load the default credentials')
+  );
+}
+
 /**
  * GET /api/game/scores?playerId=xxx
  * Get all high scores for a player
@@ -43,6 +52,11 @@ export const GET = withActivityLog('next_api.game.scores.GET', async (request: N
 
     return NextResponse.json({ scores });
   } catch (error) {
+    if (isFirebaseAdminUnavailable(error)) {
+      console.warn('Game score storage unavailable; returning empty scores:', error);
+      return NextResponse.json({ scores: {}, unavailable: true });
+    }
+
     console.error('Error fetching game scores:', error);
     return NextResponse.json(
       { error: 'Failed to fetch game scores' },
@@ -57,6 +71,8 @@ export const GET = withActivityLog('next_api.game.scores.GET', async (request: N
  * Body: { playerId: string, gameKey: string, score: number }
  */
 export const PUT = withActivityLog('next_api.game.scores.PUT', async (request: NextRequest) => {
+  let requestedScore = 0;
+
   try {
     const body = await request.json();
     const { playerId, gameKey, score } = body;
@@ -81,6 +97,7 @@ export const PUT = withActivityLog('next_api.game.scores.PUT', async (request: N
         { status: 400 }
       );
     }
+    requestedScore = score;
 
     const db = getFirestore();
     const scoreDocPath = `${GAME_SCORES_COLLECTION}/${playerId}/scores/${gameKey}`;
@@ -107,6 +124,15 @@ export const PUT = withActivityLog('next_api.game.scores.PUT', async (request: N
       isNewHighScore,
     });
   } catch (error) {
+    if (isFirebaseAdminUnavailable(error)) {
+      console.warn('Game score storage unavailable; keeping score local only:', error);
+      return NextResponse.json({
+        highScore: requestedScore,
+        isNewHighScore: false,
+        unavailable: true,
+      });
+    }
+
     console.error('Error updating game score:', error);
     return NextResponse.json(
       { error: 'Failed to update game score' },

@@ -7,6 +7,7 @@ import { I18nProvider } from "@/components/providers/I18nProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { GlobalToolbar } from "@/components/GlobalToolbar";
+import { RouteScrollBehaviorFix } from "@/components/RouteScrollBehaviorFix";
 import { GameToolbarProvider } from "@/contexts/GameToolbarContext";
 import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
 import PageViewLogger from "@/components/PageViewLogger";
@@ -132,6 +133,7 @@ export default async function RootLayout({
       </head>
       <body className={`${rubik.variable} ${playfair.variable}`} suppressHydrationWarning>
         <ThemeProvider>
+          <RouteScrollBehaviorFix />
           <Toaster />
           <GlobalErrorBoundary />
           <Suspense fallback={null}>

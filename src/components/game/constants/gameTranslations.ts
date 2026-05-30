@@ -35,12 +35,12 @@ export interface UITranslations {
 export const uiTranslations: Record<GameLanguage, UITranslations> = {
   en: {
     gamesCollection: 'Games Collection',
-    gamesSubtitle: 'Explore interactive browser games built with TypeScript and HTML5 Canvas. Challenge yourself and beat the high scores!',
+    gamesSubtitle: 'Pick a quick browser game, learn the rules fast, and chase a better score.',
     interactive: 'Interactive',
     browserBased: 'Browser-Based',
     playNow: 'Play Now',
-    comingSoon: 'More Games Coming Soon!',
-    comingSoonText: 'New games are being developed. Check back later for more interactive experiences.',
+    comingSoon: 'More games are on the way',
+    comingSoonText: 'New browser games and experiments will keep landing here.',
     backToPortfolio: 'Back to Portfolio',
     difficulty: 'Difficulty',
     easy: 'Easy',
@@ -54,12 +54,12 @@ export const uiTranslations: Record<GameLanguage, UITranslations> = {
   },
   ja: {
     gamesCollection: 'ゲームコレクション',
-    gamesSubtitle: 'TypeScriptとHTML5 Canvasで作られたブラウザゲームをお楽しみください。ハイスコアを目指して挑戦しよう！',
+    gamesSubtitle: '短時間で遊べるブラウザゲーム集です。ルールをすぐ理解して、より良いスコアを狙えます。',
     interactive: 'インタラクティブ',
     browserBased: 'ブラウザで遊べる',
     playNow: 'プレイする',
-    comingSoon: '新しいゲームを開発中！',
-    comingSoonText: '新しいゲームを開発しています。またチェックしてください。',
+    comingSoon: '新しいゲームも追加予定',
+    comingSoonText: 'ブラウザで遊べる実験的なゲームを今後も追加していきます。',
     backToPortfolio: 'ポートフォリオに戻る',
     difficulty: '難易度',
     easy: '簡単',
@@ -77,7 +77,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
   'jump-game': {
     en: {
       title: 'Jump Game',
-      description: 'A classic jump-and-dodge arcade game. Press any key to jump over obstacles and rack up points!',
+      description: 'Time your jumps, clear each obstacle, and keep the run alive for a new high score.',
       longDescription: 'Test your reflexes in this fast-paced endless runner! Your character automatically runs forward while you time your jumps to avoid obstacles. The game speeds up as your score increases, making it progressively more challenging. How far can you go?',
       howToPlay: [
         'Press SPACE or click to jump',
@@ -94,7 +94,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
     },
     ja: {
       title: 'ジャンプゲーム',
-      description: 'クラシックなジャンプ＆回避アーケードゲーム。キーを押して障害物を飛び越えてスコアを稼ごう！',
+      description: 'ジャンプのタイミングを合わせて障害物を避け、ハイスコアを狙うランゲーム。',
       longDescription: 'このエンドレスランナーゲームで反射神経をテストしよう！キャラクターは自動的に前に進み、障害物を避けるためにジャンプのタイミングを合わせます。スコアが上がるほどゲームが速くなり、より難しくなります。どこまで行けるかな？',
       howToPlay: [
         'スペースキーまたはクリックでジャンプ',
@@ -113,7 +113,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
   'tic-tac-toe': {
     en: {
       title: 'Tic Tac Toe',
-      description: 'Challenge the AI in this classic strategy game! Choose from Easy, Medium, or Hard difficulty and test your skills.',
+      description: 'Play classic tic-tac-toe against an AI with three difficulty levels.',
       longDescription: 'The timeless game of X\'s and O\'s! Play against an AI opponent with three difficulty levels. On Easy, the AI makes random moves. Medium uses basic strategy, while Hard implements the perfect Minimax algorithm - can you force a draw against an unbeatable opponent?',
       howToPlay: [
         'Click on any empty cell to place your mark',
@@ -130,7 +130,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
     },
     ja: {
       title: '三目並べ',
-      description: 'AIと対戦する定番の戦略ゲーム！簡単、普通、難しいの3つの難易度から選んで挑戦しよう。',
+      description: '3段階の難易度から選んで、AIと三目並べをプレイ。',
       longDescription: '誰もが知っている○×ゲーム！3つの難易度のAIと対戦できます。簡単モードではAIはランダムに手を打ちます。普通モードでは基本的な戦略を使い、難しいモードでは完璧なMinimax アルゴリズムを実装 - 無敵のAIに引き分けに持ち込めるかな？',
       howToPlay: [
         '空いているマスをクリックしてマークを置く',
@@ -223,7 +223,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
   'shogi': {
     en: {
       title: 'Shogi',
-      description: 'Japanese Chess! Strategic board game with piece drops and promotions. Challenge the AI in this classic strategy game!',
+      description: 'Play Japanese chess against an AI with drops, promotions, and tactical pressure.',
       longDescription: 'Experience the depth of Japanese chess! Unlike Western chess, captured pieces can be dropped back onto the board as your own - adding incredible strategic complexity. Pieces promote when reaching the enemy camp, gaining new powers. Our AI uses advanced evaluation with multiple difficulty levels. Master the way of the general!',
       howToPlay: [
         'Click a piece to select, then click destination',
@@ -242,7 +242,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
     },
     ja: {
       title: '将棋',
-      description: '日本の伝統的なボードゲーム！駒の再利用と成りのルール。AIと対戦して腕を磨こう！',
+      description: '持ち駒と成りを使いこなし、AIと本格的な将棋を指せます。',
       longDescription: '日本の伝統的な戦略ゲームの奥深さを体験！チェスと違い、取った駒は自分の駒として盤上に打つことができます。敵陣に入ると駒が成って新しい動きができるようになります。AIは複数の難易度レベルで高度な評価を使用。将棋の道を極めよう！',
       howToPlay: [
         '駒をクリックして選択、移動先をクリック',
@@ -303,7 +303,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
   'mini-adventure': {
     en: {
       title: 'Mini Adventure',
-      description: 'Roguelike dungeon crawler! Descend 10 floors, manage your torch, and defeat the Dragon boss!',
+      description: 'Explore a compact dungeon, manage torchlight, and survive to face the final boss.',
       longDescription: 'Embark on a procedurally generated dungeon adventure! Navigate through 10 increasingly difficult floors, managing your health, torch light, and resources. Encounter various enemies, find treasures, and prepare for the ultimate challenge - the Dragon boss on floor 10! Every run is different thanks to random generation.',
       howToPlay: [
         'Arrow keys or WASD to move',
@@ -322,13 +322,13 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
     },
     ja: {
       title: 'ミニアドベンチャー',
-      description: 'ローグライクダンジョン探索！10階まで降りて、松明を管理し、ドラゴンボスを倒せ！',
+      description: '小さなダンジョンを探索し、松明と体力を管理してボスを目指すRPG。',
       longDescription: '自動生成されるダンジョン冒険に出発！10階層の難易度が上がるフロアを、体力、松明の光、リソースを管理しながら進みます。様々な敵に遭遇し、宝物を見つけ、究極の挑戦 - 10階のドラゴンボス戦に備えよう！ランダム生成のおかげで毎回違うプレイが楽しめます。',
       howToPlay: [
         '矢印キーまたはWASDで移動',
         '敵にぶつかって攻撃',
         'アイテムとゴールドを収集',
-        '松明を管理 - 暗闘は危険！',
+        '松明を管理 - 暗闇は危険！',
         '10階に到達してドラゴンを倒す',
       ],
       features: [
@@ -423,8 +423,8 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
   'territory-number': {
     en: {
       title: 'Territory Number',
-      description: 'A 3×3 territory game where players take turns placing 1–9 cards. Most captured lines wins.',
-      longDescription: 'A 2-player tactical game on a 3×3 grid. Each turn you pick any unused number from the shared pool 1–9 and place it on an empty cell with your colour. After all 9 cells are filled, every row, column, and diagonal is scored: each side sums their cards on the line, the higher sum captures the line. Most lines wins. Number strength matters — but so does where you spend it. Tic-tac-toe meets number bluffing.',
+      description: 'Place number cards on a 3x3 board and capture the most scoring lines.',
+      longDescription: 'A 2-player tactical game on a 3x3 grid. Pick unused numbers from 1-9, place them on the board, and compete for rows, columns, and diagonals. Strong numbers matter, but placement matters more.',
       howToPlay: [
         'Take turns picking any unused number from 1–9',
         'Place it on any empty cell, in your colour',
@@ -442,7 +442,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
     },
     ja: {
       title: '陣取り数字',
-      description: '3×3の盤面に交互に1〜9の数字カードを置いて陣取り。獲得ライン数が多い方が勝ち。',
+      description: '3x3の盤面に数字カードを置き、合計値でより多くのラインを取る戦略ゲーム。',
       longDescription: '3×3のマスに交互で数字カード（1〜9）を置いていく2人用の戦略ゲーム。共有プールから1枚選んで空いているマスに自分の色で置きます。9マス埋まった後、各行・列・斜めの合計が大きい方がそのラインを獲得。獲得ライン数が多い方が勝ち。数字の強さだけじゃなく、置く場所が重要。三目並べ＋数字バトルのようなゲーム性。',
       howToPlay: [
         '共有プール（1〜9）から交互に1枚選ぶ',
@@ -453,7 +453,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
         '中央マスは4ライン、コーナーは3ライン、辺は2ライン — 置く場所が重要',
       ],
       features: [
-        'AI対戦モード（弱い／普通／強いはαβ剣除ミニマックス）',
+        'AI対戦モード（弱い／普通／強いはαβ枝刈りミニマックス）',
         '2人オンライン対戦（ルームコード共有）',
         '先手設定（ホスト／ゲスト／ランダム）',
         'ライン獲得サマリーをリアルタイムに表示',
@@ -463,10 +463,10 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
   'bigger-number': {
     en: {
       title: 'Bigger Number',
-      description: 'Both players pick a tile (1–9 or Dragon) and reveal simultaneously. Higher number wins the round, first to N wins the match.',
-      longDescription: 'A 2-player mind game where each side holds tiles 1–9 plus one Dragon. Each round, both players secretly pick a tile and reveal at the same time. The higher number wins the round; the Dragon has its own special rule. First to N wins (configurable). Play vs AI with 3 difficulty levels, or share a room code with a friend for online play.',
+      description: 'Reveal numbered tiles at the same time; the higher number wins the round.',
+      longDescription: 'A 2-player mind game where each side holds tiles 1-9 plus one Dragon. Pick secretly, reveal together, and decide when to spend your strongest tiles. Play vs AI or online with a room code.',
       howToPlay: [
-        'Each player starts with tiles 1–9 plus a Dragon',
+        'Each player starts with tiles 1-9 plus a Dragon',
         'Pick one tile per round; both reveal simultaneously',
         'Higher number wins the round',
         'Dragon: by default loses to 1, beats everything else',
@@ -482,7 +482,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
     },
     ja: {
       title: '大きい数字を出せ',
-      description: '両プレイヤーが1〜9または龍タイルを1枚選び、同時にオープン！大きい数字が勝ち、先にN勝で勝利。',
+      description: '数字タイルを同時に公開し、より大きい数字でラウンドを取る読み合いゲーム。',
       longDescription: '2人用の読み合いゲーム。それぞれ1〜9の数字タイルと龍タイル1枚を持ちます。毎ラウンド、両者がタイルを伏せて選び、同時にオープン。大きい数字を出した方が勝ち、龍タイルには特殊ルールがあります。先にN勝（設定可能）した方が勝者。AI対戦（難易度3段階）またはルームコードを共有してオンライン対戦が可能。',
       howToPlay: [
         '各プレイヤーは1〜9の数字タイルと龍タイル1枚を持ちます',
@@ -503,7 +503,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
   'daifugo': {
     en: {
       title: 'Daifugo',
-      description: 'Play Daifugo (大富豪) vs AI (3-6 players) or online (3-6 players). Create a room, share the code, and battle to empty your hand first!',
+      description: 'Race to empty your hand in Daifugo, solo against AI or online with friends.',
       longDescription: 'The popular Japanese card game also known as "Rich Man, Poor Man"! Play against AI opponents or challenge friends online. Features include Revolution, Eight-cut, Eleven-back, Suit lock (Shibari), and Gekishiba. The goal is to be the first to empty your hand. Rankings carry over between rounds with card exchanges!',
       howToPlay: [
         'Play cards that beat the previous play',
@@ -525,7 +525,7 @@ export const gameTranslations: Record<string, Record<GameLanguage, GameTranslati
     },
     ja: {
       title: '大富豪',
-      description: 'AI対戦（3〜6人）またはオンライン対戦（3〜6人）で大富豪をプレイ！ルームを作成してコードを共有し、最初に手札を出し切った人が勝ち！',
+      description: 'AIまたはオンラインで大富豪を遊び、最初に手札を出し切ることを目指します。',
       longDescription: '日本の人気カードゲーム！AIと対戦するか、オンラインで友達と対戦しましょう。革命、8切り、11バック、縛り（しばり）、激縛りなどの機能を搭載。目標は最初に手札をなくすこと。ラウンド間でランキングが引き継がれ、カード交換が行われます！',
       howToPlay: [
         '場のカードより強いカードを出す',

@@ -66,24 +66,26 @@
   },
   "games": {
     "collection": "Games Collection",
-    "subtitle": "Explore interactive browser games built with TypeScript and HTML5 Canvas. Challenge yourself and beat the high scores!",
+    "subtitle": "Pick a quick browser game, learn the rules fast, and chase a better score.",
     "interactive": "Interactive",
     "browserBased": "Browser-Based",
     "playNow": "Play Now",
-    "comingSoon": "More Games Coming Soon!",
-    "comingSoonText": "New games are being developed. Check back later for more interactive experiences.",
+    "comingSoon": "More games are on the way",
+    "comingSoonText": "New browser games and experiments will keep landing here.",
     "viewAllGames": "View All Games",
     "clickToPlay": "Click to Play",
     "howToPlay": "How to Play",
     "features": "Features",
     "difficulty": {
       "label": "Difficulty",
+      "labelPlural": "Difficulties",
       "easy": "Easy",
       "medium": "Medium",
       "hard": "Hard"
     },
     "category": {
       "label": "Category",
+      "labelPlural": "Categories",
       "arcade": "Arcade",
       "strategy": "Strategy",
       "puzzle": "Puzzle",
@@ -92,7 +94,7 @@
     },
     "jump-game": {
       "title": "Jump Game",
-      "description": "A classic jump-and-dodge arcade game. Press any key to jump over obstacles and rack up points!",
+      "description": "Time your jumps, clear each obstacle, and keep the run alive for a new high score.",
       "longDescription": "Test your reflexes in this fast-paced endless runner! Your character automatically runs forward while you time your jumps to avoid obstacles. The game speeds up as your score increases, making it progressively more challenging. How far can you go?",
       "howToPlay": [
         "Press SPACE or click to jump",
@@ -109,7 +111,7 @@
     },
     "tic-tac-toe": {
       "title": "Tic Tac Toe",
-      "description": "Challenge the AI in this classic strategy game! Choose from Easy, Medium, or Hard difficulty and test your skills.",
+      "description": "Play classic tic-tac-toe against an AI with three difficulty levels.",
       "longDescription": "The timeless game of X's and O's! Play against an AI opponent with three difficulty levels. On Easy, the AI makes random moves. Medium uses basic strategy, while Hard implements the perfect Minimax algorithm - can you force a draw against an unbeatable opponent?",
       "howToPlay": [
         "Click on any empty cell to place your mark",
@@ -126,7 +128,7 @@
     },
     "gomoku": {
       "title": "Gomoku",
-      "description": "Five in a Row! Strategic board game with AI using minimax and alpha-beta pruning. Can you outsmart the algorithm?",
+      "description": "Place five stones in a row while the AI searches for threats and blocks.",
       "longDescription": "Also known as Five in a Row or Gobang, this ancient strategy game originated in Japan. Place stones on a 15x15 board and try to get exactly five in a row before your opponent. Our AI uses the Minimax algorithm with Alpha-Beta pruning for efficient decision making. A perfect blend of simple rules and deep strategy!",
       "howToPlay": [
         "Click on any intersection to place your stone",
@@ -143,7 +145,7 @@
     },
     "tetris": {
       "title": "Tetris",
-      "description": "Classic block-stacking puzzle game. Clear lines by completing horizontal rows. Speed increases as you level up!",
+      "description": "Stack falling blocks, clear lines, and keep the board from filling up.",
       "longDescription": "The legendary puzzle game that has captivated players for decades! Rotate and position falling tetrominoes to complete horizontal lines. Clear multiple lines at once for bonus points. Watch out - the pieces fall faster as you level up! Features the classic seven tetromino shapes and ghost piece preview.",
       "howToPlay": [
         "Arrow keys: Move left/right and soft drop",
@@ -161,7 +163,7 @@
     },
     "shogi": {
       "title": "Shogi",
-      "description": "Japanese Chess! Strategic board game with piece drops and promotions. Challenge the AI in this classic strategy game!",
+      "description": "Play Japanese chess against an AI with drops, promotions, and tactical pressure.",
       "longDescription": "Experience the depth of Japanese chess! Unlike Western chess, captured pieces can be dropped back onto the board as your own - adding incredible strategic complexity. Pieces promote when reaching the enemy camp, gaining new powers. Our AI uses advanced evaluation with multiple difficulty levels. Master the way of the general!",
       "howToPlay": [
         "Click a piece to select, then click destination",
@@ -180,7 +182,7 @@
     },
     "othello": {
       "title": "Othello",
-      "description": "Classic strategy board game with AI using alpha-beta search. Flip your opponent's discs to win!",
+      "description": "Flip discs, claim corners, and outscore the AI by the final board.",
       "longDescription": "Also known as Reversi, this elegant strategy game is simple to learn but difficult to master. Place your disc to flip opponent's pieces trapped between your discs. Control the corners and edges for strategic advantage! Our AI uses Alpha-Beta search with position evaluation to provide a challenging opponent.",
       "howToPlay": [
         "Click on a valid position to place your disc",
@@ -199,7 +201,7 @@
     },
     "mini-adventure": {
       "title": "Mini Adventure",
-      "description": "Roguelike dungeon crawler! Descend 10 floors, manage your torch, and defeat the Dragon boss!",
+      "description": "Explore a compact dungeon, manage torchlight, and survive to face the final boss.",
       "longDescription": "Embark on a procedurally generated dungeon adventure! Navigate through 10 increasingly difficult floors, managing your health, torch light, and resources. Encounter various enemies, find treasures, and prepare for the ultimate challenge - the Dragon boss on floor 10! Every run is different thanks to random generation.",
       "howToPlay": [
         "Arrow keys or WASD to move",
@@ -218,7 +220,7 @@
     },
     "animal-roleplay": {
       "title": "Animal Roleplay Survival",
-      "description": "Become an animal and survive 10 turns. Choose actions each turn to manage HP and hunger and reach the best score.",
+      "description": "Choose a survival role, manage HP and hunger, and score as many turns as you can.",
       "longDescription": "Choose an animal and survive the wild for 10 turns. Each turn brings a new event. Pick the best action based on your animal's strengths. If HP or hunger reaches zero, the run ends immediately.",
       "howToPlay": [
         "Choose one animal before you start",
@@ -341,7 +343,7 @@
     },
     "breakout": {
       "title": "Breakout",
-      "description": "Classic brick-breaking arcade game! Use your paddle to bounce the ball and destroy all bricks. Collect power-ups!",
+      "description": "Move the paddle, break every brick, and catch power-ups to extend the run.",
       "longDescription": "The arcade classic that started it all! Control your paddle to keep the ball in play and break all the bricks. Different colored bricks have different durability. Collect falling power-ups for paddle size changes, multi-ball, and more! Clear all bricks to advance to the next level.",
       "howToPlay": [
         "Move mouse or arrow keys to control paddle",
@@ -360,7 +362,7 @@
     },
     "space-invaders": {
       "title": "Space Invaders",
-      "description": "Defend Earth from alien invasion! Destroy waves of enemies, use shields for cover, and shoot the mystery UFO for bonus points.",
+      "description": "Clear enemy waves, take cover behind shields, and hit the bonus UFO.",
       "longDescription": "The legendary 1978 arcade shooter comes to your browser! Defend Earth against waves of descending aliens. Use your destructible shields for cover, and don't miss the mystery UFO flying across the top for bonus points! As waves progress, aliens move faster and become more aggressive. How many waves can you survive?",
       "howToPlay": [
         "Arrow keys: Move left/right",
@@ -379,7 +381,7 @@
     },
     "territory-number": {
       "title": "Territory Number",
-      "description": "A 3×3 territory game where number cards capture lines. Place 1–9 strategically — most lines wins.",
+      "description": "Place number cards on a 3x3 board and capture the most scoring lines.",
       "longDescription": "A 2-player tactical game on a 3×3 grid. Each turn you pick any unused number from the shared pool 1–9 and place it on an empty cell with your colour. After all 9 cells are filled, every row, column, and diagonal is scored: each side sums their cards on the line, the higher sum captures the line. Most lines wins. Number strength matters — but so does where you spend it.",
       "howToPlay": [
         "Take turns picking any unused number from 1–9",
@@ -398,15 +400,15 @@
     },
     "bigger-number": {
       "title": "Bigger Number",
-      "description": "Pick a tile, reveal at the same time as your opponent â higher number wins. Vs AI or 2-player online.",
-      "longDescription": "A 2-player mind game where each side holds tiles 1â9 plus one Dragon. Each round, both players secretly pick a tile and reveal at the same time. The higher number wins the round; the Dragon has its own special rule. First to N wins (configurable). Play vs AI with 3 difficulty levels, or share a room code with a friend for online play.",
+      "description": "Reveal numbered tiles at the same time; the higher number wins the round.",
+      "longDescription": "A 2-player mind game where each side holds tiles 1-9 plus one Dragon. Each round, both players secretly pick a tile and reveal at the same time. The higher number wins the round; the Dragon has its own special rule. First to N wins (configurable). Play vs AI with 3 difficulty levels, or share a room code with a friend for online play.",
       "howToPlay": [
-        "Each player starts with tiles 1â9 plus a Dragon",
+        "Each player starts with tiles 1-9 plus a Dragon",
         "Pick one tile per round; both reveal simultaneously",
         "Higher number wins the round",
         "Dragon: by default loses to 1, beats everything else",
         "First to 5 wins (or whatever the room rules say)",
-        "Read your opponent â are they saving their 9?"
+        "Read your opponent — are they saving their 9?"
       ],
       "features": [
         "Vs AI mode (Easy / Medium / Hard)",
@@ -417,7 +419,7 @@
     },
     "daifugo": {
       "title": "Daifugo",
-      "description": "Play Daifugo (Rich Man Poor Man) vs AI (3-6 players) or online (3-6 players). Create a room, share the code, and battle to empty your hand first!",
+      "description": "Race to empty your hand in Daifugo, solo against AI or online with friends.",
       "longDescription": "The popular Japanese card game also known as \"Rich Man, Poor Man\"! Play against AI opponents or challenge friends online. Features include Revolution, Eight-cut, Eleven-back, Suit lock (Shibari), and Gekishiba. The goal is to be the first to empty your hand. Rankings carry over between rounds with card exchanges!",
       "howToPlay": [
         "Play cards that beat the previous play",
@@ -510,7 +512,7 @@
     },
     "shichinarabe": {
       "title": "Shichinarabe",
-      "description": "Play Shichinarabe (Sevens) vs AI (3–6 players) or online (3–6 players). Build sequences around the 7s and be the first to empty your hand!",
+      "description": "Build from the sevens, manage blocked suits, and empty your hand first.",
       "longDescription": "Shichinarabe, also known as \"Sevens\", is a classic card game where all 7s start on the table. On your turn, play a card that extends a suit sequence (e.g., 6 or 8 next to a 7), or pass if you can't. Pass too many times and you'll be eliminated—so plan ahead and manage your hand carefully.",
       "howToPlay": [
         "All 7s are placed on the table at the start",
@@ -529,7 +531,7 @@
     },
     "doubt": {
       "title": "Doubt",
-      "description": "Play Doubt (Cheat/Bluff) vs AI (3–6 players) or online (3–6 players). Play cards face-down, claim the rank, and call Doubt to catch liars!",
+      "description": "Bluff with face-down cards, challenge suspicious claims, and catch the AI lying.",
       "longDescription": "Doubt (also known as \"Cheat\" or \"I Doubt It\") is a bluffing card game. Players take turns placing 1–4 cards face-down while claiming they match the required rank (A→K loop). The next player can accept the claim or call Doubt. If the claim was false, the liar takes the pile; if it was true, the doubter takes the pile. Get rid of all your cards to win!",
       "howToPlay": [
         "On your turn, place 1–4 cards face-down and claim the required rank",
@@ -548,7 +550,7 @@
     },
     "reverse-jump": {
       "title": "Reverse Jump",
-      "description": "Controls reverse every 8 seconds. Jump low obstacles and duck high bars to survive.",
+      "description": "Jump, duck, and adapt when the controls invert mid-run.",
       "longDescription": "Reverse Jump is an endless reflex game where your controls flip on a timer. One moment Space jumps, the next moment Space ducks. Low obstacles require jumps while overhead bars require crouching, so you need to react and rewire fast.",
       "howToPlay": [
         "Space / Up: primary action",
@@ -566,7 +568,7 @@
     },
     "ghost-tetris": {
       "title": "Ghost Tetris",
-      "description": "Locked blocks fade after 2 seconds. Remember the board and keep clearing lines.",
+      "description": "Blocks fade after they lock, so every clear depends on memory.",
       "longDescription": "A memory-focused Tetris variant. Once a piece locks, it starts fading quickly, forcing you to track the structure mentally rather than visually. The core controls stay classic, but your brain does the heavy lifting.",
       "howToPlay": [
         "Left/Right to move",
@@ -584,7 +586,7 @@
     },
     "chaos-breakout": {
       "title": "Chaos Breakout",
-      "description": "Breakout with chaos pulses: gravity, speed, and paddle size change every 10 seconds.",
+      "description": "Break bricks while gravity, ball speed, and paddle size keep changing.",
       "longDescription": "Chaos Breakout keeps the classic brick-breaking core, then mutates it in real time. Every 10 seconds, the game applies a random modifier such as gravity direction changes, speed bursts, or paddle width shifts, creating unpredictable runs.",
       "howToPlay": [
         "Arrow keys or A/D to move paddle",
@@ -602,7 +604,7 @@
     },
     "doubt-word": {
       "title": "Doubt Word",
-      "description": "A bluff duel using claimed word initials and lengths. Believe or call Doubt.",
+      "description": "Claim letters and word lengths, then decide when to trust or challenge.",
       "longDescription": "Doubt Word is a social-deduction mini game versus AI. Players claim they have a word with a specific first letter and length, then the opponent decides to believe or challenge. Both truth and deception are viable strategies.",
       "howToPlay": [
         "Read AI claims and choose Believe or Doubt",
@@ -620,7 +622,7 @@
     },
     "timed-button": {
       "title": "Timed Button",
-      "description": "One button mind game: pass the bomb before the hidden timer explodes.",
+      "description": "Pass the bomb at the right moment before the hidden timer expires.",
       "longDescription": "Timed Button is a minimal psychological duel. The bomb timer is always ticking and either player can pass it. Press too early and you give control away; press too late and it explodes in your hands.",
       "howToPlay": [
         "If you hold the bomb, press to pass it",
@@ -638,7 +640,7 @@
     },
     "mirror-othello": {
       "title": "Mirror Othello",
-      "description": "An Othello variant where the board mirrors every 4 turns.",
+      "description": "Play Othello on a board that mirrors every few turns.",
       "longDescription": "Mirror Othello keeps the normal disc-flip rules but introduces a periodic board mirror effect. Every 4 moves, all discs flip left-right positions, breaking long-term plans and forcing on-the-fly adaptation.",
       "howToPlay": [
         "Place a disc to flip opponent discs",
@@ -656,7 +658,7 @@
     },
     "memory-maze": {
       "title": "Memory Maze",
-      "description": "Memorize the maze quickly, then navigate to the goal in near darkness.",
+      "description": "Study the maze, then navigate with limited vision before time runs out.",
       "longDescription": "Memory Maze gives you only a few seconds to study the full map. After that, walls are mostly hidden and you must rely on memory and partial local visibility to reach the goal before time runs out.",
       "howToPlay": [
         "Memorize the maze during preview",
@@ -674,7 +676,7 @@
     },
     "daily-move-puzzle": {
       "title": "Daily One-Move Puzzle",
-      "description": "A daily tic-tac-toe puzzle: find the winning move in one turn.",
+      "description": "Solve one daily tactical puzzle and share how many attempts it took.",
       "longDescription": "Each day you get one short tactical board and one objective: find the immediate winning move. The puzzle rotates daily by date, making it easy to share results and compare attempts.",
       "howToPlay": [
         "Read the side-to-move prompt",
@@ -692,7 +694,7 @@
     },
     "memory-battle": {
       "title": "Memory Battle",
-      "description": "Five cards flash for 3 seconds, then flip. Find the requested number to score before time runs out.",
+      "description": "Memorize five cards, then pick the requested number under time pressure.",
       "longDescription": "Memory Battle is a short-term memory speed game. Each round, five number cards are shown for three seconds and then flipped face-down. You are told a target number and must tap the card that holds it before the timer runs out.",
       "howToPlay": [
         "Memorize the five numbers during the 3 second preview",
@@ -710,7 +712,7 @@
     },
     "iq-test": {
       "title": "IQ Test",
-      "description": "A short IQ-style quiz with procedurally generated questions: number sequences, odd-one-out, analogies, and more.",
+      "description": "Answer ten generated pattern and logic questions with instant explanations.",
       "longDescription": "IQ Test is a 10-question quiz with questions generated on the fly. Each round serves a fresh mix of arithmetic, geometric, Fibonacci, and alternating sequences, odd-one-out puzzles, simple analogies, and letter sequences.",
       "howToPlay": [
         "Read the prompt and the displayed pattern",
@@ -727,44 +729,44 @@
       ]
     },
     "roulette": {
-      "title": "Roulette + Martingale Sim",
-      "description": "European roulette you can actually play, plus a Monte Carlo simulator that shows how the Martingale strategy goes bust."
+      "title": "Roulette & Martingale",
+      "description": "Play European roulette, then simulate how Martingale betting fails under limits."
     },
     "monty-hall": {
       "title": "Monty Hall",
-      "description": "The classic three-door problem. Play it, then run a Monte Carlo simulation that shows Switch beats Stay 2:1."
+      "description": "Pick a door, decide whether to switch, and compare the odds with simulation."
     },
     "birthday-paradox": {
       "title": "Birthday Paradox",
-      "description": "How few people do you need before two share a birthday? Play it, then simulate the famous 50% / 99% thresholds."
+      "description": "See how quickly shared birthdays appear as the group gets larger."
     },
     "coupon-collector": {
       "title": "Coupon Collector",
-      "description": "How many draws to collect all n items? The classic gacha problem: expected draws ≈ n·ln(n) — the last few items take forever."
+      "description": "Simulate the long tail of collecting every item in a random set."
     },
     "gamblers-ruin": {
       "title": "Gambler's Ruin",
-      "description": "Even with a fair 50/50 game, finite bankroll means ruin probability is (N − a) / N. Make it 49/51 and ruin becomes nearly certain."
+      "description": "Model how bankroll, target, and win rate change the risk of ruin."
     },
     "blackjack": {
-      "title": "Blackjack — Basic Strategy",
-      "description": "Play simplified Blackjack with a hint that shows what Basic Strategy says. Then simulate it vs Mimic-Dealer vs Always-Stand and see the edge gap."
+      "title": "Blackjack Strategy",
+      "description": "Play simplified blackjack with basic-strategy hints and strategy simulations."
     },
     "secretary-problem": {
       "title": "Secretary Problem",
-      "description": "Interview candidates one by one, decide on the spot, no second chances. Try beating the famous 37% rule — then simulate it."
+      "description": "Interview candidates one by one and test the classic 37% stopping rule."
     },
     "bandit": {
       "title": "K-armed Bandit",
-      "description": "Explore vs exploit — pick arms with hidden reward probs. Compare ε-greedy, UCB1, and Thompson Sampling regret curves."
+      "description": "Balance explore vs exploit and compare bandit algorithms over many trials."
     },
     "bayesian-update": {
       "title": "Bayesian Update",
-      "description": "A coin with hidden bias. Flip and watch the Beta posterior sharpen around the true p in real time — then simulate convergence."
+      "description": "Flip a biased coin and watch the posterior estimate update in real time."
     },
     "petersburg": {
       "title": "St. Petersburg Paradox",
-      "description": "Coin flips until first tails: payoff doubles each round. Expected value is infinite — yet nobody wants to pay much. Simulate why."
+      "description": "Simulate the paradox where infinite expected value still feels overpriced."
     }
   },
   "home": {

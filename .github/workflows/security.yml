@@ -10,8 +10,24 @@ jobs:
   audit:
     name: npm audit
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
+
+      - name: Scan tracked files for common secrets
+        shell: bash
+        run: |
+          set -euo pipefail
+          key_suffix='KEY='
+          secret_pattern="$(
+            IFS='|'
+            echo "-----BEGIN (RSA |EC |OPENSSH |PRIVATE )?KEY-----|sk-(proj|live|test)-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9_]{36,}|AIza[0-9A-Za-z_-]{35}|FIREBASE_PRIVATE_${key_suffix}|OPENAI_API_${key_suffix}"
+          )"
+          if git grep -n -I -E -e "$secret_pattern" -- ':!package-lock.json' ':!*.md'; then
+            echo "::error::Potential secret found in tracked files. Rotate the secret and remove it from git."
+            exit 1
+          fi
 
       - uses: actions/setup-node@v6
         with:

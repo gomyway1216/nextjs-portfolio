@@ -1,25 +1,25 @@
 'use client';
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useDailyLearningPlan,useLearningPaths,useSpacedRepetition } from '@/hooks/useStudy';
+import { DailyLearningItem,LearningPathStatus } from '@/types/study';
 import {
-  Calendar,
-  Clock,
-  CheckCircle2,
-  Circle,
-  BookOpen,
-  Brain,
-  Layers,
-  FileText,
-  Code,
-  RefreshCw,
-  ChevronRight,
-  Target,
-  Sparkles,
-  Trophy,
+BookOpen,
+Brain,
+Calendar,
+CheckCircle2,
+ChevronRight,
+Circle,
+Clock,
+Code,
+FileText,
+Layers,
+RefreshCw,
+Sparkles,
+Target,
+Trophy,
 } from 'lucide-react';
-import { useDailyLearningPlan, useLearningPaths, useSpacedRepetition } from '@/hooks/useStudy';
-import { DailyLearningItem, LearningPathStatus } from '@/types/study';
+import Link from 'next/link';
+import { useState } from 'react';
 
 const ITEM_TYPE_ICONS: Record<string, React.ReactNode> = {
   read_entry: <FileText size={18} />,
@@ -49,7 +49,7 @@ export default function DailyLearningDashboardPage() {
   const { plan, motivationalMessage, loading, error, updating, completeItem, regeneratePlan } =
     useDailyLearningPlan();
   const { paths, loading: pathsLoading } = useLearningPaths();
-  const { totalDue, loading: reviewLoading } = useSpacedRepetition();
+  const { totalDue, loading: _reviewLoading } = useSpacedRepetition();
   const [isRegenerating, setIsRegenerating] = useState(false);
 
   const activePath = paths.find((p) => p.status === LearningPathStatus.IN_PROGRESS);

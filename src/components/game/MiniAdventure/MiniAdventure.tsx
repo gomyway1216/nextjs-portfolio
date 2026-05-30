@@ -5,24 +5,22 @@
 
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { RotateCcw, Heart, Sword, Shield, Flame, Package, Info } from 'lucide-react';
-import { GameTopBar, InfoModal, GameStats } from '../common';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { Flame,Heart,Info,Package,RotateCcw,Shield,Sword } from 'lucide-react';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import { GameStats,GameTopBar,InfoModal } from '../common';
+import { getEnemyChar,getEnemyColor } from './Enemies';
+import { createGameState,getDirectionFromKey,processAction } from './GameEngine';
+import { getItemChar,getItemColor } from './Items';
 import {
-  GameState,
-  ActionType,
-  Direction,
-  TileType,
-  ItemType,
-  MAP_WIDTH,
-  MAP_HEIGHT,
-  getVisionRadius,
-  StatusEffect,
+ActionType,
+GameState,
+ItemType,
+MAP_HEIGHT,
+MAP_WIDTH,
+StatusEffect,
+TileType
 } from './types';
-import { createGameState, processAction, getDirectionFromKey } from './GameEngine';
-import { getItemChar, getItemColor } from './Items';
-import { getEnemyChar, getEnemyColor } from './Enemies';
 
 // Tile display characters
 const TILE_CHARS: Record<TileType, string> = {

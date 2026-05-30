@@ -4,18 +4,18 @@
 
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { RotateCcw, AlertCircle } from 'lucide-react';
-import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStats } from '../common';
-import { KyokumenImproved } from './KyokumenImproved';
-	import { Te, Position, SENTE, GOTE, EMPTY, getKomashu, toString, isSente } from './types';
-	import { GenerateMovesImproved } from './GenerateMovesImproved';
-			import { getBestMoveV18 } from './ShogiAIImprovedV18';
-	import { getOpeningMoveImproved } from './OpeningBookImproved';
-	import { InitialPositionImproved } from './InitialPositionImproved';
-	import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
-	import type { SerializedKyokumenImproved, SerializedTeImproved, ShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { RotateCcw } from 'lucide-react';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import { Difficulty,DifficultySelector,GameStats,GameTopBar,InfoModal } from '../common';
+import { GenerateMovesImproved } from './GenerateMovesImproved';
+import { InitialPositionImproved } from './InitialPositionImproved';
+import { KyokumenImproved } from './KyokumenImproved';
+import { getOpeningMoveImproved } from './OpeningBookImproved';
+import { getBestMoveV18 } from './ShogiAIImprovedV18';
+import type { SerializedKyokumenImproved,SerializedTeImproved,ShogiAiWorkerClient } from './shogiAiWorkerClient';
+import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
+import { EMPTY,GOTE,isSente,Position,SENTE,Te,toString } from './types';
 
 const DIFFICULTY_OPTIONS = [
   { label: 'Level 1 (Easy)', value: 'easy' as Difficulty, description: 'Fast (~250ms), depth ≤4' },
@@ -56,7 +56,7 @@ interface GameState {
 }
 
 const ShogiImproved = () => {
-  const lifecycle = useFeatureLifecycle('game.shogi-improved');
+  const _lifecycle = useFeatureLifecycle('game.shogi-improved');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [showDifficultySelect, setShowDifficultySelect] = useState<boolean>(true);
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
@@ -652,7 +652,7 @@ const ShogiImproved = () => {
       <InfoModal isOpen={showInfoModal} onClose={() => setShowInfoModal(false)} title="How to Play Shogi">
         <div style={{ lineHeight: '1.6' }}>
           <p>
-            <strong>Objective:</strong> Capture the opponent's King (王/玉)
+            <strong>Objective:</strong> Capture the opponent&apos;s King (王/玉)
           </p>
           <p>
             <strong>Basic Rules:</strong>

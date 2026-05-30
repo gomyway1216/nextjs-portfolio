@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION } from '@/app/api/constants';
+import { getFirestore } from '@/lib/firebase-admin';
+import { NextRequest,NextResponse } from 'next/server';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -9,7 +9,7 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
  * Distinct categories in use, plus the canonical seeded pair so the admin
  * dropdown is never empty before any post exists.
  */
-export const GET = withActivityLog('next_api.post.categories.GET', async (request: NextRequest) => {
+export const GET = withActivityLog('next_api.post.categories.GET', async (_request: NextRequest) => {
   try {
     const db = getFirestore();
     const snapshot = await db.collection(POSTS_COLLECTION).get();

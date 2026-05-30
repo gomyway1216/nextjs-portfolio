@@ -1,8 +1,7 @@
 'use client';
+import { useEducation,useJobs } from '@/hooks';
+import { differenceInMonths,parse } from 'date-fns';
 import { useMemo } from 'react';
-import { differenceInMonths, parse } from 'date-fns';
-import { useJobs, useEducation } from '@/hooks';
-import type { Education, Job } from '@/services/resumeService';
 import { useTranslation } from 'react-i18next';
 
 const formatDate = (dateString: string) => {
@@ -113,8 +112,8 @@ const normalizeJobType = (value: string) => value.trim().toLowerCase();
 
 const Resume = () => {
   const { t, i18n } = useTranslation();
-  const { jobs: fetchedJobs, loading: jobsLoading } = useJobs();
-  const { education: fetchedEducation, loading: educationLoading } = useEducation();
+  const { jobs: fetchedJobs, loading: _jobsLoading } = useJobs();
+  const { education: fetchedEducation, loading: _educationLoading } = useEducation();
   const language = i18n.language === 'ja' ? 'ja' : 'en';
 
   const jobs = useMemo(() => {

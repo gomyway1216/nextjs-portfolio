@@ -1,34 +1,33 @@
 'use client';
-import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
+Select,
+SelectContent,
+SelectItem,
+SelectTrigger,
+SelectValue,
 } from '@/components/ui/select';
+import * as projectApi from '@/services/projectsService';
 import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
+closestCenter,
+DndContext,
+KeyboardSensor,
+PointerSensor,
+useSensor,
+useSensors,
+type DragEndEvent,
 } from '@dnd-kit/core';
 import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
+arrayMove,
+SortableContext,
+sortableKeyboardCoordinates,
+useSortable,
+verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import * as projectApi from '@/services/projectsService';
-import { X, GripVertical } from 'lucide-react';
-import styles from './url-list-editor.module.scss';
+import { GripVertical,X } from 'lucide-react';
+import { useEffect,useState } from 'react';
 
 interface Url {
   name: string;

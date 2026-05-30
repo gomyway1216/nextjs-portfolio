@@ -2,8 +2,8 @@
  * JumpGame game logic - pure functions separated from UI
  */
 
-import { Enemy, Powerup, GameState, GAME_CONSTANTS } from './types';
 import { Difficulty } from '../common/types';
+import { Enemy,GAME_CONSTANTS,Powerup } from './types';
 
 /**
  * Get difficulty multiplier for enemy speed

@@ -1,5 +1,4 @@
 'use client';
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 interface SuggestionBarProps {
@@ -14,11 +13,7 @@ const DEFAULT_OPTIONS = [
 ];
 
 const SuggestionBar = ({ activeTab, setActiveTab }: SuggestionBarProps) => {
-  const [options, setOptions] = useState(DEFAULT_OPTIONS);
-
-  useEffect(() => {
-
-  }, [activeTab]);
+  const options = DEFAULT_OPTIONS;
 
   return (
     <div

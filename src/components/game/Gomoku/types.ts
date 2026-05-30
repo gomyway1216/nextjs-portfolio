@@ -9,7 +9,7 @@ export interface Position {
   col: number;
 }
 
-export interface GomokuBoard extends Array<Array<Player>> {}
+export type GomokuBoard = Array<Array<Player>>;
 
 export const BOARD_SIZE = 15;
 export const WIN_LENGTH = 5;

@@ -4,31 +4,31 @@
 
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Pause, Play, RotateCcw, Trophy } from 'lucide-react';
-import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStats } from '../common';
-import { useHighScore } from '@/hooks/useHighScore';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { useHighScore } from '@/hooks/useHighScore';
+import { Pause,Play,RotateCcw,Trophy } from 'lucide-react';
+import { useCallback,useEffect,useRef,useState } from 'react';
+import { Difficulty,DifficultySelector,GameStats,GameTopBar,InfoModal } from '../common';
 import {
-  Board,
-  Tetromino,
-  BOARD_WIDTH,
-  BOARD_HEIGHT,
-  CELL_SIZE,
-  GAME_CONSTANTS,
-  COLORS,
-} from './types';
-import {
-  createEmptyBoard,
-  createTetromino,
-  isValidPosition,
-  tryRotate,
-  mergePieceToBoard,
-  clearLines,
-  calculateScore,
-  getDropInterval,
-  getGhostPiecePosition,
+calculateScore,
+clearLines,
+createEmptyBoard,
+createTetromino,
+getDropInterval,
+getGhostPiecePosition,
+isValidPosition,
+mergePieceToBoard,
+tryRotate,
 } from './gameLogic';
+import {
+Board,
+BOARD_HEIGHT,
+BOARD_WIDTH,
+CELL_SIZE,
+COLORS,
+GAME_CONSTANTS,
+Tetromino,
+} from './types';
 
 const DIFFICULTY_OPTIONS = [
   { value: 'easy' as Difficulty, label: 'Easy', description: 'Slower starting speed' },
@@ -37,7 +37,7 @@ const DIFFICULTY_OPTIONS = [
 ];
 
 const Tetris = () => {
-  const lifecycle = useFeatureLifecycle('game.tetris');
+  const _lifecycle = useFeatureLifecycle('game.tetris');
   const [board, setBoard] = useState<Board>(createEmptyBoard());
   const [currentPiece, setCurrentPiece] = useState<Tetromino | null>(null);
   const [nextPiece, setNextPiece] = useState<Tetromino | null>(null);

@@ -1,44 +1,42 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { KaimonoLogo, ListCard } from '@/components/kaimono';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { useKaimonoHistory } from '@/hooks/useKaimono';
+import { useAuth } from '@/providers/AuthProvider';
+import * as kaimonoService from '@/services/kaimonoService';
+import type { ShoppingList } from '@/types/kaimono';
 import {
-  Plus,
-  History,
   ArrowRight,
-  Share2,
-  QrCode,
-  Lock,
   ChevronRight,
-  Loader2,
   Clock,
-  Sparkles,
-  ShoppingBasket,
-  Wallet,
+  History,
+  Loader2,
+  Plus,
   RefreshCw,
-  Tags,
+  Share2,
+  ShoppingBasket,
+  Sparkles,
   Star,
   StickyNote,
   Store,
+  Tags,
+  Wallet,
 } from 'lucide-react';
-import { toast } from 'sonner';
-import { useAuth } from '@/providers/AuthProvider';
-import { KaimonoLogo, ListCard } from '@/components/kaimono';
-import { useKaimonoHistory } from '@/hooks/useKaimono';
-import * as kaimonoService from '@/services/kaimonoService';
-import type { ShoppingList } from '@/types/kaimono';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { toast } from 'sonner';
 import styles from '../tool-landing.module.css';
 
 const LOCAL_STORAGE_KEY = 'kaimono_recent_lists';

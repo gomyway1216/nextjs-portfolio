@@ -5,20 +5,19 @@
 
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  GameRoom,
-  MultiplayerPlayer,
-  MultiplayerGameState,
-  generatePlayerId,
-  PLAYER_COLORS,
-} from './multiplayerTypes';
-import {
-  MultiplayerContext,
-} from '@/services/gameRoomService';
+import { setData,subscribeToPath } from '@/lib/firebaseRealtimeDb';
 import * as gameActionClient from '@/services/gameActionClient';
-import { setData } from '@/lib/firebaseRealtimeDb';
-import { subscribeToPath } from '@/lib/firebaseRealtimeDb';
+import {
+MultiplayerContext,
+} from '@/services/gameRoomService';
+import { useCallback,useEffect,useRef,useState } from 'react';
+import {
+GameRoom,
+generatePlayerId,
+MultiplayerGameState,
+MultiplayerPlayer,
+PLAYER_COLORS,
+} from './multiplayerTypes';
 
 export interface UseMultiplayerReturn {
   // State
@@ -253,7 +252,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
   }, [context.roomId, context.isHost, playerId]);
 
   // Update position (throttled) - uses game state update
-  const updateMyPosition = useCallback((x: number): void => {
+  const updateMyPosition = useCallback((_x: number): void => {
     if (!context.roomId) return;
 
     const now = Date.now();
@@ -265,7 +264,7 @@ export function useMultiplayer(): UseMultiplayerReturn {
   }, [context.roomId]);
 
   // Update state (throttled)
-  const updateMyState = useCallback((score: number, lives: number): void => {
+  const updateMyState = useCallback((_score: number, _lives: number): void => {
     if (!context.roomId) return;
 
     const now = Date.now();

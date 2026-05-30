@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore } from '@/lib/firebase-admin';
 import { ensureAdmin } from '@/lib/auth-utils';
+import { getFirestore } from '@/lib/firebase-admin';
+import { NextRequest,NextResponse } from 'next/server';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -47,7 +47,7 @@ function extractUpdates(body: Record<string, unknown>): Record<string, unknown> 
  * GET /api/job
  * Get all jobs
  */
-export const GET = withActivityLog('next_api.job.GET', async (request: NextRequest) => {
+export const GET = withActivityLog('next_api.job.GET', async (_request: NextRequest) => {
   try {
     const db = getFirestore();
     console.log('[API /job] Attempting to fetch jobs from Firestore...');

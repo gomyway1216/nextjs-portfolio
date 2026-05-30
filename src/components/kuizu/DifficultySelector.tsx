@@ -1,7 +1,7 @@
 'use client';
 
-import { QuizDifficulty, QUIZ_DIFFICULTY_LABELS } from '@/types/kuizu';
 import { Button } from '@/components/ui/button';
+import { QUIZ_DIFFICULTY_LABELS,QuizDifficulty } from '@/types/kuizu';
 import { useTranslation } from 'react-i18next';
 
 interface DifficultySelectorProps {
@@ -11,7 +11,7 @@ interface DifficultySelectorProps {
 }
 
 export function DifficultySelector({ selected, onSelect, disabled }: DifficultySelectorProps) {
-  const { t } = useTranslation();
+  const { t: _t } = useTranslation();
 
   const difficulties = [
     QuizDifficulty.EASY,

@@ -4,24 +4,23 @@
 
 import { Kyokumen } from './Kyokumen';
 import {
-  Te,
-  Position,
-  SENTE,
-  GOTE,
-  EMPTY,
-  WALL,
-  FU,
-  KY,
-  KE,
-  OU,
-  canMove,
-  canJump,
-  diffSuji,
-  diffDan,
-  isSelf,
-  isEnemy,
-  getKomashu,
-  canPromote as canPromotePiece
+EMPTY,
+FU,
+GOTE,
+KE,
+KY,
+Position,
+SENTE,
+Te,
+WALL,
+canJump,
+canMove,
+canPromote as canPromotePiece,
+diffDan,
+diffSuji,
+getKomashu,
+isEnemy,
+isSelf
 } from './types';
 
 // Remove moves that leave own king in check

@@ -1,15 +1,14 @@
 'use client';
 
-import { use, useState, useCallback } from 'react';
-import Link from 'next/link';
 import { useLearningPath } from '@/hooks/useStudy';
 import {
-  LearningPathStatus,
-  TopicImportance,
-  LearningPhase,
-  LearningPathTopic,
-  StartTopicResponse,
+LearningPathStatus,
+LearningPathTopic,
+LearningPhase,
+TopicImportance
 } from '@/types/study';
+import Link from 'next/link';
+import { use,useCallback,useState } from 'react';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -381,7 +380,7 @@ interface PhaseCardProps {
 
 function PhaseCard({
   phase,
-  phaseIndex,
+  phaseIndex: _phaseIndex,
   isLocked,
   currentTopicId,
   updating,

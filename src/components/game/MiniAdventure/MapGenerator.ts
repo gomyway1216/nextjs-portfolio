@@ -3,19 +3,19 @@
  * Generates dungeon floors with rooms and corridors
  */
 
-import {
-  MAP_WIDTH,
-  MAP_HEIGHT,
-  TileType,
-  Tile,
-  Room,
-  Position,
-  GameFloor,
-  FloorItem,
-  Enemy,
-} from './types';
+import { createEnemy,getEnemiesForFloor } from './Enemies';
 import { generateRandomItem } from './Items';
-import { createEnemy, getEnemiesForFloor } from './Enemies';
+import {
+Enemy,
+FloorItem,
+GameFloor,
+MAP_HEIGHT,
+MAP_WIDTH,
+Position,
+Room,
+Tile,
+TileType,
+} from './types';
 
 // Room generation parameters
 const MIN_ROOM_SIZE = 4;
@@ -150,7 +150,7 @@ function generateRooms(): Room[] {
 }
 
 // Get random floor position in a room
-function getRandomPositionInRoom(room: Room): Position {
+function _getRandomPositionInRoom(room: Room): Position {
   return {
     x: room.x + 1 + Math.floor(Math.random() * (room.width - 2)),
     y: room.y + 1 + Math.floor(Math.random() * (room.height - 2)),

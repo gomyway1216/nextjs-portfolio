@@ -3,22 +3,18 @@
  * Includes major defensive formations (囲い)
  */
 
-import {
-  SENTE,
-  GOTE,
-  EMPTY,
-  SOU,
-  GOU,
-  SKI,
-  GKI,
-  SGI,
-  GGI,
-  SKY,
-  GKY,
-  PROMOTE,
-} from './types';
 import { Kyokumen } from './Kyokumen';
-import { Position } from './types';
+import {
+GGI,
+GKI,
+GOU,
+Position,
+PROMOTE,
+SENTE,
+SGI,
+SKI,
+SOU
+} from './types';
 
 // Helper function to find king position
 function findKingPosition(kyokumen: Kyokumen, teban: number): Position | null {
@@ -53,7 +49,7 @@ function evaluateYagura(kyokumen: Kyokumen, teban: number): number {
   if (!kingPos) return 0;
 
   let score = 0;
-  const king = teban === SENTE ? SOU : GOU;
+  const _king = teban === SENTE ? SOU : GOU;
   const gold = teban === SENTE ? SKI : GKI;
   const silver = teban === SENTE ? SGI : GGI;
 

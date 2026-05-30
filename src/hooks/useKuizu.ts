@@ -1,32 +1,27 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import * as kuizuService from '@/services/kuizuService';
-import * as gameRoomService from '@/services/gameRoomService';
+import { subscribeToPath } from '@/lib/firebaseRealtimeDb';
 import * as gameActionClient from '@/services/gameActionClient';
-import { subscribeToPath, setData } from '@/lib/firebaseRealtimeDb';
+import type { GameRoom,LobbyState } from '@/services/gameRoomService';
+import * as kuizuService from '@/services/kuizuService';
 import type {
-  Quiz,
-  Question,
-  QuizCategory,
-  QuizDifficulty,
-  SoloAnswer,
-  SoloResult,
-  KuizuHistoryEntry,
-  KuizuUserStats,
-  DailyChallenge,
-  DailyChallengeEntry,
-  CreateQuizInput,
-  CreateCustomQuizInput,
-  UpdateCustomQuizInput,
-  QRCodeResponse,
-  KuizuGameState,
-  KuizuPlayer,
-  KuizuPendingAction,
-  MultiplayerPhase,
+CreateCustomQuizInput,
+CreateQuizInput,
+DailyChallenge,
+DailyChallengeEntry,
+KuizuGameState,
+KuizuHistoryEntry,
+KuizuPlayer,
+KuizuUserStats,
+QRCodeResponse,
+Question,
+Quiz,
+SoloAnswer,
+SoloResult,
+UpdateCustomQuizInput
 } from '@/types/kuizu';
 import { calculatePoints } from '@/types/kuizu';
-import type { GameRoom, LobbyState } from '@/services/gameRoomService';
+import { useCallback,useEffect,useRef,useState } from 'react';
 
 type PasscodeRequiredQuiz = Pick<Quiz, 'id' | 'title'> & {
   requiresPasscode?: boolean;

@@ -1,42 +1,40 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { GroupCard, SettliLogo } from '@/components/settli';
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion';
-import {
-  Plus,
-  History,
-  Calculator,
-  Users,
-  ArrowRight,
-  Share2,
-  QrCode,
-  Lock,
-  Globe,
-  ChevronRight,
-  Loader2,
-  Clock,
-  Sparkles,
-  Zap,
-  Shield,
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { useAuth } from '@/providers/AuthProvider';
-import { GroupCard, SettliLogo } from '@/components/settli';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import { useSettliHistory } from '@/hooks/useSettli';
+import { useAuth } from '@/providers/AuthProvider';
 import * as settliService from '@/services/settliService';
 import type { SettliGroup } from '@/types/settli';
+import {
+  ArrowRight,
+  Calculator,
+  ChevronRight,
+  Clock,
+  Globe,
+  History,
+  Loader2,
+  Plus,
+  Share2,
+  Shield,
+  Sparkles,
+  Users,
+  Zap,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { toast } from 'sonner';
 import styles from '../tool-landing.module.css';
 
 // Local storage key for anonymous users

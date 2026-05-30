@@ -1,7 +1,7 @@
 'use client';
 
-import { QuizCategory, QUIZ_CATEGORY_LABELS, QUIZ_CATEGORY_EMOJI } from '@/types/kuizu';
 import { Card } from '@/components/ui/card';
+import { QUIZ_CATEGORY_EMOJI,QUIZ_CATEGORY_LABELS,QuizCategory } from '@/types/kuizu';
 import { useTranslation } from 'react-i18next';
 
 interface CategorySelectorProps {
@@ -11,7 +11,7 @@ interface CategorySelectorProps {
 }
 
 export function CategorySelector({ selected, onSelect, disabled }: CategorySelectorProps) {
-  const { t } = useTranslation();
+  const { t: _t } = useTranslation();
 
   // Get all categories except CUSTOM
   const categories = Object.values(QuizCategory).filter(

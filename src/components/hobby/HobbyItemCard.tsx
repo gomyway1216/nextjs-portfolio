@@ -1,10 +1,10 @@
 'use client';
 
-import Link from 'next/link';
-import Image from 'next/image';
-import type { HobbyItem, HobbyCategory, CustomFieldType, CustomField } from '@/types/hobby';
-import { Star, MapPin, Calendar, ExternalLink } from 'lucide-react';
 import { useResolvedRelation } from '@/hooks/useHobbies';
+import type { CustomField,CustomFieldType,HobbyCategory,HobbyItem } from '@/types/hobby';
+import { Calendar,ExternalLink,MapPin,Star } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
 
 export type Language = 'en' | 'ja';
 
@@ -194,7 +194,7 @@ export default function HobbyItemCard({ item, hobby, showLink = true, language =
   // Get the appropriate title/name based on language
   const getDisplayTitle = () => {
     const nameEnglish = item.customFields?.nameEnglish as string | undefined;
-    const nameKanji = item.customFields?.nameKanji as string | undefined;
+    const _nameKanji = item.customFields?.nameKanji as string | undefined;
 
     if (language === 'en' && nameEnglish) {
       return nameEnglish;
@@ -206,7 +206,7 @@ export default function HobbyItemCard({ item, hobby, showLink = true, language =
   const getSecondaryName = () => {
     const nameEnglish = item.customFields?.nameEnglish as string | undefined;
     const nameKanji = item.customFields?.nameKanji as string | undefined;
-    const nameKana = item.customFields?.nameKana as string | undefined;
+    const _nameKana = item.customFields?.nameKana as string | undefined;
 
     if (language === 'en') {
       // Show Japanese name as secondary

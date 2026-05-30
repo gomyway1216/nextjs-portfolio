@@ -6,25 +6,25 @@
 
 'use client';
 
-import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { RotateCcw, Loader2 } from 'lucide-react';
-import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStats } from '../common';
-import { Board } from './Board';
-import {
-  BOARD_SIZE,
-  BLACK,
-  WHITE,
-  EMPTY,
-  Color,
-  Point,
-  pointToString,
-} from './types';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { Loader2,RotateCcw } from 'lucide-react';
+import React,{ useCallback,useEffect,useRef,useState } from 'react';
+import { Difficulty,GameStats,GameTopBar,InfoModal } from '../common';
 import { OthelloAI } from './AI';
+import { Board } from './Board';
 import { initMobilityTables } from './MobilityTable';
-import { useOthelloMultiplayer } from './useOthelloMultiplayer';
 import { OthelloMultiplayerLobby } from './OthelloMultiplayerLobby';
 import type { MoveHistoryEntry } from './multiplayerTypes';
-import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import {
+BLACK,
+BOARD_SIZE,
+Color,
+EMPTY,
+Point,
+pointToString,
+WHITE,
+} from './types';
+import { useOthelloMultiplayer } from './useOthelloMultiplayer';
 
 const DIFFICULTY_OPTIONS = [
   { label: 'Easy', value: 'easy' as Difficulty, description: 'Depth 2 search' },
@@ -46,7 +46,7 @@ interface OthelloState {
 type GameMode = 'menu' | 'ai' | 'multiplayer';
 
 const Othello = () => {
-  const lifecycle = useFeatureLifecycle('game.othello');
+  const _lifecycle = useFeatureLifecycle('game.othello');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium');
   const [playerColor, setPlayerColor] = useState<Color>(BLACK);
@@ -534,7 +534,7 @@ const Othello = () => {
   }, [multiplayer]);
 
   // Legacy startGame for backwards compatibility
-  const startGame = startAIGame;
+  const _startGame = startAIGame;
 
   // Styles
   const containerStyle: React.CSSProperties = {
@@ -902,8 +902,8 @@ const Othello = () => {
     );
   }
 
-  const isPlayerTurn = gameState.board.getCurrentColor() === playerColor && !gameState.gameOver;
-  const isAITurn = gameState.board.getCurrentColor() === aiColor && !gameState.gameOver;
+  const _isPlayerTurn = gameState.board.getCurrentColor() === playerColor && !gameState.gameOver;
+  const _isAITurn = gameState.board.getCurrentColor() === aiColor && !gameState.gameOver;
 
   return (
     <div style={containerStyle}>

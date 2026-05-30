@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { Question, QuestionType } from '@/types/kuizu';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { OptionButton } from './OptionButton';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Question,QuestionType } from '@/types/kuizu';
+import { CheckCircle,XCircle } from 'lucide-react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { CheckCircle, XCircle } from 'lucide-react';
+import { OptionButton } from './OptionButton';
 
 interface QuestionDisplayProps {
   question: Question;
@@ -72,7 +72,7 @@ export function QuestionDisplay({
 
         return (
           <div className="flex gap-4 justify-center">
-            {[trueOption, falseOption].filter(Boolean).map((option, index) => {
+            {[trueOption, falseOption].filter(Boolean).map((option, _index) => {
               if (!option) return null;
               const isSelected = selectedAnswer === option.id;
               const isCorrect = showResult && option.id === question.correctOptionId;

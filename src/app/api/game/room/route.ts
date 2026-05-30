@@ -4,8 +4,8 @@
  * GET /api/game/room?roomId=XXX - Get room info
  */
 
-import { NextRequest, NextResponse } from 'next/server';
 import * as gameRoom from '@/lib/gameRoom';
+import { NextRequest,NextResponse } from 'next/server';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
@@ -59,7 +59,7 @@ export const GET = withActivityLog('next_api.game.room.GET', async (request: Nex
     }
 
     // Don't send the password hash to client
-    const { password, ...safeRoom } = room;
+    const { password: _password, ...safeRoom } = room;
     return NextResponse.json({ success: true, room: safeRoom });
   } catch (error) {
     console.error('Error getting room:', error);

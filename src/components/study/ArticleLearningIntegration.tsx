@@ -1,14 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
-import { useRouter } from "next/navigation";
-import {
-  StudyArticle,
-  LearningSourceType,
-  CreateLearningEntryRequest,
-} from "@/types/study";
 import { createLearningEntry } from "@/services/studyService";
-import { BookOpen, Plus, Sparkles, Check, Loader2, ExternalLink } from "lucide-react";
+import {
+CreateLearningEntryRequest,
+LearningSourceType,
+StudyArticle,
+} from "@/types/study";
+import { BookOpen,Check,Loader2,Plus,Sparkles } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 interface ArticleLearningIntegrationProps {
   article: StudyArticle;
@@ -17,7 +17,7 @@ interface ArticleLearningIntegrationProps {
 
 export default function ArticleLearningIntegration({
   article,
-  onClose,
+  onClose: _onClose,
 }: ArticleLearningIntegrationProps) {
   const router = useRouter();
   const [isCreating, setIsCreating] = useState(false);

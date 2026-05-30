@@ -2,25 +2,25 @@
 @plugin "@tailwindcss/typography";
 
 :root {
-  --background: hsl(0 0% 100%);
-  --foreground: hsl(0 0% 3.9%);
+  --background: hsl(220 20% 98%);
+  --foreground: hsl(222 22% 8%);
   --card: hsl(0 0% 100%);
-  --card-foreground: hsl(0 0% 3.9%);
+  --card-foreground: hsl(222 22% 8%);
   --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(0 0% 3.9%);
-  --primary: hsl(0 0% 9%);
+  --popover-foreground: hsl(222 22% 8%);
+  --primary: hsl(214 100% 47%);
   --primary-foreground: hsl(0 0% 98%);
-  --secondary: hsl(0 0% 96.1%);
-  --secondary-foreground: hsl(0 0% 9%);
-  --muted: hsl(0 0% 96.1%);
-  --muted-foreground: hsl(0 0% 45.1%);
-  --accent: hsl(0 0% 96.1%);
-  --accent-foreground: hsl(0 0% 9%);
+  --secondary: hsl(210 24% 94%);
+  --secondary-foreground: hsl(222 22% 10%);
+  --muted: hsl(210 24% 94%);
+  --muted-foreground: hsl(219 12% 38%);
+  --accent: hsl(210 24% 94%);
+  --accent-foreground: hsl(222 22% 10%);
   --destructive: hsl(0 84.2% 60.2%);
   --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(0 0% 89.8%);
-  --input: hsl(0 0% 89.8%);
-  --ring: hsl(0 0% 3.9%);
+  --border: hsl(220 17% 88%);
+  --input: hsl(220 17% 88%);
+  --ring: hsl(214 100% 47%);
   --chart-1: hsl(12 76% 61%);
   --chart-2: hsl(173 58% 39%);
   --chart-3: hsl(197 37% 24%);
@@ -30,25 +30,25 @@
 }
 
 .dark {
-  --background: hsl(0 0% 3.9%);
-  --foreground: hsl(0 0% 98%);
-  --card: hsl(0 0% 3.9%);
-  --card-foreground: hsl(0 0% 98%);
-  --popover: hsl(0 0% 3.9%);
-  --popover-foreground: hsl(0 0% 98%);
-  --primary: hsl(0 0% 98%);
-  --primary-foreground: hsl(0 0% 9%);
-  --secondary: hsl(0 0% 14.9%);
-  --secondary-foreground: hsl(0 0% 98%);
-  --muted: hsl(0 0% 14.9%);
-  --muted-foreground: hsl(0 0% 63.9%);
-  --accent: hsl(0 0% 14.9%);
-  --accent-foreground: hsl(0 0% 98%);
+  --background: hsl(220 18% 5%);
+  --foreground: hsl(220 18% 96%);
+  --card: hsl(220 16% 9%);
+  --card-foreground: hsl(220 18% 96%);
+  --popover: hsl(220 16% 9%);
+  --popover-foreground: hsl(220 18% 96%);
+  --primary: hsl(211 100% 66%);
+  --primary-foreground: hsl(220 18% 5%);
+  --secondary: hsl(219 14% 15%);
+  --secondary-foreground: hsl(220 18% 96%);
+  --muted: hsl(219 14% 15%);
+  --muted-foreground: hsl(219 13% 68%);
+  --accent: hsl(219 14% 15%);
+  --accent-foreground: hsl(220 18% 96%);
   --destructive: hsl(0 62.8% 30.6%);
   --destructive-foreground: hsl(0 0% 98%);
-  --border: hsl(0 0% 14.9%);
-  --input: hsl(0 0% 14.9%);
-  --ring: hsl(0 0% 83.1%);
+  --border: hsl(219 13% 20%);
+  --input: hsl(219 13% 20%);
+  --ring: hsl(211 100% 66%);
   --chart-1: hsl(220 70% 50%);
   --chart-2: hsl(160 60% 45%);
   --chart-3: hsl(30 80% 55%);
@@ -96,6 +96,21 @@
   }
 }
 
+html,
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+.dark h1,
+.dark h2,
+.dark h3,
+.dark h4,
+.dark h5,
+.dark h6 {
+  color: var(--foreground);
+}
+
 /* Override Bootstrap's button reset - must be unlayered to override Bootstrap */
 button[data-slot="select-trigger"] {
   border-radius: var(--radius-md, 0.375rem);
@@ -105,6 +120,6 @@ button[data-slot="select-trigger"] {
    transition inline; the hover state can't be expressed in React inline
    styles, so the actual hover treatment lives here. */
 .case-study-card:hover {
-  border-color: #a855f7 !important;
+  border-color: color-mix(in srgb, var(--primary) 36%, var(--border)) !important;
   transform: translateY(-2px);
 }

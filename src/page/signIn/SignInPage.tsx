@@ -13,6 +13,7 @@ import { AlertCircle, Shield, ArrowLeft, Mail, Phone, MessageSquare, Loader2, Lo
 import { resetPassword } from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
 import { getErrorCode, getErrorMessage } from '@/lib/errorUtils';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 type AuthMode = 'signin' | 'signup';
 
@@ -254,7 +255,8 @@ const SignInPage = () => {
   if (twoFactorRequired) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-6 relative">
-        <div className="absolute top-4 right-4 flex gap-1">
+        <div className="absolute top-4 right-4 flex items-center gap-2">
+          <ThemeToggle />
           <button
             type="button"
             onClick={() => i18n.changeLanguage('en')}
@@ -350,7 +352,8 @@ const SignInPage = () => {
   // Sign in / Sign up form
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-6 relative">
-      <div className="absolute top-4 right-4 flex gap-1">
+      <div className="absolute top-4 right-4 flex items-center gap-2">
+        <ThemeToggle />
         <button
           type="button"
           onClick={() => i18n.changeLanguage('en')}

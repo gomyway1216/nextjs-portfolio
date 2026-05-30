@@ -19,7 +19,6 @@ interface PlayerPosition {
 
 interface DaifugoTableViewProps {
   gameState: DaifugoNetworkState;
-  myPlayerId: string;
   playerSummaries: PlayerPosition[];
   pileCards: Card[];
   isReversed: boolean;

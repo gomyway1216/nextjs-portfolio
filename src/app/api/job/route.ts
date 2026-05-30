@@ -7,6 +7,7 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // Fields the PUT/POST endpoints accept. companyName is the lookup key
 // for PUT and a required field for POST; the rest are optional updates.
 const EDITABLE_STRING_FIELDS = [
+  'companyName',
   'jobPosition',
   'jobPositionJa',
   'jobDuration',
@@ -91,7 +92,16 @@ export const POST = withActivityLog('next_api.job.POST', async (request: NextReq
   if (!user) return authResponse;
 
   try {
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      const parsed = await request.json();
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return NextResponse.json({ error: 'Request body must be an object' }, { status: 400 });
+      }
+      body = parsed as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const companyName = typeof body.companyName === 'string' ? body.companyName.trim() : '';
     const jobPosition = typeof body.jobPosition === 'string' ? body.jobPosition.trim() : '';
 
@@ -137,7 +147,16 @@ export const PUT = withActivityLog('next_api.job.PUT', async (request: NextReque
   if (!user) return authResponse;
 
   try {
-    const body = await request.json();
+    let body: Record<string, unknown>;
+    try {
+      const parsed = await request.json();
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return NextResponse.json({ error: 'Request body must be an object' }, { status: 400 });
+      }
+      body = parsed as Record<string, unknown>;
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    }
     const id = typeof body.id === 'string' ? body.id : undefined;
     const companyName = typeof body.companyName === 'string' ? body.companyName : undefined;
 

@@ -386,6 +386,9 @@ const AdminPage = () => {
 
   // Full-job edit / create form. `null` = no form open; `'new'` = create
   // mode (POST), any other id = edit mode (PUT by id).
+  // `order` is kept as a string so the controlled <input type="number">
+  // accepts intermediate values like "" or "-" without being eagerly
+  // parsed into NaN/0. We coerce to a Number at submit.
   const [jobFormMode, setJobFormMode] = useState<null | 'new' | string>(null);
   const [jobForm, setJobForm] = useState({
     companyName: '',
@@ -396,7 +399,7 @@ const AdminPage = () => {
     jobDuration: '',
     jobDescription: '',
     jobDescriptionJa: '',
-    order: 0,
+    order: '0',
     technologies: '',
   });
 
@@ -1029,7 +1032,7 @@ const AdminPage = () => {
       jobDuration: typeof j.jobDuration === 'string' ? j.jobDuration : '',
       jobDescription: typeof j.jobDescription === 'string' ? j.jobDescription : '',
       jobDescriptionJa: typeof j.jobDescriptionJa === 'string' ? j.jobDescriptionJa : '',
-      order: typeof j.order === 'number' ? j.order : 0,
+      order: typeof j.order === 'number' ? String(j.order) : '0',
       technologies: techNames.join(', '),
     });
   };
@@ -1046,7 +1049,7 @@ const AdminPage = () => {
       jobDuration: '',
       jobDescription: '',
       jobDescriptionJa: '',
-      order: jobs.length > 0 ? Math.max(...jobs.map(j => (j as unknown as { order?: number }).order || 0)) + 1 : 0,
+      order: jobs.length > 0 ? String(Math.max(...jobs.map(j => (j as unknown as { order?: number }).order || 0)) + 1) : '0',
       technologies: '',
     });
   };
@@ -1062,10 +1065,21 @@ const AdminPage = () => {
       return;
     }
 
-    const techArray = jobForm.technologies
+    const inputNames = jobForm.technologies
       .split(',')
       .map(t => t.trim())
       .filter(Boolean);
+
+    // Preserve technology objects ({name, id, type}) when the user
+    // didn't rename them — otherwise every edit silently downgrades
+    // them to plain strings and loses the id/type metadata.
+    const originalTechs = (isCreate
+      ? []
+      : jobs.find(j => j.id === jobFormMode)?.technologies) || [];
+    const techArray = inputNames.map(name => {
+      const match = originalTechs.find(t => getTechName(t) === name);
+      return match ?? name;
+    });
 
     const payload: Record<string, unknown> = {
       companyName: jobForm.companyName.trim(),
@@ -1076,7 +1090,7 @@ const AdminPage = () => {
       jobDuration: jobForm.jobDuration,
       jobDescription: jobForm.jobDescription,
       jobDescriptionJa: jobForm.jobDescriptionJa,
-      order: jobForm.order,
+      order: Number(jobForm.order) || 0,
       technologies: techArray,
     };
 
@@ -1153,7 +1167,7 @@ const AdminPage = () => {
           <input
             type="number"
             value={jobForm.order}
-            onChange={(e) => setJobForm({ ...jobForm, order: Number(e.target.value) || 0 })}
+            onChange={(e) => setJobForm({ ...jobForm, order: e.target.value })}
             style={styles.input}
           />
         </div>

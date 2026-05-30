@@ -56,17 +56,12 @@ const getLocalizedJobValue = (
 ) => {
   const jobId = String(job.id ?? '');
   const companyKey = slugify(String(job.companyName ?? ''));
-  const translationCandidates = [
-    `home.resume.jobs.${jobId}.${baseField}`,
-    `home.resume.jobsByCompany.${companyKey}.${baseField}`,
-  ];
 
-  for (const key of translationCandidates) {
-    if (exists(key)) {
-      return t(key);
-    }
-  }
-
+  // 1. Admin-managed Firestore JA fields take priority. These are what
+  //    the admin Jobs editor writes, so editing a job there must win.
+  //    Previously the i18n translation keys below were checked first,
+  //    which meant legacy hardcoded JA copy in common.json shadowed any
+  //    admin edit — the job looked "stuck" on its old Japanese text.
   if (language === 'ja') {
     const jaPaths = [
       `${baseField}Ja`,
@@ -89,6 +84,21 @@ const getLocalizedJobValue = (
     }
   }
 
+  // 2. i18n translation keys — legacy hardcoded per-company copy in
+  //    common.json. Now only a fallback for jobs without a Firestore
+  //    localized value.
+  const translationCandidates = [
+    `home.resume.jobs.${jobId}.${baseField}`,
+    `home.resume.jobsByCompany.${companyKey}.${baseField}`,
+  ];
+
+  for (const key of translationCandidates) {
+    if (exists(key)) {
+      return t(key);
+    }
+  }
+
+  // 3. English / base Firestore fields — final fallback for both locales.
   const enPaths = [
     `${baseField}En`,
     `${baseField}EN`,

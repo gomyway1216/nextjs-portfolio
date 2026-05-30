@@ -99,8 +99,8 @@ export default async function GamesPage() {
     category,
     count: games.filter((game) => game.category === category).length,
   }));
-  const categoryCountLabel = locale === 'en' ? 'Categories' : t('games.category.label');
-  const difficultyCountLabel = locale === 'en' ? 'Difficulties' : t('games.difficulty.label');
+  const categoryCountLabel = t('games.category.labelPlural');
+  const difficultyCountLabel = t('games.difficulty.labelPlural');
 
   return (
     <main className={styles.page}>

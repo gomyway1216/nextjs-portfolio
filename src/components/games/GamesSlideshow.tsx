@@ -20,18 +20,6 @@ import {
 } from '@/components/game/contexts/GameLanguageContext';
 import './games-carousel.scss';
 
-function jumpToTopBeforeRouteChange() {
-  const root = document.documentElement;
-  const previousScrollBehavior = root.style.scrollBehavior;
-
-  root.style.scrollBehavior = 'auto';
-  window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
-
-  requestAnimationFrame(() => {
-    root.style.scrollBehavior = previousScrollBehavior;
-  });
-}
-
 function GamesSlideshowContent() {
   const { t } = useTranslation();
 
@@ -148,8 +136,6 @@ function GamesSlideshowContent() {
                   <Link
                     className="game-card-wrapper"
                     href={game.path}
-                    onClick={jumpToTopBeforeRouteChange}
-                    scroll={false}
                   >
                     <div className="blog-grid modern-card">
                       <div className="blog-img">
@@ -202,8 +188,6 @@ function GamesSlideshowContent() {
         <Link
           className="px-btn px-btn-theme games-view-all__link"
           href="/games"
-          onClick={jumpToTopBeforeRouteChange}
-          scroll={false}
         >
           <span>
             {t('games.viewAllGames')}

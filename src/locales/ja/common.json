@@ -78,12 +78,14 @@
     "features": "特徴",
     "difficulty": {
       "label": "難易度",
+      "labelPlural": "難易度",
       "easy": "簡単",
       "medium": "普通",
       "hard": "難しい"
     },
     "category": {
       "label": "カテゴリー",
+      "labelPlural": "カテゴリー",
       "arcade": "アーケード",
       "strategy": "戦略",
       "puzzle": "パズル",

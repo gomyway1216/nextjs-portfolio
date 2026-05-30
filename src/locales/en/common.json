@@ -78,12 +78,14 @@
     "features": "Features",
     "difficulty": {
       "label": "Difficulty",
+      "labelPlural": "Difficulties",
       "easy": "Easy",
       "medium": "Medium",
       "hard": "Hard"
     },
     "category": {
       "label": "Category",
+      "labelPlural": "Categories",
       "arcade": "Arcade",
       "strategy": "Strategy",
       "puzzle": "Puzzle",

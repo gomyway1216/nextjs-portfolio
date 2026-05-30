@@ -15,8 +15,16 @@ function isValidId(id: unknown): id is string {
   return typeof id === 'string' && ID_PATTERN.test(id);
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error);
+}
+
 function isFirebaseAdminUnavailable(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
+  const message = getErrorMessage(error);
   return (
     message.includes('Firebase projectId is required') ||
     message.includes('Initialization attempted during build phase') ||

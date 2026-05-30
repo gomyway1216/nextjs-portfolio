@@ -145,6 +145,7 @@ export const sendVerificationEmail = () => {
 let inFlightAnonSignIn: Promise<boolean> | null = null;
 
 export async function ensureSignedIn(): Promise<boolean> {
+  if (!isFirebaseClientConfigured) return false;
   if (auth.currentUser) return true;
   if (inFlightAnonSignIn) return inFlightAnonSignIn;
 

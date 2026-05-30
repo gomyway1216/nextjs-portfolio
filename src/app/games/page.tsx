@@ -79,7 +79,7 @@ const difficultyColor = {
 } as const;
 
 function isCategory(category: string): category is Category {
-  return category in categoryAccent;
+  return Object.prototype.hasOwnProperty.call(categoryAccent, category);
 }
 
 function getCardStyle(category: string, difficulty: keyof typeof difficultyColor): CSSProperties {

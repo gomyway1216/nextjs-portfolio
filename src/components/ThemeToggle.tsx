@@ -13,7 +13,11 @@ export function ThemeToggle({ accent }: { accent?: string }) {
     setMounted(true);
   }, []);
 
-  const isDark = mounted && resolvedTheme === 'dark';
+  if (!mounted) {
+    return <div className="h-8 w-8 shrink-0" />;
+  }
+
+  const isDark = resolvedTheme === 'dark';
 
   return (
     <Button

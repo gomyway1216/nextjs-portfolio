@@ -1,9 +1,8 @@
 'use client';
 
+import type { ShoppingItem,Store as StoreType } from '@/types/kaimono';
+import { ChevronDown,ChevronRight,Store } from 'lucide-react';
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronRight, Store } from 'lucide-react';
-import type { ShoppingItem, Store as StoreType } from '@/types/kaimono';
 import { ShoppingItemCard } from './ShoppingItemCard';
 
 interface StoreSectionProps {

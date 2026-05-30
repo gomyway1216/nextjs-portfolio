@@ -1,14 +1,14 @@
 'use client';
-import React, { useEffect, useState } from 'react';
-import Image from 'next/image';
-import { Tab, Tabs, TabList, TabPanel } from 'react-tabs';
-import 'photoswipe/dist/photoswipe.css';
-import PortfolioModal from './PortfolioModal';
-import * as projectApi from '@/services/projectsService';
-import type { Project } from '@/services/projectsService';
 import * as util from '@/lib/utils/util';
+import type { Project } from '@/services/projectsService';
+import * as projectApi from '@/services/projectsService';
+import Image from 'next/image';
+import 'photoswipe/dist/photoswipe.css';
+import { useEffect,useState } from 'react';
+import { Tab,TabList,TabPanel,Tabs } from 'react-tabs';
+import PortfolioModal from './PortfolioModal';
 
-const breakpointColumnsObj = {
+const _breakpointColumnsObj = {
   default: 3,
   1100: 3,
   700: 2,

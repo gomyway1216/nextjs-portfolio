@@ -1,13 +1,25 @@
-import {
-  SENTE, GOTE, EMPTY, WALL, PROMOTE,
-  FU, KY, KE, GI, KI, KA, HI, OU,
-  SFU, SKY, SKE, SGI, SKI, SKA, SHI, SOU,
-  GFU, GKY, GKE, GGI, GKI, GKA, GHI, GOU,
-  Te, isSente, isGote, isSelf, isEnemy, getKomashu, canPromote, komaValue
-} from './types';
 import { KyokumenImproved } from './KyokumenImproved';
-import { TTEntryImproved } from './TTEntryImproved';
 import { MoveListImproved } from './MoveListImproved';
+import { TTEntryImproved } from './TTEntryImproved';
+import {
+EMPTY,
+FU,
+GI,
+GOTE,
+HI,
+KA,
+KE,
+KI,
+KY,
+SENTE,
+Te,
+WALL,
+canPromote,
+getKomashu,
+isEnemy,
+isSelf,
+komaValue
+} from './types';
 
 // Move directions (matching KomaMoves.java)
 const diffDan = [1, 1, 1, 0, 0, -1, -1, -1, -2, -2, 2, 2];

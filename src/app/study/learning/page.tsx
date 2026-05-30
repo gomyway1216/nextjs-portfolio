@@ -1,39 +1,37 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import {
-  BookOpen,
-  Brain,
-  FileText,
-  Plus,
-  Search,
-  Filter,
-  Clock,
-  Flame,
-  Target,
-  BookMarked,
-  Layers,
-  Zap,
-  ChevronRight,
-  Book,
-  Video,
-  Code,
-  Briefcase,
-  MessageCircle,
-  Mic,
-  Globe,
-  MoreHorizontal,
-} from 'lucide-react';
-import { useAuth } from '@/providers/AuthProvider';
-import {
-  useLearningEntries,
-  useLearningStats,
-  useSpacedRepetition,
-  useDictionary,
-  useQuickCapture,
+useLearningEntries,
+useLearningStats,
+useQuickCapture,
+useSpacedRepetition,
 } from '@/hooks/useStudy';
+import { useAuth } from '@/providers/AuthProvider';
 import { LearningSourceType } from '@/types/study';
+import {
+Book,
+BookMarked,
+BookOpen,
+Brain,
+Briefcase,
+ChevronRight,
+Clock,
+Code,
+FileText,
+Flame,
+Globe,
+Layers,
+MessageCircle,
+Mic,
+MoreHorizontal,
+Plus,
+Search,
+Target,
+Video,
+Zap
+} from 'lucide-react';
+import Link from 'next/link';
+import { useState } from 'react';
 
 const SOURCE_TYPE_ICONS: Record<LearningSourceType, React.ReactNode> = {
   [LearningSourceType.BOOK]: <Book size={16} />,
@@ -64,9 +62,8 @@ const SOURCE_TYPE_LABELS: Record<LearningSourceType, string> = {
 export default function LearningHubPage() {
   const { currentUser } = useAuth();
   const { entries, loading: entriesLoading } = useLearningEntries();
-  const { stats, loading: statsLoading } = useLearningStats();
-  const { totalDue, loading: reviewLoading } = useSpacedRepetition();
-  const { terms, loading: termsLoading } = useDictionary();
+  const { stats } = useLearningStats();
+  const { totalDue } = useSpacedRepetition();
   const { captures, createCapture } = useQuickCapture();
 
   const [searchQuery, setSearchQuery] = useState('');

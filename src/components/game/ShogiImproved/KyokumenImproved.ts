@@ -1,9 +1,44 @@
 import {
-  SENTE, GOTE, EMPTY, WALL,
-  SFU, SKY, SKE, SGI, SKI, SKA, SHI, SOU, STO, SNY, SNK, SNG, SUM, SRY,
-  GFU, GKY, GKE, GGI, GKI, GKA, GHI, GOU, GTO, GNY, GNK, GNG, GUM, GRY,
-  FU, KY, KE, GI, KI, KA, HI, OU, TO, NY, NK, NG, UM, RY, PROMOTE,
-  Te, komaValue, isSente, isGote, isSelf
+EMPTY,
+FU,
+GFU,
+GGI,
+GHI,
+GI,
+GKA,
+GKE,
+GKI,
+GKY,
+GOTE,
+GOU,
+GRY,
+HI,
+KA,
+KE,
+KI,
+KY,
+NG,
+NK,
+NY,
+OU,
+PROMOTE,
+RY,
+SENTE,
+SFU,
+SGI,
+SHI,
+SKA,
+SKE,
+SKI,
+SKY,
+SOU,
+TO,
+Te,
+UM,
+WALL,
+isGote,isSelf,
+isSente,
+komaValue
 } from './types';
 
 /**
@@ -1542,7 +1577,7 @@ export class KyokumenImproved {
 
   // Convert to string for display
   toString(): string {
-    const sujiStr = ["", "１", "２", "３", "４", "５", "６", "７", "８", "９"];
+    const _sujiStr = ["", "１", "２", "３", "４", "５", "６", "７", "８", "９"];
     const danStr = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九"];
     let s = "";
 

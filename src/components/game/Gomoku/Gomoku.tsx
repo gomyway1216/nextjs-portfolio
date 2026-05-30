@@ -4,12 +4,12 @@
 
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
-import { RotateCcw } from 'lucide-react';
-import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStatus, GameStats } from '../common';
-import { Player, Position, BOARD_SIZE, PLAYER, AI } from './types';
-import { checkWinFromPosition, isBoardFull, getBestMove } from './GomokuAI';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { RotateCcw } from 'lucide-react';
+import { useEffect,useRef,useState } from 'react';
+import { Difficulty,DifficultySelector,GameStats,GameStatus,GameTopBar,InfoModal } from '../common';
+import { checkWinFromPosition,getBestMove,isBoardFull } from './GomokuAI';
+import { AI,BOARD_SIZE,Player,PLAYER,Position } from './types';
 
 const DIFFICULTY_OPTIONS = [
   { value: 'easy' as Difficulty, label: 'Easy', description: 'AI searches 2 moves ahead' },
@@ -18,7 +18,7 @@ const DIFFICULTY_OPTIONS = [
 ];
 
 const Gomoku = () => {
-  const lifecycle = useFeatureLifecycle('game.gomoku');
+  const _lifecycle = useFeatureLifecycle('game.gomoku');
   const [board, setBoard] = useState<Player[][]>(
     Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(null))
   );
@@ -202,7 +202,7 @@ const Gomoku = () => {
               {gameStatus === 'draw' && (
                 <div>
                   <div style={{ color: '#eab308', fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                    It's a Draw!
+                    It&apos;s a Draw!
                   </div>
                   <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
                     The board is full!
@@ -458,8 +458,8 @@ const Gomoku = () => {
             <div style={{ color: '#0ea5e9', fontWeight: '600', marginBottom: '0.5rem' }}>💡 Pro Tips</div>
             <ul style={{ color: '#d1d5db', fontSize: '0.875rem', paddingLeft: '1.5rem', margin: 0 }}>
               <li>Opening in the center gives you more options</li>
-              <li>Create "threats" - positions where you have multiple ways to win</li>
-              <li>Always block opponent's four in a row!</li>
+              <li>Create &quot;threats&quot; - positions where you have multiple ways to win</li>
+              <li>Always block opponent&apos;s four in a row!</li>
               <li>Try to create open threes (three in a row with open ends)</li>
               <li>Control the center of the board for better positioning</li>
             </ul>

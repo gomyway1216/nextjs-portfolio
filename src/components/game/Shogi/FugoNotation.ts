@@ -2,7 +2,7 @@
  * Fugo Notation - Convert moves to Japanese Shogi notation
  */
 
-import { Te, Position, getKomashu, toString, isSente } from './types';
+import { Te,isSente,toString } from './types';
 
 // Japanese numbers for columns (suji)
 const SUJI_KANJI = ['', '１', '２', '３', '４', '５', '６', '７', '８', '９'];

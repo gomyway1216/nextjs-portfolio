@@ -1,12 +1,11 @@
 'use client';
 
-import React from 'react';
-import { PlayingCard, CardBack } from './PlayingCard';
-import { rankToLabel } from './types';
-import type { Card } from './types';
-import { daifugoRankToLabel } from './multiplayerTypes';
-import type { DaifugoNetworkState, DaifugoRank } from './multiplayerTypes';
 import type { DaifugoUITranslations } from '../constants/gameTranslations';
+import type { DaifugoNetworkState,DaifugoRank } from './multiplayerTypes';
+import { daifugoRankToLabel } from './multiplayerTypes';
+import { CardBack,PlayingCard } from './PlayingCard';
+import type { Card } from './types';
+import { rankToLabel } from './types';
 
 interface PlayerPosition {
   id: string;
@@ -20,7 +19,6 @@ interface PlayerPosition {
 
 interface DaifugoTableViewProps {
   gameState: DaifugoNetworkState;
-  myPlayerId: string;
   playerSummaries: PlayerPosition[];
   pileCards: Card[];
   isReversed: boolean;
@@ -170,7 +168,6 @@ function PlayerAvatar({
 
 export function DaifugoTableView({
   gameState,
-  myPlayerId,
   playerSummaries,
   pileCards,
   isReversed,

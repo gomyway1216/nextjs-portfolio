@@ -4,12 +4,12 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
-import { RotateCcw } from 'lucide-react';
-import { GameTopBar, DifficultySelector, InfoModal, Difficulty, GameStatus, GameStats } from '../common';
-import { Player, PLAYER, AI } from './types';
-import { checkWinner, isBoardFull, getBestMove } from './TicTacToeAI';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { RotateCcw } from 'lucide-react';
+import { useEffect,useState } from 'react';
+import { Difficulty,DifficultySelector,GameStats,GameStatus,GameTopBar,InfoModal } from '../common';
+import { checkWinner,getBestMove,isBoardFull } from './TicTacToeAI';
+import { AI,Player,PLAYER } from './types';
 
 const DIFFICULTY_OPTIONS = [
   { value: 'easy' as Difficulty, label: 'Easy', description: 'AI makes random moves' },
@@ -18,7 +18,7 @@ const DIFFICULTY_OPTIONS = [
 ];
 
 const TicTacToe = () => {
-  const lifecycle = useFeatureLifecycle('game.tic-tac-toe');
+  const _lifecycle = useFeatureLifecycle('game.tic-tac-toe');
   const [board, setBoard] = useState<Player[]>(Array(9).fill(null));
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [gameStatus, setGameStatus] = useState<GameStatus>('playing');
@@ -170,7 +170,7 @@ const TicTacToe = () => {
               {gameStatus === 'draw' && (
                 <div>
                   <div style={{ color: '#eab308', fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                    It's a Draw!
+                    It&apos;s a Draw!
                   </div>
                   <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Well played!</div>
                 </div>
@@ -314,7 +314,7 @@ const TicTacToe = () => {
             <ul style={{ color: '#d1d5db', fontSize: '0.875rem', paddingLeft: '1.5rem', margin: 0 }}>
               <li>Start in the center or corners for best strategy</li>
               <li>Always block the opponent when they have two in a row</li>
-              <li>Create "forks" - positions where you can win in two ways</li>
+              <li>Create &quot;forks&quot; - positions where you can win in two ways</li>
               <li>On Hard mode, the AI never makes mistakes!</li>
             </ul>
           </div>

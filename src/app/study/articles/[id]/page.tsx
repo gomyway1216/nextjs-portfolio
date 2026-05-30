@@ -1,52 +1,52 @@
 'use client';
 
-import React, { Suspense, useState, useRef, useEffect } from 'react';
-import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import {
-  useStudyArticle,
-  useArticleNotes,
-  useArticleChat,
-  useStudyCategories,
-  useStudyTopics,
-  useStudyQuizzes,
-  useArticleReadHistory,
-} from '@/hooks/useStudy';
-import { markArticleAsRead } from '@/services/studyService';
-import { useAuth } from '@/providers/AuthProvider';
-import { QuizDifficulty, ArticleNote, ChatMessage } from '@/types/study';
-import {
-  ArrowLeft,
-  Clock,
-  BookOpen,
-  MessageSquare,
-  StickyNote,
-  Check,
-  Send,
-  Loader2,
-  ExternalLink,
-  Edit3,
-  Trash2,
-  Copy,
-  CheckCircle,
-  Menu,
-  X,
-  GraduationCap,
-} from 'lucide-react';
 import ArticleLearningIntegration from '@/components/study/ArticleLearningIntegration';
 import AudioPlayer from '@/components/study/AudioPlayer';
+import {
+useArticleChat,
+useArticleNotes,
+useArticleReadHistory,
+useStudyArticle,
+useStudyCategories,
+useStudyQuizzes,
+useStudyTopics,
+} from '@/hooks/useStudy';
+import { useAuth } from '@/providers/AuthProvider';
+import { markArticleAsRead } from '@/services/studyService';
+import { ArticleNote,ChatMessage,QuizDifficulty } from '@/types/study';
+import {
+ArrowLeft,
+BookOpen,
+Check,
+CheckCircle,
+Clock,
+Copy,
+Edit3,
+ExternalLink,
+GraduationCap,
+Loader2,
+Menu,
+MessageSquare,
+Send,
+StickyNote,
+Trash2,
+X,
+} from 'lucide-react';
+import { useParams,useRouter,useSearchParams } from 'next/navigation';
+import React,{ Suspense,useEffect,useState } from 'react';
 // Prism.js for code highlighting
 import Prism from 'prismjs';
-import 'prismjs/themes/prism-tomorrow.css';
-import 'prismjs/components/prism-typescript';
-import 'prismjs/components/prism-javascript';
-import 'prismjs/components/prism-python';
-import 'prismjs/components/prism-java';
+import 'prismjs/components/prism-bash';
 import 'prismjs/components/prism-go';
+import 'prismjs/components/prism-java';
+import 'prismjs/components/prism-javascript';
+import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-python';
 import 'prismjs/components/prism-rust';
 import 'prismjs/components/prism-sql';
-import 'prismjs/components/prism-bash';
-import 'prismjs/components/prism-json';
+import 'prismjs/components/prism-typescript';
 import 'prismjs/components/prism-yaml';
+import 'prismjs/themes/prism-tomorrow.css';
 
 // Simple markdown renderer for chat messages
 function renderMarkdown(text: string): React.ReactNode {
@@ -422,7 +422,7 @@ function StudyArticlePageInner() {
   // Data hooks
   const { article, loading: articleLoading, error: articleError } = useStudyArticle(articleId);
   const { notes, createNote, updateNote, deleteNote, loading: notesLoading } = useArticleNotes(articleId);
-  const { chat, sendMessage, generateSummary, loading: chatLoading } = useArticleChat(articleId);
+  const { chat, sendMessage, generateSummary, loading: _chatLoading } = useArticleChat(articleId);
   const { categories } = useStudyCategories();
   const { topics } = useStudyTopics();
   const { quizzes } = useStudyQuizzes({ articleId });
@@ -432,7 +432,7 @@ function StudyArticlePageInner() {
 
   // Get category and topic info
   const category = categories.find((c) => c.id === article?.categoryId);
-  const topic = topics.find((t) => t.id === article?.topicId);
+  const _topic = topics.find((t) => t.id === article?.topicId);
 
   // Syntax highlighting
   useEffect(() => {
@@ -499,7 +499,7 @@ function StudyArticlePageInner() {
     }
   };
 
-  const handleGenerateSummary = async () => {
+  const _handleGenerateSummary = async () => {
     if (isGeneratingSummary) return;
     setIsGeneratingSummary(true);
     try {

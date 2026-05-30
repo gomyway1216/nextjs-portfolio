@@ -456,7 +456,7 @@ const Breakout: React.FC = () => {
           >
             <p>Break all the bricks to advance through 5 levels.</p>
             <p>Collect power-ups to help you along the way!</p>
-            <p>Don't let the ball fall below your paddle.</p>
+            <p>Don&apos;t let the ball fall below your paddle.</p>
           </div>
 
           <button

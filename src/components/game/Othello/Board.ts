@@ -3,21 +3,21 @@
  * Based on Thell 3.0.3 implementation
  */
 
+import { getMobilityTable } from './MobilityTable';
 import {
-  BOARD_SIZE,
-  MAX_TURNS,
-  EMPTY,
-  BLACK,
-  WHITE,
-  WALL,
-  Color,
-  Point,
-  Disc,
-  POWER3,
-  POINT_PRIORITY_LIST,
-  createDisc,
+BLACK,
+BOARD_SIZE,
+Color,
+createDisc,
+Disc,
+EMPTY,
+MAX_TURNS,
+Point,
+POINT_PRIORITY_LIST,
+POWER3,
+WALL,
+WHITE,
 } from './types';
-import { getMobilityTable, MobilityTable } from './MobilityTable';
 
 /**
  * Indexer for pattern-based evaluation

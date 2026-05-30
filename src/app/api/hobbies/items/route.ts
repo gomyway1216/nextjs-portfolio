@@ -1,12 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
-import { ensureAdmin, verifyIdToken, isAdmin } from '@/lib/auth-utils';
-import { HOBBIES_COLLECTION, HOBBY_ITEMS_COLLECTION, getCloudFunctionUrl } from '../../constants';
-import type { HobbyItem, CreateHobbyItemInput } from '@/types/hobby';
+import { ensureAdmin } from '@/lib/auth-utils';
+import { getFirestore,getServerTimestamp } from '@/lib/firebase-admin';
+import type { CreateHobbyItemInput } from '@/types/hobby';
+import { NextRequest,NextResponse } from 'next/server';
+import { HOBBIES_COLLECTION,HOBBY_ITEMS_COLLECTION,getCloudFunctionUrl } from '../../constants';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // Helper to extract token from request
-function getTokenFromRequest(request: NextRequest): string | null {
+function _getTokenFromRequest(request: NextRequest): string | null {
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return null;

@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useCallback, useRef, useEffect, type DragEvent, type ChangeEvent } from 'react';
+import { Button } from '@/components/ui/button';
+import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { cn } from '@/lib/utils/util';
+import { Clipboard,Eye,FileText,Pencil,Replace,Upload,X } from 'lucide-react';
+import { useCallback,useEffect,useRef,useState,type ChangeEvent,type DragEvent } from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Button } from '@/components/ui/button';
-import { FileText, Upload, Clipboard, Pencil, Eye, X, Replace } from 'lucide-react';
-import { cn } from '@/lib/utils/util';
 import { toast } from 'sonner';
-import { useTranslation } from 'react-i18next';
-import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 
 // Fallback translations so keys never show as raw text
 const FALLBACKS: Record<string, Record<string, string>> = {
@@ -47,7 +47,7 @@ const FALLBACKS: Record<string, Record<string, string>> = {
 };
 
 export default function MarkdownPreviewPage() {
-  const lifecycle = useFeatureLifecycle('tool.markdown-preview');
+  const _lifecycle = useFeatureLifecycle('tool.markdown-preview');
   const { t, i18n } = useTranslation();
   const [markdown, setMarkdown] = useState('');
   const [editMode, setEditMode] = useState(false);
@@ -166,7 +166,7 @@ export default function MarkdownPreviewPage() {
     }
   }, [p, pushPreviewState, hasContent]);
 
-  const handleClear = useCallback(() => {
+  const _handleClear = useCallback(() => {
     setMarkdown('');
     setFileName(null);
     setEditMode(false);

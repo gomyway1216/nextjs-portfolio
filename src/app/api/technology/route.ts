@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore } from '@/lib/firebase-admin';
 import { TECHNOLOGIES_COLLECTION } from '@/app/api/constants';
+import { getFirestore } from '@/lib/firebase-admin';
+import { NextRequest,NextResponse } from 'next/server';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -14,7 +14,7 @@ interface TechnologyResponseItem {
  * GET /api/technologies
  * Get all technologies sorted by type and name
  */
-export const GET = withActivityLog('next_api.technology.GET', async (request: NextRequest) => {
+export const GET = withActivityLog('next_api.technology.GET', async (_request: NextRequest) => {
   try {
     const db = getFirestore();
     const snapshot = await db.collection(TECHNOLOGIES_COLLECTION).get();

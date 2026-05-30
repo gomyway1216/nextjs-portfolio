@@ -1,26 +1,31 @@
 'use client';
-import React, { useEffect, useState } from 'react';
-import * as voiceTaskApi from '@/services/voiceTaskService';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { Accordion,AccordionContent,AccordionItem,AccordionTrigger } from '@/components/ui/accordion';
+import { Avatar,AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogTitle, DialogHeader, DialogFooter } from '@/components/ui/dialog';
+import { Dialog,DialogContent,DialogFooter,DialogHeader,DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Tabs,TabsList,TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { toast } from 'sonner';
+import type { VoiceTask as VoiceTaskItem,VoiceTaskList } from '@/services/voiceTaskService';
+import * as voiceTaskApi from '@/services/voiceTaskService';
 import {
-  Plus, CheckCircle, Undo2, Trash2, Star, User, Loader2
+CheckCircle,
+Loader2,
+Plus,
+Star,
+Trash2,
+Undo2,
+User
 } from 'lucide-react';
+import { useRouter,useSearchParams } from 'next/navigation';
+import { useEffect,useState } from 'react';
+import { toast } from 'sonner';
 import Recorder from './Recorder';
-import type { VoiceTask as VoiceTaskItem, VoiceTaskList } from '@/services/voiceTaskService';
 
 const TEST_USER_ID = 'aoUPpC4gz7QlvbMcpNH5';
 
 const VoiceTask = () => {
-  const [botResponse, setBotResponse] = useState<string>('');
   const [completedTasks, setCompletedTasks] = useState<VoiceTaskItem[]>([]);
   const [incompleteTasks, setIncompleteTasks] = useState<VoiceTaskItem[]>([]);
 
@@ -147,9 +152,7 @@ const VoiceTask = () => {
     formData.append('user_id', TEST_USER_ID);
     formData.append('list_id', selectedListId);
     try {
-      const response = await voiceTaskApi.getResponse(formData);
-      const responseText = await response?.text();
-      setBotResponse(responseText || '');
+      await voiceTaskApi.getResponse(formData);
       await fetchIncompleteTasks(); // Fetch tasks after receiving the response
     } catch (error) {
       console.error('Error:', error);

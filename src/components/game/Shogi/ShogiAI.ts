@@ -2,14 +2,14 @@
  * Shogi AI using Alpha-Beta Pruning + Quiescence + Iterative Deepening
  */
 
-import { Kyokumen } from './Kyokumen';
-import { Te, Position, SENTE, GOTE, EMPTY, komaValue, KA, HI, getKomashu } from './types';
-import { generateLegalMoves } from './GenerateMoves';
 import { Difficulty } from '../common/types';
-	import { getOpeningMoveValidated } from './OpeningBookValidated';
-	import { KyokumenImproved } from '../ShogiImproved/KyokumenImproved';
-		import { getBestMoveV18 as getBestMoveImproved } from '../ShogiImproved/ShogiAIImprovedV18';
-	import { Te as TeImproved } from '../ShogiImproved/types';
+import { KyokumenImproved } from '../ShogiImproved/KyokumenImproved';
+import { getBestMoveV18 as getBestMoveImproved } from '../ShogiImproved/ShogiAIImprovedV18';
+import { Te as TeImproved } from '../ShogiImproved/types';
+import { generateLegalMoves } from './GenerateMoves';
+import { Kyokumen } from './Kyokumen';
+import { getOpeningMoveValidated } from './OpeningBookValidated';
+import { EMPTY,GOTE,HI,KA,Position,SENTE,Te,getKomashu,komaValue } from './types';
 
 const INFINITE = 99999999;
 const LIMIT_DEPTH = 16;
@@ -552,7 +552,7 @@ export class ShogiAI {
     // If we somehow never found a move (should be rare), fall back to
     // a shallow search once to avoid returning null.
     if (!bestMove) {
-      const te = new Te(
+      const _te = new Te(
         0,
         new Position(0, 0),
         new Position(0, 0),

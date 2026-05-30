@@ -719,7 +719,6 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                 {/* Table View */}
                 <DaifugoTableView
                   gameState={gameState}
-                  myPlayerId={humanId}
                   playerSummaries={playerSummaries}
                   pileCards={pileCards}
                   isReversed={isReversed}

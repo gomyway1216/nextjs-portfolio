@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
-import { ensureAdmin, getOptionalUser, verifyIdToken } from '@/lib/auth-utils';
-import { HOBBIES_COLLECTION } from '../constants';
-import type { HobbyCategory, CreateHobbyCategoryInput, CustomField } from '@/types/hobby';
+import { ensureAdmin } from '@/lib/auth-utils';
+import { getFirestore,getServerTimestamp } from '@/lib/firebase-admin';
+import type { CreateHobbyCategoryInput,CustomField,HobbyCategory } from '@/types/hobby';
+import { NextRequest,NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
+import { HOBBIES_COLLECTION } from '../constants';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // GET /api/hobbies - Get all hobby categories

@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { toast } from 'sonner';
 
 const ALERT_DURATION = 5000;
@@ -14,7 +14,7 @@ const InstantMessage = ({ message, onClose, severity = 'error' }: InstantMessage
   useEffect(() => {
     if (message) {
       // Show toast based on severity
-      const toastId = severity === 'error'
+      const _toastId = severity === 'error'
         ? toast.error(message, { duration: ALERT_DURATION })
         : severity === 'success'
         ? toast.success(message, { duration: ALERT_DURATION })

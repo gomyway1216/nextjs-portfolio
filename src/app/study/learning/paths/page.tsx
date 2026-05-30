@@ -1,17 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useLearningPaths } from '@/hooks/useStudy';
+import { logActivity } from '@/lib/activityLog';
+import {
+LearningPathContext,
+LearningPathStatus,
+PreferredLearningStyle
+} from '@/types/study';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useLearningPaths } from '@/hooks/useStudy';
-import {
-  LearningPath,
-  LearningPathStatus,
-  PreferredLearningStyle,
-  LearningPathContext,
-  LearningPathRecommendations,
-} from '@/types/study';
-import { logActivity } from '@/lib/activityLog';
+import { useState } from 'react';
 
 // Example goals for inspiration
 const EXAMPLE_GOALS = [
@@ -30,7 +28,6 @@ export default function LearningPathsPage() {
   const [goal, setGoal] = useState('');
   const [showContext, setShowContext] = useState(false);
   const [context, setContext] = useState<LearningPathContext>({});
-  const [recommendations, setRecommendations] = useState<LearningPathRecommendations | null>(null);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [deletingPathId, setDeletingPathId] = useState<string | null>(null);
 
@@ -43,7 +40,6 @@ export default function LearningPathsPage() {
         goal: goal.trim(),
         context: showContext ? context : undefined,
       });
-      setRecommendations(result.recommendations);
       setGoal('');
       setContext({});
       setShowContext(false);

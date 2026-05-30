@@ -3,30 +3,29 @@
  * Based on Thell 3.0.3 implementation
  */
 
-import {
-  BOARD_SIZE,
-  MAX_TURNS,
-  BLACK,
-  WHITE,
-  EMPTY,
-  Color,
-  Point,
-  Move,
-  Infinity as InfinityVal,
-  MULTIPLIER,
-  AIParameter,
-  AI_PARAMETERS,
-  Difficulty,
-  createMove,
-} from './types';
 import { Board } from './Board';
 import {
-  Evaluator,
-  MidEvaluator,
-  WLDEvaluator,
-  PerfectEvaluator,
-  FFEvaluator,
+Evaluator,
+FFEvaluator,
+MidEvaluator,
+PerfectEvaluator,
+WLDEvaluator,
 } from './Evaluator';
+import {
+AIParameter,
+AI_PARAMETERS,
+BLACK,
+Color,
+Difficulty,
+EMPTY,
+Infinity as InfinityVal,
+MAX_TURNS,
+MULTIPLIER,
+Move,
+Point,
+WHITE,
+createMove
+} from './types';
 
 /**
  * AI class implementing alpha-beta search

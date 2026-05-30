@@ -1,17 +1,17 @@
 'use client';
 
-import { useTranslation } from 'react-i18next';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card,CardContent,CardHeader,CardTitle } from '@/components/ui/card';
+import { KuizuUserStats,QUIZ_CATEGORY_EMOJI,QUIZ_CATEGORY_LABELS } from '@/types/kuizu';
 import {
-  Trophy,
-  Target,
-  Award,
-  Flame,
-  Calendar,
-  Users,
-  TrendingUp,
+Award,
+Calendar,
+Flame,
+Target,
+TrendingUp,
+Trophy,
+Users,
 } from 'lucide-react';
-import { KuizuUserStats, QUIZ_CATEGORY_LABELS, QUIZ_CATEGORY_EMOJI } from '@/types/kuizu';
+import { useTranslation } from 'react-i18next';
 
 interface StatsOverviewProps {
   stats: KuizuUserStats;

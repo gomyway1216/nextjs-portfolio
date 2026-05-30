@@ -1,28 +1,25 @@
 'use client';
-import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Popover,PopoverContent,PopoverTrigger } from '@/components/ui/popover';
+import { Textarea } from '@/components/ui/textarea';
+import type { VoiceSubTask } from '@/services/voiceTaskService';
+import * as voiceTaskApi from '@/services/voiceTaskService';
 import { format } from 'date-fns';
 import {
-  Plus,
-  ArrowLeft,
-  Calendar as CalendarIcon,
-  CornerDownRight,
-  FileText,
-  Circle
+ArrowLeft,
+Calendar as CalendarIcon,
+Circle,
+CornerDownRight,
+FileText
 } from 'lucide-react';
-import * as voiceTaskApi from '@/services/voiceTaskService';
-import type { VoiceSubTask } from '@/services/voiceTaskService';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams,useRouter } from 'next/navigation';
+import React,{ useState } from 'react';
 
 const TEST_USER_ID = 'aoUPpC4gz7QlvbMcpNH5';
 
 const VoiceTaskItem = () => {
-  const [taskName, setTaskName] = useState<string>('hello');
+  const taskName = 'hello';
   const [subtasks, setSubtasks] = useState<VoiceSubTask[]>([]);
   const [detailsText, setDetailsText] = useState<string>('');
   const [isDetailsOpen, setIsDetailsOpen] = useState<boolean>(false);
@@ -30,7 +27,7 @@ const VoiceTaskItem = () => {
   const { taskId } = useParams();
   const router = useRouter();
 
-  const handleSubtaskToggle = (index: number) => {
+  const _handleSubtaskToggle = (index: number) => {
     const updatedSubtasks = [...subtasks];
     updatedSubtasks[index].completed = !updatedSubtasks[index].completed;
     setSubtasks(updatedSubtasks);

@@ -1,51 +1,51 @@
 'use client';
 
-import { useState, useEffect, CSSProperties } from 'react';
 import {
-  useHobbyCategories,
-  useHobbyMutations,
-  useHobbyItems,
-  useHobbyItemMutations,
+useHobbyCategories,
+useHobbyItemMutations,
+useHobbyItems,
+useHobbyMutations,
 } from '@/hooks/useHobbies';
-import type {
-  HobbyCategory,
-  HobbyItem,
-  CustomField,
-  CreateHobbyCategoryInput,
-  CreateHobbyItemInput,
-} from '@/types/hobby';
-import {
-  HobbyTemplateType,
-  CustomFieldType,
-  FISH_CATALOG_FIELDS,
-  SKI_RESORT_FIELDS,
-  TRAIN_CATALOG_FIELDS,
-  ANIME_CATALOG_FIELDS,
-  VOICE_ACTOR_FIELDS,
-  ANIME_CHARACTER_FIELDS,
-  generateSlug
-} from '@/types/hobby';
 import * as imageApi from '@/services/imageService';
+import type {
+CreateHobbyCategoryInput,
+CreateHobbyItemInput,
+CustomField,
+HobbyCategory,
+HobbyItem,
+} from '@/types/hobby';
 import {
-  Plus,
-  Pencil,
-  Trash2,
-  X,
-  Save,
-  Loader2,
-  Eye,
-  EyeOff,
-  ChevronDown,
-  ChevronUp,
-  Upload,
-  Image as ImageIcon,
-  Fish,
-  Mountain,
-  Train,
-  Tv,
-  Mic,
-  User,
+ANIME_CATALOG_FIELDS,
+ANIME_CHARACTER_FIELDS,
+CustomFieldType,
+FISH_CATALOG_FIELDS,
+generateSlug,
+HobbyTemplateType,
+SKI_RESORT_FIELDS,
+TRAIN_CATALOG_FIELDS,
+VOICE_ACTOR_FIELDS
+} from '@/types/hobby';
+import {
+ChevronDown,
+ChevronUp,
+Eye,
+EyeOff,
+Fish,
+Image as ImageIcon,
+Loader2,
+Mic,
+Mountain,
+Pencil,
+Plus,
+Save,
+Train,
+Trash2,
+Tv,
+Upload,
+User,
+X,
 } from 'lucide-react';
+import { CSSProperties,useEffect,useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 // Styles (following AdminPage patterns)
@@ -324,7 +324,7 @@ export default function HobbiesAdminPanel() {
           coverImage: categoryForm.coverImage,
           templateType: categoryForm.templateType,
           isPublic: categoryForm.isPublic,
-          fields: categoryForm.fields.map(({ id, ...rest }) => rest),
+          fields: categoryForm.fields.map(({ id: _id, ...rest }) => rest),
         };
         await categoryMutations.createCategory(input);
       }
@@ -646,7 +646,7 @@ export default function HobbiesAdminPanel() {
         if (!relatedCategory) {
           return (
             <div style={{ color: '#94a3b8', fontSize: '14px' }}>
-              カテゴリ "{relationConfig.hobbySlug}" が見つかりません
+              カテゴリ &quot;{relationConfig.hobbySlug}&quot; が見つかりません
             </div>
           );
         }
@@ -1071,7 +1071,7 @@ export default function HobbiesAdminPanel() {
 
                   {expandedFields && (
                     <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      {categoryForm.fields.map((field, index) => (
+                      {categoryForm.fields.map((field, _index) => (
                         <div
                           key={field.id}
                           style={{

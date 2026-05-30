@@ -1,49 +1,49 @@
 'use client';
 
-import { useState, useEffect, CSSProperties } from 'react';
-import { useAuth } from '@/providers/AuthProvider';
-import { useProfile, useResumeLink, updateProfile } from '@/hooks/useProfile';
-import { uploadResume } from '@/services/profileService';
-import { useProjects, useProjectMutations, useProjectCategories, useUrlTypes } from '@/hooks/useProjects';
-import { usePosts, usePostMutations, usePostCategories } from '@/hooks/usePosts';
-import { useRouter } from 'next/navigation';
-import * as technologyApi from '@/services/technologiesService';
-import type { Technology } from '@/services/technologiesService';
-import type { Project } from '@/services/projectsService';
-import * as imageApi from '@/services/imageService';
-import * as postApi from '@/services/postsService';
-import type { ListingPost } from '@/services/postsService';
-import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations';
-import {
-  LayoutDashboard,
-  User,
-  FolderKanban,
-  FileText,
-  Briefcase,
-  BookOpen,
-  Heart,
-  Plus,
-  Pencil,
-  Trash2,
-  X,
-  Save,
-  Loader2,
-  Eye,
-  EyeOff,
-  ExternalLink,
-  CheckCircle,
-  AlertCircle,
-  Upload,
-  Image as ImageIcon,
-  Shield,
-  ScrollText,
-  ArrowLeft,
-} from 'lucide-react';
-import Link from 'next/link';
-import StudyAdminPanel from '@/components/study/StudyAdminPanel';
-import HobbiesAdminPanel from '@/components/hobby/HobbiesAdminPanel';
 import ActivityLogPanel from '@/components/admin/ActivityLogPanel';
 import TiptapEditor from '@/components/editor/TiptapEditor';
+import HobbiesAdminPanel from '@/components/hobby/HobbiesAdminPanel';
+import StudyAdminPanel from '@/components/study/StudyAdminPanel';
+import { usePostCategories,usePostMutations,usePosts } from '@/hooks/usePosts';
+import { updateProfile,useProfile,useResumeLink } from '@/hooks/useProfile';
+import { useProjectCategories,useProjectMutations,useProjects,useUrlTypes } from '@/hooks/useProjects';
+import type { PostLanguage,PostTranslations } from '@/lib/blog/postTranslations';
+import { useAuth } from '@/providers/AuthProvider';
+import * as imageApi from '@/services/imageService';
+import type { ListingPost } from '@/services/postsService';
+import * as postApi from '@/services/postsService';
+import { uploadResume } from '@/services/profileService';
+import type { Project } from '@/services/projectsService';
+import type { Technology } from '@/services/technologiesService';
+import * as technologyApi from '@/services/technologiesService';
+import {
+AlertCircle,
+ArrowLeft,
+BookOpen,
+Briefcase,
+CheckCircle,
+ExternalLink,
+Eye,
+EyeOff,
+FileText,
+FolderKanban,
+Heart,
+Image as ImageIcon,
+LayoutDashboard,
+Loader2,
+Pencil,
+Plus,
+Save,
+ScrollText,
+Shield,
+Trash2,
+Upload,
+User,
+X,
+} from 'lucide-react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { CSSProperties,useEffect,useState } from 'react';
 
 type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'hobbies' | 'activity-logs';
 
@@ -381,7 +381,6 @@ const AdminPage = () => {
   // Edit states
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [editingPost, setEditingPost] = useState<ListingPost | null>(null);
-  const [editingJob, setEditingJob] = useState<string | null>(null);
   const [techInput, setTechInput] = useState('');
 
   // Full-job edit / create form. `null` = no form open; `'new'` = create
@@ -994,7 +993,7 @@ const AdminPage = () => {
     }
   };
 
-  const handleUpdateJobTechnologies = async (jobId: string, companyName: string) => {
+  const _handleUpdateJobTechnologies = async (jobId: string, companyName: string) => {
     const techArray = techInput.split(',').map(t => t.trim()).filter(t => t);
     try {
       const authHeaders = await getAuthHeaders();
@@ -1006,7 +1005,6 @@ const AdminPage = () => {
 
       if (response.ok) {
         showMessage('success', `Updated technologies for ${companyName}`);
-        setEditingJob(null);
         setTechInput('');
         fetchJobs();
       } else {
@@ -1021,7 +1019,6 @@ const AdminPage = () => {
   const openJobEditForm = (job: Job) => {
     const techNames = job.technologies?.map(t => getTechName(t)).filter(Boolean) || [];
     setJobFormMode(job.id);
-    setEditingJob(null); // close the legacy tech-only inline editor if open
     const j = job as unknown as Record<string, unknown>;
     setJobForm({
       companyName: typeof j.companyName === 'string' ? j.companyName : '',
@@ -1039,7 +1036,6 @@ const AdminPage = () => {
 
   const openJobCreateForm = () => {
     setJobFormMode('new');
-    setEditingJob(null);
     setJobForm({
       companyName: '',
       jobPosition: '',

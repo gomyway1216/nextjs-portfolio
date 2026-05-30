@@ -1,10 +1,10 @@
 'use client';
 
-import Image from 'next/image';
-import Link from 'next/link';
-import { Loader2 } from 'lucide-react';
 import { useRelatedItems } from '@/hooks/useHobbies';
 import type { HobbyCategory } from '@/types/hobby';
+import { Loader2 } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
 
 interface RelatedItemsListProps {
   hobbyId: string;
@@ -195,7 +195,7 @@ interface RelatedItemBadgeProps {
 export function RelatedItemBadge({
   itemId,
   hobbySlug,
-  language = 'ja',
+  language: _language = 'ja',
 }: RelatedItemBadgeProps) {
   // This is a simpler component that just shows a link badge
   // It requires the parent to have already fetched the item data

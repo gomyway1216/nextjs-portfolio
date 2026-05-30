@@ -14,7 +14,7 @@
 }
 
 .shell {
-  max-width: 1240px;
+  max-width: 1480px;
   margin: 0 auto;
 }
 
@@ -225,10 +225,12 @@
 
 .cardTitle {
   margin: 0;
+  min-width: 0;
   color: #1d1d1f;
   font-size: 1.35rem;
   line-height: 1.18;
   font-weight: 740;
+  overflow-wrap: anywhere;
 }
 
 :global(.dark) .cardTitle {
@@ -341,13 +343,27 @@
   }
 }
 
-@media (min-width: 880px) and (max-width: 1199px) {
+@media (min-width: 1440px) {
+  .grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .media {
+    height: 158px;
+  }
+
+  .content {
+    padding: 20px;
+  }
+}
+
+@media (min-width: 900px) and (max-width: 1199px) {
   .grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
-@media (min-width: 761px) and (max-width: 879px) {
+@media (min-width: 680px) and (max-width: 899px) {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

@@ -113,12 +113,13 @@ const TicTacToe = () => {
       alignItems: 'center',
       justifyContent: 'center',
       background: 'linear-gradient(to bottom, #111827, #000)',
-      overflow: 'hidden',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
+      overflow: 'auto',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+      padding: '5rem 1rem 1.5rem'
     }}>
       <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} />
 
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', width: showDifficultySelect ? 'auto' : 'min(100%, 430px)' }}>
         {showDifficultySelect ? (
           <DifficultySelector
             title="Tic Tac Toe"
@@ -134,8 +135,9 @@ const TicTacToe = () => {
             background: 'rgba(0, 0, 0, 0.95)',
             border: '3px solid #0ea5e9',
             borderRadius: '1rem',
-            padding: '2rem',
-            boxShadow: '0 0 50px rgba(14, 165, 233, 0.3)'
+            padding: 'clamp(1rem, 5vw, 2rem)',
+            boxShadow: '0 0 50px rgba(14, 165, 233, 0.3)',
+            width: '100%'
           }}>
             {/* Status */}
             <div style={{ textAlign: 'center', marginBottom: '1.5rem', minHeight: '4rem' }}>
@@ -178,9 +180,10 @@ const TicTacToe = () => {
             {/* Board */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(3, 120px)',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
               gap: '0.5rem',
-              marginBottom: '1.5rem'
+              marginBottom: '1.5rem',
+              width: '100%'
             }}>
               {board.map((cell, index) => {
                 const isWinningCell = winningLine?.includes(index);
@@ -190,8 +193,8 @@ const TicTacToe = () => {
                     onClick={() => handleCellClick(index)}
                     disabled={!isPlayerTurn || cell !== null || gameStatus !== 'playing'}
                     style={{
-                      width: '120px',
-                      height: '120px',
+                      width: '100%',
+                      aspectRatio: '1 / 1',
                       background: isWinningCell ? 'rgba(14, 165, 233, 0.3)' : 'rgba(31, 41, 55, 0.8)',
                       border: isWinningCell ? '3px solid #0ea5e9' : '2px solid rgba(75, 85, 99, 1)',
                       borderRadius: '0.5rem',
@@ -200,7 +203,7 @@ const TicTacToe = () => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      fontSize: '4rem',
+                      fontSize: 'clamp(2.4rem, 14vw, 4rem)',
                       fontWeight: 'bold'
                     }}
                     onMouseEnter={(e) => {
@@ -224,11 +227,11 @@ const TicTacToe = () => {
             </div>
 
             {/* Buttons */}
-            <div style={{ display: 'flex', gap: '1rem' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
               <button
                 onClick={resetGame}
                 style={{
-                  flex: 1,
+                  flex: '1 1 150px',
                   background: '#0ea5e9',
                   border: 'none',
                   borderRadius: '0.5rem',
@@ -259,7 +262,7 @@ const TicTacToe = () => {
               <button
                 onClick={backToMenu}
                 style={{
-                  flex: 1,
+                  flex: '1 1 150px',
                   background: 'rgba(75, 85, 99, 0.8)',
                   border: '1px solid rgba(107, 114, 128, 1)',
                   borderRadius: '0.5rem',

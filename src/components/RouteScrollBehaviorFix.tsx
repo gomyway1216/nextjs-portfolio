@@ -34,11 +34,17 @@ export function RouteScrollBehaviorFix() {
   const pathname = usePathname();
   const originalStyleRef = useRef<string | null>(null);
   const restoreFrameRef = useRef<number | null>(null);
+  const restoreTimeoutRef = useRef<number | null>(null);
+  const popNavigationRef = useRef(false);
 
   const cancelRestore = useCallback(() => {
     if (restoreFrameRef.current !== null) {
       window.cancelAnimationFrame(restoreFrameRef.current);
       restoreFrameRef.current = null;
+    }
+    if (restoreTimeoutRef.current !== null) {
+      window.clearTimeout(restoreTimeoutRef.current);
+      restoreTimeoutRef.current = null;
     }
   }, []);
 
@@ -61,32 +67,60 @@ export function RouteScrollBehaviorFix() {
     }
   }, [cancelRestore]);
 
+  const scrollToRouteTop = useCallback(() => {
+    if (window.location.hash) return;
+    window.scrollTo({ left: 0, top: 0, behavior: 'auto' });
+  }, []);
+
+  const restoreAfterNavigationSettles = useCallback(() => {
+    restoreFrameRef.current = window.requestAnimationFrame(() => {
+      restoreFrameRef.current = window.requestAnimationFrame(() => {
+        restoreTimeoutRef.current = window.setTimeout(restoreSmoothScroll, 350);
+      });
+    });
+  }, [restoreSmoothScroll]);
+
   useEffect(() => {
     const onClick = (event: MouseEvent) => {
       if (shouldDisableSmoothScroll(event)) {
+        popNavigationRef.current = false;
         disableSmoothScroll();
       }
     };
 
+    const onPopState = () => {
+      popNavigationRef.current = true;
+      disableSmoothScroll();
+    };
+
     document.addEventListener('click', onClick, true);
-    window.addEventListener('popstate', disableSmoothScroll);
+    window.addEventListener('popstate', onPopState);
 
     return () => {
       document.removeEventListener('click', onClick, true);
-      window.removeEventListener('popstate', disableSmoothScroll);
+      window.removeEventListener('popstate', onPopState);
       restoreSmoothScroll();
     };
   }, [disableSmoothScroll, restoreSmoothScroll]);
 
   useLayoutEffect(() => {
+    const isPopNavigation = popNavigationRef.current;
+    popNavigationRef.current = false;
+
     disableSmoothScroll();
 
-    restoreFrameRef.current = window.requestAnimationFrame(() => {
-      restoreFrameRef.current = window.requestAnimationFrame(restoreSmoothScroll);
-    });
+    if (!isPopNavigation) {
+      scrollToRouteTop();
+      restoreFrameRef.current = window.requestAnimationFrame(() => {
+        scrollToRouteTop();
+        restoreAfterNavigationSettles();
+      });
+    } else {
+      restoreAfterNavigationSettles();
+    }
 
     return cancelRestore;
-  }, [pathname, disableSmoothScroll, restoreSmoothScroll, cancelRestore]);
+  }, [pathname, disableSmoothScroll, scrollToRouteTop, restoreAfterNavigationSettles, cancelRestore]);
 
   return null;
 }

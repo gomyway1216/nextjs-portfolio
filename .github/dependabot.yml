@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: "weekly"
     cooldown:
-      default-days: 3
+      default-days: 5
     open-pull-requests-limit: 10
     labels:
       - "dependencies"
@@ -24,7 +24,7 @@ updates:
     schedule:
       interval: "weekly"
     cooldown:
-      default-days: 3
+      default-days: 5
     labels:
       - "dependencies"
       - "github-actions"

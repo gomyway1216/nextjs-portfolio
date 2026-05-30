@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,13 @@ import { DailyChallengeBanner } from '@/components/kuizu/DailyChallengeBanner';
 import { useKuizuDaily } from '@/hooks/useKuizu';
 import { useTranslation } from 'react-i18next';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import styles from '../tool-landing.module.css';
+
+const kuizuTheme = {
+  '--tool-accent': '#f59e0b',
+  '--tool-accent-strong': '#d97706',
+  '--tool-accent-soft': '#f97316',
+} as CSSProperties;
 
 export default function KuizuPage() {
   const lifecycle = useFeatureLifecycle('tool.kuizu');
@@ -46,25 +53,22 @@ export default function KuizuPage() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className={styles.page} style={kuizuTheme}>
       {/* Hero */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-amber-500/10 to-yellow-500/10 -z-10" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-gradient-to-r from-orange-500/20 to-amber-500/20 rounded-full blur-3xl -z-10" />
-
-        <div className="container mx-auto px-4 py-16 text-center space-y-8">
-          <div className="flex justify-center">
+      <div className={styles.hero}>
+        <div className={styles.heroInner}>
+          <div className={styles.logoWrap}>
             <KuizuLogo size={80} showText variant="gradient" />
           </div>
-          <div className="space-y-4 max-w-2xl mx-auto">
-            <p className="text-xl md:text-2xl text-muted-foreground">
+          <div className={styles.heroCopy}>
+            <p className={styles.heroTitle}>
               {t('kuizu.page.hero.title', 'Test Your Knowledge, Challenge Your Friends')}
             </p>
-            <p className="text-sm md:text-base text-muted-foreground/80">
+            <p className={styles.heroSubtitle}>
               {t('kuizu.page.hero.subtitle', 'Solo quizzes, multiplayer battles, daily challenges, and custom quiz creation. 400+ questions across 10+ categories.')}
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+          <div className={styles.heroActions}>
             <Link href="/tools/kuizu/play">
               <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white shadow-lg shadow-orange-500/25" style={{ borderRadius: '9999px' }}>
                 <Play className="h-5 w-5 mr-2" />
@@ -72,7 +76,7 @@ export default function KuizuPage() {
               </Button>
             </Link>
             <Link href="/tools/kuizu/multiplayer">
-              <Button size="lg" variant="outline" className="w-full sm:w-auto border-orange-300 text-orange-700 hover:bg-orange-50" style={{ borderRadius: '9999px' }}>
+              <Button size="lg" variant="outline" className={`w-full sm:w-auto ${styles.outlineButton}`} style={{ borderRadius: '9999px' }}>
                 <Users className="h-5 w-5 mr-2" />
                 {t('kuizu.page.hero.multiplayer', 'Multiplayer')}
               </Button>
@@ -82,7 +86,7 @@ export default function KuizuPage() {
       </div>
 
       {/* Join Room */}
-      <div className="container mx-auto px-4 pt-6 pb-2 max-w-md">
+      <div className={styles.joinPanel}>
         <form onSubmit={handleJoinRoom} className="flex gap-2 items-center">
           <span className="text-sm text-muted-foreground shrink-0">{t('kuizu.page.joinRoom', 'Join:')}</span>
           <Input value={roomCode} onChange={(e) => setRoomCode(e.target.value.toUpperCase())} placeholder={t('kuizu.page.roomCodePlaceholder', 'ROOM CODE')} className="font-mono text-center uppercase tracking-widest" style={{ borderRadius: '9999px' }} maxLength={10} disabled={joining} />
@@ -93,12 +97,12 @@ export default function KuizuPage() {
       </div>
 
       {/* Daily Challenge */}
-      <div className="container mx-auto px-4 py-6 max-w-2xl">
+      <div className={styles.compactSection}>
         <DailyChallengeBanner challenge={challenge ?? undefined} userEntry={userEntry ?? undefined} onPlay={() => router.push('/tools/kuizu/daily')} loading={dailyLoading} />
       </div>
 
       {/* Quick Actions */}
-      <div className="container mx-auto px-4 py-6 max-w-2xl">
+      <div className={styles.compactSection}>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
             { href: '/tools/kuizu/custom/new', icon: PlusCircle, label: t('kuizu.page.createQuiz', 'Create Quiz') },
@@ -109,7 +113,7 @@ export default function KuizuPage() {
             ] : []),
           ].map(({ href, icon: Icon, label }) => (
             <Link key={href} href={href}>
-              <Card className="hover:shadow-md transition-all cursor-pointer border-orange-200 hover:border-orange-300">
+              <Card className={`cursor-pointer ${styles.quickActionCard}`}>
                 <CardContent className="p-4 text-center">
                   <Icon className="h-8 w-8 mx-auto mb-2 text-orange-500" />
                   <p className="text-sm font-medium">{label}</p>
@@ -121,15 +125,15 @@ export default function KuizuPage() {
       </div>
 
       {/* Features */}
-      <div className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-orange-500 to-amber-500 bg-clip-text text-transparent">
+      <div className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionHeading}>
+            <span className={styles.sectionHeadingAccent}>
               {t('kuizu.page.featuresTitle', 'Features')}
             </span>
           </h2>
         </div>
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className={styles.featureGrid}>
           {[
             { icon: Brain, title: t('kuizu.page.features.categories.title', '10+ Categories'), description: t('kuizu.page.features.categories.description', 'From English vocab to geography, science to Japanese culture'), gradient: 'from-orange-500 to-amber-500' },
             { icon: Users, title: t('kuizu.page.features.multiplayer.title', 'Multiplayer'), description: t('kuizu.page.features.multiplayer.description', 'Create rooms and battle friends in real-time'), gradient: 'from-blue-500 to-cyan-500' },
@@ -141,9 +145,9 @@ export default function KuizuPage() {
             { icon: BarChart3, title: t('kuizu.page.features.stats.title', 'Progress Tracking'), description: t('kuizu.page.features.stats.description', 'Track accuracy and scores per category'), gradient: 'from-pink-500 to-rose-500' },
             { icon: Sparkles, title: t('kuizu.page.features.formats.title', '4 Question Types'), description: t('kuizu.page.features.formats.description', 'Multiple choice, true/false, fill-in-blank, and image-based'), gradient: 'from-amber-500 to-yellow-500' },
           ].map(({ icon: Icon, title, description, gradient }) => (
-            <Card key={title} className="group hover:shadow-lg transition-all duration-300 overflow-hidden">
+            <Card key={title} className={`group ${styles.featureCard}`}>
               <CardContent className="p-6">
-                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-r ${gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                <div className={`${styles.featureIcon} bg-gradient-to-r ${gradient} flex items-center justify-center mb-4 group-hover:scale-105 transition-transform`}>
                   <Icon className="h-6 w-6 text-white" />
                 </div>
                 <h3 className="font-semibold text-lg mb-2">{title}</h3>
@@ -155,22 +159,24 @@ export default function KuizuPage() {
       </div>
 
       {/* How to Play */}
-      <div className="bg-muted/30 py-16">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">{t('kuizu.page.howToUseTitle', 'How to Play')}</h2>
-          <div className="grid gap-8 md:grid-cols-4 max-w-4xl mx-auto">
+      <div className={styles.sectionMuted}>
+        <div className={styles.sectionMutedInner}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionHeading}>{t('kuizu.page.howToUseTitle', 'How to Play')}</h2>
+          </div>
+          <div className={styles.stepGrid}>
             {[
               { step: 1, title: t('kuizu.page.howToUse.step1.title', 'Choose Category'), desc: t('kuizu.page.howToUse.step1.desc', 'Pick from 10+ categories and set difficulty'), icon: Brain },
               { step: 2, title: t('kuizu.page.howToUse.step2.title', 'Answer Questions'), desc: t('kuizu.page.howToUse.step2.desc', 'Answer quickly for bonus points and build streaks'), icon: Zap },
               { step: 3, title: t('kuizu.page.howToUse.step3.title', 'View Results'), desc: t('kuizu.page.howToUse.step3.desc', 'See your score, accuracy, and review each question'), icon: Trophy },
               { step: 4, title: t('kuizu.page.howToUse.step4.title', 'Challenge Friends'), desc: t('kuizu.page.howToUse.step4.desc', 'Create multiplayer rooms or share custom quizzes'), icon: Users },
             ].map(({ step, title, desc, icon: Icon }) => (
-              <div key={step} className="flex flex-col items-center text-center">
-                <div className="relative mb-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-r from-orange-500 to-amber-500 flex items-center justify-center shadow-lg">
+              <div key={step} className={styles.stepItem}>
+                <div className={styles.stepIcon}>
+                  <div className={styles.stepIconBox}>
                     <Icon className="h-7 w-7 text-white" />
                   </div>
-                  <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white dark:bg-gray-900 border-2 border-orange-500 flex items-center justify-center text-sm font-bold text-orange-500">{step}</div>
+                  <div className={styles.stepBadge}>{step}</div>
                 </div>
                 <h3 className="font-semibold mb-1">{title}</h3>
                 <p className="text-sm text-muted-foreground">{desc}</p>
@@ -181,8 +187,8 @@ export default function KuizuPage() {
       </div>
 
       {/* FAQ */}
-      <div className="container mx-auto px-4 py-16">
-        <h2 className="text-3xl font-bold text-center mb-12">{t('kuizu.page.faqTitle', 'FAQ')}</h2>
+      <div className={styles.sectionNarrow}>
+        <h2 className={`${styles.sectionHeading} text-center mb-12`}>{t('kuizu.page.faqTitle', 'FAQ')}</h2>
         <Accordion type="single" collapsible className="max-w-2xl mx-auto">
           <AccordionItem value="item-1">
             <AccordionTrigger>{t('kuizu.page.faq.q1', 'Do I need an account?')}</AccordionTrigger>
@@ -205,8 +211,8 @@ export default function KuizuPage() {
 
       {/* CTA for anonymous */}
       {!currentUser && (
-        <div className="container mx-auto px-4 py-8 pb-16">
-          <Card className="bg-gradient-to-r from-orange-500/10 to-amber-500/10 border-orange-500/20">
+        <div className={styles.sectionNarrow}>
+          <Card className={styles.ctaCard}>
             <CardContent className="p-8 text-center space-y-4">
               <h3 className="text-xl font-semibold">{t('kuizu.page.cta.title', 'Track Your Progress')}</h3>
               <p className="text-muted-foreground max-w-md mx-auto">
@@ -219,7 +225,7 @@ export default function KuizuPage() {
                   </Button>
                 </Link>
                 <Link href="/tools/kuizu/play">
-                  <Button variant="outline" style={{ borderRadius: '9999px' }}>{t('kuizu.page.cta.tryNow', 'Play Now')}</Button>
+                  <Button variant="outline" className={styles.outlineButton} style={{ borderRadius: '9999px' }}>{t('kuizu.page.cta.tryNow', 'Play Now')}</Button>
                 </Link>
               </div>
             </CardContent>

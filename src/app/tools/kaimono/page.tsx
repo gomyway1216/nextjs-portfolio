@@ -1,14 +1,14 @@
 'use client';
 
-import { KaimonoLogo,ListCard } from '@/components/kaimono';
+import { KaimonoLogo, ListCard } from '@/components/kaimono';
 import {
-Accordion,
-AccordionContent,
-AccordionItem,
-AccordionTrigger,
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
-import { Card,CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import { useKaimonoHistory } from '@/hooks/useKaimono';
@@ -16,29 +16,35 @@ import { useAuth } from '@/providers/AuthProvider';
 import * as kaimonoService from '@/services/kaimonoService';
 import type { ShoppingList } from '@/types/kaimono';
 import {
-ArrowRight,
-ChevronRight,
-Clock,
-History,
-Loader2,
-Plus,
-RefreshCw,
-Share2,
-ShoppingBasket,
-Sparkles,
-Star,
-StickyNote,
-Store,
-Tags,
-Wallet
+  ArrowRight,
+  ChevronRight,
+  Clock,
+  History,
+  Loader2,
+  Plus,
+  RefreshCw,
+  Share2,
+  ShoppingBasket,
+  Sparkles,
+  Star,
+  StickyNote,
+  Store,
+  Tags,
+  Wallet,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect,useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import styles from '../tool-landing.module.css';
 
 const LOCAL_STORAGE_KEY = 'kaimono_recent_lists';
+const kaimonoTheme = {
+  '--tool-accent': '#10b981',
+  '--tool-accent-strong': '#059669',
+  '--tool-accent-soft': '#14b8a6',
+} as CSSProperties;
 
 interface LocalListEntry {
   id: string;
@@ -114,27 +120,24 @@ export default function KaimonoPage() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className={styles.page} style={kaimonoTheme}>
       {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-green-500/10 to-teal-500/10 -z-10" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-gradient-to-r from-emerald-500/20 to-green-500/20 rounded-full blur-3xl -z-10" />
-
-        <div className="container mx-auto px-4 py-16 text-center space-y-8">
-          <div className="flex justify-center">
+      <div className={styles.hero}>
+        <div className={styles.heroInner}>
+          <div className={styles.logoWrap}>
             <KaimonoLogo size={80} showText variant="gradient" />
           </div>
 
-          <div className="space-y-4 max-w-2xl mx-auto">
-            <p className="text-xl md:text-2xl text-muted-foreground">
+          <div className={styles.heroCopy}>
+            <p className={styles.heroTitle}>
               {t('kaimono.page.hero.title', 'Smart Shopping Lists for Everyone')}
             </p>
-            <p className="text-sm md:text-base text-muted-foreground/80">
+            <p className={styles.heroSubtitle}>
               {t('kaimono.page.hero.subtitle', 'Create shopping lists with budgets, categories, and sharing. Free and no login required.')}
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+          <div className={styles.heroActions}>
             <Link href="/tools/kaimono/new">
               <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 text-white shadow-lg shadow-emerald-500/25" style={{ borderRadius: '9999px' }}>
                 <Plus className="h-5 w-5 mr-2" />
@@ -143,7 +146,7 @@ export default function KaimonoPage() {
             </Link>
             {currentUser && (
               <Link href="/tools/kaimono/history">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto" style={{ borderRadius: '9999px' }}>
+                <Button size="lg" variant="outline" className={`w-full sm:w-auto ${styles.outlineButton}`} style={{ borderRadius: '9999px' }}>
                   <History className="h-5 w-5 mr-2" />
                   {t('kaimono.page.hero.viewHistory', 'View History')}
                 </Button>
@@ -154,7 +157,7 @@ export default function KaimonoPage() {
       </div>
 
       {/* Join by Code Section */}
-      <div className="container mx-auto px-4 pt-6 pb-2 max-w-md">
+      <div className={styles.joinPanel}>
         <form onSubmit={handleJoinByCode} className="flex gap-2 items-center">
           <span className="text-sm text-muted-foreground shrink-0">{t('kaimono.page.joinByCode', 'Join:')}</span>
           <Input
@@ -174,7 +177,7 @@ export default function KaimonoPage() {
 
       {/* Recent Lists */}
       {currentUser && recentLists.length > 0 && (
-        <div className="container mx-auto px-4 py-6 max-w-2xl">
+        <div className={styles.compactSection}>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-base font-semibold flex items-center gap-1.5">
               <Clock className="h-4 w-4 text-muted-foreground" />
@@ -191,7 +194,7 @@ export default function KaimonoPage() {
               {[1, 2, 3].map((i) => <div key={i} className="h-10 bg-muted animate-pulse rounded-lg" />)}
             </div>
           ) : (
-            <div className="divide-y rounded-xl border overflow-hidden">
+            <div className={`divide-y ${styles.listFrame}`}>
               {recentLists.map((list) => <ListCard key={list.id} list={list} />)}
             </div>
           )}
@@ -200,12 +203,12 @@ export default function KaimonoPage() {
 
       {/* Local Lists for anonymous users */}
       {!currentUser && localLists.length > 0 && (
-        <div className="container mx-auto px-4 py-6 max-w-2xl">
+        <div className={styles.compactSection}>
           <h2 className="text-base font-semibold flex items-center gap-1.5 mb-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
             {t('kaimono.page.recentAccessed', 'Recently Accessed')}
           </h2>
-          <div className="divide-y rounded-xl border overflow-hidden">
+          <div className={`divide-y ${styles.listFrame}`}>
             {localLists.map((entry) => (
               <Link key={entry.id} href={`/tools/kaimono/${entry.id}`} className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors">
                 <span className="font-medium text-sm">{entry.name}</span>
@@ -217,19 +220,19 @@ export default function KaimonoPage() {
       )}
 
       {/* Features Section */}
-      <div className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-emerald-500 to-green-500 bg-clip-text text-transparent">
+      <div className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionHeading}>
+            <span className={styles.sectionHeadingAccent}>
               {t('kaimono.page.featuresTitle', 'Features')}
             </span>
           </h2>
-          <p className="text-muted-foreground max-w-xl mx-auto">
+          <p className={styles.sectionText}>
             {t('kaimono.page.featuresSubtitle', 'Everything you need for smarter shopping')}
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className={styles.featureGrid}>
           {[
             { icon: ShoppingBasket, title: t('kaimono.page.features.checklist.title', 'Smart Checklists'), description: t('kaimono.page.features.checklist.description', 'Create lists with purchase checkboxes and track progress'), gradient: 'from-emerald-500 to-green-500' },
             { icon: Tags, title: t('kaimono.page.features.categories.title', 'Categories'), description: t('kaimono.page.features.categories.description', 'Organize items by food, daily goods, clothing, and more'), gradient: 'from-blue-500 to-cyan-500' },
@@ -241,9 +244,9 @@ export default function KaimonoPage() {
             { icon: Star, title: t('kaimono.page.features.priority.title', 'Priority Levels'), description: t('kaimono.page.features.priority.description', "Mark items as must-buy or nice-to-have"), gradient: 'from-red-500 to-pink-500' },
             { icon: StickyNote, title: t('kaimono.page.features.notes.title', 'Item Notes'), description: t('kaimono.page.features.notes.description', 'Add brand preferences, sale info, or special instructions'), gradient: 'from-green-500 to-teal-500' },
           ].map(({ icon: Icon, title, description, gradient }) => (
-            <Card key={title} className="group hover:shadow-lg transition-all duration-300 overflow-hidden">
+            <Card key={title} className={`group ${styles.featureCard}`}>
               <CardContent className="p-6">
-                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-r ${gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                <div className={`${styles.featureIcon} bg-gradient-to-r ${gradient} flex items-center justify-center mb-4 group-hover:scale-105 transition-transform`}>
                   <Icon className="h-6 w-6 text-white" />
                 </div>
                 <h3 className="font-semibold text-lg mb-2">{title}</h3>
@@ -255,22 +258,24 @@ export default function KaimonoPage() {
       </div>
 
       {/* How it Works */}
-      <div className="bg-muted/30 py-16">
-        <div className="container mx-auto px-4">
-          <h2 className="text-3xl font-bold text-center mb-12">{t('kaimono.page.howToUseTitle', 'How to Use')}</h2>
-          <div className="grid gap-8 md:grid-cols-4 max-w-4xl mx-auto">
+      <div className={styles.sectionMuted}>
+        <div className={styles.sectionMutedInner}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionHeading}>{t('kaimono.page.howToUseTitle', 'How to Use')}</h2>
+          </div>
+          <div className={styles.stepGrid}>
             {[
               { step: 1, title: t('kaimono.page.howToUse.step1.title', 'Create a List'), desc: t('kaimono.page.howToUse.step1.desc', 'Name your list and set an optional budget'), icon: Plus },
               { step: 2, title: t('kaimono.page.howToUse.step2.title', 'Add Items'), desc: t('kaimono.page.howToUse.step2.desc', 'Add items with categories, prices, and notes'), icon: ShoppingBasket },
               { step: 3, title: t('kaimono.page.howToUse.step3.title', 'Shop & Check'), desc: t('kaimono.page.howToUse.step3.desc', 'Check off items as you shop and track spending'), icon: Wallet },
               { step: 4, title: t('kaimono.page.howToUse.step4.title', 'Share & Reuse'), desc: t('kaimono.page.howToUse.step4.desc', 'Share lists with family and build buying habits'), icon: Share2 },
             ].map(({ step, title, desc, icon: Icon }) => (
-              <div key={step} className="flex flex-col items-center text-center">
-                <div className="relative mb-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-r from-emerald-500 to-green-500 flex items-center justify-center shadow-lg">
+              <div key={step} className={styles.stepItem}>
+                <div className={styles.stepIcon}>
+                  <div className={styles.stepIconBox}>
                     <Icon className="h-7 w-7 text-white" />
                   </div>
-                  <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white dark:bg-gray-900 border-2 border-emerald-500 flex items-center justify-center text-sm font-bold text-emerald-500">
+                  <div className={styles.stepBadge}>
                     {step}
                   </div>
                 </div>
@@ -283,8 +288,8 @@ export default function KaimonoPage() {
       </div>
 
       {/* FAQ */}
-      <div className="container mx-auto px-4 py-16">
-        <h2 className="text-3xl font-bold text-center mb-12">{t('kaimono.page.faqTitle', 'FAQ')}</h2>
+      <div className={styles.sectionNarrow}>
+        <h2 className={`${styles.sectionHeading} text-center mb-12`}>{t('kaimono.page.faqTitle', 'FAQ')}</h2>
         <Accordion type="single" collapsible className="max-w-2xl mx-auto">
           <AccordionItem value="item-1">
             <AccordionTrigger>{t('kaimono.page.faq.q1', 'Do I need an account?')}</AccordionTrigger>
@@ -307,8 +312,8 @@ export default function KaimonoPage() {
 
       {/* CTA for anonymous users */}
       {!currentUser && (
-        <div className="container mx-auto px-4 py-8 pb-16">
-          <Card className="bg-gradient-to-r from-emerald-500/10 to-green-500/10 border-emerald-500/20">
+        <div className={styles.sectionNarrow}>
+          <Card className={styles.ctaCard}>
             <CardContent className="p-8 text-center space-y-4">
               <h3 className="text-xl font-semibold">{t('kaimono.page.cta.title', 'Save Your Shopping History')}</h3>
               <p className="text-muted-foreground max-w-md mx-auto">

@@ -1,14 +1,14 @@
 'use client';
 
-import { GroupCard,SettliLogo } from '@/components/settli';
+import { GroupCard, SettliLogo } from '@/components/settli';
 import {
-Accordion,
-AccordionContent,
-AccordionItem,
-AccordionTrigger,
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Button } from '@/components/ui/button';
-import { Card,CardContent } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import { useSettliHistory } from '@/hooks/useSettli';
@@ -16,28 +16,34 @@ import { useAuth } from '@/providers/AuthProvider';
 import * as settliService from '@/services/settliService';
 import type { SettliGroup } from '@/types/settli';
 import {
-ArrowRight,
-Calculator,
-ChevronRight,
-Clock,
-Globe,
-History,
-Loader2,
-Plus,
-Share2,
-Shield,
-Sparkles,
-Users,
-Zap
+  ArrowRight,
+  Calculator,
+  ChevronRight,
+  Clock,
+  Globe,
+  History,
+  Loader2,
+  Plus,
+  Share2,
+  Shield,
+  Sparkles,
+  Users,
+  Zap,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect,useState } from 'react';
+import { useEffect, useState, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import styles from '../tool-landing.module.css';
 
 // Local storage key for anonymous users
 const LOCAL_STORAGE_KEY = 'settli_recent_groups';
+const settliTheme = {
+  '--tool-accent': '#6366f1',
+  '--tool-accent-strong': '#4f46e5',
+  '--tool-accent-soft': '#a855f7',
+} as CSSProperties;
 
 interface LocalGroupEntry {
   id: string;
@@ -113,31 +119,24 @@ export default function SettliPage() {
   };
 
   return (
-    <div className="min-h-screen">
+    <div className={styles.page} style={settliTheme}>
       {/* Hero Section */}
-      <div className="relative overflow-hidden">
-        {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 via-purple-500/10 to-pink-500/10 -z-10" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-gradient-to-r from-indigo-500/20 to-purple-500/20 rounded-full blur-3xl -z-10" />
-
-        <div className="container mx-auto px-4 py-16 text-center space-y-8">
-          {/* Logo */}
-          <div className="flex justify-center">
+      <div className={styles.hero}>
+        <div className={styles.heroInner}>
+          <div className={styles.logoWrap}>
             <SettliLogo size={80} showText variant="gradient" />
           </div>
 
-          {/* Tagline */}
-          <div className="space-y-4 max-w-2xl mx-auto">
-            <p className="text-xl md:text-2xl text-muted-foreground">
+          <div className={styles.heroCopy}>
+            <p className={styles.heroTitle}>
               {t('settli.page.hero.title')}
             </p>
-            <p className="text-sm md:text-base text-muted-foreground/80">
+            <p className={styles.heroSubtitle}>
               {t('settli.page.hero.subtitle')}
             </p>
           </div>
 
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center pt-4">
+          <div className={styles.heroActions}>
             <Link href="/tools/settli/new">
               <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white shadow-lg shadow-indigo-500/25" style={{ borderRadius: '9999px' }}>
                 <Plus className="h-5 w-5 mr-2" />
@@ -146,7 +145,7 @@ export default function SettliPage() {
             </Link>
             {currentUser && (
               <Link href="/tools/settli/history">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto" style={{ borderRadius: '9999px' }}>
+                <Button size="lg" variant="outline" className={`w-full sm:w-auto ${styles.outlineButton}`} style={{ borderRadius: '9999px' }}>
                   <History className="h-5 w-5 mr-2" />
                   {t('settli.page.hero.viewHistory')}
                 </Button>
@@ -157,7 +156,7 @@ export default function SettliPage() {
       </div>
 
       {/* Join by Code Section */}
-      <div className="container mx-auto px-4 pt-6 pb-2 max-w-md">
+      <div className={styles.joinPanel}>
         <form onSubmit={handleJoinByCode} className="flex gap-2 items-center">
           <span className="text-sm text-muted-foreground shrink-0">{t('settli.page.joinByCode')}</span>
           <Input
@@ -177,7 +176,7 @@ export default function SettliPage() {
 
       {/* Recent Groups */}
       {(currentUser && recentGroups.length > 0) && (
-        <div className="container mx-auto px-4 py-6 max-w-2xl">
+        <div className={styles.compactSection}>
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-base font-semibold flex items-center gap-1.5">
               <Clock className="h-4 w-4 text-muted-foreground" />
@@ -196,7 +195,7 @@ export default function SettliPage() {
               ))}
             </div>
           ) : (
-            <div className="divide-y rounded-xl border overflow-hidden">
+            <div className={`divide-y ${styles.listFrame}`}>
               {recentGroups.map((group) => (
                 <GroupCard key={group.id} group={group} />
               ))}
@@ -207,12 +206,12 @@ export default function SettliPage() {
 
       {/* Local Groups for anonymous users */}
       {!currentUser && localGroups.length > 0 && (
-        <div className="container mx-auto px-4 py-6 max-w-2xl">
+        <div className={styles.compactSection}>
           <h2 className="text-base font-semibold flex items-center gap-1.5 mb-2">
             <Clock className="h-4 w-4 text-muted-foreground" />
             {t('settli.page.recentAccessed')}
           </h2>
-          <div className="divide-y rounded-xl border overflow-hidden">
+          <div className={`divide-y ${styles.listFrame}`}>
             {localGroups.map((entry) => (
               <Link key={entry.id} href={`/tools/settli/${entry.id}`} className="flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors">
                 <span className="font-medium text-sm">{entry.name}</span>
@@ -224,19 +223,19 @@ export default function SettliPage() {
       )}
 
       {/* Features Section */}
-      <div className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl font-bold mb-4">
-            <span className="bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-transparent">
+      <div className={styles.section}>
+        <div className={styles.sectionHeader}>
+          <h2 className={styles.sectionHeading}>
+            <span className={styles.sectionHeadingAccent}>
               {t('settli.page.featuresTitle')}
             </span>
           </h2>
-          <p className="text-muted-foreground max-w-xl mx-auto">
+          <p className={styles.sectionText}>
             {t('settli.page.featuresSubtitle')}
           </p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className={styles.featureGrid}>
           {[
             {
               icon: Zap,
@@ -275,9 +274,9 @@ export default function SettliPage() {
               gradient: 'from-pink-500 to-rose-500',
             },
           ].map(({ icon: Icon, title, description, gradient }) => (
-            <Card key={title} className="group hover:shadow-lg transition-all duration-300 overflow-hidden">
+            <Card key={title} className={`group ${styles.featureCard}`}>
               <CardContent className="p-6">
-                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-r ${gradient} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                <div className={`${styles.featureIcon} bg-gradient-to-r ${gradient} flex items-center justify-center mb-4 group-hover:scale-105 transition-transform`}>
                   <Icon className="h-6 w-6 text-white" />
                 </div>
                 <h3 className="font-semibold text-lg mb-2">{title}</h3>
@@ -289,22 +288,24 @@ export default function SettliPage() {
       </div>
 
       {/* How it Works */}
-      <div className="bg-muted/30 py-16">
-        <div className="container mx-auto px-4">
-        <h2 className="text-3xl font-bold text-center mb-12">{t('settli.page.howToUseTitle')}</h2>
-          <div className="grid gap-8 md:grid-cols-4 max-w-4xl mx-auto">
+      <div className={styles.sectionMuted}>
+        <div className={styles.sectionMutedInner}>
+          <div className={styles.sectionHeader}>
+            <h2 className={styles.sectionHeading}>{t('settli.page.howToUseTitle')}</h2>
+          </div>
+          <div className={styles.stepGrid}>
             {[
               { step: 1, title: t('settli.page.howToUse.step1.title'), desc: t('settli.page.howToUse.step1.desc'), icon: Users },
               { step: 2, title: t('settli.page.howToUse.step2.title'), desc: t('settli.page.howToUse.step2.desc'), icon: Calculator },
               { step: 3, title: t('settli.page.howToUse.step3.title'), desc: t('settli.page.howToUse.step3.desc'), icon: Zap },
               { step: 4, title: t('settli.page.howToUse.step4.title'), desc: t('settli.page.howToUse.step4.desc'), icon: Share2 },
             ].map(({ step, title, desc, icon: Icon }) => (
-              <div key={step} className="flex flex-col items-center text-center">
-                <div className="relative mb-4">
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center shadow-lg">
+              <div key={step} className={styles.stepItem}>
+                <div className={styles.stepIcon}>
+                  <div className={styles.stepIconBox}>
                     <Icon className="h-7 w-7 text-white" />
                   </div>
-                  <div className="absolute -top-2 -right-2 w-7 h-7 rounded-full bg-white dark:bg-gray-900 border-2 border-indigo-500 flex items-center justify-center text-sm font-bold text-indigo-500">
+                  <div className={styles.stepBadge}>
                     {step}
                   </div>
                 </div>
@@ -317,8 +318,8 @@ export default function SettliPage() {
       </div>
 
       {/* FAQ */}
-      <div className="container mx-auto px-4 py-16">
-        <h2 className="text-3xl font-bold text-center mb-12">{t('settli.page.faqTitle')}</h2>
+      <div className={styles.sectionNarrow}>
+        <h2 className={`${styles.sectionHeading} text-center mb-12`}>{t('settli.page.faqTitle')}</h2>
         <Accordion type="single" collapsible className="max-w-2xl mx-auto">
           <AccordionItem value="item-1">
             <AccordionTrigger>{t('settli.page.faq.q1')}</AccordionTrigger>
@@ -349,8 +350,8 @@ export default function SettliPage() {
 
       {/* CTA for anonymous users */}
       {!currentUser && (
-        <div className="container mx-auto px-4 py-8 pb-16">
-          <Card className="bg-gradient-to-r from-indigo-500/10 to-purple-500/10 border-indigo-500/20">
+        <div className={styles.sectionNarrow}>
+          <Card className={styles.ctaCard}>
             <CardContent className="p-8 text-center space-y-4">
               <h3 className="text-xl font-semibold">{t('settli.page.cta.title')}</h3>
               <p className="text-muted-foreground max-w-md mx-auto">

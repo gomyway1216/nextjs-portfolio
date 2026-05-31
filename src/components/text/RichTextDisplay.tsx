@@ -26,14 +26,20 @@ const RichTextDisplay = ({ post }: RichTextDisplayProps) => {
   });
 
   return (
-    <div className={styles.root}>
-      <div className={styles.title}>{title}</div>
-      <div className={styles.category}>{category}</div>
-      <img src={image} alt="Post image" />
-      <div className={styles.date}>{util.formatDate(created)}</div>
+    <article className={styles.root}>
+      <header className={styles.header}>
+        <p className={styles.category}>{category.replace(/-/g, ' ')}</p>
+        <h1 className={styles.title}>{title}</h1>
+        <p className={styles.date}>{util.formatDate(created)}</p>
+      </header>
+      {image && (
+        <figure className={styles.cover}>
+          <img src={image} alt="" />
+        </figure>
+      )}
       <div className={styles.body}
         dangerouslySetInnerHTML={{ __html: purifiedBody }} />
-    </div>
+    </article>
   );
 };
 

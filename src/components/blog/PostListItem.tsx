@@ -1,5 +1,6 @@
 import { htmlToText } from 'html-to-text';
 import { forwardRef } from 'react';
+import styles from './post-list-item.module.css';
 
 interface PostListItemProps {
   id: string;
@@ -14,89 +15,58 @@ interface PostListItemProps {
   handleClick: (id: string, category: string) => void;
 }
 
-const PostListItem = forwardRef<HTMLDivElement, PostListItemProps>(
+const formatDisplayDate = (value?: string | Date) => {
+  if (!value) return 'Recently updated';
+  const date = typeof value === 'string' ? new Date(value) : value;
+  if (Number.isNaN(date.getTime())) return 'Recently updated';
+  return new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
+};
+
+const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
   ({ id, title, body, lastUpdated, category, image, handleClick }, ref) => {
-    const bodyText = htmlToText(body);
+    const bodyText = htmlToText(body, { wordwrap: false }).replace(/\s+/g, ' ').trim();
+    const excerpt = bodyText.length > 190 ? `${bodyText.slice(0, 190).trim()}...` : bodyText;
+    const categoryLabel = category.replace(/-/g, ' ');
+
     return (
-      <div
+      <article
         ref={ref}
-        style={{
-          borderBottom: 'solid 1px rgba(242, 242, 242, 1)',
-          paddingBottom: '40px',
-          marginRight: 'auto',
-        }}
+        className={styles.card}
       >
-        <p
-          style={{
-            fontSize: '13.15px',
-            color: 'gray',
-            fontFamily: 'Roboto Slab',
-            marginBottom: '10px',
-          }}
+        <button
+          type="button"
+          className={styles.cardButton}
+          onClick={() => handleClick(id, category)}
+          aria-label={`Open ${title}`}
         >
-          {typeof lastUpdated === 'string'
-            ? lastUpdated.split('T')[0]
-            : lastUpdated.toISOString().split('T')[0]}
-        </p>
-        <div
-          className="postgap"
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            gap: '45px',
-          }}
-        >
-          <div className="left_post">
-            <h3
-              className="post_heading"
-              style={{ margin: '8px 0', marginTop: '-2px', fontSize: '22px' }}
-            >
-              <div
-                onClick={() => handleClick(id, category)}
-                style={{
-                  cursor: 'pointer',
-                  fontFamily: 'Poppins',
-                  color: 'inherit',
-                  textDecoration: 'none',
-                }}
-              >
-                {title}
-              </div>
-            </h3>
-            <div
-              className="resp_summary"
-              onClick={() => handleClick(id, category)}
-              style={{
-                cursor: 'pointer',
-                fontSize: '15.25px',
-                marginTop: '10px',
-                letterSpacing: '0.2px',
-                lineHeight: '25px',
-                fontFamily: 'Roboto Slab',
-                color: 'rgb(80 80 80)',
-                textDecoration: 'none',
-              }}
-            >
-              {bodyText.slice(0, 190) + '...'}
+          <div className={styles.content}>
+            <div className={styles.meta}>
+              <span>{formatDisplayDate(lastUpdated)}</span>
+              <span>{categoryLabel}</span>
             </div>
+            <h2 className={styles.title}>{title}</h2>
+            <p className={styles.excerpt}>{excerpt || 'No summary available.'}</p>
           </div>
-          <div onClick={() => handleClick(id, category)}
-            style={{
-              cursor: 'pointer'
-            }}
-            className="image">
-            {image && (
+
+          {image ? (
+            <span className={styles.thumbnail}>
               <img
-                className="post_image"
-                style={{ width: '112px', height: '112px', objectFit: 'cover' }}
                 src={image}
                 alt=""
+                loading="lazy"
               />
-            )}
-          </div>
-        </div>
-      </div>
+            </span>
+          ) : (
+            <span className={styles.thumbnailPlaceholder} aria-hidden="true">
+              {categoryLabel.slice(0, 1).toUpperCase()}
+            </span>
+          )}
+        </button>
+      </article>
     );
   }
 );

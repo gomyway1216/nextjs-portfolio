@@ -10,6 +10,7 @@ import { usePosts } from '@/providers/PostsProvider';
 import { useInView } from 'react-intersection-observer';
 import { useTranslation } from 'react-i18next';
 import { normalizeLanguage, type PostLanguage } from '@/lib/blog/postTranslations';
+import styles from './category-post-page.module.css';
 
 interface CategoryPostPageProps {
   initialCategory?: string;
@@ -20,6 +21,12 @@ interface CategoryPostPageProps {
 }
 
 const PAGE_LIMIT = 5;
+
+const CATEGORY_LABELS: Record<string, string> = {
+  all: 'All Writing',
+  technology: 'Technology',
+  life: 'Life',
+};
 
 const CategoryPostPage = ({
   initialCategory,
@@ -54,33 +61,43 @@ const CategoryPostPage = ({
   const [tabValue, setTabValue] = useState(category);
 
   const [ref, inView] = useInView({ threshold: 0.1, triggerOnce: false });
+  const visiblePosts =
+    postsByCategory[cacheKey] ||
+    (initialCategory === category && initialLanguage === language ? initialPosts : undefined) ||
+    [];
+  const categoryLabel = CATEGORY_LABELS[category] || category.replace(/-/g, ' ');
 
   const fetchPosts = async () => {
     setIsLoading(true);
-    const currentCategoryPage = (currentPageByCategory as Record<string, number>)[cacheKey] || 1;
-    const result = await postApi.getPosts({
-      category,
-      isPublic: true,
-      page: currentCategoryPage,
-      limit: PAGE_LIMIT,
-      lastVisibleTimestamp: lastVisibleDocTimestamps?.[cacheKey],
-      language,
-    });
+    try {
+      const currentCategoryPage = (currentPageByCategory as Record<string, number>)[cacheKey] || 1;
+      const result = await postApi.getPosts({
+        category,
+        isPublic: true,
+        page: currentCategoryPage,
+        limit: PAGE_LIMIT,
+        lastVisibleTimestamp: lastVisibleDocTimestamps?.[cacheKey],
+        language,
+      });
 
-    const fetchedPosts = result.posts || [];
+      const fetchedPosts = result.posts || [];
 
-    if (fetchedPosts.length === 0) {
+      if (fetchedPosts.length === 0) {
+        setHasMore(false);
+      } else {
+        const updatedPosts = [
+          ...(postsByCategory[cacheKey] || []),
+          ...fetchedPosts,
+        ];
+        setPostsByCategory(cacheKey, updatedPosts);
+        setCurrentPageByCategory(cacheKey, currentCategoryPage + 1);
+      }
+    } catch (error) {
+      console.error('[blog] failed to fetch posts', error);
       setHasMore(false);
-    } else {
-    const updatedPosts = [
-      ...(postsByCategory[cacheKey] || []),
-      ...fetchedPosts,
-    ];
-      setPostsByCategory(cacheKey, updatedPosts);
-      setCurrentPageByCategory(cacheKey, currentCategoryPage + 1);
+    } finally {
+      setIsLoading(false);
     }
-
-    setIsLoading(false);
   };
 
   const handleClickPost = (id: string, postCategory: string) => {
@@ -133,34 +150,20 @@ const CategoryPostPage = ({
   }, [inView, isLoading, hasMore, category, language]);
 
   return (
-    <div className="container">
-      <div
-        className="postsList"
-        style={{
-          paddingTop: '3vh',
-          minHeight: '97vh',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '38px',
-          marginInline: 'auto',
-          maxWidth: '760px',
-        }}
-      >
-        <SuggestionBar activeTab={tabValue} setActiveTab={setTabValue} />
-        <div
-          className="inner_container_main"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '30px',
-            marginTop: '22px',
-          }}
-        >
-          {(
-            postsByCategory[cacheKey] ||
-            (initialCategory === category && initialLanguage === language ? initialPosts : undefined) ||
-            []
-          ).map((item, index, arr) => {
+    <main className={styles.page}>
+      <section className={styles.shell}>
+        <header className={styles.hero}>
+          <p className={styles.kicker}>Blog</p>
+          <h1 className={styles.title}>{categoryLabel}</h1>
+          <p className={styles.subtitle}>
+            Notes on product engineering, fintech systems, learning, and the
+            decisions behind the work.
+          </p>
+          <SuggestionBar activeTab={tabValue} setActiveTab={setTabValue} />
+        </header>
+
+        <div className={styles.postList} aria-live="polite">
+          {visiblePosts.map((item, index, arr) => {
             const isLoadMoreAnchor = arr.length - 3 === index;
             return (
               <PostListItem
@@ -179,10 +182,21 @@ const CategoryPostPage = ({
               />
             );
           })}
-          {isLoading && <p>Loading more posts...</p>}
+          {!isLoading && visiblePosts.length === 0 && (
+            <div className={styles.emptyState}>
+              <h2>No public posts yet</h2>
+              <p>Try another category or come back after the next update.</p>
+            </div>
+          )}
+          {isLoading && (
+            <div className={styles.loadingState}>
+              <span className={styles.loadingDot} aria-hidden="true" />
+              Loading posts
+            </div>
+          )}
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   );
 };
 

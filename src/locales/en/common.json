@@ -815,8 +815,8 @@
         "experience": "large-scale fintech systems",
         "complianceValue": "Risk",
         "compliance": "regulated workflows and monitoring",
-        "locationValue": "Product",
-        "location": "customer and internal tools"
+        "productValue": "Product",
+        "product": "customer and internal tools"
       }
     },
     "impact": {
@@ -840,19 +840,19 @@
       },
       "pillars": {
         "growth": {
-          "title": "Product growth",
+          "title": "Product Growth",
           "description": "Lifecycle and conversion work that connects user needs, pricing, onboarding, and post-launch measurement."
         },
         "risk": {
-          "title": "Risk and reliability",
+          "title": "Risk and Reliability",
           "description": "Regulated workflows, monitoring, review tools, and operational controls for sensitive fintech surfaces."
         },
         "payments": {
-          "title": "Money movement",
+          "title": "Money Movement",
           "description": "Payment and transaction experiences designed with backend reliability, observability, and supportability in mind."
         },
         "platforms": {
-          "title": "Operations platforms",
+          "title": "Operations Platforms",
           "description": "Internal workflows, support tooling, dashboards, and automations that make teams faster and safer."
         }
       },

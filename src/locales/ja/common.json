@@ -799,6 +799,11 @@
         "downloadCv": "履歴書をダウンロード",
         "viewProjects": "プロジェクトを見る",
         "exploreTools": "ツールを見る"
+      },
+      "stats": {
+        "experience": "フィンテック経験",
+        "compliance": "決済・コンプライアンス",
+        "location": "サンフランシスコ / リモート"
       }
     },
     "sections": {

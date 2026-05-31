@@ -28,8 +28,8 @@ const Slider = () => {
       label: t('home.hero.stats.compliance'),
     },
     {
-      value: t('home.hero.stats.locationValue'),
-      label: t('home.hero.stats.location'),
+      value: t('home.hero.stats.productValue'),
+      label: t('home.hero.stats.product'),
     },
   ];
 

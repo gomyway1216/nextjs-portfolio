@@ -48,8 +48,8 @@ export default function OpengraphImage() {
               maxWidth: 940,
             }}
           >
-            6+ years building large-scale fintech systems — payments, KYC
-            compliance, and customer-support infrastructure.
+            6+ years building fintech systems across product, risk, money
+            movement, and operations.
           </div>
         </div>
 

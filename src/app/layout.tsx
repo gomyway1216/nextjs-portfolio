@@ -43,7 +43,7 @@ const SITE_URL = 'https://meetyudai.com';
 const SITE_NAME = 'Yudai Yaguchi';
 const SITE_TITLE = 'Yudai Yaguchi — Senior Fintech Engineer';
 const SITE_DESCRIPTION =
-  'Senior software engineer with 6+ years building large-scale fintech systems — payments, KYC compliance, and customer-support infrastructure at Atlas and PayPal.';
+  'Senior software engineer with 6+ years building fintech systems across product, risk, money movement, and operations.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -58,7 +58,7 @@ export const metadata: Metadata = {
     'Senior Software Engineer',
     'Fintech Engineer',
     'Payments',
-    'KYC',
+    'Risk',
     'Next.js',
     'TypeScript',
     'San Francisco',

@@ -799,10 +799,10 @@
       "badge": "フィンテック・プロダクトエンジニア",
       "greeting": "こんにちは、私は",
       "name": "矢口 雄大",
-      "description": "成長施策、リスク・コンプライアンス、決済、社内オペレーションを横断してフィンテックプロダクトを作っています。AtlasではAnnual plan、Spanish onboarding、KYC/OFAC、TabaPay、Dispute、Support automation、Atlas HQなどを担当してきました。",
+      "description": "成長施策、リスク、決済、社内オペレーションを横断してフィンテックプロダクトを作っています。曖昧な課題を整理し、信頼できるシステムとして出荷し、リリース後も改善し続けるところを得意にしています。",
       "roles": {
         "seniorSoftwareEngineer": "プロダクト志向のフィンテックエンジニア",
-        "fintechEngineer": "Growth / Risk / Payments",
+        "fintechEngineer": "Risk / Money Movement",
         "infrastructureEngineer": "Internal Platforms / Operations"
       },
       "cta": {
@@ -811,52 +811,52 @@
         "exploreTools": "ツールを見る"
       },
       "stats": {
-        "experienceValue": "60K+",
-        "experience": "Annual plan成長施策",
+        "experienceValue": "6+ yrs",
+        "experience": "大規模フィンテックシステム",
         "complianceValue": "リスク",
-        "compliance": "KYC・OFAC・監視基盤",
-        "locationValue": "決済",
-        "location": "デビット・ACH・Dispute"
+        "compliance": "規制領域のワークフローと監視",
+        "locationValue": "プロダクト",
+        "location": "顧客向け・社内向けツール"
       }
     },
     "impact": {
       "eyebrow": "Atlasでの実績",
-      "title": "KYCだけではなく、成長・リスク・決済・Opsまで。",
+      "title": "プロダクト、リスク、決済、運用を横断するフィンテック開発。",
       "subtitle": "共通しているのは、曖昧なフィンテック課題をend-to-endで持つことです。顧客や運用上の課題を定義し、システムとして出荷し、数値を見ながら改善し続けます。",
       "metricsLabel": "キャリア実績のハイライト",
       "metrics": {
         "annual": {
-          "value": "60K+",
-          "label": "Annual planのユーザー成長に向けた価格設計、導線追加、継続率、コミュニケーション改善"
+          "value": "Growth",
+          "label": "オンボーディング、コンバージョン、継続率、ライフサイクルコミュニケーションの改善"
         },
         "platform": {
-          "value": "100%",
-          "label": "Risk、Dispute、Support、User、Activity trackingを支えるAtlas HQの本番展開"
+          "value": "Platforms",
+          "label": "運用チームが状況を把握し、より速く動くための社内ツールとワークフロー"
         },
         "coverage": {
           "value": "Core flows",
-          "label": "KYC、OFAC、Plaid、TabaPay、Dispute、Support routing、Retention、Spanish onboarding"
+          "label": "プロダクトUX、リスク管理、決済、サポート、分析をまたぐ中核フロー"
         }
       },
       "pillars": {
         "growth": {
-          "title": "Growth / Monetization",
-          "description": "Annual plan、アップセル導線、継続率改善、Perks、Spanish funnel調査、リリース後の分析と改善。"
+          "title": "Product Growth",
+          "description": "ユーザー理解、価格設計、オンボーディング、リリース後の計測をつなげる成長施策。"
         },
         "risk": {
-          "title": "Risk / Compliance",
-          "description": "KYC安定化、OFAC監視、eCBSV、Adverse action、Manual review tooling、Fraud control、監査しやすいダッシュボード。"
+          "title": "Risk / Reliability",
+          "description": "規制領域のワークフロー、監視、レビュー機能、運用コントロールを安全に扱う仕組み。"
         },
         "payments": {
-          "title": "Payments / Money movement",
-          "description": "TabaPay、ACH、Chargeback、Reconciliation、Debit card更新、Fast deposit、Tax filing、Transaction monitoring。"
+          "title": "Money Movement",
+          "description": "決済・トランザクション体験を、バックエンドの信頼性、可観測性、サポート性まで含めて設計。"
         },
         "platforms": {
-          "title": "Internal platforms / Support ops",
-          "description": "Atlas HQ、RetoolからNext.jsへの移行、Intercom/Fini連携、Dispute queue、Support routing、Activity tracking。"
+          "title": "Operations Platforms",
+          "description": "社内ワークフロー、サポートツール、ダッシュボード、自動化によってチームの運用を支える基盤。"
         }
       },
-      "note": "公開サイト向けに、社内の計画文言や細かいvendor別のrollout詳細は抽象化しつつ、担当範囲と事業インパクトが伝わる表現にしています。"
+      "note": "詳細な実装や非公開の数値は高い粒度にまとめ、担当範囲、オーナーシップ、技術判断が伝わる表現にしています。"
     },
     "sections": {
       "work": {

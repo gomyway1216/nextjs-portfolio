@@ -799,10 +799,10 @@
       "badge": "Fintech Product Engineer",
       "greeting": "Hello, my name is",
       "name": "Yudai Yaguchi",
-      "description": "I build fintech products across growth, risk, payments, and internal operations. At Atlas, I have led work from annual plan growth and Spanish onboarding to KYC/OFAC systems, TabaPay money movement, dispute tooling, support automation, and Atlas HQ.",
+      "description": "I build fintech products across growth, risk, money movement, and internal operations. My work sits between product thinking and production engineering: clarifying ambiguous problems, shipping reliable systems, and improving them after launch.",
       "roles": {
         "seniorSoftwareEngineer": "Product-minded Fintech Engineer",
-        "fintechEngineer": "Growth, Risk, and Payments",
+        "fintechEngineer": "Risk and Money Movement",
         "infrastructureEngineer": "Internal Platforms and Operations"
       },
       "cta": {
@@ -811,52 +811,52 @@
         "exploreTools": "Explore Tools"
       },
       "stats": {
-        "experienceValue": "60K+",
-        "experience": "annual users milestone work",
+        "experienceValue": "6+ yrs",
+        "experience": "large-scale fintech systems",
         "complianceValue": "Risk",
-        "compliance": "KYC, OFAC, monitoring",
-        "locationValue": "Money",
-        "location": "debit, ACH, disputes"
+        "compliance": "regulated workflows and monitoring",
+        "locationValue": "Product",
+        "location": "customer and internal tools"
       }
     },
     "impact": {
       "eyebrow": "Atlas impact",
-      "title": "More than KYC: growth, risk, payments, and ops.",
+      "title": "Fintech work across product, risk, money movement, and operations.",
       "subtitle": "The common thread is owning ambiguous fintech problems end-to-end: define the customer or operations pain, ship the system, monitor the rollout, and keep improving the numbers after launch.",
       "metricsLabel": "Career impact highlights",
       "metrics": {
         "annual": {
-          "value": "60K+",
-          "label": "annual-plan user milestone supported through pricing, entry points, retention, and communication work"
+          "value": "Growth",
+          "label": "Product initiatives across onboarding, conversion, retention, and lifecycle communication"
         },
         "platform": {
-          "value": "100%",
-          "label": "Atlas HQ rollout for internal risk, dispute, support, user, and activity-tracking workflows"
+          "value": "Platforms",
+          "label": "Internal tools and workflows that help operations teams move with better visibility"
         },
         "coverage": {
           "value": "Core flows",
-          "label": "KYC, OFAC, Plaid, TabaPay, disputes, support routing, retention, and Spanish onboarding"
+          "label": "Work spanning product UX, risk controls, money movement, support, and analytics"
         }
       },
       "pillars": {
         "growth": {
-          "title": "Growth and monetization",
-          "description": "Annual plan launches, upsell entry points, retention experiments, perks, Spanish funnel research, and post-launch analysis."
+          "title": "Product growth",
+          "description": "Lifecycle and conversion work that connects user needs, pricing, onboarding, and post-launch measurement."
         },
         "risk": {
-          "title": "Risk and compliance",
-          "description": "KYC stability, OFAC monitoring, eCBSV, adverse action workflows, manual review tooling, fraud controls, and audit-friendly dashboards."
+          "title": "Risk and reliability",
+          "description": "Regulated workflows, monitoring, review tools, and operational controls for sensitive fintech surfaces."
         },
         "payments": {
-          "title": "Payments and money movement",
-          "description": "TabaPay, ACH, chargebacks, reconciliation, debit card updates, fast deposits, tax filing flows, and transaction monitoring."
+          "title": "Money movement",
+          "description": "Payment and transaction experiences designed with backend reliability, observability, and supportability in mind."
         },
         "platforms": {
-          "title": "Internal platforms and support ops",
-          "description": "Atlas HQ, Retool-to-Next migration, Intercom and Fini integrations, dispute queues, support routing, and activity tracking."
+          "title": "Operations platforms",
+          "description": "Internal workflows, support tooling, dashboards, and automations that make teams faster and safer."
         }
       },
-      "note": "Public copy is intentionally abstracted from internal planning language and vendor-specific rollout details while preserving the scope and business impact."
+      "note": "Sensitive implementation details and private metrics are summarized at a high level here; the focus is scope, ownership, and engineering judgment."
     },
     "sections": {
       "work": {

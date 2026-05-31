@@ -811,8 +811,11 @@
         "exploreTools": "ツールを見る"
       },
       "stats": {
+        "experienceValue": "60K+",
         "experience": "Annual plan成長施策",
+        "complianceValue": "リスク",
         "compliance": "KYC・OFAC・監視基盤",
+        "locationValue": "決済",
         "location": "デビット・ACH・Dispute"
       }
     },

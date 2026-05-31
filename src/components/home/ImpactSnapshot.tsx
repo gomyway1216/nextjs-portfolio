@@ -25,14 +25,14 @@ export default function ImpactSnapshot() {
           <p>{t('home.impact.subtitle')}</p>
         </div>
 
-        <div className={styles.metrics} aria-label={t('home.impact.metricsLabel')}>
+        <ul className={styles.metrics} aria-label={t('home.impact.metricsLabel')}>
           {metrics.map((metric) => (
-            <div className={styles.metric} key={metric}>
+            <li className={styles.metric} key={metric}>
               <strong>{t(`home.impact.metrics.${metric}.value`)}</strong>
               <span>{t(`home.impact.metrics.${metric}.label`)}</span>
-            </div>
+            </li>
           ))}
-        </div>
+        </ul>
 
         <div className={styles.grid}>
           {pillars.map(({ key, Icon }) => (

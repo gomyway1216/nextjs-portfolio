@@ -20,15 +20,15 @@ const Slider = () => {
   const description = t('home.hero.description');
   const heroStats = [
     {
-      value: '60K+',
+      value: t('home.hero.stats.experienceValue'),
       label: t('home.hero.stats.experience'),
     },
     {
-      value: 'Risk',
+      value: t('home.hero.stats.complianceValue'),
       label: t('home.hero.stats.compliance'),
     },
     {
-      value: 'Money',
+      value: t('home.hero.stats.locationValue'),
       label: t('home.hero.stats.location'),
     },
   ];

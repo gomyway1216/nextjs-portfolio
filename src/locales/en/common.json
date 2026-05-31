@@ -811,8 +811,11 @@
         "exploreTools": "Explore Tools"
       },
       "stats": {
+        "experienceValue": "60K+",
         "experience": "annual users milestone work",
+        "complianceValue": "Risk",
         "compliance": "KYC, OFAC, monitoring",
+        "locationValue": "Money",
         "location": "debit, ACH, disputes"
       }
     },

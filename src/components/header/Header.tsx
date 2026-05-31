@@ -136,6 +136,17 @@ const Header = () => {
                 <LineChart size={20} />
               </Link>
             </li>
+            <li className={activeSection === 'resume' ? 'active' : ''}>
+              <Link
+                className="nav-link"
+                href="/#resume"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content={t('home.nav.resume')}
+                onClick={handleClick}
+              >
+                <FileText size={20} />
+              </Link>
+            </li>
             <li className={pathname && (pathname === '/work' || pathname.startsWith('/work/')) ? 'active' : ''}>
               <Link
                 className="nav-link"
@@ -189,17 +200,6 @@ const Header = () => {
                 onClick={handleClick}
               >
                 <UserRound size={20} />
-              </Link>
-            </li>
-            <li className={activeSection === 'resume' ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/#resume"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.resume')}
-                onClick={handleClick}
-              >
-                <FileText size={20} />
               </Link>
             </li>
             <li>

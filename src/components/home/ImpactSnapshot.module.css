@@ -1,5 +1,6 @@
 .section {
   padding: 84px 0 28px;
+  background-color: var(--surface-base);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 72%, transparent) 0%, transparent 100%),
     var(--surface-base);
@@ -44,14 +45,18 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
+  list-style: none;
   margin-top: 34px;
+  padding: 0;
 }
 
 .metric,
 .card {
   border: 1px solid var(--border-soft);
+  background-color: var(--surface-elevated);
   background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
   box-shadow: var(--shadow-soft);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
   backdrop-filter: saturate(180%) blur(14px);
 }
 
@@ -137,6 +142,10 @@
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .metrics > :last-child {
+    grid-column: span 2;
+  }
 }
 
 @media (max-width: 640px) {
@@ -147,6 +156,10 @@
   .metrics,
   .grid {
     grid-template-columns: 1fr;
+  }
+
+  .metrics > :last-child {
+    grid-column: auto;
   }
 
   .card,

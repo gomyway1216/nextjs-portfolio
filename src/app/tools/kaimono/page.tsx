@@ -125,10 +125,11 @@ export default function KaimonoPage() {
       <div className={styles.hero}>
         <div className={styles.heroInner}>
           <div className={styles.logoWrap}>
-            <KaimonoLogo size={80} showText variant="gradient" />
+            <KaimonoLogo size={80} variant="gradient" />
           </div>
 
           <div className={styles.heroCopy}>
+            <h1 className={styles.heroBrand}>Kaimono</h1>
             <p className={styles.heroTitle}>
               {t('kaimono.page.hero.title', 'Smart Shopping Lists for Everyone')}
             </p>

@@ -58,9 +58,10 @@ export default function KuizuPage() {
       <div className={styles.hero}>
         <div className={styles.heroInner}>
           <div className={styles.logoWrap}>
-            <KuizuLogo size={80} showText variant="gradient" />
+            <KuizuLogo size={80} variant="gradient" />
           </div>
           <div className={styles.heroCopy}>
+            <h1 className={styles.heroBrand}>Kuizu</h1>
             <p className={styles.heroTitle}>
               {t('kuizu.page.hero.title', 'Test Your Knowledge, Challenge Your Friends')}
             </p>

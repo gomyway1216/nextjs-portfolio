@@ -18,6 +18,7 @@ const FALLBACKS: Record<string, Record<string, string>> = {
     paste: 'Paste',
     dropFile: 'Drop file',
     fromClipboard: 'From clipboard',
+    readerAndEditor: 'Reader and editor',
     preview: 'Preview',
     edit: 'Edit',
     changeContent: 'Change',
@@ -34,6 +35,7 @@ const FALLBACKS: Record<string, Record<string, string>> = {
     paste: '貼り付け',
     dropFile: 'ファイルをドロップ',
     fromClipboard: 'クリップボードから',
+    readerAndEditor: '閲覧と編集',
     preview: 'プレビュー',
     edit: '編集',
     changeContent: '変更',
@@ -177,24 +179,28 @@ export default function MarkdownPreviewPage() {
   const dropZoneContent = (
     <div
       className={cn(
-        'flex flex-col items-center gap-8 rounded-2xl border-2 border-dashed p-16 transition-colors',
+        'flex w-full max-w-3xl flex-col items-center gap-7 rounded-lg border border-dashed bg-card/85 p-8 text-center shadow-[0_24px_70px_hsl(var(--foreground)/0.08)] backdrop-blur transition-colors sm:p-12',
         isDragging
           ? 'border-primary bg-primary/5'
           : 'border-muted-foreground/25'
       )}
     >
-      <FileText className="h-16 w-16 text-muted-foreground/50" />
+      <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <FileText className="h-8 w-8" />
+      </div>
       <div className="text-center">
-        <h1 className="text-2xl font-bold">Markdown Preview</h1>
-        <p className="mt-2 text-muted-foreground">
+        <p className="mb-2 text-sm font-semibold text-primary">{p('readerAndEditor')}</p>
+        <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Markdown Preview</h1>
+        <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground sm:text-base">
           {p('dropOrPaste')}
         </p>
       </div>
-      <div className="flex gap-4">
+      <div className="flex w-full flex-col justify-center gap-3 sm:w-auto sm:flex-row">
         <Button
           variant="outline"
           size="lg"
           onClick={() => fileInputRef.current?.click()}
+          className="w-full sm:w-auto"
         >
           <Upload className="mr-2 h-4 w-4" />
           {p('selectFile')}
@@ -203,6 +209,7 @@ export default function MarkdownPreviewPage() {
           variant="outline"
           size="lg"
           onClick={handlePaste}
+          className="w-full sm:w-auto"
         >
           <Clipboard className="mr-2 h-4 w-4" />
           {p('paste')}
@@ -215,12 +222,14 @@ export default function MarkdownPreviewPage() {
   if (!hasContent) {
     return (
       <div
-        className="flex min-h-[calc(100vh-3rem)] flex-col items-center justify-center bg-background"
+        className="min-h-[calc(100vh-3rem)] bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--muted)/0.52)_48%,hsl(var(--background))_100%)] px-4 py-10 text-foreground"
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {dropZoneContent}
+        <div className="mx-auto flex min-h-[calc(100vh-8rem)] max-w-5xl items-center justify-center">
+          {dropZoneContent}
+        </div>
         <input
           ref={fileInputRef}
           type="file"
@@ -235,7 +244,7 @@ export default function MarkdownPreviewPage() {
   // Preview / Edit mode
   return (
     <div
-      className="relative flex h-[calc(100vh-3rem)] flex-col bg-background"
+      className="relative flex h-[calc(100vh-3rem)] flex-col bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--muted)/0.38)_100%)] text-foreground"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -243,7 +252,7 @@ export default function MarkdownPreviewPage() {
       {/* Drag overlay */}
       {isDragging && !showChangeOverlay && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-primary p-16">
+          <div className="flex flex-col items-center gap-4 rounded-lg border-2 border-dashed border-primary bg-card/90 p-10 shadow-xl sm:p-16">
             <Upload className="h-12 w-12 text-primary" />
             <p className="text-lg font-medium text-primary">{p('dropFile')}</p>
           </div>
@@ -253,11 +262,11 @@ export default function MarkdownPreviewPage() {
       {/* Change content overlay */}
       {showChangeOverlay && (
         <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/90 backdrop-blur-sm">
-          <div className="relative">
+          <div className="relative w-full max-w-3xl px-4">
             <Button
               variant="ghost"
               size="icon"
-              className="absolute -top-2 -right-2 z-50"
+              className="absolute right-2 top-2 z-50 bg-background/80"
               onClick={() => setShowChangeOverlay(false)}
             >
               <X className="h-5 w-5" />
@@ -268,16 +277,16 @@ export default function MarkdownPreviewPage() {
       )}
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between border-b px-4 py-2">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <div className="flex flex-col gap-3 border-b bg-background/85 px-4 py-3 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
           <FileText className="h-4 w-4" />
           {fileName ? (
-            <span>{fileName}</span>
+            <span className="truncate">{fileName}</span>
           ) : (
             <span>{p('fromClipboard')}</span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {/* Edit / Preview toggle */}
           <Button
             variant={editMode ? 'default' : 'outline'}
@@ -315,11 +324,11 @@ export default function MarkdownPreviewPage() {
             ref={textareaRef}
             value={markdown}
             onChange={(e) => setMarkdown(e.target.value)}
-            className="h-full w-full resize-none border-none bg-background p-8 font-mono text-sm outline-none"
+            className="h-full w-full resize-none border-none bg-background/80 p-6 font-mono text-sm leading-6 outline-none sm:p-8"
             autoFocus
           />
         ) : (
-          <article className="prose prose-neutral dark:prose-invert mx-auto max-w-4xl p-8">
+          <article className="prose prose-neutral dark:prose-invert mx-auto max-w-4xl p-6 sm:p-8">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>
               {markdown}
             </ReactMarkdown>

@@ -92,7 +92,7 @@ export default function StudyListPage() {
       case QuizDifficulty.EXPERT:
         return { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' };
       default:
-        return { bg: '#f3f4f6', text: '#374151', border: '#e5e7eb' };
+        return { bg: 'var(--muted)', text: 'var(--foreground)', border: 'var(--border)' };
     }
   };
 
@@ -102,12 +102,12 @@ export default function StudyListPage() {
       {/* Progress Overview */}
       {currentUser && progress && (
         <div style={{
-          backgroundColor: '#f9fafb',
-          borderRadius: '12px',
+          backgroundColor: 'var(--muted)',
+          borderRadius: '8px',
           padding: '16px',
           marginBottom: '16px',
         }}>
-          <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px' }}>
+          <h3 style={{ fontWeight: '600', color: 'var(--foreground)', marginBottom: '12px', fontSize: '14px' }}>
             Your Progress
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -116,33 +116,33 @@ export default function StudyListPage() {
                 width: '36px',
                 height: '36px',
                 borderRadius: '8px',
-                backgroundColor: '#ede9fe',
+                backgroundColor: 'color-mix(in srgb, var(--background) 80%, #0f766e 20%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <BookOpen size={18} color="#7c3aed" />
+                <BookOpen size={18} color="#0f766e" />
               </div>
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
-                  <p style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                  <p style={{ fontSize: '18px', fontWeight: '600', color: 'var(--foreground)' }}>
                     {counts.read}
                   </p>
-                  <p style={{ fontSize: '12px', color: '#6b7280' }}>/ {counts.total}</p>
+                  <p style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>/ {counts.total}</p>
                 </div>
-                <p style={{ color: '#6b7280', fontSize: '11px', marginBottom: '6px' }}>Articles Read</p>
+                <p style={{ color: 'var(--muted-foreground)', fontSize: '11px', marginBottom: '6px' }}>Articles Read</p>
                 {counts.total > 0 && (
                   <div style={{
                     width: '100%',
                     height: '4px',
-                    backgroundColor: '#e5e7eb',
+                    backgroundColor: 'var(--border)',
                     borderRadius: '2px',
                     overflow: 'hidden',
                   }}>
                     <div style={{
                       width: `${(counts.read / counts.total) * 100}%`,
                       height: '100%',
-                      backgroundColor: '#7c3aed',
+                      backgroundColor: '#0f766e',
                       borderRadius: '2px',
                       transition: 'width 0.3s ease',
                     }} />
@@ -155,7 +155,7 @@ export default function StudyListPage() {
                 width: '36px',
                 height: '36px',
                 borderRadius: '8px',
-                backgroundColor: '#dbeafe',
+                backgroundColor: 'color-mix(in srgb, var(--background) 80%, #2563eb 20%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -163,10 +163,10 @@ export default function StudyListPage() {
                 <BarChart3 size={18} color="#2563eb" />
               </div>
               <div>
-                <p style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                <p style={{ fontSize: '18px', fontWeight: '600', color: 'var(--foreground)' }}>
                   {progress.totalQuizzesCompleted}
                 </p>
-                <p style={{ color: '#6b7280', fontSize: '11px' }}>Quizzes Done</p>
+                <p style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>Quizzes Done</p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -174,20 +174,20 @@ export default function StudyListPage() {
                 width: '36px',
                 height: '36px',
                 borderRadius: '8px',
-                backgroundColor: '#d1fae5',
+                backgroundColor: 'color-mix(in srgb, var(--background) 80%, #0f766e 20%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
-                <Clock size={18} color="#059669" />
+                <Clock size={18} color="#0f766e" />
               </div>
               <div>
-                <p style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                <p style={{ fontSize: '18px', fontWeight: '600', color: 'var(--foreground)' }}>
                   {progress.totalTimeSpentMinutes < 60
                     ? `${progress.totalTimeSpentMinutes}m`
                     : `${Math.round(progress.totalTimeSpentMinutes / 60)}h`}
                 </p>
-                <p style={{ color: '#6b7280', fontSize: '11px' }}>Time Spent</p>
+                <p style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>Time Spent</p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -195,7 +195,7 @@ export default function StudyListPage() {
                 width: '36px',
                 height: '36px',
                 borderRadius: '8px',
-                backgroundColor: '#fef3c7',
+                backgroundColor: 'color-mix(in srgb, var(--background) 80%, #f59e0b 20%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -203,10 +203,10 @@ export default function StudyListPage() {
                 <Flame size={18} color="#d97706" />
               </div>
               <div>
-                <p style={{ fontSize: '18px', fontWeight: '600', color: '#111827' }}>
+                <p style={{ fontSize: '18px', fontWeight: '600', color: 'var(--foreground)' }}>
                   {progress.currentStreak}
                 </p>
-                <p style={{ color: '#6b7280', fontSize: '11px' }}>Day Streak</p>
+                <p style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>Day Streak</p>
               </div>
             </div>
           </div>
@@ -216,13 +216,13 @@ export default function StudyListPage() {
       {/* Learning Hub Quick Access */}
       {currentUser && (
         <div style={{
-          backgroundColor: '#f9fafb',
-          borderRadius: '12px',
+          backgroundColor: 'var(--muted)',
+          borderRadius: '8px',
           padding: '16px',
           marginBottom: '16px',
         }}>
-          <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <GraduationCap size={16} style={{ color: '#7c3aed' }} />
+          <h3 style={{ fontWeight: '600', color: 'var(--foreground)', marginBottom: '12px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <GraduationCap size={16} style={{ color: '#0f766e' }} />
             Learning Hub
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -235,9 +235,9 @@ export default function StudyListPage() {
                 gap: '8px',
                 padding: '10px 12px',
                 borderRadius: '8px',
-                backgroundColor: '#ffffff',
-                border: '1px solid #e5e7eb',
-                color: '#374151',
+                backgroundColor: 'var(--background)',
+                border: '1px solid var(--border)',
+                color: 'var(--foreground)',
                 textDecoration: 'none',
                 fontWeight: '500',
                 fontSize: '13px',
@@ -255,9 +255,9 @@ export default function StudyListPage() {
                 gap: '8px',
                 padding: '10px 12px',
                 borderRadius: '8px',
-                backgroundColor: '#ffffff',
-                border: '1px solid #e5e7eb',
-                color: '#374151',
+                backgroundColor: 'var(--background)',
+                border: '1px solid var(--border)',
+                color: 'var(--foreground)',
                 textDecoration: 'none',
                 fontWeight: '500',
                 fontSize: '13px',
@@ -276,7 +276,7 @@ export default function StudyListPage() {
                 gap: '8px',
                 padding: '10px 12px',
                 borderRadius: '8px',
-                backgroundColor: '#7c3aed',
+                backgroundColor: '#0f766e',
                 color: '#ffffff',
                 textDecoration: 'none',
                 fontWeight: '500',
@@ -293,11 +293,11 @@ export default function StudyListPage() {
       {/* Categories Quick Filter */}
       {!categoriesLoading && categories.length > 0 && (
         <div style={{
-          backgroundColor: '#f9fafb',
-          borderRadius: '12px',
+          backgroundColor: 'var(--muted)',
+          borderRadius: '8px',
           padding: '16px',
         }}>
-          <h3 style={{ fontWeight: '600', color: '#111827', marginBottom: '12px', fontSize: '14px' }}>
+          <h3 style={{ fontWeight: '600', color: 'var(--foreground)', marginBottom: '12px', fontSize: '14px' }}>
             Categories
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -310,8 +310,8 @@ export default function StudyListPage() {
                 padding: '8px 12px',
                 borderRadius: '6px',
                 border: 'none',
-                backgroundColor: !selectedCategory ? '#d1fae5' : 'transparent',
-                color: !selectedCategory ? '#065f46' : '#374151',
+                backgroundColor: !selectedCategory ? 'color-mix(in srgb, var(--background) 80%, #0f766e 20%)' : 'transparent',
+                color: !selectedCategory ? '#0f766e' : 'var(--foreground)',
                 cursor: 'pointer',
                 fontSize: '13px',
                 fontWeight: !selectedCategory ? '500' : '400',
@@ -331,8 +331,8 @@ export default function StudyListPage() {
                   padding: '8px 12px',
                   borderRadius: '6px',
                   border: 'none',
-                  backgroundColor: selectedCategory === cat.id ? '#d1fae5' : 'transparent',
-                  color: selectedCategory === cat.id ? '#065f46' : '#374151',
+                  backgroundColor: selectedCategory === cat.id ? 'color-mix(in srgb, var(--background) 80%, #0f766e 20%)' : 'transparent',
+                  color: selectedCategory === cat.id ? '#0f766e' : 'var(--foreground)',
                   cursor: 'pointer',
                   fontSize: '13px',
                   fontWeight: selectedCategory === cat.id ? '500' : '400',
@@ -351,7 +351,7 @@ export default function StudyListPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      backgroundColor: '#ffffff',
+      backgroundColor: 'var(--background)',
       paddingTop: '8px',
     }}>
       {/* Mobile Sidebar Overlay */}
@@ -373,14 +373,14 @@ export default function StudyListPage() {
               bottom: 0,
               width: '300px',
               maxWidth: '85vw',
-              backgroundColor: '#ffffff',
+              backgroundColor: 'var(--background)',
               padding: '16px',
               overflowY: 'auto',
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontWeight: '600', color: '#111827' }}>Menu</h2>
+              <h2 style={{ fontWeight: '600', color: 'var(--foreground)' }}>Menu</h2>
               <button
                 onClick={() => setShowMobileSidebar(false)}
                 style={{
@@ -391,7 +391,7 @@ export default function StudyListPage() {
                   cursor: 'pointer',
                 }}
               >
-                <X size={20} color="#6b7280" />
+                <X size={20} color="var(--muted-foreground)" />
               </button>
             </div>
             <SidebarContent />
@@ -408,7 +408,7 @@ export default function StudyListPage() {
               <h1 style={{
                   fontSize: '28px',
                   fontWeight: '600',
-                  color: '#111827',
+                  color: 'var(--foreground)',
                 }}>
                   Study Articles
                 </h1>
@@ -423,9 +423,9 @@ export default function StudyListPage() {
                     justifyContent: 'center',
                     padding: '8px',
                     borderRadius: '6px',
-                    border: '1px solid #e5e7eb',
-                    backgroundColor: '#ffffff',
-                    color: '#374151',
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'var(--background)',
+                    color: 'var(--foreground)',
                     cursor: 'pointer',
                   }}
                 >
@@ -440,7 +440,7 @@ export default function StudyListPage() {
             <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
               <Search
                 size={18}
-                color="#9ca3af"
+                color="var(--muted-foreground)"
                 style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }}
               />
               <input
@@ -452,9 +452,9 @@ export default function StudyListPage() {
                   width: '100%',
                   padding: '10px 12px 10px 40px',
                   borderRadius: '8px',
-                  border: '1px solid #e5e7eb',
-                  backgroundColor: '#ffffff',
-                  color: '#111827',
+                  border: '1px solid var(--border)',
+                  backgroundColor: 'var(--background)',
+                  color: 'var(--foreground)',
                   fontSize: '14px',
                   outline: 'none',
                 }}
@@ -469,7 +469,7 @@ export default function StudyListPage() {
                     transform: 'translateY(-50%)',
                     background: 'none',
                     border: 'none',
-                    color: '#9ca3af',
+                    color: 'var(--muted-foreground)',
                     cursor: 'pointer',
                     padding: '4px',
                   }}
@@ -488,9 +488,9 @@ export default function StudyListPage() {
                 gap: '6px',
                 padding: '10px 16px',
                 borderRadius: '8px',
-                border: '1px solid #e5e7eb',
-                backgroundColor: showFilters ? '#f3f4f6' : '#ffffff',
-                color: '#374151',
+                border: '1px solid var(--border)',
+                backgroundColor: showFilters ? 'var(--muted)' : 'var(--card)',
+                color: 'var(--foreground)',
                 cursor: 'pointer',
                 fontWeight: '500',
                 fontSize: '14px',
@@ -508,13 +508,13 @@ export default function StudyListPage() {
               gap: '12px',
               marginBottom: '16px',
               padding: '16px',
-              backgroundColor: '#f9fafb',
+              backgroundColor: 'var(--muted)',
               borderRadius: '8px',
               flexWrap: 'wrap',
             }}>
               {/* Category Filter */}
               <div style={{ flex: 1, minWidth: '150px' }}>
-                <label style={{ display: 'block', color: '#6b7280', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
+                <label style={{ display: 'block', color: 'var(--muted-foreground)', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
                   Category
                 </label>
                 <Select
@@ -535,7 +535,7 @@ export default function StudyListPage() {
 
               {/* Difficulty Filter */}
               <div style={{ flex: 1, minWidth: '150px' }}>
-                <label style={{ display: 'block', color: '#6b7280', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
+                <label style={{ display: 'block', color: 'var(--muted-foreground)', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
                   Difficulty
                 </label>
                 <Select
@@ -556,7 +556,7 @@ export default function StudyListPage() {
 
               {/* Language Filter */}
               <div style={{ flex: 1, minWidth: '150px' }}>
-                <label style={{ display: 'block', color: '#6b7280', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
+                <label style={{ display: 'block', color: 'var(--muted-foreground)', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
                   Language
                 </label>
                 <Select
@@ -591,9 +591,9 @@ export default function StudyListPage() {
                   style={{
                     padding: '8px 16px',
                     borderRadius: '6px',
-                    border: '1px solid #e5e7eb',
-                    backgroundColor: '#ffffff',
-                    color: '#6b7280',
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'var(--background)',
+                    color: 'var(--muted-foreground)',
                     cursor: 'pointer',
                     fontSize: '13px',
                   }}
@@ -615,10 +615,10 @@ export default function StudyListPage() {
               onClick={() => setStatusFilter('all')}
               style={{
                 padding: '8px 16px',
-                borderRadius: '20px',
+                borderRadius: '999px',
                 border: 'none',
-                backgroundColor: statusFilter === 'all' ? '#10a37f' : '#f3f4f6',
-                color: statusFilter === 'all' ? '#ffffff' : '#6b7280',
+                backgroundColor: statusFilter === 'all' ? '#0f766e' : 'var(--muted)',
+                color: statusFilter === 'all' ? '#ffffff' : 'var(--muted-foreground)',
                 cursor: 'pointer',
                 fontWeight: '500',
                 fontSize: '13px',
@@ -631,10 +631,10 @@ export default function StudyListPage() {
               onClick={() => setStatusFilter('unread')}
               style={{
                 padding: '8px 16px',
-                borderRadius: '20px',
+                borderRadius: '999px',
                 border: 'none',
-                backgroundColor: statusFilter === 'unread' ? '#10a37f' : '#f3f4f6',
-                color: statusFilter === 'unread' ? '#ffffff' : '#6b7280',
+                backgroundColor: statusFilter === 'unread' ? '#0f766e' : 'var(--muted)',
+                color: statusFilter === 'unread' ? '#ffffff' : 'var(--muted-foreground)',
                 cursor: 'pointer',
                 fontWeight: '500',
                 fontSize: '13px',
@@ -647,10 +647,10 @@ export default function StudyListPage() {
               onClick={() => setStatusFilter('read')}
               style={{
                 padding: '8px 16px',
-                borderRadius: '20px',
+                borderRadius: '999px',
                 border: 'none',
-                backgroundColor: statusFilter === 'read' ? '#10a37f' : '#f3f4f6',
-                color: statusFilter === 'read' ? '#ffffff' : '#6b7280',
+                backgroundColor: statusFilter === 'read' ? '#0f766e' : 'var(--muted)',
+                color: statusFilter === 'read' ? '#ffffff' : 'var(--muted-foreground)',
                 cursor: 'pointer',
                 fontWeight: '500',
                 fontSize: '13px',
@@ -680,9 +680,9 @@ export default function StudyListPage() {
               style={{
                 padding: '6px 14px',
                 borderRadius: '9999px',
-                border: `1px solid ${!selectedCategory ? '#10a37f' : '#e5e7eb'}`,
-                backgroundColor: !selectedCategory ? '#d1fae5' : '#ffffff',
-                color: !selectedCategory ? '#065f46' : '#6b7280',
+                border: `1px solid ${!selectedCategory ? '#0f766e' : 'var(--border)'}`,
+                backgroundColor: !selectedCategory ? 'color-mix(in srgb, var(--background) 80%, #0f766e 20%)' : 'var(--card)',
+                color: !selectedCategory ? '#0f766e' : 'var(--muted-foreground)',
                 cursor: 'pointer',
                 fontSize: '13px',
                 fontWeight: '500',
@@ -699,9 +699,9 @@ export default function StudyListPage() {
                 style={{
                   padding: '6px 14px',
                   borderRadius: '9999px',
-                  border: `1px solid ${selectedCategory === cat.id ? '#10a37f' : '#e5e7eb'}`,
-                  backgroundColor: selectedCategory === cat.id ? '#d1fae5' : '#ffffff',
-                  color: selectedCategory === cat.id ? '#065f46' : '#6b7280',
+                  border: `1px solid ${selectedCategory === cat.id ? '#0f766e' : 'var(--border)'}`,
+                  backgroundColor: selectedCategory === cat.id ? 'color-mix(in srgb, var(--background) 80%, #0f766e 20%)' : 'var(--card)',
+                  color: selectedCategory === cat.id ? '#0f766e' : 'var(--muted-foreground)',
                   cursor: 'pointer',
                   fontSize: '13px',
                   fontWeight: '500',
@@ -718,20 +718,20 @@ export default function StudyListPage() {
         {/* Articles Grid */}
         {loading && articles.length === 0 ? (
           <div style={{ display: 'flex', justifyContent: 'center', padding: '64px' }}>
-            <Loader2 size={32} color="#10a37f" style={{ animation: 'spin 1s linear infinite' }} />
+            <Loader2 size={32} color="#0f766e" style={{ animation: 'spin 1s linear infinite' }} />
           </div>
         ) : articles.length === 0 ? (
           <div style={{
-            backgroundColor: '#f9fafb',
-            borderRadius: '12px',
+            backgroundColor: 'var(--muted)',
+            borderRadius: '8px',
             padding: '64px 24px',
             textAlign: 'center',
           }}>
             <BookOpen size={48} color="#d1d5db" style={{ marginBottom: '16px' }} />
-            <h3 style={{ color: '#374151', fontSize: '18px', marginBottom: '8px' }}>
+            <h3 style={{ color: 'var(--foreground)', fontSize: '18px', marginBottom: '8px' }}>
               {statusFilter === 'unread' ? 'All caught up!' : statusFilter === 'read' ? 'No read articles yet' : 'No articles found'}
             </h3>
-            <p style={{ color: '#6b7280', fontSize: '14px' }}>
+            <p style={{ color: 'var(--muted-foreground)', fontSize: '14px' }}>
               {statusFilter === 'unread'
                 ? "You've read all available articles. Great job!"
                 : statusFilter === 'read'
@@ -759,9 +759,9 @@ export default function StudyListPage() {
                     style={{ textDecoration: 'none' }}
                   >
                     <div style={{
-                      backgroundColor: '#ffffff',
-                      borderRadius: '12px',
-                      border: articleIsRead ? '1px solid #d1d5db' : '1px solid #e5e7eb',
+                      backgroundColor: 'var(--background)',
+                      borderRadius: '8px',
+                      border: articleIsRead ? '1px solid #d1d5db' : '1px solid var(--border)',
                       padding: '20px',
                       height: '100%',
                       transition: 'all 0.2s',
@@ -769,12 +769,12 @@ export default function StudyListPage() {
                       opacity: articleIsRead ? 0.7 : 1,
                     }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.borderColor = '#10a37f';
+                        e.currentTarget.style.borderColor = '#0f766e';
                         e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.05)';
                         e.currentTarget.style.opacity = '1';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = articleIsRead ? '#d1d5db' : '#e5e7eb';
+                        e.currentTarget.style.borderColor = articleIsRead ? '#d1d5db' : 'var(--border)';
                         e.currentTarget.style.boxShadow = 'none';
                         e.currentTarget.style.opacity = articleIsRead ? '0.7' : '1';
                       }}
@@ -792,8 +792,8 @@ export default function StudyListPage() {
                               borderRadius: '4px',
                               fontSize: '11px',
                               fontWeight: '500',
-                              backgroundColor: '#d1fae5',
-                              color: '#065f46',
+                              backgroundColor: 'color-mix(in srgb, var(--background) 80%, #0f766e 20%)',
+                              color: '#0f766e',
                             }}
                             title="You have read this article"
                           >
@@ -806,8 +806,8 @@ export default function StudyListPage() {
                           borderRadius: '4px',
                           fontSize: '11px',
                           fontWeight: '500',
-                          backgroundColor: '#f3f4f6',
-                          color: '#6b7280',
+                          backgroundColor: 'var(--muted)',
+                          color: 'var(--muted-foreground)',
                         }}>
                           {getCategoryName(article.categoryId)}
                         </span>
@@ -825,7 +825,7 @@ export default function StudyListPage() {
 
                       {/* Title */}
                       <h3 style={{
-                        color: '#111827',
+                        color: 'var(--foreground)',
                         fontSize: '16px',
                         fontWeight: '600',
                         marginBottom: '8px',
@@ -840,7 +840,7 @@ export default function StudyListPage() {
 
                       {/* Summary */}
                       <p style={{
-                        color: '#6b7280',
+                        color: 'var(--muted-foreground)',
                         fontSize: '13px',
                         lineHeight: 1.6,
                         marginBottom: '12px',
@@ -862,15 +862,15 @@ export default function StudyListPage() {
                                 padding: '2px 8px',
                                 borderRadius: '4px',
                                 fontSize: '10px',
-                                backgroundColor: '#f9fafb',
-                                color: '#9ca3af',
+                                backgroundColor: 'var(--muted)',
+                                color: 'var(--muted-foreground)',
                               }}
                             >
                               {tag}
                             </span>
                           ))}
                           {article.tags.length > 3 && (
-                            <span style={{ fontSize: '10px', color: '#9ca3af' }}>
+                            <span style={{ fontSize: '10px', color: 'var(--muted-foreground)' }}>
                               +{article.tags.length - 3}
                             </span>
                           )}
@@ -883,13 +883,13 @@ export default function StudyListPage() {
                         justifyContent: 'space-between',
                         alignItems: 'center',
                         paddingTop: '12px',
-                        borderTop: '1px solid #f3f4f6',
+                        borderTop: '1px solid var(--muted)',
                       }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#9ca3af', fontSize: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--muted-foreground)', fontSize: '12px' }}>
                           <Clock size={14} />
                           {article.readingTimeMinutes} min read
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10a37f', fontSize: '12px', fontWeight: '500' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#0f766e', fontSize: '12px', fontWeight: '500' }}>
                           Read
                           <ChevronRight size={14} />
                         </div>
@@ -912,9 +912,9 @@ export default function StudyListPage() {
                     gap: '8px',
                     padding: '10px 24px',
                     borderRadius: '8px',
-                    border: '1px solid #e5e7eb',
-                    backgroundColor: '#ffffff',
-                    color: '#374151',
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'var(--background)',
+                    color: 'var(--foreground)',
                     cursor: loading ? 'not-allowed' : 'pointer',
                     fontWeight: '500',
                     fontSize: '14px',
@@ -956,7 +956,7 @@ export default function StudyListPage() {
 
         .category-scroll-container {
           scrollbar-width: thin;
-          scrollbar-color: #e5e7eb transparent;
+          scrollbar-color: var(--border) transparent;
         }
 
         .category-scroll-container::-webkit-scrollbar {
@@ -968,7 +968,7 @@ export default function StudyListPage() {
         }
 
         .category-scroll-container::-webkit-scrollbar-thumb {
-          background: #e5e7eb;
+          background: var(--border);
           border-radius: 3px;
         }
 

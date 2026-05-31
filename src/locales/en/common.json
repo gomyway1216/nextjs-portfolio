@@ -64,6 +64,15 @@
     "backToGames": "Back to Games",
     "backToPortfolio": "Back to Portfolio"
   },
+  "blogPage": {
+    "post": {
+      "loading": "Loading post",
+      "notFoundTitle": "Post not found",
+      "notFoundText": "This article is unavailable or has not been published.",
+      "backToBlog": "Back to blog",
+      "edit": "Edit"
+    }
+  },
   "games": {
     "collection": "Games Collection",
     "subtitle": "Pick a quick browser game, learn the rules fast, and chase a better score.",
@@ -799,6 +808,11 @@
         "downloadCv": "Download CV",
         "viewProjects": "View Projects",
         "exploreTools": "Explore Tools"
+      },
+      "stats": {
+        "experience": "years in fintech",
+        "compliance": "payments and compliance",
+        "location": "San Francisco / remote"
       }
     },
     "sections": {

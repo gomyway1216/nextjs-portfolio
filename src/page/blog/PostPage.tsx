@@ -3,23 +3,27 @@
 import RichTextDisplay from '@/components/text/RichTextDisplay';
 import { Button } from '@/components/ui/button';
 import {
-normalizeLanguage,
-pickTranslation,
-type PostLanguage,
+  normalizeLanguage,
+  pickTranslation,
+  type PostLanguage,
 } from '@/lib/blog/postTranslations';
 import { useAuth } from '@/providers/AuthProvider';
 import type { DetailPost } from '@/services/postsService';
 import * as postApi from '@/services/postsService';
-import { useParams,useRouter } from 'next/navigation';
-import { useEffect,useMemo,useState } from 'react';
+import { ArrowLeft, Edit3 } from 'lucide-react';
+import Link from 'next/link';
+import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import styles from './blog-post.module.css';
 
 const PostPage = () => {
   const { category: routeCategory, id: routeId } = useParams();
   const [post, setPost] = useState<DetailPost | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const { currentUser } = useAuth();
   const router = useRouter();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const activeLanguage = normalizeLanguage(i18n.language);
 
   const _category = Array.isArray(routeCategory) ? routeCategory[0] : routeCategory || '';
@@ -28,8 +32,21 @@ const PostPage = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const p = await postApi.getPostById(id);
-      if (!cancelled) setPost(p);
+      if (!id) {
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
+      try {
+        const p = await postApi.getPostById(id);
+        if (!cancelled) setPost(p);
+      } catch (error) {
+        console.error('[blog] failed to load post', error);
+        if (!cancelled) setPost(null);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
     })();
     return () => {
       cancelled = true;
@@ -56,35 +73,77 @@ const PostPage = () => {
     };
   }, [post, activeLanguage]);
 
+  if (isLoading) {
+    return (
+      <main className={styles.page}>
+        <div className={styles.shell}>
+          <div className={styles.statusPanel}>
+            <span className={styles.statusDot} aria-hidden="true" />
+            {t('blogPage.post.loading')}
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   if (!post || !view) {
-    return <h1>Post does not exist!</h1>;
+    return (
+      <main className={styles.page}>
+        <div className={styles.shell}>
+          <div className={styles.statusPanel}>
+            <h1>{t('blogPage.post.notFoundTitle')}</h1>
+            <p>{t('blogPage.post.notFoundText')}</p>
+            <Link href={`/blog/${_category || 'all'}`} className={styles.backLink}>
+              <ArrowLeft aria-hidden="true" size={16} strokeWidth={2} />
+              {t('blogPage.post.backToBlog')}
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
   }
 
   const available = post.availableLanguages || [];
   const isBilingual = available.length > 1;
+  const backCategory = post.category || _category || 'all';
 
   return (
-    <div>
-      {currentUser && <Button onClick={handleEdit}>EDIT</Button>}
-      {isBilingual && (
-        <LanguageToggle
-          available={available}
-          active={view.language}
-          onChange={handleSwitchLanguage}
+    <main className={styles.page}>
+      <div className={styles.shell}>
+        <div className={styles.toolbar}>
+          <Link href={`/blog/${backCategory}`} className={styles.backLink}>
+            <ArrowLeft aria-hidden="true" size={16} strokeWidth={2} />
+            {t('blogPage.post.backToBlog')}
+          </Link>
+          <div className={styles.actions}>
+            {isBilingual && (
+              <LanguageToggle
+                available={available}
+                active={view.language}
+                onChange={handleSwitchLanguage}
+              />
+            )}
+            {currentUser && (
+              <Button onClick={handleEdit} className={styles.editButton}>
+                <Edit3 aria-hidden="true" size={15} strokeWidth={2} />
+                {t('blogPage.post.edit')}
+              </Button>
+            )}
+          </div>
+        </div>
+        <RichTextDisplay
+          post={{
+            id: post.id,
+            title: view.title,
+            body: view.body,
+            created: post.created,
+            lastUpdated: post.lastUpdated,
+            category: post.category,
+            image: post.image || '',
+          }}
         />
-      )}
-      <RichTextDisplay
-        post={{
-          id: post.id,
-          title: view.title,
-          body: view.body,
-          created: post.created,
-          lastUpdated: post.lastUpdated,
-          category: post.category,
-          image: post.image || '',
-        }}
-      />
-    </div>
+      </div>
+    </main>
   );
 };
 
@@ -103,14 +162,7 @@ const LanguageToggle = ({ available, active, onChange }: LanguageToggleProps) =>
   <div
     role="tablist"
     aria-label="Post language"
-    style={{
-      display: 'inline-flex',
-      gap: '4px',
-      padding: '4px',
-      border: '1px solid rgba(0, 0, 0, 0.1)',
-      borderRadius: '8px',
-      margin: '8px 0 16px',
-    }}
+    className={styles.languageToggle}
   >
     {available.map((lang) => {
       const isActive = lang === active;
@@ -120,16 +172,7 @@ const LanguageToggle = ({ available, active, onChange }: LanguageToggleProps) =>
           role="tab"
           aria-selected={isActive}
           onClick={() => onChange(lang)}
-          style={{
-            padding: '6px 14px',
-            border: 'none',
-            borderRadius: '6px',
-            backgroundColor: isActive ? '#111827' : 'transparent',
-            color: isActive ? '#ffffff' : '#374151',
-            fontSize: '13px',
-            fontWeight: 500,
-            cursor: isActive ? 'default' : 'pointer',
-          }}
+          className={`${styles.languageButton} ${isActive ? styles.languageButtonActive : ''}`}
         >
           {LABELS[lang]}
         </button>

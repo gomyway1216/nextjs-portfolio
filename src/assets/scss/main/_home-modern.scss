@@ -60,6 +60,14 @@
 
 .modern-hero {
   min-height: 100vh;
+  isolation: isolate;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface-elevated) 94%, var(--accent) 6%) 0%, transparent 58%),
+    linear-gradient(180deg, var(--surface-base) 0%, var(--surface-elevated) 100%);
+}
+
+.modern-hero::after {
+  display: none;
 }
 
 .modern-hero .modern-type-box {
@@ -91,6 +99,44 @@
   color: var(--text-secondary);
   line-height: 1.8;
   font-size: 1.05rem;
+}
+
+.modern-hero .hero-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  max-width: 560px;
+  margin-top: 1.35rem;
+}
+
+.modern-hero .hero-stat {
+  min-width: 0;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-elevated) 78%, transparent);
+  padding: 0.85rem 0.9rem;
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: saturate(180%) blur(10px);
+}
+
+.modern-hero .hero-stat strong,
+.modern-hero .hero-stat span {
+  display: block;
+}
+
+.modern-hero .hero-stat strong {
+  color: var(--text-primary);
+  font-size: clamp(1.2rem, 2vw, 1.45rem);
+  font-weight: 760;
+  line-height: 1;
+}
+
+.modern-hero .hero-stat span {
+  margin-top: 0.35rem;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
 }
 
 .modern-hero .hero-actions {
@@ -143,7 +189,7 @@
 }
 
 .home-modern .header-left .nav-menu .nav-link {
-  border-radius: 12px;
+  border-radius: 8px;
   margin: 0.1rem 0.35rem;
 }
 
@@ -178,6 +224,23 @@
 
 .home-modern .game-card-wrapper .game-thumbnail {
   color: #ffffff;
+}
+
+.home-modern .home-banner .hb-me {
+  right: 0;
+  width: 54vw;
+  z-index: 0;
+}
+
+.home-modern .home-banner .hb-me::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    linear-gradient(90deg, var(--surface-base) 0%, transparent 48%),
+    linear-gradient(180deg, transparent 58%, var(--surface-base) 100%);
+  pointer-events: none;
 }
 
 .home-modern .game-card-wrapper .blog-img {
@@ -324,6 +387,14 @@
     padding-bottom: 30px;
   }
 
+  .modern-hero .hero-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .home-modern .home-banner .hb-me {
+    width: 88vw;
+  }
+
   .modern-hero .hero-actions {
     gap: 0.65rem;
   }
@@ -365,9 +436,18 @@
     width: 100%;
   }
 
+  .modern-hero .hero-stats {
+    grid-template-columns: 1fr;
+  }
+
   .modern-hero .hero-actions .px-btn {
     width: 100%;
     text-align: center;
+  }
+
+  .home-modern .home-banner .hb-me {
+    width: 108vw;
+    opacity: 0.28;
   }
 
   .home-modern .games-carousel {

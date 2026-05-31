@@ -6,7 +6,17 @@ import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
-import { Home, LogIn, LogOut, Settings } from 'lucide-react';
+import {
+  BriefcaseBusiness,
+  Gamepad2,
+  Home,
+  LogIn,
+  LogOut,
+  NotebookPen,
+  Palette,
+  Settings,
+  Wrench,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
@@ -35,6 +45,26 @@ interface ThemeConfig {
 }
 
 const THEMES: { prefix: string; theme: ThemeConfig }[] = [
+  {
+    prefix: '/tools/score-tracker',
+    theme: {
+      bg: 'color-mix(in srgb, var(--background) 92%, #0ea5e9 8%)',
+      border: 'color-mix(in srgb, var(--border) 70%, #0ea5e9 30%)',
+      accent: '#0ea5e9',
+      avatarBg: 'color-mix(in srgb, var(--background) 82%, #0ea5e9 18%)',
+      avatarText: '#0ea5e9',
+    },
+  },
+  {
+    prefix: '/tools/kuizu',
+    theme: {
+      bg: 'color-mix(in srgb, var(--background) 92%, #f97316 8%)',
+      border: 'color-mix(in srgb, var(--border) 70%, #f97316 30%)',
+      accent: '#f97316',
+      avatarBg: 'color-mix(in srgb, var(--background) 82%, #f97316 18%)',
+      avatarText: '#f97316',
+    },
+  },
   {
     prefix: '/tools/settli',
     theme: {
@@ -96,6 +126,26 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
     },
   },
   {
+    prefix: '/tools',
+    theme: {
+      bg: 'color-mix(in srgb, var(--background) 92%, #2563eb 8%)',
+      border: 'color-mix(in srgb, var(--border) 70%, #2563eb 30%)',
+      accent: '#2563eb',
+      avatarBg: 'color-mix(in srgb, var(--background) 82%, #2563eb 18%)',
+      avatarText: '#2563eb',
+    },
+  },
+  {
+    prefix: '/work',
+    theme: {
+      bg: 'color-mix(in srgb, var(--background) 92%, #2563eb 8%)',
+      border: 'color-mix(in srgb, var(--border) 70%, #2563eb 30%)',
+      accent: '#2563eb',
+      avatarBg: 'color-mix(in srgb, var(--background) 82%, #2563eb 18%)',
+      avatarText: '#2563eb',
+    },
+  },
+  {
     prefix: '/blog',
     theme: {
       bg: 'color-mix(in srgb, var(--background) 92%, #22c55e 8%)',
@@ -120,11 +170,23 @@ const DEFAULT_THEME: ThemeConfig = {
   avatarText: 'var(--foreground)',
 };
 
+const PRIMARY_NAV_ITEMS = [
+  { href: '/work', prefix: '/work', labelKey: 'home.nav.work', Icon: BriefcaseBusiness },
+  { href: '/#tools', prefix: '/tools', labelKey: 'home.nav.tools', Icon: Wrench },
+  { href: '/games', prefix: '/games', labelKey: 'home.nav.games', Icon: Gamepad2 },
+  { href: '/blog', prefix: '/blog', labelKey: 'home.nav.blog', Icon: NotebookPen },
+  { href: '/hobbies', prefix: '/hobbies', labelKey: 'home.nav.hobbies', Icon: Palette },
+];
+
 function getTheme(pathname: string): ThemeConfig {
   for (const { prefix, theme } of THEMES) {
     if (pathname.startsWith(prefix)) return theme;
   }
   return DEFAULT_THEME;
+}
+
+function isActivePath(pathname: string, prefix: string): boolean {
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
 }
 
 export function GlobalToolbar() {
@@ -153,12 +215,12 @@ export function GlobalToolbar() {
       className="sticky top-0 z-50"
       style={{ backgroundColor: theme.bg, borderBottom: `1px solid ${theme.border}` }}
     >
-      <div className="container mx-auto px-4 flex items-center justify-between max-w-4xl gap-4 flex-wrap" style={{ minHeight: '3rem' }}>
+      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4" style={{ minHeight: '3.25rem' }}>
         {/* Left: Home / Back / Game left */}
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <Link
             href="/"
-            className="flex items-center gap-1.5 text-sm font-medium transition-colors shrink-0"
+            className="flex items-center gap-1.5 text-sm font-semibold transition-colors shrink-0"
             style={{ color: theme.accent }}
           >
             <Home className="h-4 w-4" />
@@ -185,6 +247,28 @@ export function GlobalToolbar() {
             </>
           )}
         </div>
+
+        {!hasGameContent && (
+          <nav className="hidden items-center gap-1 rounded-md border px-1.5 py-1 md:flex" style={{ borderColor: theme.border, backgroundColor: theme.avatarBg }} aria-label="Primary navigation">
+            {PRIMARY_NAV_ITEMS.map(({ href, prefix, labelKey, Icon }) => {
+              const isActive = isActivePath(pathname, prefix);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold transition-colors"
+                  style={{
+                    color: isActive ? 'var(--background)' : theme.accent,
+                    backgroundColor: isActive ? theme.accent : 'transparent',
+                  }}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {t(labelKey)}
+                </Link>
+              );
+            })}
+          </nav>
+        )}
 
         {/* Center: Game stats / center content */}
         {hasGameContent && gameContent?.center && (
@@ -255,6 +339,28 @@ export function GlobalToolbar() {
           )}
         </div>
       </div>
+      {!hasGameContent && (
+        <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 pb-2 md:hidden" aria-label="Primary navigation">
+          {PRIMARY_NAV_ITEMS.map(({ href, prefix, labelKey, Icon }) => {
+            const isActive = isActivePath(pathname, prefix);
+            return (
+              <Link
+                key={href}
+                href={href}
+                className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold"
+                style={{
+                  borderColor: isActive ? theme.accent : theme.border,
+                  color: isActive ? 'var(--background)' : theme.accent,
+                  backgroundColor: isActive ? theme.accent : theme.avatarBg,
+                }}
+              >
+                <Icon className="h-3.5 w-3.5" />
+                {t(labelKey)}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
     </div>
   );
 }

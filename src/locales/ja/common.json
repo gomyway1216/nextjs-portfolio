@@ -64,6 +64,15 @@
     "backToGames": "ゲーム一覧へ",
     "backToPortfolio": "ポートフォリオに戻る"
   },
+  "blogPage": {
+    "post": {
+      "loading": "記事を読み込み中",
+      "notFoundTitle": "記事が見つかりません",
+      "notFoundText": "この記事は利用できないか、まだ公開されていません。",
+      "backToBlog": "ブログへ戻る",
+      "edit": "編集"
+    }
+  },
   "games": {
     "collection": "ゲームコレクション",
     "subtitle": "短時間で遊べるブラウザゲーム集です。ルールをすぐ理解して、より良いスコアを狙えます。",
@@ -799,6 +808,11 @@
         "downloadCv": "履歴書をダウンロード",
         "viewProjects": "プロジェクトを見る",
         "exploreTools": "ツールを見る"
+      },
+      "stats": {
+        "experience": "フィンテック経験",
+        "compliance": "決済・コンプライアンス",
+        "location": "サンフランシスコ / リモート"
       }
     },
     "sections": {

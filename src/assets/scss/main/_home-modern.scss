@@ -45,8 +45,8 @@
 
 .home-modern .modern-title h3 {
   font-size: 3.4rem;
-  font-weight: 760;
-  line-height: 0.98;
+  font-weight: 800;
+  line-height: 1.1;
   letter-spacing: 0;
   margin-bottom: 1rem;
   color: var(--text-primary);
@@ -60,6 +60,7 @@
 }
 
 .modern-hero {
+  min-height: 100vh;
   min-height: 100svh;
   isolation: isolate;
   background:
@@ -97,7 +98,7 @@
   color: var(--text-primary);
   font-size: 5.55rem;
   font-weight: 800;
-  line-height: 0.92;
+  line-height: 1.05;
   margin-bottom: 1.2rem;
 }
 

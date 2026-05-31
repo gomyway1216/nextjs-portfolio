@@ -4,7 +4,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { TypeAnimation } from 'react-type-animation';
 import * as profileApi from '@/services/profileService';
-import { useProfile } from '@/hooks/useProfile';
 import { useTranslation } from 'react-i18next';
 
 const HERO_IMAGE_URL =
@@ -17,22 +16,19 @@ const conctInfo = {
 const Slider = () => {
   const [resumeLink, setResumeLink] = useState('');
   const [mounted, setMounted] = useState(false);
-  const { t, i18n } = useTranslation();
-  const { profile } = useProfile();
-  const language = i18n.language === 'ja' ? 'ja' : 'en';
-  const bioFromProfile = language === 'ja' ? profile?.bioJa : profile?.bioEn;
-  const description = bioFromProfile?.trim() || t('home.hero.description');
+  const { t } = useTranslation();
+  const description = t('home.hero.description');
   const heroStats = [
     {
-      value: '6+',
+      value: t('home.hero.stats.experienceValue'),
       label: t('home.hero.stats.experience'),
     },
     {
-      value: 'KYC',
+      value: t('home.hero.stats.complianceValue'),
       label: t('home.hero.stats.compliance'),
     },
     {
-      value: 'SF',
+      value: t('home.hero.stats.locationValue'),
       label: t('home.hero.stats.location'),
     },
   ];

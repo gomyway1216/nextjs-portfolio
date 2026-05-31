@@ -14,6 +14,7 @@ BriefcaseBusiness,
 FileText,
 Gamepad2,
 House,
+LineChart,
 NotebookPen,
 Palette,
 Shield,
@@ -32,7 +33,7 @@ import { Tooltip } from 'react-tooltip';
 // 'work' is intentionally not in this list — the work nav item now
 // links to the standalone /work route (case studies), not the home
 // Portfolio anchor.
-const SECTION_IDS = ['home', 'tools', 'games', 'blog', 'about', 'resume'] as const;
+const SECTION_IDS = ['home', 'impact', 'resume', 'tools', 'games', 'blog', 'about'] as const;
 
 const Header = () => {
   const [click, setClick] = useState<boolean>(false);
@@ -124,6 +125,28 @@ const Header = () => {
                 <House size={20} />
               </Link>
             </li>
+            <li className={activeSection === 'impact' ? 'active' : ''}>
+              <Link
+                className="nav-link"
+                href="/#impact"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content={t('home.nav.impact')}
+                onClick={handleClick}
+              >
+                <LineChart size={20} />
+              </Link>
+            </li>
+            <li className={activeSection === 'resume' ? 'active' : ''}>
+              <Link
+                className="nav-link"
+                href="/#resume"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content={t('home.nav.resume')}
+                onClick={handleClick}
+              >
+                <FileText size={20} />
+              </Link>
+            </li>
             <li className={pathname && (pathname === '/work' || pathname.startsWith('/work/')) ? 'active' : ''}>
               <Link
                 className="nav-link"
@@ -177,17 +200,6 @@ const Header = () => {
                 onClick={handleClick}
               >
                 <UserRound size={20} />
-              </Link>
-            </li>
-            <li className={activeSection === 'resume' ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/#resume"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.resume')}
-                onClick={handleClick}
-              >
-                <FileText size={20} />
               </Link>
             </li>
             <li>

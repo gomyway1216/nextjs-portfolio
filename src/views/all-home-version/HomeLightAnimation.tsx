@@ -4,6 +4,7 @@ import React, { useEffect } from 'react';
 import Header from '@/components/header/Header';
 import Slider from '@/components/slider/SliderAnimation';
 import About from '@/components/about/AboutAnimation';
+import ImpactSnapshot from '@/components/home/ImpactSnapshot';
 import Resume from '@/components/resume/ResumeAnimation';
 import Portfolio from '@/components/portfolio/PortfolioAnimation';
 import GamesSlideshow from '@/components/games/GamesSlideshow';
@@ -34,6 +35,10 @@ const HomeOne = () => {
       <Header />
 
       <Slider />
+
+      <ImpactSnapshot />
+
+      <Resume />
 
       <section id="work" className="section theme-light dark-bg modern-section">
         <div className="container">
@@ -81,8 +86,6 @@ const HomeOne = () => {
       {/* End Blog Section */}
 
       <About />
-
-      <Resume />
 
       {/* <section id="contactus" className="section theme-light dark-bg">
         <div className="container">

@@ -2,7 +2,7 @@
  * Reusable info modal
  */
 
-import { useEffect } from 'react';
+import { useEffect, useId } from 'react';
 import { X as XIcon } from 'lucide-react';
 
 interface InfoModalProps {
@@ -18,6 +18,8 @@ export const InfoModal: React.FC<InfoModalProps> = ({
   title,
   children
 }) => {
+  const titleId = useId();
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -52,11 +54,11 @@ export const InfoModal: React.FC<InfoModalProps> = ({
       <div
         role="dialog"
         aria-modal="true"
-        aria-label={title}
+        aria-labelledby={titleId}
         style={{
           background: 'rgba(15, 23, 42, 0.96)',
           border: '1px solid rgba(14, 165, 233, 0.34)',
-          borderRadius: '1rem',
+          borderRadius: '8px',
           padding: 'clamp(1.25rem, 4vw, 2rem)',
           maxWidth: '600px',
           maxHeight: 'min(88vh, 720px)',
@@ -75,16 +77,16 @@ export const InfoModal: React.FC<InfoModalProps> = ({
             position: 'absolute',
             top: '0.875rem',
             right: '0.875rem',
-            background: 'rgba(255, 255, 255, 0.1)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            borderRadius: '999px',
-            color: '#fff',
+          background: 'rgba(255, 255, 255, 0.1)',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: '999px',
+          color: '#fff',
             cursor: 'pointer',
             padding: '0.5rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'background 0.2s'
+            transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s'
           }}
           onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)'}
           onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
@@ -92,7 +94,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({
           <XIcon style={{ width: '1.25rem', height: '1.25rem' }} />
         </button>
 
-        <h2 style={{
+        <h2 id={titleId} style={{
           color: '#fff',
           fontSize: 'clamp(1.45rem, 5vw, 1.875rem)',
           fontWeight: 760,

@@ -30,11 +30,11 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
     <div style={{
       width: 'min(92vw, 520px)',
       maxWidth: 'calc(100vw - 2rem)',
-      background: 'color-mix(in srgb, var(--card) 82%, #020617 18%)',
+      background: 'color-mix(in srgb, var(--card) 90%, #0ea5e9 10%)',
       border: '1px solid color-mix(in srgb, var(--border) 58%, #0ea5e9 42%)',
-      borderRadius: '1rem',
+      borderRadius: '8px',
       padding: 'clamp(1.25rem, 5vw, 3rem)',
-      boxShadow: '0 24px 70px rgba(14, 165, 233, 0.24)',
+      boxShadow: '0 24px 70px color-mix(in srgb, #0ea5e9 18%, transparent)',
       color: 'var(--card-foreground)'
     }}>
       <h1 style={{
@@ -87,13 +87,14 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
 
           return (
             <button
+              type="button"
               key={option.value}
               onClick={() => onSelectDifficulty(option.value)}
               style={{
-                background: isSelected ? colors.bg : 'rgba(31, 41, 55, 0.5)',
-                border: `2px solid ${isSelected ? colors.border : 'rgba(75, 85, 99, 1)'}`,
+                background: isSelected ? colors.bg : 'color-mix(in srgb, var(--card) 82%, var(--muted) 18%)',
+                border: `2px solid ${isSelected ? colors.border : 'color-mix(in srgb, var(--border) 80%, #0ea5e9 20%)'}`,
                 borderRadius: '0.5rem',
-                color: isSelected ? colors.text : '#9ca3af',
+                color: isSelected ? colors.text : 'var(--muted-foreground)',
                 padding: '0.9rem 1rem',
                 fontSize: 'clamp(0.98rem, 3.4vw, 1.125rem)',
                 fontWeight: '600',
@@ -104,14 +105,14 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
               }}
               onMouseEnter={(e) => {
                 if (!isSelected) {
-                  e.currentTarget.style.background = 'rgba(55, 65, 81, 0.7)';
+                  e.currentTarget.style.background = 'color-mix(in srgb, var(--card) 74%, #0ea5e9 26%)';
                   e.currentTarget.style.borderColor = colors.border;
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isSelected) {
-                  e.currentTarget.style.background = 'rgba(31, 41, 55, 0.5)';
-                  e.currentTarget.style.borderColor = 'rgba(75, 85, 99, 1)';
+                  e.currentTarget.style.background = 'color-mix(in srgb, var(--card) 82%, var(--muted) 18%)';
+                  e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--border) 80%, #0ea5e9 20%)';
                 }
               }}
             >
@@ -127,6 +128,7 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
       {extraContent}
 
       <button
+        type="button"
         onClick={onStart}
         style={{
           background: '#0ea5e9',

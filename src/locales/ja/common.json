@@ -784,6 +784,7 @@
     },
     "nav": {
       "home": "ホーム",
+      "impact": "実績",
       "work": "作品",
       "tools": "ツール",
       "games": "ゲーム",
@@ -795,14 +796,14 @@
       "admin": "管理"
     },
     "hero": {
-      "badge": "シニアフィンテックエンジニア",
+      "badge": "フィンテック・プロダクトエンジニア",
       "greeting": "こんにちは、私は",
       "name": "矢口 雄大",
-      "description": "目的のある技術をつくるという思いを軸に、フルスタック開発の力を磨き、使う人の役に立つプロダクトを届けることに取り組んでいます。機械学習の可能性にも強い関心があり、実装力とアイデアを掛け合わせながら、実用性と体験価値の両立を目指しています。",
+      "description": "成長施策、リスク・コンプライアンス、決済、社内オペレーションを横断してフィンテックプロダクトを作っています。AtlasではAnnual plan、Spanish onboarding、KYC/OFAC、TabaPay、Dispute、Support automation、Atlas HQなどを担当してきました。",
       "roles": {
-        "seniorSoftwareEngineer": "シニアソフトウェアエンジニア",
-        "fintechEngineer": "フィンテックエンジニア",
-        "infrastructureEngineer": "インフラエンジニア"
+        "seniorSoftwareEngineer": "プロダクト志向のフィンテックエンジニア",
+        "fintechEngineer": "Growth / Risk / Payments",
+        "infrastructureEngineer": "Internal Platforms / Operations"
       },
       "cta": {
         "downloadCv": "履歴書をダウンロード",
@@ -810,10 +811,49 @@
         "exploreTools": "ツールを見る"
       },
       "stats": {
-        "experience": "フィンテック経験",
-        "compliance": "決済・コンプライアンス",
-        "location": "サンフランシスコ / リモート"
+        "experience": "Annual plan成長施策",
+        "compliance": "KYC・OFAC・監視基盤",
+        "location": "デビット・ACH・Dispute"
       }
+    },
+    "impact": {
+      "eyebrow": "Atlasでの実績",
+      "title": "KYCだけではなく、成長・リスク・決済・Opsまで。",
+      "subtitle": "共通しているのは、曖昧なフィンテック課題をend-to-endで持つことです。顧客や運用上の課題を定義し、システムとして出荷し、数値を見ながら改善し続けます。",
+      "metricsLabel": "キャリア実績のハイライト",
+      "metrics": {
+        "annual": {
+          "value": "60K+",
+          "label": "Annual planのユーザー成長に向けた価格設計、導線追加、継続率、コミュニケーション改善"
+        },
+        "platform": {
+          "value": "100%",
+          "label": "Risk、Dispute、Support、User、Activity trackingを支えるAtlas HQの本番展開"
+        },
+        "coverage": {
+          "value": "Core flows",
+          "label": "KYC、OFAC、Plaid、TabaPay、Dispute、Support routing、Retention、Spanish onboarding"
+        }
+      },
+      "pillars": {
+        "growth": {
+          "title": "Growth / Monetization",
+          "description": "Annual plan、アップセル導線、継続率改善、Perks、Spanish funnel調査、リリース後の分析と改善。"
+        },
+        "risk": {
+          "title": "Risk / Compliance",
+          "description": "KYC安定化、OFAC監視、eCBSV、Adverse action、Manual review tooling、Fraud control、監査しやすいダッシュボード。"
+        },
+        "payments": {
+          "title": "Payments / Money movement",
+          "description": "TabaPay、ACH、Chargeback、Reconciliation、Debit card更新、Fast deposit、Tax filing、Transaction monitoring。"
+        },
+        "platforms": {
+          "title": "Internal platforms / Support ops",
+          "description": "Atlas HQ、RetoolからNext.jsへの移行、Intercom/Fini連携、Dispute queue、Support routing、Activity tracking。"
+        }
+      },
+      "note": "公開サイト向けに、社内の計画文言や細かいvendor別のrollout詳細は抽象化しつつ、担当範囲と事業インパクトが伝わる表現にしています。"
     },
     "sections": {
       "work": {
@@ -898,8 +938,8 @@
     },
     "about": {
       "title": "Biography",
-      "role": "ソフトウェアエンジニア",
-      "biographyText": "こんにちは、矢口雄大です。サンフランシスコを拠点とするシニアソフトウェアエンジニアで、6年以上にわたり Atlas と PayPal で大規模なフィンテックシステムを設計・運用してきました。決済レール、KYC/OFAC コンプライアンス、カスタマーサポート基盤、運用チームが日々使う社内プラットフォームなど、フィンテック企業の堅実性を裏側で支える領域を end-to-end で責任を持って推進してきました。アーキテクチャ設計からリリース、本番運用の信頼性を担保する地味な部分まで一貫して担うのを得意としています。業務外では、エンジニア向けの AI ミートアップコミュニティを運営し、機械学習が日常のプロダクトに溶け込む可能性を探っています。現在は Westcliff University で Computer Science の修士課程に在籍しながら、深い技術と部門横断のリーダーシップを掛け合わせられる次のキャリアステップを模索しています。",
+      "role": "フィンテック・プロダクトエンジニア",
+      "biographyText": "こんにちは、矢口雄大です。サンフランシスコを拠点とするシニアソフトウェアエンジニアで、6年以上にわたり大規模なフィンテックシステムを作ってきました。AtlasとPayPalでは、成長施策、リスク、決済、コンプライアンス、サポートOps、社内ツールなどを横断して担当してきました。特に、曖昧な事業課題を実装可能なシステムに落とし込み、リリース、運用、数値改善まで持ち切る仕事を得意としています。業務外ではエンジニア向けAIミートアップを運営し、機械学習が日常のプロダクトにどう溶け込むかを探っています。現在はWestcliff UniversityでComputer Scienceの修士課程に在籍しながら、深い技術とプロダクトオーナーシップを掛け合わせられる次のキャリアステップを模索しています。",
       "labels": {
         "age": "年齢:",
         "location": "所在地:",

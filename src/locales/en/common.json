@@ -784,6 +784,7 @@
     },
     "nav": {
       "home": "Home",
+      "impact": "Impact",
       "work": "Work",
       "tools": "Tools",
       "games": "Games",
@@ -795,14 +796,14 @@
       "admin": "Admin"
     },
     "hero": {
-      "badge": "Senior Fintech Engineer",
+      "badge": "Fintech Product Engineer",
       "greeting": "Hello, my name is",
       "name": "Yudai Yaguchi",
-      "description": "Guided by a desire to craft technology with purpose, I am dedicated to learning and applying my full-stack development skills to create solutions that benefit people and communities. Enthusiastic about the transformative potential of machine learning, I aspire to blend my technical knowledge with innovative ideas to deliver impactful digital experiences.",
+      "description": "I build fintech products across growth, risk, payments, and internal operations. At Atlas, I have led work from annual plan growth and Spanish onboarding to KYC/OFAC systems, TabaPay money movement, dispute tooling, support automation, and Atlas HQ.",
       "roles": {
-        "seniorSoftwareEngineer": "Senior Software Engineer",
-        "fintechEngineer": "Fintech Engineer",
-        "infrastructureEngineer": "Infrastructure Engineer"
+        "seniorSoftwareEngineer": "Product-minded Fintech Engineer",
+        "fintechEngineer": "Growth, Risk, and Payments",
+        "infrastructureEngineer": "Internal Platforms and Operations"
       },
       "cta": {
         "downloadCv": "Download CV",
@@ -810,10 +811,49 @@
         "exploreTools": "Explore Tools"
       },
       "stats": {
-        "experience": "years in fintech",
-        "compliance": "payments and compliance",
-        "location": "San Francisco / remote"
+        "experience": "annual users milestone work",
+        "compliance": "KYC, OFAC, monitoring",
+        "location": "debit, ACH, disputes"
       }
+    },
+    "impact": {
+      "eyebrow": "Atlas impact",
+      "title": "More than KYC: growth, risk, payments, and ops.",
+      "subtitle": "The common thread is owning ambiguous fintech problems end-to-end: define the customer or operations pain, ship the system, monitor the rollout, and keep improving the numbers after launch.",
+      "metricsLabel": "Career impact highlights",
+      "metrics": {
+        "annual": {
+          "value": "60K+",
+          "label": "annual-plan user milestone supported through pricing, entry points, retention, and communication work"
+        },
+        "platform": {
+          "value": "100%",
+          "label": "Atlas HQ rollout for internal risk, dispute, support, user, and activity-tracking workflows"
+        },
+        "coverage": {
+          "value": "Core flows",
+          "label": "KYC, OFAC, Plaid, TabaPay, disputes, support routing, retention, and Spanish onboarding"
+        }
+      },
+      "pillars": {
+        "growth": {
+          "title": "Growth and monetization",
+          "description": "Annual plan launches, upsell entry points, retention experiments, perks, Spanish funnel research, and post-launch analysis."
+        },
+        "risk": {
+          "title": "Risk and compliance",
+          "description": "KYC stability, OFAC monitoring, eCBSV, adverse action workflows, manual review tooling, fraud controls, and audit-friendly dashboards."
+        },
+        "payments": {
+          "title": "Payments and money movement",
+          "description": "TabaPay, ACH, chargebacks, reconciliation, debit card updates, fast deposits, tax filing flows, and transaction monitoring."
+        },
+        "platforms": {
+          "title": "Internal platforms and support ops",
+          "description": "Atlas HQ, Retool-to-Next migration, Intercom and Fini integrations, dispute queues, support routing, and activity tracking."
+        }
+      },
+      "note": "Public copy is intentionally abstracted from internal planning language and vendor-specific rollout details while preserving the scope and business impact."
     },
     "sections": {
       "work": {
@@ -898,8 +938,8 @@
     },
     "about": {
       "title": "Biography",
-      "role": "Software Engineer",
-      "biographyText": "Hi, I'm Yudai — a senior software engineer based in San Francisco with 6+ years building large-scale fintech systems. At Atlas and PayPal, I've owned the kind of work that quietly determines whether a fintech company stays solvent: payment rails, KYC/OFAC compliance, customer-support infrastructure, and the internal platforms operations teams rely on every day. I take complex initiatives end-to-end as the directly responsible individual — architecture, rollout, and the unglamorous edges that make production systems reliable. Outside of work, I lead an AI meetup community for engineers and keep exploring how machine learning fits into the everyday products people depend on. I'm pursuing an MS in Computer Science at Westcliff University while looking for the next role that blends deep engineering with cross-functional leadership.",
+      "role": "Fintech Product Engineer",
+      "biographyText": "Hi, I'm Yudai — a senior software engineer based in San Francisco with 6+ years building large-scale fintech systems. At Atlas and PayPal, I have owned product and platform work across growth, risk, payments, compliance, support operations, and internal tooling. I am strongest when the problem is cross-functional: turn unclear business goals into a shippable system, coordinate rollout details, instrument the results, and keep improving the customer and operations experience. Outside of work, I lead an AI meetup community for engineers and keep exploring how machine learning fits into everyday products. I'm pursuing an MS in Computer Science at Westcliff University while looking for the next role that blends deep engineering with product ownership.",
       "labels": {
         "age": "Age:",
         "location": "Location:",

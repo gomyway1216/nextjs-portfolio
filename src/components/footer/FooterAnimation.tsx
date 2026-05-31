@@ -20,7 +20,7 @@ const Footer = () => {
         <div className="col-md-6 my-2">
           <div className="nav justify-content-center justify-content-md-start">
             {SocialShare.map((val, i) => (
-              <a key={i} href={`${val.link}`} rel="noreferrer" target="_blank" aria-label={val.label}>
+              <a key={i} href={val.link} rel="noopener noreferrer" target="_blank" aria-label={val.label}>
                 {val.Social}
               </a>
             ))}

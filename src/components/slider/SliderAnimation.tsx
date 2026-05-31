@@ -129,7 +129,7 @@ const Slider = () => {
                 </p>
                 <div className="hero-stats" data-aos="fade-up" data-aos-delay="350">
                   {heroStats.map((stat) => (
-                    <div className="hero-stat" key={stat.label}>
+                    <div className="hero-stat" key={stat.value}>
                       <strong>{stat.value}</strong>
                       <span>{stat.label}</span>
                     </div>

@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { TypeAnimation } from 'react-type-animation';
 import * as profileApi from '@/services/profileService';
 import { useProfile } from '@/hooks/useProfile';
@@ -21,6 +22,20 @@ const Slider = () => {
   const language = i18n.language === 'ja' ? 'ja' : 'en';
   const bioFromProfile = language === 'ja' ? profile?.bioJa : profile?.bioEn;
   const description = bioFromProfile?.trim() || t('home.hero.description');
+  const heroStats = [
+    {
+      value: '6+',
+      label: t('home.hero.stats.experience'),
+    },
+    {
+      value: 'KYC',
+      label: t('home.hero.stats.compliance'),
+    },
+    {
+      value: 'SF',
+      label: t('home.hero.stats.location'),
+    },
+  ];
 
   const fetchLink = async () => {
     const link = await profileApi.getResumeLink();
@@ -112,6 +127,14 @@ const Slider = () => {
                 >
                   {description}
                 </p>
+                <div className="hero-stats" data-aos="fade-up" data-aos-delay="350">
+                  {heroStats.map((stat) => (
+                    <div className="hero-stat" key={stat.value}>
+                      <strong>{stat.value}</strong>
+                      <span>{stat.label}</span>
+                    </div>
+                  ))}
+                </div>
                 <div
                   className="hero-actions"
                   data-aos="fade-up"
@@ -126,12 +149,12 @@ const Slider = () => {
                   >
                     {t('home.hero.cta.downloadCv')}
                   </a>
-                  <a className="px-btn px-btn-outline" href="#work" aria-label="View featured work">
+                  <Link className="px-btn px-btn-outline" href="/work" aria-label="View featured work">
                     {t('home.hero.cta.viewProjects')}
-                  </a>
-                  <a className="px-btn px-btn-white" href="#tools" aria-label="Jump to tools section">
+                  </Link>
+                  <Link className="px-btn px-btn-white" href="/#tools" aria-label="Explore tools">
                     {t('home.hero.cta.exploreTools')}
-                  </a>
+                  </Link>
                 </div>
               </div>
             </div>

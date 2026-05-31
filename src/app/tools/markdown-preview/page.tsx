@@ -18,6 +18,7 @@ const FALLBACKS: Record<string, Record<string, string>> = {
     paste: 'Paste',
     dropFile: 'Drop file',
     fromClipboard: 'From clipboard',
+    readerAndEditor: 'Reader and editor',
     preview: 'Preview',
     edit: 'Edit',
     changeContent: 'Change',
@@ -34,6 +35,7 @@ const FALLBACKS: Record<string, Record<string, string>> = {
     paste: '貼り付け',
     dropFile: 'ファイルをドロップ',
     fromClipboard: 'クリップボードから',
+    readerAndEditor: '閲覧と編集',
     preview: 'プレビュー',
     edit: '編集',
     changeContent: '変更',
@@ -177,7 +179,7 @@ export default function MarkdownPreviewPage() {
   const dropZoneContent = (
     <div
       className={cn(
-        'flex w-full max-w-3xl flex-col items-center gap-7 rounded-lg border border-dashed bg-card/86 p-8 text-center shadow-[0_24px_70px_hsl(var(--foreground)/0.08)] backdrop-blur transition-colors sm:p-12',
+        'flex w-full max-w-3xl flex-col items-center gap-7 rounded-lg border border-dashed bg-card/85 p-8 text-center shadow-[0_24px_70px_hsl(var(--foreground)/0.08)] backdrop-blur transition-colors sm:p-12',
         isDragging
           ? 'border-primary bg-primary/5'
           : 'border-muted-foreground/25'
@@ -187,7 +189,7 @@ export default function MarkdownPreviewPage() {
         <FileText className="h-8 w-8" />
       </div>
       <div className="text-center">
-        <p className="mb-2 text-sm font-semibold text-primary">Reader and editor</p>
+        <p className="mb-2 text-sm font-semibold text-primary">{p('readerAndEditor')}</p>
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Markdown Preview</h1>
         <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-muted-foreground sm:text-base">
           {p('dropOrPaste')}
@@ -250,7 +252,7 @@ export default function MarkdownPreviewPage() {
       {/* Drag overlay */}
       {isDragging && !showChangeOverlay && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4 rounded-lg border-2 border-dashed border-primary bg-card/88 p-10 shadow-xl sm:p-16">
+          <div className="flex flex-col items-center gap-4 rounded-lg border-2 border-dashed border-primary bg-card/90 p-10 shadow-xl sm:p-16">
             <Upload className="h-12 w-12 text-primary" />
             <p className="text-lg font-medium text-primary">{p('dropFile')}</p>
           </div>
@@ -275,7 +277,7 @@ export default function MarkdownPreviewPage() {
       )}
 
       {/* Toolbar */}
-      <div className="flex flex-col gap-3 border-b bg-background/86 px-4 py-3 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-b bg-background/85 px-4 py-3 shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
           <FileText className="h-4 w-4" />
           {fileName ? (

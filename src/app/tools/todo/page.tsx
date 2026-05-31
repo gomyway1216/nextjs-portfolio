@@ -455,7 +455,7 @@ export default function TodoPage() {
     return (
       <div className="min-h-[calc(100vh-3rem)] bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--muted)/0.55)_48%,hsl(var(--background))_100%)] px-4 py-12 text-foreground">
         <div className="mx-auto flex min-h-[calc(100vh-9rem)] max-w-5xl items-center justify-center">
-          <div className="w-full max-w-xl rounded-lg border bg-card/88 p-8 text-center shadow-[0_24px_70px_hsl(var(--foreground)/0.08)] backdrop-blur sm:p-10">
+          <div className="w-full max-w-xl rounded-lg border bg-card/90 p-8 text-center shadow-[0_24px_70px_hsl(var(--foreground)/0.08)] backdrop-blur sm:p-10">
             <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <AlertCircle className="h-7 w-7" />
             </div>
@@ -465,17 +465,17 @@ export default function TodoPage() {
               Sign in to turn screenshots, notes, and manual entries into a task list you can keep across devices.
             </p>
             <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
-              <Link href="/signin">
-                <Button className="w-full gap-2 sm:w-auto">
+              <Button asChild className="w-full gap-2 sm:w-auto">
+                <Link href="/signin">
                   <LogIn className="h-4 w-4" />
                   Sign in
-                </Button>
-              </Link>
-              <Link href="/">
-                <Button variant="outline" className="w-full sm:w-auto">
+                </Link>
+              </Button>
+              <Button asChild variant="outline" className="w-full sm:w-auto">
+                <Link href="/">
                   Back to home
-                </Button>
-              </Link>
+                </Link>
+              </Button>
             </div>
           </div>
         </div>
@@ -591,7 +591,7 @@ export default function TodoPage() {
 
       <div className="mx-auto max-w-4xl">
         {/* Header */}
-        <div className="mb-6 rounded-lg border bg-card/86 p-5 shadow-sm backdrop-blur sm:p-6">
+        <div className="mb-6 rounded-lg border bg-card/85 p-5 shadow-sm backdrop-blur sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex min-w-0 gap-4">
               <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -729,7 +729,7 @@ export default function TodoPage() {
       {/* Input modes */}
       <div className="mb-6 space-y-4">
         {inputMode === 'idle' && !pendingExtraction && (
-          <div className="flex flex-wrap gap-2 rounded-lg border bg-card/82 p-3 shadow-sm">
+          <div className="flex flex-wrap gap-2 rounded-lg border bg-card/80 p-3 shadow-sm">
             <Button variant="outline" onClick={() => setInputMode('image')} className="gap-2">
               <ImageIcon className="h-4 w-4" />
               Screenshot
@@ -907,7 +907,7 @@ export default function TodoPage() {
       ) : (
         <div className="space-y-6">
           {incompleteTasks.length === 0 && completedTasks.length === 0 && !pendingExtraction ? (
-            <div className="rounded-lg border border-dashed bg-card/74 px-6 py-16 text-center text-muted-foreground shadow-sm">
+            <div className="rounded-lg border border-dashed bg-card/75 px-6 py-16 text-center text-muted-foreground shadow-sm">
               <Circle className="h-12 w-12 mx-auto mb-4 opacity-30" />
               <p>No tasks yet.</p>
               <p className="text-sm mt-1">

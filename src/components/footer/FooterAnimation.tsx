@@ -7,10 +7,10 @@ import {
 import { RiTwitterXLine } from 'react-icons/ri';
 
 const SocialShare = [
-  { Social: <FaFacebookF />, link: 'https://www.facebook.com/yaguchiyuudai/' },
-  { Social: <FaLinkedinIn />, link: 'https://www.linkedin.com/in/yudai-yaguchi/' },
-  { Social: <FaGithub />, link: 'https://github.com/gomyway1216/' },
-  { Social: <RiTwitterXLine />, link: 'https://twitter.com/yudai_engineer/' },
+  { Social: <FaFacebookF />, label: 'Facebook', link: 'https://www.facebook.com/yaguchiyuudai/' },
+  { Social: <FaLinkedinIn />, label: 'LinkedIn', link: 'https://www.linkedin.com/in/yudai-yaguchi/' },
+  { Social: <FaGithub />, label: 'GitHub', link: 'https://github.com/gomyway1216/' },
+  { Social: <RiTwitterXLine />, label: 'X', link: 'https://twitter.com/yudai_engineer/' },
 ];
 
 const Footer = () => {
@@ -20,7 +20,7 @@ const Footer = () => {
         <div className="col-md-6 my-2">
           <div className="nav justify-content-center justify-content-md-start">
             {SocialShare.map((val, i) => (
-              <a key={i} href={`${val.link}`} rel="noreferrer" target="_blank">
+              <a key={i} href={val.link} rel="noopener noreferrer" target="_blank" aria-label={val.label}>
                 {val.Social}
               </a>
             ))}
@@ -31,9 +31,7 @@ const Footer = () => {
 
         <div className="col-md-6 my-2 text-center text-md-end">
           <p>
-            © {new Date().getFullYear()} copyright{' '}
-            Yudai Yaguchi
-            all right reserved
+            © {new Date().getFullYear()} Yudai Yaguchi. All rights reserved.
           </p>
         </div>
         {/* End .col */}

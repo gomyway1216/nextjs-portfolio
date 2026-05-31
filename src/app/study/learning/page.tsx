@@ -181,6 +181,8 @@ export default function LearningHubPage() {
                 borderRadius: '8px',
                 fontSize: '14px',
                 outline: 'none',
+                backgroundColor: 'var(--background)',
+                color: 'var(--foreground)',
               }}
             />
             <button
@@ -318,6 +320,8 @@ export default function LearningHubPage() {
                 borderRadius: '8px',
                 fontSize: '14px',
                 outline: 'none',
+                backgroundColor: 'var(--background)',
+                color: 'var(--foreground)',
               }}
             />
           </div>
@@ -331,6 +335,7 @@ export default function LearningHubPage() {
               fontSize: '14px',
               outline: 'none',
               backgroundColor: 'var(--card)',
+              color: 'var(--foreground)',
               minWidth: '150px',
             }}
           >
@@ -401,7 +406,7 @@ export default function LearningHubPage() {
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.borderColor = '#0f766e';
-                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.1)';
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(15, 118, 110, 0.1)';
                     }}
                     onMouseLeave={(e) => {
                       e.currentTarget.style.borderColor = 'var(--border)';
@@ -414,7 +419,7 @@ export default function LearningHubPage() {
                           width: '40px',
                           height: '40px',
                           borderRadius: '8px',
-                          backgroundColor: '#f1f5f9',
+                          backgroundColor: 'color-mix(in srgb, var(--background) 82%, #0f766e 18%)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
@@ -443,7 +448,7 @@ export default function LearningHubPage() {
                             style={{
                               fontSize: '11px',
                               padding: '2px 8px',
-                              backgroundColor: '#f1f5f9',
+                              backgroundColor: 'var(--muted)',
                               borderRadius: '4px',
                               color: 'var(--muted-foreground)',
                             }}
@@ -526,11 +531,11 @@ export default function LearningHubPage() {
                   key={capture.id}
                   style={{
                     padding: '12px 16px',
-                    backgroundColor: '#fffbeb',
+                    backgroundColor: 'color-mix(in srgb, var(--background) 84%, #f59e0b 16%)',
                     borderRadius: '8px',
-                    border: '1px solid #fde68a',
+                    border: '1px solid color-mix(in srgb, var(--border) 70%, #f59e0b 30%)',
                     fontSize: '14px',
-                    color: '#92400e',
+                    color: 'var(--foreground)',
                   }}
                 >
                   {capture.content}

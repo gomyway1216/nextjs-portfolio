@@ -84,13 +84,29 @@ export default function StudyListPage() {
   const getDifficultyStyle = (difficulty: QuizDifficulty) => {
     switch (difficulty) {
       case QuizDifficulty.BEGINNER:
-        return { bg: '#dcfce7', text: '#166534', border: '#bbf7d0' };
+        return {
+          bg: 'color-mix(in srgb, var(--background) 82%, #16a34a 18%)',
+          text: '#15803d',
+          border: 'color-mix(in srgb, var(--border) 72%, #16a34a 28%)',
+        };
       case QuizDifficulty.INTERMEDIATE:
-        return { bg: '#dbeafe', text: '#1e40af', border: '#bfdbfe' };
+        return {
+          bg: 'color-mix(in srgb, var(--background) 82%, #2563eb 18%)',
+          text: '#2563eb',
+          border: 'color-mix(in srgb, var(--border) 72%, #2563eb 28%)',
+        };
       case QuizDifficulty.ADVANCED:
-        return { bg: '#fef3c7', text: '#92400e', border: '#fde68a' };
+        return {
+          bg: 'color-mix(in srgb, var(--background) 82%, #f59e0b 18%)',
+          text: '#d97706',
+          border: 'color-mix(in srgb, var(--border) 72%, #f59e0b 28%)',
+        };
       case QuizDifficulty.EXPERT:
-        return { bg: '#fee2e2', text: '#991b1b', border: '#fecaca' };
+        return {
+          bg: 'color-mix(in srgb, var(--background) 82%, #ef4444 18%)',
+          text: '#dc2626',
+          border: 'color-mix(in srgb, var(--border) 72%, #ef4444 28%)',
+        };
       default:
         return { bg: 'var(--muted)', text: 'var(--foreground)', border: 'var(--border)' };
     }
@@ -761,7 +777,7 @@ export default function StudyListPage() {
                     <div style={{
                       backgroundColor: 'var(--background)',
                       borderRadius: '8px',
-                      border: articleIsRead ? '1px solid #d1d5db' : '1px solid var(--border)',
+                      border: '1px solid var(--border)',
                       padding: '20px',
                       height: '100%',
                       transition: 'all 0.2s',
@@ -774,7 +790,7 @@ export default function StudyListPage() {
                         e.currentTarget.style.opacity = '1';
                       }}
                       onMouseLeave={(e) => {
-                        e.currentTarget.style.borderColor = articleIsRead ? '#d1d5db' : 'var(--border)';
+                        e.currentTarget.style.borderColor = 'var(--border)';
                         e.currentTarget.style.boxShadow = 'none';
                         e.currentTarget.style.opacity = articleIsRead ? '0.7' : '1';
                       }}

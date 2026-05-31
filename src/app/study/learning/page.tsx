@@ -95,11 +95,11 @@ export default function LearningHubPage() {
 
   if (!currentUser || currentUser.isAnonymous) {
     return (
-      <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', padding: '48px 16px' }}>
+      <div style={{ minHeight: '100vh', backgroundColor: 'var(--background)', padding: '48px 16px' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
-          <Brain size={64} style={{ color: '#6366f1', marginBottom: '16px' }} />
+          <Brain size={64} style={{ color: '#0f766e', marginBottom: '16px' }} />
           <h1 style={{ fontSize: '28px', fontWeight: '600', marginBottom: '8px' }}>Learning Hub</h1>
-          <p style={{ color: '#6b7280', marginBottom: '24px' }}>
+          <p style={{ color: 'var(--muted-foreground)', marginBottom: '24px' }}>
             Sign in to access your personal learning hub, create notes, build your dictionary, and
             track your progress.
           </p>
@@ -110,7 +110,7 @@ export default function LearningHubPage() {
               alignItems: 'center',
               gap: '8px',
               padding: '12px 24px',
-              backgroundColor: '#6366f1',
+              backgroundColor: '#0f766e',
               color: 'white',
               borderRadius: '8px',
               textDecoration: 'none',
@@ -125,15 +125,15 @@ export default function LearningHubPage() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#ffffff', paddingTop: '8px' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--background)', paddingTop: '8px' }}>
       <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '24px 16px' }}>
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
           <div>
-            <h1 style={{ fontSize: '28px', fontWeight: '600', color: '#111827', marginBottom: '4px' }}>
+            <h1 style={{ fontSize: '28px', fontWeight: '600', color: 'var(--foreground)', marginBottom: '4px' }}>
               Learning Hub
             </h1>
-            <p style={{ color: '#6b7280', fontSize: '15px' }}>
+            <p style={{ color: 'var(--muted-foreground)', fontSize: '15px' }}>
               Capture, organize, and master knowledge from any source
             </p>
           </div>
@@ -144,7 +144,7 @@ export default function LearningHubPage() {
               alignItems: 'center',
               gap: '8px',
               padding: '10px 16px',
-              backgroundColor: '#6366f1',
+              backgroundColor: '#0f766e',
               color: 'white',
               borderRadius: '8px',
               textDecoration: 'none',
@@ -160,11 +160,11 @@ export default function LearningHubPage() {
         {/* Quick Capture */}
         <div
           style={{
-            backgroundColor: '#f8fafc',
-            borderRadius: '12px',
+            backgroundColor: 'var(--muted)',
+            borderRadius: '8px',
             padding: '16px',
             marginBottom: '24px',
-            border: '1px solid #e2e8f0',
+            border: '1px solid var(--border)',
           }}
         >
           <div style={{ display: 'flex', gap: '12px' }}>
@@ -177,10 +177,12 @@ export default function LearningHubPage() {
               style={{
                 flex: 1,
                 padding: '12px 16px',
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--border)',
                 borderRadius: '8px',
                 fontSize: '14px',
                 outline: 'none',
+                backgroundColor: 'var(--background)',
+                color: 'var(--foreground)',
               }}
             />
             <button
@@ -188,8 +190,8 @@ export default function LearningHubPage() {
               disabled={isCapturing || !quickCaptureText.trim()}
               style={{
                 padding: '12px 20px',
-                backgroundColor: quickCaptureText.trim() ? '#6366f1' : '#e2e8f0',
-                color: quickCaptureText.trim() ? 'white' : '#9ca3af',
+                backgroundColor: quickCaptureText.trim() ? '#0f766e' : 'var(--border)',
+                color: quickCaptureText.trim() ? 'white' : 'var(--muted-foreground)',
                 border: 'none',
                 borderRadius: '8px',
                 cursor: quickCaptureText.trim() ? 'pointer' : 'not-allowed',
@@ -215,7 +217,7 @@ export default function LearningHubPage() {
             icon={<FileText size={20} />}
             label="Learning Entries"
             value={stats?.totalEntries || 0}
-            color="#6366f1"
+            color="#0f766e"
           />
           <StatCard
             icon={<BookMarked size={20} />}
@@ -267,7 +269,7 @@ export default function LearningHubPage() {
             icon={<Brain size={24} />}
             title="Start Review Session"
             description={`${totalDue || 0} items due for review`}
-            color="#6366f1"
+            color="#0f766e"
           />
           <QuickActionCard
             href="/study/learning/dictionary"
@@ -304,7 +306,7 @@ export default function LearningHubPage() {
           <div style={{ flex: 1, minWidth: '200px', position: 'relative' }}>
             <Search
               size={18}
-              style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }}
+              style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted-foreground)' }}
             />
             <input
               type="text"
@@ -314,10 +316,12 @@ export default function LearningHubPage() {
               style={{
                 width: '100%',
                 padding: '10px 12px 10px 40px',
-                border: '1px solid #e2e8f0',
+                border: '1px solid var(--border)',
                 borderRadius: '8px',
                 fontSize: '14px',
                 outline: 'none',
+                backgroundColor: 'var(--background)',
+                color: 'var(--foreground)',
               }}
             />
           </div>
@@ -326,11 +330,12 @@ export default function LearningHubPage() {
             onChange={(e) => setSelectedSource(e.target.value as LearningSourceType | '')}
             style={{
               padding: '10px 12px',
-              border: '1px solid #e2e8f0',
+              border: '1px solid var(--border)',
               borderRadius: '8px',
               fontSize: '14px',
               outline: 'none',
-              backgroundColor: 'white',
+              backgroundColor: 'var(--card)',
+              color: 'var(--foreground)',
               minWidth: '150px',
             }}
           >
@@ -345,24 +350,24 @@ export default function LearningHubPage() {
 
         {/* Learning Entries List */}
         <div style={{ marginBottom: '32px' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#111827' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: 'var(--foreground)' }}>
             Recent Learning Entries
           </h2>
 
           {entriesLoading ? (
-            <div style={{ padding: '48px', textAlign: 'center', color: '#6b7280' }}>Loading...</div>
+            <div style={{ padding: '48px', textAlign: 'center', color: 'var(--muted-foreground)' }}>Loading...</div>
           ) : filteredEntries.length === 0 ? (
             <div
               style={{
                 padding: '48px',
                 textAlign: 'center',
-                backgroundColor: '#f8fafc',
-                borderRadius: '12px',
-                border: '1px dashed #e2e8f0',
+                backgroundColor: 'var(--muted)',
+                borderRadius: '8px',
+                border: '1px dashed var(--border)',
               }}
             >
               <FileText size={48} style={{ color: '#cbd5e1', marginBottom: '16px' }} />
-              <p style={{ color: '#6b7280', marginBottom: '16px' }}>No learning entries yet</p>
+              <p style={{ color: 'var(--muted-foreground)', marginBottom: '16px' }}>No learning entries yet</p>
               <Link
                 href="/study/learning/new"
                 style={{
@@ -370,7 +375,7 @@ export default function LearningHubPage() {
                   alignItems: 'center',
                   gap: '8px',
                   padding: '10px 16px',
-                  backgroundColor: '#6366f1',
+                  backgroundColor: '#0f766e',
                   color: 'white',
                   borderRadius: '8px',
                   textDecoration: 'none',
@@ -393,18 +398,18 @@ export default function LearningHubPage() {
                   <div
                     style={{
                       padding: '16px',
-                      backgroundColor: 'white',
-                      borderRadius: '12px',
-                      border: '1px solid #e2e8f0',
+                      backgroundColor: 'var(--card)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border)',
                       cursor: 'pointer',
                       transition: 'all 0.2s',
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = '#6366f1';
-                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.1)';
+                      e.currentTarget.style.borderColor = '#0f766e';
+                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(15, 118, 110, 0.1)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = '#e2e8f0';
+                      e.currentTarget.style.borderColor = 'var(--border)';
                       e.currentTarget.style.boxShadow = 'none';
                     }}
                   >
@@ -414,11 +419,11 @@ export default function LearningHubPage() {
                           width: '40px',
                           height: '40px',
                           borderRadius: '8px',
-                          backgroundColor: '#f1f5f9',
+                          backgroundColor: 'color-mix(in srgb, var(--background) 82%, #0f766e 18%)',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: '#6366f1',
+                          color: '#0f766e',
                           flexShrink: 0,
                         }}
                       >
@@ -430,7 +435,7 @@ export default function LearningHubPage() {
                             style={{
                               fontSize: '15px',
                               fontWeight: '600',
-                              color: '#111827',
+                              color: 'var(--foreground)',
                               margin: 0,
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -443,9 +448,9 @@ export default function LearningHubPage() {
                             style={{
                               fontSize: '11px',
                               padding: '2px 8px',
-                              backgroundColor: '#f1f5f9',
+                              backgroundColor: 'var(--muted)',
                               borderRadius: '4px',
-                              color: '#64748b',
+                              color: 'var(--muted-foreground)',
                             }}
                           >
                             {SOURCE_TYPE_LABELS[entry.sourceType]}
@@ -455,7 +460,7 @@ export default function LearningHubPage() {
                           <p
                             style={{
                               fontSize: '13px',
-                              color: '#6b7280',
+                              color: 'var(--muted-foreground)',
                               margin: 0,
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
@@ -472,7 +477,7 @@ export default function LearningHubPage() {
                             gap: '16px',
                             marginTop: '8px',
                             fontSize: '12px',
-                            color: '#9ca3af',
+                            color: 'var(--muted-foreground)',
                           }}
                         >
                           <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -487,7 +492,7 @@ export default function LearningHubPage() {
                           )}
                         </div>
                       </div>
-                      <ChevronRight size={20} style={{ color: '#9ca3af', flexShrink: 0 }} />
+                      <ChevronRight size={20} style={{ color: 'var(--muted-foreground)', flexShrink: 0 }} />
                     </div>
                   </div>
                 </Link>
@@ -503,7 +508,7 @@ export default function LearningHubPage() {
                 textAlign: 'center',
                 padding: '12px',
                 marginTop: '16px',
-                color: '#6366f1',
+                color: '#0f766e',
                 textDecoration: 'none',
                 fontWeight: '500',
                 fontSize: '14px',
@@ -517,7 +522,7 @@ export default function LearningHubPage() {
         {/* Pending Quick Captures */}
         {captures.length > 0 && (
           <div>
-            <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: '#111827' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: 'var(--foreground)' }}>
               Pending Quick Captures ({captures.length})
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -526,11 +531,11 @@ export default function LearningHubPage() {
                   key={capture.id}
                   style={{
                     padding: '12px 16px',
-                    backgroundColor: '#fffbeb',
+                    backgroundColor: 'color-mix(in srgb, var(--background) 84%, #f59e0b 16%)',
                     borderRadius: '8px',
-                    border: '1px solid #fde68a',
+                    border: '1px solid color-mix(in srgb, var(--border) 70%, #f59e0b 30%)',
                     fontSize: '14px',
-                    color: '#92400e',
+                    color: 'var(--foreground)',
                   }}
                 >
                   {capture.content}
@@ -561,9 +566,9 @@ function StatCard({
     <div
       style={{
         padding: '16px',
-        backgroundColor: 'white',
-        borderRadius: '12px',
-        border: '1px solid #e2e8f0',
+        backgroundColor: 'var(--card)',
+        borderRadius: '8px',
+        border: '1px solid var(--border)',
         cursor: clickable ? 'pointer' : 'default',
         transition: 'all 0.2s',
       }}
@@ -575,7 +580,7 @@ function StatCard({
       }}
       onMouseLeave={(e) => {
         if (clickable) {
-          e.currentTarget.style.borderColor = '#e2e8f0';
+          e.currentTarget.style.borderColor = 'var(--border)';
           e.currentTarget.style.transform = 'none';
         }
       }}
@@ -583,8 +588,8 @@ function StatCard({
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <div style={{ color }}>{icon}</div>
         <div>
-          <div style={{ fontSize: '20px', fontWeight: '600', color: '#111827' }}>{value}</div>
-          <div style={{ fontSize: '12px', color: '#6b7280' }}>{label}</div>
+          <div style={{ fontSize: '20px', fontWeight: '600', color: 'var(--foreground)' }}>{value}</div>
+          <div style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>{label}</div>
         </div>
       </div>
     </div>
@@ -609,9 +614,9 @@ function QuickActionCard({
       <div
         style={{
           padding: '20px',
-          backgroundColor: 'white',
-          borderRadius: '12px',
-          border: '1px solid #e2e8f0',
+          backgroundColor: 'var(--card)',
+          borderRadius: '8px',
+          border: '1px solid var(--border)',
           cursor: 'pointer',
           transition: 'all 0.2s',
         }}
@@ -621,16 +626,16 @@ function QuickActionCard({
           e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.1)';
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.borderColor = '#e2e8f0';
+          e.currentTarget.style.borderColor = 'var(--border)';
           e.currentTarget.style.transform = 'none';
           e.currentTarget.style.boxShadow = 'none';
         }}
       >
         <div style={{ color, marginBottom: '12px' }}>{icon}</div>
-        <h3 style={{ fontSize: '15px', fontWeight: '600', color: '#111827', margin: '0 0 4px 0' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: '600', color: 'var(--foreground)', margin: '0 0 4px 0' }}>
           {title}
         </h3>
-        <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>{description}</p>
+        <p style={{ fontSize: '13px', color: 'var(--muted-foreground)', margin: 0 }}>{description}</p>
       </div>
     </Link>
   );

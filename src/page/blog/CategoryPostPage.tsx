@@ -5,7 +5,7 @@ import PostListItem from '@/components/blog/PostListItem';
 import * as postApi from '@/services/postsService';
 import type { ListingPost } from '@/services/postsService';
 import SuggestionBar from '@/components/blog/SuggestionBar';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { usePosts } from '@/providers/PostsProvider';
 import { useInView } from 'react-intersection-observer';
 import { useTranslation } from 'react-i18next';
@@ -28,6 +28,13 @@ const CATEGORY_LABELS: Record<string, string> = {
   life: 'Life',
 };
 
+const titleCaseCategory = (value: string) =>
+  value
+    .split('-')
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+
 const CategoryPostPage = ({
   initialCategory,
   initialPosts,
@@ -36,7 +43,6 @@ const CategoryPostPage = ({
   initialLanguage,
 }: CategoryPostPageProps = {}) => {
   const { category: routeCategory } = useParams();
-  const router = useRouter();
   const { i18n } = useTranslation();
   const language = normalizeLanguage(i18n.language);
   const category =
@@ -58,14 +64,13 @@ const CategoryPostPage = ({
 
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(initialHasMore ?? true);
-  const [tabValue, setTabValue] = useState(category);
 
   const [ref, inView] = useInView({ threshold: 0.1, triggerOnce: false });
   const visiblePosts =
     postsByCategory[cacheKey] ||
     (initialCategory === category && initialLanguage === language ? initialPosts : undefined) ||
     [];
-  const categoryLabel = CATEGORY_LABELS[category] || category.replace(/-/g, ' ');
+  const categoryLabel = CATEGORY_LABELS[category] || titleCaseCategory(category);
 
   const fetchPosts = async () => {
     setIsLoading(true);
@@ -91,6 +96,13 @@ const CategoryPostPage = ({
         ];
         setPostsByCategory(cacheKey, updatedPosts);
         setCurrentPageByCategory(cacheKey, currentCategoryPage + 1);
+        const nextLastVisibleTimestamp = result.lastVisibleTimestamp;
+        if (nextLastVisibleTimestamp != null) {
+          setLastVisibleDocTimestamps((prev: Record<string, number>) => ({
+            ...prev,
+            [cacheKey]: nextLastVisibleTimestamp,
+          }));
+        }
       }
     } catch (error) {
       console.error('[blog] failed to fetch posts', error);
@@ -100,9 +112,8 @@ const CategoryPostPage = ({
     }
   };
 
-  const handleClickPost = (id: string, postCategory: string) => {
+  const handleClickPost = () => {
     setScrollPosition(window.scrollY);
-    router.push(`/blog/${postCategory}/${id}`);
   };
 
   useEffect(() => {
@@ -159,10 +170,10 @@ const CategoryPostPage = ({
             Notes on product engineering, fintech systems, learning, and the
             decisions behind the work.
           </p>
-          <SuggestionBar activeTab={tabValue} setActiveTab={setTabValue} />
+          <SuggestionBar activeTab={category} />
         </header>
 
-        <div className={styles.postList} aria-live="polite">
+        <div className={styles.postList}>
           {visiblePosts.map((item, index, arr) => {
             const isLoadMoreAnchor = arr.length - 3 === index;
             return (
@@ -183,13 +194,13 @@ const CategoryPostPage = ({
             );
           })}
           {!isLoading && visiblePosts.length === 0 && (
-            <div className={styles.emptyState}>
+            <div className={styles.emptyState} role="status">
               <h2>No public posts yet</h2>
               <p>Try another category or come back after the next update.</p>
             </div>
           )}
           {isLoading && (
-            <div className={styles.loadingState}>
+            <div className={styles.loadingState} role="status">
               <span className={styles.loadingDot} aria-hidden="true" />
               Loading posts
             </div>

@@ -23,7 +23,7 @@ const PostPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const { currentUser } = useAuth();
   const router = useRouter();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const activeLanguage = normalizeLanguage(i18n.language);
 
   const _category = Array.isArray(routeCategory) ? routeCategory[0] : routeCategory || '';
@@ -79,7 +79,7 @@ const PostPage = () => {
         <div className={styles.shell}>
           <div className={styles.statusPanel}>
             <span className={styles.statusDot} aria-hidden="true" />
-            Loading post
+            {t('blogPage.post.loading')}
           </div>
         </div>
       </main>
@@ -91,11 +91,11 @@ const PostPage = () => {
       <main className={styles.page}>
         <div className={styles.shell}>
           <div className={styles.statusPanel}>
-            <h1>Post not found</h1>
-            <p>This article is unavailable or has not been published.</p>
+            <h1>{t('blogPage.post.notFoundTitle')}</h1>
+            <p>{t('blogPage.post.notFoundText')}</p>
             <Link href={`/blog/${_category || 'all'}`} className={styles.backLink}>
               <ArrowLeft aria-hidden="true" size={16} strokeWidth={2} />
-              Back to blog
+              {t('blogPage.post.backToBlog')}
             </Link>
           </div>
         </div>
@@ -113,7 +113,7 @@ const PostPage = () => {
         <div className={styles.toolbar}>
           <Link href={`/blog/${backCategory}`} className={styles.backLink}>
             <ArrowLeft aria-hidden="true" size={16} strokeWidth={2} />
-            Back to blog
+            {t('blogPage.post.backToBlog')}
           </Link>
           <div className={styles.actions}>
             {isBilingual && (
@@ -126,7 +126,7 @@ const PostPage = () => {
             {currentUser && (
               <Button onClick={handleEdit} className={styles.editButton}>
                 <Edit3 aria-hidden="true" size={15} strokeWidth={2} />
-                Edit
+                {t('blogPage.post.edit')}
               </Button>
             )}
           </div>
@@ -155,7 +155,7 @@ interface LanguageToggleProps {
 
 const LABELS: Record<PostLanguage, string> = {
   en: 'EN',
-  ja: 'JA',
+  ja: '日本語',
 };
 
 const LanguageToggle = ({ available, active, onChange }: LanguageToggleProps) => (

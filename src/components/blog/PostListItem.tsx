@@ -1,5 +1,6 @@
 import { htmlToText } from 'html-to-text';
 import { forwardRef } from 'react';
+import Link from 'next/link';
 import styles from './post-list-item.module.css';
 
 interface PostListItemProps {
@@ -12,14 +13,15 @@ interface PostListItemProps {
   category: string;
   image?: string;
   language?: string;
-  handleClick: (id: string, category: string) => void;
+  handleClick: () => void;
 }
 
-const formatDisplayDate = (value?: string | Date) => {
+const formatDisplayDate = (value?: string | Date, language?: string) => {
   if (!value) return 'Recently updated';
   const date = typeof value === 'string' ? new Date(value) : value;
   if (Number.isNaN(date.getTime())) return 'Recently updated';
-  return new Intl.DateTimeFormat('en', {
+  const locale = language?.startsWith('ja') ? 'ja-JP' : 'en';
+  return new Intl.DateTimeFormat(locale, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -27,7 +29,7 @@ const formatDisplayDate = (value?: string | Date) => {
 };
 
 const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
-  ({ id, title, body, lastUpdated, category, image, handleClick }, ref) => {
+  ({ id, title, body, lastUpdated, category, image, language, handleClick }, ref) => {
     const bodyText = htmlToText(body, { wordwrap: false }).replace(/\s+/g, ' ').trim();
     const excerpt = bodyText.length > 190 ? `${bodyText.slice(0, 190).trim()}...` : bodyText;
     const categoryLabel = category.replace(/-/g, ' ');
@@ -37,15 +39,15 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
         ref={ref}
         className={styles.card}
       >
-        <button
-          type="button"
+        <Link
+          href={`/blog/${category}/${id}`}
           className={styles.cardButton}
-          onClick={() => handleClick(id, category)}
+          onClick={handleClick}
           aria-label={`Open ${title}`}
         >
           <div className={styles.content}>
             <div className={styles.meta}>
-              <span>{formatDisplayDate(lastUpdated)}</span>
+              <span>{formatDisplayDate(lastUpdated, language)}</span>
               <span>{categoryLabel}</span>
             </div>
             <h2 className={styles.title}>{title}</h2>
@@ -65,7 +67,7 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
               {categoryLabel.slice(0, 1).toUpperCase()}
             </span>
           )}
-        </button>
+        </Link>
       </article>
     );
   }

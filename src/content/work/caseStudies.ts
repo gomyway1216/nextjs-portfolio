@@ -22,6 +22,12 @@ export interface CaseStudy {
   summary: string;
   /** Year or year range the work happened. */
   year: string;
+  /** Short role label shown in project summaries. */
+  role: string;
+  /** Compact scope label for the case-study metadata rail. */
+  scope: string;
+  /** Outcome headline shown before the long-form details. */
+  impact: string;
   /** Short tags shown as chips. */
   tags: string[];
   sections: CaseStudySection[];
@@ -35,6 +41,9 @@ export const caseStudies: CaseStudy[] = [
     summary:
       'Migrated an entire support and operations org off a third-party low-code tool onto a Next.js platform I designed end-to-end.',
     year: '2025',
+    role: 'DRI, architecture and rollout',
+    scope: 'RBAC, workflows, feature-flagged migration',
+    impact: '100% support and operations migration',
     tags: ['Next.js', 'Internal Tools', 'TypeScript', 'RBAC', 'Fintech'],
     sections: [
       {
@@ -73,6 +82,9 @@ export const caseStudies: CaseStudy[] = [
     summary:
       "Designed team-based ticket routing, retention flows, and the integration of an LLM library for understanding customer conversations.",
     year: '2025',
+    role: 'Systems design and implementation lead',
+    scope: 'Routing, retention, LLM signals, SLAs',
+    impact: 'Automated routing for high-volume support teams',
     tags: ['Customer Support', 'LLM', 'Architecture', 'Fintech'],
     sections: [
       {
@@ -109,6 +121,9 @@ export const caseStudies: CaseStudy[] = [
     summary:
       'Owned the end-to-end integration of two new payment rails to reduce involuntary churn from slow ACH funding.',
     year: '2025',
+    role: 'Integration owner and vendor lead',
+    scope: 'Payments, 3DS, reconciliation, disputes',
+    impact: 'Faster funding paths with auditable money movement',
     tags: [
       'Payments',
       'ACH',

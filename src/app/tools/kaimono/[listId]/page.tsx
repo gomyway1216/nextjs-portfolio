@@ -1,45 +1,52 @@
 'use client';
 
 import {
-BudgetSummary,
-FrequentItemsSuggestion,
-KaimonoLogo,
-PasscodeDialog,
-ShareDialog,
-ShoppingItemForm,
-ShoppingItemList,
+  BudgetSummary,
+  FrequentItemsSuggestion,
+  KaimonoLogo,
+  PasscodeDialog,
+  ShareDialog,
+  ShoppingItemForm,
+  ShoppingItemList,
 } from '@/components/kaimono';
 import { Button } from '@/components/ui/button';
 import {
-Select,
-SelectContent,
-SelectItem,
-SelectTrigger,
-SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import {
-useKaimonoFrequentItems,
-useKaimonoList,
-useKaimonoMutations,
+  useKaimonoFrequentItems,
+  useKaimonoList,
+  useKaimonoMutations,
 } from '@/hooks/useKaimono';
 import { useAuth } from '@/providers/AuthProvider';
-import type { CreateShoppingItemInput,ShoppingItem,UpdateShoppingItemInput } from '@/types/kaimono';
+import type { CreateShoppingItemInput, ShoppingItem, UpdateShoppingItemInput } from '@/types/kaimono';
 import {
-ArrowLeft,
-LayoutGrid,
-List,
-Loader2,
-Plus,
-Store,
+  ArrowLeft,
+  LayoutGrid,
+  List,
+  Loader2,
+  Plus,
+  Store,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useParams,useRouter } from 'next/navigation';
-import { useEffect,useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { type CSSProperties, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import detailStyles from '../../tool-detail.module.css';
 
 const LOCAL_STORAGE_KEY = 'kaimono_recent_lists';
 const MAX_LOCAL_LISTS = 10;
+
+const kaimonoTheme = {
+  '--tool-accent': 'hsl(160 84% 39%)',
+  '--tool-accent-strong': 'hsl(160 84% 32%)',
+  '--tool-accent-soft': 'hsl(190 78% 44%)',
+} as CSSProperties;
 
 interface LocalListEntry {
   id: string;
@@ -143,8 +150,10 @@ export default function KaimonoListPage() {
 
   if (listLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className={detailStyles.page} style={kaimonoTheme}>
+        <div className={detailStyles.loadingShell}>
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
       </div>
     );
   }
@@ -163,17 +172,21 @@ export default function KaimonoListPage() {
 
   if (!list) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center">
-        <KaimonoLogo size={48} className="mx-auto mb-6" />
-        <h2 className="text-xl font-semibold mb-2">{t('kaimono.list.notFoundTitle', 'List Not Found')}</h2>
-        <p className="text-muted-foreground mb-6">
-          {t('kaimono.list.notFoundDescription', 'This shopping list does not exist or has been deleted.')}
-        </p>
-        <Link href="/tools/kaimono">
-          <Button className="bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600" style={{ borderRadius: '9999px' }}>
-            {t('kaimono.list.backToTop', 'Back to Kaimono')}
-          </Button>
-        </Link>
+      <div className={detailStyles.page} style={kaimonoTheme}>
+        <div className={detailStyles.statePanel}>
+          <div className={detailStyles.stateIcon}>
+            <KaimonoLogo size={42} />
+          </div>
+          <h2 className={detailStyles.stateTitle}>{t('kaimono.list.notFoundTitle', 'List Not Found')}</h2>
+          <p className={detailStyles.stateText}>
+            {t('kaimono.list.notFoundDescription', 'This shopping list does not exist or has been deleted.')}
+          </p>
+          <Link href="/tools/kaimono" className="mt-6 inline-flex">
+            <Button className={detailStyles.primaryButton}>
+              {t('kaimono.list.backToTop', 'Back to Kaimono')}
+            </Button>
+          </Link>
+        </div>
       </div>
     );
   }
@@ -182,111 +195,119 @@ export default function KaimonoListPage() {
   const purchasedCount = items.filter((i) => i.isPurchased).length;
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/tools/kaimono">
-            <Button variant="ghost" size="icon" className="rounded-full">
+    <div className={detailStyles.page} style={kaimonoTheme}>
+      <div className={detailStyles.innerWide}>
+        {/* Header */}
+        <header className={detailStyles.header}>
+          <div className={detailStyles.headerMain}>
+            <Link href="/tools/kaimono">
+              <Button
+                variant="ghost"
+                size="icon"
+                className={detailStyles.backIconButton}
+                aria-label={t('common.back', 'Back')}
+              >
               <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <KaimonoLogo size={28} />
-              <h1 className="text-2xl font-bold">{list.name}</h1>
+              </Button>
+            </Link>
+            <div className={detailStyles.logoTile}>
+              <KaimonoLogo size={30} />
             </div>
-            <p className="text-sm text-muted-foreground ml-9">{list.date}</p>
+            <div className={detailStyles.titleBlock}>
+              <h1 className={detailStyles.title}>{list.name}</h1>
+              <p className={detailStyles.subtitle}>{list.date}</p>
+            </div>
           </div>
-        </div>
-        <ShareDialog
-          listId={list.id}
-          listName={list.name}
-          shareCode={list.shareCode}
-          onGenerateQR={handleGenerateQR}
+          <div className={detailStyles.headerActions}>
+            <ShareDialog
+              listId={list.id}
+              listName={list.name}
+              shareCode={list.shareCode}
+              onGenerateQR={handleGenerateQR}
+            />
+          </div>
+        </header>
+
+        {/* Budget Summary */}
+        <BudgetSummary
+          budget={list.budget}
+          totalSpent={list.totalSpent}
+          currency={list.currency}
+          itemCount={items.length}
+          purchasedCount={purchasedCount}
         />
-      </div>
 
-      {/* Budget Summary */}
-      <BudgetSummary
-        budget={list.budget}
-        totalSpent={list.totalSpent}
-        currency={list.currency}
-        itemCount={items.length}
-        purchasedCount={purchasedCount}
-      />
+        {/* Frequent Items Suggestions (logged in users only) */}
+        {currentUser && frequentItems.length > 0 && !showItemForm && !editingItem && (
+          <FrequentItemsSuggestion
+            items={frequentItems}
+            onAddItem={handleAddItems}
+            loading={mutationLoading}
+          />
+        )}
 
-      {/* Frequent Items Suggestions (logged in users only) */}
-      {currentUser && frequentItems.length > 0 && !showItemForm && !editingItem && (
-        <FrequentItemsSuggestion
-          items={frequentItems}
-          onAddItem={handleAddItems}
+        {/* Group By Selector + Add Button */}
+        <div className={detailStyles.toolbar}>
+          <Select value={groupBy} onValueChange={(v) => setGroupBy(v as 'none' | 'store' | 'category')}>
+            <SelectTrigger className={detailStyles.selectTrigger}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none"><List className="h-3 w-3 inline mr-1" />{t('kaimono.list.groupNone', 'No grouping')}</SelectItem>
+              <SelectItem value="store"><Store className="h-3 w-3 inline mr-1" />{t('kaimono.list.groupStore', 'By store')}</SelectItem>
+              <SelectItem value="category"><LayoutGrid className="h-3 w-3 inline mr-1" />{t('kaimono.list.groupCategory', 'By category')}</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {!showItemForm && !editingItem && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowItemForm(true)}
+              className={`${detailStyles.secondaryButton} hidden md:flex`}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              {t('kaimono.list.addItem', 'Add Item')}
+            </Button>
+          )}
+        </div>
+
+        {/* Add/Edit Item Form */}
+        {(showItemForm || editingItem) && (
+          <ShoppingItemForm
+            stores={list.stores}
+            frequentItems={currentUser ? frequentItems : []}
+            initialItem={editingItem || undefined}
+            onSubmit={editingItem ? handleUpdateItem : handleAddItems}
+            onCancel={() => { setShowItemForm(false); setEditingItem(null); }}
+            loading={mutationLoading}
+          />
+        )}
+
+        {/* Items List */}
+        <ShoppingItemList
+          items={items}
+          stores={list.stores}
+          currency={list.currency}
+          groupBy={groupBy}
+          onToggle={handleToggleItem}
+          onEdit={(item) => setEditingItem(item)}
+          onDelete={handleDeleteItem}
           loading={mutationLoading}
         />
-      )}
 
-      {/* Group By Selector + Add Button */}
-      <div className="flex items-center justify-between">
-        <Select value={groupBy} onValueChange={(v) => setGroupBy(v as 'none' | 'store' | 'category')}>
-          <SelectTrigger className="w-36 h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none"><List className="h-3 w-3 inline mr-1" />{t('kaimono.list.groupNone', 'No grouping')}</SelectItem>
-            <SelectItem value="store"><Store className="h-3 w-3 inline mr-1" />{t('kaimono.list.groupStore', 'By store')}</SelectItem>
-            <SelectItem value="category"><LayoutGrid className="h-3 w-3 inline mr-1" />{t('kaimono.list.groupCategory', 'By category')}</SelectItem>
-          </SelectContent>
-        </Select>
-
+        {/* Mobile FAB */}
         {!showItemForm && !editingItem && (
           <Button
-            variant="outline"
-            size="sm"
             onClick={() => setShowItemForm(true)}
-            className="hidden md:flex"
-            style={{ borderRadius: '9999px' }}
+            size="icon"
+            className={`${detailStyles.mobileFab} md:hidden [&_svg]:size-6`}
+            aria-label={t('kaimono.list.addItem', 'Add Item')}
           >
-            <Plus className="h-4 w-4 mr-1" />
-            {t('kaimono.list.addItem', 'Add Item')}
+            <Plus className="h-6 w-6" />
           </Button>
         )}
       </div>
-
-      {/* Add/Edit Item Form */}
-      {(showItemForm || editingItem) && (
-        <ShoppingItemForm
-          stores={list.stores}
-          frequentItems={currentUser ? frequentItems : []}
-          initialItem={editingItem || undefined}
-          onSubmit={editingItem ? handleUpdateItem : handleAddItems}
-          onCancel={() => { setShowItemForm(false); setEditingItem(null); }}
-          loading={mutationLoading}
-        />
-      )}
-
-      {/* Items List */}
-      <ShoppingItemList
-        items={items}
-        stores={list.stores}
-        currency={list.currency}
-        groupBy={groupBy}
-        onToggle={handleToggleItem}
-        onEdit={(item) => setEditingItem(item)}
-        onDelete={handleDeleteItem}
-        loading={mutationLoading}
-      />
-
-      {/* Mobile FAB */}
-      {!showItemForm && !editingItem && (
-        <Button
-          onClick={() => setShowItemForm(true)}
-          size="icon"
-          className="md:hidden fixed bottom-6 right-6 z-50 h-14 w-14 shadow-lg bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-600 hover:to-green-600 [&_svg]:size-6"
-          style={{ borderRadius: '9999px' }}
-        >
-          <Plus className="h-6 w-6" />
-        </Button>
-      )}
     </div>
   );
 }

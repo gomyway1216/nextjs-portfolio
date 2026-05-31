@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -27,12 +27,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/providers/AuthProvider';
-import { SessionFormDialog, ShareDialog } from '@/components/scoretracker';
+import { ScoreTrackerIcon, SessionFormDialog, ShareDialog } from '@/components/scoretracker';
 import * as svc from '@/services/scoreTrackerService';
 import * as local from '@/lib/scoreTrackerLocal';
 import type { LocalScoreGroup } from '@/lib/scoreTrackerLocal';
 import type { ScoreGroup, ScoreSession } from '@/types/scoreTracker';
 import { computeTotals } from '@/lib/scoreTrackerTotals';
+import detailStyles from '../../tool-detail.module.css';
 
 type Mode = 'local' | 'cloud';
 
@@ -41,6 +42,12 @@ interface LoadedState {
   group: ScoreGroup | LocalScoreGroup;
   sessions: ScoreSession[];
 }
+
+const scoreTrackerTheme = {
+  '--tool-accent': 'hsl(210 92% 55%)',
+  '--tool-accent-strong': 'hsl(211 92% 45%)',
+  '--tool-accent-soft': 'hsl(170 76% 42%)',
+} as CSSProperties;
 
 export default function ScoreTrackerGroupPage() {
   const params = useParams<{ groupId: string }>();
@@ -163,31 +170,37 @@ export default function ScoreTrackerGroupPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      <div className={detailStyles.page} style={scoreTrackerTheme}>
+        <div className={detailStyles.loadingShell}>
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
       </div>
     );
   }
 
   if (error || !state) {
     return (
-      <div className="min-h-screen container mx-auto px-4 py-10 max-w-2xl">
-        <Link href="/tools/score-tracker">
-          <Button variant="ghost" size="sm" className="mb-4">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            戻る
-          </Button>
-        </Link>
-        <Card>
-          <CardContent className="p-6 text-center space-y-3">
-            <p className="text-sm text-muted-foreground">{error || 'グループが見つかりません'}</p>
+      <div className={detailStyles.page} style={scoreTrackerTheme}>
+        <div className={detailStyles.statePanel}>
+          <div className={detailStyles.stateIcon}>
+            <ScoreTrackerIcon size={42} />
+          </div>
+          <h2 className={detailStyles.stateTitle}>グループを開けません</h2>
+          <p className={detailStyles.stateText}>{error || 'グループが見つかりません'}</p>
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
+            <Link href="/tools/score-tracker">
+              <Button variant="outline" className={detailStyles.secondaryButton}>
+                <ArrowLeft className="h-4 w-4 mr-1" />
+                戻る
+              </Button>
+            </Link>
             {!currentUser && (
               <Link href="/signin">
-                <Button>ログイン</Button>
+                <Button className={detailStyles.primaryButton}>ログイン</Button>
               </Link>
             )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     );
   }
@@ -200,214 +213,251 @@ export default function ScoreTrackerGroupPage() {
   const shareCode = state.mode === 'cloud' ? (state.group as ScoreGroup).shareCode : '';
 
   return (
-    <div className="min-h-screen container mx-auto px-4 py-6 max-w-3xl">
-      <Link href="/tools/score-tracker">
-        <Button variant="ghost" size="sm" className="mb-3">
-          <ArrowLeft className="h-4 w-4 mr-1" />
-          グループ一覧
-        </Button>
-      </Link>
+    <div className={detailStyles.page} style={scoreTrackerTheme}>
+      <div className={detailStyles.inner}>
+        {/* Header */}
+        <header className={detailStyles.header}>
+          <div className={detailStyles.headerMain}>
+            <Link href="/tools/score-tracker">
+              <Button variant="ghost" size="icon" className={detailStyles.backIconButton} aria-label="グループ一覧">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <div className={detailStyles.logoTile}>
+              <ScoreTrackerIcon size={30} />
+            </div>
+            <div className={detailStyles.titleBlock}>
+              <h1 className={detailStyles.title}>{state.group.name}</h1>
+              {state.group.description && (
+                <p className={detailStyles.subtitle}>{state.group.description}</p>
+              )}
+              <div className={detailStyles.badgeRow}>
+                {state.mode === 'local' ? (
+                  <Badge variant="secondary" className={detailStyles.metaPill}>
+                    <HardDrive className="h-2.5 w-2.5 mr-0.5" />
+                    ローカル
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className={detailStyles.metaPill}>
+                    <Globe className="h-2.5 w-2.5 mr-0.5" />
+                    クラウド
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
 
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3 mb-6">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-2xl font-bold truncate">{state.group.name}</h1>
-            {state.mode === 'local' ? (
-              <Badge variant="secondary" className="text-[10px]">
-                <HardDrive className="h-2.5 w-2.5 mr-0.5" />
-                ローカル
-              </Badge>
-            ) : (
-              <Badge variant="secondary" className="text-[10px]">
-                <Globe className="h-2.5 w-2.5 mr-0.5" />
-                クラウド
-              </Badge>
+          <div className={detailStyles.headerActions}>
+            {canShare && (
+              <Button
+                variant="outline"
+                size="sm"
+                className={detailStyles.secondaryButton}
+                onClick={() => setShareOpen(true)}
+              >
+                <Share2 className="h-4 w-4 mr-1" />
+                共有
+              </Button>
+            )}
+            <Button
+              size="sm"
+              className={detailStyles.primaryButton}
+              onClick={() => setSessionDialog({ open: true, editing: null })}
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              セッション追加
+            </Button>
+            {isOwner && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="グループ操作メニュー">
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem className="text-destructive" onClick={handleDeleteGroup}>
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    グループを削除
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             )}
           </div>
-          {state.group.description && (
-            <p className="text-sm text-muted-foreground mt-1">{state.group.description}</p>
-          )}
-          <div className="text-xs text-muted-foreground mt-2 flex items-center gap-3 flex-wrap">
-            <span className="flex items-center gap-0.5">
-              <Users className="h-3 w-3" />
-              {state.group.members.length}人
+        </header>
+
+        <div className={detailStyles.statsGrid}>
+          <div className={detailStyles.statCard}>
+            <span className={detailStyles.statIcon}>
+              <Users className="h-4 w-4" />
             </span>
-            <span>{state.sessions.length} セッション</span>
+            <div>
+              <div className={detailStyles.statLabel}>メンバー</div>
+              <div className={detailStyles.statValue}>{state.group.members.length}人</div>
+            </div>
+          </div>
+          <div className={detailStyles.statCard}>
+            <span className={detailStyles.statIcon}>
+              <Calendar className="h-4 w-4" />
+            </span>
+            <div>
+              <div className={detailStyles.statLabel}>セッション</div>
+              <div className={detailStyles.statValue}>{state.sessions.length}</div>
+            </div>
+          </div>
+          <div className={detailStyles.statCard}>
+            <span className={detailStyles.statIcon}>
+              {state.mode === 'local' ? <HardDrive className="h-4 w-4" /> : <Globe className="h-4 w-4" />}
+            </span>
+            <div>
+              <div className={detailStyles.statLabel}>保存先</div>
+              <div className={detailStyles.statValue}>{state.mode === 'local' ? 'ローカル' : 'クラウド'}</div>
+            </div>
           </div>
         </div>
 
-        <div className="flex gap-2 shrink-0">
-          {canShare && (
-            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
-              <Share2 className="h-4 w-4 mr-1" />
-              共有
-            </Button>
-          )}
-          <Button size="sm" onClick={() => setSessionDialog({ open: true, editing: null })}>
-            <Plus className="h-4 w-4 mr-1" />
-            セッション追加
-          </Button>
-          {isOwner && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="グループ操作メニュー">
-                  <MoreVertical className="h-4 w-4" />
+        {/* Totals */}
+        <Card className={`${detailStyles.panel} mb-6`}>
+          <CardContent className="p-0">
+            <div className={detailStyles.panelHeader}>
+              累計
+            </div>
+            {totals.length === 0 ? (
+              <p className="text-sm text-muted-foreground p-4">まだセッションがありません</p>
+            ) : (
+              <div className="divide-y">
+                {totals.map((row) => (
+                  <div key={row.memberId} className="flex items-center justify-between px-4 py-2.5">
+                    <div className="min-w-0">
+                      <div className="font-medium text-sm truncate">{row.name}</div>
+                      <div className="text-xs text-muted-foreground">{row.sessionCount} 回</div>
+                    </div>
+                    <div
+                      className={`font-mono font-semibold tabular-nums ${
+                        row.total > 0
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : row.total < 0
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : ''
+                      }`}
+                    >
+                      {row.total > 0 ? '+' : ''}
+                      {row.total.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Sessions */}
+        <section className="space-y-2">
+          <h2 className={detailStyles.sectionTitle}>
+            <Calendar className="h-4 w-4" />
+            セッション履歴
+          </h2>
+          {state.sessions.length === 0 ? (
+            <Card className={detailStyles.panel}>
+              <CardContent className="p-6 text-center">
+                <p className="text-sm text-muted-foreground">まだセッションがありません</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className={`${detailStyles.secondaryButton} mt-3`}
+                  onClick={() => setSessionDialog({ open: true, editing: null })}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  最初のセッションを追加
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem className="text-destructive" onClick={handleDeleteGroup}>
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  グループを削除
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-        </div>
-      </div>
-
-      {/* Totals */}
-      <Card className="mb-6">
-        <CardContent className="p-0">
-          <div className="px-4 py-2 border-b text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            累計
-          </div>
-          {totals.length === 0 ? (
-            <p className="text-sm text-muted-foreground p-4">まだセッションがありません</p>
+              </CardContent>
+            </Card>
           ) : (
-            <div className="divide-y">
-              {totals.map((row) => (
-                <div key={row.memberId} className="flex items-center justify-between px-4 py-2.5">
-                  <div className="min-w-0">
-                    <div className="font-medium text-sm truncate">{row.name}</div>
-                    <div className="text-xs text-muted-foreground">{row.sessionCount} 回</div>
-                  </div>
-                  <div
-                    className={`font-mono font-semibold tabular-nums ${
-                      row.total > 0
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : row.total < 0
-                          ? 'text-rose-600 dark:text-rose-400'
-                          : ''
-                    }`}
-                  >
-                    {row.total > 0 ? '+' : ''}
-                    {row.total.toLocaleString()}
-                  </div>
-                </div>
+            <div className="space-y-2">
+              {state.sessions.map((s) => (
+                <Card key={s.id} className={detailStyles.panel}>
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between gap-2 mb-2">
+                      <div>
+                        <div className="font-semibold text-sm">{formatDate(s.date)}</div>
+                        {s.note && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{s.note}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => setSessionDialog({ open: true, editing: s })}
+                          aria-label="編集"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => handleDeleteSession(s.id)}
+                          aria-label="削除"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[...s.participants]
+                        .sort((a, b) => b.score - a.score)
+                        .map((p) => (
+                          <div
+                            key={p.id}
+                            className={`${detailStyles.scoreChip} px-2 py-1.5 text-xs flex items-center justify-between gap-2`}
+                          >
+                            <span className="truncate">{p.name}</span>
+                            <span
+                              className={`font-mono font-semibold tabular-nums ${
+                                p.score > 0
+                                  ? 'text-emerald-600 dark:text-emerald-400'
+                                  : p.score < 0
+                                    ? 'text-rose-600 dark:text-rose-400'
+                                    : ''
+                              }`}
+                            >
+                              {p.score > 0 ? '+' : ''}
+                              {p.score.toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </section>
 
-      {/* Sessions */}
-      <section className="space-y-2">
-        <h2 className="text-sm font-semibold text-muted-foreground mb-1 flex items-center gap-1.5">
-          <Calendar className="h-4 w-4" />
-          セッション履歴
-        </h2>
-        {state.sessions.length === 0 ? (
-          <Card>
-            <CardContent className="p-6 text-center">
-              <p className="text-sm text-muted-foreground">まだセッションがありません</p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-3"
-                onClick={() => setSessionDialog({ open: true, editing: null })}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                最初のセッションを追加
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {state.sessions.map((s) => (
-              <Card key={s.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div>
-                      <div className="font-semibold text-sm">{formatDate(s.date)}</div>
-                      {s.note && (
-                        <p className="text-xs text-muted-foreground mt-0.5">{s.note}</p>
-                      )}
-                    </div>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={() => setSessionDialog({ open: true, editing: s })}
-                        aria-label="編集"
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-destructive hover:text-destructive"
-                        onClick={() => handleDeleteSession(s.id)}
-                        aria-label="削除"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {[...s.participants]
-                      .sort((a, b) => b.score - a.score)
-                      .map((p) => (
-                        <div
-                          key={p.id}
-                          className="rounded-md border px-2 py-1.5 text-xs flex items-center justify-between gap-2"
-                        >
-                          <span className="truncate">{p.name}</span>
-                          <span
-                            className={`font-mono font-semibold tabular-nums ${
-                              p.score > 0
-                                ? 'text-emerald-600 dark:text-emerald-400'
-                                : p.score < 0
-                                  ? 'text-rose-600 dark:text-rose-400'
-                                  : ''
-                            }`}
-                          >
-                            {p.score > 0 ? '+' : ''}
-                            {p.score.toLocaleString()}
-                          </span>
-                        </div>
-                      ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
-      </section>
-
-      <SessionFormDialog
-        open={sessionDialog.open}
-        onOpenChange={(open) => setSessionDialog({ open, editing: open ? sessionDialog.editing : null })}
-        members={state.group.members}
-        existing={sessionDialog.editing}
-        onSubmit={async (input) => {
-          if (sessionDialog.editing) {
-            await handleUpdateSession(sessionDialog.editing.id, input);
-          } else {
-            await handleAddSession(input);
-          }
-        }}
-      />
-
-      {canShare && (
-        <ShareDialog
-          open={shareOpen}
-          onOpenChange={setShareOpen}
-          shareCode={shareCode}
-          groupName={state.group.name}
+        <SessionFormDialog
+          open={sessionDialog.open}
+          onOpenChange={(open) => setSessionDialog({ open, editing: open ? sessionDialog.editing : null })}
+          members={state.group.members}
+          existing={sessionDialog.editing}
+          onSubmit={async (input) => {
+            if (sessionDialog.editing) {
+              await handleUpdateSession(sessionDialog.editing.id, input);
+            } else {
+              await handleAddSession(input);
+            }
+          }}
         />
-      )}
+
+        {canShare && (
+          <ShareDialog
+            open={shareOpen}
+            onOpenChange={setShareOpen}
+            shareCode={shareCode}
+            groupName={state.group.name}
+          />
+        )}
+      </div>
     </div>
   );
 }

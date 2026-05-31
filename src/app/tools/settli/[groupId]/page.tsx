@@ -30,13 +30,20 @@ Users,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useParams,useRouter } from 'next/navigation';
-import { useEffect,useState } from 'react';
+import { type CSSProperties,useEffect,useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
+import detailStyles from '../../tool-detail.module.css';
 
 // Local storage key for anonymous users
 const LOCAL_STORAGE_KEY = 'settli_recent_groups';
 const MAX_LOCAL_GROUPS = 10;
+
+const settliTheme = {
+  '--tool-accent': 'hsl(232 76% 58%)',
+  '--tool-accent-strong': 'hsl(245 68% 52%)',
+  '--tool-accent-soft': 'hsl(278 73% 58%)',
+} as CSSProperties;
 
 interface LocalGroupEntry {
   id: string;
@@ -178,8 +185,10 @@ export default function SettliGroupPage() {
 
   if (groupLoading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className={detailStyles.page} style={settliTheme}>
+        <div className={detailStyles.loadingShell}>
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
       </div>
     );
   }
@@ -198,82 +207,102 @@ export default function SettliGroupPage() {
 
   if (!group) {
     return (
-      <div className="container mx-auto px-4 py-16 text-center">
-        <SettliLogo size={48} className="mx-auto mb-6" />
-        <h2 className="text-xl font-semibold mb-2">{t('settli.group.notFoundTitle')}</h2>
-        <p className="text-muted-foreground mb-6">
-          {t('settli.group.notFoundDescription')}
-        </p>
-        <Link href="/tools/settli">
-          <Button className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600" style={{ borderRadius: '9999px' }}>
-            {t('settli.group.backToTop')}
-          </Button>
-        </Link>
+      <div className={detailStyles.page} style={settliTheme}>
+        <div className={detailStyles.statePanel}>
+          <div className={detailStyles.stateIcon}>
+            <SettliLogo size={42} />
+          </div>
+          <h2 className={detailStyles.stateTitle}>{t('settli.group.notFoundTitle')}</h2>
+          <p className={detailStyles.stateText}>
+            {t('settli.group.notFoundDescription')}
+          </p>
+          <Link href="/tools/settli" className="mt-6 inline-flex">
+            <Button className={detailStyles.primaryButton}>
+              {t('settli.group.backToTop')}
+            </Button>
+          </Link>
+        </div>
       </div>
     );
   }
 
+  const activeMemberCount = group.members.filter((m) => m.isActive !== false).length;
+  const settlementCount = settlements?.totalSettlementCount || 0;
+
   return (
-    <div className="container mx-auto px-4 py-8 max-w-4xl space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link href="/tools/settli">
-            <Button variant="ghost" size="icon" className="rounded-full">
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-          </Link>
-          <div>
-            <div className="flex items-center gap-2">
-              <SettliLogo size={28} />
-              <h1 className="text-2xl font-bold">{group.name}</h1>
+    <div className={detailStyles.page} style={settliTheme}>
+      <div className={detailStyles.innerWide}>
+        {/* Header */}
+        <header className={detailStyles.header}>
+          <div className={detailStyles.headerMain}>
+            <Link href="/tools/settli">
+              <Button variant="ghost" size="icon" className={detailStyles.backIconButton} aria-label={t('common.back', 'Back')}>
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <div className={detailStyles.logoTile}>
+              <SettliLogo size={30} />
             </div>
-            {group.description && (
-              <p className="text-muted-foreground ml-9">{group.description}</p>
-            )}
+            <div className={detailStyles.titleBlock}>
+              <h1 className={detailStyles.title}>{group.name}</h1>
+              {group.description && (
+                <p className={detailStyles.subtitle}>{group.description}</p>
+              )}
+            </div>
           </div>
-        </div>
-        <ShareDialog
-          groupId={group.id}
-          groupName={group.name}
-          shareCode={group.shareCode}
-          onGenerateQR={handleGenerateQR}
-        />
-      </div>
+          <div className={detailStyles.headerActions}>
+            <ShareDialog
+              groupId={group.id}
+              groupName={group.name}
+              shareCode={group.shareCode}
+              onGenerateQR={handleGenerateQR}
+            />
+          </div>
+        </header>
 
       {/* Summary Stats */}
-      <div className="flex items-center justify-center gap-6 text-sm text-muted-foreground">
-        <span className="flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5" />
-          <span className="font-medium text-foreground">{group.members.filter((m) => m.isActive !== false).length}</span>
-          {t('settli.common.peopleSuffix')}
-        </span>
-        <span className="text-border">|</span>
-        <span className="flex items-center gap-1.5">
-          <Receipt className="h-3.5 w-3.5" />
-          <span className="font-medium text-foreground">{payments.length}</span>
-          {t('settli.common.itemsSuffix')}
-        </span>
-        <span className="text-border">|</span>
-        <span className="flex items-center gap-1.5">
-          <Calculator className="h-3.5 w-3.5" />
-          <span className="font-medium text-foreground">{settlements?.totalSettlementCount || 0}</span>
-          {t('settli.group.settlement')}
-        </span>
-      </div>
+        <div className={detailStyles.statsGrid}>
+          <div className={detailStyles.statCard}>
+            <span className={detailStyles.statIcon}>
+              <Users className="h-4 w-4" />
+            </span>
+            <div>
+              <div className={detailStyles.statLabel}>{t('settli.group.tabs.members')}</div>
+              <div className={detailStyles.statValue}>{activeMemberCount}{t('settli.common.peopleSuffix')}</div>
+            </div>
+          </div>
+          <div className={detailStyles.statCard}>
+            <span className={detailStyles.statIcon}>
+              <Receipt className="h-4 w-4" />
+            </span>
+            <div>
+              <div className={detailStyles.statLabel}>{t('settli.group.tabs.payments')}</div>
+              <div className={detailStyles.statValue}>{payments.length}{t('settli.common.itemsSuffix')}</div>
+            </div>
+          </div>
+          <div className={detailStyles.statCard}>
+            <span className={detailStyles.statIcon}>
+              <Calculator className="h-4 w-4" />
+            </span>
+            <div>
+              <div className={detailStyles.statLabel}>{t('settli.group.settlement')}</div>
+              <div className={detailStyles.statValue}>{settlementCount}</div>
+            </div>
+          </div>
+        </div>
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="w-full grid grid-cols-3">
-          <TabsTrigger value="payments" className="flex items-center gap-1">
+        <TabsList className={`${detailStyles.tabsList} w-full grid grid-cols-3`}>
+          <TabsTrigger value="payments" className={detailStyles.tabTrigger}>
             <Receipt className="h-4 w-4" />
             {t('settli.group.tabs.payments')}
           </TabsTrigger>
-          <TabsTrigger value="members" className="flex items-center gap-1">
+          <TabsTrigger value="members" className={detailStyles.tabTrigger}>
             <Users className="h-4 w-4" />
             {t('settli.group.tabs.members')}
           </TabsTrigger>
-          <TabsTrigger value="settlements" className="flex items-center gap-1">
+          <TabsTrigger value="settlements" className={detailStyles.tabTrigger}>
             <Calculator className="h-4 w-4" />
             {t('settli.group.tabs.settlements')}
           </TabsTrigger>
@@ -298,19 +327,18 @@ export default function SettliGroupPage() {
             <>
               <Button
                 onClick={() => setShowPaymentForm(true)}
-                className="w-full mb-3 hidden md:flex"
-                style={{ borderRadius: '9999px' }}
-                disabled={group.members.filter((m) => m.isActive !== false).length < 2}
+                className={`${detailStyles.primaryButton} w-full mb-3 hidden md:flex`}
+                disabled={activeMemberCount < 2}
               >
                 <Plus className="h-4 w-4 mr-2" />
                 {t('settli.group.addPayment')}
               </Button>
               <Button
                 onClick={() => setShowPaymentForm(true)}
-                disabled={group.members.filter((m) => m.isActive !== false).length < 2}
+                disabled={activeMemberCount < 2}
                 size="icon"
-                className="md:hidden fixed bottom-6 right-6 z-50 h-14 w-14 shadow-lg bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 [&_svg]:size-6"
-                style={{ borderRadius: '9999px' }}
+                className={`${detailStyles.mobileFab} md:hidden [&_svg]:size-6`}
+                aria-label={t('settli.group.addPayment')}
               >
                 <Plus className="h-6 w-6" />
               </Button>
@@ -322,7 +350,7 @@ export default function SettliGroupPage() {
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : payments.length === 0 ? (
-            <Card>
+            <Card className={detailStyles.panel}>
               <CardContent className="p-8 text-center">
                 <Receipt className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                 <p className="text-muted-foreground">
@@ -331,7 +359,7 @@ export default function SettliGroupPage() {
               </CardContent>
             </Card>
           ) : (
-            <Card className="py-0 gap-0">
+            <Card className={`${detailStyles.panel} py-0 gap-0`}>
               <CardContent className="px-4">
                 {payments.map((payment) => (
                   <PaymentCard
@@ -372,7 +400,7 @@ export default function SettliGroupPage() {
               defaultCurrency={group.currency}
             />
           ) : (
-            <Card>
+            <Card className={detailStyles.panel}>
               <CardContent className="p-8 text-center">
                 <Calculator className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
                 <p className="text-muted-foreground">
@@ -383,6 +411,7 @@ export default function SettliGroupPage() {
           )}
         </TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 }

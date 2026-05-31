@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { HobbyCard } from '@/components/hobby';
 import { useHobbyCategories } from '@/hooks/useHobbies';
 
@@ -12,13 +12,14 @@ export default function HobbiesPage() {
     <div className="hobbies-page">
       <div className="hobbies-page__container">
         <header className="hobbies-page__header">
-          <h1 className="hobbies-page__title">My Hobbies</h1>
-          <p className="hobbies-page__subtitle">
-            Explore my interests and passions
-          </p>
-          <Link href="/#tools" className="hobbies-page__back-home">
-            Back to Home Tools
+          <Link href="/" className="hobbies-page__back-home">
+            <ArrowLeft aria-hidden="true" size={16} strokeWidth={2} />
+            Back to home
           </Link>
+          <h1 className="hobbies-page__title">Hobbies</h1>
+          <p className="hobbies-page__subtitle">
+            Collections, notes, and rankings across the things I follow closely.
+          </p>
         </header>
 
         {loading && (

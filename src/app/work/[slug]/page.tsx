@@ -93,13 +93,13 @@ export default async function CaseStudyPage({
                 const Icon = fact.icon;
                 return (
                   <div key={fact.label} className={styles.articleFact}>
-                    <span className={styles.articleFactIcon} aria-hidden="true">
-                      <Icon size={17} strokeWidth={2} />
-                    </span>
-                    <div>
-                      <dt>{fact.label}</dt>
-                      <dd>{fact.value}</dd>
-                    </div>
+                    <dt>
+                      <span className={styles.articleFactIcon} aria-hidden="true">
+                        <Icon size={17} strokeWidth={2} />
+                      </span>
+                      <span>{fact.label}</span>
+                    </dt>
+                    <dd>{fact.value}</dd>
                   </div>
                 );
               })}

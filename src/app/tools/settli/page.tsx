@@ -124,10 +124,11 @@ export default function SettliPage() {
       <div className={styles.hero}>
         <div className={styles.heroInner}>
           <div className={styles.logoWrap}>
-            <SettliLogo size={80} showText variant="gradient" />
+            <SettliLogo size={80} variant="gradient" />
           </div>
 
           <div className={styles.heroCopy}>
+            <h1 className={styles.heroBrand}>Settli</h1>
             <p className={styles.heroTitle}>
               {t('settli.page.hero.title')}
             </p>

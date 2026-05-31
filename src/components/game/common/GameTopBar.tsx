@@ -27,7 +27,9 @@ export const GameTopBar: React.FC<GameTopBarProps> = ({
   const { setContent } = useGameToolbar();
   const { language } = useGameLanguage();
   const ui = getUITranslation(language);
-  const statsLabel = `${stats.wins} wins, ${stats.losses} losses, ${stats.draws} draws`;
+  const statsLabel = language === 'ja'
+    ? `${stats.wins}勝 ${stats.losses}敗 ${stats.draws}分`
+    : `${stats.wins} wins, ${stats.losses} losses, ${stats.draws} draws`;
 
   useEffect(() => {
     setContent({

@@ -2,7 +2,7 @@
  * Reusable info modal
  */
 
-import { useEffect, useId } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { X as XIcon } from 'lucide-react';
 
 interface InfoModalProps {
@@ -19,6 +19,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({
   children
 }) => {
   const titleId = useId();
+  const [isCloseHovered, setIsCloseHovered] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -71,16 +72,17 @@ export const InfoModal: React.FC<InfoModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <button
+          type="button"
           onClick={onClose}
           aria-label="Close dialog"
           style={{
             position: 'absolute',
             top: '0.875rem',
             right: '0.875rem',
-          background: 'rgba(255, 255, 255, 0.1)',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          borderRadius: '999px',
-          color: '#fff',
+            background: isCloseHovered ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0.1)',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '999px',
+            color: '#fff',
             cursor: 'pointer',
             padding: '0.5rem',
             display: 'flex',
@@ -88,8 +90,8 @@ export const InfoModal: React.FC<InfoModalProps> = ({
             justifyContent: 'center',
             transition: 'background 0.2s, border-color 0.2s, box-shadow 0.2s'
           }}
-          onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.18)'}
-          onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+          onMouseEnter={() => setIsCloseHovered(true)}
+          onMouseLeave={() => setIsCloseHovered(false)}
         >
           <XIcon style={{ width: '1.25rem', height: '1.25rem' }} />
         </button>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef, useEffect, type DragEvent } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/providers/AuthProvider';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import {
@@ -50,6 +51,7 @@ import {
   LogOut,
   Calendar,
   Copy,
+  LogIn,
 } from 'lucide-react';
 
 // ---------------------------------------------------------------------------
@@ -451,11 +453,31 @@ export default function TodoPage() {
 
   if (!currentUser) {
     return (
-      <div className="flex min-h-[calc(100vh-3rem)] items-center justify-center">
-        <div className="text-center space-y-4">
-          <AlertCircle className="h-12 w-12 mx-auto text-muted-foreground" />
-          <h1 className="text-2xl font-bold">Todo</h1>
-          <p className="text-muted-foreground">Please sign in to use the task manager.</p>
+      <div className="min-h-[calc(100vh-3rem)] bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--muted)/0.55)_48%,hsl(var(--background))_100%)] px-4 py-12 text-foreground">
+        <div className="mx-auto flex min-h-[calc(100vh-9rem)] max-w-5xl items-center justify-center">
+          <div className="w-full max-w-xl rounded-lg border bg-card/88 p-8 text-center shadow-[0_24px_70px_hsl(var(--foreground)/0.08)] backdrop-blur sm:p-10">
+            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <AlertCircle className="h-7 w-7" />
+            </div>
+            <p className="mb-3 text-sm font-semibold text-primary">AI task capture</p>
+            <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Todo</h1>
+            <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-muted-foreground sm:text-base">
+              Sign in to turn screenshots, notes, and manual entries into a task list you can keep across devices.
+            </p>
+            <div className="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+              <Link href="/signin">
+                <Button className="w-full gap-2 sm:w-auto">
+                  <LogIn className="h-4 w-4" />
+                  Sign in
+                </Button>
+              </Link>
+              <Link href="/">
+                <Button variant="outline" className="w-full sm:w-auto">
+                  Back to home
+                </Button>
+              </Link>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -552,7 +574,7 @@ export default function TodoPage() {
 
   return (
     <div
-      className="relative mx-auto max-w-3xl px-4 py-8"
+      className="relative min-h-[calc(100vh-3rem)] bg-[linear-gradient(180deg,hsl(var(--background))_0%,hsl(var(--muted)/0.45)_42%,hsl(var(--background))_100%)] px-4 py-8 text-foreground"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -560,37 +582,46 @@ export default function TodoPage() {
       {/* Global drag overlay */}
       {isDragging && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4 rounded-2xl border-2 border-dashed border-primary p-16">
+          <div className="flex flex-col items-center gap-4 rounded-lg border-2 border-dashed border-primary bg-card/85 p-10 shadow-xl sm:p-16">
             <Upload className="h-12 w-12 text-primary" />
             <p className="text-lg font-medium text-primary">Drop image to extract tasks</p>
           </div>
         </div>
       )}
 
-      {/* Header */}
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Todo</h1>
-          <p className="mt-1 text-muted-foreground">
-            {viewMode === 'group' && selectedGroup
-              ? `${selectedGroup.name} (${selectedGroup.members.length} members)`
-              : 'AI-powered task manager'}
-          </p>
+      <div className="mx-auto max-w-4xl">
+        {/* Header */}
+        <div className="mb-6 rounded-lg border bg-card/86 p-5 shadow-sm backdrop-blur sm:p-6">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <div className="min-w-0">
+                <p className="mb-1 text-sm font-semibold text-primary">AI task capture</p>
+                <h1 className="text-3xl font-bold tracking-tight">Todo</h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                  {viewMode === 'group' && selectedGroup
+                    ? `${selectedGroup.name} (${selectedGroup.members.length} members)`
+                    : 'Turn screenshots, pasted notes, and quick entries into organized tasks.'}
+                </p>
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowGroupPanel(!showGroupPanel)}
+              className="w-full gap-2 sm:w-auto"
+            >
+              <Users className="h-4 w-4" />
+              Groups
+            </Button>
+          </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowGroupPanel(!showGroupPanel)}
-          className="gap-2"
-        >
-          <Users className="h-4 w-4" />
-          Groups
-        </Button>
-      </div>
 
       {/* Group panel */}
       {showGroupPanel && (
-        <div className="mb-6 rounded-xl border bg-card p-5 space-y-4">
+        <div className="mb-6 rounded-lg border bg-card/90 p-5 shadow-sm space-y-4">
           {/* View tabs */}
           <div className="flex gap-2 border-b pb-3">
             <button
@@ -698,7 +729,7 @@ export default function TodoPage() {
       {/* Input modes */}
       <div className="mb-6 space-y-4">
         {inputMode === 'idle' && !pendingExtraction && (
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2 rounded-lg border bg-card/82 p-3 shadow-sm">
             <Button variant="outline" onClick={() => setInputMode('image')} className="gap-2">
               <ImageIcon className="h-4 w-4" />
               Screenshot
@@ -720,7 +751,7 @@ export default function TodoPage() {
 
         {/* Image input */}
         {inputMode === 'image' && !pendingExtraction && (
-          <div className="rounded-xl border-2 border-dashed border-muted-foreground/25 p-8">
+          <div className="rounded-lg border-2 border-dashed border-muted-foreground/25 bg-card/80 p-8 shadow-sm">
             <div className="flex flex-col items-center gap-4">
               {isExtracting ? (
                 <>
@@ -814,7 +845,7 @@ export default function TodoPage() {
 
         {/* Pending extraction preview */}
         {pendingExtraction && (
-          <div className="rounded-xl border bg-card p-6 space-y-4">
+          <div className="rounded-lg border bg-card/90 p-6 shadow-sm space-y-4">
             <div className="flex items-start justify-between">
               <div>
                 <h3 className="font-semibold flex items-center gap-2">
@@ -876,7 +907,7 @@ export default function TodoPage() {
       ) : (
         <div className="space-y-6">
           {incompleteTasks.length === 0 && completedTasks.length === 0 && !pendingExtraction ? (
-            <div className="text-center py-16 text-muted-foreground">
+            <div className="rounded-lg border border-dashed bg-card/74 px-6 py-16 text-center text-muted-foreground shadow-sm">
               <Circle className="h-12 w-12 mx-auto mb-4 opacity-30" />
               <p>No tasks yet.</p>
               <p className="text-sm mt-1">
@@ -909,6 +940,7 @@ export default function TodoPage() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

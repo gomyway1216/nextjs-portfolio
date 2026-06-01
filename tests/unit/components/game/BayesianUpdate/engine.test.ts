@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   betaPdf,
+  credibleInterval,
   flip,
   posteriorMean,
   posteriorStd,
@@ -30,5 +31,17 @@ describe('BayesianUpdate engine', () => {
   it('uses injected rng for flips', () => {
     expect(flip(0.7, () => 0.69)).toBe(1);
     expect(flip(0.7, () => 0.7)).toBe(0);
+  });
+
+  it('computes a stable credible interval by default', () => {
+    const posterior = { alpha: 4, beta: 6 };
+
+    const first = credibleInterval(posterior);
+    const second = credibleInterval(posterior);
+
+    expect(first).toEqual(second);
+    expect(first[0]).toBeGreaterThanOrEqual(0);
+    expect(first[1]).toBeLessThanOrEqual(1);
+    expect(first[0]).toBeLessThan(first[1]);
   });
 });

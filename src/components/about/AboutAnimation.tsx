@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Social from '../Social';
 import { differenceInYears } from 'date-fns';
 import { useProfile } from '@/hooks/useProfile';
+import { isSupportedProfileImageUrl } from '@/lib/profileImage';
 import { useTranslation } from 'react-i18next';
 
 const About = () => {
@@ -20,7 +21,9 @@ const About = () => {
     email: 'uwyudai@gmail.com',
     languages: ['English', 'Japanese'],
   };
-  const profileImageUrl = profile?.profileImageUrl || '/img/about/about-me.jpg';
+  const profileImageUrl = isSupportedProfileImageUrl(profile?.profileImageUrl)
+    ? profile.profileImageUrl
+    : '/img/about/about-me.jpg';
 
   const aboutText = t('home.about.biographyText');
 

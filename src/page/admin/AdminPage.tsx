@@ -368,7 +368,7 @@ const getSectionFromHash = (): AdminSection => {
 const AdminPage = () => {
   const { currentUser, loading: authLoading, isAdmin } = useAuth();
   const router = useRouter();
-  const { profile, refetch: refetchProfile } = useProfile();
+  const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
   const { resumeLink: fetchedResumeLink } = useResumeLink();
   const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
   // Admin sees every post including drafts, so pass `isPublic: null` to
@@ -1616,7 +1616,9 @@ const AdminPage = () => {
                         flexShrink: 0,
                       }}
                     >
-                      {profilePhotoUrl ? (
+                      {profileLoading ? (
+                        <Loader2 size={32} color="#64748b" style={{ animation: 'spin 1s linear infinite' }} />
+                      ) : profilePhotoUrl ? (
                         <img
                           src={profilePhotoUrl}
                           alt="Current profile"
@@ -1688,7 +1690,12 @@ const AdminPage = () => {
 
               <div style={{ ...styles.card, maxWidth: '640px' }}>
                 <div style={{ padding: '24px' }}>
-                  {!editingProfile ? (
+                  {profileLoading ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#94a3b8' }}>
+                      <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+                      <span>Loading profile...</span>
+                    </div>
+                  ) : !editingProfile ? (
                     <div>
                       {[
                         { label: 'Birthdate', value: profile?.birthdate },

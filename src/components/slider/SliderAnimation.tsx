@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { TypeAnimation } from 'react-type-animation';
 import * as profileApi from '@/services/profileService';
 import { useProfile } from '@/hooks/useProfile';
+import { isSupportedProfileImageUrl } from '@/lib/profileImage';
 import { useTranslation } from 'react-i18next';
 
 const DEFAULT_HERO_IMAGE_URL =
@@ -19,7 +20,9 @@ const Slider = () => {
   const [mounted, setMounted] = useState(false);
   const { profile } = useProfile();
   const { t } = useTranslation();
-  const heroImageUrl = profile?.profileImageUrl || DEFAULT_HERO_IMAGE_URL;
+  const heroImageUrl = isSupportedProfileImageUrl(profile?.profileImageUrl)
+    ? profile.profileImageUrl
+    : DEFAULT_HERO_IMAGE_URL;
   const description = t('home.hero.description');
   const heroStats = [
     {

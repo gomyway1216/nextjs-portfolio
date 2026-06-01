@@ -1,10 +1,14 @@
 export interface Job {
   id: string;
   companyName?: string;
+  companyNameJa?: string;
   jobPosition?: string;
+  jobPositionJa?: string;
   jobDuration?: string;
   jobDescription?: string;
+  jobDescriptionJa?: string;
   jobType?: string;
+  jobTypeJa?: string;
   technologies?: string[];
   hidden?: boolean;
   order?: number;

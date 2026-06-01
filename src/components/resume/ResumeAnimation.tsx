@@ -30,13 +30,6 @@ const calculateDuration = (jobDuration: string, language: 'en' | 'ja') => {
   return `${years > 0 ? `${years} yrs ` : ''}${remainingMonths} mos`;
 };
 
-const slugify = (value: string) =>
-  value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '');
-
 const getNestedValue = (obj: Record<string, unknown>, path: string) => {
   const keys = path.split('.');
   let current: unknown = obj;
@@ -50,18 +43,8 @@ const getNestedValue = (obj: Record<string, unknown>, path: string) => {
 const getLocalizedJobValue = (
   job: Record<string, unknown>,
   baseField: string,
-  language: 'en' | 'ja',
-  t: (key: string, options?: Record<string, unknown>) => string,
-  exists: (key: string) => boolean
+  language: 'en' | 'ja'
 ) => {
-  const jobId = String(job.id ?? '');
-  const companyKey = slugify(String(job.companyName ?? ''));
-
-  // 1. Admin-managed Firestore JA fields take priority. These are what
-  //    the admin Jobs editor writes, so editing a job there must win.
-  //    Previously the i18n translation keys below were checked first,
-  //    which meant legacy hardcoded JA copy in common.json shadowed any
-  //    admin edit — the job looked "stuck" on its old Japanese text.
   if (language === 'ja') {
     const jaPaths = [
       `${baseField}Ja`,
@@ -84,21 +67,6 @@ const getLocalizedJobValue = (
     }
   }
 
-  // 2. i18n translation keys — legacy hardcoded per-company copy in
-  //    common.json. Now only a fallback for jobs without a Firestore
-  //    localized value.
-  const translationCandidates = [
-    `home.resume.jobs.${jobId}.${baseField}`,
-    `home.resume.jobsByCompany.${companyKey}.${baseField}`,
-  ];
-
-  for (const key of translationCandidates) {
-    if (exists(key)) {
-      return t(key);
-    }
-  }
-
-  // 3. English / base Firestore fields — final fallback for both locales.
   const enPaths = [
     `${baseField}En`,
     `${baseField}EN`,
@@ -128,12 +96,7 @@ const Resume = () => {
 
   const jobs = useMemo(() => {
     const visible = fetchedJobs.filter((job) => !job.hidden);
-    const sorted = [...visible].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-    console.log('[Resume] Jobs data:', sorted);
-    sorted.forEach(job => {
-      console.log(`[Resume] ${job.companyName} - technologies:`, job.technologies);
-    });
-    return sorted;
+    return [...visible].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
   }, [fetchedJobs]);
 
   const educations = useMemo(() => {
@@ -177,17 +140,17 @@ const Resume = () => {
                 <div className="row">
                   <div className="col-md-4 col-xl-3">
                     <div className="rb-left">
-                      <h6>{getLocalizedJobValue(val, 'jobPosition', language, t, i18n.exists.bind(i18n))}</h6>
-                      <div className="rob-title">{getLocalizedJobValue(val, 'companyName', language, t, i18n.exists.bind(i18n))}</div>
-                      <label>{translateJobType(getLocalizedJobValue(val, 'jobType', language, t, i18n.exists.bind(i18n)))}</label>
+                      <h6>{getLocalizedJobValue(val, 'jobPosition', language)}</h6>
+                      <div className="rob-title">{getLocalizedJobValue(val, 'companyName', language)}</div>
+                      <label>{translateJobType(getLocalizedJobValue(val, 'jobType', language))}</label>
                       <p>{val.jobDuration || ''}</p>
                       <div className="rb-time">{val.jobDuration ? calculateDuration(val.jobDuration, language) : ''}</div>
                     </div>
                   </div>
                   <div className="col-md-8 col-xl-9">
                     <div className="rb-right">
-                      <h6>{getLocalizedJobValue(val, 'companyName', language, t, i18n.exists.bind(i18n))}</h6>
-                      <p>{getLocalizedJobValue(val, 'jobDescription', language, t, i18n.exists.bind(i18n))}</p>
+                      <h6>{getLocalizedJobValue(val, 'companyName', language)}</h6>
+                      <p>{getLocalizedJobValue(val, 'jobDescription', language)}</p>
                       {val.technologies && val.technologies.length > 0 && (
                         <div className="mt-3" style={{ marginTop: '1rem' }}>
                           <strong style={{ fontSize: '14px', marginRight: '8px' }}>{t('home.resume.technologiesLabel')}</strong>

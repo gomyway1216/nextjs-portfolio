@@ -280,7 +280,10 @@ const Shogi = () => {
       !gameState.isAIThinking
     ) {
       const requestId = ++aiRequestIdRef.current;
-      setGameState(prev => ({ ...prev, isAIThinking: true }));
+      queueMicrotask(() => {
+        if (aiRequestIdRef.current !== requestId) return;
+        setGameState(prev => ({ ...prev, isAIThinking: true }));
+      });
 
       setTimeout(() => {
         if (aiRequestIdRef.current !== requestId) return;
@@ -420,7 +423,17 @@ const Shogi = () => {
 
       }, 500);
     }
-  }, [gameState.kyokumen.teban, gameState.gameOver, gameState.isAIThinking, difficulty, playerSide, getAISide]);
+  }, [
+    gameState.kyokumen,
+    gameState.kyokumen.teban,
+    gameState.moveHistory,
+    gameState.gameOver,
+    gameState.isAIThinking,
+    difficulty,
+    playerSide,
+    getAISide,
+    getWorker,
+  ]);
 
   const startGame = () => {
     setShowDifficultySelect(false);
@@ -501,9 +514,9 @@ const Shogi = () => {
           background: 'rgba(0, 0, 0, 0.95)',
           border: '3px solid #0ea5e9',
           borderRadius: '1rem',
-          padding: '3rem',
+          padding: 'clamp(1.25rem, 6vw, 3rem)',
           boxShadow: '0 0 50px rgba(14, 165, 233, 0.3)',
-          minWidth: '500px'
+          width: 'min(500px, 100%)'
         }}>
           <h1 style={{
             color: '#fff',
@@ -538,6 +551,7 @@ const Shogi = () => {
           </h2>
           <div style={{
             display: 'flex',
+            flexWrap: 'wrap',
             gap: '1rem',
             marginBottom: '2rem'
           }}>
@@ -670,9 +684,9 @@ const Shogi = () => {
         }
       />
 
-      <div style={{ maxWidth: '1600px', margin: '4rem auto 0', display: 'flex', gap: '20px', justifyContent: 'center', alignItems: 'stretch' }}>
+      <div style={{ maxWidth: '1600px', margin: '4rem auto 0', display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center', alignItems: 'stretch' }}>
         {/* AI Captured Pieces - Left side */}
-        <div style={{ flex: '0 0 100px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: '1 1 100px', maxWidth: '160px', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: '10px', fontSize: '0.9rem', textAlign: 'center' }}>
             {playerSide === SENTE ? 'AI (後手)' : 'AI (先手)'}
           </h3>
@@ -685,7 +699,7 @@ const Shogi = () => {
               background: 'rgba(255,255,255,0.1)',
               borderRadius: '8px',
               flex: 1,
-              minHeight: '500px',
+              minHeight: 'min(500px, 60vh)',
             }}
           >
             {[...gameState.kyokumen.hand[playerSide === SENTE ? 1 : 0]]
@@ -709,11 +723,11 @@ const Shogi = () => {
         </div>
 
         {/* Board */}
-        <div style={{ flex: '0 0 auto' }}>
+        <div style={{ flex: '0 1 auto', maxWidth: '100%', overflowX: 'auto' }}>
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(9, 65px)',
+              gridTemplateColumns: 'repeat(9, clamp(32px, 7.2vw, 65px))',
               gap: '1px',
               background: '#333',
               border: '3px solid #666',
@@ -736,8 +750,8 @@ const Shogi = () => {
                     key={`${suji}-${actualDan}`}
                     onClick={() => handleCellClick(suji, actualDan)}
                     style={{
-                      width: '65px',
-                      height: '65px',
+                      width: 'clamp(32px, 7.2vw, 65px)',
+                      height: 'clamp(32px, 7.2vw, 65px)',
                       background: isValidMove ? 'rgba(0, 255, 0, 0.2)' : '#ffe8b8',
                       border: '1px solid #8b7355',
                       cursor: 'pointer',
@@ -756,7 +770,7 @@ const Shogi = () => {
         </div>
 
         {/* Human Captured Pieces - Right side */}
-        <div style={{ flex: '0 0 100px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: '1 1 100px', maxWidth: '160px', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: '10px', fontSize: '0.9rem', textAlign: 'center' }}>
             {playerSide === SENTE ? 'You (先手)' : 'You (後手)'}
           </h3>
@@ -769,7 +783,7 @@ const Shogi = () => {
               background: 'rgba(255,255,255,0.1)',
               borderRadius: '8px',
               flex: 1,
-              minHeight: '500px',
+              minHeight: 'min(500px, 60vh)',
             }}
           >
             {(() => {
@@ -814,7 +828,7 @@ const Shogi = () => {
         </div>
 
         {/* Move History */}
-        <div style={{ flex: '0 0 200px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: '1 1 200px', maxWidth: '260px', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: '10px', fontSize: '0.9rem' }}>Move History</h3>
           <div
             style={{
@@ -822,7 +836,7 @@ const Shogi = () => {
               background: 'rgba(255,255,255,0.1)',
               borderRadius: '8px',
               flex: 1,
-              minHeight: '500px',
+              minHeight: 'min(500px, 60vh)',
               maxHeight: '600px',
               overflowY: 'auto',
             }}

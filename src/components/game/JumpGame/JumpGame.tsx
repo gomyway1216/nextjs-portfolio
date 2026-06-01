@@ -68,6 +68,7 @@ const JumpGame = () => {
   const gameStateRef = useRef<GameState | null>(null);
   const animationIdRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const keyDownHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
 
   // Keep isMutedRef in sync with isMuted state
   useEffect(() => {
@@ -832,7 +833,12 @@ const JumpGame = () => {
     setIsGameStarted(true);
     setShowDifficultySelect(false);
 
+    if (keyDownHandlerRef.current) {
+      document.removeEventListener('keydown', keyDownHandlerRef.current);
+    }
+
     // Add keyboard event listener
+    keyDownHandlerRef.current = handleKeyDown;
     document.addEventListener('keydown', handleKeyDown);
 
     // Start game loop
@@ -844,7 +850,10 @@ const JumpGame = () => {
       cancelAnimationFrame(animationIdRef.current);
       animationIdRef.current = null;
     }
-    document.removeEventListener('keydown', handleKeyDown);
+    if (keyDownHandlerRef.current) {
+      document.removeEventListener('keydown', keyDownHandlerRef.current);
+      keyDownHandlerRef.current = null;
+    }
     gameStateRef.current = null;
     setIsGameStarted(false);
     setShowDifficultySelect(true);
@@ -853,7 +862,15 @@ const JumpGame = () => {
 
   useEffect(() => {
     return () => {
-      stopGame();
+      if (animationIdRef.current) {
+        cancelAnimationFrame(animationIdRef.current);
+        animationIdRef.current = null;
+      }
+      if (keyDownHandlerRef.current) {
+        document.removeEventListener('keydown', keyDownHandlerRef.current);
+        keyDownHandlerRef.current = null;
+      }
+      gameStateRef.current = null;
     };
   }, []);
 
@@ -906,7 +923,7 @@ const JumpGame = () => {
               background: isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(14, 165, 233, 0.2)',
               border: `1px solid ${isMuted ? 'rgba(239, 68, 68, 0.5)' : 'rgba(14, 165, 233, 0.5)'}`,
               borderRadius: '0.5rem', color: isMuted ? '#ef4444' : '#0ea5e9',
-              padding: '0.5rem 1rem', fontSize: '0.875rem', fontWeight: '500',
+              padding: '0.5rem 0.75rem', fontSize: '0.8125rem', fontWeight: '500',
               cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem'
             }}
           >
@@ -917,8 +934,8 @@ const JumpGame = () => {
             onClick={() => setShowInfo(!showInfo)}
             style={{
               background: 'rgba(14, 165, 233, 0.2)', border: '1px solid rgba(14, 165, 233, 0.5)',
-              borderRadius: '0.5rem', color: '#0ea5e9', padding: '0.5rem 1rem',
-              fontSize: '0.875rem', fontWeight: '500', cursor: 'pointer',
+              borderRadius: '0.5rem', color: '#0ea5e9', padding: '0.5rem 0.75rem',
+              fontSize: '0.8125rem', fontWeight: '500', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: '0.5rem'
             }}
           >
@@ -955,12 +972,14 @@ const JumpGame = () => {
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
       {/* Game Canvas */}
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', width: 'min(480px, calc(100vw - 2rem))', aspectRatio: '1 / 1' }}>
         <canvas
           ref={canvasRef}
           width={480}
           height={480}
           style={{
+            width: '100%',
+            height: '100%',
             border: '3px solid #0ea5e9',
             borderRadius: '0.5rem',
             boxShadow: '0 0 50px rgba(14, 165, 233, 0.3)',

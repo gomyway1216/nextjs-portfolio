@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import * as api from '@/services/profileService';
 import { auth } from '@/lib/firebaseConnect';
 
@@ -12,6 +12,7 @@ export interface Profile {
   languages: string[];
   bioEn?: string;
   bioJa?: string;
+  profileImageUrl?: string;
 }
 
 /**
@@ -50,31 +51,31 @@ export function useProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await fetch('/api/profile');
+  const fetchProfile = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch('/api/profile');
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        setProfile(data.profile);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch profile'));
-        console.error('Error fetching profile:', err);
-      } finally {
-        setLoading(false);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    };
 
-    fetchProfile();
+      const data = await response.json();
+      setProfile(data.profile);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch profile'));
+      console.error('Error fetching profile:', err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { profile, loading, error };
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  return { profile, loading, error, refetch: fetchProfile };
 }
 
 /**

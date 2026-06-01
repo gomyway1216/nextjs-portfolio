@@ -20,6 +20,7 @@ const About = () => {
     email: 'uwyudai@gmail.com',
     languages: ['English', 'Japanese'],
   };
+  const profileImageUrl = profile?.profileImageUrl || '/img/about/about-me.jpg';
 
   const aboutText = t('home.about.biographyText');
 
@@ -39,7 +40,7 @@ const About = () => {
                 <div className="img">
                   <div className="img-in">
                     <Image
-                      src="/img/about/about-me.jpg"
+                      src={profileImageUrl}
                       alt="about"
                       width={400}
                       height={500}

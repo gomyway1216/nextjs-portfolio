@@ -4,9 +4,10 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { TypeAnimation } from 'react-type-animation';
 import * as profileApi from '@/services/profileService';
+import { useProfile } from '@/hooks/useProfile';
 import { useTranslation } from 'react-i18next';
 
-const HERO_IMAGE_URL =
+const DEFAULT_HERO_IMAGE_URL =
   'https://firebasestorage.googleapis.com/v0/b/yudai-portfolio.appspot.com/o/profile_image2.jpg?alt=media&token=24f54f49-e8cc-4c70-a52a-0edb97e456f0';
 
 const conctInfo = {
@@ -16,7 +17,9 @@ const conctInfo = {
 const Slider = () => {
   const [resumeLink, setResumeLink] = useState('');
   const [mounted, setMounted] = useState(false);
+  const { profile } = useProfile();
   const { t } = useTranslation();
+  const heroImageUrl = profile?.profileImageUrl || DEFAULT_HERO_IMAGE_URL;
   const description = t('home.hero.description');
   const heroStats = [
     {
@@ -165,7 +168,7 @@ const Slider = () => {
            * on the home page.
            */}
           <Image
-            src={HERO_IMAGE_URL}
+            src={heroImageUrl}
             alt="Yudai Yaguchi"
             fill
             priority

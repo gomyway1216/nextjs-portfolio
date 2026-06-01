@@ -71,7 +71,7 @@ export const PUT = withActivityLog('next_api.profile.PUT', async (request: NextR
 
   try {
     const body = await request.json();
-    const { birthdate, location, email, languages, bioEn, bioJa } = body;
+    const { birthdate, location, email, languages, bioEn, bioJa, profileImageUrl } = body;
 
     const db = getFirestore();
     const docRef = db.collection('profile').doc(PROFILE_DOC_ID);
@@ -83,6 +83,7 @@ export const PUT = withActivityLog('next_api.profile.PUT', async (request: NextR
     if (languages !== undefined) updateData.languages = languages;
     if (bioEn !== undefined) updateData.bioEn = bioEn;
     if (bioJa !== undefined) updateData.bioJa = bioJa;
+    if (profileImageUrl !== undefined) updateData.profileImageUrl = profileImageUrl;
 
     await docRef.set(updateData, { merge: true });
 

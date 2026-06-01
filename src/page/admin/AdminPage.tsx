@@ -58,6 +58,7 @@ interface Job {
   jobTypeJa?: string;
   jobDescription?: string;
   jobDescriptionJa?: string;
+  order?: number;
   technologies?: (string | { name: string; id?: string; type?: string })[];
   hidden?: boolean;
 }
@@ -1054,7 +1055,7 @@ const AdminPage = () => {
       jobDuration: '',
       jobDescription: '',
       jobDescriptionJa: '',
-      order: jobs.length > 0 ? String(Math.max(...jobs.map(j => (j as unknown as { order?: number }).order || 0)) + 1) : '0',
+      order: jobs.length > 0 ? String(Math.max(...jobs.map(j => j.order || 0)) + 1) : '0',
       technologies: '',
     });
   };
@@ -1088,14 +1089,14 @@ const AdminPage = () => {
 
     const payload: Record<string, unknown> = {
       companyName: jobForm.companyName.trim(),
-      companyNameJa: jobForm.companyNameJa,
+      companyNameJa: jobForm.companyNameJa.trim(),
       jobPosition: jobForm.jobPosition.trim(),
-      jobPositionJa: jobForm.jobPositionJa,
+      jobPositionJa: jobForm.jobPositionJa.trim(),
       jobType: jobForm.jobType,
-      jobTypeJa: jobForm.jobTypeJa,
+      jobTypeJa: jobForm.jobTypeJa.trim(),
       jobDuration: jobForm.jobDuration,
       jobDescription: jobForm.jobDescription,
-      jobDescriptionJa: jobForm.jobDescriptionJa,
+      jobDescriptionJa: jobForm.jobDescriptionJa.trim(),
       order: Number(jobForm.order) || 0,
       technologies: techArray,
     };

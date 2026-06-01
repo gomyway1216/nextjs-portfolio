@@ -318,14 +318,9 @@ const JumpGame = () => {
     };
   };
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (!gameStateRef.current) return;
-
-    // Prevent default behavior (especially for spacebar scrolling)
-    e.preventDefault();
-    e.stopPropagation();
-
+  const triggerJumpAction = () => {
     const state = gameStateRef.current;
+    if (!state) return;
 
     if (state.scene === Scene.GameMain) {
       if (state.speed === 0) {
@@ -339,6 +334,13 @@ const JumpGame = () => {
         gameStateRef.current = initGame(state.difficulty);
       }
     }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    // Prevent default behavior (especially for spacebar scrolling)
+    e.preventDefault();
+    e.stopPropagation();
+    triggerJumpAction();
   };
 
   const update = (state: GameState) => {
@@ -977,13 +979,19 @@ const JumpGame = () => {
           ref={canvasRef}
           width={480}
           height={480}
+          onPointerDown={(e) => {
+            e.preventDefault();
+            triggerJumpAction();
+          }}
           style={{
             width: '100%',
             height: '100%',
             border: '3px solid #0ea5e9',
             borderRadius: '0.5rem',
             boxShadow: '0 0 50px rgba(14, 165, 233, 0.3)',
-            backgroundColor: '#000'
+            backgroundColor: '#000',
+            cursor: 'pointer',
+            touchAction: 'none',
           }}
         />
 

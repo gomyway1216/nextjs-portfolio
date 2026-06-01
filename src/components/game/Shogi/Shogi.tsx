@@ -83,13 +83,17 @@ const Shogi = () => {
     if (!workerRef.current) workerRef.current = createShogiAiWorkerClient();
     return workerRef.current;
   }, []);
+  const invalidatePendingAi = useCallback(() => {
+    aiRequestIdRef.current++;
+  }, []);
   useEffect(() => {
     // Terminate worker on unmount.
     return () => {
+      invalidatePendingAi();
       workerRef.current?.terminate();
       workerRef.current = null;
     };
-  }, []);
+  }, [invalidatePendingAi]);
 
   const [gameState, setGameState] = useState<GameState>({
     kyokumen: createInitialPosition(),
@@ -280,10 +284,8 @@ const Shogi = () => {
       !gameState.isAIThinking
     ) {
       const requestId = ++aiRequestIdRef.current;
-      queueMicrotask(() => {
-        if (aiRequestIdRef.current !== requestId) return;
-        setGameState(prev => ({ ...prev, isAIThinking: true }));
-      });
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- starting the AI turn must synchronously show the thinking state.
+      setGameState(prev => ({ ...prev, isAIThinking: true }));
 
       setTimeout(() => {
         if (aiRequestIdRef.current !== requestId) return;

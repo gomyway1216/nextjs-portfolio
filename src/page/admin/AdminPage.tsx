@@ -1,9 +1,5 @@
 'use client';
 
-import ActivityLogPanel from '@/components/admin/ActivityLogPanel';
-import TiptapEditor from '@/components/editor/TiptapEditor';
-import HobbiesAdminPanel from '@/components/hobby/HobbiesAdminPanel';
-import StudyAdminPanel from '@/components/study/StudyAdminPanel';
 import { usePostCategories,usePostMutations,usePosts } from '@/hooks/usePosts';
 import { updateProfile,useProfile,useResumeLink } from '@/hooks/useProfile';
 import { useProjectCategories,useProjectMutations,useProjects,useUrlTypes } from '@/hooks/useProjects';
@@ -12,7 +8,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import * as imageApi from '@/services/imageService';
 import type { ListingPost } from '@/services/postsService';
 import * as postApi from '@/services/postsService';
-import { uploadResume } from '@/services/profileService';
+import { uploadProfilePhoto, uploadResume } from '@/services/profileService';
 import type { Project } from '@/services/projectsService';
 import type { Technology } from '@/services/technologiesService';
 import * as technologyApi from '@/services/technologiesService';
@@ -41,6 +37,7 @@ Upload,
 User,
 X,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CSSProperties,useEffect,useState } from 'react';
@@ -75,6 +72,33 @@ const getTechName = (tech: string | { name: string; id?: string; type?: string }
   if (tech && typeof tech === 'object' && 'name' in tech) return tech.name;
   return '';
 };
+
+const AdminSectionLoader = ({ label = 'Loading section...' }: { label?: string }) => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '48px', color: '#94a3b8' }}>
+    <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
+    <span>{label}</span>
+  </div>
+);
+
+const ActivityLogPanel = dynamic(() => import('@/components/admin/ActivityLogPanel'), {
+  ssr: false,
+  loading: () => <AdminSectionLoader label="Loading activity logs..." />,
+});
+
+const HobbiesAdminPanel = dynamic(() => import('@/components/hobby/HobbiesAdminPanel'), {
+  ssr: false,
+  loading: () => <AdminSectionLoader label="Loading hobbies..." />,
+});
+
+const StudyAdminPanel = dynamic(() => import('@/components/study/StudyAdminPanel'), {
+  ssr: false,
+  loading: () => <AdminSectionLoader label="Loading study tools..." />,
+});
+
+const TiptapEditor = dynamic(() => import('@/components/editor/TiptapEditor'), {
+  ssr: false,
+  loading: () => <AdminSectionLoader label="Loading editor..." />,
+});
 
 // Styles
 const styles: Record<string, CSSProperties> = {
@@ -344,7 +368,7 @@ const getSectionFromHash = (): AdminSection => {
 const AdminPage = () => {
   const { currentUser, loading: authLoading, isAdmin } = useAuth();
   const router = useRouter();
-  const { profile, loading: profileLoading } = useProfile();
+  const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
   const { resumeLink: fetchedResumeLink } = useResumeLink();
   const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
   // Admin sees every post including drafts, so pass `isPublic: null` to
@@ -356,13 +380,10 @@ const AdminPage = () => {
   const projectMutations = useProjectMutations();
   const postMutations = usePostMutations();
 
-  const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
+  const [activeSection, setActiveSection] = useState<AdminSection>(() => getSectionFromHash());
 
   // Sync activeSection with URL hash
   useEffect(() => {
-    // Set initial section from hash on mount
-    setActiveSection(getSectionFromHash());
-
     // Listen for hash changes (back/forward navigation)
     const handleHashChange = () => {
       setActiveSection(getSectionFromHash());
@@ -422,6 +443,7 @@ const AdminPage = () => {
     languages: '',
     bioEn: '',
     bioJa: '',
+    profileImageUrl: '',
   });
 
   // Project form states
@@ -452,6 +474,9 @@ const AdminPage = () => {
   const [resumeProgress, setResumeProgress] = useState(0);
   const [dragOverResume, setDragOverResume] = useState(false);
   const [currentResumeLink, setCurrentResumeLink] = useState<string>('');
+  const [uploadingProfilePhoto, setUploadingProfilePhoto] = useState(false);
+  const [profilePhotoProgress, setProfilePhotoProgress] = useState(0);
+  const [dragOverProfilePhoto, setDragOverProfilePhoto] = useState(false);
 
   // Post form states
   const [postForm, setPostForm] = useState<{
@@ -515,6 +540,7 @@ const AdminPage = () => {
         languages: profile.languages?.join(', ') || '',
         bioEn: profile.bioEn || '',
         bioJa: profile.bioJa || '',
+        profileImageUrl: profile.profileImageUrl || '',
       });
     }
   }, [profile]);
@@ -553,7 +579,9 @@ const AdminPage = () => {
         languages: languagesArray,
         bioEn: profileForm.bioEn,
         bioJa: profileForm.bioJa,
+        profileImageUrl: profileForm.profileImageUrl.trim(),
       });
+      await refetchProfile();
       showMessage('success', 'Profile updated successfully!');
       setEditingProfile(false);
     } catch (error) {
@@ -906,6 +934,53 @@ const AdminPage = () => {
 
   const handleRemovePostImage = () => {
     setPostForm((prev) => ({ ...prev, image: '' }));
+  };
+
+  const handleProfilePhotoUpload = async (file: File) => {
+    const allowedProfilePhotoTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedProfilePhotoTypes.includes(file.type)) {
+      showMessage('error', 'Profile photo must be a JPG, PNG, WebP, or GIF image');
+      return;
+    }
+
+    setUploadingProfilePhoto(true);
+    setProfilePhotoProgress(0);
+
+    const progressInterval = setInterval(() => {
+      setProfilePhotoProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval);
+          return 90;
+        }
+        return prev + 10;
+      });
+    }, 100);
+
+    try {
+      const downloadURL = await uploadProfilePhoto(file);
+      setProfileForm((prev) => ({ ...prev, profileImageUrl: downloadURL }));
+      await refetchProfile();
+      setProfilePhotoProgress(100);
+      showMessage('success', 'Profile photo uploaded successfully');
+    } catch (error) {
+      console.error('Error uploading profile photo:', error);
+      showMessage('error', `Failed to upload profile photo: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      clearInterval(progressInterval);
+      setUploadingProfilePhoto(false);
+      setTimeout(() => setProfilePhotoProgress(0), 1000);
+    }
+  };
+
+  const handleDropProfilePhoto = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverProfilePhoto(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files[0]) {
+      handleProfilePhotoUpload(files[0]);
+    }
   };
 
   const handleResumeUpload = async (file: File) => {
@@ -1272,7 +1347,7 @@ const AdminPage = () => {
     }
   };
 
-  if (!currentUser || !isAdmin || loading || profileLoading) {
+  if (authLoading || !currentUser || !isAdmin) {
     return (
       <div style={{ ...styles.container, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#ffffff' }}>
@@ -1282,6 +1357,8 @@ const AdminPage = () => {
       </div>
     );
   }
+
+  const profilePhotoUrl = profileForm.profileImageUrl || profile?.profileImageUrl || '';
 
   const sidebarItems = [
     { id: 'dashboard' as AdminSection, label: 'Dashboard', icon: LayoutDashboard },
@@ -1392,7 +1469,7 @@ const AdminPage = () => {
                       <FolderKanban size={24} color="#60a5fa" />
                     </div>
                     <div>
-                      <p style={styles.statNumber}>{projects.length}</p>
+                      <p style={styles.statNumber}>{projectsLoading ? '...' : projects.length}</p>
                       <p style={{ color: '#93c5fd' }}>Projects</p>
                     </div>
                   </div>
@@ -1404,7 +1481,7 @@ const AdminPage = () => {
                       <FileText size={24} color="#34d399" />
                     </div>
                     <div>
-                      <p style={styles.statNumber}>{posts.length}</p>
+                      <p style={styles.statNumber}>{postsLoading ? '...' : posts.length}</p>
                       <p style={{ color: '#6ee7b7' }}>Blog Posts</p>
                     </div>
                   </div>
@@ -1416,7 +1493,7 @@ const AdminPage = () => {
                       <Briefcase size={24} color="#c084fc" />
                     </div>
                     <div>
-                      <p style={styles.statNumber}>{jobs.length}</p>
+                      <p style={styles.statNumber}>{loading ? '...' : jobs.length}</p>
                       <p style={{ color: '#d8b4fe' }}>Jobs</p>
                     </div>
                   </div>
@@ -1452,18 +1529,24 @@ const AdminPage = () => {
                     <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <FolderKanban size={20} color="#a855f7" /> Recent Projects
                     </h3>
-                    {projects.slice(0, 5).map((project) => (
-                      <div key={project.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                        <span style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.title}</span>
-                        <button
-                          onClick={() => { handleSectionChange('projects'); handleOpenProjectModal(project); }}
-                          style={{ ...styles.ghostButton, borderRadius: '8px' }}
-                        >
-                          <Pencil size={16} />
-                        </button>
-                      </div>
-                    ))}
-                    {projects.length === 0 && <p style={{ color: '#64748b', fontSize: '14px' }}>No projects yet</p>}
+                    {projectsLoading ? (
+                      <p style={{ color: '#64748b', fontSize: '14px' }}>Loading projects...</p>
+                    ) : (
+                      <>
+                        {projects.slice(0, 5).map((project) => (
+                          <div key={project.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                            <span style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.title}</span>
+                            <button
+                              onClick={() => { handleSectionChange('projects'); handleOpenProjectModal(project); }}
+                              style={{ ...styles.ghostButton, borderRadius: '8px' }}
+                            >
+                              <Pencil size={16} />
+                            </button>
+                          </div>
+                        ))}
+                        {projects.length === 0 && <p style={{ color: '#64748b', fontSize: '14px' }}>No projects yet</p>}
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -1472,18 +1555,24 @@ const AdminPage = () => {
                     <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                       <FileText size={20} color="#34d399" /> Recent Posts
                     </h3>
-                    {posts.slice(0, 5).map((post) => (
-                      <div key={post.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                        <span style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.title}</span>
-                        <button
-                          onClick={() => { handleSectionChange('posts'); handleOpenPostModal(post); }}
-                          style={{ ...styles.ghostButton, borderRadius: '8px' }}
-                        >
-                          <Pencil size={16} />
-                        </button>
-                      </div>
-                    ))}
-                    {posts.length === 0 && <p style={{ color: '#64748b', fontSize: '14px' }}>No posts yet</p>}
+                    {postsLoading ? (
+                      <p style={{ color: '#64748b', fontSize: '14px' }}>Loading posts...</p>
+                    ) : (
+                      <>
+                        {posts.slice(0, 5).map((post) => (
+                          <div key={post.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                            <span style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.title}</span>
+                            <button
+                              onClick={() => { handleSectionChange('posts'); handleOpenPostModal(post); }}
+                              style={{ ...styles.ghostButton, borderRadius: '8px' }}
+                            >
+                              <Pencil size={16} />
+                            </button>
+                          </div>
+                        ))}
+                        {posts.length === 0 && <p style={{ color: '#64748b', fontSize: '14px' }}>No posts yet</p>}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1506,15 +1595,114 @@ const AdminPage = () => {
                 </button>
               </div>
 
+              <div style={{ ...styles.card, maxWidth: '640px', marginBottom: '24px' }}>
+                <div style={{ padding: '24px' }}>
+                  <h2 style={{ color: '#ffffff', fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>Profile Photo</h2>
+                  <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '16px' }}>
+                    Upload the photo used on the home page hero and about section.
+                  </p>
+                  <div style={{ display: 'flex', gap: '20px', alignItems: 'stretch', flexWrap: 'wrap' }}>
+                    <div
+                      style={{
+                        width: '112px',
+                        height: '112px',
+                        borderRadius: '16px',
+                        overflow: 'hidden',
+                        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}
+                    >
+                      {profileLoading ? (
+                        <Loader2 size={32} color="#64748b" style={{ animation: 'spin 1s linear infinite' }} />
+                      ) : profilePhotoUrl ? (
+                        <img
+                          src={profilePhotoUrl}
+                          alt="Current profile"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center' }}
+                        />
+                      ) : (
+                        <User size={40} color="#64748b" />
+                      )}
+                    </div>
+
+                    <div style={{ flex: '1 1 280px' }}>
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverProfilePhoto(true); }}
+                        onDragLeave={() => setDragOverProfilePhoto(false)}
+                        onDrop={handleDropProfilePhoto}
+                        style={{
+                          border: `2px dashed ${dragOverProfilePhoto ? '#a855f7' : 'rgba(255, 255, 255, 0.2)'}`,
+                          borderRadius: '12px',
+                          padding: '20px',
+                          textAlign: 'center',
+                          backgroundColor: dragOverProfilePhoto ? 'rgba(168, 85, 247, 0.1)' : 'rgba(15, 23, 42, 0.3)',
+                          transition: 'all 0.2s',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          id="profile-photo-upload"
+                          style={{ display: 'none' }}
+                          onChange={(e) => {
+                            if (e.target.files && e.target.files[0]) {
+                              handleProfilePhotoUpload(e.target.files[0]);
+                              e.target.value = '';
+                            }
+                          }}
+                        />
+                        <label htmlFor="profile-photo-upload" style={{ cursor: 'pointer', display: 'block' }}>
+                          <ImageIcon size={34} color="#64748b" style={{ marginBottom: '8px' }} />
+                          <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                            Drag &amp; drop an image or click to upload
+                          </p>
+                          <p style={{ color: '#64748b', fontSize: '12px', margin: '6px 0 0' }}>
+                            JPG, PNG, WebP, or GIF under 8MB
+                          </p>
+                        </label>
+                        {uploadingProfilePhoto && (
+                          <div style={{ marginTop: '12px' }}>
+                            <div style={{
+                              height: '4px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                              borderRadius: '2px',
+                              overflow: 'hidden',
+                            }}>
+                              <div style={{
+                                height: '100%',
+                                width: `${profilePhotoProgress}%`,
+                                background: 'linear-gradient(to right, #a855f7, #ec4899)',
+                                transition: 'width 0.2s',
+                              }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div style={{ ...styles.card, maxWidth: '640px' }}>
                 <div style={{ padding: '24px' }}>
-                  {!editingProfile ? (
+                  {profileLoading ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#94a3b8' }}>
+                      <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
+                      <span>Loading profile...</span>
+                    </div>
+                  ) : !editingProfile ? (
                     <div>
                       {[
                         { label: 'Birthdate', value: profile?.birthdate },
                         { label: 'Location', value: profile?.location },
                         { label: 'Email', value: profile?.email },
                         { label: 'Languages', value: profile?.languages?.join(', ') },
+                        { label: 'Photo', value: profilePhotoUrl ? 'Set' : '' },
                       ].map((item, i) => (
                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
                           <span style={{ color: '#94a3b8' }}>{item.label}</span>
@@ -1569,6 +1757,15 @@ const AdminPage = () => {
                           value={profileForm.languages}
                           onChange={(e) => setProfileForm({ ...profileForm, languages: e.target.value })}
                           placeholder="English, Japanese"
+                          style={styles.input}
+                        />
+                      </div>
+                      <div>
+                        <label style={styles.label}>Profile photo URL</label>
+                        <input
+                          value={profileForm.profileImageUrl}
+                          onChange={(e) => setProfileForm({ ...profileForm, profileImageUrl: e.target.value })}
+                          placeholder="Upload a photo above or paste an image URL"
                           style={styles.input}
                         />
                       </div>

@@ -44,3 +44,23 @@ export async function uploadResume(file: File): Promise<string> {
   const data = await response.json();
   return data.downloadURL;
 }
+
+export async function uploadProfilePhoto(file: File): Promise<string> {
+  const headers = await getAuthHeaders();
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch('/api/profile/photo', {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.downloadURL;
+}

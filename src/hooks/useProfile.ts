@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import * as api from '@/services/profileService';
 import { auth } from '@/lib/firebaseConnect';
 
@@ -12,6 +12,33 @@ export interface Profile {
   languages: string[];
   bioEn?: string;
   bioJa?: string;
+  profileImageUrl?: string;
+}
+
+let profileCache: Profile | null = null;
+let profileRequest: Promise<Profile> | null = null;
+
+async function fetchProfileFromApi(force = false): Promise<Profile> {
+  if (!force && profileCache) return profileCache;
+  if (!force && profileRequest) return profileRequest;
+
+  profileRequest = (async () => {
+    const response = await fetch('/api/profile');
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    profileCache = data.profile;
+    return data.profile;
+  })();
+
+  try {
+    return await profileRequest;
+  } finally {
+    profileRequest = null;
+  }
 }
 
 /**
@@ -46,35 +73,37 @@ export function useResumeLink() {
  * Hook to fetch profile data
  */
 export function useProfile() {
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<Profile | null>(profileCache);
+  const [loading, setLoading] = useState(!profileCache);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await fetch('/api/profile');
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const data = await response.json();
-        setProfile(data.profile);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch profile'));
-        console.error('Error fetching profile:', err);
-      } finally {
+  const fetchProfile = useCallback(async (force = false) => {
+    try {
+      if (!force && profileCache) {
+        setProfile(profileCache);
         setLoading(false);
+        return profileCache;
       }
-    };
 
-    fetchProfile();
+      setLoading(true);
+      setError(null);
+      const nextProfile = await fetchProfileFromApi(force);
+      setProfile(nextProfile);
+      return nextProfile;
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch profile'));
+      console.error('Error fetching profile:', err);
+      return null;
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { profile, loading, error };
+  useEffect(() => {
+    fetchProfile();
+  }, [fetchProfile]);
+
+  return { profile, loading, error, refetch: () => fetchProfile(true) };
 }
 
 /**
@@ -100,5 +129,7 @@ export async function updateProfile(profileData: Partial<Omit<Profile, 'id'>>) {
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  profileCache = null;
+  return data;
 }

@@ -3,6 +3,7 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 import { ensureAdmin } from '@/lib/auth-utils';
+import { normalizeProfileImageUrl } from '@/lib/profileImage';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const PROFILE_DOC_ID = 'main'; // Single document for the main profile
@@ -71,7 +72,17 @@ export const PUT = withActivityLog('next_api.profile.PUT', async (request: NextR
 
   try {
     const body = await request.json();
-    const { birthdate, location, email, languages, bioEn, bioJa } = body;
+    const { birthdate, location, email, languages, bioEn, bioJa, profileImageUrl } = body;
+    let normalizedProfileImageUrl: string | undefined;
+
+    try {
+      normalizedProfileImageUrl = normalizeProfileImageUrl(profileImageUrl);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Invalid profile image URL' },
+        { status: 400 }
+      );
+    }
 
     const db = getFirestore();
     const docRef = db.collection('profile').doc(PROFILE_DOC_ID);
@@ -83,6 +94,7 @@ export const PUT = withActivityLog('next_api.profile.PUT', async (request: NextR
     if (languages !== undefined) updateData.languages = languages;
     if (bioEn !== undefined) updateData.bioEn = bioEn;
     if (bioJa !== undefined) updateData.bioJa = bioJa;
+    if (normalizedProfileImageUrl !== undefined) updateData.profileImageUrl = normalizedProfileImageUrl;
 
     await docRef.set(updateData, { merge: true });
 

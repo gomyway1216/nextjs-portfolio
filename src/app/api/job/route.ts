@@ -8,6 +8,7 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 // for PUT and a required field for POST; the rest are optional updates.
 const EDITABLE_STRING_FIELDS = [
   'companyName',
+  'companyNameJa',
   'jobPosition',
   'jobPositionJa',
   'jobDuration',

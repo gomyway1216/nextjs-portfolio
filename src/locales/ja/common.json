@@ -957,28 +957,6 @@
       "experienceTitle": "職務経歴",
       "educationTitle": "学歴",
       "technologiesLabel": "使用技術:",
-      "jobsByCompany": {
-        "atlas": {
-          "jobPosition": "ソフトウェアエンジニア",
-          "companyName": "Atlas",
-          "jobDescription": "Flutter・TypeScript・Firebaseを活用し、低クレジットスコア層の顧客を対象としたクレジット改善モバイルアプリにおいて、ユーザー中心の機能開発を担当。ユーザー体験とスケーラビリティの向上に注力するとともに、アプリのパフォーマンス監視および課題解決を推進。さらに、クロスファンクショナルチームと連携し、決済処理、リワード、実効性の高いクレジット構築機能の最適化に貢献。"
-        },
-        "paypal": {
-          "jobPosition": "ソフトウェアエンジニア",
-          "companyName": "PayPal",
-          "jobDescription": "JavaとSpring Frameworkを用いて、日次で数百万リクエストを処理する大規模アーキテクチャの開発・運用に従事。HTTPクライアント、ActiveMQメッセージサービス、バッチ処理、キャッシュ（Oracle）を活用した決済失敗時のリカバリー機能を設計・実装し、決済基盤の信頼性向上に貢献。"
-        },
-        "university-of-wisconsin-madison": {
-          "jobPosition": "フルスタックエンジニア",
-          "companyName": "University of Wisconsin-Madison",
-          "jobDescription": "学生の予約管理と管理者向け監査機能を備えたチューター・スケジューリングシステムを構築。React、JavaScript、PHPを用いて実装し、運用効率とユーザー体験の改善を実現。"
-        },
-        "so-net-media-networks-corp": {
-          "jobPosition": "フロントエンドエンジニア（インターン）",
-          "companyName": "So-net Media Networks Corp",
-          "jobDescription": "React・Redux・TypeScriptを用いて、企業向けオンライン広告パフォーマンスを可視化するWebクライアントを開発。加えて、データサイエンス領域の研究を通じて、広告選定機械学習モデルの精度改善に取り組む。"
-        }
-      },
       "jobType": {
         "fullTime": "正社員",
         "partTime": "パート・アルバイト",

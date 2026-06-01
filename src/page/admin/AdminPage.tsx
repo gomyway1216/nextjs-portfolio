@@ -50,8 +50,14 @@ type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 's
 interface Job {
   id: string;
   companyName: string;
+  companyNameJa?: string;
   jobPosition: string;
+  jobPositionJa?: string;
   jobDuration: string;
+  jobType?: string;
+  jobTypeJa?: string;
+  jobDescription?: string;
+  jobDescriptionJa?: string;
   technologies?: (string | { name: string; id?: string; type?: string })[];
   hidden?: boolean;
 }
@@ -391,6 +397,7 @@ const AdminPage = () => {
   const [jobFormMode, setJobFormMode] = useState<null | 'new' | string>(null);
   const [jobForm, setJobForm] = useState({
     companyName: '',
+    companyNameJa: '',
     jobPosition: '',
     jobPositionJa: '',
     jobType: '',
@@ -971,14 +978,14 @@ const AdminPage = () => {
     return { Authorization: `Bearer ${token}` };
   };
 
-  const handleToggleJobHidden = async (companyName: string, currentHidden: boolean) => {
+  const handleToggleJobHidden = async (id: string, companyName: string, currentHidden: boolean) => {
     const nextHidden = !currentHidden;
     try {
       const authHeaders = await getAuthHeaders();
       const response = await fetch('/api/job', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ companyName, hidden: nextHidden }),
+        body: JSON.stringify({ id, hidden: nextHidden }),
       });
 
       if (response.ok) {
@@ -1000,7 +1007,7 @@ const AdminPage = () => {
       const response = await fetch('/api/job', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...authHeaders },
-        body: JSON.stringify({ companyName, technologies: techArray }),
+        body: JSON.stringify({ id: jobId, technologies: techArray }),
       });
 
       if (response.ok) {
@@ -1022,6 +1029,7 @@ const AdminPage = () => {
     const j = job as unknown as Record<string, unknown>;
     setJobForm({
       companyName: typeof j.companyName === 'string' ? j.companyName : '',
+      companyNameJa: typeof j.companyNameJa === 'string' ? j.companyNameJa : '',
       jobPosition: typeof j.jobPosition === 'string' ? j.jobPosition : '',
       jobPositionJa: typeof j.jobPositionJa === 'string' ? j.jobPositionJa : '',
       jobType: typeof j.jobType === 'string' ? j.jobType : '',
@@ -1038,6 +1046,7 @@ const AdminPage = () => {
     setJobFormMode('new');
     setJobForm({
       companyName: '',
+      companyNameJa: '',
       jobPosition: '',
       jobPositionJa: '',
       jobType: 'Full-time',
@@ -1079,6 +1088,7 @@ const AdminPage = () => {
 
     const payload: Record<string, unknown> = {
       companyName: jobForm.companyName.trim(),
+      companyNameJa: jobForm.companyNameJa,
       jobPosition: jobForm.jobPosition.trim(),
       jobPositionJa: jobForm.jobPositionJa,
       jobType: jobForm.jobType,
@@ -1184,6 +1194,15 @@ const AdminPage = () => {
           Japanese (optional)
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div>
+            <label style={styles.label}>Company (Japanese)</label>
+            <input
+              value={jobForm.companyNameJa}
+              onChange={(e) => setJobForm({ ...jobForm, companyNameJa: e.target.value })}
+              placeholder="Atlas"
+              style={styles.input}
+            />
+          </div>
           <div>
             <label style={styles.label}>Position (Japanese)</label>
             <input
@@ -1872,7 +1891,7 @@ const AdminPage = () => {
                         </div>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button
-                            onClick={() => handleToggleJobHidden(job.companyName, !!job.hidden)}
+                            onClick={() => handleToggleJobHidden(job.id, job.companyName, !!job.hidden)}
                             style={{ ...styles.button, ...styles.outlineButton }}
                             title={job.hidden ? 'Show on public resume' : 'Hide from public resume'}
                           >

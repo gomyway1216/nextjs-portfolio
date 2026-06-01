@@ -68,7 +68,7 @@ export function update(prior: Posterior, observed: 1 | 0): Posterior {
     : { alpha: prior.alpha, beta: prior.beta + 1 };
 }
 
-function createSeededRng(seed: number): () => number {
+export function createSeededRng(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
     state = (state + 0x6d2b79f5) >>> 0;

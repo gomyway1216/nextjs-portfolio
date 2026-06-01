@@ -68,6 +68,17 @@ export function update(prior: Posterior, observed: 1 | 0): Posterior {
     : { alpha: prior.alpha, beta: prior.beta + 1 };
 }
 
+function createSeededRng(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 // ----- Sampling-based credible interval -----
 
 // Reuse the Beta sampler. Marsaglia & Tsang gamma generator.
@@ -97,8 +108,13 @@ export function sampleBeta(alpha: number, beta: number, rng: () => number = Math
   return x / (x + y);
 }
 
-/** 95% credible interval via Monte Carlo sampling (defaults to 5000 samples). */
-export function credibleInterval(p: Posterior, level = 0.95, samples = 5000, rng: () => number = Math.random): [number, number] {
+/** 95% credible interval via deterministic Monte Carlo sampling (defaults to 5000 samples). */
+export function credibleInterval(
+  p: Posterior,
+  level = 0.95,
+  samples = 5000,
+  rng: () => number = createSeededRng(Math.imul(p.alpha, 1_000_003) ^ Math.imul(p.beta, 9_176)),
+): [number, number] {
   const xs = new Array<number>(samples);
   for (let i = 0; i < samples; i++) xs[i] = sampleBeta(p.alpha, p.beta, rng);
   xs.sort((a, b) => a - b);

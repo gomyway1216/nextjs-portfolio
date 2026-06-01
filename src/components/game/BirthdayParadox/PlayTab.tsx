@@ -11,6 +11,17 @@ import {
 const DEFAULT_N = 23;
 const MAX_N = 100;
 
+const createInitialBirthdayRng = () => {
+  let seed = 0x5eed1234;
+  return () => {
+    seed = (seed + 0x6d2b79f5) >>> 0;
+    let t = seed;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
 interface Stats {
   trials: number;
   matches: number;
@@ -18,7 +29,7 @@ interface Stats {
 
 export const PlayTab = () => {
   const [n, setN] = useState(DEFAULT_N);
-  const [birthdays, setBirthdays] = useState<number[]>(() => generateBirthdays(DEFAULT_N));
+  const [birthdays, setBirthdays] = useState<number[]>(() => generateBirthdays(DEFAULT_N, createInitialBirthdayRng()));
   const [stats, setStats] = useState<Record<number, Stats>>({});
 
   const collision = useMemo(() => findFirstCollision(birthdays), [birthdays]);

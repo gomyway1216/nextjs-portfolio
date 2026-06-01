@@ -30,14 +30,13 @@ const createRound = () => {
 };
 
 const createInitialState = (): GameState => {
-  const round = createRound();
   return {
     phase: 'menu',
     playerScore: 0,
     aiScore: 0,
-    holder: round.holder,
-    timerMs: round.roundMs,
-    roundMs: round.roundMs,
+    holder: 'player',
+    timerMs: 10000,
+    roundMs: 10000,
     playerCooldown: 0,
     aiCooldown: 0,
     freezeMs: 0,

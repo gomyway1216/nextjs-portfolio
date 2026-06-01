@@ -7,6 +7,7 @@ import {
   generateBirthdays,
   theoreticalMatchProb,
 } from './engine';
+import { createSeededRng } from '../BayesianUpdate/engine';
 
 const DEFAULT_N = 23;
 const MAX_N = 100;
@@ -18,7 +19,7 @@ interface Stats {
 
 export const PlayTab = () => {
   const [n, setN] = useState(DEFAULT_N);
-  const [birthdays, setBirthdays] = useState<number[]>(() => generateBirthdays(DEFAULT_N));
+  const [birthdays, setBirthdays] = useState<number[]>(() => generateBirthdays(DEFAULT_N, createSeededRng(0x5eed1234)));
   const [stats, setStats] = useState<Record<number, Stats>>({});
 
   const collision = useMemo(() => findFirstCollision(birthdays), [birthdays]);

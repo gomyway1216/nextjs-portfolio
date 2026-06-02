@@ -309,7 +309,7 @@ export const GhostTetris = () => {
 
   return (
     <div style={{ minHeight: '100vh', padding: '2rem 1rem', background: 'linear-gradient(180deg, #111827, #020617)', color: '#e5e7eb' }}>
-      <div style={{ maxWidth: '980px', margin: '0 auto', display: 'grid', gap: '1rem', gridTemplateColumns: 'minmax(280px, 340px) minmax(280px, 1fr)' }}>
+      <div style={{ maxWidth: '980px', margin: '0 auto', display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))' }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>Ghost Tetris</h1>
           <p style={{ color: '#94a3b8' }}>置いたブロックが2秒後にほぼ透明化。記憶を頼りにラインを消す。</p>

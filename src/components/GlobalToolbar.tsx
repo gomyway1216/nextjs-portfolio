@@ -215,7 +215,14 @@ export function GlobalToolbar() {
       className="sticky top-0 z-50"
       style={{ backgroundColor: theme.bg, borderBottom: `1px solid ${theme.border}` }}
     >
-      <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4" style={{ minHeight: '3.25rem' }}>
+      <div
+        className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 sm:gap-4"
+        style={{
+          minHeight: '3.25rem',
+          flexWrap: hasGameContent ? 'wrap' : 'nowrap',
+          rowGap: hasGameContent ? '0.5rem' : undefined,
+        }}
+      >
         {/* Left: Home / Back / Game left */}
         <div className="flex items-center gap-3 flex-1 min-w-0">
           <Link
@@ -278,7 +285,7 @@ export function GlobalToolbar() {
         )}
 
         {/* Right: Game right + Lang + Auth */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex max-w-full items-center gap-2 min-w-0 flex-wrap justify-end">
           {hasGameContent && gameContent?.right}
           {hasGameContent && gameContent?.right && <span style={{ color: theme.border }}>|</span>}
           <ThemeToggle accent={theme.accent} />

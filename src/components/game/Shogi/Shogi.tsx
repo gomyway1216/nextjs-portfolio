@@ -126,20 +126,21 @@ const Shogi = () => {
     // New game: clear TT so Level 4/5 starts from a clean cache (optional but helps consistency).
     workerRef.current?.clearTT();
 
+    const kyokumen = createInitialPosition();
     setGameState({
-      kyokumen: createInitialPosition(),
+      kyokumen,
       selectedPosition: null,
       selectedCapturedIndex: -1,
       validMoves: [],
       gameOver: false,
       winner: null,
-      isAIThinking: false,
+      isAIThinking: kyokumen.teban === getAISide(),
       lastMove: null,
       moveHistory: [],
     });
     setShowPromotionDialog(false);
     setPendingMove(null);
-  }, []);
+  }, [getAISide]);
 
   // Check for game over
   const checkGameOver = (k: Kyokumen): { isOver: boolean; winner: number | null } => {
@@ -168,6 +169,7 @@ const Shogi = () => {
       validMoves: [],
       gameOver: isOver,
       winner,
+      isAIThinking: !isOver,
       lastMove: te,
       moveHistory: [...prev.moveHistory, te],
     }));
@@ -281,13 +283,11 @@ const Shogi = () => {
     if (
       gameState.kyokumen.teban === aiSide &&
       !gameState.gameOver &&
-      !gameState.isAIThinking
+      gameState.isAIThinking
     ) {
       const requestId = ++aiRequestIdRef.current;
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- starting the AI turn must synchronously show the thinking state.
-      setGameState(prev => ({ ...prev, isAIThinking: true }));
 
-      setTimeout(() => {
+      const timeoutId = window.setTimeout(() => {
         if (aiRequestIdRef.current !== requestId) return;
 
         // Check if AI has any legal moves first
@@ -424,6 +424,8 @@ const Shogi = () => {
         return;
 
       }, 500);
+
+      return () => window.clearTimeout(timeoutId);
     }
   }, [
     gameState.kyokumen,

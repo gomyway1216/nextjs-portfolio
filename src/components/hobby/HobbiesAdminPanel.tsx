@@ -45,7 +45,7 @@ Upload,
 User,
 X,
 } from 'lucide-react';
-import NextImage from 'next/image';
+import Image from 'next/image';
 import { CSSProperties,useEffect,useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -990,7 +990,7 @@ export default function HobbiesAdminPanel() {
                   >
                     {categoryForm.coverImage ? (
                       <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <NextImage
+                        <Image
                           src={categoryForm.coverImage}
                           alt="Cover"
                           width={200}
@@ -1242,7 +1242,7 @@ export default function HobbiesAdminPanel() {
                   >
                     {itemForm.thumbImage ? (
                       <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <NextImage
+                        <Image
                           src={itemForm.thumbImage}
                           alt="Thumbnail"
                           width={150}
@@ -1301,7 +1301,7 @@ export default function HobbiesAdminPanel() {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
                     {itemForm.images.map((img, index) => (
                       <div key={img} style={{ position: 'relative' }}>
-                        <NextImage
+                        <Image
                           src={img}
                           alt={`Gallery ${index + 1}`}
                           width={80}

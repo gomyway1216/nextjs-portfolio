@@ -13,7 +13,7 @@ interface SimpleCarouselProps {
 
 export default function SimpleCarousel({ images, thumbImage }: SimpleCarouselProps) {
   const [emblaRef, emblaApi] = useEmblaCarousel({ loop: true });
-  const allImages = [thumbImage, ...(images || [])];
+  const allImages = [thumbImage, ...(images || [])].filter((image): image is string => Boolean(image));
 
   const scrollPrev = useCallback(() => {
     if (emblaApi) emblaApi.scrollPrev();

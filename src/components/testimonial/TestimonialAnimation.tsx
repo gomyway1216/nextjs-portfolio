@@ -70,7 +70,6 @@ export default function SimpleSlider() {
                       alt="review comments"
                       width={80}
                       height={80}
-                      unoptimized
                     />
                   </div>
                   <div className="media-body">

@@ -38,7 +38,7 @@ User,
 X,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import NextImage from 'next/image';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CSSProperties,useEffect,useState } from 'react';
@@ -1620,7 +1620,7 @@ const AdminPage = () => {
                       {profileLoading ? (
                         <Loader2 size={32} color="#64748b" style={{ animation: 'spin 1s linear infinite' }} />
                       ) : profilePhotoUrl ? (
-                        <NextImage
+                        <Image
                           src={profilePhotoUrl}
                           alt="Current profile"
                           width={112}
@@ -2245,7 +2245,7 @@ const AdminPage = () => {
                   >
                     {projectForm.thumbImage ? (
                       <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <NextImage
+                        <Image
                           src={projectForm.thumbImage}
                           alt="Thumbnail"
                           width={200}
@@ -2385,7 +2385,7 @@ const AdminPage = () => {
                             height: '80px',
                           }}
                         >
-                          <NextImage
+                          <Image
                             src={url}
                             alt={`Gallery ${index + 1}`}
                             width={100}
@@ -2611,7 +2611,7 @@ const AdminPage = () => {
                   >
                     {postForm.image ? (
                       <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <NextImage
+                        <Image
                           src={postForm.image}
                           alt="Cover"
                           width={320}

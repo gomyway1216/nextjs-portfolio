@@ -45,6 +45,7 @@ Upload,
 User,
 X,
 } from 'lucide-react';
+import Image from 'next/image';
 import { CSSProperties,useEffect,useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -989,10 +990,13 @@ export default function HobbiesAdminPanel() {
                   >
                     {categoryForm.coverImage ? (
                       <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <img
+                        <Image
                           src={categoryForm.coverImage}
                           alt="Cover"
-                          style={{ maxWidth: '200px', maxHeight: '150px', borderRadius: '8px' }}
+                          width={200}
+                          height={150}
+                          unoptimized
+                          style={{ maxWidth: '200px', maxHeight: '150px', width: 'auto', height: 'auto', borderRadius: '8px' }}
                         />
                         <button
                           onClick={() => setCategoryForm({ ...categoryForm, coverImage: '' })}
@@ -1238,10 +1242,13 @@ export default function HobbiesAdminPanel() {
                   >
                     {itemForm.thumbImage ? (
                       <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <img
+                        <Image
                           src={itemForm.thumbImage}
                           alt="Thumbnail"
-                          style={{ maxWidth: '150px', maxHeight: '100px', borderRadius: '8px' }}
+                          width={150}
+                          height={100}
+                          unoptimized
+                          style={{ maxWidth: '150px', maxHeight: '100px', width: 'auto', height: 'auto', borderRadius: '8px' }}
                         />
                         <button
                           onClick={() => setItemForm({ ...itemForm, thumbImage: '' })}
@@ -1294,9 +1301,12 @@ export default function HobbiesAdminPanel() {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginBottom: '12px' }}>
                     {itemForm.images.map((img, index) => (
                       <div key={img} style={{ position: 'relative' }}>
-                        <img
+                        <Image
                           src={img}
                           alt={`Gallery ${index + 1}`}
+                          width={80}
+                          height={60}
+                          unoptimized
                           style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '8px' }}
                         />
                         <button

@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { getFunctions, httpsCallable, connectFunctionsEmulator } from 'firebase/functions';
+import Image from 'next/image';
+import React, { useState, useEffect } from 'react';
 
 const AchievementStatus = {
   NOT_STARTED: 'NOT_STARTED',
@@ -114,8 +115,16 @@ const AchievementManagementPage = () => {
             {dailyAchievements.map((achievement) => (
               <li key={achievement.id}>
                 {achievement.text} - {achievement.status}
-                {achievement.imageLink && <img src={achievement.imageLink}
-                  alt="Achievement" style={{ maxWidth: '100px' }} />}
+                {achievement.imageLink && (
+                  <Image
+                    src={achievement.imageLink}
+                    alt="Achievement"
+                    width={100}
+                    height={100}
+                    unoptimized
+                    style={{ maxWidth: '100px', height: 'auto' }}
+                  />
+                )}
               </li>
             ))}
           </ul>

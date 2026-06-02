@@ -1,4 +1,5 @@
 'use client';
+import Image from 'next/image';
 import React, { useCallback } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -64,10 +65,12 @@ export default function SimpleSlider() {
               >
                 <div className="testimonial-01 media">
                   <div className="avatar">
-                    <img
-                      src={`img/testimonial/${val.imageName}.jpg`}
+                    <Image
+                      src={`/img/testimonial/${val.imageName}.jpg`}
                       alt="review comments"
-                    ></img>
+                      width={80}
+                      height={80}
+                    />
                   </div>
                   <div className="media-body">
                     <p>{val.desc}</p>

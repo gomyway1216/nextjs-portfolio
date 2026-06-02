@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Share2, Copy, Check, QrCode, Link } from 'lucide-react';
+import Image from 'next/image';
 import { toast } from 'sonner';
 import type { QRCodeResponse } from '@/types/settli';
 import { useTranslation } from 'react-i18next';
@@ -112,9 +113,12 @@ export function ShareDialog({
                 <QrCode className="h-8 w-8 text-muted-foreground" />
               </div>
             ) : qrData?.qrCodeDataUrl ? (
-              <img
+              <Image
                 src={qrData.qrCodeDataUrl}
                 alt="Share QR Code"
+                width={192}
+                height={192}
+                unoptimized
                 className="w-48 h-48 rounded-lg border"
               />
             ) : (

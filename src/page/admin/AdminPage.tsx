@@ -38,6 +38,7 @@ User,
 X,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CSSProperties,useEffect,useState } from 'react';
@@ -1619,9 +1620,12 @@ const AdminPage = () => {
                       {profileLoading ? (
                         <Loader2 size={32} color="#64748b" style={{ animation: 'spin 1s linear infinite' }} />
                       ) : profilePhotoUrl ? (
-                        <img
+                        <Image
                           src={profilePhotoUrl}
                           alt="Current profile"
+                          width={112}
+                          height={112}
+                          unoptimized
                           style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center' }}
                         />
                       ) : (
@@ -2241,10 +2245,13 @@ const AdminPage = () => {
                   >
                     {projectForm.thumbImage ? (
                       <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <img
+                        <Image
                           src={projectForm.thumbImage}
                           alt="Thumbnail"
-                          style={{ maxWidth: '200px', maxHeight: '150px', borderRadius: '8px' }}
+                          width={200}
+                          height={150}
+                          unoptimized
+                          style={{ maxWidth: '200px', maxHeight: '150px', width: 'auto', height: 'auto', borderRadius: '8px' }}
                         />
                         <button
                           type="button"
@@ -2378,9 +2385,12 @@ const AdminPage = () => {
                             height: '80px',
                           }}
                         >
-                          <img
+                          <Image
                             src={url}
                             alt={`Gallery ${index + 1}`}
+                            width={100}
+                            height={80}
+                            unoptimized
                             style={{
                               width: '100%',
                               height: '100%',
@@ -2601,10 +2611,13 @@ const AdminPage = () => {
                   >
                     {postForm.image ? (
                       <div style={{ position: 'relative', display: 'inline-block' }}>
-                        <img
+                        <Image
                           src={postForm.image}
                           alt="Cover"
-                          style={{ maxWidth: '320px', maxHeight: '200px', borderRadius: '8px' }}
+                          width={320}
+                          height={200}
+                          unoptimized
+                          style={{ maxWidth: '320px', maxHeight: '200px', width: 'auto', height: 'auto', borderRadius: '8px' }}
                         />
                         <button
                           type="button"

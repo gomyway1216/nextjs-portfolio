@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Question,QuestionType } from '@/types/kuizu';
 import { CheckCircle,XCircle } from 'lucide-react';
+import Image from 'next/image';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { OptionButton } from './OptionButton';
@@ -175,9 +176,12 @@ export function QuestionDisplay({
 
           {question.questionImageUrl && (
             <div className="flex justify-center">
-              <img
+              <Image
                 src={question.questionImageUrl}
                 alt="Question"
+                width={640}
+                height={360}
+                unoptimized
                 className="max-w-full h-auto max-h-64 rounded-lg"
               />
             </div>

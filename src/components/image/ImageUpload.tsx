@@ -1,9 +1,10 @@
 'use client';
-import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import * as api from '@/services/imageService';
 import { Upload, X } from 'lucide-react';
+import Image from 'next/image';
+import React, { useEffect, useState } from 'react';
 import styles from './image-upload.module.scss';
 
 interface ImageUploadProps {
@@ -97,7 +98,14 @@ const ImageUpload = ({ id, type, handleImageUrl, originalImageUrl }: ImageUpload
 
       {imageUrl && (
         <div className="mt-4 relative w-48">
-          <img src={imageUrl} alt="Uploaded" className="imagePreview rounded-md" />
+          <Image
+            src={imageUrl}
+            alt="Uploaded"
+            width={192}
+            height={192}
+            unoptimized
+            className="imagePreview rounded-md"
+          />
           <Button
             type="button"
             variant="destructive"

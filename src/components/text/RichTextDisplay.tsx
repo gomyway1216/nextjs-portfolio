@@ -1,6 +1,7 @@
 'use client';
 import * as util from '@/lib/utils/util';
 import DOMPurify from 'dompurify';
+import Image from 'next/image';
 import styles from './rich-text-display.module.scss';
 
 interface Post {
@@ -34,7 +35,7 @@ const RichTextDisplay = ({ post }: RichTextDisplayProps) => {
       </header>
       {image && (
         <figure className={styles.cover}>
-          <img src={image} alt="" />
+          <Image src={image} alt="" width={1280} height={720} unoptimized />
         </figure>
       )}
       <div className={styles.body}

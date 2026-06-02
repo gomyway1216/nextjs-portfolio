@@ -1,6 +1,7 @@
 import { htmlToText } from 'html-to-text';
-import { forwardRef } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
+import { forwardRef } from 'react';
 import styles from './post-list-item.module.css';
 
 interface PostListItemProps {
@@ -56,10 +57,12 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
 
           {image ? (
             <span className={styles.thumbnail}>
-              <img
+              <Image
                 src={image}
                 alt=""
-                loading="lazy"
+                width={128}
+                height={128}
+                unoptimized
               />
             </span>
           ) : (

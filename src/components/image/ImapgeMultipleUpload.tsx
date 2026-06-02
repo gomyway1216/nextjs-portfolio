@@ -21,6 +21,7 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { Upload, X } from 'lucide-react';
+import Image from 'next/image';
 import styles from './image-upload.module.scss';
 
 interface ImageMultipleUploadProps {
@@ -58,7 +59,14 @@ const SortableImageItem = ({ url, index, onRemove }: SortableImageItemProps) => 
       {...listeners}
       className="relative w-48 cursor-grab active:cursor-grabbing"
     >
-      <img src={url} alt={`Image ${index}`} className="imagePreview rounded-md" />
+      <Image
+        src={url}
+        alt={`Image ${index}`}
+        width={192}
+        height={192}
+        unoptimized
+        className="imagePreview rounded-md"
+      />
       <Button
         type="button"
         variant="destructive"

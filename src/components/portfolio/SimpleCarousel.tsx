@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import React, { useCallback, useEffect } from 'react';
 import useEmblaCarousel from 'embla-carousel-react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -55,10 +56,13 @@ export default function SimpleCarousel({ images, thumbImage }: SimpleCarouselPro
         <div className="embla__container">
           {allImages.map((image, index) => (
             <div className="embla__slide" key={index}>
-              <img
+              <Image
                 className="embla__slide__img"
                 src={image}
                 alt={`Slide ${index + 1}`}
+                width={900}
+                height={600}
+                unoptimized
               />
             </div>
           ))}

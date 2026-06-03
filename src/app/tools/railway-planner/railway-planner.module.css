@@ -1,0 +1,887 @@
+.page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 6%, color-mix(in srgb, #f59e0b 18%, transparent), transparent 28%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--background) 80%, var(--railway-accent) 20%) 0,
+      var(--background) 460px
+    );
+  color: var(--foreground);
+}
+
+.shell {
+  width: min(100% - 28px, 1440px);
+  margin: 0 auto;
+  padding: 86px 0 56px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, var(--railway-accent) 28%);
+  border-radius: 8px;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--card) 88%, var(--railway-accent) 12%),
+      color-mix(in srgb, var(--card) 94%, var(--railway-accent-soft) 6%)
+    );
+  padding: clamp(18px, 3vw, 26px);
+  box-shadow: 0 20px 58px color-mix(in srgb, var(--railway-accent) 12%, transparent);
+}
+
+.headerMain {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 13px;
+}
+
+.backLink,
+.logoTile {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.backLink {
+  width: 38px;
+  height: 38px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, var(--railway-accent) 28%);
+  background: color-mix(in srgb, var(--card) 90%, var(--railway-accent) 10%);
+  color: color-mix(in srgb, var(--foreground) 74%, var(--railway-accent-strong) 26%);
+  transition: transform 150ms ease, border-color 150ms ease;
+}
+
+.backLink:hover {
+  border-color: var(--railway-accent);
+  transform: translateX(-2px);
+}
+
+.logoTile {
+  width: 52px;
+  height: 52px;
+  background: linear-gradient(135deg, var(--railway-accent), var(--railway-accent-soft));
+  color: #fff;
+  box-shadow: 0 16px 38px color-mix(in srgb, var(--railway-accent) 22%, transparent);
+}
+
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--railway-accent-strong);
+  font-size: 0.78rem;
+  font-weight: 780;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 0;
+  color: var(--foreground);
+  font-size: clamp(1.8rem, 4vw, 3.1rem);
+  font-weight: 820;
+  line-height: 1.05;
+  overflow-wrap: anywhere;
+}
+
+.subtitle {
+  max-width: 760px;
+  margin: 10px 0 0;
+  color: var(--muted-foreground);
+  font-size: clamp(0.95rem, 1.6vw, 1.03rem);
+  line-height: 1.62;
+}
+
+.headerActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.iconButton,
+.primaryButton,
+.secondaryButton {
+  gap: 7px;
+  border-radius: 999px !important;
+  font-weight: 720;
+}
+
+.iconButton,
+.secondaryButton {
+  border-color: color-mix(in srgb, var(--border) 62%, var(--railway-accent) 38%) !important;
+  background: color-mix(in srgb, var(--card) 90%, var(--railway-accent) 10%) !important;
+  color: color-mix(in srgb, var(--foreground) 76%, var(--railway-accent-strong) 24%) !important;
+}
+
+.primaryButton {
+  border: 0 !important;
+  background: linear-gradient(135deg, var(--railway-accent), var(--railway-accent-soft)) !important;
+  color: #fff !important;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--railway-accent) 20%, transparent);
+}
+
+.metricsBar {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.metricTile {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 4px 9px;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, var(--railway-accent) 20%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--card) 94%, var(--railway-accent) 6%);
+  padding: 13px 15px;
+}
+
+.metricTile svg {
+  grid-row: span 2;
+  color: var(--railway-accent-strong);
+}
+
+.metricTile span {
+  min-width: 0;
+  color: var(--muted-foreground);
+  font-size: 0.76rem;
+  font-weight: 720;
+}
+
+.metricTile strong {
+  min-width: 0;
+  color: var(--foreground);
+  font-size: clamp(1.05rem, 2.4vw, 1.28rem);
+  font-weight: 820;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(280px, 340px);
+  gap: 16px;
+  align-items: start;
+}
+
+.controlPanel,
+.mapPanel,
+.diagramPanel {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, var(--railway-accent) 22%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--card) 96%, var(--railway-accent) 4%);
+  box-shadow: 0 16px 44px color-mix(in srgb, var(--railway-accent) 8%, transparent);
+}
+
+.controlPanel,
+.diagramPanel {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+}
+
+.panelSection {
+  padding: 17px;
+}
+
+.panelSection + .panelSection {
+  border-top: 1px solid color-mix(in srgb, var(--border) 84%, var(--railway-accent) 16%);
+}
+
+.sectionHeading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 13px;
+  color: var(--foreground);
+  font-size: 0.96rem;
+  font-weight: 800;
+}
+
+.sectionHeading svg {
+  color: var(--railway-accent-strong);
+}
+
+.field,
+.rangeField {
+  display: grid;
+  gap: 7px;
+}
+
+.field span,
+.rangeField span,
+.groupLabel {
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  font-weight: 720;
+}
+
+.textInput {
+  border-color: color-mix(in srgb, var(--border) 72%, var(--railway-accent) 28%) !important;
+  border-radius: 8px !important;
+  background: color-mix(in srgb, var(--background) 90%, var(--railway-accent) 10%) !important;
+  font-weight: 680;
+}
+
+.controlGroup {
+  display: grid;
+  gap: 8px;
+  margin-top: 15px;
+}
+
+.controlGroup + .field {
+  margin-top: 15px;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.scopeButtons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.segmentButton,
+.presetButton,
+.toggleButton,
+.textButton {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, var(--railway-accent) 24%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--card) 92%, var(--railway-accent) 8%);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 720;
+  line-height: 1.2;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.segmentButton {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 8px;
+}
+
+.segmentButton:hover,
+.presetButton:hover,
+.toggleButton:hover,
+.textButton:hover {
+  border-color: var(--railway-accent);
+  transform: translateY(-1px);
+}
+
+.segmentButtonActive,
+.toggleButtonActive {
+  border-color: color-mix(in srgb, var(--railway-accent) 72%, var(--border) 28%);
+  background: color-mix(in srgb, var(--card) 78%, var(--railway-accent) 22%);
+  color: color-mix(in srgb, var(--foreground) 70%, var(--railway-accent-strong) 30%);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--railway-accent) 22%, transparent);
+}
+
+.helperText,
+.emptyText {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.8rem;
+  line-height: 1.55;
+}
+
+.rangeField {
+  margin-top: 15px;
+}
+
+.rangeField > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.rangeField strong {
+  color: var(--foreground);
+  font-size: 0.86rem;
+}
+
+.rangeInput {
+  width: 100%;
+  accent-color: var(--railway-accent);
+}
+
+.presetGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.presetButton {
+  min-height: 37px;
+  padding: 7px 6px;
+}
+
+.addStationBox {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.toggleRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.toggleButton,
+.textButton {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 10px;
+}
+
+.textButton {
+  color: color-mix(in srgb, var(--foreground) 76%, #b91c1c 24%);
+}
+
+.stationOrder {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.stationOrder li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  border: 1px solid color-mix(in srgb, var(--border) 82%, var(--railway-accent) 18%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--background) 92%, var(--railway-accent) 8%);
+  padding: 4px 5px 4px 4px;
+}
+
+.stationIndex {
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--railway-accent);
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 800;
+}
+
+.stationOrderName {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 0.86rem;
+  font-weight: 720;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stationOrder button {
+  display: inline-flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.stationOrder button:hover {
+  background: color-mix(in srgb, #dc2626 12%, transparent);
+  color: #dc2626;
+}
+
+.mapPanel {
+  overflow: hidden;
+}
+
+.mapHeader {
+  display: flex;
+  min-height: 76px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 82%, var(--railway-accent) 18%);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--card) 86%, var(--railway-accent) 14%),
+      color-mix(in srgb, var(--card) 94%, var(--railway-accent-soft) 6%)
+    );
+  padding: 13px 16px;
+}
+
+.mapHeader h2 {
+  margin: 0;
+  color: var(--foreground);
+  font-size: clamp(1.05rem, 2.2vw, 1.28rem);
+  font-weight: 820;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+
+.mapHeader p {
+  margin: 5px 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.82rem;
+  font-weight: 680;
+}
+
+.addModeBadge {
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, #f59e0b 54%, var(--border) 46%);
+  border-radius: 999px;
+  background: color-mix(in srgb, #f59e0b 13%, var(--card) 87%);
+  color: color-mix(in srgb, var(--foreground) 78%, #b45309 22%);
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  font-weight: 760;
+}
+
+.mapSvg {
+  display: block;
+  width: 100%;
+  height: min(72vh, 720px);
+  min-height: 570px;
+  cursor: crosshair;
+}
+
+.mapOcean {
+  fill: color-mix(in srgb, #dbeafe 54%, var(--background) 46%);
+}
+
+.gridLine {
+  fill: none;
+  stroke: color-mix(in srgb, #64748b 24%, transparent);
+  stroke-width: 0.7;
+}
+
+.landLayer path {
+  fill: url("#land-gradient");
+  stroke: color-mix(in srgb, #166534 38%, var(--border) 62%);
+  stroke-width: 2;
+  filter: drop-shadow(0 18px 20px rgba(15, 23, 42, 0.08));
+}
+
+.landLayer .bayShape {
+  fill: color-mix(in srgb, #bfdbfe 72%, var(--background) 28%);
+  stroke: color-mix(in srgb, #0284c7 30%, var(--border) 70%);
+  stroke-width: 1.5;
+  filter: none;
+}
+
+.tokyoGuideLayer {
+  pointer-events: none;
+}
+
+.riverLine {
+  fill: none;
+  stroke: color-mix(in srgb, #0284c7 52%, transparent);
+  stroke-dasharray: 10 8;
+  stroke-linecap: round;
+  stroke-width: 4;
+}
+
+.wardBoundary {
+  fill: none;
+  stroke: color-mix(in srgb, #64748b 24%, transparent);
+  stroke-dasharray: 4 8;
+  stroke-linecap: round;
+  stroke-width: 2;
+}
+
+.mapAreaLabel {
+  fill: color-mix(in srgb, var(--muted-foreground) 82%, #0284c7 18%);
+  font-size: 13px;
+  font-weight: 800;
+  paint-order: stroke;
+  stroke: color-mix(in srgb, var(--background) 82%, #fff 18%);
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.routeHalo {
+  fill: none;
+  stroke: color-mix(in srgb, var(--background) 82%, #020617 18%);
+  stroke-linecap: round;
+  stroke-width: 18;
+  opacity: 0.92;
+}
+
+.trackLine {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 3.4;
+  filter: drop-shadow(0 5px 5px rgba(15, 23, 42, 0.18));
+}
+
+.serviceLine {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 2.4;
+  opacity: 0.95;
+}
+
+.stationButton {
+  cursor: pointer;
+  outline: none;
+}
+
+.stationButton:focus-visible .stationDot {
+  stroke: #f59e0b;
+  stroke-width: 4;
+}
+
+.demandCircle {
+  fill: color-mix(in srgb, #f97316 20%, transparent);
+  stroke: color-mix(in srgb, #f97316 36%, transparent);
+  stroke-width: 1;
+}
+
+.stationDot {
+  fill: color-mix(in srgb, var(--card) 82%, #475569 18%);
+  stroke: #0f172a;
+  stroke-width: 2;
+  transition: fill 150ms ease, r 150ms ease, stroke 150ms ease;
+}
+
+.stationButton:hover .stationDot {
+  fill: #f59e0b;
+}
+
+.stationSelected .stationDot {
+  fill: #fff;
+  stroke: var(--railway-accent-strong);
+  stroke-width: 3;
+}
+
+.stopRing {
+  fill: none;
+  stroke: color-mix(in srgb, #f59e0b 78%, #fff 22%);
+  stroke-width: 2.6;
+}
+
+.routeIndexText {
+  fill: var(--railway-accent-strong);
+  font-size: 8px;
+  font-weight: 900;
+  pointer-events: none;
+  text-anchor: middle;
+}
+
+.stationLabel {
+  fill: color-mix(in srgb, var(--foreground) 90%, #0f172a 10%);
+  font-size: 12px;
+  font-weight: 800;
+  paint-order: stroke;
+  pointer-events: none;
+  stroke: color-mix(in srgb, var(--background) 82%, #fff 18%);
+  stroke-linejoin: round;
+  stroke-width: 4;
+}
+
+.diagramMeta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.diagramMeta span {
+  display: inline-flex;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: var(--service-color);
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.diagramMeta strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 0.92rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.routeDiagram {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.routeDiagram li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  align-items: center;
+  min-height: 38px;
+  column-gap: 8px;
+}
+
+.diagramLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 14px;
+  width: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--railway-accent) 68%, var(--border) 32%);
+}
+
+.routeDiagram li:first-child .diagramLine {
+  top: 19px;
+}
+
+.routeDiagram li:last-child .diagramLine {
+  bottom: 19px;
+}
+
+.diagramMarker {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--railway-accent-strong);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--railway-accent-strong);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.passStation .diagramMarker {
+  width: 18px;
+  height: 18px;
+  margin-left: 7px;
+  border-color: color-mix(in srgb, var(--border) 62%, var(--railway-accent) 38%);
+  background: color-mix(in srgb, var(--card) 86%, var(--muted) 14%);
+}
+
+.diagramName {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 0.9rem;
+  font-weight: 780;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.passStation .diagramName {
+  color: var(--muted-foreground);
+}
+
+.diagramRegion {
+  color: var(--muted-foreground);
+  font-size: 0.74rem;
+  font-weight: 680;
+}
+
+.simRows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.simRows div {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, var(--railway-accent) 16%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--background) 92%, var(--railway-accent) 8%);
+  padding: 10px;
+}
+
+.simRows span,
+.balanceBox span,
+.progressHeader span {
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 720;
+}
+
+.simRows strong,
+.balanceBox strong,
+.progressHeader strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--foreground);
+  font-size: 0.98rem;
+  font-weight: 820;
+  line-height: 1.18;
+  overflow-wrap: anywhere;
+}
+
+.progressGroup {
+  margin-top: 14px;
+}
+
+.progressHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+
+.progressTrack {
+  overflow: hidden;
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted) 86%, var(--railway-accent) 14%);
+}
+
+.progressFill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444);
+}
+
+.balanceBox {
+  margin-top: 14px;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, var(--railway-accent) 28%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--card) 86%, var(--railway-accent) 14%);
+  padding: 12px;
+}
+
+.balanceBox p {
+  margin: 8px 0 0;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  line-height: 1.55;
+}
+
+.positive {
+  color: #059669 !important;
+}
+
+.negative {
+  color: #dc2626 !important;
+}
+
+@media (max-width: 1180px) {
+  .workspace {
+    grid-template-columns: minmax(260px, 330px) minmax(0, 1fr);
+  }
+
+  .diagramPanel {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .diagramPanel .panelSection + .panelSection {
+    border-top: 0;
+    border-left: 1px solid color-mix(in srgb, var(--border) 84%, var(--railway-accent) 16%);
+  }
+}
+
+@media (max-width: 840px) {
+  .shell {
+    width: min(100% - 20px, 760px);
+    padding-top: 76px;
+  }
+
+  .header,
+  .headerMain {
+    flex-direction: column;
+  }
+
+  .headerActions {
+    width: 100%;
+  }
+
+  .headerActions > * {
+    width: 100%;
+  }
+
+  .metricsBar,
+  .workspace,
+  .diagramPanel {
+    grid-template-columns: 1fr;
+  }
+
+  .diagramPanel .panelSection + .panelSection {
+    border-top: 1px solid color-mix(in srgb, var(--border) 84%, var(--railway-accent) 16%);
+    border-left: 0;
+  }
+
+  .mapHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .mapSvg {
+    height: 68vh;
+    min-height: 520px;
+  }
+}
+
+@media (max-width: 560px) {
+  .metricsBar {
+    gap: 8px;
+  }
+
+  .metricTile {
+    padding: 11px;
+  }
+
+  .presetGrid,
+  .segmented,
+  .simRows {
+    grid-template-columns: 1fr;
+  }
+
+  .mapSvg {
+    min-height: 470px;
+  }
+
+  .stationLabel {
+    font-size: 11px;
+    stroke-width: 3;
+  }
+}

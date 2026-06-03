@@ -934,6 +934,16 @@
           "clipboardDenied": "Clipboard access denied"
         }
       },
+      "railwayPlanner": {
+        "title": "Railway Planner",
+        "subtitle": "Fictional Rail Tool",
+        "description": "Plan fictional railways from national trunk lines down to Tokyo-area station spacing like Minami-Senju and Kita-Senju.",
+        "features": {
+          "mapEdit": "Map editing",
+          "serviceTypes": "Service patterns",
+          "simulation": "Cost simulation"
+        }
+      },
       "comingSoon": {
         "title": "Coming Soon...",
         "description": "More practical tools are on the way."

@@ -242,7 +242,7 @@
 
 .home-modern .home-banner .hb-me {
   right: 0;
-  width: 52vw;
+  width: min(42vw, 620px);
   z-index: 0;
   filter: saturate(0.94) contrast(1.02);
 }
@@ -422,7 +422,7 @@
   }
 
   .home-modern .home-banner .hb-me {
-    width: 88vw;
+    width: 74vw;
   }
 
   .modern-hero .hero-actions {
@@ -492,7 +492,7 @@
   }
 
   .home-modern .home-banner .hb-me {
-    width: 108vw;
+    width: 72vw;
     opacity: 0.28;
   }
 

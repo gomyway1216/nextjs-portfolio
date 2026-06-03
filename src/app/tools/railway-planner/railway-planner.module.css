@@ -663,6 +663,16 @@
   fill: #f59e0b;
 }
 
+.stationDetail .stationDot {
+  fill: color-mix(in srgb, var(--card) 88%, #0f766e 12%);
+  stroke-width: 1.4;
+}
+
+.stationDetail .stationLabel {
+  font-size: 10px;
+  font-weight: 760;
+}
+
 .stationSelected .stationDot {
   fill: #fff;
   stroke: var(--railway-accent-strong);

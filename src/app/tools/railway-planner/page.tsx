@@ -34,7 +34,7 @@ import styles from './railway-planner.module.css';
 const MAP_WIDTH = 620;
 const MAP_HEIGHT = 760;
 const MAP_ASPECT_RATIO = MAP_HEIGHT / MAP_WIDTH;
-const MIN_MAP_VIEW_WIDTH = MAP_WIDTH / 7;
+const MIN_MAP_VIEW_WIDTH = MAP_WIDTH / 12;
 const DEFAULT_MAP_VIEW: MapViewBox = {
   x: 0,
   y: 0,
@@ -57,6 +57,8 @@ interface Station {
   terrain: TerrainType;
   labelDx?: number;
   labelDy?: number;
+  minZoom?: number;
+  labelMinZoom?: number;
   custom?: boolean;
   scope?: MapScope;
   prefectureId?: string;
@@ -74,6 +76,7 @@ interface PresetRoute {
   name: string;
   lineName: string;
   stationIds: string[];
+  distanceScale?: number;
 }
 
 interface MapViewBox {
@@ -170,6 +173,52 @@ const TOKYO_STATIONS: Station[] = [
   { id: 'ebisu', name: '恵比寿', region: '渋谷区', x: 214, y: 568, demand: 116, terrain: 'urban', labelDx: -40, labelDy: 2 },
 ];
 
+const NATIONAL_DETAIL_STATIONS: Station[] = [
+  { id: 'kanda', name: '神田', region: '山手線', x: 468, y: 449, demand: 142, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 },
+  { id: 'akihabara', name: '秋葉原', region: '山手線', x: 467, y: 445, demand: 176, terrain: 'urban', labelDx: -28, labelDy: -4, minZoom: 3.8, labelMinZoom: 4.8 },
+  { id: 'okachimachi', name: '御徒町', region: '山手線', x: 468, y: 441, demand: 106, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 },
+  { id: 'ueno', name: '上野', region: '山手線・常磐線', x: 469, y: 437, demand: 180, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 2.4, labelMinZoom: 3.2 },
+  { id: 'uguisudani', name: '鶯谷', region: '山手線', x: 469, y: 433, demand: 74, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 },
+  { id: 'nippori', name: '日暮里', region: '山手線・常磐線', x: 470, y: 429, demand: 142, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 3.2, labelMinZoom: 4.2 },
+  { id: 'nishi-nippori', name: '西日暮里', region: '山手線', x: 467, y: 426, demand: 126, terrain: 'urban', labelDx: -34, labelDy: -4, minZoom: 4.4, labelMinZoom: 5.4 },
+  { id: 'tabata', name: '田端', region: '山手線', x: 463, y: 424, demand: 118, terrain: 'urban', labelDx: -28, labelDy: 2, minZoom: 4.4, labelMinZoom: 5.4 },
+  { id: 'komagome', name: '駒込', region: '山手線', x: 459, y: 425, demand: 104, terrain: 'urban', labelDx: -30, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 },
+  { id: 'sugamo', name: '巣鴨', region: '山手線', x: 454, y: 428, demand: 112, terrain: 'urban', labelDx: -26, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 },
+  { id: 'otsuka', name: '大塚', region: '山手線', x: 450, y: 431, demand: 98, terrain: 'urban', labelDx: -26, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 },
+  { id: 'ikebukuro', name: '池袋', region: '山手線', x: 444, y: 437, demand: 255, terrain: 'urban', labelDx: -26, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 },
+  { id: 'mejiro', name: '目白', region: '山手線', x: 442, y: 442, demand: 88, terrain: 'urban', labelDx: -26, labelDy: 5, minZoom: 5.2, labelMinZoom: 6.2 },
+  { id: 'takadanobaba', name: '高田馬場', region: '山手線', x: 441, y: 447, demand: 154, terrain: 'urban', labelDx: -42, labelDy: 4, minZoom: 4.4, labelMinZoom: 5.4 },
+  { id: 'shin-okubo', name: '新大久保', region: '山手線', x: 443, y: 452, demand: 86, terrain: 'urban', labelDx: -38, labelDy: 5, minZoom: 5.2, labelMinZoom: 6.2 },
+  { id: 'shinjuku', name: '新宿', region: '山手線', x: 445, y: 457, demand: 284, terrain: 'urban', labelDx: -27, labelDy: 4, minZoom: 2.4, labelMinZoom: 3.2 },
+  { id: 'yoyogi', name: '代々木', region: '山手線', x: 449, y: 460, demand: 94, terrain: 'urban', labelDx: -28, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 },
+  { id: 'harajuku', name: '原宿', region: '山手線', x: 452, y: 464, demand: 96, terrain: 'urban', labelDx: -28, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 },
+  { id: 'shibuya', name: '渋谷', region: '山手線', x: 456, y: 469, demand: 224, terrain: 'urban', labelDx: -27, labelDy: 8, minZoom: 2.8, labelMinZoom: 3.5 },
+  { id: 'ebisu', name: '恵比寿', region: '山手線', x: 460, y: 473, demand: 116, terrain: 'urban', labelDx: -32, labelDy: 8, minZoom: 4.4, labelMinZoom: 5.4 },
+  { id: 'meguro', name: '目黒', region: '山手線', x: 465, y: 477, demand: 112, terrain: 'urban', labelDx: -27, labelDy: 10, minZoom: 4.4, labelMinZoom: 5.4 },
+  { id: 'gotanda', name: '五反田', region: '山手線', x: 470, y: 478, demand: 118, terrain: 'urban', labelDx: 4, labelDy: 12, minZoom: 4.4, labelMinZoom: 5.4 },
+  { id: 'osaki', name: '大崎', region: '山手線', x: 475, y: 477, demand: 126, terrain: 'urban', labelDx: 4, labelDy: 10, minZoom: 4.4, labelMinZoom: 5.4 },
+  { id: 'shinagawa', name: '品川', region: '山手線', x: 478, y: 472, demand: 205, terrain: 'urban', labelDx: 4, labelDy: 9, minZoom: 2.8, labelMinZoom: 3.5 },
+  { id: 'takanawa-gateway', name: '高輪ゲートウェイ', region: '山手線', x: 477, y: 467, demand: 84, terrain: 'urban', labelDx: 4, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 },
+  { id: 'tamachi', name: '田町', region: '山手線', x: 476, y: 463, demand: 116, terrain: 'urban', labelDx: 5, labelDy: 6, minZoom: 4.4, labelMinZoom: 5.4 },
+  { id: 'hamamatsucho', name: '浜松町', region: '山手線', x: 475, y: 459, demand: 112, terrain: 'urban', labelDx: 5, labelDy: 4, minZoom: 4.4, labelMinZoom: 5.4 },
+  { id: 'shimbashi', name: '新橋', region: '山手線', x: 473, y: 456, demand: 152, terrain: 'urban', labelDx: 5, labelDy: 2, minZoom: 3.8, labelMinZoom: 4.8 },
+  { id: 'yurakucho', name: '有楽町', region: '山手線', x: 471, y: 455, demand: 132, terrain: 'urban', labelDx: 5, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 },
+  { id: 'minami-senju', name: '南千住', region: '常磐線', x: 477, y: 430, demand: 112, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 3.8, labelMinZoom: 4.8 },
+  { id: 'kita-senju', name: '北千住', region: '常磐線', x: 483, y: 426, demand: 170, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 },
+  { id: 'ayase', name: '綾瀬', region: '常磐線各駅停車', x: 489, y: 423, demand: 126, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 },
+  { id: 'kameari', name: '亀有', region: '常磐線各駅停車', x: 494, y: 421, demand: 104, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 },
+  { id: 'kanamachi', name: '金町', region: '常磐線各駅停車', x: 500, y: 418, demand: 108, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 },
+  { id: 'matsudo', name: '松戸', region: '常磐線', x: 506, y: 414, demand: 128, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 },
+  { id: 'kashiwa', name: '柏', region: '常磐線', x: 517, y: 405, demand: 142, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 3.2, labelMinZoom: 4.2 },
+  { id: 'abiko', name: '我孫子', region: '常磐線', x: 523, y: 400, demand: 98, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 },
+  { id: 'toride', name: '取手', region: '常磐線', x: 530, y: 394, demand: 92, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 },
+  { id: 'ushiku', name: '牛久', region: '常磐線', x: 538, y: 383, demand: 74, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.8, labelMinZoom: 5.8 },
+  { id: 'tsuchiura', name: '土浦', region: '常磐線', x: 545, y: 374, demand: 82, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 },
+  { id: 'mito', name: '水戸', region: '常磐線', x: 557, y: 344, demand: 118, terrain: 'plain', labelDx: 5, labelDy: -6, minZoom: 2.8, labelMinZoom: 3.5 },
+];
+
+const NATIONAL_BASE_STATIONS = [...NATIONAL_STATIONS, ...NATIONAL_DETAIL_STATIONS];
+
 const TRACK_OPTIONS: Record<TrackType, {
   label: string;
   description: string;
@@ -251,6 +300,20 @@ const SERVICE_OPTIONS: Record<ServiceType, {
 };
 
 const NATIONAL_PRESET_ROUTES: PresetRoute[] = [
+  {
+    id: 'joban-national',
+    name: '常磐線例',
+    lineName: '常磐線シミュレーション',
+    stationIds: ['tokyo', 'ueno', 'nippori', 'minami-senju', 'kita-senju', 'matsudo', 'kashiwa', 'abiko', 'toride', 'ushiku', 'tsuchiura', 'mito'],
+    distanceScale: 1.04,
+  },
+  {
+    id: 'yamanote-loop',
+    name: '山手線',
+    lineName: '山手線シミュレーション',
+    stationIds: ['tokyo', 'kanda', 'akihabara', 'okachimachi', 'ueno', 'uguisudani', 'nippori', 'nishi-nippori', 'tabata', 'komagome', 'sugamo', 'otsuka', 'ikebukuro', 'mejiro', 'takadanobaba', 'shin-okubo', 'shinjuku', 'yoyogi', 'harajuku', 'shibuya', 'ebisu', 'meguro', 'gotanda', 'osaki', 'shinagawa', 'takanawa-gateway', 'tamachi', 'hamamatsucho', 'shimbashi', 'yurakucho', 'tokyo'],
+    distanceScale: 0.34,
+  },
   {
     id: 'tokaido',
     name: '東海道軸',
@@ -426,15 +489,14 @@ function getPrefectureZoom(id: string): PrefectureZoom {
 }
 
 const DEFAULT_PREFECTURE_ID = 'tokyo';
-const initialPrefectureZoom = getPrefectureZoom(DEFAULT_PREFECTURE_ID);
-const initialPreset = initialPrefectureZoom.presets[0];
+const initialPreset = NATIONAL_PRESET_ROUTES[0];
 
 const MAP_SCOPE_OPTIONS: Array<{ id: MapScope; label: string; description: string }> = [
-  { id: 'prefecture', label: '都道府県', description: '47都道府県それぞれをズームして、県内の駅間まで設計。' },
-  { id: 'national', label: '全国', description: '主要都市をつなぐ広域路線を設計。' },
+  { id: 'national', label: '日本地図', description: '日本地図からそのまま拡大。関東では常磐線・山手線の細かい駅まで表示。' },
+  { id: 'prefecture', label: '県別テンプレ', description: '47都道府県ごとの代表駅から県内路線を素早く設計。' },
 ];
 
-const initialMapScope: MapScope = 'prefecture';
+const initialMapScope: MapScope = 'national';
 const railwayTheme = {
   '--railway-accent': '#0f766e',
   '--railway-accent-strong': '#0f5f59',
@@ -559,6 +621,7 @@ export default function RailwayPlannerPage() {
   const [mapScope, setMapScope] = useState<MapScope>(initialMapScope);
   const [selectedPrefectureId, setSelectedPrefectureId] = useState(DEFAULT_PREFECTURE_ID);
   const [lineName, setLineName] = useState(initialPreset.lineName);
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(initialPreset.id);
   const [routeStationIds, setRouteStationIds] = useState<string[]>(initialPreset.stationIds);
   const [customStations, setCustomStations] = useState<Station[]>([]);
   const [trackType, setTrackType] = useState<TrackType>('double');
@@ -570,7 +633,7 @@ export default function RailwayPlannerPage() {
   const [mapView, setMapView] = useState<MapViewBox>(DEFAULT_MAP_VIEW);
 
   const selectedPrefecture = getPrefectureZoom(selectedPrefectureId);
-  const baseStations = mapScope === 'prefecture' ? selectedPrefecture.stations : NATIONAL_STATIONS;
+  const baseStations = mapScope === 'prefecture' ? selectedPrefecture.stations : NATIONAL_BASE_STATIONS;
   const activePresetRoutes = mapScope === 'prefecture' ? selectedPrefecture.presets : NATIONAL_PRESET_ROUTES;
   const selectedScope = MAP_SCOPE_OPTIONS.find((option) => option.id === mapScope) ?? MAP_SCOPE_OPTIONS[0];
   const currentCustomStations = customStations.filter((station) => (
@@ -583,7 +646,7 @@ export default function RailwayPlannerPage() {
     () => {
       const scopedPrefecture = getPrefectureZoom(selectedPrefectureId);
       return [
-        ...(mapScope === 'prefecture' ? scopedPrefecture.stations : NATIONAL_STATIONS),
+        ...(mapScope === 'prefecture' ? scopedPrefecture.stations : NATIONAL_BASE_STATIONS),
         ...customStations.filter((station) => (
           station.scope === mapScope
           && (mapScope !== 'prefecture' || station.prefectureId === selectedPrefectureId)
@@ -591,6 +654,14 @@ export default function RailwayPlannerPage() {
       ];
     },
     [customStations, mapScope, selectedPrefectureId],
+  );
+
+  const visibleStations = useMemo(
+    () => allStations.filter((station) => {
+      const isRouteStation = routeStationIds.includes(station.id);
+      return isRouteStation || zoomLevel >= (station.minZoom ?? 1);
+    }),
+    [allStations, routeStationIds, zoomLevel],
   );
 
   const routeStations = useMemo(
@@ -602,12 +673,13 @@ export default function RailwayPlannerPage() {
 
   const routeSegments = useMemo(
     () => {
-      const distanceScale = mapScope === 'prefecture'
+      const selectedPreset = activePresetRoutes.find((preset) => preset.id === selectedPresetId);
+      const distanceScale = selectedPreset?.distanceScale ?? (mapScope === 'prefecture'
         ? getPrefectureZoom(selectedPrefectureId).distanceScale
-        : 1.88;
+        : 1.88);
       return createSegments(routeStations, distanceScale);
     },
-    [mapScope, routeStations, selectedPrefectureId],
+    [activePresetRoutes, mapScope, routeStations, selectedPrefectureId, selectedPresetId],
   );
 
   const routeMetrics = useMemo(() => {
@@ -670,6 +742,7 @@ export default function RailwayPlannerPage() {
   const handleStationToggle = (stationId: string) => {
     const exists = routeStationIds.includes(stationId);
     lifecycle.trackEvent(exists ? 'station_remove' : 'station_add', { station_id: stationId });
+    setSelectedPresetId(null);
     setRouteStationIds((current) => (
       current.includes(stationId)
         ? current.filter((id) => id !== stationId)
@@ -683,18 +756,15 @@ export default function RailwayPlannerPage() {
     handleStationToggle(stationId);
   };
 
-  const zoomMapAt = (clientX: number, clientY: number, direction: 'in' | 'out') => {
-    const svg = svgRef.current;
-    if (!svg) return;
-
+  const zoomMapAround = (
+    anchor: { x: number; y: number },
+    direction: 'in' | 'out',
+    anchorRatioX = 0.5,
+    anchorRatioY = 0.5,
+  ) => {
     setMapView((current) => {
-      const anchor = getMapPointFromClient(svg, current, clientX, clientY);
-      if (!anchor) return current;
-
       const nextWidth = clamp(current.width * (direction === 'in' ? 0.72 : 1.28), MIN_MAP_VIEW_WIDTH, MAP_WIDTH);
       const nextHeight = nextWidth * MAP_ASPECT_RATIO;
-      const anchorRatioX = (anchor.x - current.x) / current.width;
-      const anchorRatioY = (anchor.y - current.y) / current.height;
 
       return clampMapView({
         x: anchor.x - anchorRatioX * nextWidth,
@@ -703,6 +773,51 @@ export default function RailwayPlannerPage() {
         height: nextHeight,
       });
     });
+  };
+
+  const zoomMapAt = (clientX: number, clientY: number, direction: 'in' | 'out') => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    setMapView((current) => {
+      const anchor = getMapPointFromClient(svg, current, clientX, clientY);
+      if (!anchor) return current;
+
+      const anchorRatioX = (anchor.x - current.x) / current.width;
+      const anchorRatioY = (anchor.y - current.y) / current.height;
+      const nextWidth = clamp(current.width * (direction === 'in' ? 0.72 : 1.28), MIN_MAP_VIEW_WIDTH, MAP_WIDTH);
+      const nextHeight = nextWidth * MAP_ASPECT_RATIO;
+
+      return clampMapView({
+        x: anchor.x - anchorRatioX * nextWidth,
+        y: anchor.y - anchorRatioY * nextHeight,
+        width: nextWidth,
+        height: nextHeight,
+      });
+    });
+  };
+
+  const getRouteMapCenter = () => {
+    if (!routeStations.length) return null;
+    const bounds = routeStations.reduce(
+      (acc, station) => ({
+        minX: Math.min(acc.minX, station.x),
+        maxX: Math.max(acc.maxX, station.x),
+        minY: Math.min(acc.minY, station.y),
+        maxY: Math.max(acc.maxY, station.y),
+      }),
+      {
+        minX: Number.POSITIVE_INFINITY,
+        maxX: Number.NEGATIVE_INFINITY,
+        minY: Number.POSITIVE_INFINITY,
+        maxY: Number.NEGATIVE_INFINITY,
+      },
+    );
+
+    return {
+      x: (bounds.minX + bounds.maxX) / 2,
+      y: (bounds.minY + bounds.maxY) / 2,
+    };
   };
 
   const resetMapView = () => {
@@ -717,11 +832,12 @@ export default function RailwayPlannerPage() {
   };
 
   const handleMapZoomButton = (direction: 'in' | 'out') => {
-    const svg = svgRef.current;
-    if (!svg) return;
-
-    const rect = svg.getBoundingClientRect();
-    zoomMapAt(rect.left + rect.width / 2, rect.top + rect.height / 2, direction);
+    const routeCenter = getRouteMapCenter();
+    const viewCenter = {
+      x: mapView.x + mapView.width / 2,
+      y: mapView.y + mapView.height / 2,
+    };
+    zoomMapAround(routeCenter ?? viewCenter, direction);
     lifecycle.trackEvent('map_zoom', { direction });
   };
 
@@ -807,6 +923,7 @@ export default function RailwayPlannerPage() {
     };
 
     lifecycle.trackEvent('custom_station_add', { station_name_len: nextStation.name.length });
+    setSelectedPresetId(null);
     setCustomStations((current) => [...current, nextStation]);
     setRouteStationIds((current) => [...current, nextStation.id]);
     const nextCustomNumber = currentCustomStations.length + 2;
@@ -815,8 +932,10 @@ export default function RailwayPlannerPage() {
 
   const handlePresetSelect = (preset: PresetRoute) => {
     lifecycle.trackEvent('preset_select', { preset_id: preset.id });
+    setSelectedPresetId(preset.id);
     setRouteStationIds(preset.stationIds);
     setLineName(preset.lineName);
+    resetMapView();
   };
 
   const handleScopeChange = (nextScope: MapScope) => {
@@ -826,6 +945,7 @@ export default function RailwayPlannerPage() {
       : NATIONAL_PRESET_ROUTES[0];
     lifecycle.trackEvent('scope_change', { map_scope: nextScope });
     setMapScope(nextScope);
+    setSelectedPresetId(nextPreset.id);
     setRouteStationIds(nextPreset.stationIds);
     setLineName(nextPreset.lineName);
     setAddMode(false);
@@ -838,6 +958,7 @@ export default function RailwayPlannerPage() {
     lifecycle.trackEvent('prefecture_change', { prefecture_id: prefectureId });
     setSelectedPrefectureId(prefectureId);
     setMapScope('prefecture');
+    setSelectedPresetId(nextPrefecture.presets[0].id);
     setRouteStationIds(nextPrefecture.presets[0].stationIds);
     setLineName(nextPrefecture.presets[0].lineName);
     setAddMode(false);
@@ -847,6 +968,7 @@ export default function RailwayPlannerPage() {
 
   const handleClearRoute = () => {
     lifecycle.trackEvent('route_clear', { station_count: routeStationIds.length });
+    setSelectedPresetId(null);
     setRouteStationIds([]);
   };
 
@@ -855,6 +977,7 @@ export default function RailwayPlannerPage() {
     setMapScope(initialMapScope);
     setSelectedPrefectureId(DEFAULT_PREFECTURE_ID);
     setLineName(initialPreset.lineName);
+    setSelectedPresetId(initialPreset.id);
     setRouteStationIds(initialPreset.stationIds);
     setCustomStations([]);
     setTrackType('double');
@@ -873,6 +996,7 @@ export default function RailwayPlannerPage() {
       station.scope === mapScope
       && (mapScope !== 'prefecture' || station.prefectureId === selectedPrefectureId)
     )));
+    setSelectedPresetId(null);
     setRouteStationIds((current) => current.filter((id) => baseStationIds.has(id)));
   };
 
@@ -1126,7 +1250,7 @@ export default function RailwayPlannerPage() {
               ) : (
                 <ol className={styles.stationOrder}>
                   {routeStations.map((station, index) => (
-                    <li key={station.id}>
+                    <li key={`${station.id}-${index}`}>
                       <span className={styles.stationIndex}>{index + 1}</span>
                       <span className={styles.stationOrderName}>{station.name}</span>
                       <button
@@ -1290,11 +1414,13 @@ export default function RailwayPlannerPage() {
               </g>
 
               <g className={styles.stationLayer}>
-                {allStations.map((station) => {
+                {visibleStations.map((station) => {
                   const routeIndex = routeStationIds.indexOf(station.id);
                   const inRoute = routeIndex >= 0;
                   const isTerminal = routeIndex === 0 || routeIndex === routeStationIds.length - 1;
                   const stopsHere = inRoute && isRouteStop(station, routeIndex, routeStations.length, serviceType);
+                  const showStationLabel = zoomLevel >= (station.labelMinZoom ?? station.minZoom ?? 1);
+                  const isDetailedStation = Boolean(station.minZoom);
                   const labelX = station.x + (station.labelDx ?? 10);
                   const labelY = station.y + (station.labelDy ?? -10);
                   return (
@@ -1302,7 +1428,7 @@ export default function RailwayPlannerPage() {
                       key={station.id}
                       role="button"
                       tabIndex={0}
-                      className={`${styles.stationButton} ${inRoute ? styles.stationSelected : ''}`}
+                      className={`${styles.stationButton} ${isDetailedStation ? styles.stationDetail : ''} ${inRoute ? styles.stationSelected : ''}`}
                       aria-label={`${station.name}を${inRoute ? 'ルートから外す' : 'ルートに追加'}`}
                       onPointerDown={(event) => event.stopPropagation()}
                       onClick={(event) => {
@@ -1311,7 +1437,7 @@ export default function RailwayPlannerPage() {
                       }}
                       onKeyDown={(event) => handleStationKeyDown(event, station.id)}
                     >
-                      {showDemand && (
+                      {showDemand && !isDetailedStation && (
                         <circle
                           cx={station.x}
                           cy={station.y}
@@ -1338,9 +1464,11 @@ export default function RailwayPlannerPage() {
                           {routeIndex + 1}
                         </text>
                       )}
-                      <text x={labelX} y={labelY} className={styles.stationLabel}>
-                        {station.name}
-                      </text>
+                      {showStationLabel && (
+                        <text x={labelX} y={labelY} className={styles.stationLabel}>
+                          {station.name}
+                        </text>
+                      )}
                     </g>
                   );
                 })}
@@ -1368,7 +1496,7 @@ export default function RailwayPlannerPage() {
                   {routeStations.map((station, index) => {
                     const stopsHere = isRouteStop(station, index, routeStations.length, serviceType);
                     return (
-                      <li key={station.id} className={stopsHere ? styles.stopStation : styles.passStation}>
+                      <li key={`${station.id}-${index}`} className={stopsHere ? styles.stopStation : styles.passStation}>
                         <span className={styles.diagramLine} />
                         <span className={styles.diagramMarker}>
                           {stopsHere ? selectedService.shortLabel : ''}

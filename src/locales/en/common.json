@@ -979,6 +979,7 @@
             "selectedStations": "Selected Stations",
             "diagramAndFinance": "Diagram and Finance",
             "diagram": "Route Diagram",
+            "stopPattern": "Stop Pattern",
             "simulation": "Simulation"
           },
           "fields": {
@@ -1082,6 +1083,7 @@
             "stopHere": "Stop {{service}} at {{station}}",
             "passHere": "Skip {{station}} for {{service}}",
             "terminalStop": "{{station}} is a terminal stop",
+            "stopPatternFor": "{{station}} stop pattern",
             "passShort": "Skip",
             "removeFromRoute": "Remove {{station}} from the route",
             "addToRoute": "Add {{station}} to the route"

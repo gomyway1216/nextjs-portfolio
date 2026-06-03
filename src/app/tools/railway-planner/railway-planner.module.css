@@ -584,14 +584,14 @@
 
 .stationOrder li {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) 40px 61px 28px;
-  align-items: center;
+  grid-template-columns: 26px minmax(0, 1fr) 61px 28px;
+  align-items: start;
   gap: 7px;
-  min-height: 34px;
+  min-height: 50px;
   border: 1px solid color-mix(in srgb, var(--border) 82%, var(--railway-accent) 18%);
   border-radius: 8px;
   background: color-mix(in srgb, var(--background) 92%, var(--railway-accent) 8%);
-  padding: 4px 5px 4px 4px;
+  padding: 6px 5px 6px 4px;
 }
 
 .stationIndex {
@@ -617,40 +617,79 @@
   white-space: nowrap;
 }
 
+.stationOrderBody {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
 .stationOrderControls {
   display: inline-flex;
   gap: 3px;
 }
 
-.stationStopButton {
-  display: inline-flex;
+.stationStopChecklist {
+  display: flex;
   min-width: 0;
-  width: 40px;
-  height: 28px;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.stationStopCheck {
+  --service-color: var(--railway-accent);
+  position: relative;
+  display: inline-flex;
+  min-width: 30px;
+  height: 24px;
   align-items: center;
   justify-content: center;
-  border: 1px solid color-mix(in srgb, var(--border) 76%, var(--railway-accent) 24%);
+  border: 1px solid color-mix(in srgb, var(--border) 78%, var(--service-color) 22%);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--card) 92%, var(--railway-accent) 8%);
+  background: color-mix(in srgb, var(--card) 92%, var(--service-color) 8%);
   color: var(--muted-foreground);
-  font: inherit;
+  cursor: pointer;
   font-size: 0.7rem;
   font-weight: 900;
   line-height: 1;
+  transition: border-color 150ms ease, background 150ms ease, color 150ms ease;
 }
 
-.stationStopButtonActive {
-  border-color: color-mix(in srgb, var(--railway-accent-soft) 72%, var(--border) 28%);
-  background: color-mix(in srgb, var(--railway-accent-soft) 18%, var(--card) 82%);
-  color: color-mix(in srgb, var(--foreground) 72%, var(--railway-accent-strong) 28%);
+.stationStopCheck input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  clip: rect(0 0 0 0);
+  overflow: hidden;
+  white-space: nowrap;
 }
 
-.stationStopButton:hover:not(:disabled) {
-  border-color: var(--railway-accent);
-  background: color-mix(in srgb, var(--card) 82%, var(--railway-accent) 18%);
+.stationStopCheck span {
+  display: inline-flex;
+  max-width: 42px;
+  overflow: hidden;
+  padding: 0 7px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.stationStopButton:disabled {
+.stationStopCheckActive {
+  border-color: var(--service-color);
+  background: color-mix(in srgb, var(--service-color) 88%, #fff 12%);
+  color: #fff;
+}
+
+.stationStopCheck:hover:not(.stationStopCheckDisabled) {
+  border-color: var(--service-color);
+  background: color-mix(in srgb, var(--card) 78%, var(--service-color) 22%);
+}
+
+.stationStopCheck:has(input:focus-visible) {
+  outline: 2px solid color-mix(in srgb, #f59e0b 72%, var(--service-color) 28%);
+  outline-offset: 2px;
+}
+
+.stationStopCheckDisabled {
   cursor: not-allowed;
   opacity: 0.72;
 }
@@ -1071,6 +1110,188 @@
   color: var(--muted-foreground);
   font-size: 0.74rem;
   font-weight: 680;
+}
+
+.stopPatternBlock {
+  margin-top: 16px;
+  border-top: 1px solid color-mix(in srgb, var(--border) 84%, var(--railway-accent) 16%);
+  padding-top: 12px;
+}
+
+.stopPatternTitle {
+  margin-bottom: 9px;
+  color: var(--railway-accent-strong);
+  font-size: 0.8rem;
+  font-weight: 820;
+}
+
+.stopPatternScroller {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.stopPatternGrid {
+  --station-count: 2;
+  border-collapse: collapse;
+  border-spacing: 0;
+  min-width: max-content;
+  table-layout: fixed;
+}
+
+.stopPatternServiceColumn {
+  width: 78px;
+}
+
+.stopPatternStationColumn {
+  width: 54px;
+}
+
+.stopPatternCorner,
+.stopPatternStationLabel,
+.stopPatternService,
+.stopPatternCell {
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 76%, var(--railway-accent) 24%);
+}
+
+.stopPatternCorner {
+  height: 82px;
+  padding: 0 7px 7px;
+  color: var(--muted-foreground);
+  font-size: 0.66rem;
+  font-weight: 760;
+  text-align: left;
+  vertical-align: bottom;
+}
+
+.stopPatternStationLabel {
+  height: 82px;
+  min-width: 42px;
+  padding: 0 4px 7px;
+  color: var(--foreground);
+  font-size: 0.68rem;
+  font-weight: 760;
+  line-height: 1.05;
+  text-align: center;
+  vertical-align: bottom;
+  white-space: nowrap;
+  writing-mode: vertical-rl;
+}
+
+.stopPatternRow {
+  --service-color: var(--railway-accent);
+}
+
+.stopPatternService {
+  height: 42px;
+  min-height: 42px;
+  padding: 5px 6px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.stopPatternService span {
+  display: inline-flex;
+  width: fit-content;
+  min-width: 24px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--service-color);
+  padding: 0 6px;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.stopPatternService strong {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--foreground);
+  font-size: 0.66rem;
+  font-weight: 760;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stopPatternCellSlot {
+  height: 42px;
+  min-width: 42px;
+  padding: 0;
+}
+
+.stopPatternCell {
+  position: relative;
+  display: inline-flex;
+  width: 100%;
+  height: 100%;
+  min-width: 42px;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+}
+
+.stopPatternCell::before {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--service-color) 42%, var(--border) 58%);
+  content: "";
+}
+
+.stopPatternCell span {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--service-color);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--service-color);
+  font-size: 0.62rem;
+  font-weight: 920;
+}
+
+.stopPatternPass span {
+  width: 8px;
+  height: 16px;
+  border-width: 0 2px;
+  border-radius: 0;
+  background: color-mix(in srgb, var(--card) 84%, var(--muted) 16%);
+}
+
+.stopPatternStop span {
+  background: color-mix(in srgb, var(--card) 88%, #fff 12%);
+}
+
+.stopPatternCell:not(:disabled) {
+  cursor: pointer;
+}
+
+.stopPatternCell:hover:not(:disabled) span,
+.stopPatternCell:focus-visible span {
+  background: color-mix(in srgb, var(--service-color) 14%, var(--card) 86%);
+}
+
+.stopPatternCell:focus-visible {
+  outline: 2px solid color-mix(in srgb, #f59e0b 72%, var(--service-color) 28%);
+  outline-offset: -2px;
+}
+
+.stopPatternCell:disabled {
+  cursor: not-allowed;
 }
 
 .simRows {

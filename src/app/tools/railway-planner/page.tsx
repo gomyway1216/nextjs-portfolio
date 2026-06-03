@@ -1547,21 +1547,21 @@ export default function RailwayPlannerPage() {
     });
   };
 
-  const handleRouteStopToggle = (station: Station, index: number) => {
+  const handleRouteStopToggle = (station: Station, index: number, service: ServiceOption = selectedService) => {
     const isTerminal = index === 0 || index === routeStations.length - 1;
     if (isTerminal) return;
 
-    const nextStopsHere = !isRouteStop(station, index, routeStations.length, selectedService, stopOverrides);
+    const nextStopsHere = !isRouteStop(station, index, routeStations.length, service, stopOverrides);
     lifecycle.trackEvent('service_stop_toggle', {
-      service_type: selectedService.id,
+      service_type: service.id,
       station_id: station.id,
       stops_here: nextStopsHere ? 1 : 0,
     });
     setSelectedPresetId(null);
     setStopOverrides((current) => ({
       ...current,
-      [selectedService.id]: {
-        ...(current[selectedService.id] ?? {}),
+      [service.id]: {
+        ...(current[service.id] ?? {}),
         [station.id]: nextStopsHere,
       },
     }));
@@ -2315,29 +2315,51 @@ export default function RailwayPlannerPage() {
                 <ol className={styles.stationOrder}>
                   {routeStations.map((station, index) => {
                     const routeStationKey = routeStationRenderKeys[index] ?? station.id;
-                    const stopsHere = isRouteStop(station, index, routeStations.length, selectedService, stopOverrides);
                     const isTerminal = index === 0 || index === routeStations.length - 1;
-                    const stopActionLabel = isTerminal
-                      ? rp('station.terminalStop', { station: station.name })
-                      : stopsHere
-                        ? rp('station.passHere', { station: station.name, service: selectedServiceLabel })
-                        : rp('station.stopHere', { station: station.name, service: selectedServiceLabel });
 
                     return (
                       <li key={routeStationKey}>
                         <span className={styles.stationIndex}>{index + 1}</span>
-                        <span className={styles.stationOrderName}>{station.name}</span>
-                        <button
-                          type="button"
-                          className={`${styles.stationStopButton} ${stopsHere ? styles.stationStopButtonActive : ''}`}
-                          aria-label={stopActionLabel}
-                          title={stopActionLabel}
-                          aria-pressed={stopsHere}
-                          onClick={() => handleRouteStopToggle(station, index)}
-                          disabled={isTerminal}
-                        >
-                          {stopsHere ? selectedServiceShortLabel : rp('station.passShort')}
-                        </button>
+                        <span className={styles.stationOrderBody}>
+                          <span className={styles.stationOrderName}>{station.name}</span>
+                          <span
+                            className={styles.stationStopChecklist}
+                            role="group"
+                            aria-label={rp('station.stopPatternFor', { station: station.name })}
+                          >
+                            {serviceOptions.map((service) => {
+                              const serviceLabel = getServiceLabel(service, rp);
+                              const serviceShortLabel = getServiceShortLabel(service, rp);
+                              const stopsHere = isRouteStop(station, index, routeStations.length, service, stopOverrides);
+                              const stopOptionLabel = isTerminal
+                                ? rp('station.terminalStop', { station: station.name })
+                                : rp('station.stopHere', { station: station.name, service: serviceLabel });
+                              const stopActionLabel = isTerminal
+                                ? rp('station.terminalStop', { station: station.name })
+                                : stopsHere
+                                  ? rp('station.passHere', { station: station.name, service: serviceLabel })
+                                  : rp('station.stopHere', { station: station.name, service: serviceLabel });
+
+                              return (
+                                <label
+                                  key={service.id}
+                                  className={`${styles.stationStopCheck} ${stopsHere ? styles.stationStopCheckActive : ''} ${isTerminal ? styles.stationStopCheckDisabled : ''}`}
+                                  title={stopActionLabel}
+                                  style={{ '--service-color': service.color } as CSSProperties}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={stopsHere}
+                                    disabled={isTerminal}
+                                    aria-label={stopOptionLabel}
+                                    onChange={() => handleRouteStopToggle(station, index, service)}
+                                  />
+                                  <span>{serviceShortLabel}</span>
+                                </label>
+                              );
+                            })}
+                          </span>
+                        </span>
                         <span className={styles.stationOrderControls}>
                           <button
                             type="button"
@@ -2647,22 +2669,112 @@ export default function RailwayPlannerPage() {
               {routeStations.length < 2 ? (
                 <p className={styles.emptyText}>{rp('empty.diagram')}</p>
               ) : (
-                <ol className={styles.routeDiagram}>
-                  {routeStations.map((station, index) => {
-                    const routeStationKey = routeStationRenderKeys[index] ?? station.id;
-                    const stopsHere = isRouteStop(station, index, routeStations.length, selectedService, stopOverrides);
-                    return (
-                      <li key={routeStationKey} className={stopsHere ? undefined : styles.passStation}>
-                        <span className={styles.diagramLine} />
-                        <span className={styles.diagramMarker}>
-                          {stopsHere ? selectedServiceShortLabel : ''}
-                        </span>
-                        <span className={styles.diagramName}>{station.name}</span>
-                        <span className={styles.diagramRegion}>{station.region}</span>
-                      </li>
-                    );
-                  })}
-                </ol>
+                <>
+                  <ol className={styles.routeDiagram}>
+                    {routeStations.map((station, index) => {
+                      const routeStationKey = routeStationRenderKeys[index] ?? station.id;
+                      const stopsHere = isRouteStop(station, index, routeStations.length, selectedService, stopOverrides);
+                      return (
+                        <li key={routeStationKey} className={stopsHere ? undefined : styles.passStation}>
+                          <span className={styles.diagramLine} />
+                          <span className={styles.diagramMarker}>
+                            {stopsHere ? selectedServiceShortLabel : ''}
+                          </span>
+                          <span className={styles.diagramName}>{station.name}</span>
+                          <span className={styles.diagramRegion}>{station.region}</span>
+                        </li>
+                      );
+                    })}
+                  </ol>
+
+                  <div className={styles.stopPatternBlock}>
+                    <div className={styles.stopPatternTitle}>{rp('sections.stopPattern')}</div>
+                    <div className={styles.stopPatternScroller}>
+                      <table
+                        className={styles.stopPatternGrid}
+                        style={{ '--station-count': routeStations.length } as CSSProperties}
+                      >
+                        <colgroup>
+                          <col className={styles.stopPatternServiceColumn} />
+                          {routeStations.map((station, index) => (
+                            <col
+                              key={`station-column-${routeStationRenderKeys[index] ?? station.id}`}
+                              className={styles.stopPatternStationColumn}
+                            />
+                          ))}
+                        </colgroup>
+                        <thead>
+                          <tr>
+                            <th className={styles.stopPatternCorner} scope="col">
+                              {rp('fields.serviceType')}
+                            </th>
+                            {routeStations.map((station, index) => (
+                              <th
+                                key={`station-label-${routeStationRenderKeys[index] ?? station.id}`}
+                                className={styles.stopPatternStationLabel}
+                                scope="col"
+                                title={station.name}
+                              >
+                                {station.name}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {serviceOptions.map((service) => {
+                            const serviceLabel = getServiceLabel(service, rp);
+                            const serviceShortLabel = getServiceShortLabel(service, rp);
+
+                            return (
+                              <tr
+                                key={service.id}
+                                className={styles.stopPatternRow}
+                                style={{ '--service-color': service.color } as CSSProperties}
+                              >
+                                <th className={styles.stopPatternService} scope="row">
+                                  <span>{serviceShortLabel}</span>
+                                  <strong>{serviceLabel}</strong>
+                                </th>
+                                {routeStations.map((station, index) => {
+                                  const routeStationKey = routeStationRenderKeys[index] ?? station.id;
+                                  const isTerminal = index === 0 || index === routeStations.length - 1;
+                                  const stopsHere = isRouteStop(station, index, routeStations.length, service, stopOverrides);
+                                  const stopOptionLabel = isTerminal
+                                    ? rp('station.terminalStop', { station: station.name })
+                                    : rp('station.stopHere', { station: station.name, service: serviceLabel });
+                                  const stopActionLabel = isTerminal
+                                    ? rp('station.terminalStop', { station: station.name })
+                                    : stopsHere
+                                      ? rp('station.passHere', { station: station.name, service: serviceLabel })
+                                      : stopOptionLabel;
+
+                                  return (
+                                    <td
+                                      key={`${service.id}-${routeStationKey}`}
+                                      className={styles.stopPatternCellSlot}
+                                    >
+                                      <button
+                                        type="button"
+                                        className={`${styles.stopPatternCell} ${stopsHere ? styles.stopPatternStop : styles.stopPatternPass}`}
+                                        aria-label={stopOptionLabel}
+                                        title={stopActionLabel}
+                                        aria-pressed={stopsHere}
+                                        onClick={() => handleRouteStopToggle(station, index, service)}
+                                        disabled={isTerminal}
+                                      >
+                                        <span>{stopsHere ? serviceShortLabel : ''}</span>
+                                      </button>
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </>
               )}
             </section>
 

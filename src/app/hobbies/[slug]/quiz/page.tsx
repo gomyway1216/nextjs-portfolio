@@ -3,6 +3,7 @@
 import { getHobbyCategories,getHobbyItems } from '@/services/hobbyService';
 import type { HobbyCategory,HobbyItem } from '@/types/hobby';
 import { ArrowLeft,CheckCircle,HelpCircle,RefreshCw,Trophy,XCircle } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { useEffect,useState } from 'react';
@@ -267,14 +268,17 @@ export default function HobbyQuizPage() {
         {quizStarted && !quizFinished && currentQuestion && (
           <div className="quiz-question">
             <div className="question-content">
-              {currentQuestion.showImage && (
-                <div className="question-image">
-                  <img
-                    src={currentQuestion.item.thumbImage || currentQuestion.item.images[0]}
-                    alt="Quiz question"
-                  />
-                </div>
-              )}
+                {currentQuestion.showImage && (
+                  <div className="question-image">
+                    <Image
+                      src={currentQuestion.item.thumbImage || currentQuestion.item.images[0]}
+                      alt="Quiz question"
+                      width={300}
+                      height={250}
+                      unoptimized
+                    />
+                  </div>
+                )}
               <h2 className="question-text">{currentQuestion.questionText}</h2>
             </div>
 

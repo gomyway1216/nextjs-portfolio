@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -167,9 +168,12 @@ export default function ShareDialog({
                 </Button>
               ) : (
                 <div className="flex flex-col items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <img
+                  <Image
                     src={qrCodeUrl}
                     alt="QR Code"
+                    width={192}
+                    height={192}
+                    unoptimized
                     className="w-48 h-48 border-4 border-white shadow-md"
                   />
                   <p className="text-xs text-gray-500 text-center">

@@ -3,6 +3,7 @@
 import { QuestionOption } from '@/types/kuizu';
 import { Card } from '@/components/ui/card';
 import { CheckCircle, XCircle } from 'lucide-react';
+import Image from 'next/image';
 
 interface OptionButtonProps {
   option: QuestionOption;
@@ -66,9 +67,12 @@ export function OptionButton({
 
         <div className="flex-1">
           {option.imageUrl ? (
-            <img
+            <Image
               src={option.imageUrl}
               alt={option.text}
+              width={640}
+              height={256}
+              unoptimized
               className="w-full h-32 object-cover rounded"
             />
           ) : null}

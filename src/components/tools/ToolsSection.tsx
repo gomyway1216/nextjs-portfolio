@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowRight,
   FileText,
+  Train,
   Wrench,
   CheckSquare,
 } from 'lucide-react';
@@ -86,6 +87,20 @@ const ToolsSection: React.FC = () => {
         t('home.tools.markdownPreview.features.gfm'),
       ],
       gradient: 'linear-gradient(135deg, #7c3aed, #8b5cf6, #a78bfa)',
+    },
+    {
+      id: 'railwayPlanner',
+      title: t('home.tools.railwayPlanner.title'),
+      subtitle: t('home.tools.railwayPlanner.subtitle'),
+      description: t('home.tools.railwayPlanner.description'),
+      path: '/tools/railway-planner',
+      icon: <Train size={32} />,
+      features: [
+        t('home.tools.railwayPlanner.features.mapEdit'),
+        t('home.tools.railwayPlanner.features.serviceTypes'),
+        t('home.tools.railwayPlanner.features.simulation'),
+      ],
+      gradient: 'linear-gradient(135deg, #0f766e, #2563eb, #f59e0b)',
     },
     {
       id: 'todo',

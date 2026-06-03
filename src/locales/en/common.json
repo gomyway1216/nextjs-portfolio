@@ -934,6 +934,157 @@
           "clipboardDenied": "Clipboard access denied"
         }
       },
+      "railwayPlanner": {
+        "title": "Railway Planner",
+        "subtitle": "Fictional Rail Tool",
+        "description": "Plan fictional railways from national trunk lines down to zoomed station layouts for all 47 prefectures.",
+        "features": {
+          "mapEdit": "All prefectures",
+          "serviceTypes": "Service patterns",
+          "simulation": "Cost simulation"
+        },
+        "page": {
+          "eyebrow": "Tool / Railway Simulator",
+          "title": "Fictional Railway Planner",
+          "subtitle": "Place stations on a Japan map, change track standards and service patterns, then inspect the route diagram and rough operating metrics.",
+          "defaults": {
+            "newStation": "New Station",
+            "newStationWithNumber": "New Station {{number}}",
+            "unnamedLine": "Unnamed Line",
+            "plannedStation": "Planned station",
+            "prefecturePlannedStation": "{{prefecture}} planned station"
+          },
+          "actions": {
+            "backToTools": "Back to Tools",
+            "reset": "Reset",
+            "placeStation": "Place station on map",
+            "toggleDemand": "Demand heat",
+            "clearRoute": "Clear route",
+            "removeCustomStations": "Remove all added stations"
+          },
+          "metrics": {
+            "ariaLabel": "Main route metrics",
+            "score": "Score",
+            "travelTime": "Travel time",
+            "demand": "Demand",
+            "annualBalance": "Annual balance"
+          },
+          "sections": {
+            "routeSettings": "Route Settings",
+            "stationsAndRoute": "Stations and Route",
+            "selectedStations": "Selected Stations",
+            "diagramAndFinance": "Diagram and Finance",
+            "diagram": "Route Diagram",
+            "simulation": "Simulation"
+          },
+          "fields": {
+            "scope": "Map scope",
+            "prefecture": "Prefecture",
+            "lineName": "Line name",
+            "trackType": "Track standard",
+            "serviceType": "Service type",
+            "frequency": "Frequency",
+            "stationName": "Station name to add"
+          },
+          "scope": {
+            "national": {
+              "label": "Japan Map",
+              "description": "Zoom directly from the Japan map. Around Kanto, detailed Joban Line and Yamanote Line stations appear as you zoom in."
+            },
+            "prefecture": {
+              "label": "Prefecture Templates",
+              "description": "Start quickly from representative stations for each of Japan's 47 prefectures."
+            }
+          },
+          "prefectureDescriptions": {
+            "tokyo": "Design at city-station granularity, including places such as Minami-Senju and Kita-Senju.",
+            "generic": "Start from representative stations in {{prefecture}}, then add smaller planned stations on the map."
+          },
+          "track": {
+            "single": {
+              "label": "Single",
+              "description": "Suited to rural lines. Lower cost, with limits on frequency and speed."
+            },
+            "double": {
+              "label": "Double",
+              "description": "A standard trunk-line setup that supports stable rapid and express services."
+            },
+            "quad": {
+              "label": "Quad",
+              "description": "Built for urban corridors, separating local and express traffic at high frequency."
+            }
+          },
+          "service": {
+            "local": {
+              "label": "Local",
+              "shortLabel": "L"
+            },
+            "rapid": {
+              "label": "Rapid",
+              "shortLabel": "R"
+            },
+            "express": {
+              "label": "Express",
+              "shortLabel": "E"
+            },
+            "limited": {
+              "label": "Limited Express",
+              "shortLabel": "LE"
+            }
+          },
+          "values": {
+            "minutes": "{{count}} min",
+            "hoursMinutes": "{{hours}}h {{minutes}}m",
+            "tenThousandPeoplePerDay": "{{value}}0k/day",
+            "peoplePerDay": "{{value}} riders/day",
+            "okuYen": "{{amount}} oku yen",
+            "yen": "¥{{amount}}",
+            "trainsPerHour": "{{count}} trains/hr",
+            "stationCount": "{{count}} stations",
+            "kilometers": "{{value}} km",
+            "stopCountRatio": "{{stops}}/{{total}} stops"
+          },
+          "empty": {
+            "selectedStations": "Click stations on the map to add them here in route order.",
+            "diagram": "Select at least 2 stations to display a route diagram."
+          },
+          "station": {
+            "remove": "Remove {{station}}",
+            "removeFromRoute": "Remove {{station}} from the route",
+            "addToRoute": "Add {{station}} to the route"
+          },
+          "map": {
+            "nationalPanelAria": "Japan map",
+            "prefecturePanelAria": "{{prefecture}} zoom map",
+            "nationalSvgAria": "Fictional railway route on a Japan map",
+            "prefectureSvgAria": "Fictional railway route on the {{prefecture}} zoom map",
+            "addModeBadge": "Click map to add station",
+            "zoomToolbar": "Map zoom controls",
+            "zoomInAria": "Zoom map in",
+            "zoomInTitle": "Zoom in",
+            "zoomOutAria": "Zoom map out",
+            "zoomOutTitle": "Zoom out",
+            "resetViewAria": "Reset map view",
+            "resetViewTitle": "Reset",
+            "labels": {
+              "arakawa": "Arakawa",
+              "sumidaRiver": "Sumida River",
+              "tokyoBay": "Tokyo Bay",
+              "prefectureZoom": "{{prefecture}} zoom",
+              "northConnector": "Northern link",
+              "southConnector": "Southern link"
+            }
+          },
+          "simulation": {
+            "totalDistance": "Total length",
+            "stops": "Stops",
+            "constructionCost": "Construction cost",
+            "annualRevenue": "Annual revenue",
+            "congestion": "Congestion",
+            "balanceDescription": "A rough estimate after subtracting operating costs and annualized construction cost from revenue. More stops capture more demand, but they also lengthen travel time."
+          }
+        }
+      },
       "comingSoon": {
         "title": "Coming Soon...",
         "description": "More practical tools are on the way."

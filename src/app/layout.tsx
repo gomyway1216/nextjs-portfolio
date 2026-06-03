@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { Rubik, Playfair_Display } from "next/font/google";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { I18nProvider } from "@/components/providers/I18nProvider";
@@ -120,7 +120,11 @@ export default async function RootLayout({
   // "シニアフィンテックエンジニア" after hydration — React #418.
   const cookieStore = await cookies();
   const cookieLang = cookieStore.get('i18nextLng')?.value;
-  const initialLang: 'en' | 'ja' = cookieLang === 'ja' ? 'ja' : 'en';
+  const hdrs = await headers();
+  const acceptLanguage = hdrs.get('accept-language') ?? '';
+  const preferredLanguage = acceptLanguage.split(',')[0]?.trim().toLowerCase();
+  const initialLang: 'en' | 'ja' =
+    cookieLang === 'ja' || (!cookieLang && preferredLanguage?.startsWith('ja')) ? 'ja' : 'en';
 
   return (
     <html lang={initialLang} suppressHydrationWarning>

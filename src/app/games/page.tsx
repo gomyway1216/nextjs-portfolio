@@ -1,46 +1,12 @@
+'use client';
+
 import type { CSSProperties } from 'react';
 import Link from 'next/link';
-import { cookies, headers } from 'next/headers';
+import { useTranslation } from 'react-i18next';
 import { games } from '@/components/game/constants/games';
-import enCommon from '@/locales/en/common.json';
-import jaCommon from '@/locales/ja/common.json';
 import styles from './games-page.module.css';
 
-type Locale = 'en' | 'ja';
 type Category = 'Arcade' | 'Strategy' | 'Puzzle' | 'RPG' | 'Card';
-
-async function getLocale(): Promise<Locale> {
-  // The client writes to a cookie via i18next-browser-languagedetector
-  // (caches now include 'cookie' — see src/lib/i18n.ts). For first-time
-  // visitors with no cookie yet, fall back to the first language listed
-  // in Accept-Language so JA visitors get JA without a hydration flash.
-  const cookieStore = await cookies();
-  const cookieLang = cookieStore.get('i18nextLng')?.value;
-  if (cookieLang === 'ja' || cookieLang === 'en') return cookieLang;
-
-  const hdrs = await headers();
-  const accept = hdrs.get('accept-language') ?? '';
-  const primary = accept.split(',')[0]?.trim().toLowerCase() ?? '';
-  if (primary.startsWith('ja')) return 'ja';
-  return 'en';
-}
-
-function lookupKey(dict: unknown, key: string): string | null {
-  let cur: unknown = dict;
-  for (const p of key.split('.')) {
-    if (cur && typeof cur === 'object' && p in (cur as Record<string, unknown>)) {
-      cur = (cur as Record<string, unknown>)[p];
-    } else {
-      return null;
-    }
-  }
-  return typeof cur === 'string' ? cur : null;
-}
-
-function makeTranslator(locale: Locale) {
-  const dict = locale === 'ja' ? jaCommon : enCommon;
-  return (key: string): string => lookupKey(dict, key) ?? lookupKey(enCommon, key) ?? key;
-}
 
 const difficultyKey = (d: string) => {
   switch (d) {
@@ -92,9 +58,8 @@ function getCardStyle(category: string, difficulty: keyof typeof difficultyColor
   } as CSSProperties;
 }
 
-export default async function GamesPage() {
-  const locale = await getLocale();
-  const t = makeTranslator(locale);
+export default function GamesPage() {
+  const { t } = useTranslation();
   const categoryCounts = categoryOrder.map((category) => ({
     category,
     count: games.filter((game) => game.category === category).length,

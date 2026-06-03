@@ -11,7 +11,7 @@ const clamp = (v: number, min: number, max: number) =>
   Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : min;
 
 export const SimTab = () => {
-  const [trials, setTrials] = useState<number>(DEFAULT_TRIALS);
+  const [trialsInput, setTrialsInput] = useState(String(DEFAULT_TRIALS));
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [result, setResult] = useState<SimSummary | null>(null);
@@ -31,7 +31,8 @@ export const SimTab = () => {
     setRunning(true);
     // Clear stale results so the user doesn't read old charts while the new run progresses.
     setResult(null);
-    const safeTrials = clamp(trials, TRIAL_LIMITS.min, TRIAL_LIMITS.max);
+    const safeTrials = Math.floor(clamp(Number(trialsInput), TRIAL_LIMITS.min, TRIAL_LIMITS.max));
+    setTrialsInput(String(safeTrials));
     setProgress({ done: 0, total: safeTrials });
 
     const controller = new AbortController();
@@ -66,15 +67,22 @@ export const SimTab = () => {
           <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>試行回数 (最大 {TRIAL_LIMITS.max.toLocaleString()})</span>
           <input
             type="number"
-            value={trials}
+            value={trialsInput}
             min={TRIAL_LIMITS.min}
             max={TRIAL_LIMITS.max}
+            step={1}
+            inputMode="numeric"
             onChange={(e) => {
               const raw = e.target.value;
-              if (raw === '') return setTrials(0);
-              const v = Number(raw);
-              if (Number.isFinite(v)) setTrials(v);
+              if (raw === '' || /^\d+$/.test(raw)) {
+                setTrialsInput(raw);
+              }
             }}
+            onBlur={() => {
+              const safeTrials = Math.floor(clamp(Number(trialsInput), TRIAL_LIMITS.min, TRIAL_LIMITS.max));
+              setTrialsInput(String(safeTrials));
+            }}
+            disabled={running}
             style={{
               background: '#0f172a',
               color: '#e2e8f0',

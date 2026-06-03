@@ -123,28 +123,106 @@ const terrainCostFactor: Record<TerrainType, number> = {
   coastal: 1.12,
 };
 
+const JAPAN_GEO_BOUNDS = {
+  minLon: 123.679785,
+  maxLon: 145.833008,
+  minLat: 24.266064,
+  maxLat: 45.509521,
+};
+const JAPAN_GEO_PADDING_X = 38;
+const JAPAN_GEO_PADDING_Y = 42;
+const MERCATOR_MIN_X = (JAPAN_GEO_BOUNDS.minLon * Math.PI) / 180;
+const MERCATOR_MAX_X = (JAPAN_GEO_BOUNDS.maxLon * Math.PI) / 180;
+const MERCATOR_MIN_Y = getMercatorY(JAPAN_GEO_BOUNDS.minLat);
+const MERCATOR_MAX_Y = getMercatorY(JAPAN_GEO_BOUNDS.maxLat);
+const JAPAN_GEO_SCALE = Math.min(
+  (MAP_WIDTH - JAPAN_GEO_PADDING_X * 2) / (MERCATOR_MAX_X - MERCATOR_MIN_X),
+  (MAP_HEIGHT - JAPAN_GEO_PADDING_Y * 2) / (MERCATOR_MAX_Y - MERCATOR_MIN_Y),
+);
+const JAPAN_GEO_USED_WIDTH = (MERCATOR_MAX_X - MERCATOR_MIN_X) * JAPAN_GEO_SCALE;
+const JAPAN_GEO_USED_HEIGHT = (MERCATOR_MAX_Y - MERCATOR_MIN_Y) * JAPAN_GEO_SCALE;
+const JAPAN_GEO_OFFSET_X = (MAP_WIDTH - JAPAN_GEO_USED_WIDTH) / 2;
+const JAPAN_GEO_OFFSET_Y = (MAP_HEIGHT - JAPAN_GEO_USED_HEIGHT) / 2;
+
+const NATIONAL_LAND_PATHS = [
+  'M276 361.3 L274.8 362.4 L272.7 362.1 L271.5 360.4 L271.9 358.6 L274.1 357.2 L276.2 360 L276 361.3 Z',
+  'M398.1 311.5 L395.8 311.6 L395.2 311.3 L396.6 310.5 L396.7 309.2 L397.6 307 L397.5 306.3 L395.7 306.2 L395.8 303.6 L397.2 301 L401 296.9 L402 296.1 L402.2 297.9 L401 302.1 L400.8 303.6 L403.8 304 L401.9 309 L398.1 311.5 Z',
+  'M314.3 418.9 L311.7 421.4 L309.4 421.3 L308.2 420.1 L307.8 418.7 L310 416.5 L311.9 413.4 L313.6 412 L315 411.3 L316.1 411.3 L313.7 415.6 L314.3 418.9 Z',
+  'M208.5 535.9 L205.7 536.5 L204.1 535.8 L202.7 532.3 L205.4 530.1 L209 532.3 L209.7 532.9 L208.5 535.9 Z',
+  'M216.8 532.1 L214.6 532.4 L214.6 530.7 L216.3 527 L216.5 524.2 L218.1 520.8 L218.7 520 L219.2 519.7 L219.8 520.8 L219.2 525.1 L217.6 528.3 L216.8 532.1 Z',
+  'M195.2 479.4 L193.3 480.4 L193 479.4 L192.2 479 L193.6 477.6 L193.6 476.9 L192.7 476 L193.7 472.4 L193.4 470.9 L197.3 470.3 L198 471.8 L198.1 476.2 L195.2 479.4 Z',
+  'M175.5 423.8 L173.9 425 L173.2 423.2 L173.9 418 L176.9 419 L176.9 420.6 L175.5 423.8 Z',
+  'M178.1 417 L177.6 418.4 L175.9 417.4 L175.2 416.5 L176.7 412 L176.6 410.2 L176.6 409.4 L179.7 407 L180.2 407.5 L180.4 408.2 L180.2 409.2 L180.3 411.4 L178 415.1 L178.1 417 Z',
+  'M160.4 463.2 L161.4 464 L162.8 463.6 L163.9 463.5 L164.7 463.8 L165.7 465.9 L166.1 467.1 L164.3 467.2 L163.5 467.5 L162.5 469 L161.1 468.5 L160.2 467.8 L160 466.8 L160.4 463.2 Z',
+  'M470.6 72 L468.9 72.2 L466.9 70.8 L466.6 69 L468.1 67.5 L469.5 68 L470.9 69.9 L471.4 70.9 L470.6 72 Z',
+  'M170.5 461.6 L169.9 461.9 L169.1 459.3 L168.6 458.3 L169.5 457.8 L171.3 453 L171.7 454.9 L172.4 456.8 L173.1 457.1 L172.4 458.5 L171.4 459 L170.5 461.6 Z',
+  'M532.7 106.6 L535.7 106.7 L537.1 106.6 L539.5 107.1 L548.8 112.3 L551.6 112.9 L554.6 113 L556.6 112.6 L558.4 111.2 L564 104.9 L570 99.1 L570.6 99.3 L570.6 100.9 L570.2 102.7 L567.6 108 L564.6 115 L564 118.6 L565 122 L566.8 124.9 L568.2 128.8 L569.9 134.2 L572.3 134.9 L573.5 135 L575.9 133.4 L578.1 131.3 L580 131.1 L582 131.4 L579.4 132.8 L576.9 134.6 L574.7 137.9 L573.9 138.6 L571.5 138.3 L570.1 138.5 L567.2 139.9 L564.7 141.4 L562.3 143.3 L559.6 144.4 L556.8 144.6 L552.5 146.2 L549.7 146.3 L544.4 144.9 L541.8 145.3 L536.2 148.4 L531.1 152.8 L526.7 157.8 L523 163.8 L521.5 166.9 L520.6 170.4 L520.5 172.7 L520.1 174.9 L519.3 176.5 L518.2 177.7 L515.2 177 L510.1 173.8 L500.4 169.2 L490 162.1 L484.2 158.5 L473.3 159.6 L463 166.4 L462.1 165.8 L458.1 161.1 L456.2 159.3 L453.9 158.8 L452.2 158.8 L450.6 159.2 L448.2 161.6 L447.4 163.3 L446.7 165.3 L446.5 166.6 L446.8 168 L449 171.1 L451.7 173.4 L453 173.8 L455.6 173.6 L456.8 173.9 L461.2 178.5 L466 182.7 L467 184.1 L465.3 185.6 L463.3 186.4 L461 186.2 L458.8 185.6 L455 183.8 L453.3 185.4 L450.8 188.5 L449.4 192 L448.2 193.5 L445.4 195.6 L442.4 196.7 L440.9 196.3 L439.7 195 L439 193.5 L438.6 191.7 L439.3 187.7 L440.8 184.2 L441.4 180.6 L440.2 175.5 L439.4 174.4 L436.2 171.4 L434.7 168.5 L434.4 164.9 L434.6 162.9 L435.3 158.4 L436.1 156.2 L437.5 155.4 L439.1 155 L441.6 153.4 L444.3 151.3 L446.8 148.9 L449.4 145.9 L450.7 142.7 L448.5 138.8 L448.1 136.4 L448.4 134.2 L450.7 133 L453.1 133.9 L457.9 137.2 L458.9 137.5 L462.2 137.6 L466.7 138.4 L469.3 138.2 L470.6 137.7 L472.5 135 L473.4 131.6 L473.1 127.1 L473.1 122.7 L474.3 119.1 L478.1 113.3 L479.2 109.9 L479.5 101.5 L480.9 97.8 L482 94 L482.5 86 L481 78.2 L479.4 74.3 L477.6 70.7 L477.9 67.2 L479.3 64 L479.4 63 L479.7 62.1 L482.4 61.5 L483.7 60.8 L484.9 59.3 L486.3 58.4 L487.4 59.3 L488.3 60.9 L492.1 64.8 L498.1 71.8 L505.2 82.4 L509.6 87.5 L514.3 92.2 L519.5 97 L525 101.1 L528.5 103 L531.1 106.1 L532.7 106.6 Z',
+  'M222 439.2 L225.3 440.1 L226.7 440.1 L228 439.7 L230 438.6 L232.1 437.7 L233.5 438.2 L234.9 439.2 L235.5 440.6 L235.2 442.2 L232.9 445.4 L231 448.9 L235.4 449.5 L239.8 449.4 L238.7 451.6 L238.6 453.5 L239.9 454.3 L241.1 455.5 L240.8 456.6 L240.1 457.7 L242.5 459.3 L242.4 460.4 L241.7 461.5 L235.7 468.8 L234 472.5 L232.7 476.6 L231.6 479.6 L230.8 482.6 L230.2 486 L229.1 489.4 L229.4 492.4 L229.1 495.5 L226 503.2 L223.9 503.1 L221.2 502.1 L219.5 502.3 L218.6 504 L220.2 507.5 L215.4 511.6 L210 514.4 L210 513.1 L210.5 512.1 L211.3 511.3 L211.8 510.4 L212.6 507.1 L212.2 503.8 L210.6 499.7 L210.5 498.2 L211.6 497.6 L212.3 497.5 L212.8 496.9 L212.8 495.5 L212.3 494.5 L210.7 494.2 L209.3 494.2 L208.3 495.7 L206.9 498.7 L206.2 501.6 L206.5 503.3 L207.1 504.7 L209 507.2 L208.5 508.6 L207.7 509.7 L200.8 507.2 L199.4 507 L198.1 506.5 L196.8 503.1 L199.6 502.3 L200.4 501.9 L200.7 500.8 L201.1 497.5 L199.8 494.8 L198.7 493.8 L197.8 492.7 L198.4 490.4 L198 487.5 L198 483.4 L198.5 482.7 L201 481.9 L202.9 479.7 L204.5 477.2 L207 472.8 L208.9 468 L207 467.8 L205.4 466.9 L207.2 464.7 L206.6 461.8 L204 458.3 L202.6 454.2 L200.3 452.4 L199 451.7 L197.5 452.7 L196.3 453.8 L197.5 456.5 L197.3 458.9 L197.5 461.3 L198.7 461.4 L200.1 460.8 L201.2 461.2 L201.9 462.5 L202.1 464.1 L201.6 465.6 L200.5 466.4 L199.2 466.4 L197.9 465.5 L196.9 464.3 L194.5 463.6 L192 465.1 L189.6 468 L187.5 469.4 L188.5 467.3 L188.9 464.9 L187.9 463.3 L185.6 460.6 L185 459 L184.9 457.1 L185.3 455.2 L187.7 457.3 L189 460.1 L190.8 461.2 L193 461.3 L191.3 457.3 L190.7 456.3 L188.3 454.5 L185 451.4 L182.9 450 L183.6 446.8 L184.9 446.2 L185.9 446.4 L189.4 447.5 L189.7 445.9 L189.2 445.1 L188.9 444.1 L191.2 442.7 L195 441.6 L195.7 441.1 L196.4 439.9 L197.3 439.3 L200 439.4 L202.2 438.3 L204 435.3 L204.4 433.7 L205.1 432.4 L209.6 430 L210.8 429.6 L213.8 429.9 L216.6 431.3 L218 434.1 L219.2 437.1 L222 439.2 Z',
+  'M300.2 419.9 L303.6 421.1 L307.1 420.7 L307 426.2 L307.5 428 L308.5 429.6 L308 432 L309.6 432.8 L304.9 435.5 L300.7 439 L299 441.4 L297.4 444 L296.5 446.7 L295.9 449.7 L294.5 448.5 L290.4 443.8 L287.8 442.4 L283.7 441.8 L282.4 441.9 L273.9 446.4 L272.8 449.6 L270.4 454.5 L269.3 456.1 L268.1 456.6 L267.3 457.4 L266.3 461.5 L263.7 464.1 L262.1 464.2 L259.3 463.5 L258.1 463.9 L259.7 459.8 L257.1 459.3 L254.5 459.4 L254.4 456.7 L252.8 455.2 L254 453.2 L254 451.6 L254.7 450.7 L255 449.4 L254.9 448.3 L253.3 448 L252.3 447.2 L252.4 444.3 L251.5 444.2 L249.2 444.7 L244.4 446.9 L243.1 446.9 L245.1 445.3 L249.4 443.1 L251.3 441.9 L255.5 438.3 L258.1 436.6 L259.5 433.7 L259.9 431.8 L260.8 430.2 L261.6 427.7 L262.9 426.8 L265.3 424.6 L266.6 424.9 L268.1 427.6 L270.2 429.6 L271.6 429.4 L274.2 428.4 L275.5 428.1 L278.5 428.3 L281.2 427 L282.3 425.4 L282.7 423.5 L281.7 420.2 L283 420.6 L284.2 420.4 L287.1 418.4 L290.2 417.1 L293.3 416.8 L296.8 418 L300.2 419.9 Z',
+  'M469 198.3 L469.9 199 L474.5 197.3 L473.6 202.3 L473.1 207.4 L473.5 215.7 L473.9 219.5 L474.7 223.1 L476.6 225.7 L479.2 227.6 L482.9 233.4 L484.9 240.6 L486.3 244.1 L487.3 247.8 L487.7 249.4 L487.7 251.1 L487.4 253.4 L487.7 255.2 L487.3 261 L485.7 267.7 L485.4 271.1 L484 271.8 L483.1 273.3 L482.4 274.1 L481.6 274.6 L480.4 274.8 L479.5 275.4 L479.2 277.2 L478.6 278.9 L477.6 280.4 L476.7 282.1 L476.1 286.2 L475.8 290.4 L474.8 293.4 L472.4 294.1 L469.6 294.1 L466 295.4 L465.2 296.2 L462.4 301.4 L461.6 304.4 L461.5 307.6 L462.3 311.5 L463.4 315.4 L464.2 322.5 L463.4 333.4 L462.5 336.9 L460.7 339.2 L459.4 340.3 L458.2 341.7 L456.7 345.2 L454.2 352.2 L454 354 L454 355.8 L453.3 358.1 L452.8 360.5 L453.3 363.2 L454 365.7 L457.4 372.2 L458.7 374.1 L460.2 375.8 L454.5 377.8 L453.4 378.6 L450 382.3 L448.9 385.8 L449 389.7 L448.4 391 L447.5 392.2 L446.5 393 L442.7 394.8 L440.2 396.5 L437.8 399.2 L436.8 400.7 L434.9 400.2 L433.8 399 L434.9 397.4 L434.6 395.5 L435.1 390.7 L434.5 388.8 L436.5 387.3 L437.4 385 L439.4 383.1 L440.9 381.4 L441.1 380.1 L439.8 378.6 L438.5 377.6 L436.5 377.6 L434.7 377.9 L433.5 379.3 L433.1 381.1 L433.2 382 L433.1 382.8 L430.2 385.4 L430.5 388.1 L431.4 389.4 L432.5 390.1 L432.2 391 L430.8 393.2 L429.8 393.4 L428.1 390.4 L425.9 388.7 L423.1 388.7 L420.3 389.3 L418.2 391.3 L417.5 393 L417.1 394.8 L417.2 399 L416.3 402.5 L414.6 405.6 L413.8 406.7 L411.7 408.8 L410.2 409.1 L409.2 408.1 L408.3 406.7 L409.4 401.4 L409.4 398.4 L411.8 396.9 L409.8 394.8 L407.3 393.9 L403.8 395.1 L402.8 396.3 L402.2 398.1 L400.3 400.2 L398.2 402.2 L395.9 405.7 L394.3 409.7 L389.1 408.4 L386.3 408.1 L383.5 408.2 L378.4 407.7 L372.9 408.5 L366.6 410.1 L367 409 L372.2 406.5 L372.3 405.8 L371.9 404.5 L370.6 404.4 L367.5 404.9 L365.9 404.7 L365.2 403.2 L364.2 402.6 L363.5 403.2 L363.7 406 L363 406.4 L361.9 405.7 L362.3 403.5 L361.6 400.3 L361.5 398.3 L362.6 396.6 L361.5 395.9 L360.3 396.2 L358.8 397 L357.5 398.1 L354.7 404 L353.6 407.3 L355.7 410 L361.2 413.7 L362.2 414.6 L362.2 416.2 L361.5 417.8 L360 418.6 L353.9 419.8 L348.6 422.2 L347.1 424.7 L342.3 434 L338.5 440.4 L333.1 442.6 L327.1 440.7 L325.7 438.4 L324.5 435.7 L322.3 433.2 L320.3 430.5 L319.1 427.3 L319.3 422.1 L318.4 418.9 L319.2 418.1 L322.5 416.2 L323.6 415.1 L325.4 412.6 L326.1 411.2 L326.2 409.1 L324.7 408 L320.9 408.1 L317 408.7 L314.3 407.8 L310.7 405.2 L309.6 404.7 L305.8 404.5 L303 405 L300.3 405.9 L297.5 406.2 L296.5 406.7 L293.3 409.8 L290.6 411.8 L288.4 412.8 L283.5 413 L281.1 413.7 L278.5 414.7 L277.8 414.6 L275.1 416 L272 417.3 L270.4 418.5 L267.3 417.7 L261.3 419.9 L258.4 420.2 L255.4 418.9 L252.7 417 L250 417.8 L248.2 420.7 L247.3 426.5 L246.2 429.1 L245.9 432.2 L244.5 431.7 L236.5 426.1 L235.9 425.9 L229.4 426.9 L227.8 427.4 L225.7 428.5 L223.5 429 L221.5 428.2 L219.5 426.9 L217.7 427.3 L215.8 428.2 L215 419.7 L215.4 418.6 L216.6 417.1 L217.9 415.8 L221 415.4 L224.2 415.8 L226.5 415.2 L228.4 413.5 L230.4 411.1 L232.7 409.2 L235.8 407.6 L238.8 405.9 L241.4 403.4 L243.9 400.7 L246.2 398.7 L248.7 397 L252.5 393 L257.5 388.5 L259.4 385.1 L260.6 384.2 L265 382.3 L270.7 380.9 L273.4 380.9 L276.1 383.9 L277.6 383.5 L279 382.7 L282 382.3 L285 382.8 L288 382.8 L291 382.4 L296.7 381.4 L299.7 380.3 L302.6 378.8 L313.1 377.7 L320.3 375.2 L321.4 375.4 L322.5 375.9 L322.6 377.8 L321.7 379.9 L322.6 381.1 L324 381.9 L330.8 382.1 L332.7 382.5 L335.5 381.1 L338.2 379.4 L340.9 377.1 L342.9 374.5 L341.1 371.3 L340.7 367.8 L342.2 364 L344.4 360.7 L347 358.8 L349.4 356.5 L354.2 350.1 L357.7 344.9 L358.9 338.5 L358.2 330.8 L361.3 325.2 L364.2 324.2 L370 321.6 L373 320.8 L373.5 322 L373.4 323.5 L368.8 328.2 L366.2 330.2 L364.7 330.8 L363.2 331.7 L362.6 333.3 L365 336.1 L365.6 338.2 L365.4 340.2 L365.5 342 L368.1 343.9 L371.1 344.5 L372.4 344.5 L373.5 344 L376.9 339.3 L377.7 338.4 L387.5 335 L392.3 332.3 L395 331.6 L397.5 330.2 L403.1 324.9 L405.2 322.4 L407.1 319.7 L408.6 316.5 L409.8 313 L411.4 310.9 L420.3 305.7 L423.1 302.9 L424.1 301.6 L425.2 297.6 L425.9 293.5 L427 290.3 L428.5 287.3 L430.4 284.2 L432.6 281.3 L433.9 278.4 L435.8 271.3 L436.6 267.4 L437.3 266 L438.2 264.8 L439 263.3 L439.7 261.6 L439.9 259.9 L440.4 254.8 L440.1 250.8 L438.6 247.4 L437.4 246.5 L436.1 246.4 L434.1 246.7 L432.4 245.3 L432.8 244.1 L434.5 243.9 L435.7 243.3 L436.5 242.1 L438.1 238.4 L439 234.4 L439.1 232.7 L437.9 229.5 L436.9 225.6 L436.9 223.5 L437.9 221.1 L439.5 219.2 L440.9 218.7 L442.4 218.6 L443.7 217.8 L445 216.7 L445.7 215.5 L446.8 212.2 L447.2 210.3 L446.5 205.3 L447.2 203.9 L448.2 203 L449.6 203.7 L451 203.8 L452.6 203.6 L454.2 204.1 L454.5 205.4 L455.4 214 L456 215.1 L457.1 216 L458.4 215.9 L459.5 214.6 L460.3 212.8 L461.7 212.4 L466.2 214.3 L467.8 213 L468.9 210.9 L469.8 207.2 L469.3 203.8 L468.2 202.6 L467.1 202.8 L466.1 203.7 L465 204.2 L458.4 206 L458.5 202.2 L459.9 196.6 L460.7 194.8 L461.8 194 L464.6 195 L465.9 195.6 L469 198.3 Z',
+  'M53.1 694.9 L51.6 699.2 L50.4 699.8 L49.2 699.5 L47.9 697.1 L48.8 696.2 L50 696.6 L51 696.5 L53.3 693 L53.8 693.6 L53.1 694.9 Z',
+  'M43.1 701.3 L41.6 701.6 L39.7 701.2 L38 701.1 L38 700.3 L39.8 699.4 L39.8 698.3 L40.3 697.7 L44.3 699.1 L44.1 700.1 L43.1 701.3 Z',
+  'M150.4 636.7 L148.1 638 L147.2 639.5 L145 640 L142.9 642.1 L140.8 642.5 L140.9 644.2 L141.8 645.6 L140.4 645.9 L138.9 647.6 L138.8 648.9 L139.3 649.9 L139.3 650.4 L137.4 652 L135.6 652 L135.5 650.4 L135.6 649.2 L137.4 646.2 L137.4 642.7 L139.1 642.3 L139.7 641.9 L142.3 639.4 L142.8 638.3 L141.4 637.3 L141.5 636.1 L141.8 635.6 L143.9 636 L144.8 636.9 L145.2 637 L146.5 636.3 L147.1 635.1 L149.4 632.8 L150.3 630.4 L152.2 632.3 L151.7 634.9 L150.4 636.7 Z',
+  'M168.6 607.2 L167.6 607.8 L166.2 607.1 L165.8 603.9 L166.4 602.3 L167.5 602 L168.4 604.7 L169 605.9 L168.6 607.2 Z',
+  'M179.8 593.7 L177.6 595.9 L175.4 593.9 L172.7 592.5 L174 592.2 L174.7 591.6 L174.8 590.8 L176.6 589.5 L180.1 588.5 L181.2 588.4 L182.4 587.5 L182.8 586.6 L183.3 586.2 L185.6 585.1 L186.2 586.4 L186.1 587.4 L184.4 588 L182.8 589.4 L181.2 591.2 L179.9 591.9 L179.4 592.4 L179.8 593.7 Z',
+];
+const NATIONAL_OVERVIEW_STATION_IDS = new Set([
+  'sapporo',
+  'sendai',
+  'tokyo',
+  'yokohama',
+  'nagoya',
+  'osaka',
+  'fukuoka',
+  'naha',
+]);
+const NATIONAL_OVERVIEW_ZOOM = 1.6;
+
+function getMercatorY(latitude: number): number {
+  const radians = (latitude * Math.PI) / 180;
+  return Math.log(Math.tan(Math.PI / 4 + radians / 2));
+}
+
+function projectJapanCoordinate(longitude: number, latitude: number): { x: number; y: number } {
+  const x = JAPAN_GEO_OFFSET_X + (((longitude * Math.PI) / 180) - MERCATOR_MIN_X) * JAPAN_GEO_SCALE;
+  const y = JAPAN_GEO_OFFSET_Y + (MERCATOR_MAX_Y - getMercatorY(latitude)) * JAPAN_GEO_SCALE;
+
+  return {
+    x: Number(x.toFixed(1)),
+    y: Number(y.toFixed(1)),
+  };
+}
+
+function createNationalStation(station: Omit<Station, 'x' | 'y'> & { longitude: number; latitude: number }): Station {
+  const { longitude, latitude, ...stationData } = station;
+  return {
+    ...stationData,
+    ...projectJapanCoordinate(longitude, latitude),
+  };
+}
+
 const NATIONAL_STATIONS: Station[] = [
-  { id: 'sapporo', name: '札幌', region: '北海道', x: 522, y: 88, demand: 190, terrain: 'urban', labelDx: 12, labelDy: -8 },
-  { id: 'hakodate', name: '函館', region: '北海道', x: 493, y: 166, demand: 105, terrain: 'coastal', labelDx: -42, labelDy: 0 },
-  { id: 'aomori', name: '青森', region: '東北', x: 482, y: 226, demand: 96, terrain: 'coastal', labelDx: 10, labelDy: -8 },
-  { id: 'morioka', name: '盛岡', region: '東北', x: 499, y: 284, demand: 110, terrain: 'mountain', labelDx: 12, labelDy: 2 },
-  { id: 'sendai', name: '仙台', region: '東北', x: 489, y: 340, demand: 170, terrain: 'urban', labelDx: 12, labelDy: -6 },
-  { id: 'niigata', name: '新潟', region: '北陸', x: 430, y: 344, demand: 128, terrain: 'coastal', labelDx: -42, labelDy: 1 },
-  { id: 'kanazawa', name: '金沢', region: '北陸', x: 362, y: 406, demand: 118, terrain: 'coastal', labelDx: -43, labelDy: -2 },
-  { id: 'tokyo', name: '東京', region: '関東', x: 470, y: 454, demand: 320, terrain: 'urban', labelDx: 12, labelDy: -10 },
-  { id: 'yokohama', name: '横浜', region: '関東', x: 452, y: 477, demand: 245, terrain: 'urban', labelDx: 12, labelDy: 12 },
-  { id: 'shizuoka', name: '静岡', region: '中部', x: 413, y: 490, demand: 112, terrain: 'coastal', labelDx: 8, labelDy: 16 },
-  { id: 'nagoya', name: '名古屋', region: '中部', x: 378, y: 504, demand: 210, terrain: 'urban', labelDx: -55, labelDy: 0 },
-  { id: 'kyoto', name: '京都', region: '関西', x: 337, y: 520, demand: 175, terrain: 'urban', labelDx: 8, labelDy: -18 },
-  { id: 'osaka', name: '大阪', region: '関西', x: 320, y: 540, demand: 255, terrain: 'urban', labelDx: -50, labelDy: 6 },
-  { id: 'kobe', name: '神戸', region: '関西', x: 302, y: 548, demand: 154, terrain: 'coastal', labelDx: -42, labelDy: 16 },
-  { id: 'okayama', name: '岡山', region: '中国', x: 264, y: 558, demand: 116, terrain: 'plain', labelDx: -43, labelDy: -8 },
-  { id: 'hiroshima', name: '広島', region: '中国', x: 216, y: 574, demand: 152, terrain: 'coastal', labelDx: -45, labelDy: 4 },
-  { id: 'matsuyama', name: '松山', region: '四国', x: 248, y: 616, demand: 92, terrain: 'coastal', labelDx: 9, labelDy: 14 },
-  { id: 'fukuoka', name: '福岡', region: '九州', x: 156, y: 608, demand: 198, terrain: 'urban', labelDx: -45, labelDy: -5 },
-  { id: 'kumamoto', name: '熊本', region: '九州', x: 139, y: 658, demand: 112, terrain: 'plain', labelDx: 10, labelDy: 8 },
-  { id: 'kagoshima', name: '鹿児島', region: '九州', x: 123, y: 710, demand: 104, terrain: 'coastal', labelDx: 10, labelDy: 8 },
-  { id: 'naha', name: '那覇', region: '沖縄', x: 78, y: 718, demand: 132, terrain: 'coastal', labelDx: 10, labelDy: -10 },
+  createNationalStation({ id: 'sapporo', name: '札幌', region: '北海道', longitude: 141.3545, latitude: 43.0618, demand: 190, terrain: 'urban', labelDx: 12, labelDy: -8 }),
+  createNationalStation({ id: 'hakodate', name: '函館', region: '北海道', longitude: 140.7288, latitude: 41.7687, demand: 105, terrain: 'coastal', labelDx: -42, labelDy: 0 }),
+  createNationalStation({ id: 'aomori', name: '青森', region: '東北', longitude: 140.7347, latitude: 40.8222, demand: 96, terrain: 'coastal', labelDx: 10, labelDy: -8 }),
+  createNationalStation({ id: 'morioka', name: '盛岡', region: '東北', longitude: 141.1527, latitude: 39.7036, demand: 110, terrain: 'mountain', labelDx: 12, labelDy: 2 }),
+  createNationalStation({ id: 'sendai', name: '仙台', region: '東北', longitude: 140.8719, latitude: 38.2682, demand: 170, terrain: 'urban', labelDx: 12, labelDy: -6 }),
+  createNationalStation({ id: 'niigata', name: '新潟', region: '北陸', longitude: 139.0236, latitude: 37.9161, demand: 128, terrain: 'coastal', labelDx: -42, labelDy: 1 }),
+  createNationalStation({ id: 'kanazawa', name: '金沢', region: '北陸', longitude: 136.6562, latitude: 36.5613, demand: 118, terrain: 'coastal', labelDx: -43, labelDy: -2 }),
+  createNationalStation({ id: 'tokyo', name: '東京', region: '関東', longitude: 139.7671, latitude: 35.6812, demand: 320, terrain: 'urban', labelDx: 12, labelDy: -10 }),
+  createNationalStation({ id: 'yokohama', name: '横浜', region: '関東', longitude: 139.638, latitude: 35.4437, demand: 245, terrain: 'urban', labelDx: 12, labelDy: 12 }),
+  createNationalStation({ id: 'shizuoka', name: '静岡', region: '中部', longitude: 138.3831, latitude: 34.9756, demand: 112, terrain: 'coastal', labelDx: 8, labelDy: 16 }),
+  createNationalStation({ id: 'nagoya', name: '名古屋', region: '中部', longitude: 136.8815, latitude: 35.1709, demand: 210, terrain: 'urban', labelDx: -55, labelDy: 0 }),
+  createNationalStation({ id: 'kyoto', name: '京都', region: '関西', longitude: 135.7588, latitude: 34.9858, demand: 175, terrain: 'urban', labelDx: 8, labelDy: -18 }),
+  createNationalStation({ id: 'osaka', name: '大阪', region: '関西', longitude: 135.4959, latitude: 34.7025, demand: 255, terrain: 'urban', labelDx: -50, labelDy: 6 }),
+  createNationalStation({ id: 'kobe', name: '神戸', region: '関西', longitude: 135.1955, latitude: 34.6901, demand: 154, terrain: 'coastal', labelDx: -42, labelDy: 16 }),
+  createNationalStation({ id: 'okayama', name: '岡山', region: '中国', longitude: 133.917, latitude: 34.665, demand: 116, terrain: 'plain', labelDx: -43, labelDy: -8 }),
+  createNationalStation({ id: 'hiroshima', name: '広島', region: '中国', longitude: 132.475, latitude: 34.397, demand: 152, terrain: 'coastal', labelDx: -45, labelDy: 4 }),
+  createNationalStation({ id: 'matsuyama', name: '松山', region: '四国', longitude: 132.765, latitude: 33.839, demand: 92, terrain: 'coastal', labelDx: 9, labelDy: 14 }),
+  createNationalStation({ id: 'fukuoka', name: '福岡', region: '九州', longitude: 130.421, latitude: 33.59, demand: 198, terrain: 'urban', labelDx: -45, labelDy: -5 }),
+  createNationalStation({ id: 'kumamoto', name: '熊本', region: '九州', longitude: 130.707, latitude: 32.789, demand: 112, terrain: 'plain', labelDx: 10, labelDy: 8 }),
+  createNationalStation({ id: 'kagoshima', name: '鹿児島', region: '九州', longitude: 130.541, latitude: 31.596, demand: 104, terrain: 'coastal', labelDx: 10, labelDy: 8 }),
+  createNationalStation({ id: 'naha', name: '那覇', region: '沖縄', longitude: 127.679, latitude: 26.212, demand: 132, terrain: 'coastal', labelDx: 10, labelDy: -10 }),
 ];
 
 const TOKYO_STATIONS: Station[] = [
@@ -177,47 +255,47 @@ const TOKYO_STATIONS: Station[] = [
 ];
 
 const NATIONAL_DETAIL_STATIONS: Station[] = [
-  { id: 'kanda', name: '神田', region: '山手線', x: 468, y: 449, demand: 142, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'akihabara', name: '秋葉原', region: '山手線', x: 467, y: 445, demand: 176, terrain: 'urban', labelDx: -28, labelDy: -4, minZoom: 3.8, labelMinZoom: 4.8 },
-  { id: 'okachimachi', name: '御徒町', region: '山手線', x: 468, y: 441, demand: 106, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'ueno', name: '上野', region: '山手線・常磐線', x: 469, y: 437, demand: 180, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 2.4, labelMinZoom: 3.2 },
-  { id: 'uguisudani', name: '鶯谷', region: '山手線', x: 469, y: 433, demand: 74, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'nippori', name: '日暮里', region: '山手線・常磐線', x: 470, y: 429, demand: 142, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 3.2, labelMinZoom: 4.2 },
-  { id: 'nishi-nippori', name: '西日暮里', region: '山手線', x: 467, y: 426, demand: 126, terrain: 'urban', labelDx: -34, labelDy: -4, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'tabata', name: '田端', region: '山手線', x: 463, y: 424, demand: 118, terrain: 'urban', labelDx: -28, labelDy: 2, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'komagome', name: '駒込', region: '山手線', x: 459, y: 425, demand: 104, terrain: 'urban', labelDx: -30, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'sugamo', name: '巣鴨', region: '山手線', x: 454, y: 428, demand: 112, terrain: 'urban', labelDx: -26, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'otsuka', name: '大塚', region: '山手線', x: 450, y: 431, demand: 98, terrain: 'urban', labelDx: -26, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'ikebukuro', name: '池袋', region: '山手線', x: 444, y: 437, demand: 255, terrain: 'urban', labelDx: -26, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 },
-  { id: 'mejiro', name: '目白', region: '山手線', x: 442, y: 442, demand: 88, terrain: 'urban', labelDx: -26, labelDy: 5, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'takadanobaba', name: '高田馬場', region: '山手線', x: 441, y: 447, demand: 154, terrain: 'urban', labelDx: -42, labelDy: 4, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'shin-okubo', name: '新大久保', region: '山手線', x: 443, y: 452, demand: 86, terrain: 'urban', labelDx: -38, labelDy: 5, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'shinjuku', name: '新宿', region: '山手線', x: 445, y: 457, demand: 284, terrain: 'urban', labelDx: -27, labelDy: 4, minZoom: 2.4, labelMinZoom: 3.2 },
-  { id: 'yoyogi', name: '代々木', region: '山手線', x: 449, y: 460, demand: 94, terrain: 'urban', labelDx: -28, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'harajuku', name: '原宿', region: '山手線', x: 452, y: 464, demand: 96, terrain: 'urban', labelDx: -28, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'shibuya', name: '渋谷', region: '山手線', x: 456, y: 469, demand: 224, terrain: 'urban', labelDx: -27, labelDy: 8, minZoom: 2.8, labelMinZoom: 3.5 },
-  { id: 'ebisu', name: '恵比寿', region: '山手線', x: 460, y: 473, demand: 116, terrain: 'urban', labelDx: -32, labelDy: 8, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'meguro', name: '目黒', region: '山手線', x: 465, y: 477, demand: 112, terrain: 'urban', labelDx: -27, labelDy: 10, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'gotanda', name: '五反田', region: '山手線', x: 470, y: 478, demand: 118, terrain: 'urban', labelDx: 4, labelDy: 12, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'osaki', name: '大崎', region: '山手線', x: 475, y: 477, demand: 126, terrain: 'urban', labelDx: 4, labelDy: 10, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'shinagawa', name: '品川', region: '山手線', x: 478, y: 472, demand: 205, terrain: 'urban', labelDx: 4, labelDy: 9, minZoom: 2.8, labelMinZoom: 3.5 },
-  { id: 'takanawa-gateway', name: '高輪ゲートウェイ', region: '山手線', x: 477, y: 467, demand: 84, terrain: 'urban', labelDx: 4, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'tamachi', name: '田町', region: '山手線', x: 476, y: 463, demand: 116, terrain: 'urban', labelDx: 5, labelDy: 6, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'hamamatsucho', name: '浜松町', region: '山手線', x: 475, y: 459, demand: 112, terrain: 'urban', labelDx: 5, labelDy: 4, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'shimbashi', name: '新橋', region: '山手線', x: 473, y: 456, demand: 152, terrain: 'urban', labelDx: 5, labelDy: 2, minZoom: 3.8, labelMinZoom: 4.8 },
-  { id: 'yurakucho', name: '有楽町', region: '山手線', x: 471, y: 455, demand: 132, terrain: 'urban', labelDx: 5, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'minami-senju', name: '南千住', region: '常磐線', x: 477, y: 430, demand: 112, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 3.8, labelMinZoom: 4.8 },
-  { id: 'kita-senju', name: '北千住', region: '常磐線', x: 483, y: 426, demand: 170, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 },
-  { id: 'ayase', name: '綾瀬', region: '常磐線各駅停車', x: 489, y: 423, demand: 126, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'kameari', name: '亀有', region: '常磐線各駅停車', x: 494, y: 421, demand: 104, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'kanamachi', name: '金町', region: '常磐線各駅停車', x: 500, y: 418, demand: 108, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'matsudo', name: '松戸', region: '常磐線', x: 506, y: 414, demand: 128, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 },
-  { id: 'kashiwa', name: '柏', region: '常磐線', x: 517, y: 405, demand: 142, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 3.2, labelMinZoom: 4.2 },
-  { id: 'abiko', name: '我孫子', region: '常磐線', x: 523, y: 400, demand: 98, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 },
-  { id: 'toride', name: '取手', region: '常磐線', x: 530, y: 394, demand: 92, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 },
-  { id: 'ushiku', name: '牛久', region: '常磐線', x: 538, y: 383, demand: 74, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.8, labelMinZoom: 5.8 },
-  { id: 'tsuchiura', name: '土浦', region: '常磐線', x: 545, y: 374, demand: 82, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 },
-  { id: 'mito', name: '水戸', region: '常磐線', x: 557, y: 344, demand: 118, terrain: 'plain', labelDx: 5, labelDy: -6, minZoom: 2.8, labelMinZoom: 3.5 },
+  createNationalStation({ id: 'kanda', name: '神田', region: '山手線', longitude: 139.7709, latitude: 35.6917, demand: 142, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'akihabara', name: '秋葉原', region: '山手線', longitude: 139.773, latitude: 35.6984, demand: 176, terrain: 'urban', labelDx: -28, labelDy: -4, minZoom: 3.8, labelMinZoom: 4.8 }),
+  createNationalStation({ id: 'okachimachi', name: '御徒町', region: '山手線', longitude: 139.7745, latitude: 35.7074, demand: 106, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'ueno', name: '上野', region: '山手線・常磐線', longitude: 139.777, latitude: 35.7138, demand: 180, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 2.4, labelMinZoom: 3.2 }),
+  createNationalStation({ id: 'uguisudani', name: '鶯谷', region: '山手線', longitude: 139.778, latitude: 35.7215, demand: 74, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'nippori', name: '日暮里', region: '山手線・常磐線', longitude: 139.7714, latitude: 35.7278, demand: 142, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 3.2, labelMinZoom: 4.2 }),
+  createNationalStation({ id: 'nishi-nippori', name: '西日暮里', region: '山手線', longitude: 139.7669, latitude: 35.7319, demand: 126, terrain: 'urban', labelDx: -34, labelDy: -4, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'tabata', name: '田端', region: '山手線', longitude: 139.7612, latitude: 35.738, demand: 118, terrain: 'urban', labelDx: -28, labelDy: 2, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'komagome', name: '駒込', region: '山手線', longitude: 139.748, latitude: 35.7365, demand: 104, terrain: 'urban', labelDx: -30, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'sugamo', name: '巣鴨', region: '山手線', longitude: 139.7393, latitude: 35.7335, demand: 112, terrain: 'urban', labelDx: -26, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'otsuka', name: '大塚', region: '山手線', longitude: 139.7286, latitude: 35.7314, demand: 98, terrain: 'urban', labelDx: -26, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'ikebukuro', name: '池袋', region: '山手線', longitude: 139.7109, latitude: 35.7295, demand: 255, terrain: 'urban', labelDx: -26, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 }),
+  createNationalStation({ id: 'mejiro', name: '目白', region: '山手線', longitude: 139.7062, latitude: 35.7212, demand: 88, terrain: 'urban', labelDx: -26, labelDy: 5, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'takadanobaba', name: '高田馬場', region: '山手線', longitude: 139.7037, latitude: 35.7123, demand: 154, terrain: 'urban', labelDx: -42, labelDy: 4, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'shin-okubo', name: '新大久保', region: '山手線', longitude: 139.7003, latitude: 35.7013, demand: 86, terrain: 'urban', labelDx: -38, labelDy: 5, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'shinjuku', name: '新宿', region: '山手線', longitude: 139.7005, latitude: 35.6909, demand: 284, terrain: 'urban', labelDx: -27, labelDy: 4, minZoom: 2.4, labelMinZoom: 3.2 }),
+  createNationalStation({ id: 'yoyogi', name: '代々木', region: '山手線', longitude: 139.702, latitude: 35.6831, demand: 94, terrain: 'urban', labelDx: -28, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'harajuku', name: '原宿', region: '山手線', longitude: 139.7026, latitude: 35.6702, demand: 96, terrain: 'urban', labelDx: -28, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'shibuya', name: '渋谷', region: '山手線', longitude: 139.7016, latitude: 35.658, demand: 224, terrain: 'urban', labelDx: -27, labelDy: 8, minZoom: 2.8, labelMinZoom: 3.5 }),
+  createNationalStation({ id: 'ebisu', name: '恵比寿', region: '山手線', longitude: 139.7101, latitude: 35.6467, demand: 116, terrain: 'urban', labelDx: -32, labelDy: 8, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'meguro', name: '目黒', region: '山手線', longitude: 139.7154, latitude: 35.6339, demand: 112, terrain: 'urban', labelDx: -27, labelDy: 10, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'gotanda', name: '五反田', region: '山手線', longitude: 139.7238, latitude: 35.6264, demand: 118, terrain: 'urban', labelDx: 4, labelDy: 12, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'osaki', name: '大崎', region: '山手線', longitude: 139.7284, latitude: 35.6197, demand: 126, terrain: 'urban', labelDx: 4, labelDy: 10, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'shinagawa', name: '品川', region: '山手線', longitude: 139.7388, latitude: 35.6285, demand: 205, terrain: 'urban', labelDx: 4, labelDy: 9, minZoom: 2.8, labelMinZoom: 3.5 }),
+  createNationalStation({ id: 'takanawa-gateway', name: '高輪ゲートウェイ', region: '山手線', longitude: 139.7407, latitude: 35.6355, demand: 84, terrain: 'urban', labelDx: 4, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'tamachi', name: '田町', region: '山手線', longitude: 139.7476, latitude: 35.6457, demand: 116, terrain: 'urban', labelDx: 5, labelDy: 6, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'hamamatsucho', name: '浜松町', region: '山手線', longitude: 139.7571, latitude: 35.6553, demand: 112, terrain: 'urban', labelDx: 5, labelDy: 4, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'shimbashi', name: '新橋', region: '山手線', longitude: 139.7586, latitude: 35.6663, demand: 152, terrain: 'urban', labelDx: 5, labelDy: 2, minZoom: 3.8, labelMinZoom: 4.8 }),
+  createNationalStation({ id: 'yurakucho', name: '有楽町', region: '山手線', longitude: 139.763, latitude: 35.675, demand: 132, terrain: 'urban', labelDx: 5, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'minami-senju', name: '南千住', region: '常磐線', longitude: 139.799, latitude: 35.733, demand: 112, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 3.8, labelMinZoom: 4.8 }),
+  createNationalStation({ id: 'kita-senju', name: '北千住', region: '常磐線', longitude: 139.805, latitude: 35.749, demand: 170, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 }),
+  createNationalStation({ id: 'ayase', name: '綾瀬', region: '常磐線各駅停車', longitude: 139.825, latitude: 35.762, demand: 126, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'kameari', name: '亀有', region: '常磐線各駅停車', longitude: 139.847, latitude: 35.766, demand: 104, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'kanamachi', name: '金町', region: '常磐線各駅停車', longitude: 139.87, latitude: 35.769, demand: 108, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'matsudo', name: '松戸', region: '常磐線', longitude: 139.9, latitude: 35.784, demand: 128, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 }),
+  createNationalStation({ id: 'kashiwa', name: '柏', region: '常磐線', longitude: 139.97, latitude: 35.862, demand: 142, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 3.2, labelMinZoom: 4.2 }),
+  createNationalStation({ id: 'abiko', name: '我孫子', region: '常磐線', longitude: 140.012, latitude: 35.872, demand: 98, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 }),
+  createNationalStation({ id: 'toride', name: '取手', region: '常磐線', longitude: 140.063, latitude: 35.897, demand: 92, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 }),
+  createNationalStation({ id: 'ushiku', name: '牛久', region: '常磐線', longitude: 140.142, latitude: 35.975, demand: 74, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.8, labelMinZoom: 5.8 }),
+  createNationalStation({ id: 'tsuchiura', name: '土浦', region: '常磐線', longitude: 140.207, latitude: 36.078, demand: 82, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 }),
+  createNationalStation({ id: 'mito', name: '水戸', region: '常磐線', longitude: 140.476, latitude: 36.371, demand: 118, terrain: 'plain', labelDx: 5, labelDy: -6, minZoom: 2.8, labelMinZoom: 3.5 }),
 ];
 
 const NATIONAL_BASE_STATIONS = [...NATIONAL_STATIONS, ...NATIONAL_DETAIL_STATIONS];
@@ -674,14 +752,6 @@ export default function RailwayPlannerPage() {
     [customStations, mapScope, selectedPrefectureId],
   );
 
-  const visibleStations = useMemo(
-    () => allStations.filter((station) => {
-      const isRouteStation = routeStationIds.includes(station.id);
-      return isRouteStation || zoomLevel >= (station.minZoom ?? 1);
-    }),
-    [allStations, routeStationIds, zoomLevel],
-  );
-
   const routeStations = useMemo(
     () => routeStationIds
       .map((id) => getStationById(allStations, id))
@@ -689,18 +759,60 @@ export default function RailwayPlannerPage() {
     [allStations, routeStationIds],
   );
 
-  const routeSegments = useMemo(
+  const routeDistanceScale = useMemo(
     () => {
       const presetRoutes = mapScope === 'prefecture'
         ? getPrefectureZoom(selectedPrefectureId).presets
         : NATIONAL_PRESET_ROUTES;
       const selectedPreset = presetRoutes.find((preset) => preset.id === selectedPresetId);
-      const distanceScale = selectedPreset?.distanceScale ?? (mapScope === 'prefecture'
+      return selectedPreset?.distanceScale ?? (mapScope === 'prefecture'
         ? getPrefectureZoom(selectedPrefectureId).distanceScale
         : 1.88);
-      return createSegments(routeStations, distanceScale);
     },
-    [mapScope, routeStations, selectedPrefectureId, selectedPresetId],
+    [mapScope, selectedPrefectureId, selectedPresetId],
+  );
+
+  const routeSegments = useMemo(
+    () => createSegments(routeStations, routeDistanceScale),
+    [routeDistanceScale, routeStations],
+  );
+
+  const mapRouteStations = useMemo(
+    () => {
+      if (mapScope !== 'national' || zoomLevel >= 2.2) return routeStations;
+
+      return routeStations.filter((station, index) => (
+        index === 0
+        || index === routeStations.length - 1
+        || !station.minZoom
+        || station.demand >= 170
+      ));
+    },
+    [mapScope, routeStations, zoomLevel],
+  );
+
+  const mapRouteStationIds = useMemo(
+    () => new Set(mapRouteStations.map((station) => station.id)),
+    [mapRouteStations],
+  );
+
+  const mapRouteSegments = useMemo(
+    () => createSegments(mapRouteStations, routeDistanceScale),
+    [mapRouteStations, routeDistanceScale],
+  );
+
+  const visibleStations = useMemo(
+    () => allStations.filter((station) => {
+      const isVisibleRouteStation = mapRouteStationIds.has(station.id);
+      const isReducedNationalOverview = mapScope === 'national' && zoomLevel < NATIONAL_OVERVIEW_ZOOM;
+      const isNationalOverviewStation = !station.minZoom && NATIONAL_OVERVIEW_STATION_IDS.has(station.id);
+      if (isReducedNationalOverview) {
+        return isVisibleRouteStation || isNationalOverviewStation;
+      }
+
+      return isVisibleRouteStation || zoomLevel >= (station.minZoom ?? 1);
+    }),
+    [allStations, mapRouteStationIds, mapScope, zoomLevel],
   );
 
   const routeMetrics = useMemo(() => {
@@ -1392,11 +1504,9 @@ export default function RailwayPlannerPage() {
               <rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#railway-grid)" opacity="0.42" />
               {mapScope === 'national' ? (
                 <g className={styles.landLayer}>
-                  <path d="M482 61 C517 37 565 51 585 82 C604 112 576 153 537 165 C497 178 458 153 452 118 C448 92 462 75 482 61 Z" />
-                  <path d="M493 212 C533 248 556 298 574 343 C584 378 575 418 542 452 C513 480 473 496 433 504 C397 520 356 528 318 542 C282 558 246 575 207 575 C181 574 178 548 205 532 C249 506 300 500 333 477 C366 455 383 415 410 383 C438 350 455 312 450 275 C445 242 464 220 493 212 Z" />
-                  <path d="M235 590 C277 576 315 584 331 606 C313 628 263 631 228 613 C218 603 224 594 235 590 Z" />
-                  <path d="M121 594 C158 574 198 590 210 627 C221 662 196 708 157 725 C119 741 88 716 93 676 C97 641 100 611 121 594 Z" />
-                  <path d="M61 708 C82 694 107 701 118 719 C105 739 72 746 51 729 C43 721 48 713 61 708 Z" />
+                  {NATIONAL_LAND_PATHS.map((path, index) => (
+                    <path key={index} d={path} />
+                  ))}
                 </g>
               ) : selectedPrefecture.id === 'tokyo' ? (
                 <>
@@ -1430,7 +1540,7 @@ export default function RailwayPlannerPage() {
               )}
 
               <g>
-                {routeSegments.map((segment, index) => (
+                {mapRouteSegments.map((segment, index) => (
                   <g key={`${segment.from.id}-${segment.to.id}-${index}`}>
                     <line
                       x1={segment.from.x}
@@ -1470,9 +1580,13 @@ export default function RailwayPlannerPage() {
                 {visibleStations.map((station) => {
                   const routeIndex = routeStationIds.indexOf(station.id);
                   const inRoute = routeIndex >= 0;
+                  const isVisibleRouteStation = mapRouteStationIds.has(station.id);
                   const isTerminal = routeIndex === 0 || routeIndex === routeStationIds.length - 1;
                   const stopsHere = inRoute && isRouteStop(station, routeIndex, routeStations.length, serviceType);
-                  const showStationLabel = zoomLevel >= (station.labelMinZoom ?? station.minZoom ?? 1);
+                  const showStationLabel = (
+                    isVisibleRouteStation
+                    || zoomLevel >= (station.labelMinZoom ?? station.minZoom ?? 1)
+                  );
                   const isDetailedStation = Boolean(station.minZoom);
                   const labelX = station.x + (station.labelDx ?? 10);
                   const labelY = station.y + (station.labelDy ?? -10);

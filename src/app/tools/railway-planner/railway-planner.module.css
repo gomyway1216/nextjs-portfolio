@@ -568,6 +568,7 @@
   fill: none;
   stroke: color-mix(in srgb, #64748b 24%, transparent);
   stroke-width: 0.7;
+  vector-effect: non-scaling-stroke;
 }
 
 .landLayer path {
@@ -575,6 +576,7 @@
   stroke: color-mix(in srgb, #166534 38%, var(--border) 62%);
   stroke-width: 2;
   filter: drop-shadow(0 18px 20px rgba(15, 23, 42, 0.08));
+  vector-effect: non-scaling-stroke;
 }
 
 .landLayer .bayShape {
@@ -582,6 +584,7 @@
   stroke: color-mix(in srgb, #0284c7 30%, var(--border) 70%);
   stroke-width: 1.5;
   filter: none;
+  vector-effect: non-scaling-stroke;
 }
 
 .tokyoGuideLayer {
@@ -594,6 +597,7 @@
   stroke-dasharray: 10 8;
   stroke-linecap: round;
   stroke-width: 4;
+  vector-effect: non-scaling-stroke;
 }
 
 .wardBoundary {
@@ -602,6 +606,7 @@
   stroke-dasharray: 4 8;
   stroke-linecap: round;
   stroke-width: 2;
+  vector-effect: non-scaling-stroke;
 }
 
 .mapAreaLabel {
@@ -620,6 +625,7 @@
   stroke-linecap: round;
   stroke-width: 18;
   opacity: 0.92;
+  vector-effect: non-scaling-stroke;
 }
 
 .trackLine {
@@ -627,6 +633,7 @@
   stroke-linecap: round;
   stroke-width: 3.4;
   filter: drop-shadow(0 5px 5px rgba(15, 23, 42, 0.18));
+  vector-effect: non-scaling-stroke;
 }
 
 .serviceLine {
@@ -634,6 +641,7 @@
   stroke-linecap: round;
   stroke-width: 2.4;
   opacity: 0.95;
+  vector-effect: non-scaling-stroke;
 }
 
 .stationButton {
@@ -650,6 +658,7 @@
   fill: color-mix(in srgb, #f97316 20%, transparent);
   stroke: color-mix(in srgb, #f97316 36%, transparent);
   stroke-width: 1;
+  vector-effect: non-scaling-stroke;
 }
 
 .stationDot {
@@ -657,6 +666,7 @@
   stroke: #0f172a;
   stroke-width: 2;
   transition: fill 150ms ease, r 150ms ease, stroke 150ms ease;
+  vector-effect: non-scaling-stroke;
 }
 
 .stationButton:hover .stationDot {
@@ -683,6 +693,12 @@
   fill: none;
   stroke: color-mix(in srgb, #f59e0b 78%, #fff 22%);
   stroke-width: 2.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.stationHitArea {
+  fill: transparent;
+  pointer-events: all;
 }
 
 .routeIndexText {

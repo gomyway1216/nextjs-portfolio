@@ -36,6 +36,13 @@ const MAP_WIDTH = 620;
 const MAP_HEIGHT = 760;
 const MAP_ASPECT_RATIO = MAP_HEIGHT / MAP_WIDTH;
 const MIN_MAP_VIEW_WIDTH = MAP_WIDTH / 12;
+const GUIDE_LABEL_FONT_SIZE = 13;
+const STATION_LABEL_FONT_SIZE = 12;
+const DETAIL_STATION_LABEL_FONT_SIZE = 10;
+const ROUTE_INDEX_FONT_SIZE = 8;
+const NATIONAL_ROUTE_DENSE_LABEL_ZOOM = 6.4;
+const NATIONAL_DETAIL_LABEL_ZOOM = 8.2;
+const NATIONAL_MAJOR_ROUTE_LABEL_DEMAND = 170;
 const DEFAULT_MAP_VIEW: MapViewBox = {
   x: 0,
   y: 0,
@@ -729,6 +736,14 @@ export default function RailwayPlannerPage() {
     && (mapScope !== 'prefecture' || station.prefectureId === selectedPrefectureId)
   ));
   const zoomLevel = MAP_WIDTH / mapView.width;
+  const inverseZoom = 1 / zoomLevel;
+  const mapAreaLabelStyle = useMemo<CSSProperties>(
+    () => ({
+      fontSize: `${GUIDE_LABEL_FONT_SIZE * inverseZoom}px`,
+      strokeWidth: 4 * inverseZoom,
+    }),
+    [inverseZoom],
+  );
   const selectedPrefectureDescription = selectedPrefecture.id === DEFAULT_PREFECTURE_ID
     ? rp('prefectureDescriptions.tokyo')
     : rp('prefectureDescriptions.generic', { prefecture: selectedPrefecture.label });
@@ -1518,9 +1533,9 @@ export default function RailwayPlannerPage() {
                     <path className={styles.riverLine} d="M190 92 C254 166 323 217 382 220 C432 223 486 195 591 119" />
                     <path className={styles.riverLine} d="M345 266 C365 314 374 374 392 414 C415 463 447 513 491 552" />
                     <path className={styles.wardBoundary} d="M156 382 C239 352 329 356 432 378 C508 396 560 440 595 506" />
-                    <text x="392" y="205" className={styles.mapAreaLabel}>{rp('map.labels.arakawa')}</text>
-                    <text x="410" y="386" className={styles.mapAreaLabel}>{rp('map.labels.sumidaRiver')}</text>
-                    <text x="412" y="556" className={styles.mapAreaLabel}>{rp('map.labels.tokyoBay')}</text>
+                    <text x="392" y="205" className={styles.mapAreaLabel} style={mapAreaLabelStyle}>{rp('map.labels.arakawa')}</text>
+                    <text x="410" y="386" className={styles.mapAreaLabel} style={mapAreaLabelStyle}>{rp('map.labels.sumidaRiver')}</text>
+                    <text x="412" y="556" className={styles.mapAreaLabel} style={mapAreaLabelStyle}>{rp('map.labels.tokyoBay')}</text>
                   </g>
                 </>
               ) : (
@@ -1532,9 +1547,9 @@ export default function RailwayPlannerPage() {
                     <path className={styles.riverLine} d="M142 172 C234 234 322 256 450 216 C512 196 558 226 590 278" />
                     <path className={styles.riverLine} d="M196 570 C250 486 318 424 406 384 C492 344 545 276 579 176" />
                     <path className={styles.wardBoundary} d="M96 398 C184 344 286 332 392 366 C478 394 550 452 594 524" />
-                    <text x="84" y="126" className={styles.mapAreaLabel}>{rp('map.labels.prefectureZoom', { prefecture: selectedPrefecture.label })}</text>
-                    <text x="404" y="246" className={styles.mapAreaLabel}>{rp('map.labels.northConnector')}</text>
-                    <text x="242" y="590" className={styles.mapAreaLabel}>{rp('map.labels.southConnector')}</text>
+                    <text x="84" y="126" className={styles.mapAreaLabel} style={mapAreaLabelStyle}>{rp('map.labels.prefectureZoom', { prefecture: selectedPrefecture.label })}</text>
+                    <text x="404" y="246" className={styles.mapAreaLabel} style={mapAreaLabelStyle}>{rp('map.labels.northConnector')}</text>
+                    <text x="242" y="590" className={styles.mapAreaLabel} style={mapAreaLabelStyle}>{rp('map.labels.southConnector')}</text>
                   </g>
                 </>
               )}
@@ -1550,7 +1565,7 @@ export default function RailwayPlannerPage() {
                       className={styles.routeHalo}
                     />
                     {getTrackOffsets(trackType).map((offset) => {
-                      const line = getOffsetSegment(segment.from, segment.to, offset);
+                      const line = getOffsetSegment(segment.from, segment.to, offset * inverseZoom);
                       return (
                         <line
                           key={offset}
@@ -1583,13 +1598,32 @@ export default function RailwayPlannerPage() {
                   const isVisibleRouteStation = mapRouteStationIds.has(station.id);
                   const isTerminal = routeIndex === 0 || routeIndex === routeStationIds.length - 1;
                   const stopsHere = inRoute && isRouteStop(station, routeIndex, routeStations.length, serviceType);
-                  const showStationLabel = (
-                    isVisibleRouteStation
-                    || zoomLevel >= (station.labelMinZoom ?? station.minZoom ?? 1)
-                  );
                   const isDetailedStation = Boolean(station.minZoom);
-                  const labelX = station.x + (station.labelDx ?? 10);
-                  const labelY = station.y + (station.labelDy ?? -10);
+                  const isNationalDetailedStation = mapScope === 'national' && isDetailedStation;
+                  const labelZoom = station.labelMinZoom ?? station.minZoom ?? 1;
+                  const showRouteLabel = isVisibleRouteStation && (
+                    !isNationalDetailedStation
+                    || isTerminal
+                    || station.demand >= NATIONAL_MAJOR_ROUTE_LABEL_DEMAND
+                    || zoomLevel >= Math.max(labelZoom, NATIONAL_ROUTE_DENSE_LABEL_ZOOM)
+                  );
+                  const showStationLabel = (
+                    showRouteLabel
+                    || (
+                      !inRoute
+                      && (!isNationalDetailedStation || zoomLevel >= NATIONAL_DETAIL_LABEL_ZOOM)
+                      && zoomLevel >= labelZoom
+                    )
+                  );
+                  const labelX = station.x + (station.labelDx ?? 10) * inverseZoom;
+                  const labelY = station.y + (station.labelDy ?? -10) * inverseZoom;
+                  const stationLabelStyle: CSSProperties = {
+                    fontSize: `${(isDetailedStation ? DETAIL_STATION_LABEL_FONT_SIZE : STATION_LABEL_FONT_SIZE) * inverseZoom}px`,
+                    strokeWidth: 4 * inverseZoom,
+                  };
+                  const routeIndexStyle: CSSProperties = {
+                    fontSize: `${ROUTE_INDEX_FONT_SIZE * inverseZoom}px`,
+                  };
                   return (
                     <g
                       key={station.id}
@@ -1611,31 +1645,42 @@ export default function RailwayPlannerPage() {
                         <circle
                           cx={station.x}
                           cy={station.y}
-                          r={Math.max(10, Math.min(24, station.demand / 12))}
+                          r={Math.max(10, Math.min(24, station.demand / 12)) * inverseZoom}
                           className={styles.demandCircle}
                         />
                       )}
                       <circle
                         cx={station.x}
                         cy={station.y}
-                        r={inRoute ? (isTerminal ? 8.5 : 6.8) : 4.5}
+                        r={(inRoute ? (isTerminal ? 8.5 : 6.8) : 4.5) * inverseZoom}
                         className={styles.stationDot}
                       />
                       {stopsHere && (
                         <circle
                           cx={station.x}
                           cy={station.y}
-                          r={inRoute ? 12 : 8}
+                          r={(inRoute ? 12 : 8) * inverseZoom}
                           className={styles.stopRing}
                         />
                       )}
+                      <circle
+                        cx={station.x}
+                        cy={station.y}
+                        r={14 * inverseZoom}
+                        className={styles.stationHitArea}
+                      />
                       {inRoute && (
-                        <text x={station.x} y={station.y + 3.5} className={styles.routeIndexText}>
+                        <text
+                          x={station.x}
+                          y={station.y + 3.5 * inverseZoom}
+                          className={styles.routeIndexText}
+                          style={routeIndexStyle}
+                        >
                           {routeIndex + 1}
                         </text>
                       )}
                       {showStationLabel && (
-                        <text x={labelX} y={labelY} className={styles.stationLabel}>
+                        <text x={labelX} y={labelY} className={styles.stationLabel} style={stationLabelStyle}>
                           {station.name}
                         </text>
                       )}

@@ -14,8 +14,13 @@ import Footer from '@/components/footer/FooterAnimation';
 import useDocumentTitle from '@/components/useDocumentTitle';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from 'next-themes';
+import type { Profile } from '@/hooks/useProfile';
 
-const HomeOne = () => {
+interface HomeOneProps {
+  initialProfile?: Profile | null;
+}
+
+const HomeOne = ({ initialProfile }: HomeOneProps) => {
   const { t } = useTranslation();
   const { resolvedTheme } = useTheme();
   useDocumentTitle(
@@ -34,7 +39,7 @@ const HomeOne = () => {
     <div className="main-left home-modern">
       <Header />
 
-      <Slider />
+      <Slider initialProfile={initialProfile} />
 
       <ImpactSnapshot />
 
@@ -85,7 +90,7 @@ const HomeOne = () => {
       </section>
       {/* End Blog Section */}
 
-      <About />
+      <About initialProfile={initialProfile} />
 
       {/* <section id="contactus" className="section theme-light dark-bg">
         <div className="container">

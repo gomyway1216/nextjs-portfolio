@@ -1,13 +1,17 @@
 import Image from 'next/image';
 import Social from '../Social';
 import { differenceInYears } from 'date-fns';
-import { useProfile } from '@/hooks/useProfile';
+import { useProfile, type Profile } from '@/hooks/useProfile';
 import { isSupportedProfileImageUrl } from '@/lib/profileImage';
 import { useTranslation } from 'react-i18next';
 
-const About = () => {
+interface AboutProps {
+  initialProfile?: Profile | null;
+}
+
+const About = ({ initialProfile }: AboutProps) => {
   const { t } = useTranslation();
-  const { profile } = useProfile();
+  const { profile, loading: profileLoading } = useProfile(initialProfile);
 
   // Calculate age dynamically from birthdate
   const calculateAge = (birthdate: string) => {
@@ -23,7 +27,9 @@ const About = () => {
   };
   const profileImageUrl = isSupportedProfileImageUrl(profile?.profileImageUrl)
     ? profile.profileImageUrl
-    : '/img/about/about-me.jpg';
+    : profileLoading
+      ? null
+      : '/img/about/about-me.jpg';
 
   const aboutText = t('home.about.biographyText');
 
@@ -42,14 +48,19 @@ const About = () => {
               <div className="about-me">
                 <div className="img">
                   <div className="img-in">
-                    <Image
-                      src={profileImageUrl}
-                      alt="about"
-                      width={400}
-                      height={500}
-                      sizes="(max-width: 768px) 80vw, 400px"
-                      style={{ width: '100%', height: 'auto' }}
-                    />
+                    {profileImageUrl ? (
+                      <Image
+                        src={profileImageUrl}
+                        alt="about"
+                        width={400}
+                        height={500}
+                        quality={95}
+                        sizes="(max-width: 768px) 80vw, 400px"
+                        style={{ width: '100%', height: 'auto' }}
+                      />
+                    ) : (
+                      <div aria-hidden="true" style={{ aspectRatio: '4 / 5', width: '100%' }} />
+                    )}
                   </div>
 
                   <Social />

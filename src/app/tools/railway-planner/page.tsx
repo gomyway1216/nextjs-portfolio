@@ -2238,23 +2238,27 @@ export default function RailwayPlannerPage() {
                     {placeSearchStatus === 'success' && placeSearchResults.length === 0 && (
                       <p className={styles.placeSearchStatus}>{rp('search.empty')}</p>
                     )}
-                    {placeSearchResults.map((place) => (
-                      <button
-                        key={`${place.sourceLayer}-${place.id}`}
-                        type="button"
-                        className={styles.placeSearchResult}
-                        onClick={() => handlePlaceSearchResultSelect(place)}
-                      >
-                        <span>
-                          <strong>{place.name}</strong>
-                          <small>{formatPlaceRegion(place)}</small>
-                          {formatPlaceDetail(place) && (
-                            <small className={styles.placeSearchMeta}>{formatPlaceDetail(place)}</small>
-                          )}
-                        </span>
-                        <em>{rp(`placeKind.${place.kind}`)}</em>
-                      </button>
-                    ))}
+                    {placeSearchResults.map((place) => {
+                      const placeDetail = formatPlaceDetail(place);
+
+                      return (
+                        <button
+                          key={`${place.sourceLayer}-${place.id}`}
+                          type="button"
+                          className={styles.placeSearchResult}
+                          onClick={() => handlePlaceSearchResultSelect(place)}
+                        >
+                          <span>
+                            <strong>{place.name}</strong>
+                            <small>{formatPlaceRegion(place)}</small>
+                            {placeDetail && (
+                              <small className={styles.placeSearchMeta}>{placeDetail}</small>
+                            )}
+                          </span>
+                          <em>{rp(`placeKind.${place.kind}`)}</em>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
                 <Button

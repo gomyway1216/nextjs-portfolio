@@ -952,7 +952,9 @@
             "newStationWithNumber": "新駅{{number}}",
             "unnamedLine": "無名路線",
             "plannedStation": "計画駅",
-            "prefecturePlannedStation": "{{prefecture}}計画駅"
+            "prefecturePlannedStation": "{{prefecture}}計画駅",
+            "newService": "準急",
+            "newServiceShort": "準"
           },
           "actions": {
             "backToTools": "Toolsへ戻る",
@@ -960,7 +962,9 @@
             "placeStation": "地図に駅を置く",
             "toggleDemand": "需要ヒート表示",
             "clearRoute": "ルート消去",
-            "removeCustomStations": "追加駅をすべて削除"
+            "removeCustomStations": "追加駅をすべて削除",
+            "addServiceType": "種別を追加",
+            "removeServiceType": "{{service}}を削除"
           },
           "metrics": {
             "ariaLabel": "路線の主要指標",
@@ -983,6 +987,8 @@
             "lineName": "路線名",
             "trackType": "線路規格",
             "serviceType": "列車種別",
+            "serviceName": "種別名",
+            "serviceShortLabel": "表示",
             "frequency": "運転本数",
             "stationName": "追加する駅名"
           },
@@ -991,6 +997,14 @@
             "loading": "候補を検索中...",
             "empty": "候補が見つかりません",
             "error": "候補検索に失敗しました"
+          },
+          "save": {
+            "checking": "保存先を確認中",
+            "local": "このブラウザに保存",
+            "loading": "アカウント保存を読み込み中",
+            "saving": "アカウントに保存中",
+            "saved": "アカウントに保存済み",
+            "error": "アカウント保存に失敗"
           },
           "placeKind": {
             "station": "駅",
@@ -1063,6 +1077,12 @@
           },
           "station": {
             "remove": "{{station}}を外す",
+            "moveUp": "{{station}}を前に移動",
+            "moveDown": "{{station}}を後ろに移動",
+            "stopHere": "{{service}}を{{station}}に停車",
+            "passHere": "{{service}}を{{station}}通過にする",
+            "terminalStop": "{{station}}は起終点のため停車",
+            "passShort": "通",
             "removeFromRoute": "{{station}}をルートから外す",
             "addToRoute": "{{station}}をルートに追加"
           },

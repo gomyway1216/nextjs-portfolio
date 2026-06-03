@@ -952,7 +952,9 @@
             "newStationWithNumber": "New Station {{number}}",
             "unnamedLine": "Unnamed Line",
             "plannedStation": "Planned station",
-            "prefecturePlannedStation": "{{prefecture}} planned station"
+            "prefecturePlannedStation": "{{prefecture}} planned station",
+            "newService": "Semi Express",
+            "newServiceShort": "SE"
           },
           "actions": {
             "backToTools": "Back to Tools",
@@ -960,7 +962,9 @@
             "placeStation": "Place station on map",
             "toggleDemand": "Demand heat",
             "clearRoute": "Clear route",
-            "removeCustomStations": "Remove all added stations"
+            "removeCustomStations": "Remove all added stations",
+            "addServiceType": "Add service",
+            "removeServiceType": "Remove {{service}}"
           },
           "metrics": {
             "ariaLabel": "Main route metrics",
@@ -983,6 +987,8 @@
             "lineName": "Line name",
             "trackType": "Track standard",
             "serviceType": "Service type",
+            "serviceName": "Service name",
+            "serviceShortLabel": "Badge",
             "frequency": "Frequency",
             "stationName": "Station name to add"
           },
@@ -991,6 +997,14 @@
             "loading": "Searching places...",
             "empty": "No place candidates",
             "error": "Place search failed"
+          },
+          "save": {
+            "checking": "Checking save target",
+            "local": "Saved in this browser",
+            "loading": "Loading account save",
+            "saving": "Saving to account",
+            "saved": "Saved to account",
+            "error": "Account save failed"
           },
           "placeKind": {
             "station": "Station",
@@ -1063,6 +1077,12 @@
           },
           "station": {
             "remove": "Remove {{station}}",
+            "moveUp": "Move {{station}} earlier",
+            "moveDown": "Move {{station}} later",
+            "stopHere": "Stop {{service}} at {{station}}",
+            "passHere": "Skip {{station}} for {{service}}",
+            "terminalStop": "{{station}} is a terminal stop",
+            "passShort": "Skip",
             "removeFromRoute": "Remove {{station}} from the route",
             "addToRoute": "Add {{station}} to the route"
           },

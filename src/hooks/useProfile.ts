@@ -19,7 +19,7 @@ let profileCache: Profile | null = null;
 let profileRequest: Promise<Profile> | null = null;
 
 function primeProfileCache(profile: Profile | null | undefined) {
-  if (profile) {
+  if (profile !== undefined) {
     profileCache = profile;
   }
 }
@@ -79,9 +79,10 @@ export function useResumeLink() {
  * Hook to fetch profile data
  */
 export function useProfile(initialProfile?: Profile | null) {
-  const initialProfileState = initialProfile ?? profileCache;
+  const hasInitialProfile = initialProfile !== undefined;
+  const initialProfileState = hasInitialProfile ? initialProfile : profileCache;
   const [profile, setProfile] = useState<Profile | null>(initialProfileState);
-  const [loading, setLoading] = useState(!initialProfileState);
+  const [loading, setLoading] = useState(hasInitialProfile ? initialProfile === null : !profileCache);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchProfile = useCallback(async (force = false) => {
@@ -107,8 +108,15 @@ export function useProfile(initialProfile?: Profile | null) {
   }, []);
 
   useEffect(() => {
-    if (initialProfile) {
+    if (initialProfile !== undefined) {
       primeProfileCache(initialProfile);
+      setProfile(initialProfile);
+      if (initialProfile) {
+        setLoading(false);
+        return;
+      }
+
+      fetchProfile(true);
       return;
     }
 

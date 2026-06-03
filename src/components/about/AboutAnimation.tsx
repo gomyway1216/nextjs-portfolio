@@ -59,7 +59,7 @@ const About = ({ initialProfile }: AboutProps) => {
                         style={{ width: '100%', height: 'auto' }}
                       />
                     ) : (
-                      <div aria-hidden="true" style={{ aspectRatio: '1 / 1', width: '100%' }} />
+                      <div aria-hidden="true" style={{ aspectRatio: '4 / 5', width: '100%' }} />
                     )}
                   </div>
 

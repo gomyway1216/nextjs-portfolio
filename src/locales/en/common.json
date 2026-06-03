@@ -986,6 +986,19 @@
             "frequency": "Frequency",
             "stationName": "Station name to add"
           },
+          "search": {
+            "placeholder": "Kita-Senju Station, Shioiri Park, Minami-Senju",
+            "loading": "Searching places...",
+            "empty": "No place candidates",
+            "error": "Place search failed"
+          },
+          "placeKind": {
+            "station": "Station",
+            "city": "City",
+            "town": "Town",
+            "district": "District",
+            "landmark": "Place"
+          },
           "scope": {
             "national": {
               "label": "Japan Map",

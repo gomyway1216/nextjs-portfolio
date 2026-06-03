@@ -986,6 +986,19 @@
             "frequency": "運転本数",
             "stationName": "追加する駅名"
           },
+          "search": {
+            "placeholder": "北千住駅、汐入公園、東京都荒川区南千住",
+            "loading": "候補を検索中...",
+            "empty": "候補が見つかりません",
+            "error": "候補検索に失敗しました"
+          },
+          "placeKind": {
+            "station": "駅",
+            "city": "市区町村",
+            "town": "町丁目",
+            "district": "地区",
+            "landmark": "地点"
+          },
           "scope": {
             "national": {
               "label": "日本地図",

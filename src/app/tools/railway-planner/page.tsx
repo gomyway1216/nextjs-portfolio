@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -30,12 +31,21 @@ import {
   type WheelEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
+import { NATIONAL_LAND_PATHS } from './nationalLandPaths';
 import styles from './railway-planner.module.css';
 
 const MAP_WIDTH = 620;
 const MAP_HEIGHT = 760;
 const MAP_ASPECT_RATIO = MAP_HEIGHT / MAP_WIDTH;
-const MIN_MAP_VIEW_WIDTH = MAP_WIDTH / 12;
+const MAX_MAP_ZOOM = 24;
+const MIN_MAP_VIEW_WIDTH = MAP_WIDTH / MAX_MAP_ZOOM;
+const GUIDE_LABEL_FONT_SIZE = 13;
+const STATION_LABEL_FONT_SIZE = 12;
+const DETAIL_STATION_LABEL_FONT_SIZE = 10;
+const ROUTE_INDEX_FONT_SIZE = 8;
+const NATIONAL_ROUTE_DENSE_LABEL_ZOOM = 6.4;
+const NATIONAL_DETAIL_LABEL_ZOOM = 8.2;
+const NATIONAL_MAJOR_ROUTE_LABEL_DEMAND = 170;
 const DEFAULT_MAP_VIEW: MapViewBox = {
   x: 0,
   y: 0,
@@ -47,6 +57,7 @@ type TerrainType = 'plain' | 'urban' | 'mountain' | 'coastal';
 type TrackType = 'single' | 'double' | 'quad';
 type ServiceType = 'local' | 'rapid' | 'express' | 'limited';
 type MapScope = 'prefecture' | 'national';
+type RailwayPlaceKind = 'station' | 'city' | 'town' | 'district' | 'landmark';
 
 interface Station {
   id: string;
@@ -63,6 +74,26 @@ interface Station {
   custom?: boolean;
   scope?: MapScope;
   prefectureId?: string;
+}
+
+interface RailwayPlaceSearchResult {
+  id: string;
+  name: string;
+  kind: RailwayPlaceKind;
+  prefecture: string;
+  municipality?: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  source: string;
+  sourceLayer: 'seed' | 'firestore' | 'external';
+  confidence?: number;
+}
+
+interface RailwayPlaceSearchResponse {
+  success: boolean;
+  results?: RailwayPlaceSearchResult[];
+  error?: string;
 }
 
 interface Segment {
@@ -123,28 +154,111 @@ const terrainCostFactor: Record<TerrainType, number> = {
   coastal: 1.12,
 };
 
+const JAPAN_GEO_BOUNDS = {
+  minLon: 123.679785,
+  maxLon: 145.833008,
+  minLat: 24.266064,
+  maxLat: 45.509521,
+};
+const JAPAN_GEO_PADDING_X = 38;
+const JAPAN_GEO_PADDING_Y = 42;
+const MERCATOR_MIN_X = (JAPAN_GEO_BOUNDS.minLon * Math.PI) / 180;
+const MERCATOR_MAX_X = (JAPAN_GEO_BOUNDS.maxLon * Math.PI) / 180;
+const MERCATOR_MIN_Y = getMercatorY(JAPAN_GEO_BOUNDS.minLat);
+const MERCATOR_MAX_Y = getMercatorY(JAPAN_GEO_BOUNDS.maxLat);
+const JAPAN_GEO_SCALE = Math.min(
+  (MAP_WIDTH - JAPAN_GEO_PADDING_X * 2) / (MERCATOR_MAX_X - MERCATOR_MIN_X),
+  (MAP_HEIGHT - JAPAN_GEO_PADDING_Y * 2) / (MERCATOR_MAX_Y - MERCATOR_MIN_Y),
+);
+const JAPAN_GEO_USED_WIDTH = (MERCATOR_MAX_X - MERCATOR_MIN_X) * JAPAN_GEO_SCALE;
+const JAPAN_GEO_USED_HEIGHT = (MERCATOR_MAX_Y - MERCATOR_MIN_Y) * JAPAN_GEO_SCALE;
+const JAPAN_GEO_OFFSET_X = (MAP_WIDTH - JAPAN_GEO_USED_WIDTH) / 2;
+const JAPAN_GEO_OFFSET_Y = (MAP_HEIGHT - JAPAN_GEO_USED_HEIGHT) / 2;
+
+const NATIONAL_OVERVIEW_STATION_IDS = new Set([
+  'sapporo',
+  'sendai',
+  'tokyo',
+  'yokohama',
+  'nagoya',
+  'osaka',
+  'fukuoka',
+  'naha',
+]);
+const NATIONAL_OVERVIEW_ZOOM = 1.6;
+
+function getMercatorY(latitude: number): number {
+  const radians = (latitude * Math.PI) / 180;
+  return Math.log(Math.tan(Math.PI / 4 + radians / 2));
+}
+
+function projectJapanCoordinate(longitude: number, latitude: number): { x: number; y: number } {
+  const x = JAPAN_GEO_OFFSET_X + (((longitude * Math.PI) / 180) - MERCATOR_MIN_X) * JAPAN_GEO_SCALE;
+  const y = JAPAN_GEO_OFFSET_Y + (MERCATOR_MAX_Y - getMercatorY(latitude)) * JAPAN_GEO_SCALE;
+
+  return {
+    x: Number(x.toFixed(1)),
+    y: Number(y.toFixed(1)),
+  };
+}
+
+function createNationalStation(station: Omit<Station, 'x' | 'y'> & { longitude: number; latitude: number }): Station {
+  const { longitude, latitude, ...stationData } = station;
+  return {
+    ...stationData,
+    ...projectJapanCoordinate(longitude, latitude),
+  };
+}
+
+function getTerrainForPlaceKind(kind: RailwayPlaceKind): TerrainType {
+  if (kind === 'station' || kind === 'city' || kind === 'district') return 'urban';
+  if (kind === 'landmark') return 'plain';
+  return 'plain';
+}
+
+function getDemandForPlaceKind(kind: RailwayPlaceKind): number {
+  if (kind === 'station') return 128;
+  if (kind === 'city') return 142;
+  if (kind === 'town' || kind === 'district') return 108;
+  return 92;
+}
+
+function formatPlaceRegion(place: RailwayPlaceSearchResult): string {
+  return [place.prefecture, place.municipality].filter(Boolean).join(' / ') || place.address;
+}
+
+function isDefaultStationSearchDraft(value: string, defaultDraft: string): boolean {
+  const query = value.trim();
+  return (
+    !query
+    || query === defaultDraft.trim()
+    || /^新駅\d*$/u.test(query)
+    || /^New Station\s*\d*$/iu.test(query)
+  );
+}
+
 const NATIONAL_STATIONS: Station[] = [
-  { id: 'sapporo', name: '札幌', region: '北海道', x: 522, y: 88, demand: 190, terrain: 'urban', labelDx: 12, labelDy: -8 },
-  { id: 'hakodate', name: '函館', region: '北海道', x: 493, y: 166, demand: 105, terrain: 'coastal', labelDx: -42, labelDy: 0 },
-  { id: 'aomori', name: '青森', region: '東北', x: 482, y: 226, demand: 96, terrain: 'coastal', labelDx: 10, labelDy: -8 },
-  { id: 'morioka', name: '盛岡', region: '東北', x: 499, y: 284, demand: 110, terrain: 'mountain', labelDx: 12, labelDy: 2 },
-  { id: 'sendai', name: '仙台', region: '東北', x: 489, y: 340, demand: 170, terrain: 'urban', labelDx: 12, labelDy: -6 },
-  { id: 'niigata', name: '新潟', region: '北陸', x: 430, y: 344, demand: 128, terrain: 'coastal', labelDx: -42, labelDy: 1 },
-  { id: 'kanazawa', name: '金沢', region: '北陸', x: 362, y: 406, demand: 118, terrain: 'coastal', labelDx: -43, labelDy: -2 },
-  { id: 'tokyo', name: '東京', region: '関東', x: 470, y: 454, demand: 320, terrain: 'urban', labelDx: 12, labelDy: -10 },
-  { id: 'yokohama', name: '横浜', region: '関東', x: 452, y: 477, demand: 245, terrain: 'urban', labelDx: 12, labelDy: 12 },
-  { id: 'shizuoka', name: '静岡', region: '中部', x: 413, y: 490, demand: 112, terrain: 'coastal', labelDx: 8, labelDy: 16 },
-  { id: 'nagoya', name: '名古屋', region: '中部', x: 378, y: 504, demand: 210, terrain: 'urban', labelDx: -55, labelDy: 0 },
-  { id: 'kyoto', name: '京都', region: '関西', x: 337, y: 520, demand: 175, terrain: 'urban', labelDx: 8, labelDy: -18 },
-  { id: 'osaka', name: '大阪', region: '関西', x: 320, y: 540, demand: 255, terrain: 'urban', labelDx: -50, labelDy: 6 },
-  { id: 'kobe', name: '神戸', region: '関西', x: 302, y: 548, demand: 154, terrain: 'coastal', labelDx: -42, labelDy: 16 },
-  { id: 'okayama', name: '岡山', region: '中国', x: 264, y: 558, demand: 116, terrain: 'plain', labelDx: -43, labelDy: -8 },
-  { id: 'hiroshima', name: '広島', region: '中国', x: 216, y: 574, demand: 152, terrain: 'coastal', labelDx: -45, labelDy: 4 },
-  { id: 'matsuyama', name: '松山', region: '四国', x: 248, y: 616, demand: 92, terrain: 'coastal', labelDx: 9, labelDy: 14 },
-  { id: 'fukuoka', name: '福岡', region: '九州', x: 156, y: 608, demand: 198, terrain: 'urban', labelDx: -45, labelDy: -5 },
-  { id: 'kumamoto', name: '熊本', region: '九州', x: 139, y: 658, demand: 112, terrain: 'plain', labelDx: 10, labelDy: 8 },
-  { id: 'kagoshima', name: '鹿児島', region: '九州', x: 123, y: 710, demand: 104, terrain: 'coastal', labelDx: 10, labelDy: 8 },
-  { id: 'naha', name: '那覇', region: '沖縄', x: 78, y: 718, demand: 132, terrain: 'coastal', labelDx: 10, labelDy: -10 },
+  createNationalStation({ id: 'sapporo', name: '札幌', region: '北海道', longitude: 141.3545, latitude: 43.0618, demand: 190, terrain: 'urban', labelDx: 12, labelDy: -8 }),
+  createNationalStation({ id: 'hakodate', name: '函館', region: '北海道', longitude: 140.7288, latitude: 41.7687, demand: 105, terrain: 'coastal', labelDx: -42, labelDy: 0 }),
+  createNationalStation({ id: 'aomori', name: '青森', region: '東北', longitude: 140.7347, latitude: 40.8222, demand: 96, terrain: 'coastal', labelDx: 10, labelDy: -8 }),
+  createNationalStation({ id: 'morioka', name: '盛岡', region: '東北', longitude: 141.1527, latitude: 39.7036, demand: 110, terrain: 'mountain', labelDx: 12, labelDy: 2 }),
+  createNationalStation({ id: 'sendai', name: '仙台', region: '東北', longitude: 140.8719, latitude: 38.2682, demand: 170, terrain: 'urban', labelDx: 12, labelDy: -6 }),
+  createNationalStation({ id: 'niigata', name: '新潟', region: '北陸', longitude: 139.0236, latitude: 37.9161, demand: 128, terrain: 'coastal', labelDx: -42, labelDy: 1 }),
+  createNationalStation({ id: 'kanazawa', name: '金沢', region: '北陸', longitude: 136.6562, latitude: 36.5613, demand: 118, terrain: 'coastal', labelDx: -43, labelDy: -2 }),
+  createNationalStation({ id: 'tokyo', name: '東京', region: '関東', longitude: 139.7671, latitude: 35.6812, demand: 320, terrain: 'urban', labelDx: 12, labelDy: -10 }),
+  createNationalStation({ id: 'yokohama', name: '横浜', region: '関東', longitude: 139.638, latitude: 35.4437, demand: 245, terrain: 'urban', labelDx: 12, labelDy: 12 }),
+  createNationalStation({ id: 'shizuoka', name: '静岡', region: '中部', longitude: 138.3831, latitude: 34.9756, demand: 112, terrain: 'coastal', labelDx: 8, labelDy: 16 }),
+  createNationalStation({ id: 'nagoya', name: '名古屋', region: '中部', longitude: 136.8815, latitude: 35.1709, demand: 210, terrain: 'urban', labelDx: -55, labelDy: 0 }),
+  createNationalStation({ id: 'kyoto', name: '京都', region: '関西', longitude: 135.7588, latitude: 34.9858, demand: 175, terrain: 'urban', labelDx: 8, labelDy: -18 }),
+  createNationalStation({ id: 'osaka', name: '大阪', region: '関西', longitude: 135.4959, latitude: 34.7025, demand: 255, terrain: 'urban', labelDx: -50, labelDy: 6 }),
+  createNationalStation({ id: 'kobe', name: '神戸', region: '関西', longitude: 135.1955, latitude: 34.6901, demand: 154, terrain: 'coastal', labelDx: -42, labelDy: 16 }),
+  createNationalStation({ id: 'okayama', name: '岡山', region: '中国', longitude: 133.917, latitude: 34.665, demand: 116, terrain: 'plain', labelDx: -43, labelDy: -8 }),
+  createNationalStation({ id: 'hiroshima', name: '広島', region: '中国', longitude: 132.475, latitude: 34.397, demand: 152, terrain: 'coastal', labelDx: -45, labelDy: 4 }),
+  createNationalStation({ id: 'matsuyama', name: '松山', region: '四国', longitude: 132.765, latitude: 33.839, demand: 92, terrain: 'coastal', labelDx: 9, labelDy: 14 }),
+  createNationalStation({ id: 'fukuoka', name: '福岡', region: '九州', longitude: 130.421, latitude: 33.59, demand: 198, terrain: 'urban', labelDx: -45, labelDy: -5 }),
+  createNationalStation({ id: 'kumamoto', name: '熊本', region: '九州', longitude: 130.707, latitude: 32.789, demand: 112, terrain: 'plain', labelDx: 10, labelDy: 8 }),
+  createNationalStation({ id: 'kagoshima', name: '鹿児島', region: '九州', longitude: 130.541, latitude: 31.596, demand: 104, terrain: 'coastal', labelDx: 10, labelDy: 8 }),
+  createNationalStation({ id: 'naha', name: '那覇', region: '沖縄', longitude: 127.679, latitude: 26.212, demand: 132, terrain: 'coastal', labelDx: 10, labelDy: -10 }),
 ];
 
 const TOKYO_STATIONS: Station[] = [
@@ -177,47 +291,47 @@ const TOKYO_STATIONS: Station[] = [
 ];
 
 const NATIONAL_DETAIL_STATIONS: Station[] = [
-  { id: 'kanda', name: '神田', region: '山手線', x: 468, y: 449, demand: 142, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'akihabara', name: '秋葉原', region: '山手線', x: 467, y: 445, demand: 176, terrain: 'urban', labelDx: -28, labelDy: -4, minZoom: 3.8, labelMinZoom: 4.8 },
-  { id: 'okachimachi', name: '御徒町', region: '山手線', x: 468, y: 441, demand: 106, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'ueno', name: '上野', region: '山手線・常磐線', x: 469, y: 437, demand: 180, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 2.4, labelMinZoom: 3.2 },
-  { id: 'uguisudani', name: '鶯谷', region: '山手線', x: 469, y: 433, demand: 74, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'nippori', name: '日暮里', region: '山手線・常磐線', x: 470, y: 429, demand: 142, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 3.2, labelMinZoom: 4.2 },
-  { id: 'nishi-nippori', name: '西日暮里', region: '山手線', x: 467, y: 426, demand: 126, terrain: 'urban', labelDx: -34, labelDy: -4, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'tabata', name: '田端', region: '山手線', x: 463, y: 424, demand: 118, terrain: 'urban', labelDx: -28, labelDy: 2, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'komagome', name: '駒込', region: '山手線', x: 459, y: 425, demand: 104, terrain: 'urban', labelDx: -30, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'sugamo', name: '巣鴨', region: '山手線', x: 454, y: 428, demand: 112, terrain: 'urban', labelDx: -26, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'otsuka', name: '大塚', region: '山手線', x: 450, y: 431, demand: 98, terrain: 'urban', labelDx: -26, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'ikebukuro', name: '池袋', region: '山手線', x: 444, y: 437, demand: 255, terrain: 'urban', labelDx: -26, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 },
-  { id: 'mejiro', name: '目白', region: '山手線', x: 442, y: 442, demand: 88, terrain: 'urban', labelDx: -26, labelDy: 5, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'takadanobaba', name: '高田馬場', region: '山手線', x: 441, y: 447, demand: 154, terrain: 'urban', labelDx: -42, labelDy: 4, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'shin-okubo', name: '新大久保', region: '山手線', x: 443, y: 452, demand: 86, terrain: 'urban', labelDx: -38, labelDy: 5, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'shinjuku', name: '新宿', region: '山手線', x: 445, y: 457, demand: 284, terrain: 'urban', labelDx: -27, labelDy: 4, minZoom: 2.4, labelMinZoom: 3.2 },
-  { id: 'yoyogi', name: '代々木', region: '山手線', x: 449, y: 460, demand: 94, terrain: 'urban', labelDx: -28, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'harajuku', name: '原宿', region: '山手線', x: 452, y: 464, demand: 96, terrain: 'urban', labelDx: -28, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'shibuya', name: '渋谷', region: '山手線', x: 456, y: 469, demand: 224, terrain: 'urban', labelDx: -27, labelDy: 8, minZoom: 2.8, labelMinZoom: 3.5 },
-  { id: 'ebisu', name: '恵比寿', region: '山手線', x: 460, y: 473, demand: 116, terrain: 'urban', labelDx: -32, labelDy: 8, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'meguro', name: '目黒', region: '山手線', x: 465, y: 477, demand: 112, terrain: 'urban', labelDx: -27, labelDy: 10, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'gotanda', name: '五反田', region: '山手線', x: 470, y: 478, demand: 118, terrain: 'urban', labelDx: 4, labelDy: 12, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'osaki', name: '大崎', region: '山手線', x: 475, y: 477, demand: 126, terrain: 'urban', labelDx: 4, labelDy: 10, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'shinagawa', name: '品川', region: '山手線', x: 478, y: 472, demand: 205, terrain: 'urban', labelDx: 4, labelDy: 9, minZoom: 2.8, labelMinZoom: 3.5 },
-  { id: 'takanawa-gateway', name: '高輪ゲートウェイ', region: '山手線', x: 477, y: 467, demand: 84, terrain: 'urban', labelDx: 4, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'tamachi', name: '田町', region: '山手線', x: 476, y: 463, demand: 116, terrain: 'urban', labelDx: 5, labelDy: 6, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'hamamatsucho', name: '浜松町', region: '山手線', x: 475, y: 459, demand: 112, terrain: 'urban', labelDx: 5, labelDy: 4, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'shimbashi', name: '新橋', region: '山手線', x: 473, y: 456, demand: 152, terrain: 'urban', labelDx: 5, labelDy: 2, minZoom: 3.8, labelMinZoom: 4.8 },
-  { id: 'yurakucho', name: '有楽町', region: '山手線', x: 471, y: 455, demand: 132, terrain: 'urban', labelDx: 5, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 },
-  { id: 'minami-senju', name: '南千住', region: '常磐線', x: 477, y: 430, demand: 112, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 3.8, labelMinZoom: 4.8 },
-  { id: 'kita-senju', name: '北千住', region: '常磐線', x: 483, y: 426, demand: 170, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 },
-  { id: 'ayase', name: '綾瀬', region: '常磐線各駅停車', x: 489, y: 423, demand: 126, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'kameari', name: '亀有', region: '常磐線各駅停車', x: 494, y: 421, demand: 104, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'kanamachi', name: '金町', region: '常磐線各駅停車', x: 500, y: 418, demand: 108, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 },
-  { id: 'matsudo', name: '松戸', region: '常磐線', x: 506, y: 414, demand: 128, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 },
-  { id: 'kashiwa', name: '柏', region: '常磐線', x: 517, y: 405, demand: 142, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 3.2, labelMinZoom: 4.2 },
-  { id: 'abiko', name: '我孫子', region: '常磐線', x: 523, y: 400, demand: 98, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 },
-  { id: 'toride', name: '取手', region: '常磐線', x: 530, y: 394, demand: 92, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 },
-  { id: 'ushiku', name: '牛久', region: '常磐線', x: 538, y: 383, demand: 74, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.8, labelMinZoom: 5.8 },
-  { id: 'tsuchiura', name: '土浦', region: '常磐線', x: 545, y: 374, demand: 82, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 },
-  { id: 'mito', name: '水戸', region: '常磐線', x: 557, y: 344, demand: 118, terrain: 'plain', labelDx: 5, labelDy: -6, minZoom: 2.8, labelMinZoom: 3.5 },
+  createNationalStation({ id: 'kanda', name: '神田', region: '山手線', longitude: 139.7709, latitude: 35.6917, demand: 142, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'akihabara', name: '秋葉原', region: '山手線', longitude: 139.773, latitude: 35.6984, demand: 176, terrain: 'urban', labelDx: -28, labelDy: -4, minZoom: 3.8, labelMinZoom: 4.8 }),
+  createNationalStation({ id: 'okachimachi', name: '御徒町', region: '山手線', longitude: 139.7745, latitude: 35.7074, demand: 106, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'ueno', name: '上野', region: '山手線・常磐線', longitude: 139.777, latitude: 35.7138, demand: 180, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 2.4, labelMinZoom: 3.2 }),
+  createNationalStation({ id: 'uguisudani', name: '鶯谷', region: '山手線', longitude: 139.778, latitude: 35.7215, demand: 74, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'nippori', name: '日暮里', region: '山手線・常磐線', longitude: 139.7714, latitude: 35.7278, demand: 142, terrain: 'urban', labelDx: 4, labelDy: -4, minZoom: 3.2, labelMinZoom: 4.2 }),
+  createNationalStation({ id: 'nishi-nippori', name: '西日暮里', region: '山手線', longitude: 139.7669, latitude: 35.7319, demand: 126, terrain: 'urban', labelDx: -34, labelDy: -4, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'tabata', name: '田端', region: '山手線', longitude: 139.7612, latitude: 35.738, demand: 118, terrain: 'urban', labelDx: -28, labelDy: 2, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'komagome', name: '駒込', region: '山手線', longitude: 139.748, latitude: 35.7365, demand: 104, terrain: 'urban', labelDx: -30, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'sugamo', name: '巣鴨', region: '山手線', longitude: 139.7393, latitude: 35.7335, demand: 112, terrain: 'urban', labelDx: -26, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'otsuka', name: '大塚', region: '山手線', longitude: 139.7286, latitude: 35.7314, demand: 98, terrain: 'urban', labelDx: -26, labelDy: 4, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'ikebukuro', name: '池袋', region: '山手線', longitude: 139.7109, latitude: 35.7295, demand: 255, terrain: 'urban', labelDx: -26, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 }),
+  createNationalStation({ id: 'mejiro', name: '目白', region: '山手線', longitude: 139.7062, latitude: 35.7212, demand: 88, terrain: 'urban', labelDx: -26, labelDy: 5, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'takadanobaba', name: '高田馬場', region: '山手線', longitude: 139.7037, latitude: 35.7123, demand: 154, terrain: 'urban', labelDx: -42, labelDy: 4, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'shin-okubo', name: '新大久保', region: '山手線', longitude: 139.7003, latitude: 35.7013, demand: 86, terrain: 'urban', labelDx: -38, labelDy: 5, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'shinjuku', name: '新宿', region: '山手線', longitude: 139.7005, latitude: 35.6909, demand: 284, terrain: 'urban', labelDx: -27, labelDy: 4, minZoom: 2.4, labelMinZoom: 3.2 }),
+  createNationalStation({ id: 'yoyogi', name: '代々木', region: '山手線', longitude: 139.702, latitude: 35.6831, demand: 94, terrain: 'urban', labelDx: -28, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'harajuku', name: '原宿', region: '山手線', longitude: 139.7026, latitude: 35.6702, demand: 96, terrain: 'urban', labelDx: -28, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'shibuya', name: '渋谷', region: '山手線', longitude: 139.7016, latitude: 35.658, demand: 224, terrain: 'urban', labelDx: -27, labelDy: 8, minZoom: 2.8, labelMinZoom: 3.5 }),
+  createNationalStation({ id: 'ebisu', name: '恵比寿', region: '山手線', longitude: 139.7101, latitude: 35.6467, demand: 116, terrain: 'urban', labelDx: -32, labelDy: 8, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'meguro', name: '目黒', region: '山手線', longitude: 139.7154, latitude: 35.6339, demand: 112, terrain: 'urban', labelDx: -27, labelDy: 10, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'gotanda', name: '五反田', region: '山手線', longitude: 139.7238, latitude: 35.6264, demand: 118, terrain: 'urban', labelDx: 4, labelDy: 12, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'osaki', name: '大崎', region: '山手線', longitude: 139.7284, latitude: 35.6197, demand: 126, terrain: 'urban', labelDx: 4, labelDy: 10, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'shinagawa', name: '品川', region: '山手線', longitude: 139.7388, latitude: 35.6285, demand: 205, terrain: 'urban', labelDx: 4, labelDy: 9, minZoom: 2.8, labelMinZoom: 3.5 }),
+  createNationalStation({ id: 'takanawa-gateway', name: '高輪ゲートウェイ', region: '山手線', longitude: 139.7407, latitude: 35.6355, demand: 84, terrain: 'urban', labelDx: 4, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'tamachi', name: '田町', region: '山手線', longitude: 139.7476, latitude: 35.6457, demand: 116, terrain: 'urban', labelDx: 5, labelDy: 6, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'hamamatsucho', name: '浜松町', region: '山手線', longitude: 139.7571, latitude: 35.6553, demand: 112, terrain: 'urban', labelDx: 5, labelDy: 4, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'shimbashi', name: '新橋', region: '山手線', longitude: 139.7586, latitude: 35.6663, demand: 152, terrain: 'urban', labelDx: 5, labelDy: 2, minZoom: 3.8, labelMinZoom: 4.8 }),
+  createNationalStation({ id: 'yurakucho', name: '有楽町', region: '山手線', longitude: 139.763, latitude: 35.675, demand: 132, terrain: 'urban', labelDx: 5, labelDy: 8, minZoom: 5.2, labelMinZoom: 6.2 }),
+  createNationalStation({ id: 'minami-senju', name: '南千住', region: '常磐線', longitude: 139.799, latitude: 35.733, demand: 112, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 3.8, labelMinZoom: 4.8 }),
+  createNationalStation({ id: 'kita-senju', name: '北千住', region: '常磐線', longitude: 139.805, latitude: 35.749, demand: 170, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 }),
+  createNationalStation({ id: 'ayase', name: '綾瀬', region: '常磐線各駅停車', longitude: 139.825, latitude: 35.762, demand: 126, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'kameari', name: '亀有', region: '常磐線各駅停車', longitude: 139.847, latitude: 35.766, demand: 104, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'kanamachi', name: '金町', region: '常磐線各駅停車', longitude: 139.87, latitude: 35.769, demand: 108, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.4, labelMinZoom: 5.4 }),
+  createNationalStation({ id: 'matsudo', name: '松戸', region: '常磐線', longitude: 139.9, latitude: 35.784, demand: 128, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 2.8, labelMinZoom: 3.5 }),
+  createNationalStation({ id: 'kashiwa', name: '柏', region: '常磐線', longitude: 139.97, latitude: 35.862, demand: 142, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 3.2, labelMinZoom: 4.2 }),
+  createNationalStation({ id: 'abiko', name: '我孫子', region: '常磐線', longitude: 140.012, latitude: 35.872, demand: 98, terrain: 'urban', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 }),
+  createNationalStation({ id: 'toride', name: '取手', region: '常磐線', longitude: 140.063, latitude: 35.897, demand: 92, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 }),
+  createNationalStation({ id: 'ushiku', name: '牛久', region: '常磐線', longitude: 140.142, latitude: 35.975, demand: 74, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.8, labelMinZoom: 5.8 }),
+  createNationalStation({ id: 'tsuchiura', name: '土浦', region: '常磐線', longitude: 140.207, latitude: 36.078, demand: 82, terrain: 'plain', labelDx: 5, labelDy: -5, minZoom: 4.0, labelMinZoom: 5.0 }),
+  createNationalStation({ id: 'mito', name: '水戸', region: '常磐線', longitude: 140.476, latitude: 36.371, demand: 118, terrain: 'plain', labelDx: 5, labelDy: -6, minZoom: 2.8, labelMinZoom: 3.5 }),
 ];
 
 const NATIONAL_BASE_STATIONS = [...NATIONAL_STATIONS, ...NATIONAL_DETAIL_STATIONS];
@@ -640,6 +754,9 @@ export default function RailwayPlannerPage() {
   const [frequency, setFrequency] = useState(6);
   const [addMode, setAddMode] = useState(false);
   const [stationDraft, setStationDraft] = useState(defaultStationDraft);
+  const [placeSearchResults, setPlaceSearchResults] = useState<RailwayPlaceSearchResult[]>([]);
+  const [placeSearchStatus, setPlaceSearchStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [placeSearchError, setPlaceSearchError] = useState('');
   const [showDemand, setShowDemand] = useState(true);
   const [mapView, setMapView] = useState<MapViewBox>(DEFAULT_MAP_VIEW);
 
@@ -651,6 +768,14 @@ export default function RailwayPlannerPage() {
     && (mapScope !== 'prefecture' || station.prefectureId === selectedPrefectureId)
   ));
   const zoomLevel = MAP_WIDTH / mapView.width;
+  const inverseZoom = 1 / zoomLevel;
+  const mapAreaLabelStyle = useMemo<CSSProperties>(
+    () => ({
+      fontSize: `${GUIDE_LABEL_FONT_SIZE * inverseZoom}px`,
+      strokeWidth: 4 * inverseZoom,
+    }),
+    [inverseZoom],
+  );
   const selectedPrefectureDescription = selectedPrefecture.id === DEFAULT_PREFECTURE_ID
     ? rp('prefectureDescriptions.tokyo')
     : rp('prefectureDescriptions.generic', { prefecture: selectedPrefecture.label });
@@ -659,6 +784,50 @@ export default function RailwayPlannerPage() {
       ? rp('values.tenThousandPeoplePerDay', { value: (dailyDemand / 10000).toFixed(1) })
       : rp('values.peoplePerDay', { value: compactNumber(Math.round(dailyDemand), numberLocale) })
   );
+  const trimmedStationDraft = stationDraft.trim();
+  const canSearchPlaceCandidates = (
+    trimmedStationDraft.length >= 2
+    && !isDefaultStationSearchDraft(trimmedStationDraft, defaultStationDraft)
+  );
+
+  useEffect(() => {
+    if (!canSearchPlaceCandidates) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      setPlaceSearchStatus('loading');
+      setPlaceSearchError('');
+      try {
+        const params = new URLSearchParams({
+          q: trimmedStationDraft,
+          limit: '6',
+          includeExternal: 'true',
+        });
+        const response = await fetch(`/api/railway/places?${params.toString()}`, {
+          signal: controller.signal,
+        });
+        const data = await response.json() as RailwayPlaceSearchResponse;
+        if (!response.ok || !data.success) {
+          throw new Error(data.error || 'Failed to search places');
+        }
+
+        setPlaceSearchResults(data.results ?? []);
+        setPlaceSearchStatus('success');
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setPlaceSearchResults([]);
+        setPlaceSearchStatus('error');
+        setPlaceSearchError(error instanceof Error ? error.message : 'Failed to search places');
+      }
+    }, 320);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      controller.abort();
+    };
+  }, [canSearchPlaceCandidates, trimmedStationDraft]);
 
   const allStations = useMemo(
     () => {
@@ -674,14 +843,6 @@ export default function RailwayPlannerPage() {
     [customStations, mapScope, selectedPrefectureId],
   );
 
-  const visibleStations = useMemo(
-    () => allStations.filter((station) => {
-      const isRouteStation = routeStationIds.includes(station.id);
-      return isRouteStation || zoomLevel >= (station.minZoom ?? 1);
-    }),
-    [allStations, routeStationIds, zoomLevel],
-  );
-
   const routeStations = useMemo(
     () => routeStationIds
       .map((id) => getStationById(allStations, id))
@@ -689,18 +850,55 @@ export default function RailwayPlannerPage() {
     [allStations, routeStationIds],
   );
 
-  const routeSegments = useMemo(
+  const routeDistanceScale = useMemo(
     () => {
       const presetRoutes = mapScope === 'prefecture'
         ? getPrefectureZoom(selectedPrefectureId).presets
         : NATIONAL_PRESET_ROUTES;
       const selectedPreset = presetRoutes.find((preset) => preset.id === selectedPresetId);
-      const distanceScale = selectedPreset?.distanceScale ?? (mapScope === 'prefecture'
+      return selectedPreset?.distanceScale ?? (mapScope === 'prefecture'
         ? getPrefectureZoom(selectedPrefectureId).distanceScale
         : 1.88);
-      return createSegments(routeStations, distanceScale);
     },
-    [mapScope, routeStations, selectedPrefectureId, selectedPresetId],
+    [mapScope, selectedPrefectureId, selectedPresetId],
+  );
+
+  const routeSegments = useMemo(
+    () => createSegments(routeStations, routeDistanceScale),
+    [routeDistanceScale, routeStations],
+  );
+
+  const mapRouteStations = useMemo(
+    () => {
+      if (mapScope !== 'national' || zoomLevel >= 2.2) return routeStations;
+
+      return routeStations.filter((station, index) => (
+        index === 0
+        || index === routeStations.length - 1
+        || !station.minZoom
+        || station.demand >= 170
+      ));
+    },
+    [mapScope, routeStations, zoomLevel],
+  );
+
+  const mapRouteStationIds = useMemo(
+    () => new Set(mapRouteStations.map((station) => station.id)),
+    [mapRouteStations],
+  );
+
+  const visibleStations = useMemo(
+    () => allStations.filter((station) => {
+      const isVisibleRouteStation = mapRouteStationIds.has(station.id);
+      const isReducedNationalOverview = mapScope === 'national' && zoomLevel < NATIONAL_OVERVIEW_ZOOM;
+      const isNationalOverviewStation = !station.minZoom && NATIONAL_OVERVIEW_STATION_IDS.has(station.id);
+      if (isReducedNationalOverview) {
+        return isVisibleRouteStation || isNationalOverviewStation;
+      }
+
+      return isVisibleRouteStation || zoomLevel >= (station.minZoom ?? 1);
+    }),
+    [allStations, mapRouteStationIds, mapScope, zoomLevel],
   );
 
   const routeMetrics = useMemo(() => {
@@ -870,6 +1068,13 @@ export default function RailwayPlannerPage() {
     zoomMapAt(event.clientX, event.clientY, event.deltaY < 0 ? 'in' : 'out');
   };
 
+  const handleStationDraftChange = (value: string) => {
+    setStationDraft(value);
+    setPlaceSearchResults([]);
+    setPlaceSearchStatus('idle');
+    setPlaceSearchError('');
+  };
+
   const handleMapZoomButton = (direction: 'in' | 'out') => {
     const routeCenter = getRouteMapCenter();
     const viewCenter = {
@@ -971,6 +1176,44 @@ export default function RailwayPlannerPage() {
     setRouteStationIds((current) => [...current, nextStation.id]);
     const nextCustomNumber = currentCustomStations.length + 2;
     setStationDraft(rp('defaults.newStationWithNumber', { number: nextCustomNumber }));
+  };
+
+  const handlePlaceSearchResultSelect = (place: RailwayPlaceSearchResult) => {
+    const point = projectJapanCoordinate(place.longitude, place.latitude);
+    customStationIdRef.current += 1;
+
+    const nextStation: Station = {
+      id: `place-${customStationIdRef.current}`,
+      name: place.name.slice(0, 24),
+      region: formatPlaceRegion(place),
+      x: clamp(point.x, 18, MAP_WIDTH - 18),
+      y: clamp(point.y, 18, MAP_HEIGHT - 18),
+      demand: getDemandForPlaceKind(place.kind),
+      terrain: getTerrainForPlaceKind(place.kind),
+      labelDx: 10,
+      labelDy: -10,
+      custom: true,
+      scope: 'national',
+    };
+
+    lifecycle.trackEvent('place_search_station_add', {
+      place_kind: place.kind,
+      source_layer: place.sourceLayer,
+      source: place.source,
+    });
+    setMapScope('national');
+    setSelectedPresetId(null);
+    setCustomStations((current) => [...current, nextStation]);
+    setRouteStationIds((current) => [...current, nextStation.id]);
+    const nextCustomNumber = customStations.filter((station) => station.scope === 'national').length + 2;
+    setStationDraft(rp('defaults.newStationWithNumber', { number: nextCustomNumber }));
+    setAddMode(false);
+    setMapView(clampMapView({
+      x: nextStation.x - MAP_WIDTH / 20,
+      y: nextStation.y - MAP_HEIGHT / 20,
+      width: MAP_WIDTH / 10,
+      height: MAP_HEIGHT / 10,
+    }));
   };
 
   const handlePresetSelect = (preset: PresetRoute) => {
@@ -1239,11 +1482,41 @@ export default function RailwayPlannerPage() {
                   <span>{rp('fields.stationName')}</span>
                   <Input
                     value={stationDraft}
-                    onChange={(event) => setStationDraft(event.target.value)}
+                    onChange={(event) => handleStationDraftChange(event.target.value)}
                     className={styles.textInput}
-                    maxLength={12}
+                    maxLength={40}
+                    placeholder={rp('search.placeholder')}
                   />
                 </label>
+                {canSearchPlaceCandidates && (
+                  <div className={styles.placeSearchResults} aria-live="polite">
+                    {placeSearchStatus === 'loading' && (
+                      <p className={styles.placeSearchStatus}>{rp('search.loading')}</p>
+                    )}
+                    {placeSearchStatus === 'error' && (
+                      <p className={styles.placeSearchError}>
+                        {placeSearchError || rp('search.error')}
+                      </p>
+                    )}
+                    {placeSearchStatus === 'success' && placeSearchResults.length === 0 && (
+                      <p className={styles.placeSearchStatus}>{rp('search.empty')}</p>
+                    )}
+                    {placeSearchResults.map((place) => (
+                      <button
+                        key={`${place.sourceLayer}-${place.id}`}
+                        type="button"
+                        className={styles.placeSearchResult}
+                        onClick={() => handlePlaceSearchResultSelect(place)}
+                      >
+                        <span>
+                          <strong>{place.name}</strong>
+                          <small>{place.address || formatPlaceRegion(place)}</small>
+                        </span>
+                        <em>{rp(`placeKind.${place.kind}`)}</em>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <Button
                   type="button"
                   variant={addMode ? 'default' : 'outline'}
@@ -1392,11 +1665,9 @@ export default function RailwayPlannerPage() {
               <rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#railway-grid)" opacity="0.42" />
               {mapScope === 'national' ? (
                 <g className={styles.landLayer}>
-                  <path d="M482 61 C517 37 565 51 585 82 C604 112 576 153 537 165 C497 178 458 153 452 118 C448 92 462 75 482 61 Z" />
-                  <path d="M493 212 C526 257 520 323 489 372 C506 399 511 428 492 456 C477 478 457 493 433 504 C397 520 356 528 318 542 C282 558 246 575 207 575 C181 574 178 548 205 532 C249 506 300 500 333 477 C366 455 383 415 410 383 C438 350 455 312 450 275 C445 242 464 220 493 212 Z" />
-                  <path d="M235 590 C277 576 315 584 331 606 C313 628 263 631 228 613 C218 603 224 594 235 590 Z" />
-                  <path d="M121 594 C158 574 198 590 210 627 C221 662 196 708 157 725 C119 741 88 716 93 676 C97 641 100 611 121 594 Z" />
-                  <path d="M61 708 C82 694 107 701 118 719 C105 739 72 746 51 729 C43 721 48 713 61 708 Z" />
+                  {NATIONAL_LAND_PATHS.map((path) => (
+                    <path key={path} d={path} />
+                  ))}
                 </g>
               ) : selectedPrefecture.id === 'tokyo' ? (
                 <>
@@ -1408,9 +1679,9 @@ export default function RailwayPlannerPage() {
                     <path className={styles.riverLine} d="M190 92 C254 166 323 217 382 220 C432 223 486 195 591 119" />
                     <path className={styles.riverLine} d="M345 266 C365 314 374 374 392 414 C415 463 447 513 491 552" />
                     <path className={styles.wardBoundary} d="M156 382 C239 352 329 356 432 378 C508 396 560 440 595 506" />
-                    <text x="392" y="205" className={styles.mapAreaLabel}>{rp('map.labels.arakawa')}</text>
-                    <text x="410" y="386" className={styles.mapAreaLabel}>{rp('map.labels.sumidaRiver')}</text>
-                    <text x="412" y="556" className={styles.mapAreaLabel}>{rp('map.labels.tokyoBay')}</text>
+                    <text x="392" y="205" className={styles.mapAreaLabel} style={mapAreaLabelStyle}>{rp('map.labels.arakawa')}</text>
+                    <text x="410" y="386" className={styles.mapAreaLabel} style={mapAreaLabelStyle}>{rp('map.labels.sumidaRiver')}</text>
+                    <text x="412" y="556" className={styles.mapAreaLabel} style={mapAreaLabelStyle}>{rp('map.labels.tokyoBay')}</text>
                   </g>
                 </>
               ) : (
@@ -1422,9 +1693,9 @@ export default function RailwayPlannerPage() {
                     <path className={styles.riverLine} d="M142 172 C234 234 322 256 450 216 C512 196 558 226 590 278" />
                     <path className={styles.riverLine} d="M196 570 C250 486 318 424 406 384 C492 344 545 276 579 176" />
                     <path className={styles.wardBoundary} d="M96 398 C184 344 286 332 392 366 C478 394 550 452 594 524" />
-                    <text x="84" y="126" className={styles.mapAreaLabel}>{rp('map.labels.prefectureZoom', { prefecture: selectedPrefecture.label })}</text>
-                    <text x="404" y="246" className={styles.mapAreaLabel}>{rp('map.labels.northConnector')}</text>
-                    <text x="242" y="590" className={styles.mapAreaLabel}>{rp('map.labels.southConnector')}</text>
+                    <text x="84" y="126" className={styles.mapAreaLabel} style={mapAreaLabelStyle}>{rp('map.labels.prefectureZoom', { prefecture: selectedPrefecture.label })}</text>
+                    <text x="404" y="246" className={styles.mapAreaLabel} style={mapAreaLabelStyle}>{rp('map.labels.northConnector')}</text>
+                    <text x="242" y="590" className={styles.mapAreaLabel} style={mapAreaLabelStyle}>{rp('map.labels.southConnector')}</text>
                   </g>
                 </>
               )}
@@ -1440,7 +1711,7 @@ export default function RailwayPlannerPage() {
                       className={styles.routeHalo}
                     />
                     {getTrackOffsets(trackType).map((offset) => {
-                      const line = getOffsetSegment(segment.from, segment.to, offset);
+                      const line = getOffsetSegment(segment.from, segment.to, offset * inverseZoom);
                       return (
                         <line
                           key={offset}
@@ -1470,12 +1741,35 @@ export default function RailwayPlannerPage() {
                 {visibleStations.map((station) => {
                   const routeIndex = routeStationIds.indexOf(station.id);
                   const inRoute = routeIndex >= 0;
+                  const isVisibleRouteStation = mapRouteStationIds.has(station.id);
                   const isTerminal = routeIndex === 0 || routeIndex === routeStationIds.length - 1;
                   const stopsHere = inRoute && isRouteStop(station, routeIndex, routeStations.length, serviceType);
-                  const showStationLabel = zoomLevel >= (station.labelMinZoom ?? station.minZoom ?? 1);
                   const isDetailedStation = Boolean(station.minZoom);
-                  const labelX = station.x + (station.labelDx ?? 10);
-                  const labelY = station.y + (station.labelDy ?? -10);
+                  const isNationalDetailedStation = mapScope === 'national' && isDetailedStation;
+                  const labelZoom = station.labelMinZoom ?? station.minZoom ?? 1;
+                  const showRouteLabel = isVisibleRouteStation && (
+                    !isNationalDetailedStation
+                    || isTerminal
+                    || station.demand >= NATIONAL_MAJOR_ROUTE_LABEL_DEMAND
+                    || zoomLevel >= Math.max(labelZoom, NATIONAL_ROUTE_DENSE_LABEL_ZOOM)
+                  );
+                  const showStationLabel = (
+                    showRouteLabel
+                    || (
+                      !inRoute
+                      && (!isNationalDetailedStation || zoomLevel >= NATIONAL_DETAIL_LABEL_ZOOM)
+                      && zoomLevel >= labelZoom
+                    )
+                  );
+                  const labelX = station.x + (station.labelDx ?? 10) * inverseZoom;
+                  const labelY = station.y + (station.labelDy ?? -10) * inverseZoom;
+                  const stationLabelStyle: CSSProperties = {
+                    fontSize: `${(isDetailedStation ? DETAIL_STATION_LABEL_FONT_SIZE : STATION_LABEL_FONT_SIZE) * inverseZoom}px`,
+                    strokeWidth: 4 * inverseZoom,
+                  };
+                  const routeIndexStyle: CSSProperties = {
+                    fontSize: `${ROUTE_INDEX_FONT_SIZE * inverseZoom}px`,
+                  };
                   return (
                     <g
                       key={station.id}
@@ -1497,31 +1791,42 @@ export default function RailwayPlannerPage() {
                         <circle
                           cx={station.x}
                           cy={station.y}
-                          r={Math.max(10, Math.min(24, station.demand / 12))}
+                          r={Math.max(10, Math.min(24, station.demand / 12)) * inverseZoom}
                           className={styles.demandCircle}
                         />
                       )}
                       <circle
                         cx={station.x}
                         cy={station.y}
-                        r={inRoute ? (isTerminal ? 8.5 : 6.8) : 4.5}
+                        r={(inRoute ? (isTerminal ? 8.5 : 6.8) : 4.5) * inverseZoom}
                         className={styles.stationDot}
                       />
                       {stopsHere && (
                         <circle
                           cx={station.x}
                           cy={station.y}
-                          r={inRoute ? 12 : 8}
+                          r={(inRoute ? 12 : 8) * inverseZoom}
                           className={styles.stopRing}
                         />
                       )}
+                      <circle
+                        cx={station.x}
+                        cy={station.y}
+                        r={14 * inverseZoom}
+                        className={styles.stationHitArea}
+                      />
                       {inRoute && (
-                        <text x={station.x} y={station.y + 3.5} className={styles.routeIndexText}>
+                        <text
+                          x={station.x}
+                          y={station.y + 3.5 * inverseZoom}
+                          className={styles.routeIndexText}
+                          style={routeIndexStyle}
+                        >
                           {routeIndex + 1}
                         </text>
                       )}
                       {showStationLabel && (
-                        <text x={labelX} y={labelY} className={styles.stationLabel}>
+                        <text x={labelX} y={labelY} className={styles.stationLabel} style={stationLabelStyle}>
                           {station.name}
                         </text>
                       )}

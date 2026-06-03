@@ -937,9 +937,9 @@
       "railwayPlanner": {
         "title": "Railway Planner",
         "subtitle": "架空鉄道ツール",
-        "description": "全国幹線から東京近郊の南千住・北千住レベルまで、駅と線路を配置して路線をシミュレーションできます。",
+        "description": "全国幹線から47都道府県ごとのズーム設計まで、駅と線路を配置して路線をシミュレーションできます。",
         "features": {
-          "mapEdit": "地図上で編集",
+          "mapEdit": "全県ズーム",
           "serviceTypes": "停車種別",
           "simulation": "概算採算"
         }

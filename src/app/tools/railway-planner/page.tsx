@@ -34,7 +34,7 @@ const MAP_HEIGHT = 760;
 type TerrainType = 'plain' | 'urban' | 'mountain' | 'coastal';
 type TrackType = 'single' | 'double' | 'quad';
 type ServiceType = 'local' | 'rapid' | 'express' | 'limited';
-type MapScope = 'tokyo' | 'national';
+type MapScope = 'prefecture' | 'national';
 
 interface Station {
   id: string;
@@ -48,6 +48,7 @@ interface Station {
   labelDy?: number;
   custom?: boolean;
   scope?: MapScope;
+  prefectureId?: string;
 }
 
 interface Segment {
@@ -62,6 +63,24 @@ interface PresetRoute {
   name: string;
   lineName: string;
   stationIds: string[];
+}
+
+interface PrefectureZoom {
+  id: string;
+  label: string;
+  description: string;
+  distanceScale: number;
+  stations: Station[];
+  presets: PresetRoute[];
+}
+
+interface PrefectureDefinition {
+  id: string;
+  label: string;
+  lineName: string;
+  stationNames: readonly [string, string, string, string, string];
+  defaultTerrain?: TerrainType;
+  distanceScale?: number;
 }
 
 const terrainCostFactor: Record<TerrainType, number> = {
@@ -246,42 +265,168 @@ const TOKYO_PRESET_ROUTES: PresetRoute[] = [
   },
 ];
 
-const PRESET_ROUTES_BY_SCOPE: Record<MapScope, PresetRoute[]> = {
-  tokyo: TOKYO_PRESET_ROUTES,
-  national: NATIONAL_PRESET_ROUTES,
-};
+const PREFECTURE_STATION_LAYOUT = [
+  { x: 316, y: 382, demandFactor: 1.35, labelDx: 12, labelDy: -8 },
+  { x: 258, y: 236, demandFactor: 0.92, labelDx: -48, labelDy: -8 },
+  { x: 454, y: 298, demandFactor: 0.88, labelDx: 10, labelDy: -4 },
+  { x: 382, y: 540, demandFactor: 0.84, labelDx: 12, labelDy: 12 },
+  { x: 176, y: 452, demandFactor: 0.8, labelDx: -48, labelDy: 8 },
+] as const;
 
-const DEFAULT_PRESET_BY_SCOPE: Record<MapScope, PresetRoute> = {
-  tokyo: TOKYO_PRESET_ROUTES[0],
-  national: NATIONAL_PRESET_ROUTES[0],
-};
+const PREFECTURE_DEFINITIONS: PrefectureDefinition[] = [
+  { id: 'hokkaido', label: '北海道', lineName: '北海道クロスライン', stationNames: ['札幌', '小樽', '岩見沢', '千歳', '苫小牧'], defaultTerrain: 'plain', distanceScale: 0.42 },
+  { id: 'aomori', label: '青森県', lineName: '青森りんごライン', stationNames: ['青森', '弘前', '八戸', '新青森', '五所川原'], defaultTerrain: 'coastal', distanceScale: 0.2 },
+  { id: 'iwate', label: '岩手県', lineName: '岩手銀河ライン', stationNames: ['盛岡', '花巻', '北上', '一ノ関', '宮古'], defaultTerrain: 'mountain', distanceScale: 0.25 },
+  { id: 'miyagi', label: '宮城県', lineName: '仙台ベイライン', stationNames: ['仙台', '石巻', '古川', '白石', '名取'], defaultTerrain: 'coastal', distanceScale: 0.18 },
+  { id: 'akita', label: '秋田県', lineName: '秋田こまちライン', stationNames: ['秋田', '大曲', '横手', '能代', '角館'], defaultTerrain: 'plain', distanceScale: 0.2 },
+  { id: 'yamagata', label: '山形県', lineName: '山形盆地ライン', stationNames: ['山形', '米沢', '天童', '新庄', '酒田'], defaultTerrain: 'mountain', distanceScale: 0.21 },
+  { id: 'fukushima', label: '福島県', lineName: '福島トライライン', stationNames: ['福島', '郡山', 'いわき', '会津若松', '白河'], defaultTerrain: 'mountain', distanceScale: 0.24 },
+  { id: 'ibaraki', label: '茨城県', lineName: '茨城サイエンスライン', stationNames: ['水戸', '土浦', 'つくば', '日立', '鹿島神宮'], defaultTerrain: 'plain', distanceScale: 0.18 },
+  { id: 'tochigi', label: '栃木県', lineName: '栃木リンクライン', stationNames: ['宇都宮', '小山', '栃木', '那須塩原', '日光'], defaultTerrain: 'plain', distanceScale: 0.17 },
+  { id: 'gunma', label: '群馬県', lineName: '群馬上毛ライン', stationNames: ['高崎', '前橋', '桐生', '伊勢崎', '渋川'], defaultTerrain: 'plain', distanceScale: 0.15 },
+  { id: 'saitama', label: '埼玉県', lineName: '埼玉アーバンライン', stationNames: ['大宮', '浦和', '川越', '熊谷', '越谷'], defaultTerrain: 'urban', distanceScale: 0.13 },
+  { id: 'chiba', label: '千葉県', lineName: '千葉ベイライン', stationNames: ['千葉', '船橋', '柏', '松戸', '成田'], defaultTerrain: 'urban', distanceScale: 0.16 },
+  { id: 'kanagawa', label: '神奈川県', lineName: '神奈川コーストライン', stationNames: ['横浜', '川崎', '藤沢', '小田原', '相模大野'], defaultTerrain: 'urban', distanceScale: 0.14 },
+  { id: 'niigata', label: '新潟県', lineName: '新潟日本海ライン', stationNames: ['新潟', '長岡', '上越妙高', '新発田', '越後湯沢'], defaultTerrain: 'coastal', distanceScale: 0.25 },
+  { id: 'toyama', label: '富山県', lineName: '富山湾岸ライン', stationNames: ['富山', '高岡', '黒部宇奈月温泉', '砺波', '魚津'], defaultTerrain: 'coastal', distanceScale: 0.14 },
+  { id: 'ishikawa', label: '石川県', lineName: '石川百万石ライン', stationNames: ['金沢', '小松', '加賀温泉', '七尾', '羽咋'], defaultTerrain: 'coastal', distanceScale: 0.16 },
+  { id: 'fukui', label: '福井県', lineName: '福井越前ライン', stationNames: ['福井', '敦賀', '武生', '鯖江', '小浜'], defaultTerrain: 'coastal', distanceScale: 0.17 },
+  { id: 'yamanashi', label: '山梨県', lineName: '山梨富士ライン', stationNames: ['甲府', '大月', '石和温泉', '韮崎', '富士山'], defaultTerrain: 'mountain', distanceScale: 0.14 },
+  { id: 'nagano', label: '長野県', lineName: '信州アルプスライン', stationNames: ['長野', '松本', '上田', '佐久平', '飯田'], defaultTerrain: 'mountain', distanceScale: 0.25 },
+  { id: 'gifu', label: '岐阜県', lineName: '岐阜清流ライン', stationNames: ['岐阜', '大垣', '高山', '多治見', '中津川'], defaultTerrain: 'mountain', distanceScale: 0.22 },
+  { id: 'shizuoka', label: '静岡県', lineName: '静岡東海道ライン', stationNames: ['静岡', '浜松', '沼津', '三島', '熱海'], defaultTerrain: 'coastal', distanceScale: 0.19 },
+  { id: 'aichi', label: '愛知県', lineName: '愛知メガループ', stationNames: ['名古屋', '豊橋', '岡崎', '一宮', '豊田市'], defaultTerrain: 'urban', distanceScale: 0.15 },
+  { id: 'mie', label: '三重県', lineName: '三重伊勢ライン', stationNames: ['津', '四日市', '松阪', '伊勢市', '桑名'], defaultTerrain: 'coastal', distanceScale: 0.17 },
+  { id: 'shiga', label: '滋賀県', lineName: '滋賀びわ湖ライン', stationNames: ['大津', '草津', '彦根', '近江八幡', '長浜'], defaultTerrain: 'plain', distanceScale: 0.13 },
+  { id: 'kyoto', label: '京都府', lineName: '京都洛外ライン', stationNames: ['京都', '宇治', '亀岡', '福知山', '舞鶴'], defaultTerrain: 'urban', distanceScale: 0.16 },
+  { id: 'osaka', label: '大阪府', lineName: '大阪メトロリンク', stationNames: ['大阪', '新大阪', '天王寺', '堺', '枚方市'], defaultTerrain: 'urban', distanceScale: 0.1 },
+  { id: 'hyogo', label: '兵庫県', lineName: '兵庫瀬戸内ライン', stationNames: ['神戸', '姫路', '尼崎', '明石', '豊岡'], defaultTerrain: 'coastal', distanceScale: 0.2 },
+  { id: 'nara', label: '奈良県', lineName: '奈良大和ライン', stationNames: ['奈良', '大和西大寺', '橿原神宮前', '王寺', '天理'], defaultTerrain: 'plain', distanceScale: 0.11 },
+  { id: 'wakayama', label: '和歌山県', lineName: '和歌山紀州ライン', stationNames: ['和歌山', '橋本', '御坊', '紀伊田辺', '新宮'], defaultTerrain: 'coastal', distanceScale: 0.22 },
+  { id: 'tottori', label: '鳥取県', lineName: '鳥取砂丘ライン', stationNames: ['鳥取', '米子', '倉吉', '境港', '智頭'], defaultTerrain: 'coastal', distanceScale: 0.15 },
+  { id: 'shimane', label: '島根県', lineName: '島根出雲ライン', stationNames: ['松江', '出雲市', '浜田', '益田', '安来'], defaultTerrain: 'coastal', distanceScale: 0.2 },
+  { id: 'okayama', label: '岡山県', lineName: '岡山晴れの国ライン', stationNames: ['岡山', '倉敷', '津山', '新倉敷', '児島'], defaultTerrain: 'plain', distanceScale: 0.15 },
+  { id: 'hiroshima', label: '広島県', lineName: '広島瀬戸内ライン', stationNames: ['広島', '福山', '呉', '三原', '尾道'], defaultTerrain: 'coastal', distanceScale: 0.18 },
+  { id: 'yamaguchi', label: '山口県', lineName: '山口西京ライン', stationNames: ['山口', '下関', '新山口', '徳山', '岩国'], defaultTerrain: 'coastal', distanceScale: 0.19 },
+  { id: 'tokushima', label: '徳島県', lineName: '徳島阿波ライン', stationNames: ['徳島', '鳴門', '阿南', '脇町', '阿波池田'], defaultTerrain: 'coastal', distanceScale: 0.14 },
+  { id: 'kagawa', label: '香川県', lineName: '香川讃岐ライン', stationNames: ['高松', '丸亀', '坂出', '琴平', '観音寺'], defaultTerrain: 'coastal', distanceScale: 0.1 },
+  { id: 'ehime', label: '愛媛県', lineName: '愛媛伊予ライン', stationNames: ['松山', '今治', '宇和島', '新居浜', '伊予西条'], defaultTerrain: 'coastal', distanceScale: 0.19 },
+  { id: 'kochi', label: '高知県', lineName: '高知土佐ライン', stationNames: ['高知', '後免', '須崎', '中村', '安芸'], defaultTerrain: 'coastal', distanceScale: 0.19 },
+  { id: 'fukuoka', label: '福岡県', lineName: '福岡メガループ', stationNames: ['博多', '小倉', '久留米', '大牟田', '西鉄福岡'], defaultTerrain: 'urban', distanceScale: 0.16 },
+  { id: 'saga', label: '佐賀県', lineName: '佐賀有明ライン', stationNames: ['佐賀', '鳥栖', '唐津', '武雄温泉', '伊万里'], defaultTerrain: 'plain', distanceScale: 0.13 },
+  { id: 'nagasaki', label: '長崎県', lineName: '長崎シーサイドライン', stationNames: ['長崎', '諫早', '佐世保', '大村', '島原'], defaultTerrain: 'coastal', distanceScale: 0.16 },
+  { id: 'kumamoto', label: '熊本県', lineName: '熊本火の国ライン', stationNames: ['熊本', '八代', '新玉名', '人吉', '阿蘇'], defaultTerrain: 'plain', distanceScale: 0.18 },
+  { id: 'oita', label: '大分県', lineName: '大分別府ライン', stationNames: ['大分', '別府', '中津', '佐伯', '日田'], defaultTerrain: 'coastal', distanceScale: 0.17 },
+  { id: 'miyazaki', label: '宮崎県', lineName: '宮崎日向ライン', stationNames: ['宮崎', '延岡', '都城', '日南', '小林'], defaultTerrain: 'coastal', distanceScale: 0.2 },
+  { id: 'kagoshima', label: '鹿児島県', lineName: '鹿児島さつまライン', stationNames: ['鹿児島中央', '川内', '国分', '指宿', '鹿屋'], defaultTerrain: 'coastal', distanceScale: 0.19 },
+  { id: 'okinawa', label: '沖縄県', lineName: '沖縄ゆいレール拡張線', stationNames: ['那覇', '浦添前田', 'てだこ浦西', '首里', 'おもろまち'], defaultTerrain: 'coastal', distanceScale: 0.08 },
+];
+
+function buildPrefectureStations(definition: PrefectureDefinition): Station[] {
+  return definition.stationNames.map((name, index) => {
+    const layout = PREFECTURE_STATION_LAYOUT[index];
+    return {
+      id: `${definition.id}-${index}`,
+      name,
+      region: definition.label,
+      x: layout.x,
+      y: layout.y,
+      demand: Math.round((index === 0 ? 170 : 112) * layout.demandFactor),
+      terrain: definition.defaultTerrain ?? 'urban',
+      labelDx: layout.labelDx,
+      labelDy: layout.labelDy,
+      scope: 'prefecture',
+      prefectureId: definition.id,
+    };
+  });
+}
+
+function buildPrefecturePresets(definition: PrefectureDefinition, stations: Station[]): PresetRoute[] {
+  const stationIds = stations.map((station) => station.id);
+  return [
+    {
+      id: `${definition.id}-main`,
+      name: '県内幹線',
+      lineName: definition.lineName,
+      stationIds: [stationIds[4], stationIds[0], stationIds[1], stationIds[2], stationIds[3]],
+    },
+    {
+      id: `${definition.id}-loop`,
+      name: '都市環状',
+      lineName: `${definition.label}アーバンループ`,
+      stationIds: [stationIds[1], stationIds[2], stationIds[3], stationIds[4], stationIds[0]],
+    },
+  ];
+}
+
+function buildPrefectureZoom(definition: PrefectureDefinition): PrefectureZoom {
+  const stations = buildPrefectureStations(definition);
+  return {
+    id: definition.id,
+    label: definition.label,
+    description: `${definition.label}内の代表駅から開始して、地図上に細かい駅を追加できます。`,
+    distanceScale: definition.distanceScale ?? 0.16,
+    stations,
+    presets: buildPrefecturePresets(definition, stations),
+  };
+}
+
+const GENERATED_PREFECTURE_ZOOMS = PREFECTURE_DEFINITIONS.map(buildPrefectureZoom);
+
+const PREFECTURE_ZOOMS: PrefectureZoom[] = [
+  {
+    id: 'tokyo',
+    label: '東京都',
+    description: '南千住・北千住など、都市内の駅間まで細かく設計できます。',
+    distanceScale: 0.085,
+    stations: TOKYO_STATIONS.map((station) => ({
+      ...station,
+      scope: 'prefecture',
+      prefectureId: 'tokyo',
+    })),
+    presets: TOKYO_PRESET_ROUTES,
+  },
+  ...GENERATED_PREFECTURE_ZOOMS,
+];
+
+const PREFECTURE_ZOOM_BY_ID = PREFECTURE_ZOOMS.reduce<Record<string, PrefectureZoom>>((acc, zoom) => {
+  acc[zoom.id] = zoom;
+  return acc;
+}, {});
+
+function getPrefectureZoom(id: string): PrefectureZoom {
+  return PREFECTURE_ZOOM_BY_ID[id] ?? PREFECTURE_ZOOMS[0];
+}
+
+const DEFAULT_PREFECTURE_ID = 'tokyo';
+const initialPrefectureZoom = getPrefectureZoom(DEFAULT_PREFECTURE_ID);
+const initialPreset = initialPrefectureZoom.presets[0];
 
 const MAP_SCOPE_OPTIONS: Array<{ id: MapScope; label: string; description: string }> = [
-  { id: 'tokyo', label: '東京近郊', description: '南千住・北千住など、都市内の駅間まで細かく設計。' },
+  { id: 'prefecture', label: '都道府県', description: '47都道府県それぞれをズームして、県内の駅間まで設計。' },
   { id: 'national', label: '全国', description: '主要都市をつなぐ広域路線を設計。' },
 ];
 
-const initialMapScope: MapScope = 'tokyo';
-const initialPreset = DEFAULT_PRESET_BY_SCOPE[initialMapScope];
+const initialMapScope: MapScope = 'prefecture';
 const railwayTheme = {
   '--railway-accent': '#0f766e',
   '--railway-accent-strong': '#0f5f59',
   '--railway-accent-soft': '#f59e0b',
 } as CSSProperties;
 
-function getDistance(from: Station, to: Station, mapScope: MapScope): number {
+function getDistance(from: Station, to: Station, distanceScale: number): number {
   const dx = (to.x - from.x) * 1.08;
   const dy = (to.y - from.y) * 1.24;
-  return Math.hypot(dx, dy) * (mapScope === 'tokyo' ? 0.085 : 1.88);
+  return Math.hypot(dx, dy) * distanceScale;
 }
 
-function createSegments(routeStations: Station[], mapScope: MapScope): Segment[] {
+function createSegments(routeStations: Station[], distanceScale: number): Segment[] {
   return routeStations.slice(0, -1).map((from, index) => {
     const to = routeStations[index + 1];
     return {
       from,
       to,
-      distance: getDistance(from, to, mapScope),
+      distance: getDistance(from, to, distanceScale),
       terrainFactor: (terrainCostFactor[from.terrain] + terrainCostFactor[to.terrain]) / 2,
     };
   });
@@ -347,6 +492,7 @@ export default function RailwayPlannerPage() {
   const lifecycle = useFeatureLifecycle('tool.railway-planner');
   const svgRef = useRef<SVGSVGElement>(null);
   const [mapScope, setMapScope] = useState<MapScope>(initialMapScope);
+  const [selectedPrefectureId, setSelectedPrefectureId] = useState(DEFAULT_PREFECTURE_ID);
   const [lineName, setLineName] = useState(initialPreset.lineName);
   const [routeStationIds, setRouteStationIds] = useState<string[]>(initialPreset.stationIds);
   const [customStations, setCustomStations] = useState<Station[]>([]);
@@ -357,17 +503,27 @@ export default function RailwayPlannerPage() {
   const [stationDraft, setStationDraft] = useState('新駅');
   const [showDemand, setShowDemand] = useState(true);
 
-  const baseStations = mapScope === 'tokyo' ? TOKYO_STATIONS : NATIONAL_STATIONS;
-  const activePresetRoutes = PRESET_ROUTES_BY_SCOPE[mapScope];
+  const selectedPrefecture = getPrefectureZoom(selectedPrefectureId);
+  const baseStations = mapScope === 'prefecture' ? selectedPrefecture.stations : NATIONAL_STATIONS;
+  const activePresetRoutes = mapScope === 'prefecture' ? selectedPrefecture.presets : NATIONAL_PRESET_ROUTES;
   const selectedScope = MAP_SCOPE_OPTIONS.find((option) => option.id === mapScope) ?? MAP_SCOPE_OPTIONS[0];
-  const currentCustomStations = customStations.filter((station) => station.scope === mapScope);
+  const currentCustomStations = customStations.filter((station) => (
+    station.scope === mapScope
+    && (mapScope !== 'prefecture' || station.prefectureId === selectedPrefectureId)
+  ));
 
   const allStations = useMemo(
-    () => [
-      ...(mapScope === 'tokyo' ? TOKYO_STATIONS : NATIONAL_STATIONS),
-      ...customStations.filter((station) => station.scope === mapScope),
-    ],
-    [customStations, mapScope],
+    () => {
+      const scopedPrefecture = getPrefectureZoom(selectedPrefectureId);
+      return [
+        ...(mapScope === 'prefecture' ? scopedPrefecture.stations : NATIONAL_STATIONS),
+        ...customStations.filter((station) => (
+          station.scope === mapScope
+          && (mapScope !== 'prefecture' || station.prefectureId === selectedPrefectureId)
+        )),
+      ];
+    },
+    [customStations, mapScope, selectedPrefectureId],
   );
 
   const routeStations = useMemo(
@@ -377,7 +533,15 @@ export default function RailwayPlannerPage() {
     [allStations, routeStationIds],
   );
 
-  const routeSegments = useMemo(() => createSegments(routeStations, mapScope), [mapScope, routeStations]);
+  const routeSegments = useMemo(
+    () => {
+      const distanceScale = mapScope === 'prefecture'
+        ? getPrefectureZoom(selectedPrefectureId).distanceScale
+        : 1.88;
+      return createSegments(routeStations, distanceScale);
+    },
+    [mapScope, routeStations, selectedPrefectureId],
+  );
 
   const routeMetrics = useMemo(() => {
     const totalDistance = routeSegments.reduce((sum, segment) => sum + segment.distance, 0);
@@ -463,7 +627,7 @@ export default function RailwayPlannerPage() {
     const nextStation: Station = {
       id: `custom-${Date.now()}`,
       name: stationName.slice(0, 12),
-      region: '計画駅',
+      region: mapScope === 'prefecture' ? `${selectedPrefecture.label}計画駅` : '計画駅',
       x: Math.max(18, Math.min(MAP_WIDTH - 18, x)),
       y: Math.max(18, Math.min(MAP_HEIGHT - 18, y)),
       demand: 118,
@@ -472,6 +636,7 @@ export default function RailwayPlannerPage() {
       labelDy: -10,
       custom: true,
       scope: mapScope,
+      prefectureId: mapScope === 'prefecture' ? selectedPrefectureId : undefined,
     };
 
     lifecycle.trackEvent('custom_station_add', { station_name_len: nextStation.name.length });
@@ -489,11 +654,24 @@ export default function RailwayPlannerPage() {
 
   const handleScopeChange = (nextScope: MapScope) => {
     if (nextScope === mapScope) return;
-    const nextPreset = DEFAULT_PRESET_BY_SCOPE[nextScope];
+    const nextPreset = nextScope === 'prefecture'
+      ? selectedPrefecture.presets[0]
+      : NATIONAL_PRESET_ROUTES[0];
     lifecycle.trackEvent('scope_change', { map_scope: nextScope });
     setMapScope(nextScope);
     setRouteStationIds(nextPreset.stationIds);
     setLineName(nextPreset.lineName);
+    setAddMode(false);
+    setStationDraft('新駅');
+  };
+
+  const handlePrefectureChange = (prefectureId: string) => {
+    const nextPrefecture = getPrefectureZoom(prefectureId);
+    lifecycle.trackEvent('prefecture_change', { prefecture_id: prefectureId });
+    setSelectedPrefectureId(prefectureId);
+    setMapScope('prefecture');
+    setRouteStationIds(nextPrefecture.presets[0].stationIds);
+    setLineName(nextPrefecture.presets[0].lineName);
     setAddMode(false);
     setStationDraft('新駅');
   };
@@ -506,6 +684,7 @@ export default function RailwayPlannerPage() {
   const handleReset = () => {
     lifecycle.trackEvent('reset');
     setMapScope(initialMapScope);
+    setSelectedPrefectureId(DEFAULT_PREFECTURE_ID);
     setLineName(initialPreset.lineName);
     setRouteStationIds(initialPreset.stationIds);
     setCustomStations([]);
@@ -520,7 +699,10 @@ export default function RailwayPlannerPage() {
   const handleRemoveCustomStations = () => {
     lifecycle.trackEvent('custom_station_clear', { custom_station_count: currentCustomStations.length });
     const baseStationIds = new Set(baseStations.map((station) => station.id));
-    setCustomStations((current) => current.filter((station) => station.scope !== mapScope));
+    setCustomStations((current) => current.filter((station) => !(
+      station.scope === mapScope
+      && (mapScope !== 'prefecture' || station.prefectureId === selectedPrefectureId)
+    )));
     setRouteStationIds((current) => current.filter((id) => baseStationIds.has(id)));
   };
 
@@ -608,6 +790,23 @@ export default function RailwayPlannerPage() {
                 </div>
                 <p className={styles.helperText}>{selectedScope.description}</p>
               </div>
+              {mapScope === 'prefecture' && (
+                <label className={styles.field}>
+                  <span>都道府県</span>
+                  <select
+                    value={selectedPrefectureId}
+                    onChange={(event) => handlePrefectureChange(event.target.value)}
+                    className={styles.selectInput}
+                  >
+                    {PREFECTURE_ZOOMS.map((prefecture) => (
+                      <option key={prefecture.id} value={prefecture.id}>
+                        {prefecture.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className={styles.fieldHint}>{selectedPrefecture.description}</span>
+                </label>
+              )}
               <label className={styles.field}>
                 <span>路線名</span>
                 <Input
@@ -774,12 +973,12 @@ export default function RailwayPlannerPage() {
             </section>
           </aside>
 
-          <section className={styles.mapPanel} aria-label={mapScope === 'tokyo' ? '東京近郊地図' : '日本地図'}>
+          <section className={styles.mapPanel} aria-label={mapScope === 'prefecture' ? `${selectedPrefecture.label}ズーム地図` : '日本地図'}>
             <div className={styles.mapHeader}>
               <div>
                 <h2>{lineName || '無名路線'}</h2>
                 <p>
-                  {selectedScope.label} / {selectedTrack.label} / {selectedService.label} / {routeStations.length}駅
+                  {mapScope === 'prefecture' ? selectedPrefecture.label : selectedScope.label} / {selectedTrack.label} / {selectedService.label} / {routeStations.length}駅
                 </p>
               </div>
               {addMode && <span className={styles.addModeBadge}>地図クリックで駅追加</span>}
@@ -790,7 +989,7 @@ export default function RailwayPlannerPage() {
               className={styles.mapSvg}
               viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
               role="img"
-              aria-label={mapScope === 'tokyo' ? '東京近郊地図上の架空鉄道路線' : '日本地図上の架空鉄道路線'}
+              aria-label={mapScope === 'prefecture' ? `${selectedPrefecture.label}ズーム地図上の架空鉄道路線` : '日本地図上の架空鉄道路線'}
               onClick={handleMapCanvasClick}
             >
               <defs>
@@ -813,7 +1012,7 @@ export default function RailwayPlannerPage() {
                   <path d="M121 594 C158 574 198 590 210 627 C221 662 196 708 157 725 C119 741 88 716 93 676 C97 641 100 611 121 594 Z" />
                   <path d="M61 708 C82 694 107 701 118 719 C105 739 72 746 51 729 C43 721 48 713 61 708 Z" />
                 </g>
-              ) : (
+              ) : selectedPrefecture.id === 'tokyo' ? (
                 <>
                   <g className={styles.landLayer}>
                     <path d="M62 72 C141 16 256 34 330 74 C410 118 492 96 566 142 C627 181 621 274 580 340 C548 392 550 461 585 520 C608 560 586 626 532 662 C460 710 358 724 268 696 C187 671 115 626 75 551 C34 474 26 371 46 288 C62 220 18 127 62 72 Z" />
@@ -826,6 +1025,20 @@ export default function RailwayPlannerPage() {
                     <text x="392" y="205" className={styles.mapAreaLabel}>荒川</text>
                     <text x="410" y="386" className={styles.mapAreaLabel}>隅田川</text>
                     <text x="412" y="556" className={styles.mapAreaLabel}>東京湾</text>
+                  </g>
+                </>
+              ) : (
+                <>
+                  <g className={styles.landLayer}>
+                    <path d="M62 72 C141 16 256 34 330 74 C410 118 492 96 566 142 C627 181 621 274 580 340 C548 392 550 461 585 520 C608 560 586 626 532 662 C460 710 358 724 268 696 C187 671 115 626 75 551 C34 474 26 371 46 288 C62 220 18 127 62 72 Z" />
+                  </g>
+                  <g className={styles.tokyoGuideLayer}>
+                    <path className={styles.riverLine} d="M142 172 C234 234 322 256 450 216 C512 196 558 226 590 278" />
+                    <path className={styles.riverLine} d="M196 570 C250 486 318 424 406 384 C492 344 545 276 579 176" />
+                    <path className={styles.wardBoundary} d="M96 398 C184 344 286 332 392 366 C478 394 550 452 594 524" />
+                    <text x="84" y="126" className={styles.mapAreaLabel}>{selectedPrefecture.label}ズーム</text>
+                    <text x="404" y="246" className={styles.mapAreaLabel}>北部連絡</text>
+                    <text x="242" y="590" className={styles.mapAreaLabel}>南部連絡</text>
                   </g>
                 </>
               )}

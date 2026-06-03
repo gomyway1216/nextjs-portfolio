@@ -937,9 +937,9 @@
       "railwayPlanner": {
         "title": "Railway Planner",
         "subtitle": "Fictional Rail Tool",
-        "description": "Plan fictional railways from national trunk lines down to Tokyo-area station spacing like Minami-Senju and Kita-Senju.",
+        "description": "Plan fictional railways from national trunk lines down to zoomed station layouts for all 47 prefectures.",
         "features": {
-          "mapEdit": "Map editing",
+          "mapEdit": "All prefectures",
           "serviceTypes": "Service patterns",
           "simulation": "Cost simulation"
         }

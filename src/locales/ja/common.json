@@ -1063,6 +1063,8 @@
           },
           "station": {
             "remove": "{{station}}を外す",
+            "moveUp": "{{station}}を前に移動",
+            "moveDown": "{{station}}を後ろに移動",
             "removeFromRoute": "{{station}}をルートから外す",
             "addToRoute": "{{station}}をルートに追加"
           },

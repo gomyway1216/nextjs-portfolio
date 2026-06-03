@@ -97,6 +97,10 @@ interface RailwayPlaceSearchResult {
   prefecture: string;
   municipality?: string;
   address: string;
+  displayLocation?: string;
+  displayDetail?: string;
+  operatorName?: string;
+  lineName?: string;
   latitude: number;
   longitude: number;
   source: string;
@@ -288,7 +292,25 @@ function getDemandForPlaceKind(kind: RailwayPlaceKind): number {
 }
 
 function formatPlaceRegion(place: RailwayPlaceSearchResult): string {
-  return [place.prefecture, place.municipality].filter(Boolean).join(' / ') || place.address;
+  if (place.displayLocation) return place.displayLocation;
+
+  const locationParts = [place.prefecture, place.municipality]
+    .filter((item): item is string => Boolean(item) && item !== '日本' && item !== '日本国');
+  if (locationParts.length > 0) return locationParts.join(' / ');
+  if (place.address && place.address !== `日本${place.name}`) return place.address;
+
+  return [place.operatorName, place.lineName].filter(Boolean).join(' / ') || place.address;
+}
+
+function formatPlaceDetail(place: RailwayPlaceSearchResult): string {
+  if (place.displayDetail) return place.displayDetail;
+
+  const railwayDetail = [place.operatorName, place.lineName].filter(Boolean).join(' / ');
+  const coordinateDetail = Number.isFinite(place.latitude) && Number.isFinite(place.longitude)
+    ? `${place.latitude.toFixed(4)}, ${place.longitude.toFixed(4)}`
+    : '';
+
+  return [railwayDetail, coordinateDetail].filter(Boolean).join(' / ');
 }
 
 function isDefaultStationSearchDraft(value: string, defaultDraft: string): boolean {
@@ -1294,7 +1316,7 @@ export default function RailwayPlannerPage() {
       try {
         const params = new URLSearchParams({
           q: trimmedStationDraft,
-          limit: '6',
+          limit: '10',
           includeExternal: 'true',
         });
         const response = await fetch(`/api/railway/places?${params.toString()}`, {
@@ -2216,20 +2238,27 @@ export default function RailwayPlannerPage() {
                     {placeSearchStatus === 'success' && placeSearchResults.length === 0 && (
                       <p className={styles.placeSearchStatus}>{rp('search.empty')}</p>
                     )}
-                    {placeSearchResults.map((place) => (
-                      <button
-                        key={`${place.sourceLayer}-${place.id}`}
-                        type="button"
-                        className={styles.placeSearchResult}
-                        onClick={() => handlePlaceSearchResultSelect(place)}
-                      >
-                        <span>
-                          <strong>{place.name}</strong>
-                          <small>{place.address || formatPlaceRegion(place)}</small>
-                        </span>
-                        <em>{rp(`placeKind.${place.kind}`)}</em>
-                      </button>
-                    ))}
+                    {placeSearchResults.map((place) => {
+                      const placeDetail = formatPlaceDetail(place);
+
+                      return (
+                        <button
+                          key={`${place.sourceLayer}-${place.id}`}
+                          type="button"
+                          className={styles.placeSearchResult}
+                          onClick={() => handlePlaceSearchResultSelect(place)}
+                        >
+                          <span>
+                            <strong>{place.name}</strong>
+                            <small>{formatPlaceRegion(place)}</small>
+                            {placeDetail && (
+                              <small className={styles.placeSearchMeta}>{placeDetail}</small>
+                            )}
+                          </span>
+                          <em>{rp(`placeKind.${place.kind}`)}</em>
+                        </button>
+                      );
+                    })}
                   </div>
                 )}
                 <Button

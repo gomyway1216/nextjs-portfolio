@@ -998,6 +998,14 @@
             "empty": "No place candidates",
             "error": "Place search failed"
           },
+          "save": {
+            "checking": "Checking save target",
+            "local": "Saved in this browser",
+            "loading": "Loading account save",
+            "saving": "Saving to account",
+            "saved": "Saved to account",
+            "error": "Account save failed"
+          },
           "placeKind": {
             "station": "Station",
             "city": "City",

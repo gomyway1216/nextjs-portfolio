@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { useAuth } from '@/providers/AuthProvider';
 import {
   Activity,
   ArrowDown,
@@ -23,6 +24,7 @@ import {
 import Link from 'next/link';
 import {
   useEffect,
+  useCallback,
   useMemo,
   useRef,
   useState,
@@ -69,6 +71,7 @@ type DefaultServiceType = 'local' | 'rapid' | 'express' | 'limited';
 type ServiceType = string;
 type MapScope = 'prefecture' | 'national';
 type RailwayPlaceKind = 'station' | 'city' | 'town' | 'district' | 'landmark';
+type DraftSaveStatus = 'checking' | 'local' | 'loading' | 'saving' | 'saved' | 'error';
 
 interface Station {
   id: string;
@@ -137,6 +140,7 @@ interface ServiceOption {
 type ServiceStopOverrides = Record<string, Record<string, boolean>>;
 
 interface RailwayPlannerDraft {
+  schemaVersion: 2;
   mapScope: MapScope;
   selectedPrefectureId: string;
   lineName: string;
@@ -149,6 +153,12 @@ interface RailwayPlannerDraft {
   showDemand: boolean;
   serviceOptions: ServiceOption[];
   stopOverrides: ServiceStopOverrides;
+  updatedAt: string;
+}
+
+interface RailwayPlannerDraftResponse {
+  draft: Partial<RailwayPlannerDraft> | null;
+  updatedAt?: string | null;
 }
 
 interface MapViewBox {
@@ -885,6 +895,13 @@ function parseStopOverrides(value: unknown): ServiceStopOverrides {
   }, {});
 }
 
+function getDraftTimestamp(draft: Partial<RailwayPlannerDraft> | null | undefined, fallback?: string | null): number {
+  const value = draft?.updatedAt ?? fallback;
+  if (!value) return 0;
+  const timestamp = Date.parse(value);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
 function getMaxNumberedId(items: Array<{ id: string }>, prefixes: string[]): number {
   return items.reduce((max, item) => {
     const matchingPrefix = prefixes.find((prefix) => item.id.startsWith(`${prefix}-`));
@@ -951,6 +968,7 @@ function getZoomedMapView(
 
 export default function RailwayPlannerPage() {
   const { t, i18n } = useTranslation();
+  const { currentUser, loading: authLoading } = useAuth();
   const lifecycle = useFeatureLifecycle('tool.railway-planner');
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<MapDragState | null>(null);
@@ -959,7 +977,11 @@ export default function RailwayPlannerPage() {
   const wheelZoomFrameRef = useRef<number | null>(null);
   const pendingWheelZoomRef = useRef<PendingWheelZoom | null>(null);
   const mapInteractionTimeoutRef = useRef<number | null>(null);
+  const cloudSaveTimeoutRef = useRef<number | null>(null);
   const suppressNextClickRef = useRef(false);
+  const suppressNextCloudSaveRef = useRef(false);
+  const localDraftUpdatedAtRef = useRef<string | null>(null);
+  const lastCloudSavePayloadRef = useRef('');
   const customStationIdRef = useRef(0);
   const customServiceIdRef = useRef(0);
   const isJapanese = i18n.language?.startsWith('ja');
@@ -989,6 +1011,8 @@ export default function RailwayPlannerPage() {
   const [mapView, setMapView] = useState<MapViewBox>(DEFAULT_MAP_VIEW);
   const [isMapInteracting, setIsMapInteracting] = useState(false);
   const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
+  const [hasLoadedCloudDraft, setHasLoadedCloudDraft] = useState(false);
+  const [draftSaveStatus, setDraftSaveStatus] = useState<DraftSaveStatus>('checking');
 
   const selectedPrefecture = getPrefectureZoom(selectedPrefectureId);
   const baseStations = mapScope === 'prefecture' ? selectedPrefecture.stations : NATIONAL_BASE_STATIONS;
@@ -1029,6 +1053,71 @@ export default function RailwayPlannerPage() {
   const selectedServiceLabel = getServiceLabel(selectedService, rp);
   const selectedServiceShortLabel = getServiceShortLabel(selectedService, rp);
   const customServiceOptions = serviceOptions.filter((option) => option.custom);
+  const canUseCloudSave = Boolean(currentUser && !currentUser.isAnonymous);
+  const visibleSaveStatus: DraftSaveStatus = authLoading
+    ? 'checking'
+    : canUseCloudSave
+      ? draftSaveStatus
+      : 'local';
+
+  const applyStoredDraft = useCallback((draft: Partial<RailwayPlannerDraft>) => {
+    const nextCustomStations = parseStationList(draft.customStations);
+    const nextServiceOptions = parseServiceOptions(draft.serviceOptions);
+    const nextRouteStationIds = parseStringArray(draft.routeStationIds);
+    const nextServiceType = typeof draft.serviceType === 'string'
+      && nextServiceOptions.some((option) => option.id === draft.serviceType)
+      ? draft.serviceType
+      : DEFAULT_SERVICE_TYPE;
+
+    if (isMapScope(draft.mapScope)) setMapScope(draft.mapScope);
+    if (typeof draft.selectedPrefectureId === 'string') setSelectedPrefectureId(draft.selectedPrefectureId);
+    if (typeof draft.lineName === 'string') setLineName(draft.lineName);
+    if (typeof draft.selectedPresetId === 'string' || draft.selectedPresetId === null) {
+      setSelectedPresetId(draft.selectedPresetId);
+    }
+    if (nextRouteStationIds) setRouteStationIds(nextRouteStationIds);
+    setCustomStations(nextCustomStations);
+    if (isTrackType(draft.trackType)) setTrackType(draft.trackType);
+    setServiceOptions(nextServiceOptions);
+    setServiceType(nextServiceType);
+    setStopOverrides(parseStopOverrides(draft.stopOverrides));
+    if (typeof draft.frequency === 'number') setFrequency(clamp(Math.round(draft.frequency), 1, 18));
+    if (typeof draft.showDemand === 'boolean') setShowDemand(draft.showDemand);
+
+    localDraftUpdatedAtRef.current = typeof draft.updatedAt === 'string' ? draft.updatedAt : null;
+    customStationIdRef.current = getMaxNumberedId(nextCustomStations, ['custom', 'place']);
+    customServiceIdRef.current = getMaxNumberedId(nextServiceOptions, ['custom']);
+  }, []);
+
+  const buildPlannerDraft = useCallback((updatedAt = new Date().toISOString()): RailwayPlannerDraft => ({
+    schemaVersion: 2,
+    mapScope,
+    selectedPrefectureId,
+    lineName,
+    selectedPresetId,
+    routeStationIds,
+    customStations,
+    trackType,
+    serviceType,
+    frequency,
+    showDemand,
+    serviceOptions,
+    stopOverrides,
+    updatedAt,
+  }), [
+    customStations,
+    frequency,
+    lineName,
+    mapScope,
+    routeStationIds,
+    selectedPrefectureId,
+    selectedPresetId,
+    serviceOptions,
+    serviceType,
+    showDemand,
+    stopOverrides,
+    trackType,
+  ]);
 
   useEffect(() => {
     const loadDraftId = window.setTimeout(() => {
@@ -1040,31 +1129,7 @@ export default function RailwayPlannerPage() {
         }
 
         const draft = JSON.parse(storedDraft) as Partial<RailwayPlannerDraft>;
-        const nextCustomStations = parseStationList(draft.customStations);
-        const nextServiceOptions = parseServiceOptions(draft.serviceOptions);
-        const nextRouteStationIds = parseStringArray(draft.routeStationIds);
-        const nextServiceType = typeof draft.serviceType === 'string'
-          && nextServiceOptions.some((option) => option.id === draft.serviceType)
-          ? draft.serviceType
-          : DEFAULT_SERVICE_TYPE;
-
-        if (isMapScope(draft.mapScope)) setMapScope(draft.mapScope);
-        if (typeof draft.selectedPrefectureId === 'string') setSelectedPrefectureId(draft.selectedPrefectureId);
-        if (typeof draft.lineName === 'string') setLineName(draft.lineName);
-        if (typeof draft.selectedPresetId === 'string' || draft.selectedPresetId === null) {
-          setSelectedPresetId(draft.selectedPresetId);
-        }
-        if (nextRouteStationIds) setRouteStationIds(nextRouteStationIds);
-        if (nextCustomStations.length > 0) setCustomStations(nextCustomStations);
-        if (isTrackType(draft.trackType)) setTrackType(draft.trackType);
-        setServiceOptions(nextServiceOptions);
-        setServiceType(nextServiceType);
-        setStopOverrides(parseStopOverrides(draft.stopOverrides));
-        if (typeof draft.frequency === 'number') setFrequency(clamp(Math.round(draft.frequency), 1, 18));
-        if (typeof draft.showDemand === 'boolean') setShowDemand(draft.showDemand);
-
-        customStationIdRef.current = getMaxNumberedId(nextCustomStations, ['custom', 'place']);
-        customServiceIdRef.current = getMaxNumberedId(nextServiceOptions, ['custom']);
+        applyStoredDraft(draft);
       } catch {
         window.localStorage.removeItem(RAILWAY_PLANNER_STORAGE_KEY);
       } finally {
@@ -1073,45 +1138,148 @@ export default function RailwayPlannerPage() {
     }, 0);
 
     return () => window.clearTimeout(loadDraftId);
-  }, []);
+  }, [applyStoredDraft]);
 
   useEffect(() => {
-    if (!hasLoadedDraft) return;
+    if (!hasLoadedDraft || authLoading) return;
+    if (canUseCloudSave && !hasLoadedCloudDraft) return;
 
-    const draft: RailwayPlannerDraft = {
-      mapScope,
-      selectedPrefectureId,
-      lineName,
-      selectedPresetId,
-      routeStationIds,
-      customStations,
-      trackType,
-      serviceType,
-      frequency,
-      showDemand,
-      serviceOptions,
-      stopOverrides,
-    };
-
+    const draft = buildPlannerDraft();
     try {
       window.localStorage.setItem(RAILWAY_PLANNER_STORAGE_KEY, JSON.stringify(draft));
+      localDraftUpdatedAtRef.current = draft.updatedAt;
     } catch {
       // If storage is unavailable or full, the planner should still work for the current session.
     }
   }, [
-    customStations,
-    frequency,
+    authLoading,
+    buildPlannerDraft,
+    canUseCloudSave,
+    hasLoadedCloudDraft,
     hasLoadedDraft,
-    lineName,
-    mapScope,
-    routeStationIds,
-    selectedPrefectureId,
-    selectedPresetId,
-    serviceOptions,
-    serviceType,
-    showDemand,
-    stopOverrides,
-    trackType,
+  ]);
+
+  useEffect(() => {
+    if (!hasLoadedDraft || authLoading) return;
+    if (!canUseCloudSave || !currentUser) {
+      const localStatusId = window.setTimeout(() => {
+        setHasLoadedCloudDraft(false);
+        setDraftSaveStatus('local');
+        lastCloudSavePayloadRef.current = '';
+      }, 0);
+      return () => window.clearTimeout(localStatusId);
+    }
+
+    let cancelled = false;
+
+    const loadCloudDraft = async () => {
+      setDraftSaveStatus('loading');
+      setHasLoadedCloudDraft(false);
+      try {
+        const token = await currentUser.getIdToken();
+        const response = await fetch('/api/railway/planner', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          cache: 'no-store',
+        });
+        const data = await response.json() as RailwayPlannerDraftResponse & { error?: string };
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to load railway planner draft');
+        }
+        if (cancelled) return;
+
+        const cloudDraft = data.draft;
+        const localTimestamp = getDraftTimestamp({ updatedAt: localDraftUpdatedAtRef.current ?? undefined });
+        const cloudTimestamp = getDraftTimestamp(cloudDraft, data.updatedAt);
+        if (cloudDraft && cloudTimestamp > localTimestamp) {
+          suppressNextCloudSaveRef.current = true;
+          applyStoredDraft({
+            ...cloudDraft,
+            updatedAt: typeof cloudDraft.updatedAt === 'string' ? cloudDraft.updatedAt : data.updatedAt ?? undefined,
+          });
+          lastCloudSavePayloadRef.current = JSON.stringify(cloudDraft);
+        }
+
+        setHasLoadedCloudDraft(true);
+        setDraftSaveStatus('saved');
+      } catch (error) {
+        if (cancelled) return;
+        console.warn('Failed to load railway planner cloud draft:', error);
+        setHasLoadedCloudDraft(true);
+        setDraftSaveStatus('error');
+      }
+    };
+
+    const loadCloudDraftId = window.setTimeout(() => {
+      void loadCloudDraft();
+    }, 0);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(loadCloudDraftId);
+    };
+  }, [
+    applyStoredDraft,
+    authLoading,
+    canUseCloudSave,
+    currentUser,
+    hasLoadedDraft,
+  ]);
+
+  useEffect(() => {
+    if (!hasLoadedDraft || !hasLoadedCloudDraft || !canUseCloudSave || !currentUser) return;
+    if (suppressNextCloudSaveRef.current) {
+      suppressNextCloudSaveRef.current = false;
+      return;
+    }
+
+    const draft = buildPlannerDraft(localDraftUpdatedAtRef.current ?? undefined);
+    const payload = JSON.stringify(draft);
+    if (payload === lastCloudSavePayloadRef.current) return;
+
+    if (cloudSaveTimeoutRef.current !== null) {
+      window.clearTimeout(cloudSaveTimeoutRef.current);
+    }
+
+    cloudSaveTimeoutRef.current = window.setTimeout(async () => {
+      setDraftSaveStatus('saving');
+      try {
+        const token = await currentUser.getIdToken();
+        const response = await fetch('/api/railway/planner', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ draft }),
+        });
+        const data = await response.json() as { error?: string };
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to save railway planner draft');
+        }
+        lastCloudSavePayloadRef.current = payload;
+        setDraftSaveStatus('saved');
+      } catch (error) {
+        console.warn('Failed to save railway planner cloud draft:', error);
+        setDraftSaveStatus('error');
+      } finally {
+        cloudSaveTimeoutRef.current = null;
+      }
+    }, 900);
+
+    return () => {
+      if (cloudSaveTimeoutRef.current !== null) {
+        window.clearTimeout(cloudSaveTimeoutRef.current);
+        cloudSaveTimeoutRef.current = null;
+      }
+    };
+  }, [
+    buildPlannerDraft,
+    canUseCloudSave,
+    currentUser,
+    hasLoadedCloudDraft,
+    hasLoadedDraft,
   ]);
 
   useEffect(() => {
@@ -1162,6 +1330,9 @@ export default function RailwayPlannerPage() {
     }
     if (mapInteractionTimeoutRef.current !== null) {
       window.clearTimeout(mapInteractionTimeoutRef.current);
+    }
+    if (cloudSaveTimeoutRef.current !== null) {
+      window.clearTimeout(cloudSaveTimeoutRef.current);
     }
   }, []);
 
@@ -1836,6 +2007,9 @@ export default function RailwayPlannerPage() {
                 <Train size={17} />
                 {rp('sections.routeSettings')}
               </div>
+              <p className={`${styles.saveStatus} ${visibleSaveStatus === 'error' ? styles.saveStatusError : ''}`}>
+                {rp(`save.${visibleSaveStatus}`)}
+              </p>
               <div className={styles.controlGroup}>
                 <span className={styles.groupLabel}>{rp('fields.scope')}</span>
                 <div className={styles.scopeButtons}>

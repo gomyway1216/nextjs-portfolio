@@ -212,6 +212,27 @@
   color: var(--railway-accent-strong);
 }
 
+.saveStatus {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--border) 80%, var(--railway-accent) 20%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--background) 92%, var(--railway-accent) 8%);
+  margin: -5px 0 12px;
+  padding: 5px 9px;
+  color: var(--muted-foreground);
+  font-size: 0.74rem;
+  font-weight: 760;
+  line-height: 1.2;
+}
+
+.saveStatusError {
+  border-color: color-mix(in srgb, #ef4444 40%, var(--border) 60%);
+  background: color-mix(in srgb, #fee2e2 52%, var(--card) 48%);
+  color: color-mix(in srgb, var(--foreground) 70%, #b91c1c 30%);
+}
+
 .field,
 .rangeField {
   display: grid;

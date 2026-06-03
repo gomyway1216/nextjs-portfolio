@@ -39,6 +39,9 @@ export const HOBBY_ITEMS_COLLECTION = 'hobby_items';
 // Game System collection names
 export const GAME_SCORES_COLLECTION = 'game_scores';
 
+// Railway Planner collection names
+export const RAILWAY_PLANNER_DRAFTS_COLLECTION = 'railway_planner_drafts';
+
 // Settli System collection names
 export const SETTLI_GROUPS_COLLECTION = 'settli_groups';
 export const SETTLI_PAYMENTS_COLLECTION = 'settli_payments';

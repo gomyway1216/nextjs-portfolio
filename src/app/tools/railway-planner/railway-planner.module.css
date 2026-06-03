@@ -1132,10 +1132,18 @@
 
 .stopPatternGrid {
   --station-count: 2;
-  display: grid;
-  grid-template-columns: minmax(68px, 78px) repeat(var(--station-count), minmax(42px, 54px));
-  align-items: stretch;
+  border-collapse: collapse;
+  border-spacing: 0;
   min-width: max-content;
+  table-layout: fixed;
+}
+
+.stopPatternServiceColumn {
+  width: 78px;
+}
+
+.stopPatternStationColumn {
+  width: 54px;
 }
 
 .stopPatternCorner,
@@ -1146,39 +1154,39 @@
 }
 
 .stopPatternCorner {
-  display: flex;
-  align-items: end;
+  height: 82px;
   padding: 0 7px 7px;
   color: var(--muted-foreground);
   font-size: 0.66rem;
   font-weight: 760;
+  text-align: left;
+  vertical-align: bottom;
 }
 
 .stopPatternStationLabel {
-  display: flex;
   height: 82px;
-  align-items: end;
-  justify-content: center;
+  min-width: 42px;
   padding: 0 4px 7px;
   color: var(--foreground);
   font-size: 0.68rem;
   font-weight: 760;
   line-height: 1.05;
   text-align: center;
+  vertical-align: bottom;
+  white-space: nowrap;
   writing-mode: vertical-rl;
 }
 
 .stopPatternRow {
-  display: contents;
   --service-color: var(--railway-accent);
 }
 
 .stopPatternService {
-  display: grid;
+  height: 42px;
   min-height: 42px;
-  align-content: center;
-  gap: 2px;
   padding: 5px 6px;
+  text-align: left;
+  vertical-align: middle;
 }
 
 .stopPatternService span {
@@ -1197,6 +1205,7 @@
 }
 
 .stopPatternService strong {
+  display: block;
   min-width: 0;
   overflow: hidden;
   color: var(--foreground);
@@ -1206,9 +1215,18 @@
   white-space: nowrap;
 }
 
+.stopPatternCellSlot {
+  height: 42px;
+  min-width: 42px;
+  padding: 0;
+}
+
 .stopPatternCell {
   position: relative;
   display: inline-flex;
+  width: 100%;
+  height: 100%;
+  min-width: 42px;
   min-height: 42px;
   align-items: center;
   justify-content: center;

@@ -1,17 +1,45 @@
-'use client';
-
 // Home is the only route that uses [data-aos] elements, so AOS init +
 // stylesheet live here instead of the root layout. Every other route
 // (games, blog, tools, …) skips the AOS payload entirely.
 import 'aos/dist/aos.css';
 import AOSInitializer from './AOSInitializer';
 import HomeLightAnimation from '@/views/all-home-version/HomeLightAnimation';
+import { getFirestore } from '@/lib/firebase-admin';
+import type { Profile } from '@/hooks/useProfile';
 
-export default function Home() {
+const PROFILE_DOC_ID = 'main';
+
+export const dynamic = 'force-dynamic';
+
+async function getInitialProfile(): Promise<Profile | null> {
+  try {
+    const doc = await getFirestore().collection('profile').doc(PROFILE_DOC_ID).get();
+    if (!doc.exists) return null;
+
+    const data = doc.data() ?? {};
+    return {
+      id: doc.id,
+      birthdate: typeof data.birthdate === 'string' ? data.birthdate : '1998-06-15',
+      location: typeof data.location === 'string' ? data.location : 'San Francisco, Remote',
+      email: typeof data.email === 'string' ? data.email : 'uwyudai@gmail.com',
+      languages: Array.isArray(data.languages) ? data.languages.filter((language): language is string => typeof language === 'string') : ['English', 'Japanese'],
+      bioEn: typeof data.bioEn === 'string' ? data.bioEn : undefined,
+      bioJa: typeof data.bioJa === 'string' ? data.bioJa : undefined,
+      profileImageUrl: typeof data.profileImageUrl === 'string' ? data.profileImageUrl : undefined,
+    };
+  } catch (error) {
+    console.error('[Home] Failed to load initial profile:', error);
+    return null;
+  }
+}
+
+export default async function Home() {
+  const initialProfile = await getInitialProfile();
+
   return (
     <>
       <AOSInitializer />
-      <HomeLightAnimation />
+      <HomeLightAnimation initialProfile={initialProfile} />
     </>
   );
 }

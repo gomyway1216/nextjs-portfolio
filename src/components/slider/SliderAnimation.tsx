@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { TypeAnimation } from 'react-type-animation';
 import * as profileApi from '@/services/profileService';
-import { useProfile } from '@/hooks/useProfile';
+import { useProfile, type Profile } from '@/hooks/useProfile';
 import { isSupportedProfileImageUrl } from '@/lib/profileImage';
 import { useTranslation } from 'react-i18next';
 
@@ -15,14 +15,20 @@ const conctInfo = {
   email: 'uwyudai@gmail.com',
 };
 
-const Slider = () => {
+interface SliderProps {
+  initialProfile?: Profile | null;
+}
+
+const Slider = ({ initialProfile }: SliderProps) => {
   const [resumeLink, setResumeLink] = useState('');
   const [mounted, setMounted] = useState(false);
-  const { profile } = useProfile();
+  const { profile, loading: profileLoading } = useProfile(initialProfile);
   const { t } = useTranslation();
   const heroImageUrl = isSupportedProfileImageUrl(profile?.profileImageUrl)
     ? profile.profileImageUrl
-    : DEFAULT_HERO_IMAGE_URL;
+    : profileLoading
+      ? null
+      : DEFAULT_HERO_IMAGE_URL;
   const description = t('home.hero.description');
   const heroStats = [
     {
@@ -170,14 +176,17 @@ const Slider = () => {
            * makes it preloaded — this is the largest contentful paint
            * on the home page.
            */}
-          <Image
-            src={heroImageUrl}
-            alt="Yudai Yaguchi"
-            fill
-            priority
-            sizes="(max-width: 768px) 80vw, 50vw"
-            style={{ objectFit: 'cover', objectPosition: 'top left' }}
-          />
+          {heroImageUrl && (
+            <Image
+              src={heroImageUrl}
+              alt="Yudai Yaguchi"
+              fill
+              priority
+              quality={95}
+              sizes="(max-width: 768px) 80vw, 50vw"
+              style={{ objectFit: 'cover', objectPosition: 'top left' }}
+            />
+          )}
         </div>
       </section>
 

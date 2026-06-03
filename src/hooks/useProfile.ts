@@ -18,6 +18,12 @@ export interface Profile {
 let profileCache: Profile | null = null;
 let profileRequest: Promise<Profile> | null = null;
 
+function primeProfileCache(profile: Profile | null | undefined) {
+  if (profile) {
+    profileCache = profile;
+  }
+}
+
 async function fetchProfileFromApi(force = false): Promise<Profile> {
   if (!force && profileCache) return profileCache;
   if (!force && profileRequest) return profileRequest;
@@ -72,9 +78,10 @@ export function useResumeLink() {
 /**
  * Hook to fetch profile data
  */
-export function useProfile() {
-  const [profile, setProfile] = useState<Profile | null>(profileCache);
-  const [loading, setLoading] = useState(!profileCache);
+export function useProfile(initialProfile?: Profile | null) {
+  const initialProfileState = initialProfile ?? profileCache;
+  const [profile, setProfile] = useState<Profile | null>(initialProfileState);
+  const [loading, setLoading] = useState(!initialProfileState);
   const [error, setError] = useState<Error | null>(null);
 
   const fetchProfile = useCallback(async (force = false) => {
@@ -100,8 +107,13 @@ export function useProfile() {
   }, []);
 
   useEffect(() => {
+    if (initialProfile) {
+      primeProfileCache(initialProfile);
+      return;
+    }
+
     fetchProfile();
-  }, [fetchProfile]);
+  }, [fetchProfile, initialProfile]);
 
   return { profile, loading, error, refetch: () => fetchProfile(true) };
 }

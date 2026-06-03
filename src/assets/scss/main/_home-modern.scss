@@ -60,15 +60,25 @@
 }
 
 .modern-hero {
-  min-height: clamp(760px, 92svh, 940px);
+  --hero-height: clamp(760px, 92vh, 940px);
+
+  min-height: 100vh;
+  min-height: var(--hero-height);
   isolation: isolate;
   background:
     linear-gradient(115deg, color-mix(in srgb, var(--surface-elevated) 94%, var(--accent) 6%) 0%, transparent 62%),
     linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 76%, var(--surface-base) 24%) 0%, var(--surface-base) 100%);
 }
 
+@supports (height: 100svh) {
+  .modern-hero {
+    --hero-height: clamp(760px, 92svh, 940px);
+  }
+}
+
 .modern-hero .full-screen {
-  min-height: clamp(760px, 92svh, 940px);
+  min-height: 100vh;
+  min-height: var(--hero-height);
 }
 
 .modern-hero::after {
@@ -247,6 +257,7 @@
   top: 50%;
   right: clamp(32px, 5vw, 112px);
   width: clamp(380px, 34vw, 560px);
+  height: min(68vh, 680px);
   height: min(68svh, 680px);
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--surface-elevated) 82%, var(--border-soft) 18%);
@@ -274,7 +285,7 @@
   position: absolute;
   inset: 12px;
   z-index: 2;
-  border: 1px solid color-mix(in srgb, var(--surface-elevated) 74%, transparent);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 8px;
   pointer-events: none;
 }
@@ -446,6 +457,7 @@
     top: 92px;
     right: -26vw;
     width: min(62vw, 480px);
+    height: min(52vh, 520px);
     height: min(52svh, 520px);
     transform: none;
     opacity: 0.16;
@@ -473,6 +485,11 @@
   .home-modern .section.modern-section {
     padding-top: 64px;
     padding-bottom: 64px;
+  }
+
+  .modern-hero,
+  .modern-hero .full-screen {
+    min-height: auto;
   }
 
   .home-modern #about .separated {

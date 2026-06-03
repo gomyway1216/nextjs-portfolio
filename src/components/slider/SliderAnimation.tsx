@@ -183,7 +183,7 @@ const Slider = ({ initialProfile }: SliderProps) => {
               fill
               priority
               quality={95}
-              sizes="(max-width: 767px) 86vw, (max-width: 991px) 68vw, (max-width: 1647px) 34vw, 560px"
+              sizes="(max-width: 767px) 86vw, (max-width: 991px) 480px, (max-width: 1117px) 380px, (max-width: 1647px) 34vw, 560px"
               style={{ objectFit: 'cover', objectPosition: 'center top' }}
             />
           )}

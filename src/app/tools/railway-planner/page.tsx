@@ -683,6 +683,24 @@ export default function RailwayPlannerPage() {
   );
 
   const routeMetrics = useMemo(() => {
+    if (routeStations.length < 2) {
+      return {
+        totalDistance: 0,
+        weightedTerrain: 1,
+        stopCount: 0,
+        travelMinutes: 0,
+        constructionCostOku: 0,
+        dailyDemand: 0,
+        capacityDaily: 0,
+        congestionRate: 0,
+        annualRevenueOku: 0,
+        annualOperationOku: 0,
+        annualCapitalOku: 0,
+        annualBalanceOku: 0,
+        score: 0,
+      };
+    }
+
     const totalDistance = routeSegments.reduce((sum, segment) => sum + segment.distance, 0);
     const weightedTerrain = routeSegments.length && totalDistance > 0
       ? routeSegments.reduce((sum, segment) => sum + segment.terrainFactor * segment.distance, 0) / totalDistance
@@ -908,7 +926,7 @@ export default function RailwayPlannerPage() {
     if (!point) return;
 
     const nextStation: Station = {
-      id: `custom-${Date.now()}`,
+      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
       name: stationName.slice(0, 12),
       region: mapScope === 'prefecture' ? `${selectedPrefecture.label}計画駅` : '計画駅',
       x: clamp(point.x, 18, MAP_WIDTH - 18),
@@ -1008,7 +1026,12 @@ export default function RailwayPlannerPage() {
       <div className={styles.shell}>
         <header className={styles.header}>
           <div className={styles.headerMain}>
-            <Link href="/#tools" className={styles.backLink} aria-label="Toolsへ戻る">
+            <Link
+              href="/#tools"
+              className={styles.backLink}
+              aria-label="Toolsへ戻る"
+              onClick={() => lifecycle.complete()}
+            >
               <ArrowLeft size={18} />
             </Link>
             <div className={styles.logoTile}>
@@ -1203,6 +1226,7 @@ export default function RailwayPlannerPage() {
                   variant={addMode ? 'default' : 'outline'}
                   className={addMode ? styles.primaryButton : styles.secondaryButton}
                   onClick={() => setAddMode((current) => !current)}
+                  disabled={!stationDraft.trim()}
                 >
                   <Plus size={16} />
                   地図に駅を置く
@@ -1316,7 +1340,6 @@ export default function RailwayPlannerPage() {
                 ref={svgRef}
                 className={`${styles.mapSvg} ${addMode ? styles.mapSvgAddMode : ''}`}
                 viewBox={`${mapView.x} ${mapView.y} ${mapView.width} ${mapView.height}`}
-                role="img"
                 aria-label={mapScope === 'prefecture' ? `${selectedPrefecture.label}ズーム地図上の架空鉄道路線` : '日本地図上の架空鉄道路線'}
                 onClick={handleMapCanvasClick}
                 onWheel={handleMapWheel}
@@ -1376,7 +1399,7 @@ export default function RailwayPlannerPage() {
                 </>
               )}
 
-              <g className={styles.routeLayer}>
+              <g>
                 {routeSegments.map((segment, index) => (
                   <g key={`${segment.from.id}-${segment.to.id}-${index}`}>
                     <line
@@ -1413,7 +1436,7 @@ export default function RailwayPlannerPage() {
                 ))}
               </g>
 
-              <g className={styles.stationLayer}>
+              <g>
                 {visibleStations.map((station) => {
                   const routeIndex = routeStationIds.indexOf(station.id);
                   const inRoute = routeIndex >= 0;
@@ -1430,6 +1453,7 @@ export default function RailwayPlannerPage() {
                       tabIndex={0}
                       className={`${styles.stationButton} ${isDetailedStation ? styles.stationDetail : ''} ${inRoute ? styles.stationSelected : ''}`}
                       aria-label={`${station.name}を${inRoute ? 'ルートから外す' : 'ルートに追加'}`}
+                      aria-pressed={inRoute}
                       onPointerDown={(event) => event.stopPropagation()}
                       onClick={(event) => {
                         event.stopPropagation();
@@ -1496,7 +1520,7 @@ export default function RailwayPlannerPage() {
                   {routeStations.map((station, index) => {
                     const stopsHere = isRouteStop(station, index, routeStations.length, serviceType);
                     return (
-                      <li key={`${station.id}-${index}`} className={stopsHere ? styles.stopStation : styles.passStation}>
+                      <li key={`${station.id}-${index}`} className={stopsHere ? undefined : styles.passStation}>
                         <span className={styles.diagramLine} />
                         <span className={styles.diagramMarker}>
                           {stopsHere ? selectedService.shortLabel : ''}

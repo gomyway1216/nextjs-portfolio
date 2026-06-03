@@ -210,21 +210,30 @@ export function GlobalToolbar() {
     i18n.changeLanguage(currentLang === 'en' ? 'ja' : 'en');
   };
 
+  const setLanguage = (lang: 'en' | 'ja') => {
+    if (lang !== currentLang) i18n.changeLanguage(lang);
+  };
+
   return (
     <div
       className="sticky top-0 z-50"
       style={{ backgroundColor: theme.bg, borderBottom: `1px solid ${theme.border}` }}
     >
       <div
-        className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 sm:gap-4"
-        style={{
-          minHeight: '3.25rem',
-          flexWrap: hasGameContent ? 'wrap' : 'nowrap',
-          rowGap: hasGameContent ? '0.5rem' : undefined,
-        }}
+        className={`mx-auto max-w-6xl items-center gap-2 px-4 sm:gap-4 ${
+          hasGameContent ? 'flex justify-between' : 'grid'
+        }`}
+        style={
+          hasGameContent
+            ? { minHeight: '3.25rem', flexWrap: 'wrap', rowGap: '0.5rem' }
+            : { minHeight: '3.25rem', gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)' }
+        }
       >
         {/* Left: Home / Back / Game left */}
-        <div className="flex items-center gap-3 flex-1 min-w-0">
+        <div
+          className="flex items-center gap-3 flex-1 min-w-0"
+          style={!hasGameContent ? { gridColumn: 1 } : undefined}
+        >
           <Link
             href="/"
             className="flex items-center gap-1.5 text-sm font-semibold transition-colors shrink-0"
@@ -256,7 +265,11 @@ export function GlobalToolbar() {
         </div>
 
         {!hasGameContent && (
-          <nav className="hidden items-center gap-1 rounded-md border px-1.5 py-1 md:flex" style={{ borderColor: theme.border, backgroundColor: theme.avatarBg }} aria-label="Primary navigation">
+          <nav
+            className="hidden items-center gap-1 rounded-md border px-1.5 py-1 md:flex"
+            style={{ borderColor: theme.border, backgroundColor: theme.avatarBg, gridColumn: 2 }}
+            aria-label="Primary navigation"
+          >
             {PRIMARY_NAV_ITEMS.map(({ href, prefix, labelKey, Icon }) => {
               const isActive = isActivePath(pathname, prefix);
               return (
@@ -285,17 +298,49 @@ export function GlobalToolbar() {
         )}
 
         {/* Right: Game right + Lang + Auth */}
-        <div className="flex max-w-full items-center gap-2 min-w-0 flex-wrap justify-end">
+        <div
+          className={`flex max-w-full items-center gap-2 min-w-0 justify-end ${hasGameContent ? 'flex-wrap' : 'flex-nowrap'}`}
+          style={!hasGameContent ? { gridColumn: 3 } : undefined}
+        >
           {hasGameContent && gameContent?.right}
           {hasGameContent && gameContent?.right && <span style={{ color: theme.border }}>|</span>}
           <ThemeToggle accent={theme.accent} />
           {/* Language toggle */}
+          <div
+            className="hidden h-8 shrink-0 items-center rounded-full border p-0.5 sm:inline-flex"
+            role="group"
+            aria-label={t('home.language.switch')}
+            title={t('home.language.switch')}
+            style={{ backgroundColor: theme.avatarBg, borderColor: theme.border }}
+          >
+            {(['ja', 'en'] as const).map((lang) => {
+              const isActive = currentLang === lang;
+              return (
+                <button
+                  key={lang}
+                  type="button"
+                  onClick={() => setLanguage(lang)}
+                  aria-pressed={isActive}
+                  className="h-7 rounded-full px-2 text-xs font-semibold transition-colors"
+                  style={{
+                    backgroundColor: isActive ? theme.accent : 'transparent',
+                    color: isActive ? 'var(--background)' : theme.accent,
+                  }}
+                >
+                  {lang.toUpperCase()}
+                </button>
+              );
+            })}
+          </div>
           <button
+            type="button"
             onClick={toggleLang}
-            className="text-xs font-medium px-2.5 py-1 rounded-full transition-colors"
+            className="h-8 shrink-0 rounded-full px-2.5 text-xs font-semibold transition-colors sm:hidden"
+            aria-label={t('home.language.switch')}
+            title={t('home.language.switch')}
             style={{ backgroundColor: theme.avatarBg, color: theme.accent }}
           >
-            {currentLang === 'en' ? 'JA' : 'EN'}
+            {currentLang.toUpperCase()}
           </button>
 
           {/* Auth */}

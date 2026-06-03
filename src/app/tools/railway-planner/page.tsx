@@ -41,6 +41,10 @@ const NATIONAL_LAND_IMAGE_SRC = '/img/railway-japan-land.v1.svg';
 const MAP_ASPECT_RATIO = MAP_HEIGHT / MAP_WIDTH;
 const MAX_MAP_ZOOM = 24;
 const MIN_MAP_VIEW_WIDTH = MAP_WIDTH / MAX_MAP_ZOOM;
+const MAP_INTERACTION_IDLE_MS = 160;
+const WHEEL_ZOOM_IN_BASE = 0.86;
+const WHEEL_ZOOM_OUT_BASE = 1.16;
+const MAX_WHEEL_ZOOM_STEPS_PER_FRAME = 4;
 const GUIDE_LABEL_FONT_SIZE = 13;
 const STATION_LABEL_FONT_SIZE = 12;
 const DETAIL_STATION_LABEL_FONT_SIZE = 10;
@@ -127,6 +131,20 @@ interface MapDragState {
   lastClientY: number;
   moved: boolean;
   pointerId: number;
+}
+
+interface PendingDragDelta {
+  deltaX: number;
+  deltaY: number;
+  rectWidth: number;
+  rectHeight: number;
+}
+
+interface PendingWheelZoom {
+  clientX: number;
+  clientY: number;
+  direction: 'in' | 'out';
+  steps: number;
 }
 
 interface PrefectureZoom {
@@ -733,11 +751,34 @@ function getMapPointFromClient(
   };
 }
 
+function getZoomedMapView(
+  current: MapViewBox,
+  anchor: { x: number; y: number },
+  scale: number,
+  anchorRatioX = 0.5,
+  anchorRatioY = 0.5,
+): MapViewBox {
+  const nextWidth = clamp(current.width * scale, MIN_MAP_VIEW_WIDTH, MAP_WIDTH);
+  const nextHeight = nextWidth * MAP_ASPECT_RATIO;
+
+  return clampMapView({
+    x: anchor.x - anchorRatioX * nextWidth,
+    y: anchor.y - anchorRatioY * nextHeight,
+    width: nextWidth,
+    height: nextHeight,
+  });
+}
+
 export default function RailwayPlannerPage() {
   const { t, i18n } = useTranslation();
   const lifecycle = useFeatureLifecycle('tool.railway-planner');
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<MapDragState | null>(null);
+  const dragFrameRef = useRef<number | null>(null);
+  const pendingDragDeltaRef = useRef<PendingDragDelta | null>(null);
+  const wheelZoomFrameRef = useRef<number | null>(null);
+  const pendingWheelZoomRef = useRef<PendingWheelZoom | null>(null);
+  const mapInteractionTimeoutRef = useRef<number | null>(null);
   const suppressNextClickRef = useRef(false);
   const customStationIdRef = useRef(0);
   const isJapanese = i18n.language?.startsWith('ja');
@@ -761,6 +802,7 @@ export default function RailwayPlannerPage() {
   const [placeSearchError, setPlaceSearchError] = useState('');
   const [showDemand, setShowDemand] = useState(true);
   const [mapView, setMapView] = useState<MapViewBox>(DEFAULT_MAP_VIEW);
+  const [isMapInteracting, setIsMapInteracting] = useState(false);
 
   const selectedPrefecture = getPrefectureZoom(selectedPrefectureId);
   const baseStations = mapScope === 'prefecture' ? selectedPrefecture.stations : NATIONAL_BASE_STATIONS;
@@ -771,6 +813,7 @@ export default function RailwayPlannerPage() {
   ));
   const zoomLevel = MAP_WIDTH / mapView.width;
   const inverseZoom = 1 / zoomLevel;
+  const isMapRenderSimplified = isMapInteracting;
   const mapAreaLabelStyle = useMemo<CSSProperties>(
     () => ({
       fontSize: `${GUIDE_LABEL_FONT_SIZE * inverseZoom}px`,
@@ -830,6 +873,18 @@ export default function RailwayPlannerPage() {
       controller.abort();
     };
   }, [canSearchPlaceCandidates, trimmedStationDraft]);
+
+  useEffect(() => () => {
+    if (dragFrameRef.current !== null) {
+      window.cancelAnimationFrame(dragFrameRef.current);
+    }
+    if (wheelZoomFrameRef.current !== null) {
+      window.cancelAnimationFrame(wheelZoomFrameRef.current);
+    }
+    if (mapInteractionTimeoutRef.current !== null) {
+      window.clearTimeout(mapInteractionTimeoutRef.current);
+    }
+  }, []);
 
   const allStations = useMemo(
     () => {
@@ -892,6 +947,11 @@ export default function RailwayPlannerPage() {
   const visibleStations = useMemo(
     () => allStations.filter((station) => {
       const isVisibleRouteStation = mapRouteStationIds.has(station.id);
+      if (isMapRenderSimplified) {
+        const isNationalOverviewStation = !station.minZoom && NATIONAL_OVERVIEW_STATION_IDS.has(station.id);
+        return isVisibleRouteStation || isNationalOverviewStation;
+      }
+
       const isReducedNationalOverview = mapScope === 'national' && zoomLevel < NATIONAL_OVERVIEW_ZOOM;
       const isNationalOverviewStation = !station.minZoom && NATIONAL_OVERVIEW_STATION_IDS.has(station.id);
       if (isReducedNationalOverview) {
@@ -900,7 +960,7 @@ export default function RailwayPlannerPage() {
 
       return isVisibleRouteStation || zoomLevel >= (station.minZoom ?? 1);
     }),
-    [allStations, mapRouteStationIds, mapScope, zoomLevel],
+    [allStations, isMapRenderSimplified, mapRouteStationIds, mapScope, zoomLevel],
   );
 
   const routeMetrics = useMemo(() => {
@@ -1013,45 +1073,93 @@ export default function RailwayPlannerPage() {
     handleStationToggle(stationId);
   };
 
+  const beginMapInteraction = () => {
+    setIsMapInteracting(true);
+    if (mapInteractionTimeoutRef.current !== null) {
+      window.clearTimeout(mapInteractionTimeoutRef.current);
+    }
+    mapInteractionTimeoutRef.current = window.setTimeout(() => {
+      mapInteractionTimeoutRef.current = null;
+      setIsMapInteracting(false);
+    }, MAP_INTERACTION_IDLE_MS);
+  };
+
+  const applyPendingDragDelta = () => {
+    const pending = pendingDragDeltaRef.current;
+    pendingDragDeltaRef.current = null;
+    dragFrameRef.current = null;
+    if (!pending) return;
+
+    setMapView((current) => clampMapView({
+      x: current.x - (pending.deltaX / pending.rectWidth) * current.width,
+      y: current.y - (pending.deltaY / pending.rectHeight) * current.height,
+      width: current.width,
+      height: current.height,
+    }));
+  };
+
+  const scheduleMapPan = (deltaX: number, deltaY: number, rectWidth: number, rectHeight: number) => {
+    beginMapInteraction();
+    const pending = pendingDragDeltaRef.current;
+    pendingDragDeltaRef.current = {
+      deltaX: (pending?.deltaX ?? 0) + deltaX,
+      deltaY: (pending?.deltaY ?? 0) + deltaY,
+      rectWidth,
+      rectHeight,
+    };
+
+    if (dragFrameRef.current === null) {
+      dragFrameRef.current = window.requestAnimationFrame(applyPendingDragDelta);
+    }
+  };
+
+  const applyPendingWheelZoom = () => {
+    const pending = pendingWheelZoomRef.current;
+    pendingWheelZoomRef.current = null;
+    wheelZoomFrameRef.current = null;
+    if (!pending || !svgRef.current) return;
+
+    const scaleBase = pending.direction === 'in' ? WHEEL_ZOOM_IN_BASE : WHEEL_ZOOM_OUT_BASE;
+    const scale = scaleBase ** Math.min(MAX_WHEEL_ZOOM_STEPS_PER_FRAME, pending.steps);
+    const svg = svgRef.current;
+    setMapView((current) => {
+      const anchor = getMapPointFromClient(svg, current, pending.clientX, pending.clientY);
+      if (!anchor) return current;
+
+      const anchorRatioX = (anchor.x - current.x) / current.width;
+      const anchorRatioY = (anchor.y - current.y) / current.height;
+      return getZoomedMapView(current, anchor, scale, anchorRatioX, anchorRatioY);
+    });
+  };
+
+  const scheduleMapWheelZoom = (clientX: number, clientY: number, deltaY: number) => {
+    beginMapInteraction();
+    const direction = deltaY < 0 ? 'in' : 'out';
+    const wheelSteps = clamp(Math.abs(deltaY) / 90, 0.18, 1.6);
+    const pending = pendingWheelZoomRef.current;
+    pendingWheelZoomRef.current = {
+      clientX,
+      clientY,
+      direction,
+      steps: pending?.direction === direction
+        ? pending.steps + wheelSteps
+        : wheelSteps,
+    };
+
+    if (wheelZoomFrameRef.current === null) {
+      wheelZoomFrameRef.current = window.requestAnimationFrame(applyPendingWheelZoom);
+    }
+  };
+
   const zoomMapAround = (
     anchor: { x: number; y: number },
     direction: 'in' | 'out',
     anchorRatioX = 0.5,
     anchorRatioY = 0.5,
   ) => {
-    setMapView((current) => {
-      const nextWidth = clamp(current.width * (direction === 'in' ? 0.72 : 1.28), MIN_MAP_VIEW_WIDTH, MAP_WIDTH);
-      const nextHeight = nextWidth * MAP_ASPECT_RATIO;
-
-      return clampMapView({
-        x: anchor.x - anchorRatioX * nextWidth,
-        y: anchor.y - anchorRatioY * nextHeight,
-        width: nextWidth,
-        height: nextHeight,
-      });
-    });
-  };
-
-  const zoomMapAt = (clientX: number, clientY: number, direction: 'in' | 'out') => {
-    const svg = svgRef.current;
-    if (!svg) return;
-
-    setMapView((current) => {
-      const anchor = getMapPointFromClient(svg, current, clientX, clientY);
-      if (!anchor) return current;
-
-      const anchorRatioX = (anchor.x - current.x) / current.width;
-      const anchorRatioY = (anchor.y - current.y) / current.height;
-      const nextWidth = clamp(current.width * (direction === 'in' ? 0.72 : 1.28), MIN_MAP_VIEW_WIDTH, MAP_WIDTH);
-      const nextHeight = nextWidth * MAP_ASPECT_RATIO;
-
-      return clampMapView({
-        x: anchor.x - anchorRatioX * nextWidth,
-        y: anchor.y - anchorRatioY * nextHeight,
-        width: nextWidth,
-        height: nextHeight,
-      });
-    });
+    beginMapInteraction();
+    const scale = direction === 'in' ? 0.72 : 1.28;
+    setMapView((current) => getZoomedMapView(current, anchor, scale, anchorRatioX, anchorRatioY));
   };
 
   const getRouteMapCenter = () => {
@@ -1079,13 +1187,15 @@ export default function RailwayPlannerPage() {
 
   const resetMapView = () => {
     dragRef.current = null;
+    pendingDragDeltaRef.current = null;
+    pendingWheelZoomRef.current = null;
     suppressNextClickRef.current = false;
     setMapView(DEFAULT_MAP_VIEW);
   };
 
   const handleMapWheel = (event: WheelEvent<SVGSVGElement>) => {
     event.preventDefault();
-    zoomMapAt(event.clientX, event.clientY, event.deltaY < 0 ? 'in' : 'out');
+    scheduleMapWheelZoom(event.clientX, event.clientY, event.deltaY);
   };
 
   const handleStationDraftChange = (value: string) => {
@@ -1137,12 +1247,7 @@ export default function RailwayPlannerPage() {
       drag.moved = true;
     }
 
-    setMapView((current) => clampMapView({
-      x: current.x - (deltaX / rect.width) * current.width,
-      y: current.y - (deltaY / rect.height) * current.height,
-      width: current.width,
-      height: current.height,
-    }));
+    scheduleMapPan(deltaX, deltaY, rect.width, rect.height);
   };
 
   const finishMapDrag = (event: PointerEvent<SVGSVGElement>) => {
@@ -1795,13 +1900,13 @@ export default function RailwayPlannerPage() {
                   const isDetailedStation = Boolean(station.minZoom);
                   const isNationalDetailedStation = mapScope === 'national' && isDetailedStation;
                   const labelZoom = station.labelMinZoom ?? station.minZoom ?? 1;
-                  const showRouteLabel = isVisibleRouteStation && (
+                  const showRouteLabel = !isMapRenderSimplified && isVisibleRouteStation && (
                     !isNationalDetailedStation
                     || isTerminal
                     || station.demand >= NATIONAL_MAJOR_ROUTE_LABEL_DEMAND
                     || zoomLevel >= Math.max(labelZoom, NATIONAL_ROUTE_DENSE_LABEL_ZOOM)
                   );
-                  const showStationLabel = (
+                  const showStationLabel = !isMapRenderSimplified && (
                     showRouteLabel
                     || (
                       !inRoute
@@ -1835,7 +1940,7 @@ export default function RailwayPlannerPage() {
                       }}
                       onKeyDown={(event) => handleStationKeyDown(event, station.id)}
                     >
-                      {showDemand && !isDetailedStation && (
+                      {showDemand && !isMapRenderSimplified && !isDetailedStation && (
                         <circle
                           cx={station.x}
                           cy={station.y}
@@ -1863,7 +1968,7 @@ export default function RailwayPlannerPage() {
                         r={14 * inverseZoom}
                         className={styles.stationHitArea}
                       />
-                      {inRoute && (
+                      {inRoute && !isMapRenderSimplified && (
                         <text
                           x={station.x}
                           y={station.y + 3.5 * inverseZoom}

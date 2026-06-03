@@ -73,12 +73,10 @@ export const SimTab = () => {
             step={1}
             inputMode="numeric"
             onChange={(e) => {
-              const raw = e.target.value;
-              if (raw === '' || /^\d+$/.test(raw)) {
-                setTrialsInput(raw);
-              }
+              setTrialsInput(e.target.value);
             }}
             onBlur={() => {
+              if (trialsInput.trim() === '') return;
               const safeTrials = Math.floor(clamp(Number(trialsInput), TRIAL_LIMITS.min, TRIAL_LIMITS.max));
               setTrialsInput(String(safeTrials));
             }}

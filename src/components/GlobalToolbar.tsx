@@ -221,7 +221,7 @@ export function GlobalToolbar() {
     >
       <div
         className={`mx-auto max-w-6xl items-center gap-2 px-4 sm:gap-4 ${
-          hasGameContent ? 'flex justify-between' : 'grid'
+          hasGameContent ? 'flex justify-between' : 'flex justify-between md:grid'
         }`}
         style={
           hasGameContent
@@ -340,7 +340,7 @@ export function GlobalToolbar() {
             title={t('home.language.switch')}
             style={{ backgroundColor: theme.avatarBg, color: theme.accent }}
           >
-            {currentLang.toUpperCase()}
+            {currentLang === 'en' ? 'JA' : 'EN'}
           </button>
 
           {/* Auth */}

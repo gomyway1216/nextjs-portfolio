@@ -29,6 +29,7 @@ import {
   type PointerEvent,
   type WheelEvent,
 } from 'react';
+import { useTranslation } from 'react-i18next';
 import styles from './railway-planner.module.css';
 
 const MAP_WIDTH = 620;
@@ -112,6 +113,8 @@ interface PrefectureDefinition {
   defaultTerrain?: TerrainType;
   distanceScale?: number;
 }
+
+type RailTranslate = (key: string, options?: Record<string, number | string>) => string;
 
 const terrainCostFactor: Record<TerrainType, number> = {
   plain: 1,
@@ -554,23 +557,24 @@ function getOffsetSegment(from: Station, to: Station, offset: number) {
   };
 }
 
-function compactNumber(value: number): string {
-  return new Intl.NumberFormat('ja-JP', {
+function compactNumber(value: number, locale = 'ja-JP'): string {
+  return new Intl.NumberFormat(locale, {
     maximumFractionDigits: 0,
   }).format(value);
 }
 
-function formatMinutes(minutes: number): string {
-  if (!Number.isFinite(minutes) || minutes <= 0) return '0分';
-  if (minutes < 95) return `${Math.round(minutes)}分`;
+function formatMinutes(minutes: number, translate: RailTranslate): string {
+  if (!Number.isFinite(minutes) || minutes <= 0) return translate('values.minutes', { count: 0 });
+  if (minutes < 95) return translate('values.minutes', { count: Math.round(minutes) });
   const hours = Math.floor(minutes / 60);
   const rest = Math.round(minutes % 60);
-  return `${hours}時間${rest}分`;
+  return translate('values.hoursMinutes', { hours, minutes: rest });
 }
 
-function formatOku(value: number): string {
+function formatOku(value: number, translate: RailTranslate, locale: string, useOkuUnit: boolean): string {
   const rounded = Math.round(value);
-  return `${compactNumber(rounded)}億円`;
+  if (useOkuUnit) return translate('values.okuYen', { amount: compactNumber(rounded, locale) });
+  return translate('values.yen', { amount: compactNumber(Math.round(value * 100000000), locale) });
 }
 
 function getStationById(stations: Station[], id: string): Station | undefined {
@@ -614,10 +618,17 @@ function getMapPointFromClient(
 }
 
 export default function RailwayPlannerPage() {
+  const { t, i18n } = useTranslation();
   const lifecycle = useFeatureLifecycle('tool.railway-planner');
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<MapDragState | null>(null);
   const suppressNextClickRef = useRef(false);
+  const customStationIdRef = useRef(0);
+  const isJapanese = i18n.language?.startsWith('ja');
+  const numberLocale = isJapanese ? 'ja-JP' : 'en-US';
+  const rp: RailTranslate = (key, options) => t(`home.tools.railwayPlanner.page.${key}`, options);
+  const defaultStationDraft = rp('defaults.newStation');
+  const unnamedLine = rp('defaults.unnamedLine');
   const [mapScope, setMapScope] = useState<MapScope>(initialMapScope);
   const [selectedPrefectureId, setSelectedPrefectureId] = useState(DEFAULT_PREFECTURE_ID);
   const [lineName, setLineName] = useState(initialPreset.lineName);
@@ -628,19 +639,26 @@ export default function RailwayPlannerPage() {
   const [serviceType, setServiceType] = useState<ServiceType>('rapid');
   const [frequency, setFrequency] = useState(6);
   const [addMode, setAddMode] = useState(false);
-  const [stationDraft, setStationDraft] = useState('新駅');
+  const [stationDraft, setStationDraft] = useState(defaultStationDraft);
   const [showDemand, setShowDemand] = useState(true);
   const [mapView, setMapView] = useState<MapViewBox>(DEFAULT_MAP_VIEW);
 
   const selectedPrefecture = getPrefectureZoom(selectedPrefectureId);
   const baseStations = mapScope === 'prefecture' ? selectedPrefecture.stations : NATIONAL_BASE_STATIONS;
   const activePresetRoutes = mapScope === 'prefecture' ? selectedPrefecture.presets : NATIONAL_PRESET_ROUTES;
-  const selectedScope = MAP_SCOPE_OPTIONS.find((option) => option.id === mapScope) ?? MAP_SCOPE_OPTIONS[0];
   const currentCustomStations = customStations.filter((station) => (
     station.scope === mapScope
     && (mapScope !== 'prefecture' || station.prefectureId === selectedPrefectureId)
   ));
   const zoomLevel = MAP_WIDTH / mapView.width;
+  const selectedPrefectureDescription = selectedPrefecture.id === DEFAULT_PREFECTURE_ID
+    ? rp('prefectureDescriptions.tokyo')
+    : rp('prefectureDescriptions.generic', { prefecture: selectedPrefecture.label });
+  const formatDailyDemand = (dailyDemand: number) => (
+    isJapanese
+      ? rp('values.tenThousandPeoplePerDay', { value: (dailyDemand / 10000).toFixed(1) })
+      : rp('values.peoplePerDay', { value: compactNumber(Math.round(dailyDemand), numberLocale) })
+  );
 
   const allStations = useMemo(
     () => {
@@ -673,13 +691,16 @@ export default function RailwayPlannerPage() {
 
   const routeSegments = useMemo(
     () => {
-      const selectedPreset = activePresetRoutes.find((preset) => preset.id === selectedPresetId);
+      const presetRoutes = mapScope === 'prefecture'
+        ? getPrefectureZoom(selectedPrefectureId).presets
+        : NATIONAL_PRESET_ROUTES;
+      const selectedPreset = presetRoutes.find((preset) => preset.id === selectedPresetId);
       const distanceScale = selectedPreset?.distanceScale ?? (mapScope === 'prefecture'
         ? getPrefectureZoom(selectedPrefectureId).distanceScale
         : 1.88);
       return createSegments(routeStations, distanceScale);
     },
-    [activePresetRoutes, mapScope, routeStations, selectedPrefectureId, selectedPresetId],
+    [mapScope, routeStations, selectedPrefectureId, selectedPresetId],
   );
 
   const routeMetrics = useMemo(() => {
@@ -925,10 +946,14 @@ export default function RailwayPlannerPage() {
     const point = getMapPointFromClient(svgRef.current, mapView, event.clientX, event.clientY);
     if (!point) return;
 
+    customStationIdRef.current += 1;
+
     const nextStation: Station = {
-      id: `custom-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      id: `custom-${customStationIdRef.current}`,
       name: stationName.slice(0, 12),
-      region: mapScope === 'prefecture' ? `${selectedPrefecture.label}計画駅` : '計画駅',
+      region: mapScope === 'prefecture'
+        ? rp('defaults.prefecturePlannedStation', { prefecture: selectedPrefecture.label })
+        : rp('defaults.plannedStation'),
       x: clamp(point.x, 18, MAP_WIDTH - 18),
       y: clamp(point.y, 18, MAP_HEIGHT - 18),
       demand: 118,
@@ -945,7 +970,7 @@ export default function RailwayPlannerPage() {
     setCustomStations((current) => [...current, nextStation]);
     setRouteStationIds((current) => [...current, nextStation.id]);
     const nextCustomNumber = currentCustomStations.length + 2;
-    setStationDraft(`新駅${nextCustomNumber}`);
+    setStationDraft(rp('defaults.newStationWithNumber', { number: nextCustomNumber }));
   };
 
   const handlePresetSelect = (preset: PresetRoute) => {
@@ -967,7 +992,7 @@ export default function RailwayPlannerPage() {
     setRouteStationIds(nextPreset.stationIds);
     setLineName(nextPreset.lineName);
     setAddMode(false);
-    setStationDraft('新駅');
+    setStationDraft(defaultStationDraft);
     resetMapView();
   };
 
@@ -980,7 +1005,7 @@ export default function RailwayPlannerPage() {
     setRouteStationIds(nextPrefecture.presets[0].stationIds);
     setLineName(nextPrefecture.presets[0].lineName);
     setAddMode(false);
-    setStationDraft('新駅');
+    setStationDraft(defaultStationDraft);
     resetMapView();
   };
 
@@ -1002,7 +1027,7 @@ export default function RailwayPlannerPage() {
     setServiceType('rapid');
     setFrequency(6);
     setAddMode(false);
-    setStationDraft('新駅');
+    setStationDraft(defaultStationDraft);
     setShowDemand(true);
     resetMapView();
   };
@@ -1029,7 +1054,7 @@ export default function RailwayPlannerPage() {
             <Link
               href="/#tools"
               className={styles.backLink}
-              aria-label="Toolsへ戻る"
+              aria-label={rp('actions.backToTools')}
               onClick={() => lifecycle.complete()}
             >
               <ArrowLeft size={18} />
@@ -1038,11 +1063,9 @@ export default function RailwayPlannerPage() {
               <Train size={28} />
             </div>
             <div>
-              <p className={styles.eyebrow}>Tool / Railway Simulator</p>
-              <h1 className={styles.title}>架空鉄道路線プランナー</h1>
-              <p className={styles.subtitle}>
-                日本地図に駅を置き、線路規格と列車種別を変えながら路線図と概算指標を確認できます。
-              </p>
+              <p className={styles.eyebrow}>{rp('eyebrow')}</p>
+              <h1 className={styles.title}>{rp('title')}</h1>
+              <p className={styles.subtitle}>{rp('subtitle')}</p>
             </div>
           </div>
           <div className={styles.headerActions}>
@@ -1053,45 +1076,45 @@ export default function RailwayPlannerPage() {
               onClick={handleReset}
             >
               <RotateCcw size={16} />
-              初期化
+              {rp('actions.reset')}
             </Button>
           </div>
         </header>
 
-        <section className={styles.metricsBar} aria-label="路線の主要指標">
+        <section className={styles.metricsBar} aria-label={rp('metrics.ariaLabel')}>
           <div className={styles.metricTile}>
             <Activity size={18} />
-            <span>評価</span>
+            <span>{rp('metrics.score')}</span>
             <strong>{Math.round(routeMetrics.score)}</strong>
           </div>
           <div className={styles.metricTile}>
             <Clock size={18} />
-            <span>所要時間</span>
-            <strong>{formatMinutes(routeMetrics.travelMinutes)}</strong>
+            <span>{rp('metrics.travelTime')}</span>
+            <strong>{formatMinutes(routeMetrics.travelMinutes, rp)}</strong>
           </div>
           <div className={styles.metricTile}>
             <Users size={18} />
-            <span>需要</span>
-            <strong>{(routeMetrics.dailyDemand / 10000).toFixed(1)}万人/日</strong>
+            <span>{rp('metrics.demand')}</span>
+            <strong>{formatDailyDemand(routeMetrics.dailyDemand)}</strong>
           </div>
           <div className={styles.metricTile}>
             <Wallet size={18} />
-            <span>年次収支</span>
+            <span>{rp('metrics.annualBalance')}</span>
             <strong className={routeMetrics.annualBalanceOku >= 0 ? styles.positive : styles.negative}>
-              {formatOku(routeMetrics.annualBalanceOku)}
+              {formatOku(routeMetrics.annualBalanceOku, rp, numberLocale, isJapanese)}
             </strong>
           </div>
         </section>
 
         <section className={styles.workspace}>
-          <aside className={styles.controlPanel} aria-label="路線設定">
+          <aside className={styles.controlPanel} aria-label={rp('sections.routeSettings')}>
             <section className={styles.panelSection}>
               <div className={styles.sectionHeading}>
                 <Train size={17} />
-                路線設定
+                {rp('sections.routeSettings')}
               </div>
               <div className={styles.controlGroup}>
-                <span className={styles.groupLabel}>表示範囲</span>
+                <span className={styles.groupLabel}>{rp('fields.scope')}</span>
                 <div className={styles.scopeButtons}>
                   {MAP_SCOPE_OPTIONS.map((option) => (
                     <button
@@ -1101,15 +1124,15 @@ export default function RailwayPlannerPage() {
                       onClick={() => handleScopeChange(option.id)}
                       aria-pressed={mapScope === option.id}
                     >
-                      {option.label}
+                      {rp(`scope.${option.id}.label`)}
                     </button>
                   ))}
                 </div>
-                <p className={styles.helperText}>{selectedScope.description}</p>
+                <p className={styles.helperText}>{rp(`scope.${mapScope}.description`)}</p>
               </div>
               {mapScope === 'prefecture' && (
                 <label className={styles.field}>
-                  <span>都道府県</span>
+                  <span>{rp('fields.prefecture')}</span>
                   <select
                     value={selectedPrefectureId}
                     onChange={(event) => handlePrefectureChange(event.target.value)}
@@ -1121,11 +1144,11 @@ export default function RailwayPlannerPage() {
                       </option>
                     ))}
                   </select>
-                  <span className={styles.fieldHint}>{selectedPrefecture.description}</span>
+                  <span className={styles.fieldHint}>{selectedPrefectureDescription}</span>
                 </label>
               )}
               <label className={styles.field}>
-                <span>路線名</span>
+                <span>{rp('fields.lineName')}</span>
                 <Input
                   value={lineName}
                   onChange={(event) => setLineName(event.target.value)}
@@ -1135,7 +1158,7 @@ export default function RailwayPlannerPage() {
               </label>
 
               <div className={styles.controlGroup}>
-                <span className={styles.groupLabel}>線路規格</span>
+                <span className={styles.groupLabel}>{rp('fields.trackType')}</span>
                 <div className={styles.segmented}>
                   {(Object.keys(TRACK_OPTIONS) as TrackType[]).map((optionId) => (
                     <button
@@ -1149,15 +1172,15 @@ export default function RailwayPlannerPage() {
                       aria-pressed={trackType === optionId}
                     >
                       <Circle size={13} fill={TRACK_OPTIONS[optionId].color} color={TRACK_OPTIONS[optionId].color} />
-                      {TRACK_OPTIONS[optionId].label}
+                      {rp(`track.${optionId}.label`)}
                     </button>
                   ))}
                 </div>
-                <p className={styles.helperText}>{selectedTrack.description}</p>
+                <p className={styles.helperText}>{rp(`track.${trackType}.description`)}</p>
               </div>
 
               <div className={styles.controlGroup}>
-                <span className={styles.groupLabel}>列車種別</span>
+                <span className={styles.groupLabel}>{rp('fields.serviceType')}</span>
                 <div className={styles.segmented}>
                   {(Object.keys(SERVICE_OPTIONS) as ServiceType[]).map((optionId) => (
                     <button
@@ -1171,7 +1194,7 @@ export default function RailwayPlannerPage() {
                       aria-pressed={serviceType === optionId}
                     >
                       <Zap size={14} color={SERVICE_OPTIONS[optionId].color} />
-                      {SERVICE_OPTIONS[optionId].label}
+                      {rp(`service.${optionId}.label`)}
                     </button>
                   ))}
                 </div>
@@ -1179,8 +1202,8 @@ export default function RailwayPlannerPage() {
 
               <label className={styles.rangeField}>
                 <span>
-                  運転本数
-                  <strong>{frequency}本/時</strong>
+                  {rp('fields.frequency')}
+                  <strong>{rp('values.trainsPerHour', { count: frequency })}</strong>
                 </span>
                 <input
                   type="range"
@@ -1196,7 +1219,7 @@ export default function RailwayPlannerPage() {
             <section className={styles.panelSection}>
               <div className={styles.sectionHeading}>
                 <MapPin size={17} />
-                駅とルート
+                {rp('sections.stationsAndRoute')}
               </div>
               <div className={styles.presetGrid}>
                 {activePresetRoutes.map((preset) => (
@@ -1213,7 +1236,7 @@ export default function RailwayPlannerPage() {
 
               <div className={styles.addStationBox}>
                 <label className={styles.field}>
-                  <span>追加する駅名</span>
+                  <span>{rp('fields.stationName')}</span>
                   <Input
                     value={stationDraft}
                     onChange={(event) => setStationDraft(event.target.value)}
@@ -1229,7 +1252,7 @@ export default function RailwayPlannerPage() {
                   disabled={!stationDraft.trim()}
                 >
                   <Plus size={16} />
-                  地図に駅を置く
+                  {rp('actions.placeStation')}
                 </Button>
               </div>
 
@@ -1240,7 +1263,7 @@ export default function RailwayPlannerPage() {
                   onClick={() => setShowDemand((current) => !current)}
                   aria-pressed={showDemand}
                 >
-                  需要ヒート表示
+                  {rp('actions.toggleDemand')}
                 </button>
                 <button
                   type="button"
@@ -1248,7 +1271,7 @@ export default function RailwayPlannerPage() {
                   onClick={handleClearRoute}
                 >
                   <Trash2 size={15} />
-                  ルート消去
+                  {rp('actions.clearRoute')}
                 </button>
               </div>
 
@@ -1259,7 +1282,7 @@ export default function RailwayPlannerPage() {
                   onClick={handleRemoveCustomStations}
                 >
                   <Trash2 size={15} />
-                  追加駅をすべて削除
+                  {rp('actions.removeCustomStations')}
                 </button>
               )}
             </section>
@@ -1267,10 +1290,10 @@ export default function RailwayPlannerPage() {
             <section className={styles.panelSection}>
               <div className={styles.sectionHeading}>
                 <MapPin size={17} />
-                選択中の駅
+                {rp('sections.selectedStations')}
               </div>
               {routeStations.length === 0 ? (
-                <p className={styles.emptyText}>地図上の駅をクリックすると、ここにルート順で追加されます。</p>
+                <p className={styles.emptyText}>{rp('empty.selectedStations')}</p>
               ) : (
                 <ol className={styles.stationOrder}>
                   {routeStations.map((station, index) => (
@@ -1279,7 +1302,7 @@ export default function RailwayPlannerPage() {
                       <span className={styles.stationOrderName}>{station.name}</span>
                       <button
                         type="button"
-                        aria-label={`${station.name}を外す`}
+                        aria-label={rp('station.remove', { station: station.name })}
                         onClick={() => handleStationToggle(station.id)}
                       >
                         <Trash2 size={14} />
@@ -1291,25 +1314,30 @@ export default function RailwayPlannerPage() {
             </section>
           </aside>
 
-          <section className={styles.mapPanel} aria-label={mapScope === 'prefecture' ? `${selectedPrefecture.label}ズーム地図` : '日本地図'}>
+          <section
+            className={styles.mapPanel}
+            aria-label={mapScope === 'prefecture'
+              ? rp('map.prefecturePanelAria', { prefecture: selectedPrefecture.label })
+              : rp('map.nationalPanelAria')}
+          >
             <div className={styles.mapHeader}>
               <div>
-                <h2>{lineName || '無名路線'}</h2>
+                <h2>{lineName || unnamedLine}</h2>
                 <p>
-                  {mapScope === 'prefecture' ? selectedPrefecture.label : selectedScope.label} / {selectedTrack.label} / {selectedService.label} / {routeStations.length}駅
+                  {mapScope === 'prefecture' ? selectedPrefecture.label : rp('scope.national.label')} / {rp(`track.${trackType}.label`)} / {rp(`service.${serviceType}.label`)} / {rp('values.stationCount', { count: routeStations.length })}
                 </p>
               </div>
-              {addMode && <span className={styles.addModeBadge}>地図クリックで駅追加</span>}
+              {addMode && <span className={styles.addModeBadge}>{rp('map.addModeBadge')}</span>}
             </div>
 
             <div className={styles.mapCanvas}>
-              <div className={styles.mapToolbar} role="toolbar" aria-label="地図ズーム操作">
+              <div className={styles.mapToolbar} role="toolbar" aria-label={rp('map.zoomToolbar')}>
                 <button
                   type="button"
                   className={styles.mapToolButton}
                   onClick={() => handleMapZoomButton('in')}
-                  aria-label="地図を拡大"
-                  title="拡大"
+                  aria-label={rp('map.zoomInAria')}
+                  title={rp('map.zoomInTitle')}
                   disabled={mapView.width <= MIN_MAP_VIEW_WIDTH + 0.5}
                 >
                   <Plus size={15} />
@@ -1318,8 +1346,8 @@ export default function RailwayPlannerPage() {
                   type="button"
                   className={styles.mapToolButton}
                   onClick={() => handleMapZoomButton('out')}
-                  aria-label="地図を縮小"
-                  title="縮小"
+                  aria-label={rp('map.zoomOutAria')}
+                  title={rp('map.zoomOutTitle')}
                   disabled={mapView.width >= MAP_WIDTH - 0.5}
                 >
                   <Minus size={15} />
@@ -1328,8 +1356,8 @@ export default function RailwayPlannerPage() {
                   type="button"
                   className={styles.mapToolButton}
                   onClick={resetMapView}
-                  aria-label="地図表示をリセット"
-                  title="リセット"
+                  aria-label={rp('map.resetViewAria')}
+                  title={rp('map.resetViewTitle')}
                 >
                   <RotateCcw size={14} />
                 </button>
@@ -1340,7 +1368,9 @@ export default function RailwayPlannerPage() {
                 ref={svgRef}
                 className={`${styles.mapSvg} ${addMode ? styles.mapSvgAddMode : ''}`}
                 viewBox={`${mapView.x} ${mapView.y} ${mapView.width} ${mapView.height}`}
-                aria-label={mapScope === 'prefecture' ? `${selectedPrefecture.label}ズーム地図上の架空鉄道路線` : '日本地図上の架空鉄道路線'}
+                aria-label={mapScope === 'prefecture'
+                  ? rp('map.prefectureSvgAria', { prefecture: selectedPrefecture.label })
+                  : rp('map.nationalSvgAria')}
                 onClick={handleMapCanvasClick}
                 onWheel={handleMapWheel}
                 onPointerDown={handleMapPointerDown}
@@ -1378,9 +1408,9 @@ export default function RailwayPlannerPage() {
                     <path className={styles.riverLine} d="M190 92 C254 166 323 217 382 220 C432 223 486 195 591 119" />
                     <path className={styles.riverLine} d="M345 266 C365 314 374 374 392 414 C415 463 447 513 491 552" />
                     <path className={styles.wardBoundary} d="M156 382 C239 352 329 356 432 378 C508 396 560 440 595 506" />
-                    <text x="392" y="205" className={styles.mapAreaLabel}>荒川</text>
-                    <text x="410" y="386" className={styles.mapAreaLabel}>隅田川</text>
-                    <text x="412" y="556" className={styles.mapAreaLabel}>東京湾</text>
+                    <text x="392" y="205" className={styles.mapAreaLabel}>{rp('map.labels.arakawa')}</text>
+                    <text x="410" y="386" className={styles.mapAreaLabel}>{rp('map.labels.sumidaRiver')}</text>
+                    <text x="412" y="556" className={styles.mapAreaLabel}>{rp('map.labels.tokyoBay')}</text>
                   </g>
                 </>
               ) : (
@@ -1392,9 +1422,9 @@ export default function RailwayPlannerPage() {
                     <path className={styles.riverLine} d="M142 172 C234 234 322 256 450 216 C512 196 558 226 590 278" />
                     <path className={styles.riverLine} d="M196 570 C250 486 318 424 406 384 C492 344 545 276 579 176" />
                     <path className={styles.wardBoundary} d="M96 398 C184 344 286 332 392 366 C478 394 550 452 594 524" />
-                    <text x="84" y="126" className={styles.mapAreaLabel}>{selectedPrefecture.label}ズーム</text>
-                    <text x="404" y="246" className={styles.mapAreaLabel}>北部連絡</text>
-                    <text x="242" y="590" className={styles.mapAreaLabel}>南部連絡</text>
+                    <text x="84" y="126" className={styles.mapAreaLabel}>{rp('map.labels.prefectureZoom', { prefecture: selectedPrefecture.label })}</text>
+                    <text x="404" y="246" className={styles.mapAreaLabel}>{rp('map.labels.northConnector')}</text>
+                    <text x="242" y="590" className={styles.mapAreaLabel}>{rp('map.labels.southConnector')}</text>
                   </g>
                 </>
               )}
@@ -1452,7 +1482,9 @@ export default function RailwayPlannerPage() {
                       role="button"
                       tabIndex={0}
                       className={`${styles.stationButton} ${isDetailedStation ? styles.stationDetail : ''} ${inRoute ? styles.stationSelected : ''}`}
-                      aria-label={`${station.name}を${inRoute ? 'ルートから外す' : 'ルートに追加'}`}
+                      aria-label={inRoute
+                        ? rp('station.removeFromRoute', { station: station.name })
+                        : rp('station.addToRoute', { station: station.name })}
                       aria-pressed={inRoute}
                       onPointerDown={(event) => event.stopPropagation()}
                       onClick={(event) => {
@@ -1501,20 +1533,20 @@ export default function RailwayPlannerPage() {
             </div>
           </section>
 
-          <aside className={styles.diagramPanel} aria-label="路線図と採算">
+          <aside className={styles.diagramPanel} aria-label={rp('sections.diagramAndFinance')}>
             <section className={styles.panelSection}>
               <div className={styles.sectionHeading}>
                 <Train size={17} />
-                路線図
+                {rp('sections.diagram')}
               </div>
               <div className={styles.diagramMeta}>
                 <span style={{ '--service-color': selectedService.color } as CSSProperties}>
-                  {selectedService.shortLabel}
+                  {rp(`service.${serviceType}.shortLabel`)}
                 </span>
-                <strong>{lineName || '無名路線'}</strong>
+                <strong>{lineName || unnamedLine}</strong>
               </div>
               {routeStations.length < 2 ? (
-                <p className={styles.emptyText}>2駅以上を選ぶと路線図が表示されます。</p>
+                <p className={styles.emptyText}>{rp('empty.diagram')}</p>
               ) : (
                 <ol className={styles.routeDiagram}>
                   {routeStations.map((station, index) => {
@@ -1523,7 +1555,7 @@ export default function RailwayPlannerPage() {
                       <li key={`${station.id}-${index}`} className={stopsHere ? undefined : styles.passStation}>
                         <span className={styles.diagramLine} />
                         <span className={styles.diagramMarker}>
-                          {stopsHere ? selectedService.shortLabel : ''}
+                          {stopsHere ? rp(`service.${serviceType}.shortLabel`) : ''}
                         </span>
                         <span className={styles.diagramName}>{station.name}</span>
                         <span className={styles.diagramRegion}>{station.region}</span>
@@ -1537,30 +1569,30 @@ export default function RailwayPlannerPage() {
             <section className={styles.panelSection}>
               <div className={styles.sectionHeading}>
                 <Activity size={17} />
-                シミュレーション
+                {rp('sections.simulation')}
               </div>
               <div className={styles.simRows}>
                 <div>
-                  <span>総延長</span>
-                  <strong>{compactNumber(routeMetrics.totalDistance)}km</strong>
+                  <span>{rp('simulation.totalDistance')}</span>
+                  <strong>{rp('values.kilometers', { value: compactNumber(routeMetrics.totalDistance, numberLocale) })}</strong>
                 </div>
                 <div>
-                  <span>停車駅</span>
-                  <strong>{routeMetrics.stopCount}/{routeStations.length}駅</strong>
+                  <span>{rp('simulation.stops')}</span>
+                  <strong>{rp('values.stopCountRatio', { stops: routeMetrics.stopCount, total: routeStations.length })}</strong>
                 </div>
                 <div>
-                  <span>建設費</span>
-                  <strong>{formatOku(routeMetrics.constructionCostOku)}</strong>
+                  <span>{rp('simulation.constructionCost')}</span>
+                  <strong>{formatOku(routeMetrics.constructionCostOku, rp, numberLocale, isJapanese)}</strong>
                 </div>
                 <div>
-                  <span>年間売上</span>
-                  <strong>{formatOku(routeMetrics.annualRevenueOku)}</strong>
+                  <span>{rp('simulation.annualRevenue')}</span>
+                  <strong>{formatOku(routeMetrics.annualRevenueOku, rp, numberLocale, isJapanese)}</strong>
                 </div>
               </div>
 
               <div className={styles.progressGroup}>
                 <div className={styles.progressHeader}>
-                  <span>混雑率</span>
+                  <span>{rp('simulation.congestion')}</span>
                   <strong>{Math.round(routeMetrics.congestionRate)}%</strong>
                 </div>
                 <div className={styles.progressTrack}>
@@ -1572,13 +1604,11 @@ export default function RailwayPlannerPage() {
               </div>
 
               <div className={styles.balanceBox}>
-                <span>年次収支</span>
+                <span>{rp('metrics.annualBalance')}</span>
                 <strong className={routeMetrics.annualBalanceOku >= 0 ? styles.positive : styles.negative}>
-                  {formatOku(routeMetrics.annualBalanceOku)}
+                  {formatOku(routeMetrics.annualBalanceOku, rp, numberLocale, isJapanese)}
                 </strong>
-                <p>
-                  売上から運行費と建設費の年換算分を引いた概算です。停車駅を増やすと需要は拾えますが、所要時間が伸びます。
-                </p>
+                <p>{rp('simulation.balanceDescription')}</p>
               </div>
             </section>
           </aside>

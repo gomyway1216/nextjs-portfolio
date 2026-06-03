@@ -942,6 +942,147 @@
           "mapEdit": "全県ズーム",
           "serviceTypes": "停車種別",
           "simulation": "概算採算"
+        },
+        "page": {
+          "eyebrow": "Tool / Railway Simulator",
+          "title": "架空鉄道路線プランナー",
+          "subtitle": "日本地図に駅を置き、線路規格と列車種別を変えながら路線図と概算指標を確認できます。",
+          "defaults": {
+            "newStation": "新駅",
+            "newStationWithNumber": "新駅{{number}}",
+            "unnamedLine": "無名路線",
+            "plannedStation": "計画駅",
+            "prefecturePlannedStation": "{{prefecture}}計画駅"
+          },
+          "actions": {
+            "backToTools": "Toolsへ戻る",
+            "reset": "初期化",
+            "placeStation": "地図に駅を置く",
+            "toggleDemand": "需要ヒート表示",
+            "clearRoute": "ルート消去",
+            "removeCustomStations": "追加駅をすべて削除"
+          },
+          "metrics": {
+            "ariaLabel": "路線の主要指標",
+            "score": "評価",
+            "travelTime": "所要時間",
+            "demand": "需要",
+            "annualBalance": "年次収支"
+          },
+          "sections": {
+            "routeSettings": "路線設定",
+            "stationsAndRoute": "駅とルート",
+            "selectedStations": "選択中の駅",
+            "diagramAndFinance": "路線図と採算",
+            "diagram": "路線図",
+            "simulation": "シミュレーション"
+          },
+          "fields": {
+            "scope": "表示範囲",
+            "prefecture": "都道府県",
+            "lineName": "路線名",
+            "trackType": "線路規格",
+            "serviceType": "列車種別",
+            "frequency": "運転本数",
+            "stationName": "追加する駅名"
+          },
+          "scope": {
+            "national": {
+              "label": "日本地図",
+              "description": "日本地図からそのまま拡大。関東では常磐線・山手線の細かい駅まで表示。"
+            },
+            "prefecture": {
+              "label": "県別テンプレ",
+              "description": "47都道府県ごとの代表駅から県内路線を素早く設計。"
+            }
+          },
+          "prefectureDescriptions": {
+            "tokyo": "南千住・北千住など、都市内の駅間まで細かく設計できます。",
+            "generic": "{{prefecture}}内の代表駅から開始して、地図上に細かい駅を追加できます。"
+          },
+          "track": {
+            "single": {
+              "label": "単線",
+              "description": "地方線向け。安いが本数と速度に制約。"
+            },
+            "double": {
+              "label": "複線",
+              "description": "幹線の標準。快速や急行を安定運行。"
+            },
+            "quad": {
+              "label": "複々線",
+              "description": "都市圏向け。緩急分離で高頻度運行。"
+            }
+          },
+          "service": {
+            "local": {
+              "label": "普通",
+              "shortLabel": "普"
+            },
+            "rapid": {
+              "label": "快速",
+              "shortLabel": "快"
+            },
+            "express": {
+              "label": "急行",
+              "shortLabel": "急"
+            },
+            "limited": {
+              "label": "特急",
+              "shortLabel": "特"
+            }
+          },
+          "values": {
+            "minutes": "{{count}}分",
+            "hoursMinutes": "{{hours}}時間{{minutes}}分",
+            "tenThousandPeoplePerDay": "{{value}}万人/日",
+            "peoplePerDay": "{{value}}人/日",
+            "okuYen": "{{amount}}億円",
+            "yen": "{{amount}}円",
+            "trainsPerHour": "{{count}}本/時",
+            "stationCount": "{{count}}駅",
+            "kilometers": "{{value}}km",
+            "stopCountRatio": "{{stops}}/{{total}}駅"
+          },
+          "empty": {
+            "selectedStations": "地図上の駅をクリックすると、ここにルート順で追加されます。",
+            "diagram": "2駅以上を選ぶと路線図が表示されます。"
+          },
+          "station": {
+            "remove": "{{station}}を外す",
+            "removeFromRoute": "{{station}}をルートから外す",
+            "addToRoute": "{{station}}をルートに追加"
+          },
+          "map": {
+            "nationalPanelAria": "日本地図",
+            "prefecturePanelAria": "{{prefecture}}ズーム地図",
+            "nationalSvgAria": "日本地図上の架空鉄道路線",
+            "prefectureSvgAria": "{{prefecture}}ズーム地図上の架空鉄道路線",
+            "addModeBadge": "地図クリックで駅追加",
+            "zoomToolbar": "地図ズーム操作",
+            "zoomInAria": "地図を拡大",
+            "zoomInTitle": "拡大",
+            "zoomOutAria": "地図を縮小",
+            "zoomOutTitle": "縮小",
+            "resetViewAria": "地図表示をリセット",
+            "resetViewTitle": "リセット",
+            "labels": {
+              "arakawa": "荒川",
+              "sumidaRiver": "隅田川",
+              "tokyoBay": "東京湾",
+              "prefectureZoom": "{{prefecture}}ズーム",
+              "northConnector": "北部連絡",
+              "southConnector": "南部連絡"
+            }
+          },
+          "simulation": {
+            "totalDistance": "総延長",
+            "stops": "停車駅",
+            "constructionCost": "建設費",
+            "annualRevenue": "年間売上",
+            "congestion": "混雑率",
+            "balanceDescription": "売上から運行費と建設費の年換算分を引いた概算です。停車駅を増やすと需要は拾えますが、所要時間が伸びます。"
+          }
         }
       },
       "comingSoon": {

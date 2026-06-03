@@ -52,6 +52,10 @@ const ROUTE_INDEX_FONT_SIZE = 8;
 const NATIONAL_ROUTE_DENSE_LABEL_ZOOM = 6.4;
 const NATIONAL_DETAIL_LABEL_ZOOM = 8.2;
 const NATIONAL_MAJOR_ROUTE_LABEL_DEMAND = 170;
+const RAILWAY_PLANNER_STORAGE_KEY = 'railway-planner-draft-v2';
+const DEFAULT_SERVICE_TYPE = 'rapid';
+const CUSTOM_SERVICE_COLORS = ['#0891b2', '#16a34a', '#9333ea', '#db2777', '#ca8a04'];
+const CUSTOM_SERVICE_DASH_ARRAYS = ['10 6', '2 5', '14 6 3 6', '20 8'];
 const DEFAULT_MAP_VIEW: MapViewBox = {
   x: 0,
   y: 0,
@@ -61,7 +65,8 @@ const DEFAULT_MAP_VIEW: MapViewBox = {
 
 type TerrainType = 'plain' | 'urban' | 'mountain' | 'coastal';
 type TrackType = 'single' | 'double' | 'quad';
-type ServiceType = 'local' | 'rapid' | 'express' | 'limited';
+type DefaultServiceType = 'local' | 'rapid' | 'express' | 'limited';
+type ServiceType = string;
 type MapScope = 'prefecture' | 'national';
 type RailwayPlaceKind = 'station' | 'city' | 'town' | 'district' | 'landmark';
 
@@ -115,6 +120,35 @@ interface PresetRoute {
   lineName: string;
   stationIds: string[];
   distanceScale?: number;
+}
+
+interface ServiceOption {
+  id: ServiceType;
+  label: string;
+  shortLabel: string;
+  speed: number;
+  stopPenalty: number;
+  demandMultiplier: number;
+  color: string;
+  dashArray?: string;
+  custom?: boolean;
+}
+
+type ServiceStopOverrides = Record<string, Record<string, boolean>>;
+
+interface RailwayPlannerDraft {
+  mapScope: MapScope;
+  selectedPrefectureId: string;
+  lineName: string;
+  selectedPresetId: string | null;
+  routeStationIds: string[];
+  customStations: Station[];
+  trackType: TrackType;
+  serviceType: ServiceType;
+  frequency: number;
+  showDemand: boolean;
+  serviceOptions: ServiceOption[];
+  stopOverrides: ServiceStopOverrides;
 }
 
 interface MapViewBox {
@@ -390,16 +424,9 @@ const TRACK_OPTIONS: Record<TrackType, {
   },
 };
 
-const SERVICE_OPTIONS: Record<ServiceType, {
-  label: string;
-  shortLabel: string;
-  speed: number;
-  stopPenalty: number;
-  demandMultiplier: number;
-  color: string;
-  dashArray?: string;
-}> = {
+const SERVICE_OPTIONS: Record<DefaultServiceType, ServiceOption> = {
   local: {
+    id: 'local',
     label: '普通',
     shortLabel: '普',
     speed: 70,
@@ -408,6 +435,7 @@ const SERVICE_OPTIONS: Record<ServiceType, {
     color: '#334155',
   },
   rapid: {
+    id: 'rapid',
     label: '快速',
     shortLabel: '快',
     speed: 88,
@@ -417,6 +445,7 @@ const SERVICE_OPTIONS: Record<ServiceType, {
     dashArray: '12 7',
   },
   express: {
+    id: 'express',
     label: '急行',
     shortLabel: '急',
     speed: 106,
@@ -426,6 +455,7 @@ const SERVICE_OPTIONS: Record<ServiceType, {
     dashArray: '18 8',
   },
   limited: {
+    id: 'limited',
     label: '特急',
     shortLabel: '特',
     speed: 124,
@@ -435,6 +465,8 @@ const SERVICE_OPTIONS: Record<ServiceType, {
     dashArray: '3 8',
   },
 };
+const DEFAULT_SERVICE_OPTION_LIST = (Object.keys(SERVICE_OPTIONS) as DefaultServiceType[])
+  .map((serviceType) => SERVICE_OPTIONS[serviceType]);
 
 const NATIONAL_PRESET_ROUTES: PresetRoute[] = [
   {
@@ -658,17 +690,69 @@ function createSegments(routeStations: Station[], distanceScale: number): Segmen
   });
 }
 
+function isDefaultServiceType(serviceType: string): serviceType is DefaultServiceType {
+  return serviceType === 'local'
+    || serviceType === 'rapid'
+    || serviceType === 'express'
+    || serviceType === 'limited';
+}
+
+function getServiceOption(serviceOptions: ServiceOption[], serviceType: ServiceType): ServiceOption {
+  return serviceOptions.find((option) => option.id === serviceType) ?? SERVICE_OPTIONS[DEFAULT_SERVICE_TYPE];
+}
+
+function getServiceLabel(service: ServiceOption, translate: RailTranslate): string {
+  return isDefaultServiceType(service.id) ? translate(`service.${service.id}.label`) : service.label;
+}
+
+function getServiceShortLabel(service: ServiceOption, translate: RailTranslate): string {
+  return isDefaultServiceType(service.id) ? translate(`service.${service.id}.shortLabel`) : service.shortLabel;
+}
+
+function getDefaultRouteStop(
+  station: Station,
+  index: number,
+  stationCount: number,
+  service: Pick<ServiceOption, 'id' | 'speed'>,
+): boolean {
+  const isTerminal = index === 0 || index === stationCount - 1;
+  if (isTerminal || service.id === 'local') return true;
+  if (service.id === 'rapid') return station.demand >= 120 || index % 2 === 0;
+  if (service.id === 'express') return station.demand >= 165 || index % 3 === 0;
+  if (service.id === 'limited') return station.demand >= 210;
+  if (service.speed >= 118) return station.demand >= 210;
+  if (service.speed >= 102) return station.demand >= 165 || index % 3 === 0;
+  if (service.speed >= 84) return station.demand >= 120 || index % 2 === 0;
+  return true;
+}
+
 function isRouteStop(
   station: Station,
   index: number,
   stationCount: number,
-  serviceType: ServiceType,
+  service: Pick<ServiceOption, 'id' | 'speed'>,
+  stopOverrides: ServiceStopOverrides,
 ): boolean {
   const isTerminal = index === 0 || index === stationCount - 1;
-  if (isTerminal || serviceType === 'local') return true;
-  if (serviceType === 'rapid') return station.demand >= 120 || index % 2 === 0;
-  if (serviceType === 'express') return station.demand >= 165 || index % 3 === 0;
-  return station.demand >= 210;
+  if (isTerminal) return true;
+  const override = stopOverrides[service.id]?.[station.id];
+  if (typeof override === 'boolean') return override;
+  return getDefaultRouteStop(station, index, stationCount, service);
+}
+
+function getRouteStationRenderKey(stationIds: string[], stationId: string, index: number): string {
+  let duplicateCount = 0;
+  let occurrence = 0;
+
+  stationIds.forEach((currentStationId, currentIndex) => {
+    if (currentStationId !== stationId) return;
+    duplicateCount += 1;
+    if (currentIndex <= index) {
+      occurrence += 1;
+    }
+  });
+
+  return duplicateCount > 1 ? `${stationId}:${occurrence}` : stationId;
 }
 
 function getTrackOffsets(trackType: TrackType): number[] {
@@ -713,6 +797,102 @@ function formatOku(value: number, translate: RailTranslate, locale: string, useO
 
 function getStationById(stations: Station[], id: string): Station | undefined {
   return stations.find((station) => station.id === id);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function isTerrainType(value: unknown): value is TerrainType {
+  return value === 'plain' || value === 'urban' || value === 'mountain' || value === 'coastal';
+}
+
+function isMapScope(value: unknown): value is MapScope {
+  return value === 'national' || value === 'prefecture';
+}
+
+function isTrackType(value: unknown): value is TrackType {
+  return value === 'single' || value === 'double' || value === 'quad';
+}
+
+function isStation(value: unknown): value is Station {
+  if (!isRecord(value)) return false;
+  return typeof value.id === 'string'
+    && typeof value.name === 'string'
+    && typeof value.region === 'string'
+    && typeof value.x === 'number'
+    && typeof value.y === 'number'
+    && typeof value.demand === 'number'
+    && isTerrainType(value.terrain);
+}
+
+function isServiceOption(value: unknown): value is ServiceOption {
+  if (!isRecord(value)) return false;
+  return typeof value.id === 'string'
+    && typeof value.label === 'string'
+    && typeof value.shortLabel === 'string'
+    && typeof value.speed === 'number'
+    && typeof value.stopPenalty === 'number'
+    && typeof value.demandMultiplier === 'number'
+    && typeof value.color === 'string';
+}
+
+function parseStringArray(value: unknown): string[] | null {
+  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) return null;
+  return value;
+}
+
+function parseStationList(value: unknown): Station[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(isStation);
+}
+
+function parseServiceOptions(value: unknown): ServiceOption[] {
+  if (!Array.isArray(value)) return DEFAULT_SERVICE_OPTION_LIST;
+
+  const customOptions = value
+    .filter(isServiceOption)
+    .filter((option) => option.custom && !isDefaultServiceType(option.id))
+    .map((option) => ({
+      ...option,
+      label: option.label.slice(0, 14),
+      shortLabel: option.shortLabel.slice(0, 3),
+    }));
+
+  return [...DEFAULT_SERVICE_OPTION_LIST, ...customOptions];
+}
+
+function parseStopOverrides(value: unknown): ServiceStopOverrides {
+  if (!isRecord(value)) return {};
+
+  return Object.entries(value).reduce<ServiceStopOverrides>((acc, [serviceId, stationStops]) => {
+    if (!isRecord(stationStops)) return acc;
+
+    const parsedStationStops = Object.entries(stationStops).reduce<Record<string, boolean>>(
+      (stationAcc, [stationId, stopsHere]) => {
+        if (typeof stopsHere === 'boolean') {
+          stationAcc[stationId] = stopsHere;
+        }
+        return stationAcc;
+      },
+      {},
+    );
+
+    if (Object.keys(parsedStationStops).length > 0) {
+      acc[serviceId] = parsedStationStops;
+    }
+    return acc;
+  }, {});
+}
+
+function getMaxNumberedId(items: Array<{ id: string }>, prefixes: string[]): number {
+  return items.reduce((max, item) => {
+    const matchingPrefix = prefixes.find((prefix) => item.id.startsWith(`${prefix}-`));
+    if (!matchingPrefix) return max;
+    const numericPart = item.id.slice(matchingPrefix.length + 1).match(/^\d+/)?.[0];
+    if (!numericPart) return max;
+    return Math.max(max, Number(numericPart));
+  }, 0);
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -781,6 +961,7 @@ export default function RailwayPlannerPage() {
   const mapInteractionTimeoutRef = useRef<number | null>(null);
   const suppressNextClickRef = useRef(false);
   const customStationIdRef = useRef(0);
+  const customServiceIdRef = useRef(0);
   const isJapanese = i18n.language?.startsWith('ja');
   const numberLocale = isJapanese ? 'ja-JP' : 'en-US';
   const rp: RailTranslate = (key, options) => t(`home.tools.railwayPlanner.page.${key}`, options);
@@ -793,16 +974,21 @@ export default function RailwayPlannerPage() {
   const [routeStationIds, setRouteStationIds] = useState<string[]>(initialPreset.stationIds);
   const [customStations, setCustomStations] = useState<Station[]>([]);
   const [trackType, setTrackType] = useState<TrackType>('double');
-  const [serviceType, setServiceType] = useState<ServiceType>('rapid');
+  const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>(DEFAULT_SERVICE_OPTION_LIST);
+  const [serviceType, setServiceType] = useState<ServiceType>(DEFAULT_SERVICE_TYPE);
+  const [stopOverrides, setStopOverrides] = useState<ServiceStopOverrides>({});
   const [frequency, setFrequency] = useState(6);
   const [addMode, setAddMode] = useState(false);
   const [stationDraft, setStationDraft] = useState(defaultStationDraft);
+  const [serviceDraftName, setServiceDraftName] = useState('');
+  const [serviceDraftShortLabel, setServiceDraftShortLabel] = useState('');
   const [placeSearchResults, setPlaceSearchResults] = useState<RailwayPlaceSearchResult[]>([]);
   const [placeSearchStatus, setPlaceSearchStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [placeSearchError, setPlaceSearchError] = useState('');
   const [showDemand, setShowDemand] = useState(true);
   const [mapView, setMapView] = useState<MapViewBox>(DEFAULT_MAP_VIEW);
   const [isMapInteracting, setIsMapInteracting] = useState(false);
+  const [hasLoadedDraft, setHasLoadedDraft] = useState(false);
 
   const selectedPrefecture = getPrefectureZoom(selectedPrefectureId);
   const baseStations = mapScope === 'prefecture' ? selectedPrefecture.stations : NATIONAL_BASE_STATIONS;
@@ -834,6 +1020,99 @@ export default function RailwayPlannerPage() {
     trimmedStationDraft.length >= 2
     && !isDefaultStationSearchDraft(trimmedStationDraft, defaultStationDraft)
   );
+  const selectedTrack = TRACK_OPTIONS[trackType];
+  const selectedService = getServiceOption(serviceOptions, serviceType);
+  const selectedServiceId = selectedService.id;
+  const selectedServiceSpeed = selectedService.speed;
+  const selectedServiceStopPenalty = selectedService.stopPenalty;
+  const selectedServiceDemandMultiplier = selectedService.demandMultiplier;
+  const selectedServiceLabel = getServiceLabel(selectedService, rp);
+  const selectedServiceShortLabel = getServiceShortLabel(selectedService, rp);
+  const customServiceOptions = serviceOptions.filter((option) => option.custom);
+
+  useEffect(() => {
+    const loadDraftId = window.setTimeout(() => {
+      try {
+        const storedDraft = window.localStorage.getItem(RAILWAY_PLANNER_STORAGE_KEY);
+        if (!storedDraft) {
+          setHasLoadedDraft(true);
+          return;
+        }
+
+        const draft = JSON.parse(storedDraft) as Partial<RailwayPlannerDraft>;
+        const nextCustomStations = parseStationList(draft.customStations);
+        const nextServiceOptions = parseServiceOptions(draft.serviceOptions);
+        const nextRouteStationIds = parseStringArray(draft.routeStationIds);
+        const nextServiceType = typeof draft.serviceType === 'string'
+          && nextServiceOptions.some((option) => option.id === draft.serviceType)
+          ? draft.serviceType
+          : DEFAULT_SERVICE_TYPE;
+
+        if (isMapScope(draft.mapScope)) setMapScope(draft.mapScope);
+        if (typeof draft.selectedPrefectureId === 'string') setSelectedPrefectureId(draft.selectedPrefectureId);
+        if (typeof draft.lineName === 'string') setLineName(draft.lineName);
+        if (typeof draft.selectedPresetId === 'string' || draft.selectedPresetId === null) {
+          setSelectedPresetId(draft.selectedPresetId);
+        }
+        if (nextRouteStationIds) setRouteStationIds(nextRouteStationIds);
+        if (nextCustomStations.length > 0) setCustomStations(nextCustomStations);
+        if (isTrackType(draft.trackType)) setTrackType(draft.trackType);
+        setServiceOptions(nextServiceOptions);
+        setServiceType(nextServiceType);
+        setStopOverrides(parseStopOverrides(draft.stopOverrides));
+        if (typeof draft.frequency === 'number') setFrequency(clamp(Math.round(draft.frequency), 1, 18));
+        if (typeof draft.showDemand === 'boolean') setShowDemand(draft.showDemand);
+
+        customStationIdRef.current = getMaxNumberedId(nextCustomStations, ['custom', 'place']);
+        customServiceIdRef.current = getMaxNumberedId(nextServiceOptions, ['custom']);
+      } catch {
+        window.localStorage.removeItem(RAILWAY_PLANNER_STORAGE_KEY);
+      } finally {
+        setHasLoadedDraft(true);
+      }
+    }, 0);
+
+    return () => window.clearTimeout(loadDraftId);
+  }, []);
+
+  useEffect(() => {
+    if (!hasLoadedDraft) return;
+
+    const draft: RailwayPlannerDraft = {
+      mapScope,
+      selectedPrefectureId,
+      lineName,
+      selectedPresetId,
+      routeStationIds,
+      customStations,
+      trackType,
+      serviceType,
+      frequency,
+      showDemand,
+      serviceOptions,
+      stopOverrides,
+    };
+
+    try {
+      window.localStorage.setItem(RAILWAY_PLANNER_STORAGE_KEY, JSON.stringify(draft));
+    } catch {
+      // If storage is unavailable or full, the planner should still work for the current session.
+    }
+  }, [
+    customStations,
+    frequency,
+    hasLoadedDraft,
+    lineName,
+    mapScope,
+    routeStationIds,
+    selectedPrefectureId,
+    selectedPresetId,
+    serviceOptions,
+    serviceType,
+    showDemand,
+    stopOverrides,
+    trackType,
+  ]);
 
   useEffect(() => {
     if (!canSearchPlaceCandidates) {
@@ -906,6 +1185,10 @@ export default function RailwayPlannerPage() {
       .filter((station): station is Station => Boolean(station)),
     [allStations, routeStationIds],
   );
+  const routeStationRenderKeys = useMemo(
+    () => routeStationIds.map((stationId, index) => getRouteStationRenderKey(routeStationIds, stationId, index)),
+    [routeStationIds],
+  );
 
   const routeDistanceScale = useMemo(
     () => {
@@ -963,7 +1246,7 @@ export default function RailwayPlannerPage() {
     [allStations, isMapRenderSimplified, mapRouteStationIds, mapScope, zoomLevel],
   );
 
-  const routeMetrics = useMemo(() => {
+  const routeMetrics = (() => {
     if (routeStations.length < 2) {
       return {
         totalDistance: 0,
@@ -986,21 +1269,21 @@ export default function RailwayPlannerPage() {
     const weightedTerrain = routeSegments.length && totalDistance > 0
       ? routeSegments.reduce((sum, segment) => sum + segment.terrainFactor * segment.distance, 0) / totalDistance
       : 1;
+    const stopService = { id: selectedServiceId, speed: selectedServiceSpeed };
     const stopCount = routeStations.filter((station, index) => (
-      isRouteStop(station, index, routeStations.length, serviceType)
+      isRouteStop(station, index, routeStations.length, stopService, stopOverrides)
     )).length;
-    const service = SERVICE_OPTIONS[serviceType];
     const track = TRACK_OPTIONS[trackType];
-    const effectiveSpeed = Math.max(42, service.speed + track.speedBonus);
+    const effectiveSpeed = Math.max(42, selectedServiceSpeed + track.speedBonus);
     const singleTrackDelay = trackType === 'single' ? totalDistance / 92 : 0;
     const travelMinutes = totalDistance > 0
-      ? (totalDistance / effectiveSpeed) * 60 + stopCount * service.stopPenalty + singleTrackDelay
+      ? (totalDistance / effectiveSpeed) * 60 + stopCount * selectedServiceStopPenalty + singleTrackDelay
       : 0;
     const constructionCostOku = totalDistance * 28 * track.costFactor * weightedTerrain;
     const dailyDemand = routeStations.reduce((sum, station, index) => {
-      const stopWeight = isRouteStop(station, index, routeStations.length, serviceType) ? 1 : 0.42;
+      const stopWeight = isRouteStop(station, index, routeStations.length, stopService, stopOverrides) ? 1 : 0.42;
       return sum + station.demand * 96 * stopWeight;
-    }, 0) * service.demandMultiplier * Math.min(1.45, 0.72 + frequency * 0.075);
+    }, 0) * selectedServiceDemandMultiplier * Math.min(1.45, 0.72 + frequency * 0.075);
     const capacityDaily = frequency * track.trainCapacity * 16 * 2;
     const congestionRate = capacityDaily > 0 ? (dailyDemand / capacityDaily) * 100 : 0;
     const averageFare = 210 + totalDistance * 5.2;
@@ -1036,7 +1319,7 @@ export default function RailwayPlannerPage() {
       annualBalanceOku,
       score,
     };
-  }, [frequency, routeSegments, routeStations, serviceType, trackType]);
+  })();
 
   const handleStationToggle = (stationId: string) => {
     const exists = routeStationIds.includes(stationId);
@@ -1049,13 +1332,17 @@ export default function RailwayPlannerPage() {
     ));
   };
 
-  const handleRouteStationMove = (index: number, direction: -1 | 1) => {
+  const handleRouteStationMove = (index: number, stationId: string, direction: -1 | 1) => {
     lifecycle.trackEvent('station_reorder', {
       direction: direction < 0 ? 'up' : 'down',
       station_count: routeStationIds.length,
     });
     setSelectedPresetId(null);
     setRouteStationIds((current) => {
+      if (current[index] !== stationId) {
+        return current;
+      }
+
       const nextIndex = index + direction;
       if (index < 0 || nextIndex < 0 || index >= current.length || nextIndex >= current.length) {
         return current;
@@ -1065,6 +1352,68 @@ export default function RailwayPlannerPage() {
       [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
       return next;
     });
+  };
+
+  const handleRouteStopToggle = (station: Station, index: number) => {
+    const isTerminal = index === 0 || index === routeStations.length - 1;
+    if (isTerminal) return;
+
+    const nextStopsHere = !isRouteStop(station, index, routeStations.length, selectedService, stopOverrides);
+    lifecycle.trackEvent('service_stop_toggle', {
+      service_type: selectedService.id,
+      station_id: station.id,
+      stops_here: nextStopsHere ? 1 : 0,
+    });
+    setSelectedPresetId(null);
+    setStopOverrides((current) => ({
+      ...current,
+      [selectedService.id]: {
+        ...(current[selectedService.id] ?? {}),
+        [station.id]: nextStopsHere,
+      },
+    }));
+  };
+
+  const handleAddServiceType = () => {
+    const serviceName = serviceDraftName.trim();
+    if (!serviceName) return;
+
+    customServiceIdRef.current += 1;
+    const colorIndex = customServiceIdRef.current % CUSTOM_SERVICE_COLORS.length;
+    const dashIndex = customServiceIdRef.current % CUSTOM_SERVICE_DASH_ARRAYS.length;
+    const nextService: ServiceOption = {
+      id: `custom-${customServiceIdRef.current}`,
+      label: serviceName.slice(0, 14),
+      shortLabel: (serviceDraftShortLabel.trim() || serviceName).slice(0, 3),
+      speed: 94,
+      stopPenalty: 1.8,
+      demandMultiplier: 1.02,
+      color: CUSTOM_SERVICE_COLORS[colorIndex],
+      dashArray: CUSTOM_SERVICE_DASH_ARRAYS[dashIndex],
+      custom: true,
+    };
+
+    lifecycle.trackEvent('service_type_add', { service_name_len: nextService.label.length });
+    setServiceOptions((current) => [...current, nextService]);
+    setServiceType(nextService.id);
+    setServiceDraftName('');
+    setServiceDraftShortLabel('');
+  };
+
+  const handleRemoveServiceType = (serviceId: string) => {
+    const targetService = serviceOptions.find((option) => option.id === serviceId);
+    if (!targetService?.custom) return;
+
+    lifecycle.trackEvent('service_type_remove', { service_type: serviceId });
+    setServiceOptions((current) => current.filter((option) => option.id !== serviceId));
+    setStopOverrides((current) => {
+      const next = { ...current };
+      delete next[serviceId];
+      return next;
+    });
+    if (serviceType === serviceId) {
+      setServiceType(DEFAULT_SERVICE_TYPE);
+    }
   };
 
   const handleStationKeyDown = (event: KeyboardEvent<SVGGElement>, stationId: string) => {
@@ -1346,6 +1695,7 @@ export default function RailwayPlannerPage() {
     setSelectedPresetId(preset.id);
     setRouteStationIds(preset.stationIds);
     setLineName(preset.lineName);
+    setStopOverrides({});
     resetMapView();
   };
 
@@ -1359,6 +1709,7 @@ export default function RailwayPlannerPage() {
     setSelectedPresetId(nextPreset.id);
     setRouteStationIds(nextPreset.stationIds);
     setLineName(nextPreset.lineName);
+    setStopOverrides({});
     setAddMode(false);
     setStationDraft(defaultStationDraft);
     resetMapView();
@@ -1372,6 +1723,7 @@ export default function RailwayPlannerPage() {
     setSelectedPresetId(nextPrefecture.presets[0].id);
     setRouteStationIds(nextPrefecture.presets[0].stationIds);
     setLineName(nextPrefecture.presets[0].lineName);
+    setStopOverrides({});
     setAddMode(false);
     setStationDraft(defaultStationDraft);
     resetMapView();
@@ -1381,6 +1733,7 @@ export default function RailwayPlannerPage() {
     lifecycle.trackEvent('route_clear', { station_count: routeStationIds.length });
     setSelectedPresetId(null);
     setRouteStationIds([]);
+    setStopOverrides({});
   };
 
   const handleReset = () => {
@@ -1392,10 +1745,14 @@ export default function RailwayPlannerPage() {
     setRouteStationIds(initialPreset.stationIds);
     setCustomStations([]);
     setTrackType('double');
-    setServiceType('rapid');
+    setServiceOptions(DEFAULT_SERVICE_OPTION_LIST);
+    setServiceType(DEFAULT_SERVICE_TYPE);
+    setStopOverrides({});
     setFrequency(6);
     setAddMode(false);
     setStationDraft(defaultStationDraft);
+    setServiceDraftName('');
+    setServiceDraftShortLabel('');
     setShowDemand(true);
     resetMapView();
   };
@@ -1409,10 +1766,8 @@ export default function RailwayPlannerPage() {
     )));
     setSelectedPresetId(null);
     setRouteStationIds((current) => current.filter((id) => baseStationIds.has(id)));
+    setStopOverrides({});
   };
-
-  const selectedTrack = TRACK_OPTIONS[trackType];
-  const selectedService = SERVICE_OPTIONS[serviceType];
 
   return (
     <main className={styles.page} style={railwayTheme}>
@@ -1550,21 +1905,82 @@ export default function RailwayPlannerPage() {
               <div className={styles.controlGroup}>
                 <span className={styles.groupLabel}>{rp('fields.serviceType')}</span>
                 <div className={styles.segmented}>
-                  {(Object.keys(SERVICE_OPTIONS) as ServiceType[]).map((optionId) => (
-                    <button
-                      key={optionId}
-                      type="button"
-                      className={`${styles.segmentButton} ${serviceType === optionId ? styles.segmentButtonActive : ''}`}
-                      onClick={() => {
-                        lifecycle.trackEvent('service_change', { service_type: optionId });
-                        setServiceType(optionId);
-                      }}
-                      aria-pressed={serviceType === optionId}
-                    >
-                      <Zap size={14} color={SERVICE_OPTIONS[optionId].color} />
-                      {rp(`service.${optionId}.label`)}
-                    </button>
-                  ))}
+                  {serviceOptions.map((option) => {
+                    const optionLabel = getServiceLabel(option, rp);
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        className={`${styles.segmentButton} ${serviceType === option.id ? styles.segmentButtonActive : ''}`}
+                        onClick={() => {
+                          lifecycle.trackEvent('service_change', { service_type: option.id });
+                          setServiceType(option.id);
+                        }}
+                        aria-pressed={serviceType === option.id}
+                      >
+                        <Zap size={14} color={option.color} />
+                        {optionLabel}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className={styles.serviceBuilder}>
+                  <div className={styles.serviceBuilderFields}>
+                    <label className={styles.compactField}>
+                      <span>{rp('fields.serviceName')}</span>
+                      <Input
+                        value={serviceDraftName}
+                        onChange={(event) => setServiceDraftName(event.target.value)}
+                        className={styles.textInput}
+                        maxLength={14}
+                        placeholder={rp('defaults.newService')}
+                      />
+                    </label>
+                    <label className={styles.compactField}>
+                      <span>{rp('fields.serviceShortLabel')}</span>
+                      <Input
+                        value={serviceDraftShortLabel}
+                        onChange={(event) => setServiceDraftShortLabel(event.target.value)}
+                        className={styles.textInput}
+                        maxLength={3}
+                        placeholder={rp('defaults.newServiceShort')}
+                      />
+                    </label>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className={styles.secondaryButton}
+                    onClick={handleAddServiceType}
+                    disabled={!serviceDraftName.trim()}
+                  >
+                    <Plus size={15} />
+                    {rp('actions.addServiceType')}
+                  </Button>
+                  {customServiceOptions.length > 0 && (
+                    <div className={styles.customServiceList}>
+                      {customServiceOptions.map((option) => (
+                        <span key={option.id} className={styles.customServiceChip}>
+                          <span
+                            className={styles.serviceSwatch}
+                            style={{ '--service-color': option.color } as CSSProperties}
+                          >
+                            {option.shortLabel}
+                          </span>
+                          {option.label}
+                          <button
+                            type="button"
+                            className={styles.serviceRemoveButton}
+                            aria-label={rp('actions.removeServiceType', { service: option.label })}
+                            title={rp('actions.removeServiceType', { service: option.label })}
+                            onClick={() => handleRemoveServiceType(option.id)}
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1694,43 +2110,65 @@ export default function RailwayPlannerPage() {
                 <p className={styles.emptyText}>{rp('empty.selectedStations')}</p>
               ) : (
                 <ol className={styles.stationOrder}>
-                  {routeStations.map((station, index) => (
-                    <li key={`${station.id}-${index}`}>
-                      <span className={styles.stationIndex}>{index + 1}</span>
-                      <span className={styles.stationOrderName}>{station.name}</span>
-                      <span className={styles.stationOrderControls}>
+                  {routeStations.map((station, index) => {
+                    const routeStationKey = routeStationRenderKeys[index] ?? station.id;
+                    const stopsHere = isRouteStop(station, index, routeStations.length, selectedService, stopOverrides);
+                    const isTerminal = index === 0 || index === routeStations.length - 1;
+                    const stopActionLabel = isTerminal
+                      ? rp('station.terminalStop', { station: station.name })
+                      : stopsHere
+                        ? rp('station.passHere', { station: station.name, service: selectedServiceLabel })
+                        : rp('station.stopHere', { station: station.name, service: selectedServiceLabel });
+
+                    return (
+                      <li key={routeStationKey}>
+                        <span className={styles.stationIndex}>{index + 1}</span>
+                        <span className={styles.stationOrderName}>{station.name}</span>
                         <button
                           type="button"
-                          className={`${styles.stationOrderButton} ${styles.stationMoveButton}`}
-                          aria-label={rp('station.moveUp', { station: station.name })}
-                          title={rp('station.moveUp', { station: station.name })}
-                          onClick={() => handleRouteStationMove(index, -1)}
-                          disabled={index === 0}
+                          className={`${styles.stationStopButton} ${stopsHere ? styles.stationStopButtonActive : ''}`}
+                          aria-label={stopActionLabel}
+                          title={stopActionLabel}
+                          aria-pressed={stopsHere}
+                          onClick={() => handleRouteStopToggle(station, index)}
+                          disabled={isTerminal}
                         >
-                          <ArrowUp size={13} />
+                          {stopsHere ? selectedServiceShortLabel : rp('station.passShort')}
                         </button>
+                        <span className={styles.stationOrderControls}>
+                          <button
+                            type="button"
+                            className={`${styles.stationOrderButton} ${styles.stationMoveButton}`}
+                            aria-label={rp('station.moveUp', { station: station.name })}
+                            title={rp('station.moveUp', { station: station.name })}
+                            onClick={() => handleRouteStationMove(index, station.id, -1)}
+                            disabled={index === 0}
+                          >
+                            <ArrowUp size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className={`${styles.stationOrderButton} ${styles.stationMoveButton}`}
+                            aria-label={rp('station.moveDown', { station: station.name })}
+                            title={rp('station.moveDown', { station: station.name })}
+                            onClick={() => handleRouteStationMove(index, station.id, 1)}
+                            disabled={index === routeStations.length - 1}
+                          >
+                            <ArrowDown size={13} />
+                          </button>
+                        </span>
                         <button
                           type="button"
-                          className={`${styles.stationOrderButton} ${styles.stationMoveButton}`}
-                          aria-label={rp('station.moveDown', { station: station.name })}
-                          title={rp('station.moveDown', { station: station.name })}
-                          onClick={() => handleRouteStationMove(index, 1)}
-                          disabled={index === routeStations.length - 1}
+                          className={`${styles.stationOrderButton} ${styles.stationRemoveButton}`}
+                          aria-label={rp('station.remove', { station: station.name })}
+                          title={rp('station.remove', { station: station.name })}
+                          onClick={() => handleStationToggle(station.id)}
                         >
-                          <ArrowDown size={13} />
+                          <Trash2 size={14} />
                         </button>
-                      </span>
-                      <button
-                        type="button"
-                        className={`${styles.stationOrderButton} ${styles.stationRemoveButton}`}
-                        aria-label={rp('station.remove', { station: station.name })}
-                        title={rp('station.remove', { station: station.name })}
-                        onClick={() => handleStationToggle(station.id)}
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </li>
-                  ))}
+                      </li>
+                    );
+                  })}
                 </ol>
               )}
             </section>
@@ -1746,7 +2184,7 @@ export default function RailwayPlannerPage() {
               <div>
                 <h2>{lineName || unnamedLine}</h2>
                 <p>
-                  {mapScope === 'prefecture' ? selectedPrefecture.label : rp('scope.national.label')} / {rp(`track.${trackType}.label`)} / {rp(`service.${serviceType}.label`)} / {rp('values.stationCount', { count: routeStations.length })}
+                  {mapScope === 'prefecture' ? selectedPrefecture.label : rp('scope.national.label')} / {rp(`track.${trackType}.label`)} / {selectedServiceLabel} / {rp('values.stationCount', { count: routeStations.length })}
                 </p>
               </div>
               {addMode && <span className={styles.addModeBadge}>{rp('map.addModeBadge')}</span>}
@@ -1896,7 +2334,7 @@ export default function RailwayPlannerPage() {
                   const inRoute = routeIndex >= 0;
                   const isVisibleRouteStation = mapRouteStationIds.has(station.id);
                   const isTerminal = routeIndex === 0 || routeIndex === routeStationIds.length - 1;
-                  const stopsHere = inRoute && isRouteStop(station, routeIndex, routeStations.length, serviceType);
+                  const stopsHere = inRoute && isRouteStop(station, routeIndex, routeStations.length, selectedService, stopOverrides);
                   const isDetailedStation = Boolean(station.minZoom);
                   const isNationalDetailedStation = mapScope === 'national' && isDetailedStation;
                   const labelZoom = station.labelMinZoom ?? station.minZoom ?? 1;
@@ -1999,7 +2437,7 @@ export default function RailwayPlannerPage() {
               </div>
               <div className={styles.diagramMeta}>
                 <span style={{ '--service-color': selectedService.color } as CSSProperties}>
-                  {rp(`service.${serviceType}.shortLabel`)}
+                  {selectedServiceShortLabel}
                 </span>
                 <strong>{lineName || unnamedLine}</strong>
               </div>
@@ -2008,12 +2446,13 @@ export default function RailwayPlannerPage() {
               ) : (
                 <ol className={styles.routeDiagram}>
                   {routeStations.map((station, index) => {
-                    const stopsHere = isRouteStop(station, index, routeStations.length, serviceType);
+                    const routeStationKey = routeStationRenderKeys[index] ?? station.id;
+                    const stopsHere = isRouteStop(station, index, routeStations.length, selectedService, stopOverrides);
                     return (
-                      <li key={`${station.id}-${index}`} className={stopsHere ? undefined : styles.passStation}>
+                      <li key={routeStationKey} className={stopsHere ? undefined : styles.passStation}>
                         <span className={styles.diagramLine} />
                         <span className={styles.diagramMarker}>
-                          {stopsHere ? rp(`service.${serviceType}.shortLabel`) : ''}
+                          {stopsHere ? selectedServiceShortLabel : ''}
                         </span>
                         <span className={styles.diagramName}>{station.name}</span>
                         <span className={styles.diagramRegion}>{station.region}</span>

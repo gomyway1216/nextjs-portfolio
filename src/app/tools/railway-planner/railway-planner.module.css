@@ -316,6 +316,83 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--railway-accent) 22%, transparent);
 }
 
+.serviceBuilder {
+  display: grid;
+  gap: 8px;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, var(--railway-accent) 16%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--background) 92%, var(--railway-accent) 8%);
+  padding: 9px;
+}
+
+.serviceBuilderFields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(68px, 0.42fr);
+  gap: 7px;
+}
+
+.compactField {
+  display: grid;
+  min-width: 0;
+  gap: 5px;
+}
+
+.compactField span {
+  color: var(--muted-foreground);
+  font-size: 0.72rem;
+  font-weight: 720;
+}
+
+.customServiceList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.customServiceChip {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, var(--railway-accent) 22%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 92%, var(--railway-accent) 8%);
+  padding: 3px 5px 3px 3px;
+  color: var(--foreground);
+  font-size: 0.74rem;
+  font-weight: 760;
+}
+
+.serviceSwatch {
+  display: inline-flex;
+  min-width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--service-color);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 900;
+}
+
+.serviceRemoveButton {
+  display: inline-flex;
+  width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+
+.serviceRemoveButton:hover {
+  background: color-mix(in srgb, #dc2626 12%, transparent);
+  color: #dc2626;
+}
+
 .helperText,
 .emptyText {
   margin: 0;
@@ -480,7 +557,7 @@
 
 .stationOrder li {
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) 61px 28px;
+  grid-template-columns: 26px minmax(0, 1fr) 40px 61px 28px;
   align-items: center;
   gap: 7px;
   min-height: 34px;
@@ -516,6 +593,39 @@
 .stationOrderControls {
   display: inline-flex;
   gap: 3px;
+}
+
+.stationStopButton {
+  display: inline-flex;
+  min-width: 0;
+  width: 40px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--border) 76%, var(--railway-accent) 24%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card) 92%, var(--railway-accent) 8%);
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.stationStopButtonActive {
+  border-color: color-mix(in srgb, var(--railway-accent-soft) 72%, var(--border) 28%);
+  background: color-mix(in srgb, var(--railway-accent-soft) 18%, var(--card) 82%);
+  color: color-mix(in srgb, var(--foreground) 72%, var(--railway-accent-strong) 28%);
+}
+
+.stationStopButton:hover:not(:disabled) {
+  border-color: var(--railway-accent);
+  background: color-mix(in srgb, var(--card) 82%, var(--railway-accent) 18%);
+}
+
+.stationStopButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
 }
 
 .stationOrderButton {
@@ -1086,6 +1196,7 @@
 
   .presetGrid,
   .segmented,
+  .serviceBuilderFields,
   .simRows {
     grid-template-columns: 1fr;
   }

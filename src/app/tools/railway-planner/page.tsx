@@ -9,6 +9,7 @@ import {
   Circle,
   Clock,
   MapPin,
+  Minus,
   Plus,
   RotateCcw,
   Train,
@@ -25,11 +26,21 @@ import {
   type CSSProperties,
   type KeyboardEvent,
   type MouseEvent,
+  type PointerEvent,
+  type WheelEvent,
 } from 'react';
 import styles from './railway-planner.module.css';
 
 const MAP_WIDTH = 620;
 const MAP_HEIGHT = 760;
+const MAP_ASPECT_RATIO = MAP_HEIGHT / MAP_WIDTH;
+const MIN_MAP_VIEW_WIDTH = MAP_WIDTH / 7;
+const DEFAULT_MAP_VIEW: MapViewBox = {
+  x: 0,
+  y: 0,
+  width: MAP_WIDTH,
+  height: MAP_HEIGHT,
+};
 
 type TerrainType = 'plain' | 'urban' | 'mountain' | 'coastal';
 type TrackType = 'single' | 'double' | 'quad';
@@ -63,6 +74,22 @@ interface PresetRoute {
   name: string;
   lineName: string;
   stationIds: string[];
+}
+
+interface MapViewBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+interface MapDragState {
+  startClientX: number;
+  startClientY: number;
+  lastClientX: number;
+  lastClientY: number;
+  moved: boolean;
+  pointerId: number;
 }
 
 interface PrefectureZoom {
@@ -488,9 +515,47 @@ function getStationById(stations: Station[], id: string): Station | undefined {
   return stations.find((station) => station.id === id);
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function clampMapView(view: MapViewBox): MapViewBox {
+  const width = clamp(view.width, MIN_MAP_VIEW_WIDTH, MAP_WIDTH);
+  const height = width * MAP_ASPECT_RATIO;
+  const maxX = Math.max(0, MAP_WIDTH - width);
+  const maxY = Math.max(0, MAP_HEIGHT - height);
+
+  return {
+    x: clamp(view.x, 0, maxX),
+    y: clamp(view.y, 0, maxY),
+    width,
+    height,
+  };
+}
+
+function getMapPointFromClient(
+  svg: SVGSVGElement,
+  view: MapViewBox,
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } | null {
+  const rect = svg.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return null;
+
+  const normalizedX = clamp((clientX - rect.left) / rect.width, 0, 1);
+  const normalizedY = clamp((clientY - rect.top) / rect.height, 0, 1);
+
+  return {
+    x: clamp(view.x + normalizedX * view.width, 0, MAP_WIDTH),
+    y: clamp(view.y + normalizedY * view.height, 0, MAP_HEIGHT),
+  };
+}
+
 export default function RailwayPlannerPage() {
   const lifecycle = useFeatureLifecycle('tool.railway-planner');
   const svgRef = useRef<SVGSVGElement>(null);
+  const dragRef = useRef<MapDragState | null>(null);
+  const suppressNextClickRef = useRef(false);
   const [mapScope, setMapScope] = useState<MapScope>(initialMapScope);
   const [selectedPrefectureId, setSelectedPrefectureId] = useState(DEFAULT_PREFECTURE_ID);
   const [lineName, setLineName] = useState(initialPreset.lineName);
@@ -502,6 +567,7 @@ export default function RailwayPlannerPage() {
   const [addMode, setAddMode] = useState(false);
   const [stationDraft, setStationDraft] = useState('新駅');
   const [showDemand, setShowDemand] = useState(true);
+  const [mapView, setMapView] = useState<MapViewBox>(DEFAULT_MAP_VIEW);
 
   const selectedPrefecture = getPrefectureZoom(selectedPrefectureId);
   const baseStations = mapScope === 'prefecture' ? selectedPrefecture.stations : NATIONAL_STATIONS;
@@ -511,6 +577,7 @@ export default function RailwayPlannerPage() {
     station.scope === mapScope
     && (mapScope !== 'prefecture' || station.prefectureId === selectedPrefectureId)
   ));
+  const zoomLevel = MAP_WIDTH / mapView.width;
 
   const allStations = useMemo(
     () => {
@@ -616,20 +683,120 @@ export default function RailwayPlannerPage() {
     handleStationToggle(stationId);
   };
 
+  const zoomMapAt = (clientX: number, clientY: number, direction: 'in' | 'out') => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    setMapView((current) => {
+      const anchor = getMapPointFromClient(svg, current, clientX, clientY);
+      if (!anchor) return current;
+
+      const nextWidth = clamp(current.width * (direction === 'in' ? 0.72 : 1.28), MIN_MAP_VIEW_WIDTH, MAP_WIDTH);
+      const nextHeight = nextWidth * MAP_ASPECT_RATIO;
+      const anchorRatioX = (anchor.x - current.x) / current.width;
+      const anchorRatioY = (anchor.y - current.y) / current.height;
+
+      return clampMapView({
+        x: anchor.x - anchorRatioX * nextWidth,
+        y: anchor.y - anchorRatioY * nextHeight,
+        width: nextWidth,
+        height: nextHeight,
+      });
+    });
+  };
+
+  const resetMapView = () => {
+    dragRef.current = null;
+    suppressNextClickRef.current = false;
+    setMapView(DEFAULT_MAP_VIEW);
+  };
+
+  const handleMapWheel = (event: WheelEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    zoomMapAt(event.clientX, event.clientY, event.deltaY < 0 ? 'in' : 'out');
+  };
+
+  const handleMapZoomButton = (direction: 'in' | 'out') => {
+    const svg = svgRef.current;
+    if (!svg) return;
+
+    const rect = svg.getBoundingClientRect();
+    zoomMapAt(rect.left + rect.width / 2, rect.top + rect.height / 2, direction);
+    lifecycle.trackEvent('map_zoom', { direction });
+  };
+
+  const handleMapPointerDown = (event: PointerEvent<SVGSVGElement>) => {
+    if (event.button !== 0) return;
+
+    dragRef.current = {
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      lastClientX: event.clientX,
+      lastClientY: event.clientY,
+      moved: false,
+      pointerId: event.pointerId,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleMapPointerMove = (event: PointerEvent<SVGSVGElement>) => {
+    const drag = dragRef.current;
+    const svg = svgRef.current;
+    if (!drag || drag.pointerId !== event.pointerId || !svg) return;
+
+    const rect = svg.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+
+    const deltaX = event.clientX - drag.lastClientX;
+    const deltaY = event.clientY - drag.lastClientY;
+    if (Math.abs(deltaX) < 0.5 && Math.abs(deltaY) < 0.5) return;
+
+    drag.lastClientX = event.clientX;
+    drag.lastClientY = event.clientY;
+    if (Math.hypot(event.clientX - drag.startClientX, event.clientY - drag.startClientY) > 4) {
+      drag.moved = true;
+    }
+
+    setMapView((current) => clampMapView({
+      x: current.x - (deltaX / rect.width) * current.width,
+      y: current.y - (deltaY / rect.height) * current.height,
+      width: current.width,
+      height: current.height,
+    }));
+  };
+
+  const finishMapDrag = (event: PointerEvent<SVGSVGElement>) => {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+
+    if (drag.moved) {
+      suppressNextClickRef.current = true;
+    }
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    dragRef.current = null;
+  };
+
   const handleMapCanvasClick = (event: MouseEvent<SVGSVGElement>) => {
+    if (suppressNextClickRef.current) {
+      suppressNextClickRef.current = false;
+      return;
+    }
     if (!addMode) return;
     const stationName = stationDraft.trim();
     if (!stationName || !svgRef.current) return;
 
-    const rect = svgRef.current.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * MAP_WIDTH;
-    const y = ((event.clientY - rect.top) / rect.height) * MAP_HEIGHT;
+    const point = getMapPointFromClient(svgRef.current, mapView, event.clientX, event.clientY);
+    if (!point) return;
+
     const nextStation: Station = {
       id: `custom-${Date.now()}`,
       name: stationName.slice(0, 12),
       region: mapScope === 'prefecture' ? `${selectedPrefecture.label}計画駅` : '計画駅',
-      x: Math.max(18, Math.min(MAP_WIDTH - 18, x)),
-      y: Math.max(18, Math.min(MAP_HEIGHT - 18, y)),
+      x: clamp(point.x, 18, MAP_WIDTH - 18),
+      y: clamp(point.y, 18, MAP_HEIGHT - 18),
       demand: 118,
       terrain: 'urban',
       labelDx: 10,
@@ -663,6 +830,7 @@ export default function RailwayPlannerPage() {
     setLineName(nextPreset.lineName);
     setAddMode(false);
     setStationDraft('新駅');
+    resetMapView();
   };
 
   const handlePrefectureChange = (prefectureId: string) => {
@@ -674,6 +842,7 @@ export default function RailwayPlannerPage() {
     setLineName(nextPrefecture.presets[0].lineName);
     setAddMode(false);
     setStationDraft('新駅');
+    resetMapView();
   };
 
   const handleClearRoute = () => {
@@ -694,6 +863,7 @@ export default function RailwayPlannerPage() {
     setAddMode(false);
     setStationDraft('新駅');
     setShowDemand(true);
+    resetMapView();
   };
 
   const handleRemoveCustomStations = () => {
@@ -984,14 +1154,53 @@ export default function RailwayPlannerPage() {
               {addMode && <span className={styles.addModeBadge}>地図クリックで駅追加</span>}
             </div>
 
-            <svg
-              ref={svgRef}
-              className={styles.mapSvg}
-              viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-              role="img"
-              aria-label={mapScope === 'prefecture' ? `${selectedPrefecture.label}ズーム地図上の架空鉄道路線` : '日本地図上の架空鉄道路線'}
-              onClick={handleMapCanvasClick}
-            >
+            <div className={styles.mapCanvas}>
+              <div className={styles.mapToolbar} role="toolbar" aria-label="地図ズーム操作">
+                <button
+                  type="button"
+                  className={styles.mapToolButton}
+                  onClick={() => handleMapZoomButton('in')}
+                  aria-label="地図を拡大"
+                  title="拡大"
+                  disabled={mapView.width <= MIN_MAP_VIEW_WIDTH + 0.5}
+                >
+                  <Plus size={15} />
+                </button>
+                <button
+                  type="button"
+                  className={styles.mapToolButton}
+                  onClick={() => handleMapZoomButton('out')}
+                  aria-label="地図を縮小"
+                  title="縮小"
+                  disabled={mapView.width >= MAP_WIDTH - 0.5}
+                >
+                  <Minus size={15} />
+                </button>
+                <button
+                  type="button"
+                  className={styles.mapToolButton}
+                  onClick={resetMapView}
+                  aria-label="地図表示をリセット"
+                  title="リセット"
+                >
+                  <RotateCcw size={14} />
+                </button>
+                <span className={styles.zoomReadout}>{zoomLevel.toFixed(1)}x</span>
+              </div>
+
+              <svg
+                ref={svgRef}
+                className={`${styles.mapSvg} ${addMode ? styles.mapSvgAddMode : ''}`}
+                viewBox={`${mapView.x} ${mapView.y} ${mapView.width} ${mapView.height}`}
+                role="img"
+                aria-label={mapScope === 'prefecture' ? `${selectedPrefecture.label}ズーム地図上の架空鉄道路線` : '日本地図上の架空鉄道路線'}
+                onClick={handleMapCanvasClick}
+                onWheel={handleMapWheel}
+                onPointerDown={handleMapPointerDown}
+                onPointerMove={handleMapPointerMove}
+                onPointerUp={finishMapDrag}
+                onPointerCancel={finishMapDrag}
+              >
               <defs>
                 <pattern id="railway-grid" width="40" height="40" patternUnits="userSpaceOnUse">
                   <path d="M 40 0 L 0 0 0 40" className={styles.gridLine} />
@@ -1095,6 +1304,7 @@ export default function RailwayPlannerPage() {
                       tabIndex={0}
                       className={`${styles.stationButton} ${inRoute ? styles.stationSelected : ''}`}
                       aria-label={`${station.name}を${inRoute ? 'ルートから外す' : 'ルートに追加'}`}
+                      onPointerDown={(event) => event.stopPropagation()}
                       onClick={(event) => {
                         event.stopPropagation();
                         handleStationToggle(station.id);
@@ -1135,7 +1345,8 @@ export default function RailwayPlannerPage() {
                   );
                 })}
               </g>
-            </svg>
+              </svg>
+            </div>
           </section>
 
           <aside className={styles.diagramPanel} aria-label="路線図と採算">

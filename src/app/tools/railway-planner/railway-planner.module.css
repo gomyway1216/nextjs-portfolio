@@ -444,6 +444,7 @@
 }
 
 .mapPanel {
+  position: relative;
   overflow: hidden;
 }
 
@@ -490,11 +491,72 @@
   font-weight: 760;
 }
 
+.mapCanvas {
+  position: relative;
+}
+
+.mapToolbar {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid color-mix(in srgb, var(--border) 78%, var(--railway-accent) 22%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--card) 90%, var(--railway-accent) 10%);
+  padding: 6px;
+  box-shadow: 0 12px 28px color-mix(in srgb, #020617 14%, transparent);
+}
+
+.mapToolButton {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--border) 72%, var(--railway-accent) 28%);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--background) 90%, var(--railway-accent) 10%);
+  color: color-mix(in srgb, var(--foreground) 78%, var(--railway-accent-strong) 22%);
+  transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.mapToolButton:hover:not(:disabled) {
+  border-color: var(--railway-accent);
+  background: color-mix(in srgb, var(--card) 76%, var(--railway-accent) 24%);
+  transform: translateY(-1px);
+}
+
+.mapToolButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
+.zoomReadout {
+  min-width: 42px;
+  color: var(--muted-foreground);
+  font-size: 0.78rem;
+  font-weight: 820;
+  text-align: center;
+}
+
 .mapSvg {
   display: block;
   width: 100%;
   height: min(72vh, 720px);
   min-height: 570px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.mapSvg:active {
+  cursor: grabbing;
+}
+
+.mapSvgAddMode {
   cursor: crosshair;
 }
 

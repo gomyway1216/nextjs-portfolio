@@ -5,7 +5,9 @@ import { Input } from '@/components/ui/input';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import {
   Activity,
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   Circle,
   Clock,
   MapPin,
@@ -31,11 +33,11 @@ import {
   type WheelEvent,
 } from 'react';
 import { useTranslation } from 'react-i18next';
-import { NATIONAL_LAND_PATHS } from './nationalLandPaths';
 import styles from './railway-planner.module.css';
 
 const MAP_WIDTH = 620;
 const MAP_HEIGHT = 760;
+const NATIONAL_LAND_IMAGE_SRC = '/img/railway-japan-land.v1.svg';
 const MAP_ASPECT_RATIO = MAP_HEIGHT / MAP_WIDTH;
 const MAX_MAP_ZOOM = 24;
 const MIN_MAP_VIEW_WIDTH = MAP_WIDTH / MAX_MAP_ZOOM;
@@ -987,6 +989,24 @@ export default function RailwayPlannerPage() {
     ));
   };
 
+  const handleRouteStationMove = (index: number, direction: -1 | 1) => {
+    lifecycle.trackEvent('station_reorder', {
+      direction: direction < 0 ? 'up' : 'down',
+      station_count: routeStationIds.length,
+    });
+    setSelectedPresetId(null);
+    setRouteStationIds((current) => {
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || index >= current.length || nextIndex >= current.length) {
+        return current;
+      }
+
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
+  };
+
   const handleStationKeyDown = (event: KeyboardEvent<SVGGElement>, stationId: string) => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
@@ -1573,9 +1593,33 @@ export default function RailwayPlannerPage() {
                     <li key={`${station.id}-${index}`}>
                       <span className={styles.stationIndex}>{index + 1}</span>
                       <span className={styles.stationOrderName}>{station.name}</span>
+                      <span className={styles.stationOrderControls}>
+                        <button
+                          type="button"
+                          className={`${styles.stationOrderButton} ${styles.stationMoveButton}`}
+                          aria-label={rp('station.moveUp', { station: station.name })}
+                          title={rp('station.moveUp', { station: station.name })}
+                          onClick={() => handleRouteStationMove(index, -1)}
+                          disabled={index === 0}
+                        >
+                          <ArrowUp size={13} />
+                        </button>
+                        <button
+                          type="button"
+                          className={`${styles.stationOrderButton} ${styles.stationMoveButton}`}
+                          aria-label={rp('station.moveDown', { station: station.name })}
+                          title={rp('station.moveDown', { station: station.name })}
+                          onClick={() => handleRouteStationMove(index, 1)}
+                          disabled={index === routeStations.length - 1}
+                        >
+                          <ArrowDown size={13} />
+                        </button>
+                      </span>
                       <button
                         type="button"
+                        className={`${styles.stationOrderButton} ${styles.stationRemoveButton}`}
                         aria-label={rp('station.remove', { station: station.name })}
+                        title={rp('station.remove', { station: station.name })}
                         onClick={() => handleStationToggle(station.id)}
                       >
                         <Trash2 size={14} />
@@ -1664,11 +1708,15 @@ export default function RailwayPlannerPage() {
               <rect width={MAP_WIDTH} height={MAP_HEIGHT} className={styles.mapOcean} />
               <rect width={MAP_WIDTH} height={MAP_HEIGHT} fill="url(#railway-grid)" opacity="0.42" />
               {mapScope === 'national' ? (
-                <g className={styles.landLayer}>
-                  {NATIONAL_LAND_PATHS.map((path) => (
-                    <path key={path} d={path} />
-                  ))}
-                </g>
+                <image
+                  href={NATIONAL_LAND_IMAGE_SRC}
+                  x="0"
+                  y="0"
+                  width={MAP_WIDTH}
+                  height={MAP_HEIGHT}
+                  className={styles.landImage}
+                  preserveAspectRatio="none"
+                />
               ) : selectedPrefecture.id === 'tokyo' ? (
                 <>
                   <g className={styles.landLayer}>

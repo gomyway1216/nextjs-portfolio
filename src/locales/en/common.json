@@ -1063,6 +1063,8 @@
           },
           "station": {
             "remove": "Remove {{station}}",
+            "moveUp": "Move {{station}} earlier",
+            "moveDown": "Move {{station}} later",
             "removeFromRoute": "Remove {{station}} from the route",
             "addToRoute": "Add {{station}} to the route"
           },

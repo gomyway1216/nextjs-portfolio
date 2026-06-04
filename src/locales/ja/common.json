@@ -979,6 +979,7 @@
             "selectedStations": "選択中の駅",
             "diagramAndFinance": "路線図と採算",
             "diagram": "路線図",
+            "stopPattern": "停車パターン",
             "simulation": "シミュレーション"
           },
           "fields": {
@@ -1082,6 +1083,7 @@
             "stopHere": "{{service}}を{{station}}に停車",
             "passHere": "{{service}}を{{station}}通過にする",
             "terminalStop": "{{station}}は起終点のため停車",
+            "stopPatternFor": "{{station}}の停車種別",
             "passShort": "通",
             "removeFromRoute": "{{station}}をルートから外す",
             "addToRoute": "{{station}}をルートに追加"

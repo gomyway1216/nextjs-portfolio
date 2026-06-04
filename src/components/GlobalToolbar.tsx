@@ -44,129 +44,106 @@ interface ThemeConfig {
   avatarText: string;
 }
 
+const TOOLBAR_THEME_BASE: Pick<ThemeConfig, 'bg' | 'border' | 'avatarBg'> = {
+  bg: 'color-mix(in srgb, var(--background) 88%, var(--muted) 12%)',
+  border: 'color-mix(in srgb, var(--border) 76%, var(--background) 24%)',
+  avatarBg: 'color-mix(in srgb, var(--muted) 72%, var(--background) 28%)',
+};
+
 const THEMES: { prefix: string; theme: ThemeConfig }[] = [
   {
     prefix: '/tools/score-tracker',
     theme: {
-      bg: 'color-mix(in srgb, var(--background) 92%, #0ea5e9 8%)',
-      border: 'color-mix(in srgb, var(--border) 70%, #0ea5e9 30%)',
+      ...TOOLBAR_THEME_BASE,
       accent: '#0ea5e9',
-      avatarBg: 'color-mix(in srgb, var(--background) 82%, #0ea5e9 18%)',
       avatarText: '#0ea5e9',
     },
   },
   {
     prefix: '/tools/kuizu',
     theme: {
-      bg: 'color-mix(in srgb, var(--background) 92%, #f97316 8%)',
-      border: 'color-mix(in srgb, var(--border) 70%, #f97316 30%)',
+      ...TOOLBAR_THEME_BASE,
       accent: '#f97316',
-      avatarBg: 'color-mix(in srgb, var(--background) 82%, #f97316 18%)',
       avatarText: '#f97316',
     },
   },
   {
     prefix: '/tools/settli',
     theme: {
-      bg: 'color-mix(in srgb, var(--background) 92%, #6366f1 8%)',
-      border: 'color-mix(in srgb, var(--border) 70%, #6366f1 30%)',
+      ...TOOLBAR_THEME_BASE,
       accent: '#6366f1',
-      avatarBg: 'color-mix(in srgb, var(--background) 82%, #6366f1 18%)',
       avatarText: '#6366f1',
     },
   },
   {
     prefix: '/games',
     theme: {
-      bg: 'color-mix(in srgb, var(--background) 88%, #0ea5e9 12%)',
-      border: 'color-mix(in srgb, var(--border) 65%, #0ea5e9 35%)',
+      ...TOOLBAR_THEME_BASE,
       accent: '#0ea5e9',
-      avatarBg: 'color-mix(in srgb, var(--background) 80%, #0ea5e9 20%)',
       avatarText: '#0ea5e9',
     },
   },
   {
     prefix: '/study',
     theme: {
-      bg: 'color-mix(in srgb, var(--background) 92%, #7c3aed 8%)',
-      border: 'color-mix(in srgb, var(--border) 70%, #7c3aed 30%)',
+      ...TOOLBAR_THEME_BASE,
       accent: '#7c3aed',
-      avatarBg: 'color-mix(in srgb, var(--background) 82%, #7c3aed 18%)',
       avatarText: '#7c3aed',
     },
   },
   {
     prefix: '/hobbies',
     theme: {
-      bg: 'color-mix(in srgb, var(--background) 92%, #a855f7 8%)',
-      border: 'color-mix(in srgb, var(--border) 70%, #a855f7 30%)',
+      ...TOOLBAR_THEME_BASE,
       accent: '#a855f7',
-      avatarBg: 'color-mix(in srgb, var(--background) 82%, #a855f7 18%)',
       avatarText: '#a855f7',
     },
   },
   {
     prefix: '/admin',
     theme: {
-      bg: 'color-mix(in srgb, var(--background) 92%, #a855f7 8%)',
-      border: 'color-mix(in srgb, var(--border) 70%, #a855f7 30%)',
+      ...TOOLBAR_THEME_BASE,
       accent: '#a855f7',
-      avatarBg: 'color-mix(in srgb, var(--background) 82%, #a855f7 18%)',
       avatarText: '#a855f7',
     },
   },
   {
     prefix: '/tools/kaimono',
     theme: {
-      bg: 'color-mix(in srgb, var(--background) 92%, #10b981 8%)',
-      border: 'color-mix(in srgb, var(--border) 70%, #10b981 30%)',
+      ...TOOLBAR_THEME_BASE,
       accent: '#10b981',
-      avatarBg: 'color-mix(in srgb, var(--background) 82%, #10b981 18%)',
       avatarText: '#10b981',
     },
   },
   {
     prefix: '/tools',
     theme: {
-      bg: 'color-mix(in srgb, var(--background) 92%, #2563eb 8%)',
-      border: 'color-mix(in srgb, var(--border) 70%, #2563eb 30%)',
+      ...TOOLBAR_THEME_BASE,
       accent: '#2563eb',
-      avatarBg: 'color-mix(in srgb, var(--background) 82%, #2563eb 18%)',
       avatarText: '#2563eb',
     },
   },
   {
     prefix: '/work',
     theme: {
-      bg: 'color-mix(in srgb, var(--background) 92%, #2563eb 8%)',
-      border: 'color-mix(in srgb, var(--border) 70%, #2563eb 30%)',
+      ...TOOLBAR_THEME_BASE,
       accent: '#2563eb',
-      avatarBg: 'color-mix(in srgb, var(--background) 82%, #2563eb 18%)',
       avatarText: '#2563eb',
     },
   },
   {
     prefix: '/blog',
     theme: {
-      bg: 'color-mix(in srgb, var(--background) 92%, #22c55e 8%)',
-      border: 'color-mix(in srgb, var(--border) 70%, #22c55e 30%)',
+      ...TOOLBAR_THEME_BASE,
       accent: '#22c55e',
-      avatarBg: 'color-mix(in srgb, var(--background) 82%, #22c55e 18%)',
       avatarText: '#16a34a',
     },
   },
 ];
 
 const DEFAULT_THEME: ThemeConfig = {
-  // `transparent` made the toolbar fully see-through on unthemed routes
-  // (e.g. /tools/kuizu, /voice-tasks); combined with the (now removed)
-  // backdrop-blur class, content scrolling underneath was blurred and
-  // hard to read. Match the page bg so the bar is opaque without being
-  // visually heavy.
-  bg: 'var(--background)',
-  border: 'var(--border)',
+  ...TOOLBAR_THEME_BASE,
   accent: 'var(--foreground)',
-  avatarBg: 'var(--muted)',
   avatarText: 'var(--foreground)',
 };
 

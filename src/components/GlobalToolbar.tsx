@@ -100,14 +100,6 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
     },
   },
   {
-    prefix: '/admin',
-    theme: {
-      ...TOOLBAR_THEME_BASE,
-      accent: '#a855f7',
-      avatarText: '#a855f7',
-    },
-  },
-  {
     prefix: '/tools/kaimono',
     theme: {
       ...TOOLBAR_THEME_BASE,
@@ -173,10 +165,7 @@ export function GlobalToolbar() {
   const { content: gameContent } = useGameToolbar();
   const currentLang = i18n.language?.startsWith('ja') ? 'ja' : 'en';
 
-  const theme = useMemo(
-    () => (pathname === '/games' ? DEFAULT_THEME : getTheme(pathname)),
-    [pathname],
-  );
+  const theme = useMemo(() => getTheme(pathname), [pathname]);
   const isGameSubPage = pathname.startsWith('/games/');
   const hasGameContent = isGameSubPage && gameContent && (gameContent.left || gameContent.center || gameContent.right);
 
@@ -225,7 +214,7 @@ export function GlobalToolbar() {
               <Link
                 href="/games"
                 className="text-xs transition-colors shrink-0"
-                style={{ color: `${theme.accent}99` }}
+                style={{ color: `color-mix(in srgb, ${theme.accent} 60%, transparent)` }}
               >
                 ← Games
               </Link>

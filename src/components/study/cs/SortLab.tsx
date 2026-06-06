@@ -49,16 +49,13 @@ export default function SortLab({ algorithm }: SortLabProps) {
 
   useEffect(() => {
     if (!isPlaying) return;
-    if (stepIndex >= steps.length - 1) return;
+    if (stepIndex >= steps.length - 1) {
+      const timer = window.setTimeout(() => setIsPlaying(false), 0);
+      return () => window.clearTimeout(timer);
+    }
 
     const timer = window.setTimeout(() => {
-      setStepIndex((index) => {
-        const nextIndex = Math.min(index + 1, steps.length - 1);
-        if (nextIndex >= steps.length - 1) {
-          window.setTimeout(() => setIsPlaying(false), 0);
-        }
-        return nextIndex;
-      });
+      setStepIndex((index) => Math.min(index + 1, steps.length - 1));
     }, speed);
 
     return () => window.clearTimeout(timer);
@@ -80,7 +77,7 @@ export default function SortLab({ algorithm }: SortLabProps) {
   };
 
   const shuffleArray = () => {
-    const nextArray = shuffleSortArray();
+    const nextArray = shuffleSortArray(array);
     setArray(nextArray);
     setDraftArray(nextArray.join(', '));
     resetPlayback();

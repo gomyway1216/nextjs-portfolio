@@ -665,27 +665,26 @@ function mod(value: number, modulus: number) {
   return ((value % modulus) + modulus) % modulus;
 }
 
-function gcd(a: number, b: number): number {
-  let x = Math.abs(a);
-  let y = Math.abs(b);
-
-  while (y !== 0) {
-    const temp = y;
-    y = x % y;
-    x = temp;
-  }
-
-  return x;
-}
-
 function modInverse(value: number, modulus: number) {
-  if (gcd(value, modulus) !== 1) return null;
+  if (!Number.isFinite(value) || !Number.isFinite(modulus) || modulus <= 1) return null;
 
-  for (let candidate = 1; candidate < modulus; candidate += 1) {
-    if ((value * candidate) % modulus === 1) return candidate;
+  let previousRemainder = mod(value, modulus);
+  let remainder = modulus;
+  let previousCoefficient = 1;
+  let coefficient = 0;
+
+  while (remainder !== 0) {
+    const quotient = Math.floor(previousRemainder / remainder);
+    const nextRemainder = previousRemainder - quotient * remainder;
+    const nextCoefficient = previousCoefficient - quotient * coefficient;
+
+    previousRemainder = remainder;
+    remainder = nextRemainder;
+    previousCoefficient = coefficient;
+    coefficient = nextCoefficient;
   }
 
-  return null;
+  return previousRemainder === 1 ? mod(previousCoefficient, modulus) : null;
 }
 
 function modPow(base: number, exponent: number, modulus: number) {

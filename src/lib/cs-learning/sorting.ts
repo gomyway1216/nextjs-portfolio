@@ -236,8 +236,8 @@ export function normalizeSortInput(raw: string): number[] {
   return values.slice(0, 14).map((value) => Math.max(1, Math.min(99, value)));
 }
 
-export function shuffleSortArray(): number[] {
-  const values = Array.from({ length: 9 }, (_, i) => i + 1);
+export function shuffleSortArray(input: number[] = DEFAULT_SORT_ARRAY): number[] {
+  const values = [...input];
 
   for (let i = values.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -292,13 +292,15 @@ function bubbleSortSteps(input: number[]): SortStep[] {
       });
 
       if (arr[j] > arr[j + 1]) {
+        const leftValue = arr[j];
+        const rightValue = arr[j + 1];
         [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];
         swapped = true;
         pushStep(steps, arr, {
           phase: 'swap',
           swapping: [j, j + 1],
           sorted: range(arr.length - i, arr.length - 1),
-          note: `Swap because ${arr[j + 1]} was larger than ${arr[j]}.`,
+          note: `Swap because ${leftValue} was larger than ${rightValue}.`,
         });
       }
     }

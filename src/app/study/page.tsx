@@ -7,7 +7,7 @@ SelectItem,
 SelectTrigger,
 SelectValue,
 } from '@/components/ui/select';
-import { useArticleCounts,useStudyArticles,useStudyCategories,useStudyProgress } from '@/hooks/useStudy';
+import { useArticleCounts, useStudyArticles, useStudyCategories, useStudyProgress } from '@/hooks/useStudy';
 import { useAuth } from '@/providers/AuthProvider';
 import { QuizDifficulty } from '@/types/study';
 import {
@@ -29,7 +29,7 @@ Search,
 X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect,useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {

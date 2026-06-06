@@ -492,23 +492,6 @@
   transition: height 0.18s ease, background-color 0.18s ease, transform 0.18s ease;
 }
 
-.barCompare {
-  background: #d97706;
-}
-
-.barSwap {
-  background: #e11d48;
-  transform: translateY(-8px);
-}
-
-.barWrite {
-  background: #7c3aed;
-}
-
-.barPivot {
-  background: #0f766e;
-}
-
 .barRange {
   outline: 2px solid color-mix(in srgb, #2563eb 46%, transparent);
   outline-offset: 2px;

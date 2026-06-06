@@ -7,7 +7,7 @@ SelectItem,
 SelectTrigger,
 SelectValue,
 } from '@/components/ui/select';
-import { useArticleCounts,useStudyArticles,useStudyCategories,useStudyProgress } from '@/hooks/useStudy';
+import { useArticleCounts, useStudyArticles, useStudyCategories, useStudyProgress } from '@/hooks/useStudy';
 import { useAuth } from '@/providers/AuthProvider';
 import { QuizDifficulty } from '@/types/study';
 import {
@@ -18,16 +18,18 @@ Brain,
 CheckCircle,
 ChevronRight,
 Clock,
+Code2,
 Filter,
 Flame,
 GraduationCap,
+KeyRound,
 Loader2,
 Menu,
 Search,
 X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect,useState } from 'react';
+import { useEffect, useState } from 'react';
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -283,6 +285,26 @@ export default function StudyListPage() {
               Dictionary
             </Link>
             <Link
+              href="/study/cs"
+              onClick={() => setShowMobileSidebar(false)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 12px',
+                borderRadius: '8px',
+                backgroundColor: 'var(--background)',
+                border: '1px solid var(--border)',
+                color: 'var(--foreground)',
+                textDecoration: 'none',
+                fontWeight: '500',
+                fontSize: '13px',
+              }}
+            >
+              <Code2 size={16} />
+              CS Learning Lab
+            </Link>
+            <Link
               href="/study/learning"
               onClick={() => setShowMobileSidebar(false)}
               style={{
@@ -448,6 +470,89 @@ export default function StudyListPage() {
                   <Menu size={20} />
                 </button>
               )}
+            </div>
+
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                gap: '16px',
+                alignItems: 'center',
+                margin: '16px 0 18px',
+                padding: '18px',
+                borderRadius: '8px',
+                border: '1px solid var(--border)',
+                backgroundColor: 'color-mix(in srgb, var(--card) 92%, #dbeafe 8%)',
+              }}
+            >
+              <div style={{ display: 'flex', gap: '14px', alignItems: 'flex-start', minWidth: 0, flex: '1 1 320px' }}>
+                <div
+                  style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '8px',
+                    backgroundColor: 'color-mix(in srgb, var(--background) 76%, #2563eb 24%)',
+                    color: '#2563eb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Code2 size={22} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <h2 style={{ margin: 0, color: 'var(--foreground)', fontSize: '18px', fontWeight: 700 }}>
+                    CS Learning Lab
+                  </h2>
+                  <p style={{ margin: '6px 0 0', color: 'var(--muted-foreground)', fontSize: '14px', lineHeight: 1.55 }}>
+                    Interactive sorting visualizers, Big-O comparison, cryptography playgrounds,
+                    and quick checks.
+                  </p>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end', flex: '1 1 220px' }}>
+                <Link
+                  href="/study/cs/algorithms/sorting"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    minHeight: '38px',
+                    padding: '0 12px',
+                    borderRadius: '8px',
+                    backgroundColor: '#2563eb',
+                    color: '#ffffff',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                  }}
+                >
+                  <Code2 size={15} />
+                  Algorithms
+                </Link>
+                <Link
+                  href="/study/cs/cryptography"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    minHeight: '38px',
+                    padding: '0 12px',
+                    borderRadius: '8px',
+                    border: '1px solid var(--border)',
+                    backgroundColor: 'var(--background)',
+                    color: 'var(--foreground)',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    fontSize: '13px',
+                  }}
+                >
+                  <KeyRound size={15} />
+                  Cryptography
+                </Link>
+              </div>
             </div>
 
         {/* Search and Filters */}

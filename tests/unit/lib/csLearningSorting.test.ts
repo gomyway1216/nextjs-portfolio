@@ -41,15 +41,17 @@ describe('CS Learning Lab sorting logic', () => {
       .mockReturnValueOnce(0.99)
       .mockReturnValueOnce(0);
 
-    const input = [10, 20, 30, 40];
-    const shuffled = shuffleSortArray(input);
+    try {
+      const input = [10, 20, 30, 40];
+      const shuffled = shuffleSortArray(input);
 
-    expect(shuffled).toHaveLength(input.length);
-    expect(sorted(shuffled)).toEqual(sorted(input));
-    expect(shuffled).not.toEqual(input);
-    expect(input).toEqual([10, 20, 30, 40]);
-
-    randomSpy.mockRestore();
+      expect(shuffled).toHaveLength(input.length);
+      expect(sorted(shuffled)).toEqual(sorted(input));
+      expect(shuffled).not.toEqual(input);
+      expect(input).toEqual([10, 20, 30, 40]);
+    } finally {
+      randomSpy.mockRestore();
+    }
   });
 
   it('uses the default array when no shuffle input is supplied', () => {

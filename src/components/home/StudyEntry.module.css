@@ -31,8 +31,12 @@
 .card:hover,
 .card:focus-visible {
   border-color: color-mix(in srgb, var(--entry-accent) 54%, transparent);
-  box-shadow: var(--shadow-hover, 0 12px 32px rgba(37, 99, 235, 0.18));
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--entry-accent) 18%, transparent);
   transform: translateY(-3px);
+}
+
+.teal {
+  --entry-accent: #0f766e;
 }
 
 .blue {
@@ -52,7 +56,6 @@
   width: 64px;
   height: 64px;
   background: linear-gradient(135deg, var(--entry-accent), color-mix(in srgb, var(--entry-accent) 72%, #ffffff 28%));
-  flex: 0 0 auto;
 }
 
 .content {
@@ -147,5 +150,19 @@
 
   .meta {
     justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .arrow {
+    transition: none;
+  }
+
+  .card:hover,
+  .card:focus-visible,
+  .card:hover .arrow,
+  .card:focus-visible .arrow {
+    transform: none;
   }
 }

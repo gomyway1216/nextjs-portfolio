@@ -25,7 +25,7 @@
   padding: 0 14px;
   color: var(--muted-foreground);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 500;
   text-decoration: none;
   white-space: nowrap;
   transition: background-color 0.18s ease, color 0.18s ease;

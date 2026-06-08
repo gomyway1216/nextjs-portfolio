@@ -45,8 +45,8 @@
 
 .home-modern .modern-title h3 {
   font-size: 3.4rem;
-  font-weight: 800;
-  line-height: 1.1;
+  font-weight: 500;
+  line-height: 1.18;
   letter-spacing: 0;
   margin-bottom: 1rem;
   color: var(--text-primary);
@@ -100,9 +100,9 @@
   background: color-mix(in srgb, var(--surface-elevated) 80%, var(--accent) 20%);
   color: var(--accent-strong);
   font-size: 0.82rem;
-  font-weight: 600;
+  font-weight: 500;
   letter-spacing: 0;
-  text-transform: uppercase;
+  line-height: 1;
   margin-bottom: 1rem;
 }
 
@@ -110,8 +110,8 @@
   letter-spacing: 0;
   color: var(--text-primary);
   font-size: 5.55rem;
-  font-weight: 800;
-  line-height: 1.05;
+  font-weight: 700;
+  line-height: 1.08;
   margin-bottom: 1.2rem;
 }
 
@@ -154,15 +154,15 @@
 .modern-hero .hero-stat strong {
   color: var(--text-primary);
   font-size: 1.42rem;
-  font-weight: 760;
-  line-height: 1;
+  font-weight: 500;
+  line-height: 1.12;
 }
 
 .modern-hero .hero-stat span {
   margin-top: 0.35rem;
   color: var(--text-secondary);
   font-size: 0.78rem;
-  font-weight: 600;
+  font-weight: 400;
   line-height: 1.35;
 }
 
@@ -174,10 +174,14 @@
 }
 
 .home-modern .px-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 8px;
-  height: 50px;
-  line-height: 48px;
-  font-weight: 600;
+  height: auto;
+  min-height: 50px;
+  line-height: 1.2;
+  font-weight: 500;
   padding: 0 1.25rem;
   transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
@@ -294,6 +298,13 @@
   border-radius: 8px 8px 0 0;
 }
 
+.home-modern .tool-card__title,
+.home-modern .tool-card__feature,
+.home-modern .game-card-wrapper .game-overlay p,
+.home-modern .game-card-wrapper .game-category {
+  font-weight: 500;
+}
+
 .home-modern .blog-grid .blog-info h6 {
   font-size: 1.1rem;
   line-height: 1.45;
@@ -324,7 +335,7 @@
 
 .home-modern #blog .blog-grid .meta {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 .home-modern #blog .blog-grid .blog-info a {

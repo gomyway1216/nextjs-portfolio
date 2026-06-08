@@ -19,18 +19,18 @@
   display: inline-flex;
   margin-bottom: 14px;
   color: var(--accent-strong);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: 0.86rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  line-height: 1;
 }
 
 .header h2 {
   margin: 0;
   color: var(--text-primary);
   font-size: clamp(2.2rem, 5vw, 4.7rem);
-  font-weight: 760;
-  line-height: 0.98;
+  font-weight: 500;
+  line-height: 1.08;
   letter-spacing: 0;
 }
 
@@ -74,8 +74,8 @@
 .metric strong {
   color: var(--text-primary);
   font-size: clamp(1.35rem, 2.6vw, 2rem);
-  font-weight: 780;
-  line-height: 1;
+  font-weight: 500;
+  line-height: 1.12;
 }
 
 .metric span {
@@ -113,8 +113,8 @@
 .card h3 {
   color: var(--text-primary);
   font-size: 1.02rem;
-  font-weight: 720;
-  line-height: 1.35;
+  font-weight: 500;
+  line-height: 1.42;
   margin: 0 0 10px;
 }
 

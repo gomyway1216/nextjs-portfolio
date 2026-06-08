@@ -867,6 +867,10 @@
         "title": "Useful Tools",
         "subtitle": "Production-ready utilities built to solve real-world day-to-day problems."
       },
+      "study": {
+        "title": "Study Lab",
+        "subtitle": "Articles and interactive CS labs for learning by reading, running, and checking understanding."
+      },
       "games": {
         "title": "Interactive Games",
         "subtitle": "Playable experiments focused on UX, performance, and game logic design."
@@ -874,6 +878,20 @@
       "blog": {
         "title": "Latest Blog",
         "subtitle": "Notes on engineering, lessons learned, and ideas explored in public."
+      }
+    },
+    "study": {
+      "articles": {
+        "eyebrow": "Reading and review",
+        "title": "Study Articles",
+        "description": "Browse generated study articles, quizzes, and review flows from one learning hub.",
+        "meta": "Articles, quizzes, and progress"
+      },
+      "cs": {
+        "eyebrow": "Interactive CS",
+        "title": "CS Learning Lab",
+        "description": "Step through sorting algorithms, compare Big-O growth, and experiment with cryptography demos.",
+        "meta": "Sorting, Big-O, and crypto"
       }
     },
     "tools": {

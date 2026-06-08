@@ -33,7 +33,7 @@ import { Tooltip } from 'react-tooltip';
 // 'work' is intentionally not in this list — the work nav item now
 // links to the standalone /work route (case studies), not the home
 // Portfolio anchor.
-const SECTION_IDS = ['home', 'impact', 'resume', 'tools', 'games', 'blog', 'about'] as const;
+const SECTION_IDS = ['home', 'impact', 'resume', 'tools', 'study', 'games', 'blog', 'about'] as const;
 
 const Header = () => {
   const [click, setClick] = useState<boolean>(false);
@@ -169,6 +169,17 @@ const Header = () => {
                 <Wrench size={20} />
               </Link>
             </li>
+            <li className={activeSection === 'study' ? 'active' : ''}>
+              <Link
+                className="nav-link"
+                href="/#study"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content={t('home.nav.study')}
+                onClick={handleClick}
+              >
+                <BookOpenText size={20} />
+              </Link>
+            </li>
             <li className={activeSection === 'games' ? 'active' : ''}>
               <Link
                 className="nav-link"
@@ -213,23 +224,6 @@ const Header = () => {
                 <Palette size={20} />
               </Link>
             </li>
-            {currentUser && (
-              <li>
-                <a
-                  className="nav-link"
-                  href="/study"
-                  data-tooltip-id="left-menu-tooltip"
-                  data-tooltip-content={t('home.nav.study')}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleClick();
-                    router.push('/study');
-                  }}
-                >
-                  <BookOpenText size={20} />
-                </a>
-              </li>
-            )}
             {currentUser && (
               <li>
                 <DropdownMenu>

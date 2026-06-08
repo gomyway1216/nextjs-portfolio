@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
 import {
+  BookOpenText,
   BriefcaseBusiness,
   Gamepad2,
   Home,
@@ -143,6 +144,7 @@ const PRIMARY_NAV_ITEMS = [
   { href: '/work', prefix: '/work', labelKey: 'home.nav.work', Icon: BriefcaseBusiness },
   { href: '/#tools', prefix: '/tools', labelKey: 'home.nav.tools', Icon: Wrench },
   { href: '/games', prefix: '/games', labelKey: 'home.nav.games', Icon: Gamepad2 },
+  { href: '/study', prefix: '/study', labelKey: 'home.nav.study', Icon: BookOpenText },
   { href: '/blog', prefix: '/blog', labelKey: 'home.nav.blog', Icon: NotebookPen },
   { href: '/hobbies', prefix: '/hobbies', labelKey: 'home.nav.hobbies', Icon: Palette },
 ];

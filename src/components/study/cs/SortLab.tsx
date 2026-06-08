@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
   ArrowRight,
@@ -20,12 +21,18 @@ import {
 import {
   DEFAULT_SORT_ARRAY,
   generateSortSteps,
+  getLocalizedSortingAlgorithm,
+  getLocalizedSortingAlgorithms,
   normalizeSortInput,
   shuffleSortArray,
-  sortingAlgorithms,
   type SortStep,
   type SortingAlgorithm,
 } from '@/lib/cs-learning/sorting';
+import {
+  formatCsLearningCopy,
+  getCsLearningCopy,
+  normalizeCsLearningLanguage,
+} from '@/lib/cs-learning/localization';
 import styles from './cs-learning-lab.module.css';
 
 type SortLabProps = {
@@ -33,6 +40,9 @@ type SortLabProps = {
 };
 
 export default function SortLab({ algorithm }: SortLabProps) {
+  const { i18n } = useTranslation();
+  const language = normalizeCsLearningLanguage(i18n.language);
+  const copy = getCsLearningCopy(language);
   const [array, setArray] = useState(DEFAULT_SORT_ARRAY);
   const [draftArray, setDraftArray] = useState(DEFAULT_SORT_ARRAY.join(', '));
   const [stepIndex, setStepIndex] = useState(0);
@@ -40,7 +50,9 @@ export default function SortLab({ algorithm }: SortLabProps) {
   const [speed, setSpeed] = useState(520);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
 
-  const steps = useMemo(() => generateSortSteps(algorithm.id, array), [algorithm.id, array]);
+  const localizedAlgorithm = getLocalizedSortingAlgorithm(algorithm.id, language) ?? algorithm;
+  const sortingAlgorithms = getLocalizedSortingAlgorithms(language);
+  const steps = generateSortSteps(localizedAlgorithm.id, array, language);
   const currentStep = steps[stepIndex] ?? steps[0];
   const maxValue = Math.max(...array, 1);
   const comparisonCount = steps.filter((step) => step.phase === 'compare').length;
@@ -89,42 +101,51 @@ export default function SortLab({ algorithm }: SortLabProps) {
         <section className={styles.section}>
           <Link href="/study/cs/algorithms/sorting" className={styles.textLink}>
             <ArrowLeft size={16} aria-hidden="true" />
-            Sorting Lab
+            {copy.common.sortingLab}
           </Link>
 
           <div className={styles.sectionHeader} style={{ marginTop: 18 }}>
             <div className={styles.sectionCopy}>
-              <p className={styles.eyebrow}>Algorithm visualizer</p>
-              <h1 className={styles.title}>{algorithm.name}</h1>
-              <p className={styles.subtitle}>{algorithm.summary}</p>
+              <p className={styles.eyebrow}>{copy.sortLab.algorithmVisualizer}</p>
+              <h1 className={styles.title}>{localizedAlgorithm.name}</h1>
+              <p className={styles.subtitle}>{localizedAlgorithm.summary}</p>
             </div>
             <Link href="/study/cs/algorithms/big-o" className={styles.secondaryLink}>
-              Complexity
+              {copy.common.complexity}
               <ArrowRight size={16} aria-hidden="true" />
             </Link>
           </div>
         </section>
 
-        <section className={styles.labLayout} aria-label={`${algorithm.name} interactive lab`}>
+        <section
+          className={styles.labLayout}
+          aria-label={formatCsLearningCopy(copy.sortLab.labAria, { name: localizedAlgorithm.name })}
+        >
           <div className={styles.mainColumn}>
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Run</p>
-                  <h2 className={styles.toolTitle}>Step through the array</h2>
-                  <p className={styles.toolText}>{algorithm.intuition}</p>
+                  <p className={styles.eyebrow}>{copy.common.run}</p>
+                  <h2 className={styles.toolTitle}>{copy.sortLab.stepThrough}</h2>
+                  <p className={styles.toolText}>{localizedAlgorithm.intuition}</p>
                 </div>
-                <span className={styles.phaseBadge}>{currentStep?.phase ?? 'setup'}</span>
+                <span className={styles.phaseBadge}>
+                  {copy.sortLab.phases[currentStep?.phase ?? 'setup']}
+                </span>
               </div>
 
               {currentStep && (
-                <SortBars currentStep={currentStep} maxValue={maxValue} />
+                <SortBars currentStep={currentStep} maxValue={maxValue} copy={copy.sortLab} />
               )}
 
               <div className={styles.stepPanel}>
                 <div className={styles.stepHeader}>
                   <p className={styles.stepText}>
-                    Step {stepIndex + 1} / {steps.length}: {currentStep?.note}
+                    {formatCsLearningCopy(copy.sortLab.step, {
+                      current: stepIndex + 1,
+                      total: steps.length,
+                      note: currentStep?.note ?? '',
+                    })}
                   </p>
                   <span className={styles.smallBadge}>{Math.round(progress)}%</span>
                 </div>
@@ -133,14 +154,14 @@ export default function SortLab({ algorithm }: SortLabProps) {
                 </div>
               </div>
 
-              <div className={styles.controlBar} aria-label="Playback controls">
+              <div className={styles.controlBar} aria-label={copy.sortLab.playbackControls}>
                 <button
                   type="button"
                   className={styles.iconButton}
                   onClick={() => setStepIndex(0)}
                   disabled={stepIndex === 0}
-                  title="First step"
-                  aria-label="First step"
+                  title={copy.sortLab.firstStep}
+                  aria-label={copy.sortLab.firstStep}
                 >
                   <SkipBack size={17} aria-hidden="true" />
                 </button>
@@ -149,8 +170,8 @@ export default function SortLab({ algorithm }: SortLabProps) {
                   className={styles.iconButton}
                   onClick={() => setStepIndex((index) => Math.max(0, index - 1))}
                   disabled={stepIndex === 0}
-                  title="Previous step"
-                  aria-label="Previous step"
+                  title={copy.sortLab.previousStep}
+                  aria-label={copy.sortLab.previousStep}
                 >
                   <StepBack size={17} aria-hidden="true" />
                 </button>
@@ -158,8 +179,8 @@ export default function SortLab({ algorithm }: SortLabProps) {
                   type="button"
                   className={styles.iconButton}
                   onClick={() => setIsPlaying((playing) => !playing)}
-                  title={isPlaying ? 'Pause' : 'Play'}
-                  aria-label={isPlaying ? 'Pause' : 'Play'}
+                  title={isPlaying ? copy.sortLab.pause : copy.sortLab.play}
+                  aria-label={isPlaying ? copy.sortLab.pause : copy.sortLab.play}
                 >
                   {isPlaying ? <Pause size={17} aria-hidden="true" /> : <Play size={17} aria-hidden="true" />}
                 </button>
@@ -168,8 +189,8 @@ export default function SortLab({ algorithm }: SortLabProps) {
                   className={styles.iconButton}
                   onClick={() => setStepIndex((index) => Math.min(steps.length - 1, index + 1))}
                   disabled={stepIndex >= steps.length - 1}
-                  title="Next step"
-                  aria-label="Next step"
+                  title={copy.sortLab.nextStep}
+                  aria-label={copy.sortLab.nextStep}
                 >
                   <StepForward size={17} aria-hidden="true" />
                 </button>
@@ -178,8 +199,8 @@ export default function SortLab({ algorithm }: SortLabProps) {
                   className={styles.iconButton}
                   onClick={() => setStepIndex(steps.length - 1)}
                   disabled={stepIndex >= steps.length - 1}
-                  title="Last step"
-                  aria-label="Last step"
+                  title={copy.sortLab.lastStep}
+                  aria-label={copy.sortLab.lastStep}
                 >
                   <SkipForward size={17} aria-hidden="true" />
                 </button>
@@ -187,8 +208,8 @@ export default function SortLab({ algorithm }: SortLabProps) {
                   type="button"
                   className={styles.iconButton}
                   onClick={resetPlayback}
-                  title="Reset"
-                  aria-label="Reset"
+                  title={copy.sortLab.reset}
+                  aria-label={copy.sortLab.reset}
                 >
                   <RotateCcw size={17} aria-hidden="true" />
                 </button>
@@ -196,8 +217,8 @@ export default function SortLab({ algorithm }: SortLabProps) {
                   type="button"
                   className={styles.iconButton}
                   onClick={shuffleArray}
-                  title="Shuffle input"
-                  aria-label="Shuffle input"
+                  title={copy.sortLab.shuffleInput}
+                  aria-label={copy.sortLab.shuffleInput}
                 >
                   <Shuffle size={17} aria-hidden="true" />
                 </button>
@@ -205,7 +226,7 @@ export default function SortLab({ algorithm }: SortLabProps) {
 
               <div className={styles.inputGrid}>
                 <label className={`${styles.inputGroup} ${styles.inputGroupWide}`}>
-                  <span className={styles.label}>Array values</span>
+                  <span className={styles.label}>{copy.sortLab.arrayValues}</span>
                   <input
                     className={styles.textInput}
                     value={draftArray}
@@ -218,7 +239,7 @@ export default function SortLab({ algorithm }: SortLabProps) {
                   />
                 </label>
                 <label className={styles.inputGroup}>
-                  <span className={styles.label}>Speed</span>
+                  <span className={styles.label}>{copy.sortLab.speed}</span>
                   <input
                     className={styles.rangeInput}
                     type="range"
@@ -237,8 +258,8 @@ export default function SortLab({ algorithm }: SortLabProps) {
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Pick</p>
-                  <h2 className={styles.toolTitle}>Algorithms</h2>
+                  <p className={styles.eyebrow}>{copy.common.pick}</p>
+                  <h2 className={styles.toolTitle}>{copy.sortLab.algorithms}</h2>
                 </div>
               </div>
               <div className={styles.tagList}>
@@ -246,7 +267,7 @@ export default function SortLab({ algorithm }: SortLabProps) {
                   <Link
                     key={item.id}
                     href={item.route}
-                    className={`${styles.pillButton} ${item.id === algorithm.id ? styles.activePill : ''}`}
+                    className={`${styles.pillButton} ${item.id === localizedAlgorithm.id ? styles.activePill : ''}`}
                   >
                     {item.shortName}
                   </Link>
@@ -256,27 +277,27 @@ export default function SortLab({ algorithm }: SortLabProps) {
 
             <div className={styles.panel}>
               <div className={styles.metricsGrid}>
-                <Metric label="Best" value={algorithm.best} />
-                <Metric label="Average" value={algorithm.average} />
-                <Metric label="Worst" value={algorithm.worst} />
-                <Metric label="Space" value={algorithm.space} />
-                <Metric label="Comparisons" value={comparisonCount} />
-                <Metric label="Writes/Swaps" value={mutationCount} />
+                <Metric label={copy.common.best} value={localizedAlgorithm.best} />
+                <Metric label={copy.common.average} value={localizedAlgorithm.average} />
+                <Metric label={copy.common.worst} value={localizedAlgorithm.worst} />
+                <Metric label={copy.common.space} value={localizedAlgorithm.space} />
+                <Metric label={copy.common.comparisons} value={comparisonCount} />
+                <Metric label={copy.common.writesSwaps} value={mutationCount} />
               </div>
             </div>
 
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Check</p>
-                  <h2 className={styles.toolTitle}>Quick quiz</h2>
+                  <p className={styles.eyebrow}>{copy.common.check}</p>
+                  <h2 className={styles.toolTitle}>{copy.common.quickQuiz}</h2>
                 </div>
               </div>
               <div className={styles.quizBox}>
-                <p className={styles.quizQuestion}>{algorithm.quiz.question}</p>
-                {algorithm.quiz.options.map((option, index) => {
+                <p className={styles.quizQuestion}>{localizedAlgorithm.quiz.question}</p>
+                {localizedAlgorithm.quiz.options.map((option, index) => {
                   const isAnswered = selectedAnswer !== null;
-                  const isCorrect = index === algorithm.quiz.answerIndex;
+                  const isCorrect = index === localizedAlgorithm.quiz.answerIndex;
                   const isWrongSelection = selectedAnswer === index && !isCorrect;
 
                   return (
@@ -297,7 +318,7 @@ export default function SortLab({ algorithm }: SortLabProps) {
                   );
                 })}
                 {selectedAnswer !== null && (
-                  <p className={styles.quizFeedback}>{algorithm.quiz.explanation}</p>
+                  <p className={styles.quizFeedback}>{localizedAlgorithm.quiz.explanation}</p>
                 )}
               </div>
             </div>
@@ -308,12 +329,25 @@ export default function SortLab({ algorithm }: SortLabProps) {
   );
 }
 
-function SortBars({ currentStep, maxValue }: { currentStep: SortStep; maxValue: number }) {
+type SortBarsCopy = {
+  arrayVisualization: string;
+  barLabel: string;
+};
+
+function SortBars({
+  currentStep,
+  maxValue,
+  copy,
+}: {
+  currentStep: SortStep;
+  maxValue: number;
+  copy: SortBarsCopy;
+}) {
   return (
     <div
       className={styles.bars}
       style={{ '--bar-count': currentStep.array.length } as CSSProperties}
-      aria-label="Array visualization"
+      aria-label={copy.arrayVisualization}
     >
       {currentStep.array.map((value, index) => {
         const barClasses = [styles.bar];
@@ -330,7 +364,7 @@ function SortBars({ currentStep, maxValue }: { currentStep: SortStep; maxValue: 
             <div
               className={barClasses.join(' ')}
               style={{ height: `${Math.max(12, (value / maxValue) * 100)}%` }}
-              aria-label={`Index ${index + 1}, value ${value}`}
+              aria-label={formatCsLearningCopy(copy.barLabel, { index: index + 1, value })}
             />
             <span className={styles.barLabel}>{value}</span>
           </div>

@@ -1,11 +1,19 @@
+'use client';
+
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, ChartNoAxesCombined } from 'lucide-react';
 import { ComplexityChart } from './SortingOverview';
-import { complexitySamples, sortingAlgorithms } from '@/lib/cs-learning/sorting';
+import { getCsLearningCopy, normalizeCsLearningLanguage } from '@/lib/cs-learning/localization';
+import { complexitySamples, getLocalizedSortingAlgorithms } from '@/lib/cs-learning/sorting';
 import styles from './cs-learning-lab.module.css';
 
 export function BigOComparisonPage() {
+  const { i18n } = useTranslation();
+  const language = normalizeCsLearningLanguage(i18n.language);
+  const copy = getCsLearningCopy(language);
   const samples = complexitySamples();
+  const sortingAlgorithms = getLocalizedSortingAlgorithms(language);
 
   return (
     <main className={styles.page}>
@@ -13,17 +21,14 @@ export function BigOComparisonPage() {
         <section className={styles.section}>
           <Link href="/study/cs/algorithms/sorting" className={styles.textLink}>
             <ArrowLeft size={16} aria-hidden="true" />
-            Sorting Lab
+            {copy.common.sortingLab}
           </Link>
 
           <div className={styles.sectionHeader} style={{ marginTop: 18 }}>
             <div className={styles.sectionCopy}>
-              <p className={styles.eyebrow}>Complexity</p>
-              <h1 className={styles.title}>Big-O Comparison</h1>
-              <p className={styles.subtitle}>
-                Theoretical growth makes the difference between linear, n log n, and quadratic
-                work easier to see than raw browser timing.
-              </p>
+              <p className={styles.eyebrow}>{copy.bigO.complexity}</p>
+              <h1 className={styles.title}>{copy.bigO.title}</h1>
+              <p className={styles.subtitle}>{copy.bigO.subtitle}</p>
             </div>
             <ChartNoAxesCombined size={30} color="#d97706" aria-hidden="true" />
           </div>
@@ -34,18 +39,18 @@ export function BigOComparisonPage() {
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Chart</p>
-                  <h2 className={styles.toolTitle}>Growth by input size</h2>
+                  <p className={styles.eyebrow}>{copy.bigO.chart}</p>
+                  <h2 className={styles.toolTitle}>{copy.bigO.growthByInput}</h2>
                 </div>
               </div>
-              <ComplexityChart />
+              <ComplexityChart labels={copy.sortingOverview} />
             </div>
 
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Numbers</p>
-                  <h2 className={styles.toolTitle}>Sample operation counts</h2>
+                  <p className={styles.eyebrow}>{copy.bigO.numbers}</p>
+                  <h2 className={styles.toolTitle}>{copy.bigO.sampleCounts}</h2>
                 </div>
               </div>
               <table className={styles.table}>
@@ -75,8 +80,8 @@ export function BigOComparisonPage() {
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Sort map</p>
-                  <h2 className={styles.toolTitle}>Where each sort lands</h2>
+                  <p className={styles.eyebrow}>{copy.bigO.sortMap}</p>
+                  <h2 className={styles.toolTitle}>{copy.bigO.whereSortLands}</h2>
                 </div>
               </div>
               <div className={styles.metricsGrid}>

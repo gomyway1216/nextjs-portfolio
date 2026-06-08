@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
   CheckCircle,
@@ -14,10 +15,16 @@ import {
 import {
   DEFAULT_CRYPTO_INPUTS,
   computeCryptoDemo,
-  cryptoTechniques,
+  getLocalizedCryptoTechnique,
+  getLocalizedCryptoTechniques,
   type CryptoInputs,
   type CryptoTechnique,
 } from '@/lib/cs-learning/crypto';
+import {
+  formatCsLearningCopy,
+  getCsLearningCopy,
+  normalizeCsLearningLanguage,
+} from '@/lib/cs-learning/localization';
 import styles from './cs-learning-lab.module.css';
 
 type CryptoLabProps = {
@@ -25,9 +32,14 @@ type CryptoLabProps = {
 };
 
 export default function CryptoLab({ technique }: CryptoLabProps) {
+  const { i18n } = useTranslation();
+  const language = normalizeCsLearningLanguage(i18n.language);
+  const copy = getCsLearningCopy(language);
   const [inputs, setInputs] = useState<CryptoInputs>(DEFAULT_CRYPTO_INPUTS);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const demo = useMemo(() => computeCryptoDemo(technique.id, inputs), [technique.id, inputs]);
+  const localizedTechnique = getLocalizedCryptoTechnique(technique.id, language) ?? technique;
+  const cryptoTechniques = getLocalizedCryptoTechniques(language);
+  const demo = computeCryptoDemo(localizedTechnique.id, inputs, language);
 
   const updateInput = <K extends keyof CryptoInputs>(key: K, value: CryptoInputs[K]) => {
     setInputs((current) => ({ ...current, [key]: value }));
@@ -39,52 +51,60 @@ export default function CryptoLab({ technique }: CryptoLabProps) {
         <section className={styles.section}>
           <Link href="/study/cs/cryptography" className={styles.textLink}>
             <ArrowLeft size={16} aria-hidden="true" />
-            Crypto Lab
+            {copy.common.cryptoLab}
           </Link>
 
           <div className={styles.sectionHeader} style={{ marginTop: 18 }}>
             <div className={styles.sectionCopy}>
-              <p className={styles.eyebrow}>{technique.family}</p>
-              <h1 className={styles.title}>{technique.name}</h1>
-              <p className={styles.subtitle}>{technique.summary}</p>
+              <p className={styles.eyebrow}>{localizedTechnique.family}</p>
+              <h1 className={styles.title}>{localizedTechnique.name}</h1>
+              <p className={styles.subtitle}>{localizedTechnique.summary}</p>
             </div>
-            <span className={styles.badge}>{technique.family}</span>
+            <span className={styles.badge}>{localizedTechnique.family}</span>
           </div>
         </section>
 
-        <section className={styles.labLayout} aria-label={`${technique.name} playground`}>
+        <section
+          className={styles.labLayout}
+          aria-label={formatCsLearningCopy(copy.cryptoLab.labAria, { name: localizedTechnique.name })}
+        >
           <div className={styles.mainColumn}>
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Playground</p>
-                  <h2 className={styles.toolTitle}>Change inputs and inspect the transformation</h2>
-                  <p className={styles.toolText}>{technique.concept}</p>
+                  <p className={styles.eyebrow}>{copy.cryptoLab.playground}</p>
+                  <h2 className={styles.toolTitle}>{copy.cryptoLab.inspect}</h2>
+                  <p className={styles.toolText}>{localizedTechnique.concept}</p>
                 </div>
                 <button
                   type="button"
                   className={styles.iconButton}
                   onClick={() => setInputs(DEFAULT_CRYPTO_INPUTS)}
-                  title="Reset inputs"
-                  aria-label="Reset inputs"
+                  title={copy.cryptoLab.resetInputs}
+                  aria-label={copy.cryptoLab.resetInputs}
                 >
                   <RotateCcw size={17} aria-hidden="true" />
                 </button>
               </div>
 
-              <CryptoInputsPanel technique={technique} inputs={inputs} updateInput={updateInput} />
+              <CryptoInputsPanel
+                technique={localizedTechnique}
+                inputs={inputs}
+                updateInput={updateInput}
+                labels={copy.cryptoLab}
+              />
             </div>
 
             <div className={styles.panel}>
               <div className={styles.resultBlock}>
                 <div className={styles.resultHeader}>
                   <div>
-                    <p className={styles.eyebrow}>Output</p>
+                    <p className={styles.eyebrow}>{copy.cryptoLab.output}</p>
                     <h2 className={styles.toolTitle}>{demo.outputLabel}</h2>
                   </div>
                   <KeyRound size={22} color="#2563eb" aria-hidden="true" />
                 </div>
-                <p className={styles.resultValue}>{demo.output || 'No output'}</p>
+                <p className={styles.resultValue}>{demo.output || copy.common.noOutput}</p>
                 {demo.secondaryOutput && (
                   <>
                     <p className={styles.metricLabel}>{demo.secondaryLabel}</p>
@@ -102,8 +122,8 @@ export default function CryptoLab({ technique }: CryptoLabProps) {
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Steps</p>
-                  <h2 className={styles.toolTitle}>Transformation trace</h2>
+                  <p className={styles.eyebrow}>{copy.cryptoLab.steps}</p>
+                  <h2 className={styles.toolTitle}>{copy.cryptoLab.trace}</h2>
                 </div>
               </div>
               <ol className={styles.stepList}>
@@ -124,8 +144,8 @@ export default function CryptoLab({ technique }: CryptoLabProps) {
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Pick</p>
-                  <h2 className={styles.toolTitle}>Techniques</h2>
+                  <p className={styles.eyebrow}>{copy.common.pick}</p>
+                  <h2 className={styles.toolTitle}>{copy.cryptoLab.techniques}</h2>
                 </div>
               </div>
               <div className={styles.tagList}>
@@ -133,7 +153,7 @@ export default function CryptoLab({ technique }: CryptoLabProps) {
                   <Link
                     key={item.id}
                     href={item.route}
-                    className={`${styles.pillButton} ${item.id === technique.id ? styles.activePill : ''}`}
+                    className={`${styles.pillButton} ${item.id === localizedTechnique.id ? styles.activePill : ''}`}
                   >
                     {item.shortName}
                   </Link>
@@ -144,26 +164,26 @@ export default function CryptoLab({ technique }: CryptoLabProps) {
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Boundary</p>
-                  <h2 className={styles.toolTitle}>Security note</h2>
+                  <p className={styles.eyebrow}>{copy.cryptoLab.boundary}</p>
+                  <h2 className={styles.toolTitle}>{copy.cryptoLab.securityNote}</h2>
                 </div>
                 <ShieldCheck size={21} color="#0f766e" aria-hidden="true" />
               </div>
-              <p className={styles.toolText}>{technique.securityNote}</p>
+              <p className={styles.toolText}>{localizedTechnique.securityNote}</p>
             </div>
 
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Check</p>
-                  <h2 className={styles.toolTitle}>Quick quiz</h2>
+                  <p className={styles.eyebrow}>{copy.common.check}</p>
+                  <h2 className={styles.toolTitle}>{copy.common.quickQuiz}</h2>
                 </div>
               </div>
               <div className={styles.quizBox}>
-                <p className={styles.quizQuestion}>{technique.quiz.question}</p>
-                {technique.quiz.options.map((option, index) => {
+                <p className={styles.quizQuestion}>{localizedTechnique.quiz.question}</p>
+                {localizedTechnique.quiz.options.map((option, index) => {
                   const isAnswered = selectedAnswer !== null;
-                  const isCorrect = index === technique.quiz.answerIndex;
+                  const isCorrect = index === localizedTechnique.quiz.answerIndex;
                   const isWrongSelection = selectedAnswer === index && !isCorrect;
 
                   return (
@@ -184,7 +204,7 @@ export default function CryptoLab({ technique }: CryptoLabProps) {
                   );
                 })}
                 {selectedAnswer !== null && (
-                  <p className={styles.quizFeedback}>{technique.quiz.explanation}</p>
+                  <p className={styles.quizFeedback}>{localizedTechnique.quiz.explanation}</p>
                 )}
               </div>
             </div>
@@ -199,9 +219,22 @@ type CryptoInputsPanelProps = {
   technique: CryptoTechnique;
   inputs: CryptoInputs;
   updateInput: <K extends keyof CryptoInputs>(key: K, value: CryptoInputs[K]) => void;
+  labels: {
+    message: string;
+    shift: string;
+    keyword: string;
+    keywordAlphabetSeed: string;
+    rails: string;
+    xorKey: string;
+    messageNumber: string;
+    primeP: string;
+    generatorG: string;
+    alicePrivate: string;
+    bobPrivate: string;
+  };
 };
 
-function CryptoInputsPanel({ technique, inputs, updateInput }: CryptoInputsPanelProps) {
+function CryptoInputsPanel({ technique, inputs, updateInput, labels }: CryptoInputsPanelProps) {
   const textBased = [
     'caesar-cipher',
     'vigenere-cipher',
@@ -215,7 +248,7 @@ function CryptoInputsPanel({ technique, inputs, updateInput }: CryptoInputsPanel
     <div className={styles.inputGrid}>
       {textBased && (
         <label className={`${styles.inputGroup} ${styles.inputGroupWide}`}>
-          <span className={styles.label}>Message</span>
+          <span className={styles.label}>{labels.message}</span>
           <input
             className={styles.textInput}
             value={inputs.text}
@@ -226,7 +259,7 @@ function CryptoInputsPanel({ technique, inputs, updateInput }: CryptoInputsPanel
 
       {technique.id === 'caesar-cipher' && (
         <NumberField
-          label="Shift"
+          label={labels.shift}
           value={inputs.shift}
           min={0}
           max={25}
@@ -236,7 +269,7 @@ function CryptoInputsPanel({ technique, inputs, updateInput }: CryptoInputsPanel
 
       {technique.id === 'vigenere-cipher' && (
         <label className={styles.inputGroup}>
-          <span className={styles.label}>Keyword</span>
+          <span className={styles.label}>{labels.keyword}</span>
           <input
             className={styles.textInput}
             value={inputs.key}
@@ -247,7 +280,7 @@ function CryptoInputsPanel({ technique, inputs, updateInput }: CryptoInputsPanel
 
       {technique.id === 'substitution-cipher' && (
         <label className={styles.inputGroup}>
-          <span className={styles.label}>Keyword alphabet seed</span>
+          <span className={styles.label}>{labels.keywordAlphabetSeed}</span>
           <input
             className={styles.textInput}
             value={inputs.substitutionKeyword}
@@ -258,7 +291,7 @@ function CryptoInputsPanel({ technique, inputs, updateInput }: CryptoInputsPanel
 
       {technique.id === 'rail-fence-cipher' && (
         <NumberField
-          label="Rails"
+          label={labels.rails}
           value={inputs.rails}
           min={2}
           max={6}
@@ -268,7 +301,7 @@ function CryptoInputsPanel({ technique, inputs, updateInput }: CryptoInputsPanel
 
       {technique.id === 'xor-cipher' && (
         <label className={styles.inputGroup}>
-          <span className={styles.label}>XOR key</span>
+          <span className={styles.label}>{labels.xorKey}</span>
           <input
             className={styles.textInput}
             value={inputs.xorKey}
@@ -283,7 +316,7 @@ function CryptoInputsPanel({ technique, inputs, updateInput }: CryptoInputsPanel
           <NumberField label="q" value={inputs.rsaQ} min={2} max={97} onChange={(value) => updateInput('rsaQ', value)} />
           <NumberField label="e" value={inputs.rsaE} min={2} max={97} onChange={(value) => updateInput('rsaE', value)} />
           <NumberField
-            label="Message number"
+            label={labels.messageNumber}
             value={inputs.rsaMessage}
             min={1}
             max={999}
@@ -294,23 +327,23 @@ function CryptoInputsPanel({ technique, inputs, updateInput }: CryptoInputsPanel
 
       {technique.id === 'diffie-hellman' && (
         <>
-          <NumberField label="Prime p" value={inputs.dhPrime} min={3} max={101} onChange={(value) => updateInput('dhPrime', value)} />
+          <NumberField label={labels.primeP} value={inputs.dhPrime} min={3} max={101} onChange={(value) => updateInput('dhPrime', value)} />
           <NumberField
-            label="Generator g"
+            label={labels.generatorG}
             value={inputs.dhGenerator}
             min={2}
             max={30}
             onChange={(value) => updateInput('dhGenerator', value)}
           />
           <NumberField
-            label="Alice private"
+            label={labels.alicePrivate}
             value={inputs.alicePrivate}
             min={1}
             max={40}
             onChange={(value) => updateInput('alicePrivate', value)}
           />
           <NumberField
-            label="Bob private"
+            label={labels.bobPrivate}
             value={inputs.bobPrivate}
             min={1}
             max={40}

@@ -23,7 +23,7 @@
   margin: 0;
   color: #0f766e;
   font-size: 13px;
-  font-weight: 750;
+  font-weight: 600;
   text-transform: uppercase;
 }
 
@@ -32,9 +32,9 @@
   margin: 0;
   color: var(--foreground);
   font-size: clamp(2.8rem, 8vw, 5.7rem);
-  font-weight: 780;
+  font-weight: 650;
   letter-spacing: 0;
-  line-height: 0.96;
+  line-height: 1.05;
   text-wrap: balance;
 }
 
@@ -67,7 +67,7 @@
   margin: 0 0 8px;
   color: var(--foreground);
   font-size: 22px;
-  font-weight: 720;
+  font-weight: 600;
 }
 
 .emptyState p {
@@ -84,7 +84,7 @@
   padding: 12px 14px;
   color: var(--muted-foreground);
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 500;
 }
 
 .loadingDot {

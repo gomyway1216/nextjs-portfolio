@@ -503,7 +503,7 @@ export default function StudyListPage() {
                   <Code2 size={22} />
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <h2 style={{ margin: 0, color: 'var(--foreground)', fontSize: '18px', fontWeight: 700 }}>
+                  <h2 style={{ margin: 0, color: 'var(--foreground)', fontSize: '18px', fontWeight: 600 }}>
                     CS Learning Lab
                   </h2>
                   <p style={{ margin: '6px 0 0', color: 'var(--muted-foreground)', fontSize: '14px', lineHeight: 1.55 }}>

@@ -9,6 +9,7 @@ import Resume from '@/components/resume/ResumeAnimation';
 import Portfolio from '@/components/portfolio/PortfolioAnimation';
 import GamesSlideshow from '@/components/games/GamesSlideshow';
 import ToolsSection from '@/components/tools/ToolsSection';
+import StudyEntry from '@/components/home/StudyEntry';
 import Blog from '@/components/blog/BlogAnimation';
 import Footer from '@/components/footer/FooterAnimation';
 import useDocumentTitle from '@/components/useDocumentTitle';
@@ -66,6 +67,17 @@ const HomeOne = ({ initialProfile }: HomeOneProps) => {
         </div>
       </section>
       {/* End Tools Section */}
+
+      <section id="study" className="section modern-section">
+        <div className="container">
+          <div className="title modern-title">
+            <h3>{t('home.sections.study.title')}</h3>
+            <p>{t('home.sections.study.subtitle')}</p>
+          </div>
+          <StudyEntry />
+        </div>
+      </section>
+      {/* End Study Section */}
 
       <section id="games" className="section modern-section">
         <div className="container">

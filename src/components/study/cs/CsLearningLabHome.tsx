@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
 import {
   ArrowRight,
   Binary,
@@ -10,30 +13,22 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
-import { cryptoTechniques } from '@/lib/cs-learning/crypto';
-import { sortingAlgorithms } from '@/lib/cs-learning/sorting';
+import { getLocalizedCryptoTechniques } from '@/lib/cs-learning/crypto';
+import {
+  formatCsLearningCopy,
+  getCsLearningCopy,
+  normalizeCsLearningLanguage,
+} from '@/lib/cs-learning/localization';
+import { getLocalizedSortingAlgorithms } from '@/lib/cs-learning/sorting';
 import styles from './cs-learning-lab.module.css';
 
-const learningFlow = [
-  {
-    title: 'Predict',
-    text: 'Start with a small guess before the animation runs.',
-  },
-  {
-    title: 'Run',
-    text: 'Step through comparisons, swaps, keys, and modular arithmetic.',
-  },
-  {
-    title: 'Explain',
-    text: 'Connect each operation to the concept it demonstrates.',
-  },
-  {
-    title: 'Quiz',
-    text: 'Check the idea immediately while the example is still visible.',
-  },
-];
-
 export default function CsLearningLabHome() {
+  const { i18n } = useTranslation();
+  const language = normalizeCsLearningLanguage(i18n.language);
+  const copy = getCsLearningCopy(language);
+  const sortingAlgorithms = getLocalizedSortingAlgorithms(language);
+  const cryptoTechniques = getLocalizedCryptoTechniques(language);
+
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
@@ -41,31 +36,28 @@ export default function CsLearningLabHome() {
           <div className={styles.heroContent}>
             <p className={styles.kicker}>
               <span className={styles.statusDot} aria-hidden="true" />
-              Interactive study section
+              {copy.home.kicker}
             </p>
             <h1 id="cs-lab-title" className={styles.title}>
-              CS Learning Lab
+              {copy.home.title}
             </h1>
-            <p className={styles.subtitle}>
-              Algorithms and cryptography as hands-on lessons: run the process, inspect each
-              step, compare complexity, and answer short checks inside the same flow.
-            </p>
+            <p className={styles.subtitle}>{copy.home.subtitle}</p>
             <div className={styles.heroActions}>
               <Link href="/study/cs/algorithms/sorting/bubble-sort" className={styles.primaryLink}>
-                Start Sorting Lab
+                {copy.home.startSorting}
                 <ArrowRight size={17} aria-hidden="true" />
               </Link>
               <Link href="/study/cs/cryptography/rsa" className={styles.secondaryLink}>
-                Open Crypto Lab
+                {copy.home.openCrypto}
                 <KeyRound size={17} aria-hidden="true" />
               </Link>
             </div>
           </div>
 
-          <aside className={styles.heroPanel} aria-label="Learning flow">
-            <h2 className={styles.heroPanelTitle}>Lab flow</h2>
+          <aside className={styles.heroPanel} aria-label={copy.home.learningFlowLabel}>
+            <h2 className={styles.heroPanelTitle}>{copy.home.flowTitle}</h2>
             <ol className={styles.flowList}>
-              {learningFlow.map((item, index) => (
+              {copy.home.flow.map((item, index) => (
                 <li key={item.title} className={styles.flowItem}>
                   <span className={styles.flowIndex}>{index + 1}</span>
                   <div>
@@ -81,15 +73,11 @@ export default function CsLearningLabHome() {
         <section className={styles.section} aria-labelledby="cs-lab-tracks">
           <div className={styles.sectionHeader}>
             <div className={styles.sectionCopy}>
-              <p className={styles.eyebrow}>Tracks</p>
+              <p className={styles.eyebrow}>{copy.home.tracksEyebrow}</p>
               <h2 id="cs-lab-tracks" className={styles.sectionTitle}>
-                Study by running small systems
+                {copy.home.tracksTitle}
               </h2>
-              <p className={styles.sectionText}>
-                The first version focuses on sort visualizers and cryptography playgrounds. The
-                structure leaves room for graphs, data structures, probability, and machine
-                learning later.
-              </p>
+              <p className={styles.sectionText}>{copy.home.tracksText}</p>
             </div>
           </div>
 
@@ -101,18 +89,17 @@ export default function CsLearningLabHome() {
                     <span className={styles.iconBox}>
                       <Code2 size={22} aria-hidden="true" />
                     </span>
-                    <span className={styles.badge}>{sortingAlgorithms.length} sorts</span>
+                    <span className={styles.badge}>
+                      {formatCsLearningCopy(copy.home.sortsBadge, { count: sortingAlgorithms.length })}
+                    </span>
                   </div>
-                  <h3 className={styles.cardTitle}>Sorting Algorithms</h3>
-                  <p className={styles.cardText}>
-                    Compare adjacent swaps, selected minimums, inserted keys, merges, partitions,
-                    and heap extraction with one shared visualizer.
-                  </p>
+                  <h3 className={styles.cardTitle}>{copy.home.sortingTitle}</h3>
+                  <p className={styles.cardText}>{copy.home.sortingText}</p>
                 </div>
                 <div className={styles.cardFooter}>
-                  <span className={styles.smallBadge}>Visualizer</span>
+                  <span className={styles.smallBadge}>{copy.home.visualizer}</span>
                   <span className={styles.textLink}>
-                    Open <ArrowRight size={15} aria-hidden="true" />
+                    {copy.common.open} <ArrowRight size={15} aria-hidden="true" />
                   </span>
                 </div>
               </article>
@@ -127,16 +114,13 @@ export default function CsLearningLabHome() {
                     </span>
                     <span className={styles.badge}>Big-O</span>
                   </div>
-                  <h3 className={styles.cardTitle}>Complexity Lab</h3>
-                  <p className={styles.cardText}>
-                    Place O(n), O(n log n), and O(n^2) side by side so growth rate differences are
-                    visible before code timing gets noisy.
-                  </p>
+                  <h3 className={styles.cardTitle}>{copy.home.complexityTitle}</h3>
+                  <p className={styles.cardText}>{copy.home.complexityText}</p>
                 </div>
                 <div className={styles.cardFooter}>
-                  <span className={styles.smallBadge}>Comparison</span>
+                  <span className={styles.smallBadge}>{copy.home.comparison}</span>
                   <span className={styles.textLink}>
-                    Open <ArrowRight size={15} aria-hidden="true" />
+                    {copy.common.open} <ArrowRight size={15} aria-hidden="true" />
                   </span>
                 </div>
               </article>
@@ -149,18 +133,17 @@ export default function CsLearningLabHome() {
                     <span className={`${styles.iconBox} ${styles.iconBoxGreen}`}>
                       <ShieldCheck size={22} aria-hidden="true" />
                     </span>
-                    <span className={styles.badge}>{cryptoTechniques.length} topics</span>
+                    <span className={styles.badge}>
+                      {formatCsLearningCopy(copy.home.topicsBadge, { count: cryptoTechniques.length })}
+                    </span>
                   </div>
-                  <h3 className={styles.cardTitle}>Cryptography</h3>
-                  <p className={styles.cardText}>
-                    Move from Caesar and Vigenere to XOR, RSA, key exchange, and hashing with
-                    parameter controls and step cards.
-                  </p>
+                  <h3 className={styles.cardTitle}>{copy.home.cryptoTitle}</h3>
+                  <p className={styles.cardText}>{copy.home.cryptoText}</p>
                 </div>
                 <div className={styles.cardFooter}>
-                  <span className={styles.smallBadge}>Playground</span>
+                  <span className={styles.smallBadge}>{copy.home.playground}</span>
                   <span className={styles.textLink}>
-                    Open <ArrowRight size={15} aria-hidden="true" />
+                    {copy.common.open} <ArrowRight size={15} aria-hidden="true" />
                   </span>
                 </div>
               </article>
@@ -171,14 +154,14 @@ export default function CsLearningLabHome() {
         <section className={styles.section} aria-labelledby="cs-lab-map">
           <div className={styles.sectionHeader}>
             <div className={styles.sectionCopy}>
-              <p className={styles.eyebrow}>Current map</p>
+              <p className={styles.eyebrow}>{copy.home.mapEyebrow}</p>
               <h2 id="cs-lab-map" className={styles.sectionTitle}>
-                Algorithms and cryptography are ready to branch out
+                {copy.home.mapTitle}
               </h2>
             </div>
             <Link href="/study" className={styles.secondaryLink}>
               <BookOpen size={17} aria-hidden="true" />
-              Study Articles
+              {copy.home.studyArticles}
             </Link>
           </div>
 
@@ -186,8 +169,8 @@ export default function CsLearningLabHome() {
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Algorithms</p>
-                  <h3 className={styles.toolTitle}>Sorting set</h3>
+                  <p className={styles.eyebrow}>{copy.home.algorithms}</p>
+                  <h3 className={styles.toolTitle}>{copy.home.sortingSet}</h3>
                 </div>
                 <Binary size={22} color="#2563eb" aria-hidden="true" />
               </div>
@@ -203,8 +186,8 @@ export default function CsLearningLabHome() {
             <div className={styles.panel}>
               <div className={styles.toolHeader}>
                 <div>
-                  <p className={styles.eyebrow}>Cryptography</p>
-                  <h3 className={styles.toolTitle}>Technique set</h3>
+                  <p className={styles.eyebrow}>{copy.home.cryptography}</p>
+                  <h3 className={styles.toolTitle}>{copy.home.techniqueSet}</h3>
                 </div>
                 <Sparkles size={22} color="#0f766e" aria-hidden="true" />
               </div>
@@ -223,15 +206,11 @@ export default function CsLearningLabHome() {
           <div className={styles.panel}>
             <div className={styles.toolHeader}>
               <div>
-                <p className={styles.eyebrow}>Next extension</p>
+                <p className={styles.eyebrow}>{copy.home.nextEyebrow}</p>
                 <h2 id="cs-lab-next" className={styles.toolTitle}>
-                  Progress, generated quizzes, and review can attach here
+                  {copy.home.nextTitle}
                 </h2>
-                <p className={styles.toolText}>
-                  This version is intentionally browser-first. Firestore progress and Cloud
-                  Functions for AI-generated questions can be added without changing the lab
-                  routes.
-                </p>
+                <p className={styles.toolText}>{copy.home.nextText}</p>
               </div>
               <Brain size={24} color="#d97706" aria-hidden="true" />
             </div>

@@ -1,30 +1,36 @@
+'use client';
+
 import Link from 'next/link';
+import { useTranslation } from 'react-i18next';
 import { ArrowLeft, ArrowRight, ChartNoAxesCombined, Code2 } from 'lucide-react';
-import { complexitySamples, sortingAlgorithms } from '@/lib/cs-learning/sorting';
+import { getCsLearningCopy, normalizeCsLearningLanguage } from '@/lib/cs-learning/localization';
+import { complexitySamples, getLocalizedSortingAlgorithms } from '@/lib/cs-learning/sorting';
 import styles from './cs-learning-lab.module.css';
 
 export function SortingOverview() {
+  const { i18n } = useTranslation();
+  const language = normalizeCsLearningLanguage(i18n.language);
+  const copy = getCsLearningCopy(language);
+  const sortingAlgorithms = getLocalizedSortingAlgorithms(language);
+
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
         <section className={styles.section}>
           <Link href="/study/cs" className={styles.textLink}>
             <ArrowLeft size={16} aria-hidden="true" />
-            CS Learning Lab
+            {copy.common.csLearningLab}
           </Link>
 
           <div className={styles.sectionHeader} style={{ marginTop: 18 }}>
             <div className={styles.sectionCopy}>
-              <p className={styles.eyebrow}>Algorithms</p>
-              <h1 className={styles.title}>Sorting Lab</h1>
-              <p className={styles.subtitle}>
-                One visual model for adjacent swaps, selected minimums, insertion shifts, merge
-                writes, pivot partitions, and heap extraction.
-              </p>
+              <p className={styles.eyebrow}>{copy.sortingOverview.algorithms}</p>
+              <h1 className={styles.title}>{copy.sortingOverview.title}</h1>
+              <p className={styles.subtitle}>{copy.sortingOverview.subtitle}</p>
             </div>
             <Link href="/study/cs/algorithms/big-o" className={styles.secondaryLink}>
               <ChartNoAxesCombined size={17} aria-hidden="true" />
-              Big-O Comparison
+              {copy.common.bigOComparison}
             </Link>
           </div>
         </section>
@@ -32,9 +38,9 @@ export function SortingOverview() {
         <section className={styles.section} aria-labelledby="sorting-list-title">
           <div className={styles.sectionHeader}>
             <div className={styles.sectionCopy}>
-              <p className={styles.eyebrow}>Visualizer set</p>
+              <p className={styles.eyebrow}>{copy.sortingOverview.visualizerSet}</p>
               <h2 id="sorting-list-title" className={styles.sectionTitle}>
-                Choose an algorithm
+                {copy.sortingOverview.chooseAlgorithm}
               </h2>
             </div>
           </div>
@@ -55,14 +61,20 @@ export function SortingOverview() {
                   </div>
                   <div>
                     <div className={styles.tagList}>
-                      <span className={styles.smallBadge}>{algorithm.stable ? 'Stable' : 'Not stable'}</span>
-                      <span className={styles.smallBadge}>{algorithm.inPlace ? 'In-place' : 'Extra memory'}</span>
+                      <span className={styles.smallBadge}>
+                        {algorithm.stable ? copy.common.stable : copy.common.notStable}
+                      </span>
+                      <span className={styles.smallBadge}>
+                        {algorithm.inPlace ? copy.common.inPlace : copy.common.extraMemory}
+                      </span>
                       <span className={styles.smallBadge}>{algorithm.space}</span>
                     </div>
                     <div className={styles.cardFooter} style={{ marginTop: 14 }}>
-                      <span className={styles.smallBadge}>Best {algorithm.best}</span>
+                      <span className={styles.smallBadge}>
+                        {copy.common.best} {algorithm.best}
+                      </span>
                       <span className={styles.textLink}>
-                        Run <ArrowRight size={15} aria-hidden="true" />
+                        {copy.common.run} <ArrowRight size={15} aria-hidden="true" />
                       </span>
                     </div>
                   </div>
@@ -76,20 +88,17 @@ export function SortingOverview() {
           <div className={styles.panel}>
             <div className={styles.toolHeader}>
               <div>
-                <p className={styles.eyebrow}>Growth</p>
+                <p className={styles.eyebrow}>{copy.sortingOverview.growth}</p>
                 <h2 id="sorting-complexity-title" className={styles.toolTitle}>
-                  Quadratic growth becomes visible fast
+                  {copy.sortingOverview.growthTitle}
                 </h2>
-                <p className={styles.toolText}>
-                  Browser timing can be noisy, so this lab starts with theoretical operation
-                  counts. The shape is the concept.
-                </p>
+                <p className={styles.toolText}>{copy.sortingOverview.growthText}</p>
               </div>
               <Link href="/study/cs/algorithms/big-o" className={styles.secondaryLink}>
-                Open Chart
+                {copy.sortingOverview.openChart}
               </Link>
             </div>
-            <ComplexityChart />
+            <ComplexityChart labels={copy.sortingOverview} />
           </div>
         </section>
       </div>
@@ -97,12 +106,20 @@ export function SortingOverview() {
   );
 }
 
-export function ComplexityChart() {
+type ComplexityChartLabels = {
+  chartLabel: string;
+  chartLegend: string;
+  red: string;
+  blue: string;
+  green: string;
+};
+
+export function ComplexityChart({ labels }: { labels: ComplexityChartLabels }) {
   const samples = complexitySamples();
   const max = Math.max(...samples.map((sample) => sample.quadratic));
 
   return (
-    <div className={styles.comparisonChart} aria-label="Complexity sample chart">
+    <div className={styles.comparisonChart} aria-label={labels.chartLabel}>
       {samples.map((sample) => (
         <div key={sample.n} className={styles.chartRow}>
           <span>n={sample.n}</span>
@@ -129,10 +146,10 @@ export function ComplexityChart() {
           <span>{sample.quadratic.toLocaleString()}</span>
         </div>
       ))}
-      <div className={styles.tagList} aria-label="Chart legend">
-        <span className={styles.smallBadge}>Red: O(n^2)</span>
-        <span className={styles.smallBadge}>Blue: O(n log n)</span>
-        <span className={styles.smallBadge}>Green: O(n)</span>
+      <div className={styles.tagList} aria-label={labels.chartLegend}>
+        <span className={styles.smallBadge}>{labels.red}</span>
+        <span className={styles.smallBadge}>{labels.blue}</span>
+        <span className={styles.smallBadge}>{labels.green}</span>
       </div>
     </div>
   );

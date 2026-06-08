@@ -503,7 +503,7 @@ export default function StudyListPage() {
                   <Code2 size={22} />
                 </div>
                 <div style={{ minWidth: 0 }}>
-                  <h2 style={{ margin: 0, color: 'var(--foreground)', fontSize: '18px', fontWeight: 600 }}>
+                  <h2 style={{ margin: 0, color: 'var(--foreground)', fontSize: '18px', fontWeight: 500 }}>
                     CS Learning Lab
                   </h2>
                   <p style={{ margin: '6px 0 0', color: 'var(--muted-foreground)', fontSize: '14px', lineHeight: 1.55 }}>
@@ -525,7 +525,7 @@ export default function StudyListPage() {
                     backgroundColor: '#2563eb',
                     color: '#ffffff',
                     textDecoration: 'none',
-                    fontWeight: 600,
+                    fontWeight: 500,
                     fontSize: '13px',
                   }}
                 >
@@ -545,7 +545,7 @@ export default function StudyListPage() {
                     backgroundColor: 'var(--background)',
                     color: 'var(--foreground)',
                     textDecoration: 'none',
-                    fontWeight: 600,
+                    fontWeight: 500,
                     fontSize: '13px',
                   }}
                 >

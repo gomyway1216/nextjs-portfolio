@@ -1,8 +1,10 @@
 'use client';
 
+/* eslint-disable react-hooks/preserve-manual-memoization -- Sorting traces are intentionally memoized; the React Compiler cannot prove the i18n language value is immutable. */
+
 import Link from 'next/link';
 import type { CSSProperties } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
@@ -50,13 +52,22 @@ export default function SortLab({ algorithm }: SortLabProps) {
   const [speed, setSpeed] = useState(520);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
 
-  const localizedAlgorithm = getLocalizedSortingAlgorithm(algorithm.id, language) ?? algorithm;
-  const sortingAlgorithms = getLocalizedSortingAlgorithms(language);
-  const steps = generateSortSteps(localizedAlgorithm.id, array, language);
+  const algorithmId = algorithm.id;
+  const localizedAlgorithm = useMemo(
+    () => getLocalizedSortingAlgorithm(algorithmId, language),
+    [algorithmId, language]
+  ) ?? algorithm;
+  const sortingAlgorithms = useMemo(() => getLocalizedSortingAlgorithms(language), [language]);
+  const steps = useMemo(
+    () => generateSortSteps(localizedAlgorithm.id, array, language),
+    [localizedAlgorithm.id, array, language]
+  );
   const currentStep = steps[stepIndex] ?? steps[0];
-  const maxValue = Math.max(...array, 1);
-  const comparisonCount = steps.filter((step) => step.phase === 'compare').length;
-  const mutationCount = steps.filter((step) => step.phase === 'swap' || step.phase === 'write').length;
+  const maxValue = useMemo(() => Math.max(...array, 1), [array]);
+  const { comparisonCount, mutationCount } = useMemo(() => ({
+    comparisonCount: steps.filter((step) => step.phase === 'compare').length,
+    mutationCount: steps.filter((step) => step.phase === 'swap' || step.phase === 'write').length,
+  }), [steps]);
   const progress = steps.length <= 1 ? 100 : (stepIndex / (steps.length - 1)) * 100;
 
   useEffect(() => {

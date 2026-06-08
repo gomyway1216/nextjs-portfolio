@@ -10,11 +10,19 @@ export type CryptoTechniqueId =
   | 'diffie-hellman'
   | 'hash-functions';
 
+export type CryptoTechniqueFamily =
+  | 'classical'
+  | 'symmetric'
+  | 'public-key'
+  | 'key-exchange'
+  | 'hashing';
+
 export type CryptoTechnique = {
   id: CryptoTechniqueId;
   name: string;
   shortName: string;
-  family: string;
+  family: CryptoTechniqueFamily;
+  familyLabel: string;
   route: string;
   summary: string;
   concept: string;
@@ -84,7 +92,8 @@ export const cryptoTechniques: CryptoTechnique[] = [
     id: 'caesar-cipher',
     name: 'Caesar Cipher',
     shortName: 'Caesar',
-    family: 'Classical',
+    family: 'classical',
+    familyLabel: 'Classical',
     route: '/study/cs/cryptography/caesar-cipher',
     summary: 'Shifts each alphabetic character by a fixed offset.',
     concept: 'A monoalphabetic substitution where the key is one number.',
@@ -105,7 +114,8 @@ export const cryptoTechniques: CryptoTechnique[] = [
     id: 'vigenere-cipher',
     name: 'Vigenere Cipher',
     shortName: 'Vigenere',
-    family: 'Classical',
+    family: 'classical',
+    familyLabel: 'Classical',
     route: '/study/cs/cryptography/vigenere-cipher',
     summary: 'Uses a repeated keyword to apply a different Caesar shift to each letter.',
     concept: 'A polyalphabetic substitution: each key letter controls one shift.',
@@ -126,7 +136,8 @@ export const cryptoTechniques: CryptoTechnique[] = [
     id: 'substitution-cipher',
     name: 'Substitution Cipher',
     shortName: 'Substitution',
-    family: 'Classical',
+    family: 'classical',
+    familyLabel: 'Classical',
     route: '/study/cs/cryptography/substitution-cipher',
     summary: 'Maps each plaintext letter to another fixed letter.',
     concept: 'The key is a shuffled alphabet, often derived from a keyword in this demo.',
@@ -147,7 +158,8 @@ export const cryptoTechniques: CryptoTechnique[] = [
     id: 'rail-fence-cipher',
     name: 'Rail Fence Cipher',
     shortName: 'Rail Fence',
-    family: 'Classical',
+    family: 'classical',
+    familyLabel: 'Classical',
     route: '/study/cs/cryptography/rail-fence-cipher',
     summary: 'Writes text in a zigzag across rails, then reads each rail left to right.',
     concept: 'A transposition cipher: characters move positions instead of being replaced.',
@@ -168,7 +180,8 @@ export const cryptoTechniques: CryptoTechnique[] = [
     id: 'xor-cipher',
     name: 'XOR Cipher',
     shortName: 'XOR',
-    family: 'Symmetric',
+    family: 'symmetric',
+    familyLabel: 'Symmetric',
     route: '/study/cs/cryptography/xor-cipher',
     summary: 'Combines each byte with a repeated key byte using XOR.',
     concept: 'XOR is reversible: applying the same key stream again recovers the message.',
@@ -189,7 +202,8 @@ export const cryptoTechniques: CryptoTechnique[] = [
     id: 'rsa',
     name: 'RSA Demo',
     shortName: 'RSA',
-    family: 'Public key',
+    family: 'public-key',
+    familyLabel: 'Public key',
     route: '/study/cs/cryptography/rsa',
     summary: 'Builds tiny public/private keys from two primes, then encrypts a small number.',
     concept: 'RSA uses modular exponentiation and the difficulty of factoring large composite numbers.',
@@ -210,7 +224,8 @@ export const cryptoTechniques: CryptoTechnique[] = [
     id: 'diffie-hellman',
     name: 'Diffie-Hellman Demo',
     shortName: 'DH',
-    family: 'Key exchange',
+    family: 'key-exchange',
+    familyLabel: 'Key exchange',
     route: '/study/cs/cryptography/diffie-hellman',
     summary: 'Shows how two parties derive the same shared secret over a public channel.',
     concept: 'Both sides combine public parameters with private exponents under modular arithmetic.',
@@ -231,7 +246,8 @@ export const cryptoTechniques: CryptoTechnique[] = [
     id: 'hash-functions',
     name: 'Hash Functions',
     shortName: 'Hash',
-    family: 'Hashing',
+    family: 'hashing',
+    familyLabel: 'Hashing',
     route: '/study/cs/cryptography/hash-functions',
     summary: 'Compresses a message into a fixed-size fingerprint.',
     concept: 'A hash is one-way for verification, not encryption that can be decrypted.',
@@ -262,7 +278,7 @@ const cryptoTechniqueTranslations: Record<CsLearningLanguage, Partial<Record<Cry
     'caesar-cipher': {
       name: 'シーザー暗号',
       shortName: 'シーザー',
-      family: '古典暗号',
+      familyLabel: '古典暗号',
       summary: '各アルファベットを固定の数だけずらします。',
       concept: '鍵が1つの数である、単一換字暗号です。',
       securityNote: '学習用です。シーザー暗号は26通りのシフトを試すだけで破れます。',
@@ -281,7 +297,7 @@ const cryptoTechniqueTranslations: Record<CsLearningLanguage, Partial<Record<Cry
     'vigenere-cipher': {
       name: 'ヴィジュネル暗号',
       shortName: 'ヴィジュネル',
-      family: '古典暗号',
+      familyLabel: '古典暗号',
       summary: '繰り返すキーワードで、文字ごとに異なるシーザーシフトを適用します。',
       concept: '多表式換字暗号です。各キー文字が1つのシフト量を決めます。',
       securityNote: '学習用です。繰り返し鍵のヴィジュネル暗号は、鍵長が分かると攻撃できます。',
@@ -300,7 +316,7 @@ const cryptoTechniqueTranslations: Record<CsLearningLanguage, Partial<Record<Cry
     'substitution-cipher': {
       name: '単純換字暗号',
       shortName: '換字',
-      family: '古典暗号',
+      familyLabel: '古典暗号',
       summary: '平文の各文字を、固定された別の文字へ対応させます。',
       concept: '鍵は並び替えたアルファベットです。このデモではキーワードから作ります。',
       securityNote: '学習用です。頻度分析で平文の候補文字を推測できます。',
@@ -319,7 +335,7 @@ const cryptoTechniqueTranslations: Record<CsLearningLanguage, Partial<Record<Cry
     'rail-fence-cipher': {
       name: 'レールフェンス暗号',
       shortName: 'レール',
-      family: '古典暗号',
+      familyLabel: '古典暗号',
       summary: '文字をレール上にジグザグに書き、各レールを左から右へ読みます。',
       concept: '転置暗号です。文字を置き換えず、位置を移動します。',
       securityNote: '学習用です。レール数は小さな鍵で、パターンも残ります。',
@@ -338,7 +354,7 @@ const cryptoTechniqueTranslations: Record<CsLearningLanguage, Partial<Record<Cry
     'xor-cipher': {
       name: 'XOR暗号',
       shortName: 'XOR',
-      family: '共通鍵',
+      familyLabel: '共通鍵',
       summary: '各バイトを、繰り返した鍵バイトとXORで組み合わせます。',
       concept: 'XORは可逆です。同じキーストリームをもう一度適用すると元に戻ります。',
       securityNote: '繰り返しXOR鍵は安全ではありません。一度だけ使う真にランダムな鍵は別のモデルです。',
@@ -357,7 +373,7 @@ const cryptoTechniqueTranslations: Record<CsLearningLanguage, Partial<Record<Cry
     rsa: {
       name: 'RSAデモ',
       shortName: 'RSA',
-      family: '公開鍵',
+      familyLabel: '公開鍵',
       summary: '2つの素数から小さな公開鍵/秘密鍵を作り、小さな数を暗号化します。',
       concept: 'RSAは剰余べき乗と、大きな合成数の因数分解が難しいことを使います。',
       securityNote: 'このデモは学習用に小さな数を使います。実際のRSAは検証済みライブラリと大きな鍵が必要です。',
@@ -376,7 +392,7 @@ const cryptoTechniqueTranslations: Record<CsLearningLanguage, Partial<Record<Cry
     'diffie-hellman': {
       name: 'Diffie-Hellmanデモ',
       shortName: 'DH',
-      family: '鍵交換',
+      familyLabel: '鍵交換',
       summary: '公開チャネル上で、2者が同じ共有秘密を導けることを示します。',
       concept: '両者は公開パラメータと秘密指数を、剰余計算の中で組み合わせます。',
       securityNote: 'このデモは小さなパラメータを使います。実際の鍵交換には認証済みで現代的な群が必要です。',
@@ -395,7 +411,7 @@ const cryptoTechniqueTranslations: Record<CsLearningLanguage, Partial<Record<Cry
     'hash-functions': {
       name: 'ハッシュ関数',
       shortName: 'ハッシュ',
-      family: 'ハッシュ',
+      familyLabel: 'ハッシュ',
       summary: 'メッセージを固定長の指紋へ圧縮します。',
       concept: 'ハッシュは検証用の一方向関数であり、復号できる暗号化ではありません。',
       securityNote: '表示しているハッシュは可視化用のおもちゃの32-bit処理で、暗号学的ハッシュではありません。',

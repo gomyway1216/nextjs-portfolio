@@ -1,7 +1,9 @@
 'use client';
 
+/* eslint-disable react-hooks/preserve-manual-memoization -- Demo traces are intentionally memoized; the React Compiler cannot prove the i18n language value is immutable. */
+
 import Link from 'next/link';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ArrowLeft,
@@ -37,9 +39,16 @@ export default function CryptoLab({ technique }: CryptoLabProps) {
   const copy = getCsLearningCopy(language);
   const [inputs, setInputs] = useState<CryptoInputs>(DEFAULT_CRYPTO_INPUTS);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const localizedTechnique = getLocalizedCryptoTechnique(technique.id, language) ?? technique;
-  const cryptoTechniques = getLocalizedCryptoTechniques(language);
-  const demo = computeCryptoDemo(localizedTechnique.id, inputs, language);
+  const techniqueId = technique.id;
+  const localizedTechnique = useMemo(
+    () => getLocalizedCryptoTechnique(techniqueId, language),
+    [techniqueId, language]
+  ) ?? technique;
+  const cryptoTechniques = useMemo(() => getLocalizedCryptoTechniques(language), [language]);
+  const demo = useMemo(
+    () => computeCryptoDemo(localizedTechnique.id, inputs, language),
+    [localizedTechnique.id, inputs, language]
+  );
 
   const updateInput = <K extends keyof CryptoInputs>(key: K, value: CryptoInputs[K]) => {
     setInputs((current) => ({ ...current, [key]: value }));
@@ -56,11 +65,11 @@ export default function CryptoLab({ technique }: CryptoLabProps) {
 
           <div className={styles.sectionHeader} style={{ marginTop: 18 }}>
             <div className={styles.sectionCopy}>
-              <p className={styles.eyebrow}>{localizedTechnique.family}</p>
+              <p className={styles.eyebrow}>{localizedTechnique.familyLabel}</p>
               <h1 className={styles.title}>{localizedTechnique.name}</h1>
               <p className={styles.subtitle}>{localizedTechnique.summary}</p>
             </div>
-            <span className={styles.badge}>{localizedTechnique.family}</span>
+            <span className={styles.badge}>{localizedTechnique.familyLabel}</span>
           </div>
         </section>
 

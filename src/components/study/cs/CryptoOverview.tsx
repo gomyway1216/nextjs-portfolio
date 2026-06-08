@@ -12,7 +12,9 @@ export function CryptoOverview() {
   const language = normalizeCsLearningLanguage(i18n.language);
   const copy = getCsLearningCopy(language);
   const cryptoTechniques = getLocalizedCryptoTechniques(language);
-  const families = Array.from(new Set(cryptoTechniques.map((technique) => technique.family)));
+  const families = Array.from(
+    new Map(cryptoTechniques.map((technique) => [technique.family, technique.familyLabel])).values()
+  );
 
   return (
     <main className={styles.page}>
@@ -60,7 +62,7 @@ export function CryptoOverview() {
                       <span className={`${styles.iconBox} ${styles.iconBoxGreen}`}>
                         <ShieldCheck size={22} aria-hidden="true" />
                       </span>
-                      <span className={styles.badge}>{technique.family}</span>
+                      <span className={styles.badge}>{technique.familyLabel}</span>
                     </div>
                     <h3 className={styles.cardTitle}>{technique.name}</h3>
                     <p className={styles.cardText}>{technique.summary}</p>

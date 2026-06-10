@@ -99,6 +99,9 @@ export async function getPosts(params: {
   limit?: number;
   lastVisibleTimestamp?: number;
   language?: PostLanguage;
+  // Skip post bodies in the response (each comes back as ''). For lists
+  // that only render metadata, e.g. the admin tables.
+  excludeBody?: boolean;
 } = {}): Promise<PostsResponse> {
   const {
     category = 'all',
@@ -107,6 +110,7 @@ export async function getPosts(params: {
     limit = 10,
     lastVisibleTimestamp,
     language,
+    excludeBody,
   } = params;
 
   const queryParams = new URLSearchParams({
@@ -125,6 +129,10 @@ export async function getPosts(params: {
 
   if (language) {
     queryParams.append('language', language);
+  }
+
+  if (excludeBody) {
+    queryParams.append('excludeBody', 'true');
   }
 
   // Admin auth is needed unless the caller is explicitly asking for

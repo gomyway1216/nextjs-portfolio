@@ -530,8 +530,10 @@ const AdminPage = () => {
   const { resumeLink: fetchedResumeLink } = useResumeLink();
   const { projects, loading: projectsLoading, refetch: refetchProjects } = useProjects();
   // Admin sees every post including drafts, so pass `isPublic: null` to
-  // skip the public-only filter.
-  const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts({ limit: 100, isPublic: null });
+  // skip the public-only filter. The tables only render metadata and the
+  // edit modal fetches the full document, so skip the HTML bodies — they
+  // dominated the payload of this initial load.
+  const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts({ limit: 100, isPublic: null, excludeBody: true });
   const { categories: projectCategories } = useProjectCategories();
   const { urlTypes } = useUrlTypes();
   const { categories: postCategories } = usePostCategories();

@@ -3,7 +3,6 @@ import * as util from '@/lib/utils/util';
 import type { Project } from '@/services/projectsService';
 import * as projectApi from '@/services/projectsService';
 import Image from 'next/image';
-import 'photoswipe/dist/photoswipe.css';
 import { useEffect,useState } from 'react';
 import { Tab,TabList,TabPanel,Tabs } from 'react-tabs';
 import PortfolioModal from './PortfolioModal';

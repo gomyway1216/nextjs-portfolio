@@ -6,6 +6,10 @@ declare module 'dompurify' {
   }
 
   interface DOMPurifyInstance {
+    sanitize(
+      dirty: string | Node,
+      config: SanitizeConfig & { RETURN_DOM_FRAGMENT: true }
+    ): DocumentFragment;
     sanitize(dirty: string | Node, config?: SanitizeConfig): string;
   }
 

@@ -41,7 +41,7 @@ import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CSSProperties,useEffect,useState } from 'react';
+import { CSSProperties,memo,useCallback,useEffect,useRef,useState } from 'react';
 
 type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'hobbies' | 'activity-logs';
 
@@ -369,6 +369,163 @@ const getSectionFromHash = (): AdminSection => {
   return validSections.includes(hash as AdminSection) ? (hash as AdminSection) : 'dashboard';
 };
 
+// The big row lists are memoized so that the keystroke-level state updates
+// of AdminPage (every controlled form field lives there) don't re-render
+// up to a hundred table rows per keypress. Their handler props must stay
+// referentially stable (useCallback in AdminPage) for the memo to hold.
+const ProjectsTable = memo(function ProjectsTable({
+  projects,
+  onEdit,
+  onDelete,
+}: {
+  projects: Project[];
+  onEdit: (project: Project) => void;
+  onDelete: (project: Project) => void;
+}) {
+  return (
+    <div style={styles.card}>
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            <th style={styles.th}>Title</th>
+            <th style={styles.th}>Date</th>
+            <th style={styles.th}>Technologies</th>
+            <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {projects.map((project) => (
+            <tr key={project.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+              <td style={styles.td}>
+                <div style={{ fontWeight: '500', color: '#ffffff' }}>{project.title}</div>
+                <div style={{ fontSize: '14px', color: '#64748b', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.description}</div>
+              </td>
+              <td style={{ ...styles.td, color: '#94a3b8' }}>{project.date}</td>
+              <td style={styles.td}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                  {project.technologies?.slice(0, 3).map((tech, i) => (
+                    <span key={i} style={{ ...styles.badge, ...styles.techBadge }}>{getTechName(tech)}</span>
+                  ))}
+                  {(project.technologies?.length || 0) > 3 && (
+                    <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#94a3b8' }}>
+                      +{(project.technologies?.length || 0) - 3}
+                    </span>
+                  )}
+                </div>
+              </td>
+              <td style={{ ...styles.td, textAlign: 'right' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                  <button onClick={() => onEdit(project)} aria-label={`Edit ${project.title}`} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    onClick={() => onDelete(project)}
+                    aria-label={`Delete ${project.title}`}
+                    style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+          {projects.length === 0 && (
+            <tr>
+              <td colSpan={4} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
+                No projects yet. Click &quot;Add Project&quot; to create one.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+});
+
+const PostsTable = memo(function PostsTable({
+  posts,
+  onEdit,
+  onDelete,
+}: {
+  posts: ListingPost[];
+  onEdit: (post: ListingPost) => void;
+  onDelete: (post: ListingPost) => void;
+}) {
+  return (
+    <div style={styles.card}>
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            <th style={styles.th}>Title</th>
+            <th style={styles.th}>Category</th>
+            <th style={styles.th}>Status</th>
+            <th style={styles.th}>Updated</th>
+            <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {posts.map((post) => (
+            <tr key={post.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+              <td style={styles.td}>
+                <div style={{ fontWeight: '500', color: '#ffffff' }}>{post.title}</div>
+              </td>
+              <td style={styles.td}>
+                <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#cbd5e1' }}>
+                  {post.category}
+                </span>
+              </td>
+              <td style={styles.td}>
+                {post.isPublic ? (
+                  <span style={{ ...styles.badge, backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                    <Eye size={12} /> Public
+                  </span>
+                ) : (
+                  <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#94a3b8' }}>
+                    <EyeOff size={12} /> Private
+                  </span>
+                )}
+              </td>
+              <td style={{ ...styles.td, color: '#94a3b8', fontSize: '14px' }} suppressHydrationWarning>
+                {post.lastUpdated ? new Date(post.lastUpdated).toLocaleDateString() : '-'}
+              </td>
+              <td style={{ ...styles.td, textAlign: 'right' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                  <Link
+                    href={`/blog/${post.category}/${post.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Preview ${post.title}`}
+                    style={{ ...styles.ghostButton, borderRadius: '8px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <ExternalLink size={16} />
+                  </Link>
+                  <button onClick={() => onEdit(post)} aria-label={`Edit ${post.title}`} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    onClick={() => onDelete(post)}
+                    aria-label={`Delete ${post.title}`}
+                    style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+          {posts.length === 0 && (
+            <tr>
+              <td colSpan={5} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
+                No posts yet. Click &quot;Add Post&quot; to create one.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+});
+
 const AdminPage = () => {
   const { currentUser, loading: authLoading, isAdmin } = useAuth();
   const router = useRouter();
@@ -569,10 +726,21 @@ const AdminPage = () => {
     }
   };
 
-  const showMessage = (type: 'success' | 'error', text: string) => {
+  // Single dismissal timer: clearing the previous one keeps an older
+  // toast's timeout from hiding a newer message, and the unmount cleanup
+  // stops it firing after navigation away.
+  const messageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showMessage = useCallback((type: 'success' | 'error', text: string) => {
+    if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
     setMessage({ type, text });
-    setTimeout(() => setMessage(null), 5000);
-  };
+    messageTimerRef.current = setTimeout(() => setMessage(null), 5000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+    };
+  }, []);
 
   // Profile handlers
   const handleUpdateProfile = async () => {
@@ -595,8 +763,9 @@ const AdminPage = () => {
     }
   };
 
-  // Project handlers
-  const handleOpenProjectModal = (project?: Project) => {
+  // Project handlers. useCallback so the memoized ProjectsTable doesn't
+  // re-render on every keystroke elsewhere on the page.
+  const handleOpenProjectModal = useCallback((project?: Project) => {
     if (project) {
       setEditingProject(project);
       const techNames = project.technologies?.map((t) => getTechName(t)).filter(Boolean) || [];
@@ -628,7 +797,11 @@ const AdminPage = () => {
       });
     }
     setShowProjectModal(true);
-  };
+  }, []);
+
+  const requestDeleteProject = useCallback((project: Project) => {
+    setShowDeleteConfirm({ type: 'project', id: project.id, name: project.title });
+  }, []);
 
   // Image upload handlers
   // Use 'undefined' to match existing storage pattern when no project ID exists
@@ -819,8 +992,9 @@ const AdminPage = () => {
     }
   };
 
-  // Post handlers
-  const handleOpenPostModal = async (post?: ListingPost) => {
+  // Post handlers. useCallback so the memoized PostsTable doesn't
+  // re-render on every keystroke elsewhere on the page.
+  const handleOpenPostModal = useCallback(async (post?: ListingPost) => {
     if (post) {
       setEditingPost(post);
       try {
@@ -847,7 +1021,11 @@ const AdminPage = () => {
       });
     }
     setShowPostModal(true);
-  };
+  }, [postCategories, showMessage]);
+
+  const requestDeletePost = useCallback((post: ListingPost) => {
+    setShowDeleteConfirm({ type: 'post', id: post.id, name: post.title, category: post.category });
+  }, []);
 
   const handleSavePost = async () => {
     // Strip out translations where both title and body are empty so we
@@ -1900,61 +2078,11 @@ const AdminPage = () => {
                   <Loader2 size={32} color="#a855f7" style={{ animation: 'spin 1s linear infinite' }} />
                 </div>
               ) : (
-                <div style={styles.card}>
-                  <table style={styles.table}>
-                    <thead>
-                      <tr>
-                        <th style={styles.th}>Title</th>
-                        <th style={styles.th}>Date</th>
-                        <th style={styles.th}>Technologies</th>
-                        <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {projects.map((project) => (
-                        <tr key={project.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-                          <td style={styles.td}>
-                            <div style={{ fontWeight: '500', color: '#ffffff' }}>{project.title}</div>
-                            <div style={{ fontSize: '14px', color: '#64748b', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.description}</div>
-                          </td>
-                          <td style={{ ...styles.td, color: '#94a3b8' }}>{project.date}</td>
-                          <td style={styles.td}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
-                              {project.technologies?.slice(0, 3).map((tech, i) => (
-                                <span key={i} style={{ ...styles.badge, ...styles.techBadge }}>{getTechName(tech)}</span>
-                              ))}
-                              {(project.technologies?.length || 0) > 3 && (
-                                <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#94a3b8' }}>
-                                  +{(project.technologies?.length || 0) - 3}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          <td style={{ ...styles.td, textAlign: 'right' }}>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                              <button onClick={() => handleOpenProjectModal(project)} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
-                                <Pencil size={16} />
-                              </button>
-                              <button
-                                onClick={() => setShowDeleteConfirm({ type: 'project', id: project.id, name: project.title })}
-                                style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {projects.length === 0 && (
-                        <tr>
-                          <td colSpan={4} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
-                            No projects yet. Click &quot;Add Project&quot; to create one.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                <ProjectsTable
+                  projects={projects}
+                  onEdit={handleOpenProjectModal}
+                  onDelete={requestDeleteProject}
+                />
               )}
             </div>
           )}
@@ -1981,70 +2109,11 @@ const AdminPage = () => {
                   <Loader2 size={32} color="#a855f7" style={{ animation: 'spin 1s linear infinite' }} />
                 </div>
               ) : (
-                <div style={styles.card}>
-                  <table style={styles.table}>
-                    <thead>
-                      <tr>
-                        <th style={styles.th}>Title</th>
-                        <th style={styles.th}>Category</th>
-                        <th style={styles.th}>Status</th>
-                        <th style={styles.th}>Updated</th>
-                        <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {posts.map((post) => (
-                        <tr key={post.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
-                          <td style={styles.td}>
-                            <div style={{ fontWeight: '500', color: '#ffffff' }}>{post.title}</div>
-                          </td>
-                          <td style={styles.td}>
-                            <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#cbd5e1' }}>
-                              {post.category}
-                            </span>
-                          </td>
-                          <td style={styles.td}>
-                            {post.isPublic ? (
-                              <span style={{ ...styles.badge, backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                                <Eye size={12} /> Public
-                              </span>
-                            ) : (
-                              <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#94a3b8' }}>
-                                <EyeOff size={12} /> Private
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ ...styles.td, color: '#94a3b8', fontSize: '14px' }}>
-                            {post.lastUpdated ? new Date(post.lastUpdated).toLocaleDateString() : '-'}
-                          </td>
-                          <td style={{ ...styles.td, textAlign: 'right' }}>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                              <button onClick={() => window.open(`/blog/${post.category}/${post.id}`, '_blank')} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
-                                <ExternalLink size={16} />
-                              </button>
-                              <button onClick={() => handleOpenPostModal(post)} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
-                                <Pencil size={16} />
-                              </button>
-                              <button
-                                onClick={() => setShowDeleteConfirm({ type: 'post', id: post.id, name: post.title, category: post.category })}
-                                style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {posts.length === 0 && (
-                        <tr>
-                          <td colSpan={5} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
-                            No posts yet. Click &quot;Add Post&quot; to create one.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                <PostsTable
+                  posts={posts}
+                  onEdit={handleOpenPostModal}
+                  onDelete={requestDeletePost}
+                />
               )}
             </div>
           )}

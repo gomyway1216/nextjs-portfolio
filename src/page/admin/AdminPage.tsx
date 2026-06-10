@@ -109,8 +109,10 @@ const styles: Record<string, CSSProperties> = {
   },
   sidebar: {
     width: '280px',
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    backdropFilter: 'blur(12px)',
+    // No backdrop-filter: blurring a fixed 280px × 100vh strip forces the
+    // browser to re-composite it on every scroll frame — the same jank the
+    // home page sidebar had. Near-opaque background reads the same.
+    backgroundColor: 'rgba(15, 23, 42, 0.96)',
     borderRight: '1px solid rgba(255, 255, 255, 0.1)',
     minHeight: '100vh',
     position: 'fixed' as const,
@@ -176,8 +178,9 @@ const styles: Record<string, CSSProperties> = {
     marginBottom: '32px',
   },
   card: {
-    backgroundColor: 'rgba(30, 41, 59, 0.5)',
-    backdropFilter: 'blur(8px)',
+    // No backdrop-filter: every table/stat card used this style, so the
+    // blur was re-composited over the page gradient while scrolling.
+    backgroundColor: 'rgba(30, 41, 59, 0.85)',
     borderRadius: '16px',
     border: '1px solid rgba(255, 255, 255, 0.1)',
     overflow: 'hidden',

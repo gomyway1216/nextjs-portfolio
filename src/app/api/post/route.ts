@@ -25,6 +25,10 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
  * - limit: number (default: 10)
  * - lastVisibleTimestamp: number (optional, for pagination)
  * - language: 'en' | 'ja' (default: 'en'; selects which translation to flatten)
+ * - excludeBody: 'true' to return body: '' for each post. The admin list
+ *   only renders metadata (title/category/date/visibility) and loads the
+ *   full document on edit, so shipping every post's HTML body there is
+ *   pure overhead. Public listings keep the body (used for excerpts).
  */
 export const GET = withActivityLog('next_api.post.GET', async (request: NextRequest) => {
   try {
@@ -41,6 +45,7 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
     const limitNumber = parseInt(searchParams.get('limit') || '10');
     const lastVisibleTimestamp = searchParams.get('lastVisibleTimestamp');
     const language = normalizeLanguage(searchParams.get('language'));
+    const excludeBody = searchParams.get('excludeBody') === 'true';
 
     if (isPublic !== true) {
       const { user, response } = await ensureAdmin(request);
@@ -86,7 +91,7 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
         isPublic: data.isPublic,
         image: data.image,
         title: picked.translation.title,
-        body: picked.translation.body,
+        body: excludeBody ? '' : picked.translation.body,
         language: picked.language,
         availableLanguages: availableLanguages(translations),
         created: data.created?.toDate?.()?.toISOString() || data.created,

@@ -54,10 +54,11 @@
 .card {
   border: 1px solid var(--border-soft);
   background-color: var(--surface-elevated);
-  background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
+  /* No backdrop-filter: blurring these cards re-composites their
+     backdrop on every scroll frame while the section is visible. A
+     near-opaque background reads the same. */
+  background: color-mix(in srgb, var(--surface-elevated) 96%, transparent);
   box-shadow: var(--shadow-soft);
-  -webkit-backdrop-filter: saturate(180%) blur(14px);
-  backdrop-filter: saturate(180%) blur(14px);
 }
 
 .metric {

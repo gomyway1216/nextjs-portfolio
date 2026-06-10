@@ -13,6 +13,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { games } from '@/components/game/constants/games';
 import {
   GameLanguageProvider,
@@ -22,6 +23,7 @@ import './games-carousel.scss';
 
 function GamesSlideshowContent() {
   const { t } = useTranslation();
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: false,
@@ -38,14 +40,39 @@ function GamesSlideshowContent() {
   }, [emblaApi]);
 
   useEffect(() => {
-    if (emblaApi) {
-      const interval = setInterval(() => {
-        emblaApi.scrollNext();
-      }, 5000);
+    if (!emblaApi || prefersReducedMotion) return;
 
-      return () => clearInterval(interval);
-    }
-  }, [emblaApi]);
+    // Auto-advance only while the carousel is actually on screen — the
+    // interval otherwise keeps triggering slide layout work while the
+    // user scrolls elsewhere on the page.
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const stop = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        if (!interval) {
+          interval = setInterval(() => {
+            emblaApi.scrollNext();
+          }, 5000);
+        }
+      } else {
+        stop();
+      }
+    });
+
+    observer.observe(emblaApi.rootNode());
+
+    return () => {
+      observer.disconnect();
+      stop();
+    };
+  }, [emblaApi, prefersReducedMotion]);
 
   const getDifficultyClass = (difficulty: string) => {
     switch (difficulty) {

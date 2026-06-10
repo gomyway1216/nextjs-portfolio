@@ -66,9 +66,23 @@ export const PUT = withActivityLog('next_api.game.saves.PUT', async (request: Ne
   const { user, response } = await ensureValidUser(request);
   if (!user) return response!;
 
+  // Reject oversized payloads via Content-Length before buffering the
+  // body (consistent with /api/contact). The 2× headroom over the state
+  // cap covers the gameKey + JSON envelope.
+  const contentLength = Number(request.headers.get('content-length'));
+  if (Number.isFinite(contentLength) && contentLength > MAX_STATE_BYTES * 2) {
+    return NextResponse.json({ error: 'Payload too large' }, { status: 413 });
+  }
+
+  let body: unknown;
   try {
-    const body = await request.json();
-    const { gameKey, state } = body as { gameKey?: unknown; state?: unknown };
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Malformed JSON body' }, { status: 400 });
+  }
+
+  try {
+    const { gameKey, state } = (body ?? {}) as { gameKey?: unknown; state?: unknown };
 
     if (!isValidGameKey(gameKey)) {
       return NextResponse.json({ error: 'Invalid gameKey' }, { status: 400 });

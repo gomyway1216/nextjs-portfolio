@@ -506,13 +506,19 @@ const ShogiImproved = () => {
       await gameSaveApi.saveGameSave(GAME_SAVE_KEY, save);
       setSavedGame(save);
       setSaveStatus('saved');
-      setTimeout(() => setSaveStatus('idle'), 2000);
     } catch (error) {
       console.error('[shogi] failed to save game:', error);
       setSaveStatus('error');
-      setTimeout(() => setSaveStatus('idle'), 3000);
     }
   }, [currentUser, gameState, difficulty]);
+
+  // Auto-clear the transient save status, cleaning up the timer on
+  // unmount so it never fires on a gone component.
+  useEffect(() => {
+    if (saveStatus !== 'saved' && saveStatus !== 'error') return;
+    const timer = setTimeout(() => setSaveStatus('idle'), saveStatus === 'saved' ? 2000 : 3000);
+    return () => clearTimeout(timer);
+  }, [saveStatus]);
 
   // A finished game invalidates the save slot.
   useEffect(() => {
@@ -521,6 +527,16 @@ const ShogiImproved = () => {
       gameSaveApi.deleteGameSave(GAME_SAVE_KEY).catch(() => {});
     }
   }, [gameState.gameOver, currentUser, savedGame]);
+
+  // Starting a fresh game (not resuming) abandons any old save, so clear
+  // it — otherwise a mid-game refresh would offer to resume a game the
+  // player already walked away from.
+  useEffect(() => {
+    if (!showDifficultySelect && gameState.ply === 0 && currentUser && savedGame) {
+      setSavedGame(null);
+      gameSaveApi.deleteGameSave(GAME_SAVE_KEY).catch(() => {});
+    }
+  }, [showDifficultySelect, gameState.ply, currentUser, savedGame]);
 
   // Render piece
   const renderPiece = (suji: number, dan: number) => {

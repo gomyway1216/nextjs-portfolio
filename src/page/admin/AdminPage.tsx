@@ -41,7 +41,7 @@ import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CSSProperties,memo,useCallback,useEffect,useState } from 'react';
+import { CSSProperties,memo,useCallback,useEffect,useRef,useState } from 'react';
 
 type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'hobbies' | 'activity-logs';
 
@@ -412,11 +412,12 @@ const ProjectsTable = memo(function ProjectsTable({
               </td>
               <td style={{ ...styles.td, textAlign: 'right' }}>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                  <button onClick={() => onEdit(project)} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
+                  <button onClick={() => onEdit(project)} aria-label={`Edit ${project.title}`} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
                     <Pencil size={16} />
                   </button>
                   <button
                     onClick={() => onDelete(project)}
+                    aria-label={`Delete ${project.title}`}
                     style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
                   >
                     <Trash2 size={16} />
@@ -481,19 +482,26 @@ const PostsTable = memo(function PostsTable({
                   </span>
                 )}
               </td>
-              <td style={{ ...styles.td, color: '#94a3b8', fontSize: '14px' }}>
+              <td style={{ ...styles.td, color: '#94a3b8', fontSize: '14px' }} suppressHydrationWarning>
                 {post.lastUpdated ? new Date(post.lastUpdated).toLocaleDateString() : '-'}
               </td>
               <td style={{ ...styles.td, textAlign: 'right' }}>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
-                  <button onClick={() => window.open(`/blog/${post.category}/${post.id}`, '_blank')} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
+                  <Link
+                    href={`/blog/${post.category}/${post.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    aria-label={`Preview ${post.title}`}
+                    style={{ ...styles.ghostButton, borderRadius: '8px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
                     <ExternalLink size={16} />
-                  </button>
-                  <button onClick={() => onEdit(post)} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
+                  </Link>
+                  <button onClick={() => onEdit(post)} aria-label={`Edit ${post.title}`} style={{ ...styles.ghostButton, borderRadius: '8px' }}>
                     <Pencil size={16} />
                   </button>
                   <button
                     onClick={() => onDelete(post)}
+                    aria-label={`Delete ${post.title}`}
                     style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
                   >
                     <Trash2 size={16} />
@@ -713,9 +721,20 @@ const AdminPage = () => {
     }
   };
 
+  // Single dismissal timer: clearing the previous one keeps an older
+  // toast's timeout from hiding a newer message, and the unmount cleanup
+  // stops it firing after navigation away.
+  const messageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showMessage = useCallback((type: 'success' | 'error', text: string) => {
+    if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
     setMessage({ type, text });
-    setTimeout(() => setMessage(null), 5000);
+    messageTimerRef.current = setTimeout(() => setMessage(null), 5000);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
+    };
   }, []);
 
   // Profile handlers

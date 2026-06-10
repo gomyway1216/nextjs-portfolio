@@ -14,16 +14,18 @@ export default function RouteError({
   const { t } = useTranslation();
 
   useEffect(() => {
+    // Root error boundary: must never throw itself, so access the error
+    // object defensively.
     logActivity({
       action: 'client.route_error',
       result: 'error',
       severity: 'error',
-      error_message: error.message,
+      error_message: error?.message || 'Unknown error',
       error_details: {
-        stack: error.stack,
-        digest: error.digest,
+        stack: error?.stack,
+        digest: error?.digest,
       },
-      params: { url: window.location.href },
+      params: { url: typeof window !== 'undefined' ? window.location.href : '' },
     });
   }, [error]);
 
@@ -42,8 +44,10 @@ export default function RouteError({
     >
       <h2>{t('common.error')}</h2>
       <p>{t('common.errorDescription')}</p>
-      {error.digest && (
-        <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>Ref: {error.digest}</p>
+      {error?.digest && (
+        <p style={{ fontSize: '0.8rem', opacity: 0.6 }}>
+          {t('common.errorReference')}: {error.digest}
+        </p>
       )}
       <button type="button" className="px-btn px-btn-theme" onClick={reset}>
         {t('common.retry')}

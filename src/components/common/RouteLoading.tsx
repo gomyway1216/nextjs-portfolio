@@ -7,8 +7,11 @@ import styles from './RouteLoading.module.css';
  */
 export default function RouteLoading() {
   return (
-    <div className={styles.wrap} role="status" aria-label="Loading">
-      <div className={styles.spinner} />
+    <div className={styles.wrap} role="status">
+      <div className={styles.spinner} aria-hidden="true" />
+      {/* Real text content is announced more reliably than aria-label
+          on a status region. */}
+      <span className={styles.srOnly}>Loading…</span>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { TypeAnimation } from 'react-type-animation';
 import * as profileApi from '@/services/profileService';
 import { useProfile, type Profile } from '@/hooks/useProfile';
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { isSupportedProfileImageUrl } from '@/lib/profileImage';
 import { useTranslation } from 'react-i18next';
 
@@ -23,6 +24,7 @@ const Slider = ({ initialProfile }: SliderProps) => {
   const [resumeLink, setResumeLink] = useState('');
   const [mounted, setMounted] = useState(false);
   const { profile, loading: profileLoading } = useProfile(initialProfile);
+  const prefersReducedMotion = usePrefersReducedMotion();
   const { t } = useTranslation();
   const heroImageUrl = isSupportedProfileImageUrl(profile?.profileImageUrl)
     ? profile.profileImageUrl
@@ -105,7 +107,7 @@ const Slider = ({ initialProfile }: SliderProps) => {
 
                   data-aos-delay="200"
                 >
-                  {mounted ? (
+                  {mounted && !prefersReducedMotion ? (
                     <TypeAnimation
                       sequence={[
                         t('home.hero.roles.seniorSoftwareEngineer'),
@@ -118,7 +120,12 @@ const Slider = ({ initialProfile }: SliderProps) => {
                       wrapper="p"
                       speed={50}
                       className="loop-text lead"
-                      repeat={Infinity}
+                      // A finite run instead of Infinity: the typing loop
+                      // mutates DOM text every ~50ms forever, which keeps
+                      // layout/paint work running while the hero is on
+                      // screen (it competes with scrolling). Two extra
+                      // cycles read the same; then the last role stays.
+                      repeat={2}
                     />
                   ) : (
                     <p className="loop-text lead">

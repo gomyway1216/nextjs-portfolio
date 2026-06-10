@@ -5,7 +5,7 @@ import * as Dialog from '@radix-ui/react-dialog';
 import Contact from '../contact/Contact';
 import * as postApi from '@/services/postsService';
 import type { ListingPost } from '@/services/postsService';
-import DOMPurify from 'dompurify';
+import { sanitizeRichHtml } from '@/lib/sanitizeHtml';
 import * as util from '@/lib/utils/util';
 import { useTranslation } from 'react-i18next';
 import { normalizeLanguage } from '@/lib/blog/postTranslations';
@@ -53,11 +53,7 @@ const Blogs = () => {
   const handlePostClick = (post: ListingPost) => {
     setSelectedPost(post);
     setModalOpen(true);
-    const purifiedBody = DOMPurify.sanitize(post.body, {
-      ADD_TAGS: ['iframe'],
-      ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling']
-    });
-    setBody(purifiedBody);
+    setBody(sanitizeRichHtml(post.body));
   };
 
   if (posts.length === 0) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
@@ -97,6 +98,9 @@ export const PUT = withActivityLog('next_api.profile.PUT', async (request: NextR
     if (normalizedProfileImageUrl !== undefined) updateData.profileImageUrl = normalizedProfileImageUrl;
 
     await docRef.set(updateData, { merge: true });
+
+    // Bust the home page's cached profile so the edit shows up immediately.
+    revalidateTag('profile', 'max');
 
     console.log('[API /profile] Successfully updated profile');
     return NextResponse.json({

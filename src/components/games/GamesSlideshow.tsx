@@ -47,6 +47,22 @@ function GamesSlideshowContent() {
     // user scrolls elsewhere on the page.
     let interval: ReturnType<typeof setInterval> | null = null;
 
+    const advance = () => {
+      // loop is false, so wrap back to the first slide manually instead
+      // of letting scrollNext() no-op forever at the end.
+      if (emblaApi.canScrollNext()) {
+        emblaApi.scrollNext();
+      } else {
+        emblaApi.scrollTo(0);
+      }
+    };
+
+    const start = () => {
+      if (!interval) {
+        interval = setInterval(advance, 5000);
+      }
+    };
+
     const stop = () => {
       if (interval) {
         clearInterval(interval);
@@ -54,13 +70,16 @@ function GamesSlideshowContent() {
       }
     };
 
+    // JSDOM and very old browsers lack IntersectionObserver — fall back
+    // to the previous always-on behavior rather than crashing.
+    if (typeof IntersectionObserver === 'undefined') {
+      start();
+      return stop;
+    }
+
     const observer = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) {
-        if (!interval) {
-          interval = setInterval(() => {
-            emblaApi.scrollNext();
-          }, 5000);
-        }
+        start();
       } else {
         stop();
       }

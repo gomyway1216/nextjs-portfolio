@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import AOS from 'aos';
+import { prefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 
 export default function AOSInitializer() {
   useEffect(() => {
@@ -13,6 +14,10 @@ export default function AOSInitializer() {
       duration: 500,
       easing: 'ease-out-quad',
       once: true,
+      // Honor the OS-level reduced-motion setting: AOS strips its
+      // data-aos hooks so content shows immediately and no scroll
+      // listener work happens.
+      disable: prefersReducedMotion(),
     });
   }, []);
 

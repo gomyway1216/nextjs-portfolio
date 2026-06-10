@@ -140,10 +140,12 @@
   min-width: 0;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-elevated) 84%, transparent);
+  // No backdrop-filter: blurring these cards forces the browser to
+  // re-composite their backdrop on every scroll frame while the hero is
+  // visible. A slightly more opaque background reads the same.
+  background: color-mix(in srgb, var(--surface-elevated) 94%, transparent);
   padding: 0.85rem 0.9rem;
   box-shadow: var(--shadow-soft);
-  backdrop-filter: saturate(180%) blur(10px);
 }
 
 .modern-hero .hero-stat strong,
@@ -214,8 +216,11 @@
 }
 
 .home-modern .header-left {
-  backdrop-filter: saturate(180%) blur(8px);
-  background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
+  // No backdrop-filter: this sidebar is position: fixed at full viewport
+  // height, so a blur here re-composites an 80px × 100vh strip on every
+  // scroll frame — the single biggest source of scroll jank on the home
+  // page. Near-opaque background instead.
+  background: color-mix(in srgb, var(--surface-elevated) 96%, transparent);
   border-right: 1px solid var(--border-soft);
 }
 

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
+import { games } from '@/components/game/constants/games';
 import {
   BookOpenText,
   Gamepad2,
@@ -160,6 +161,15 @@ export function GlobalToolbar() {
   const theme = useMemo(() => getTheme(pathname), [pathname]);
   const isGameSubPage = pathname.startsWith('/games/');
   const hasGameContent = isGameSubPage && gameContent && (gameContent.left || gameContent.center || gameContent.right);
+  // Identify the current game from the shared catalog so every game page
+  // gets a labeled top bar even when the game registers no toolbar content.
+  const currentGame = useMemo(
+    () =>
+      isGameSubPage
+        ? games.find((game) => pathname === game.path || pathname.startsWith(`${game.path}/`))
+        : undefined,
+    [isGameSubPage, pathname],
+  );
 
   if (HIDDEN_PATHS.includes(pathname)) return null;
   if (HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return null;
@@ -210,6 +220,18 @@ export function GlobalToolbar() {
               >
                 ← Games
               </Link>
+            </>
+          )}
+          {currentGame && !gameContent?.left && (
+            <>
+              <span style={{ color: theme.border }} className="shrink-0">|</span>
+              <span
+                className="text-xs font-semibold truncate min-w-0"
+                style={{ color: theme.accent }}
+                title={currentGame.title}
+              >
+                {currentGame.thumbnail} {currentGame.title}
+              </span>
             </>
           )}
           {hasGameContent && gameContent?.left && (

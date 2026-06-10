@@ -23,6 +23,8 @@
     "confirmPassword": "Confirm password",
     "error": "Error",
     "createAccount": "Create account",
+    "orDivider": "or",
+    "continueWithGoogle": "Continue with Google",
     "loggingIn": "Signing in...",
     "creatingAccount": "Creating account...",
     "forgotPassword": "Forgot password?",
@@ -44,6 +46,7 @@
     },
     "errors": {
       "invalidEmail": "Please enter a valid email address",
+      "googleFailed": "Google sign-in failed. Please try again.",
       "passwordMin": "Password must be at least 8 characters",
       "displayNameRequired": "Please enter a display name",
       "passwordMismatch": "Passwords do not match",

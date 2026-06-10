@@ -2,7 +2,7 @@
 
 import React, { createContext, useEffect, useContext, useState, ReactNode, useCallback, useRef } from 'react';
 import { MultiFactorResolver, RecaptchaVerifier, User, UserCredential } from 'firebase/auth';
-import { auth, signInWithEmail, signUpWithEmail, signOutUser }
+import { auth, signInWithEmail, signInWithGoogle, signUpWithEmail, signOutUser }
   from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
 import { getErrorCode } from '@/lib/errorUtils';
@@ -20,6 +20,7 @@ interface AuthContextType {
   mfaPhoneHint: string | null;
   signIn: (email: string, password: string) => Promise<UserCredential>;
   signUp: (email: string, password: string, displayName?: string) => Promise<UserCredential>;
+  signInWithGoogle: () => Promise<UserCredential>;
   signInWithTwoFactor: (email: string, password: string) => Promise<{ requiresTwoFactor: boolean }>;
   sendMfaCode: (recaptchaVerifier: RecaptchaVerifier) => Promise<void>;
   verifyTwoFactorAndComplete: (code: string) => Promise<void>;
@@ -148,6 +149,19 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const sessionSynced = await syncSessionCookie(credential.user);
     if (!sessionSynced) {
       throw new Error('Failed to set session cookie after sign-up');
+    }
+    return credential;
+  }, [createUserDocument, syncSessionCookie]);
+
+  // Google sign-in. Federated providers can't enroll the same way as
+  // password users here, so MFA gating doesn't apply; create the user doc
+  // (first time) and sync the session cookie like sign-up does.
+  const signInWithGoogleProvider = useCallback(async (): Promise<UserCredential> => {
+    const credential = await signInWithGoogle();
+    await createUserDocument(credential.user, credential.user.displayName ?? undefined);
+    const sessionSynced = await syncSessionCookie(credential.user);
+    if (!sessionSynced) {
+      throw new Error('Failed to set session cookie after Google sign-in');
     }
     return credential;
   }, [createUserDocument, syncSessionCookie]);
@@ -327,6 +341,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     mfaPhoneHint,
     signIn,
     signUp,
+    signInWithGoogle: signInWithGoogleProvider,
     signInWithTwoFactor,
     sendMfaCode,
     verifyTwoFactorAndComplete,

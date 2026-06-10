@@ -17,10 +17,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import styles from './blog-post.module.css';
 
-const PostPage = () => {
+interface PostPageProps {
+  /** Server-fetched public post; null/undefined falls back to client fetch. */
+  initialPost?: DetailPost | null;
+}
+
+const PostPage = ({ initialPost }: PostPageProps) => {
   const { category: routeCategory, id: routeId } = useParams();
-  const [post, setPost] = useState<DetailPost | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [post, setPost] = useState<DetailPost | null>(initialPost ?? null);
+  const [isLoading, setIsLoading] = useState(!initialPost);
   const { currentUser } = useAuth();
   const router = useRouter();
   const { t, i18n } = useTranslation();
@@ -30,6 +35,11 @@ const PostPage = () => {
   const id = Array.isArray(routeId) ? routeId[0] : routeId || '';
 
   useEffect(() => {
+    // Server already delivered the post (public path) — skip the refetch.
+    // Private posts arrive with initialPost=null and load here with the
+    // signed-in admin's token.
+    if (initialPost) return;
+
     let cancelled = false;
     (async () => {
       if (!id) {
@@ -51,7 +61,7 @@ const PostPage = () => {
     return () => {
       cancelled = true;
     };
-  }, [id]);
+  }, [id, initialPost]);
 
   const handleEdit = () => {
     router.push('/admin#posts');

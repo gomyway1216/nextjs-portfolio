@@ -4,12 +4,25 @@
 // in the Authorization header is passed through.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { clientIpFrom, isRateLimited } from '@/lib/rateLimit';
 import { getCloudFunctionUrl } from '../../constants';
+
+const MAX_BODY_BYTES = 32 * 1024;
 
 export async function POST(request: NextRequest) {
   try {
+    // Unauthenticated proxy into the logging Cloud Function — generous
+    // ceiling that normal browsing never hits, but stops log flooding.
+    if (isRateLimited(`activity-log:${clientIpFrom(request)}`, { limit: 120, windowMs: 60 * 1000 })) {
+      return NextResponse.json({ success: false }, { status: 429 });
+    }
+
     const authHeader = request.headers.get('authorization');
     const body = await request.text();
+
+    if (body.length > MAX_BODY_BYTES) {
+      return NextResponse.json({ success: false }, { status: 413 });
+    }
 
     const response = await fetch(getCloudFunctionUrl('logClientActivity'), {
       method: 'POST',

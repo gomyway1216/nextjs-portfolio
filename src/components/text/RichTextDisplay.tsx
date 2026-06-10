@@ -1,6 +1,6 @@
 'use client';
 import * as util from '@/lib/utils/util';
-import DOMPurify from 'dompurify';
+import { sanitizeRichHtml } from '@/lib/sanitizeHtml';
 import Image from 'next/image';
 import styles from './rich-text-display.module.scss';
 
@@ -21,10 +21,7 @@ interface RichTextDisplayProps {
 const RichTextDisplay = ({ post }: RichTextDisplayProps) => {
   const { title, body, created, category, image } = post;
 
-  const purifiedBody = DOMPurify.sanitize(body, {
-    ADD_TAGS: ['iframe'],
-    ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling']
-  });
+  const purifiedBody = sanitizeRichHtml(body);
 
   return (
     <article className={styles.root}>

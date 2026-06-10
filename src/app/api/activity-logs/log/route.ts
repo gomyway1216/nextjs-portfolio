@@ -17,10 +17,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false }, { status: 429 });
     }
 
+    // Reject oversized payloads before buffering the body when the
+    // client declares a length; re-check real byte size after reading.
+    const contentLength = Number(request.headers.get('content-length'));
+    if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+      return NextResponse.json({ success: false }, { status: 413 });
+    }
+
     const authHeader = request.headers.get('authorization');
     const body = await request.text();
 
-    if (body.length > MAX_BODY_BYTES) {
+    if (Buffer.byteLength(body, 'utf8') > MAX_BODY_BYTES) {
       return NextResponse.json({ success: false }, { status: 413 });
     }
 

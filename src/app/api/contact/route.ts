@@ -57,6 +57,9 @@ const FIELD_LIMITS = {
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Generous ceiling over the summed FIELD_LIMITS (~5.7KB of content).
+const MAX_PAYLOAD_BYTES = 32 * 1024;
+
 export const POST = withActivityLog('next_api.contact.POST', async (request: NextRequest) => {
   try {
     // Unauthenticated public endpoint — cap how fast a single IP can
@@ -65,6 +68,15 @@ export const POST = withActivityLog('next_api.contact.POST', async (request: Nex
       return NextResponse.json(
         { error: 'Too many messages. Please try again later.' },
         { status: 429 }
+      );
+    }
+
+    // Reject oversized payloads before request.json() buffers them.
+    const contentLength = Number(request.headers.get('content-length'));
+    if (Number.isFinite(contentLength) && contentLength > MAX_PAYLOAD_BYTES) {
+      return NextResponse.json(
+        { error: 'Payload too large' },
+        { status: 413 }
       );
     }
 

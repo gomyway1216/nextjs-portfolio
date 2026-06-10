@@ -25,6 +25,9 @@ export function sanitizeRichHtml(html: string): string {
   const fragment = DOMPurify.sanitize(html, {
     ADD_TAGS: ['iframe'],
     ADD_ATTR: ['allowfullscreen', 'frameborder', 'scrolling'],
+    // Belt and suspenders: 'allow' must never survive, regardless of
+    // what DOMPurify's defaults permit.
+    FORBID_ATTR: ['allow'],
     RETURN_DOM_FRAGMENT: true,
   });
 

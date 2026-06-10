@@ -23,14 +23,17 @@ const MAX_BUCKETS = 10_000;
 export function isRateLimited(key: string, { limit, windowMs }: RateLimitOptions): boolean {
   const now = Date.now();
 
-  if (buckets.size > MAX_BUCKETS) {
-    for (const [bucketKey, bucket] of buckets) {
-      if (bucket.resetAt <= now) buckets.delete(bucketKey);
-    }
+  // Hard cap: evict the oldest entry in O(1) instead of scanning the
+  // whole map. Buckets are delete-then-set on reset, so Map insertion
+  // order tracks window recency and the first key is the stalest.
+  if (buckets.size >= MAX_BUCKETS) {
+    const oldestKey = buckets.keys().next().value;
+    if (oldestKey !== undefined) buckets.delete(oldestKey);
   }
 
   const bucket = buckets.get(key);
   if (!bucket || bucket.resetAt <= now) {
+    buckets.delete(key);
     buckets.set(key, { count: 1, resetAt: now + windowMs });
     return false;
   }
@@ -39,7 +42,15 @@ export function isRateLimited(key: string, { limit, windowMs }: RateLimitOptions
   return bucket.count > limit;
 }
 
-/** Best-effort client IP — first hop of x-forwarded-for (set by Vercel). */
+/**
+ * Best-effort client IP — x-real-ip (set by Vercel's proxy, not client
+ * spoofable) first, then the first hop of x-forwarded-for. Matches the
+ * extraction order used by withActivityLog.
+ */
 export function clientIpFrom(request: NextRequest): string {
-  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  return (
+    request.headers.get('x-real-ip') ||
+    request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    'unknown'
+  );
 }

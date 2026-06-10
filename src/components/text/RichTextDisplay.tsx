@@ -2,6 +2,7 @@
 import * as util from '@/lib/utils/util';
 import { sanitizeRichHtml } from '@/lib/sanitizeHtml';
 import Image from 'next/image';
+import { useEffect, useState } from 'react';
 import styles from './rich-text-display.module.scss';
 
 interface Post {
@@ -21,7 +22,13 @@ interface RichTextDisplayProps {
 const RichTextDisplay = ({ post }: RichTextDisplayProps) => {
   const { title, body, created, category, image } = post;
 
-  const purifiedBody = sanitizeRichHtml(body);
+  // Sanitize after mount: DOMPurify needs a real DOM, and setting state
+  // in an effect keeps the SSR and first client render identical (no
+  // hydration mismatch) if this component ever server-renders.
+  const [purifiedBody, setPurifiedBody] = useState('');
+  useEffect(() => {
+    setPurifiedBody(sanitizeRichHtml(body));
+  }, [body]);
 
   return (
     <article className={styles.root}>

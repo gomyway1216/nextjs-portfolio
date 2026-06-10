@@ -13,7 +13,7 @@ const Social = () => {
       {links.map(({ platform, url }) => {
         const { Icon, label } = SOCIAL_PLATFORM_META[platform];
         return (
-          <a key={platform} href={url} rel="noopener noreferrer" target="_blank" aria-label={label}>
+          <a key={`${platform}-${url}`} href={url} rel="noopener noreferrer" target="_blank" aria-label={label}>
             <Icon />
           </a>
         );

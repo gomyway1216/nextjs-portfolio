@@ -20,14 +20,28 @@ export function isSocialPlatform(value: unknown): value is SocialPlatform {
 }
 
 /**
- * Profile links when present, hardcoded defaults otherwise. Entries with
- * a platform this build has no icon for are dropped instead of crashing.
+ * Valid social link: known platform (this build has an icon for it) and
+ * an https URL — mirrors the PUT /api/profile validation so a value
+ * written around the API (e.g. Firestore console) can't introduce a
+ * javascript:/data: href.
+ */
+export function isValidSocialLink(link: unknown): link is ProfileSocialLink {
+  if (!link || typeof link !== 'object') return false;
+  const { platform, url } = link as { platform?: unknown; url?: unknown };
+  return isSocialPlatform(platform) && typeof url === 'string' && url.startsWith('https://');
+}
+
+/**
+ * Profile links when configured, hardcoded defaults otherwise. A profile
+ * with an explicit socialLinks array is respected even when it filters
+ * down to empty (hiding all links); defaults apply only when the field
+ * is missing entirely (not yet configured, or profile still loading).
  */
 export function resolveSocialLinks(
   profile?: { socialLinks?: ProfileSocialLink[] | null } | null,
 ): ProfileSocialLink[] {
-  const links = (profile?.socialLinks ?? []).filter(
-    (link) => link && isSocialPlatform(link.platform) && typeof link.url === 'string' && link.url,
-  );
-  return links.length > 0 ? links : DEFAULT_SOCIAL_LINKS;
+  if (!profile || profile.socialLinks === undefined || profile.socialLinks === null) {
+    return DEFAULT_SOCIAL_LINKS;
+  }
+  return profile.socialLinks.filter(isValidSocialLink);
 }

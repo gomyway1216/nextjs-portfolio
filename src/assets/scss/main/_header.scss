@@ -218,14 +218,15 @@
     height: 44px;
     border-radius: 999px;
     border: 1px solid rgba($px-dark, 0.12);
-    background: rgba($px-white, 0.88);
+    // No backdrop-filter: this toggle is fixed-positioned, so a blur
+    // would be re-composited on every scroll frame on mobile.
+    background: rgba($px-white, 0.96);
     color: $px-dark;
     box-shadow: 0 10px 30px rgba($px-dark, 0.14);
-    backdrop-filter: saturate(180%) blur(12px);
 
     .theme-dark & {
       border-color: rgba($px-white, 0.14);
-      background: rgba($px-bg-3, 0.82);
+      background: rgba($px-bg-3, 0.94);
       color: $px-white;
       box-shadow: 0 10px 30px rgba($px-black, 0.35);
     }

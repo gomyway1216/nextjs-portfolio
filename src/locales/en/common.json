@@ -1586,6 +1586,7 @@
   "common": {
     "loading": "Loading...",
     "error": "Error",
+    "errorDescription": "Something went wrong while loading this page. Please try again.",
     "retry": "Retry",
     "cancel": "Cancel",
     "save": "Save",

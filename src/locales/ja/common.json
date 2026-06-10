@@ -785,7 +785,6 @@
     "nav": {
       "home": "ホーム",
       "impact": "実績",
-      "work": "作品",
       "tools": "ツール",
       "games": "ゲーム",
       "blog": "ブログ",
@@ -807,7 +806,6 @@
       },
       "cta": {
         "downloadCv": "履歴書をダウンロード",
-        "viewProjects": "プロジェクトを見る",
         "exploreTools": "ツールを見る"
       },
       "stats": {

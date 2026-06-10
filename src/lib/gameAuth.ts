@@ -16,12 +16,14 @@ function waitForAuthSettled(timeoutMs = 3000): Promise<User | null> {
       unsubscribe();
       resolve(auth.currentUser);
     }, timeoutMs);
+    // The first callback means auth has settled — resolve immediately
+    // whether the restored user is a User or null. Guarding on `user`
+    // would make the no-session case (new guests, unconfigured local
+    // env) always wait out the full timeout before anonymous sign-in.
     const unsubscribe = auth.onAuthStateChanged((user) => {
-      if (user) {
-        clearTimeout(timer);
-        unsubscribe();
-        resolve(user);
-      }
+      clearTimeout(timer);
+      unsubscribe();
+      resolve(user);
     });
   });
 }

@@ -264,7 +264,10 @@ export function GlobalToolbar() {
         >
           {hasGameContent && gameContent?.right}
           {hasGameContent && gameContent?.right && <span style={{ color: theme.border }}>|</span>}
-          <div className={hasGameContent ? 'shrink-0' : 'hidden shrink-0 sm:block'}>
+          {/* Theme toggle stays visible on mobile too — it's a compact
+              icon button, and hiding it left phone users with no way to
+              switch dark/light from the toolbar. */}
+          <div className="shrink-0">
             <ThemeToggle accent={theme.accent} />
           </div>
           {/* Language toggle */}

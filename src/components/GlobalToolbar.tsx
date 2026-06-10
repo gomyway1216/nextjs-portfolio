@@ -136,7 +136,7 @@ const PRIMARY_NAV_ITEMS = [
   { href: '/games', prefix: '/games', labelKey: 'home.nav.games', Icon: Gamepad2 },
   { href: '/study', prefix: '/study', labelKey: 'home.nav.study', Icon: BookOpenText },
   { href: '/blog', prefix: '/blog', labelKey: 'home.nav.blog', Icon: NotebookPen },
-  { href: '/hobbies', prefix: '/hobbies', labelKey: 'home.nav.hobbies', Icon: Palette },
+  { href: '/hobbies', prefix: '/hobbies', labelKey: 'home.nav.hobbies', Icon: Palette, adminOnly: true },
 ];
 
 function getTheme(pathname: string): ThemeConfig {
@@ -228,7 +228,9 @@ export function GlobalToolbar() {
             style={{ borderColor: theme.border, backgroundColor: theme.avatarBg, gridColumn: 2 }}
             aria-label="Primary navigation"
           >
-            {PRIMARY_NAV_ITEMS.map(({ href, prefix, labelKey, Icon }) => {
+            {PRIMARY_NAV_ITEMS
+              .filter((item) => !('adminOnly' in item) || !item.adminOnly || isAdmin)
+              .map(({ href, prefix, labelKey, Icon }) => {
               const isActive = isActivePath(pathname, prefix);
               return (
                 <Link

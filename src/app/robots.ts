@@ -1,6 +1,5 @@
 import type { MetadataRoute } from 'next';
-
-const SITE_URL = 'https://meetyudai.com';
+import { SITE_URL } from '@/lib/siteConfig';
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -11,7 +10,7 @@ export default function robots(): MetadataRoute.Robots {
         disallow: [
           '/admin',
           '/account',
-          '/api/',
+          '/api',
           '/signin',
           '/new-project',
           '/achievements',

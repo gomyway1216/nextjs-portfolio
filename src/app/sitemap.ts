@@ -2,11 +2,14 @@ import type { MetadataRoute } from 'next';
 import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION, HOBBIES_COLLECTION } from '@/app/api/constants';
 import { games } from '@/components/game/constants/games';
-
-const SITE_URL = 'https://meetyudai.com';
+import { SITE_URL } from '@/lib/siteConfig';
 
 // Regenerate at most once per hour; new posts/hobbies appear without a deploy.
 export const revalidate = 3600;
+
+// firebase-admin refuses to initialize during `next build`; skip the
+// fetch instead of logging a noisy (but otherwise handled) error.
+const isBuildPhase = () => process.env.NEXT_PHASE === 'phase-production-build';
 
 interface BlogEntry {
   id: string;
@@ -15,6 +18,7 @@ interface BlogEntry {
 }
 
 async function getPublicPosts(): Promise<BlogEntry[]> {
+  if (isBuildPhase()) return [];
   try {
     const snapshot = await getFirestore()
       .collection(POSTS_COLLECTION)
@@ -25,7 +29,8 @@ async function getPublicPosts(): Promise<BlogEntry[]> {
       const data = doc.data();
       return {
         id: doc.id,
-        category: typeof data.category === 'string' ? data.category : 'all',
+        // Empty string would render /blog//{id}; treat it like missing.
+        category: typeof data.category === 'string' && data.category ? data.category : 'all',
         lastUpdated: data.lastUpdated?.toDate?.() ?? undefined,
       };
     });
@@ -36,6 +41,7 @@ async function getPublicPosts(): Promise<BlogEntry[]> {
 }
 
 async function getPublicHobbySlugs(): Promise<string[]> {
+  if (isBuildPhase()) return [];
   try {
     const snapshot = await getFirestore()
       .collection(HOBBIES_COLLECTION)
@@ -71,7 +77,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   const postRoutes: MetadataRoute.Sitemap = posts.map((post) => ({
-    url: `${SITE_URL}/blog/${encodeURIComponent(post.category)}/${post.id}`,
+    url: `${SITE_URL}/blog/${encodeURIComponent(post.category)}/${encodeURIComponent(post.id)}`,
     lastModified: post.lastUpdated,
     changeFrequency: 'monthly',
     priority: 0.7,

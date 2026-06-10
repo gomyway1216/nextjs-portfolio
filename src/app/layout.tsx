@@ -11,6 +11,7 @@ import { RouteScrollBehaviorFix } from "@/components/RouteScrollBehaviorFix";
 import { GameToolbarProvider } from "@/contexts/GameToolbarContext";
 import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
 import PageViewLogger from "@/components/PageViewLogger";
+import { SITE_URL } from "@/lib/siteConfig";
 import "../assets/scss/main.scss";
 import "./globals.css";
 // AOS CSS + initializer used to live here. Only the home page actually
@@ -39,7 +40,6 @@ const playfair = Playfair_Display({
   display: 'swap',
 });
 
-const SITE_URL = 'https://meetyudai.com';
 const SITE_NAME = 'Yudai Yaguchi';
 const SITE_TITLE = 'Yudai Yaguchi — Senior Fintech Engineer';
 const SITE_DESCRIPTION =

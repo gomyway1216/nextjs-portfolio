@@ -106,6 +106,15 @@ export const PUT = withActivityLog('next_api.settli.groups.groupId.payments.paym
       }
     }
 
+    // Reject non-finite/non-positive amounts (NaN passes a bare `<= 0`).
+    if (body.amount !== undefined &&
+        (typeof body.amount !== 'number' || !Number.isFinite(body.amount) || body.amount <= 0)) {
+      return NextResponse.json(
+        { error: 'Amount must be a finite number greater than 0' },
+        { status: 400 }
+      );
+    }
+
     const updateData: Record<string, unknown> = {
       updatedAt: getServerTimestamp(),
     };

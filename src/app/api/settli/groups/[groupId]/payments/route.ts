@@ -78,9 +78,18 @@ export const POST = withActivityLog('next_api.settli.groups.groupId.payments.POS
       );
     }
 
-    if (body.amount <= 0) {
+    // Number.isFinite rejects NaN/Infinity/strings, which `amount <= 0`
+    // silently let through (NaN <= 0 is false) and broke settlement math.
+    if (typeof body.amount !== 'number' || !Number.isFinite(body.amount) || body.amount <= 0) {
       return NextResponse.json(
-        { error: 'Amount must be greater than 0' },
+        { error: 'Amount must be a finite number greater than 0' },
+        { status: 400 }
+      );
+    }
+
+    if (!Array.isArray(body.participants) || body.participants.length === 0) {
+      return NextResponse.json(
+        { error: 'participants must be a non-empty array' },
         { status: 400 }
       );
     }

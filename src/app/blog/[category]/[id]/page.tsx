@@ -75,5 +75,7 @@ export default async function BlogPost({ params }: BlogPostParams) {
     console.error('[blog] server-side post fetch failed, falling back to client:', error);
   }
 
-  return <PostPage initialPost={initialPost} />;
+  // Key by id: client-side navigation between posts reuses the component
+  // instance, and PostPage seeds its state from initialPost on mount.
+  return <PostPage key={id} initialPost={initialPost} />;
 }

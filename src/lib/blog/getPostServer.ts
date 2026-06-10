@@ -23,14 +23,17 @@ async function fetchPublicPost(id: string): Promise<DetailPost | null> {
     image: typeof data.image === 'string' ? data.image : undefined,
     translations,
     availableLanguages: availableLanguages(translations),
-    created: data.created?.toDate?.()?.toISOString() || data.created,
-    lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated,
+    created: data.created?.toDate?.()?.toISOString() || data.created || '',
+    lastUpdated: data.lastUpdated?.toDate?.()?.toISOString() || data.lastUpdated || '',
   };
 }
 
 // 5 min cache per post id; the route stays request-rendered (root layout
 // reads cookies) so this is the layer that actually saves Firestore reads.
-export const getPublicPostCached = unstable_cache(fetchPublicPost, ['blog-post-detail'], {
-  revalidate: 300,
-  tags: ['blog-posts'],
-});
+// unstable_cache already keys by arguments; the per-id tag is what makes
+// single-post on-demand revalidation possible later.
+export const getPublicPostCached = (id: string) =>
+  unstable_cache(() => fetchPublicPost(id), ['blog-post-detail', id], {
+    revalidate: 300,
+    tags: ['blog-posts', `blog-post-${id}`],
+  })();

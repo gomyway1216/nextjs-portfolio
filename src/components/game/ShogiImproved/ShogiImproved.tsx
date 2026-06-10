@@ -5,6 +5,8 @@
 'use client';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { useAuth } from '@/providers/AuthProvider';
+import * as gameSaveApi from '@/services/gameSaveService';
 import { RotateCcw } from 'lucide-react';
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { Difficulty,DifficultySelector,GameStats,GameTopBar,InfoModal } from '../common';
@@ -44,6 +46,51 @@ function convertWorkerMoveToImprovedTe(move: SerializedTeImproved): Te {
   return new Te(move.koma, move.from, move.to, move.promote, 0);
 }
 
+// Inverse of serializeForWorker — mirrors the worker's buildPosition()
+// so a restored position gets its incremental state (eval / king
+// positions / hash) recomputed via initAll().
+function deserializeKyokumen(saved: { board: number[]; hand: number[]; teban: number }): KyokumenImproved {
+  const k = new KyokumenImproved();
+  let idx = 0;
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      k.ban[(suji << 4) + dan] = saved.board[idx++] ?? 0;
+    }
+  }
+  const limit = Math.min(k.hand.length, saved.hand.length);
+  for (let i = 0; i < limit; i++) {
+    k.hand[i] = saved.hand[i] | 0;
+  }
+  k.teban = saved.teban;
+  k.initAll();
+  return k;
+}
+
+const GAME_SAVE_KEY = 'shogi-improved';
+
+interface SavedShogiGame {
+  board: number[];
+  hand: number[];
+  teban: number;
+  ply: number;
+  difficulty: Difficulty;
+}
+
+const VALID_DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
+
+function isValidSavedGame(value: unknown): value is SavedShogiGame {
+  if (!value || typeof value !== 'object') return false;
+  const save = value as Partial<SavedShogiGame>;
+  return (
+    Array.isArray(save.board) &&
+    save.board.length === 81 &&
+    Array.isArray(save.hand) &&
+    typeof save.teban === 'number' &&
+    typeof save.ply === 'number' &&
+    VALID_DIFFICULTIES.includes(save.difficulty as Difficulty)
+  );
+}
+
 interface GameState {
   kyokumen: KyokumenImproved;
   selectedPosition: Position | null;
@@ -57,12 +104,16 @@ interface GameState {
 
 const ShogiImproved = () => {
   const _lifecycle = useFeatureLifecycle('game.shogi-improved');
+  const { currentUser } = useAuth();
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [showDifficultySelect, setShowDifficultySelect] = useState<boolean>(true);
   const [showInfoModal, setShowInfoModal] = useState<boolean>(false);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
   const [showPromotionDialog, setShowPromotionDialog] = useState<boolean>(false);
   const [pendingMove, setPendingMove] = useState<Te | null>(null);
+  // Mid-game save slot (signed-in users only).
+  const [savedGame, setSavedGame] = useState<SavedShogiGame | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   const workerRef = useRef<ShogiAiWorkerClient | null>(null);
   const aiRequestIdRef = useRef(0);
@@ -389,6 +440,88 @@ const ShogiImproved = () => {
     initGame();
   };
 
+  // --- Mid-game save/resume (signed-in users only) ---
+
+  // Load the save slot once auth settles; clear it on sign-out.
+  useEffect(() => {
+    if (!currentUser) {
+      setSavedGame(null);
+      return;
+    }
+    let cancelled = false;
+    gameSaveApi
+      .getGameSave<SavedShogiGame>(GAME_SAVE_KEY)
+      .then((save) => {
+        if (!cancelled && save && isValidSavedGame(save.state)) {
+          setSavedGame(save.state);
+        }
+      })
+      .catch(() => {
+        // Save slot is a convenience — never block the game on it.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser]);
+
+  const resumeSavedGame = useCallback(() => {
+    if (!savedGame) return;
+    aiRequestIdRef.current++;
+    workerRef.current?.clearTT();
+
+    setDifficulty(savedGame.difficulty);
+    setGameState({
+      kyokumen: deserializeKyokumen(savedGame),
+      selectedPosition: null,
+      selectedCapturedIndex: -1,
+      validMoves: [],
+      gameOver: false,
+      winner: null,
+      isAIThinking: false,
+      ply: savedGame.ply,
+    });
+    setShowPromotionDialog(false);
+    setPendingMove(null);
+    setShowDifficultySelect(false);
+  }, [savedGame]);
+
+  // Saving is only offered on the player's turn so a restore never lands
+  // mid-AI-move; the saved teban is therefore always SENTE.
+  const canSaveGame =
+    !!currentUser &&
+    !showDifficultySelect &&
+    !gameState.gameOver &&
+    !gameState.isAIThinking &&
+    gameState.kyokumen.teban === SENTE &&
+    gameState.ply > 0;
+
+  const handleSaveGame = useCallback(async () => {
+    if (!currentUser || gameState.gameOver || gameState.isAIThinking || gameState.kyokumen.teban !== SENTE) {
+      return;
+    }
+    setSaveStatus('saving');
+    try {
+      const snapshot = serializeForWorker(gameState.kyokumen);
+      const save: SavedShogiGame = { ...snapshot, ply: gameState.ply, difficulty };
+      await gameSaveApi.saveGameSave(GAME_SAVE_KEY, save);
+      setSavedGame(save);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (error) {
+      console.error('[shogi] failed to save game:', error);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
+    }
+  }, [currentUser, gameState, difficulty]);
+
+  // A finished game invalidates the save slot.
+  useEffect(() => {
+    if (gameState.gameOver && currentUser && savedGame) {
+      setSavedGame(null);
+      gameSaveApi.deleteGameSave(GAME_SAVE_KEY).catch(() => {});
+    }
+  }, [gameState.gameOver, currentUser, savedGame]);
+
   // Render piece
   const renderPiece = (suji: number, dan: number) => {
     const pos = new Position(suji, dan);
@@ -434,6 +567,26 @@ const ShogiImproved = () => {
         onSelectDifficulty={setDifficulty}
         options={DIFFICULTY_OPTIONS}
         onStart={startGame}
+        extraContent={
+          currentUser && savedGame ? (
+            <button
+              onClick={resumeSavedGame}
+              style={{
+                marginTop: '16px',
+                padding: '12px 24px',
+                borderRadius: '8px',
+                border: '1px solid rgba(34, 197, 94, 0.5)',
+                background: 'rgba(34, 197, 94, 0.15)',
+                color: '#4ade80',
+                fontSize: '15px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              ▶ Resume saved game (move {savedGame.ply}, {savedGame.difficulty})
+            </button>
+          ) : null
+        }
       />
     );
   }
@@ -446,6 +599,26 @@ const ShogiImproved = () => {
         additionalContent={
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {gameState.isAIThinking && <span style={{ color: '#ffd700' }}>AI Thinking...</span>}
+            {currentUser && (
+              <button
+                onClick={handleSaveGame}
+                disabled={!canSaveGame || saveStatus === 'saving'}
+                title={canSaveGame ? 'Save and continue later' : 'Saving is available on your turn'}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(74, 222, 128, 0.5)',
+                  background: saveStatus === 'saved' ? 'rgba(34, 197, 94, 0.35)' : 'rgba(34, 197, 94, 0.12)',
+                  color: saveStatus === 'error' ? '#f87171' : '#4ade80',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: canSaveGame ? 'pointer' : 'not-allowed',
+                  opacity: canSaveGame || saveStatus !== 'idle' ? 1 : 0.45,
+                }}
+              >
+                {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved ✓' : saveStatus === 'error' ? 'Save failed' : 'Save game'}
+              </button>
+            )}
           </div>
         }
       />

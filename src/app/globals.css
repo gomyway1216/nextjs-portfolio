@@ -115,11 +115,3 @@ body {
 button[data-slot="select-trigger"] {
   border-radius: var(--radius-md, 0.375rem);
 }
-
-/* Selected Work (/work) case-study cards. The card markup sets a
-   transition inline; the hover state can't be expressed in React inline
-   styles, so the actual hover treatment lives here. */
-.case-study-card:hover {
-  border-color: color-mix(in srgb, var(--primary) 36%, var(--border)) !important;
-  transform: translateY(-2px);
-}

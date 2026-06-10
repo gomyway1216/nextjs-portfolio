@@ -10,7 +10,6 @@ import { useActiveSection } from '@/hooks/useActiveSection';
 import { useAuth } from '@/providers/AuthProvider';
 import {
 BookOpenText,
-BriefcaseBusiness,
 FileText,
 Gamepad2,
 House,
@@ -22,7 +21,7 @@ UserRound,
 Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname,useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tooltip } from 'react-tooltip';
@@ -30,18 +29,12 @@ import { Tooltip } from 'react-tooltip';
 // Section IDs the home-page nav scroll-spies on, in document order.
 // The first one whose top crosses into the viewport's top band gets
 // the `active` class.
-// 'work' is intentionally not in this list — the work nav item now
-// links to the standalone /work route (case studies), not the home
-// Portfolio anchor.
 const SECTION_IDS = ['home', 'impact', 'resume', 'tools', 'study', 'games', 'blog', 'about'] as const;
 
 const Header = () => {
   const [click, setClick] = useState<boolean>(false);
-  const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const handleClick = () => setClick(!click);
-  const _toggleDropdown = () => setShowDropdown(!showDropdown);
   const router = useRouter();
-  const pathname = usePathname();
   const { currentUser, signOut } = useAuth();
   const { t, i18n } = useTranslation();
   const activeSection = useActiveSection(SECTION_IDS);
@@ -145,17 +138,6 @@ const Header = () => {
                 onClick={handleClick}
               >
                 <FileText size={20} />
-              </Link>
-            </li>
-            <li className={pathname && (pathname === '/work' || pathname.startsWith('/work/')) ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/work"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.work')}
-                onClick={handleClick}
-              >
-                <BriefcaseBusiness size={20} />
               </Link>
             </li>
             <li className={activeSection === 'tools' ? 'active' : ''}>

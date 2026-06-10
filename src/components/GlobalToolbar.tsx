@@ -8,7 +8,6 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
 import {
   BookOpenText,
-  BriefcaseBusiness,
   Gamepad2,
   Home,
   LogIn,
@@ -117,14 +116,6 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
     },
   },
   {
-    prefix: '/work',
-    theme: {
-      ...TOOLBAR_THEME_BASE,
-      accent: '#2563eb',
-      avatarText: '#2563eb',
-    },
-  },
-  {
     prefix: '/blog',
     theme: {
       ...TOOLBAR_THEME_BASE,
@@ -141,7 +132,6 @@ const DEFAULT_THEME: ThemeConfig = {
 };
 
 const PRIMARY_NAV_ITEMS = [
-  { href: '/work', prefix: '/work', labelKey: 'home.nav.work', Icon: BriefcaseBusiness },
   { href: '/#tools', prefix: '/tools', labelKey: 'home.nav.tools', Icon: Wrench },
   { href: '/games', prefix: '/games', labelKey: 'home.nav.games', Icon: Gamepad2 },
   { href: '/study', prefix: '/study', labelKey: 'home.nav.study', Icon: BookOpenText },

@@ -785,7 +785,6 @@
     "nav": {
       "home": "Home",
       "impact": "Impact",
-      "work": "Work",
       "tools": "Tools",
       "games": "Games",
       "blog": "Blog",
@@ -807,7 +806,6 @@
       },
       "cta": {
         "downloadCv": "Download CV",
-        "viewProjects": "View Projects",
         "exploreTools": "Explore Tools"
       },
       "stats": {

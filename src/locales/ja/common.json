@@ -65,6 +65,19 @@
     "backToPortfolio": "ポートフォリオに戻る"
   },
   "blogPage": {
+    "index": {
+      "kicker": "ブログ",
+      "allTitle": "すべての記事",
+      "subtitle": "プロダクト開発、フィンテックシステム、学び、意思決定の背景をまとめています。",
+      "emptyTitle": "公開中の記事はまだありません",
+      "emptyText": "別のカテゴリを選ぶか、次回更新後にまた確認してください。",
+      "loading": "記事を読み込み中",
+      "categories": {
+        "all": "すべての記事",
+        "technology": "Technology",
+        "life": "Life"
+      }
+    },
     "post": {
       "loading": "記事を読み込み中",
       "notFoundTitle": "記事が見つかりません",
@@ -875,7 +888,8 @@
       },
       "blog": {
         "title": "最新ブログ",
-        "subtitle": "開発で得た知見や学びを、技術メモとして公開しています。"
+        "subtitle": "開発で得た知見や学びを、技術メモとして公開しています。",
+        "viewAll": "すべての記事を見る"
       }
     },
     "study": {

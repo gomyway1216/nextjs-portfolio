@@ -65,6 +65,19 @@
     "backToPortfolio": "Back to Portfolio"
   },
   "blogPage": {
+    "index": {
+      "kicker": "Blog",
+      "allTitle": "All Writing",
+      "subtitle": "Notes on product engineering, fintech systems, learning, and the decisions behind the work.",
+      "emptyTitle": "No public posts yet",
+      "emptyText": "Try another category or come back after the next update.",
+      "loading": "Loading posts",
+      "categories": {
+        "all": "All Writing",
+        "technology": "Technology",
+        "life": "Life"
+      }
+    },
     "post": {
       "loading": "Loading post",
       "notFoundTitle": "Post not found",
@@ -875,7 +888,8 @@
       },
       "blog": {
         "title": "Latest Blog",
-        "subtitle": "Notes on engineering, lessons learned, and ideas explored in public."
+        "subtitle": "Notes on engineering, lessons learned, and ideas explored in public.",
+        "viewAll": "View all posts"
       }
     },
     "study": {

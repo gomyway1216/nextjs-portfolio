@@ -33,9 +33,7 @@ const SECTION_IDS = ['home', 'impact', 'resume', 'tools', 'study', 'games', 'blo
 
 const Header = () => {
   const [click, setClick] = useState<boolean>(false);
-  const [showDropdown, setShowDropdown] = useState<boolean>(false);
   const handleClick = () => setClick(!click);
-  const _toggleDropdown = () => setShowDropdown(!showDropdown);
   const router = useRouter();
   const { currentUser, signOut } = useAuth();
   const { t, i18n } = useTranslation();

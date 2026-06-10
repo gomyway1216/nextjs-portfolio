@@ -1,6 +1,7 @@
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 import { ensureAdmin } from '@/lib/auth-utils';
 import { getFirestore, getStorage } from '@/lib/firebase-admin';
+import { revalidateTag } from 'next/cache';
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'node:crypto';
 
@@ -125,6 +126,9 @@ export const POST = withActivityLog('next_api.profile.photo.POST', async (reques
     );
 
     await deleteOldProfilePhoto(previousProfileImageUrl, bucket);
+
+    // Bust the home page's cached profile so the new photo shows up immediately.
+    revalidateTag('profile', 'max');
 
     return NextResponse.json(
       { downloadURL, message: 'Profile photo uploaded successfully' },

@@ -2,14 +2,13 @@
 // stylesheet live here instead of the root layout. Every other route
 // (games, blog, tools, …) skips the AOS payload entirely.
 import 'aos/dist/aos.css';
+import { unstable_cache } from 'next/cache';
 import AOSInitializer from './AOSInitializer';
 import HomeLightAnimation from '@/views/all-home-version/HomeLightAnimation';
 import { getFirestore } from '@/lib/firebase-admin';
 import type { Profile } from '@/hooks/useProfile';
 
 const PROFILE_DOC_ID = 'main';
-
-export const dynamic = 'force-dynamic';
 
 async function getInitialProfile(): Promise<Profile | null> {
   try {
@@ -33,8 +32,16 @@ async function getInitialProfile(): Promise<Profile | null> {
   }
 }
 
+// The route itself is request-rendered (the root layout reads cookies for
+// locale detection), so cache the Firestore read instead: profile changes
+// rarely, and the profile PUT/photo routes bust the tag on save.
+const getInitialProfileCached = unstable_cache(getInitialProfile, ['home-profile'], {
+  revalidate: 3600,
+  tags: ['profile'],
+});
+
 export default async function Home() {
-  const initialProfile = await getInitialProfile();
+  const initialProfile = await getInitialProfileCached();
 
   return (
     <>

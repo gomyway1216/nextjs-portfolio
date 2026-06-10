@@ -12,6 +12,7 @@ import { GameToolbarProvider } from "@/contexts/GameToolbarContext";
 import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
 import PageViewLogger from "@/components/PageViewLogger";
 import { SITE_URL } from "@/lib/siteConfig";
+import { DEFAULT_SOCIAL_LINKS } from "@/lib/socialLinks";
 import "../assets/scss/main.scss";
 import "./globals.css";
 // AOS CSS + initializer used to live here. Only the home page actually
@@ -102,10 +103,9 @@ const personJsonLd = {
     '@type': 'Organization',
     name: 'Atlas',
   },
-  sameAs: [
-    'https://www.linkedin.com/in/yudai-yaguchi/',
-    'https://github.com/gomyway1216',
-  ],
+  // Static fallback links on purpose: the layout renders without a
+  // profile fetch. Kept in sync via the shared DEFAULT_SOCIAL_LINKS.
+  sameAs: DEFAULT_SOCIAL_LINKS.map((link) => link.url),
   description: SITE_DESCRIPTION,
 };
 

@@ -3,6 +3,7 @@
 import { useCallback, useState, useEffect } from 'react';
 import * as api from '@/services/profileService';
 import { auth } from '@/lib/firebaseConnect';
+import type { ProfileSocialLink } from '@/lib/socialLinks';
 
 export interface Profile {
   id: string;
@@ -13,6 +14,7 @@ export interface Profile {
   bioEn?: string;
   bioJa?: string;
   profileImageUrl?: string;
+  socialLinks?: ProfileSocialLink[];
 }
 
 let profileCache: Profile | null = null;

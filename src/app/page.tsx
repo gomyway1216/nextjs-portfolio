@@ -10,26 +10,23 @@ import type { Profile } from '@/hooks/useProfile';
 
 const PROFILE_DOC_ID = 'main';
 
+// Throws on Firestore failure so unstable_cache never caches an outage —
+// the caller catches and renders with null instead.
 async function getInitialProfile(): Promise<Profile | null> {
-  try {
-    const doc = await getFirestore().collection('profile').doc(PROFILE_DOC_ID).get();
-    if (!doc.exists) return null;
+  const doc = await getFirestore().collection('profile').doc(PROFILE_DOC_ID).get();
+  if (!doc.exists) return null;
 
-    const data = doc.data() ?? {};
-    return {
-      id: doc.id,
-      birthdate: typeof data.birthdate === 'string' ? data.birthdate : '1998-06-15',
-      location: typeof data.location === 'string' ? data.location : 'San Francisco, Remote',
-      email: typeof data.email === 'string' ? data.email : 'uwyudai@gmail.com',
-      languages: Array.isArray(data.languages) ? data.languages.filter((language): language is string => typeof language === 'string') : ['English', 'Japanese'],
-      bioEn: typeof data.bioEn === 'string' ? data.bioEn : undefined,
-      bioJa: typeof data.bioJa === 'string' ? data.bioJa : undefined,
-      profileImageUrl: typeof data.profileImageUrl === 'string' ? data.profileImageUrl : undefined,
-    };
-  } catch (error) {
-    console.error('[Home] Failed to load initial profile:', error);
-    return null;
-  }
+  const data = doc.data() ?? {};
+  return {
+    id: doc.id,
+    birthdate: typeof data.birthdate === 'string' ? data.birthdate : '1998-06-15',
+    location: typeof data.location === 'string' ? data.location : 'San Francisco, Remote',
+    email: typeof data.email === 'string' ? data.email : 'uwyudai@gmail.com',
+    languages: Array.isArray(data.languages) ? data.languages.filter((language): language is string => typeof language === 'string') : ['English', 'Japanese'],
+    bioEn: typeof data.bioEn === 'string' ? data.bioEn : undefined,
+    bioJa: typeof data.bioJa === 'string' ? data.bioJa : undefined,
+    profileImageUrl: typeof data.profileImageUrl === 'string' ? data.profileImageUrl : undefined,
+  };
 }
 
 // The route itself is request-rendered (the root layout reads cookies for
@@ -41,7 +38,14 @@ const getInitialProfileCached = unstable_cache(getInitialProfile, ['home-profile
 });
 
 export default async function Home() {
-  const initialProfile = await getInitialProfileCached();
+  let initialProfile: Profile | null = null;
+  try {
+    initialProfile = await getInitialProfileCached();
+  } catch (error) {
+    // Render with the client-side fallback; the failure is not cached,
+    // so the next request retries Firestore.
+    console.error('[Home] Failed to load initial profile:', error);
+  }
 
   return (
     <>

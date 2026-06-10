@@ -7,8 +7,17 @@ import AOSInitializer from './AOSInitializer';
 import HomeLightAnimation from '@/views/all-home-version/HomeLightAnimation';
 import { getFirestore } from '@/lib/firebase-admin';
 import type { Profile } from '@/hooks/useProfile';
+import { isValidSocialLink, type ProfileSocialLink } from '@/lib/socialLinks';
 
 const PROFILE_DOC_ID = 'main';
+
+// Missing/malformed field → undefined (resolveSocialLinks falls back to
+// defaults); a real array is kept even when it filters to empty, so an
+// explicitly cleared list hides the links.
+function parseSocialLinks(value: unknown): ProfileSocialLink[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter(isValidSocialLink);
+}
 
 // Throws on Firestore failure so unstable_cache never caches an outage —
 // the caller catches and renders with null instead.
@@ -26,6 +35,7 @@ async function getInitialProfile(): Promise<Profile | null> {
     bioEn: typeof data.bioEn === 'string' ? data.bioEn : undefined,
     bioJa: typeof data.bioJa === 'string' ? data.bioJa : undefined,
     profileImageUrl: typeof data.profileImageUrl === 'string' ? data.profileImageUrl : undefined,
+    socialLinks: parseSocialLinks(data.socialLinks),
   };
 }
 

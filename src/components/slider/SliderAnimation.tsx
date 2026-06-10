@@ -12,9 +12,8 @@ import { useTranslation } from 'react-i18next';
 const DEFAULT_HERO_IMAGE_URL =
   'https://firebasestorage.googleapis.com/v0/b/yudai-portfolio.appspot.com/o/profile_image2.jpg?alt=media&token=24f54f49-e8cc-4c70-a52a-0edb97e456f0';
 
-const conctInfo = {
-  email: 'uwyudai@gmail.com',
-};
+// Shown until the profile loads; the profile's email wins once present.
+const FALLBACK_CONTACT_EMAIL = 'uwyudai@gmail.com';
 
 interface SliderProps {
   initialProfile?: Profile | null;
@@ -25,6 +24,7 @@ const Slider = ({ initialProfile }: SliderProps) => {
   const [mounted, setMounted] = useState(false);
   const { profile, loading: profileLoading } = useProfile(initialProfile);
   const prefersReducedMotion = usePrefersReducedMotion();
+  const contactEmail = profile?.email || FALLBACK_CONTACT_EMAIL;
   const { t } = useTranslation();
   const heroImageUrl = isSupportedProfileImageUrl(profile?.profileImageUrl)
     ? profile.profileImageUrl
@@ -67,8 +67,8 @@ const Slider = ({ initialProfile }: SliderProps) => {
       <section id="home" className="home-banner modern-hero">
         <div className="hb-top-fixed d-flex">
           <div className="hb-info">
-            <a href="mailto:uwyudai@gmail.com">
-              {conctInfo.email}
+            <a href={`mailto:${contactEmail}`}>
+              {contactEmail}
             </a>
           </div>
           {/* <div className="hb-lang">

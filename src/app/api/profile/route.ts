@@ -5,6 +5,7 @@ import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 import { ensureAdmin } from '@/lib/auth-utils';
 import { normalizeProfileImageUrl } from '@/lib/profileImage';
+import { isSocialPlatform, type ProfileSocialLink } from '@/lib/socialLinks';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 const PROFILE_DOC_ID = 'main'; // Single document for the main profile
@@ -73,7 +74,7 @@ export const PUT = withActivityLog('next_api.profile.PUT', async (request: NextR
 
   try {
     const body = await request.json();
-    const { birthdate, location, email, languages, bioEn, bioJa, profileImageUrl } = body;
+    const { birthdate, location, email, languages, bioEn, bioJa, profileImageUrl, socialLinks } = body;
     let normalizedProfileImageUrl: string | undefined;
 
     try {
@@ -83,6 +84,35 @@ export const PUT = withActivityLog('next_api.profile.PUT', async (request: NextR
         { error: error instanceof Error ? error.message : 'Invalid profile image URL' },
         { status: 400 }
       );
+    }
+
+    let normalizedSocialLinks: ProfileSocialLink[] | undefined;
+    if (socialLinks !== undefined) {
+      if (!Array.isArray(socialLinks)) {
+        return NextResponse.json(
+          { error: 'socialLinks must be an array of { platform, url }' },
+          { status: 400 }
+        );
+      }
+      for (const link of socialLinks) {
+        const platform = (link as { platform?: unknown })?.platform;
+        const url = (link as { url?: unknown })?.url;
+        if (
+          !isSocialPlatform(platform) ||
+          typeof url !== 'string' ||
+          !url.startsWith('https://') ||
+          url.length > 300
+        ) {
+          return NextResponse.json(
+            { error: 'Each social link needs a known platform and an https URL (max 300 chars)' },
+            { status: 400 }
+          );
+        }
+      }
+      normalizedSocialLinks = (socialLinks as ProfileSocialLink[]).map(({ platform, url }) => ({
+        platform,
+        url,
+      }));
     }
 
     const db = getFirestore();
@@ -96,6 +126,7 @@ export const PUT = withActivityLog('next_api.profile.PUT', async (request: NextR
     if (bioEn !== undefined) updateData.bioEn = bioEn;
     if (bioJa !== undefined) updateData.bioJa = bioJa;
     if (normalizedProfileImageUrl !== undefined) updateData.profileImageUrl = normalizedProfileImageUrl;
+    if (normalizedSocialLinks !== undefined) updateData.socialLinks = normalizedSocialLinks;
 
     await docRef.set(updateData, { merge: true });
 

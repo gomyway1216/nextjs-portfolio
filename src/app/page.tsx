@@ -7,8 +7,21 @@ import AOSInitializer from './AOSInitializer';
 import HomeLightAnimation from '@/views/all-home-version/HomeLightAnimation';
 import { getFirestore } from '@/lib/firebase-admin';
 import type { Profile } from '@/hooks/useProfile';
+import { isSocialPlatform, type ProfileSocialLink } from '@/lib/socialLinks';
 
 const PROFILE_DOC_ID = 'main';
+
+function parseSocialLinks(value: unknown): ProfileSocialLink[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const links = value.filter(
+    (link): link is ProfileSocialLink =>
+      !!link &&
+      typeof link === 'object' &&
+      isSocialPlatform((link as { platform?: unknown }).platform) &&
+      typeof (link as { url?: unknown }).url === 'string',
+  );
+  return links.length > 0 ? links : undefined;
+}
 
 // Throws on Firestore failure so unstable_cache never caches an outage —
 // the caller catches and renders with null instead.
@@ -26,6 +39,7 @@ async function getInitialProfile(): Promise<Profile | null> {
     bioEn: typeof data.bioEn === 'string' ? data.bioEn : undefined,
     bioJa: typeof data.bioJa === 'string' ? data.bioJa : undefined,
     profileImageUrl: typeof data.profileImageUrl === 'string' ? data.profileImageUrl : undefined,
+    socialLinks: parseSocialLinks(data.socialLinks),
   };
 }
 

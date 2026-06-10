@@ -35,7 +35,7 @@ const Header = () => {
   const [click, setClick] = useState<boolean>(false);
   const handleClick = () => setClick(!click);
   const router = useRouter();
-  const { currentUser, signOut } = useAuth();
+  const { currentUser, isAdmin, signOut } = useAuth();
   const { t, i18n } = useTranslation();
   const activeSection = useActiveSection(SECTION_IDS);
 
@@ -195,17 +195,19 @@ const Header = () => {
                 <UserRound size={20} />
               </Link>
             </li>
-            <li>
-              <Link
-                className="nav-link"
-                href="/hobbies"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.hobbies')}
-                onClick={handleClick}
-              >
-                <Palette size={20} />
-              </Link>
-            </li>
+            {isAdmin && (
+              <li>
+                <Link
+                  className="nav-link"
+                  href="/hobbies"
+                  data-tooltip-id="left-menu-tooltip"
+                  data-tooltip-content={t('home.nav.hobbies')}
+                  onClick={handleClick}
+                >
+                  <Palette size={20} />
+                </Link>
+              </li>
+            )}
             {currentUser && (
               <li>
                 <DropdownMenu>

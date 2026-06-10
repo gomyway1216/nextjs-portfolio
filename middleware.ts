@@ -14,6 +14,7 @@ const AUTH_REQUIRED_PATTERNS = [
 
 const ADMIN_ROUTES = [
   '/admin',
+  '/hobbies',
 ];
 
 function isAuthRequired(pathname: string): boolean {

@@ -4,7 +4,7 @@ import * as util from '@/lib/utils/util';
 import { useAuth } from '@/providers/AuthProvider';
 import type { Project,TechnologyData,UrlData } from '@/services/projectsService';
 import * as Dialog from '@radix-ui/react-dialog';
-import DOMPurify from 'dompurify';
+import { sanitizeRichHtml } from '@/lib/sanitizeHtml';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
@@ -30,13 +30,10 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
   const { currentUser } = useAuth();
   const router = useRouter();
 
-  const purifiedDescription = useMemo(() => {
-    if (typeof window === 'undefined') return '';
-    return DOMPurify.sanitize(project.description, {
-      ADD_TAGS: ['iframe'],
-      ADD_ATTR: ['allow', 'allowfullscreen', 'frameborder', 'scrolling']
-    });
-  }, [project.description]);
+  const purifiedDescription = useMemo(
+    () => sanitizeRichHtml(project.description),
+    [project.description],
+  );
 
   const _closeModal = () => {
     setIsOpen(false);

@@ -13,6 +13,7 @@ import {
   CreditCard,
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { games } from '@/components/game/constants/games';
 import {
   GameLanguageProvider,
@@ -22,6 +23,7 @@ import './games-carousel.scss';
 
 function GamesSlideshowContent() {
   const { t } = useTranslation();
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: false,
@@ -38,14 +40,58 @@ function GamesSlideshowContent() {
   }, [emblaApi]);
 
   useEffect(() => {
-    if (emblaApi) {
-      const interval = setInterval(() => {
-        emblaApi.scrollNext();
-      }, 5000);
+    if (!emblaApi || prefersReducedMotion) return;
 
-      return () => clearInterval(interval);
+    // Auto-advance only while the carousel is actually on screen — the
+    // interval otherwise keeps triggering slide layout work while the
+    // user scrolls elsewhere on the page.
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const advance = () => {
+      // loop is false, so wrap back to the first slide manually instead
+      // of letting scrollNext() no-op forever at the end.
+      if (emblaApi.canScrollNext()) {
+        emblaApi.scrollNext();
+      } else {
+        emblaApi.scrollTo(0);
+      }
+    };
+
+    const start = () => {
+      if (!interval) {
+        interval = setInterval(advance, 5000);
+      }
+    };
+
+    const stop = () => {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    // JSDOM and very old browsers lack IntersectionObserver — fall back
+    // to the previous always-on behavior rather than crashing.
+    if (typeof IntersectionObserver === 'undefined') {
+      start();
+      return stop;
     }
-  }, [emblaApi]);
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) {
+        start();
+      } else {
+        stop();
+      }
+    });
+
+    observer.observe(emblaApi.rootNode());
+
+    return () => {
+      observer.disconnect();
+      stop();
+    };
+  }, [emblaApi, prefersReducedMotion]);
 
   const getDifficultyClass = (difficulty: string) => {
     switch (difficulty) {

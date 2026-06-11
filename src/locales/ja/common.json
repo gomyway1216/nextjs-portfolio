@@ -161,15 +161,15 @@
         "flashcards": "フラッシュカード",
         "dueForReview": "復習待ち",
         "currentStreak": "現在の連続記録",
-        "days": "{{count}}日"
+        "days_other": "{{count}}日"
       },
       "quickActions": {
         "todaysPlan": "今日のプラン",
         "todaysPlanDesc": "AIが生成する毎日の学習",
         "startReview": "復習セッションを開始",
-        "startReviewDesc": "復習待ちのアイテム {{count}}件",
+        "startReviewDesc_other": "復習待ちのアイテム {{count}}件",
         "browseDictionary": "辞書を閲覧",
-        "browseDictionaryDesc": "登録済みの用語 {{count}}件",
+        "browseDictionaryDesc_other": "登録済みの用語 {{count}}件",
         "flashcardDecks": "フラッシュカードデッキ",
         "flashcardDecksDesc": "間隔反復で学習",
         "learningPaths": "学習パス",

@@ -388,6 +388,22 @@ export default function StudyListPage() {
     </>
   );
 
+  // Empty-state copy by current status filter (and, for the default
+  // view, whether any filter/search is active). Pulled out of the JSX so
+  // the nested ternaries don't live inside the markup.
+  const hasActiveFilters = !!(searchQuery || selectedCategory || selectedDifficulty || selectedLanguage);
+  const emptyState =
+    statusFilter === 'unread'
+      ? { title: t('study.hub.emptyState.allCaughtUp'), text: t('study.hub.emptyState.allCaughtUpText') }
+      : statusFilter === 'read'
+        ? { title: t('study.hub.emptyState.noReadArticles'), text: t('study.hub.emptyState.noReadArticlesText') }
+        : {
+            title: t('study.hub.emptyState.noArticlesFound'),
+            text: hasActiveFilters
+              ? t('study.hub.emptyState.tryAdjustingFilters')
+              : t('study.hub.emptyState.noArticlesYet'),
+          };
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -851,16 +867,10 @@ export default function StudyListPage() {
           }}>
             <BookOpen size={48} color="#d1d5db" style={{ marginBottom: '16px' }} />
             <h3 style={{ color: 'var(--foreground)', fontSize: '18px', marginBottom: '8px' }}>
-              {statusFilter === 'unread' ? t('study.hub.emptyState.allCaughtUp') : statusFilter === 'read' ? t('study.hub.emptyState.noReadArticles') : t('study.hub.emptyState.noArticlesFound')}
+              {emptyState.title}
             </h3>
             <p style={{ color: 'var(--muted-foreground)', fontSize: '14px' }}>
-              {statusFilter === 'unread'
-                ? t('study.hub.emptyState.allCaughtUpText')
-                : statusFilter === 'read'
-                  ? t('study.hub.emptyState.noReadArticlesText')
-                  : searchQuery || selectedCategory || selectedDifficulty || selectedLanguage
-                    ? t('study.hub.emptyState.tryAdjustingFilters')
-                    : t('study.hub.emptyState.noArticlesYet')}
+              {emptyState.text}
             </p>
           </div>
         ) : (

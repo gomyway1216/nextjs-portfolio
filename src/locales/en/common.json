@@ -161,15 +161,18 @@
         "flashcards": "Flashcards",
         "dueForReview": "Due for Review",
         "currentStreak": "Current Streak",
-        "days": "{{count}} days"
+        "days_one": "{{count}} day",
+        "days_other": "{{count}} days"
       },
       "quickActions": {
         "todaysPlan": "Today's Plan",
         "todaysPlanDesc": "AI-generated daily learning",
         "startReview": "Start Review Session",
-        "startReviewDesc": "{{count}} items due for review",
+        "startReviewDesc_one": "{{count}} item due for review",
+        "startReviewDesc_other": "{{count}} items due for review",
         "browseDictionary": "Browse Dictionary",
-        "browseDictionaryDesc": "{{count}} terms defined",
+        "browseDictionaryDesc_one": "{{count}} term defined",
+        "browseDictionaryDesc_other": "{{count}} terms defined",
         "flashcardDecks": "Flashcard Decks",
         "flashcardDecksDesc": "Study with spaced repetition",
         "learningPaths": "Learning Paths",

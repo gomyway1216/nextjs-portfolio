@@ -10,6 +10,7 @@ interface ParsedResumeDate {
 }
 
 const PRESENT_VALUES = new Set(['present', 'current', 'now']);
+const UNSAFE_PATH_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
 const JOB_TYPE_TRANSLATION_KEYS: Record<string, string> = {
   'full-time': 'home.resume.jobType.fullTime',
@@ -27,6 +28,7 @@ const getNestedValue = (obj: Record<string, unknown>, path: string) => {
   const keys = path.split('.');
   let current: unknown = obj;
   for (const key of keys) {
+    if (UNSAFE_PATH_KEYS.has(key)) return undefined;
     if (!current || typeof current !== 'object') return undefined;
     current = (current as Record<string, unknown>)[key];
   }
@@ -105,15 +107,16 @@ const parseResumeDatePart = (value: string, now = new Date()): ParsedResumeDate 
   if (!trimmed) return null;
 
   if (PRESENT_VALUES.has(trimmed.toLowerCase())) {
-    return { date: now, precision: 'present' };
+    return { date: new Date(now.getFullYear(), now.getMonth(), 1), precision: 'present' };
   }
 
   if (/^\d{4}$/.test(trimmed)) {
     return { date: new Date(Number(trimmed), 0, 1), precision: 'year' };
   }
 
+  const safeReferenceDate = new Date(2000, 0, 1);
   for (const pattern of ['MMM yyyy', 'MMMM yyyy']) {
-    const parsed = parse(trimmed, pattern, now);
+    const parsed = parse(trimmed, pattern, safeReferenceDate);
     if (isValid(parsed)) {
       return { date: parsed, precision: 'month' };
     }

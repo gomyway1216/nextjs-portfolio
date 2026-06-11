@@ -71,8 +71,11 @@ export const POST = withActivityLog('next_api.settli.groups.groupId.payments.POS
     const user = await getOptionalUser(request);
     const db = getFirestore();
 
-    // Validate required fields
-    if (!body.payerId || !body.amount || !body.description || !body.splitType) {
+    // Validate required fields. `amount` is intentionally excluded from
+    // this falsy check — `!0` is true, which would mask 0 with the
+    // generic message instead of the specific finite/positive validator
+    // below.
+    if (!body.payerId || body.amount === undefined || body.amount === null || !body.description || !body.splitType) {
       return NextResponse.json(
         { error: 'Missing required fields: payerId, amount, description, splitType' },
         { status: 400 }

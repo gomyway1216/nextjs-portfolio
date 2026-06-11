@@ -30,11 +30,20 @@ export const POST = withActivityLog('next_api.kaimono.lists.listId.items.POST', 
 
     const inputItems: CreateShoppingItemInput[] = body.items || [body];
 
-    // Reject negative / non-finite prices and quantities: totalSpent is
-    // sum(price * quantity) over purchased items, so either side being
-    // NaN/Infinity/negative corrupts the budget UI.
+    if (!Array.isArray(inputItems) || inputItems.length === 0) {
+      return NextResponse.json({ error: 'items must be a non-empty array' }, { status: 400 });
+    }
+
+    // Validate each item. totalSpent is sum(price * quantity) over
+    // purchased items, so a non-finite/negative price or quantity (or a
+    // null price, which `price?: number` doesn't allow) corrupts the
+    // budget UI. Guard the entry shape too so [null] returns 400, not a
+    // 500 from reading `.price` off null.
     for (const item of inputItems) {
-      if (item.price !== undefined && item.price !== null &&
+      if (!item || typeof item !== 'object') {
+        return NextResponse.json({ error: 'Each item must be an object' }, { status: 400 });
+      }
+      if (item.price !== undefined &&
           (typeof item.price !== 'number' || !Number.isFinite(item.price) || item.price < 0)) {
         return NextResponse.json(
           { error: 'price must be a non-negative finite number' },

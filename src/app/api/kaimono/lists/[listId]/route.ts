@@ -7,11 +7,7 @@ import {
   KAIMONO_USER_HISTORY_COLLECTION,
 } from '../../../constants';
 import type { ShoppingList, UpdateShoppingListInput } from '@/types/kaimono';
-import * as crypto from 'crypto';
-
-function simpleHash(passcode: string): string {
-  return crypto.createHash('sha256').update(passcode).digest('hex');
-}
+import { hashPasscode, isPasscodeSatisfied } from '@/app/api/_lib/sharePasscode';
 
 interface RouteParams {
   params: Promise<{ listId: string }>;
@@ -32,17 +28,12 @@ export const GET = withActivityLog('next_api.kaimono.lists.listId.GET', async (r
     const data = listDoc.data()!;
 
     // Check passcode. The proof is the passcode itself, sent on every
-    // request and hash-compared server-side — the previous
-    // `?verified=true` query param trusted the client's claim and could
-    // simply be appended to bypass the passcode entirely.
+    // request and hash-compared server-side (constant-time, fail-closed)
+    // — the previous `?verified=true` query param trusted the client's
+    // claim and could simply be appended to bypass the passcode entirely.
     const hasPasscode = data.hasPasscode || false;
     const suppliedPasscode = request.headers.get('x-share-passcode');
-    const passcodeOk =
-      !hasPasscode ||
-      !data.passcodeHash ||
-      (typeof suppliedPasscode === 'string' &&
-        suppliedPasscode.length > 0 &&
-        simpleHash(suppliedPasscode) === data.passcodeHash);
+    const passcodeOk = isPasscodeSatisfied(hasPasscode, data.passcodeHash, suppliedPasscode);
 
     if (!passcodeOk) {
       return NextResponse.json({
@@ -117,7 +108,7 @@ export const PUT = withActivityLog('next_api.kaimono.lists.listId.PUT', async (r
         updateData.passcodeHash = null;
       } else {
         updateData.hasPasscode = true;
-        updateData.passcodeHash = simpleHash(body.passcode);
+        updateData.passcodeHash = hashPasscode(body.passcode);
       }
     }
 

@@ -54,6 +54,9 @@ export function useKaimonoList(listId: string | null): UseKaimonoListResult {
       const passcodeData = data as ShoppingList | PasscodeRequiredList;
       if ('requiresPasscode' in passcodeData && passcodeData.requiresPasscode) {
         setRequiresPasscode(true);
+        // Drop a passcode the server just rejected so we stop resending a
+        // known-bad secret on every refetch.
+        if (knownPasscode) setKnownPasscode(null);
         setList({ id: passcodeData.id, name: passcodeData.name, hasPasscode: true } as ShoppingList);
       } else {
         setRequiresPasscode(false);
@@ -72,10 +75,10 @@ export function useKaimonoList(listId: string | null): UseKaimonoListResult {
     try {
       const result = await kaimonoService.verifyPasscode(listId, passcode);
       if (result.verified) {
-        setKnownPasscode(passcode);
+        // Just store the passcode; the fetchList effect (keyed on
+        // knownPasscode) re-fetches with it — no duplicate request here.
         setRequiresPasscode(false);
-        const data = await kaimonoService.getList(listId, passcode);
-        setList(data);
+        setKnownPasscode(passcode);
         return true;
       }
       return false;

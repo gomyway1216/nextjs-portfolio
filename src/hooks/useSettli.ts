@@ -58,6 +58,9 @@ export function useSettliGroup(groupId: string | null): UseSettliGroupResult {
       const passcodeData = data as SettliGroup | PasscodeRequiredGroup;
       if ('requiresPasscode' in passcodeData && passcodeData.requiresPasscode) {
         setRequiresPasscode(true);
+        // Drop a passcode the server just rejected so we stop resending a
+        // known-bad secret on every refetch.
+        if (knownPasscode) setKnownPasscode(null);
         setGroup({
           id: passcodeData.id,
           name: passcodeData.name,
@@ -81,11 +84,10 @@ export function useSettliGroup(groupId: string | null): UseSettliGroupResult {
     try {
       const result = await settliService.verifyPasscode(groupId, passcode);
       if (result.verified) {
-        setKnownPasscode(passcode);
+        // Just store the passcode; the fetchGroup effect (keyed on
+        // knownPasscode) re-fetches with it — no duplicate request here.
         setRequiresPasscode(false);
-        // Refetch, proving the passcode to the server
-        const data = await settliService.getGroup(groupId, passcode);
-        setGroup(data);
+        setKnownPasscode(passcode);
         return true;
       }
       return false;

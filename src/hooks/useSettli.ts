@@ -38,7 +38,9 @@ export function useSettliGroup(groupId: string | null): UseSettliGroupResult {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [requiresPasscode, setRequiresPasscode] = useState(false);
-  const [verified, setVerified] = useState(false);
+  // The verified passcode itself is the access proof the server checks
+  // on every fetch (a boolean claim was bypassable).
+  const [knownPasscode, setKnownPasscode] = useState<string | null>(null);
 
   const fetchGroup = useCallback(async () => {
     if (!groupId) {
@@ -50,7 +52,7 @@ export function useSettliGroup(groupId: string | null): UseSettliGroupResult {
     setError(null);
 
     try {
-      const data = await settliService.getGroup(groupId, verified);
+      const data = await settliService.getGroup(groupId, knownPasscode);
 
       // Check if passcode verification is required
       const passcodeData = data as SettliGroup | PasscodeRequiredGroup;
@@ -71,7 +73,7 @@ export function useSettliGroup(groupId: string | null): UseSettliGroupResult {
     } finally {
       setLoading(false);
     }
-  }, [groupId, verified]);
+  }, [groupId, knownPasscode]);
 
   const handleVerifyPasscode = useCallback(async (passcode: string): Promise<boolean> => {
     if (!groupId) return false;
@@ -79,10 +81,10 @@ export function useSettliGroup(groupId: string | null): UseSettliGroupResult {
     try {
       const result = await settliService.verifyPasscode(groupId, passcode);
       if (result.verified) {
-        setVerified(true);
+        setKnownPasscode(passcode);
         setRequiresPasscode(false);
-        // Refetch with verified flag
-        const data = await settliService.getGroup(groupId, true);
+        // Refetch, proving the passcode to the server
+        const data = await settliService.getGroup(groupId, passcode);
         setGroup(data);
         return true;
       }

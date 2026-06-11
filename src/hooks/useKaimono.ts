@@ -38,7 +38,9 @@ export function useKaimonoList(listId: string | null): UseKaimonoListResult {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [requiresPasscode, setRequiresPasscode] = useState(false);
-  const [verified, setVerified] = useState(false);
+  // The verified passcode itself is the access proof the server checks
+  // on every fetch (a boolean claim was bypassable).
+  const [knownPasscode, setKnownPasscode] = useState<string | null>(null);
 
   const fetchList = useCallback(async () => {
     if (!listId) {
@@ -48,7 +50,7 @@ export function useKaimonoList(listId: string | null): UseKaimonoListResult {
     setLoading(true);
     setError(null);
     try {
-      const data = await kaimonoService.getList(listId, verified);
+      const data = await kaimonoService.getList(listId, knownPasscode);
       const passcodeData = data as ShoppingList | PasscodeRequiredList;
       if ('requiresPasscode' in passcodeData && passcodeData.requiresPasscode) {
         setRequiresPasscode(true);
@@ -63,16 +65,16 @@ export function useKaimonoList(listId: string | null): UseKaimonoListResult {
     } finally {
       setLoading(false);
     }
-  }, [listId, verified]);
+  }, [listId, knownPasscode]);
 
   const handleVerifyPasscode = useCallback(async (passcode: string): Promise<boolean> => {
     if (!listId) return false;
     try {
       const result = await kaimonoService.verifyPasscode(listId, passcode);
       if (result.verified) {
-        setVerified(true);
+        setKnownPasscode(passcode);
         setRequiresPasscode(false);
-        const data = await kaimonoService.getList(listId, true);
+        const data = await kaimonoService.getList(listId, passcode);
         setList(data);
         return true;
       }

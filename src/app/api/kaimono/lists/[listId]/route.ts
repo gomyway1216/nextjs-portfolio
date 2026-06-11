@@ -31,12 +31,20 @@ export const GET = withActivityLog('next_api.kaimono.lists.listId.GET', async (r
 
     const data = listDoc.data()!;
 
-    // Check passcode
+    // Check passcode. The proof is the passcode itself, sent on every
+    // request and hash-compared server-side — the previous
+    // `?verified=true` query param trusted the client's claim and could
+    // simply be appended to bypass the passcode entirely.
     const hasPasscode = data.hasPasscode || false;
-    const { searchParams } = new URL(request.url);
-    const verified = searchParams.get('verified') === 'true';
+    const suppliedPasscode = request.headers.get('x-share-passcode');
+    const passcodeOk =
+      !hasPasscode ||
+      !data.passcodeHash ||
+      (typeof suppliedPasscode === 'string' &&
+        suppliedPasscode.length > 0 &&
+        simpleHash(suppliedPasscode) === data.passcodeHash);
 
-    if (hasPasscode && !verified) {
+    if (!passcodeOk) {
       return NextResponse.json({
         id: listDoc.id,
         name: data.name,

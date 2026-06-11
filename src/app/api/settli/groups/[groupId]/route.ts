@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import * as crypto from 'crypto';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { getOptionalUser } from '@/lib/auth-utils';
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
@@ -38,13 +39,21 @@ export const GET = withActivityLog(
 
       const data = groupDoc.data()!;
 
-      // Check if passcode verification is needed
+      // Check passcode. The proof is the passcode itself, sent on every
+      // request and hash-compared server-side — the previous
+      // `?verified=true` query param trusted the client's claim and
+      // could simply be appended to bypass the passcode entirely.
       const hasPasscode = data.hasPasscode || false;
-      const { searchParams } = new URL(request.url);
-      const verified = searchParams.get('verified') === 'true';
+      const suppliedPasscode = request.headers.get('x-share-passcode');
+      const passcodeOk =
+        !hasPasscode ||
+        !data.passcodeHash ||
+        (typeof suppliedPasscode === 'string' &&
+          suppliedPasscode.length > 0 &&
+          crypto.createHash('sha256').update(suppliedPasscode).digest('hex') === data.passcodeHash);
 
-      // If passcode is set and not verified, return limited info
-      if (hasPasscode && !verified) {
+      // If passcode is set and not proven, return limited info
+      if (!passcodeOk) {
         return NextResponse.json({
           id: groupDoc.id,
           name: data.name,

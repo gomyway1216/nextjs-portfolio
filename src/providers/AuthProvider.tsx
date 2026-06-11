@@ -2,7 +2,7 @@
 
 import React, { createContext, useEffect, useContext, useState, ReactNode, useCallback, useRef } from 'react';
 import { MultiFactorResolver, RecaptchaVerifier, User, UserCredential } from 'firebase/auth';
-import { auth, signInWithEmail, signUpWithEmail, signOutUser }
+import { auth, signInWithEmail, signInWithGoogle, signUpWithEmail, signOutUser }
   from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
 import { getErrorCode } from '@/lib/errorUtils';
@@ -20,6 +20,7 @@ interface AuthContextType {
   mfaPhoneHint: string | null;
   signIn: (email: string, password: string) => Promise<UserCredential>;
   signUp: (email: string, password: string, displayName?: string) => Promise<UserCredential>;
+  signInWithGoogle: () => Promise<UserCredential>;
   signInWithTwoFactor: (email: string, password: string) => Promise<{ requiresTwoFactor: boolean }>;
   sendMfaCode: (recaptchaVerifier: RecaptchaVerifier) => Promise<void>;
   verifyTwoFactorAndComplete: (code: string) => Promise<void>;
@@ -151,6 +152,50 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
     return credential;
   }, [createUserDocument, syncSessionCookie]);
+
+  // Google sign-in. Federated providers can't enroll the same way as
+  // password users here, so MFA gating doesn't apply; create the user doc
+  // (first time) and sync the session cookie like sign-up does.
+  //
+  // The listener pause (mfaSignInCompletingRef, same gate the MFA flow
+  // uses) matters: without it onAuthStateChanged exposes currentUser the
+  // moment the popup resolves, SignInPage redirects, and the middleware
+  // can reject the destination because the session cookie isn't written
+  // yet (and the user doc may not exist).
+  const signInWithGoogleProvider = useCallback(async (): Promise<UserCredential> => {
+    mfaSignInCompletingRef.current = true;
+    try {
+      const credential = await signInWithGoogle();
+      try {
+        await createUserDocument(credential.user, credential.user.displayName ?? undefined);
+        const sessionSynced = await syncSessionCookie(credential.user);
+        if (!sessionSynced) {
+          throw new Error('Failed to set session cookie after Google sign-in');
+        }
+      } catch (error) {
+        // Don't leave Firebase signed in while the app session is broken —
+        // middleware relies on the cookie, and a half-signed-in state makes
+        // retrying confusing. Return to a clean signed-out state instead.
+        await signOutUser().catch(() => {});
+        throw error;
+      }
+
+      const adminStatus = await getAdminStatus(credential.user);
+      const enrolledInMFA = getMFAStatus();
+
+      // Eagerly update React state (the paused listener won't) so the
+      // SignInPage redirect fires only now, with cookie + doc in place.
+      setAuthState({
+        currentUser: credential.user,
+        isAdmin: adminStatus,
+        isEnrolledInMFA: enrolledInMFA,
+      });
+      wasSignedInRef.current = true;
+      return credential;
+    } finally {
+      mfaSignInCompletingRef.current = false;
+    }
+  }, [createUserDocument, syncSessionCookie, getAdminStatus, getMFAStatus]);
 
   // Sign-in with MFA handling
   const signInWithTwoFactor = useCallback(async (email: string, password: string): Promise<{ requiresTwoFactor: boolean }> => {
@@ -327,6 +372,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     mfaPhoneHint,
     signIn,
     signUp,
+    signInWithGoogle: signInWithGoogleProvider,
     signInWithTwoFactor,
     sendMfaCode,
     verifyTwoFactorAndComplete,

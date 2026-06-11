@@ -38,7 +38,9 @@ export function useKaimonoList(listId: string | null): UseKaimonoListResult {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [requiresPasscode, setRequiresPasscode] = useState(false);
-  const [verified, setVerified] = useState(false);
+  // The verified passcode itself is the access proof the server checks
+  // on every fetch (a boolean claim was bypassable).
+  const [knownPasscode, setKnownPasscode] = useState<string | null>(null);
 
   const fetchList = useCallback(async () => {
     if (!listId) {
@@ -48,10 +50,13 @@ export function useKaimonoList(listId: string | null): UseKaimonoListResult {
     setLoading(true);
     setError(null);
     try {
-      const data = await kaimonoService.getList(listId, verified);
+      const data = await kaimonoService.getList(listId, knownPasscode);
       const passcodeData = data as ShoppingList | PasscodeRequiredList;
       if ('requiresPasscode' in passcodeData && passcodeData.requiresPasscode) {
         setRequiresPasscode(true);
+        // Drop a passcode the server just rejected so we stop resending a
+        // known-bad secret on every refetch.
+        if (knownPasscode) setKnownPasscode(null);
         setList({ id: passcodeData.id, name: passcodeData.name, hasPasscode: true } as ShoppingList);
       } else {
         setRequiresPasscode(false);
@@ -63,17 +68,17 @@ export function useKaimonoList(listId: string | null): UseKaimonoListResult {
     } finally {
       setLoading(false);
     }
-  }, [listId, verified]);
+  }, [listId, knownPasscode]);
 
   const handleVerifyPasscode = useCallback(async (passcode: string): Promise<boolean> => {
     if (!listId) return false;
     try {
       const result = await kaimonoService.verifyPasscode(listId, passcode);
       if (result.verified) {
-        setVerified(true);
+        // Just store the passcode; the fetchList effect (keyed on
+        // knownPasscode) re-fetches with it — no duplicate request here.
         setRequiresPasscode(false);
-        const data = await kaimonoService.getList(listId, true);
-        setList(data);
+        setKnownPasscode(passcode);
         return true;
       }
       return false;

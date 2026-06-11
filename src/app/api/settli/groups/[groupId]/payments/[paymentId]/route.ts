@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
+import { validateParticipantSplits } from '../../../../_lib/validatePayment';
 import {
   SETTLI_GROUPS_COLLECTION,
   SETTLI_PAYMENTS_COLLECTION,
@@ -103,6 +104,22 @@ export const PUT = withActivityLog('next_api.settli.groups.groupId.payments.paym
             { status: 400 }
           );
         }
+      }
+    }
+
+    // Reject non-finite/non-positive amounts (NaN passes a bare `<= 0`).
+    if (body.amount !== undefined &&
+        (typeof body.amount !== 'number' || !Number.isFinite(body.amount) || body.amount <= 0)) {
+      return NextResponse.json(
+        { error: 'Amount must be a finite number greater than 0' },
+        { status: 400 }
+      );
+    }
+
+    if (body.participants !== undefined) {
+      const splitError = validateParticipantSplits(body.participants);
+      if (splitError) {
+        return NextResponse.json({ error: splitError }, { status: 400 });
       }
     }
 

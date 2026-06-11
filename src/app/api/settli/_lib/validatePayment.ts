@@ -10,9 +10,13 @@ function isFiniteNumber(value: unknown): value is number {
  * Returns an error message for the first invalid participant entry, or
  * null. Also guards entry shape (object with a string `memberId`) so a
  * malformed array like `[null]` or `[{}]` returns 400 instead of
- * throwing a 500 in the caller's `.map(p => p.memberId)`.
+ * throwing a 500 in the caller's `.map(p => p.memberId)`. Accepts
+ * `unknown` and verifies the array itself for the same reason.
  */
-export function validateParticipantSplits(participants: unknown[]): string | null {
+export function validateParticipantSplits(participants: unknown): string | null {
+  if (!Array.isArray(participants)) {
+    return 'participants must be an array';
+  }
   for (const participant of participants) {
     if (!participant || typeof participant !== 'object') {
       return 'Each participant must be an object with a memberId';

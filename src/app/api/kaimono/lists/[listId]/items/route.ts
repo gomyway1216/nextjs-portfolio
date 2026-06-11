@@ -28,6 +28,12 @@ export const POST = withActivityLog('next_api.kaimono.lists.listId.items.POST', 
     const existingItems: ShoppingItem[] = listData.items || [];
     const maxOrder = existingItems.reduce((max, item) => Math.max(max, item.order), -1);
 
+    // Guard the body shape before touching body.items — a null/primitive
+    // JSON body would otherwise throw and surface as a 500.
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return NextResponse.json({ error: 'Request body must be an object' }, { status: 400 });
+    }
+
     const inputItems: CreateShoppingItemInput[] = body.items || [body];
 
     if (!Array.isArray(inputItems) || inputItems.length === 0) {
@@ -40,8 +46,11 @@ export const POST = withActivityLog('next_api.kaimono.lists.listId.items.POST', 
     // budget UI. Guard the entry shape too so [null] returns 400, not a
     // 500 from reading `.price` off null.
     for (const item of inputItems) {
-      if (!item || typeof item !== 'object') {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
         return NextResponse.json({ error: 'Each item must be an object' }, { status: 400 });
+      }
+      if (typeof item.name !== 'string' || item.name.trim() === '') {
+        return NextResponse.json({ error: 'Each item must have a non-empty name' }, { status: 400 });
       }
       if (item.price !== undefined &&
           (typeof item.price !== 'number' || !Number.isFinite(item.price) || item.price < 0)) {

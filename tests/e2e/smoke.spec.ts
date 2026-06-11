@@ -23,7 +23,7 @@ test('games page lists game cards from the static catalog', async ({ page }) => 
 });
 
 test('blog listing responds and renders its shell', async ({ page }) => {
-  const response = await page.goto('/blog/all');
+  const response = await page.goto('/blog');
   expect(response).not.toBeNull();
   expect(response!.status()).toBe(200);
 

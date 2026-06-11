@@ -491,7 +491,7 @@ const SignInPage = () => {
           )}
         </div>
 
-        <Button onClick={handleSubmit} disabled={loading} className="w-full" style={{ borderRadius: '9999px' }}>
+        <Button onClick={handleSubmit} disabled={loading || googleLoading} className="w-full" style={{ borderRadius: '9999px' }}>
           {loading ? (
             <><Loader2 className="animate-spin mr-2 h-4 w-4" />{mode === 'signin' ? t('signin.loggingIn') : t('signin.creatingAccount')}</>
           ) : (
@@ -499,10 +499,10 @@ const SignInPage = () => {
           )}
         </Button>
 
-        <div className="flex items-center gap-3 my-1" aria-hidden="true">
-          <span className="h-px flex-1 bg-border" />
+        <div className="flex items-center gap-3 my-1" role="separator">
+          <span className="h-px flex-1 bg-border" aria-hidden="true" />
           <span className="text-xs text-muted-foreground">{t('signin.orDivider')}</span>
-          <span className="h-px flex-1 bg-border" />
+          <span className="h-px flex-1 bg-border" aria-hidden="true" />
         </div>
 
         <Button

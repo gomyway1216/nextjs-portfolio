@@ -22,9 +22,9 @@ interface RichTextDisplayProps {
 const RichTextDisplay = ({ post }: RichTextDisplayProps) => {
   const { title, body, created, category, image } = post;
 
-  // Sanitize after mount: DOMPurify needs a real DOM, and setting state
-  // in an effect keeps the SSR and first client render identical (no
-  // hydration mismatch) if this component ever server-renders.
+  // Sanitize after mount: DOMPurify needs a real DOM, and this component
+  // now server-renders (the post page passes a server-fetched post).
+  // Header/cover SSR for crawlers; the body fills in on hydration.
   const [purifiedBody, setPurifiedBody] = useState('');
   useEffect(() => {
     setPurifiedBody(sanitizeRichHtml(body));
@@ -39,7 +39,7 @@ const RichTextDisplay = ({ post }: RichTextDisplayProps) => {
       </header>
       {image && (
         <figure className={styles.cover}>
-          <Image src={image} alt="" width={1280} height={720} unoptimized />
+          <Image src={image} alt={title} width={1280} height={720} unoptimized />
         </figure>
       )}
       <div className={styles.body}

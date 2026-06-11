@@ -1,27 +1,23 @@
+'use client';
 import React from 'react';
-import {
-  FaFacebookF,
-  FaLinkedinIn,
-  FaGithub
-} from 'react-icons/fa';
-import { RiTwitterXLine } from 'react-icons/ri';
-
-const SocialShare = [
-  { Social: <FaFacebookF />, link: 'https://www.facebook.com/yaguchiyuudai/' },
-  { Social: <FaLinkedinIn />, link: 'https://www.linkedin.com/in/yudai-yaguchi/' },
-  { Social: <FaGithub />, link: 'https://github.com/gomyway1216/' },
-  { Social: <RiTwitterXLine />, link: 'https://twitter.com/yudai_engineer/' },
-];
-
+import { useProfile } from '@/hooks/useProfile';
+import { resolveSocialLinks } from '@/lib/socialLinks';
+import { SOCIAL_PLATFORM_META } from '@/components/socialPlatforms';
 
 const Social = () => {
+  const { profile } = useProfile();
+  const links = resolveSocialLinks(profile);
+
   return (
     <div className="nav social-icons justify-content-center">
-      {SocialShare.map((val, i) => (
-        <a key={i} href={`${val.link}`} rel="noreferrer" target="_blank">
-          {val.Social}
-        </a>
-      ))}
+      {links.map(({ platform, url }) => {
+        const { Icon, label } = SOCIAL_PLATFORM_META[platform];
+        return (
+          <a key={`${platform}-${url}`} href={url} rel="noopener noreferrer" target="_blank" aria-label={label}>
+            <Icon />
+          </a>
+        );
+      })}
     </div>
   );
 };

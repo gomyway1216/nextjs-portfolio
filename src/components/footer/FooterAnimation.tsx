@@ -1,29 +1,26 @@
+'use client';
 import React from 'react';
-import {
-  FaFacebookF,
-  FaLinkedinIn,
-  FaGithub
-} from 'react-icons/fa';
-import { RiTwitterXLine } from 'react-icons/ri';
-
-const SocialShare = [
-  { Social: <FaFacebookF />, label: 'Facebook', link: 'https://www.facebook.com/yaguchiyuudai/' },
-  { Social: <FaLinkedinIn />, label: 'LinkedIn', link: 'https://www.linkedin.com/in/yudai-yaguchi/' },
-  { Social: <FaGithub />, label: 'GitHub', link: 'https://github.com/gomyway1216/' },
-  { Social: <RiTwitterXLine />, label: 'X', link: 'https://twitter.com/yudai_engineer/' },
-];
+import { useProfile } from '@/hooks/useProfile';
+import { resolveSocialLinks } from '@/lib/socialLinks';
+import { SOCIAL_PLATFORM_META } from '@/components/socialPlatforms';
 
 const Footer = () => {
+  const { profile } = useProfile();
+  const links = resolveSocialLinks(profile);
+
   return (
     <>
       <div className="row align-items-center">
         <div className="col-md-6 my-2">
           <div className="nav justify-content-center justify-content-md-start">
-            {SocialShare.map((val, i) => (
-              <a key={i} href={val.link} rel="noopener noreferrer" target="_blank" aria-label={val.label}>
-                {val.Social}
-              </a>
-            ))}
+            {links.map(({ platform, url }) => {
+              const { Icon, label } = SOCIAL_PLATFORM_META[platform];
+              return (
+                <a key={`${platform}-${url}`} href={url} rel="noopener noreferrer" target="_blank" aria-label={label}>
+                  <Icon />
+                </a>
+              );
+            })}
           </div>
           {/* End .nav */}
         </div>

@@ -1,12 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { KAIMONO_LISTS_COLLECTION } from '../../../../constants';
-import * as crypto from 'crypto';
+import { isPasscodeSatisfied } from '@/app/api/_lib/sharePasscode';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
-function simpleHash(passcode: string): string {
-  return crypto.createHash('sha256').update(passcode).digest('hex');
-}
 
 interface RouteParams {
   params: Promise<{ listId: string }>;
@@ -35,11 +32,14 @@ export const POST = withActivityLog('next_api.kaimono.lists.listId.verify.POST',
 
     const data = listDoc.data()!;
 
-    if (!data.hasPasscode || !data.passcodeHash) {
+    // No passcode configured → nothing to verify.
+    if (!data.hasPasscode) {
       return NextResponse.json({ verified: true });
     }
 
-    const verified = simpleHash(passcode) === data.passcodeHash;
+    // Constant-time, fail-closed (a passcode-flagged doc with no stored
+    // hash returns not-verified rather than silently passing).
+    const verified = isPasscodeSatisfied(true, data.passcodeHash, passcode);
 
     if (!verified) {
       return NextResponse.json(

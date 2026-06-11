@@ -38,7 +38,9 @@ export function useSettliGroup(groupId: string | null): UseSettliGroupResult {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [requiresPasscode, setRequiresPasscode] = useState(false);
-  const [verified, setVerified] = useState(false);
+  // The verified passcode itself is the access proof the server checks
+  // on every fetch (a boolean claim was bypassable).
+  const [knownPasscode, setKnownPasscode] = useState<string | null>(null);
 
   const fetchGroup = useCallback(async () => {
     if (!groupId) {
@@ -50,12 +52,15 @@ export function useSettliGroup(groupId: string | null): UseSettliGroupResult {
     setError(null);
 
     try {
-      const data = await settliService.getGroup(groupId, verified);
+      const data = await settliService.getGroup(groupId, knownPasscode);
 
       // Check if passcode verification is required
       const passcodeData = data as SettliGroup | PasscodeRequiredGroup;
       if ('requiresPasscode' in passcodeData && passcodeData.requiresPasscode) {
         setRequiresPasscode(true);
+        // Drop a passcode the server just rejected so we stop resending a
+        // known-bad secret on every refetch.
+        if (knownPasscode) setKnownPasscode(null);
         setGroup({
           id: passcodeData.id,
           name: passcodeData.name,
@@ -71,7 +76,7 @@ export function useSettliGroup(groupId: string | null): UseSettliGroupResult {
     } finally {
       setLoading(false);
     }
-  }, [groupId, verified]);
+  }, [groupId, knownPasscode]);
 
   const handleVerifyPasscode = useCallback(async (passcode: string): Promise<boolean> => {
     if (!groupId) return false;
@@ -79,11 +84,10 @@ export function useSettliGroup(groupId: string | null): UseSettliGroupResult {
     try {
       const result = await settliService.verifyPasscode(groupId, passcode);
       if (result.verified) {
-        setVerified(true);
+        // Just store the passcode; the fetchGroup effect (keyed on
+        // knownPasscode) re-fetches with it — no duplicate request here.
         setRequiresPasscode(false);
-        // Refetch with verified flag
-        const data = await settliService.getGroup(groupId, true);
-        setGroup(data);
+        setKnownPasscode(passcode);
         return true;
       }
       return false;

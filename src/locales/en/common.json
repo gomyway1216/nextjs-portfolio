@@ -76,7 +76,204 @@
       "edit": "Edit"
     }
   },
+  "study": {
+    "hub": {
+      "title": "Study Articles",
+      "menu": "Menu",
+      "searchPlaceholder": "Search articles...",
+      "generalCategory": "General",
+      "loadMore": "Load More Articles",
+      "sidebar": {
+        "yourProgress": "Your Progress",
+        "articlesRead": "Articles Read",
+        "quizzesDone": "Quizzes Done",
+        "timeSpent": "Time Spent",
+        "timeMinutesShort": "{{count}}m",
+        "timeHoursShort": "{{count}}h",
+        "dayStreak": "Day Streak",
+        "learningHub": "Learning Hub",
+        "review": "Review",
+        "dictionary": "Dictionary",
+        "csLearningLab": "CS Learning Lab",
+        "openHub": "Open Hub",
+        "categories": "Categories",
+        "allCategories": "All Categories"
+      },
+      "csLab": {
+        "title": "CS Learning Lab",
+        "description": "Interactive sorting visualizers, Big-O comparison, cryptography playgrounds, and quick checks.",
+        "algorithms": "Algorithms",
+        "cryptography": "Cryptography"
+      },
+      "filters": {
+        "title": "Filters",
+        "category": "Category",
+        "difficulty": "Difficulty",
+        "language": "Language",
+        "allCategories": "All Categories",
+        "allDifficulties": "All Difficulties",
+        "allLanguages": "All Languages",
+        "all": "All",
+        "clearAll": "Clear All",
+        "languages": {
+          "en": "English",
+          "ja": "Japanese",
+          "es": "Spanish",
+          "fr": "French",
+          "de": "German",
+          "zh": "Chinese",
+          "ko": "Korean"
+        }
+      },
+      "statusFilter": {
+        "all": "All ({{count}})",
+        "unread": "Unread ({{count}})",
+        "read": "Read ({{count}})"
+      },
+      "emptyState": {
+        "allCaughtUp": "All caught up!",
+        "allCaughtUpText": "You've read all available articles. Great job!",
+        "noReadArticles": "No read articles yet",
+        "noReadArticlesText": "Start reading articles to track your progress",
+        "noArticlesFound": "No articles found",
+        "tryAdjustingFilters": "Try adjusting your filters",
+        "noArticlesYet": "Articles will appear here once generated"
+      },
+      "articleCard": {
+        "readBadge": "Read",
+        "readTooltip": "You have read this article",
+        "minRead": "{{count}} min read",
+        "readAction": "Read"
+      }
+    },
+    "learning": {
+      "signedOut": {
+        "title": "Learning Hub",
+        "description": "Sign in to access your personal learning hub, create notes, build your dictionary, and track your progress.",
+        "signIn": "Sign In to Continue"
+      },
+      "header": {
+        "title": "Learning Hub",
+        "subtitle": "Capture, organize, and master knowledge from any source"
+      },
+      "newEntry": "New Entry",
+      "quickCapturePlaceholder": "Quick capture: jot down an idea, link, or note...",
+      "stats": {
+        "learningEntries": "Learning Entries",
+        "dictionaryTerms": "Dictionary Terms",
+        "flashcards": "Flashcards",
+        "dueForReview": "Due for Review",
+        "currentStreak": "Current Streak",
+        "days_one": "{{count}} day",
+        "days_other": "{{count}} days"
+      },
+      "quickActions": {
+        "todaysPlan": "Today's Plan",
+        "todaysPlanDesc": "AI-generated daily learning",
+        "startReview": "Start Review Session",
+        "startReviewDesc_one": "{{count}} item due for review",
+        "startReviewDesc_other": "{{count}} items due for review",
+        "browseDictionary": "Browse Dictionary",
+        "browseDictionaryDesc_one": "{{count}} term defined",
+        "browseDictionaryDesc_other": "{{count}} terms defined",
+        "flashcardDecks": "Flashcard Decks",
+        "flashcardDecksDesc": "Study with spaced repetition",
+        "learningPaths": "Learning Paths",
+        "learningPathsDesc": "AI-generated goal-based learning",
+        "studyArticles": "Study Articles",
+        "studyArticlesDesc": "AI-generated learning content"
+      },
+      "searchPlaceholder": "Search entries...",
+      "allSources": "All Sources",
+      "sourceTypes": {
+        "book": "Book",
+        "youtube": "YouTube",
+        "article": "Article",
+        "course": "Course",
+        "podcast": "Podcast",
+        "work": "Work",
+        "conversation": "Conversation",
+        "documentation": "Documentation",
+        "conference": "Conference",
+        "other": "Other"
+      },
+      "recentEntries": "Recent Learning Entries",
+      "loading": "Loading...",
+      "emptyState": {
+        "noEntries": "No learning entries yet",
+        "createFirst": "Create Your First Entry"
+      },
+      "viewAllEntries": "View All Entries ({{count}})",
+      "pendingCaptures": "Pending Quick Captures ({{count}})"
+    }
+  },
   "games": {
+    "blackjack": {
+      "subtitle1": "Basic strategy makes blackjack a nearly fair game (house edge ~0.5%).",
+      "subtitle2": "Playing Mimic Dealer or Always Stand without thinking loses tens of times more — see the difference in real play and simulation.",
+      "tabs": {
+        "play": "Play",
+        "sim": "Simulation"
+      },
+      "play": {
+        "dealer": "Dealer",
+        "you": "You",
+        "upcard": "Upcard",
+        "total": "Total",
+        "bust": "bust",
+        "soft": "soft",
+        "dealButton": "🎴 Deal (${{bet}})",
+        "nextHand": "Next hand",
+        "showHint": "Show Basic Strategy hints 💡",
+        "status": "Status",
+        "stats": {
+          "bankroll": "Bankroll",
+          "sessionNet": "Session net",
+          "hands": "Hands",
+          "winRate": "Win rate",
+          "blackjacks": "Blackjacks",
+          "followRate": "Basic Strategy adherence"
+        },
+        "resetSession": "Reset session",
+        "rulesTitle": "Rules (simplified):",
+        "rulesBody1": "Single deck, shuffled every hand. Dealer stands on soft 17 (S17). Blackjack pays 3:2. Split / Insurance omitted.",
+        "rulesBody2": "The 💡 mark shows the action Basic Strategy recommends for the current situation.",
+        "rulesBody3": "Take that action every hand and the house edge stays around 0.5%.",
+        "outcomes": {
+          "blackjack": "🎯 Blackjack! (1.5×)",
+          "win": "🏆 Win",
+          "push": "🤝 Push",
+          "lose": "💥 Lose"
+        }
+      },
+      "sim": {
+        "handsPerStrategy": "Hands / strategy",
+        "startingBankroll": "Starting bankroll",
+        "betPerHand": "Bet (per hand)",
+        "runButton": "Compare 3 strategies",
+        "runningLabel": "Running {{strategy}}: {{done}} / {{total}}",
+        "runNote": "Each strategy runs independently. Basic Strategy is best; Always Stand is worst.",
+        "introTitle": "This tab:",
+        "introBody": "Plays 3 strategies independently under the same rules (S17, 3:2 BJ, single deck shuffled every hand) and compares long-run RTP.",
+        "introBasic": "Mathematically optimal. House edge ≈ 0.5%.",
+        "introMimic": "Always hit on 16 or less, always stand on 17+, ignoring the dealer upcard. Edge ≈ 5-6%.",
+        "introStand": "Stand on the first two cards no matter what. Edge ≈ 15%.",
+        "introFooter": "Basic Strategy is a nearly fair game — see in hard numbers how much mindless play costs.",
+        "edgeTitle": "House edge by strategy (= 1 - RTP)",
+        "edgeNote": "Lower is better (green = player advantage). Basic ≈ 0.5%, Mimic ≈ 5-6%, Always Stand ≈ 15%.",
+        "trajectoryTitle": "Bankroll trajectory (independent simulations)",
+        "detailsTitle": "Detailed stats",
+        "baselineLabel": "Starting bankroll",
+        "edgeLoss": "{{value}}% loss",
+        "edgeGain": "{{value}}% edge",
+        "table": {
+          "strategy": "Strategy",
+          "winRate": "Win rate",
+          "edge": "Edge",
+          "totalNet": "Total net"
+        }
+      }
+    },
     "collection": "Games Collection",
     "subtitle": "Pick a quick browser game, learn the rules fast, and chase a better score.",
     "interactive": "Interactive",

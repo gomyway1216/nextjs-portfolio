@@ -23,6 +23,8 @@
     "confirmPassword": "パスワード確認",
     "error": "エラー",
     "createAccount": "アカウントを作成",
+    "orDivider": "または",
+    "continueWithGoogle": "Googleで続行",
     "loggingIn": "ログイン中...",
     "creatingAccount": "アカウント作成中...",
     "forgotPassword": "パスワードを忘れた場合",
@@ -44,6 +46,7 @@
     },
     "errors": {
       "invalidEmail": "メールアドレスが正しくありません",
+      "googleFailed": "Googleサインインに失敗しました。もう一度お試しください。",
       "passwordMin": "パスワードは8文字以上にしてください",
       "displayNameRequired": "表示名を入力してください",
       "passwordMismatch": "パスワードが一致しません",

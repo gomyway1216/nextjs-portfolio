@@ -38,6 +38,7 @@ export const HOBBY_ITEMS_COLLECTION = 'hobby_items';
 
 // Game System collection names
 export const GAME_SCORES_COLLECTION = 'game_scores';
+export const GAME_SAVES_COLLECTION = 'game_saves';
 
 // Railway Planner collection names
 export const RAILWAY_PLANNER_DRAFTS_COLLECTION = 'railway_planner_drafts';

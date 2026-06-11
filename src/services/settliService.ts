@@ -59,9 +59,12 @@ export async function getGroups(): Promise<GroupsResponse> {
   return apiCall<GroupsResponse>(`${BASE_URL}/groups`);
 }
 
-export async function getGroup(groupId: string, verified = false): Promise<SettliGroup> {
-  const url = verified ? `${BASE_URL}/groups/${groupId}?verified=true` : `${BASE_URL}/groups/${groupId}`;
-  return apiCall<SettliGroup>(url);
+// The verified passcode (not a boolean claim) is the access proof —
+// the server hash-compares it on every request.
+export async function getGroup(groupId: string, passcode?: string | null): Promise<SettliGroup> {
+  return apiCall<SettliGroup>(`${BASE_URL}/groups/${groupId}`, {
+    headers: passcode ? { 'x-share-passcode': passcode } : undefined,
+  });
 }
 
 export async function verifyPasscode(

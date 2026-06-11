@@ -30,11 +30,19 @@ export const PUT = withActivityLog('next_api.kaimono.lists.listId.items.itemId.P
       return NextResponse.json({ error: 'Item not found' }, { status: 404 });
     }
 
-    // Reject negative / non-finite prices: they corrupt totalSpent.
+    // Reject negative / non-finite prices and quantities: totalSpent is
+    // sum(price * quantity), so either side corrupts it.
     if (body.price !== undefined && body.price !== null &&
         (typeof body.price !== 'number' || !Number.isFinite(body.price) || body.price < 0)) {
       return NextResponse.json(
         { error: 'price must be a non-negative finite number' },
+        { status: 400 }
+      );
+    }
+    if (body.quantity !== undefined &&
+        (typeof body.quantity !== 'number' || !Number.isFinite(body.quantity) || body.quantity <= 0)) {
+      return NextResponse.json(
+        { error: 'quantity must be a finite number greater than 0' },
         { status: 400 }
       );
     }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
+import { validateParticipantSplits } from '../../../../_lib/validatePayment';
 import {
   SETTLI_GROUPS_COLLECTION,
   SETTLI_PAYMENTS_COLLECTION,
@@ -113,6 +114,13 @@ export const PUT = withActivityLog('next_api.settli.groups.groupId.payments.paym
         { error: 'Amount must be a finite number greater than 0' },
         { status: 400 }
       );
+    }
+
+    if (body.participants !== undefined) {
+      const splitError = validateParticipantSplits(body.participants);
+      if (splitError) {
+        return NextResponse.json({ error: splitError }, { status: 400 });
+      }
     }
 
     const updateData: Record<string, unknown> = {

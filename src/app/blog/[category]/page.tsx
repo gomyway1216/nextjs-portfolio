@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 import CategoryPostPage from '@/page/blog/CategoryPostPage';
 import { getInitialPostsCached, type PostsPage } from '@/lib/blog/getPostsServer';
 import { normalizeLanguage } from '@/lib/blog/postTranslations';
@@ -16,6 +17,10 @@ export default async function BlogCategory({
   params: Promise<{ category: string }>;
 }) {
   const { category } = await params;
+  if (category === 'all') {
+    redirect('/blog');
+  }
+
   // Match what the client-side i18next will pick on hydration so the
   // server-rendered first page is filtered to the same locale.
   const cookieStore = await cookies();

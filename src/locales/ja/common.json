@@ -74,8 +74,8 @@
       "loading": "記事を読み込み中",
       "categories": {
         "all": "すべての記事",
-        "technology": "Technology",
-        "life": "Life"
+        "technology": "技術",
+        "life": "生活"
       }
     },
     "post": {

@@ -4,12 +4,14 @@ import {
   browserSessionPersistence,
   createUserWithEmailAndPassword,
   getAuth,
+  GoogleAuthProvider,
   inMemoryPersistence,
   initializeAuth,
   sendEmailVerification,
   sendPasswordResetEmail,
   signInAnonymously,
   signInWithEmailAndPassword,
+  signInWithPopup,
   signOut,
   updateProfile,
 } from 'firebase/auth';
@@ -112,6 +114,15 @@ export const signUpWithEmail = async (email: string, password: string, displayNa
     await updateProfile(credential.user, { displayName });
   }
   return credential;
+};
+
+export const signInWithGoogle = () => {
+  if (!app) return Promise.reject(getFirebaseUnavailableError());
+  const provider = new GoogleAuthProvider();
+  // Always show the account chooser instead of silently reusing the one
+  // Google session — important on shared devices.
+  provider.setCustomParameters({ prompt: 'select_account' });
+  return signInWithPopup(auth, provider);
 };
 
 export const signOutUser = () => {

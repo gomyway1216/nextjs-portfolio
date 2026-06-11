@@ -103,7 +103,9 @@ export const EdgeBars = ({ results, labels }: EdgeBarsProps) => {
               }} />
             </div>
             <div style={{ width: 110, textAlign: 'right', color: isPlayer ? '#4ade80' : '#f87171', fontWeight: 700, fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}>
-              {t('games.blackjack.sim.edgeLoss', { value: (r.edge * 100).toFixed(2) })}
+              {isPlayer
+                ? t('games.blackjack.sim.edgeGain', { value: Math.abs(r.edge * 100).toFixed(2) })
+                : t('games.blackjack.sim.edgeLoss', { value: (r.edge * 100).toFixed(2) })}
             </div>
           </div>
         );

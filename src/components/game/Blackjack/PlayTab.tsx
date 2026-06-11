@@ -181,7 +181,7 @@ export const PlayTab = () => {
         <h3 style={{ margin: '1rem 0 0.5rem', color: '#fbbf24' }}>{t('games.blackjack.play.you')}</h3>
         <CardRow cards={state.player} />
         <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.2rem' }}>
-          {state.player.length === 0 ? '—' : `${t('games.blackjack.play.total')}: ${handValue(state.player).total}${handValue(state.player).soft ? ' (soft)' : ''}${isBust(state.player) ? ` ${t('games.blackjack.play.bust')}` : ''}`}
+          {state.player.length === 0 ? '—' : `${t('games.blackjack.play.total')}: ${handValue(state.player).total}${handValue(state.player).soft ? ` (${t('games.blackjack.play.soft')})` : ''}${isBust(state.player) ? ` ${t('games.blackjack.play.bust')}` : ''}`}
         </div>
 
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.8rem' }}>

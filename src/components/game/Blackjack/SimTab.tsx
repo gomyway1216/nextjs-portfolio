@@ -80,7 +80,11 @@ export const SimTab = () => {
   };
 
   const runLabel = running && progress
-    ? `Running ${STRATEGIES[progress.strategyIdx].label}: ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`
+    ? t('games.blackjack.sim.runningLabel', {
+        strategy: STRATEGIES[progress.strategyIdx].label,
+        done: progress.done.toLocaleString(),
+        total: progress.total.toLocaleString(),
+      })
     : t('games.blackjack.sim.runButton');
 
   return (

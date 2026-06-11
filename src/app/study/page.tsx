@@ -30,6 +30,7 @@ X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 // Debounce hook for search
 function useDebounce<T>(value: T, delay: number): T {
@@ -49,6 +50,7 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 export default function StudyListPage() {
+  const { t } = useTranslation();
   const { currentUser } = useAuth();
   const isAuthenticated = !!currentUser;
   const { categories, loading: categoriesLoading } = useStudyCategories();
@@ -80,7 +82,7 @@ export default function StudyListPage() {
   const { counts } = useArticleCounts(currentUser?.uid);
 
   const getCategoryName = (categoryId: string) => {
-    return categories.find(c => c.id === categoryId)?.name || 'General';
+    return categories.find(c => c.id === categoryId)?.name || t('study.hub.generalCategory');
   };
 
   const getDifficultyStyle = (difficulty: QuizDifficulty) => {
@@ -126,7 +128,7 @@ export default function StudyListPage() {
           marginBottom: '16px',
         }}>
           <h3 style={{ fontWeight: '600', color: 'var(--foreground)', marginBottom: '12px', fontSize: '14px' }}>
-            Your Progress
+            {t('study.hub.sidebar.yourProgress')}
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -148,7 +150,7 @@ export default function StudyListPage() {
                   </p>
                   <p style={{ fontSize: '12px', color: 'var(--muted-foreground)' }}>/ {counts.total}</p>
                 </div>
-                <p style={{ color: 'var(--muted-foreground)', fontSize: '11px', marginBottom: '6px' }}>Articles Read</p>
+                <p style={{ color: 'var(--muted-foreground)', fontSize: '11px', marginBottom: '6px' }}>{t('study.hub.sidebar.articlesRead')}</p>
                 {counts.total > 0 && (
                   <div style={{
                     width: '100%',
@@ -184,7 +186,7 @@ export default function StudyListPage() {
                 <p style={{ fontSize: '18px', fontWeight: '600', color: 'var(--foreground)' }}>
                   {progress.totalQuizzesCompleted}
                 </p>
-                <p style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>Quizzes Done</p>
+                <p style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>{t('study.hub.sidebar.quizzesDone')}</p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -202,10 +204,10 @@ export default function StudyListPage() {
               <div>
                 <p style={{ fontSize: '18px', fontWeight: '600', color: 'var(--foreground)' }}>
                   {progress.totalTimeSpentMinutes < 60
-                    ? `${progress.totalTimeSpentMinutes}m`
-                    : `${Math.round(progress.totalTimeSpentMinutes / 60)}h`}
+                    ? t('study.hub.sidebar.timeMinutesShort', { count: progress.totalTimeSpentMinutes })
+                    : t('study.hub.sidebar.timeHoursShort', { count: Math.round(progress.totalTimeSpentMinutes / 60) })}
                 </p>
-                <p style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>Time Spent</p>
+                <p style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>{t('study.hub.sidebar.timeSpent')}</p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -224,7 +226,7 @@ export default function StudyListPage() {
                 <p style={{ fontSize: '18px', fontWeight: '600', color: 'var(--foreground)' }}>
                   {progress.currentStreak}
                 </p>
-                <p style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>Day Streak</p>
+                <p style={{ color: 'var(--muted-foreground)', fontSize: '11px' }}>{t('study.hub.sidebar.dayStreak')}</p>
               </div>
             </div>
           </div>
@@ -241,7 +243,7 @@ export default function StudyListPage() {
         }}>
           <h3 style={{ fontWeight: '600', color: 'var(--foreground)', marginBottom: '12px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <GraduationCap size={16} style={{ color: '#0f766e' }} />
-            Learning Hub
+            {t('study.hub.sidebar.learningHub')}
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <Link
@@ -262,7 +264,7 @@ export default function StudyListPage() {
               }}
             >
               <Brain size={16} />
-              Review
+              {t('study.hub.sidebar.review')}
             </Link>
             <Link
               href="/study/learning/dictionary"
@@ -282,7 +284,7 @@ export default function StudyListPage() {
               }}
             >
               <BookMarked size={16} />
-              Dictionary
+              {t('study.hub.sidebar.dictionary')}
             </Link>
             <Link
               href="/study/cs"
@@ -302,7 +304,7 @@ export default function StudyListPage() {
               }}
             >
               <Code2 size={16} />
-              CS Learning Lab
+              {t('study.hub.sidebar.csLearningLab')}
             </Link>
             <Link
               href="/study/learning"
@@ -321,7 +323,7 @@ export default function StudyListPage() {
                 fontSize: '13px',
               }}
             >
-              Open Hub
+              {t('study.hub.sidebar.openHub')}
               <ChevronRight size={16} />
             </Link>
           </div>
@@ -336,7 +338,7 @@ export default function StudyListPage() {
           padding: '16px',
         }}>
           <h3 style={{ fontWeight: '600', color: 'var(--foreground)', marginBottom: '12px', fontSize: '14px' }}>
-            Categories
+            {t('study.hub.sidebar.categories')}
           </h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <button
@@ -356,7 +358,7 @@ export default function StudyListPage() {
                 textAlign: 'left',
               }}
             >
-              All Categories
+              {t('study.hub.sidebar.allCategories')}
             </button>
             {categories.map(cat => (
               <button
@@ -418,7 +420,7 @@ export default function StudyListPage() {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h2 style={{ fontWeight: '600', color: 'var(--foreground)' }}>Menu</h2>
+              <h2 style={{ fontWeight: '600', color: 'var(--foreground)' }}>{t('study.hub.menu')}</h2>
               <button
                 onClick={() => setShowMobileSidebar(false)}
                 style={{
@@ -448,7 +450,7 @@ export default function StudyListPage() {
                   fontWeight: '600',
                   color: 'var(--foreground)',
                 }}>
-                  Study Articles
+                  {t('study.hub.title')}
                 </h1>
               {/* Mobile Menu Button */}
               {currentUser && (
@@ -504,11 +506,10 @@ export default function StudyListPage() {
                 </div>
                 <div style={{ minWidth: 0 }}>
                   <h2 style={{ margin: 0, color: 'var(--foreground)', fontSize: '18px', fontWeight: 500 }}>
-                    CS Learning Lab
+                    {t('study.hub.csLab.title')}
                   </h2>
                   <p style={{ margin: '6px 0 0', color: 'var(--muted-foreground)', fontSize: '14px', lineHeight: 1.55 }}>
-                    Interactive sorting visualizers, Big-O comparison, cryptography playgrounds,
-                    and quick checks.
+                    {t('study.hub.csLab.description')}
                   </p>
                 </div>
               </div>
@@ -530,7 +531,7 @@ export default function StudyListPage() {
                   }}
                 >
                   <Code2 size={15} />
-                  Algorithms
+                  {t('study.hub.csLab.algorithms')}
                 </Link>
                 <Link
                   href="/study/cs/cryptography"
@@ -550,7 +551,7 @@ export default function StudyListPage() {
                   }}
                 >
                   <KeyRound size={15} />
-                  Cryptography
+                  {t('study.hub.csLab.cryptography')}
                 </Link>
               </div>
             </div>
@@ -566,7 +567,7 @@ export default function StudyListPage() {
               />
               <input
                 type="text"
-                placeholder="Search articles..."
+                placeholder={t('study.hub.searchPlaceholder')}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -618,7 +619,7 @@ export default function StudyListPage() {
               }}
             >
               <Filter size={16} />
-              <span className="filter-text">Filters</span>
+              <span className="filter-text">{t('study.hub.filters.title')}</span>
             </button>
           </div>
 
@@ -636,17 +637,17 @@ export default function StudyListPage() {
               {/* Category Filter */}
               <div style={{ flex: 1, minWidth: '150px' }}>
                 <label style={{ display: 'block', color: 'var(--muted-foreground)', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
-                  Category
+                  {t('study.hub.filters.category')}
                 </label>
                 <Select
                   value={selectedCategory || 'all'}
                   onValueChange={(v) => setSelectedCategory(v === 'all' ? '' : v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="All Categories" />
+                    <SelectValue placeholder={t('study.hub.filters.allCategories')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
+                    <SelectItem value="all">{t('study.hub.filters.allCategories')}</SelectItem>
                     {categories.map(cat => (
                       <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                     ))}
@@ -657,17 +658,17 @@ export default function StudyListPage() {
               {/* Difficulty Filter */}
               <div style={{ flex: 1, minWidth: '150px' }}>
                 <label style={{ display: 'block', color: 'var(--muted-foreground)', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
-                  Difficulty
+                  {t('study.hub.filters.difficulty')}
                 </label>
                 <Select
                   value={selectedDifficulty || 'all'}
                   onValueChange={(v) => setSelectedDifficulty(v === 'all' ? '' : v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="All Difficulties" />
+                    <SelectValue placeholder={t('study.hub.filters.allDifficulties')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Difficulties</SelectItem>
+                    <SelectItem value="all">{t('study.hub.filters.allDifficulties')}</SelectItem>
                     {Object.values(QuizDifficulty).map(diff => (
                       <SelectItem key={diff} value={diff}>{diff}</SelectItem>
                     ))}
@@ -678,24 +679,24 @@ export default function StudyListPage() {
               {/* Language Filter */}
               <div style={{ flex: 1, minWidth: '150px' }}>
                 <label style={{ display: 'block', color: 'var(--muted-foreground)', fontSize: '12px', marginBottom: '6px', fontWeight: '500' }}>
-                  Language
+                  {t('study.hub.filters.language')}
                 </label>
                 <Select
                   value={selectedLanguage || 'all'}
                   onValueChange={(v) => setSelectedLanguage(v === 'all' ? '' : v)}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="All Languages" />
+                    <SelectValue placeholder={t('study.hub.filters.allLanguages')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Languages</SelectItem>
-                    <SelectItem value="en">English</SelectItem>
-                    <SelectItem value="ja">Japanese</SelectItem>
-                    <SelectItem value="es">Spanish</SelectItem>
-                    <SelectItem value="fr">French</SelectItem>
-                    <SelectItem value="de">German</SelectItem>
-                    <SelectItem value="zh">Chinese</SelectItem>
-                    <SelectItem value="ko">Korean</SelectItem>
+                    <SelectItem value="all">{t('study.hub.filters.allLanguages')}</SelectItem>
+                    <SelectItem value="en">{t('study.hub.filters.languages.en')}</SelectItem>
+                    <SelectItem value="ja">{t('study.hub.filters.languages.ja')}</SelectItem>
+                    <SelectItem value="es">{t('study.hub.filters.languages.es')}</SelectItem>
+                    <SelectItem value="fr">{t('study.hub.filters.languages.fr')}</SelectItem>
+                    <SelectItem value="de">{t('study.hub.filters.languages.de')}</SelectItem>
+                    <SelectItem value="zh">{t('study.hub.filters.languages.zh')}</SelectItem>
+                    <SelectItem value="ko">{t('study.hub.filters.languages.ko')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -719,7 +720,7 @@ export default function StudyListPage() {
                     fontSize: '13px',
                   }}
                 >
-                  Clear All
+                  {t('study.hub.filters.clearAll')}
                 </button>
               </div>
             </div>
@@ -746,7 +747,7 @@ export default function StudyListPage() {
                 transition: 'all 0.2s',
               }}
             >
-              All ({counts.total})
+              {t('study.hub.statusFilter.all', { count: counts.total })}
             </button>
             <button
               onClick={() => setStatusFilter('unread')}
@@ -762,7 +763,7 @@ export default function StudyListPage() {
                 transition: 'all 0.2s',
               }}
             >
-              Unread ({counts.unread})
+              {t('study.hub.statusFilter.unread', { count: counts.unread })}
             </button>
             <button
               onClick={() => setStatusFilter('read')}
@@ -778,7 +779,7 @@ export default function StudyListPage() {
                 transition: 'all 0.2s',
               }}
             >
-              Read ({counts.read})
+              {t('study.hub.statusFilter.read', { count: counts.read })}
             </button>
           </div>
         )}
@@ -811,7 +812,7 @@ export default function StudyListPage() {
                 whiteSpace: 'nowrap',
               }}
             >
-              All
+              {t('study.hub.filters.all')}
             </button>
             {categories.map(cat => (
               <button
@@ -850,16 +851,16 @@ export default function StudyListPage() {
           }}>
             <BookOpen size={48} color="#d1d5db" style={{ marginBottom: '16px' }} />
             <h3 style={{ color: 'var(--foreground)', fontSize: '18px', marginBottom: '8px' }}>
-              {statusFilter === 'unread' ? 'All caught up!' : statusFilter === 'read' ? 'No read articles yet' : 'No articles found'}
+              {statusFilter === 'unread' ? t('study.hub.emptyState.allCaughtUp') : statusFilter === 'read' ? t('study.hub.emptyState.noReadArticles') : t('study.hub.emptyState.noArticlesFound')}
             </h3>
             <p style={{ color: 'var(--muted-foreground)', fontSize: '14px' }}>
               {statusFilter === 'unread'
-                ? "You've read all available articles. Great job!"
+                ? t('study.hub.emptyState.allCaughtUpText')
                 : statusFilter === 'read'
-                  ? 'Start reading articles to track your progress'
+                  ? t('study.hub.emptyState.noReadArticlesText')
                   : searchQuery || selectedCategory || selectedDifficulty || selectedLanguage
-                    ? 'Try adjusting your filters'
-                    : 'Articles will appear here once generated'}
+                    ? t('study.hub.emptyState.tryAdjustingFilters')
+                    : t('study.hub.emptyState.noArticlesYet')}
             </p>
           </div>
         ) : (
@@ -916,10 +917,10 @@ export default function StudyListPage() {
                               backgroundColor: 'color-mix(in srgb, var(--background) 80%, #0f766e 20%)',
                               color: '#0f766e',
                             }}
-                            title="You have read this article"
+                            title={t('study.hub.articleCard.readTooltip')}
                           >
                             <CheckCircle size={12} />
-                            Read
+                            {t('study.hub.articleCard.readBadge')}
                           </span>
                         )}
                         <span style={{
@@ -1008,10 +1009,10 @@ export default function StudyListPage() {
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--muted-foreground)', fontSize: '12px' }}>
                           <Clock size={14} />
-                          {article.readingTimeMinutes} min read
+                          {t('study.hub.articleCard.minRead', { count: article.readingTimeMinutes })}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#0f766e', fontSize: '12px', fontWeight: '500' }}>
-                          Read
+                          {t('study.hub.articleCard.readAction')}
                           <ChevronRight size={14} />
                         </div>
                       </div>
@@ -1044,7 +1045,7 @@ export default function StudyListPage() {
                   {loading ? (
                     <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} />
                   ) : (
-                    'Load More Articles'
+                    t('study.hub.loadMore')
                   )}
                 </button>
               </div>

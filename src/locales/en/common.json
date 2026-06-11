@@ -74,6 +74,69 @@
     }
   },
   "games": {
+    "blackjack": {
+      "subtitle1": "Basic strategy makes blackjack a nearly fair game (house edge ~0.5%).",
+      "subtitle2": "Playing Mimic Dealer or Always Stand without thinking loses tens of times more — see the difference in real play and simulation.",
+      "tabs": {
+        "play": "Play",
+        "sim": "Simulation"
+      },
+      "play": {
+        "dealer": "Dealer",
+        "you": "You",
+        "upcard": "Upcard",
+        "total": "Total",
+        "bust": "bust",
+        "dealButton": "🎴 Deal (${{bet}})",
+        "nextHand": "Next hand",
+        "showHint": "Show Basic Strategy hints 💡",
+        "status": "Status",
+        "stats": {
+          "bankroll": "Bankroll",
+          "sessionNet": "Session net",
+          "hands": "Hands",
+          "winRate": "Win rate",
+          "blackjacks": "Blackjacks",
+          "followRate": "Basic Strategy adherence"
+        },
+        "resetSession": "Reset session",
+        "rulesTitle": "Rules (simplified):",
+        "rulesBody1": "Single deck, shuffled every hand. Dealer stands on soft 17 (S17). Blackjack pays 3:2. Split / Insurance omitted.",
+        "rulesBody2": "The 💡 mark shows the action Basic Strategy recommends for the current situation.",
+        "rulesBody3": "Take that action every hand and the house edge stays around 0.5%.",
+        "outcomes": {
+          "blackjack": "🎯 Blackjack! (1.5×)",
+          "win": "🏆 Win",
+          "push": "🤝 Push",
+          "lose": "💥 Lose"
+        }
+      },
+      "sim": {
+        "handsPerStrategy": "Hands / strategy",
+        "startingBankroll": "Starting bankroll",
+        "betPerHand": "Bet (per hand)",
+        "runButton": "Compare 3 strategies",
+        "runNote": "Each strategy runs independently. Basic Strategy is best; Always Stand is worst.",
+        "introTitle": "This tab:",
+        "introBody": "Plays 3 strategies independently under the same rules (S17, 3:2 BJ, single deck shuffled every hand) and compares long-run RTP.",
+        "introBasic": "Mathematically optimal. House edge ≈ 0.5%.",
+        "introMimic": "Always hit on 16 or less, always stand on 17+, ignoring the dealer upcard. Edge ≈ 5-6%.",
+        "introStand": "Stand on the first two cards no matter what. Edge ≈ 15%.",
+        "introFooter": "Basic Strategy is a nearly fair game — see in hard numbers how much mindless play costs.",
+        "edgeTitle": "House edge by strategy (= 1 - RTP)",
+        "edgeNote": "Lower is better (green = player advantage). Basic ≈ 0.5%, Mimic ≈ 5-6%, Always Stand ≈ 15%.",
+        "trajectoryTitle": "Bankroll trajectory (independent simulations)",
+        "detailsTitle": "Detailed stats",
+      "baselineLabel": "Starting bankroll",
+      "edgeLoss": "{{value}}% loss",
+        "table": {
+          "strategy": "Strategy",
+          "winRate": "Win rate",
+          "edge": "Edge",
+          "totalNet": "Total net"
+        }
+      }
+    },
     "collection": "Games Collection",
     "subtitle": "Pick a quick browser game, learn the rules fast, and chase a better score.",
     "interactive": "Interactive",

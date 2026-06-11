@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslation } from 'react-i18next';
 import { SimSummary } from './engine';
 
 interface MultiTrajectoryProps {
@@ -10,6 +11,7 @@ interface MultiTrajectoryProps {
 }
 
 export const MultiTrajectoryChart = ({ series, baseline, width = 720, height = 280 }: MultiTrajectoryProps) => {
+  const { t } = useTranslation();
   if (series.length === 0) return null;
   const padding = { top: 16, right: 16, bottom: 32, left: 56 };
   const innerW = width - padding.left - padding.right;
@@ -44,7 +46,7 @@ export const MultiTrajectoryChart = ({ series, baseline, width = 720, height = 2
         );
       })}
       <line x1={padding.left} x2={width - padding.right} y1={yScale(baseline)} y2={yScale(baseline)} stroke="#fbbf24" strokeDasharray="4 4" strokeWidth={1} opacity={0.65} />
-      <text x={padding.left + 4} y={yScale(baseline) - 4} fill="#fbbf24" fontSize="10">開始資金 {baseline}</text>
+      <text x={padding.left + 4} y={yScale(baseline) - 4} fill="#fbbf24" fontSize="10">{t('games.blackjack.sim.baselineLabel')} {baseline}</text>
 
       {series.map((s) => (
         <polyline
@@ -77,6 +79,7 @@ interface EdgeBarsProps {
 }
 
 export const EdgeBars = ({ results, labels }: EdgeBarsProps) => {
+  const { t } = useTranslation();
   if (results.length === 0) return null;
   const edges = results.map((r) => Math.abs(r.edge));
   let maxAbs = 0.01;
@@ -100,7 +103,7 @@ export const EdgeBars = ({ results, labels }: EdgeBarsProps) => {
               }} />
             </div>
             <div style={{ width: 110, textAlign: 'right', color: isPlayer ? '#4ade80' : '#f87171', fontWeight: 700, fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem' }}>
-              {(r.edge * 100).toFixed(2)}% 損
+              {t('games.blackjack.sim.edgeLoss', { value: (r.edge * 100).toFixed(2) })}
             </div>
           </div>
         );

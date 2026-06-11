@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { EdgeBars, MultiTrajectoryChart } from './charts';
 import { SimSummary, StrategyName, runBlackjackSimAsync } from './engine';
 
@@ -25,6 +26,7 @@ const clamp = (v: number, min: number, max: number) =>
   Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : min;
 
 export const SimTab = () => {
+  const { t } = useTranslation();
   const [hands, setHands] = useState(DEFAULTS.hands);
   const [startingBankroll, setStartingBankroll] = useState(DEFAULTS.startingBankroll);
   const [baseBet, setBaseBet] = useState(DEFAULTS.baseBet);
@@ -79,14 +81,14 @@ export const SimTab = () => {
 
   const runLabel = running && progress
     ? `Running ${STRATEGIES[progress.strategyIdx].label}: ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`
-    : '3 戦略を比較実行';
+    : t('games.blackjack.sim.runButton');
 
   return (
     <div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginBottom: '1rem' }}>
-        <NumField label="ハンド数 / 戦略" value={hands} {...LIMITS.hands} onChange={setHands} />
-        <NumField label="開始資金" value={startingBankroll} {...LIMITS.startingBankroll} onChange={setStartingBankroll} />
-        <NumField label="ベット (毎手)" value={baseBet} {...LIMITS.baseBet} onChange={setBaseBet} />
+        <NumField label={t('games.blackjack.sim.handsPerStrategy')} value={hands} {...LIMITS.hands} onChange={setHands} />
+        <NumField label={t('games.blackjack.sim.startingBankroll')} value={startingBankroll} {...LIMITS.startingBankroll} onChange={setStartingBankroll} />
+        <NumField label={t('games.blackjack.sim.betPerHand')} value={baseBet} {...LIMITS.baseBet} onChange={setBaseBet} />
       </div>
 
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem' }}>
@@ -108,7 +110,7 @@ export const SimTab = () => {
           {runLabel}
         </button>
         <span style={{ color: '#64748b', fontSize: '0.8rem' }}>
-          各戦略を独立に実行。Basic Strategy は最良、Always Stand は最悪。
+          {t('games.blackjack.sim.runNote')}
         </span>
       </div>
 
@@ -117,30 +119,35 @@ export const SimTab = () => {
   );
 };
 
-const Intro = () => (
+const Intro = () => {
+  const { t } = useTranslation();
+  return (
   <div style={{ background: '#020617', border: '1px solid #1e293b', borderRadius: 12, padding: '1rem', color: '#94a3b8', fontSize: '0.9rem', lineHeight: 1.6 }}>
-    <strong style={{ color: '#fbbf24' }}>このタブ:</strong> 同じルール (S17, 3:2 BJ, 1デッキ毎手シャッフル) で 3 つの戦略を独立にプレイし、長期 RTP を比較します。
+    <strong style={{ color: '#fbbf24' }}>{t('games.blackjack.sim.introTitle')}</strong> {t('games.blackjack.sim.introBody')}
     <ul style={{ marginTop: '0.5rem', paddingLeft: '1.2rem' }}>
-      <li><strong style={{ color: '#4ade80' }}>Basic Strategy</strong>: 数学的に最適。ハウスエッジ約 0.5%。</li>
-      <li><strong style={{ color: '#fbbf24' }}>Mimic Dealer</strong>: 16 以下は必ずヒット、17 以上で必ずスタンド。ディーラー上カード無視。エッジ約 5-6%。</li>
-      <li><strong style={{ color: '#f87171' }}>Always Stand</strong>: 何が来ても最初の2枚で固定。エッジ約 15%。</li>
+      <li><strong style={{ color: '#4ade80' }}>Basic Strategy</strong>: {t('games.blackjack.sim.introBasic')}</li>
+      <li><strong style={{ color: '#fbbf24' }}>Mimic Dealer</strong>: {t('games.blackjack.sim.introMimic')}</li>
+      <li><strong style={{ color: '#f87171' }}>Always Stand</strong>: {t('games.blackjack.sim.introStand')}</li>
     </ul>
-    Basic Strategy が「ほぼフェアな勝負」なのに対し、何も考えないとどれだけ損するかを実数値で見る。
+    {t('games.blackjack.sim.introFooter')}
   </div>
-);
+  );
+};
 
-const Results = ({ results, startingBankroll }: { results: SimSummary[]; startingBankroll: number }) => (
+const Results = ({ results, startingBankroll }: { results: SimSummary[]; startingBankroll: number }) => {
+  const { t } = useTranslation();
+  return (
   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
     <div>
-      <h3 style={{ margin: '0 0 0.5rem', color: '#fbbf24' }}>戦略別 ハウスエッジ (= 1 - RTP)</h3>
+      <h3 style={{ margin: '0 0 0.5rem', color: '#fbbf24' }}>{t('games.blackjack.sim.edgeTitle')}</h3>
       <EdgeBars results={results} labels={STRAT_META} />
       <p style={{ marginTop: '0.5rem', color: '#64748b', fontSize: '0.8rem' }}>
-        小さいほど良い (緑 = プレイヤー有利の場合)。Basic ≈ 0.5%、Mimic ≈ 5-6%、Always Stand ≈ 15%。
+        {t('games.blackjack.sim.edgeNote')}
       </p>
     </div>
 
     <div>
-      <h4 style={{ margin: '0 0 0.4rem', color: '#cbd5e1' }}>資金推移 (それぞれ独立シミュレーション)</h4>
+      <h4 style={{ margin: '0 0 0.4rem', color: '#cbd5e1' }}>{t('games.blackjack.sim.trajectoryTitle')}</h4>
       <MultiTrajectoryChart
         series={results.map((r) => ({
           label: STRAT_META[r.strategy].label,
@@ -153,16 +160,16 @@ const Results = ({ results, startingBankroll }: { results: SimSummary[]; startin
     </div>
 
     <div>
-      <h4 style={{ margin: '0 0 0.4rem', color: '#cbd5e1' }}>詳細統計</h4>
+      <h4 style={{ margin: '0 0 0.4rem', color: '#cbd5e1' }}>{t('games.blackjack.sim.detailsTitle')}</h4>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
         <thead>
           <tr style={{ color: '#94a3b8', textAlign: 'left' }}>
-            <th style={{ padding: '0.3rem 0.5rem' }}>戦略</th>
-            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>勝率</th>
+            <th style={{ padding: '0.3rem 0.5rem' }}>{t('games.blackjack.sim.table.strategy')}</th>
+            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{t('games.blackjack.sim.table.winRate')}</th>
             <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>BJ</th>
             <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>RTP</th>
-            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>エッジ</th>
-            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>累計収支</th>
+            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{t('games.blackjack.sim.table.edge')}</th>
+            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{t('games.blackjack.sim.table.totalNet')}</th>
           </tr>
         </thead>
         <tbody>
@@ -184,7 +191,8 @@ const Results = ({ results, startingBankroll }: { results: SimSummary[]; startin
       </table>
     </div>
   </div>
-);
+  );
+};
 
 const NumField = ({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) => (
   <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>

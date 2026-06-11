@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Action,
   Card,
@@ -46,6 +47,7 @@ interface SessionStats {
 const INITIAL_STATS: SessionStats = { hands: 0, net: 0, wins: 0, losses: 0, pushes: 0, blackjacks: 0, hintFollows: 0, hintDiverges: 0 };
 
 export const PlayTab = () => {
+  const { t } = useTranslation();
   const [bankroll, setBankroll] = useState(INITIAL_BANKROLL);
   const [state, setState] = useState<PlayState>(freshState);
   const [showHint, setShowHint] = useState(true);
@@ -170,21 +172,21 @@ export const PlayTab = () => {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: '1.25rem' }}>
       <div>
-        <h3 style={{ margin: '0 0 0.5rem', color: '#fbbf24' }}>ディーラー</h3>
+        <h3 style={{ margin: '0 0 0.5rem', color: '#fbbf24' }}>{t('games.blackjack.play.dealer')}</h3>
         <CardRow cards={state.dealer} hideHoleCard={state.phase === 'playing'} />
         <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.2rem' }}>
-          {state.dealer.length === 0 ? '—' : state.phase === 'playing' ? `アップカード: ${cardText(state.dealer[0])}` : `合計: ${handValue(state.dealer).total}${isBust(state.dealer) ? ' (バスト)' : ''}`}
+          {state.dealer.length === 0 ? '—' : state.phase === 'playing' ? `${t('games.blackjack.play.upcard')}: ${cardText(state.dealer[0])}` : `${t('games.blackjack.play.total')}: ${handValue(state.dealer).total}${isBust(state.dealer) ? ` (${t('games.blackjack.play.bust')})` : ''}`}
         </div>
 
-        <h3 style={{ margin: '1rem 0 0.5rem', color: '#fbbf24' }}>あなた</h3>
+        <h3 style={{ margin: '1rem 0 0.5rem', color: '#fbbf24' }}>{t('games.blackjack.play.you')}</h3>
         <CardRow cards={state.player} />
         <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginTop: '0.2rem' }}>
-          {state.player.length === 0 ? '—' : `合計: ${handValue(state.player).total}${handValue(state.player).soft ? ' (soft)' : ''}${isBust(state.player) ? ' バスト' : ''}`}
+          {state.player.length === 0 ? '—' : `${t('games.blackjack.play.total')}: ${handValue(state.player).total}${handValue(state.player).soft ? ' (soft)' : ''}${isBust(state.player) ? ` ${t('games.blackjack.play.bust')}` : ''}`}
         </div>
 
         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.8rem' }}>
           {state.phase === 'idle' && (
-            <button onClick={deal} disabled={bankroll < BET} style={btn('#22c55e', bankroll < BET)}>🎴 配る (${BET})</button>
+            <button onClick={deal} disabled={bankroll < BET} style={btn('#22c55e', bankroll < BET)}>{t('games.blackjack.play.dealButton', { bet: BET })}</button>
           )}
           {state.phase === 'playing' && (
             <>
@@ -200,41 +202,41 @@ export const PlayTab = () => {
             </>
           )}
           {state.phase === 'done' && state.result && (
-            <button onClick={next} style={btn('#22c55e', bankroll < BET)}>次の手</button>
+            <button onClick={next} style={btn('#22c55e', bankroll < BET)}>{t('games.blackjack.play.nextHand')}</button>
           )}
         </div>
 
         {state.phase === 'done' && state.result && (
           <div style={{ marginTop: '0.6rem', padding: '0.55rem 0.8rem', borderRadius: 10, background: state.result.net > 0 ? '#15803d44' : state.result.net < 0 ? '#7f1d1d44' : '#1e293b', border: `1px solid ${state.result.net > 0 ? '#4ade80' : state.result.net < 0 ? '#f87171' : '#334155'}`, color: state.result.net > 0 ? '#4ade80' : state.result.net < 0 ? '#fca5a5' : '#cbd5e1', fontWeight: 700 }}>
-            {outcomeLabel[state.result.outcome]}{state.result.doubled ? ' (Double)' : ''} — {state.result.net > 0 ? `+${state.result.net}` : state.result.net}
+            {t(`games.blackjack.play.outcomes.${state.result.outcome}`)}{state.result.doubled ? ' (Double)' : ''} — {state.result.net > 0 ? `+${state.result.net}` : state.result.net}
           </div>
         )}
 
         <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.8rem', color: '#94a3b8', fontSize: '0.85rem' }}>
-          <input type="checkbox" checked={showHint} onChange={(e) => setShowHint(e.target.checked)} /> Basic Strategy のヒントを表示 💡
+          <input type="checkbox" checked={showHint} onChange={(e) => setShowHint(e.target.checked)} /> {t('games.blackjack.play.showHint')}
         </label>
       </div>
 
       <div>
-        <h3 style={{ margin: '0 0 0.5rem', color: '#fbbf24' }}>状況</h3>
+        <h3 style={{ margin: '0 0 0.5rem', color: '#fbbf24' }}>{t('games.blackjack.play.status')}</h3>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <Stat label="所持金" value={`$${bankroll}`} color={bankroll < INITIAL_BANKROLL ? '#f87171' : '#4ade80'} />
-          <Stat label="セッション収支" value={`${stats.net >= 0 ? '+' : ''}${stats.net}`} color={stats.net >= 0 ? '#4ade80' : '#f87171'} />
-          <Stat label="ハンド数" value={`${stats.hands}`} color="#67e8f9" />
-          <Stat label="勝率" value={winRate === null ? '—' : `${(winRate * 100).toFixed(1)}%`} color="#a78bfa" />
-          <Stat label="ブラックジャック" value={`${stats.blackjacks}`} color="#fbbf24" />
-          <Stat label="Basic Strategy 一致率" value={followRate === null ? '—' : `${(followRate * 100).toFixed(1)}%`} color="#f472b6" />
+          <Stat label={t('games.blackjack.play.stats.bankroll')} value={`$${bankroll}`} color={bankroll < INITIAL_BANKROLL ? '#f87171' : '#4ade80'} />
+          <Stat label={t('games.blackjack.play.stats.sessionNet')} value={`${stats.net >= 0 ? '+' : ''}${stats.net}`} color={stats.net >= 0 ? '#4ade80' : '#f87171'} />
+          <Stat label={t('games.blackjack.play.stats.hands')} value={`${stats.hands}`} color="#67e8f9" />
+          <Stat label={t('games.blackjack.play.stats.winRate')} value={winRate === null ? '—' : `${(winRate * 100).toFixed(1)}%`} color="#a78bfa" />
+          <Stat label={t('games.blackjack.play.stats.blackjacks')} value={`${stats.blackjacks}`} color="#fbbf24" />
+          <Stat label={t('games.blackjack.play.stats.followRate')} value={followRate === null ? '—' : `${(followRate * 100).toFixed(1)}%`} color="#f472b6" />
         </div>
 
         <div style={{ marginTop: '0.8rem' }}>
-          <button onClick={reset} style={btn('#1e293b', false, '#94a3b8', '#334155')}>セッションリセット</button>
+          <button onClick={reset} style={btn('#1e293b', false, '#94a3b8', '#334155')}>{t('games.blackjack.play.resetSession')}</button>
         </div>
 
         <div style={{ marginTop: '1rem', padding: '0.7rem 0.9rem', background: '#020617', border: '1px solid #1e293b', borderRadius: 10, color: '#cbd5e1', fontSize: '0.85rem', lineHeight: 1.55 }}>
-          <strong style={{ color: '#fbbf24' }}>ルール (簡易版):</strong> 1デッキ毎手シャッフル。ディーラーは S17 (ソフト17でもスタンド)。
-          ブラックジャックは 3:2 配当。Split / Insurance は省略。<br />
-          💡 マークは現在の局面で Basic Strategy が推奨するアクション。
-          <strong>このアクションを毎手取れば、ハウスエッジは約 0.5% に抑えられます。</strong>
+          <strong style={{ color: '#fbbf24' }}>{t('games.blackjack.play.rulesTitle')}</strong> {t('games.blackjack.play.rulesBody1')}<br />
+          {t('games.blackjack.play.rulesBody2')}
+          {' '}
+          <strong>{t('games.blackjack.play.rulesBody3')}</strong>
         </div>
       </div>
     </div>
@@ -249,13 +251,6 @@ const resolveImmediate = (player: Card[], dealer: Card[], bet: number): RoundRes
   if (dBJ) return { player, dealer, outcome: 'lose', bet, net: -bet, doubled: false };
   // unreachable; only called when at least one BJ
   return { player, dealer, outcome: 'push', bet, net: 0, doubled: false };
-};
-
-const outcomeLabel: Record<RoundResult['outcome'], string> = {
-  blackjack: '🎯 ブラックジャック！ (1.5×)',
-  win: '🏆 勝ち',
-  push: '🤝 引き分け (push)',
-  lose: '💥 負け',
 };
 
 const cardText = (c: Card) => `${c.rank}${c.suit}`;

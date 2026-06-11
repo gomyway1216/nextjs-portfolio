@@ -26,6 +26,8 @@ export interface GetPostsParams {
   limit?: number;
   lastVisibleTimestamp?: number;
   language?: PostLanguage;
+  /** Skip post bodies — for lists that only render metadata. */
+  excludeBody?: boolean;
 }
 
 /**
@@ -58,7 +60,7 @@ export function usePosts(params: GetPostsParams = {}) {
     // so that re-renders with a fresh-but-equivalent `params` object don't
     // trigger an unnecessary refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.category, params.isPublic, params.page, params.limit, params.language]);
+  }, [params.category, params.isPublic, params.page, params.limit, params.language, params.excludeBody]);
 
   useEffect(() => {
     fetchPosts();

@@ -29,6 +29,27 @@ export const POST = withActivityLog('next_api.kaimono.lists.listId.items.POST', 
     const maxOrder = existingItems.reduce((max, item) => Math.max(max, item.order), -1);
 
     const inputItems: CreateShoppingItemInput[] = body.items || [body];
+
+    // Reject negative / non-finite prices and quantities: totalSpent is
+    // sum(price * quantity) over purchased items, so either side being
+    // NaN/Infinity/negative corrupts the budget UI.
+    for (const item of inputItems) {
+      if (item.price !== undefined && item.price !== null &&
+          (typeof item.price !== 'number' || !Number.isFinite(item.price) || item.price < 0)) {
+        return NextResponse.json(
+          { error: 'price must be a non-negative finite number' },
+          { status: 400 }
+        );
+      }
+      if (item.quantity !== undefined &&
+          (typeof item.quantity !== 'number' || !Number.isFinite(item.quantity) || item.quantity <= 0)) {
+        return NextResponse.json(
+          { error: 'quantity must be a finite number greater than 0' },
+          { status: 400 }
+        );
+      }
+    }
+
     const newItems: ShoppingItem[] = inputItems.map((item, i) => ({
       id: uuidv4(),
       name: item.name,

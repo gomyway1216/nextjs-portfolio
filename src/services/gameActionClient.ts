@@ -11,6 +11,7 @@
  */
 
 import { fetchCloudFunction } from '@/lib/cloudFunctionFetch';
+import { ensureGameSignIn } from '@/lib/gameAuth';
 import { getCloudFunctionUrl } from '@/app/api/constants';
 import type {
   GameRoom,
@@ -36,9 +37,20 @@ interface GameActionRequest {
 }
 
 async function call<T>(payload: GameActionRequest): Promise<T> {
+  // Phase 2: the dispatcher requires a Firebase ID token. Guests are
+  // signed in anonymously (no signup) before their first action.
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  try {
+    const user = await ensureGameSignIn();
+    headers.Authorization = `Bearer ${await user.getIdToken()}`;
+  } catch (error) {
+    // Proceed without a token; the server replies with a clear 401.
+    console.error('[gameAction] sign-in failed:', error);
+  }
+
   const res = await fetchCloudFunction(ENDPOINT, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(payload),
   });
   // The CF returns JSON for both success and error responses (with

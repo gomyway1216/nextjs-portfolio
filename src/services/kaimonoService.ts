@@ -52,9 +52,12 @@ export async function getLists(): Promise<ShoppingListsResponse> {
   return apiCall<ShoppingListsResponse>(`${BASE_URL}/lists`);
 }
 
-export async function getList(listId: string, verified = false): Promise<ShoppingList> {
-  const url = verified ? `${BASE_URL}/lists/${listId}?verified=true` : `${BASE_URL}/lists/${listId}`;
-  return apiCall<ShoppingList>(url);
+// The verified passcode (not a boolean claim) is the access proof —
+// the server hash-compares it on every request.
+export async function getList(listId: string, passcode?: string | null): Promise<ShoppingList> {
+  return apiCall<ShoppingList>(`${BASE_URL}/lists/${listId}`, {
+    headers: passcode ? { 'x-share-passcode': passcode } : undefined,
+  });
 }
 
 export async function getListByShareCode(shareCode: string): Promise<ShoppingList> {

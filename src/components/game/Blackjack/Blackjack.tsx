@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
 
 type Tab = 'play' | 'sim';
 
 export const Blackjack = () => {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<Tab>('play');
 
   return (
@@ -14,13 +16,14 @@ export const Blackjack = () => {
       <div style={{ maxWidth: 1100, margin: '0 auto' }}>
         <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>🃏 Blackjack — Basic Strategy</h1>
         <p style={{ marginTop: '0.4rem', color: '#94a3b8' }}>
-          ブラックジャックの基本戦略は数学的にほぼフェアな勝負 (エッジ ~0.5%)。
-          何も考えず Mimic Dealer や Always Stand で打つと数十倍損する — その差を実プレイとシミュレーションで確認する。
+          {t('games.blackjack.subtitle1')}
+          {' '}
+          {t('games.blackjack.subtitle2')}
         </p>
 
         <div style={{ display: 'flex', gap: '0.5rem', margin: '1.25rem 0' }}>
-          <TabButton active={tab === 'play'} onClick={() => setTab('play')}>遊ぶ</TabButton>
-          <TabButton active={tab === 'sim'} onClick={() => setTab('sim')}>シミュレーション</TabButton>
+          <TabButton active={tab === 'play'} onClick={() => setTab('play')}>{t('games.blackjack.tabs.play')}</TabButton>
+          <TabButton active={tab === 'sim'} onClick={() => setTab('sim')}>{t('games.blackjack.tabs.sim')}</TabButton>
         </div>
 
         {tab === 'play' ? <PlayTab /> : <SimTab />}

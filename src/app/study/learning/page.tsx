@@ -32,6 +32,7 @@ Zap
 } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 
 const SOURCE_TYPE_ICONS: Record<LearningSourceType, React.ReactNode> = {
   [LearningSourceType.BOOK]: <Book size={16} />,
@@ -46,20 +47,21 @@ const SOURCE_TYPE_ICONS: Record<LearningSourceType, React.ReactNode> = {
   [LearningSourceType.OTHER]: <MoreHorizontal size={16} />,
 };
 
-const SOURCE_TYPE_LABELS: Record<LearningSourceType, string> = {
-  [LearningSourceType.BOOK]: 'Book',
-  [LearningSourceType.YOUTUBE]: 'YouTube',
-  [LearningSourceType.ARTICLE]: 'Article',
-  [LearningSourceType.COURSE]: 'Course',
-  [LearningSourceType.PODCAST]: 'Podcast',
-  [LearningSourceType.WORK]: 'Work',
-  [LearningSourceType.CONVERSATION]: 'Conversation',
-  [LearningSourceType.DOCUMENTATION]: 'Documentation',
-  [LearningSourceType.CONFERENCE]: 'Conference',
-  [LearningSourceType.OTHER]: 'Other',
+const SOURCE_TYPE_LABEL_KEYS: Record<LearningSourceType, string> = {
+  [LearningSourceType.BOOK]: 'study.learning.sourceTypes.book',
+  [LearningSourceType.YOUTUBE]: 'study.learning.sourceTypes.youtube',
+  [LearningSourceType.ARTICLE]: 'study.learning.sourceTypes.article',
+  [LearningSourceType.COURSE]: 'study.learning.sourceTypes.course',
+  [LearningSourceType.PODCAST]: 'study.learning.sourceTypes.podcast',
+  [LearningSourceType.WORK]: 'study.learning.sourceTypes.work',
+  [LearningSourceType.CONVERSATION]: 'study.learning.sourceTypes.conversation',
+  [LearningSourceType.DOCUMENTATION]: 'study.learning.sourceTypes.documentation',
+  [LearningSourceType.CONFERENCE]: 'study.learning.sourceTypes.conference',
+  [LearningSourceType.OTHER]: 'study.learning.sourceTypes.other',
 };
 
 export default function LearningHubPage() {
+  const { t } = useTranslation();
   const { currentUser } = useAuth();
   const { entries, loading: entriesLoading } = useLearningEntries();
   const { stats } = useLearningStats();
@@ -98,10 +100,9 @@ export default function LearningHubPage() {
       <div style={{ minHeight: '100vh', backgroundColor: 'var(--background)', padding: '48px 16px' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto', textAlign: 'center' }}>
           <Brain size={64} style={{ color: '#0f766e', marginBottom: '16px' }} />
-          <h1 style={{ fontSize: '28px', fontWeight: '600', marginBottom: '8px' }}>Learning Hub</h1>
+          <h1 style={{ fontSize: '28px', fontWeight: '600', marginBottom: '8px' }}>{t('study.learning.signedOut.title')}</h1>
           <p style={{ color: 'var(--muted-foreground)', marginBottom: '24px' }}>
-            Sign in to access your personal learning hub, create notes, build your dictionary, and
-            track your progress.
+            {t('study.learning.signedOut.description')}
           </p>
           <Link
             href="/login"
@@ -117,7 +118,7 @@ export default function LearningHubPage() {
               fontWeight: '500',
             }}
           >
-            Sign In to Continue
+            {t('study.learning.signedOut.signIn')}
           </Link>
         </div>
       </div>
@@ -131,10 +132,10 @@ export default function LearningHubPage() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
           <div>
             <h1 style={{ fontSize: '28px', fontWeight: '600', color: 'var(--foreground)', marginBottom: '4px' }}>
-              Learning Hub
+              {t('study.learning.header.title')}
             </h1>
             <p style={{ color: 'var(--muted-foreground)', fontSize: '15px' }}>
-              Capture, organize, and master knowledge from any source
+              {t('study.learning.header.subtitle')}
             </p>
           </div>
           <Link
@@ -153,7 +154,7 @@ export default function LearningHubPage() {
             }}
           >
             <Plus size={18} />
-            New Entry
+            {t('study.learning.newEntry')}
           </Link>
         </div>
 
@@ -170,7 +171,7 @@ export default function LearningHubPage() {
           <div style={{ display: 'flex', gap: '12px' }}>
             <input
               type="text"
-              placeholder="Quick capture: jot down an idea, link, or note..."
+              placeholder={t('study.learning.quickCapturePlaceholder')}
               value={quickCaptureText}
               onChange={(e) => setQuickCaptureText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleQuickCapture()}
@@ -215,26 +216,26 @@ export default function LearningHubPage() {
         >
           <StatCard
             icon={<FileText size={20} />}
-            label="Learning Entries"
+            label={t('study.learning.stats.learningEntries')}
             value={stats?.totalEntries || 0}
             color="#0f766e"
           />
           <StatCard
             icon={<BookMarked size={20} />}
-            label="Dictionary Terms"
+            label={t('study.learning.stats.dictionaryTerms')}
             value={stats?.totalTerms || 0}
             color="#10b981"
           />
           <StatCard
             icon={<Layers size={20} />}
-            label="Flashcards"
+            label={t('study.learning.stats.flashcards')}
             value={stats?.totalFlashcards || 0}
             color="#f59e0b"
           />
           <Link href="/study/learning/review" style={{ textDecoration: 'none' }}>
             <StatCard
               icon={<Brain size={20} />}
-              label="Due for Review"
+              label={t('study.learning.stats.dueForReview')}
               value={totalDue || 0}
               color="#ef4444"
               clickable
@@ -242,8 +243,8 @@ export default function LearningHubPage() {
           </Link>
           <StatCard
             icon={<Flame size={20} />}
-            label="Current Streak"
-            value={`${stats?.currentStreak || 0} days`}
+            label={t('study.learning.stats.currentStreak')}
+            value={t('study.learning.stats.days', { count: stats?.currentStreak || 0 })}
             color="#8b5cf6"
           />
         </div>
@@ -260,43 +261,43 @@ export default function LearningHubPage() {
           <QuickActionCard
             href="/study/learning/daily"
             icon={<Clock size={24} />}
-            title="Today's Plan"
-            description="AI-generated daily learning"
+            title={t('study.learning.quickActions.todaysPlan')}
+            description={t('study.learning.quickActions.todaysPlanDesc')}
             color="#06b6d4"
           />
           <QuickActionCard
             href="/study/learning/review"
             icon={<Brain size={24} />}
-            title="Start Review Session"
-            description={`${totalDue || 0} items due for review`}
+            title={t('study.learning.quickActions.startReview')}
+            description={t('study.learning.quickActions.startReviewDesc', { count: totalDue || 0 })}
             color="#0f766e"
           />
           <QuickActionCard
             href="/study/learning/dictionary"
             icon={<BookMarked size={24} />}
-            title="Browse Dictionary"
-            description={`${stats?.totalTerms || 0} terms defined`}
+            title={t('study.learning.quickActions.browseDictionary')}
+            description={t('study.learning.quickActions.browseDictionaryDesc', { count: stats?.totalTerms || 0 })}
             color="#10b981"
           />
           <QuickActionCard
             href="/study/learning/flashcards"
             icon={<Layers size={24} />}
-            title="Flashcard Decks"
-            description="Study with spaced repetition"
+            title={t('study.learning.quickActions.flashcardDecks')}
+            description={t('study.learning.quickActions.flashcardDecksDesc')}
             color="#f59e0b"
           />
           <QuickActionCard
             href="/study/learning/paths"
             icon={<Target size={24} />}
-            title="Learning Paths"
-            description="AI-generated goal-based learning"
+            title={t('study.learning.quickActions.learningPaths')}
+            description={t('study.learning.quickActions.learningPathsDesc')}
             color="#ec4899"
           />
           <QuickActionCard
             href="/study"
             icon={<BookOpen size={24} />}
-            title="Study Articles"
-            description="AI-generated learning content"
+            title={t('study.learning.quickActions.studyArticles')}
+            description={t('study.learning.quickActions.studyArticlesDesc')}
             color="#8b5cf6"
           />
         </div>
@@ -310,7 +311,7 @@ export default function LearningHubPage() {
             />
             <input
               type="text"
-              placeholder="Search entries..."
+              placeholder={t('study.learning.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -339,10 +340,10 @@ export default function LearningHubPage() {
               minWidth: '150px',
             }}
           >
-            <option value="">All Sources</option>
-            {Object.entries(SOURCE_TYPE_LABELS).map(([value, label]) => (
+            <option value="">{t('study.learning.allSources')}</option>
+            {Object.entries(SOURCE_TYPE_LABEL_KEYS).map(([value, labelKey]) => (
               <option key={value} value={value}>
-                {label}
+                {t(labelKey)}
               </option>
             ))}
           </select>
@@ -351,11 +352,11 @@ export default function LearningHubPage() {
         {/* Learning Entries List */}
         <div style={{ marginBottom: '32px' }}>
           <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: 'var(--foreground)' }}>
-            Recent Learning Entries
+            {t('study.learning.recentEntries')}
           </h2>
 
           {entriesLoading ? (
-            <div style={{ padding: '48px', textAlign: 'center', color: 'var(--muted-foreground)' }}>Loading...</div>
+            <div style={{ padding: '48px', textAlign: 'center', color: 'var(--muted-foreground)' }}>{t('study.learning.loading')}</div>
           ) : filteredEntries.length === 0 ? (
             <div
               style={{
@@ -367,7 +368,7 @@ export default function LearningHubPage() {
               }}
             >
               <FileText size={48} style={{ color: '#cbd5e1', marginBottom: '16px' }} />
-              <p style={{ color: 'var(--muted-foreground)', marginBottom: '16px' }}>No learning entries yet</p>
+              <p style={{ color: 'var(--muted-foreground)', marginBottom: '16px' }}>{t('study.learning.emptyState.noEntries')}</p>
               <Link
                 href="/study/learning/new"
                 style={{
@@ -384,7 +385,7 @@ export default function LearningHubPage() {
                 }}
               >
                 <Plus size={18} />
-                Create Your First Entry
+                {t('study.learning.emptyState.createFirst')}
               </Link>
             </div>
           ) : (
@@ -453,7 +454,7 @@ export default function LearningHubPage() {
                               color: 'var(--muted-foreground)',
                             }}
                           >
-                            {SOURCE_TYPE_LABELS[entry.sourceType]}
+                            {t(SOURCE_TYPE_LABEL_KEYS[entry.sourceType])}
                           </span>
                         </div>
                         {entry.summary && (
@@ -514,7 +515,7 @@ export default function LearningHubPage() {
                 fontSize: '14px',
               }}
             >
-              View All Entries ({filteredEntries.length})
+              {t('study.learning.viewAllEntries', { count: filteredEntries.length })}
             </Link>
           )}
         </div>
@@ -523,7 +524,7 @@ export default function LearningHubPage() {
         {captures.length > 0 && (
           <div>
             <h2 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '16px', color: 'var(--foreground)' }}>
-              Pending Quick Captures ({captures.length})
+              {t('study.learning.pendingCaptures', { count: captures.length })}
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {captures.slice(0, 5).map((capture) => (

@@ -1,16 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { SETTLI_GROUPS_COLLECTION } from '../../../../constants';
-import * as crypto from 'crypto';
+import { isPasscodeSatisfied } from '@/app/api/_lib/sharePasscode';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 interface RouteParams {
   params: Promise<{ groupId: string }>;
-}
-
-// Simple hash function for passcode
-function simpleHash(passcode: string): string {
-  return crypto.createHash('sha256').update(passcode).digest('hex');
 }
 
 // POST /api/settli/groups/[groupId]/verify - Verify passcode
@@ -36,14 +31,13 @@ export const POST = withActivityLog('next_api.settli.groups.groupId.verify.POST'
 
     const data = groupDoc.data()!;
 
-    // If no passcode is set, always allow
-    if (!data.hasPasscode || !data.passcodeHash) {
+    // No passcode configured → nothing to verify.
+    if (!data.hasPasscode) {
       return NextResponse.json({ verified: true });
     }
 
-    // Verify passcode
-    const inputHash = simpleHash(passcode);
-    const isValid = inputHash === data.passcodeHash;
+    // Constant-time, fail-closed.
+    const isValid = isPasscodeSatisfied(true, data.passcodeHash, passcode);
 
     if (!isValid) {
       return NextResponse.json(

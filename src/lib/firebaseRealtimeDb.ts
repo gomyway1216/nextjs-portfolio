@@ -7,6 +7,7 @@
 
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getDatabase, ref, onValue, off, set, Database, DataSnapshot } from 'firebase/database';
+import { ensureGameSignIn } from '@/lib/gameAuth';
 
 // Firebase config
 const firebaseConfig = {
@@ -70,6 +71,9 @@ export function subscribeToPath<T>(
  * Set data at a database path
  */
 export async function setData<T>(path: string, data: T): Promise<void> {
+  // RTDB writes require an authenticated user (anonymous is fine) since
+  // the Phase 2 rules change; reads stay open.
+  await ensureGameSignIn();
   const db = getFirebaseDatabase();
   await set(ref(db, path), data);
 }

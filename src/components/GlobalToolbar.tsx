@@ -1,11 +1,12 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
+import type { GameNavEntry } from '@/components/game/constants/gameNav';
 import {
   BookOpenText,
   Gamepad2,
@@ -160,6 +161,25 @@ export function GlobalToolbar() {
   const theme = useMemo(() => getTheme(pathname), [pathname]);
   const isGameSubPage = pathname.startsWith('/games/');
   const hasGameContent = isGameSubPage && gameContent && (gameContent.left || gameContent.center || gameContent.right);
+  // Identify the current game so every game page gets a labeled top bar
+  // even when the game registers no toolbar content. The catalog is
+  // lazy-loaded only on /games/* routes — importing it statically would
+  // pull all game metadata into the bundle of every page (this toolbar
+  // renders from the root layout).
+  const [currentGame, setCurrentGame] = useState<GameNavEntry | null>(null);
+  useEffect(() => {
+    if (!isGameSubPage) {
+      setCurrentGame(null);
+      return;
+    }
+    let cancelled = false;
+    import('@/components/game/constants/gameNav').then(({ findGameByPath }) => {
+      if (!cancelled) setCurrentGame(findGameByPath(pathname) ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isGameSubPage, pathname]);
 
   if (HIDDEN_PATHS.includes(pathname)) return null;
   if (HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return null;
@@ -212,6 +232,23 @@ export function GlobalToolbar() {
               </Link>
             </>
           )}
+          {currentGame && !gameContent?.left && (() => {
+            // Per-game i18n key is `games.{id}.title`; fall back to the
+            // catalog's English title for games without a translation.
+            const gameTitle = t(`games.${currentGame.id}.title`, { defaultValue: currentGame.title });
+            return (
+              <>
+                <span style={{ color: theme.border }} className="shrink-0">|</span>
+                <span
+                  className="text-xs font-semibold truncate min-w-0"
+                  style={{ color: theme.accent }}
+                  title={gameTitle}
+                >
+                  {currentGame.thumbnail} {gameTitle}
+                </span>
+              </>
+            );
+          })()}
           {hasGameContent && gameContent?.left && (
             <>
               <span style={{ color: theme.border }} className="shrink-0">|</span>
@@ -264,7 +301,10 @@ export function GlobalToolbar() {
         >
           {hasGameContent && gameContent?.right}
           {hasGameContent && gameContent?.right && <span style={{ color: theme.border }}>|</span>}
-          <div className={hasGameContent ? 'shrink-0' : 'hidden shrink-0 sm:block'}>
+          {/* Theme toggle stays visible on mobile too — it's a compact
+              icon button, and hiding it left phone users with no way to
+              switch dark/light from the toolbar. */}
+          <div className="shrink-0">
             <ThemeToggle accent={theme.accent} />
           </div>
           {/* Language toggle */}

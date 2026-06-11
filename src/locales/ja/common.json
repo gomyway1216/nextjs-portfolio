@@ -23,6 +23,8 @@
     "confirmPassword": "パスワード確認",
     "error": "エラー",
     "createAccount": "アカウントを作成",
+    "orDivider": "または",
+    "continueWithGoogle": "Googleで続行",
     "loggingIn": "ログイン中...",
     "creatingAccount": "アカウント作成中...",
     "forgotPassword": "パスワードを忘れた場合",
@@ -44,6 +46,7 @@
     },
     "errors": {
       "invalidEmail": "メールアドレスが正しくありません",
+      "googleFailed": "Googleサインインに失敗しました。もう一度お試しください。",
       "passwordMin": "パスワードは8文字以上にしてください",
       "displayNameRequired": "表示名を入力してください",
       "passwordMismatch": "パスワードが一致しません",
@@ -86,7 +89,201 @@
       "edit": "編集"
     }
   },
+  "study": {
+    "hub": {
+      "title": "学習記事",
+      "menu": "メニュー",
+      "searchPlaceholder": "記事を検索...",
+      "generalCategory": "一般",
+      "loadMore": "さらに記事を読み込む",
+      "sidebar": {
+        "yourProgress": "学習の進捗",
+        "articlesRead": "読んだ記事",
+        "quizzesDone": "完了したクイズ",
+        "timeSpent": "学習時間",
+        "timeMinutesShort": "{{count}}分",
+        "timeHoursShort": "{{count}}時間",
+        "dayStreak": "連続学習日数",
+        "learningHub": "ラーニングハブ",
+        "review": "復習",
+        "dictionary": "辞書",
+        "csLearningLab": "CS学習ラボ",
+        "openHub": "ハブを開く",
+        "categories": "カテゴリー",
+        "allCategories": "すべてのカテゴリー"
+      },
+      "csLab": {
+        "title": "CS学習ラボ",
+        "description": "インタラクティブなソート可視化、Big-O比較、暗号プレイグラウンド、クイックチェック。",
+        "algorithms": "アルゴリズム",
+        "cryptography": "暗号技術"
+      },
+      "filters": {
+        "title": "フィルター",
+        "category": "カテゴリー",
+        "difficulty": "難易度",
+        "language": "言語",
+        "allCategories": "すべてのカテゴリー",
+        "allDifficulties": "すべての難易度",
+        "allLanguages": "すべての言語",
+        "all": "すべて",
+        "clearAll": "すべてクリア",
+        "languages": {
+          "en": "英語",
+          "ja": "日本語",
+          "es": "スペイン語",
+          "fr": "フランス語",
+          "de": "ドイツ語",
+          "zh": "中国語",
+          "ko": "韓国語"
+        }
+      },
+      "statusFilter": {
+        "all": "すべて ({{count}})",
+        "unread": "未読 ({{count}})",
+        "read": "既読 ({{count}})"
+      },
+      "emptyState": {
+        "allCaughtUp": "すべて読了！",
+        "allCaughtUpText": "公開されている記事をすべて読みました。素晴らしい！",
+        "noReadArticles": "既読の記事はまだありません",
+        "noReadArticlesText": "記事を読んで学習の進捗を記録しましょう",
+        "noArticlesFound": "記事が見つかりませんでした",
+        "tryAdjustingFilters": "フィルターを調整してみてください",
+        "noArticlesYet": "記事が生成されるとここに表示されます"
+      },
+      "articleCard": {
+        "readBadge": "既読",
+        "readTooltip": "この記事は読了済みです",
+        "minRead": "読了目安 {{count}}分",
+        "readAction": "読む"
+      }
+    },
+    "learning": {
+      "signedOut": {
+        "title": "ラーニングハブ",
+        "description": "サインインすると、パーソナルラーニングハブの利用、ノートの作成、辞書の構築、学習進捗の記録ができます。",
+        "signIn": "サインインして続ける"
+      },
+      "header": {
+        "title": "ラーニングハブ",
+        "subtitle": "あらゆるソースから知識をキャプチャし、整理し、習得する"
+      },
+      "newEntry": "新規エントリ",
+      "quickCapturePlaceholder": "クイックキャプチャ: アイデアやリンク、メモを書き留める...",
+      "stats": {
+        "learningEntries": "学習エントリ",
+        "dictionaryTerms": "辞書の用語",
+        "flashcards": "フラッシュカード",
+        "dueForReview": "復習待ち",
+        "currentStreak": "現在の連続記録",
+        "days_other": "{{count}}日"
+      },
+      "quickActions": {
+        "todaysPlan": "今日のプラン",
+        "todaysPlanDesc": "AIが生成する毎日の学習",
+        "startReview": "復習セッションを開始",
+        "startReviewDesc_other": "復習待ちのアイテム {{count}}件",
+        "browseDictionary": "辞書を閲覧",
+        "browseDictionaryDesc_other": "登録済みの用語 {{count}}件",
+        "flashcardDecks": "フラッシュカードデッキ",
+        "flashcardDecksDesc": "間隔反復で学習",
+        "learningPaths": "学習パス",
+        "learningPathsDesc": "AIが生成する目標ベースの学習",
+        "studyArticles": "学習記事",
+        "studyArticlesDesc": "AIが生成する学習コンテンツ"
+      },
+      "searchPlaceholder": "エントリを検索...",
+      "allSources": "すべてのソース",
+      "sourceTypes": {
+        "book": "書籍",
+        "youtube": "YouTube",
+        "article": "記事",
+        "course": "コース",
+        "podcast": "ポッドキャスト",
+        "work": "仕事",
+        "conversation": "会話",
+        "documentation": "ドキュメント",
+        "conference": "カンファレンス",
+        "other": "その他"
+      },
+      "recentEntries": "最近の学習エントリ",
+      "loading": "読み込み中...",
+      "emptyState": {
+        "noEntries": "学習エントリはまだありません",
+        "createFirst": "最初のエントリを作成"
+      },
+      "viewAllEntries": "すべてのエントリを表示 ({{count}})",
+      "pendingCaptures": "未処理のクイックキャプチャ ({{count}})"
+    }
+  },
   "games": {
+    "blackjack": {
+      "subtitle1": "ブラックジャックの基本戦略は数学的にほぼフェアな勝負 (エッジ ~0.5%)。",
+      "subtitle2": "何も考えず Mimic Dealer や Always Stand で打つと数十倍損する — その差を実プレイとシミュレーションで確認する。",
+      "tabs": {
+        "play": "遊ぶ",
+        "sim": "シミュレーション"
+      },
+      "play": {
+        "dealer": "ディーラー",
+        "you": "あなた",
+        "upcard": "アップカード",
+        "total": "合計",
+        "bust": "バスト",
+        "soft": "ソフト",
+        "dealButton": "🎴 配る (${{bet}})",
+        "nextHand": "次の手",
+        "showHint": "Basic Strategy のヒントを表示 💡",
+        "status": "状況",
+        "stats": {
+          "bankroll": "所持金",
+          "sessionNet": "セッション収支",
+          "hands": "ハンド数",
+          "winRate": "勝率",
+          "blackjacks": "ブラックジャック",
+          "followRate": "Basic Strategy 一致率"
+        },
+        "resetSession": "セッションリセット",
+        "rulesTitle": "ルール (簡易版):",
+        "rulesBody1": "1デッキ毎手シャッフル。ディーラーは S17 (ソフト17でもスタンド)。ブラックジャックは 3:2 配当。Split / Insurance は省略。",
+        "rulesBody2": "💡 マークは現在の局面で Basic Strategy が推奨するアクション。",
+        "rulesBody3": "このアクションを毎手取れば、ハウスエッジは約 0.5% に抑えられます。",
+        "outcomes": {
+          "blackjack": "🎯 ブラックジャック！ (1.5×)",
+          "win": "🏆 勝ち",
+          "push": "🤝 引き分け (push)",
+          "lose": "💥 負け"
+        }
+      },
+      "sim": {
+        "handsPerStrategy": "ハンド数 / 戦略",
+        "startingBankroll": "開始資金",
+        "betPerHand": "ベット (毎手)",
+        "runButton": "3 戦略を比較実行",
+        "runningLabel": "実行中 {{strategy}}: {{done}} / {{total}}",
+        "runNote": "各戦略を独立に実行。Basic Strategy は最良、Always Stand は最悪。",
+        "introTitle": "このタブ:",
+        "introBody": "同じルール (S17, 3:2 BJ, 1デッキ毎手シャッフル) で 3 つの戦略を独立にプレイし、長期 RTP を比較します。",
+        "introBasic": "数学的に最適。ハウスエッジ約 0.5%。",
+        "introMimic": "16 以下は必ずヒット、17 以上で必ずスタンド。ディーラー上カード無視。エッジ約 5-6%。",
+        "introStand": "何が来ても最初の2枚で固定。エッジ約 15%。",
+        "introFooter": "Basic Strategy が「ほぼフェアな勝負」なのに対し、何も考えないとどれだけ損するかを実数値で見る。",
+        "edgeTitle": "戦略別 ハウスエッジ (= 1 - RTP)",
+        "edgeNote": "小さいほど良い (緑 = プレイヤー有利の場合)。Basic ≈ 0.5%、Mimic ≈ 5-6%、Always Stand ≈ 15%。",
+        "trajectoryTitle": "資金推移 (それぞれ独立シミュレーション)",
+        "detailsTitle": "詳細統計",
+        "baselineLabel": "開始資金",
+        "edgeLoss": "{{value}}% 損",
+        "edgeGain": "{{value}}% 有利",
+        "table": {
+          "strategy": "戦略",
+          "winRate": "勝率",
+          "edge": "エッジ",
+          "totalNet": "累計収支"
+        }
+      }
+    },
     "collection": "ゲームコレクション",
     "subtitle": "短時間で遊べるブラウザゲーム集です。ルールをすぐ理解して、より良いスコアを狙えます。",
     "interactive": "インタラクティブ",

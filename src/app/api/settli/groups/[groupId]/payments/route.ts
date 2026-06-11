@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore, getServerTimestamp } from '@/lib/firebase-admin';
 import { getOptionalUser } from '@/lib/auth-utils';
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
+import { validateParticipantSplits } from '../../../_lib/validatePayment';
 import {
   SETTLI_GROUPS_COLLECTION,
   SETTLI_PAYMENTS_COLLECTION,
@@ -78,11 +79,25 @@ export const POST = withActivityLog('next_api.settli.groups.groupId.payments.POS
       );
     }
 
-    if (body.amount <= 0) {
+    // Number.isFinite rejects NaN/Infinity/strings, which `amount <= 0`
+    // silently let through (NaN <= 0 is false) and broke settlement math.
+    if (typeof body.amount !== 'number' || !Number.isFinite(body.amount) || body.amount <= 0) {
       return NextResponse.json(
-        { error: 'Amount must be greater than 0' },
+        { error: 'Amount must be a finite number greater than 0' },
         { status: 400 }
       );
+    }
+
+    if (!Array.isArray(body.participants) || body.participants.length === 0) {
+      return NextResponse.json(
+        { error: 'participants must be a non-empty array' },
+        { status: 400 }
+      );
+    }
+
+    const splitError = validateParticipantSplits(body.participants);
+    if (splitError) {
+      return NextResponse.json({ error: splitError }, { status: 400 });
     }
 
     // Verify group exists and get currency

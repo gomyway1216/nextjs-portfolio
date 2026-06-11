@@ -76,6 +76,134 @@
       "edit": "編集"
     }
   },
+  "study": {
+    "hub": {
+      "title": "学習記事",
+      "menu": "メニュー",
+      "searchPlaceholder": "記事を検索...",
+      "generalCategory": "一般",
+      "loadMore": "さらに記事を読み込む",
+      "sidebar": {
+        "yourProgress": "学習の進捗",
+        "articlesRead": "読んだ記事",
+        "quizzesDone": "完了したクイズ",
+        "timeSpent": "学習時間",
+        "timeMinutesShort": "{{count}}分",
+        "timeHoursShort": "{{count}}時間",
+        "dayStreak": "連続学習日数",
+        "learningHub": "ラーニングハブ",
+        "review": "復習",
+        "dictionary": "辞書",
+        "csLearningLab": "CS学習ラボ",
+        "openHub": "ハブを開く",
+        "categories": "カテゴリー",
+        "allCategories": "すべてのカテゴリー"
+      },
+      "csLab": {
+        "title": "CS学習ラボ",
+        "description": "インタラクティブなソート可視化、Big-O比較、暗号プレイグラウンド、クイックチェック。",
+        "algorithms": "アルゴリズム",
+        "cryptography": "暗号技術"
+      },
+      "filters": {
+        "title": "フィルター",
+        "category": "カテゴリー",
+        "difficulty": "難易度",
+        "language": "言語",
+        "allCategories": "すべてのカテゴリー",
+        "allDifficulties": "すべての難易度",
+        "allLanguages": "すべての言語",
+        "all": "すべて",
+        "clearAll": "すべてクリア",
+        "languages": {
+          "en": "英語",
+          "ja": "日本語",
+          "es": "スペイン語",
+          "fr": "フランス語",
+          "de": "ドイツ語",
+          "zh": "中国語",
+          "ko": "韓国語"
+        }
+      },
+      "statusFilter": {
+        "all": "すべて ({{count}})",
+        "unread": "未読 ({{count}})",
+        "read": "既読 ({{count}})"
+      },
+      "emptyState": {
+        "allCaughtUp": "すべて読了！",
+        "allCaughtUpText": "公開されている記事をすべて読みました。素晴らしい！",
+        "noReadArticles": "既読の記事はまだありません",
+        "noReadArticlesText": "記事を読んで学習の進捗を記録しましょう",
+        "noArticlesFound": "記事が見つかりませんでした",
+        "tryAdjustingFilters": "フィルターを調整してみてください",
+        "noArticlesYet": "記事が生成されるとここに表示されます"
+      },
+      "articleCard": {
+        "readBadge": "既読",
+        "readTooltip": "この記事は読了済みです",
+        "minRead": "読了目安 {{count}}分",
+        "readAction": "読む"
+      }
+    },
+    "learning": {
+      "signedOut": {
+        "title": "ラーニングハブ",
+        "description": "サインインすると、パーソナルラーニングハブの利用、ノートの作成、辞書の構築、学習進捗の記録ができます。",
+        "signIn": "サインインして続ける"
+      },
+      "header": {
+        "title": "ラーニングハブ",
+        "subtitle": "あらゆるソースから知識をキャプチャし、整理し、習得する"
+      },
+      "newEntry": "新規エントリ",
+      "quickCapturePlaceholder": "クイックキャプチャ: アイデアやリンク、メモを書き留める...",
+      "stats": {
+        "learningEntries": "学習エントリ",
+        "dictionaryTerms": "辞書の用語",
+        "flashcards": "フラッシュカード",
+        "dueForReview": "復習待ち",
+        "currentStreak": "現在の連続記録",
+        "days_other": "{{count}}日"
+      },
+      "quickActions": {
+        "todaysPlan": "今日のプラン",
+        "todaysPlanDesc": "AIが生成する毎日の学習",
+        "startReview": "復習セッションを開始",
+        "startReviewDesc_other": "復習待ちのアイテム {{count}}件",
+        "browseDictionary": "辞書を閲覧",
+        "browseDictionaryDesc_other": "登録済みの用語 {{count}}件",
+        "flashcardDecks": "フラッシュカードデッキ",
+        "flashcardDecksDesc": "間隔反復で学習",
+        "learningPaths": "学習パス",
+        "learningPathsDesc": "AIが生成する目標ベースの学習",
+        "studyArticles": "学習記事",
+        "studyArticlesDesc": "AIが生成する学習コンテンツ"
+      },
+      "searchPlaceholder": "エントリを検索...",
+      "allSources": "すべてのソース",
+      "sourceTypes": {
+        "book": "書籍",
+        "youtube": "YouTube",
+        "article": "記事",
+        "course": "コース",
+        "podcast": "ポッドキャスト",
+        "work": "仕事",
+        "conversation": "会話",
+        "documentation": "ドキュメント",
+        "conference": "カンファレンス",
+        "other": "その他"
+      },
+      "recentEntries": "最近の学習エントリ",
+      "loading": "読み込み中...",
+      "emptyState": {
+        "noEntries": "学習エントリはまだありません",
+        "createFirst": "最初のエントリを作成"
+      },
+      "viewAllEntries": "すべてのエントリを表示 ({{count}})",
+      "pendingCaptures": "未処理のクイックキャプチャ ({{count}})"
+    }
+  },
   "games": {
     "blackjack": {
       "subtitle1": "ブラックジャックの基本戦略は数学的にほぼフェアな勝負 (エッジ ~0.5%)。",

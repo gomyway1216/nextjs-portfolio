@@ -76,6 +76,137 @@
       "edit": "Edit"
     }
   },
+  "study": {
+    "hub": {
+      "title": "Study Articles",
+      "menu": "Menu",
+      "searchPlaceholder": "Search articles...",
+      "generalCategory": "General",
+      "loadMore": "Load More Articles",
+      "sidebar": {
+        "yourProgress": "Your Progress",
+        "articlesRead": "Articles Read",
+        "quizzesDone": "Quizzes Done",
+        "timeSpent": "Time Spent",
+        "timeMinutesShort": "{{count}}m",
+        "timeHoursShort": "{{count}}h",
+        "dayStreak": "Day Streak",
+        "learningHub": "Learning Hub",
+        "review": "Review",
+        "dictionary": "Dictionary",
+        "csLearningLab": "CS Learning Lab",
+        "openHub": "Open Hub",
+        "categories": "Categories",
+        "allCategories": "All Categories"
+      },
+      "csLab": {
+        "title": "CS Learning Lab",
+        "description": "Interactive sorting visualizers, Big-O comparison, cryptography playgrounds, and quick checks.",
+        "algorithms": "Algorithms",
+        "cryptography": "Cryptography"
+      },
+      "filters": {
+        "title": "Filters",
+        "category": "Category",
+        "difficulty": "Difficulty",
+        "language": "Language",
+        "allCategories": "All Categories",
+        "allDifficulties": "All Difficulties",
+        "allLanguages": "All Languages",
+        "all": "All",
+        "clearAll": "Clear All",
+        "languages": {
+          "en": "English",
+          "ja": "Japanese",
+          "es": "Spanish",
+          "fr": "French",
+          "de": "German",
+          "zh": "Chinese",
+          "ko": "Korean"
+        }
+      },
+      "statusFilter": {
+        "all": "All ({{count}})",
+        "unread": "Unread ({{count}})",
+        "read": "Read ({{count}})"
+      },
+      "emptyState": {
+        "allCaughtUp": "All caught up!",
+        "allCaughtUpText": "You've read all available articles. Great job!",
+        "noReadArticles": "No read articles yet",
+        "noReadArticlesText": "Start reading articles to track your progress",
+        "noArticlesFound": "No articles found",
+        "tryAdjustingFilters": "Try adjusting your filters",
+        "noArticlesYet": "Articles will appear here once generated"
+      },
+      "articleCard": {
+        "readBadge": "Read",
+        "readTooltip": "You have read this article",
+        "minRead": "{{count}} min read",
+        "readAction": "Read"
+      }
+    },
+    "learning": {
+      "signedOut": {
+        "title": "Learning Hub",
+        "description": "Sign in to access your personal learning hub, create notes, build your dictionary, and track your progress.",
+        "signIn": "Sign In to Continue"
+      },
+      "header": {
+        "title": "Learning Hub",
+        "subtitle": "Capture, organize, and master knowledge from any source"
+      },
+      "newEntry": "New Entry",
+      "quickCapturePlaceholder": "Quick capture: jot down an idea, link, or note...",
+      "stats": {
+        "learningEntries": "Learning Entries",
+        "dictionaryTerms": "Dictionary Terms",
+        "flashcards": "Flashcards",
+        "dueForReview": "Due for Review",
+        "currentStreak": "Current Streak",
+        "days_one": "{{count}} day",
+        "days_other": "{{count}} days"
+      },
+      "quickActions": {
+        "todaysPlan": "Today's Plan",
+        "todaysPlanDesc": "AI-generated daily learning",
+        "startReview": "Start Review Session",
+        "startReviewDesc_one": "{{count}} item due for review",
+        "startReviewDesc_other": "{{count}} items due for review",
+        "browseDictionary": "Browse Dictionary",
+        "browseDictionaryDesc_one": "{{count}} term defined",
+        "browseDictionaryDesc_other": "{{count}} terms defined",
+        "flashcardDecks": "Flashcard Decks",
+        "flashcardDecksDesc": "Study with spaced repetition",
+        "learningPaths": "Learning Paths",
+        "learningPathsDesc": "AI-generated goal-based learning",
+        "studyArticles": "Study Articles",
+        "studyArticlesDesc": "AI-generated learning content"
+      },
+      "searchPlaceholder": "Search entries...",
+      "allSources": "All Sources",
+      "sourceTypes": {
+        "book": "Book",
+        "youtube": "YouTube",
+        "article": "Article",
+        "course": "Course",
+        "podcast": "Podcast",
+        "work": "Work",
+        "conversation": "Conversation",
+        "documentation": "Documentation",
+        "conference": "Conference",
+        "other": "Other"
+      },
+      "recentEntries": "Recent Learning Entries",
+      "loading": "Loading...",
+      "emptyState": {
+        "noEntries": "No learning entries yet",
+        "createFirst": "Create Your First Entry"
+      },
+      "viewAllEntries": "View All Entries ({{count}})",
+      "pendingCaptures": "Pending Quick Captures ({{count}})"
+    }
+  },
   "games": {
     "blackjack": {
       "subtitle1": "Basic strategy makes blackjack a nearly fair game (house edge ~0.5%).",

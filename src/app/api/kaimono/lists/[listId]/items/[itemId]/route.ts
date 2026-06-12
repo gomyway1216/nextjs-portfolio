@@ -31,8 +31,9 @@ export const PUT = withActivityLog('next_api.kaimono.lists.listId.items.itemId.P
     }
 
     // Reject negative / non-finite prices and quantities: totalSpent is
-    // sum(price * quantity), so either side corrupts it.
-    if (body.price !== undefined && body.price !== null &&
+    // sum(price * quantity), so either side corrupts it. null is rejected
+    // too — `price?: number` has no null member and it persists as-is.
+    if (body.price !== undefined &&
         (typeof body.price !== 'number' || !Number.isFinite(body.price) || body.price < 0)) {
       return NextResponse.json(
         { error: 'price must be a non-negative finite number' },

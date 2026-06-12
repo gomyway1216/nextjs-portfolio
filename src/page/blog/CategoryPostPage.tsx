@@ -23,9 +23,9 @@ interface CategoryPostPageProps {
 const PAGE_LIMIT = 5;
 
 const CATEGORY_LABELS: Record<string, string> = {
-  all: 'All Writing',
-  technology: 'Technology',
-  life: 'Life',
+  all: 'blogPage.index.categories.all',
+  technology: 'blogPage.index.categories.technology',
+  life: 'blogPage.index.categories.life',
 };
 
 const titleCaseCategory = (value: string) =>
@@ -43,7 +43,7 @@ const CategoryPostPage = ({
   initialLanguage,
 }: CategoryPostPageProps = {}) => {
   const { category: routeCategory } = useParams();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const language = normalizeLanguage(i18n.language);
   const category =
     initialCategory || (Array.isArray(routeCategory) ? routeCategory[0] : routeCategory || 'all');
@@ -70,7 +70,7 @@ const CategoryPostPage = ({
     postsByCategory[cacheKey] ||
     (initialCategory === category && initialLanguage === language ? initialPosts : undefined) ||
     [];
-  const categoryLabel = CATEGORY_LABELS[category] || titleCaseCategory(category);
+  const categoryLabel = CATEGORY_LABELS[category] ? t(CATEGORY_LABELS[category]) : titleCaseCategory(category);
 
   const fetchPosts = async () => {
     setIsLoading(true);
@@ -164,11 +164,10 @@ const CategoryPostPage = ({
     <main className={styles.page}>
       <section className={styles.shell}>
         <header className={styles.hero}>
-          <p className={styles.kicker}>Blog</p>
+          <p className={styles.kicker}>{t('blogPage.index.kicker')}</p>
           <h1 className={styles.title}>{categoryLabel}</h1>
           <p className={styles.subtitle}>
-            Notes on product engineering, fintech systems, learning, and the
-            decisions behind the work.
+            {t('blogPage.index.subtitle')}
           </p>
           <SuggestionBar activeTab={category} />
         </header>
@@ -195,14 +194,14 @@ const CategoryPostPage = ({
           })}
           {!isLoading && visiblePosts.length === 0 && (
             <div className={styles.emptyState} role="status">
-              <h2>No public posts yet</h2>
-              <p>Try another category or come back after the next update.</p>
+              <h2>{t('blogPage.index.emptyTitle')}</h2>
+              <p>{t('blogPage.index.emptyText')}</p>
             </div>
           )}
           {isLoading && (
             <div className={styles.loadingState} role="status">
               <span className={styles.loadingDot} aria-hidden="true" />
-              Loading posts
+              {t('blogPage.index.loading')}
             </div>
           )}
         </div>

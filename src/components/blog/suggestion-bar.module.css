@@ -38,14 +38,14 @@
 }
 
 .active {
-  background: #16a34a;
+  background: #15803d;
   color: #fff;
-  box-shadow: 0 8px 18px color-mix(in srgb, #16a34a 22%, transparent);
+  box-shadow: 0 8px 18px color-mix(in srgb, #15803d 22%, transparent);
 }
 
 .active:hover,
 .active:focus-visible {
-  background: #15803d;
+  background: #166534;
   color: #fff;
 }
 

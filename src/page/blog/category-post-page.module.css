@@ -7,7 +7,7 @@
   min-height: 100vh;
   overflow-x: clip;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--background) 88%, var(--blog-accent-soft) 12%) 0%, var(--background) 34rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--blog-accent-soft) 12%, transparent) 0%, transparent 34rem),
     linear-gradient(90deg, color-mix(in srgb, var(--background) 94%, var(--blog-warm) 6%) 0%, var(--background) 42%, color-mix(in srgb, var(--background) 95%, #dbeafe 5%) 100%),
     var(--background);
   color: var(--foreground);
@@ -121,7 +121,7 @@
   --blog-warm: #78350f;
 
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--background) 84%, var(--blog-accent-soft) 16%) 0%, var(--background) 34rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--blog-accent-soft) 16%, transparent) 0%, transparent 34rem),
     linear-gradient(90deg, color-mix(in srgb, var(--background) 94%, var(--blog-warm) 6%) 0%, var(--background) 46%, color-mix(in srgb, var(--background) 95%, #1e3a8a 5%) 100%),
     var(--background);
 }

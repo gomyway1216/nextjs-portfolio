@@ -1,27 +1,42 @@
 .card {
-  border: 1px solid color-mix(in srgb, var(--border) 82%, #0f766e 18%);
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--border) 84%, #16a34a 16%);
   border-radius: 8px;
-  background: color-mix(in srgb, var(--card) 92%, transparent);
-  box-shadow: 0 18px 46px color-mix(in srgb, var(--foreground) 8%, transparent);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--card) 97%, #dcfce7 3%) 0%, var(--card) 62%),
+    var(--card);
+  box-shadow: 0 16px 42px color-mix(in srgb, var(--foreground) 7%, transparent);
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
+}
+
+.card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: linear-gradient(180deg, #16a34a, #0f766e 58%, #f59e0b);
+  border-radius: 8px 0 0 8px;
+  content: "";
+  opacity: 0.82;
+  pointer-events: none;
 }
 
 .card:has(.cardButton:hover),
 .card:has(.cardButton:focus-visible) {
-  border-color: color-mix(in srgb, #0f766e 50%, var(--border));
-  box-shadow: 0 22px 58px color-mix(in srgb, #0f766e 14%, transparent);
-  transform: translateY(-2px);
+  border-color: color-mix(in srgb, #16a34a 44%, var(--border));
+  box-shadow: 0 24px 60px color-mix(in srgb, #16a34a 12%, transparent);
+  transform: translateY(-3px);
 }
 
 .cardButton {
+  position: relative;
   display: grid;
   width: 100%;
-  grid-template-columns: minmax(0, 1fr) 128px;
-  gap: clamp(20px, 4vw, 36px);
+  grid-template-columns: minmax(0, 1fr) clamp(132px, 17vw, 172px);
+  gap: clamp(22px, 4vw, 40px);
   align-items: center;
   border: 0;
   border-radius: 8px;
-  padding: clamp(22px, 4vw, 34px);
+  padding: clamp(24px, 4vw, 36px) clamp(24px, 4vw, 38px);
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -41,11 +56,13 @@
 .meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
   color: var(--muted-foreground);
   font-size: 12px;
-  font-weight: 500;
+  font-weight: 700;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
@@ -55,45 +72,45 @@
   gap: 8px;
 }
 
-.meta span + span::before {
-  width: 4px;
-  height: 4px;
+.meta span + span {
+  border: 1px solid color-mix(in srgb, #16a34a 32%, var(--border));
   border-radius: 999px;
-  background: color-mix(in srgb, #0f766e 64%, var(--muted-foreground));
-  content: "";
+  padding: 4px 8px;
+  background: color-mix(in srgb, #dcfce7 54%, transparent);
+  color: #047857;
 }
 
 .title {
   margin: 0;
   color: var(--foreground);
-  font-size: clamp(1.35rem, 3vw, 2rem);
-  font-weight: 500;
+  font-size: clamp(1.45rem, 3vw, 2.05rem);
+  font-weight: 700;
   letter-spacing: 0;
-  line-height: 1.28;
+  line-height: 1.18;
   text-wrap: balance;
 }
 
 .excerpt {
   max-width: 680px;
-  margin: 12px 0 0;
+  margin: 14px 0 0;
   color: var(--muted-foreground);
-  font-size: 15px;
-  line-height: 1.7;
+  font-size: 15.5px;
+  line-height: 1.68;
 }
 
 .thumbnail,
 .thumbnailPlaceholder {
   display: flex;
-  width: 128px;
-  height: 128px;
+  width: clamp(132px, 17vw, 172px);
+  height: clamp(108px, 14vw, 136px);
   overflow: hidden;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--background) 82%, #0f766e 18%);
-  color: #0f766e;
+  background: color-mix(in srgb, var(--background) 78%, #dcfce7 22%);
+  color: #047857;
   font-size: 34px;
-  font-weight: 500;
+  font-weight: 700;
 }
 
 .thumbnail img {
@@ -103,20 +120,33 @@
 }
 
 :global(.dark) .card {
-  border-color: color-mix(in srgb, var(--border) 70%, #5eead4 30%);
+  border-color: color-mix(in srgb, var(--border) 72%, #4ade80 28%);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--card) 92%, #064e3b 8%) 0%, var(--card) 64%),
+    var(--card);
   box-shadow: 0 20px 48px color-mix(in srgb, #000 44%, transparent);
+}
+
+:global(.dark) .card::before {
+  background: linear-gradient(180deg, #4ade80, #14b8a6 58%, #fbbf24);
 }
 
 :global(.dark) .card:has(.cardButton:hover),
 :global(.dark) .card:has(.cardButton:focus-visible) {
-  border-color: color-mix(in srgb, #5eead4 48%, var(--border));
-  box-shadow: 0 22px 58px color-mix(in srgb, #5eead4 12%, transparent);
+  border-color: color-mix(in srgb, #4ade80 48%, var(--border));
+  box-shadow: 0 22px 58px color-mix(in srgb, #4ade80 12%, transparent);
+}
+
+:global(.dark) .meta span + span {
+  border-color: color-mix(in srgb, #4ade80 28%, var(--border));
+  background: color-mix(in srgb, #064e3b 42%, transparent);
+  color: #86efac;
 }
 
 :global(.dark) .thumbnail,
 :global(.dark) .thumbnailPlaceholder {
-  background: color-mix(in srgb, var(--background) 72%, #5eead4 28%);
-  color: #99f6e4;
+  background: color-mix(in srgb, var(--background) 72%, #4ade80 28%);
+  color: #bbf7d0;
 }
 
 @media (max-width: 680px) {

@@ -15,10 +15,6 @@ import {
 import { useTranslation } from 'react-i18next';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
 import { games } from '@/components/game/constants/games';
-import {
-  GameLanguageProvider,
-  LanguageSelector,
-} from '@/components/game/contexts/GameLanguageContext';
 import './games-carousel.scss';
 
 function GamesSlideshowContent() {
@@ -153,15 +149,6 @@ function GamesSlideshowContent() {
 
   return (
     <>
-      {/* Language Selector */}
-      <div className="games-language-selector" style={{
-        display: 'flex',
-        justifyContent: 'center',
-        marginBottom: '1rem'
-      }}>
-        <LanguageSelector />
-      </div>
-
       <div className="games-carousel">
         <div className="games-carousel__viewport" ref={emblaRef}>
           <div className="games-carousel__container">
@@ -246,11 +233,7 @@ function GamesSlideshowContent() {
 }
 
 const GamesSlideshow = () => {
-  return (
-    <GameLanguageProvider>
-      <GamesSlideshowContent />
-    </GameLanguageProvider>
-  );
+  return <GamesSlideshowContent />;
 };
 
 export default GamesSlideshow;

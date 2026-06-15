@@ -232,8 +232,6 @@ function GamesSlideshowContent() {
   );
 }
 
-const GamesSlideshow = () => {
-  return <GamesSlideshowContent />;
-};
+const GamesSlideshow = GamesSlideshowContent;
 
 export default GamesSlideshow;

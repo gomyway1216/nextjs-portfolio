@@ -368,7 +368,15 @@
   background: color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
+.home-modern #blog .row > div {
+  display: flex;
+  flex-direction: column;
+}
+
 .home-modern #blog .blog-grid.modern-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
   border-color: color-mix(in srgb, var(--accent) 22%, var(--border-soft));
 }
 
@@ -380,6 +388,10 @@
 .home-modern #blog .blog-grid .meta {
   color: var(--accent);
   font-weight: 500;
+}
+
+.home-modern #blog .blog-grid .blog-info {
+  flex: 1;
 }
 
 .home-modern #blog .blog-grid .blog-info a {

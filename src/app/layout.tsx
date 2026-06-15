@@ -87,10 +87,6 @@ export const metadata: Metadata = {
     title: SITE_TITLE,
     description: SITE_DESCRIPTION,
   },
-  icons: {
-    icon: [{ url: '/icon.svg', type: 'image/svg+xml', sizes: 'any' }],
-    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
-  },
 };
 
 const personJsonLd = {

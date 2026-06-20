@@ -2,7 +2,7 @@
 
 import React, { createContext, useEffect, useContext, useState, ReactNode, useCallback, useRef } from 'react';
 import { MultiFactorResolver, RecaptchaVerifier, User, UserCredential } from 'firebase/auth';
-import { auth, signInWithEmail, signInWithGoogle, signUpWithEmail, signOutUser }
+import { auth, signInWithEmail, signInWithGoogle, signInWithSessionCookie, signUpWithEmail, signOutUser }
   from '@/lib/firebaseConnect';
 import * as twoFactorService from '@/services/twoFactorService';
 import { getErrorCode } from '@/lib/errorUtils';
@@ -35,6 +35,8 @@ interface AuthSessionState {
   isEnrolledInMFA: boolean;
 }
 
+const AUTH_SIGN_OUT_EVENT_KEY = 'meetyudai:auth-sign-out';
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const useAuth = () => {
@@ -60,6 +62,16 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const wasSignedInRef = useRef(false);
   const syncedSessionUidRef = useRef<string | null>(null);
   const mfaSignInCompletingRef = useRef(false);
+  const attemptedSessionRestoreRef = useRef(false);
+
+  const resetLocalAuthState = useCallback(() => {
+    setAuthState({ currentUser: null, isAdmin: false, isEnrolledInMFA: false });
+    syncedSessionUidRef.current = null;
+    wasSignedInRef.current = false;
+    mfaResolverRef.current = null;
+    setTwoFactorRequired(false);
+    setMfaPhoneHint(null);
+  }, []);
 
   const syncSessionCookie = useCallback(async (user: User | null, forceRefresh = false): Promise<boolean> => {
     try {
@@ -130,6 +142,47 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const getMFAStatus = useCallback(() => {
     return twoFactorService.isEnrolledInMFA();
+  }, []);
+
+  const applySignedInUser = useCallback(async (user: User): Promise<boolean> => {
+    if (user.isAnonymous) {
+      // Anonymous users never have admin or MFA — skip the extra calls.
+      setAuthState({ currentUser: user, isAdmin: false, isEnrolledInMFA: false });
+      return true;
+    }
+
+    if (syncedSessionUidRef.current !== user.uid) {
+      const sessionSynced = await syncSessionCookie(user);
+      if (!sessionSynced) {
+        resetLocalAuthState();
+        return false;
+      }
+    }
+
+    const adminStatus = await getAdminStatus(user);
+    const enrolledInMFA = getMFAStatus();
+    setAuthState({
+      currentUser: user,
+      isAdmin: adminStatus,
+      isEnrolledInMFA: enrolledInMFA,
+    });
+    wasSignedInRef.current = true;
+    return true;
+  }, [getAdminStatus, getMFAStatus, resetLocalAuthState, syncSessionCookie]);
+
+  const restoreFirebaseAuthFromSession = useCallback(async (): Promise<UserCredential | null> => {
+    try {
+      const credential = await signInWithSessionCookie();
+      if (credential?.user) {
+        // The cookie was already verified to mint the custom token; avoid
+        // immediately rewriting it just because Firebase client auth was empty.
+        syncedSessionUidRef.current = credential.user.uid;
+      }
+      return credential;
+    } catch (error) {
+      console.error('Session restore error:', error);
+      return null;
+    }
   }, []);
 
   // Check MFA enrollment status
@@ -284,12 +337,36 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const signOut = useCallback(async () => {
     await fetch('/api/auth/session', { method: 'DELETE' });
-    signOutUser();
-    setAuthState({ currentUser: null, isAdmin: false, isEnrolledInMFA: false });
-    mfaResolverRef.current = null;
-    setTwoFactorRequired(false);
-    setMfaPhoneHint(null);
-  }, []);
+    await signOutUser();
+    resetLocalAuthState();
+    if (typeof window !== 'undefined') {
+      try {
+        window.localStorage.setItem(AUTH_SIGN_OUT_EVENT_KEY, String(Date.now()));
+      } catch (error) {
+        console.error('Cross-tab sign-out broadcast failed:', error);
+      }
+    }
+  }, [resetLocalAuthState]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== AUTH_SIGN_OUT_EVENT_KEY) return;
+
+      attemptedSessionRestoreRef.current = true;
+      wasSignedInRef.current = false;
+      syncedSessionUidRef.current = null;
+      void signOutUser()
+        .catch((error) => {
+          console.error('Cross-tab Firebase sign-out failed:', error);
+        })
+        .finally(resetLocalAuthState);
+    };
+
+    window.addEventListener('storage', handleStorage);
+    return () => window.removeEventListener('storage', handleStorage);
+  }, [resetLocalAuthState]);
 
   // Auth state listener. Visitors who haven't signed in stay null —
   // their activity is tracked via the localStorage session_id (see
@@ -313,14 +390,24 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
     const unsubscribe = auth.onAuthStateChanged(async (user: User | null) => {
       if (!user) {
-        setAuthState({ currentUser: null, isAdmin: false, isEnrolledInMFA: false });
+        if (!wasSignedInRef.current && !attemptedSessionRestoreRef.current && !mfaSignInCompletingRef.current) {
+          attemptedSessionRestoreRef.current = true;
+          const restoredCredential = await restoreFirebaseAuthFromSession();
+          if (restoredCredential?.user) {
+            await applySignedInUser(restoredCredential.user);
+            finishLoading();
+            return;
+          }
+        }
+
+        const hadSignedInUser = wasSignedInRef.current;
+        resetLocalAuthState();
         // Skip cookie deletion only on the initial idle/signed-out load. That
         // avoids racing MFA session creation while still clearing the server
         // cookie after a real signed-in -> signed-out transition.
-        if (wasSignedInRef.current) {
+        if (hadSignedInUser) {
           await syncSessionCookie(null);
         }
-        wasSignedInRef.current = false;
         finishLoading();
         return;
       }
@@ -330,28 +417,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         return;
       }
 
-      if (user.isAnonymous) {
-        // Anonymous users never have admin or MFA — skip the extra calls.
-        setAuthState({ currentUser: user, isAdmin: false, isEnrolledInMFA: false });
-      } else {
-        if (syncedSessionUidRef.current !== user.uid) {
-          const sessionSynced = await syncSessionCookie(user);
-          if (!sessionSynced) {
-            setAuthState({ currentUser: null, isAdmin: false, isEnrolledInMFA: false });
-            finishLoading();
-            return;
-          }
-        }
-        const adminStatus = await getAdminStatus(user);
-        const enrolledInMFA = getMFAStatus();
-        setAuthState({
-          currentUser: user,
-          isAdmin: adminStatus,
-          isEnrolledInMFA: enrolledInMFA,
-        });
-        wasSignedInRef.current = true;
-      }
-
+      await applySignedInUser(user);
       finishLoading();
     });
 
@@ -361,7 +427,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       clearTimeout(fallbackTimer);
       unsubscribe();
     };
-  }, [getAdminStatus, getMFAStatus, syncSessionCookie]);
+  }, [applySignedInUser, resetLocalAuthState, restoreFirebaseAuthFromSession, syncSessionCookie]);
 
   const value: AuthContextType = {
     currentUser: authState.currentUser,

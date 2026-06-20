@@ -172,13 +172,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
   const restoreFirebaseAuthFromSession = useCallback(async (): Promise<UserCredential | null> => {
     try {
-      const credential = await signInWithSessionCookie();
-      if (credential?.user) {
-        // The cookie was already verified to mint the custom token; avoid
-        // immediately rewriting it just because Firebase client auth was empty.
-        syncedSessionUidRef.current = credential.user.uid;
-      }
-      return credential;
+      return await signInWithSessionCookie((uid) => {
+        // The cookie was already verified to mint the custom token; update this
+        // before signInWithCustomToken can trigger the auth-state listener.
+        syncedSessionUidRef.current = uid;
+      });
     } catch (error) {
       console.error('Session restore error:', error);
       return null;
@@ -336,8 +334,13 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   }, []);
 
   const signOut = useCallback(async () => {
-    await fetch('/api/auth/session', { method: 'DELETE' });
-    await signOutUser();
+    attemptedSessionRestoreRef.current = true;
+    await syncSessionCookie(null);
+    wasSignedInRef.current = false;
+    syncedSessionUidRef.current = null;
+    await signOutUser().catch((error) => {
+      console.error('Firebase sign-out error:', error);
+    });
     resetLocalAuthState();
     if (typeof window !== 'undefined') {
       try {
@@ -346,7 +349,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         console.error('Cross-tab sign-out broadcast failed:', error);
       }
     }
-  }, [resetLocalAuthState]);
+  }, [resetLocalAuthState, syncSessionCookie]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

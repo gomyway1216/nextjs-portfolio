@@ -10,6 +10,7 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   signInAnonymously,
+  signInWithCustomToken,
   signInWithEmailAndPassword,
   signInWithPopup,
   signOut,
@@ -123,6 +124,34 @@ export const signInWithGoogle = () => {
   // Google session — important on shared devices.
   provider.setCustomParameters({ prompt: 'select_account' });
   return signInWithPopup(auth, provider);
+};
+
+export const signInWithSessionCookie = async (onBeforeSignIn?: (uid: string) => void) => {
+  if (!app) return null;
+  const response = await fetch('/api/auth/client-token', {
+    method: 'POST',
+    cache: 'no-store',
+    credentials: 'same-origin',
+  });
+
+  if (response.status === 401) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Session restore failed with status ${response.status}`);
+  }
+
+  const data = await response.json() as { customToken?: unknown; uid?: unknown };
+  if (typeof data.customToken !== 'string' || data.customToken.length === 0) {
+    throw new Error('Session restore response did not include a custom token.');
+  }
+
+  if (typeof data.uid === 'string') {
+    onBeforeSignIn?.(data.uid);
+  }
+
+  return signInWithCustomToken(auth, data.customToken);
 };
 
 export const signOutUser = () => {

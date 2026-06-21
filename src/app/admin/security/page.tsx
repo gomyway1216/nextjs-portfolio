@@ -15,6 +15,7 @@ AlertTriangle,
 ArrowLeft,
 Check,
 Loader2,
+LogOut,
 Mail,
 MessageSquare,
 Phone,
@@ -28,7 +29,7 @@ import { useEffect,useRef,useState } from 'react';
 
 export default function SecuritySettingsPage() {
   const router = useRouter();
-  const { currentUser, loading: authLoading, isEnrolledInMFA, refreshMFAStatus } = useAuth();
+  const { currentUser, loading: authLoading, isEnrolledInMFA, refreshMFAStatus, signOut } = useAuth();
 
   // Enrollment state
   const [enrollmentStep, setEnrollmentStep] = useState<'idle' | 'phone' | 'verify'>('idle');
@@ -37,6 +38,7 @@ export default function SecuritySettingsPage() {
 
   // UI state
   const [loading, setLoading] = useState<boolean>(false);
+  const [signingOut, setSigningOut] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
   const [verificationEmailSent, setVerificationEmailSent] = useState<boolean>(false);
@@ -79,6 +81,16 @@ export default function SecuritySettingsPage() {
 
   // Check if email is verified
   const isEmailVerified = currentUser?.emailVerified === true;
+
+  const handleSignOut = async () => {
+    setSigningOut(true);
+    try {
+      await Promise.resolve(signOut());
+      router.push('/');
+    } finally {
+      setSigningOut(false);
+    }
+  };
 
   // Send email verification
   const handleSendVerificationEmail = async () => {
@@ -238,20 +250,34 @@ export default function SecuritySettingsPage() {
 
       {/* Header */}
       <div style={{ marginBottom: '32px' }}>
-        <Link
-          href="/admin"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '6px',
-            color: '#6b7280',
-            textDecoration: 'none',
-            marginBottom: '16px',
-          }}
-        >
-          <ArrowLeft size={16} />
-          Back to Admin
-        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' }}>
+          <Link
+            href="/admin"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: '#6b7280',
+              textDecoration: 'none',
+            }}
+          >
+            <ArrowLeft size={16} />
+            Back to Admin
+          </Link>
+          <Button variant="outline" size="sm" onClick={handleSignOut} disabled={signingOut}>
+            {signingOut ? (
+              <>
+                <Loader2 className="animate-spin mr-2" size={14} />
+                Signing out...
+              </>
+            ) : (
+              <>
+                <LogOut size={14} className="mr-2" />
+                Log out
+              </>
+            )}
+          </Button>
+        </div>
         <h1 style={{ fontSize: '24px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Shield size={28} />
           Security Settings

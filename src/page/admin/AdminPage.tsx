@@ -27,6 +27,7 @@ Heart,
 Image as ImageIcon,
 LayoutDashboard,
 Loader2,
+LogOut,
 Pencil,
 Plus,
 Save,
@@ -527,7 +528,7 @@ const PostsTable = memo(function PostsTable({
 });
 
 const AdminPage = () => {
-  const { currentUser, loading: authLoading, isAdmin } = useAuth();
+  const { currentUser, loading: authLoading, isAdmin, signOut } = useAuth();
   const router = useRouter();
   const { profile, loading: profileLoading, refetch: refetchProfile } = useProfile();
   const { resumeLink: fetchedResumeLink } = useResumeLink();
@@ -544,6 +545,7 @@ const AdminPage = () => {
   const postMutations = usePostMutations();
 
   const [activeSection, setActiveSection] = useState<AdminSection>(() => getSectionFromHash());
+  const [signingOut, setSigningOut] = useState(false);
 
   // Sync activeSection with URL hash
   useEffect(() => {
@@ -560,6 +562,17 @@ const AdminPage = () => {
     setActiveSection(section);
     window.location.hash = section;
   };
+
+  const handleSignOut = useCallback(async () => {
+    setSigningOut(true);
+    try {
+      await Promise.resolve(signOut());
+      router.push('/');
+    } finally {
+      setSigningOut(false);
+    }
+  }, [router, signOut]);
+
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -1633,6 +1646,28 @@ const AdminPage = () => {
                 <Shield size={20} />
                 Security Settings
               </Link>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                disabled={signingOut}
+                style={{
+                  ...styles.navButton,
+                  backgroundColor: 'transparent',
+                  color: '#fca5a5',
+                  opacity: signingOut ? 0.7 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.12)';
+                  e.currentTarget.style.color = '#fecaca';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                  e.currentTarget.style.color = '#fca5a5';
+                }}
+              >
+                {signingOut ? <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> : <LogOut size={20} />}
+                {signingOut ? 'Signing out...' : 'Log out'}
+              </button>
             </div>
           </nav>
         </aside>

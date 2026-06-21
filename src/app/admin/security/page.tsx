@@ -51,12 +51,12 @@ export default function SecuritySettingsPage() {
   // Anonymous users (auto-anon-signed via AuthProvider) and unauthenticated
   // visitors are redirected to /signin to upgrade to a real account first.
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || signingOut) return;
     if (!currentUser || currentUser.isAnonymous) {
       router.push('/signin');
       return;
     }
-  }, [authLoading, currentUser, router]);
+  }, [authLoading, currentUser, router, signingOut]);
 
   // Initialize reCAPTCHA when entering phone step
   useEffect(() => {
@@ -85,9 +85,10 @@ export default function SecuritySettingsPage() {
   const handleSignOut = async () => {
     setSigningOut(true);
     try {
-      await Promise.resolve(signOut());
+      await signOut();
       router.push('/');
-    } finally {
+    } catch (error) {
+      console.error('Security settings sign-out error:', error);
       setSigningOut(false);
     }
   };

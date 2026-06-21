@@ -566,9 +566,10 @@ const AdminPage = () => {
   const handleSignOut = useCallback(async () => {
     setSigningOut(true);
     try {
-      await Promise.resolve(signOut());
+      await signOut();
       router.push('/');
-    } finally {
+    } catch (error) {
+      console.error('Admin sign-out error:', error);
       setSigningOut(false);
     }
   }, [router, signOut]);
@@ -684,7 +685,7 @@ const AdminPage = () => {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || signingOut) return;
     if (!currentUser) {
       router.push('/signin');
       return;
@@ -696,7 +697,7 @@ const AdminPage = () => {
     }
     fetchJobs();
     fetchTechnologies();
-  }, [authLoading, currentUser, isAdmin, router]);
+  }, [authLoading, currentUser, isAdmin, router, signingOut]);
 
   const fetchTechnologies = async () => {
     try {
@@ -1654,13 +1655,16 @@ const AdminPage = () => {
                   ...styles.navButton,
                   backgroundColor: 'transparent',
                   color: '#fca5a5',
+                  cursor: signingOut ? 'not-allowed' : 'pointer',
                   opacity: signingOut ? 0.7 : 1,
                 }}
                 onMouseEnter={(e) => {
+                  if (signingOut) return;
                   e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.12)';
                   e.currentTarget.style.color = '#fecaca';
                 }}
                 onMouseLeave={(e) => {
+                  if (signingOut) return;
                   e.currentTarget.style.backgroundColor = 'transparent';
                   e.currentTarget.style.color = '#fca5a5';
                 }}

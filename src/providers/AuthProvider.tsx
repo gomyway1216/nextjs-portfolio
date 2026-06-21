@@ -25,7 +25,7 @@ interface AuthContextType {
   sendMfaCode: (recaptchaVerifier: RecaptchaVerifier) => Promise<void>;
   verifyTwoFactorAndComplete: (code: string) => Promise<void>;
   cancelTwoFactor: () => void;
-  signOut: () => void;
+  signOut: () => Promise<void>;
   refreshMFAStatus: () => void;
 }
 

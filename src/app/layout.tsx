@@ -89,9 +89,14 @@ export const metadata: Metadata = {
   },
 };
 
+// Stable @id values so the Person and Organization nodes can cross-
+// reference each other (founder <-> memberOf) instead of duplicating data.
+const PERSON_ID = `${SITE_URL}#person`;
+const COMMUNITY_ID = 'https://bayarea-ai.com/#organization';
+
 const personJsonLd = {
-  '@context': 'https://schema.org',
   '@type': 'Person',
+  '@id': PERSON_ID,
   name: SITE_NAME,
   alternateName: '矢口 雄大',
   url: SITE_URL,
@@ -100,10 +105,33 @@ const personJsonLd = {
     '@type': 'Organization',
     name: 'Atlas',
   },
+  // Community leadership: ties the Person to the AI community he runs.
+  // The founder relationship lives on the Organization node below.
+  memberOf: { '@id': COMMUNITY_ID },
   // Static fallback links on purpose: the layout renders without a
   // profile fetch. Kept in sync via the shared DEFAULT_SOCIAL_LINKS.
   sameAs: DEFAULT_SOCIAL_LINKS.map((link) => link.url),
   description: SITE_DESCRIPTION,
+};
+
+// Separate node so the founder relationship is explicit and crawlable:
+// search engines can connect "Yudai Yaguchi" to the Bay Area AI Study
+// Group he founded and organizes.
+const communityJsonLd = {
+  '@type': 'Organization',
+  '@id': COMMUNITY_ID,
+  name: 'Bay Area AI Study Group',
+  url: 'https://bayarea-ai.com',
+  description:
+    'A Bay Area community for AI engineers, hosting monthly meetups and a platform for sharing projects, articles, and Q&A.',
+  founder: { '@id': PERSON_ID },
+};
+
+// One @graph keeps both entities (and their cross-references) in a single
+// script tag.
+const structuredDataJsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [personJsonLd, communityJsonLd],
 };
 
 export default async function RootLayout({
@@ -129,7 +157,7 @@ export default async function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(personJsonLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredDataJsonLd) }}
         />
       </head>
       <body className={`${rubik.variable} ${playfair.variable}`} suppressHydrationWarning>

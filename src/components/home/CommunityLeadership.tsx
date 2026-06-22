@@ -19,7 +19,9 @@ const COMMUNITY_URL = 'https://bayarea-ai.com';
 export default function CommunityLeadership() {
   const { t, i18n } = useTranslation();
   // Send English readers to the English site and JA readers to the JA site.
-  const lang = i18n.language === 'ja' ? 'ja' : 'en';
+  // startsWith handles region-coded locales (e.g. 'ja-JP'), matching the
+  // detection in app/layout.tsx.
+  const lang = i18n.language?.startsWith('ja') ? 'ja' : 'en';
   const communityHref = `${COMMUNITY_URL}/${lang}`;
 
   return (

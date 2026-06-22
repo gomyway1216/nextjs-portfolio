@@ -44,7 +44,7 @@ const Header = () => {
     signOut();
   };
 
-  const language = i18n.language === 'ja' ? 'ja' : 'en';
+  const language = i18n.language?.startsWith('ja') ? 'ja' : 'en';
 
   const setLanguage = (lang: 'en' | 'ja') => {
     i18n.changeLanguage(lang);

@@ -1003,6 +1003,7 @@
       "blog": "Blog",
       "about": "About",
       "resume": "Resume",
+      "community": "Community",
       "hobbies": "Hobbies",
       "study": "Study",
       "admin": "Admin"
@@ -1068,6 +1069,47 @@
         }
       },
       "note": "Sensitive implementation details and private metrics are summarized at a high level here; the focus is scope, ownership, and engineering judgment."
+    },
+    "community": {
+      "eyebrow": "Community Leadership",
+      "title": "Building and leading an AI engineering community in the Bay Area.",
+      "role": "Founder & Organizer — Bay Area AI Study Group",
+      "subtitle": "Beyond my fintech work, I founded and run the Bay Area AI Study Group: a monthly meetup and a self-built platform where engineers share projects, articles, and lessons learned.",
+      "metricsLabel": "Community leadership highlights",
+      "metrics": {
+        "cadence": {
+          "value": "Monthly",
+          "label": "In-person AI meetups in the Bay Area, organized and hosted end-to-end."
+        },
+        "platform": {
+          "value": "Self-built",
+          "label": "Community platform built with Next.js and Firebase for sharing projects and Q&A."
+        },
+        "network": {
+          "value": "JTPA",
+          "label": "Run in partnership with JTPA, a nonprofit supporting Japan–US tech talent."
+        }
+      },
+      "highlights": {
+        "organize": {
+          "title": "Organizer & Host",
+          "description": "Plan and run the monthly meetup end-to-end: agenda, speakers, venue, and check-in."
+        },
+        "platform": {
+          "title": "Platform Builder",
+          "description": "Designed and built bayarea-ai.com from scratch with Next.js and Firebase."
+        },
+        "curate": {
+          "title": "Curating Member Work",
+          "description": "Review and showcase member projects, articles, and tips submitted to the community hub."
+        },
+        "bridge": {
+          "title": "Japan–US Bridge",
+          "description": "Connect Japanese-speaking engineers in the Bay Area around AI, alongside JTPA."
+        }
+      },
+      "cta": "Visit the community",
+      "note": "The community runs in Japanese for Bay Area engineers; the platform and event information are also available in English."
     },
     "sections": {
       "work": {

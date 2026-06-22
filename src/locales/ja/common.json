@@ -1000,6 +1000,7 @@
       "blog": "ブログ",
       "about": "自己紹介",
       "resume": "経歴",
+      "community": "コミュニティ",
       "hobbies": "趣味",
       "study": "学習",
       "admin": "管理"
@@ -1065,6 +1066,47 @@
         }
       },
       "note": "詳細な実装や非公開の数値は高い抽象度でまとめ、担当範囲、オーナーシップ、技術判断が伝わる表現にしています。"
+    },
+    "community": {
+      "eyebrow": "コミュニティ運営",
+      "title": "ベイエリアで AI エンジニアのコミュニティを立ち上げ、運営しています。",
+      "role": "Founder & Organizer — Bay Area AI 勉強会",
+      "subtitle": "本業の fintech に加えて、Bay Area AI 勉強会を立ち上げて運営しています。月1回のミートアップと自作のプラットフォームで、エンジニアがプロジェクトや記事、学びを共有しています。",
+      "metricsLabel": "コミュニティ運営のハイライト",
+      "metrics": {
+        "cadence": {
+          "value": "毎月",
+          "label": "ベイエリアで対面の AI ミートアップを企画から運営まで主催。"
+        },
+        "platform": {
+          "value": "自作",
+          "label": "プロジェクトや Q&A を共有するコミュニティ基盤を Next.js と Firebase で構築。"
+        },
+        "network": {
+          "value": "JTPA",
+          "label": "日米の技術人材を支援する NPO「JTPA」と連携して運営。"
+        }
+      },
+      "highlights": {
+        "organize": {
+          "title": "主催・運営",
+          "description": "アジェンダ、登壇者、会場、チェックインまで、月1のミートアップを一貫して企画・運営。"
+        },
+        "platform": {
+          "title": "プラットフォーム構築",
+          "description": "bayarea-ai.com を Next.js と Firebase でゼロから設計・開発。"
+        },
+        "curate": {
+          "title": "メンバー作品のキュレーション",
+          "description": "ハブに投稿されたメンバーのプロジェクト・記事・Tips をレビューして紹介。"
+        },
+        "bridge": {
+          "title": "日米のブリッジ",
+          "description": "JTPA と連携し、ベイエリアの日本語話者エンジニアを AI でつなぐ。"
+        }
+      },
+      "cta": "コミュニティを見る",
+      "note": "コミュニティはベイエリアの日本語話者向けに日本語で運営していますが、プラットフォームとイベント情報は英語でも参照できます。"
     },
     "sections": {
       "work": {

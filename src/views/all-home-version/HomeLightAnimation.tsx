@@ -7,6 +7,7 @@ import Header from '@/components/header/Header';
 import Slider from '@/components/slider/SliderAnimation';
 import About from '@/components/about/AboutAnimation';
 import ImpactSnapshot from '@/components/home/ImpactSnapshot';
+import CommunityLeadership from '@/components/home/CommunityLeadership';
 import Resume from '@/components/resume/ResumeAnimation';
 import Portfolio from '@/components/portfolio/PortfolioAnimation';
 import GamesSlideshow from '@/components/games/GamesSlideshow';
@@ -47,6 +48,8 @@ const HomeOne = ({ initialProfile }: HomeOneProps) => {
       <ImpactSnapshot />
 
       <Resume />
+
+      <CommunityLeadership />
 
       <section id="work" className="section theme-light dark-bg modern-section">
         <div className="container">

@@ -18,6 +18,7 @@ NotebookPen,
 Palette,
 Shield,
 UserRound,
+Users,
 Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -29,7 +30,7 @@ import { Tooltip } from 'react-tooltip';
 // Section IDs the home-page nav scroll-spies on, in document order.
 // The first one whose top crosses into the viewport's top band gets
 // the `active` class.
-const SECTION_IDS = ['home', 'impact', 'resume', 'tools', 'study', 'games', 'blog', 'about'] as const;
+const SECTION_IDS = ['home', 'impact', 'resume', 'community', 'tools', 'study', 'games', 'blog', 'about'] as const;
 
 const Header = () => {
   const [click, setClick] = useState<boolean>(false);
@@ -138,6 +139,17 @@ const Header = () => {
                 onClick={handleClick}
               >
                 <FileText size={20} />
+              </Link>
+            </li>
+            <li className={activeSection === 'community' ? 'active' : ''}>
+              <Link
+                className="nav-link"
+                href="/#community"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content={t('home.nav.community')}
+                onClick={handleClick}
+              >
+                <Users size={20} />
               </Link>
             </li>
             <li className={activeSection === 'tools' ? 'active' : ''}>

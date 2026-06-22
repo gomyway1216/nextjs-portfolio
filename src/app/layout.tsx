@@ -91,7 +91,10 @@ export const metadata: Metadata = {
 
 // Stable @id values so the Person and Organization nodes can cross-
 // reference each other (founder <-> memberOf) instead of duplicating data.
-const PERSON_ID = `${SITE_URL}#person`;
+// Both ids put the fragment on the canonical root URL (trailing slash
+// before '#') so the Person<->Organization cross-references resolve
+// consistently across JSON-LD/RDF parsers.
+const PERSON_ID = `${SITE_URL}/#person`;
 const COMMUNITY_ID = 'https://bayarea-ai.com/#organization';
 
 const personJsonLd = {

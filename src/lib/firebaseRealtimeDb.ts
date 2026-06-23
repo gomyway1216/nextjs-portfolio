@@ -8,7 +8,7 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getDatabase, ref, onValue, off, set, Database, DataSnapshot } from 'firebase/database';
 import { ensureGameSignIn } from '@/lib/gameAuth';
-import { firebaseClientConfig } from '@/lib/firebaseConfig';
+import { firebaseClientConfig, isFirebaseClientConfigured } from '@/lib/firebaseConfig';
 
 // Singleton instances
 let app: FirebaseApp | null = null;
@@ -18,6 +18,10 @@ let database: Database | null = null;
  * Get or initialize Firebase App
  */
 export function getFirebaseApp(): FirebaseApp {
+  if (!isFirebaseClientConfigured) {
+    throw new Error('Firebase client is not configured. Please check your environment variables.');
+  }
+
   if (!app) {
     const apps = getApps();
     app = apps.length > 0 ? apps[0] : initializeApp(firebaseClientConfig);

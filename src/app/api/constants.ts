@@ -1,6 +1,7 @@
 // Firestore collection names
 export const POSTS_COLLECTION = 'post';
 export const PROJECTS_COLLECTION = 'project';
+export const WRITING_COLLECTION = 'writing';
 export const TECHNOLOGIES_COLLECTION = 'technology';
 export const PROFILE_COLLECTION = 'profile';
 export const TASKS_COLLECTION = 'task';

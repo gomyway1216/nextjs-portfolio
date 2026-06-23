@@ -8,6 +8,8 @@ import HomeLightAnimation from '@/views/all-home-version/HomeLightAnimation';
 import { getFirestore } from '@/lib/firebase-admin';
 import type { Profile } from '@/hooks/useProfile';
 import { isValidSocialLink, type ProfileSocialLink } from '@/lib/socialLinks';
+import { WRITING_COLLECTION } from '@/app/api/constants';
+import { DEFAULT_WRITINGS, parseWritingDoc, publicWritings, type Writing } from '@/lib/writing';
 
 const PROFILE_DOC_ID = 'main';
 
@@ -47,6 +49,23 @@ const getInitialProfileCached = unstable_cache(getInitialProfile, ['home-profile
   tags: ['profile'],
 });
 
+// Returns null when the collection has no documents at all (caller falls back
+// to DEFAULT_WRITINGS); returns the published list — possibly empty when every
+// entry is hidden — once any document exists. Throws on Firestore failure so
+// the outage is not cached.
+async function getInitialWritings(): Promise<Writing[] | null> {
+  const snapshot = await getFirestore().collection(WRITING_COLLECTION).get();
+  if (snapshot.empty) return null;
+  return publicWritings(snapshot.docs.map((doc) => parseWritingDoc(doc.id, doc.data())));
+}
+
+// Cached like the profile read; the /api/writing POST/PUT/DELETE routes bust
+// the 'writing' tag on save.
+const getInitialWritingsCached = unstable_cache(getInitialWritings, ['home-writings'], {
+  revalidate: 3600,
+  tags: ['writing'],
+});
+
 export default async function Home() {
   let initialProfile: Profile | null = null;
   try {
@@ -57,10 +76,20 @@ export default async function Home() {
     console.error('[Home] Failed to load initial profile:', error);
   }
 
+  // DEFAULT_WRITINGS unless Firestore has entries; an outage or empty
+  // collection both keep the built-in default so the section never blanks.
+  let initialWritings: Writing[] = DEFAULT_WRITINGS;
+  try {
+    const fetched = await getInitialWritingsCached();
+    if (fetched !== null) initialWritings = fetched;
+  } catch (error) {
+    console.error('[Home] Failed to load initial writings:', error);
+  }
+
   return (
     <>
       <AOSInitializer />
-      <HomeLightAnimation initialProfile={initialProfile} />
+      <HomeLightAnimation initialProfile={initialProfile} initialWritings={initialWritings} />
     </>
   );
 }

@@ -31,15 +31,21 @@ import { Tooltip } from 'react-tooltip';
 // Section IDs the home-page nav scroll-spies on, in document order.
 // The first one whose top crosses into the viewport's top band gets
 // the `active` class.
-const SECTION_IDS = ['home', 'impact', 'resume', 'writing', 'blog', 'community', 'tools', 'study', 'games', 'about'] as const;
+const SECTION_IDS_WITH_WRITING = ['home', 'impact', 'resume', 'writing', 'blog', 'community', 'tools', 'study', 'games', 'about'] as const;
+const SECTION_IDS_WITHOUT_WRITING = ['home', 'impact', 'resume', 'blog', 'community', 'tools', 'study', 'games', 'about'] as const;
 
-const Header = () => {
+interface HeaderProps {
+  showWriting?: boolean;
+}
+
+const Header = ({ showWriting = false }: HeaderProps) => {
   const [click, setClick] = useState<boolean>(false);
   const handleClick = () => setClick(!click);
   const router = useRouter();
   const { currentUser, isAdmin, signOut } = useAuth();
   const { t, i18n } = useTranslation();
-  const activeSection = useActiveSection(SECTION_IDS);
+  const sectionIds = showWriting ? SECTION_IDS_WITH_WRITING : SECTION_IDS_WITHOUT_WRITING;
+  const activeSection = useActiveSection(sectionIds);
 
   const handleSignOut = () => {
     signOut();
@@ -142,17 +148,19 @@ const Header = () => {
                 <FileText size={20} />
               </Link>
             </li>
-            <li className={activeSection === 'writing' ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/#writing"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.writing')}
-                onClick={handleClick}
-              >
-                <Newspaper size={20} />
-              </Link>
-            </li>
+            {showWriting && (
+              <li className={activeSection === 'writing' ? 'active' : ''}>
+                <Link
+                  className="nav-link"
+                  href="/#writing"
+                  data-tooltip-id="left-menu-tooltip"
+                  data-tooltip-content={t('home.nav.writing')}
+                  onClick={handleClick}
+                >
+                  <Newspaper size={20} />
+                </Link>
+              </li>
+            )}
             <li className={activeSection === 'blog' ? 'active' : ''}>
               <Link
                 className="nav-link"

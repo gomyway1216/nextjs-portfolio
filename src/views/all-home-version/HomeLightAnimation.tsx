@@ -30,6 +30,7 @@ interface HomeOneProps {
 const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
   const { t } = useTranslation();
   const { resolvedTheme } = useTheme();
+  const hasPublishedWritings = initialWritings.length > 0;
   useDocumentTitle(
     t('app.title')
   );
@@ -44,7 +45,7 @@ const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
 
   return (
     <div className="main-left home-modern">
-      <Header />
+      <Header showWriting={hasPublishedWritings} />
 
       <Slider initialProfile={initialProfile} />
 
@@ -52,7 +53,7 @@ const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
 
       <Resume />
 
-      <PublishedWriting writings={initialWritings} />
+      {hasPublishedWritings && <PublishedWriting writings={initialWritings} />}
 
       <section id="blog" className="section modern-section">
         <div className="container">
@@ -67,7 +68,6 @@ const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
             <p>{t('home.sections.blog.subtitle')}</p>
           </div>
           <Blog />
-          {/* <div onClick={() => navigate('/all')}>Check more blogs</div> */}
         </div>
       </section>
       {/* End Blog Section */}

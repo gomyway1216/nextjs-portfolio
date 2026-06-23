@@ -53,6 +53,7 @@
       "googleNetwork": "Google sign-in could not reach Firebase. Check your connection and try again.",
       "googleAccountConflict": "An account already exists with this email using a different sign-in method.",
       "googleSessionFailed": "Google sign-in succeeded, but meetyudai.com could not create a secure session. Check Firebase Admin credentials.",
+      "googlePopupUnavailable": "Google sign-in popup is not available. Refresh the page and try again.",
       "googleConfigMissing": "Google sign-in is not configured for this environment. Check Firebase client environment variables.",
       "passwordMin": "Password must be at least 8 characters",
       "displayNameRequired": "Please enter a display name",

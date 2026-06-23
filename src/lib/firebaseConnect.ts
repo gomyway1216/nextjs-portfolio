@@ -1,6 +1,7 @@
 import { initializeApp, getApps } from 'firebase/app';
 import {
   type Auth,
+  browserPopupRedirectResolver,
   browserSessionPersistence,
   createUserWithEmailAndPassword,
   getAuth,
@@ -71,6 +72,8 @@ function createAuth() {
   try {
     return initializeAuth(app, {
       persistence: [browserSessionPersistence, inMemoryPersistence],
+      // initializeAuth does not install this default when dependencies are overridden.
+      popupRedirectResolver: browserPopupRedirectResolver,
     });
   } catch {
     try {

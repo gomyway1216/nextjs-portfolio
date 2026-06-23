@@ -3,7 +3,7 @@ import { revalidateTag } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureAdmin } from '@/lib/auth-utils';
 import { WRITING_COLLECTION } from '@/app/api/constants';
-import { parseWritingDoc, toWritingDate } from '@/lib/writing';
+import { parseWritingDoc, toWritingDate, isSafeHttpUrl } from '@/lib/writing';
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
 /**
@@ -20,7 +20,17 @@ export const GET = withActivityLog('next_api.writing.id.GET', async (request: Ne
       return NextResponse.json({ error: 'Writing not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ writing: parseWritingDoc(doc.id, doc.data()!) });
+    const writing = parseWritingDoc(doc.id, doc.data()!);
+    // Hidden entries are admin-only; 404 (not 403) so their existence isn't
+    // revealed to anonymous callers, matching the list endpoint.
+    if (!writing.isPublic) {
+      const { user } = await ensureAdmin(request);
+      if (!user) {
+        return NextResponse.json({ error: 'Writing not found' }, { status: 404 });
+      }
+    }
+
+    return NextResponse.json({ writing });
   } catch (error) {
     console.error('Error fetching writing:', error);
     return NextResponse.json({ error: 'Failed to fetch writing' }, { status: 500 });
@@ -46,6 +56,12 @@ export const PUT = withActivityLog('next_api.writing.id.PUT', async (request: Ne
     if (!title || !source || !url) {
       return NextResponse.json(
         { error: 'Missing required fields: title, source, url' },
+        { status: 400 }
+      );
+    }
+    if (!isSafeHttpUrl(url)) {
+      return NextResponse.json(
+        { error: 'Invalid url: must be an http(s) URL' },
         { status: 400 }
       );
     }

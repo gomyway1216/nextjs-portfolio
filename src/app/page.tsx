@@ -76,8 +76,9 @@ export default async function Home() {
     console.error('[Home] Failed to load initial profile:', error);
   }
 
-  // DEFAULT_WRITINGS unless Firestore has entries; an outage or empty
-  // collection both keep the built-in default so the section never blanks.
+  // DEFAULT_WRITINGS unless Firestore has entries: an outage or an empty
+  // collection both keep the built-in default. Once entries exist they take
+  // over — and if every entry is hidden the section renders nothing.
   let initialWritings: Writing[] = DEFAULT_WRITINGS;
   try {
     const fetched = await getInitialWritingsCached();

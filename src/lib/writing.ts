@@ -89,3 +89,17 @@ export function toWritingDate(value: unknown): Date | null {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? null : date;
 }
+
+/**
+ * A url safe to render as a public `<a href>` — only http(s), never
+ * `javascript:`/`data:`. Mirrors the intent of isValidSocialLink.
+ */
+export function isSafeHttpUrl(value: unknown): value is string {
+  if (typeof value !== 'string') return false;
+  try {
+    const { protocol } = new URL(value);
+    return protocol === 'https:' || protocol === 'http:';
+  } catch {
+    return false;
+  }
+}

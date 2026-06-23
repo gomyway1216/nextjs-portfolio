@@ -3,7 +3,7 @@ import { revalidateTag } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureAdmin } from '@/lib/auth-utils';
 import { WRITING_COLLECTION } from '@/app/api/constants';
-import { parseWritingDoc, toWritingDate } from '@/lib/writing';
+import { parseWritingDoc, toWritingDate, isSafeHttpUrl } from '@/lib/writing';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
@@ -59,6 +59,12 @@ export const POST = withActivityLog('next_api.writing.POST', async (request: Nex
     if (!title || !source || !url) {
       return NextResponse.json(
         { error: 'Missing required fields: title, source, url' },
+        { status: 400 }
+      );
+    }
+    if (!isSafeHttpUrl(url)) {
+      return NextResponse.json(
+        { error: 'Invalid url: must be an http(s) URL' },
         { status: 400 }
       );
     }

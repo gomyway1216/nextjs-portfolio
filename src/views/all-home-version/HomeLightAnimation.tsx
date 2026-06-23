@@ -14,6 +14,7 @@ import GamesSlideshow from '@/components/games/GamesSlideshow';
 import ToolsSection from '@/components/tools/ToolsSection';
 import StudyEntry from '@/components/home/StudyEntry';
 import Blog from '@/components/blog/BlogAnimation';
+import PublishedWriting from '@/components/home/PublishedWriting';
 import Footer from '@/components/footer/FooterAnimation';
 import useDocumentTitle from '@/components/useDocumentTitle';
 import { useTranslation } from 'react-i18next';
@@ -94,6 +95,8 @@ const HomeOne = ({ initialProfile }: HomeOneProps) => {
         </div>
       </section>
       {/* End Games Section */}
+
+      <PublishedWriting />
 
       <section id="blog" className="section modern-section">
         <div className="container">

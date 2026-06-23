@@ -47,6 +47,13 @@
     "errors": {
       "invalidEmail": "Please enter a valid email address",
       "googleFailed": "Google sign-in failed. Please try again.",
+      "googleUnauthorizedDomain": "This domain is not authorized for Google sign-in. Add meetyudai.com to Firebase Authentication authorized domains.",
+      "googleProviderDisabled": "Google sign-in is disabled in Firebase Authentication.",
+      "googlePopupBlocked": "Google sign-in popup was blocked. Allow popups and try again.",
+      "googleNetwork": "Google sign-in could not reach Firebase. Check your connection and try again.",
+      "googleAccountConflict": "An account already exists with this email using a different sign-in method.",
+      "googleSessionFailed": "Google sign-in succeeded, but meetyudai.com could not create a secure session. Check Firebase Admin credentials.",
+      "googleConfigMissing": "Google sign-in is not configured for this environment. Check Firebase client environment variables.",
       "passwordMin": "Password must be at least 8 characters",
       "displayNameRequired": "Please enter a display name",
       "passwordMismatch": "Passwords do not match",

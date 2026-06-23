@@ -16,26 +16,7 @@ import {
   signOut,
   updateProfile,
 } from 'firebase/auth';
-
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_APP_ID,
-};
-
-const requiredFirebaseConfig = [
-  firebaseConfig.apiKey,
-  firebaseConfig.authDomain,
-  firebaseConfig.projectId,
-  firebaseConfig.appId,
-];
-
-export const isFirebaseClientConfigured = requiredFirebaseConfig.every(
-  (value) => typeof value === 'string' && value.trim().length > 0,
-);
+import { firebaseClientConfig, isFirebaseClientConfigured } from './firebaseConfig';
 
 function createDisabledAuth(): Auth {
   const notifySignedOut = (observer: Parameters<Auth['onAuthStateChanged']>[0]) => {
@@ -65,7 +46,7 @@ function getFirebaseUnavailableError() {
 
 const app = isFirebaseClientConfigured
   ? getApps().length === 0
-    ? initializeApp(firebaseConfig)
+    ? initializeApp(firebaseClientConfig)
     : getApps()[0]
   : null;
 

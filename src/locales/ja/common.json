@@ -47,6 +47,13 @@
     "errors": {
       "invalidEmail": "メールアドレスが正しくありません",
       "googleFailed": "Googleサインインに失敗しました。もう一度お試しください。",
+      "googleUnauthorizedDomain": "このドメインはGoogleサインインで許可されていません。Firebase Authenticationの承認済みドメインにmeetyudai.comを追加してください。",
+      "googleProviderDisabled": "Firebase AuthenticationでGoogleサインインが無効になっています。",
+      "googlePopupBlocked": "Googleサインインのポップアップがブロックされました。ポップアップを許可してもう一度お試しください。",
+      "googleNetwork": "GoogleサインインでFirebaseに接続できませんでした。通信状況を確認してもう一度お試しください。",
+      "googleAccountConflict": "このメールアドレスは別のログイン方法で既に登録されています。",
+      "googleSessionFailed": "Googleサインインは成功しましたが、meetyudai.comの安全なセッションを作成できませんでした。Firebase Adminの認証情報を確認してください。",
+      "googleConfigMissing": "この環境ではGoogleサインインが設定されていません。Firebaseクライアント環境変数を確認してください。",
       "passwordMin": "パスワードは8文字以上にしてください",
       "displayNameRequired": "表示名を入力してください",
       "passwordMismatch": "パスワードが一致しません",

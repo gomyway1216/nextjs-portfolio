@@ -36,6 +36,13 @@ interface AuthSessionState {
 }
 
 const AUTH_SIGN_OUT_EVENT_KEY = 'meetyudai:auth-sign-out';
+const SESSION_COOKIE_SYNC_ERROR_CODE = 'auth/session-cookie-failed';
+
+function createAuthFlowError(code: string, message: string): Error & { code: string } {
+  const error = new Error(message) as Error & { code: string };
+  error.code = code;
+  return error;
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -221,7 +228,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         await createUserDocument(credential.user, credential.user.displayName ?? undefined);
         const sessionSynced = await syncSessionCookie(credential.user);
         if (!sessionSynced) {
-          throw new Error('Failed to set session cookie after Google sign-in');
+          throw createAuthFlowError(
+            SESSION_COOKIE_SYNC_ERROR_CODE,
+            'Failed to set session cookie after Google sign-in',
+          );
         }
       } catch (error) {
         // Don't leave Firebase signed in while the app session is broken —

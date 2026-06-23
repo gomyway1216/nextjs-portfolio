@@ -15,6 +15,14 @@ function assertRuntimePhase() {
   }
 }
 
+function parseServiceAccountKey(serviceAccount: string): admin.ServiceAccount {
+  const trimmed = serviceAccount.trim();
+  const json = trimmed.startsWith('{')
+    ? trimmed
+    : Buffer.from(trimmed, 'base64').toString('utf8');
+  return JSON.parse(json) as admin.ServiceAccount;
+}
+
 export function getAdminSDK() {
   if (!app) {
     try {
@@ -49,7 +57,7 @@ export function getAdminSDK() {
         // Use service account JSON (for production)
         console.log('[Firebase Admin] Using service account JSON');
         app = admin.initializeApp({
-          credential: admin.credential.cert(JSON.parse(serviceAccount)),
+          credential: admin.credential.cert(parseServiceAccountKey(serviceAccount)),
           projectId: projectId,
           storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_STORAGE_BUCKET,
           databaseURL,

@@ -60,6 +60,35 @@ const SignInPage = () => {
 
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  const getGoogleSignInErrorMessage = (err: unknown) => {
+    const code = getErrorCode(err);
+    if (code === 'auth/unauthorized-domain') {
+      return t('signin.errors.googleUnauthorizedDomain');
+    }
+    if (code === 'auth/operation-not-allowed') {
+      return t('signin.errors.googleProviderDisabled');
+    }
+    if (code === 'auth/popup-blocked') {
+      return t('signin.errors.googlePopupBlocked');
+    }
+    if (code === 'auth/network-request-failed') {
+      return t('signin.errors.googleNetwork');
+    }
+    if (code === 'auth/account-exists-with-different-credential') {
+      return t('signin.errors.googleAccountConflict');
+    }
+    if (code === 'auth/session-cookie-failed') {
+      return t('signin.errors.googleSessionFailed');
+    }
+
+    const message = getErrorMessage(err, '');
+    if (message.includes('Firebase client auth is not configured')) {
+      return t('signin.errors.googleConfigMissing');
+    }
+
+    return t('signin.errors.googleFailed');
+  };
+
   const handleGoogleSignIn = async () => {
     setError('');
     setGoogleLoading(true);
@@ -71,7 +100,8 @@ const SignInPage = () => {
       if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') {
         // User dismissed the popup — not an error worth showing.
       } else {
-        setError(t('signin.errors.googleFailed'));
+        console.error('[SignInPage] Google sign-in failed:', err);
+        setError(getGoogleSignInErrorMessage(err));
       }
     } finally {
       setGoogleLoading(false);

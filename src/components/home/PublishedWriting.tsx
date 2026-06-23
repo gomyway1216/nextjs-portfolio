@@ -50,8 +50,12 @@ export default function PublishedWriting() {
     })),
   };
 
+  // Escape '<' so a value containing '</script>' can't break out of the
+  // inline script tag (defense-in-depth for future entries).
+  const writingJsonLdHtml = JSON.stringify(writingJsonLd).replace(/</g, '\\u003c');
+
   return (
-    <section id="writing" className={`section modern-section ${styles.section}`}>
+    <section id="writing" className="section modern-section">
       <div className="container">
         <div className="title modern-title">
           <h3>{t('home.writing.title')}</h3>
@@ -90,7 +94,7 @@ export default function PublishedWriting() {
 
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(writingJsonLd) }}
+        dangerouslySetInnerHTML={{ __html: writingJsonLdHtml }}
       />
     </section>
   );

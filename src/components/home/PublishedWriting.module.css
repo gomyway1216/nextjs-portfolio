@@ -100,7 +100,8 @@
   transition: transform 0.2s ease;
 }
 
-.item:hover .readMore svg {
+.item:hover .readMore svg,
+.item:focus-within .readMore svg {
   transform: translate(1px, -1px);
 }
 

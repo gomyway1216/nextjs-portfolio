@@ -14,6 +14,7 @@ FileText,
 Gamepad2,
 House,
 LineChart,
+Newspaper,
 NotebookPen,
 Palette,
 Shield,
@@ -30,7 +31,7 @@ import { Tooltip } from 'react-tooltip';
 // Section IDs the home-page nav scroll-spies on, in document order.
 // The first one whose top crosses into the viewport's top band gets
 // the `active` class.
-const SECTION_IDS = ['home', 'impact', 'resume', 'community', 'tools', 'study', 'games', 'blog', 'about'] as const;
+const SECTION_IDS = ['home', 'impact', 'resume', 'writing', 'blog', 'community', 'tools', 'study', 'games', 'about'] as const;
 
 const Header = () => {
   const [click, setClick] = useState<boolean>(false);
@@ -141,6 +142,28 @@ const Header = () => {
                 <FileText size={20} />
               </Link>
             </li>
+            <li className={activeSection === 'writing' ? 'active' : ''}>
+              <Link
+                className="nav-link"
+                href="/#writing"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content={t('home.nav.writing')}
+                onClick={handleClick}
+              >
+                <Newspaper size={20} />
+              </Link>
+            </li>
+            <li className={activeSection === 'blog' ? 'active' : ''}>
+              <Link
+                className="nav-link"
+                href="/#blog"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content={t('home.nav.blog')}
+                onClick={handleClick}
+              >
+                <NotebookPen size={20} />
+              </Link>
+            </li>
             <li className={activeSection === 'community' ? 'active' : ''}>
               <Link
                 className="nav-link"
@@ -183,17 +206,6 @@ const Header = () => {
                 onClick={handleClick}
               >
                 <Gamepad2 size={20} />
-              </Link>
-            </li>
-            <li className={activeSection === 'blog' ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/#blog"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.blog')}
-                onClick={handleClick}
-              >
-                <NotebookPen size={20} />
               </Link>
             </li>
             <li className={activeSection === 'about' ? 'active' : ''}>

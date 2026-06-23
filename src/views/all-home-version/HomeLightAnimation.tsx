@@ -52,18 +52,27 @@ const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
 
       <Resume />
 
-      <CommunityLeadership />
+      <PublishedWriting writings={initialWritings} />
 
-      <section id="work" className="section theme-light dark-bg modern-section">
+      <section id="blog" className="section modern-section">
         <div className="container">
           <div className="title modern-title">
-            <h3>{t('home.sections.work.title')}</h3>
-            <p>{t('home.sections.work.subtitle')}</p>
+            <div className="modern-title__row">
+              <h3>{t('home.sections.blog.title')}</h3>
+              <Link href="/blog" className="modern-title__link">
+                {t('home.sections.blog.viewAll')}
+                <ArrowRight size={16} aria-hidden="true" />
+              </Link>
+            </div>
+            <p>{t('home.sections.blog.subtitle')}</p>
           </div>
-          <Portfolio />
+          <Blog />
+          {/* <div onClick={() => navigate('/all')}>Check more blogs</div> */}
         </div>
       </section>
-      {/* End Portfolio Section */}
+      {/* End Blog Section */}
+
+      <CommunityLeadership />
 
       <section id="tools" className="section theme-light dark-bg modern-section">
         <div className="container">
@@ -75,6 +84,17 @@ const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
         </div>
       </section>
       {/* End Tools Section */}
+
+      <section id="work" className="section theme-light dark-bg modern-section">
+        <div className="container">
+          <div className="title modern-title">
+            <h3>{t('home.sections.work.title')}</h3>
+            <p>{t('home.sections.work.subtitle')}</p>
+          </div>
+          <Portfolio />
+        </div>
+      </section>
+      {/* End Portfolio Section */}
 
       <section id="study" className="section modern-section">
         <div className="container">
@@ -97,26 +117,6 @@ const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
         </div>
       </section>
       {/* End Games Section */}
-
-      <PublishedWriting writings={initialWritings} />
-
-      <section id="blog" className="section modern-section">
-        <div className="container">
-          <div className="title modern-title">
-            <div className="modern-title__row">
-              <h3>{t('home.sections.blog.title')}</h3>
-              <Link href="/blog" className="modern-title__link">
-                {t('home.sections.blog.viewAll')}
-                <ArrowRight size={16} aria-hidden="true" />
-              </Link>
-            </div>
-            <p>{t('home.sections.blog.subtitle')}</p>
-          </div>
-          <Blog />
-          {/* <div onClick={() => navigate('/all')}>Check more blogs</div> */}
-        </div>
-      </section>
-      {/* End Blog Section */}
 
       <About initialProfile={initialProfile} />
 

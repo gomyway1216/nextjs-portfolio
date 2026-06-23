@@ -2,7 +2,7 @@
  * Create TV Shows hobby category and sample data
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';

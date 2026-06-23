@@ -15,7 +15,8 @@
 
 const dotenv = require("dotenv");
 const path = require("node:path");
-const admin = require("firebase-admin");
+const { cert, getApps, initializeApp } = require("firebase-admin/app");
+const { getAuth } = require("firebase-admin/auth");
 
 dotenv.config({ path: path.resolve(__dirname, "..", ".env.local") });
 
@@ -45,9 +46,9 @@ function requireEnv(name, value) {
 }
 
 function initAdmin() {
-  if (admin.apps.length > 0) return;
-  admin.initializeApp({
-    credential: admin.credential.cert({
+  if (getApps().length > 0) return;
+  initializeApp({
+    credential: cert({
       projectId: requireEnv("FIREBASE_PROJECT_ID", FIREBASE_PROJECT_ID),
       clientEmail: requireEnv("FIREBASE_CLIENT_EMAIL", FIREBASE_CLIENT_EMAIL),
       privateKey: requireEnv("FIREBASE_PRIVATE_KEY", FIREBASE_PRIVATE_KEY),
@@ -59,7 +60,7 @@ async function signInWithCustomToken() {
   initAdmin();
 
   const uid = `codex-dryrun-${Date.now()}`;
-  const customToken = await admin.auth().createCustomToken(uid);
+  const customToken = await getAuth().createCustomToken(uid);
 
   const apiKey = requireEnv("NEXT_PUBLIC_API_KEY", FIREBASE_WEB_API_KEY);
   const res = await fetch(
@@ -170,4 +171,3 @@ main().catch((err) => {
   console.error(err?.stack || String(err));
   process.exitCode = 1;
 });
-

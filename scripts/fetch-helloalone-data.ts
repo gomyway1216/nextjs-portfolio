@@ -5,7 +5,7 @@
 
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';

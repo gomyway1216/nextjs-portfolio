@@ -5,7 +5,7 @@
  * Usage: npx tsx scripts/migrateHobbyImages.ts
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as path from 'path';
 import * as https from 'https';
 import * as http from 'http';

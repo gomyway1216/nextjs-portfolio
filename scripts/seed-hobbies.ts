@@ -11,7 +11,7 @@
  * - FIREBASE_SERVICE_ACCOUNT_KEY (JSON string)
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import { v4 as uuidv4 } from 'uuid';
 import * as dotenv from 'dotenv';
 import * as path from 'path';

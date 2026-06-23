@@ -2,7 +2,7 @@
  * Add anime characters and voice actors for all anime
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 

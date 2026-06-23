@@ -1,11 +1,20 @@
-import * as admin from 'firebase-admin';
+import {
+  cert,
+  getApps,
+  initializeApp,
+  type App,
+} from 'firebase-admin/app';
+import { getAuth as getAdminAuth, type Auth } from 'firebase-admin/auth';
+import { getDatabase as getAdminDatabase, type Database } from 'firebase-admin/database';
+import { FieldValue, getFirestore as getAdminFirestore, type Firestore } from 'firebase-admin/firestore';
+import { getStorage as getAdminStorage, type Storage } from 'firebase-admin/storage';
 
 // Initialize Firebase Admin SDK
-let app: admin.app.App;
-let db: admin.firestore.Firestore;
-let auth: admin.auth.Auth;
-let storage: admin.storage.Storage;
-let realtimeDb: admin.database.Database;
+let app: App;
+let db: Firestore;
+let auth: Auth;
+let storage: Storage;
+let realtimeDb: Database;
 
 const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build';
 
@@ -20,13 +29,14 @@ export function getAdminSDK() {
     try {
       assertRuntimePhase();
       // Check if already initialized
-      if (admin.apps.length > 0 && admin.apps[0]) {
+      const existingApp = getApps()[0];
+      if (existingApp) {
         console.log('[Firebase Admin] Using existing initialized app');
-        app = admin.apps[0];
-        db = admin.firestore(app);
-        auth = admin.auth(app);
-        storage = admin.storage(app);
-        realtimeDb = admin.database(app);
+        app = existingApp;
+        db = getAdminFirestore(app);
+        auth = getAdminAuth(app);
+        storage = getAdminStorage(app);
+        realtimeDb = getAdminDatabase(app);
         return { app, db, auth, storage, realtimeDb };
       }
 
@@ -48,8 +58,8 @@ export function getAdminSDK() {
       if (serviceAccount) {
         // Use service account JSON (for production)
         console.log('[Firebase Admin] Using service account JSON');
-        app = admin.initializeApp({
-          credential: admin.credential.cert(JSON.parse(serviceAccount)),
+        app = initializeApp({
+          credential: cert(JSON.parse(serviceAccount)),
           projectId: projectId,
           storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_STORAGE_BUCKET,
           databaseURL,
@@ -57,8 +67,8 @@ export function getAdminSDK() {
       } else if (privateKey && clientEmail && projectId) {
         // Use individual environment variables (for development)
         console.log('[Firebase Admin] Using individual environment variables');
-        app = admin.initializeApp({
-          credential: admin.credential.cert({
+        app = initializeApp({
+          credential: cert({
             projectId: projectId,
             clientEmail: clientEmail,
             privateKey: privateKey.replace(/\\n/g, '\n'),
@@ -73,17 +83,17 @@ export function getAdminSDK() {
         if (!projectId) {
           throw new Error('Firebase projectId is required but not found in environment variables');
         }
-        app = admin.initializeApp({
+        app = initializeApp({
           projectId: projectId,
           storageBucket: process.env.FIREBASE_STORAGE_BUCKET || process.env.NEXT_PUBLIC_STORAGE_BUCKET,
           databaseURL,
         });
       }
 
-      db = admin.firestore();
-      auth = admin.auth();
-      storage = admin.storage();
-      realtimeDb = admin.database();
+      db = getAdminFirestore(app);
+      auth = getAdminAuth(app);
+      storage = getAdminStorage(app);
+      realtimeDb = getAdminDatabase(app);
       console.log('[Firebase Admin] Successfully initialized');
     } catch (error) {
       console.error('[Firebase Admin] Failed to initialize:', error);
@@ -121,5 +131,5 @@ export function getRealtimeDatabase() {
 export function getServerTimestamp() {
   assertRuntimePhase();
   getAdminSDK();
-  return admin.firestore.FieldValue.serverTimestamp();
+  return FieldValue.serverTimestamp();
 }

@@ -78,3 +78,14 @@ export function publicWritings(writings: Writing[]): Writing[] {
     .filter((w) => w.isPublic)
     .sort((a, b) => a.order - b.order);
 }
+
+/**
+ * Parse an incoming date value to a valid Date, or null. Guards against
+ * `new Date('garbage')` (Invalid Date), which the Firestore Admin SDK would
+ * reject with a serialization error on write.
+ */
+export function toWritingDate(value: unknown): Date | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}

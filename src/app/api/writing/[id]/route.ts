@@ -3,7 +3,7 @@ import { revalidateTag } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureAdmin } from '@/lib/auth-utils';
 import { WRITING_COLLECTION } from '@/app/api/constants';
-import { parseWritingDoc } from '@/lib/writing';
+import { parseWritingDoc, toWritingDate } from '@/lib/writing';
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
 /**
@@ -62,7 +62,7 @@ export const PUT = withActivityLog('next_api.writing.id.PUT', async (request: Ne
       title,
       source,
       url,
-      date: date ? new Date(date) : null,
+      date: toWritingDate(date),
       summaryEn: summaryEn || '',
       summaryJa: summaryJa || '',
       isPublic: isPublic !== false,

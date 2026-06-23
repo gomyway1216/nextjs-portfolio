@@ -3,7 +3,7 @@ import { revalidateTag } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureAdmin } from '@/lib/auth-utils';
 import { WRITING_COLLECTION } from '@/app/api/constants';
-import { parseWritingDoc } from '@/lib/writing';
+import { parseWritingDoc, toWritingDate } from '@/lib/writing';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
@@ -68,7 +68,7 @@ export const POST = withActivityLog('next_api.writing.POST', async (request: Nex
       title,
       source,
       url,
-      date: date ? new Date(date) : null,
+      date: toWritingDate(date),
       summaryEn: summaryEn || '',
       summaryJa: summaryJa || '',
       isPublic: isPublic !== false,

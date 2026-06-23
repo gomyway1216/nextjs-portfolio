@@ -52,7 +52,8 @@ export default function WritingAdminPanel() {
   const openCreate = () => { setForm(EMPTY); setMode('new'); setError(null); };
   const openEdit = (w: Writing) => {
     setForm({
-      title: w.title, source: w.source, url: w.url, date: w.date ?? '',
+      // <input type="date"> needs YYYY-MM-DD, but stored dates are full ISO.
+      title: w.title, source: w.source, url: w.url, date: w.date ? w.date.slice(0, 10) : '',
       summaryEn: w.summaryEn, summaryJa: w.summaryJa, isPublic: w.isPublic, order: w.order,
     });
     setMode(w.id);
@@ -108,6 +109,10 @@ export default function WritingAdminPanel() {
         )}
       </div>
 
+      {/* Panel-level so create/edit/delete errors are all visible, including
+          when the table (no form) is showing. */}
+      {error && <p style={{ ...s.error, marginBottom: '14px' }}>{error}</p>}
+
       {mode !== null && (
         <form style={s.form} onSubmit={handleSubmit}>
           <div style={s.twoCol}>
@@ -151,8 +156,6 @@ export default function WritingAdminPanel() {
             Visible on the site
           </label>
 
-          {error && <p style={s.error}>{error}</p>}
-
           <div style={s.formActions}>
             <button type="button" style={s.ghostBtn} onClick={close} disabled={saving}>Cancel</button>
             <button type="submit" style={s.primaryBtn} disabled={saving}>{saving ? 'Saving…' : mode === 'new' ? 'Create' : 'Save'}</button>
@@ -185,8 +188,8 @@ export default function WritingAdminPanel() {
               </a>
               {confirmId === w.id ? (
                 <span style={{ display: 'inline-flex', gap: '6px' }}>
-                  <button type="button" style={{ ...s.iconBtn, color: '#fca5a5', borderColor: 'rgba(239,68,68,0.4)' }} onClick={() => handleDelete(w.id)}>Yes</button>
-                  <button type="button" style={s.iconBtn} onClick={() => setConfirmId(null)}>No</button>
+                  <button type="button" disabled={saving} style={{ ...s.iconBtn, color: '#fca5a5', borderColor: 'rgba(239,68,68,0.4)' }} onClick={() => handleDelete(w.id)}>Yes</button>
+                  <button type="button" disabled={saving} style={s.iconBtn} onClick={() => setConfirmId(null)}>No</button>
                 </span>
               ) : (
                 <span style={{ display: 'inline-flex', gap: '6px' }}>

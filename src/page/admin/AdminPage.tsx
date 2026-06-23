@@ -28,6 +28,7 @@ Image as ImageIcon,
 LayoutDashboard,
 Loader2,
 LogOut,
+Newspaper,
 Pencil,
 Plus,
 Save,
@@ -44,7 +45,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CSSProperties,memo,useCallback,useEffect,useRef,useState } from 'react';
 
-type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'hobbies' | 'activity-logs';
+type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'hobbies' | 'writing' | 'activity-logs';
 
 interface Job {
   id: string;
@@ -90,6 +91,11 @@ const ActivityLogPanel = dynamic(() => import('@/components/admin/ActivityLogPan
 const HobbiesAdminPanel = dynamic(() => import('@/components/hobby/HobbiesAdminPanel'), {
   ssr: false,
   loading: () => <AdminSectionLoader label="Loading hobbies..." />,
+});
+
+const WritingAdminPanel = dynamic(() => import('@/components/writing/WritingAdminPanel'), {
+  ssr: false,
+  loading: () => <AdminSectionLoader label="Loading writing..." />,
 });
 
 const StudyAdminPanel = dynamic(() => import('@/components/study/StudyAdminPanel'), {
@@ -366,7 +372,7 @@ const styles: Record<string, CSSProperties> = {
 const getSectionFromHash = (): AdminSection => {
   if (typeof window === 'undefined') return 'dashboard';
   const hash = window.location.hash.replace('#', '');
-  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'jobs', 'study', 'hobbies', 'activity-logs'];
+  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'jobs', 'study', 'hobbies', 'writing', 'activity-logs'];
   return validSections.includes(hash as AdminSection) ? (hash as AdminSection) : 'dashboard';
 };
 
@@ -1563,6 +1569,7 @@ const AdminPage = () => {
     { id: 'profile' as AdminSection, label: 'Profile', icon: User },
     { id: 'projects' as AdminSection, label: 'Projects', icon: FolderKanban },
     { id: 'posts' as AdminSection, label: 'Blog Posts', icon: FileText },
+    { id: 'writing' as AdminSection, label: 'Writing', icon: Newspaper },
     { id: 'jobs' as AdminSection, label: 'Jobs', icon: Briefcase },
     { id: 'study' as AdminSection, label: 'Study Tool', icon: BookOpen },
     { id: 'hobbies' as AdminSection, label: 'Hobbies', icon: Heart },
@@ -2275,6 +2282,11 @@ const AdminPage = () => {
           {/* Hobbies Section */}
           {activeSection === 'hobbies' && (
             <HobbiesAdminPanel />
+          )}
+
+          {/* Published Writing Section */}
+          {activeSection === 'writing' && (
+            <WritingAdminPanel />
           )}
 
           {/* Activity Log Section */}

@@ -1432,12 +1432,7 @@
       "title": "Engineering writing, published beyond this site.",
       "subtitle": "Articles I've authored on company and industry engineering blogs.",
       "readLabel": "Read on {{source}}",
-      "newTab": "(opens in a new tab)",
-      "items": {
-        "explainable-states": {
-          "summary": "Why modeling a financial product's status as explicit, explainable states improves reliability, support, and user trust."
-        }
-      }
+      "newTab": "(opens in a new tab)"
     }
   },
   "kaimono": {

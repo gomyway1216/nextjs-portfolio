@@ -20,12 +20,14 @@ import useDocumentTitle from '@/components/useDocumentTitle';
 import { useTranslation } from 'react-i18next';
 import { useTheme } from 'next-themes';
 import type { Profile } from '@/hooks/useProfile';
+import type { Writing } from '@/lib/writing';
 
 interface HomeOneProps {
   initialProfile?: Profile | null;
+  initialWritings?: Writing[];
 }
 
-const HomeOne = ({ initialProfile }: HomeOneProps) => {
+const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
   const { t } = useTranslation();
   const { resolvedTheme } = useTheme();
   useDocumentTitle(
@@ -96,7 +98,7 @@ const HomeOne = ({ initialProfile }: HomeOneProps) => {
       </section>
       {/* End Games Section */}
 
-      <PublishedWriting />
+      <PublishedWriting writings={initialWritings} />
 
       <section id="blog" className="section modern-section">
         <div className="container">

@@ -8,17 +8,7 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getDatabase, ref, onValue, off, set, Database, DataSnapshot } from 'firebase/database';
 import { ensureGameSignIn } from '@/lib/gameAuth';
-
-// Firebase config
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: 'yudai-portfolio.firebaseapp.com',
-  databaseURL: 'https://yudai-portfolio-default-rtdb.firebaseio.com',
-  projectId: 'yudai-portfolio',
-  storageBucket: 'yudai-portfolio.appspot.com',
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-};
+import { firebaseClientConfig, isFirebaseClientConfigured } from '@/lib/firebaseConfig';
 
 // Singleton instances
 let app: FirebaseApp | null = null;
@@ -28,9 +18,13 @@ let database: Database | null = null;
  * Get or initialize Firebase App
  */
 export function getFirebaseApp(): FirebaseApp {
+  if (!isFirebaseClientConfigured) {
+    throw new Error('Firebase client is not configured. Please check your environment variables.');
+  }
+
   if (!app) {
     const apps = getApps();
-    app = apps.length > 0 ? apps[0] : initializeApp(firebaseConfig);
+    app = apps.length > 0 ? apps[0] : initializeApp(firebaseClientConfig);
   }
   return app;
 }
@@ -40,7 +34,9 @@ export function getFirebaseApp(): FirebaseApp {
  */
 export function getFirebaseDatabase(): Database {
   if (!database) {
-    database = getDatabase(getFirebaseApp());
+    database = firebaseClientConfig.databaseURL
+      ? getDatabase(getFirebaseApp(), firebaseClientConfig.databaseURL)
+      : getDatabase(getFirebaseApp());
   }
   return database;
 }

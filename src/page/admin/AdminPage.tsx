@@ -3,6 +3,7 @@
 import { usePostCategories,usePostMutations,usePosts } from '@/hooks/usePosts';
 import { updateProfile,useProfile,useResumeLink } from '@/hooks/useProfile';
 import { useProjectCategories,useProjectMutations,useProjects,useUrlTypes } from '@/hooks/useProjects';
+import RichContentRenderer from '@/components/common/RichContentRenderer';
 import type { PostLanguage,PostTranslations } from '@/lib/blog/postTranslations';
 import { useAuth } from '@/providers/AuthProvider';
 import * as imageApi from '@/services/imageService';
@@ -2317,12 +2318,45 @@ const AdminPage = () => {
                   />
                 </div>
                 <div>
-                  <label style={styles.label}>Description *</label>
+                  <label style={styles.label}>Description (Markdown) *</label>
                   <textarea
                     value={projectForm.description}
                     onChange={(e) => setProjectForm({ ...projectForm, description: e.target.value })}
-                    style={styles.textarea}
+                    placeholder={'## Overview\n\n- What you built\n- Why it matters\n- How it works\n\n```mermaid\nflowchart LR\n  A[Input] --> B[System] --> C[Output]\n```'}
+                    style={{
+                      ...styles.textarea,
+                      minHeight: '260px',
+                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                    }}
                   />
+                  {projectForm.description.trim() && (
+                    <div style={{
+                      marginTop: '12px',
+                      border: '1px solid rgba(255, 255, 255, 0.12)',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      backgroundColor: '#111827',
+                    }}>
+                      <div style={{
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                        color: '#94a3b8',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        padding: '8px 12px',
+                        textTransform: 'uppercase',
+                      }}>
+                        Preview
+                      </div>
+                      <div style={{
+                        color: '#f3f4f6',
+                        maxHeight: '360px',
+                        overflowY: 'auto',
+                        padding: '16px',
+                      }}>
+                        <RichContentRenderer content={projectForm.description} />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                   <div>

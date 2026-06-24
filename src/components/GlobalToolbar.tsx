@@ -12,14 +12,18 @@ import { cn } from '@/lib/utils/util';
 import {
   BookOpenText,
   BriefcaseBusiness,
+  ChevronDown,
   ChevronLeft,
+  FileText,
   Gamepad2,
   Languages,
   LogIn,
   LogOut,
+  Menu,
   NotebookPen,
   Palette,
   Settings,
+  Users,
   Wrench,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -29,6 +33,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
@@ -147,19 +152,24 @@ const DEFAULT_THEME: ThemeConfig = {
 
 type PrimaryNavItem = {
   href: string;
-  prefix: string;
   labelKey: string;
   Icon: LucideIcon;
+  activePrefixes?: string[];
   adminOnly?: boolean;
 };
 
 const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
-  { href: '/#work', prefix: '/projects', labelKey: 'home.nav.work', Icon: BriefcaseBusiness },
-  { href: '/#tools', prefix: '/tools', labelKey: 'home.nav.tools', Icon: Wrench },
-  { href: '/games', prefix: '/games', labelKey: 'home.nav.games', Icon: Gamepad2 },
-  { href: '/study', prefix: '/study', labelKey: 'home.nav.study', Icon: BookOpenText },
-  { href: '/blog', prefix: '/blog', labelKey: 'home.nav.blog', Icon: NotebookPen },
-  { href: '/hobbies', prefix: '/hobbies', labelKey: 'home.nav.hobbies', Icon: Palette, adminOnly: true },
+  { href: '/#work', labelKey: 'home.nav.work', Icon: BriefcaseBusiness, activePrefixes: ['/projects'] },
+  { href: '/#resume', labelKey: 'home.nav.experience', Icon: FileText },
+  { href: '/#community', labelKey: 'home.nav.community', Icon: Users },
+  { href: '/blog', labelKey: 'home.nav.writing', Icon: NotebookPen, activePrefixes: ['/blog'] },
+  { href: '/#tools', labelKey: 'home.nav.tools', Icon: Wrench, activePrefixes: ['/tools'] },
+];
+
+const MORE_NAV_ITEMS: PrimaryNavItem[] = [
+  { href: '/games', labelKey: 'home.nav.games', Icon: Gamepad2, activePrefixes: ['/games'] },
+  { href: '/study', labelKey: 'home.nav.studyLab', Icon: BookOpenText, activePrefixes: ['/study'] },
+  { href: '/hobbies', labelKey: 'home.nav.hobbies', Icon: Palette, activePrefixes: ['/hobbies'], adminOnly: true },
 ];
 
 type CurrentGameState = {
@@ -176,6 +186,10 @@ function getTheme(pathname: string): ThemeConfig {
 
 function isActivePath(pathname: string, prefix: string): boolean {
   return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
+function isActiveNavItem(pathname: string, item: PrimaryNavItem): boolean {
+  return item.activePrefixes?.some((prefix) => isActivePath(pathname, prefix)) ?? false;
 }
 
 export function GlobalToolbar() {
@@ -233,6 +247,32 @@ export function GlobalToolbar() {
   const hasUserDisplayName = Boolean(currentUser?.displayName);
   const userInitial = (currentUser?.displayName || currentUser?.email || 'U').charAt(0).toUpperCase();
   const userMenuLabel = currentUser?.displayName || currentUser?.email || t('auth.userDefault');
+  const primaryNavItems = PRIMARY_NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
+  const moreNavItems = MORE_NAV_ITEMS.filter((item) => !item.adminOnly || isAdmin);
+  const isPrimaryNavActive = primaryNavItems.some((item) => isActiveNavItem(pathname, item));
+  const isMoreNavActive = moreNavItems.some((item) => isActiveNavItem(pathname, item));
+  const isAnyNavActive = isPrimaryNavActive || isMoreNavActive;
+
+  const renderDropdownNavItem = (item: PrimaryNavItem) => {
+    const isActive = isActiveNavItem(pathname, item);
+    const Icon = item.Icon;
+    return (
+      <DropdownMenuItem
+        key={item.href}
+        asChild
+        className="cursor-pointer gap-2"
+        style={{
+          color: isActive ? theme.accent : undefined,
+          backgroundColor: isActive ? accentSoft : undefined,
+        }}
+      >
+        <Link href={item.href}>
+          <Icon className="h-4 w-4" />
+          {t(item.labelKey)}
+        </Link>
+      </DropdownMenuItem>
+    );
+  };
 
   return (
     <div
@@ -299,31 +339,51 @@ export function GlobalToolbar() {
 
         {!hasGameContent && (
           <nav
-            className={`${styles.navSlot} -mx-1 flex w-full min-w-0 items-center gap-0.5 overflow-x-auto border-t pt-2 sm:gap-1 lg:mx-0 lg:w-auto lg:flex-none lg:border-t-0 lg:pt-0`}
-            style={{ borderColor: toolbarBorder }}
+            className={`${styles.navSlot} hidden min-w-0 items-center gap-1 lg:flex`}
             aria-label="Primary navigation"
           >
-            {PRIMARY_NAV_ITEMS
-              .filter((item) => !item.adminOnly || isAdmin)
-              .map(({ href, prefix, labelKey, Icon }) => {
-                const isActive = isActivePath(pathname, prefix);
+            {primaryNavItems
+              .map((item) => {
+                const { href, labelKey } = item;
+                const isActive = isActiveNavItem(pathname, item);
                 return (
                   <Link
                     key={href}
                     href={href}
                     aria-current={isActive ? 'page' : undefined}
                     title={t(labelKey)}
-                    className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:px-2.5 sm:text-xs"
+                    className="inline-flex h-9 shrink-0 items-center whitespace-nowrap rounded-md px-2.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     style={{
                       color: isActive ? theme.accent : undefined,
                       backgroundColor: isActive ? accentSoft : undefined,
                     }}
                   >
-                    <Icon className="h-3.5 w-3.5" />
                     <span>{t(labelKey)}</span>
                   </Link>
                 );
               })}
+            {moreNavItems.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 gap-1 rounded-md px-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                    style={{
+                      color: isMoreNavActive ? theme.accent : undefined,
+                      backgroundColor: isMoreNavActive ? accentSoft : undefined,
+                    }}
+                  >
+                    {t('home.nav.more')}
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  {moreNavItems.map(renderDropdownNavItem)}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </nav>
         )}
 
@@ -340,6 +400,41 @@ export function GlobalToolbar() {
           {hasGameContent && gameContent?.right}
           {hasGameContent && gameContent?.right && (
             <span className="mx-1 h-5 w-px shrink-0" style={{ backgroundColor: toolbarBorder }} />
+          )}
+          {!hasGameContent && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-9 gap-1.5 rounded-md px-2 text-xs font-semibold text-muted-foreground hover:text-foreground lg:hidden"
+                  style={{
+                    color: isAnyNavActive ? theme.accent : undefined,
+                    backgroundColor: isAnyNavActive ? accentSoft : undefined,
+                  }}
+                  aria-label={t('home.nav.menu')}
+                >
+                  <Menu className="h-4 w-4" />
+                  <span className="hidden sm:inline">{t('home.nav.menu')}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuLabel className="text-xs text-muted-foreground">
+                  {t('home.nav.main')}
+                </DropdownMenuLabel>
+                {primaryNavItems.map(renderDropdownNavItem)}
+                {moreNavItems.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuLabel className="text-xs text-muted-foreground">
+                      {t('home.nav.more')}
+                    </DropdownMenuLabel>
+                    {moreNavItems.map(renderDropdownNavItem)}
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           <div className="shrink-0">
             <ThemeToggle accent={theme.accent} />

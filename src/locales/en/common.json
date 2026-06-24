@@ -1024,6 +1024,7 @@
     "nav": {
       "home": "Home",
       "impact": "Impact",
+      "experience": "Experience",
       "writing": "Writing",
       "work": "Work",
       "tools": "Tools",
@@ -1034,6 +1035,10 @@
       "community": "Community",
       "hobbies": "Hobbies",
       "study": "Study",
+      "studyLab": "Study Lab",
+      "main": "Main",
+      "more": "More",
+      "menu": "Menu",
       "admin": "Admin"
     },
     "hero": {

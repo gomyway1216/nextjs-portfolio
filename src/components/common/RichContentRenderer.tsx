@@ -1,6 +1,7 @@
 'use client';
 
 /* eslint-disable @next/next/no-img-element */
+import { useEffect, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { sanitizeRichHtml } from '@/lib/sanitizeHtml';
@@ -11,20 +12,58 @@ interface RichContentRendererProps {
   className?: string;
 }
 
-const HTML_CONTENT_PATTERN = /<\/?(p|div|h[1-6]|ul|ol|li|strong|em|a|img|blockquote|pre|code|table|thead|tbody|tr|td|th|br|iframe)\b/i;
+const HTML_START_PATTERN = /^\s*<\/?(p|div|h[1-6]|ul|ol|li|strong|em|a|img|blockquote|pre|code|table|thead|tbody|tr|td|th|br|iframe)\b/i;
+const SAFE_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:']);
+const SAFE_IMAGE_PROTOCOLS = new Set(['http:', 'https:']);
 
 function isHtmlContent(content: string): boolean {
-  return HTML_CONTENT_PATTERN.test(content);
+  return HTML_START_PATTERN.test(content);
+}
+
+function isSafeRelativeUrl(url: string): boolean {
+  return url.startsWith('/') && !url.startsWith('//');
+}
+
+function isSafeMarkdownUrl(
+  url: string,
+  safeProtocols: Set<string>,
+  { allowAnchor = false, allowRelative = false } = {},
+): boolean {
+  const trimmed = url.trim();
+  if (!trimmed) return false;
+  if (allowAnchor && trimmed.startsWith('#')) return true;
+  if (isSafeRelativeUrl(trimmed)) return true;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(trimmed)) {
+    return allowRelative && !trimmed.startsWith('//');
+  }
+
+  try {
+    return safeProtocols.has(new URL(trimmed).protocol);
+  } catch {
+    return false;
+  }
 }
 
 const components: Components = {
-  a: ({ href, children, ...props }) => (
-    <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
-      {children}
-    </a>
-  ),
+  a: ({ href, children, ...props }) => {
+    if (!href || !isSafeMarkdownUrl(href, SAFE_LINK_PROTOCOLS, {
+      allowAnchor: true,
+      allowRelative: true,
+    })) {
+      return <>{children}</>;
+    }
+
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" {...props}>
+        {children}
+      </a>
+    );
+  },
   img: ({ src, alt }) => {
-    if (!src || typeof src !== 'string') return null;
+    if (!src || typeof src !== 'string' || !isSafeMarkdownUrl(src, SAFE_IMAGE_PROTOCOLS)) {
+      return null;
+    }
+
     return (
       <figure style={{ margin: '24px 0' }}>
         <img
@@ -66,7 +105,7 @@ const components: Components = {
           padding: '16px',
           margin: '20px 0',
         }}>
-          <code className={className} {...props}>{children}</code>
+          <code className={className} {...props}>{code}</code>
         </pre>
       );
     }
@@ -82,7 +121,7 @@ const components: Components = {
         }}
         {...props}
       >
-        {children}
+        {code}
       </code>
     );
   },
@@ -109,13 +148,25 @@ const components: Components = {
 };
 
 export default function RichContentRenderer({ content, className }: RichContentRendererProps) {
+  const [sanitizedHtml, setSanitizedHtml] = useState('');
+  const isHtml = isHtmlContent(content);
+
+  useEffect(() => {
+    if (!content || !isHtml) {
+      setSanitizedHtml('');
+      return;
+    }
+
+    setSanitizedHtml(sanitizeRichHtml(content));
+  }, [content, isHtml]);
+
   if (!content) return null;
 
-  if (isHtmlContent(content)) {
+  if (isHtml) {
     return (
       <div
         className={className}
-        dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(content) }}
+        dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
       />
     );
   }

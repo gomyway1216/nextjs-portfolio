@@ -2335,11 +2335,11 @@ const AdminPage = () => {
                       border: '1px solid rgba(255, 255, 255, 0.12)',
                       borderRadius: '12px',
                       overflow: 'hidden',
-                      backgroundColor: '#ffffff',
+                      backgroundColor: '#111827',
                     }}>
                       <div style={{
-                        borderBottom: '1px solid #e5e7eb',
-                        color: '#64748b',
+                        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                        color: '#94a3b8',
                         fontSize: '12px',
                         fontWeight: 600,
                         padding: '8px 12px',
@@ -2348,7 +2348,7 @@ const AdminPage = () => {
                         Preview
                       </div>
                       <div style={{
-                        color: '#1f2937',
+                        color: '#f3f4f6',
                         maxHeight: '360px',
                         overflowY: 'auto',
                         padding: '16px',

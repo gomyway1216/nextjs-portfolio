@@ -76,7 +76,7 @@ export default function ProjectPage({ projectId }: ProjectPageProps) {
   }, [projectId]);
 
   const technologies = useMemo(
-    () => project?.technologies?.map(normalizeTechnology).filter((tech) => tech.name) ?? [],
+    () => project?.technologies?.map(normalizeTechnology).filter((tech) => tech?.name) ?? [],
     [project],
   );
 

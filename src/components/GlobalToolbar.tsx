@@ -160,6 +160,11 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
   { href: '/hobbies', prefix: '/hobbies', labelKey: 'home.nav.hobbies', Icon: Palette, adminOnly: true },
 ];
 
+type CurrentGameState = {
+  pathname: string;
+  game: GameNavEntry | null;
+};
+
 function getTheme(pathname: string): ThemeConfig {
   for (const { prefix, theme } of THEMES) {
     if (pathname.startsWith(prefix)) return theme;
@@ -186,12 +191,17 @@ export function GlobalToolbar() {
   // lazy-loaded only on /games/* routes — importing it statically would
   // pull all game metadata into the bundle of every page (this toolbar
   // renders from the root layout).
-  const [currentGame, setCurrentGame] = useState<GameNavEntry | null>(null);
+  const [currentGameState, setCurrentGameState] = useState<CurrentGameState | null>(null);
   useEffect(() => {
     if (!isGameSubPage) return;
     let cancelled = false;
     import('@/components/game/constants/gameNav').then(({ findGameByPath }) => {
-      if (!cancelled) setCurrentGame(findGameByPath(pathname) ?? null);
+      if (!cancelled) {
+        setCurrentGameState({
+          pathname,
+          game: findGameByPath(pathname) ?? null,
+        });
+      }
     });
     return () => {
       cancelled = true;
@@ -214,7 +224,12 @@ export function GlobalToolbar() {
   const toolbarBorder = 'color-mix(in srgb, var(--border) 84%, transparent)';
   const toolbarBg = 'color-mix(in srgb, var(--background) 88%, transparent)';
   const mutedPanel = 'color-mix(in srgb, var(--muted) 54%, transparent)';
-  const displayedGame = isGameSubPage ? currentGame : null;
+  const displayedGame = isGameSubPage && currentGameState?.pathname === pathname ? currentGameState.game : null;
+  const displayedGameTitle = displayedGame
+    ? t(`games.${displayedGame.id}.title`, { defaultValue: displayedGame.title })
+    : '';
+  const brandName = t('home.hero.name');
+  const brandRole = t('home.about.role', { defaultValue: t('home.hero.badge') });
 
   return (
     <div
@@ -246,9 +261,9 @@ export function GlobalToolbar() {
               Y
             </span>
             <span className="hidden min-w-0 flex-col sm:flex">
-              <span className="truncate text-sm font-semibold leading-none text-foreground">Yudai Yaguchi</span>
+              <span className="truncate text-sm font-semibold leading-none text-foreground">{brandName}</span>
               <span className="mt-1 truncate text-[11px] font-medium leading-none text-muted-foreground">
-                Product Engineer
+                {brandRole}
               </span>
             </span>
           </Link>
@@ -262,21 +277,16 @@ export function GlobalToolbar() {
               Games
             </Link>
           )}
-          {displayedGame && !gameContent?.left && (() => {
-            // Per-game i18n key is `games.{id}.title`; fall back to the
-            // catalog's English title for games without a translation.
-            const gameTitle = t(`games.${displayedGame.id}.title`, { defaultValue: displayedGame.title });
-            return (
-              <span
-                className="hidden min-w-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold sm:inline-flex"
-                style={{ backgroundColor: accentSoft, color: theme.accent }}
-                title={gameTitle}
-              >
-                <span aria-hidden="true">{displayedGame.thumbnail}</span>
-                <span className="truncate">{gameTitle}</span>
-              </span>
-            );
-          })()}
+          {displayedGame && !gameContent?.left && (
+            <span
+              className="hidden min-w-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold sm:inline-flex"
+              style={{ backgroundColor: accentSoft, color: theme.accent }}
+              title={displayedGameTitle}
+            >
+              <span aria-hidden="true">{displayedGame.thumbnail}</span>
+              <span className="truncate">{displayedGameTitle}</span>
+            </span>
+          )}
           {hasGameContent && gameContent?.left && (
             <div className="flex min-w-0 items-center gap-2 border-l pl-3" style={{ borderColor: toolbarBorder, color: theme.accent }}>
               {gameContent.left}

@@ -169,7 +169,7 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
 const MORE_NAV_ITEMS: PrimaryNavItem[] = [
   { href: '/games', labelKey: 'home.nav.games', Icon: Gamepad2, activePrefixes: ['/games'] },
   { href: '/study', labelKey: 'home.nav.studyLab', Icon: BookOpenText, activePrefixes: ['/study'] },
-  { href: '/hobbies', labelKey: 'home.nav.hobbies', Icon: Palette, activePrefixes: ['/hobbies'] },
+  { href: '/hobbies', labelKey: 'home.nav.hobbies', Icon: Palette, activePrefixes: ['/hobbies'], adminOnly: true },
 ];
 
 type CurrentGameState = {
@@ -343,8 +343,9 @@ export function GlobalToolbar() {
             aria-label="Primary navigation"
           >
             {primaryNavItems
-              .map(({ href, labelKey, activePrefixes }) => {
-                const isActive = activePrefixes?.some((prefix) => isActivePath(pathname, prefix)) ?? false;
+              .map((item) => {
+                const { href, labelKey } = item;
+                const isActive = isActiveNavItem(pathname, item);
                 return (
                   <Link
                     key={href}

@@ -75,6 +75,24 @@
     "backToGames": "ゲーム一覧へ",
     "backToPortfolio": "ポートフォリオに戻る"
   },
+  "projectPage": {
+    "loading": "プロジェクト詳細を読み込んでいます...",
+    "notFoundTitle": "プロジェクトが見つかりません",
+    "notFoundText": "このプロジェクトは移動されたか、一時的に表示できない可能性があります。",
+    "backToWork": "制作実績に戻る",
+    "edit": "プロジェクトを編集",
+    "eyebrow": "プロジェクト事例",
+    "fallbackClient": "個人プロジェクト",
+    "details": "プロジェクト詳細",
+    "client": "クライアント",
+    "industry": "領域",
+    "date": "公開日",
+    "categories": "カテゴリー",
+    "stack": "使用技術",
+    "links": "リンク",
+    "overview": "概要",
+    "viewProject": "プロジェクトを見る"
+  },
   "blogPage": {
     "index": {
       "kicker": "ブログ",
@@ -1119,8 +1137,14 @@
     },
     "sections": {
       "work": {
-        "title": "注目プロジェクト",
-        "subtitle": "プロダクト思考と実装品質を両立した取り組みを掲載しています。"
+        "title": "プロジェクト事例",
+        "subtitle": "課題設定、技術選定、実装の工夫まで読める形で制作実績を整理しています。",
+        "loading": "プロジェクト事例を読み込んでいます...",
+        "error": "プロジェクトを一時的に表示できません。",
+        "empty": "このカテゴリーのプロジェクトはまだありません。",
+        "cta": "事例を見る",
+        "cardLabel": "{{title}} の事例を見る",
+        "technologies": "使用技術"
       },
       "tools": {
         "title": "便利ツール",

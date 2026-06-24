@@ -363,7 +363,7 @@ export function GlobalToolbar() {
                 );
               })}
             {moreNavItems.length > 0 && (
-              <DropdownMenu>
+              <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>
                   <Button
                     type="button"
@@ -402,7 +402,7 @@ export function GlobalToolbar() {
             <span className="mx-1 h-5 w-px shrink-0" style={{ backgroundColor: toolbarBorder }} />
           )}
           {!hasGameContent && (
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button
                   type="button"
@@ -459,7 +459,7 @@ export function GlobalToolbar() {
           </button>
 
           {currentUser ? (
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger asChild>
                 <Button
                   type="button"

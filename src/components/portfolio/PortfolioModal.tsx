@@ -1,13 +1,12 @@
 'use client';
+import RichContentRenderer from '@/components/common/RichContentRenderer';
 import { Button } from '@/components/ui/button';
 import * as util from '@/lib/utils/util';
 import { useAuth } from '@/providers/AuthProvider';
 import type { Project,TechnologyData,UrlData } from '@/services/projectsService';
 import * as Dialog from '@radix-ui/react-dialog';
-import { sanitizeRichHtml } from '@/lib/sanitizeHtml';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useMemo } from 'react';
 import SimpleCarousel from './SimpleCarousel';
 
 interface PortfolioModalProps {
@@ -29,11 +28,6 @@ function normalizeUrl(url: UrlData): UrlData {
 const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => {
   const { currentUser } = useAuth();
   const router = useRouter();
-
-  const purifiedDescription = useMemo(
-    () => sanitizeRichHtml(project.description),
-    [project.description],
-  );
 
   const _closeModal = () => {
     setIsOpen(false);
@@ -131,7 +125,7 @@ const PortfolioModal = ({ project, isOpen, setIsOpen }: PortfolioModalProps) => 
               </div>
               <article className="article">
                 <div className="article-content">
-                  <div dangerouslySetInnerHTML={{ __html: purifiedDescription }} />
+                  <RichContentRenderer content={project.description} />
                 </div>
               </article>
             </div>

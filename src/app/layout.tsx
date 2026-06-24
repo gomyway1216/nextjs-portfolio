@@ -44,7 +44,7 @@ const playfair = Playfair_Display({
 const SITE_NAME = 'Yudai Yaguchi';
 const SITE_TITLE = 'Yudai Yaguchi — Senior Fintech Engineer';
 const SITE_DESCRIPTION =
-  'Senior software engineer with 6+ years building fintech systems across product, risk, money movement, and operations.';
+  'Senior software engineer with 6+ years building fintech systems across payments, risk/compliance, product growth, and operations tooling.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

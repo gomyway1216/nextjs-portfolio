@@ -48,8 +48,8 @@ export default function OpengraphImage() {
               maxWidth: 940,
             }}
           >
-            6+ years building fintech systems across product, risk, money
-            movement, and operations.
+            6+ years building fintech systems across payments,
+            risk/compliance, product growth, and operations tooling.
           </div>
         </div>
 

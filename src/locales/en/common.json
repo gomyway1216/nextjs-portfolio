@@ -1037,14 +1037,14 @@
       "admin": "Admin"
     },
     "hero": {
-      "badge": "Fintech Product Engineer",
+      "badge": "Senior Fintech Engineer",
       "greeting": "Hello, my name is",
       "name": "Yudai Yaguchi",
-      "description": "I build fintech products across growth, risk, money movement, and internal operations. My work sits between product thinking and production engineering: clarifying ambiguous problems, shipping reliable systems, and improving them after launch.",
+      "description": "I build and operate fintech systems at the intersection of payments, risk/compliance, product growth, and operations tooling. My work turns ambiguous customer and internal workflows into reliable, monitored systems that keep improving after launch.",
       "roles": {
         "seniorSoftwareEngineer": "Product-minded Fintech Engineer",
-        "fintechEngineer": "Risk and Money Movement",
-        "infrastructureEngineer": "Internal Platforms and Operations"
+        "fintechEngineer": "Payments, Risk, and Compliance",
+        "infrastructureEngineer": "Operations Platforms and Monitoring"
       },
       "cta": {
         "downloadCv": "Download CV",
@@ -1052,11 +1052,11 @@
       },
       "stats": {
         "experienceValue": "6+ yrs",
-        "experience": "large-scale fintech systems",
-        "complianceValue": "Risk",
-        "compliance": "regulated workflows and monitoring",
-        "productValue": "Product",
-        "product": "customer and internal tools"
+        "experience": "payments, risk, and product systems",
+        "complianceValue": "Risk + Compliance",
+        "compliance": "KYC, OFAC, disputes, and monitoring",
+        "productValue": "Product + Ops",
+        "product": "customer UX and internal tools"
       }
     },
     "impact": {
@@ -1433,8 +1433,8 @@
     },
     "about": {
       "title": "Biography",
-      "role": "Fintech Product Engineer",
-      "biographyText": "Hi, I'm Yudai — a senior software engineer based in San Francisco with 6+ years building large-scale fintech systems. At Atlas and PayPal, I have owned product and platform work across growth, risk, payments, compliance, support operations, and internal tooling. I am strongest when the problem is cross-functional: turn unclear business goals into a shippable system, coordinate rollout details, instrument the results, and keep improving the customer and operations experience. Outside of work, I lead an AI meetup community for engineers and keep exploring how machine learning fits into everyday products. I'm pursuing an MS in Computer Science at Westcliff University while looking for the next role that blends deep engineering with product ownership.",
+      "role": "Senior Fintech Engineer",
+      "biographyText": "Hi, I'm Yudai — a senior software engineer based in San Francisco with 6+ years building production fintech systems across payments, risk, compliance, growth, and operations. At Atlas and PayPal, I have owned payment integrations, KYC/OFAC and dispute workflows, support and risk tooling, monitoring, and customer-facing activation and retention experiences. I am strongest when the problem is cross-functional: turn unclear business goals into a shippable system, coordinate rollout details, instrument the results, and keep improving the customer and operations experience. Outside of work, I lead an AI meetup community for engineers and keep exploring how machine learning fits into everyday products. I'm pursuing an MS in Computer Science at Westcliff University while looking for the next role that blends deep engineering with product ownership.",
       "labels": {
         "age": "Age:",
         "location": "Location:",

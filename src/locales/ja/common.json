@@ -1034,14 +1034,14 @@
       "admin": "管理"
     },
     "hero": {
-      "badge": "フィンテック・プロダクトエンジニア",
+      "badge": "シニア・フィンテックエンジニア",
       "greeting": "こんにちは、私は",
       "name": "矢口 雄大",
-      "description": "成長施策、リスク、決済、社内オペレーションを横断してフィンテックプロダクトを作っています。曖昧な課題を整理し、信頼できるシステムとして出荷し、リリース後も改善し続けるところを得意にしています。",
+      "description": "決済、リスク/コンプライアンス、成長施策、社内オペレーションツールが交わる領域で、フィンテックシステムを作り運用しています。顧客向け・社内向けの曖昧なワークフローを、信頼できて監視可能なシステムに落とし込み、リリース後も改善し続けます。",
       "roles": {
         "seniorSoftwareEngineer": "プロダクト志向のフィンテックエンジニア",
-        "fintechEngineer": "Risk / Money Movement",
-        "infrastructureEngineer": "Internal Platforms / Operations"
+        "fintechEngineer": "Payments / Risk / Compliance",
+        "infrastructureEngineer": "Operations Platforms / Monitoring"
       },
       "cta": {
         "downloadCv": "履歴書をダウンロード",
@@ -1049,11 +1049,11 @@
       },
       "stats": {
         "experienceValue": "6+ yrs",
-        "experience": "大規模フィンテックシステム",
-        "complianceValue": "リスク",
-        "compliance": "規制領域のワークフローと監視",
-        "productValue": "プロダクト",
-        "product": "顧客向け・社内向けツール"
+        "experience": "決済・リスク・プロダクト基盤",
+        "complianceValue": "Risk / Compliance",
+        "compliance": "KYC・OFAC・不正/異議申立・監視",
+        "productValue": "Product / Ops",
+        "product": "顧客UXと社内運用ツール"
       }
     },
     "impact": {
@@ -1430,8 +1430,8 @@
     },
     "about": {
       "title": "Biography",
-      "role": "フィンテック・プロダクトエンジニア",
-      "biographyText": "こんにちは、矢口雄大です。サンフランシスコを拠点とするシニアソフトウェアエンジニアで、6年以上にわたり大規模なフィンテックシステムを作ってきました。AtlasとPayPalでは、成長施策、リスク、決済、コンプライアンス、サポートOps、社内ツールなどを横断して担当してきました。特に、曖昧な事業課題を実装可能なシステムに落とし込み、リリース、運用、数値改善まで持ち切る仕事を得意としています。業務外ではエンジニア向けAIミートアップを運営し、機械学習が日常のプロダクトにどう溶け込むかを探っています。現在はWestcliff UniversityでComputer Scienceの修士課程に在籍しながら、深い技術とプロダクトオーナーシップを掛け合わせられる次のキャリアステップを模索しています。",
+      "role": "シニア・フィンテックエンジニア",
+      "biographyText": "こんにちは、矢口雄大です。サンフランシスコを拠点とするシニアソフトウェアエンジニアで、6年以上にわたり決済、リスク、コンプライアンス、成長施策、運用をまたぐ本番フィンテックシステムを作ってきました。AtlasとPayPalでは、決済連携、KYC/OFACや異議申立のワークフロー、サポート・リスクツール、監視、ユーザー向けのアクティベーション/継続率改善などを担当してきました。特に、曖昧な事業課題を実装可能なシステムに落とし込み、リリース、運用、数値改善まで持ち切る仕事を得意としています。業務外ではエンジニア向けAIミートアップを運営し、機械学習が日常のプロダクトにどう溶け込むかを探っています。現在はWestcliff UniversityでComputer Scienceの修士課程に在籍しながら、深い技術とプロダクトオーナーシップを掛け合わせられる次のキャリアステップを模索しています。",
       "labels": {
         "age": "年齢:",
         "location": "所在地:",

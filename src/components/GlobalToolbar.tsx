@@ -8,6 +8,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
 import type { GameNavEntry } from '@/components/game/constants/gameNav';
 import styles from './GlobalToolbar.module.css';
+import { cn } from '@/lib/utils/util';
 import {
   BookOpenText,
   BriefcaseBusiness,
@@ -228,6 +229,8 @@ export function GlobalToolbar() {
   const brandName = t('home.hero.name');
   const brandRole = t('home.about.role', { defaultValue: t('home.hero.badge') });
   const nextLangLabel = currentLang === 'en' ? '日本語' : 'English';
+  const languageSwitchLabel = `${t('home.language.switch')}: ${nextLangLabel}`;
+  const hasUserDisplayName = Boolean(currentUser?.displayName);
   const userInitial = (currentUser?.displayName || currentUser?.email || 'U').charAt(0).toUpperCase();
   const userMenuLabel = currentUser?.displayName || currentUser?.email || t('auth.userDefault');
 
@@ -345,8 +348,8 @@ export function GlobalToolbar() {
             type="button"
             onClick={toggleLang}
             className="hidden h-9 shrink-0 items-center rounded-md px-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:inline-flex"
-            aria-label={t('home.language.switch')}
-            title={t('home.language.switch')}
+            aria-label={languageSwitchLabel}
+            title={languageSwitchLabel}
           >
             {nextLangLabel}
           </button>
@@ -354,8 +357,8 @@ export function GlobalToolbar() {
             type="button"
             onClick={toggleLang}
             className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:hidden"
-            aria-label={t('home.language.switch')}
-            title={nextLangLabel}
+            aria-label={languageSwitchLabel}
+            title={languageSwitchLabel}
           >
             <Languages className="h-4 w-4" />
           </button>
@@ -368,7 +371,12 @@ export function GlobalToolbar() {
                   variant="ghost"
                   size="sm"
                   aria-label={userMenuLabel}
-                  className="h-9 gap-2 rounded-full px-1.5 pr-2 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                  className={cn(
+                    'h-9 rounded-full text-xs font-semibold text-muted-foreground hover:text-foreground',
+                    hasUserDisplayName
+                      ? 'w-9 gap-0 px-0 md:w-auto md:gap-2 md:pl-1.5 md:pr-2'
+                      : 'w-9 gap-0 px-0',
+                  )}
                 >
                   <div
                     className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold"
@@ -376,7 +384,7 @@ export function GlobalToolbar() {
                   >
                     {userInitial}
                   </div>
-                  {currentUser.displayName && (
+                  {hasUserDisplayName && (
                     <span className="hidden max-w-28 truncate md:inline">{currentUser.displayName}</span>
                   )}
                 </Button>

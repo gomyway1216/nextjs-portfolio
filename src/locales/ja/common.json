@@ -1021,6 +1021,7 @@
     "nav": {
       "home": "ホーム",
       "impact": "実績",
+      "experience": "経歴",
       "writing": "寄稿",
       "work": "制作実績",
       "tools": "ツール",
@@ -1031,6 +1032,10 @@
       "community": "コミュニティ",
       "hobbies": "趣味",
       "study": "学習",
+      "studyLab": "学習ラボ",
+      "main": "メイン",
+      "more": "その他",
+      "menu": "メニュー",
       "admin": "管理"
     },
     "hero": {

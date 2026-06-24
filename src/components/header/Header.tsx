@@ -1,26 +1,27 @@
 'use client';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
-DropdownMenu,
-DropdownMenuContent,
-DropdownMenuItem,
-DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useActiveSection } from '@/hooks/useActiveSection';
 import { useAuth } from '@/providers/AuthProvider';
 import {
-BookOpenText,
-FileText,
-Gamepad2,
-House,
-LineChart,
-Newspaper,
-NotebookPen,
-Palette,
-Shield,
-UserRound,
-Users,
-Wrench,
+  BookOpenText,
+  BriefcaseBusiness,
+  FileText,
+  Gamepad2,
+  House,
+  LineChart,
+  Newspaper,
+  NotebookPen,
+  Palette,
+  Shield,
+  UserRound,
+  Users,
+  Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -31,8 +32,31 @@ import { Tooltip } from 'react-tooltip';
 // Section IDs the home-page nav scroll-spies on, in document order.
 // The first one whose top crosses into the viewport's top band gets
 // the `active` class.
-const SECTION_IDS_WITH_WRITING = ['home', 'impact', 'resume', 'writing', 'blog', 'community', 'tools', 'study', 'games', 'about'] as const;
-const SECTION_IDS_WITHOUT_WRITING = ['home', 'impact', 'resume', 'blog', 'community', 'tools', 'study', 'games', 'about'] as const;
+const SECTION_IDS_WITH_WRITING = [
+  'home',
+  'impact',
+  'resume',
+  'writing',
+  'blog',
+  'community',
+  'tools',
+  'work',
+  'study',
+  'games',
+  'about',
+] as const;
+const SECTION_IDS_WITHOUT_WRITING = [
+  'home',
+  'impact',
+  'resume',
+  'blog',
+  'community',
+  'tools',
+  'work',
+  'study',
+  'games',
+  'about',
+] as const;
 
 interface HeaderProps {
   showWriting?: boolean;
@@ -192,6 +216,17 @@ const Header = ({ showWriting = false }: HeaderProps) => {
                 onClick={handleClick}
               >
                 <Wrench size={20} />
+              </Link>
+            </li>
+            <li className={activeSection === 'work' ? 'active' : ''}>
+              <Link
+                className="nav-link"
+                href="/#work"
+                data-tooltip-id="left-menu-tooltip"
+                data-tooltip-content={t('home.nav.work')}
+                onClick={handleClick}
+              >
+                <BriefcaseBusiness size={20} />
               </Link>
             </li>
             <li className={activeSection === 'study' ? 'active' : ''}>

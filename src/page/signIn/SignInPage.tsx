@@ -80,6 +80,9 @@ const SignInPage = () => {
     if (code === 'auth/session-cookie-failed') {
       return t('signin.errors.googleSessionFailed');
     }
+    if (code === 'auth/argument-error') {
+      return t('signin.errors.googlePopupUnavailable');
+    }
 
     const message = getErrorMessage(err, '');
     if (message.includes('Firebase client auth is not configured')) {

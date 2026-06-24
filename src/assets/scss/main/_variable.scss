@@ -15,8 +15,8 @@ $px-body: rgba(255, 255, 255, 0.8) !default;
 $px-body-light: #555 !default;
 $px-font-size: 15px !default;
 $px-line-height: 1.7 !default;
-$px-font: var(--font-rubik), "Rubik", monospace !default;
-$px-font-alt: var(--font-playfair), "Playfair Display", serif !default;
+$px-font: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif !default;
+$px-font-alt: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif !default;
 
 // Breakpoints
 $px-media-xsm: 567px !default;

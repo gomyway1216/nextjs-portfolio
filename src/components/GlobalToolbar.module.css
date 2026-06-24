@@ -1,3 +1,12 @@
+.toolbar a {
+  text-decoration: none;
+}
+
+.toolbar a::after {
+  display: none;
+  content: none;
+}
+
 .brandSlot {
   order: 1;
 }

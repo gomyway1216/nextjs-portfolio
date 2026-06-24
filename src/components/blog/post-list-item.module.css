@@ -1,42 +1,28 @@
 .card {
   position: relative;
-  border: 1px solid color-mix(in srgb, var(--border) 84%, #16a34a 16%);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--card) 97%, #dcfce7 3%) 0%, var(--card) 62%),
-    var(--card);
-  box-shadow: 0 16px 42px color-mix(in srgb, var(--foreground) 7%, transparent);
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease, background-color 0.18s ease;
-}
-
-.card::before {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 4px;
-  background: linear-gradient(180deg, #16a34a, #0f766e 58%, #f59e0b);
-  border-radius: 8px 0 0 8px;
-  content: "";
-  opacity: 0.82;
-  pointer-events: none;
+  background: var(--card);
+  box-shadow: none;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
 }
 
 .card:has(.cardButton:hover),
 .card:has(.cardButton:focus-visible) {
-  border-color: color-mix(in srgb, #16a34a 44%, var(--border));
-  box-shadow: 0 24px 60px color-mix(in srgb, #16a34a 12%, transparent);
-  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--foreground) 22%, var(--border));
+  background: color-mix(in srgb, var(--card) 96%, var(--muted) 4%);
 }
 
 .cardButton {
   position: relative;
   display: grid;
   width: 100%;
-  grid-template-columns: minmax(0, 1fr) clamp(132px, 17vw, 172px);
-  gap: clamp(22px, 4vw, 40px);
+  grid-template-columns: minmax(0, 1fr) clamp(116px, 15vw, 156px);
+  gap: clamp(18px, 3vw, 32px);
   align-items: center;
   border: 0;
   border-radius: 8px;
-  padding: clamp(24px, 4vw, 36px) clamp(24px, 4vw, 38px);
+  padding: clamp(22px, 3vw, 30px);
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -45,7 +31,7 @@
 }
 
 .cardButton:focus-visible {
-  outline: 2px solid color-mix(in srgb, #0f766e 70%, var(--ring));
+  outline: 2px solid var(--ring);
   outline-offset: 3px;
 }
 
@@ -57,13 +43,13 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 14px;
+  gap: 9px;
+  margin-bottom: 12px;
   color: var(--muted-foreground);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
 }
 
 .meta span {
@@ -73,18 +59,18 @@
 }
 
 .meta span + span {
-  border: 1px solid color-mix(in srgb, #16a34a 32%, var(--border));
+  border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 4px 8px;
-  background: color-mix(in srgb, #dcfce7 54%, transparent);
-  color: #047857;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--muted) 62%, transparent);
+  color: var(--muted-foreground);
 }
 
 .title {
   margin: 0;
   color: var(--foreground);
-  font-size: clamp(1.45rem, 3vw, 2.05rem);
-  font-weight: 700;
+  font-size: clamp(1.35rem, 2.5vw, 1.85rem);
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 1.18;
   text-wrap: balance;
@@ -92,25 +78,25 @@
 
 .excerpt {
   max-width: 680px;
-  margin: 14px 0 0;
+  margin: 12px 0 0;
   color: var(--muted-foreground);
-  font-size: 15.5px;
-  line-height: 1.68;
+  font-size: 15px;
+  line-height: 1.65;
 }
 
 .thumbnail,
 .thumbnailPlaceholder {
   display: flex;
-  width: clamp(132px, 17vw, 172px);
-  height: clamp(108px, 14vw, 136px);
+  width: clamp(116px, 15vw, 156px);
+  height: clamp(96px, 13vw, 124px);
   overflow: hidden;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  background: color-mix(in srgb, var(--background) 78%, #dcfce7 22%);
-  color: #047857;
-  font-size: 34px;
-  font-weight: 700;
+  background: color-mix(in srgb, var(--background) 76%, var(--muted) 24%);
+  color: var(--muted-foreground);
+  font-size: 28px;
+  font-weight: 600;
 }
 
 .thumbnail img {
@@ -120,33 +106,26 @@
 }
 
 :global(.dark) .card {
-  border-color: color-mix(in srgb, var(--border) 72%, #4ade80 28%);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--card) 92%, #064e3b 8%) 0%, var(--card) 64%),
-    var(--card);
-  box-shadow: 0 20px 48px color-mix(in srgb, #000 44%, transparent);
-}
-
-:global(.dark) .card::before {
-  background: linear-gradient(180deg, #4ade80, #14b8a6 58%, #fbbf24);
+  border-color: var(--border);
+  background: var(--card);
 }
 
 :global(.dark) .card:has(.cardButton:hover),
 :global(.dark) .card:has(.cardButton:focus-visible) {
-  border-color: color-mix(in srgb, #4ade80 48%, var(--border));
-  box-shadow: 0 22px 58px color-mix(in srgb, #4ade80 12%, transparent);
+  border-color: color-mix(in srgb, var(--foreground) 22%, var(--border));
+  background: color-mix(in srgb, var(--card) 94%, var(--muted) 6%);
 }
 
 :global(.dark) .meta span + span {
-  border-color: color-mix(in srgb, #4ade80 28%, var(--border));
-  background: color-mix(in srgb, #064e3b 42%, transparent);
-  color: #86efac;
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--muted) 54%, transparent);
+  color: var(--muted-foreground);
 }
 
 :global(.dark) .thumbnail,
 :global(.dark) .thumbnailPlaceholder {
-  background: color-mix(in srgb, var(--background) 72%, #4ade80 28%);
-  color: #bbf7d0;
+  background: color-mix(in srgb, var(--background) 72%, var(--muted) 28%);
+  color: var(--muted-foreground);
 }
 
 @media (max-width: 680px) {

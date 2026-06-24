@@ -75,6 +75,24 @@
     "backToGames": "Back to Games",
     "backToPortfolio": "Back to Portfolio"
   },
+  "projectPage": {
+    "loading": "Loading project case study...",
+    "notFoundTitle": "Project not found",
+    "notFoundText": "This project may have been moved or is temporarily unavailable.",
+    "backToWork": "Back to selected work",
+    "edit": "Edit project",
+    "eyebrow": "Project Case Study",
+    "fallbackClient": "Personal Project",
+    "details": "Project details",
+    "client": "Client",
+    "industry": "Industry",
+    "date": "Date",
+    "categories": "Categories",
+    "stack": "Stack",
+    "links": "Links",
+    "overview": "Overview",
+    "viewProject": "View project"
+  },
   "blogPage": {
     "index": {
       "kicker": "Blog",
@@ -1122,8 +1140,14 @@
     },
     "sections": {
       "work": {
-        "title": "Featured Work",
-        "subtitle": "Selected projects that blend product thinking, clean code, and practical impact."
+        "title": "Project Case Studies",
+        "subtitle": "Selected builds with context on the product problem, technical choices, and delivered outcome.",
+        "loading": "Loading case studies...",
+        "error": "Projects are temporarily unavailable.",
+        "empty": "No projects in this category yet.",
+        "cta": "View case study",
+        "cardLabel": "View {{title}} case study",
+        "technologies": "Technologies"
       },
       "tools": {
         "title": "Useful Tools",

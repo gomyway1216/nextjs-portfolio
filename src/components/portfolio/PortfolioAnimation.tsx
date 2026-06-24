@@ -2,126 +2,174 @@
 import * as util from '@/lib/utils/util';
 import type { Project } from '@/services/projectsService';
 import * as projectApi from '@/services/projectsService';
+import { ArrowRight } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useEffect,useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Tab,TabList,TabPanel,Tabs } from 'react-tabs';
-import PortfolioModal from './PortfolioModal';
-
-const _breakpointColumnsObj = {
-  default: 3,
-  1100: 3,
-  700: 2,
-  500: 1,
-};
 
 
 const tabList = ['All', 'Web App', 'Mobile', 'AI/ML', 'Console'];
 type PortfolioCategory = typeof tabList[number];
 type ProjectsByCategory = Record<PortfolioCategory, Project[]>;
 
+function normalizeTechnology(technology: Project['technologies'][number]): string {
+  return typeof technology === 'string' ? technology : technology.name;
+}
+
+function toPlainText(content: string): string {
+  return content
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/[`*_>#-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function createProjectExcerpt(description: string): string {
+  const text = toPlainText(description);
+  if (text.length <= 145) return text;
+  return `${text.slice(0, 142).trim()}...`;
+}
+
+function sortProjectsByDate(projects: Project[]): Project[] {
+  return [...projects].sort((a, b) => {
+    const aTime = new Date(a.date).getTime();
+    const bTime = new Date(b.date).getTime();
+    return (Number.isNaN(bTime) ? 0 : bTime) - (Number.isNaN(aTime) ? 0 : aTime);
+  });
+}
+
 const PortfolioAnimation = () => {
+  const { t } = useTranslation();
   const [projectsByCategory, setProjectsByCategory]
     = useState<ProjectsByCategory>({'All': [], 'Web App': [], 'Mobile': [], 'AI/ML': [], 'Console': []});
-  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const classifyProjects = async () => {
+      setIsLoading(true);
+      setHasError(false);
+
+      try {
+        const classified: ProjectsByCategory = {All: [], 'Web App': [], Mobile: [], 'AI/ML': [], Console: []};
+        const fetchedProjects: Project[] = sortProjectsByDate(await projectApi.getProjects());
+
+        fetchedProjects.forEach((project) => {
+          classified.All.push(project);
+          project.categories.forEach((cat) => {
+            if (Object.prototype.hasOwnProperty.call(classified, cat)) {
+              classified[cat as PortfolioCategory].push(project);
+            }
+          });
+        });
+
+        if (!cancelled) setProjectsByCategory(classified);
+      } catch (error) {
+        console.error('[PortfolioAnimation] failed to fetch projects:', error);
+        if (!cancelled) setHasError(true);
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    };
+
     classifyProjects();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
-  const handleProjectClick = (project: Project) => {
-    setSelectedProject(project);
-    setIsModalOpen(true);
-  };
+  const renderProjects = (projects: Project[], category: string) => {
+    if (isLoading) {
+      return <div className="project-state">{t('home.sections.work.loading')}</div>;
+    }
 
-  const classifyProjects = async () => {
-    const classified: ProjectsByCategory = {All: [], 'Web App': [], Mobile: [], 'AI/ML': [], 'Console': []};
+    if (hasError) {
+      return <div className="project-state project-state--error">{t('home.sections.work.error')}</div>;
+    }
 
-    const fetchedProjects: Project[] = await projectApi.getProjects();
+    if (projects.length === 0) {
+      return <div className="project-state">{t('home.sections.work.empty')}</div>;
+    }
 
-    fetchedProjects.forEach((project) => {
-      // Add to 'All' category
-      classified['All'].push(project);
-      // Add to other categories based on the project's category
-      project.categories.forEach((cat) => {
-        if (Object.prototype.hasOwnProperty.call(classified, cat)) {
-          classified[cat as PortfolioCategory].push(project);
-        }
-      });
-    });
+    return (
+      <div className="row project-grid">
+        {projects.map((project, j) => {
+          const technologies = project.technologies.map(normalizeTechnology).filter(Boolean).slice(0, 4);
+          const primaryCategory = project.categories[0] || category;
+          const excerpt = createProjectExcerpt(project.description);
 
-    setProjectsByCategory(classified);
+          return (
+            <div
+              className="col-md-6 m-15px-tb"
+              data-aos="fade-right"
+              key={`${category}:${project.id || j}`}
+            >
+              <Link
+                className="project-card modern-card"
+                href={`/projects/${encodeURIComponent(project.id)}`}
+                aria-label={t('home.sections.work.cardLabel', { title: project.title })}
+              >
+                <div className="project-card__media">
+                  {project.thumbImage ? (
+                    <Image
+                      src={project.thumbImage}
+                      alt={project.title || 'Project thumbnail'}
+                      fill
+                      sizes="(max-width: 700px) 100vw, (max-width: 1100px) 50vw, 33vw"
+                      style={{ objectFit: 'cover' }}
+                    />
+                  ) : (
+                    <div className="project-card__placeholder" aria-hidden="true">
+                      {project.title?.slice(0, 2) || 'PR'}
+                    </div>
+                  )}
+                </div>
+                <div className="project-card__body">
+                  <div className="project-card__meta">
+                    {primaryCategory && <span>{primaryCategory}</span>}
+                    {project.date && <span>{util.formatDate(project.date)}</span>}
+                  </div>
+                  <h4>{project.title}</h4>
+                  {excerpt && <p>{excerpt}</p>}
+                  {technologies.length > 0 && (
+                    <div className="project-card__tech" aria-label={t('home.sections.work.technologies')}>
+                      {technologies.map((technology) => (
+                        <span key={technology}>{technology}</span>
+                      ))}
+                    </div>
+                  )}
+                  <span className="project-card__cta">
+                    {t('home.sections.work.cta')}
+                    <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
+                  </span>
+                </div>
+              </Link>
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
-    <>
-      <div className="portfolio-filter-01">
-        <Tabs>
-          <TabList className="filter d-flex flex-wrap justify-content-start">
-            {tabList.map((val, i) => (
-              <Tab key={i}>{val}</Tab>
-            ))}
-          </TabList>
-          {/* End tablist */}
-          {Object.keys(projectsByCategory).map((category: string, i: number) => (
-            <TabPanel key={i}>
-              <div className="row">
-                {projectsByCategory[category as PortfolioCategory].map((project, j) => (
-                  <div
-                    className="col-md-6 m-15px-tb"
-                    data-aos="fade-right"
-
-                    key={category + ':' + j}
-                  >
-                    <div
-                      className="blog-grid modern-card"
-                      onClick={() => handleProjectClick(project)}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' || event.key === ' ') {
-                          event.preventDefault();
-                          handleProjectClick(project);
-                        }
-                      }}
-                      role="button"
-                      tabIndex={0}
-                    >
-                      <div className="blog-img" style={{ position: 'relative', aspectRatio: '16 / 10' }}>
-                        {project.thumbImage && (
-                          <Image
-                            src={project.thumbImage}
-                            alt={project.title || 'Project thumbnail'}
-                            fill
-                            sizes="(max-width: 700px) 100vw, (max-width: 1100px) 50vw, 33vw"
-                            style={{ objectFit: 'cover' }}
-                          />
-                        )}
-                      </div>
-                      <div className="blog-info">
-                        <div className="meta">{util.formatDate(project.date)}</div>
-                        <h6>
-                          <a>
-                            {project.title}
-                          </a>
-                        </h6>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-            </TabPanel>
+    <div className="portfolio-filter-01">
+      <Tabs>
+        <TabList className="filter d-flex flex-wrap justify-content-start">
+          {tabList.map((val) => (
+            <Tab key={val}>{val}</Tab>
           ))}
-        </Tabs>
-      </div>
-
-      {selectedProject && (
-        <PortfolioModal
-          project={selectedProject}
-          isOpen={isModalOpen}
-          setIsOpen={setIsModalOpen}
-        />
-      )}
-    </>
+        </TabList>
+        {Object.keys(projectsByCategory).map((category: string) => (
+          <TabPanel key={category}>
+            {renderProjects(projectsByCategory[category as PortfolioCategory], category)}
+          </TabPanel>
+        ))}
+      </Tabs>
+    </div>
 
   );
 };

@@ -1,9 +1,7 @@
 .section {
-  padding: 84px 0 28px;
+  padding: 72px 0 24px;
   background-color: var(--surface-base);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface-elevated) 72%, transparent) 0%, transparent 100%),
-    var(--surface-base);
+  background: var(--surface-base);
 }
 
 .inner {
@@ -12,14 +10,14 @@
 }
 
 .header {
-  max-width: 820px;
+  max-width: 700px;
 }
 
 .eyebrow {
   display: inline-flex;
-  margin-bottom: 14px;
-  color: var(--accent-strong);
-  font-size: 0.86rem;
+  margin-bottom: 12px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
   font-weight: 500;
   letter-spacing: 0;
   line-height: 1;
@@ -28,25 +26,25 @@
 .header h2 {
   margin: 0;
   color: var(--text-primary);
-  font-size: clamp(2.2rem, 5vw, 4.7rem);
+  font-size: clamp(2rem, 3.4vw, 3.35rem);
   font-weight: 500;
-  line-height: 1.08;
+  line-height: 1.14;
   letter-spacing: 0;
 }
 
 .role {
-  margin: 18px 0 0;
-  color: var(--accent-strong);
-  font-size: clamp(1.02rem, 1.5vw, 1.25rem);
+  margin: 16px 0 0;
+  color: var(--text-primary);
+  font-size: 1rem;
   font-weight: 500;
   line-height: 1.4;
 }
 
 .header p:not(.role) {
-  margin: 14px 0 0;
+  margin: 12px 0 0;
   color: var(--text-secondary);
-  font-size: clamp(1rem, 1.4vw, 1.2rem);
-  line-height: 1.75;
+  font-size: 1rem;
+  line-height: 1.68;
 }
 
 .metrics {
@@ -54,7 +52,7 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   list-style: none;
-  margin-top: 34px;
+  margin-top: 28px;
   padding: 0;
 }
 
@@ -62,17 +60,14 @@
 .card {
   border: 1px solid var(--border-soft);
   background-color: var(--surface-elevated);
-  /* No backdrop-filter: blurring these cards re-composites their
-     backdrop on every scroll frame while the section is visible. A
-     near-opaque background reads the same. */
-  background: color-mix(in srgb, var(--surface-elevated) 96%, transparent);
-  box-shadow: var(--shadow-soft);
+  background: var(--surface-elevated);
+  box-shadow: none;
 }
 
 .metric {
   min-width: 0;
   border-radius: 8px;
-  padding: 18px;
+  padding: 16px;
 }
 
 .metric strong,
@@ -82,7 +77,7 @@
 
 .metric strong {
   color: var(--text-primary);
-  font-size: clamp(1.35rem, 2.6vw, 2rem);
+  font-size: clamp(1.25rem, 2vw, 1.65rem);
   font-weight: 500;
   line-height: 1.12;
 }
@@ -90,7 +85,7 @@
 .metric span {
   margin-top: 8px;
   color: var(--text-secondary);
-  font-size: 0.88rem;
+  font-size: 0.85rem;
   line-height: 1.45;
 }
 
@@ -104,24 +99,24 @@
 .card {
   min-width: 0;
   border-radius: 8px;
-  padding: 22px;
+  padding: 18px;
 }
 
 .icon {
   display: inline-flex;
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
   align-items: center;
   justify-content: center;
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface-elevated) 70%, var(--accent) 30%);
   color: var(--accent-strong);
-  margin-bottom: 18px;
+  margin-bottom: 14px;
 }
 
 .card h3 {
   color: var(--text-primary);
-  font-size: 1.02rem;
+  font-size: 0.98rem;
   font-weight: 500;
   line-height: 1.42;
   margin: 0 0 10px;
@@ -129,8 +124,8 @@
 
 .card p {
   color: var(--text-secondary);
-  font-size: 0.92rem;
-  line-height: 1.65;
+  font-size: 0.88rem;
+  line-height: 1.6;
   margin: 0;
 }
 
@@ -139,7 +134,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 16px 24px;
-  margin-top: 26px;
+  margin-top: 22px;
 }
 
 /* Ghost/outlined treatment matching .modern-title__link — reads correctly
@@ -149,13 +144,13 @@
   flex-shrink: 0;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 0 20px;
+  min-height: 38px;
+  padding: 0 16px;
   border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   border-radius: 8px;
   background: color-mix(in srgb, var(--surface-elevated) 88%, transparent);
   color: var(--accent-strong);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 500;
   line-height: 1;
   text-decoration: none;
@@ -189,7 +184,7 @@
 
 @media (max-width: 991px) {
   .section {
-    padding-top: 72px;
+    padding-top: 62px;
   }
 
   .metrics,
@@ -204,7 +199,7 @@
 
 @media (max-width: 640px) {
   .section {
-    padding: 58px 0 18px;
+    padding: 50px 0 18px;
   }
 
   .metrics,

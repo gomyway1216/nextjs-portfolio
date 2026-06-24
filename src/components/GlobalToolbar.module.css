@@ -1,0 +1,46 @@
+.brandSlot {
+  order: 1;
+}
+
+.controlsSlot {
+  order: 2;
+}
+
+.navSlot,
+.gameCenter {
+  order: 3;
+}
+
+@media (min-width: 768px) {
+  .gameCenter {
+    order: 2;
+  }
+}
+
+@media (min-width: 1024px) {
+  .container {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+
+  .brandSlot {
+    grid-column: 1;
+  }
+
+  .navSlot {
+    grid-column: 2;
+    justify-self: center;
+    order: 2;
+  }
+
+  .gameCenter {
+    grid-column: 2;
+    justify-self: center;
+  }
+
+  .controlsSlot {
+    grid-column: 3;
+    justify-self: end;
+    order: 3;
+  }
+}

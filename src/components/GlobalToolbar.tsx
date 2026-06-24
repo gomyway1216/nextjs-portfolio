@@ -7,10 +7,12 @@ import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/providers/AuthProvider';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
 import type { GameNavEntry } from '@/components/game/constants/gameNav';
+import styles from './GlobalToolbar.module.css';
 import {
   BookOpenText,
+  BriefcaseBusiness,
+  ChevronLeft,
   Gamepad2,
-  Home,
   LogIn,
   LogOut,
   NotebookPen,
@@ -18,6 +20,7 @@ import {
   Settings,
   Wrench,
 } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import {
@@ -52,6 +55,14 @@ const TOOLBAR_THEME_BASE: Pick<ThemeConfig, 'bg' | 'border' | 'avatarBg'> = {
 };
 
 const THEMES: { prefix: string; theme: ThemeConfig }[] = [
+  {
+    prefix: '/projects',
+    theme: {
+      ...TOOLBAR_THEME_BASE,
+      accent: '#0f766e',
+      avatarText: '#0f766e',
+    },
+  },
   {
     prefix: '/tools/score-tracker',
     theme: {
@@ -128,11 +139,20 @@ const THEMES: { prefix: string; theme: ThemeConfig }[] = [
 
 const DEFAULT_THEME: ThemeConfig = {
   ...TOOLBAR_THEME_BASE,
-  accent: 'var(--foreground)',
-  avatarText: 'var(--foreground)',
+  accent: '#0f766e',
+  avatarText: '#0f766e',
 };
 
-const PRIMARY_NAV_ITEMS = [
+type PrimaryNavItem = {
+  href: string;
+  prefix: string;
+  labelKey: string;
+  Icon: LucideIcon;
+  adminOnly?: boolean;
+};
+
+const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
+  { href: '/#work', prefix: '/projects', labelKey: 'home.nav.work', Icon: BriefcaseBusiness },
   { href: '/#tools', prefix: '/tools', labelKey: 'home.nav.tools', Icon: Wrench },
   { href: '/games', prefix: '/games', labelKey: 'home.nav.games', Icon: Gamepad2 },
   { href: '/study', prefix: '/study', labelKey: 'home.nav.study', Icon: BookOpenText },
@@ -168,10 +188,7 @@ export function GlobalToolbar() {
   // renders from the root layout).
   const [currentGame, setCurrentGame] = useState<GameNavEntry | null>(null);
   useEffect(() => {
-    if (!isGameSubPage) {
-      setCurrentGame(null);
-      return;
-    }
+    if (!isGameSubPage) return;
     let cancelled = false;
     import('@/components/game/constants/gameNav').then(({ findGameByPath }) => {
       if (!cancelled) setCurrentGame(findGameByPath(pathname) ?? null);
@@ -192,128 +209,134 @@ export function GlobalToolbar() {
     if (lang !== currentLang) i18n.changeLanguage(lang);
   };
 
+  const accentSoft = `color-mix(in srgb, ${theme.accent} 10%, transparent)`;
+  const accentBorder = `color-mix(in srgb, ${theme.accent} 28%, var(--border))`;
+  const toolbarBorder = 'color-mix(in srgb, var(--border) 84%, transparent)';
+  const toolbarBg = 'color-mix(in srgb, var(--background) 88%, transparent)';
+  const mutedPanel = 'color-mix(in srgb, var(--muted) 54%, transparent)';
+  const displayedGame = isGameSubPage ? currentGame : null;
+
   return (
     <div
       className="sticky top-0 z-50"
-      style={{ backgroundColor: theme.bg, borderBottom: `1px solid ${theme.border}` }}
+      style={{
+        backgroundColor: toolbarBg,
+        borderBottom: `1px solid ${toolbarBorder}`,
+        backdropFilter: 'blur(18px)',
+        WebkitBackdropFilter: 'blur(18px)',
+      }}
     >
       <div
-        className={`mx-auto max-w-6xl items-center gap-2 px-2 sm:gap-4 sm:px-4 ${
-          hasGameContent ? 'flex justify-between' : 'flex justify-between md:grid'
-        }`}
-        style={
-          hasGameContent
-            ? { minHeight: '3.25rem', flexWrap: 'wrap', rowGap: '0.5rem' }
-            : { minHeight: '3.25rem', gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)' }
-        }
+        className={`${styles.container} mx-auto flex min-h-16 max-w-7xl flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2 sm:px-6 lg:flex-nowrap lg:py-0`}
       >
-        {/* Left: Home / Back / Game left */}
-        <div
-          className={`flex items-center gap-3 min-w-0 ${hasGameContent ? 'flex-1' : 'shrink-0 md:flex-1'}`}
-          style={!hasGameContent ? { gridColumn: 1 } : undefined}
-        >
+        <div className={`${styles.brandSlot} flex min-w-0 flex-1 items-center gap-3`}>
           <Link
             href="/"
-            className="flex items-center gap-1.5 text-sm font-semibold transition-colors shrink-0"
-            style={{ color: theme.accent }}
+            className="group inline-flex min-w-0 shrink-0 items-center gap-2.5 rounded-md transition-colors"
+            aria-label={t('home.nav.home')}
           >
-            <Home className="h-4 w-4" />
-            <span className="hidden sm:inline">meetyudai.com</span>
+            <span
+              className="flex h-9 w-9 items-center justify-center rounded-md border text-sm font-bold transition-colors"
+              style={{
+                borderColor: accentBorder,
+                backgroundColor: accentSoft,
+                color: theme.accent,
+              }}
+            >
+              Y
+            </span>
+            <span className="hidden min-w-0 flex-col sm:flex">
+              <span className="truncate text-sm font-semibold leading-none text-foreground">Yudai Yaguchi</span>
+              <span className="mt-1 truncate text-[11px] font-medium leading-none text-muted-foreground">
+                Product Engineer
+              </span>
+            </span>
           </Link>
           {isGameSubPage && (
-            <>
-              <span style={{ color: theme.border }} className="shrink-0">|</span>
-              <Link
-                href="/games"
-                className="text-xs transition-colors shrink-0"
-                style={{ color: `color-mix(in srgb, ${theme.accent} 60%, transparent)` }}
-              >
-                ← Games
-              </Link>
-            </>
+            <Link
+              href="/games"
+              className="hidden h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-semibold transition-colors hover:bg-muted sm:inline-flex"
+              style={{ borderColor: toolbarBorder, color: theme.accent }}
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              Games
+            </Link>
           )}
-          {currentGame && !gameContent?.left && (() => {
+          {displayedGame && !gameContent?.left && (() => {
             // Per-game i18n key is `games.{id}.title`; fall back to the
             // catalog's English title for games without a translation.
-            const gameTitle = t(`games.${currentGame.id}.title`, { defaultValue: currentGame.title });
+            const gameTitle = t(`games.${displayedGame.id}.title`, { defaultValue: displayedGame.title });
             return (
-              <>
-                <span style={{ color: theme.border }} className="shrink-0">|</span>
-                <span
-                  className="text-xs font-semibold truncate min-w-0"
-                  style={{ color: theme.accent }}
-                  title={gameTitle}
-                >
-                  {currentGame.thumbnail} {gameTitle}
-                </span>
-              </>
+              <span
+                className="hidden min-w-0 items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-semibold sm:inline-flex"
+                style={{ backgroundColor: accentSoft, color: theme.accent }}
+                title={gameTitle}
+              >
+                <span aria-hidden="true">{displayedGame.thumbnail}</span>
+                <span className="truncate">{gameTitle}</span>
+              </span>
             );
           })()}
           {hasGameContent && gameContent?.left && (
-            <>
-              <span style={{ color: theme.border }} className="shrink-0">|</span>
-              <div className="flex items-center gap-2 min-w-0" style={{ color: theme.accent }}>
-                {gameContent.left}
-              </div>
-            </>
+            <div className="flex min-w-0 items-center gap-2 border-l pl-3" style={{ borderColor: toolbarBorder, color: theme.accent }}>
+              {gameContent.left}
+            </div>
           )}
         </div>
 
         {!hasGameContent && (
           <nav
-            className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-md border px-1.5 py-1 md:flex-none md:overflow-visible"
-            style={{ borderColor: theme.border, backgroundColor: theme.avatarBg, gridColumn: 2 }}
+            className={`${styles.navSlot} -mx-1 flex w-full min-w-0 items-center gap-0.5 overflow-x-auto border-t pt-2 sm:gap-1 lg:mx-0 lg:w-auto lg:flex-none lg:border-t-0 lg:pt-0`}
+            style={{ borderColor: toolbarBorder }}
             aria-label="Primary navigation"
           >
             {PRIMARY_NAV_ITEMS
-              .filter((item) => !('adminOnly' in item) || !item.adminOnly || isAdmin)
+              .filter((item) => !item.adminOnly || isAdmin)
               .map(({ href, prefix, labelKey, Icon }) => {
-              const isActive = isActivePath(pathname, prefix);
-              return (
-                <Link
-                  key={href}
-                  href={href}
-                  className="inline-flex h-8 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-xs font-semibold transition-colors"
-                  style={{
-                    color: isActive ? 'var(--background)' : theme.accent,
-                    backgroundColor: isActive ? theme.accent : 'transparent',
-                  }}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {t(labelKey)}
-                </Link>
-              );
-            })}
+                const isActive = isActivePath(pathname, prefix);
+                return (
+                  <Link
+                    key={href}
+                    href={href}
+                    aria-current={isActive ? 'page' : undefined}
+                    title={t(labelKey)}
+                    className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[11px] font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:px-2.5 sm:text-xs"
+                    style={{
+                      color: isActive ? theme.accent : undefined,
+                      backgroundColor: isActive ? accentSoft : undefined,
+                    }}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    <span>{t(labelKey)}</span>
+                  </Link>
+                );
+              })}
           </nav>
         )}
 
-        {/* Center: Game stats / center content */}
         {hasGameContent && gameContent?.center && (
-          <div className="flex items-center gap-2 shrink-0" style={{ color: theme.accent }}>
+          <div
+            className={`${styles.gameCenter} flex w-full items-center gap-2 border-t pt-2 text-sm font-medium md:w-auto md:border-t-0 md:pt-0`}
+            style={{ borderColor: toolbarBorder, color: theme.accent }}
+          >
             {gameContent.center}
           </div>
         )}
 
-        {/* Right: Game right + Lang + Auth */}
-        <div
-          className={`flex max-w-full items-center gap-2 min-w-0 justify-end ${hasGameContent ? 'flex-wrap' : 'flex-nowrap'}`}
-          style={!hasGameContent ? { gridColumn: 3 } : undefined}
-        >
+        <div className={`${styles.controlsSlot} ml-auto flex max-w-full shrink-0 items-center justify-end gap-1.5`}>
           {hasGameContent && gameContent?.right}
-          {hasGameContent && gameContent?.right && <span style={{ color: theme.border }}>|</span>}
-          {/* Theme toggle stays visible on mobile too — it's a compact
-              icon button, and hiding it left phone users with no way to
-              switch dark/light from the toolbar. */}
+          {hasGameContent && gameContent?.right && (
+            <span className="mx-1 h-5 w-px shrink-0" style={{ backgroundColor: toolbarBorder }} />
+          )}
           <div className="shrink-0">
             <ThemeToggle accent={theme.accent} />
           </div>
-          {/* Language toggle */}
           <div
-            className="hidden h-8 shrink-0 items-center rounded-full border p-0.5 sm:inline-flex"
+            className="hidden h-9 shrink-0 items-center rounded-md border p-0.5 sm:inline-flex"
             role="group"
             aria-label={t('home.language.switch')}
             title={t('home.language.switch')}
-            style={{ backgroundColor: theme.avatarBg, borderColor: theme.border }}
+            style={{ backgroundColor: mutedPanel, borderColor: toolbarBorder }}
           >
             {(['ja', 'en'] as const).map((lang) => {
               const isActive = currentLang === lang;
@@ -323,10 +346,11 @@ export function GlobalToolbar() {
                   type="button"
                   onClick={() => setLanguage(lang)}
                   aria-pressed={isActive}
-                  className="h-7 rounded-full px-2 text-xs font-semibold transition-colors"
+                  className="h-7 rounded px-2 text-xs font-semibold transition-colors"
                   style={{
-                    backgroundColor: isActive ? theme.accent : 'transparent',
-                    color: isActive ? 'var(--background)' : theme.accent,
+                    backgroundColor: isActive ? 'var(--background)' : 'transparent',
+                    color: isActive ? theme.accent : 'var(--muted-foreground)',
+                    boxShadow: isActive ? '0 1px 2px rgba(15, 23, 42, 0.08)' : undefined,
                   }}
                 >
                   {lang.toUpperCase()}
@@ -337,25 +361,33 @@ export function GlobalToolbar() {
           <button
             type="button"
             onClick={toggleLang}
-            className="h-8 shrink-0 rounded-full px-2.5 text-xs font-semibold transition-colors sm:hidden"
+            className="h-9 shrink-0 rounded-md border px-2.5 text-xs font-semibold transition-colors sm:hidden"
             aria-label={t('home.language.switch')}
             title={t('home.language.switch')}
-            style={{ backgroundColor: theme.avatarBg, color: theme.accent }}
+            style={{ backgroundColor: mutedPanel, borderColor: toolbarBorder, color: theme.accent }}
           >
             {currentLang === 'en' ? 'JA' : 'EN'}
           </button>
 
-          {/* Auth */}
           {currentUser ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8" style={{ borderRadius: '9999px' }}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={currentUser.displayName || currentUser.email || t('auth.userDefault')}
+                  className="h-9 gap-2 rounded-md border px-2 text-xs font-semibold"
+                  style={{ borderColor: toolbarBorder }}
+                >
                   <div
-                    className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium"
-                    style={{ backgroundColor: theme.avatarBg, color: theme.avatarText }}
+                    className="flex h-6 w-6 items-center justify-center rounded text-xs font-semibold"
+                    style={{ backgroundColor: accentSoft, color: theme.avatarText }}
                   >
                     {(currentUser.displayName || currentUser.email || 'U').charAt(0).toUpperCase()}
                   </div>
+                  <span className="hidden max-w-24 truncate sm:inline">
+                    {currentUser.displayName || currentUser.email || t('auth.userDefault')}
+                  </span>
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
@@ -383,8 +415,8 @@ export function GlobalToolbar() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-8 text-xs gap-1"
-                style={{ borderRadius: '9999px', color: theme.accent }}
+                className="h-9 gap-1.5 rounded-md border px-2.5 text-xs font-semibold"
+                style={{ borderColor: toolbarBorder, color: theme.accent }}
               >
                 <LogIn className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">{t('auth.login')}</span>

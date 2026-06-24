@@ -176,7 +176,6 @@ export default function ProjectPage({ projectId }: ProjectPageProps) {
 
         <div className={styles.contentGrid}>
           <article className={styles.article}>
-            <h2>{t('projectPage.overview')}</h2>
             <RichContentRenderer content={project.description || ''} className={styles.prose} />
           </article>
 

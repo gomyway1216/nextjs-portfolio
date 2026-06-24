@@ -1,6 +1,6 @@
 .root {
   display: grid;
-  gap: 34px;
+  gap: 32px;
 }
 
 .header {
@@ -11,22 +11,22 @@
 .category {
   width: fit-content;
   margin: 0;
-  border: 1px solid color-mix(in srgb, #0f766e 24%, var(--border));
+  border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 6px 11px;
-  background: color-mix(in srgb, var(--background) 84%, #0f766e 16%);
-  color: #0f766e;
-  font-size: 12px;
-  font-weight: 500;
-  text-transform: uppercase;
+  padding: 5px 10px;
+  background: color-mix(in srgb, var(--muted) 62%, transparent);
+  color: var(--muted-foreground);
+  font-size: 13px;
+  font-weight: 400;
+  text-transform: none;
 }
 
 .title {
   max-width: 860px;
   margin: 0;
   color: var(--foreground);
-  font-size: clamp(2.35rem, 7vw, 4.9rem);
-  font-weight: 500;
+  font-size: clamp(2.35rem, 6vw, 4.25rem);
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 1.08;
   text-wrap: balance;
@@ -36,7 +36,7 @@
   margin: 0;
   color: var(--muted-foreground);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .cover {
@@ -45,7 +45,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--muted);
-  box-shadow: 0 22px 54px color-mix(in srgb, var(--foreground) 9%, transparent);
+  box-shadow: none;
 }
 
 .cover img {
@@ -58,8 +58,8 @@
 .body {
   width: min(100%, 780px);
   color: var(--foreground);
-  font-size: 18px;
-  line-height: 1.82;
+  font-size: 17px;
+  line-height: 1.78;
 }
 
 .body :where(p, ul, ol, blockquote, pre, table, iframe) {
@@ -69,7 +69,7 @@
 .body :where(h2, h3, h4) {
   margin: 1.8em 0 0.7em;
   color: var(--foreground);
-  font-weight: 500;
+  font-weight: 600;
   letter-spacing: 0;
   line-height: 1.2;
 }
@@ -83,7 +83,7 @@
 }
 
 .body a {
-  color: #0f766e;
+  color: var(--foreground);
   font-weight: 500;
   text-decoration-thickness: 0.08em;
   text-underline-offset: 0.18em;
@@ -102,7 +102,7 @@
 }
 
 .body blockquote {
-  border-left: 3px solid #0f766e;
+  border-left: 3px solid var(--border);
   padding: 8px 0 8px 18px;
   color: var(--muted-foreground);
 }
@@ -130,17 +130,17 @@
 }
 
 :global(.dark) .category {
-  border-color: color-mix(in srgb, #5eead4 28%, var(--border));
-  background: color-mix(in srgb, var(--background) 72%, #5eead4 28%);
-  color: #99f6e4;
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--muted) 54%, transparent);
+  color: var(--muted-foreground);
 }
 
 :global(.dark) .body a {
-  color: #5eead4;
+  color: var(--foreground);
 }
 
 :global(.dark) .body blockquote {
-  border-left-color: #5eead4;
+  border-left-color: var(--border);
 }
 
 @media (max-width: 640px) {

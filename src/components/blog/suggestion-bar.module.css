@@ -2,13 +2,13 @@
   display: flex;
   width: fit-content;
   max-width: 100%;
-  gap: 3px;
+  gap: 2px;
   overflow-x: auto;
-  border: 1px solid color-mix(in srgb, var(--border) 76%, #16a34a 24%);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 4px;
-  background: color-mix(in srgb, var(--card) 92%, transparent);
-  box-shadow: 0 14px 34px color-mix(in srgb, var(--foreground) 6%, transparent);
+  padding: 3px;
+  background: var(--card);
+  box-shadow: none;
   scrollbar-width: none;
 }
 
@@ -18,14 +18,14 @@
 
 .link {
   display: inline-flex;
-  min-height: 36px;
+  min-height: 34px;
   align-items: center;
   justify-content: center;
   border-radius: 6px;
-  padding: 0 16px;
+  padding: 0 14px;
   color: var(--muted-foreground);
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 400;
   text-decoration: none;
   white-space: nowrap;
   transition: background-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
@@ -38,31 +38,31 @@
 }
 
 .active {
-  background: #15803d;
-  color: #fff;
-  box-shadow: 0 8px 18px color-mix(in srgb, #15803d 22%, transparent);
+  background: var(--foreground);
+  color: var(--background);
+  box-shadow: none;
 }
 
 .active:hover,
 .active:focus-visible {
-  background: #166534;
-  color: #fff;
+  background: var(--foreground);
+  color: var(--background);
 }
 
 :global(.dark) .nav {
-  border-color: color-mix(in srgb, var(--border) 70%, #4ade80 30%);
+  border-color: var(--border);
 }
 
 :global(.dark) .active {
-  background: #4ade80;
-  color: #052e16;
-  box-shadow: 0 8px 18px color-mix(in srgb, #4ade80 16%, transparent);
+  background: var(--foreground);
+  color: var(--background);
+  box-shadow: none;
 }
 
 :global(.dark) .active:hover,
 :global(.dark) .active:focus-visible {
-  background: #86efac;
-  color: #052e16;
+  background: var(--foreground);
+  color: var(--background);
 }
 
 @media (max-width: 520px) {

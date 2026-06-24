@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { cookies, headers } from "next/headers";
-import { Rubik, Playfair_Display } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/providers/AuthProvider";
 import { I18nProvider } from "@/components/providers/I18nProvider";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
@@ -25,19 +25,15 @@ export const viewport: Viewport = {
   interactiveWidget: 'resizes-content',
 };
 
-const rubik = Rubik({
-  weight: ['300', '400', '500', '700', '900'],
-  style: ['normal', 'italic'],
+const geistSans = Geist({
   subsets: ['latin'],
-  variable: '--font-rubik',
+  variable: '--font-geist-sans',
   display: 'swap',
 });
 
-const playfair = Playfair_Display({
-  weight: ['400', '500', '600', '700', '800', '900'],
-  style: ['normal', 'italic'],
+const geistMono = Geist_Mono({
   subsets: ['latin'],
-  variable: '--font-playfair',
+  variable: '--font-geist-mono',
   display: 'swap',
 });
 
@@ -163,7 +159,7 @@ export default async function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredDataJsonLd) }}
         />
       </head>
-      <body className={`${rubik.variable} ${playfair.variable}`} suppressHydrationWarning>
+      <body className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
         <ThemeProvider>
           <RouteScrollBehaviorFix />
           <Toaster />

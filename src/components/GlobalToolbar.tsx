@@ -8,11 +8,13 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
 import type { GameNavEntry } from '@/components/game/constants/gameNav';
 import styles from './GlobalToolbar.module.css';
+import { cn } from '@/lib/utils/util';
 import {
   BookOpenText,
   BriefcaseBusiness,
   ChevronLeft,
   Gamepad2,
+  Languages,
   LogIn,
   LogOut,
   NotebookPen,
@@ -182,6 +184,7 @@ export function GlobalToolbar() {
   const { currentUser, isAdmin, signOut } = useAuth();
   const { content: gameContent } = useGameToolbar();
   const currentLang = i18n.language?.startsWith('ja') ? 'ja' : 'en';
+  const nextLang = currentLang === 'en' ? 'ja' : 'en';
 
   const theme = useMemo(() => getTheme(pathname), [pathname]);
   const isGameSubPage = pathname.startsWith('/games/');
@@ -212,24 +215,24 @@ export function GlobalToolbar() {
   if (HIDDEN_PREFIXES.some((prefix) => pathname.startsWith(prefix))) return null;
 
   const toggleLang = () => {
-    i18n.changeLanguage(currentLang === 'en' ? 'ja' : 'en');
-  };
-
-  const setLanguage = (lang: 'en' | 'ja') => {
-    if (lang !== currentLang) i18n.changeLanguage(lang);
+    i18n.changeLanguage(nextLang);
   };
 
   const accentSoft = `color-mix(in srgb, ${theme.accent} 10%, transparent)`;
   const accentBorder = `color-mix(in srgb, ${theme.accent} 28%, var(--border))`;
   const toolbarBorder = 'color-mix(in srgb, var(--border) 84%, transparent)';
   const toolbarBg = 'color-mix(in srgb, var(--background) 88%, transparent)';
-  const mutedPanel = 'color-mix(in srgb, var(--muted) 54%, transparent)';
   const displayedGame = isGameSubPage && currentGameState?.pathname === pathname ? currentGameState.game : null;
   const displayedGameTitle = displayedGame
     ? t(`games.${displayedGame.id}.title`, { defaultValue: displayedGame.title })
     : '';
   const brandName = t('home.hero.name');
   const brandRole = t('home.about.role', { defaultValue: t('home.hero.badge') });
+  const nextLangLabel = currentLang === 'en' ? '日本語' : 'English';
+  const languageSwitchLabel = `${t('home.language.switch')}: ${nextLangLabel}`;
+  const hasUserDisplayName = Boolean(currentUser?.displayName);
+  const userInitial = (currentUser?.displayName || currentUser?.email || 'U').charAt(0).toUpperCase();
+  const userMenuLabel = currentUser?.displayName || currentUser?.email || t('auth.userDefault');
 
   return (
     <div
@@ -341,63 +344,49 @@ export function GlobalToolbar() {
           <div className="shrink-0">
             <ThemeToggle accent={theme.accent} />
           </div>
-          <div
-            className="hidden h-9 shrink-0 items-center rounded-md border p-0.5 sm:inline-flex"
-            role="group"
-            aria-label={t('home.language.switch')}
-            title={t('home.language.switch')}
-            style={{ backgroundColor: mutedPanel, borderColor: toolbarBorder }}
-          >
-            {(['ja', 'en'] as const).map((lang) => {
-              const isActive = currentLang === lang;
-              return (
-                <button
-                  key={lang}
-                  type="button"
-                  onClick={() => setLanguage(lang)}
-                  aria-pressed={isActive}
-                  className="h-7 rounded px-2 text-xs font-semibold transition-colors"
-                  style={{
-                    backgroundColor: isActive ? 'var(--background)' : 'transparent',
-                    color: isActive ? theme.accent : 'var(--muted-foreground)',
-                    boxShadow: isActive ? '0 1px 2px rgba(15, 23, 42, 0.08)' : undefined,
-                  }}
-                >
-                  {lang.toUpperCase()}
-                </button>
-              );
-            })}
-          </div>
           <button
             type="button"
             onClick={toggleLang}
-            className="h-9 shrink-0 rounded-md border px-2.5 text-xs font-semibold transition-colors sm:hidden"
-            aria-label={t('home.language.switch')}
-            title={t('home.language.switch')}
-            style={{ backgroundColor: mutedPanel, borderColor: toolbarBorder, color: theme.accent }}
+            className="hidden h-9 shrink-0 items-center rounded-md px-2 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:inline-flex"
+            aria-label={languageSwitchLabel}
+            title={languageSwitchLabel}
           >
-            {currentLang === 'en' ? 'JA' : 'EN'}
+            {nextLangLabel}
+          </button>
+          <button
+            type="button"
+            onClick={toggleLang}
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:hidden"
+            aria-label={languageSwitchLabel}
+            title={languageSwitchLabel}
+          >
+            <Languages className="h-4 w-4" />
           </button>
 
           {currentUser ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
-                  aria-label={currentUser.displayName || currentUser.email || t('auth.userDefault')}
-                  className="h-9 gap-2 rounded-md border px-2 text-xs font-semibold"
-                  style={{ borderColor: toolbarBorder }}
+                  aria-label={userMenuLabel}
+                  className={cn(
+                    'h-9 rounded-full text-xs font-semibold text-muted-foreground hover:text-foreground',
+                    hasUserDisplayName
+                      ? 'w-9 gap-0 px-0 md:w-auto md:gap-2 md:pl-1.5 md:pr-2'
+                      : 'w-9 gap-0 px-0',
+                  )}
                 >
                   <div
-                    className="flex h-6 w-6 items-center justify-center rounded text-xs font-semibold"
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold"
                     style={{ backgroundColor: accentSoft, color: theme.avatarText }}
                   >
-                    {(currentUser.displayName || currentUser.email || 'U').charAt(0).toUpperCase()}
+                    {userInitial}
                   </div>
-                  <span className="hidden max-w-24 truncate sm:inline">
-                    {currentUser.displayName || currentUser.email || t('auth.userDefault')}
-                  </span>
+                  {hasUserDisplayName && (
+                    <span className="hidden max-w-28 truncate md:inline">{currentUser.displayName}</span>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
@@ -425,8 +414,8 @@ export function GlobalToolbar() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-9 gap-1.5 rounded-md border px-2.5 text-xs font-semibold"
-                style={{ borderColor: toolbarBorder, color: theme.accent }}
+                className="h-9 gap-1.5 rounded-md px-2.5 text-xs font-semibold"
+                style={{ color: theme.accent }}
               >
                 <LogIn className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">{t('auth.login')}</span>

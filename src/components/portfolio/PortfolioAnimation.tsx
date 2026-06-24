@@ -1,35 +1,23 @@
 'use client';
 import * as util from '@/lib/utils/util';
+import { createPlainTextExcerpt } from '@/lib/text';
 import type { Project } from '@/services/projectsService';
 import * as projectApi from '@/services/projectsService';
 import { ArrowRight } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect,useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Tab,TabList,TabPanel,Tabs } from 'react-tabs';
+import { Tab, TabList, TabPanel, Tabs } from 'react-tabs';
 
 
 const tabList = ['All', 'Web App', 'Mobile', 'AI/ML', 'Console'];
 type PortfolioCategory = typeof tabList[number];
 type ProjectsByCategory = Record<PortfolioCategory, Project[]>;
 
-function normalizeTechnology(technology: Project['technologies'][number]): string {
-  return typeof technology === 'string' ? technology : technology.name;
-}
-
-function toPlainText(content: string): string {
-  return content
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/[`*_>#-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function createProjectExcerpt(description: string): string {
-  const text = toPlainText(description);
-  if (text.length <= 145) return text;
-  return `${text.slice(0, 142).trim()}...`;
+function normalizeTechnology(technology: Project['technologies'][number] | null | undefined): string {
+  if (!technology) return '';
+  return typeof technology === 'string' ? technology : technology.name || '';
 }
 
 function sortProjectsByDate(projects: Project[]): Project[] {
@@ -60,7 +48,7 @@ const PortfolioAnimation = () => {
 
         fetchedProjects.forEach((project) => {
           classified.All.push(project);
-          project.categories.forEach((cat) => {
+          project.categories?.forEach((cat) => {
             if (Object.prototype.hasOwnProperty.call(classified, cat)) {
               classified[cat as PortfolioCategory].push(project);
             }
@@ -98,9 +86,9 @@ const PortfolioAnimation = () => {
     return (
       <div className="row project-grid">
         {projects.map((project, j) => {
-          const technologies = project.technologies.map(normalizeTechnology).filter(Boolean).slice(0, 4);
-          const primaryCategory = project.categories[0] || category;
-          const excerpt = createProjectExcerpt(project.description);
+          const technologies = project.technologies?.map(normalizeTechnology).filter(Boolean).slice(0, 4) ?? [];
+          const primaryCategory = project.categories?.[0] || category;
+          const excerpt = createPlainTextExcerpt(project.description, 145);
 
           return (
             <div

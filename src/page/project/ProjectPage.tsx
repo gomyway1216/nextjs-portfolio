@@ -3,9 +3,10 @@
 import RichContentRenderer from '@/components/common/RichContentRenderer';
 import SimpleCarousel from '@/components/portfolio/SimpleCarousel';
 import { Button } from '@/components/ui/button';
+import { createPlainTextExcerpt } from '@/lib/text';
 import * as util from '@/lib/utils/util';
 import { useAuth } from '@/providers/AuthProvider';
-import type { Project, TechnologyData, UrlData } from '@/services/projectsService';
+import type { Project, TechnologyData } from '@/services/projectsService';
 import * as projectApi from '@/services/projectsService';
 import { ArrowLeft, Edit3, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
@@ -18,28 +19,14 @@ interface ProjectPageProps {
   projectId: string;
 }
 
-function normalizeTechnology(technology: string | TechnologyData): TechnologyData {
+function normalizeTechnology(technology: string | TechnologyData | null | undefined): TechnologyData {
+  if (!technology) {
+    return { id: '', name: '', type: '' };
+  }
+
   return typeof technology === 'string'
     ? { id: technology, name: technology, type: '' }
     : technology;
-}
-
-function normalizeUrl(url: UrlData): UrlData {
-  return url;
-}
-
-function toPlainText(content: string): string {
-  return content
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/[`*_>#-]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function createSummary(description: string): string {
-  const text = toPlainText(description);
-  if (text.length <= 220) return text;
-  return `${text.slice(0, 217).trim()}...`;
 }
 
 function ProjectFact({ label, value }: { label: string; value: string }) {
@@ -89,18 +76,18 @@ export default function ProjectPage({ projectId }: ProjectPageProps) {
   }, [projectId]);
 
   const technologies = useMemo(
-    () => project?.technologies.map(normalizeTechnology).filter((tech) => tech.name) ?? [],
+    () => project?.technologies?.map(normalizeTechnology).filter((tech) => tech.name) ?? [],
     [project],
   );
 
   const urls = useMemo(
-    () => project?.urls.map(normalizeUrl).filter((url) => url.link) ?? [],
+    () => project?.urls?.filter((url) => url?.link) ?? [],
     [project],
   );
 
-  const categories = project?.categories.filter(Boolean) ?? [];
-  const summary = project ? createSummary(project.description) : '';
-  const hasImages = Boolean(project?.thumbImage || project?.images.length);
+  const categories = project?.categories?.filter(Boolean) ?? [];
+  const summary = createPlainTextExcerpt(project?.description, 220);
+  const hasImages = Boolean(project?.thumbImage || project?.images?.length);
 
   const handleEdit = () => {
     router.push(`/projects/${projectId}/edit`);
@@ -174,7 +161,7 @@ export default function ProjectPage({ projectId }: ProjectPageProps) {
               />
             ) : (
               <div className={styles.placeholderMedia} aria-hidden="true">
-                {project.title.slice(0, 2)}
+                {(project.title || 'PR').slice(0, 2)}
               </div>
             )}
           </div>
@@ -182,7 +169,7 @@ export default function ProjectPage({ projectId }: ProjectPageProps) {
 
         <dl className={styles.factGrid}>
           <ProjectFact label={t('projectPage.client')} value={project.client || t('projectPage.fallbackClient')} />
-          <ProjectFact label={t('projectPage.industry')} value={project.industry} />
+          <ProjectFact label={t('projectPage.industry')} value={project.industry || ''} />
           <ProjectFact label={t('projectPage.date')} value={util.formatDate(project.date)} />
           <ProjectFact label={t('projectPage.categories')} value={categories.join(', ')} />
         </dl>
@@ -190,7 +177,7 @@ export default function ProjectPage({ projectId }: ProjectPageProps) {
         <div className={styles.contentGrid}>
           <article className={styles.article}>
             <h2>{t('projectPage.overview')}</h2>
-            <RichContentRenderer content={project.description} className={styles.prose} />
+            <RichContentRenderer content={project.description || ''} className={styles.prose} />
           </article>
 
           <aside className={styles.sidebar} aria-label={t('projectPage.details')}>
@@ -214,7 +201,7 @@ export default function ProjectPage({ projectId }: ProjectPageProps) {
                       href={url.link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      key={`${url.type}:${url.link}`}
+                      key={`${url.type || url.name}:${url.link}`}
                     >
                       <span>{url.name || url.type || t('projectPage.viewProject')}</span>
                       <ExternalLink aria-hidden="true" size={15} strokeWidth={2} />

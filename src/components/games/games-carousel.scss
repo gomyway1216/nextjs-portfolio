@@ -13,19 +13,21 @@
 }
 
 .games-carousel__container {
+  --games-carousel-gap: 20px;
+
   display: flex;
-  gap: 20px;
+  gap: var(--games-carousel-gap);
   margin-bottom: 24px;
   align-items: stretch;
 }
 
 .games-carousel__slide {
-  flex: 0 0 calc(33.333% - 14px);
+  flex: 0 0 calc((100% - var(--games-carousel-gap) - var(--games-carousel-gap)) / 3);
   min-width: 0;
   display: flex;
 
   @media (max-width: 1024px) {
-    flex: 0 0 calc(50% - 15px);
+    flex: 0 0 calc((100% - var(--games-carousel-gap)) / 2);
   }
 
   @media (max-width: 640px) {

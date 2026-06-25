@@ -17,7 +17,6 @@ import {
   LineChart,
   Newspaper,
   NotebookPen,
-  Palette,
   Shield,
   UserRound,
   Users,
@@ -66,7 +65,7 @@ const Header = ({ showWriting = false }: HeaderProps) => {
   const [click, setClick] = useState<boolean>(false);
   const handleClick = () => setClick(!click);
   const router = useRouter();
-  const { currentUser, isAdmin, signOut } = useAuth();
+  const { currentUser, signOut } = useAuth();
   const { t, i18n } = useTranslation();
   const sectionIds = showWriting ? SECTION_IDS_WITH_WRITING : SECTION_IDS_WITHOUT_WRITING;
   const activeSection = useActiveSection(sectionIds);
@@ -262,19 +261,6 @@ const Header = ({ showWriting = false }: HeaderProps) => {
                 <UserRound size={20} />
               </Link>
             </li>
-            {isAdmin && (
-              <li>
-                <Link
-                  className="nav-link"
-                  href="/hobbies"
-                  data-tooltip-id="left-menu-tooltip"
-                  data-tooltip-content={t('home.nav.hobbies')}
-                  onClick={handleClick}
-                >
-                  <Palette size={20} />
-                </Link>
-              </li>
-            )}
             {currentUser && (
               <li>
                 <DropdownMenu>

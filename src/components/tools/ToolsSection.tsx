@@ -24,7 +24,6 @@ interface Tool {
   path: string;
   icon: React.ReactNode;
   features: string[];
-  gradient: string;
 }
 
 const ToolsSection: React.FC = () => {
@@ -44,7 +43,6 @@ const ToolsSection: React.FC = () => {
         t('home.tools.settli.features.weighted'),
         t('home.tools.settli.features.qrShare'),
       ],
-      gradient: 'linear-gradient(135deg, #2563eb, #0ea5e9, #0284c7)',
     },
     {
       id: 'kaimono',
@@ -58,7 +56,6 @@ const ToolsSection: React.FC = () => {
         t('home.tools.kaimono.features.recurring'),
         t('home.tools.kaimono.features.share'),
       ],
-      gradient: 'linear-gradient(135deg, #059669, #10b981, #34d399)',
     },
     {
       id: 'kuizu',
@@ -72,7 +69,6 @@ const ToolsSection: React.FC = () => {
         t('home.tools.kuizu.features.daily'),
         t('home.tools.kuizu.features.custom'),
       ],
-      gradient: 'linear-gradient(135deg, #d97706, #f59e0b, #fbbf24)',
     },
     {
       id: 'markdownPreview',
@@ -86,7 +82,6 @@ const ToolsSection: React.FC = () => {
         t('home.tools.markdownPreview.features.clipboard'),
         t('home.tools.markdownPreview.features.gfm'),
       ],
-      gradient: 'linear-gradient(135deg, #7c3aed, #8b5cf6, #a78bfa)',
     },
     {
       id: 'railwayPlanner',
@@ -100,7 +95,6 @@ const ToolsSection: React.FC = () => {
         t('home.tools.railwayPlanner.features.serviceTypes'),
         t('home.tools.railwayPlanner.features.simulation'),
       ],
-      gradient: 'linear-gradient(135deg, #0f766e, #2563eb, #f59e0b)',
     },
     {
       id: 'todo',
@@ -114,7 +108,6 @@ const ToolsSection: React.FC = () => {
         'Text extraction',
         'AI-powered',
       ],
-      gradient: 'linear-gradient(135deg, #dc2626, #ef4444, #f87171)',
     },
     {
       id: 'scoreTracker',
@@ -128,7 +121,6 @@ const ToolsSection: React.FC = () => {
         '累計の自動集計',
         'コード共有',
       ],
-      gradient: 'linear-gradient(135deg, #0f766e, #14b8a6, #2dd4bf)',
     },
   ];
 
@@ -155,7 +147,7 @@ const ToolsSection: React.FC = () => {
             data-aos="fade-up"
 
           >
-            <div className="tool-card__icon" style={{ background: tool.gradient }}>
+            <div className="tool-card__icon">
               {tool.icon}
             </div>
             <div className="tool-card__content">

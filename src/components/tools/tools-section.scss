@@ -53,7 +53,7 @@
   height: 46px;
   border-radius: 8px;
   flex-shrink: 0;
-  background: color-mix(in srgb, var(--surface-elevated, #fff) 74%, var(--accent, #2563eb) 26%) !important;
+  background: color-mix(in srgb, var(--surface-elevated, #fff) 74%, var(--accent, #2563eb) 26%);
   color: var(--accent-strong, #2563eb);
 
   svg {
@@ -61,8 +61,8 @@
   }
 
   &--muted {
-    background: var(--surface-contrast, #f3f4f6) !important;
-    color: var(--text-secondary, #9ca3af) !important;
+    background: var(--surface-contrast, #f3f4f6);
+    color: var(--text-secondary, #9ca3af);
   }
 }
 

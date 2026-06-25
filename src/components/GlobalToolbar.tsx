@@ -20,7 +20,6 @@ import {
   LogOut,
   Menu,
   NotebookPen,
-  Palette,
   Settings,
   Wrench,
 } from 'lucide-react';
@@ -163,9 +162,8 @@ const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
 ];
 
 const MORE_NAV_ITEMS: PrimaryNavItem[] = [
-  { href: '/games', labelKey: 'home.nav.games', Icon: Gamepad2, activePrefixes: ['/games'] },
   { href: '/study', labelKey: 'home.nav.study', Icon: BookOpenText, activePrefixes: ['/study'] },
-  { href: '/hobbies', labelKey: 'home.nav.hobbies', Icon: Palette, activePrefixes: ['/hobbies'] },
+  { href: '/games', labelKey: 'home.nav.games', Icon: Gamepad2, activePrefixes: ['/games'] },
 ];
 
 type CurrentGameState = {

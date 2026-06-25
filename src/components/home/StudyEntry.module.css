@@ -1,7 +1,7 @@
 .grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.25rem;
+  gap: 1rem;
   max-width: 900px;
   margin: 0 auto;
 }
@@ -14,15 +14,14 @@
 
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 1rem;
+  gap: 0.95rem;
   align-items: center;
-  min-height: 190px;
-  padding: 1.5rem;
-  border: 1px solid color-mix(in srgb, var(--entry-accent) 26%, transparent);
+  min-height: 160px;
+  padding: 1.25rem;
+  border: 1px solid var(--border-soft, color-mix(in srgb, var(--entry-accent) 18%, transparent));
   border-radius: 8px;
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--surface-elevated, #fff) 88%, var(--entry-accent) 12%), var(--surface-elevated, #fff));
-  box-shadow: var(--shadow-soft, 0 4px 12px rgba(0, 0, 0, 0.08));
+  background: var(--surface-elevated, #fff);
+  box-shadow: none;
   color: inherit;
   text-decoration: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
@@ -31,8 +30,8 @@
 .card:hover,
 .card:focus-visible {
   border-color: color-mix(in srgb, var(--entry-accent) 54%, transparent);
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--entry-accent) 18%, transparent);
-  transform: translateY(-3px);
+  box-shadow: var(--shadow-soft, 0 8px 24px rgba(0, 0, 0, 0.08));
+  transform: translateY(-2px);
 }
 
 .teal {
@@ -53,9 +52,10 @@
 }
 
 .iconBox {
-  width: 64px;
-  height: 64px;
-  background: linear-gradient(135deg, var(--entry-accent), color-mix(in srgb, var(--entry-accent) 72%, #ffffff 28%));
+  width: 46px;
+  height: 46px;
+  background: color-mix(in srgb, var(--surface-elevated, #fff) 74%, var(--entry-accent) 26%);
+  color: var(--entry-accent);
 }
 
 .content {
@@ -113,8 +113,7 @@
   --entry-text: var(--text-primary, #f9fafb);
   --entry-muted: var(--text-secondary, #9ca3af);
 
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--surface-elevated, #111827) 78%, var(--entry-accent) 22%), var(--surface-elevated, #111827));
+  background: var(--surface-elevated, #111827);
 }
 
 :global(.dark) .teal,

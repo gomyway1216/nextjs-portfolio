@@ -34,12 +34,20 @@
   font-variant-numeric: tabular-nums;
 }
 
+.admin-console tbody tr {
+  transition: background-color 0.2s;
+}
+
+.admin-console tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
 .admin-console ::selection {
   background: rgba(90, 162, 255, 0.28);
 }
 
 @media (max-width: 960px) {
-  .admin-console > div {
+  .admin-console__layout {
     display: block !important;
   }
 

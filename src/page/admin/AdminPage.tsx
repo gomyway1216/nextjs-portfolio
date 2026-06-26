@@ -456,7 +456,7 @@ const ProjectsTable = memo(function ProjectsTable({
         </thead>
         <tbody>
           {projects.map((project) => (
-            <tr key={project.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+            <tr key={project.id}>
               <td style={styles.td}>
                 <div style={{ fontWeight: '500', color: adminColors.text }}>{project.title}</div>
                 <div style={{ fontSize: '14px', color: adminColors.textSubtle, maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.description}</div>
@@ -526,7 +526,7 @@ const PostsTable = memo(function PostsTable({
         </thead>
         <tbody>
           {posts.map((post) => (
-            <tr key={post.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+            <tr key={post.id}>
               <td style={styles.td}>
                 <div style={{ fontWeight: '500', color: adminColors.text }}>{post.title}</div>
               </td>
@@ -1646,7 +1646,7 @@ const AdminPage = () => {
         </div>
       )}
 
-      <div style={{ display: 'flex' }}>
+      <div className="admin-console__layout" style={{ display: 'flex' }}>
         {/* Sidebar */}
         <aside style={styles.sidebar}>
           <div style={styles.sidebarHeader}>

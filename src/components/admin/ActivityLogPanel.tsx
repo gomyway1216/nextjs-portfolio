@@ -31,6 +31,8 @@ const activityColors = {
   accent: '#5aa2ff',
   accentSoft: 'rgba(90, 162, 255, 0.14)',
   accentBorder: 'rgba(90, 162, 255, 0.34)',
+  accentSecondary: '#7dd3c7',
+  accentSecondarySoft: 'rgba(85, 214, 190, 0.12)',
   success: '#34d399',
   danger: '#ef4444',
   warning: '#facc15',
@@ -163,8 +165,8 @@ function CategoryBadge({ category }: { category: ActivityCategory }) {
     <span
       style={{
         ...styles.badge,
-        backgroundColor: isQuery ? activityColors.accentSoft : 'rgba(85, 214, 190, 0.12)',
-        color: isQuery ? activityColors.accent : '#7dd3c7',
+        backgroundColor: isQuery ? activityColors.accentSoft : activityColors.accentSecondarySoft,
+        color: isQuery ? activityColors.accent : activityColors.accentSecondary,
       }}
     >
       {category}
@@ -567,7 +569,7 @@ export default function ActivityLogPanel() {
                         <td style={styles.td}><ResultBadge result={log.result} severity={log.severity} /></td>
                         <td style={styles.td}>
                           <div style={{ fontSize: '12px', color: log.is_anonymous ? activityColors.warning : '#d7dde7' }}>
-                            {log.is_anonymous ? 'anon' : (log.agent_email ?? log.agent_uid.slice(0, 8))}
+                            {log.is_anonymous ? 'anon' : (log.agent_email ?? log.agent_uid?.slice(0, 8) ?? '')}
                           </div>
                         </td>
                         <td style={styles.td}>

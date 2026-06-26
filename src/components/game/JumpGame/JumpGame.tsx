@@ -899,7 +899,7 @@ const JumpGame = () => {
             }}>
               <Zap style={{ width: '1.25rem', height: '1.25rem', color: '#eab308' }} />
               <div>
-                <div style={{ fontSize: '0.625rem', color: '#94a3b8', textTransform: 'uppercase' }}>Stage</div>
+                <div style={{ fontSize: '0.625rem', color: 'var(--games-route-muted)', textTransform: 'uppercase' }}>Stage</div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#eab308' }}>{currentStage}</div>
               </div>
             </div>
@@ -911,7 +911,7 @@ const JumpGame = () => {
           }}>
             <Trophy style={{ width: '1.25rem', height: '1.25rem', color: '#0ea5e9' }} />
             <div>
-              <div style={{ fontSize: '0.625rem', color: '#94a3b8', textTransform: 'uppercase' }}>High Score</div>
+              <div style={{ fontSize: '0.625rem', color: 'var(--games-route-muted)', textTransform: 'uppercase' }}>High Score</div>
               <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#0ea5e9' }}>{highScore}</div>
             </div>
           </div>
@@ -969,7 +969,8 @@ const JumpGame = () => {
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#000',
+      background: 'var(--games-route-bg)',
+      color: 'var(--games-route-fg)',
       overflow: 'hidden',
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
@@ -986,9 +987,9 @@ const JumpGame = () => {
           style={{
             width: '100%',
             height: '100%',
-            border: '3px solid #0ea5e9',
+            border: '1px solid color-mix(in srgb, #0ea5e9 58%, var(--games-route-border))',
             borderRadius: '0.5rem',
-            boxShadow: '0 0 50px rgba(14, 165, 233, 0.3)',
+            boxShadow: '0 18px 52px color-mix(in srgb, #0ea5e9 18%, transparent), var(--games-route-shadow)',
             backgroundColor: '#000',
             cursor: 'pointer',
             touchAction: 'none',
@@ -1004,12 +1005,14 @@ const JumpGame = () => {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'rgba(0, 0, 0, 0.95)',
+            background: 'var(--games-route-overlay)',
+            backdropFilter: 'blur(14px)',
             borderRadius: '0.5rem',
+            border: '1px solid var(--games-route-border)',
             padding: '2rem'
           }}>
             <h2 style={{
-              color: '#fff',
+              color: 'var(--games-route-fg)',
               fontSize: '1.875rem',
               fontWeight: 'bold',
               marginBottom: '1.5rem',
@@ -1035,10 +1038,10 @@ const JumpGame = () => {
                     key={diff}
                     onClick={() => setSelectedDifficulty(diff)}
                     style={{
-                      background: isSelected ? colors.bg : 'rgba(31, 41, 55, 0.5)',
-                      border: `2px solid ${isSelected ? colors.border : 'rgba(75, 85, 99, 1)'}`,
+                      background: isSelected ? colors.bg : 'var(--games-route-control)',
+                      border: `1px solid ${isSelected ? colors.border : 'var(--games-route-border)'}`,
                       borderRadius: '0.5rem',
-                      color: isSelected ? colors.text : '#9ca3af',
+                      color: isSelected ? colors.text : 'var(--games-route-fg)',
                       padding: '1rem',
                       fontSize: '1.125rem',
                       fontWeight: '600',
@@ -1048,14 +1051,14 @@ const JumpGame = () => {
                     }}
                     onMouseEnter={(e) => {
                       if (!isSelected) {
-                        e.currentTarget.style.background = 'rgba(55, 65, 81, 0.7)';
+                        e.currentTarget.style.background = 'var(--games-route-control-hover)';
                         e.currentTarget.style.borderColor = colors.border;
                       }
                     }}
                     onMouseLeave={(e) => {
                       if (!isSelected) {
-                        e.currentTarget.style.background = 'rgba(31, 41, 55, 0.5)';
-                        e.currentTarget.style.borderColor = 'rgba(75, 85, 99, 1)';
+                        e.currentTarget.style.background = 'var(--games-route-control)';
+                        e.currentTarget.style.borderColor = 'var(--games-route-border)';
                       }
                     }}
                   >
@@ -1135,24 +1138,26 @@ const JumpGame = () => {
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.8)',
+            background: 'var(--games-route-backdrop)',
             backdropFilter: 'blur(8px)',
             display: 'flex',
-            alignItems: 'center',
+            alignItems: 'flex-start',
             justifyContent: 'center',
-            zIndex: 50,
-            padding: '1rem'
+            zIndex: 80,
+            padding: '5.5rem 1rem 1rem'
           }}
           onClick={() => setShowInfo(false)}
         >
           <div
             style={{
-              background: '#1f2937',
-              border: '1px solid rgba(14, 165, 233, 0.3)',
+              background: 'var(--games-route-surface-raised)',
+              border: '1px solid color-mix(in srgb, #0ea5e9 36%, var(--games-route-border))',
+              boxShadow: 'var(--games-route-shadow)',
+              color: 'var(--games-route-fg)',
               borderRadius: '1rem',
               padding: '2rem',
               maxWidth: '600px',
-              maxHeight: '90vh',
+              maxHeight: 'calc(100vh - 6.5rem)',
               width: '100%',
               position: 'relative',
               overflowY: 'auto'
@@ -1165,10 +1170,10 @@ const JumpGame = () => {
                 position: 'absolute',
                 top: '1rem',
                 right: '1rem',
-                background: 'rgba(255, 255, 255, 0.1)',
-                border: 'none',
+                background: 'var(--games-route-control)',
+                border: '1px solid var(--games-route-border)',
                 borderRadius: '0.375rem',
-                color: '#fff',
+                color: 'var(--games-route-fg)',
                 cursor: 'pointer',
                 padding: '0.5rem',
                 display: 'flex',
@@ -1176,14 +1181,14 @@ const JumpGame = () => {
                 justifyContent: 'center',
                 transition: 'background 0.2s'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
+              onMouseEnter={(e) => e.currentTarget.style.background = 'var(--games-route-control-hover)'}
+              onMouseLeave={(e) => e.currentTarget.style.background = 'var(--games-route-control)'}
             >
               <X style={{ width: '1.25rem', height: '1.25rem' }} />
             </button>
 
             <h2 style={{
-              color: '#fff',
+              color: 'var(--games-route-fg)',
               fontSize: '1.875rem',
               fontWeight: 'bold',
               marginBottom: '1.5rem',
@@ -1205,8 +1210,8 @@ const JumpGame = () => {
                 padding: '1rem'
               }}>
                 <div style={{ color: '#0ea5e9', fontSize: '2rem', marginBottom: '0.5rem' }}>⌨️</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Controls</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>Controls</h3>
+                <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
                   Press any key to make the blue circle jump
                 </p>
               </div>
@@ -1218,8 +1223,8 @@ const JumpGame = () => {
                 padding: '1rem'
               }}>
                 <div style={{ color: '#ef4444', fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Objective</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>Objective</h3>
+                <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
                   Avoid the red square obstacles
                 </p>
               </div>
@@ -1231,8 +1236,8 @@ const JumpGame = () => {
                 padding: '1rem'
               }}>
                 <div style={{ color: '#eab308', fontSize: '2rem', marginBottom: '0.5rem' }}>⭐</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Scoring</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>Scoring</h3>
+                <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
                   Each successful dodge earns 100 points
                 </p>
               </div>
@@ -1244,8 +1249,8 @@ const JumpGame = () => {
                 padding: '1rem'
               }}>
                 <div style={{ color: '#a855f7', fontSize: '2rem', marginBottom: '0.5rem' }}>⚡</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Stages</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>Stages</h3>
+                <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
                   Speed increases every 500 points - survive as long as you can!
                 </p>
               </div>
@@ -1257,8 +1262,8 @@ const JumpGame = () => {
                 padding: '1rem'
               }}>
                 <div style={{ color: '#ef4444', fontSize: '2rem', marginBottom: '0.5rem' }}>❤️</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Lives</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>Lives</h3>
+                <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
                   You have 3 lives. Getting hit loses one life!
                 </p>
               </div>
@@ -1270,8 +1275,8 @@ const JumpGame = () => {
                 padding: '1rem'
               }}>
                 <div style={{ color: '#ef4444', fontSize: '2rem', marginBottom: '0.5rem' }}>💕</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Heart Powerup</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>Heart Powerup</h3>
+                <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
                   Red heart - Appears every 30 seconds to restore 1 life (max 3)
                 </p>
               </div>
@@ -1283,8 +1288,8 @@ const JumpGame = () => {
                 padding: '1rem'
               }}>
                 <div style={{ color: '#22c55e', fontSize: '2rem', marginBottom: '0.5rem' }}>🛡️</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Shield Powerup</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>Shield Powerup</h3>
+                <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
                   Green hexagon - Protects from one hit for 5 seconds
                 </p>
               </div>
@@ -1296,8 +1301,8 @@ const JumpGame = () => {
                 padding: '1rem'
               }}>
                 <div style={{ color: '#a855f7', fontSize: '2rem', marginBottom: '0.5rem' }}>💎</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Slow-Mo Powerup</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>Slow-Mo Powerup</h3>
+                <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
                   Purple diamond - Slows down time for 3 seconds
                 </p>
               </div>
@@ -1309,8 +1314,8 @@ const JumpGame = () => {
                 padding: '1rem'
               }}>
                 <div style={{ color: '#eab308', fontSize: '2rem', marginBottom: '0.5rem' }}>🔥</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Combo System</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
+                <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>Combo System</h3>
+                <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
                   Chain successful dodges to build your combo multiplier!
                 </p>
               </div>
@@ -1323,7 +1328,7 @@ const JumpGame = () => {
               padding: '1rem'
             }}>
               <div style={{ color: '#0ea5e9', fontWeight: '600', marginBottom: '0.5rem' }}>💡 Pro Tips</div>
-              <ul style={{ color: '#d1d5db', fontSize: '0.875rem', paddingLeft: '1.5rem', margin: 0 }}>
+              <ul style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem', paddingLeft: '1.5rem', margin: 0 }}>
                 <li>Easy: Only ground obstacles in stage 1, perfect for beginners!</li>
                 <li>Medium: Balanced challenge with progressive difficulty</li>
                 <li>Hard: Fast-paced from the start, increases rapidly</li>

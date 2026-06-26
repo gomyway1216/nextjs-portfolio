@@ -1,16 +1,38 @@
-// Inline first-paint colors for the /games subtree. The list page now supports
-// both light and dark mode, while several individual games still paint their
-// own dark canvas. Keep this route theme-aware so a cold visit does not flash
-// the wrong page color before the bundled CSS arrives.
+// Inline first-paint colors for the /games subtree. Keep this route keyed to
+// the app's explicit theme class instead of forcing dark from OS preference.
 export default function GamesLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <style>{`
-        html,body{background:#f5f5f7;color:#1d1d1f}
-        html.dark,html.dark body{background:#050505;color:#f5f5f7}
-        @media (prefers-color-scheme: dark){
-          html:not(.light),html:not(.light) body{background:#050505;color:#f5f5f7}
+        html{
+          --games-route-bg:linear-gradient(180deg,#f5f5f7 0%,#ffffff 48%,#f5f5f7 100%);
+          --games-route-fg:#1d1d1f;
+          --games-route-muted:#6e6e73;
+          --games-route-border:rgba(0,0,0,.1);
+          --games-route-surface:rgba(255,255,255,.84);
+          --games-route-surface-solid:#ffffff;
+          --games-route-surface-raised:rgba(255,255,255,.94);
+          --games-route-overlay:rgba(255,255,255,.94);
+          --games-route-backdrop:rgba(15,23,42,.48);
+          --games-route-control:rgba(255,255,255,.72);
+          --games-route-control-hover:rgba(245,245,247,.96);
+          --games-route-shadow:0 18px 60px rgba(0,0,0,.12);
         }
+        html.dark{
+          --games-route-bg:linear-gradient(180deg,#050505 0%,#111111 48%,#050505 100%);
+          --games-route-fg:#f5f5f7;
+          --games-route-muted:#a1a1a6;
+          --games-route-border:rgba(255,255,255,.12);
+          --games-route-surface:rgba(29,29,31,.82);
+          --games-route-surface-solid:#1d1d1f;
+          --games-route-surface-raised:rgba(31,41,55,.96);
+          --games-route-overlay:rgba(0,0,0,.92);
+          --games-route-backdrop:rgba(0,0,0,.8);
+          --games-route-control:rgba(31,41,55,.5);
+          --games-route-control-hover:rgba(55,65,81,.7);
+          --games-route-shadow:0 18px 60px rgba(0,0,0,.38);
+        }
+        html,body{background:var(--games-route-bg);color:var(--games-route-fg)}
       `}</style>
       {children}
     </>

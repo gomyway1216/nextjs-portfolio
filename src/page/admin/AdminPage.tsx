@@ -77,8 +77,38 @@ const getTechName = (tech: string | { name: string; id?: string; type?: string }
   return '';
 };
 
+const adminColors = {
+  page: '#0a0b0d',
+  pageSoft: '#101318',
+  sidebar: '#0d0f13',
+  surface: '#14171c',
+  surfaceRaised: '#181c22',
+  surfaceMuted: '#111419',
+  border: 'rgba(226, 232, 240, 0.12)',
+  borderStrong: 'rgba(226, 232, 240, 0.18)',
+  text: '#f5f7fb',
+  textMuted: '#a6b0bf',
+  textSubtle: '#6f7a8a',
+  accent: '#5aa2ff',
+  accentSoft: 'rgba(90, 162, 255, 0.14)',
+  accentBorder: 'rgba(90, 162, 255, 0.34)',
+  accentSecondary: '#55d6be',
+  success: '#34d399',
+  danger: '#f87171',
+  dangerStrong: '#ef4444',
+  warning: '#facc15',
+} as const;
+
+const adminShadows = {
+  surface: '0 12px 32px rgba(0, 0, 0, 0.2)',
+  sidebar: '8px 0 24px rgba(0, 0, 0, 0.18)',
+  modal: '0 28px 80px rgba(0, 0, 0, 0.45)',
+} as const;
+
+const adminTransition = 'background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease';
+
 const AdminSectionLoader = ({ label = 'Loading section...' }: { label?: string }) => (
-  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '48px', color: '#94a3b8' }}>
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', padding: '48px', color: adminColors.textMuted }}>
     <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
     <span>{label}</span>
   </div>
@@ -113,36 +143,35 @@ const TiptapEditor = dynamic(() => import('@/components/editor/TiptapEditor'), {
 const styles: Record<string, CSSProperties> = {
   container: {
     minHeight: '100vh',
-    background: 'linear-gradient(135deg, #0f172a 0%, #581c87 50%, #0f172a 100%)',
+    background: `linear-gradient(180deg, ${adminColors.page} 0%, ${adminColors.pageSoft} 100%)`,
+    color: adminColors.text,
+    colorScheme: 'dark',
   },
   sidebar: {
-    width: '280px',
-    // No backdrop-filter: blurring a fixed 280px × 100vh strip forces the
-    // browser to re-composite it on every scroll frame — the same jank the
-    // home page sidebar had. Near-opaque background reads the same.
-    backgroundColor: 'rgba(15, 23, 42, 0.96)',
-    borderRight: '1px solid rgba(255, 255, 255, 0.1)',
+    width: '268px',
+    backgroundColor: adminColors.sidebar,
+    borderRight: `1px solid ${adminColors.border}`,
     minHeight: '100vh',
     position: 'fixed' as const,
     left: 0,
     top: 0,
+    boxShadow: adminShadows.sidebar,
   },
   sidebarHeader: {
-    padding: '24px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '20px 18px 18px',
+    borderBottom: `1px solid ${adminColors.border}`,
   },
   sidebarTitle: {
-    fontSize: '24px',
-    fontWeight: 'bold',
-    background: 'linear-gradient(to right, #a855f7, #ec4899)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    backgroundClip: 'text',
+    fontSize: '18px',
+    fontWeight: 650,
+    color: adminColors.text,
+    letterSpacing: 0,
+    margin: 0,
   },
   sidebarEmail: {
-    fontSize: '14px',
-    color: '#94a3b8',
-    marginTop: '4px',
+    fontSize: '13px',
+    color: adminColors.textMuted,
+    marginTop: '6px',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap' as const,
@@ -151,196 +180,220 @@ const styles: Record<string, CSSProperties> = {
     width: '100%',
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
-    padding: '12px 16px',
-    borderRadius: '12px',
-    border: 'none',
+    gap: '10px',
+    padding: '10px 12px',
+    borderRadius: '8px',
+    border: '1px solid transparent',
     cursor: 'pointer',
-    transition: 'all 0.2s',
-    marginBottom: '4px',
-    fontSize: '15px',
+    transition: adminTransition,
+    marginBottom: '3px',
+    fontSize: '14px',
     fontWeight: '500',
+    lineHeight: 1.2,
   },
   navButtonActive: {
-    background: 'linear-gradient(to right, rgba(168, 85, 247, 0.2), rgba(236, 72, 153, 0.2))',
-    color: '#ffffff',
-    border: '1px solid rgba(168, 85, 247, 0.3)',
+    backgroundColor: adminColors.accentSoft,
+    color: adminColors.text,
+    borderColor: adminColors.accentBorder,
+    boxShadow: `inset 3px 0 0 ${adminColors.accent}`,
   },
   navButtonInactive: {
     backgroundColor: 'transparent',
-    color: '#94a3b8',
+    color: adminColors.textMuted,
   },
   main: {
-    marginLeft: '280px',
+    marginLeft: '268px',
     flex: 1,
-    padding: '32px',
+    padding: '28px 32px 40px',
   },
   pageTitle: {
-    fontSize: '36px',
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: '8px',
+    fontSize: '30px',
+    fontWeight: 650,
+    color: adminColors.text,
+    lineHeight: 1.15,
+    letterSpacing: 0,
+    marginBottom: '6px',
   },
   pageSubtitle: {
-    color: '#94a3b8',
-    marginBottom: '32px',
+    color: adminColors.textMuted,
+    marginBottom: '28px',
   },
   card: {
-    // No backdrop-filter: every table/stat card used this style, so the
-    // blur was re-composited over the page gradient while scrolling.
-    backgroundColor: 'rgba(30, 41, 59, 0.85)',
-    borderRadius: '16px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: adminColors.surface,
+    borderRadius: '8px',
+    border: `1px solid ${adminColors.border}`,
     overflow: 'hidden',
+    boxShadow: adminShadows.surface,
   },
   statCard: {
-    padding: '24px',
+    padding: '20px',
     display: 'flex',
     alignItems: 'center',
-    gap: '16px',
+    gap: '14px',
   },
   statIconWrapper: {
-    padding: '12px',
-    borderRadius: '12px',
+    padding: '10px',
+    borderRadius: '8px',
   },
   statNumber: {
-    fontSize: '32px',
-    fontWeight: 'bold',
-    color: '#ffffff',
+    fontSize: '28px',
+    fontWeight: 650,
+    color: adminColors.text,
+    lineHeight: 1,
   },
   button: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '8px',
-    padding: '10px 20px',
+    minHeight: '38px',
+    padding: '8px 14px',
     borderRadius: '8px',
-    border: 'none',
+    border: '1px solid transparent',
     cursor: 'pointer',
     fontWeight: '500',
     fontSize: '14px',
-    transition: 'all 0.2s',
+    lineHeight: 1.2,
+    transition: adminTransition,
   },
   primaryButton: {
-    background: 'linear-gradient(to right, #a855f7, #ec4899)',
-    color: '#ffffff',
+    backgroundColor: adminColors.accent,
+    borderColor: adminColors.accent,
+    color: '#06121f',
   },
   outlineButton: {
-    backgroundColor: 'transparent',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    color: '#ffffff',
+    backgroundColor: adminColors.surfaceRaised,
+    borderColor: adminColors.borderStrong,
+    color: adminColors.text,
   },
   dangerButton: {
-    backgroundColor: '#ef4444',
-    color: '#ffffff',
+    backgroundColor: adminColors.dangerStrong,
+    borderColor: adminColors.dangerStrong,
+    color: adminColors.text,
   },
   ghostButton: {
     backgroundColor: 'transparent',
-    color: '#94a3b8',
+    border: '1px solid transparent',
+    color: adminColors.textMuted,
     padding: '8px',
   },
   table: {
     width: '100%',
-    borderCollapse: 'collapse' as const,
+    borderCollapse: 'separate' as const,
+    borderSpacing: 0,
   },
   th: {
     textAlign: 'left' as const,
-    padding: '16px 24px',
-    fontWeight: '500',
-    color: '#94a3b8',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '12px 18px',
+    fontWeight: 600,
+    color: adminColors.textSubtle,
+    borderBottom: `1px solid ${adminColors.border}`,
+    backgroundColor: adminColors.surfaceMuted,
+    fontSize: '12px',
+    lineHeight: 1.35,
+    letterSpacing: 0,
   },
   td: {
-    padding: '16px 24px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+    padding: '14px 18px',
+    borderBottom: `1px solid ${adminColors.border}`,
+    color: '#d7dde7',
   },
   badge: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    padding: '4px 12px',
+    padding: '3px 8px',
     borderRadius: '9999px',
     fontSize: '12px',
     fontWeight: '500',
+    lineHeight: 1.35,
   },
   techBadge: {
-    backgroundColor: 'rgba(168, 85, 247, 0.2)',
-    color: '#c084fc',
-    border: '1px solid rgba(168, 85, 247, 0.3)',
+    backgroundColor: 'rgba(85, 214, 190, 0.12)',
+    color: '#7dd3c7',
+    border: '1px solid rgba(85, 214, 190, 0.28)',
   },
   input: {
     width: '100%',
-    padding: '10px 14px',
+    padding: '9px 11px',
     borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    color: '#ffffff',
+    border: `1px solid ${adminColors.borderStrong}`,
+    backgroundColor: adminColors.surfaceRaised,
+    color: adminColors.text,
     fontSize: '14px',
     outline: 'none',
+    lineHeight: 1.45,
+    accentColor: adminColors.accent,
   },
   textarea: {
     width: '100%',
-    padding: '10px 14px',
+    padding: '9px 11px',
     borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    color: '#ffffff',
+    border: `1px solid ${adminColors.borderStrong}`,
+    backgroundColor: adminColors.surfaceRaised,
+    color: adminColors.text,
     fontSize: '14px',
     outline: 'none',
     resize: 'vertical' as const,
     minHeight: '100px',
+    lineHeight: 1.5,
+    accentColor: adminColors.accent,
   },
   select: {
     width: '100%',
-    padding: '10px 14px',
+    padding: '9px 11px',
     borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    color: '#ffffff',
+    border: `1px solid ${adminColors.borderStrong}`,
+    backgroundColor: adminColors.surfaceRaised,
+    color: adminColors.text,
     fontSize: '14px',
     outline: 'none',
     cursor: 'pointer',
+    minHeight: '38px',
+    accentColor: adminColors.accent,
   },
   label: {
     display: 'block',
-    color: '#cbd5e1',
-    fontSize: '14px',
+    color: adminColors.textMuted,
+    fontSize: '13px',
     fontWeight: '500',
-    marginBottom: '8px',
+    marginBottom: '6px',
   },
   modal: {
     position: 'fixed' as const,
     inset: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.72)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 50,
-    padding: '16px',
+    padding: '28px',
   },
   modalContent: {
-    backgroundColor: '#0f172a',
-    borderRadius: '16px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: adminColors.surface,
+    borderRadius: '8px',
+    border: `1px solid ${adminColors.borderStrong}`,
     maxWidth: '640px',
     width: '100%',
     maxHeight: '90vh',
     overflow: 'auto',
+    boxShadow: adminShadows.modal,
   },
   modalHeader: {
-    padding: '24px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '18px 20px',
+    borderBottom: `1px solid ${adminColors.border}`,
   },
   modalTitle: {
     fontSize: '20px',
     fontWeight: '600',
-    color: '#ffffff',
+    color: adminColors.text,
+    letterSpacing: 0,
   },
   modalBody: {
-    padding: '24px',
+    padding: '20px',
   },
   modalFooter: {
-    padding: '24px',
-    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '16px 20px',
+    borderTop: `1px solid ${adminColors.border}`,
     display: 'flex',
     justifyContent: 'flex-end',
     gap: '12px',
@@ -350,22 +403,22 @@ const styles: Record<string, CSSProperties> = {
     top: '16px',
     right: '16px',
     zIndex: 100,
-    padding: '16px 24px',
-    borderRadius: '12px',
+    padding: '12px 16px',
+    borderRadius: '8px',
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
-    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+    boxShadow: adminShadows.modal,
   },
   toastSuccess: {
-    backgroundColor: 'rgba(16, 185, 129, 0.9)',
-    border: '1px solid #34d399',
-    color: '#ffffff',
+    backgroundColor: 'rgba(6, 78, 59, 0.96)',
+    border: `1px solid ${adminColors.success}`,
+    color: adminColors.text,
   },
   toastError: {
-    backgroundColor: 'rgba(239, 68, 68, 0.9)',
-    border: '1px solid #f87171',
-    color: '#ffffff',
+    backgroundColor: 'rgba(127, 29, 29, 0.96)',
+    border: `1px solid ${adminColors.danger}`,
+    color: adminColors.text,
   },
 };
 
@@ -403,19 +456,19 @@ const ProjectsTable = memo(function ProjectsTable({
         </thead>
         <tbody>
           {projects.map((project) => (
-            <tr key={project.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+            <tr key={project.id}>
               <td style={styles.td}>
-                <div style={{ fontWeight: '500', color: '#ffffff' }}>{project.title}</div>
-                <div style={{ fontSize: '14px', color: '#64748b', maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.description}</div>
+                <div style={{ fontWeight: '500', color: adminColors.text }}>{project.title}</div>
+                <div style={{ fontSize: '14px', color: adminColors.textSubtle, maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.description}</div>
               </td>
-              <td style={{ ...styles.td, color: '#94a3b8' }}>{project.date}</td>
+              <td style={{ ...styles.td, color: adminColors.textMuted }}>{project.date}</td>
               <td style={styles.td}>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
                   {project.technologies?.slice(0, 3).map((tech, i) => (
                     <span key={i} style={{ ...styles.badge, ...styles.techBadge }}>{getTechName(tech)}</span>
                   ))}
                   {(project.technologies?.length || 0) > 3 && (
-                    <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#94a3b8' }}>
+                    <span style={{ ...styles.badge, backgroundColor: 'transparent', border: `1px solid ${adminColors.borderStrong}`, color: adminColors.textMuted }}>
                       +{(project.technologies?.length || 0) - 3}
                     </span>
                   )}
@@ -439,7 +492,7 @@ const ProjectsTable = memo(function ProjectsTable({
           ))}
           {projects.length === 0 && (
             <tr>
-              <td colSpan={4} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
+              <td colSpan={4} style={{ ...styles.td, textAlign: 'center', color: adminColors.textSubtle, padding: '48px' }}>
                 No projects yet. Click &quot;Add Project&quot; to create one.
               </td>
             </tr>
@@ -473,12 +526,12 @@ const PostsTable = memo(function PostsTable({
         </thead>
         <tbody>
           {posts.map((post) => (
-            <tr key={post.id} style={{ transition: 'background 0.2s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+            <tr key={post.id}>
               <td style={styles.td}>
-                <div style={{ fontWeight: '500', color: '#ffffff' }}>{post.title}</div>
+                <div style={{ fontWeight: '500', color: adminColors.text }}>{post.title}</div>
               </td>
               <td style={styles.td}>
-                <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#cbd5e1' }}>
+                <span style={{ ...styles.badge, backgroundColor: 'transparent', border: `1px solid ${adminColors.borderStrong}`, color: '#d7dde7' }}>
                   {post.category}
                 </span>
               </td>
@@ -488,12 +541,12 @@ const PostsTable = memo(function PostsTable({
                     <Eye size={12} /> Public
                   </span>
                 ) : (
-                  <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#94a3b8' }}>
+                  <span style={{ ...styles.badge, backgroundColor: 'transparent', border: `1px solid ${adminColors.borderStrong}`, color: adminColors.textMuted }}>
                     <EyeOff size={12} /> Private
                   </span>
                 )}
               </td>
-              <td style={{ ...styles.td, color: '#94a3b8', fontSize: '14px' }} suppressHydrationWarning>
+              <td style={{ ...styles.td, color: adminColors.textMuted, fontSize: '14px' }} suppressHydrationWarning>
                 {post.lastUpdated ? new Date(post.lastUpdated).toLocaleDateString() : '-'}
               </td>
               <td style={{ ...styles.td, textAlign: 'right' }}>
@@ -523,7 +576,7 @@ const PostsTable = memo(function PostsTable({
           ))}
           {posts.length === 0 && (
             <tr>
-              <td colSpan={5} style={{ ...styles.td, textAlign: 'center', color: '#64748b', padding: '48px' }}>
+              <td colSpan={5} style={{ ...styles.td, textAlign: 'center', color: adminColors.textSubtle, padding: '48px' }}>
                 No posts yet. Click &quot;Add Post&quot; to create one.
               </td>
             </tr>
@@ -1470,8 +1523,8 @@ const AdminPage = () => {
         />
       </div>
 
-      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '14px', marginTop: '6px' }}>
-        <p style={{ fontSize: '12px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
+      <div style={{ borderTop: `1px solid ${adminColors.border}`, paddingTop: '14px', marginTop: '6px' }}>
+        <p style={{ fontSize: '12px', color: adminColors.textMuted, textTransform: 'uppercase', letterSpacing: 0, marginBottom: '12px' }}>
           Japanese (optional)
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -1555,7 +1608,7 @@ const AdminPage = () => {
   if (authLoading || !currentUser || !isAdmin) {
     return (
       <div style={{ ...styles.container, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#ffffff' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: adminColors.text }}>
           <Loader2 style={{ width: '24px', height: '24px', animation: 'spin 1s linear infinite' }} />
           <span style={{ fontSize: '18px' }}>Loading...</span>
         </div>
@@ -1578,7 +1631,7 @@ const AdminPage = () => {
   ];
 
   return (
-    <div style={styles.container}>
+    <div className="admin-console" style={styles.container}>
       {/* Toast Message */}
       {message && (
         <div style={{ ...styles.toast, ...(message.type === 'success' ? styles.toastSuccess : styles.toastError) }}>
@@ -1593,7 +1646,7 @@ const AdminPage = () => {
         </div>
       )}
 
-      <div style={{ display: 'flex' }}>
+      <div className="admin-console__layout" style={{ display: 'flex' }}>
         {/* Sidebar */}
         <aside style={styles.sidebar}>
           <div style={styles.sidebarHeader}>
@@ -1604,7 +1657,7 @@ const AdminPage = () => {
                 alignItems: 'center',
                 gap: '6px',
                 fontSize: '13px',
-                color: '#94a3b8',
+                color: adminColors.textMuted,
                 textDecoration: 'none',
                 marginBottom: '12px',
               }}
@@ -1615,7 +1668,7 @@ const AdminPage = () => {
             <h2 style={styles.sidebarTitle}>Admin Panel</h2>
             <p style={styles.sidebarEmail}>{currentUser?.email}</p>
           </div>
-          <nav style={{ padding: '16px' }}>
+          <nav style={{ padding: '14px' }}>
             {sidebarItems.map((item) => (
               <button
                 key={item.id}
@@ -1626,24 +1679,26 @@ const AdminPage = () => {
                 }}
                 onMouseEnter={(e) => {
                   if (activeSection !== item.id) {
-                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                    e.currentTarget.style.color = '#ffffff';
+                    e.currentTarget.style.backgroundColor = adminColors.surfaceRaised;
+                    e.currentTarget.style.borderColor = adminColors.borderStrong;
+                    e.currentTarget.style.color = adminColors.text;
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (activeSection !== item.id) {
                     e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.color = '#94a3b8';
+                    e.currentTarget.style.borderColor = 'transparent';
+                    e.currentTarget.style.color = adminColors.textMuted;
                   }
                 }}
               >
-                <item.icon size={20} style={{ color: activeSection === item.id ? '#a855f7' : 'inherit' }} />
+                <item.icon size={18} style={{ color: activeSection === item.id ? adminColors.accent : 'inherit' }} />
                 {item.label}
               </button>
             ))}
 
             {/* Security Settings Link */}
-            <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
+            <div style={{ marginTop: '14px', paddingTop: '14px', borderTop: `1px solid ${adminColors.border}` }}>
               <Link
                 href="/admin/security"
                 style={{
@@ -1652,7 +1707,7 @@ const AdminPage = () => {
                   textDecoration: 'none',
                 }}
               >
-                <Shield size={20} />
+                <Shield size={18} />
                 Security Settings
               </Link>
               <button
@@ -1677,7 +1732,7 @@ const AdminPage = () => {
                   e.currentTarget.style.color = '#fca5a5';
                 }}
               >
-                {signingOut ? <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> : <LogOut size={20} />}
+                {signingOut ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <LogOut size={18} />}
                 {signingOut ? 'Signing out...' : 'Log out'}
               </button>
             </div>
@@ -1693,49 +1748,49 @@ const AdminPage = () => {
               <p style={styles.pageSubtitle}>Overview of your portfolio content</p>
 
               {/* Stats Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '24px', marginBottom: '32px' }}>
-                <div style={{ ...styles.card, background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(6, 182, 212, 0.1))', borderColor: 'rgba(59, 130, 246, 0.2)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+                <div style={{ ...styles.card, borderColor: adminColors.accentBorder }}>
                   <div style={styles.statCard}>
-                    <div style={{ ...styles.statIconWrapper, backgroundColor: 'rgba(59, 130, 246, 0.2)' }}>
-                      <FolderKanban size={24} color="#60a5fa" />
+                    <div style={{ ...styles.statIconWrapper, backgroundColor: adminColors.accentSoft }}>
+                      <FolderKanban size={22} color={adminColors.accent} />
                     </div>
                     <div>
                       <p style={styles.statNumber}>{projectsLoading ? '...' : projects.length}</p>
-                      <p style={{ color: '#93c5fd' }}>Projects</p>
+                      <p style={{ color: adminColors.textMuted, fontSize: '13px' }}>Projects</p>
                     </div>
                   </div>
                 </div>
 
-                <div style={{ ...styles.card, background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(34, 197, 94, 0.1))', borderColor: 'rgba(16, 185, 129, 0.2)' }}>
+                <div style={{ ...styles.card, borderColor: 'rgba(52, 211, 153, 0.3)' }}>
                   <div style={styles.statCard}>
-                    <div style={{ ...styles.statIconWrapper, backgroundColor: 'rgba(16, 185, 129, 0.2)' }}>
-                      <FileText size={24} color="#34d399" />
+                    <div style={{ ...styles.statIconWrapper, backgroundColor: 'rgba(52, 211, 153, 0.12)' }}>
+                      <FileText size={22} color={adminColors.success} />
                     </div>
                     <div>
                       <p style={styles.statNumber}>{postsLoading ? '...' : posts.length}</p>
-                      <p style={{ color: '#6ee7b7' }}>Blog Posts</p>
+                      <p style={{ color: adminColors.textMuted, fontSize: '13px' }}>Blog Posts</p>
                     </div>
                   </div>
                 </div>
 
-                <div style={{ ...styles.card, background: 'linear-gradient(135deg, rgba(168, 85, 247, 0.1), rgba(236, 72, 153, 0.1))', borderColor: 'rgba(168, 85, 247, 0.2)' }}>
+                <div style={{ ...styles.card, borderColor: 'rgba(85, 214, 190, 0.3)' }}>
                   <div style={styles.statCard}>
-                    <div style={{ ...styles.statIconWrapper, backgroundColor: 'rgba(168, 85, 247, 0.2)' }}>
-                      <Briefcase size={24} color="#c084fc" />
+                    <div style={{ ...styles.statIconWrapper, backgroundColor: 'rgba(85, 214, 190, 0.12)' }}>
+                      <Briefcase size={22} color={adminColors.accentSecondary} />
                     </div>
                     <div>
                       <p style={styles.statNumber}>{loading ? '...' : jobs.length}</p>
-                      <p style={{ color: '#d8b4fe' }}>Jobs</p>
+                      <p style={{ color: adminColors.textMuted, fontSize: '13px' }}>Jobs</p>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Quick Actions */}
-              <div style={{ ...styles.card, marginBottom: '32px' }}>
-                <div style={{ padding: '24px' }}>
-                  <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '8px' }}>Quick Actions</h3>
-                  <p style={{ color: '#94a3b8', marginBottom: '16px' }}>Create new content quickly</p>
+              <div style={{ ...styles.card, marginBottom: '24px' }}>
+                <div style={{ padding: '20px' }}>
+                  <h3 style={{ fontSize: '17px', fontWeight: '600', color: adminColors.text, marginBottom: '6px' }}>Quick Actions</h3>
+                  <p style={{ color: adminColors.textMuted, marginBottom: '14px', fontSize: '14px' }}>Create new content quickly</p>
                   <div style={{ display: 'flex', gap: '12px' }}>
                     <button
                       onClick={() => { handleSectionChange('projects'); handleOpenProjectModal(); }}
@@ -1754,19 +1809,19 @@ const AdminPage = () => {
               </div>
 
               {/* Recent Items */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
                 <div style={styles.card}>
-                  <div style={{ padding: '24px' }}>
-                    <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <FolderKanban size={20} color="#a855f7" /> Recent Projects
+                  <div style={{ padding: '20px' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: '600', color: adminColors.text, marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FolderKanban size={18} color={adminColors.accent} /> Recent Projects
                     </h3>
                     {projectsLoading ? (
-                      <p style={{ color: '#64748b', fontSize: '14px' }}>Loading projects...</p>
+                      <p style={{ color: adminColors.textSubtle, fontSize: '14px' }}>Loading projects...</p>
                     ) : (
                       <>
                         {projects.slice(0, 5).map((project) => (
-                          <div key={project.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                            <span style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.title}</span>
+                          <div key={project.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${adminColors.border}` }}>
+                            <span style={{ color: '#d7dde7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.title}</span>
                             <button
                               onClick={() => { handleSectionChange('projects'); handleOpenProjectModal(project); }}
                               style={{ ...styles.ghostButton, borderRadius: '8px' }}
@@ -1775,24 +1830,24 @@ const AdminPage = () => {
                             </button>
                           </div>
                         ))}
-                        {projects.length === 0 && <p style={{ color: '#64748b', fontSize: '14px' }}>No projects yet</p>}
+                        {projects.length === 0 && <p style={{ color: adminColors.textSubtle, fontSize: '14px' }}>No projects yet</p>}
                       </>
                     )}
                   </div>
                 </div>
 
                 <div style={styles.card}>
-                  <div style={{ padding: '24px' }}>
-                    <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <FileText size={20} color="#34d399" /> Recent Posts
+                  <div style={{ padding: '20px' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: '600', color: adminColors.text, marginBottom: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FileText size={18} color={adminColors.success} /> Recent Posts
                     </h3>
                     {postsLoading ? (
-                      <p style={{ color: '#64748b', fontSize: '14px' }}>Loading posts...</p>
+                      <p style={{ color: adminColors.textSubtle, fontSize: '14px' }}>Loading posts...</p>
                     ) : (
                       <>
                         {posts.slice(0, 5).map((post) => (
-                          <div key={post.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                            <span style={{ color: '#cbd5e1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.title}</span>
+                          <div key={post.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${adminColors.border}` }}>
+                            <span style={{ color: '#d7dde7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.title}</span>
                             <button
                               onClick={() => { handleSectionChange('posts'); handleOpenPostModal(post); }}
                               style={{ ...styles.ghostButton, borderRadius: '8px' }}
@@ -1801,7 +1856,7 @@ const AdminPage = () => {
                             </button>
                           </div>
                         ))}
-                        {posts.length === 0 && <p style={{ color: '#64748b', fontSize: '14px' }}>No posts yet</p>}
+                        {posts.length === 0 && <p style={{ color: adminColors.textSubtle, fontSize: '14px' }}>No posts yet</p>}
                       </>
                     )}
                   </div>
@@ -1813,10 +1868,10 @@ const AdminPage = () => {
           {/* Profile Section */}
           {activeSection === 'profile' && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
                 <div>
                   <h1 style={styles.pageTitle}>Profile</h1>
-                  <p style={{ color: '#94a3b8' }}>Manage your personal information</p>
+                  <p style={{ color: adminColors.textMuted }}>Manage your personal information</p>
                 </div>
                 <button
                   onClick={() => setEditingProfile(!editingProfile)}
@@ -1827,9 +1882,9 @@ const AdminPage = () => {
               </div>
 
               <div style={{ ...styles.card, maxWidth: '640px', marginBottom: '24px' }}>
-                <div style={{ padding: '24px' }}>
-                  <h2 style={{ color: '#ffffff', fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>Profile Photo</h2>
-                  <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '16px' }}>
+                <div style={{ padding: '20px' }}>
+                  <h2 style={{ color: adminColors.text, fontSize: '17px', fontWeight: 600, marginBottom: '4px' }}>Profile Photo</h2>
+                  <p style={{ color: adminColors.textMuted, fontSize: '13px', marginBottom: '16px' }}>
                     Upload the photo used on the home page hero and about section.
                   </p>
                   <div style={{ display: 'flex', gap: '20px', alignItems: 'stretch', flexWrap: 'wrap' }}>
@@ -1837,10 +1892,10 @@ const AdminPage = () => {
                       style={{
                         width: '112px',
                         height: '112px',
-                        borderRadius: '16px',
+                        borderRadius: '8px',
                         overflow: 'hidden',
-                        backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        backgroundColor: adminColors.surfaceRaised,
+                        border: `1px solid ${adminColors.borderStrong}`,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
@@ -1848,7 +1903,7 @@ const AdminPage = () => {
                       }}
                     >
                       {profileLoading ? (
-                        <Loader2 size={32} color="#64748b" style={{ animation: 'spin 1s linear infinite' }} />
+                        <Loader2 size={32} color={adminColors.textSubtle} style={{ animation: 'spin 1s linear infinite' }} />
                       ) : profilePhotoUrl ? (
                         <Image
                           src={profilePhotoUrl}
@@ -1859,7 +1914,7 @@ const AdminPage = () => {
                           style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top center' }}
                         />
                       ) : (
-                        <User size={40} color="#64748b" />
+                        <User size={40} color={adminColors.textSubtle} />
                       )}
                     </div>
 
@@ -1869,12 +1924,12 @@ const AdminPage = () => {
                         onDragLeave={() => setDragOverProfilePhoto(false)}
                         onDrop={handleDropProfilePhoto}
                         style={{
-                          border: `2px dashed ${dragOverProfilePhoto ? '#a855f7' : 'rgba(255, 255, 255, 0.2)'}`,
-                          borderRadius: '12px',
+                          border: `1px dashed ${dragOverProfilePhoto ? adminColors.accent : adminColors.borderStrong}`,
+                          borderRadius: '8px',
                           padding: '20px',
                           textAlign: 'center',
-                          backgroundColor: dragOverProfilePhoto ? 'rgba(168, 85, 247, 0.1)' : 'rgba(15, 23, 42, 0.3)',
-                          transition: 'all 0.2s',
+                          backgroundColor: dragOverProfilePhoto ? adminColors.accentSoft : adminColors.surfaceMuted,
+                          transition: adminTransition,
                           cursor: 'pointer',
                         }}
                       >
@@ -1891,11 +1946,11 @@ const AdminPage = () => {
                           }}
                         />
                         <label htmlFor="profile-photo-upload" style={{ cursor: 'pointer', display: 'block' }}>
-                          <ImageIcon size={34} color="#64748b" style={{ marginBottom: '8px' }} />
-                          <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                          <ImageIcon size={34} color={adminColors.textSubtle} style={{ marginBottom: '8px' }} />
+                          <p style={{ color: adminColors.textMuted, fontSize: '14px', margin: 0 }}>
                             Drag &amp; drop an image or click to upload
                           </p>
-                          <p style={{ color: '#64748b', fontSize: '12px', margin: '6px 0 0' }}>
+                          <p style={{ color: adminColors.textSubtle, fontSize: '12px', margin: '6px 0 0' }}>
                             JPG, PNG, WebP, or GIF under 8MB
                           </p>
                         </label>
@@ -1903,14 +1958,14 @@ const AdminPage = () => {
                           <div style={{ marginTop: '12px' }}>
                             <div style={{
                               height: '4px',
-                              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                              backgroundColor: adminColors.surfaceRaised,
                               borderRadius: '2px',
                               overflow: 'hidden',
                             }}>
                               <div style={{
                                 height: '100%',
                                 width: `${profilePhotoProgress}%`,
-                                background: 'linear-gradient(to right, #a855f7, #ec4899)',
+                                backgroundColor: adminColors.accent,
                                 transition: 'width 0.2s',
                               }} />
                             </div>
@@ -1923,9 +1978,9 @@ const AdminPage = () => {
               </div>
 
               <div style={{ ...styles.card, maxWidth: '640px' }}>
-                <div style={{ padding: '24px' }}>
+                <div style={{ padding: '20px' }}>
                   {profileLoading ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#94a3b8' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', color: adminColors.textMuted }}>
                       <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} />
                       <span>Loading profile...</span>
                     </div>
@@ -1938,19 +1993,19 @@ const AdminPage = () => {
                         { label: 'Languages', value: profile?.languages?.join(', ') },
                         { label: 'Photo', value: profilePhotoUrl ? 'Set' : '' },
                       ].map((item, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '16px 0', borderBottom: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                          <span style={{ color: '#94a3b8' }}>{item.label}</span>
-                          <span style={{ color: '#ffffff', fontWeight: '500' }}>{item.value || 'Not set'}</span>
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', borderBottom: `1px solid ${adminColors.border}` }}>
+                          <span style={{ color: adminColors.textMuted }}>{item.label}</span>
+                          <span style={{ color: adminColors.text, fontWeight: '500' }}>{item.value || 'Not set'}</span>
                         </div>
                       ))}
                       {[
                         { label: 'Bio (English)', value: profile?.bioEn },
                         { label: 'Bio (Japanese)', value: profile?.bioJa },
                       ].map((item, i) => (
-                        <div key={item.label} style={{ padding: '16px 0', borderBottom: i === 0 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none' }}>
-                          <div style={{ color: '#94a3b8', marginBottom: '6px' }}>{item.label}</div>
-                          <div style={{ color: '#ffffff', fontSize: '13px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
-                            {item.value || <span style={{ color: '#64748b' }}>Falls back to bundled translation</span>}
+                        <div key={item.label} style={{ padding: '14px 0', borderBottom: i === 0 ? `1px solid ${adminColors.border}` : 'none' }}>
+                          <div style={{ color: adminColors.textMuted, marginBottom: '6px' }}>{item.label}</div>
+                          <div style={{ color: adminColors.text, fontSize: '13px', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>
+                            {item.value || <span style={{ color: adminColors.textSubtle }}>Falls back to bundled translation</span>}
                           </div>
                         </div>
                       ))}
@@ -2032,20 +2087,20 @@ const AdminPage = () => {
               </div>
 
               <div style={{ ...styles.card, maxWidth: '640px', marginTop: '24px' }}>
-                <div style={{ padding: '24px' }}>
-                  <h2 style={{ color: '#ffffff', fontSize: '18px', fontWeight: 600, marginBottom: '4px' }}>Resume</h2>
-                  <p style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '16px' }}>
+                <div style={{ padding: '20px' }}>
+                  <h2 style={{ color: adminColors.text, fontSize: '17px', fontWeight: 600, marginBottom: '4px' }}>Resume</h2>
+                  <p style={{ color: adminColors.textMuted, fontSize: '13px', marginBottom: '16px' }}>
                     Drop a PDF to replace the resume linked from the site.
                   </p>
 
                   {currentResumeLink && (
                     <div style={{ marginBottom: '16px', fontSize: '13px' }}>
-                      <span style={{ color: '#94a3b8', marginRight: '8px' }}>Current:</span>
+                      <span style={{ color: adminColors.textMuted, marginRight: '8px' }}>Current:</span>
                       <a
                         href={currentResumeLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        style={{ color: '#a855f7', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                        style={{ color: adminColors.accent, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
                       >
                         View resume <ExternalLink size={12} />
                       </a>
@@ -2057,12 +2112,12 @@ const AdminPage = () => {
                     onDragLeave={() => setDragOverResume(false)}
                     onDrop={handleDropResume}
                     style={{
-                      border: `2px dashed ${dragOverResume ? '#a855f7' : 'rgba(255, 255, 255, 0.2)'}`,
-                      borderRadius: '12px',
+                      border: `1px dashed ${dragOverResume ? adminColors.accent : adminColors.borderStrong}`,
+                      borderRadius: '8px',
                       padding: '24px',
                       textAlign: 'center',
-                      backgroundColor: dragOverResume ? 'rgba(168, 85, 247, 0.1)' : 'rgba(15, 23, 42, 0.3)',
-                      transition: 'all 0.2s',
+                      backgroundColor: dragOverResume ? adminColors.accentSoft : adminColors.surfaceMuted,
+                      transition: adminTransition,
                       cursor: 'pointer',
                     }}
                   >
@@ -2079,8 +2134,8 @@ const AdminPage = () => {
                       }}
                     />
                     <label htmlFor="resume-upload" style={{ cursor: 'pointer' }}>
-                      <ScrollText size={40} color="#64748b" style={{ marginBottom: '8px' }} />
-                      <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                      <ScrollText size={40} color={adminColors.textSubtle} style={{ marginBottom: '8px' }} />
+                      <p style={{ color: adminColors.textMuted, fontSize: '14px', margin: 0 }}>
                         Drag &amp; drop a PDF or click to upload
                       </p>
                     </label>
@@ -2088,14 +2143,14 @@ const AdminPage = () => {
                       <div style={{ marginTop: '12px' }}>
                         <div style={{
                           height: '4px',
-                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          backgroundColor: adminColors.surfaceRaised,
                           borderRadius: '2px',
                           overflow: 'hidden',
                         }}>
                           <div style={{
                             height: '100%',
                             width: `${resumeProgress}%`,
-                            background: 'linear-gradient(to right, #a855f7, #ec4899)',
+                            backgroundColor: adminColors.accent,
                             transition: 'width 0.2s',
                           }} />
                         </div>
@@ -2110,10 +2165,10 @@ const AdminPage = () => {
           {/* Projects Section */}
           {activeSection === 'projects' && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
                 <div>
                   <h1 style={styles.pageTitle}>Projects</h1>
-                  <p style={{ color: '#94a3b8' }}>Manage your portfolio projects</p>
+                  <p style={{ color: adminColors.textMuted }}>Manage your portfolio projects</p>
                 </div>
                 <button onClick={() => handleOpenProjectModal()} style={{ ...styles.button, ...styles.primaryButton }}>
                   <Plus size={16} /> Add Project
@@ -2122,7 +2177,7 @@ const AdminPage = () => {
 
               {projectsLoading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
-                  <Loader2 size={32} color="#a855f7" style={{ animation: 'spin 1s linear infinite' }} />
+                  <Loader2 size={32} color={adminColors.accent} style={{ animation: 'spin 1s linear infinite' }} />
                 </div>
               ) : (
                 <ProjectsTable
@@ -2137,10 +2192,10 @@ const AdminPage = () => {
           {/* Posts Section */}
           {activeSection === 'posts' && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
                 <div>
                   <h1 style={styles.pageTitle}>Blog Posts</h1>
-                  <p style={{ color: '#94a3b8' }}>Manage your blog content</p>
+                  <p style={{ color: adminColors.textMuted }}>Manage your blog content</p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   <InspectPostsButton onMessage={showMessage} />
@@ -2153,7 +2208,7 @@ const AdminPage = () => {
 
               {postsLoading ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
-                  <Loader2 size={32} color="#a855f7" style={{ animation: 'spin 1s linear infinite' }} />
+                  <Loader2 size={32} color={adminColors.accent} style={{ animation: 'spin 1s linear infinite' }} />
                 </div>
               ) : (
                 <PostsTable
@@ -2168,10 +2223,10 @@ const AdminPage = () => {
           {/* Jobs Section */}
           {activeSection === 'jobs' && (
             <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
                 <div>
                   <h1 style={styles.pageTitle}>Jobs & Experience</h1>
-                  <p style={{ color: '#94a3b8' }}>Manage your work experience, descriptions, and technologies</p>
+                  <p style={{ color: adminColors.textMuted }}>Manage your work experience, descriptions, and technologies</p>
                 </div>
                 <button onClick={openJobCreateForm} style={{ ...styles.button, ...styles.primaryButton }}>
                   <Plus size={16} /> Add Job
@@ -2180,8 +2235,8 @@ const AdminPage = () => {
 
               {jobFormMode === 'new' && (
                 <div style={{ ...styles.card, marginBottom: '24px' }}>
-                  <div style={{ padding: '24px' }}>
-                    <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#ffffff', marginBottom: '16px' }}>New Job</h3>
+                  <div style={{ padding: '20px' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: 600, color: adminColors.text, marginBottom: '16px' }}>New Job</h3>
                     {renderJobFormFields()}
                     <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
                       <button onClick={handleSaveJobForm} style={{ ...styles.button, ...styles.primaryButton }}>
@@ -2195,22 +2250,22 @@ const AdminPage = () => {
                 </div>
               )}
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {jobs.map((job) => (
                   <div key={job.id} style={{ ...styles.card, opacity: job.hidden ? 0.55 : 1 }}>
-                    <div style={{ padding: '24px' }}>
+                    <div style={{ padding: '20px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#ffffff' }}>{job.jobPosition}</h3>
+                            <h3 style={{ fontSize: '19px', fontWeight: '600', color: adminColors.text }}>{job.jobPosition}</h3>
                             {job.hidden && (
-                              <span style={{ ...styles.badge, backgroundColor: 'rgba(148, 163, 184, 0.2)', color: '#94a3b8', border: '1px solid rgba(148, 163, 184, 0.3)' }}>
+                              <span style={{ ...styles.badge, backgroundColor: 'rgba(148, 163, 184, 0.12)', color: adminColors.textMuted, border: `1px solid ${adminColors.borderStrong}` }}>
                                 Hidden
                               </span>
                             )}
                           </div>
-                          <p style={{ color: '#a855f7' }}>{job.companyName}</p>
-                          <p style={{ fontSize: '14px', color: '#64748b' }}>{job.jobDuration}</p>
+                          <p style={{ color: adminColors.accent }}>{job.companyName}</p>
+                          <p style={{ fontSize: '14px', color: adminColors.textSubtle }}>{job.jobDuration}</p>
                         </div>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button
@@ -2236,21 +2291,21 @@ const AdminPage = () => {
                         </div>
                       </div>
 
-                      <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '16px' }}>
-                        <p style={{ fontSize: '14px', fontWeight: '500', color: '#94a3b8', marginBottom: '12px' }}>Technologies</p>
+                      <div style={{ borderTop: `1px solid ${adminColors.border}`, paddingTop: '16px' }}>
+                        <p style={{ fontSize: '14px', fontWeight: '500', color: adminColors.textMuted, marginBottom: '12px' }}>Technologies</p>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                           {job.technologies?.length ? (
                             job.technologies.map((tech, i) => (
                               <span key={i} style={{ ...styles.badge, ...styles.techBadge }}>{getTechName(tech)}</span>
                             ))
                           ) : (
-                            <span style={{ color: '#64748b', fontSize: '14px' }}>No technologies set</span>
+                            <span style={{ color: adminColors.textSubtle, fontSize: '14px' }}>No technologies set</span>
                           )}
                         </div>
                       </div>
 
                       {jobFormMode === job.id && (
-                        <div style={{ marginTop: '24px', padding: '16px', backgroundColor: 'rgba(15, 23, 42, 0.5)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                        <div style={{ marginTop: '20px', padding: '16px', backgroundColor: adminColors.surfaceMuted, borderRadius: '8px', border: `1px solid ${adminColors.border}` }}>
                           {renderJobFormFields()}
                           <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
                             <button onClick={handleSaveJobForm} style={{ ...styles.button, ...styles.primaryButton }}>
@@ -2267,8 +2322,8 @@ const AdminPage = () => {
                 ))}
                 {jobs.length === 0 && (
                   <div style={{ ...styles.card, textAlign: 'center', padding: '48px' }}>
-                    <Briefcase size={48} color="#64748b" style={{ marginBottom: '16px' }} />
-                    <p style={{ color: '#64748b' }}>No jobs found</p>
+                    <Briefcase size={48} color={adminColors.textSubtle} style={{ marginBottom: '16px' }} />
+                    <p style={{ color: adminColors.textSubtle }}>No jobs found</p>
                   </div>
                 )}
               </div>
@@ -2303,7 +2358,7 @@ const AdminPage = () => {
           <div style={styles.modalContent}>
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>{editingProject ? 'Edit Project' : 'New Project'}</h2>
-              <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '4px' }}>
+              <p style={{ color: adminColors.textMuted, fontSize: '14px', marginTop: '4px' }}>
                 {editingProject ? 'Update your project details' : 'Add a new project to your portfolio'}
               </p>
             </div>
@@ -2332,14 +2387,14 @@ const AdminPage = () => {
                   {projectForm.description.trim() && (
                     <div style={{
                       marginTop: '12px',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      borderRadius: '12px',
+                      border: `1px solid ${adminColors.borderStrong}`,
+                      borderRadius: '8px',
                       overflow: 'hidden',
-                      backgroundColor: '#111827',
+                      backgroundColor: adminColors.surfaceMuted,
                     }}>
                       <div style={{
-                        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-                        color: '#94a3b8',
+                        borderBottom: `1px solid ${adminColors.border}`,
+                        color: adminColors.textMuted,
                         fontSize: '12px',
                         fontWeight: 600,
                         padding: '8px 12px',
@@ -2393,12 +2448,12 @@ const AdminPage = () => {
                     onDragLeave={() => setDragOverThumb(false)}
                     onDrop={handleDropThumb}
                     style={{
-                      border: `2px dashed ${dragOverThumb ? '#a855f7' : 'rgba(255, 255, 255, 0.2)'}`,
-                      borderRadius: '12px',
+                      border: `1px dashed ${dragOverThumb ? adminColors.accent : adminColors.borderStrong}`,
+                      borderRadius: '8px',
                       padding: '20px',
                       textAlign: 'center',
-                      backgroundColor: dragOverThumb ? 'rgba(168, 85, 247, 0.1)' : 'rgba(15, 23, 42, 0.3)',
-                      transition: 'all 0.2s',
+                      backgroundColor: dragOverThumb ? adminColors.accentSoft : adminColors.surfaceMuted,
+                      transition: adminTransition,
                       cursor: 'pointer',
                     }}
                   >
@@ -2447,8 +2502,8 @@ const AdminPage = () => {
                           }}
                         />
                         <label htmlFor="thumb-upload" style={{ cursor: 'pointer' }}>
-                          <ImageIcon size={40} color="#64748b" style={{ marginBottom: '8px' }} />
-                          <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                          <ImageIcon size={40} color={adminColors.textSubtle} style={{ marginBottom: '8px' }} />
+                          <p style={{ color: adminColors.textMuted, fontSize: '14px', margin: 0 }}>
                             Drag & drop or click to upload thumbnail
                           </p>
                         </label>
@@ -2458,14 +2513,14 @@ const AdminPage = () => {
                       <div style={{ marginTop: '12px' }}>
                         <div style={{
                           height: '4px',
-                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          backgroundColor: adminColors.surfaceRaised,
                           borderRadius: '2px',
                           overflow: 'hidden',
                         }}>
                           <div style={{
                             height: '100%',
                             width: `${thumbProgress}%`,
-                            background: 'linear-gradient(to right, #a855f7, #ec4899)',
+                            backgroundColor: adminColors.accent,
                             transition: 'width 0.2s',
                           }} />
                         </div>
@@ -2482,12 +2537,12 @@ const AdminPage = () => {
                     onDragLeave={() => setDragOverImages(false)}
                     onDrop={handleDropImages}
                     style={{
-                      border: `2px dashed ${dragOverImages ? '#a855f7' : 'rgba(255, 255, 255, 0.2)'}`,
-                      borderRadius: '12px',
+                      border: `1px dashed ${dragOverImages ? adminColors.accent : adminColors.borderStrong}`,
+                      borderRadius: '8px',
                       padding: '20px',
                       textAlign: 'center',
-                      backgroundColor: dragOverImages ? 'rgba(168, 85, 247, 0.1)' : 'rgba(15, 23, 42, 0.3)',
-                      transition: 'all 0.2s',
+                      backgroundColor: dragOverImages ? adminColors.accentSoft : adminColors.surfaceMuted,
+                      transition: adminTransition,
                     }}
                   >
                     <input
@@ -2504,8 +2559,8 @@ const AdminPage = () => {
                       }}
                     />
                     <label htmlFor="gallery-upload" style={{ cursor: 'pointer' }}>
-                      <Upload size={32} color="#64748b" style={{ marginBottom: '8px' }} />
-                      <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                      <Upload size={32} color={adminColors.textSubtle} style={{ marginBottom: '8px' }} />
+                      <p style={{ color: adminColors.textMuted, fontSize: '14px', margin: 0 }}>
                         Drag & drop or click to upload gallery images
                       </p>
                     </label>
@@ -2513,14 +2568,14 @@ const AdminPage = () => {
                       <div style={{ marginTop: '12px' }}>
                         <div style={{
                           height: '4px',
-                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          backgroundColor: adminColors.surfaceRaised,
                           borderRadius: '2px',
                           overflow: 'hidden',
                         }}>
                           <div style={{
                             height: '100%',
                             width: `${imagesProgress}%`,
-                            background: 'linear-gradient(to right, #a855f7, #ec4899)',
+                            backgroundColor: adminColors.accent,
                             transition: 'width 0.2s',
                           }} />
                         </div>
@@ -2595,7 +2650,7 @@ const AdminPage = () => {
                     </button>
                   </div>
                   {projectForm.urls.length === 0 ? (
-                    <p style={{ color: '#64748b', fontSize: '14px' }}>No URLs added yet. Click &quot;Add URL&quot; to add project links.</p>
+                    <p style={{ color: adminColors.textSubtle, fontSize: '14px' }}>No URLs added yet. Click &quot;Add URL&quot; to add project links.</p>
                   ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {projectForm.urls.map((url, index) => (
@@ -2607,9 +2662,9 @@ const AdminPage = () => {
                             gap: '8px',
                             alignItems: 'center',
                             padding: '12px',
-                            backgroundColor: 'rgba(15, 23, 42, 0.3)',
+                            backgroundColor: adminColors.surfaceMuted,
                             borderRadius: '8px',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            border: `1px solid ${adminColors.border}`,
                           }}
                         >
                           <input
@@ -2651,7 +2706,7 @@ const AdminPage = () => {
                     </div>
                   )}
                   {urlTypes.length > 0 && (
-                    <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>
+                    <p style={{ fontSize: '12px', color: adminColors.textSubtle, marginTop: '8px' }}>
                       Available types: {urlTypes.join(', ')}
                     </p>
                   )}
@@ -2675,7 +2730,7 @@ const AdminPage = () => {
                     style={styles.input}
                   />
                   {projectCategories.length > 0 && (
-                    <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>Existing: {projectCategories.join(', ')}</p>
+                    <p style={{ fontSize: '12px', color: adminColors.textSubtle, marginTop: '4px' }}>Existing: {projectCategories.join(', ')}</p>
                   )}
                 </div>
               </div>
@@ -2699,13 +2754,13 @@ const AdminPage = () => {
           <div style={{ ...styles.modalContent, maxWidth: 'none' }}>
             <div style={styles.modalHeader}>
               <h2 style={styles.modalTitle}>{editingPost ? 'Edit Post' : 'New Post'}</h2>
-              <p style={{ color: '#94a3b8', fontSize: '14px', marginTop: '4px' }}>
+              <p style={{ color: adminColors.textMuted, fontSize: '14px', marginTop: '4px' }}>
                 {editingPost ? 'Update your blog post' : 'Create a new blog post'}
               </p>
             </div>
             <div style={styles.modalBody}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <p style={{ color: '#94a3b8', fontSize: '13px', margin: 0 }}>
+                <p style={{ color: adminColors.textMuted, fontSize: '13px', margin: 0 }}>
                   Fill in either language, both, or one and skip the other — empty languages are not saved. Readers see the language matching their locale; if it doesn&apos;t exist, the other language is shown as a fallback.
                 </p>
                 <div>
@@ -2750,7 +2805,7 @@ const AdminPage = () => {
                     onChange={(e) => setPostForm({ ...postForm, isPublic: e.target.checked })}
                     style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                   />
-                  <label htmlFor="post-public" style={{ color: '#cbd5e1', cursor: 'pointer' }}>Public</label>
+                  <label htmlFor="post-public" style={{ color: '#d7dde7', cursor: 'pointer' }}>Public</label>
                 </div>
                 <div>
                   <label style={styles.label}>Cover image</label>
@@ -2759,12 +2814,12 @@ const AdminPage = () => {
                     onDragLeave={() => setDragOverPostImage(false)}
                     onDrop={handleDropPostImage}
                     style={{
-                      border: `2px dashed ${dragOverPostImage ? '#a855f7' : 'rgba(255, 255, 255, 0.2)'}`,
-                      borderRadius: '12px',
+                      border: `1px dashed ${dragOverPostImage ? adminColors.accent : adminColors.borderStrong}`,
+                      borderRadius: '8px',
                       padding: '20px',
                       textAlign: 'center',
-                      backgroundColor: dragOverPostImage ? 'rgba(168, 85, 247, 0.1)' : 'rgba(15, 23, 42, 0.3)',
-                      transition: 'all 0.2s',
+                      backgroundColor: dragOverPostImage ? adminColors.accentSoft : adminColors.surfaceMuted,
+                      transition: adminTransition,
                       cursor: 'pointer',
                     }}
                   >
@@ -2814,8 +2869,8 @@ const AdminPage = () => {
                           }}
                         />
                         <label htmlFor="post-image-upload" style={{ cursor: 'pointer' }}>
-                          <ImageIcon size={40} color="#64748b" style={{ marginBottom: '8px' }} />
-                          <p style={{ color: '#94a3b8', fontSize: '14px', margin: 0 }}>
+                          <ImageIcon size={40} color={adminColors.textSubtle} style={{ marginBottom: '8px' }} />
+                          <p style={{ color: adminColors.textMuted, fontSize: '14px', margin: 0 }}>
                             Drag &amp; drop or click to upload cover image
                           </p>
                         </label>
@@ -2825,14 +2880,14 @@ const AdminPage = () => {
                       <div style={{ marginTop: '12px' }}>
                         <div style={{
                           height: '4px',
-                          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                          backgroundColor: adminColors.surfaceRaised,
                           borderRadius: '2px',
                           overflow: 'hidden',
                         }}>
                           <div style={{
                             height: '100%',
                             width: `${postImageProgress}%`,
-                            background: 'linear-gradient(to right, #a855f7, #ec4899)',
+                            backgroundColor: adminColors.accent,
                             transition: 'width 0.2s',
                           }} />
                         </div>
@@ -2863,8 +2918,8 @@ const AdminPage = () => {
               <h2 style={{ ...styles.modalTitle, color: '#f87171' }}>Confirm Delete</h2>
             </div>
             <div style={styles.modalBody}>
-              <p style={{ color: '#94a3b8' }}>
-                Are you sure you want to delete <strong style={{ color: '#ffffff' }}>{showDeleteConfirm.name}</strong>? This action cannot be undone.
+              <p style={{ color: adminColors.textMuted }}>
+                Are you sure you want to delete <strong style={{ color: adminColors.text }}>{showDeleteConfirm.name}</strong>? This action cannot be undone.
               </p>
             </div>
             <div style={styles.modalFooter}>
@@ -2937,17 +2992,17 @@ const TranslationFields = ({
   return (
     <div
       style={{
-        border: '1px solid rgba(255, 255, 255, 0.08)',
-        borderRadius: '12px',
+        border: `1px solid ${adminColors.border}`,
+        borderRadius: '8px',
         padding: '16px',
         display: 'flex',
         flexDirection: 'column',
         gap: '16px',
-        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+        backgroundColor: adminColors.surfaceMuted,
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <h3 style={{ margin: 0, color: '#ffffff', fontSize: '15px', fontWeight: 600 }}>
+        <h3 style={{ margin: 0, color: adminColors.text, fontSize: '15px', fontWeight: 600 }}>
           {TRANSLATION_LABELS[lang]}
         </h3>
         <span
@@ -2956,10 +3011,10 @@ const TranslationFields = ({
             width: '8px',
             height: '8px',
             borderRadius: '50%',
-            backgroundColor: hasContent ? '#10b981' : 'rgba(255, 255, 255, 0.15)',
+            backgroundColor: hasContent ? adminColors.success : adminColors.borderStrong,
           }}
         />
-        <span style={{ color: '#64748b', fontSize: '12px' }}>
+        <span style={{ color: adminColors.textSubtle, fontSize: '12px' }}>
           {hasContent ? 'will be saved' : 'optional — leave empty to skip'}
         </span>
       </div>
@@ -3023,7 +3078,7 @@ const InspectPostsButton = ({ onMessage }: InspectPostsButtonProps) => {
         border: '1px solid rgba(255,255,255,0.18)',
         borderRadius: '8px',
         background: 'transparent',
-        color: '#cbd5e1',
+        color: '#d7dde7',
         cursor: running ? 'not-allowed' : 'pointer',
         fontSize: '13px',
       }}
@@ -3097,7 +3152,7 @@ const MigratePostsFlatButton = ({ onMessage, onAfterMigrate }: MigratePostsFlatB
             border: '1px solid rgba(255,255,255,0.18)',
             borderRadius: '8px',
             background: 'transparent',
-            color: '#cbd5e1',
+            color: '#d7dde7',
             cursor: running ? 'not-allowed' : 'pointer',
             fontSize: '13px',
           }}
@@ -3113,10 +3168,10 @@ const MigratePostsFlatButton = ({ onMessage, onAfterMigrate }: MigratePostsFlatB
           disabled={running}
           style={{
             padding: '8px 14px',
-            border: '1px solid rgba(168,85,247,0.4)',
+            border: `1px solid ${adminColors.accentBorder}`,
             borderRadius: '8px',
-            background: 'rgba(168,85,247,0.12)',
-            color: '#e9d5ff',
+            background: adminColors.accentSoft,
+            color: adminColors.text,
             cursor: running ? 'not-allowed' : 'pointer',
             fontSize: '13px',
           }}
@@ -3125,7 +3180,7 @@ const MigratePostsFlatButton = ({ onMessage, onAfterMigrate }: MigratePostsFlatB
         </button>
       </div>
       {lastResult && (
-        <div style={{ color: '#94a3b8', fontSize: '11px' }}>
+        <div style={{ color: adminColors.textMuted, fontSize: '11px' }}>
           last: scanned {lastResult.scanned} · migrated {lastResult.migrated.length} · skipped {lastResult.skipped.length} · failed {lastResult.failed.length}
           {lastResult.dryRun && ' (dry-run)'}
         </div>

@@ -19,39 +19,62 @@ import TrafficLineChart from './TrafficLineChart';
 
 type TabKey = 'logs' | 'overview';
 
+const activityColors = {
+  surface: '#14171c',
+  surfaceRaised: '#181c22',
+  surfaceMuted: '#111419',
+  border: 'rgba(226, 232, 240, 0.12)',
+  borderStrong: 'rgba(226, 232, 240, 0.18)',
+  text: '#f5f7fb',
+  textMuted: '#a6b0bf',
+  textSubtle: '#6f7a8a',
+  accent: '#5aa2ff',
+  accentSoft: 'rgba(90, 162, 255, 0.14)',
+  accentBorder: 'rgba(90, 162, 255, 0.34)',
+  accentSecondary: '#7dd3c7',
+  accentSecondarySoft: 'rgba(85, 214, 190, 0.12)',
+  success: '#34d399',
+  danger: '#ef4444',
+  warning: '#facc15',
+} as const;
+
+const activityTransition = 'background-color 160ms ease, border-color 160ms ease, color 160ms ease';
+
 const styles: Record<string, CSSProperties> = {
   card: {
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    borderRadius: '16px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: activityColors.surface,
+    borderRadius: '8px',
+    border: `1px solid ${activityColors.border}`,
     overflow: 'hidden',
   },
   label: {
     display: 'block',
     fontSize: '13px',
     fontWeight: '500',
-    color: '#94a3b8',
+    color: activityColors.textMuted,
   },
   input: {
     padding: '8px 12px',
     borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-    color: '#ffffff',
+    border: `1px solid ${activityColors.borderStrong}`,
+    backgroundColor: activityColors.surfaceRaised,
+    color: activityColors.text,
     fontSize: '14px',
     outline: 'none',
     width: '100%',
+    accentColor: activityColors.accent,
   },
   select: {
     padding: '8px 12px',
     borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    color: '#ffffff',
+    border: `1px solid ${activityColors.borderStrong}`,
+    backgroundColor: activityColors.surfaceRaised,
+    color: activityColors.text,
     fontSize: '14px',
     outline: 'none',
     cursor: 'pointer',
     width: '100%',
+    accentColor: activityColors.accent,
   },
   button: {
     display: 'flex',
@@ -59,15 +82,16 @@ const styles: Record<string, CSSProperties> = {
     gap: '8px',
     padding: '8px 16px',
     borderRadius: '8px',
-    border: 'none',
+    border: '1px solid transparent',
     cursor: 'pointer',
     fontSize: '14px',
     fontWeight: '500',
-    transition: 'all 0.2s',
+    transition: activityTransition,
   },
   primaryButton: {
-    backgroundColor: '#7c3aed',
-    color: '#ffffff',
+    backgroundColor: activityColors.accent,
+    borderColor: activityColors.accent,
+    color: '#06121f',
   },
   badge: {
     display: 'inline-flex',
@@ -79,22 +103,24 @@ const styles: Record<string, CSSProperties> = {
   },
   table: {
     width: '100%',
-    borderCollapse: 'collapse' as const,
+    borderCollapse: 'separate' as const,
+    borderSpacing: 0,
   },
   th: {
     textAlign: 'left' as const,
     padding: '12px 16px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-    color: '#94a3b8',
+    borderBottom: `1px solid ${activityColors.border}`,
+    color: activityColors.textSubtle,
     fontSize: '12px',
     fontWeight: '600',
     textTransform: 'uppercase' as const,
-    letterSpacing: '0.05em',
+    letterSpacing: 0,
+    backgroundColor: activityColors.surfaceMuted,
   },
   td: {
     padding: '12px 16px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
-    color: '#e2e8f0',
+    borderBottom: `1px solid ${activityColors.border}`,
+    color: '#d7dde7',
     fontSize: '14px',
   },
 };
@@ -139,8 +165,8 @@ function CategoryBadge({ category }: { category: ActivityCategory }) {
     <span
       style={{
         ...styles.badge,
-        backgroundColor: isQuery ? 'rgba(59, 130, 246, 0.15)' : 'rgba(168, 85, 247, 0.15)',
-        color: isQuery ? '#3b82f6' : '#a855f7',
+        backgroundColor: isQuery ? activityColors.accentSoft : activityColors.accentSecondarySoft,
+        color: isQuery ? activityColors.accent : activityColors.accentSecondary,
       }}
     >
       {category}
@@ -171,7 +197,7 @@ function CopyButton({ text }: { text: string }) {
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       }}
-      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '2px' }}
+      style={{ background: 'none', border: 'none', cursor: 'pointer', color: activityColors.textMuted, padding: '2px' }}
       title="Copy"
     >
       {copied ? <Check size={14} color="#22c55e" /> : <Copy size={14} />}
@@ -309,15 +335,15 @@ export default function ActivityLogPanel() {
 
   return (
     <div>
-      <h1 style={{ fontSize: '28px', fontWeight: '700', color: '#ffffff', marginBottom: '8px' }}>
+      <h1 style={{ fontSize: '28px', fontWeight: '650', color: activityColors.text, marginBottom: '8px', letterSpacing: 0 }}>
         Activity Log
       </h1>
-      <p style={{ color: '#94a3b8', marginBottom: '20px' }}>
+      <p style={{ color: activityColors.textMuted, marginBottom: '20px' }}>
         Unified view of every Cloud Function call, Next.js API request, and client event. Errors are inline (filter by result=error).
       </p>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '24px', borderBottom: `1px solid ${activityColors.border}` }}>
         {([
           { key: 'logs' as TabKey, label: 'Logs', icon: List },
           { key: 'overview' as TabKey, label: 'Overview', icon: BarChart3 },
@@ -334,8 +360,8 @@ export default function ActivityLogPanel() {
                 padding: '10px 18px',
                 background: 'none',
                 border: 'none',
-                borderBottom: isActive ? '2px solid #7c3aed' : '2px solid transparent',
-                color: isActive ? '#ffffff' : '#94a3b8',
+                borderBottom: isActive ? `2px solid ${activityColors.accent}` : '2px solid transparent',
+                color: isActive ? activityColors.text : activityColors.textMuted,
                 fontSize: '14px',
                 fontWeight: isActive ? 600 : 500,
                 cursor: 'pointer',
@@ -385,7 +411,7 @@ export default function ActivityLogPanel() {
             <div>
               <label style={{ ...styles.label, marginBottom: '4px' }}>Request ID</label>
               <div style={{ position: 'relative' }}>
-                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#64748b' }} />
+                <Search size={14} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: activityColors.textSubtle }} />
                 <input
                   type="text"
                   placeholder="e.g. a1b2c3d4e5f6"
@@ -503,19 +529,19 @@ export default function ActivityLogPanel() {
 
       <div style={styles.card}>
         {loading && logs.length === 0 ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ padding: '48px', textAlign: 'center', color: activityColors.textMuted }}>
             <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto 12px' }} />
             <p>Loading activity logs...</p>
           </div>
         ) : logs.length === 0 ? (
-          <div style={{ padding: '48px', textAlign: 'center', color: '#94a3b8' }}>
+          <div style={{ padding: '48px', textAlign: 'center', color: activityColors.textMuted }}>
             <p>No activity logs found for the selected filters.</p>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>
             <table style={styles.table}>
               <thead>
-                <tr style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)' }}>
+                <tr style={{ backgroundColor: activityColors.surfaceMuted }}>
                   <th style={styles.th}>Time</th>
                   <th style={styles.th}>Action</th>
                   <th style={styles.th}>Source</th>
@@ -536,42 +562,42 @@ export default function ActivityLogPanel() {
                           <span style={{ fontSize: '13px', whiteSpace: 'nowrap' }}>{formatDateTime(log.created_at)}</span>
                         </td>
                         <td style={styles.td}>
-                          <code style={{ fontSize: '13px', color: '#e879f9', backgroundColor: 'rgba(168, 85, 247, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>{log.action}</code>
+                          <code style={{ fontSize: '13px', color: activityColors.accent, backgroundColor: activityColors.accentSoft, padding: '2px 6px', borderRadius: '4px' }}>{log.action}</code>
                         </td>
                         <td style={styles.td}><SourceBadge source={log.source} /></td>
                         <td style={styles.td}><CategoryBadge category={log.category} /></td>
                         <td style={styles.td}><ResultBadge result={log.result} severity={log.severity} /></td>
                         <td style={styles.td}>
-                          <div style={{ fontSize: '12px', color: log.is_anonymous ? '#facc15' : '#cbd5e1' }}>
-                            {log.is_anonymous ? 'anon' : (log.agent_email ?? log.agent_uid.slice(0, 8))}
+                          <div style={{ fontSize: '12px', color: log.is_anonymous ? activityColors.warning : '#d7dde7' }}>
+                            {log.is_anonymous ? 'anon' : (log.agent_email ?? log.agent_uid?.slice(0, 8) ?? '')}
                           </div>
                         </td>
                         <td style={styles.td}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <code style={{ fontSize: '12px', fontFamily: 'monospace', color: '#94a3b8' }}>{log.request_id}</code>
+                            <code style={{ fontSize: '12px', fontFamily: 'monospace', color: activityColors.textMuted }}>{log.request_id}</code>
                             <CopyButton text={log.request_id} />
                           </div>
                         </td>
                         <td style={styles.td}>
-                          {isExpanded ? <ChevronUp size={16} color="#94a3b8" /> : <ChevronDown size={16} color="#94a3b8" />}
+                          {isExpanded ? <ChevronUp size={16} color={activityColors.textMuted} /> : <ChevronDown size={16} color={activityColors.textMuted} />}
                         </td>
                       </tr>
                       {isExpanded && (
                         <tr>
-                          <td colSpan={8} style={{ padding: 0, borderBottom: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                            <div style={{ padding: '20px 24px', backgroundColor: 'rgba(255, 255, 255, 0.02)' }}>
+                          <td colSpan={8} style={{ padding: 0, borderBottom: `1px solid ${activityColors.border}` }}>
+                            <div style={{ padding: '20px 24px', backgroundColor: activityColors.surfaceMuted }}>
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
                                 <div>
                                   <p style={styles.label}>Agent UID</p>
-                                  <p style={{ color: '#e2e8f0', fontSize: '13px', fontFamily: 'monospace' }}>{log.agent_uid}</p>
+                                  <p style={{ color: '#d7dde7', fontSize: '13px', fontFamily: 'monospace' }}>{log.agent_uid}</p>
                                 </div>
                                 <div>
                                   <p style={styles.label}>Session ID</p>
-                                  <p style={{ color: '#e2e8f0', fontSize: '13px', fontFamily: 'monospace', wordBreak: 'break-all' }}>{log.session_id || 'N/A'}</p>
+                                  <p style={{ color: '#d7dde7', fontSize: '13px', fontFamily: 'monospace', wordBreak: 'break-all' }}>{log.session_id || 'N/A'}</p>
                                 </div>
                                 <div>
                                   <p style={styles.label}>Env / Build</p>
-                                  <p style={{ color: '#e2e8f0', fontSize: '13px' }}>
+                                  <p style={{ color: '#d7dde7', fontSize: '13px' }}>
                                     {log.env}
                                     {log.app_version ? ` · v${log.app_version}` : ''}
                                     {log.app_build_sha ? ` · ${log.app_build_sha}` : ''}
@@ -579,11 +605,11 @@ export default function ActivityLogPanel() {
                                 </div>
                                 <div>
                                   <p style={styles.label}>IP</p>
-                                  <p style={{ color: '#e2e8f0', fontSize: '13px' }}>{log.ip_address || 'N/A'}</p>
+                                  <p style={{ color: '#d7dde7', fontSize: '13px' }}>{log.ip_address || 'N/A'}</p>
                                 </div>
                                 <div style={{ gridColumn: '1 / -1' }}>
                                   <p style={styles.label}>Parameters</p>
-                                  <pre style={{ marginTop: '4px', padding: '12px', borderRadius: '8px', backgroundColor: 'rgba(0, 0, 0, 0.3)', color: '#94a3b8', fontSize: '12px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '200px' }}>
+                                  <pre style={{ marginTop: '4px', padding: '12px', borderRadius: '8px', backgroundColor: '#0b0d10', color: activityColors.textMuted, fontSize: '12px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '200px' }}>
                                     {JSON.stringify(log.params, null, 2)}
                                   </pre>
                                 </div>
@@ -636,21 +662,21 @@ function OverviewView({
   onRefresh: () => void;
 }) {
   const cardStyle: CSSProperties = {
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    borderRadius: '16px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: activityColors.surface,
+    borderRadius: '8px',
+    border: `1px solid ${activityColors.border}`,
     padding: '20px 24px',
     marginBottom: '20px',
   };
 
   const sectionTitle: CSSProperties = {
-    color: '#ffffff',
+    color: activityColors.text,
     fontSize: '14px',
     fontWeight: 600,
     margin: 0,
   };
   const sectionSub: CSSProperties = {
-    color: '#94a3b8',
+    color: activityColors.textMuted,
     fontSize: '12px',
     marginTop: '2px',
     marginBottom: '12px',
@@ -658,7 +684,7 @@ function OverviewView({
 
   if (loading && !traffic) {
     return (
-      <div style={{ ...cardStyle, textAlign: 'center', padding: '48px', color: '#94a3b8' }}>
+      <div style={{ ...cardStyle, textAlign: 'center', padding: '48px', color: activityColors.textMuted }}>
         <Loader2 size={24} className="animate-spin" style={{ margin: '0 auto 12px' }} />
         <p>Loading traffic…</p>
       </div>
@@ -689,9 +715,9 @@ function OverviewView({
   const formatUsd = (n: number) => (n < 0.01 ? '<$0.01' : `$${n.toFixed(2)}`);
 
   const volumeCard: CSSProperties = {
-    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-    borderRadius: '16px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: activityColors.surface,
+    borderRadius: '8px',
+    border: `1px solid ${activityColors.border}`,
     padding: '20px 24px',
     marginBottom: '20px',
   };
@@ -699,7 +725,7 @@ function OverviewView({
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-        <div style={{ color: '#94a3b8', fontSize: '13px' }}>
+        <div style={{ color: activityColors.textMuted, fontSize: '13px' }}>
           {buckets.length} buckets · granularity={granularity}
         </div>
         <button
@@ -708,7 +734,7 @@ function OverviewView({
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             padding: '6px 12px', borderRadius: '8px', border: 'none',
-            background: '#7c3aed', color: '#fff', fontSize: '13px',
+            background: activityColors.accent, color: '#06121f', fontSize: '13px',
             fontWeight: 500, cursor: 'pointer', opacity: loading ? 0.7 : 1,
           }}
         >
@@ -719,24 +745,24 @@ function OverviewView({
 
       {/* Volume summary — answers "are we logging too much?" at a glance */}
       <div style={volumeCard}>
-        <p style={{ color: '#fff', fontSize: '14px', fontWeight: 600, margin: 0, marginBottom: '4px' }}>
+        <p style={{ color: activityColors.text, fontSize: '14px', fontWeight: 600, margin: 0, marginBottom: '4px' }}>
           Volume & Cost
         </p>
-        <p style={{ color: '#94a3b8', fontSize: '12px', margin: 0, marginBottom: '16px' }}>
+        <p style={{ color: activityColors.textMuted, fontSize: '12px', margin: 0, marginBottom: '16px' }}>
           Estimates based on Firestore pricing ($0.18/100K writes, $0.18/GB/month storage, ~1KB avg row).
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
           {[
             { label: 'In selected range', value: totalCount.toLocaleString(), sub: formatUsd(costForRange), color: '#3b82f6' },
-            { label: 'Daily avg', value: dailyAvg.toLocaleString(), sub: '/ day', color: '#a855f7' },
-            { label: 'Projected 30-day writes', value: projected30Day.toLocaleString(), sub: formatUsd(projected30DayCost) + ' write cost', color: '#22c55e' },
-            { label: 'Projected 30-day storage', value: storage30DayGB < 0.01 ? '<0.01 GB' : `${storage30DayGB.toFixed(2)} GB`, sub: formatUsd(storageMonthlyCost) + '/mo', color: '#facc15' },
-            { label: 'Error rate', value: `${errorRate.toFixed(1)}%`, sub: `${errorCount.toLocaleString()} errors`, color: errorRate > 5 ? '#ef4444' : '#94a3b8' },
+            { label: 'Daily avg', value: dailyAvg.toLocaleString(), sub: '/ day', color: activityColors.accent },
+            { label: 'Projected 30-day writes', value: projected30Day.toLocaleString(), sub: formatUsd(projected30DayCost) + ' write cost', color: activityColors.success },
+            { label: 'Projected 30-day storage', value: storage30DayGB < 0.01 ? '<0.01 GB' : `${storage30DayGB.toFixed(2)} GB`, sub: formatUsd(storageMonthlyCost) + '/mo', color: activityColors.warning },
+            { label: 'Error rate', value: `${errorRate.toFixed(1)}%`, sub: `${errorCount.toLocaleString()} errors`, color: errorRate > 5 ? activityColors.danger : activityColors.textMuted },
           ].map((m) => (
             <div key={m.label}>
-              <p style={{ color: '#94a3b8', fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, marginBottom: '4px' }}>{m.label}</p>
+              <p style={{ color: activityColors.textMuted, fontSize: '11px', textTransform: 'uppercase', letterSpacing: 0, margin: 0, marginBottom: '4px' }}>{m.label}</p>
               <p style={{ color: m.color, fontSize: '22px', fontWeight: 700, margin: 0, lineHeight: 1.2 }}>{m.value}</p>
-              <p style={{ color: '#64748b', fontSize: '11px', margin: 0, marginTop: '2px' }}>{m.sub}</p>
+              <p style={{ color: activityColors.textSubtle, fontSize: '11px', margin: 0, marginTop: '2px' }}>{m.sub}</p>
             </div>
           ))}
         </div>

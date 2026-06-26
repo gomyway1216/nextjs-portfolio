@@ -1,3 +1,70 @@
-.admin {
-  background: white;
+.admin-console {
+  font-family: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.admin-console,
+.admin-console * {
+  box-sizing: border-box;
+}
+
+.admin-console button,
+.admin-console a,
+.admin-console input,
+.admin-console select,
+.admin-console textarea {
+  font: inherit;
+}
+
+.admin-console button:focus-visible,
+.admin-console a:focus-visible,
+.admin-console input:focus-visible,
+.admin-console select:focus-visible,
+.admin-console textarea:focus-visible {
+  outline: 2px solid rgba(90, 162, 255, 0.78);
+  outline-offset: 2px;
+}
+
+.admin-console button:disabled {
+  filter: saturate(0.8);
+}
+
+.admin-console table {
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-console tbody tr {
+  transition: background-color 0.2s;
+}
+
+.admin-console tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.admin-console ::selection {
+  background: rgba(90, 162, 255, 0.28);
+}
+
+@media (max-width: 960px) {
+  .admin-console__layout {
+    display: block !important;
+  }
+
+  .admin-console aside {
+    position: static !important;
+    width: auto !important;
+    min-height: auto !important;
+  }
+
+  .admin-console main {
+    margin-left: 0 !important;
+    padding: 20px !important;
+  }
+
+  .admin-console nav {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 4px;
+  }
 }

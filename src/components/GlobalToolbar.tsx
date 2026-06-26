@@ -11,9 +11,9 @@ import styles from './GlobalToolbar.module.css';
 import { cn } from '@/lib/utils/util';
 import {
   BookOpenText,
-  BriefcaseBusiness,
   ChevronDown,
   ChevronLeft,
+  FolderKanban,
   Gamepad2,
   Languages,
   LogIn,
@@ -156,7 +156,7 @@ type PrimaryNavItem = {
 };
 
 const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
-  { href: '/#work', labelKey: 'home.nav.work', Icon: BriefcaseBusiness, activePrefixes: ['/projects'] },
+  { href: '/#work', labelKey: 'home.nav.work', Icon: FolderKanban, activePrefixes: ['/projects'] },
   { href: '/#tools', labelKey: 'home.nav.tools', Icon: Wrench, activePrefixes: ['/tools'] },
   { href: '/blog', labelKey: 'home.nav.blog', Icon: NotebookPen, activePrefixes: ['/blog'] },
 ];

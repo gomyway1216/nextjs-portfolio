@@ -34,9 +34,8 @@ import { Tooltip } from 'react-tooltip';
 const SECTION_IDS_WITH_WRITING = [
   'home',
   'impact',
-  'resume',
   'writing',
-  'blog',
+  'resume',
   'community',
   'tools',
   'work',
@@ -48,7 +47,6 @@ const SECTION_IDS_WITHOUT_WRITING = [
   'home',
   'impact',
   'resume',
-  'blog',
   'community',
   'tools',
   'work',
@@ -184,10 +182,10 @@ const Header = ({ showWriting = false }: HeaderProps) => {
                 </Link>
               </li>
             )}
-            <li className={activeSection === 'blog' ? 'active' : ''}>
+            <li>
               <Link
                 className="nav-link"
-                href="/#blog"
+                href="/blog"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.blog')}
                 onClick={handleClick}

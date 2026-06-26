@@ -195,6 +195,7 @@ export function GlobalToolbar() {
   const nextLang = currentLang === 'en' ? 'ja' : 'en';
 
   const theme = useMemo(() => getTheme(pathname), [pathname]);
+  const isGameRoute = pathname === '/games' || pathname.startsWith('/games/');
   const isGameSubPage = pathname.startsWith('/games/');
   const hasGameContent = isGameSubPage && gameContent && (gameContent.left || gameContent.center || gameContent.right);
   // Identify the current game so every game page gets a labeled top bar
@@ -227,8 +228,8 @@ export function GlobalToolbar() {
   };
 
   const accentSoft = `color-mix(in srgb, ${theme.accent} 10%, transparent)`;
-  const toolbarBorder = isGameSubPage ? 'var(--games-route-border)' : 'color-mix(in srgb, var(--border) 70%, transparent)';
-  const toolbarBg = isGameSubPage ? 'var(--games-route-surface)' : 'color-mix(in srgb, var(--background) 60%, transparent)';
+  const toolbarBorder = isGameRoute ? 'var(--games-route-border, color-mix(in srgb, var(--border) 70%, transparent))' : 'color-mix(in srgb, var(--border) 70%, transparent)';
+  const toolbarBg = isGameRoute ? 'var(--games-route-surface, color-mix(in srgb, var(--background) 60%, transparent))' : 'color-mix(in srgb, var(--background) 60%, transparent)';
   const displayedGame = isGameSubPage && currentGameState?.pathname === pathname ? currentGameState.game : null;
   const displayedGameTitle = displayedGame
     ? t(`games.${displayedGame.id}.title`, { defaultValue: displayedGame.title })

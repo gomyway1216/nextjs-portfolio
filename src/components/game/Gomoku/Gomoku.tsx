@@ -132,8 +132,8 @@ const Gomoku = () => {
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      background: 'var(--games-route-bg)',
-      color: 'var(--games-route-fg)',
+      background: 'var(--games-route-bg, var(--background))',
+      color: 'var(--games-route-fg, var(--foreground))',
       overflow: 'auto',
       fontFamily: 'system-ui, -apple-system, sans-serif',
       padding: '1rem'
@@ -153,11 +153,11 @@ const Gomoku = () => {
           />
         ) : (
           <div style={{
-            background: 'var(--games-route-surface-raised)',
-            border: '1px solid color-mix(in srgb, #0ea5e9 44%, var(--games-route-border))',
+            background: 'var(--games-route-surface-raised, var(--card))',
+            border: '1px solid color-mix(in srgb, #0ea5e9 44%, var(--games-route-border, var(--border)))',
             borderRadius: '1rem',
             padding: '2rem',
-            boxShadow: 'var(--games-route-shadow)'
+            boxShadow: 'var(--games-route-shadow, none)'
           }}>
             {/* Status */}
             <div style={{
@@ -175,7 +175,7 @@ const Gomoku = () => {
                   }}>
                     {isAIThinking ? "AI Thinking..." : isPlayerTurn ? "Your Turn" : "AI's Turn"}
                   </div>
-                  <div style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
+                  <div style={{ color: 'var(--games-route-muted, var(--muted-foreground))', fontSize: '0.875rem' }}>
                     You are Black ⚫ · AI is White ⚪
                   </div>
                 </div>
@@ -185,7 +185,7 @@ const Gomoku = () => {
                   <div style={{ color: '#22c55e', fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
                     🎉 You Win!
                   </div>
-                  <div style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
+                  <div style={{ color: 'var(--games-route-muted, var(--muted-foreground))', fontSize: '0.875rem' }}>
                     Excellent strategy!
                   </div>
                 </div>
@@ -195,7 +195,7 @@ const Gomoku = () => {
                   <div style={{ color: '#ef4444', fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
                     AI Wins
                   </div>
-                  <div style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
+                  <div style={{ color: 'var(--games-route-muted, var(--muted-foreground))', fontSize: '0.875rem' }}>
                     Good game! Try again?
                   </div>
                 </div>
@@ -205,7 +205,7 @@ const Gomoku = () => {
                   <div style={{ color: '#eab308', fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
                     It&apos;s a Draw!
                   </div>
-                  <div style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
+                  <div style={{ color: 'var(--games-route-muted, var(--muted-foreground))', fontSize: '0.875rem' }}>
                     The board is full!
                   </div>
                 </div>

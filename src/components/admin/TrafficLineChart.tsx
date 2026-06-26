@@ -9,8 +9,10 @@ const CHART_COLORS = [
   '#facc15',
 ];
 
-const chartTextMuted = '#a6b0bf';
-const chartTextSubtle = '#6f7a8a';
+const chartText = 'var(--admin-text)';
+const chartTextMuted = 'var(--admin-text-muted)';
+const chartTextSubtle = 'var(--admin-text-subtle)';
+const chartGrid = 'var(--admin-chart-grid)';
 
 function formatBucketLabel(label: string, granularity: TrafficGranularity): string {
   if (granularity === 'day') return label.slice(5);          // "MM-DD"
@@ -55,7 +57,7 @@ export default function TrafficLineChart({ buckets, granularity, series, height 
                 x2={width - padding.right}
                 y1={y}
                 y2={y}
-                stroke="rgba(255,255,255,0.08)"
+                stroke={chartGrid}
                 strokeDasharray="3 3"
               />
               <text x={padding.left - 6} y={y + 3} textAnchor="end" fontSize="10" fill={chartTextSubtle}>
@@ -124,7 +126,7 @@ export default function TrafficLineChart({ buckets, granularity, series, height 
             >
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
               <span>{item.label}</span>
-              <span style={{ color: '#f5f7fb', fontWeight: 600 }}>{item.total}</span>
+              <span style={{ color: chartText, fontWeight: 600 }}>{item.total}</span>
             </div>
           );
         })}

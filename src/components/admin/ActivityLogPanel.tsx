@@ -20,22 +20,30 @@ import TrafficLineChart from './TrafficLineChart';
 type TabKey = 'logs' | 'overview';
 
 const activityColors = {
-  surface: '#14171c',
-  surfaceRaised: '#181c22',
-  surfaceMuted: '#111419',
-  border: 'rgba(226, 232, 240, 0.12)',
-  borderStrong: 'rgba(226, 232, 240, 0.18)',
-  text: '#f5f7fb',
-  textMuted: '#a6b0bf',
-  textSubtle: '#6f7a8a',
-  accent: '#5aa2ff',
-  accentSoft: 'rgba(90, 162, 255, 0.14)',
-  accentBorder: 'rgba(90, 162, 255, 0.34)',
-  accentSecondary: '#7dd3c7',
-  accentSecondarySoft: 'rgba(85, 214, 190, 0.12)',
-  success: '#34d399',
-  danger: '#ef4444',
-  warning: '#facc15',
+  surface: 'var(--admin-surface)',
+  surfaceRaised: 'var(--admin-surface-raised)',
+  surfaceMuted: 'var(--admin-surface-muted)',
+  border: 'var(--admin-border)',
+  borderStrong: 'var(--admin-border-strong)',
+  text: 'var(--admin-text)',
+  textSoft: 'var(--admin-text-soft)',
+  textMuted: 'var(--admin-text-muted)',
+  textSubtle: 'var(--admin-text-subtle)',
+  accent: 'var(--admin-accent)',
+  accentSoft: 'var(--admin-accent-soft)',
+  accentBorder: 'var(--admin-accent-border)',
+  accentSecondary: 'var(--admin-accent-secondary)',
+  accentSecondarySoft: 'var(--admin-accent-secondary-soft)',
+  success: 'var(--admin-success)',
+  successSoft: 'var(--admin-success-soft)',
+  successBorder: 'var(--admin-success-border)',
+  danger: 'var(--admin-danger)',
+  dangerSoft: 'var(--admin-danger-soft)',
+  dangerText: 'var(--admin-danger-text)',
+  warning: 'var(--admin-warning)',
+  warningSoft: 'var(--admin-warning-soft)',
+  codeBg: 'var(--admin-code-bg)',
+  primaryText: 'var(--admin-primary-text)',
 } as const;
 
 const activityTransition = 'background-color 160ms ease, border-color 160ms ease, color 160ms ease';
@@ -91,7 +99,7 @@ const styles: Record<string, CSSProperties> = {
   primaryButton: {
     backgroundColor: activityColors.accent,
     borderColor: activityColors.accent,
-    color: '#06121f',
+    color: activityColors.primaryText,
   },
   badge: {
     display: 'inline-flex',
@@ -120,7 +128,7 @@ const styles: Record<string, CSSProperties> = {
   td: {
     padding: '12px 16px',
     borderBottom: `1px solid ${activityColors.border}`,
-    color: '#d7dde7',
+    color: activityColors.textSoft,
     fontSize: '14px',
   },
 };
@@ -141,17 +149,17 @@ function getTodayDateString(): string {
 function ResultBadge({ result, severity }: { result: ActivityResult; severity?: ActivitySeverity }) {
   if (result === 'success') {
     return (
-      <span style={{ ...styles.badge, backgroundColor: 'rgba(34, 197, 94, 0.15)', color: '#22c55e' }}>
+      <span style={{ ...styles.badge, backgroundColor: activityColors.successSoft, color: activityColors.success }}>
         success
       </span>
     );
   }
   const sev = severity ?? 'error';
   const palette = sev === 'critical'
-    ? { bg: 'rgba(220, 38, 38, 0.2)', fg: '#fca5a5' }
+    ? { bg: activityColors.dangerSoft, fg: activityColors.dangerText }
     : sev === 'warning'
-      ? { bg: 'rgba(234, 179, 8, 0.15)', fg: '#fde68a' }
-      : { bg: 'rgba(239, 68, 68, 0.15)', fg: '#ef4444' };
+      ? { bg: activityColors.warningSoft, fg: activityColors.warning }
+      : { bg: activityColors.dangerSoft, fg: activityColors.danger };
   return (
     <span style={{ ...styles.badge, backgroundColor: palette.bg, color: palette.fg }}>
       {sev}
@@ -176,10 +184,10 @@ function CategoryBadge({ category }: { category: ActivityCategory }) {
 
 function SourceBadge({ source }: { source: ActivitySource }) {
   const palette = source === 'cloud_function'
-    ? { bg: 'rgba(56, 189, 248, 0.15)', fg: '#38bdf8' }
+    ? { bg: activityColors.accentSoft, fg: activityColors.accent }
     : source === 'next_api'
-      ? { bg: 'rgba(45, 212, 191, 0.15)', fg: '#2dd4bf' }
-      : { bg: 'rgba(250, 204, 21, 0.15)', fg: '#facc15' };
+      ? { bg: activityColors.accentSecondarySoft, fg: activityColors.accentSecondary }
+      : { bg: activityColors.warningSoft, fg: activityColors.warning };
   return (
     <span style={{ ...styles.badge, backgroundColor: palette.bg, color: palette.fg }}>
       {source}
@@ -200,7 +208,7 @@ function CopyButton({ text }: { text: string }) {
       style={{ background: 'none', border: 'none', cursor: 'pointer', color: activityColors.textMuted, padding: '2px' }}
       title="Copy"
     >
-      {copied ? <Check size={14} color="#22c55e" /> : <Copy size={14} />}
+      {copied ? <Check size={14} color={activityColors.success} /> : <Copy size={14} />}
     </button>
   );
 }
@@ -390,10 +398,10 @@ export default function ActivityLogPanel() {
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
         {[
-          { label: 'Total', value: totalCount, color: '#3b82f6' },
-          { label: 'Success', value: successCount, color: '#22c55e' },
-          { label: 'Errors', value: errorCount, color: '#ef4444' },
-          { label: 'Anonymous', value: anonCount, color: '#facc15' },
+          { label: 'Total', value: totalCount, color: activityColors.accent },
+          { label: 'Success', value: successCount, color: activityColors.success },
+          { label: 'Errors', value: errorCount, color: activityColors.danger },
+          { label: 'Anonymous', value: anonCount, color: activityColors.warning },
         ].map((card) => (
           <div key={card.label} style={styles.card}>
             <div style={{ padding: '20px 24px' }}>
@@ -522,8 +530,8 @@ export default function ActivityLogPanel() {
       </div>
 
       {error && (
-        <div style={{ ...styles.card, marginBottom: '24px', borderColor: 'rgba(239, 68, 68, 0.3)' }}>
-          <div style={{ padding: '16px 24px', color: '#ef4444' }}>{error}</div>
+        <div style={{ ...styles.card, marginBottom: '24px', borderColor: activityColors.danger }}>
+          <div style={{ padding: '16px 24px', color: activityColors.danger }}>{error}</div>
         </div>
       )}
 
@@ -568,7 +576,7 @@ export default function ActivityLogPanel() {
                         <td style={styles.td}><CategoryBadge category={log.category} /></td>
                         <td style={styles.td}><ResultBadge result={log.result} severity={log.severity} /></td>
                         <td style={styles.td}>
-                          <div style={{ fontSize: '12px', color: log.is_anonymous ? activityColors.warning : '#d7dde7' }}>
+                          <div style={{ fontSize: '12px', color: log.is_anonymous ? activityColors.warning : activityColors.textSoft }}>
                             {log.is_anonymous ? 'anon' : (log.agent_email ?? log.agent_uid?.slice(0, 8) ?? '')}
                           </div>
                         </td>
@@ -589,15 +597,15 @@ export default function ActivityLogPanel() {
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
                                 <div>
                                   <p style={styles.label}>Agent UID</p>
-                                  <p style={{ color: '#d7dde7', fontSize: '13px', fontFamily: 'monospace' }}>{log.agent_uid}</p>
+                                  <p style={{ color: activityColors.textSoft, fontSize: '13px', fontFamily: 'monospace' }}>{log.agent_uid}</p>
                                 </div>
                                 <div>
                                   <p style={styles.label}>Session ID</p>
-                                  <p style={{ color: '#d7dde7', fontSize: '13px', fontFamily: 'monospace', wordBreak: 'break-all' }}>{log.session_id || 'N/A'}</p>
+                                  <p style={{ color: activityColors.textSoft, fontSize: '13px', fontFamily: 'monospace', wordBreak: 'break-all' }}>{log.session_id || 'N/A'}</p>
                                 </div>
                                 <div>
                                   <p style={styles.label}>Env / Build</p>
-                                  <p style={{ color: '#d7dde7', fontSize: '13px' }}>
+                                  <p style={{ color: activityColors.textSoft, fontSize: '13px' }}>
                                     {log.env}
                                     {log.app_version ? ` · v${log.app_version}` : ''}
                                     {log.app_build_sha ? ` · ${log.app_build_sha}` : ''}
@@ -605,24 +613,24 @@ export default function ActivityLogPanel() {
                                 </div>
                                 <div>
                                   <p style={styles.label}>IP</p>
-                                  <p style={{ color: '#d7dde7', fontSize: '13px' }}>{log.ip_address || 'N/A'}</p>
+                                  <p style={{ color: activityColors.textSoft, fontSize: '13px' }}>{log.ip_address || 'N/A'}</p>
                                 </div>
                                 <div style={{ gridColumn: '1 / -1' }}>
                                   <p style={styles.label}>Parameters</p>
-                                  <pre style={{ marginTop: '4px', padding: '12px', borderRadius: '8px', backgroundColor: '#0b0d10', color: activityColors.textMuted, fontSize: '12px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '200px' }}>
+                                  <pre style={{ marginTop: '4px', padding: '12px', borderRadius: '8px', backgroundColor: activityColors.codeBg, color: activityColors.textMuted, fontSize: '12px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '200px' }}>
                                     {JSON.stringify(log.params, null, 2)}
                                   </pre>
                                 </div>
                                 {log.error_message && (
                                   <div style={{ gridColumn: '1 / -1' }}>
-                                    <p style={{ ...styles.label, color: '#ef4444' }}>Error Message</p>
-                                    <p style={{ color: '#fca5a5', fontSize: '14px', marginTop: '4px' }}>{log.error_message}</p>
+                                    <p style={{ ...styles.label, color: activityColors.danger }}>Error Message</p>
+                                    <p style={{ color: activityColors.dangerText, fontSize: '14px', marginTop: '4px' }}>{log.error_message}</p>
                                   </div>
                                 )}
                                 {log.error_details && (
                                   <div style={{ gridColumn: '1 / -1' }}>
-                                    <p style={{ ...styles.label, color: '#ef4444' }}>Error Details</p>
-                                    <pre style={{ marginTop: '4px', padding: '12px', borderRadius: '8px', backgroundColor: 'rgba(239, 68, 68, 0.05)', color: '#fca5a5', fontSize: '12px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '200px' }}>
+                                    <p style={{ ...styles.label, color: activityColors.danger }}>Error Details</p>
+                                    <pre style={{ marginTop: '4px', padding: '12px', borderRadius: '8px', backgroundColor: activityColors.dangerSoft, color: activityColors.dangerText, fontSize: '12px', fontFamily: 'monospace', overflow: 'auto', maxHeight: '200px' }}>
                                       {JSON.stringify(log.error_details, null, 2)}
                                     </pre>
                                   </div>
@@ -692,7 +700,7 @@ function OverviewView({
   }
   if (error) {
     return (
-      <div style={{ ...cardStyle, borderColor: 'rgba(239,68,68,0.3)', color: '#ef4444' }}>{error}</div>
+      <div style={{ ...cardStyle, borderColor: activityColors.danger, color: activityColors.danger }}>{error}</div>
     );
   }
   if (!traffic) return null;
@@ -734,7 +742,7 @@ function OverviewView({
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
             padding: '6px 12px', borderRadius: '8px', border: 'none',
-            background: activityColors.accent, color: '#06121f', fontSize: '13px',
+            background: activityColors.accent, color: activityColors.primaryText, fontSize: '13px',
             fontWeight: 500, cursor: 'pointer', opacity: loading ? 0.7 : 1,
           }}
         >
@@ -753,7 +761,7 @@ function OverviewView({
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '16px' }}>
           {[
-            { label: 'In selected range', value: totalCount.toLocaleString(), sub: formatUsd(costForRange), color: '#3b82f6' },
+            { label: 'In selected range', value: totalCount.toLocaleString(), sub: formatUsd(costForRange), color: activityColors.accent },
             { label: 'Daily avg', value: dailyAvg.toLocaleString(), sub: '/ day', color: activityColors.accent },
             { label: 'Projected 30-day writes', value: projected30Day.toLocaleString(), sub: formatUsd(projected30DayCost) + ' write cost', color: activityColors.success },
             { label: 'Projected 30-day storage', value: storage30DayGB < 0.01 ? '<0.01 GB' : `${storage30DayGB.toFixed(2)} GB`, sub: formatUsd(storageMonthlyCost) + '/mo', color: activityColors.warning },

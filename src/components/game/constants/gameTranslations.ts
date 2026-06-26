@@ -32,6 +32,36 @@ export interface UITranslations {
   clickToPlay: string;
 }
 
+export type JumpGameDifficulty = 'easy' | 'medium' | 'hard';
+
+export interface JumpGameUITranslations {
+  stage: string;
+  highScore: string;
+  muted: string;
+  sound: string;
+  selectDifficulty: string;
+  startGame: string;
+  stopGame: string;
+  score: string;
+  combo: string;
+  slowMo: string;
+  shield: string;
+  invincible: string;
+  gameOver: string;
+  finalScore: string;
+  restartPrompt: string;
+  difficulties: Record<JumpGameDifficulty, {
+    label: string;
+    description: string;
+  }>;
+  infoSections: Array<{
+    title: string;
+    description: string;
+  }>;
+  proTipsTitle: string;
+  proTips: string[];
+}
+
 export const uiTranslations: Record<GameLanguage, UITranslations> = {
   en: {
     gamesCollection: 'Games Collection',
@@ -70,6 +100,171 @@ export const uiTranslations: Record<GameLanguage, UITranslations> = {
     features: '特徴',
     viewAllGames: '全てのゲームを見る',
     clickToPlay: 'クリックでプレイ',
+  },
+};
+
+export const jumpGameUITranslations: Record<GameLanguage, JumpGameUITranslations> = {
+  en: {
+    stage: 'Stage',
+    highScore: 'High Score',
+    muted: 'Muted',
+    sound: 'Sound',
+    selectDifficulty: 'Select Difficulty',
+    startGame: 'Start Game',
+    stopGame: 'Stop Game',
+    score: 'Score',
+    combo: 'Combo',
+    slowMo: 'Slow-Mo',
+    shield: 'Shield',
+    invincible: 'Invincible',
+    gameOver: 'Game Over',
+    finalScore: 'Final Score',
+    restartPrompt: 'Press any key to restart',
+    difficulties: {
+      easy: {
+        label: 'Easy',
+        description: 'Slower obstacles, perfect for beginners',
+      },
+      medium: {
+        label: 'Medium',
+        description: 'Balanced challenge for most players',
+      },
+      hard: {
+        label: 'Hard',
+        description: 'Fast-paced, for experienced players',
+      },
+    },
+    infoSections: [
+      {
+        title: 'Controls',
+        description: 'Press any key or tap the canvas to make the blue circle jump',
+      },
+      {
+        title: 'Objective',
+        description: 'Avoid the red square obstacles',
+      },
+      {
+        title: 'Scoring',
+        description: 'Each successful dodge earns 100 points',
+      },
+      {
+        title: 'Stages',
+        description: 'Speed increases every 500 points. Survive as long as you can!',
+      },
+      {
+        title: 'Lives',
+        description: 'You have 3 lives. Getting hit loses one life.',
+      },
+      {
+        title: 'Heart Powerup',
+        description: 'Red hearts appear every 30 seconds to restore 1 life, up to 3.',
+      },
+      {
+        title: 'Shield Powerup',
+        description: 'Green hexagons protect you from one hit for 5 seconds.',
+      },
+      {
+        title: 'Slow-Mo Powerup',
+        description: 'Purple diamonds slow down time for 3 seconds.',
+      },
+      {
+        title: 'Combo System',
+        description: 'Chain successful dodges to build your combo multiplier.',
+      },
+    ],
+    proTipsTitle: 'Pro Tips',
+    proTips: [
+      'Easy starts with only ground obstacles, making it good for beginners.',
+      'Medium keeps the challenge balanced while difficulty ramps up.',
+      'Hard is fast from the start and accelerates quickly.',
+      'Use your 3 lives carefully.',
+      'Obstacles appear at different heights, so time your jumps deliberately.',
+      'Each obstacle has random speed variation.',
+      'Collect heart powerups to restore lost lives.',
+      'Shield gives you temporary invincibility after getting hit.',
+      'Master your timing to survive higher stages.',
+    ],
+  },
+  ja: {
+    stage: 'ステージ',
+    highScore: 'ハイスコア',
+    muted: 'ミュート',
+    sound: 'サウンド',
+    selectDifficulty: '難易度を選択',
+    startGame: 'ゲーム開始',
+    stopGame: '停止',
+    score: 'スコア',
+    combo: 'コンボ',
+    slowMo: 'スロー',
+    shield: 'シールド',
+    invincible: '無敵',
+    gameOver: 'ゲームオーバー',
+    finalScore: '最終スコア',
+    restartPrompt: '任意のキーで再スタート',
+    difficulties: {
+      easy: {
+        label: '簡単',
+        description: '障害物が遅く、初めてでも遊びやすい',
+      },
+      medium: {
+        label: '普通',
+        description: '多くのプレイヤーに合うバランス型',
+      },
+      hard: {
+        label: '難しい',
+        description: '最初から速く、経験者向け',
+      },
+    },
+    infoSections: [
+      {
+        title: '操作',
+        description: '任意のキー、またはキャンバスのタップで青い円をジャンプさせます',
+      },
+      {
+        title: '目的',
+        description: '赤い四角の障害物を避けます',
+      },
+      {
+        title: 'スコア',
+        description: '障害物を避けるたびに100点入ります',
+      },
+      {
+        title: 'ステージ',
+        description: '500点ごとにスピードが上がります。できるだけ長く生き残りましょう。',
+      },
+      {
+        title: 'ライフ',
+        description: 'ライフは3つです。障害物に当たると1つ失います。',
+      },
+      {
+        title: 'ハート',
+        description: '赤いハートは30秒ごとに出現し、ライフを最大3まで1つ回復します。',
+      },
+      {
+        title: 'シールド',
+        description: '緑の六角形は5秒間、1回だけダメージを防ぎます。',
+      },
+      {
+        title: 'スロー',
+        description: '紫のダイヤは3秒間、時間の流れを遅くします。',
+      },
+      {
+        title: 'コンボ',
+        description: '連続で障害物を避けるとコンボ倍率が上がります。',
+      },
+    ],
+    proTipsTitle: 'コツ',
+    proTips: [
+      '簡単モードは最初のステージで地上障害物のみ出ます。',
+      '普通モードは難易度の上がり方がバランス型です。',
+      '難しいモードは最初から速く、加速も急です。',
+      '3つのライフを大事に使いましょう。',
+      '障害物は高さが変わるので、ジャンプのタイミングをよく見ます。',
+      '障害物ごとに少し速度が変わります。',
+      'ハートを取ると失ったライフを回復できます。',
+      'シールド中は被弾後に少し無敵になります。',
+      '高いステージまで生き残るにはタイミングが重要です。',
+    ],
   },
 };
 
@@ -564,6 +759,10 @@ export function getGameTranslation(gameId: string, lang: GameLanguage): GameTran
 
 export function getUITranslation(lang: GameLanguage): UITranslations {
   return uiTranslations[lang];
+}
+
+export function getJumpGameUITranslation(lang: GameLanguage): JumpGameUITranslations {
+  return jumpGameUITranslations[lang];
 }
 
 export function getDifficultyLabel(difficulty: 'Easy' | 'Medium' | 'Hard', lang: GameLanguage): string {

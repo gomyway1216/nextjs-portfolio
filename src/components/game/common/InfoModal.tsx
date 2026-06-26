@@ -42,13 +42,13 @@ export const InfoModal: React.FC<InfoModalProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        background: 'rgba(0, 0, 0, 0.64)',
+        background: 'var(--games-route-backdrop, rgba(0, 0, 0, 0.64))',
         backdropFilter: 'blur(14px)',
         display: 'flex',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         justifyContent: 'center',
-        zIndex: 50,
-        padding: '1rem'
+        zIndex: 80,
+        padding: '5.5rem 1rem 1rem'
       }}
       onClick={onClose}
     >
@@ -57,17 +57,17 @@ export const InfoModal: React.FC<InfoModalProps> = ({
         aria-modal="true"
         aria-labelledby={titleId}
         style={{
-          background: 'rgba(15, 23, 42, 0.96)',
-          border: '1px solid rgba(14, 165, 233, 0.34)',
+          background: 'var(--games-route-surface-raised, rgba(15, 23, 42, 0.96))',
+          border: '1px solid color-mix(in srgb, #0ea5e9 36%, var(--games-route-border, rgba(14, 165, 233, 0.34)))',
           borderRadius: '8px',
           padding: 'clamp(1.25rem, 4vw, 2rem)',
           maxWidth: '600px',
-          maxHeight: 'min(88vh, 720px)',
+          maxHeight: 'calc(100vh - 6.5rem)',
           width: '100%',
           position: 'relative',
           overflowY: 'auto',
-          color: '#e5e7eb',
-          boxShadow: '0 28px 90px rgba(0, 0, 0, 0.34)'
+          color: 'var(--games-route-fg, #e5e7eb)',
+          boxShadow: 'var(--games-route-shadow, 0 28px 90px rgba(0, 0, 0, 0.34))'
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -79,10 +79,10 @@ export const InfoModal: React.FC<InfoModalProps> = ({
             position: 'absolute',
             top: '0.875rem',
             right: '0.875rem',
-            background: isCloseHovered ? 'rgba(255, 255, 255, 0.18)' : 'rgba(255, 255, 255, 0.1)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            background: isCloseHovered ? 'var(--games-route-control-hover, rgba(255, 255, 255, 0.18))' : 'var(--games-route-control, rgba(255, 255, 255, 0.1))',
+            border: '1px solid var(--games-route-border, rgba(255, 255, 255, 0.12))',
             borderRadius: '999px',
-            color: '#fff',
+            color: 'var(--games-route-fg, #fff)',
             cursor: 'pointer',
             padding: '0.5rem',
             display: 'flex',
@@ -97,7 +97,7 @@ export const InfoModal: React.FC<InfoModalProps> = ({
         </button>
 
         <h2 id={titleId} style={{
-          color: '#fff',
+          color: 'var(--games-route-fg, #fff)',
           fontSize: 'clamp(1.45rem, 5vw, 1.875rem)',
           fontWeight: 760,
           marginBottom: '1.5rem',

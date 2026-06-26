@@ -32,7 +32,7 @@ export default function GamesLayout({ children }: { children: React.ReactNode })
           --games-route-control-hover:rgba(55,65,81,.7);
           --games-route-shadow:0 18px 60px rgba(0,0,0,.38);
         }
-        html,body{background:var(--games-route-bg);color:var(--games-route-fg)}
+        html,body{background:var(--games-route-bg);color:var(--games-route-fg);background-attachment:fixed}
       `}</style>
       {children}
     </>

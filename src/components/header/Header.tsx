@@ -11,7 +11,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import {
   BookOpenText,
   BriefcaseBusiness,
-  FileText,
+  FolderKanban,
   Gamepad2,
   House,
   LineChart,
@@ -168,7 +168,7 @@ const Header = ({ showWriting = false }: HeaderProps) => {
                 data-tooltip-content={t('home.nav.resume')}
                 onClick={handleClick}
               >
-                <FileText size={20} />
+                <BriefcaseBusiness size={20} />
               </Link>
             </li>
             {showWriting && (
@@ -225,7 +225,7 @@ const Header = ({ showWriting = false }: HeaderProps) => {
                 data-tooltip-content={t('home.nav.work')}
                 onClick={handleClick}
               >
-                <BriefcaseBusiness size={20} />
+                <FolderKanban size={20} />
               </Link>
             </li>
             <li className={activeSection === 'study' ? 'active' : ''}>

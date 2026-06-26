@@ -2,10 +2,13 @@
 
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
 import { useHighScore } from '@/hooks/useHighScore';
-import { Info,Trophy,Volume2,VolumeX,X,Zap } from 'lucide-react';
+import { Info,Trophy,Volume2,VolumeX,Zap } from 'lucide-react';
 import { useEffect,useRef,useState } from 'react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { getJumpGameUITranslation,getUITranslation } from '../constants/gameTranslations';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { InfoModal } from '../common/InfoModal';
 enum Scene {
   GameMain = 'GameMain',
   GameOver = 'GameOver',
@@ -53,10 +56,25 @@ interface GameState {
   invincibilityTimer: number;
 }
 
+const infoCardStyles = [
+  { icon: '⌨️', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.1)', border: 'rgba(14, 165, 233, 0.3)' },
+  { icon: '🎯', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', border: 'rgba(239, 68, 68, 0.3)' },
+  { icon: '⭐', color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)', border: 'rgba(234, 179, 8, 0.3)' },
+  { icon: '⚡', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.1)', border: 'rgba(168, 85, 247, 0.3)' },
+  { icon: '❤️', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', border: 'rgba(239, 68, 68, 0.3)' },
+  { icon: '💕', color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', border: 'rgba(239, 68, 68, 0.3)' },
+  { icon: '🛡️', color: '#22c55e', bg: 'rgba(34, 197, 94, 0.1)', border: 'rgba(34, 197, 94, 0.3)' },
+  { icon: '💎', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.1)', border: 'rgba(168, 85, 247, 0.3)' },
+  { icon: '🔥', color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)', border: 'rgba(234, 179, 8, 0.3)' },
+] as const;
+
 const JumpGame = () => {
   useFeatureLifecycle('game.jump-game');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const { setContent } = useGameToolbar();
+  const { language } = useGameLanguage();
+  const ui = getUITranslation(language);
+  const jumpCopy = getJumpGameUITranslation(language);
   const [isGameStarted, setIsGameStarted] = useState(false);
   const [highScore, updateHighScore] = useHighScore('jumpgame');
   const [showInfo, setShowInfo] = useState(false);
@@ -64,7 +82,11 @@ const JumpGame = () => {
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium');
   const [currentStage, setCurrentStage] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
+  const [hoveredDifficulty, setHoveredDifficulty] = useState<Difficulty | null>(null);
+  const [isStartHovered, setIsStartHovered] = useState(false);
+  const [isStopHovered, setIsStopHovered] = useState(false);
   const isMutedRef = useRef(false);
+  const jumpCopyRef = useRef(jumpCopy);
   const gameStateRef = useRef<GameState | null>(null);
   const animationIdRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -74,6 +96,10 @@ const JumpGame = () => {
   useEffect(() => {
     isMutedRef.current = isMuted;
   }, [isMuted]);
+
+  useEffect(() => {
+    jumpCopyRef.current = jumpCopy;
+  }, [jumpCopy]);
 
   // Initialize audio context once
   useEffect(() => {
@@ -517,6 +543,8 @@ const JumpGame = () => {
     ctx: CanvasRenderingContext2D,
     state: GameState
   ) => {
+    const copy = jumpCopyRef.current;
+
     ctx.imageSmoothingEnabled = false;
 
     if (state.scene === Scene.GameMain) {
@@ -648,7 +676,7 @@ const JumpGame = () => {
       // Draw score
       ctx.fillStyle = 'rgb(255,255,255)';
       ctx.font = 'bold 16pt Arial';
-      const scoreLabel = 'SCORE: ' + state.score;
+      const scoreLabel = `${copy.score.toUpperCase()}: ${state.score}`;
       const scoreLabelWidth = ctx.measureText(scoreLabel).width;
       ctx.fillText(scoreLabel, 460 - scoreLabelWidth, 40);
 
@@ -678,14 +706,14 @@ const JumpGame = () => {
       if (state.combo > 1) {
         ctx.fillStyle = '#eab308';
         ctx.font = 'bold 12pt Arial';
-        ctx.fillText(`COMBO x${state.combo}`, 20, 460);
+        ctx.fillText(`${copy.combo.toUpperCase()} x${state.combo}`, 20, 460);
       }
 
       // Draw stage indicator
       if (state.stage > 1) {
         ctx.fillStyle = '#eab308';
         ctx.font = 'bold 14pt Arial';
-        ctx.fillText(`STAGE ${state.stage}`, 20, 40);
+        ctx.fillText(`${copy.stage.toUpperCase()} ${state.stage}`, 20, 40);
       }
 
       // Draw active effects
@@ -693,20 +721,20 @@ const JumpGame = () => {
       if (state.slowMoTimer > 0) {
         ctx.fillStyle = '#a855f7';
         ctx.font = 'bold 10pt Arial';
-        ctx.fillText(`SLOW-MO: ${Math.ceil(state.slowMoTimer / 60)}s`, 20, effectY);
+        ctx.fillText(`${copy.slowMo.toUpperCase()}: ${Math.ceil(state.slowMoTimer / 60)}s`, 20, effectY);
         effectY += 20;
       }
       if (state.shieldTimer > 0) {
         ctx.fillStyle = '#22c55e';
         ctx.font = 'bold 10pt Arial';
-        ctx.fillText(`SHIELD: ${Math.ceil(state.shieldTimer / 60)}s`, 20, effectY);
+        ctx.fillText(`${copy.shield.toUpperCase()}: ${Math.ceil(state.shieldTimer / 60)}s`, 20, effectY);
         effectY += 20;
       }
       // Debug: Show invincibility status
       if (state.invincibilityTimer > 0) {
         ctx.fillStyle = '#fbbf24';
         ctx.font = 'bold 10pt Arial';
-        ctx.fillText(`INVINCIBLE: ${Math.ceil(state.invincibilityTimer / 60)}s`, 20, effectY);
+        ctx.fillText(`${copy.invincible.toUpperCase()}: ${Math.ceil(state.invincibilityTimer / 60)}s`, 20, effectY);
       }
     } else if (state.scene === Scene.GameOver) {
       // Background with fade
@@ -767,7 +795,7 @@ const JumpGame = () => {
       // Draw score
       ctx.fillStyle = 'rgb(255,255,255)';
       ctx.font = 'bold 16pt Arial';
-      const scoreLabel = 'SCORE: ' + state.score;
+      const scoreLabel = `${copy.score.toUpperCase()}: ${state.score}`;
       const scoreLabelWidth = ctx.measureText(scoreLabel).width;
       ctx.fillText(scoreLabel, 460 - scoreLabelWidth, 40);
 
@@ -781,7 +809,7 @@ const JumpGame = () => {
         ctx.scale(textScale, textScale);
         ctx.fillStyle = `rgba(255, 255, 255, ${textAlpha})`;
         ctx.font = 'bold 48pt Arial';
-        const gameOverLabel = 'GAME OVER';
+        const gameOverLabel = copy.gameOver.toUpperCase();
         const gameOverWidth = ctx.measureText(gameOverLabel).width;
         ctx.fillText(gameOverLabel, -gameOverWidth / 2, 0);
         ctx.restore();
@@ -790,7 +818,7 @@ const JumpGame = () => {
         if (state.frameCount > 45) {
           ctx.fillStyle = `rgba(14, 165, 233, ${Math.min((state.frameCount - 45) / 30, 1)})`;
           ctx.font = 'bold 24pt Arial';
-          const finalScoreLabel = `Final Score: ${state.score}`;
+          const finalScoreLabel = `${copy.finalScore}: ${state.score}`;
           const finalScoreWidth = ctx.measureText(finalScoreLabel).width;
           ctx.fillText(finalScoreLabel, 240 - finalScoreWidth / 2, 260);
         }
@@ -801,7 +829,7 @@ const JumpGame = () => {
         const blinkAlpha = Math.sin(state.frameCount * 0.1) * 0.3 + 0.7;
         ctx.fillStyle = `rgba(14, 165, 233, ${blinkAlpha})`;
         ctx.font = 'bold 16pt Arial';
-        const restartLabel = 'Press any key to restart';
+        const restartLabel = copy.restartPrompt;
         const restartWidth = ctx.measureText(restartLabel).width;
         ctx.fillText(restartLabel, 240 - restartWidth / 2, 320);
       }
@@ -899,7 +927,7 @@ const JumpGame = () => {
             }}>
               <Zap style={{ width: '1.25rem', height: '1.25rem', color: '#eab308' }} />
               <div>
-                <div style={{ fontSize: '0.625rem', color: '#94a3b8', textTransform: 'uppercase' }}>Stage</div>
+                <div style={{ fontSize: '0.625rem', color: 'var(--games-route-muted)', textTransform: 'uppercase' }}>{jumpCopy.stage}</div>
                 <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#eab308' }}>{currentStage}</div>
               </div>
             </div>
@@ -911,7 +939,7 @@ const JumpGame = () => {
           }}>
             <Trophy style={{ width: '1.25rem', height: '1.25rem', color: '#0ea5e9' }} />
             <div>
-              <div style={{ fontSize: '0.625rem', color: '#94a3b8', textTransform: 'uppercase' }}>High Score</div>
+              <div style={{ fontSize: '0.625rem', color: 'var(--games-route-muted)', textTransform: 'uppercase' }}>{jumpCopy.highScore}</div>
               <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#0ea5e9' }}>{highScore}</div>
             </div>
           </div>
@@ -930,7 +958,7 @@ const JumpGame = () => {
             }}
           >
             {isMuted ? <VolumeX style={{ width: '1rem', height: '1rem' }} /> : <Volume2 style={{ width: '1rem', height: '1rem' }} />}
-            {isMuted ? 'Muted' : 'Sound'}
+            {isMuted ? jumpCopy.muted : jumpCopy.sound}
           </button>
           <button
             onClick={() => setShowInfo(!showInfo)}
@@ -942,13 +970,13 @@ const JumpGame = () => {
             }}
           >
             <Info style={{ width: '1rem', height: '1rem' }} />
-            How to Play
+            {ui.howToPlay}
           </button>
         </>
       )
     });
     return () => setContent(null);
-  }, [isGameStarted, currentStage, highScore, isMuted, showInfo, setContent]);
+  }, [isGameStarted, currentStage, highScore, isMuted, showInfo, setContent, ui.howToPlay, jumpCopy]);
 
   const getDifficultyColor = (diff: Difficulty) => {
     switch (diff) {
@@ -969,7 +997,8 @@ const JumpGame = () => {
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: '#000',
+      background: 'var(--games-route-bg)',
+      color: 'var(--games-route-fg)',
       overflow: 'hidden',
       fontFamily: 'system-ui, -apple-system, sans-serif'
     }}>
@@ -986,9 +1015,9 @@ const JumpGame = () => {
           style={{
             width: '100%',
             height: '100%',
-            border: '3px solid #0ea5e9',
+            border: '1px solid color-mix(in srgb, #0ea5e9 58%, var(--games-route-border))',
             borderRadius: '0.5rem',
-            boxShadow: '0 0 50px rgba(14, 165, 233, 0.3)',
+            boxShadow: '0 18px 52px color-mix(in srgb, #0ea5e9 18%, transparent), var(--games-route-shadow)',
             backgroundColor: '#000',
             cursor: 'pointer',
             touchAction: 'none',
@@ -1004,18 +1033,20 @@ const JumpGame = () => {
             flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
-            background: 'rgba(0, 0, 0, 0.95)',
+            background: 'var(--games-route-overlay)',
+            backdropFilter: 'blur(14px)',
             borderRadius: '0.5rem',
+            border: '1px solid var(--games-route-border)',
             padding: '2rem'
           }}>
             <h2 style={{
-              color: '#fff',
+              color: 'var(--games-route-fg)',
               fontSize: '1.875rem',
               fontWeight: 'bold',
               marginBottom: '1.5rem',
               textAlign: 'center'
             }}>
-              Select Difficulty
+              {jumpCopy.selectDifficulty}
             </h2>
 
             <div style={{
@@ -1029,16 +1060,21 @@ const JumpGame = () => {
               {(['easy', 'medium', 'hard'] as Difficulty[]).map((diff) => {
                 const colors = getDifficultyColor(diff);
                 const isSelected = selectedDifficulty === diff;
+                const isHovered = hoveredDifficulty === diff;
 
                 return (
                   <button
                     key={diff}
+                    type="button"
                     onClick={() => setSelectedDifficulty(diff)}
+                    onMouseEnter={() => setHoveredDifficulty(diff)}
+                    onMouseLeave={() => setHoveredDifficulty((current) => current === diff ? null : current)}
+                    aria-pressed={isSelected}
                     style={{
-                      background: isSelected ? colors.bg : 'rgba(31, 41, 55, 0.5)',
-                      border: `2px solid ${isSelected ? colors.border : 'rgba(75, 85, 99, 1)'}`,
+                      background: isSelected ? colors.bg : isHovered ? 'var(--games-route-control-hover)' : 'var(--games-route-control)',
+                      border: `1px solid ${isSelected || isHovered ? colors.border : 'var(--games-route-border)'}`,
                       borderRadius: '0.5rem',
-                      color: isSelected ? colors.text : '#9ca3af',
+                      color: isSelected ? colors.text : 'var(--games-route-fg)',
                       padding: '1rem',
                       fontSize: '1.125rem',
                       fontWeight: '600',
@@ -1046,24 +1082,10 @@ const JumpGame = () => {
                       transition: 'all 0.2s',
                       textTransform: 'uppercase'
                     }}
-                    onMouseEnter={(e) => {
-                      if (!isSelected) {
-                        e.currentTarget.style.background = 'rgba(55, 65, 81, 0.7)';
-                        e.currentTarget.style.borderColor = colors.border;
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSelected) {
-                        e.currentTarget.style.background = 'rgba(31, 41, 55, 0.5)';
-                        e.currentTarget.style.borderColor = 'rgba(75, 85, 99, 1)';
-                      }
-                    }}
                   >
-                    {diff}
+                    {jumpCopy.difficulties[diff].label}
                     <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.8 }}>
-                      {diff === 'easy' && 'Slower obstacles, perfect for beginners'}
-                      {diff === 'medium' && 'Balanced challenge for most players'}
-                      {diff === 'hard' && 'Fast-paced, for experienced players'}
+                      {jumpCopy.difficulties[diff].description}
                     </div>
                   </button>
                 );
@@ -1071,9 +1093,12 @@ const JumpGame = () => {
             </div>
 
             <button
+              type="button"
               onClick={startGame}
+              onMouseEnter={() => setIsStartHovered(true)}
+              onMouseLeave={() => setIsStartHovered(false)}
               style={{
-                background: '#0ea5e9',
+                background: isStartHovered ? '#0284c7' : '#0ea5e9',
                 border: 'none',
                 borderRadius: '0.5rem',
                 color: '#fff',
@@ -1082,18 +1107,11 @@ const JumpGame = () => {
                 padding: '1.5rem 3rem',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
-                boxShadow: '0 10px 40px rgba(14, 165, 233, 0.5)'
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = '#0284c7';
-                e.currentTarget.style.transform = 'scale(1.05)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = '#0ea5e9';
-                e.currentTarget.style.transform = 'scale(1)';
+                boxShadow: '0 10px 40px rgba(14, 165, 233, 0.5)',
+                transform: isStartHovered ? 'scale(1.05)' : 'scale(1)'
               }}
             >
-              Start Game
+              {jumpCopy.startGame}
             </button>
           </div>
         )}
@@ -1103,9 +1121,12 @@ const JumpGame = () => {
       {isGameStarted && (
         <div style={{ position: 'absolute', bottom: '2rem' }}>
           <button
+            type="button"
             onClick={stopGame}
+            onMouseEnter={() => setIsStopHovered(true)}
+            onMouseLeave={() => setIsStopHovered(false)}
             style={{
-              background: '#ef4444',
+              background: isStopHovered ? '#dc2626' : '#ef4444',
               border: 'none',
               borderRadius: '0.5rem',
               color: '#fff',
@@ -1113,231 +1134,59 @@ const JumpGame = () => {
               fontWeight: '600',
               padding: '0.75rem 2rem',
               cursor: 'pointer',
-              transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#dc2626';
-              e.currentTarget.style.transform = 'scale(1.05)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#ef4444';
-              e.currentTarget.style.transform = 'scale(1)';
+              transition: 'all 0.2s',
+              transform: isStopHovered ? 'scale(1.05)' : 'scale(1)'
             }}
           >
-            Stop Game
+            {jumpCopy.stopGame}
           </button>
         </div>
       )}
 
-      {/* Info Modal */}
-      {showInfo && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.8)',
-            backdropFilter: 'blur(8px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 50,
-            padding: '1rem'
-          }}
-          onClick={() => setShowInfo(false)}
-        >
-          <div
-            style={{
-              background: '#1f2937',
-              border: '1px solid rgba(14, 165, 233, 0.3)',
-              borderRadius: '1rem',
-              padding: '2rem',
-              maxWidth: '600px',
-              maxHeight: '90vh',
-              width: '100%',
-              position: 'relative',
-              overflowY: 'auto'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowInfo(false)}
-              style={{
-                position: 'absolute',
-                top: '1rem',
-                right: '1rem',
-                background: 'rgba(255, 255, 255, 0.1)',
-                border: 'none',
-                borderRadius: '0.375rem',
-                color: '#fff',
-                cursor: 'pointer',
-                padding: '0.5rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'background 0.2s'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
-              onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'}
-            >
-              <X style={{ width: '1.25rem', height: '1.25rem' }} />
-            </button>
+      <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={ui.howToPlay}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+          gap: '1rem',
+          marginBottom: '1.5rem'
+        }}>
+          {jumpCopy.infoSections.map((section, index) => {
+            const style = infoCardStyles[index];
 
-            <h2 style={{
-              color: '#fff',
-              fontSize: '1.875rem',
-              fontWeight: 'bold',
-              marginBottom: '1.5rem',
-              textAlign: 'center'
-            }}>
-              How to Play
-            </h2>
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-              gap: '1rem',
-              marginBottom: '1.5rem'
-            }}>
-              <div style={{
-                background: 'rgba(14, 165, 233, 0.1)',
-                border: '1px solid rgba(14, 165, 233, 0.3)',
-                borderRadius: '0.5rem',
-                padding: '1rem'
-              }}>
-                <div style={{ color: '#0ea5e9', fontSize: '2rem', marginBottom: '0.5rem' }}>⌨️</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Controls</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                  Press any key to make the blue circle jump
+            return (
+              <div
+                key={section.title}
+                style={{
+                  background: style.bg,
+                  border: `1px solid ${style.border}`,
+                  borderRadius: '0.5rem',
+                  padding: '1rem'
+                }}
+              >
+                <div style={{ color: style.color, fontSize: '2rem', marginBottom: '0.5rem' }}>{style.icon}</div>
+                <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>{section.title}</h3>
+                <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
+                  {section.description}
                 </p>
               </div>
-
-              <div style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '0.5rem',
-                padding: '1rem'
-              }}>
-                <div style={{ color: '#ef4444', fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Objective</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                  Avoid the red square obstacles
-                </p>
-              </div>
-
-              <div style={{
-                background: 'rgba(234, 179, 8, 0.1)',
-                border: '1px solid rgba(234, 179, 8, 0.3)',
-                borderRadius: '0.5rem',
-                padding: '1rem'
-              }}>
-                <div style={{ color: '#eab308', fontSize: '2rem', marginBottom: '0.5rem' }}>⭐</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Scoring</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                  Each successful dodge earns 100 points
-                </p>
-              </div>
-
-              <div style={{
-                background: 'rgba(168, 85, 247, 0.1)',
-                border: '1px solid rgba(168, 85, 247, 0.3)',
-                borderRadius: '0.5rem',
-                padding: '1rem'
-              }}>
-                <div style={{ color: '#a855f7', fontSize: '2rem', marginBottom: '0.5rem' }}>⚡</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Stages</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                  Speed increases every 500 points - survive as long as you can!
-                </p>
-              </div>
-
-              <div style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '0.5rem',
-                padding: '1rem'
-              }}>
-                <div style={{ color: '#ef4444', fontSize: '2rem', marginBottom: '0.5rem' }}>❤️</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Lives</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                  You have 3 lives. Getting hit loses one life!
-                </p>
-              </div>
-
-              <div style={{
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '0.5rem',
-                padding: '1rem'
-              }}>
-                <div style={{ color: '#ef4444', fontSize: '2rem', marginBottom: '0.5rem' }}>💕</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Heart Powerup</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                  Red heart - Appears every 30 seconds to restore 1 life (max 3)
-                </p>
-              </div>
-
-              <div style={{
-                background: 'rgba(34, 197, 94, 0.1)',
-                border: '1px solid rgba(34, 197, 94, 0.3)',
-                borderRadius: '0.5rem',
-                padding: '1rem'
-              }}>
-                <div style={{ color: '#22c55e', fontSize: '2rem', marginBottom: '0.5rem' }}>🛡️</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Shield Powerup</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                  Green hexagon - Protects from one hit for 5 seconds
-                </p>
-              </div>
-
-              <div style={{
-                background: 'rgba(168, 85, 247, 0.1)',
-                border: '1px solid rgba(168, 85, 247, 0.3)',
-                borderRadius: '0.5rem',
-                padding: '1rem'
-              }}>
-                <div style={{ color: '#a855f7', fontSize: '2rem', marginBottom: '0.5rem' }}>💎</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Slow-Mo Powerup</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                  Purple diamond - Slows down time for 3 seconds
-                </p>
-              </div>
-
-              <div style={{
-                background: 'rgba(234, 179, 8, 0.1)',
-                border: '1px solid rgba(234, 179, 8, 0.3)',
-                borderRadius: '0.5rem',
-                padding: '1rem'
-              }}>
-                <div style={{ color: '#eab308', fontSize: '2rem', marginBottom: '0.5rem' }}>🔥</div>
-                <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Combo System</h3>
-                <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                  Chain successful dodges to build your combo multiplier!
-                </p>
-              </div>
-            </div>
-
-            <div style={{
-              background: 'rgba(14, 165, 233, 0.1)',
-              border: '1px solid rgba(14, 165, 233, 0.3)',
-              borderRadius: '0.5rem',
-              padding: '1rem'
-            }}>
-              <div style={{ color: '#0ea5e9', fontWeight: '600', marginBottom: '0.5rem' }}>💡 Pro Tips</div>
-              <ul style={{ color: '#d1d5db', fontSize: '0.875rem', paddingLeft: '1.5rem', margin: 0 }}>
-                <li>Easy: Only ground obstacles in stage 1, perfect for beginners!</li>
-                <li>Medium: Balanced challenge with progressive difficulty</li>
-                <li>Hard: Fast-paced from the start, increases rapidly</li>
-                <li>You have 3 lives - use them wisely!</li>
-                <li>Obstacles appear at different heights - time your jumps carefully!</li>
-                <li>Each obstacle has random speed variation</li>
-                <li>Collect heart powerups to restore lost lives</li>
-                <li>Shield gives you temporary invincibility after getting hit</li>
-                <li>Master your timing to survive higher stages!</li>
-              </ul>
-            </div>
-          </div>
+            );
+          })}
         </div>
-      )}
+
+        <div style={{
+          background: 'rgba(14, 165, 233, 0.1)',
+          border: '1px solid rgba(14, 165, 233, 0.3)',
+          borderRadius: '0.5rem',
+          padding: '1rem'
+        }}>
+          <div style={{ color: '#0ea5e9', fontWeight: '600', marginBottom: '0.5rem' }}>💡 {jumpCopy.proTipsTitle}</div>
+          <ul style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem', paddingLeft: '1.5rem', margin: 0 }}>
+            {jumpCopy.proTips.map((tip) => (
+              <li key={tip}>{tip}</li>
+            ))}
+          </ul>
+        </div>
+      </InfoModal>
     </div>
   );
 };

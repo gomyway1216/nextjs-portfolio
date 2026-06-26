@@ -4,10 +4,13 @@ import type { CSSProperties } from 'react';
 import type { TrafficGranularity, TrafficSeries } from '@/services/activityLogService';
 
 const CHART_COLORS = [
-  '#7c3aed', '#22c55e', '#ef4444', '#f59e0b',
-  '#3b82f6', '#a855f7', '#ec4899', '#14b8a6',
+  '#5aa2ff', '#34d399', '#ef4444', '#f59e0b',
+  '#55d6be', '#8b9cff', '#f472b6', '#14b8a6',
   '#facc15',
 ];
+
+const chartTextMuted = '#a6b0bf';
+const chartTextSubtle = '#6f7a8a';
 
 function formatBucketLabel(label: string, granularity: TrafficGranularity): string {
   if (granularity === 'day') return label.slice(5);          // "MM-DD"
@@ -55,7 +58,7 @@ export default function TrafficLineChart({ buckets, granularity, series, height 
                 stroke="rgba(255,255,255,0.08)"
                 strokeDasharray="3 3"
               />
-              <text x={padding.left - 6} y={y + 3} textAnchor="end" fontSize="10" fill="#64748b">
+              <text x={padding.left - 6} y={y + 3} textAnchor="end" fontSize="10" fill={chartTextSubtle}>
                 {tick}
               </text>
             </g>
@@ -72,7 +75,7 @@ export default function TrafficLineChart({ buckets, granularity, series, height 
               y={y}
               textAnchor="end"
               fontSize="10"
-              fill="#64748b"
+              fill={chartTextSubtle}
               transform={`rotate(-45 ${x} ${y})`}
             >
               {formatBucketLabel(bucket.label, granularity)}
@@ -117,11 +120,11 @@ export default function TrafficLineChart({ buckets, granularity, series, height 
           return (
             <div
               key={`legend-${item.key}`}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#94a3b8' }}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: chartTextMuted }}
             >
               <span style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
               <span>{item.label}</span>
-              <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{item.total}</span>
+              <span style={{ color: '#f5f7fb', fontWeight: 600 }}>{item.total}</span>
             </div>
           );
         })}

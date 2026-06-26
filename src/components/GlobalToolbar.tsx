@@ -227,8 +227,8 @@ export function GlobalToolbar() {
   };
 
   const accentSoft = `color-mix(in srgb, ${theme.accent} 10%, transparent)`;
-  const toolbarBorder = 'color-mix(in srgb, var(--border) 70%, transparent)';
-  const toolbarBg = 'color-mix(in srgb, var(--background) 60%, transparent)';
+  const toolbarBorder = isGameSubPage ? 'var(--games-route-border)' : 'color-mix(in srgb, var(--border) 70%, transparent)';
+  const toolbarBg = isGameSubPage ? 'var(--games-route-surface)' : 'color-mix(in srgb, var(--background) 60%, transparent)';
   const displayedGame = isGameSubPage && currentGameState?.pathname === pathname ? currentGameState.game : null;
   const displayedGameTitle = displayedGame
     ? t(`games.${displayedGame.id}.title`, { defaultValue: displayedGame.title })

@@ -34,15 +34,15 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
     <div style={{
       width: 'min(92vw, 520px)',
       maxWidth: 'calc(100vw - 2rem)',
-      background: 'color-mix(in srgb, var(--card) 90%, #0ea5e9 10%)',
-      border: '1px solid color-mix(in srgb, var(--border) 58%, #0ea5e9 42%)',
+      background: 'var(--games-route-surface-raised, color-mix(in srgb, var(--card) 90%, #0ea5e9 10%))',
+      border: '1px solid color-mix(in srgb, var(--games-route-border, var(--border)) 58%, #0ea5e9 42%)',
       borderRadius: '8px',
       padding: 'clamp(1.25rem, 5vw, 3rem)',
       boxShadow: '0 24px 70px color-mix(in srgb, #0ea5e9 18%, transparent)',
-      color: 'var(--card-foreground)'
+      color: 'var(--games-route-fg, var(--card-foreground))'
     }}>
       <h1 style={{
-        color: 'var(--foreground)',
+        color: 'var(--games-route-fg, var(--foreground))',
         fontSize: 'clamp(1.8rem, 7vw, 2.5rem)',
         fontWeight: 760,
         marginBottom: '1rem',
@@ -60,7 +60,7 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
 
       {subtitle && (
         <p style={{
-          color: 'var(--muted-foreground)',
+          color: 'var(--games-route-muted, var(--muted-foreground))',
           textAlign: 'center',
           marginBottom: '2rem',
           lineHeight: 1.55
@@ -70,7 +70,7 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
       )}
 
       <h2 style={{
-        color: 'var(--foreground)',
+        color: 'var(--games-route-fg, var(--foreground))',
         fontSize: 'clamp(1.15rem, 4vw, 1.5rem)',
         fontWeight: 720,
         marginBottom: '1rem',
@@ -99,11 +99,11 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
                 background: isSelected
                   ? colors.bg
                   : isHovered
-                    ? 'color-mix(in srgb, var(--card) 74%, #0ea5e9 26%)'
-                    : 'color-mix(in srgb, var(--card) 82%, var(--muted) 18%)',
-                border: `2px solid ${isSelected || isHovered ? colors.border : 'color-mix(in srgb, var(--border) 80%, #0ea5e9 20%)'}`,
+                    ? 'var(--games-route-control-hover, color-mix(in srgb, var(--card) 74%, #0ea5e9 26%))'
+                    : 'var(--games-route-control, color-mix(in srgb, var(--card) 82%, var(--muted) 18%))',
+                border: `2px solid ${isSelected || isHovered ? colors.border : 'color-mix(in srgb, var(--games-route-border, var(--border)) 80%, #0ea5e9 20%)'}`,
                 borderRadius: '0.5rem',
-                color: isSelected ? colors.text : 'var(--muted-foreground)',
+                color: isSelected ? colors.text : 'var(--games-route-muted, var(--muted-foreground))',
                 padding: '0.9rem 1rem',
                 fontSize: 'clamp(0.98rem, 3.4vw, 1.125rem)',
                 fontWeight: '600',

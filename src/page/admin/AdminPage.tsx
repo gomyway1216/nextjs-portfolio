@@ -16,12 +16,15 @@ import { uploadProfilePhoto, uploadResume } from '@/services/profileService';
 import type { Project } from '@/services/projectsService';
 import type { Technology } from '@/services/technologiesService';
 import * as technologyApi from '@/services/technologiesService';
+import * as Select from '@radix-ui/react-select';
 import {
 AlertCircle,
 ArrowLeft,
 BookOpen,
 Briefcase,
+Check,
 CheckCircle,
+ChevronDown,
 ExternalLink,
 Eye,
 EyeOff,
@@ -365,6 +368,65 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     minHeight: '38px',
     accentColor: adminColors.accent,
+  },
+  radixSelectTrigger: {
+    width: '100%',
+    minHeight: '42px',
+    padding: '9px 11px',
+    borderRadius: '8px',
+    border: `1px solid ${adminColors.borderStrong}`,
+    backgroundColor: adminColors.surfaceRaised,
+    color: adminColors.text,
+    fontSize: '14px',
+    cursor: 'pointer',
+    lineHeight: 1.45,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '8px',
+    textAlign: 'left' as const,
+  },
+  radixSelectValue: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  radixSelectContent: {
+    zIndex: 120,
+    width: 'var(--radix-select-trigger-width)',
+    maxHeight: '280px',
+    overflow: 'hidden',
+    borderRadius: '8px',
+    border: `1px solid ${adminColors.borderStrong}`,
+    backgroundColor: adminColors.surfaceRaised,
+    color: adminColors.text,
+    boxShadow: adminShadows.modal,
+  },
+  radixSelectViewport: {
+    padding: '4px',
+  },
+  radixSelectItem: {
+    position: 'relative' as const,
+    minHeight: '36px',
+    display: 'flex',
+    alignItems: 'center',
+    padding: '8px 34px 8px 11px',
+    borderRadius: '6px',
+    color: adminColors.text,
+    fontSize: '14px',
+    lineHeight: 1.35,
+    outline: 'none',
+    cursor: 'pointer',
+    userSelect: 'none' as const,
+  },
+  radixSelectItemIndicator: {
+    position: 'absolute' as const,
+    right: '10px',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: adminColors.accent,
   },
   label: {
     display: 'block',
@@ -1999,6 +2061,12 @@ const AdminPage = () => {
     { id: 'activity-logs' as AdminSection, label: 'Activity Log', icon: ScrollText },
   ];
   const selectedPostTags = normalizePostTags(postTagsInput);
+  const isPostCategorySelectDisabled = postTaxonomyLoading || postCategoryOptions.length === 0;
+  const postCategoryPlaceholder = postTaxonomyLoading
+    ? 'Loading categories...'
+    : postCategoryOptions.length === 0
+      ? 'No categories available'
+      : 'Select category';
 
   return (
     <div className="admin-console" style={styles.container}>
@@ -3153,21 +3221,56 @@ const AdminPage = () => {
                 </p>
                 <div>
                   <label style={styles.label}>Category *</label>
-                  <input
-                    list="post-category-options"
-                    value={postForm.category}
-                    onChange={(e) => setPostForm({ ...postForm, category: e.target.value })}
-                    onBlur={() => setPostForm({ ...postForm, category: normalizePostCategory(postForm.category) })}
-                    placeholder="system-design"
-                    style={styles.input}
-                  />
-                  <datalist id="post-category-options">
-                    {postCategoryOptions.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </datalist>
+                  <Select.Root
+                    value={postForm.category || undefined}
+                    onValueChange={(category) => setPostForm((prev) => ({ ...prev, category }))}
+                    disabled={isPostCategorySelectDisabled}
+                  >
+                    <Select.Trigger
+                      aria-label="Category"
+                      style={{
+                        ...styles.radixSelectTrigger,
+                        cursor: isPostCategorySelectDisabled ? 'not-allowed' : 'pointer',
+                        opacity: isPostCategorySelectDisabled ? 0.7 : 1,
+                      }}
+                    >
+                      <span style={styles.radixSelectValue}>
+                        <Select.Value placeholder={postCategoryPlaceholder} />
+                      </span>
+                      {postTaxonomyLoading ? (
+                        <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
+                      ) : (
+                        <Select.Icon asChild>
+                          <ChevronDown size={16} style={{ flexShrink: 0, color: adminColors.textMuted }} />
+                        </Select.Icon>
+                      )}
+                    </Select.Trigger>
+                    <Select.Portal>
+                      <Select.Content
+                        position="popper"
+                        sideOffset={4}
+                        style={styles.radixSelectContent}
+                      >
+                        <Select.Viewport style={styles.radixSelectViewport}>
+                          {postCategoryOptions.map((cat) => (
+                            <Select.Item
+                              key={cat}
+                              value={cat}
+                              className="admin-radix-select-item"
+                              style={styles.radixSelectItem}
+                            >
+                              <Select.ItemText>{cat}</Select.ItemText>
+                              <Select.ItemIndicator style={styles.radixSelectItemIndicator}>
+                                <Check size={14} />
+                              </Select.ItemIndicator>
+                            </Select.Item>
+                          ))}
+                        </Select.Viewport>
+                      </Select.Content>
+                    </Select.Portal>
+                  </Select.Root>
                   <p style={{ color: adminColors.textMuted, fontSize: '12px', margin: '8px 0 0' }}>
-                    Use a slug like system-design. New values are saved on the post and appear here next time.
+                    Category choices come from Blog Taxonomy.
                   </p>
                 </div>
                 <div>
@@ -3422,6 +3525,15 @@ const AdminPage = () => {
         @keyframes spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+
+        .admin-radix-select-item[data-highlighted] {
+          background: var(--admin-accent-soft);
+          color: var(--admin-text);
+        }
+
+        .admin-radix-select-item[data-state="checked"] {
+          color: var(--admin-accent);
         }
       `}</style>
     </div>

@@ -1,7 +1,96 @@
 .admin-console {
+  --admin-color-scheme: light;
+  --admin-page: #f7f8fb;
+  --admin-page-soft: #eef2f7;
+  --admin-sidebar: #ffffff;
+  --admin-surface: #ffffff;
+  --admin-surface-raised: #f8fafc;
+  --admin-surface-muted: #f1f5f9;
+  --admin-border: rgba(15, 23, 42, 0.1);
+  --admin-border-strong: rgba(15, 23, 42, 0.16);
+  --admin-text: #111827;
+  --admin-text-soft: #334155;
+  --admin-text-muted: #475569;
+  --admin-text-subtle: #64748b;
+  --admin-accent: #2563eb;
+  --admin-accent-soft: rgba(37, 99, 235, 0.1);
+  --admin-accent-border: rgba(37, 99, 235, 0.32);
+  --admin-accent-secondary: #0f766e;
+  --admin-accent-secondary-soft: rgba(15, 118, 110, 0.1);
+  --admin-accent-secondary-border: rgba(15, 118, 110, 0.24);
+  --admin-primary-text: #ffffff;
+  --admin-success: #059669;
+  --admin-success-soft: rgba(5, 150, 105, 0.11);
+  --admin-success-border: rgba(5, 150, 105, 0.24);
+  --admin-danger: #dc2626;
+  --admin-danger-strong: #ef4444;
+  --admin-danger-soft: rgba(220, 38, 38, 0.1);
+  --admin-danger-border: rgba(220, 38, 38, 0.24);
+  --admin-danger-text: #b91c1c;
+  --admin-danger-text-strong: #991b1b;
+  --admin-danger-button-text: #ffffff;
+  --admin-warning: #ca8a04;
+  --admin-warning-soft: rgba(202, 138, 4, 0.12);
+  --admin-code-bg: #edf2f7;
+  --admin-chart-grid: rgba(15, 23, 42, 0.1);
+  --admin-modal-backdrop: rgba(15, 23, 42, 0.44);
+  --admin-toast-success-bg: rgba(236, 253, 245, 0.98);
+  --admin-toast-error-bg: rgba(254, 242, 242, 0.98);
+  --admin-shadow-surface: 0 12px 32px rgba(15, 23, 42, 0.08);
+  --admin-shadow-sidebar: 8px 0 24px rgba(15, 23, 42, 0.06);
+  --admin-shadow-modal: 0 28px 80px rgba(15, 23, 42, 0.18);
+  --admin-focus-ring: rgba(37, 99, 235, 0.48);
+  --admin-row-hover: rgba(15, 23, 42, 0.035);
+
+  color-scheme: var(--admin-color-scheme);
   font-family: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+.dark .admin-console {
+  --admin-color-scheme: dark;
+  --admin-page: #0a0b0d;
+  --admin-page-soft: #101318;
+  --admin-sidebar: #0d0f13;
+  --admin-surface: #14171c;
+  --admin-surface-raised: #181c22;
+  --admin-surface-muted: #111419;
+  --admin-border: rgba(226, 232, 240, 0.12);
+  --admin-border-strong: rgba(226, 232, 240, 0.18);
+  --admin-text: #f5f7fb;
+  --admin-text-soft: #d7dde7;
+  --admin-text-muted: #a6b0bf;
+  --admin-text-subtle: #6f7a8a;
+  --admin-accent: #5aa2ff;
+  --admin-accent-soft: rgba(90, 162, 255, 0.14);
+  --admin-accent-border: rgba(90, 162, 255, 0.34);
+  --admin-accent-secondary: #55d6be;
+  --admin-accent-secondary-soft: rgba(85, 214, 190, 0.12);
+  --admin-accent-secondary-border: rgba(85, 214, 190, 0.28);
+  --admin-primary-text: #06121f;
+  --admin-success: #34d399;
+  --admin-success-soft: rgba(52, 211, 153, 0.12);
+  --admin-success-border: rgba(52, 211, 153, 0.3);
+  --admin-danger: #f87171;
+  --admin-danger-strong: #ef4444;
+  --admin-danger-soft: rgba(239, 68, 68, 0.12);
+  --admin-danger-border: rgba(239, 68, 68, 0.3);
+  --admin-danger-text: #fca5a5;
+  --admin-danger-text-strong: #fecaca;
+  --admin-danger-button-text: #ffffff;
+  --admin-warning: #facc15;
+  --admin-warning-soft: rgba(250, 204, 21, 0.14);
+  --admin-code-bg: #0b0d10;
+  --admin-chart-grid: rgba(255, 255, 255, 0.08);
+  --admin-modal-backdrop: rgba(0, 0, 0, 0.72);
+  --admin-toast-success-bg: rgba(6, 78, 59, 0.96);
+  --admin-toast-error-bg: rgba(127, 29, 29, 0.96);
+  --admin-shadow-surface: 0 12px 32px rgba(0, 0, 0, 0.2);
+  --admin-shadow-sidebar: 8px 0 24px rgba(0, 0, 0, 0.18);
+  --admin-shadow-modal: 0 28px 80px rgba(0, 0, 0, 0.45);
+  --admin-focus-ring: rgba(90, 162, 255, 0.58);
+  --admin-row-hover: rgba(255, 255, 255, 0.02);
 }
 
 .admin-console,
@@ -22,8 +111,19 @@
 .admin-console input:focus-visible,
 .admin-console select:focus-visible,
 .admin-console textarea:focus-visible {
-  outline: 2px solid rgba(90, 162, 255, 0.78);
+  outline: 2px solid var(--admin-focus-ring);
   outline-offset: 2px;
+}
+
+.admin-console__nav-button:not([data-active="true"]):hover {
+  background-color: var(--admin-surface-raised) !important;
+  border-color: var(--admin-border-strong) !important;
+  color: var(--admin-text) !important;
+}
+
+.admin-console__logout-button:not(:disabled):hover {
+  background-color: var(--admin-danger-soft) !important;
+  color: var(--admin-danger-text-strong) !important;
 }
 
 .admin-console button:disabled {
@@ -39,11 +139,11 @@
 }
 
 .admin-console tbody tr:hover {
-  background-color: rgba(255, 255, 255, 0.02);
+  background-color: var(--admin-row-hover);
 }
 
 .admin-console ::selection {
-  background: rgba(90, 162, 255, 0.28);
+  background: var(--admin-accent-soft);
 }
 
 @media (max-width: 960px) {

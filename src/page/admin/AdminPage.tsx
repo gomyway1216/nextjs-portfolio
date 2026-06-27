@@ -4,6 +4,7 @@ import { usePostCategories,usePostMutations,usePosts } from '@/hooks/usePosts';
 import { updateProfile,useProfile,useResumeLink } from '@/hooks/useProfile';
 import { useProjectCategories,useProjectMutations,useProjects,useUrlTypes } from '@/hooks/useProjects';
 import RichContentRenderer from '@/components/common/RichContentRenderer';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import type { PostLanguage,PostTranslations } from '@/lib/blog/postTranslations';
 import { useAuth } from '@/providers/AuthProvider';
 import * as imageApi from '@/services/imageService';
@@ -78,31 +79,44 @@ const getTechName = (tech: string | { name: string; id?: string; type?: string }
 };
 
 const adminColors = {
-  page: '#0a0b0d',
-  pageSoft: '#101318',
-  sidebar: '#0d0f13',
-  surface: '#14171c',
-  surfaceRaised: '#181c22',
-  surfaceMuted: '#111419',
-  border: 'rgba(226, 232, 240, 0.12)',
-  borderStrong: 'rgba(226, 232, 240, 0.18)',
-  text: '#f5f7fb',
-  textMuted: '#a6b0bf',
-  textSubtle: '#6f7a8a',
-  accent: '#5aa2ff',
-  accentSoft: 'rgba(90, 162, 255, 0.14)',
-  accentBorder: 'rgba(90, 162, 255, 0.34)',
-  accentSecondary: '#55d6be',
-  success: '#34d399',
-  danger: '#f87171',
-  dangerStrong: '#ef4444',
-  warning: '#facc15',
+  page: 'var(--admin-page)',
+  pageSoft: 'var(--admin-page-soft)',
+  sidebar: 'var(--admin-sidebar)',
+  surface: 'var(--admin-surface)',
+  surfaceRaised: 'var(--admin-surface-raised)',
+  surfaceMuted: 'var(--admin-surface-muted)',
+  border: 'var(--admin-border)',
+  borderStrong: 'var(--admin-border-strong)',
+  text: 'var(--admin-text)',
+  textSoft: 'var(--admin-text-soft)',
+  textMuted: 'var(--admin-text-muted)',
+  textSubtle: 'var(--admin-text-subtle)',
+  accent: 'var(--admin-accent)',
+  accentSoft: 'var(--admin-accent-soft)',
+  accentBorder: 'var(--admin-accent-border)',
+  accentSecondary: 'var(--admin-accent-secondary)',
+  accentSecondarySoft: 'var(--admin-accent-secondary-soft)',
+  accentSecondaryBorder: 'var(--admin-accent-secondary-border)',
+  primaryText: 'var(--admin-primary-text)',
+  success: 'var(--admin-success)',
+  successSoft: 'var(--admin-success-soft)',
+  successBorder: 'var(--admin-success-border)',
+  danger: 'var(--admin-danger)',
+  dangerStrong: 'var(--admin-danger-strong)',
+  dangerSoft: 'var(--admin-danger-soft)',
+  dangerBorder: 'var(--admin-danger-border)',
+  dangerText: 'var(--admin-danger-text)',
+  dangerTextStrong: 'var(--admin-danger-text-strong)',
+  dangerButtonText: 'var(--admin-danger-button-text)',
+  warning: 'var(--admin-warning)',
+  warningSoft: 'var(--admin-warning-soft)',
+  codeBg: 'var(--admin-code-bg)',
 } as const;
 
 const adminShadows = {
-  surface: '0 12px 32px rgba(0, 0, 0, 0.2)',
-  sidebar: '8px 0 24px rgba(0, 0, 0, 0.18)',
-  modal: '0 28px 80px rgba(0, 0, 0, 0.45)',
+  surface: 'var(--admin-shadow-surface)',
+  sidebar: 'var(--admin-shadow-sidebar)',
+  modal: 'var(--admin-shadow-modal)',
 } as const;
 
 const adminTransition = 'background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease, box-shadow 160ms ease';
@@ -145,7 +159,6 @@ const styles: Record<string, CSSProperties> = {
     minHeight: '100vh',
     background: `linear-gradient(180deg, ${adminColors.page} 0%, ${adminColors.pageSoft} 100%)`,
     color: adminColors.text,
-    colorScheme: 'dark',
   },
   sidebar: {
     width: '268px',
@@ -258,7 +271,7 @@ const styles: Record<string, CSSProperties> = {
   primaryButton: {
     backgroundColor: adminColors.accent,
     borderColor: adminColors.accent,
-    color: '#06121f',
+    color: adminColors.primaryText,
   },
   outlineButton: {
     backgroundColor: adminColors.surfaceRaised,
@@ -268,7 +281,7 @@ const styles: Record<string, CSSProperties> = {
   dangerButton: {
     backgroundColor: adminColors.dangerStrong,
     borderColor: adminColors.dangerStrong,
-    color: adminColors.text,
+    color: adminColors.dangerButtonText,
   },
   ghostButton: {
     backgroundColor: 'transparent',
@@ -295,7 +308,7 @@ const styles: Record<string, CSSProperties> = {
   td: {
     padding: '14px 18px',
     borderBottom: `1px solid ${adminColors.border}`,
-    color: '#d7dde7',
+    color: adminColors.textSoft,
   },
   badge: {
     display: 'inline-flex',
@@ -308,9 +321,9 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.35,
   },
   techBadge: {
-    backgroundColor: 'rgba(85, 214, 190, 0.12)',
-    color: '#7dd3c7',
-    border: '1px solid rgba(85, 214, 190, 0.28)',
+    backgroundColor: adminColors.accentSecondarySoft,
+    color: adminColors.accentSecondary,
+    border: `1px solid ${adminColors.accentSecondaryBorder}`,
   },
   input: {
     width: '100%',
@@ -361,7 +374,7 @@ const styles: Record<string, CSSProperties> = {
   modal: {
     position: 'fixed' as const,
     inset: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.72)',
+    backgroundColor: 'var(--admin-modal-backdrop)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -411,12 +424,12 @@ const styles: Record<string, CSSProperties> = {
     boxShadow: adminShadows.modal,
   },
   toastSuccess: {
-    backgroundColor: 'rgba(6, 78, 59, 0.96)',
+    backgroundColor: 'var(--admin-toast-success-bg)',
     border: `1px solid ${adminColors.success}`,
     color: adminColors.text,
   },
   toastError: {
-    backgroundColor: 'rgba(127, 29, 29, 0.96)',
+    backgroundColor: 'var(--admin-toast-error-bg)',
     border: `1px solid ${adminColors.danger}`,
     color: adminColors.text,
   },
@@ -482,7 +495,7 @@ const ProjectsTable = memo(function ProjectsTable({
                   <button
                     onClick={() => onDelete(project)}
                     aria-label={`Delete ${project.title}`}
-                    style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
+                    style={{ ...styles.ghostButton, borderRadius: '8px', color: adminColors.danger }}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -531,13 +544,13 @@ const PostsTable = memo(function PostsTable({
                 <div style={{ fontWeight: '500', color: adminColors.text }}>{post.title}</div>
               </td>
               <td style={styles.td}>
-                <span style={{ ...styles.badge, backgroundColor: 'transparent', border: `1px solid ${adminColors.borderStrong}`, color: '#d7dde7' }}>
+                <span style={{ ...styles.badge, backgroundColor: 'transparent', border: `1px solid ${adminColors.borderStrong}`, color: adminColors.textSoft }}>
                   {post.category}
                 </span>
               </td>
               <td style={styles.td}>
                 {post.isPublic ? (
-                  <span style={{ ...styles.badge, backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
+                  <span style={{ ...styles.badge, backgroundColor: adminColors.successSoft, color: adminColors.success, border: `1px solid ${adminColors.successBorder}` }}>
                     <Eye size={12} /> Public
                   </span>
                 ) : (
@@ -566,7 +579,7 @@ const PostsTable = memo(function PostsTable({
                   <button
                     onClick={() => onDelete(post)}
                     aria-label={`Delete ${post.title}`}
-                    style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
+                    style={{ ...styles.ghostButton, borderRadius: '8px', color: adminColors.danger }}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -1639,7 +1652,7 @@ const AdminPage = () => {
           <span style={{ fontWeight: '500' }}>{message.text}</span>
           <button
             onClick={() => setMessage(null)}
-            style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px' }}
+            style={{ background: 'none', border: 'none', color: adminColors.textMuted, cursor: 'pointer', padding: '4px' }}
           >
             <X size={16} />
           </button>
@@ -1650,21 +1663,23 @@ const AdminPage = () => {
         {/* Sidebar */}
         <aside style={styles.sidebar}>
           <div style={styles.sidebarHeader}>
-            <Link
-              href="/"
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '13px',
-                color: adminColors.textMuted,
-                textDecoration: 'none',
-                marginBottom: '12px',
-              }}
-            >
-              <ArrowLeft size={14} />
-              meetyudai.com
-            </Link>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '12px' }}>
+              <Link
+                href="/"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  fontSize: '13px',
+                  color: adminColors.textMuted,
+                  textDecoration: 'none',
+                }}
+              >
+                <ArrowLeft size={14} />
+                meetyudai.com
+              </Link>
+              <ThemeToggle />
+            </div>
             <h2 style={styles.sidebarTitle}>Admin Panel</h2>
             <p style={styles.sidebarEmail}>{currentUser?.email}</p>
           </div>
@@ -1673,23 +1688,11 @@ const AdminPage = () => {
               <button
                 key={item.id}
                 onClick={() => handleSectionChange(item.id)}
+                className="admin-console__nav-button"
+                data-active={activeSection === item.id}
                 style={{
                   ...styles.navButton,
                   ...(activeSection === item.id ? styles.navButtonActive : styles.navButtonInactive),
-                }}
-                onMouseEnter={(e) => {
-                  if (activeSection !== item.id) {
-                    e.currentTarget.style.backgroundColor = adminColors.surfaceRaised;
-                    e.currentTarget.style.borderColor = adminColors.borderStrong;
-                    e.currentTarget.style.color = adminColors.text;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (activeSection !== item.id) {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.borderColor = 'transparent';
-                    e.currentTarget.style.color = adminColors.textMuted;
-                  }
                 }}
               >
                 <item.icon size={18} style={{ color: activeSection === item.id ? adminColors.accent : 'inherit' }} />
@@ -1714,22 +1717,13 @@ const AdminPage = () => {
                 type="button"
                 onClick={handleSignOut}
                 disabled={signingOut}
+                className="admin-console__logout-button"
                 style={{
                   ...styles.navButton,
                   backgroundColor: 'transparent',
-                  color: '#fca5a5',
+                  color: adminColors.dangerText,
                   cursor: signingOut ? 'not-allowed' : 'pointer',
                   opacity: signingOut ? 0.7 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  if (signingOut) return;
-                  e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.12)';
-                  e.currentTarget.style.color = '#fecaca';
-                }}
-                onMouseLeave={(e) => {
-                  if (signingOut) return;
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.color = '#fca5a5';
                 }}
               >
                 {signingOut ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <LogOut size={18} />}
@@ -1761,9 +1755,9 @@ const AdminPage = () => {
                   </div>
                 </div>
 
-                <div style={{ ...styles.card, borderColor: 'rgba(52, 211, 153, 0.3)' }}>
+                <div style={{ ...styles.card, borderColor: adminColors.successBorder }}>
                   <div style={styles.statCard}>
-                    <div style={{ ...styles.statIconWrapper, backgroundColor: 'rgba(52, 211, 153, 0.12)' }}>
+                    <div style={{ ...styles.statIconWrapper, backgroundColor: adminColors.successSoft }}>
                       <FileText size={22} color={adminColors.success} />
                     </div>
                     <div>
@@ -1773,9 +1767,9 @@ const AdminPage = () => {
                   </div>
                 </div>
 
-                <div style={{ ...styles.card, borderColor: 'rgba(85, 214, 190, 0.3)' }}>
+                <div style={{ ...styles.card, borderColor: adminColors.accentSecondaryBorder }}>
                   <div style={styles.statCard}>
-                    <div style={{ ...styles.statIconWrapper, backgroundColor: 'rgba(85, 214, 190, 0.12)' }}>
+                    <div style={{ ...styles.statIconWrapper, backgroundColor: adminColors.accentSecondarySoft }}>
                       <Briefcase size={22} color={adminColors.accentSecondary} />
                     </div>
                     <div>
@@ -1821,7 +1815,7 @@ const AdminPage = () => {
                       <>
                         {projects.slice(0, 5).map((project) => (
                           <div key={project.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${adminColors.border}` }}>
-                            <span style={{ color: '#d7dde7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.title}</span>
+                            <span style={{ color: adminColors.textSoft, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{project.title}</span>
                             <button
                               onClick={() => { handleSectionChange('projects'); handleOpenProjectModal(project); }}
                               style={{ ...styles.ghostButton, borderRadius: '8px' }}
@@ -1847,7 +1841,7 @@ const AdminPage = () => {
                       <>
                         {posts.slice(0, 5).map((post) => (
                           <div key={post.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: `1px solid ${adminColors.border}` }}>
-                            <span style={{ color: '#d7dde7', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.title}</span>
+                            <span style={{ color: adminColors.textSoft, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{post.title}</span>
                             <button
                               onClick={() => { handleSectionChange('posts'); handleOpenPostModal(post); }}
                               style={{ ...styles.ghostButton, borderRadius: '8px' }}
@@ -2259,7 +2253,7 @@ const AdminPage = () => {
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                             <h3 style={{ fontSize: '19px', fontWeight: '600', color: adminColors.text }}>{job.jobPosition}</h3>
                             {job.hidden && (
-                              <span style={{ ...styles.badge, backgroundColor: 'rgba(148, 163, 184, 0.12)', color: adminColors.textMuted, border: `1px solid ${adminColors.borderStrong}` }}>
+                              <span style={{ ...styles.badge, backgroundColor: adminColors.surfaceMuted, color: adminColors.textMuted, border: `1px solid ${adminColors.borderStrong}` }}>
                                 Hidden
                               </span>
                             )}
@@ -2403,7 +2397,7 @@ const AdminPage = () => {
                         Preview
                       </div>
                       <div style={{
-                        color: '#f3f4f6',
+                        color: adminColors.textSoft,
                         maxHeight: '360px',
                         overflowY: 'auto',
                         padding: '16px',
@@ -2474,7 +2468,7 @@ const AdminPage = () => {
                             position: 'absolute',
                             top: '-8px',
                             right: '-8px',
-                            background: '#ef4444',
+                            background: adminColors.dangerStrong,
                             border: 'none',
                             borderRadius: '50%',
                             padding: '4px',
@@ -2484,7 +2478,7 @@ const AdminPage = () => {
                             justifyContent: 'center',
                           }}
                         >
-                          <X size={14} color="#fff" />
+                          <X size={14} color={adminColors.dangerButtonText} />
                         </button>
                       </div>
                     ) : (
@@ -2619,7 +2613,7 @@ const AdminPage = () => {
                               position: 'absolute',
                               top: '-6px',
                               right: '-6px',
-                              background: '#ef4444',
+                              background: adminColors.dangerStrong,
                               border: 'none',
                               borderRadius: '50%',
                               padding: '3px',
@@ -2629,7 +2623,7 @@ const AdminPage = () => {
                               justifyContent: 'center',
                             }}
                           >
-                            <X size={12} color="#fff" />
+                            <X size={12} color={adminColors.dangerButtonText} />
                           </button>
                         </div>
                       ))}
@@ -2695,7 +2689,7 @@ const AdminPage = () => {
                             style={{
                               ...styles.ghostButton,
                               borderRadius: '8px',
-                              color: '#f87171',
+                              color: adminColors.danger,
                               padding: '8px',
                             }}
                           >
@@ -2805,7 +2799,7 @@ const AdminPage = () => {
                     onChange={(e) => setPostForm({ ...postForm, isPublic: e.target.checked })}
                     style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                   />
-                  <label htmlFor="post-public" style={{ color: '#d7dde7', cursor: 'pointer' }}>Public</label>
+                  <label htmlFor="post-public" style={{ color: adminColors.textSoft, cursor: 'pointer' }}>Public</label>
                 </div>
                 <div>
                   <label style={styles.label}>Cover image</label>
@@ -2840,7 +2834,7 @@ const AdminPage = () => {
                             position: 'absolute',
                             top: '-8px',
                             right: '-8px',
-                            background: '#ef4444',
+                            background: adminColors.dangerStrong,
                             border: 'none',
                             borderRadius: '50%',
                             padding: '4px',
@@ -2851,7 +2845,7 @@ const AdminPage = () => {
                           }}
                           aria-label="Remove cover image"
                         >
-                          <X size={14} color="#fff" />
+                          <X size={14} color={adminColors.dangerButtonText} />
                         </button>
                       </div>
                     ) : (
@@ -2915,7 +2909,7 @@ const AdminPage = () => {
         <div style={styles.modal}>
           <div style={{ ...styles.modalContent, maxWidth: '400px' }}>
             <div style={styles.modalHeader}>
-              <h2 style={{ ...styles.modalTitle, color: '#f87171' }}>Confirm Delete</h2>
+              <h2 style={{ ...styles.modalTitle, color: adminColors.danger }}>Confirm Delete</h2>
             </div>
             <div style={styles.modalBody}>
               <p style={{ color: adminColors.textMuted }}>
@@ -3075,10 +3069,10 @@ const InspectPostsButton = ({ onMessage }: InspectPostsButtonProps) => {
       disabled={running}
       style={{
         padding: '8px 14px',
-        border: '1px solid rgba(255,255,255,0.18)',
+        border: `1px solid ${adminColors.borderStrong}`,
         borderRadius: '8px',
         background: 'transparent',
-        color: '#d7dde7',
+        color: adminColors.textSoft,
         cursor: running ? 'not-allowed' : 'pointer',
         fontSize: '13px',
       }}
@@ -3149,10 +3143,10 @@ const MigratePostsFlatButton = ({ onMessage, onAfterMigrate }: MigratePostsFlatB
           disabled={running}
           style={{
             padding: '8px 14px',
-            border: '1px solid rgba(255,255,255,0.18)',
+            border: `1px solid ${adminColors.borderStrong}`,
             borderRadius: '8px',
             background: 'transparent',
-            color: '#d7dde7',
+            color: adminColors.textSoft,
             cursor: running ? 'not-allowed' : 'pointer',
             fontSize: '13px',
           }}

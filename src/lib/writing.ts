@@ -21,21 +21,48 @@ export interface Writing {
   order: number;
 }
 
-// Fallback shown when the `writing` collection has no documents yet — mirrors
-// DEFAULT_SOCIAL_LINKS so the live section never goes blank before the admin
-// adds entries. Once any entry exists in Firestore, the data takes over.
+// Built-in entries shown before/alongside Firestore data, so the live section
+// never goes blank before the admin adds entries. Firestore entries with the
+// same URL override these defaults through mergeDefaultWritings().
 export const DEFAULT_WRITINGS: Writing[] = [
+  {
+    id: 'fast-secure-support',
+    title: 'Building Fast, Secure Support in Credit-Building Fintech Products',
+    source: 'Atlas Engineering',
+    url: 'https://www.atlasfin.com/post/building-fast-secure-support-credit-building',
+    date: '2026-06-25',
+    summaryEn:
+      'How short-lived, support-scoped tokens help WebView support flows stay fast while keeping access narrow, temporary, and recoverable.',
+    summaryJa:
+      '短時間だけ有効なサポート用トークンで、WebView上のサポート体験を速く保ちながら、アクセス範囲を狭く一時的に保つ設計について。',
+    isPublic: true,
+    order: 0,
+  },
+  {
+    id: 'fintech-internal-tools',
+    title: 'Why Fintech Internal Tools Must Be Treated as Risk Systems',
+    source: 'Atlas Engineering',
+    url: 'https://www.atlasfin.com/post/fintech-internal-tools-risk-systems',
+    date: '2026-06-23',
+    summaryEn:
+      'Why internal fintech tools need the same rigor as risk systems: least privilege, approvals, audit trails, request IDs, and reversible operations.',
+    summaryJa:
+      '社内向けフィンテックツールにも、最小権限、承認、監査ログ、リクエストID、巻き戻せる操作といったリスクシステム並みの設計が必要な理由。',
+    isPublic: true,
+    order: 1,
+  },
   {
     id: 'explainable-states',
     title: 'Why Financial Products Need Explainable States',
     source: 'Atlas Engineering',
     url: 'https://www.atlasfin.com/post/why-financial-products-need-explainable-states',
+    date: '2026-06-25',
     summaryEn:
       "Why modeling a financial product's status as explicit, explainable states improves reliability, support, and user trust.",
     summaryJa:
       '金融プロダクトの状態を明示的で説明可能なステートとして設計することが、信頼性・サポート・ユーザーの信頼をどう高めるか。',
     isPublic: true,
-    order: 0,
+    order: 2,
   },
 ];
 
@@ -77,6 +104,23 @@ export function publicWritings(writings: Writing[]): Writing[] {
   return writings
     .filter((w) => w.isPublic)
     .sort((a, b) => a.order - b.order);
+}
+
+/**
+ * Keep the authored Atlas articles visible even before/alongside Firestore
+ * entries. Firestore wins for matching URLs, so admins can override copy,
+ * order, or hide a built-in entry by saving a document with the same URL.
+ */
+export function mergeDefaultWritings(writings: Writing[] | null): Writing[] {
+  if (writings === null) return publicWritings(DEFAULT_WRITINGS);
+
+  const byUrlOrId = new Map<string, Writing>();
+  const keyFor = (writing: Writing) => (writing.url ? writing.url.replace(/\/+$/, '') : writing.id);
+
+  DEFAULT_WRITINGS.forEach((writing) => byUrlOrId.set(keyFor(writing), writing));
+  writings.forEach((writing) => byUrlOrId.set(keyFor(writing), writing));
+
+  return publicWritings(Array.from(byUrlOrId.values()));
 }
 
 /**

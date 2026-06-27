@@ -1,8 +1,6 @@
 'use client';
 
 import React, { useEffect } from 'react';
-import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
 import Header from '@/components/header/Header';
 import Slider from '@/components/slider/SliderAnimation';
 import About from '@/components/about/AboutAnimation';
@@ -13,7 +11,6 @@ import Portfolio from '@/components/portfolio/PortfolioAnimation';
 import GamesSlideshow from '@/components/games/GamesSlideshow';
 import ToolsSection from '@/components/tools/ToolsSection';
 import StudyEntry from '@/components/home/StudyEntry';
-import Blog from '@/components/blog/BlogAnimation';
 import PublishedWriting from '@/components/home/PublishedWriting';
 import Footer from '@/components/footer/FooterAnimation';
 import useDocumentTitle from '@/components/useDocumentTitle';
@@ -51,26 +48,9 @@ const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
 
       <ImpactSnapshot />
 
-      <Resume />
-
       {hasPublishedWritings && <PublishedWriting writings={initialWritings} />}
 
-      <section id="blog" className="section modern-section">
-        <div className="container">
-          <div className="title modern-title">
-            <div className="modern-title__row">
-              <h3>{t('home.sections.blog.title')}</h3>
-              <Link href="/blog" className="modern-title__link">
-                {t('home.sections.blog.viewAll')}
-                <ArrowRight size={16} aria-hidden="true" />
-              </Link>
-            </div>
-            <p>{t('home.sections.blog.subtitle')}</p>
-          </div>
-          <Blog />
-        </div>
-      </section>
-      {/* End Blog Section */}
+      <Resume />
 
       <CommunityLeadership />
 

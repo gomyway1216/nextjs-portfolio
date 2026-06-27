@@ -1467,8 +1467,8 @@
       "leaveReply": "Leave a Reply"
     },
     "writing": {
-      "title": "Engineering writing, published beyond this site.",
-      "subtitle": "Articles I've authored on company and industry engineering blogs.",
+      "title": "Engineering Writing",
+      "subtitle": "Published Atlas Engineering articles on fintech systems, internal platforms, and product reliability.",
       "readLabel": "Read on {{source}}",
       "newTab": "(opens in a new tab)"
     }

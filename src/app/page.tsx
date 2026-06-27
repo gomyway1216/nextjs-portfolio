@@ -9,7 +9,7 @@ import { getFirestore } from '@/lib/firebase-admin';
 import type { Profile } from '@/hooks/useProfile';
 import { isValidSocialLink, type ProfileSocialLink } from '@/lib/socialLinks';
 import { WRITING_COLLECTION } from '@/app/api/constants';
-import { DEFAULT_WRITINGS, parseWritingDoc, publicWritings, type Writing } from '@/lib/writing';
+import { mergeDefaultWritings, parseWritingDoc, type Writing } from '@/lib/writing';
 
 const PROFILE_DOC_ID = 'main';
 
@@ -50,13 +50,12 @@ const getInitialProfileCached = unstable_cache(getInitialProfile, ['home-profile
 });
 
 // Returns null when the collection has no documents at all (caller falls back
-// to DEFAULT_WRITINGS); returns the published list — possibly empty when every
-// entry is hidden — once any document exists. Throws on Firestore failure so
-// the outage is not cached.
+// to built-in Atlas articles); otherwise returns raw entries so defaults can
+// be merged and overridden by matching Firestore URLs.
 async function getInitialWritings(): Promise<Writing[] | null> {
   const snapshot = await getFirestore().collection(WRITING_COLLECTION).get();
   if (snapshot.empty) return null;
-  return publicWritings(snapshot.docs.map((doc) => parseWritingDoc(doc.id, doc.data())));
+  return snapshot.docs.map((doc) => parseWritingDoc(doc.id, doc.data()));
 }
 
 // Cached like the profile read; the /api/writing POST/PUT/DELETE routes bust
@@ -76,13 +75,12 @@ export default async function Home() {
     console.error('[Home] Failed to load initial profile:', error);
   }
 
-  // DEFAULT_WRITINGS unless Firestore has entries: an outage or an empty
-  // collection both keep the built-in default. Once entries exist they take
-  // over — and if every entry is hidden the section renders nothing.
-  let initialWritings: Writing[] = DEFAULT_WRITINGS;
+  // Built-in Atlas articles keep the section populated; Firestore entries can
+  // override or hide matching URLs via the writing admin.
+  let initialWritings: Writing[] = mergeDefaultWritings(null);
   try {
     const fetched = await getInitialWritingsCached();
-    if (fetched !== null) initialWritings = fetched;
+    initialWritings = mergeDefaultWritings(fetched);
   } catch (error) {
     console.error('[Home] Failed to load initial writings:', error);
   }

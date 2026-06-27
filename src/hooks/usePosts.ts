@@ -7,6 +7,7 @@ import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations
 
 export interface CreatePostData {
   category: string;
+  tags?: string[];
   translations: PostTranslations;
   isPublic?: boolean;
   image?: string;
@@ -15,6 +16,7 @@ export interface CreatePostData {
 export interface UpdatePostData {
   translations: PostTranslations;
   category?: string;
+  tags?: string[];
   isPublic?: boolean;
   image?: string;
 }

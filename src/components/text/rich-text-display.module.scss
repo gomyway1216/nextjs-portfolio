@@ -39,6 +39,22 @@
   font-weight: 400;
 }
 
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tags span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 9px;
+  background: color-mix(in srgb, var(--muted) 54%, transparent);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .cover {
   overflow: hidden;
   margin: 0;
@@ -133,6 +149,11 @@
   border-color: var(--border);
   background: color-mix(in srgb, var(--muted) 54%, transparent);
   color: var(--muted-foreground);
+}
+
+:global(.dark) .tags span {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--muted) 48%, transparent);
 }
 
 :global(.dark) .body a {

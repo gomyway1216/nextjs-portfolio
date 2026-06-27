@@ -119,6 +119,11 @@
       "loading": "記事を読み込み中",
       "categories": {
         "all": "すべての記事",
+        "appliedAlgorithms": "応用アルゴリズム",
+        "systemDesign": "システム設計",
+        "engineeringPractices": "エンジニアリング実務",
+        "fintechPayments": "Fintech / 決済",
+        "career": "キャリア",
         "technology": "技術",
         "life": "生活"
       }

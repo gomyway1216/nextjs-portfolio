@@ -7,6 +7,7 @@ import {
   pickTranslation,
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
+import { normalizePostTags } from '@/lib/blog/postMetadata';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -43,6 +44,7 @@ export const GET = withActivityLog('next_api.post.top.GET', async (request: Next
       return [{
         id: doc.id,
         category: data.category,
+        tags: normalizePostTags(data.tags),
         isPublic: data.isPublic,
         image: data.image,
         title: picked.translation.title,

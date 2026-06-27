@@ -24,6 +24,11 @@ const PAGE_LIMIT = 5;
 
 const CATEGORY_LABELS: Record<string, string> = {
   all: 'blogPage.index.categories.all',
+  'applied-algorithms': 'blogPage.index.categories.appliedAlgorithms',
+  'system-design': 'blogPage.index.categories.systemDesign',
+  'engineering-practices': 'blogPage.index.categories.engineeringPractices',
+  'fintech-payments': 'blogPage.index.categories.fintechPayments',
+  career: 'blogPage.index.categories.career',
   technology: 'blogPage.index.categories.technology',
   life: 'blogPage.index.categories.life',
 };
@@ -186,6 +191,7 @@ const CategoryPostPage = ({
                 created={item.created}
                 lastUpdated={item.lastUpdated}
                 category={item.category}
+                tags={item.tags}
                 image={item.image}
                 language={item.language}
                 handleClick={handleClickPost}

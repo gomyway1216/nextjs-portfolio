@@ -28,6 +28,7 @@ export interface ListingPost {
   body: string;
   isPublic: boolean;
   category: string;
+  tags: string[];
   image?: string;
   language: PostLanguage;
   availableLanguages: PostLanguage[];
@@ -41,6 +42,7 @@ export interface DetailPost {
   id: string;
   isPublic: boolean;
   category: string;
+  tags: string[];
   image?: string;
   translations: PostTranslations;
   availableLanguages: PostLanguage[];
@@ -217,6 +219,7 @@ export async function getTop4Posts(language?: PostLanguage): Promise<ListingPost
 
 export async function createPost(post: {
   category: string;
+  tags?: string[];
   translations: PostTranslations;
   isPublic?: boolean;
   image?: string;
@@ -245,6 +248,7 @@ export async function updatePost(
   post: {
     translations: PostTranslations;
     category?: string;
+    tags?: string[];
     isPublic?: boolean;
     image?: string;
   }

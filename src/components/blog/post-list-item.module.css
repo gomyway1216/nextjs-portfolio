@@ -84,6 +84,23 @@
   line-height: 1.65;
 }
 
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 14px;
+}
+
+.tags span {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: color-mix(in srgb, var(--muted) 54%, transparent);
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .thumbnail,
 .thumbnailPlaceholder {
   display: flex;
@@ -120,6 +137,11 @@
   border-color: var(--border);
   background: color-mix(in srgb, var(--muted) 54%, transparent);
   color: var(--muted-foreground);
+}
+
+:global(.dark) .tags span {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--muted) 48%, transparent);
 }
 
 :global(.dark) .thumbnail,

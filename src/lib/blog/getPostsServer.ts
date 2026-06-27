@@ -8,6 +8,7 @@ import {
   type PostLanguage,
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
+import { normalizePostTags } from '@/lib/blog/postMetadata';
 
 export interface ServerPost {
   id: string;
@@ -15,6 +16,7 @@ export interface ServerPost {
   body: string;
   isPublic: boolean;
   category: string;
+  tags: string[];
   image?: string;
   language: PostLanguage;
   availableLanguages: PostLanguage[];
@@ -60,6 +62,7 @@ async function fetchPostsPage(
       body: picked.translation.body,
       isPublic: data.isPublic,
       category: data.category,
+      tags: normalizePostTags(data.tags),
       image: data.image,
       language: picked.language,
       availableLanguages: availableLanguages(translations),

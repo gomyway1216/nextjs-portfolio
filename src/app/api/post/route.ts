@@ -10,6 +10,7 @@ import {
   pickTranslation,
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
+import { normalizePostCategory, normalizePostTags } from '@/lib/blog/postMetadata';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -88,6 +89,7 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
       return [{
         id: doc.id,
         category: data.category,
+        tags: normalizePostTags(data.tags),
         isPublic: data.isPublic,
         image: data.image,
         title: picked.translation.title,
@@ -127,7 +129,7 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
 
 /**
  * POST /api/post
- * Create a new post. Body: { category, isPublic?, image?, translations }
+ * Create a new post. Body: { category, tags?, isPublic?, image?, translations }
  * `category` is now a doc field, not a path segment.
  * Requires authentication.
  */
@@ -139,14 +141,17 @@ export const POST = withActivityLog('next_api.post.POST', async (request: NextRe
     }
 
     const body = await request.json();
-    const { category, isPublic, image, translations } = body as {
+    const { category, isPublic, image, tags, translations } = body as {
       category?: string;
       isPublic?: boolean;
       image?: string;
+      tags?: unknown;
       translations?: PostTranslations;
     };
 
-    if (!category || !translations) {
+    const normalizedCategory = normalizePostCategory(category);
+
+    if (!normalizedCategory || !translations) {
       return NextResponse.json(
         { error: 'Missing required fields: category, translations' },
         { status: 400 }
@@ -164,7 +169,8 @@ export const POST = withActivityLog('next_api.post.POST', async (request: NextRe
     const now = new Date();
 
     const docRef = await db.collection(POSTS_COLLECTION).add({
-      category,
+      category: normalizedCategory,
+      tags: normalizePostTags(tags),
       isPublic: isPublic ?? true,
       created: now,
       lastUpdated: now,

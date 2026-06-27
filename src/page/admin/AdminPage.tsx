@@ -1169,6 +1169,11 @@ const AdminPage = () => {
   // toast's timeout from hiding a newer message, and the unmount cleanup
   // stops it firing after navigation away.
   const messageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [adminPortalContainer, setAdminPortalContainer] = useState<HTMLDivElement | null>(null);
+  const setAdminConsoleNode = useCallback((node: HTMLDivElement | null) => {
+    setAdminPortalContainer(node);
+  }, []);
+
   const showMessage = useCallback((type: 'success' | 'error', text: string) => {
     if (messageTimerRef.current) clearTimeout(messageTimerRef.current);
     setMessage({ type, text });
@@ -2069,7 +2074,7 @@ const AdminPage = () => {
       : 'Select category';
 
   return (
-    <div className="admin-console" style={styles.container}>
+    <div ref={setAdminConsoleNode} className="admin-console" style={styles.container}>
       {/* Toast Message */}
       {message && (
         <div style={{ ...styles.toast, ...(message.type === 'success' ? styles.toastSuccess : styles.toastError) }}>
@@ -3245,7 +3250,7 @@ const AdminPage = () => {
                         </Select.Icon>
                       )}
                     </Select.Trigger>
-                    <Select.Portal>
+                    <Select.Portal container={adminPortalContainer ?? undefined}>
                       <Select.Content
                         position="popper"
                         sideOffset={4}

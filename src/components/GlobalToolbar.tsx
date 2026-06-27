@@ -156,7 +156,7 @@ type PrimaryNavItem = {
 };
 
 const PRIMARY_NAV_ITEMS: PrimaryNavItem[] = [
-  { href: '/#work', labelKey: 'home.nav.work', Icon: FolderKanban, activePrefixes: ['/projects'] },
+  { href: '/projects', labelKey: 'home.nav.work', Icon: FolderKanban, activePrefixes: ['/projects'] },
   { href: '/#tools', labelKey: 'home.nav.tools', Icon: Wrench, activePrefixes: ['/tools'] },
   { href: '/blog', labelKey: 'home.nav.blog', Icon: NotebookPen, activePrefixes: ['/blog'] },
 ];

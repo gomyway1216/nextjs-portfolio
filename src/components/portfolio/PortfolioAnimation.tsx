@@ -14,6 +14,7 @@ import { Tab, TabList, TabPanel, Tabs } from 'react-tabs';
 const tabList = ['All', 'Web App', 'Mobile', 'AI/ML', 'Console'];
 type PortfolioCategory = typeof tabList[number];
 type ProjectsByCategory = Record<PortfolioCategory, Project[]>;
+const HOME_PROJECT_LIMIT = 4;
 
 function normalizeTechnology(technology: Project['technologies'][number] | null | undefined): string {
   if (!technology) return '';
@@ -83,9 +84,12 @@ const PortfolioAnimation = () => {
       return <div className="project-state">{t('home.sections.work.empty')}</div>;
     }
 
+    const visibleProjects = projects.slice(0, HOME_PROJECT_LIMIT);
+    const hasMoreProjects = projects.length > HOME_PROJECT_LIMIT;
+
     return (
       <div className="row project-grid">
-        {projects.map((project, j) => {
+        {visibleProjects.map((project, j) => {
           const technologies = project.technologies?.map(normalizeTechnology).filter(Boolean).slice(0, 4) ?? [];
           const primaryCategory = project.categories?.[0] || category;
           const excerpt = createPlainTextExcerpt(project.description, 145);
@@ -139,6 +143,14 @@ const PortfolioAnimation = () => {
             </div>
           );
         })}
+        {hasMoreProjects && (
+          <div className="col-12">
+            <Link href="/projects" className="project-view-all">
+              {t('home.sections.work.viewAll')}
+              <ArrowRight size={16} strokeWidth={2} aria-hidden="true" />
+            </Link>
+          </div>
+        )}
       </div>
     );
   };

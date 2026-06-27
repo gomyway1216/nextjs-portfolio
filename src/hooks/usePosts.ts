@@ -182,7 +182,7 @@ export function usePostTaxonomy() {
     fetchTaxonomy();
   }, [fetchTaxonomy]);
 
-  const addItem = async (type: PostTaxonomyType, value: string) => {
+  const addItem = useCallback(async (type: PostTaxonomyType, value: string) => {
     try {
       setMutating(true);
       setError(null);
@@ -196,9 +196,9 @@ export function usePostTaxonomy() {
     } finally {
       setMutating(false);
     }
-  };
+  }, []);
 
-  const deleteItem = async (type: PostTaxonomyType, value: string) => {
+  const deleteItem = useCallback(async (type: PostTaxonomyType, value: string) => {
     try {
       setMutating(true);
       setError(null);
@@ -212,7 +212,7 @@ export function usePostTaxonomy() {
     } finally {
       setMutating(false);
     }
-  };
+  }, []);
 
   return { taxonomy, loading, mutating, error, refetch: fetchTaxonomy, addItem, deleteItem };
 }

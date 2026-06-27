@@ -72,9 +72,14 @@ function toTaxonomyItems(
   }));
 }
 
-async function getTaxonomyDoc() {
+function getTaxonomyRef() {
   const db = getFirestore();
   const ref = db.collection(POST_TAXONOMY_COLLECTION).doc(POST_TAXONOMY_DOC_ID);
+  return { db, ref };
+}
+
+async function getTaxonomyDoc() {
+  const { db, ref } = getTaxonomyRef();
   const doc = await ref.get();
   const data = doc.exists ? (doc.data() as TaxonomyDoc) : {};
   return { db, ref, data };
@@ -135,16 +140,21 @@ export const POST = withActivityLog('next_api.post.taxonomy.POST', async (reques
       return NextResponse.json({ error: 'Taxonomy value is required' }, { status: 400 });
     }
 
-    const { ref, data } = await getTaxonomyDoc();
+    const { db, ref } = getTaxonomyRef();
     const field = TYPE_FIELD[type];
-    const existing = field === 'categories'
-      ? normalizeStoredCategories(data.categories)
-      : normalizeStoredTags(data.tags);
 
-    await ref.set({
-      [field]: Array.from(new Set([...existing, slug])),
-      lastUpdated: new Date(),
-    }, { merge: true });
+    await db.runTransaction(async (transaction) => {
+      const doc = await transaction.get(ref);
+      const data = doc.exists ? (doc.data() as TaxonomyDoc) : {};
+      const existing = field === 'categories'
+        ? normalizeStoredCategories(data.categories)
+        : normalizeStoredTags(data.tags);
+
+      transaction.set(ref, {
+        [field]: Array.from(new Set([...existing, slug])),
+        lastUpdated: new Date(),
+      }, { merge: true });
+    });
 
     return NextResponse.json(await buildTaxonomyResponse());
   } catch (error) {
@@ -175,25 +185,32 @@ export const DELETE = withActivityLog('next_api.post.taxonomy.DELETE', async (re
       return NextResponse.json({ error: 'Seeded categories cannot be removed' }, { status: 409 });
     }
 
-    const current = await buildTaxonomyResponse();
-    const item = (type === 'category' ? current.categories : current.tags).find((candidate) => candidate.slug === slug);
-    if (item && item.postCount > 0) {
+    const { db, ref } = getTaxonomyRef();
+    const inUseQuery = type === 'category'
+      ? db.collection(POSTS_COLLECTION).where('category', '==', slug).limit(1)
+      : db.collection(POSTS_COLLECTION).where('tags', 'array-contains', slug).limit(1);
+    const inUseSnapshot = await inUseQuery.get();
+    if (!inUseSnapshot.empty) {
       return NextResponse.json(
         { error: 'Remove this value from posts before deleting it from taxonomy' },
         { status: 409 },
       );
     }
 
-    const { ref, data } = await getTaxonomyDoc();
     const field = TYPE_FIELD[type];
-    const existing = field === 'categories'
-      ? normalizeStoredCategories(data.categories)
-      : normalizeStoredTags(data.tags);
 
-    await ref.set({
-      [field]: existing.filter((candidate) => candidate !== slug),
-      lastUpdated: new Date(),
-    }, { merge: true });
+    await db.runTransaction(async (transaction) => {
+      const doc = await transaction.get(ref);
+      const data = doc.exists ? (doc.data() as TaxonomyDoc) : {};
+      const existing = field === 'categories'
+        ? normalizeStoredCategories(data.categories)
+        : normalizeStoredTags(data.tags);
+
+      transaction.set(ref, {
+        [field]: existing.filter((candidate) => candidate !== slug),
+        lastUpdated: new Date(),
+      }, { merge: true });
+    });
 
     return NextResponse.json(await buildTaxonomyResponse());
   } catch (error) {

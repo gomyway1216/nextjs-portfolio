@@ -1,6 +1,6 @@
 'use client';
 
-import { usePostCategories,usePostMutations,usePostTaxonomy,usePosts } from '@/hooks/usePosts';
+import { usePostMutations,usePostTaxonomy,usePosts } from '@/hooks/usePosts';
 import { updateProfile,useProfile,useResumeLink } from '@/hooks/useProfile';
 import { useProjectCategories,useProjectMutations,useProjects,useUrlTypes } from '@/hooks/useProjects';
 import RichContentRenderer from '@/components/common/RichContentRenderer';
@@ -745,6 +745,7 @@ const BlogTaxonomyPanel = memo(function BlogTaxonomyPanel({
                     type="button"
                     onClick={() => onDelete(type, item.slug)}
                     disabled={!canDelete || mutating}
+                    aria-label={canDelete ? `Delete ${item.slug}` : `Cannot delete ${item.slug}`}
                     title={canDelete ? `Delete ${item.slug}` : 'Only saved, unused values can be deleted here'}
                     style={{
                       ...styles.ghostButton,
@@ -872,7 +873,6 @@ const AdminPage = () => {
   const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts({ limit: 100, isPublic: null, excludeBody: true });
   const { categories: projectCategories } = useProjectCategories();
   const { urlTypes } = useUrlTypes();
-  const { categories: postCategories, refetch: refetchPostCategories } = usePostCategories();
   const {
     taxonomy: postTaxonomy,
     loading: postTaxonomyLoading,
@@ -883,7 +883,7 @@ const AdminPage = () => {
   } = usePostTaxonomy();
   const projectMutations = useProjectMutations();
   const postMutations = usePostMutations();
-  const postCategoryOptions = postTaxonomy?.categories.map((item) => item.slug) || postCategories;
+  const postCategoryOptions = postTaxonomy?.categories.map((item) => item.slug) || [];
   const postTagOptions = postTaxonomy?.tags.map((item) => item.slug) || [];
   const defaultPostCategory = postCategoryOptions[0] || '';
 
@@ -1396,23 +1396,21 @@ const AdminPage = () => {
 
     try {
       await addPostTaxonomyItem(type, normalized);
-      await refetchPostCategories();
       showMessage('success', `${type === 'category' ? 'Category' : 'Tag'} added.`);
     } catch (error) {
       showMessage('error', `Failed to add ${type}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw error;
     }
-  }, [addPostTaxonomyItem, refetchPostCategories, showMessage]);
+  }, [addPostTaxonomyItem, showMessage]);
 
   const handleDeletePostTaxonomyItem = useCallback(async (type: PostTaxonomyType, value: string) => {
     try {
       await deletePostTaxonomyItem(type, value);
-      await refetchPostCategories();
       showMessage('success', `${type === 'category' ? 'Category' : 'Tag'} deleted.`);
     } catch (error) {
       showMessage('error', `Failed to delete ${type}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
-  }, [deletePostTaxonomyItem, refetchPostCategories, showMessage]);
+  }, [deletePostTaxonomyItem, showMessage]);
 
   const appendPostTag = (tag: string) => {
     const next = normalizePostTags([...normalizePostTags(postTagsInput), tag]);
@@ -1465,7 +1463,6 @@ const AdminPage = () => {
       setShowPostModal(false);
       refetchPosts();
       void refetchPostTaxonomy();
-      void refetchPostCategories();
     } catch (error) {
       showMessage('error', `Failed to save post: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -1619,7 +1616,6 @@ const AdminPage = () => {
       showMessage('success', 'Post deleted successfully!');
       refetchPosts();
       void refetchPostTaxonomy();
-      void refetchPostCategories();
       setShowDeleteConfirm(null);
     } catch (error) {
       showMessage('error', `Failed to delete post: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1957,6 +1953,7 @@ const AdminPage = () => {
     { id: 'hobbies' as AdminSection, label: 'Hobbies', icon: Heart },
     { id: 'activity-logs' as AdminSection, label: 'Activity Log', icon: ScrollText },
   ];
+  const selectedPostTags = normalizePostTags(postTagsInput);
 
   return (
     <div className="admin-console" style={styles.container}>
@@ -2546,7 +2543,7 @@ const AdminPage = () => {
                 </div>
                 <button
                   type="button"
-                  onClick={() => void Promise.all([refetchPostTaxonomy(), refetchPostCategories(), refetchPosts()])}
+                  onClick={() => void Promise.all([refetchPostTaxonomy(), refetchPosts()])}
                   style={{ ...styles.button, ...styles.outlineButton }}
                 >
                   {postTaxonomyLoading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Tags size={16} />}
@@ -3152,8 +3149,8 @@ const AdminPage = () => {
                             border: `1px solid ${adminColors.border}`,
                             borderRadius: '9999px',
                             padding: '4px 9px',
-                            color: normalizePostTags(postTagsInput).includes(tag) ? adminColors.accent : adminColors.textMuted,
-                            backgroundColor: normalizePostTags(postTagsInput).includes(tag) ? adminColors.accentSoft : 'transparent',
+                            color: selectedPostTags.includes(tag) ? adminColors.accent : adminColors.textMuted,
+                            backgroundColor: selectedPostTags.includes(tag) ? adminColors.accentSoft : 'transparent',
                           }}
                         >
                           {tag}

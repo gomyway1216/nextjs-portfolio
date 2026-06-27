@@ -5,6 +5,7 @@ import { updateProfile,useProfile,useResumeLink } from '@/hooks/useProfile';
 import { useProjectCategories,useProjectMutations,useProjects,useUrlTypes } from '@/hooks/useProjects';
 import RichContentRenderer from '@/components/common/RichContentRenderer';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { normalizePostCategory, normalizePostTags } from '@/lib/blog/postMetadata';
 import type { PostLanguage,PostTranslations } from '@/lib/blog/postTranslations';
 import { useAuth } from '@/providers/AuthProvider';
 import * as imageApi from '@/services/imageService';
@@ -541,6 +542,28 @@ const PostsTable = memo(function PostsTable({
             <tr key={post.id}>
               <td style={styles.td}>
                 <div style={{ fontWeight: '500', color: adminColors.text }}>{post.title}</div>
+                {(post.tags || []).length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '8px' }}>
+                    {(post.tags || []).slice(0, 4).map((tag) => (
+                      <span
+                        key={tag}
+                        style={{
+                          ...styles.badge,
+                          backgroundColor: 'transparent',
+                          border: `1px solid ${adminColors.border}`,
+                          color: adminColors.textMuted,
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                    {(post.tags || []).length > 4 && (
+                      <span style={{ ...styles.badge, backgroundColor: 'transparent', color: adminColors.textMuted }}>
+                        +{(post.tags || []).length - 4}
+                      </span>
+                    )}
+                  </div>
+                )}
               </td>
               <td style={styles.td}>
                 <span style={{ ...styles.badge, backgroundColor: 'transparent', border: `1px solid ${adminColors.borderStrong}`, color: adminColors.textSoft }}>
@@ -739,6 +762,7 @@ const AdminPage = () => {
     image: '',
     translations: {},
   });
+  const [postTagsInput, setPostTagsInput] = useState('');
 
   const setTranslationField = (lang: PostLanguage, field: 'title' | 'body', value: string) => {
     setPostForm((prev) => ({
@@ -1093,6 +1117,7 @@ const AdminPage = () => {
           image: detail.image || '',
           translations: detail.translations,
         });
+        setPostTagsInput((detail.tags || []).join(', '));
       } catch (error) {
         showMessage('error', `Failed to load post: ${error instanceof Error ? error.message : 'Unknown error'}`);
         return;
@@ -1105,6 +1130,7 @@ const AdminPage = () => {
         image: '',
         translations: {},
       });
+      setPostTagsInput('');
     }
     setShowPostModal(true);
   }, [postCategories, showMessage]);
@@ -1128,15 +1154,19 @@ const AdminPage = () => {
       showMessage('error', 'Please fill in at least one language (Title or Content).');
       return;
     }
-    if (!postForm.category) {
+    const category = normalizePostCategory(postForm.category);
+    if (!category) {
       showMessage('error', 'Please select a category.');
       return;
     }
 
+    const tags = normalizePostTags(postTagsInput);
+
     try {
       if (editingPost) {
         await postMutations.updatePost(editingPost.id, {
-          category: postForm.category,
+          category,
+          tags,
           translations: cleanedTranslations,
           isPublic: postForm.isPublic,
           image: postForm.image,
@@ -1144,7 +1174,8 @@ const AdminPage = () => {
         showMessage('success', 'Post updated successfully!');
       } else {
         await postMutations.createPost({
-          category: postForm.category,
+          category,
+          tags,
           translations: cleanedTranslations,
           isPublic: postForm.isPublic,
           image: postForm.image,
@@ -2759,16 +2790,35 @@ const AdminPage = () => {
                 </p>
                 <div>
                   <label style={styles.label}>Category *</label>
-                  <select
+                  <input
+                    list="post-category-options"
                     value={postForm.category}
                     onChange={(e) => setPostForm({ ...postForm, category: e.target.value })}
-                    style={styles.select}
-                  >
-                    <option value="">Select category</option>
+                    onBlur={() => setPostForm({ ...postForm, category: normalizePostCategory(postForm.category) })}
+                    placeholder="system-design"
+                    style={styles.input}
+                  />
+                  <datalist id="post-category-options">
                     {postCategories.map((cat) => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
-                  </select>
+                  </datalist>
+                  <p style={{ color: adminColors.textMuted, fontSize: '12px', margin: '8px 0 0' }}>
+                    Use a slug like system-design. New values are saved on the post and appear here next time.
+                  </p>
+                </div>
+                <div>
+                  <label style={styles.label}>Tags</label>
+                  <input
+                    value={postTagsInput}
+                    onChange={(e) => setPostTagsInput(e.target.value)}
+                    onBlur={() => setPostTagsInput(normalizePostTags(postTagsInput).join(', '))}
+                    placeholder="hashing, feature-flags, sampling"
+                    style={styles.input}
+                  />
+                  <p style={{ color: adminColors.textMuted, fontSize: '12px', margin: '8px 0 0' }}>
+                    Comma-separated. Tags are normalized to lowercase kebab-case.
+                  </p>
                 </div>
                 <div
                   style={{

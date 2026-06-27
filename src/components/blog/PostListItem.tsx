@@ -12,6 +12,7 @@ interface PostListItemProps {
   created?: string | Date;
   lastUpdated: string | Date;
   category: string;
+  tags?: string[];
   image?: string;
   language?: string;
   handleClick: () => void;
@@ -30,7 +31,7 @@ const formatDisplayDate = (value?: string | Date, language?: string) => {
 };
 
 const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
-  ({ id, title, body, lastUpdated, category, image, language, handleClick }, ref) => {
+  ({ id, title, body, lastUpdated, category, tags = [], image, language, handleClick }, ref) => {
     const bodyText = htmlToText(body, { wordwrap: false }).replace(/\s+/g, ' ').trim();
     const excerpt = bodyText.length > 190 ? `${bodyText.slice(0, 190).trim()}...` : bodyText;
     const categoryLabel = category.replace(/-/g, ' ');
@@ -53,6 +54,13 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
             </div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.excerpt}>{excerpt || 'No summary available.'}</p>
+            {tags.length > 0 && (
+              <div className={styles.tags} aria-label="Post tags">
+                {tags.slice(0, 4).map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
+              </div>
+            )}
           </div>
 
           {image ? (

@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { availableLanguages, type PostTranslations } from '@/lib/blog/postTranslations';
+import { normalizePostTags } from '@/lib/blog/postMetadata';
 import type { DetailPost } from '@/services/postsService';
 
 // Public posts only: private posts keep their existing client-side fetch
@@ -20,6 +21,7 @@ async function fetchPublicPost(id: string): Promise<DetailPost | null> {
     id: doc.id,
     isPublic: true,
     category: typeof data.category === 'string' ? data.category : 'all',
+    tags: normalizePostTags(data.tags),
     image: typeof data.image === 'string' ? data.image : undefined,
     translations,
     availableLanguages: availableLanguages(translations),

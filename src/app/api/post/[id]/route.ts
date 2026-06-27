@@ -6,6 +6,7 @@ import {
   availableLanguages,
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
+import { normalizePostCategory, normalizePostTags } from '@/lib/blog/postMetadata';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -44,6 +45,7 @@ export const GET = withActivityLog('next_api.post.id.GET', async (request: NextR
     const post = {
       id: doc.id,
       category: data.category,
+      tags: normalizePostTags(data.tags),
       isPublic: data.isPublic,
       image: data.image,
       translations,
@@ -64,7 +66,7 @@ export const GET = withActivityLog('next_api.post.id.GET', async (request: NextR
 
 /**
  * PUT /api/post/[id]
- * Update a post. Body: { category?, isPublic?, image?, translations }
+ * Update a post. Body: { category?, tags?, isPublic?, image?, translations }
  * Changing category is just a field update — no doc move required.
  * Requires authentication.
  */
@@ -78,10 +80,11 @@ export const PUT = withActivityLog('next_api.post.id.PUT', async (request: NextR
 
     const { id } = await params;
     const body = await request.json();
-    const { category, isPublic, image, translations } = body as {
+    const { category, isPublic, image, tags, translations } = body as {
       category?: string;
       isPublic?: boolean;
       image?: string;
+      tags?: unknown;
       translations?: PostTranslations;
     };
 
@@ -110,14 +113,23 @@ export const PUT = withActivityLog('next_api.post.id.PUT', async (request: NextR
       );
     }
 
+    const normalizedCategory = normalizePostCategory(category);
+
     const update: Record<string, unknown> = {
-      isPublic: isPublic ?? true,
       lastUpdated: new Date(),
-      image: image || null,
       translations,
     };
-    if (category) {
-      update.category = category;
+    if (normalizedCategory) {
+      update.category = normalizedCategory;
+    }
+    if (isPublic !== undefined) {
+      update.isPublic = isPublic;
+    }
+    if (image !== undefined) {
+      update.image = image || null;
+    }
+    if (tags !== undefined) {
+      update.tags = normalizePostTags(tags);
     }
 
     await docRef.update(update);

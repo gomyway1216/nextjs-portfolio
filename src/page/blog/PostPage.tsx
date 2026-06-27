@@ -149,6 +149,7 @@ const PostPage = ({ initialPost }: PostPageProps) => {
             created: post.created,
             lastUpdated: post.lastUpdated,
             category: post.category,
+            tags: post.tags,
             image: post.image || '',
           }}
         />

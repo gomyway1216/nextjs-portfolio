@@ -121,6 +121,11 @@
       "loading": "Loading posts",
       "categories": {
         "all": "All Writing",
+        "appliedAlgorithms": "Applied Algorithms",
+        "systemDesign": "System Design",
+        "engineeringPractices": "Engineering Practices",
+        "fintechPayments": "Fintech / Payments",
+        "career": "Career",
         "technology": "Technology",
         "life": "Life"
       }

@@ -680,13 +680,24 @@ const BlogTaxonomyPanel = memo(function BlogTaxonomyPanel({
           {items.map((item) => {
             const usedPosts = matchingPosts(type, item.slug);
             const canDelete = item.configured && !item.seeded && item.postCount === 0;
+            const pluralType = type === 'category' ? 'categories' : 'tags';
             const deleteReason = item.postCount > 0
               ? `${item.postCount} ${item.postCount === 1 ? 'post uses' : 'posts use'} this ${type}`
               : item.seeded
-                ? `Seeded ${type}s cannot be deleted`
+                ? `Seeded ${pluralType} cannot be deleted`
                 : !item.configured
-                  ? `Only saved ${type}s can be deleted here`
+                  ? `Only saved ${pluralType} can be deleted here`
                   : '';
+            const deleteLabel = mutating
+              ? `Cannot delete ${item.slug}: taxonomy update in progress`
+              : canDelete
+                ? `Delete ${item.slug}`
+                : `Cannot delete ${item.slug}: ${deleteReason}`;
+            const deleteTitle = mutating
+              ? 'Taxonomy update in progress'
+              : canDelete
+                ? `Delete ${item.slug}`
+                : deleteReason;
 
             return (
               <tr key={`${type}-${item.slug}`}>
@@ -752,8 +763,8 @@ const BlogTaxonomyPanel = memo(function BlogTaxonomyPanel({
                     type="button"
                     onClick={() => onRequestDelete(type, item)}
                     disabled={!canDelete || mutating}
-                    aria-label={canDelete ? `Delete ${item.slug}` : `Cannot delete ${item.slug}: ${deleteReason}`}
-                    title={canDelete ? `Delete ${item.slug}` : deleteReason}
+                    aria-label={deleteLabel}
+                    title={deleteTitle}
                     style={{
                       ...styles.ghostButton,
                       borderRadius: '8px',

@@ -92,6 +92,23 @@
     "links": "Links",
     "viewProject": "View project"
   },
+  "projectsPage": {
+    "kicker": "Project index",
+    "title": "All Project Case Studies",
+    "subtitle": "A focused index of product and engineering work, with each case study linking to the problem, implementation choices, and outcome.",
+    "statsLabel": "Project index summary",
+    "projectCount": "{{value}} projects",
+    "categoryCount": "{{value}} categories",
+    "filterLabel": "Filter projects by category",
+    "all": "All",
+    "loading": "Loading projects...",
+    "error": "Projects are temporarily unavailable.",
+    "emptyTitle": "No projects found",
+    "emptyText": "Try another category.",
+    "cta": "View case study",
+    "cardLabel": "View {{title}} case study",
+    "technologies": "Technologies"
+  },
   "blogPage": {
     "index": {
       "kicker": "Blog",
@@ -1152,7 +1169,8 @@
         "empty": "No projects in this category yet.",
         "cta": "View case study",
         "cardLabel": "View {{title}} case study",
-        "technologies": "Technologies"
+        "technologies": "Technologies",
+        "viewAll": "View all projects"
       },
       "tools": {
         "title": "Useful Tools",

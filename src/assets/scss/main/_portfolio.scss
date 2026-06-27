@@ -460,6 +460,30 @@
   color: var(--accent-secondary);
 }
 
+.home-modern .project-view-all {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, var(--border-soft));
+  border-radius: 8px;
+  padding: 0.65rem 0.95rem;
+  background: color-mix(in srgb, var(--surface-elevated) 94%, transparent);
+  color: var(--accent-strong);
+  font-size: 0.94rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.home-modern .project-view-all:hover,
+.home-modern .project-view-all:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 54%, transparent);
+  color: var(--accent-secondary);
+  transform: translateY(-1px);
+}
+
 .home-modern .project-state {
   border: 1px solid var(--border-soft);
   border-radius: 8px;

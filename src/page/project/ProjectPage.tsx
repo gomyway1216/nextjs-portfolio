@@ -113,7 +113,7 @@ export default function ProjectPage({ projectId }: ProjectPageProps) {
           <div className={styles.statusPanel}>
             <h1>{t('projectPage.notFoundTitle')}</h1>
             <p>{t('projectPage.notFoundText')}</p>
-            <Link href="/#work" className={styles.backLink}>
+            <Link href="/projects" className={styles.backLink}>
               <ArrowLeft aria-hidden="true" size={16} strokeWidth={2} />
               {t('projectPage.backToWork')}
             </Link>
@@ -127,7 +127,7 @@ export default function ProjectPage({ projectId }: ProjectPageProps) {
     <main className={styles.page}>
       <div className={styles.shell}>
         <div className={styles.toolbar}>
-          <Link href="/#work" className={styles.backLink}>
+          <Link href="/projects" className={styles.backLink}>
             <ArrowLeft aria-hidden="true" size={16} strokeWidth={2} />
             {t('projectPage.backToWork')}
           </Link>

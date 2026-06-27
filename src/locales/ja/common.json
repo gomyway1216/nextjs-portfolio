@@ -92,6 +92,23 @@
     "links": "リンク",
     "viewProject": "プロジェクトを見る"
   },
+  "projectsPage": {
+    "kicker": "プロジェクト一覧",
+    "title": "すべてのプロジェクト事例",
+    "subtitle": "プロダクト課題、実装判断、成果まで追えるプロジェクト事例をまとめています。",
+    "statsLabel": "プロジェクト一覧の概要",
+    "projectCount": "{{value}}件のプロジェクト",
+    "categoryCount": "{{value}}カテゴリー",
+    "filterLabel": "カテゴリーでプロジェクトを絞り込む",
+    "all": "すべて",
+    "loading": "プロジェクトを読み込んでいます...",
+    "error": "プロジェクトを一時的に表示できません。",
+    "emptyTitle": "プロジェクトが見つかりません",
+    "emptyText": "別のカテゴリーを選んでください。",
+    "cta": "事例を見る",
+    "cardLabel": "{{title}} の事例を見る",
+    "technologies": "使用技術"
+  },
   "blogPage": {
     "index": {
       "kicker": "ブログ",
@@ -1149,7 +1166,8 @@
         "empty": "このカテゴリーのプロジェクトはまだありません。",
         "cta": "事例を見る",
         "cardLabel": "{{title}} の事例を見る",
-        "technologies": "使用技術"
+        "technologies": "使用技術",
+        "viewAll": "すべてのプロジェクトを見る"
       },
       "tools": {
         "title": "便利ツール",

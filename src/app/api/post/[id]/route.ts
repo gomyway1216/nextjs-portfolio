@@ -116,14 +116,20 @@ export const PUT = withActivityLog('next_api.post.id.PUT', async (request: NextR
     const normalizedCategory = normalizePostCategory(category);
 
     const update: Record<string, unknown> = {
-      isPublic: isPublic ?? true,
       lastUpdated: new Date(),
-      image: image || null,
-      tags: normalizePostTags(tags),
       translations,
     };
     if (normalizedCategory) {
       update.category = normalizedCategory;
+    }
+    if (isPublic !== undefined) {
+      update.isPublic = isPublic;
+    }
+    if (image !== undefined) {
+      update.image = image || null;
+    }
+    if (tags !== undefined) {
+      update.tags = normalizePostTags(tags);
     }
 
     await docRef.update(update);

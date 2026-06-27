@@ -13,7 +13,7 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 export const GET = withActivityLog('next_api.post.categories.GET', async (_request: NextRequest) => {
   try {
     const db = getFirestore();
-    const snapshot = await db.collection(POSTS_COLLECTION).get();
+    const snapshot = await db.collection(POSTS_COLLECTION).select('category').get();
 
     const set = new Set<string>(SEEDED_POST_CATEGORIES);
     snapshot.forEach((doc) => {

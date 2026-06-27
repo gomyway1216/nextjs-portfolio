@@ -115,9 +115,23 @@
   outline-offset: 2px;
 }
 
+.admin-console__nav-button {
+  border: 0 !important;
+}
+
+.admin-console__nav-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--admin-focus-ring);
+}
+
+.admin-console__nav-button[data-active="true"]:focus-visible {
+  box-shadow:
+    inset 3px 0 0 var(--admin-accent),
+    0 0 0 2px var(--admin-focus-ring);
+}
+
 .admin-console__nav-button:not([data-active="true"]):hover {
   background-color: var(--admin-surface-raised) !important;
-  border-color: var(--admin-border-strong) !important;
   color: var(--admin-text) !important;
 }
 

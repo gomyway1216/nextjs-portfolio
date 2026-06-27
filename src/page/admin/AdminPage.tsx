@@ -194,20 +194,20 @@ const styles: Record<string, CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '10px',
-    padding: '10px 12px',
+    padding: '9px 10px',
     borderRadius: '8px',
-    border: '1px solid transparent',
+    border: '0',
     cursor: 'pointer',
     transition: adminTransition,
-    marginBottom: '3px',
+    marginBottom: '2px',
     fontSize: '14px',
     fontWeight: '500',
     lineHeight: 1.2,
+    outline: 'none',
   },
   navButtonActive: {
     backgroundColor: adminColors.accentSoft,
     color: adminColors.text,
-    borderColor: adminColors.accentBorder,
     boxShadow: `inset 3px 0 0 ${adminColors.accent}`,
   },
   navButtonInactive: {
@@ -1686,6 +1686,7 @@ const AdminPage = () => {
           <nav style={{ padding: '14px' }}>
             {sidebarItems.map((item) => (
               <button
+                type="button"
                 key={item.id}
                 onClick={() => handleSectionChange(item.id)}
                 className="admin-console__nav-button"

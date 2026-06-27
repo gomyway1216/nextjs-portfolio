@@ -630,7 +630,7 @@ const BlogTaxonomyPanel = memo(function BlogTaxonomyPanel({
   loading,
   mutating,
   onAdd,
-  onDelete,
+  onRequestDelete,
   onEditPost,
 }: {
   taxonomy: postApi.PostTaxonomyResponse | null;
@@ -638,7 +638,7 @@ const BlogTaxonomyPanel = memo(function BlogTaxonomyPanel({
   loading: boolean;
   mutating: boolean;
   onAdd: (type: PostTaxonomyType, value: string) => Promise<void>;
-  onDelete: (type: PostTaxonomyType, value: string) => Promise<void>;
+  onRequestDelete: (type: PostTaxonomyType, item: PostTaxonomyItem) => void;
   onEditPost: (post: ListingPost) => void;
 }) {
   const [categoryInput, setCategoryInput] = useState('');
@@ -680,6 +680,24 @@ const BlogTaxonomyPanel = memo(function BlogTaxonomyPanel({
           {items.map((item) => {
             const usedPosts = matchingPosts(type, item.slug);
             const canDelete = item.configured && !item.seeded && item.postCount === 0;
+            const pluralType = type === 'category' ? 'categories' : 'tags';
+            const deleteReason = item.postCount > 0
+              ? `${item.postCount} ${item.postCount === 1 ? 'post uses' : 'posts use'} this ${type}`
+              : item.seeded
+                ? `Seeded ${pluralType} cannot be deleted`
+                : !item.configured
+                  ? `Only saved ${pluralType} can be deleted here`
+                  : '';
+            const deleteLabel = mutating
+              ? `Cannot delete ${item.slug}: taxonomy update in progress`
+              : canDelete
+                ? `Delete ${item.slug}`
+                : `Cannot delete ${item.slug}: ${deleteReason}`;
+            const deleteTitle = mutating
+              ? 'Taxonomy update in progress'
+              : canDelete
+                ? `Delete ${item.slug}`
+                : deleteReason;
 
             return (
               <tr key={`${type}-${item.slug}`}>
@@ -743,10 +761,10 @@ const BlogTaxonomyPanel = memo(function BlogTaxonomyPanel({
                 <td style={{ ...styles.td, textAlign: 'right' }}>
                   <button
                     type="button"
-                    onClick={() => onDelete(type, item.slug)}
+                    onClick={() => onRequestDelete(type, item)}
                     disabled={!canDelete || mutating}
-                    aria-label={canDelete ? `Delete ${item.slug}` : `Cannot delete ${item.slug}`}
-                    title={canDelete ? `Delete ${item.slug}` : 'Only saved, unused values can be deleted here'}
+                    aria-label={deleteLabel}
+                    title={deleteTitle}
                     style={{
                       ...styles.ghostButton,
                       borderRadius: '8px',
@@ -924,6 +942,7 @@ const AdminPage = () => {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ type: 'project' | 'post' | 'job'; id: string; name: string; category?: string } | null>(null);
+  const [showTaxonomyDeleteConfirm, setShowTaxonomyDeleteConfirm] = useState<{ type: PostTaxonomyType; item: PostTaxonomyItem } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Edit states
@@ -1403,14 +1422,40 @@ const AdminPage = () => {
     }
   }, [addPostTaxonomyItem, showMessage]);
 
-  const handleDeletePostTaxonomyItem = useCallback(async (type: PostTaxonomyType, value: string) => {
+  const requestDeletePostTaxonomyItem = useCallback((type: PostTaxonomyType, item: PostTaxonomyItem) => {
+    if (item.postCount > 0) {
+      showMessage('error', `Cannot delete ${item.slug}: ${item.postCount} ${item.postCount === 1 ? 'post uses' : 'posts use'} this ${type}.`);
+      return;
+    }
+    if (item.seeded || !item.configured) {
+      showMessage('error', `Cannot delete ${item.slug} from taxonomy.`);
+      return;
+    }
+
+    setShowTaxonomyDeleteConfirm({ type, item });
+  }, [showMessage]);
+
+  const handleDeletePostTaxonomyItem = useCallback(async () => {
+    if (!showTaxonomyDeleteConfirm || isDeleting) return;
+
+    const { type, item } = showTaxonomyDeleteConfirm;
+    if (item.postCount > 0) {
+      showMessage('error', `Cannot delete ${item.slug}: ${item.postCount} ${item.postCount === 1 ? 'post uses' : 'posts use'} this ${type}.`);
+      setShowTaxonomyDeleteConfirm(null);
+      return;
+    }
+
+    setIsDeleting(true);
     try {
-      await deletePostTaxonomyItem(type, value);
+      await deletePostTaxonomyItem(type, item.slug);
       showMessage('success', `${type === 'category' ? 'Category' : 'Tag'} deleted.`);
+      setShowTaxonomyDeleteConfirm(null);
     } catch (error) {
       showMessage('error', `Failed to delete ${type}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
     }
-  }, [deletePostTaxonomyItem, showMessage]);
+  }, [deletePostTaxonomyItem, isDeleting, showMessage, showTaxonomyDeleteConfirm]);
 
   const appendPostTag = (tag: string) => {
     const next = normalizePostTags([...normalizePostTags(postTagsInput), tag]);
@@ -2557,7 +2602,7 @@ const AdminPage = () => {
                 loading={postTaxonomyLoading || postsLoading}
                 mutating={postTaxonomyMutating}
                 onAdd={handleAddPostTaxonomyItem}
-                onDelete={handleDeletePostTaxonomyItem}
+                onRequestDelete={requestDeletePostTaxonomyItem}
                 onEditPost={handleOpenPostModal}
               />
             </div>
@@ -3320,6 +3365,44 @@ const AdminPage = () => {
                   }
                 }}
                 disabled={isDeleting}
+                style={{ ...styles.button, ...styles.dangerButton, opacity: isDeleting ? 0.7 : 1, cursor: isDeleting ? 'not-allowed' : 'pointer' }}
+              >
+                {isDeleting ? (
+                  <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                ) : (
+                  <Trash2 size={16} />
+                )}
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Taxonomy Delete Confirmation Modal */}
+      {showTaxonomyDeleteConfirm && (
+        <div style={styles.modal}>
+          <div style={{ ...styles.modalContent, maxWidth: '440px' }}>
+            <div style={styles.modalHeader}>
+              <h2 style={{ ...styles.modalTitle, color: adminColors.danger }}>
+                Delete {showTaxonomyDeleteConfirm.type}
+              </h2>
+            </div>
+            <div style={styles.modalBody}>
+              <p style={{ color: adminColors.textMuted, marginBottom: '12px' }}>
+                Delete <strong style={{ color: adminColors.text }}>{showTaxonomyDeleteConfirm.item.slug}</strong> from blog taxonomy?
+              </p>
+              <p style={{ color: adminColors.textMuted, fontSize: '13px', lineHeight: 1.5, margin: 0 }}>
+                This only removes it from saved suggestions. Existing posts are not changed. Values already used by posts cannot be deleted here.
+              </p>
+            </div>
+            <div style={styles.modalFooter}>
+              <button onClick={() => setShowTaxonomyDeleteConfirm(null)} disabled={isDeleting} style={{ ...styles.button, ...styles.outlineButton, opacity: isDeleting ? 0.5 : 1 }}>
+                Cancel
+              </button>
+              <button
+                onClick={() => void handleDeletePostTaxonomyItem()}
+                disabled={isDeleting || showTaxonomyDeleteConfirm.item.postCount > 0}
                 style={{ ...styles.button, ...styles.dangerButton, opacity: isDeleting ? 0.7 : 1, cursor: isDeleting ? 'not-allowed' : 'pointer' }}
               >
                 {isDeleting ? (

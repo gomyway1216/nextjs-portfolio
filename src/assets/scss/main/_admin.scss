@@ -25,6 +25,7 @@
   --admin-danger: #dc2626;
   --admin-danger-strong: #ef4444;
   --admin-danger-soft: rgba(220, 38, 38, 0.1);
+  --admin-danger-border: rgba(220, 38, 38, 0.24);
   --admin-danger-text: #b91c1c;
   --admin-danger-text-strong: #991b1b;
   --admin-danger-button-text: #ffffff;
@@ -74,6 +75,7 @@
   --admin-danger: #f87171;
   --admin-danger-strong: #ef4444;
   --admin-danger-soft: rgba(239, 68, 68, 0.12);
+  --admin-danger-border: rgba(239, 68, 68, 0.3);
   --admin-danger-text: #fca5a5;
   --admin-danger-text-strong: #fecaca;
   --admin-danger-button-text: #ffffff;
@@ -117,6 +119,11 @@
   background-color: var(--admin-surface-raised) !important;
   border-color: var(--admin-border-strong) !important;
   color: var(--admin-text) !important;
+}
+
+.admin-console__logout-button:not(:disabled):hover {
+  background-color: var(--admin-danger-soft) !important;
+  color: var(--admin-danger-text-strong) !important;
 }
 
 .admin-console button:disabled {

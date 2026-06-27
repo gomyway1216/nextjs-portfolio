@@ -39,6 +39,7 @@ const activityColors = {
   successBorder: 'var(--admin-success-border)',
   danger: 'var(--admin-danger)',
   dangerSoft: 'var(--admin-danger-soft)',
+  dangerBorder: 'var(--admin-danger-border)',
   dangerText: 'var(--admin-danger-text)',
   warning: 'var(--admin-warning)',
   warningSoft: 'var(--admin-warning-soft)',
@@ -530,7 +531,7 @@ export default function ActivityLogPanel() {
       </div>
 
       {error && (
-        <div style={{ ...styles.card, marginBottom: '24px', borderColor: activityColors.danger }}>
+        <div style={{ ...styles.card, marginBottom: '24px', borderColor: activityColors.dangerBorder }}>
           <div style={{ padding: '16px 24px', color: activityColors.danger }}>{error}</div>
         </div>
       )}
@@ -700,7 +701,7 @@ function OverviewView({
   }
   if (error) {
     return (
-      <div style={{ ...cardStyle, borderColor: activityColors.danger, color: activityColors.danger }}>{error}</div>
+      <div style={{ ...cardStyle, borderColor: activityColors.dangerBorder, color: activityColors.danger }}>{error}</div>
     );
   }
   if (!traffic) return null;

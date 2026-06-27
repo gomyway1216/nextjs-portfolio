@@ -104,6 +104,7 @@ const adminColors = {
   danger: 'var(--admin-danger)',
   dangerStrong: 'var(--admin-danger-strong)',
   dangerSoft: 'var(--admin-danger-soft)',
+  dangerBorder: 'var(--admin-danger-border)',
   dangerText: 'var(--admin-danger-text)',
   dangerTextStrong: 'var(--admin-danger-text-strong)',
   dangerButtonText: 'var(--admin-danger-button-text)',
@@ -1716,22 +1717,13 @@ const AdminPage = () => {
                 type="button"
                 onClick={handleSignOut}
                 disabled={signingOut}
+                className="admin-console__logout-button"
                 style={{
                   ...styles.navButton,
                   backgroundColor: 'transparent',
                   color: adminColors.dangerText,
                   cursor: signingOut ? 'not-allowed' : 'pointer',
                   opacity: signingOut ? 0.7 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  if (signingOut) return;
-                  e.currentTarget.style.backgroundColor = adminColors.dangerSoft;
-                  e.currentTarget.style.color = adminColors.dangerTextStrong;
-                }}
-                onMouseLeave={(e) => {
-                  if (signingOut) return;
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                  e.currentTarget.style.color = adminColors.dangerText;
                 }}
               >
                 {signingOut ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <LogOut size={18} />}

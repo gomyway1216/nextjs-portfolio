@@ -203,7 +203,6 @@ const styles: Record<string, CSSProperties> = {
     fontSize: '14px',
     fontWeight: '500',
     lineHeight: 1.2,
-    outline: 'none',
   },
   navButtonActive: {
     backgroundColor: adminColors.accentSoft,

@@ -127,7 +127,7 @@
 .admin-console__nav-button[data-active="true"]:focus-visible {
   box-shadow:
     inset 3px 0 0 var(--admin-accent),
-    0 0 0 2px var(--admin-focus-ring);
+    0 0 0 2px var(--admin-focus-ring) !important;
 }
 
 .admin-console__nav-button:not([data-active="true"]):hover {

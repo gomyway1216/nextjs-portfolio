@@ -378,7 +378,6 @@ const styles: Record<string, CSSProperties> = {
     backgroundColor: adminColors.surfaceRaised,
     color: adminColors.text,
     fontSize: '14px',
-    outline: 'none',
     cursor: 'pointer',
     lineHeight: 1.45,
     display: 'flex',
@@ -3223,7 +3222,7 @@ const AdminPage = () => {
                 <div>
                   <label style={styles.label}>Category *</label>
                   <Select.Root
-                    value={postForm.category}
+                    value={postForm.category || undefined}
                     onValueChange={(category) => setPostForm((prev) => ({ ...prev, category }))}
                     disabled={isPostCategorySelectDisabled}
                   >
@@ -3235,10 +3234,9 @@ const AdminPage = () => {
                         opacity: isPostCategorySelectDisabled ? 0.7 : 1,
                       }}
                     >
-                      <Select.Value
-                        placeholder={postCategoryPlaceholder}
-                        style={styles.radixSelectValue}
-                      />
+                      <span style={styles.radixSelectValue}>
+                        <Select.Value placeholder={postCategoryPlaceholder} />
+                      </span>
                       {postTaxonomyLoading ? (
                         <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', flexShrink: 0 }} />
                       ) : (

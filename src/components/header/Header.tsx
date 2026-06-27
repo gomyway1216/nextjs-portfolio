@@ -23,7 +23,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tooltip } from 'react-tooltip';
@@ -63,6 +63,7 @@ const Header = ({ showWriting = false }: HeaderProps) => {
   const [click, setClick] = useState<boolean>(false);
   const handleClick = () => setClick(!click);
   const router = useRouter();
+  const pathname = usePathname();
   const { currentUser, signOut } = useAuth();
   const { t, i18n } = useTranslation();
   const sectionIds = showWriting ? SECTION_IDS_WITH_WRITING : SECTION_IDS_WITHOUT_WRITING;
@@ -182,7 +183,7 @@ const Header = ({ showWriting = false }: HeaderProps) => {
                 </Link>
               </li>
             )}
-            <li>
+            <li className={pathname === '/blog' || pathname?.startsWith('/blog/') ? 'active' : ''}>
               <Link
                 className="nav-link"
                 href="/blog"

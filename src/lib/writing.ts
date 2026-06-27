@@ -21,9 +21,9 @@ export interface Writing {
   order: number;
 }
 
-// Fallback shown when the `writing` collection has no documents yet — mirrors
-// DEFAULT_SOCIAL_LINKS so the live section never goes blank before the admin
-// adds entries. Once any entry exists in Firestore, the data takes over.
+// Built-in entries shown before/alongside Firestore data, so the live section
+// never goes blank before the admin adds entries. Firestore entries with the
+// same URL override these defaults through mergeDefaultWritings().
 export const DEFAULT_WRITINGS: Writing[] = [
   {
     id: 'fast-secure-support',
@@ -115,7 +115,7 @@ export function mergeDefaultWritings(writings: Writing[] | null): Writing[] {
   if (writings === null) return publicWritings(DEFAULT_WRITINGS);
 
   const byUrlOrId = new Map<string, Writing>();
-  const keyFor = (writing: Writing) => writing.url || writing.id;
+  const keyFor = (writing: Writing) => (writing.url ? writing.url.replace(/\/+$/, '') : writing.id);
 
   DEFAULT_WRITINGS.forEach((writing) => byUrlOrId.set(keyFor(writing), writing));
   writings.forEach((writing) => byUrlOrId.set(keyFor(writing), writing));

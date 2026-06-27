@@ -1,15 +1,16 @@
 'use client';
 
-import { usePostCategories,usePostMutations,usePosts } from '@/hooks/usePosts';
+import { usePostCategories,usePostMutations,usePostTaxonomy,usePosts } from '@/hooks/usePosts';
 import { updateProfile,useProfile,useResumeLink } from '@/hooks/useProfile';
 import { useProjectCategories,useProjectMutations,useProjects,useUrlTypes } from '@/hooks/useProjects';
 import RichContentRenderer from '@/components/common/RichContentRenderer';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { normalizePostCategory, normalizePostTags } from '@/lib/blog/postMetadata';
+import { normalizePostCategory, normalizePostTag, normalizePostTags } from '@/lib/blog/postMetadata';
 import type { PostLanguage,PostTranslations } from '@/lib/blog/postTranslations';
 import { useAuth } from '@/providers/AuthProvider';
 import * as imageApi from '@/services/imageService';
 import type { ListingPost } from '@/services/postsService';
+import type { PostTaxonomyItem,PostTaxonomyType } from '@/services/postsService';
 import * as postApi from '@/services/postsService';
 import { uploadProfilePhoto, uploadResume } from '@/services/profileService';
 import type { Project } from '@/services/projectsService';
@@ -37,6 +38,7 @@ Plus,
 Save,
 ScrollText,
 Shield,
+Tags,
 Trash2,
 Upload,
 User,
@@ -48,7 +50,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CSSProperties,memo,useCallback,useEffect,useRef,useState } from 'react';
 
-type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'jobs' | 'study' | 'hobbies' | 'writing' | 'activity-logs';
+type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'taxonomy' | 'jobs' | 'study' | 'hobbies' | 'writing' | 'activity-logs';
 
 interface Job {
   id: string;
@@ -439,7 +441,7 @@ const styles: Record<string, CSSProperties> = {
 const getSectionFromHash = (): AdminSection => {
   if (typeof window === 'undefined') return 'dashboard';
   const hash = window.location.hash.replace('#', '');
-  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'jobs', 'study', 'hobbies', 'writing', 'activity-logs'];
+  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'taxonomy', 'jobs', 'study', 'hobbies', 'writing', 'activity-logs'];
   return validSections.includes(hash as AdminSection) ? (hash as AdminSection) : 'dashboard';
 };
 
@@ -622,6 +624,241 @@ const PostsTable = memo(function PostsTable({
   );
 });
 
+const BlogTaxonomyPanel = memo(function BlogTaxonomyPanel({
+  taxonomy,
+  posts,
+  loading,
+  mutating,
+  onAdd,
+  onDelete,
+  onEditPost,
+}: {
+  taxonomy: postApi.PostTaxonomyResponse | null;
+  posts: ListingPost[];
+  loading: boolean;
+  mutating: boolean;
+  onAdd: (type: PostTaxonomyType, value: string) => Promise<void>;
+  onDelete: (type: PostTaxonomyType, value: string) => Promise<void>;
+  onEditPost: (post: ListingPost) => void;
+}) {
+  const [categoryInput, setCategoryInput] = useState('');
+  const [tagInput, setTagInput] = useState('');
+
+  const categories = taxonomy?.categories || [];
+  const tags = taxonomy?.tags || [];
+
+  const matchingPosts = (type: PostTaxonomyType, slug: string) => posts.filter((post) => (
+    type === 'category' ? post.category === slug : (post.tags || []).includes(slug)
+  ));
+
+  const handleAdd = async (type: PostTaxonomyType) => {
+    const value = type === 'category' ? categoryInput : tagInput;
+    try {
+      await onAdd(type, value);
+    } catch {
+      return;
+    }
+    if (type === 'category') {
+      setCategoryInput('');
+    } else {
+      setTagInput('');
+    }
+  };
+
+  const renderTable = (type: PostTaxonomyType, items: PostTaxonomyItem[]) => (
+    <div style={styles.card}>
+      <table style={styles.table}>
+        <thead>
+          <tr>
+            <th style={styles.th}>{type === 'category' ? 'Category' : 'Tag'}</th>
+            <th style={styles.th}>Source</th>
+            <th style={styles.th}>Posts</th>
+            <th style={{ ...styles.th, textAlign: 'right' }}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => {
+            const usedPosts = matchingPosts(type, item.slug);
+            const canDelete = item.configured && !item.seeded && item.postCount === 0;
+
+            return (
+              <tr key={`${type}-${item.slug}`}>
+                <td style={styles.td}>
+                  <span style={{ fontWeight: 600, color: adminColors.text }}>{item.slug}</span>
+                </td>
+                <td style={styles.td}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {item.seeded && (
+                      <span style={{ ...styles.badge, backgroundColor: adminColors.accentSoft, color: adminColors.accent, border: `1px solid ${adminColors.accentBorder}` }}>
+                        Seeded
+                      </span>
+                    )}
+                    {item.configured && (
+                      <span style={{ ...styles.badge, backgroundColor: adminColors.successSoft, color: adminColors.success, border: `1px solid ${adminColors.successBorder}` }}>
+                        Saved
+                      </span>
+                    )}
+                    {item.postCount > 0 && (
+                      <span style={{ ...styles.badge, backgroundColor: 'transparent', color: adminColors.textMuted, border: `1px solid ${adminColors.borderStrong}` }}>
+                        In use
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td style={styles.td}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <span style={{ color: adminColors.textMuted, fontSize: '13px' }}>
+                      {item.postCount} {item.postCount === 1 ? 'post' : 'posts'}
+                    </span>
+                    {usedPosts.length > 0 && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {usedPosts.slice(0, 3).map((post) => (
+                          <button
+                            key={post.id}
+                            type="button"
+                            onClick={() => onEditPost(post)}
+                            style={{
+                              ...styles.ghostButton,
+                              border: `1px solid ${adminColors.border}`,
+                              borderRadius: '8px',
+                              padding: '4px 8px',
+                              maxWidth: '220px',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                            }}
+                          >
+                            {post.title}
+                          </button>
+                        ))}
+                        {usedPosts.length > 3 && (
+                          <span style={{ ...styles.badge, backgroundColor: 'transparent', color: adminColors.textMuted }}>
+                            +{usedPosts.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </td>
+                <td style={{ ...styles.td, textAlign: 'right' }}>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(type, item.slug)}
+                    disabled={!canDelete || mutating}
+                    title={canDelete ? `Delete ${item.slug}` : 'Only saved, unused values can be deleted here'}
+                    style={{
+                      ...styles.ghostButton,
+                      borderRadius: '8px',
+                      color: canDelete ? adminColors.danger : adminColors.textSubtle,
+                      cursor: canDelete && !mutating ? 'pointer' : 'not-allowed',
+                      opacity: canDelete ? 1 : 0.45,
+                    }}
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+          {items.length === 0 && (
+            <tr>
+              <td colSpan={4} style={{ ...styles.td, textAlign: 'center', color: adminColors.textSubtle, padding: '32px' }}>
+                No {type === 'category' ? 'categories' : 'tags'} yet.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', padding: '48px' }}>
+        <Loader2 size={32} color={adminColors.accent} style={{ animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+        gap: '16px',
+      }}>
+        <div style={styles.card}>
+          <div style={{ padding: '20px' }}>
+            <h2 style={{ color: adminColors.text, fontSize: '17px', fontWeight: 600, marginBottom: '6px' }}>Add category</h2>
+            <p style={{ color: adminColors.textMuted, fontSize: '13px', marginBottom: '14px' }}>
+              Saved categories appear as choices when creating or editing posts.
+            </p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                value={categoryInput}
+                onChange={(e) => setCategoryInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleAdd('category');
+                }}
+                placeholder="system-design"
+                style={styles.input}
+              />
+              <button
+                type="button"
+                onClick={() => void handleAdd('category')}
+                disabled={mutating}
+                style={{ ...styles.button, ...styles.primaryButton, flexShrink: 0 }}
+              >
+                {mutating ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={16} />}
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div style={styles.card}>
+          <div style={{ padding: '20px' }}>
+            <h2 style={{ color: adminColors.text, fontSize: '17px', fontWeight: 600, marginBottom: '6px' }}>Add tag</h2>
+            <p style={{ color: adminColors.textMuted, fontSize: '13px', marginBottom: '14px' }}>
+              Saved tags are suggested in the post editor and can exist before any post uses them.
+            </p>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void handleAdd('tag');
+                }}
+                placeholder="hashing"
+                style={styles.input}
+              />
+              <button
+                type="button"
+                onClick={() => void handleAdd('tag')}
+                disabled={mutating}
+                style={{ ...styles.button, ...styles.primaryButton, flexShrink: 0 }}
+              >
+                {mutating ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={16} />}
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <section>
+        <h2 style={{ color: adminColors.text, fontSize: '18px', fontWeight: 600, marginBottom: '12px' }}>Categories</h2>
+        {renderTable('category', categories)}
+      </section>
+
+      <section>
+        <h2 style={{ color: adminColors.text, fontSize: '18px', fontWeight: 600, marginBottom: '12px' }}>Tags</h2>
+        {renderTable('tag', tags)}
+      </section>
+    </div>
+  );
+});
+
 const AdminPage = () => {
   const { currentUser, loading: authLoading, isAdmin, signOut } = useAuth();
   const router = useRouter();
@@ -635,9 +872,20 @@ const AdminPage = () => {
   const { posts, loading: postsLoading, refetch: refetchPosts } = usePosts({ limit: 100, isPublic: null, excludeBody: true });
   const { categories: projectCategories } = useProjectCategories();
   const { urlTypes } = useUrlTypes();
-  const { categories: postCategories } = usePostCategories();
+  const { categories: postCategories, refetch: refetchPostCategories } = usePostCategories();
+  const {
+    taxonomy: postTaxonomy,
+    loading: postTaxonomyLoading,
+    mutating: postTaxonomyMutating,
+    refetch: refetchPostTaxonomy,
+    addItem: addPostTaxonomyItem,
+    deleteItem: deletePostTaxonomyItem,
+  } = usePostTaxonomy();
   const projectMutations = useProjectMutations();
   const postMutations = usePostMutations();
+  const postCategoryOptions = postTaxonomy?.categories.map((item) => item.slug) || postCategories;
+  const postTagOptions = postTaxonomy?.tags.map((item) => item.slug) || [];
+  const defaultPostCategory = postCategoryOptions[0] || '';
 
   const [activeSection, setActiveSection] = useState<AdminSection>(() => getSectionFromHash());
   const [signingOut, setSigningOut] = useState(false);
@@ -1125,7 +1373,7 @@ const AdminPage = () => {
     } else {
       setEditingPost(null);
       setPostForm({
-        category: postCategories[0] || '',
+        category: defaultPostCategory,
         isPublic: true,
         image: '',
         translations: {},
@@ -1133,11 +1381,43 @@ const AdminPage = () => {
       setPostTagsInput('');
     }
     setShowPostModal(true);
-  }, [postCategories, showMessage]);
+  }, [defaultPostCategory, showMessage]);
 
   const requestDeletePost = useCallback((post: ListingPost) => {
     setShowDeleteConfirm({ type: 'post', id: post.id, name: post.title, category: post.category });
   }, []);
+
+  const handleAddPostTaxonomyItem = useCallback(async (type: PostTaxonomyType, value: string) => {
+    const normalized = type === 'category' ? normalizePostCategory(value) : normalizePostTag(value);
+    if (!normalized) {
+      showMessage('error', `Please enter a valid ${type}.`);
+      throw new Error('Invalid taxonomy value');
+    }
+
+    try {
+      await addPostTaxonomyItem(type, normalized);
+      await refetchPostCategories();
+      showMessage('success', `${type === 'category' ? 'Category' : 'Tag'} added.`);
+    } catch (error) {
+      showMessage('error', `Failed to add ${type}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw error;
+    }
+  }, [addPostTaxonomyItem, refetchPostCategories, showMessage]);
+
+  const handleDeletePostTaxonomyItem = useCallback(async (type: PostTaxonomyType, value: string) => {
+    try {
+      await deletePostTaxonomyItem(type, value);
+      await refetchPostCategories();
+      showMessage('success', `${type === 'category' ? 'Category' : 'Tag'} deleted.`);
+    } catch (error) {
+      showMessage('error', `Failed to delete ${type}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }, [deletePostTaxonomyItem, refetchPostCategories, showMessage]);
+
+  const appendPostTag = (tag: string) => {
+    const next = normalizePostTags([...normalizePostTags(postTagsInput), tag]);
+    setPostTagsInput(next.join(', '));
+  };
 
   const handleSavePost = async () => {
     // Strip out translations where both title and body are empty so we
@@ -1184,6 +1464,8 @@ const AdminPage = () => {
       }
       setShowPostModal(false);
       refetchPosts();
+      void refetchPostTaxonomy();
+      void refetchPostCategories();
     } catch (error) {
       showMessage('error', `Failed to save post: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
@@ -1336,6 +1618,8 @@ const AdminPage = () => {
       await postMutations.deletePost(id);
       showMessage('success', 'Post deleted successfully!');
       refetchPosts();
+      void refetchPostTaxonomy();
+      void refetchPostCategories();
       setShowDeleteConfirm(null);
     } catch (error) {
       showMessage('error', `Failed to delete post: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -1666,6 +1950,7 @@ const AdminPage = () => {
     { id: 'profile' as AdminSection, label: 'Profile', icon: User },
     { id: 'projects' as AdminSection, label: 'Projects', icon: FolderKanban },
     { id: 'posts' as AdminSection, label: 'Blog Posts', icon: FileText },
+    { id: 'taxonomy' as AdminSection, label: 'Blog Taxonomy', icon: Tags },
     { id: 'writing' as AdminSection, label: 'Writing', icon: Newspaper },
     { id: 'jobs' as AdminSection, label: 'Jobs', icon: Briefcase },
     { id: 'study' as AdminSection, label: 'Study Tool', icon: BookOpen },
@@ -1828,6 +2113,12 @@ const AdminPage = () => {
                       style={{ ...styles.button, ...styles.outlineButton }}
                     >
                       <Plus size={16} /> New Post
+                    </button>
+                    <button
+                      onClick={() => handleSectionChange('taxonomy')}
+                      style={{ ...styles.button, ...styles.outlineButton }}
+                    >
+                      <Tags size={16} /> Blog Taxonomy
                     </button>
                   </div>
                 </div>
@@ -2242,6 +2533,36 @@ const AdminPage = () => {
                   onDelete={requestDeletePost}
                 />
               )}
+            </div>
+          )}
+
+          {/* Blog Taxonomy Section */}
+          {activeSection === 'taxonomy' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
+                <div>
+                  <h1 style={styles.pageTitle}>Blog Taxonomy</h1>
+                  <p style={{ color: adminColors.textMuted }}>Manage blog categories, tag suggestions, and where they are used</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void Promise.all([refetchPostTaxonomy(), refetchPostCategories(), refetchPosts()])}
+                  style={{ ...styles.button, ...styles.outlineButton }}
+                >
+                  {postTaxonomyLoading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Tags size={16} />}
+                  Refresh
+                </button>
+              </div>
+
+              <BlogTaxonomyPanel
+                taxonomy={postTaxonomy}
+                posts={posts}
+                loading={postTaxonomyLoading || postsLoading}
+                mutating={postTaxonomyMutating}
+                onAdd={handleAddPostTaxonomyItem}
+                onDelete={handleDeletePostTaxonomyItem}
+                onEditPost={handleOpenPostModal}
+              />
             </div>
           )}
 
@@ -2799,7 +3120,7 @@ const AdminPage = () => {
                     style={styles.input}
                   />
                   <datalist id="post-category-options">
-                    {postCategories.map((cat) => (
+                    {postCategoryOptions.map((cat) => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </datalist>
@@ -2819,6 +3140,27 @@ const AdminPage = () => {
                   <p style={{ color: adminColors.textMuted, fontSize: '12px', margin: '8px 0 0' }}>
                     Comma-separated. Tags are normalized to lowercase kebab-case.
                   </p>
+                  {postTagOptions.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '10px' }}>
+                      {postTagOptions.map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => appendPostTag(tag)}
+                          style={{
+                            ...styles.ghostButton,
+                            border: `1px solid ${adminColors.border}`,
+                            borderRadius: '9999px',
+                            padding: '4px 9px',
+                            color: normalizePostTags(postTagsInput).includes(tag) ? adminColors.accent : adminColors.textMuted,
+                            backgroundColor: normalizePostTags(postTagsInput).includes(tag) ? adminColors.accentSoft : 'transparent',
+                          }}
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div
                   style={{

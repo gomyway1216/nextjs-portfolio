@@ -1,5 +1,7 @@
 // Firestore collection names
 export const POSTS_COLLECTION = 'post';
+export const POST_TAXONOMY_COLLECTION = 'post_taxonomy';
+export const POST_TAXONOMY_DOC_ID = 'settings';
 export const PROJECTS_COLLECTION = 'project';
 export const WRITING_COLLECTION = 'writing';
 export const TECHNOLOGIES_COLLECTION = 'technology';

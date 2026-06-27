@@ -60,6 +60,20 @@ export interface PostsResponse {
   lastVisibleTimestamp?: number | null;
 }
 
+export type PostTaxonomyType = 'category' | 'tag';
+
+export interface PostTaxonomyItem {
+  slug: string;
+  postCount: number;
+  configured: boolean;
+  seeded: boolean;
+}
+
+export interface PostTaxonomyResponse {
+  categories: PostTaxonomyItem[];
+  tags: PostTaxonomyItem[];
+}
+
 // On a fresh page load `auth.currentUser` is `null` until the Firebase
 // auth listener has restored the session from local storage. Hooks that
 // fire on mount (like usePosts) hit this window and would otherwise send
@@ -193,6 +207,61 @@ export async function getPostCategories(): Promise<string[]> {
 
   const data = await response.json();
   return data.categories;
+}
+
+export async function getPostTaxonomy(): Promise<PostTaxonomyResponse> {
+  const headers = await getAuthHeaders();
+
+  const response = await fetch('/api/post/taxonomy', {
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+  });
+
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+
+  return await response.json() as PostTaxonomyResponse;
+}
+
+export async function addPostTaxonomyItem(type: PostTaxonomyType, value: string): Promise<PostTaxonomyResponse> {
+  const headers = await getAuthHeaders();
+
+  const response = await fetch('/api/post/taxonomy', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify({ type, value }),
+  });
+
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+
+  return await response.json() as PostTaxonomyResponse;
+}
+
+export async function deletePostTaxonomyItem(type: PostTaxonomyType, value: string): Promise<PostTaxonomyResponse> {
+  const headers = await getAuthHeaders();
+
+  const response = await fetch('/api/post/taxonomy', {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      ...headers,
+    },
+    body: JSON.stringify({ type, value }),
+  });
+
+  if (!response.ok) {
+    await throwApiError(response);
+  }
+
+  return await response.json() as PostTaxonomyResponse;
 }
 
 export async function getTop4Posts(language?: PostLanguage): Promise<ListingPost[]> {

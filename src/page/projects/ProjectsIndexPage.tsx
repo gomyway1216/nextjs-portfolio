@@ -79,10 +79,12 @@ export default function ProjectsIndexPage() {
           <p className={styles.kicker}>{t('projectsPage.kicker')}</p>
           <h1 className={styles.title}>{t('projectsPage.title')}</h1>
           <p className={styles.subtitle}>{t('projectsPage.subtitle')}</p>
-          <div className={styles.stats} aria-label={t('projectsPage.statsLabel')}>
-            <span>{t('projectsPage.projectCount', { value: projects.length })}</span>
-            <span>{t('projectsPage.categoryCount', { value: categoryCount })}</span>
-          </div>
+          {!isLoading && !hasError ? (
+            <div className={styles.stats} aria-label={t('projectsPage.statsLabel')}>
+              <span>{t('projectsPage.projectCount', { count: projects.length })}</span>
+              <span>{t('projectsPage.categoryCount', { count: categoryCount })}</span>
+            </div>
+          ) : null}
         </header>
 
         <div className={styles.filterBar} aria-label={t('projectsPage.filterLabel')}>
@@ -93,6 +95,7 @@ export default function ProjectsIndexPage() {
                 type="button"
                 key={category}
                 className={isActive ? `${styles.filterButton} ${styles.filterButtonActive}` : styles.filterButton}
+                aria-pressed={isActive}
                 onClick={() => setActiveCategory(category)}
               >
                 {category === 'All' ? t('projectsPage.all') : category}
@@ -125,7 +128,7 @@ export default function ProjectsIndexPage() {
           <div className={styles.grid}>
             {filteredProjects.map((project) => {
               const technologies = project.technologies?.map(normalizeTechnology).filter(Boolean).slice(0, 4) ?? [];
-              const primaryCategory = project.categories?.[0] || t('projectsPage.all');
+              const primaryCategory = project.categories?.[0];
               const excerpt = createPlainTextExcerpt(project.description, 165);
 
               return (
@@ -159,8 +162,8 @@ export default function ProjectsIndexPage() {
                     {excerpt && <p>{excerpt}</p>}
                     {technologies.length > 0 && (
                       <div className={styles.techList} aria-label={t('projectsPage.technologies')}>
-                        {technologies.map((technology) => (
-                          <span key={technology}>{technology}</span>
+                        {technologies.map((technology, index) => (
+                          <span key={`${technology}-${index}`}>{technology}</span>
                         ))}
                       </div>
                     )}

@@ -35,3 +35,7 @@ export function normalizePostTags(value: unknown): string[] {
 
   return Array.from(new Set(tags)).slice(0, 20);
 }
+
+export function normalizePostTag(value: unknown): string {
+  return normalizePostTags([value])[0] || '';
+}

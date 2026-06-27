@@ -1,6 +1,10 @@
-import { POSTS_COLLECTION } from '@/app/api/constants';
+import {
+  POSTS_COLLECTION,
+  POST_TAXONOMY_COLLECTION,
+  POST_TAXONOMY_DOC_ID,
+} from '@/app/api/constants';
 import { getFirestore } from '@/lib/firebase-admin';
-import { SEEDED_POST_CATEGORIES } from '@/lib/blog/postMetadata';
+import { SEEDED_POST_CATEGORIES, normalizePostCategory } from '@/lib/blog/postMetadata';
 import { NextRequest,NextResponse } from 'next/server';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
@@ -13,12 +17,20 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 export const GET = withActivityLog('next_api.post.categories.GET', async (_request: NextRequest) => {
   try {
     const db = getFirestore();
+    const taxonomyDoc = await db.collection(POST_TAXONOMY_COLLECTION).doc(POST_TAXONOMY_DOC_ID).get();
     const snapshot = await db.collection(POSTS_COLLECTION).select('category').get();
 
     const set = new Set<string>(SEEDED_POST_CATEGORIES);
+    const configured = taxonomyDoc.exists ? taxonomyDoc.data()?.categories : [];
+    if (Array.isArray(configured)) {
+      configured.forEach((category) => {
+        const normalized = normalizePostCategory(category);
+        if (normalized) set.add(normalized);
+      });
+    }
     snapshot.forEach((doc) => {
-      const cat = doc.data().category;
-      if (typeof cat === 'string' && cat) set.add(cat);
+      const cat = normalizePostCategory(doc.data().category);
+      if (cat) set.add(cat);
     });
 
     return NextResponse.json({ categories: Array.from(set) });

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import * as api from '@/services/postsService';
-import type { Post, DetailPost } from '@/services/postsService';
+import type { Post, DetailPost, PostTaxonomyResponse, PostTaxonomyType } from '@/services/postsService';
 import type { PostLanguage, PostTranslations } from '@/lib/blog/postTranslations';
 
 export interface CreatePostData {
@@ -140,24 +140,81 @@ export function usePostCategories() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await api.getPostCategories();
-        setCategories(data);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch categories'));
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCategories();
+  const fetchCategories = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await api.getPostCategories();
+      setCategories(data);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch categories'));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  return { categories, loading, error };
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
+
+  return { categories, loading, error, refetch: fetchCategories };
+}
+
+export function usePostTaxonomy() {
+  const [taxonomy, setTaxonomy] = useState<PostTaxonomyResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [mutating, setMutating] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  const fetchTaxonomy = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      setTaxonomy(await api.getPostTaxonomy());
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch taxonomy'));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTaxonomy();
+  }, [fetchTaxonomy]);
+
+  const addItem = useCallback(async (type: PostTaxonomyType, value: string) => {
+    try {
+      setMutating(true);
+      setError(null);
+      const next = await api.addPostTaxonomyItem(type, value);
+      setTaxonomy(next);
+      return next;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Failed to add taxonomy item');
+      setError(error);
+      throw error;
+    } finally {
+      setMutating(false);
+    }
+  }, []);
+
+  const deleteItem = useCallback(async (type: PostTaxonomyType, value: string) => {
+    try {
+      setMutating(true);
+      setError(null);
+      const next = await api.deletePostTaxonomyItem(type, value);
+      setTaxonomy(next);
+      return next;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error('Failed to delete taxonomy item');
+      setError(error);
+      throw error;
+    } finally {
+      setMutating(false);
+    }
+  }, []);
+
+  return { taxonomy, loading, mutating, error, refetch: fetchTaxonomy, addItem, deleteItem };
 }
 
 /**

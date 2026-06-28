@@ -87,6 +87,13 @@ const CategoryPostPage = ({
   const hasCachedPosts = (postsByCategory[cacheKey]?.length ?? 0) > 0;
   const [isLoading, setIsLoading] = useState(() => !hasCachedPosts && !hasUsableInitialPage);
   const [hasMore, setHasMore] = useState(initialHasMore ?? true);
+  const [previousCacheKey, setPreviousCacheKey] = useState(cacheKey);
+
+  if (cacheKey !== previousCacheKey) {
+    setPreviousCacheKey(cacheKey);
+    setIsLoading(!hasCachedPosts && !hasUsableInitialPage);
+    setHasMore(hasUsableInitialPage ? (initialHasMore ?? true) : true);
+  }
 
   const [ref, inView] = useInView({ threshold: 0.1, triggerOnce: false });
   const visiblePosts =

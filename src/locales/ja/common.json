@@ -117,6 +117,19 @@
       "emptyTitle": "公開中の記事はまだありません",
       "emptyText": "別のカテゴリを選ぶか、次回更新後にまた確認してください。",
       "loading": "記事を読み込み中",
+      "signalLabel": "記事テーマ",
+      "signals": {
+        "systems": "本番システム",
+        "product": "プロダクト判断",
+        "craft": "実装の技術"
+      },
+      "feedKicker": "最新記事",
+      "feedTitle": "{{category}} のフィード",
+      "loadedCount": "{{count}}件表示中",
+      "read": "読む",
+      "openPost": "{{title}}を開く",
+      "noSummary": "表示できる概要がありません。",
+      "postTags": "記事タグ",
       "categories": {
         "all": "すべての記事",
         "appliedAlgorithms": "応用アルゴリズム",

@@ -19,7 +19,7 @@ export function normalizePostCategory(value: unknown): string {
     .replace(/^-|-$/g, '');
 }
 
-export function normalizePostTags(value: unknown): string[] {
+function normalizePostTagValues(value: unknown): string[] {
   const rawTags = Array.isArray(value)
     ? value
     : typeof value === 'string'
@@ -33,7 +33,15 @@ export function normalizePostTags(value: unknown): string[] {
     .map((tag) => tag.replace(/-+/g, '-').replace(/^-|-$/g, ''))
     .filter(Boolean);
 
-  return Array.from(new Set(tags)).slice(0, 20);
+  return Array.from(new Set(tags));
+}
+
+export function normalizePostTags(value: unknown): string[] {
+  return normalizePostTagValues(value).slice(0, 20);
+}
+
+export function normalizePostTaxonomyTags(value: unknown): string[] {
+  return normalizePostTagValues(value);
 }
 
 export function normalizePostTag(value: unknown): string {

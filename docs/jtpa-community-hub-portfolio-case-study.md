@@ -1,6 +1,6 @@
-# JTPA Community Hub Portfolio Case Study Draft
+# JTPA Community Hub Portfolio Case Study
 
-This draft is for adding JTPA Community Hub to meetyudai.com as a portfolio project and, optionally, turning it into a longer blog/case-study page.
+This case study content is for adding JTPA Community Hub to meetyudai.com as a portfolio project and, optionally, turning it into a longer blog/case-study page.
 
 Use the short fields for the Projects admin form. Use the full case study for a dedicated post or project detail page.
 
@@ -260,7 +260,7 @@ The Showcase feature is designed so members can submit AI projects while admins 
 
 ```mermaid
 flowchart TD
-  draft["Member creates project draft"] --> submit["Submit for review"]
+  submission["Member prepares project submission"] --> submit["Submit for review"]
   submit --> pending["Pending review"]
   pending --> review{"Admin review"}
   review -- "Needs changes" --> changes["Return feedback / keep private"]
@@ -362,14 +362,14 @@ AI can dramatically increase implementation speed, but it does not replace produ
 
 ## Outcome
 
-The result is a real, deployed community platform that supports both the public face and operational backbone of Bay Area AI / JTPA. It shows my ability to build full-stack products, model real workflows, design permission boundaries, use Firebase beyond a prototype level, and collaborate with AI tools without giving up engineering control.
+The result is a real, deployed community platform that supports both the public face and operational backbone of Bay Area AI / JTPA. It shows my ability to build full-stack products, model real workflows, design permission boundaries, use Firebase in production, and collaborate with AI tools without giving up engineering control.
 
 ## Next Steps
 
 The next phase is to make accumulated community knowledge easier to reuse:
 
 - AI summaries for posts and Q&A
-- Automatic event recap drafts
+- Automatic event recap generation
 - Recommended projects and guides for members
 - Organizer analytics for RSVPs, attendance, and content engagement
 - Better discovery across events, slides, projects, posts, and questions
@@ -388,7 +388,7 @@ flowchart LR
 
 ## Suggested Visual Assets
 
-Use these as the image set for the project. The first three already exist in the JTPA worktree from the Showcase draft; create or capture the rest as needed.
+Use these as the image set for the project. The first three already exist in the JTPA worktree from the published Showcase material; create or capture the rest as needed.
 
 1. Cover image: product name, community platform, AI meetup operations.
 2. Product screenshot: home page or event list.

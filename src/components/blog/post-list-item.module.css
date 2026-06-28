@@ -77,12 +77,6 @@
   outline-offset: 3px;
 }
 
-.card[data-featured="true"] .cardButton {
-  min-height: 0;
-  grid-template-columns: minmax(0, 1fr);
-  padding: 18px;
-}
-
 .index {
   display: inline-flex;
   width: fit-content;
@@ -161,15 +155,8 @@
   line-height: 1.16;
   overflow-wrap: anywhere;
   overflow: hidden;
-  text-wrap: balance;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-}
-
-.card[data-featured="true"] .title {
-  max-width: none;
-  font-size: clamp(1.12rem, 1.25vw, 1.34rem);
-  line-height: 1.16;
 }
 
 .excerpt {
@@ -182,11 +169,6 @@
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-}
-
-.card[data-featured="true"] .excerpt {
-  max-width: none;
-  font-size: 13px;
 }
 
 .footer {
@@ -253,11 +235,6 @@
     linear-gradient(135deg, #10251d, #0f766e 58%, #d9f99d);
   color: color-mix(in srgb, #ffffff 88%, #d9f99d);
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #ffffff 18%, transparent);
-}
-
-.card[data-featured="true"] .thumbnail,
-.card[data-featured="true"] .thumbnailPlaceholder {
-  height: auto;
 }
 
 .thumbnail::after,
@@ -332,8 +309,7 @@
 }
 
 @media (max-width: 820px) {
-  .cardButton,
-  .card[data-featured="true"] .cardButton {
+  .cardButton {
     grid-template-columns: minmax(0, 1fr);
     gap: 14px;
     padding: 22px;
@@ -345,8 +321,7 @@
 }
 
 @media (max-width: 520px) {
-  .cardButton,
-  .card[data-featured="true"] .cardButton {
+  .cardButton {
     grid-template-columns: 1fr;
     gap: 16px;
     padding: 20px;
@@ -368,14 +343,12 @@
     gap: 8px;
   }
 
-  .title,
-  .card[data-featured="true"] .title {
+  .title {
     font-size: clamp(1.28rem, 7.2vw, 1.68rem);
     line-height: 1.16;
   }
 
-  .excerpt,
-  .card[data-featured="true"] .excerpt {
+  .excerpt {
     font-size: 14px;
     line-height: 1.68;
   }

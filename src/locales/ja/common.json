@@ -126,6 +126,10 @@
       "feedKicker": "最新記事",
       "feedTitle": "{{category}} のフィード",
       "loadedCount": "{{count}}件表示中",
+      "read": "読む",
+      "openPost": "{{title}}を開く",
+      "noSummary": "表示できる概要がありません。",
+      "postTags": "記事タグ",
       "categories": {
         "all": "すべての記事",
         "appliedAlgorithms": "応用アルゴリズム",

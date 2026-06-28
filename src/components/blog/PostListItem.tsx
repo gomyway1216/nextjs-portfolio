@@ -3,6 +3,7 @@ import { ArrowUpRight, CalendarDays } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { forwardRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import styles from './post-list-item.module.css';
 
 interface PostListItemProps {
@@ -35,6 +36,24 @@ const formatDisplayDate = (value?: string | Date, language?: string) => {
 
 const HTML_START_PATTERN = /^\s*<\/?(p|div|h[1-6]|ul|ol|li|strong|em|a|img|blockquote|pre|code|table|thead|tbody|tr|td|th|br|iframe)\b/i;
 
+const CATEGORY_LABELS: Record<string, string> = {
+  all: 'blogPage.index.categories.all',
+  'applied-algorithms': 'blogPage.index.categories.appliedAlgorithms',
+  'system-design': 'blogPage.index.categories.systemDesign',
+  'engineering-practices': 'blogPage.index.categories.engineeringPractices',
+  'fintech-payments': 'blogPage.index.categories.fintechPayments',
+  career: 'blogPage.index.categories.career',
+  technology: 'blogPage.index.categories.technology',
+  life: 'blogPage.index.categories.life',
+};
+
+const titleCaseCategory = (value: string) =>
+  value
+    .split('-')
+    .filter(Boolean)
+    .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+
 const markdownToPlainText = (value: string) => value
   .replace(/```[\s\S]*?```/g, ' ')
   .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
@@ -52,14 +71,17 @@ const markdownToPlainText = (value: string) => value
 
 const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
   ({ id, title, body, lastUpdated, category, tags = [], image, language, index, featured = false, handleClick }, ref) => {
+    const { t } = useTranslation();
     const rawBodyText = HTML_START_PATTERN.test(body) ? htmlToText(body, { wordwrap: false }) : body;
     const bodyText = markdownToPlainText(rawBodyText);
     const excerptLength = featured ? 260 : 190;
     const excerpt = bodyText.length > excerptLength ? `${bodyText.slice(0, excerptLength).trim()}...` : bodyText;
-    const categoryLabel = category.replace(/-/g, ' ');
-    const displayIndex = index ? String(index).padStart(2, '0') : '01';
-    const readLabel = language?.startsWith('ja') ? '読む' : 'Read';
-    const openLabel = language?.startsWith('ja') ? `${title}を開く` : `Open ${title}`;
+    const categoryLabel = CATEGORY_LABELS[category] ? t(CATEGORY_LABELS[category]) : titleCaseCategory(category);
+    const displayIndex = index != null ? String(index).padStart(2, '0') : '01';
+    const readLabel = t('blogPage.index.read');
+    const openLabel = t('blogPage.index.openPost', { title });
+    const noSummaryLabel = t('blogPage.index.noSummary');
+    const postTagsLabel = t('blogPage.index.postTags');
 
     return (
       <article
@@ -83,10 +105,10 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
               <span>{categoryLabel}</span>
             </div>
             <h2 className={styles.title}>{title}</h2>
-            <p className={styles.excerpt}>{excerpt || 'No summary available.'}</p>
+            <p className={styles.excerpt}>{excerpt || noSummaryLabel}</p>
             <div className={styles.footer}>
               {tags.length > 0 && (
-                <div className={styles.tags} aria-label="Post tags">
+                <div className={styles.tags} aria-label={postTagsLabel}>
                   {tags.slice(0, 4).map((tag) => (
                     <span key={tag}>{tag}</span>
                   ))}

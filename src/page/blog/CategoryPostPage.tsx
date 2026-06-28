@@ -176,11 +176,11 @@ const CategoryPostPage = ({
               {t('blogPage.index.subtitle')}
             </p>
           </div>
-          <div className={styles.heroSignals} aria-label={t('blogPage.index.signalLabel')}>
-            <span>{t('blogPage.index.signals.systems')}</span>
-            <span>{t('blogPage.index.signals.product')}</span>
-            <span>{t('blogPage.index.signals.craft')}</span>
-          </div>
+          <ul className={styles.heroSignals} aria-label={t('blogPage.index.signalLabel')}>
+            <li>{t('blogPage.index.signals.systems')}</li>
+            <li>{t('blogPage.index.signals.product')}</li>
+            <li>{t('blogPage.index.signals.craft')}</li>
+          </ul>
           <div className={styles.categoryNav}>
             <SuggestionBar activeTab={category} />
           </div>

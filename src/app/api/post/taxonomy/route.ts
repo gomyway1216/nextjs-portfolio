@@ -10,6 +10,7 @@ import {
   SEEDED_POST_CATEGORIES,
   normalizePostCategory,
   normalizePostTag,
+  normalizePostTaxonomyTags,
   normalizePostTags,
 } from '@/lib/blog/postMetadata';
 import { NextRequest, NextResponse } from 'next/server';
@@ -44,7 +45,7 @@ function normalizeStoredCategories(value: unknown): string[] {
 
 function normalizeStoredTags(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
-  return normalizePostTags(value);
+  return normalizePostTaxonomyTags(value);
 }
 
 function normalizeValue(type: TaxonomyType, value: unknown): string {

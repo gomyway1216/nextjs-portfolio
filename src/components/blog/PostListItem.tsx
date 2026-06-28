@@ -1,4 +1,5 @@
 import { htmlToText } from 'html-to-text';
+import { ArrowUpRight, CalendarDays } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { forwardRef } from 'react';
@@ -15,6 +16,8 @@ interface PostListItemProps {
   tags?: string[];
   image?: string;
   language?: string;
+  index?: number;
+  featured?: boolean;
   handleClick: () => void;
 }
 
@@ -48,37 +51,52 @@ const markdownToPlainText = (value: string) => value
   .trim();
 
 const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
-  ({ id, title, body, lastUpdated, category, tags = [], image, language, handleClick }, ref) => {
+  ({ id, title, body, lastUpdated, category, tags = [], image, language, index, featured = false, handleClick }, ref) => {
     const rawBodyText = HTML_START_PATTERN.test(body) ? htmlToText(body, { wordwrap: false }) : body;
     const bodyText = markdownToPlainText(rawBodyText);
-    const excerpt = bodyText.length > 190 ? `${bodyText.slice(0, 190).trim()}...` : bodyText;
+    const excerptLength = featured ? 260 : 190;
+    const excerpt = bodyText.length > excerptLength ? `${bodyText.slice(0, excerptLength).trim()}...` : bodyText;
     const categoryLabel = category.replace(/-/g, ' ');
+    const displayIndex = index ? String(index).padStart(2, '0') : '01';
+    const readLabel = language?.startsWith('ja') ? '読む' : 'Read';
+    const openLabel = language?.startsWith('ja') ? `${title}を開く` : `Open ${title}`;
 
     return (
       <article
         ref={ref}
         className={styles.card}
+        data-featured={featured ? 'true' : undefined}
       >
         <Link
           href={`/blog/${category}/${id}`}
           className={styles.cardButton}
           onClick={handleClick}
-          aria-label={`Open ${title}`}
+          aria-label={openLabel}
         >
+          <span className={styles.index}>{displayIndex}</span>
           <div className={styles.content}>
             <div className={styles.meta}>
-              <span>{formatDisplayDate(lastUpdated, language)}</span>
+              <span className={styles.date}>
+                <CalendarDays size={14} aria-hidden="true" />
+                {formatDisplayDate(lastUpdated, language)}
+              </span>
               <span>{categoryLabel}</span>
             </div>
             <h2 className={styles.title}>{title}</h2>
             <p className={styles.excerpt}>{excerpt || 'No summary available.'}</p>
-            {tags.length > 0 && (
-              <div className={styles.tags} aria-label="Post tags">
-                {tags.slice(0, 4).map((tag) => (
-                  <span key={tag}>{tag}</span>
-                ))}
-              </div>
-            )}
+            <div className={styles.footer}>
+              {tags.length > 0 && (
+                <div className={styles.tags} aria-label="Post tags">
+                  {tags.slice(0, 4).map((tag) => (
+                    <span key={tag}>{tag}</span>
+                  ))}
+                </div>
+              )}
+              <span className={styles.readMore}>
+                {readLabel}
+                <ArrowUpRight size={16} aria-hidden="true" />
+              </span>
+            </div>
           </div>
 
           {image ? (
@@ -93,7 +111,7 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
             </span>
           ) : (
             <span className={styles.thumbnailPlaceholder} aria-hidden="true">
-              {categoryLabel.slice(0, 1).toUpperCase()}
+              <span>{categoryLabel.slice(0, 1).toUpperCase()}</span>
             </span>
           )}
         </Link>

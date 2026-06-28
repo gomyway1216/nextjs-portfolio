@@ -119,6 +119,15 @@
       "emptyTitle": "No public posts yet",
       "emptyText": "Try another category or come back after the next update.",
       "loading": "Loading posts",
+      "signalLabel": "Writing themes",
+      "signals": {
+        "systems": "Production systems",
+        "product": "Product decisions",
+        "craft": "Engineering craft"
+      },
+      "feedKicker": "Latest dispatches",
+      "feedTitle": "{{category}} feed",
+      "loadedCount": "{{count}} loaded",
       "categories": {
         "all": "All Writing",
         "appliedAlgorithms": "Applied Algorithms",

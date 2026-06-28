@@ -169,13 +169,30 @@ const CategoryPostPage = ({
     <main className={styles.page}>
       <section className={styles.shell}>
         <header className={styles.hero}>
-          <p className={styles.kicker}>{t('blogPage.index.kicker')}</p>
-          <h1 className={styles.title}>{categoryLabel}</h1>
-          <p className={styles.subtitle}>
-            {t('blogPage.index.subtitle')}
-          </p>
-          <SuggestionBar activeTab={category} />
+          <div className={styles.heroCopy}>
+            <p className={styles.kicker}>{t('blogPage.index.kicker')}</p>
+            <h1 className={styles.title}>{categoryLabel}</h1>
+            <p className={styles.subtitle}>
+              {t('blogPage.index.subtitle')}
+            </p>
+          </div>
+          <div className={styles.heroSignals} aria-label={t('blogPage.index.signalLabel')}>
+            <span>{t('blogPage.index.signals.systems')}</span>
+            <span>{t('blogPage.index.signals.product')}</span>
+            <span>{t('blogPage.index.signals.craft')}</span>
+          </div>
+          <div className={styles.categoryNav}>
+            <SuggestionBar activeTab={category} />
+          </div>
         </header>
+
+        <div className={styles.listHeader}>
+          <div>
+            <p>{t('blogPage.index.feedKicker')}</p>
+            <h2>{t('blogPage.index.feedTitle', { category: categoryLabel })}</h2>
+          </div>
+          <span>{t('blogPage.index.loadedCount', { count: visiblePosts.length })}</span>
+        </div>
 
         <div className={styles.postList}>
           {visiblePosts.map((item, index, arr) => {
@@ -194,6 +211,8 @@ const CategoryPostPage = ({
                 tags={item.tags}
                 image={item.image}
                 language={item.language}
+                index={index + 1}
+                featured={index === 0}
                 handleClick={handleClickPost}
               />
             );

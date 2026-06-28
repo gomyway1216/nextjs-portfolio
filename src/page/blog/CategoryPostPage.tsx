@@ -212,7 +212,6 @@ const CategoryPostPage = ({
                 image={item.image}
                 language={item.language}
                 index={index + 1}
-                featured={index === 0}
                 handleClick={handleClickPost}
               />
             );

@@ -18,7 +18,6 @@ interface PostListItemProps {
   image?: string;
   language?: string;
   index?: number;
-  featured?: boolean;
   handleClick: () => void;
 }
 
@@ -70,11 +69,11 @@ const markdownToPlainText = (value: string) => value
   .trim();
 
 const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
-  ({ id, title, body, lastUpdated, category, tags = [], image, language, index, featured = false, handleClick }, ref) => {
+  ({ id, title, body, lastUpdated, category, tags = [], image, language, index, handleClick }, ref) => {
     const { t } = useTranslation();
     const rawBodyText = HTML_START_PATTERN.test(body) ? htmlToText(body, { wordwrap: false }) : body;
     const bodyText = markdownToPlainText(rawBodyText);
-    const excerptLength = featured ? 260 : 190;
+    const excerptLength = 190;
     const excerpt = bodyText.length > excerptLength ? `${bodyText.slice(0, excerptLength).trim()}...` : bodyText;
     const categoryLabel = CATEGORY_LABELS[category] ? t(CATEGORY_LABELS[category]) : titleCaseCategory(category);
     const displayIndex = index != null ? String(index).padStart(2, '0') : '01';
@@ -87,7 +86,6 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
       <article
         ref={ref}
         className={styles.card}
-        data-featured={featured ? 'true' : undefined}
       >
         <Link
           href={`/blog/${category}/${id}`}

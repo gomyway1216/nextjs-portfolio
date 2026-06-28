@@ -89,6 +89,8 @@ const CategoryPostPage = ({
   const [hasMore, setHasMore] = useState(initialHasMore ?? true);
   const [previousCacheKey, setPreviousCacheKey] = useState(cacheKey);
 
+  // Keep the first render after a category/language switch in loading mode,
+  // so the empty state cannot flash before the fetch effect runs.
   if (cacheKey !== previousCacheKey) {
     setPreviousCacheKey(cacheKey);
     setIsLoading(!hasCachedPosts && !hasUsableInitialPage);

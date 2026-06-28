@@ -103,7 +103,16 @@ const components: Components = {
           padding: '16px',
           margin: '20px 0',
         }}>
-          <code className={className} {...props}>{code}</code>
+          <code
+            className={className}
+            {...props}
+            style={{
+              backgroundColor: 'transparent',
+              color: 'inherit',
+            }}
+          >
+            {code}
+          </code>
         </pre>
       );
     }

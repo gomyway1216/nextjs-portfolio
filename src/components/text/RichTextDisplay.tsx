@@ -1,8 +1,7 @@
 'use client';
 import * as util from '@/lib/utils/util';
-import { sanitizeRichHtml } from '@/lib/sanitizeHtml';
+import RichContentRenderer from '@/components/common/RichContentRenderer';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
 import styles from './rich-text-display.module.scss';
 
 interface Post {
@@ -23,14 +22,6 @@ interface RichTextDisplayProps {
 const RichTextDisplay = ({ post }: RichTextDisplayProps) => {
   const { title, body, created, category, tags = [], image } = post;
 
-  // Sanitize after mount: DOMPurify needs a real DOM, and this component
-  // now server-renders (the post page passes a server-fetched post).
-  // Header/cover SSR for crawlers; the body fills in on hydration.
-  const [purifiedBody, setPurifiedBody] = useState('');
-  useEffect(() => {
-    setPurifiedBody(sanitizeRichHtml(body));
-  }, [body]);
-
   return (
     <article className={styles.root}>
       <header className={styles.header}>
@@ -50,8 +41,7 @@ const RichTextDisplay = ({ post }: RichTextDisplayProps) => {
           <Image src={image} alt={title} width={1280} height={720} unoptimized />
         </figure>
       )}
-      <div className={styles.body}
-        dangerouslySetInnerHTML={{ __html: purifiedBody }} />
+      <RichContentRenderer content={body} className={styles.body} />
     </article>
   );
 };

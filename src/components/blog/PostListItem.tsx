@@ -30,9 +30,27 @@ const formatDisplayDate = (value?: string | Date, language?: string) => {
   }).format(date);
 };
 
+const HTML_START_PATTERN = /^\s*<\/?(p|div|h[1-6]|ul|ol|li|strong|em|a|img|blockquote|pre|code|table|thead|tbody|tr|td|th|br|iframe)\b/i;
+
+const markdownToPlainText = (value: string) => value
+  .replace(/```[\s\S]*?```/g, ' ')
+  .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
+  .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  .replace(/`([^`\n]+)`/g, '$1')
+  .replace(/^#{1,6}\s+/gm, '')
+  .replace(/^\s{0,3}>\s?/gm, '')
+  .replace(/^\s*[-*+]\s+/gm, '')
+  .replace(/^\s*\d+\.\s+/gm, '')
+  .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+  .replace(/\*([^*\n]+)\*/g, '$1')
+  .replace(/~~([^~\n]+)~~/g, '$1')
+  .replace(/\s+/g, ' ')
+  .trim();
+
 const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
   ({ id, title, body, lastUpdated, category, tags = [], image, language, handleClick }, ref) => {
-    const bodyText = htmlToText(body, { wordwrap: false }).replace(/\s+/g, ' ').trim();
+    const rawBodyText = HTML_START_PATTERN.test(body) ? htmlToText(body, { wordwrap: false }) : body;
+    const bodyText = markdownToPlainText(rawBodyText);
     const excerpt = bodyText.length > 190 ? `${bodyText.slice(0, 190).trim()}...` : bodyText;
     const categoryLabel = category.replace(/-/g, ' ');
 

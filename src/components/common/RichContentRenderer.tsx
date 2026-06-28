@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { htmlWrappedMarkdownToMarkdown, isHtmlContent } from '@/lib/markdownHtml';
 import { sanitizeRichHtml } from '@/lib/sanitizeHtml';
 import MermaidDiagram from './MermaidDiagram';
 
@@ -12,13 +13,10 @@ interface RichContentRendererProps {
   className?: string;
 }
 
-const HTML_START_PATTERN = /^\s*<\/?(p|div|h[1-6]|ul|ol|li|strong|em|a|img|blockquote|pre|code|table|thead|tbody|tr|td|th|br|iframe)\b/i;
 const SAFE_LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:']);
 const SAFE_IMAGE_PROTOCOLS = new Set(['http:', 'https:']);
 
-function isHtmlContent(content: string): boolean {
-  return HTML_START_PATTERN.test(content);
-}
+type HtmlRenderState = { mode: 'html' | 'markdown'; content: string };
 
 function isSafeRelativeUrl(url: string): boolean {
   return url.startsWith('/') && !url.startsWith('//');
@@ -148,25 +146,39 @@ const components: Components = {
 };
 
 export default function RichContentRenderer({ content, className }: RichContentRendererProps) {
-  const [sanitizedHtml, setSanitizedHtml] = useState('');
+  const [htmlRenderState, setHtmlRenderState] = useState<HtmlRenderState>({ mode: 'html', content: '' });
   const isHtml = isHtmlContent(content);
 
   useEffect(() => {
     if (!content || !isHtml) {
-      setSanitizedHtml('');
+      setHtmlRenderState({ mode: 'html', content: '' });
       return;
     }
 
-    setSanitizedHtml(sanitizeRichHtml(content));
+    const sanitizedHtml = sanitizeRichHtml(content);
+    const markdownContent = htmlWrappedMarkdownToMarkdown(sanitizedHtml);
+    setHtmlRenderState(markdownContent
+      ? { mode: 'markdown', content: markdownContent }
+      : { mode: 'html', content: sanitizedHtml });
   }, [content, isHtml]);
 
   if (!content) return null;
 
   if (isHtml) {
+    if (htmlRenderState.mode === 'markdown') {
+      return (
+        <div className={className}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+            {htmlRenderState.content}
+          </ReactMarkdown>
+        </div>
+      );
+    }
+
     return (
       <div
         className={className}
-        dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+        dangerouslySetInnerHTML={{ __html: htmlRenderState.content }}
       />
     );
   }

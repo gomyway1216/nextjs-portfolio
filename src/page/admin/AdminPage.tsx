@@ -7,6 +7,7 @@ import RichContentRenderer from '@/components/common/RichContentRenderer';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { normalizePostCategory, normalizePostTag, normalizePostTags } from '@/lib/blog/postMetadata';
 import type { PostLanguage,PostTranslations } from '@/lib/blog/postTranslations';
+import { normalizeTranslationsForMarkdownEditing } from '@/lib/markdownHtml';
 import { useAuth } from '@/providers/AuthProvider';
 import * as imageApi from '@/services/imageService';
 import type { ListingPost } from '@/services/postsService';
@@ -51,7 +52,7 @@ import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { CSSProperties,memo,useCallback,useEffect,useRef,useState } from 'react';
+import { CSSProperties,memo,useCallback,useEffect,useRef,useState,type ChangeEvent } from 'react';
 
 type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'taxonomy' | 'jobs' | 'study' | 'hobbies' | 'writing' | 'activity-logs';
 
@@ -152,11 +153,6 @@ const WritingAdminPanel = dynamic(() => import('@/components/writing/WritingAdmi
 const StudyAdminPanel = dynamic(() => import('@/components/study/StudyAdminPanel'), {
   ssr: false,
   loading: () => <AdminSectionLoader label="Loading study tools..." />,
-});
-
-const TiptapEditor = dynamic(() => import('@/components/editor/TiptapEditor'), {
-  ssr: false,
-  loading: () => <AdminSectionLoader label="Loading editor..." />,
 });
 
 // Styles
@@ -350,11 +346,24 @@ const styles: Record<string, CSSProperties> = {
     backgroundColor: adminColors.surfaceRaised,
     color: adminColors.text,
     fontSize: '14px',
-    outline: 'none',
     resize: 'vertical' as const,
     minHeight: '100px',
     lineHeight: 1.5,
     accentColor: adminColors.accent,
+  },
+  markdownEditor: {
+    width: '100%',
+    minHeight: '420px',
+    padding: '14px',
+    borderRadius: '8px',
+    border: `1px solid ${adminColors.borderStrong}`,
+    backgroundColor: adminColors.surfaceRaised,
+    color: adminColors.text,
+    fontSize: '14px',
+    resize: 'vertical' as const,
+    lineHeight: 1.55,
+    accentColor: adminColors.accent,
+    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
   },
   select: {
     width: '100%',
@@ -1449,7 +1458,7 @@ const AdminPage = () => {
           category: detail.category,
           isPublic: detail.isPublic,
           image: detail.image || '',
-          translations: detail.translations,
+          translations: normalizeTranslationsForMarkdownEditing(detail.translations),
         });
         setPostTagsInput((detail.tags || []).join(', '));
       } catch (error) {
@@ -3329,6 +3338,8 @@ const AdminPage = () => {
                       onBodyChange={(value) => setTranslationField(lang, 'body', value)}
                       labelStyle={styles.label}
                       inputStyle={styles.input}
+                      markdownStyle={styles.markdownEditor}
+                      previewStyle={styles.card}
                       onImageUpload={imageApi.getMenuImageRef}
                     />
                   ))}
@@ -3558,6 +3569,8 @@ interface TranslationFieldsProps {
   onBodyChange: (value: string) => void;
   labelStyle: CSSProperties;
   inputStyle: CSSProperties;
+  markdownStyle: CSSProperties;
+  previewStyle: CSSProperties;
   onImageUpload: (file: File) => Promise<string>;
 }
 
@@ -3569,9 +3582,38 @@ const TranslationFields = ({
   onBodyChange,
   labelStyle,
   inputStyle,
+  markdownStyle,
+  previewStyle,
   onImageUpload,
 }: TranslationFieldsProps) => {
   const hasContent = !!(title.trim() || body.trim());
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  const appendMarkdownImage = (url: string) => {
+    const separator = body.trim() ? (body.endsWith('\n') ? '\n' : '\n\n') : '';
+    onBodyChange(`${body}${separator}![Image](${url})\n`);
+  };
+
+  const handleImageSelection = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    setUploadingImage(true);
+    setUploadError('');
+    try {
+      const url = await onImageUpload(file);
+      appendMarkdownImage(url);
+    } catch (error) {
+      console.error('Failed to upload post image:', error);
+      setUploadError('Image upload failed. Please try again.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   return (
     <div
       style={{
@@ -3611,11 +3653,71 @@ const TranslationFields = ({
       </div>
       <div>
         <label style={labelStyle}>Content</label>
-        <TiptapEditor
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '8px' }}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleImageSelection}
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingImage}
+            aria-label="Insert image"
+            title="Insert image"
+            style={{
+              ...styles.button,
+              ...styles.outlineButton,
+              minHeight: '34px',
+              padding: '7px 10px',
+            }}
+          >
+            {uploadingImage ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <ImageIcon size={15} />}
+            Image
+          </button>
+        </div>
+        {uploadError && (
+          <div
+            role="alert"
+            style={{
+              color: adminColors.danger,
+              fontSize: '12px',
+              marginBottom: '8px',
+            }}
+          >
+            {uploadError}
+          </div>
+        )}
+        <textarea
           value={body}
-          onChange={onBodyChange}
-          onImageUpload={onImageUpload}
+          onChange={(event) => onBodyChange(event.target.value)}
+          placeholder={'A short intro paragraph.\n\n## Section title\n\n- First point\n- Second point\n\n```ts\nconst bucket = hash % 100;\n```'}
+          style={markdownStyle}
         />
+        {body.trim() && (
+          <div style={{ ...previewStyle, marginTop: '12px' }}>
+            <div style={{
+              borderBottom: `1px solid ${adminColors.border}`,
+              color: adminColors.textMuted,
+              fontSize: '12px',
+              fontWeight: 600,
+              padding: '8px 12px',
+              textTransform: 'uppercase',
+            }}>
+              Preview
+            </div>
+            <div style={{
+              color: adminColors.textSoft,
+              maxHeight: '420px',
+              overflowY: 'auto',
+              padding: '16px',
+            }}>
+              <RichContentRenderer content={body} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -3589,6 +3589,7 @@ const TranslationFields = ({
   const hasContent = !!(title.trim() || body.trim());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   const appendMarkdownImage = (url: string) => {
     const separator = body.trim() ? (body.endsWith('\n') ? '\n' : '\n\n') : '';
@@ -3601,9 +3602,13 @@ const TranslationFields = ({
     if (!file) return;
 
     setUploadingImage(true);
+    setUploadError('');
     try {
       const url = await onImageUpload(file);
       appendMarkdownImage(url);
+    } catch (error) {
+      console.error('Failed to upload post image:', error);
+      setUploadError('Image upload failed. Please try again.');
     } finally {
       setUploadingImage(false);
     }
@@ -3673,6 +3678,18 @@ const TranslationFields = ({
             Image
           </button>
         </div>
+        {uploadError && (
+          <div
+            role="alert"
+            style={{
+              color: adminColors.danger,
+              fontSize: '12px',
+              marginBottom: '8px',
+            }}
+          >
+            {uploadError}
+          </div>
+        )}
         <textarea
           value={body}
           onChange={(event) => onBodyChange(event.target.value)}

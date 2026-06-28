@@ -36,10 +36,14 @@ const markdownToPlainText = (value: string) => value
   .replace(/```[\s\S]*?```/g, ' ')
   .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
   .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+  .replace(/`([^`\n]+)`/g, '$1')
   .replace(/^#{1,6}\s+/gm, '')
+  .replace(/^\s{0,3}>\s?/gm, '')
   .replace(/^\s*[-*+]\s+/gm, '')
   .replace(/^\s*\d+\.\s+/gm, '')
-  .replace(/[*_~`>]/g, '')
+  .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+  .replace(/\*([^*\n]+)\*/g, '$1')
+  .replace(/~~([^~\n]+)~~/g, '$1')
   .replace(/\s+/g, ' ')
   .trim();
 

@@ -40,6 +40,18 @@ const titleCaseCategory = (value: string) =>
     .map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`)
     .join(' ');
 
+const LoadingPostSkeleton = () => (
+  <article className={styles.loadingCard} aria-hidden="true">
+    <div className={styles.loadingMedia} />
+    <div className={styles.loadingIndex} />
+    <div className={styles.loadingMeta} />
+    <div className={styles.loadingTitle} />
+    <div className={styles.loadingTitleShort} />
+    <div className={styles.loadingExcerpt} />
+    <div className={styles.loadingExcerptShort} />
+  </article>
+);
+
 const CategoryPostPage = ({
   initialCategory,
   initialPosts,
@@ -67,7 +79,13 @@ const CategoryPostPage = ({
     setLastVisibleDocTimestamps,
   } = usePosts();
 
-  const [isLoading, setIsLoading] = useState(false);
+  const hasUsableInitialPage =
+    initialCategory === category &&
+    initialLanguage === language &&
+    Array.isArray(initialPosts) &&
+    (initialPosts.length > 0 || initialHasMore === false);
+  const hasCachedPosts = (postsByCategory[cacheKey]?.length ?? 0) > 0;
+  const [isLoading, setIsLoading] = useState(() => !hasCachedPosts && !hasUsableInitialPage);
   const [hasMore, setHasMore] = useState(initialHasMore ?? true);
 
   const [ref, inView] = useInView({ threshold: 0.1, triggerOnce: false });
@@ -76,6 +94,8 @@ const CategoryPostPage = ({
     (initialCategory === category && initialLanguage === language ? initialPosts : undefined) ||
     [];
   const categoryLabel = CATEGORY_LABELS[category] ? t(CATEGORY_LABELS[category]) : titleCaseCategory(category);
+  const showLoadingSkeletons = isLoading;
+  const skeletonCount = visiblePosts.length === 0 ? PAGE_LIMIT : Math.min(3, PAGE_LIMIT);
 
   const fetchPosts = async () => {
     setIsLoading(true);
@@ -127,6 +147,7 @@ const CategoryPostPage = ({
     const existing = postsByCategory[cacheKey];
     if (existing && existing.length > 0) {
       setHasMore(existing.length > 0);
+      setIsLoading(false);
       window.scrollTo(0, scrollPosition);
       return;
     }
@@ -134,8 +155,8 @@ const CategoryPostPage = ({
     if (
       initialCategory === category &&
       initialLanguage === language &&
-      initialPosts &&
-      initialPosts.length > 0
+      Array.isArray(initialPosts) &&
+      (initialPosts.length > 0 || initialHasMore === false)
     ) {
       setPostsByCategory(cacheKey, initialPosts);
       setCurrentPageByCategory(cacheKey, 2);
@@ -146,11 +167,14 @@ const CategoryPostPage = ({
         }));
       }
       setHasMore(initialHasMore ?? true);
+      setIsLoading(false);
       return;
     }
 
-    setHasMore(true);
-    fetchPosts();
+    if (!hasUsableInitialPage) {
+      setHasMore(true);
+      fetchPosts();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, language]);
 
@@ -222,11 +246,15 @@ const CategoryPostPage = ({
               <p>{t('blogPage.index.emptyText')}</p>
             </div>
           )}
-          {isLoading && (
-            <div className={styles.loadingState} role="status">
-              <span className={styles.loadingDot} aria-hidden="true" />
-              {t('blogPage.index.loading')}
-            </div>
+          {showLoadingSkeletons && (
+            <>
+              <span className={styles.srOnly} role="status">
+                {t('blogPage.index.loading')}
+              </span>
+              {Array.from({ length: skeletonCount }, (_, index) => (
+                <LoadingPostSkeleton key={`loading-${index}`} />
+              ))}
+            </>
           )}
         </div>
       </section>

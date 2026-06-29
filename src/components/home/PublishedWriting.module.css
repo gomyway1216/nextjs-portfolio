@@ -1,46 +1,50 @@
+.header {
+  max-width: 760px;
+}
+
+.header h3.heading {
+  overflow-wrap: anywhere;
+}
+
+.header p.dek {
+  max-width: 720px;
+}
+
 .list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 14px;
-  max-width: 880px;
+  max-width: 1120px;
   margin: 8px auto 0;
   padding: 0;
   list-style: none;
 }
 
-/* Card. position:relative anchors the stretched link (.link::after) so the
-   whole card is clickable while the <a> stays on the title for semantics. */
 .item {
   position: relative;
+  min-width: 0;
   display: flex;
-  gap: 18px;
-  padding: 22px;
+  flex-direction: column;
+  min-height: 240px;
+  padding: 18px;
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--surface-elevated) 96%, transparent);
-  box-shadow: var(--shadow-soft);
-  transition: transform 0.2s ease, border-color 0.2s ease;
+  border-radius: 8px;
+  background: var(--surface-elevated);
+  box-shadow: none;
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .item:hover,
 .item:focus-within {
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  box-shadow: var(--shadow-soft);
 }
 
-.icon {
-  display: inline-flex;
-  flex-shrink: 0;
-  width: 44px;
-  height: 44px;
+.kicker {
+  display: flex;
   align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--surface-elevated) 70%, var(--accent) 30%);
-  color: var(--accent-strong);
-}
-
-.body {
+  gap: 10px;
   min-width: 0;
 }
 
@@ -48,20 +52,41 @@
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  min-width: 0;
   color: var(--text-secondary);
-  font-size: 0.82rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-}
-
-.title {
-  margin: 8px 0 0;
-  font-size: 1.18rem;
+  font-size: 0.78rem;
   font-weight: 500;
   line-height: 1.35;
 }
 
+.meta span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--surface-elevated) 70%, var(--accent) 30%);
+  color: var(--accent-strong);
+}
+
+.title {
+  margin: 16px 0 0;
+  color: var(--text-primary);
+  font-size: 1.02rem;
+  font-weight: 500;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
+}
+
 .link {
+  position: static;
   color: var(--text-primary);
   text-decoration: none;
   outline-offset: 4px;
@@ -82,18 +107,22 @@
 .summary {
   margin: 10px 0 0;
   color: var(--text-secondary);
-  font-size: 0.94rem;
-  line-height: 1.65;
+  font-size: 0.88rem;
+  line-height: 1.62;
+  overflow-wrap: anywhere;
 }
 
 .readMore {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 14px;
+  margin-top: auto;
+  padding-top: 18px;
   color: var(--accent-strong);
-  font-size: 0.9rem;
+  font-size: 0.84rem;
   font-weight: 500;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
 .readMore svg {
@@ -119,12 +148,21 @@
 }
 
 @media (max-width: 640px) {
+  .header h3.heading {
+    font-size: clamp(2rem, 11vw, 2.45rem);
+    line-height: 1.14;
+  }
+
+  .header p.dek {
+    font-size: 0.95rem;
+  }
+
   .item {
-    gap: 14px;
     padding: 18px;
+    min-height: auto;
   }
 
   .title {
-    font-size: 1.08rem;
+    font-size: 1rem;
   }
 }

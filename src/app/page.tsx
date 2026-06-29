@@ -9,7 +9,7 @@ import { getFirestore } from '@/lib/firebase-admin';
 import type { Profile } from '@/hooks/useProfile';
 import { isValidSocialLink, type ProfileSocialLink } from '@/lib/socialLinks';
 import { WRITING_COLLECTION } from '@/app/api/constants';
-import { mergeDefaultWritings, parseWritingDoc, type Writing } from '@/lib/writing';
+import { isSafeHttpUrl, parseWritingDoc, publicWritings, type Writing } from '@/lib/writing';
 
 const PROFILE_DOC_ID = 'main';
 
@@ -49,12 +49,8 @@ const getInitialProfileCached = unstable_cache(getInitialProfile, ['home-profile
   tags: ['profile'],
 });
 
-// Returns null when the collection has no documents at all (caller falls back
-// to built-in Atlas articles); otherwise returns raw entries so defaults can
-// be merged and overridden by matching Firestore URLs.
-async function getInitialWritings(): Promise<Writing[] | null> {
+async function getInitialWritings(): Promise<Writing[]> {
   const snapshot = await getFirestore().collection(WRITING_COLLECTION).get();
-  if (snapshot.empty) return null;
   return snapshot.docs.map((doc) => parseWritingDoc(doc.id, doc.data()));
 }
 
@@ -75,12 +71,10 @@ export default async function Home() {
     console.error('[Home] Failed to load initial profile:', error);
   }
 
-  // Built-in Atlas articles keep the section populated; Firestore entries can
-  // override or hide matching URLs via the writing admin.
-  let initialWritings: Writing[] = mergeDefaultWritings(null);
+  let initialWritings: Writing[] = [];
   try {
     const fetched = await getInitialWritingsCached();
-    initialWritings = mergeDefaultWritings(fetched);
+    initialWritings = publicWritings(fetched).filter((w) => isSafeHttpUrl(w.url));
   } catch (error) {
     console.error('[Home] Failed to load initial writings:', error);
   }

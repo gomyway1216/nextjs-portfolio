@@ -19,7 +19,6 @@ test('home page renders the hero and sidebar navigation', async ({ page }) => {
     '/#home',
     '/#impact',
     '/#resume',
-    '/#writing',
     '/tools',
     '/#work',
     '/#community',

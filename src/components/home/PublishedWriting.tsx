@@ -8,8 +8,8 @@ import { writingSummary, type Writing } from '@/lib/writing';
 import styles from './PublishedWriting.module.css';
 
 interface PublishedWritingProps {
-  // Server-rendered in app/page.tsx (Firestore, with a built-in default
-  // fallback), so the cards and their JSON-LD ship in the SSR HTML.
+  // Server-rendered in app/page.tsx from Firestore, so the cards and their
+  // JSON-LD ship in the SSR HTML.
   writings: Writing[];
 }
 
@@ -40,36 +40,36 @@ export default function PublishedWriting({ writings }: PublishedWritingProps) {
   return (
     <section id="writing" className="section modern-section">
       <div className="container">
-        <div className="title modern-title">
-          <h3>{t('home.writing.title')}</h3>
-          <p>{t('home.writing.subtitle')}</p>
+        <div className={`title modern-title ${styles.header}`}>
+          <h3 className={styles.heading}>{t('home.writing.title')}</h3>
+          <p className={styles.dek}>{t('home.writing.subtitle')}</p>
         </div>
 
         <ul className={styles.list}>
           {writings.map((w) => (
             <li className={styles.item} key={w.id}>
-              <span className={styles.icon} aria-hidden="true">
-                <Newspaper size={20} strokeWidth={2} />
-              </span>
-              <div className={styles.body}>
+              <div className={styles.kicker}>
+                <span className={styles.icon} aria-hidden="true">
+                  <Newspaper size={16} strokeWidth={2} />
+                </span>
                 <div className={styles.meta}>
                   <span>{w.source}</span>
                   {w.date ? <span>· {formatDate(w.date)}</span> : null}
                 </div>
-                <h4 className={styles.title}>
-                  {/* rel="noopener" (not noreferrer) so the referrer reaches
-                      the destination's analytics; the link stays followable. */}
-                  <a className={styles.link} href={w.url} target="_blank" rel="noopener">
-                    {w.title}
-                    <span className={styles.srOnly}> {t('home.writing.newTab')}</span>
-                  </a>
-                </h4>
-                <p className={styles.summary}>{writingSummary(w, i18n.language)}</p>
-                <span className={styles.readMore} aria-hidden="true">
-                  {t('home.writing.readLabel', { source: w.source })}
-                  <ArrowUpRight size={16} />
-                </span>
               </div>
+              <h4 className={styles.title}>
+                {/* rel="noopener" (not noreferrer) so the referrer reaches
+                    the destination's analytics; the link stays followable. */}
+                <a className={styles.link} href={w.url} target="_blank" rel="noopener">
+                  {w.title}
+                  <span className={styles.srOnly}> {t('home.writing.newTab')}</span>
+                </a>
+              </h4>
+              <p className={styles.summary}>{writingSummary(w, i18n.language)}</p>
+              <span className={styles.readMore} aria-hidden="true">
+                {t('home.writing.readLabel', { source: w.source })}
+                <ArrowUpRight size={16} />
+              </span>
             </li>
           ))}
         </ul>

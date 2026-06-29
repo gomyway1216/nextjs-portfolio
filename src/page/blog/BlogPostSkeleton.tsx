@@ -12,10 +12,10 @@ const BlogPostSkeleton = ({ label = 'Loading post' }: BlogPostSkeletonProps) => 
       </span>
       <div className={styles.toolbar}>
         <div className={styles.skeletonBack} />
+        <div className={styles.skeletonCategory} />
       </div>
       <article className={styles.skeletonArticle} aria-hidden="true">
         <header className={styles.skeletonHeader}>
-          <div className={styles.skeletonCategory} />
           <div className={styles.skeletonTitle} />
           <div className={styles.skeletonTitleShort} />
           <div className={styles.skeletonDate} />

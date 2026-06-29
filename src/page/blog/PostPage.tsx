@@ -91,6 +91,7 @@ const PostPage = ({ initialPost }: PostPageProps) => {
   }
 
   const backCategory = post.category || _category || 'all';
+  const categoryLabel = post.category ? post.category.replace(/-/g, ' ') : '';
 
   return (
     <main className={styles.page}>
@@ -100,8 +101,10 @@ const PostPage = ({ initialPost }: PostPageProps) => {
             <ArrowLeft aria-hidden="true" size={16} strokeWidth={2} />
             {t('blogPage.post.backToBlog')}
           </Link>
+          {categoryLabel && <span className={styles.categoryPill}>{categoryLabel}</span>}
         </div>
         <RichTextDisplay
+          showCategory={false}
           post={{
             id: post.id,
             title: view.title,

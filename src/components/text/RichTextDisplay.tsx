@@ -17,15 +17,16 @@ interface Post {
 
 interface RichTextDisplayProps {
   post: Post;
+  showCategory?: boolean;
 }
 
-const RichTextDisplay = ({ post }: RichTextDisplayProps) => {
+const RichTextDisplay = ({ post, showCategory = true }: RichTextDisplayProps) => {
   const { title, body, created, category, tags = [], image } = post;
 
   return (
     <article className={styles.root}>
       <header className={styles.header}>
-        <p className={styles.category}>{category.replace(/-/g, ' ')}</p>
+        {showCategory && <p className={styles.category}>{category.replace(/-/g, ' ')}</p>}
         <h1 className={styles.title}>{title}</h1>
         <p className={styles.date}>{util.formatDate(created)}</p>
         {tags.length > 0 && (

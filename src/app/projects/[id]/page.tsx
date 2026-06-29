@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { cache } from 'react';
 import { createPlainTextExcerpt } from '@/lib/text';
 import { COMMUNITY_PROJECT_ID, getProjectPath } from '@/lib/projectRoutes';
 import { getProjectServer } from '@/lib/projects/getProjectsServer';
@@ -11,10 +12,11 @@ interface ProjectRouteParams {
 }
 
 const FALLBACK_DESCRIPTION = 'A portfolio project with project context, stack, links, and implementation notes.';
+const getProjectForRoute = cache(getProjectServer);
 
 export async function generateMetadata({ params }: ProjectRouteParams): Promise<Metadata> {
   const { id } = await params;
-  const project = await getProjectServer(id);
+  const project = await getProjectForRoute(id);
 
   if (!project) {
     return {
@@ -49,7 +51,7 @@ export async function generateMetadata({ params }: ProjectRouteParams): Promise<
 
 export default async function ProjectRoute({ params }: ProjectRouteParams) {
   const { id } = await params;
-  const project = await getProjectServer(id);
+  const project = await getProjectForRoute(id);
 
   if (!project) notFound();
 

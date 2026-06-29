@@ -10,7 +10,7 @@
 .shell {
   width: min(100% - 48px, 1120px);
   margin: 0 auto;
-  padding: 42px 0 88px;
+  padding: 28px 0 84px;
 }
 
 .stats {

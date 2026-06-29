@@ -208,7 +208,7 @@ const Header = ({ showWriting = false }: HeaderProps) => {
             <li className={activeSection === 'tools' ? 'active' : ''}>
               <Link
                 className="nav-link"
-                href="/#tools"
+                href="/tools"
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.tools')}
                 onClick={handleClick}

@@ -54,7 +54,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CSSProperties,memo,useCallback,useEffect,useRef,useState,type ChangeEvent } from 'react';
 
-type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'taxonomy' | 'jobs' | 'study' | 'hobbies' | 'writing' | 'activity-logs';
+type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'taxonomy' | 'jobs' | 'study' | 'hobbies' | 'published-writing' | 'activity-logs';
 
 interface Job {
   id: string;
@@ -145,9 +145,9 @@ const HobbiesAdminPanel = dynamic(() => import('@/components/hobby/HobbiesAdminP
   loading: () => <AdminSectionLoader label="Loading hobbies..." />,
 });
 
-const WritingAdminPanel = dynamic(() => import('@/components/writing/WritingAdminPanel'), {
+const PublishedWritingAdminPanel = dynamic(() => import('@/components/writing/WritingAdminPanel'), {
   ssr: false,
-  loading: () => <AdminSectionLoader label="Loading writing..." />,
+  loading: () => <AdminSectionLoader label="Loading published writing..." />,
 });
 
 const StudyAdminPanel = dynamic(() => import('@/components/study/StudyAdminPanel'), {
@@ -512,7 +512,8 @@ const styles: Record<string, CSSProperties> = {
 const getSectionFromHash = (): AdminSection => {
   if (typeof window === 'undefined') return 'dashboard';
   const hash = window.location.hash.replace('#', '');
-  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'taxonomy', 'jobs', 'study', 'hobbies', 'writing', 'activity-logs'];
+  if (hash === 'writing') return 'published-writing';
+  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'taxonomy', 'jobs', 'study', 'hobbies', 'published-writing', 'activity-logs'];
   return validSections.includes(hash as AdminSection) ? (hash as AdminSection) : 'dashboard';
 };
 
@@ -2068,7 +2069,7 @@ const AdminPage = () => {
     { id: 'projects' as AdminSection, label: 'Projects', icon: FolderKanban },
     { id: 'posts' as AdminSection, label: 'Blog Posts', icon: FileText },
     { id: 'taxonomy' as AdminSection, label: 'Blog Taxonomy', icon: Tags },
-    { id: 'writing' as AdminSection, label: 'Writing', icon: Newspaper },
+    { id: 'published-writing' as AdminSection, label: 'Published Writing', icon: Newspaper },
     { id: 'jobs' as AdminSection, label: 'Jobs', icon: Briefcase },
     { id: 'study' as AdminSection, label: 'Study Tool', icon: BookOpen },
     { id: 'hobbies' as AdminSection, label: 'Hobbies', icon: Heart },
@@ -2811,8 +2812,8 @@ const AdminPage = () => {
           )}
 
           {/* Published Writing Section */}
-          {activeSection === 'writing' && (
-            <WritingAdminPanel />
+          {activeSection === 'published-writing' && (
+            <PublishedWritingAdminPanel />
           )}
 
           {/* Activity Log Section */}

@@ -1,8 +1,11 @@
 .gameShell {
+  --jump-game-toolbar-height: 58px;
+  --jump-game-canvas-height-offset: 98px;
+
   position: relative;
   display: flex;
-  min-height: calc(100vh - 58px);
-  min-height: calc(100dvh - 58px);
+  min-height: calc(100vh - var(--jump-game-toolbar-height));
+  min-height: calc(100dvh - var(--jump-game-toolbar-height));
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -14,8 +17,8 @@
 
 .canvasFrame {
   position: relative;
-  width: min(480px, calc(100vw - 2rem), calc(100vh - 98px));
-  width: min(480px, calc(100vw - 2rem), calc(100dvh - 98px));
+  width: min(480px, calc(100vw - 2rem), calc(100vh - var(--jump-game-canvas-height-offset)));
+  width: min(480px, calc(100vw - 2rem), calc(100dvh - var(--jump-game-canvas-height-offset)));
   min-width: min(280px, calc(100vw - 2rem));
   aspect-ratio: 1 / 1;
 }
@@ -292,15 +295,16 @@
 
 @media (max-width: 640px) {
   .gameShell {
+    --jump-game-toolbar-height: 98px;
+    --jump-game-canvas-height-offset: 126px;
+
     align-items: flex-start;
-    min-height: calc(100vh - 98px);
-    min-height: calc(100dvh - 98px);
     padding-block: 1rem;
   }
 
   .canvasFrame {
-    width: min(calc(100vw - 2rem), calc(100vh - 126px));
-    width: min(calc(100vw - 2rem), calc(100dvh - 126px));
+    width: min(calc(100vw - 2rem), calc(100vh - var(--jump-game-canvas-height-offset)));
+    width: min(calc(100vw - 2rem), calc(100dvh - var(--jump-game-canvas-height-offset)));
   }
 
   .toolbarStats {

@@ -111,6 +111,37 @@
     "cardLabel": "View {{title}} case study",
     "technologies": "Technologies"
   },
+  "toolsPage": {
+    "kicker": "Tools",
+    "title": "All Tools",
+    "subtitle": "A focused index of practical tools built for daily work, learning, collaboration, and planning.",
+    "statsLabel": "Tools index summary",
+    "toolCount_one": "{{count}} tool",
+    "toolCount_other": "{{count}} tools",
+    "workflowCount": "7 workflows",
+    "open": "Open tool",
+    "openTool": "Open {{title}}",
+    "scoreTracker": {
+      "title": "Score Tracker",
+      "subtitle": "Group scoreboard",
+      "description": "Track final scores and cumulative rankings for mahjong, golf, board game nights, and recurring groups.",
+      "features": {
+        "daily": "Daily scores",
+        "total": "Cumulative totals",
+        "share": "Code sharing"
+      }
+    },
+    "todo": {
+      "title": "Todo",
+      "subtitle": "AI Task Manager",
+      "description": "Extract tasks from screenshots or text, then manage personal and group todo lists with smart input.",
+      "features": {
+        "screenshot": "Image extraction",
+        "text": "Text cleanup",
+        "groups": "Group sharing"
+      }
+    }
+  },
   "blogPage": {
     "index": {
       "kicker": "Blog",

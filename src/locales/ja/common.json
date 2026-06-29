@@ -109,6 +109,36 @@
     "cardLabel": "{{title}} の事例を見る",
     "technologies": "使用技術"
   },
+  "toolsPage": {
+    "kicker": "ツール一覧",
+    "title": "すべてのツール",
+    "subtitle": "日々の作業、学習、共有、計画を軽くするために作った実用ツールをまとめています。",
+    "statsLabel": "ツール一覧の概要",
+    "toolCount_other": "{{count}}件のツール",
+    "workflowCount": "7つのワークフロー",
+    "open": "ツールを開く",
+    "openTool": "{{title}} を開く",
+    "scoreTracker": {
+      "title": "スコアトラッカー",
+      "subtitle": "Score Tracker",
+      "description": "麻雀、ゴルフ、ボードゲーム会などの日付ごとの最終点と累計ランキングを記録します。",
+      "features": {
+        "daily": "日次スコア記録",
+        "total": "累計の自動集計",
+        "share": "コード共有"
+      }
+    },
+    "todo": {
+      "title": "Todo",
+      "subtitle": "AI Task Manager",
+      "description": "スクリーンショットやテキストからタスクを抽出し、個人やグループのTODOを管理します。",
+      "features": {
+        "screenshot": "画像から抽出",
+        "text": "テキスト整理",
+        "groups": "グループ共有"
+      }
+    }
+  },
   "blogPage": {
     "index": {
       "kicker": "ブログ",

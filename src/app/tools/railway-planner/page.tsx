@@ -1968,7 +1968,7 @@ export default function RailwayPlannerPage() {
         <header className={styles.header}>
           <div className={styles.headerMain}>
             <Link
-              href="/#tools"
+              href="/tools"
               className={styles.backLink}
               aria-label={rp('actions.backToTools')}
               onClick={() => lifecycle.complete()}

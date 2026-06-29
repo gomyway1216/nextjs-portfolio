@@ -168,8 +168,7 @@ export default function WritingAdminPanel() {
           <div style={s.empty}>Loading…</div>
         ) : writings.length === 0 ? (
           <div style={s.empty}>
-            No entries yet — the public site is showing the built-in default (the Atlas article).
-            Add an entry to take over.
+            No entries yet. Add one here to show the Published Writing section on the public site.
           </div>
         ) : (
           writings.map((w) => (

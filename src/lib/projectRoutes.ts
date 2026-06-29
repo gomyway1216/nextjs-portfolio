@@ -1,5 +1,7 @@
+export const COMMUNITY_PROJECT_ID = 'Wr6YDXliDrUvcAAuXAS3';
+
 export const PROJECT_SLUG_BY_ID: Record<string, string> = {
-  Wr6YDXliDrUvcAAuXAS3: 'bayarea-ai-jtpa-community-hub',
+  [COMMUNITY_PROJECT_ID]: 'bayarea-ai-jtpa-community-hub',
 };
 
 const PROJECT_ID_BY_SLUG = Object.fromEntries(

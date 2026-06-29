@@ -28,8 +28,8 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tooltip } from 'react-tooltip';
 
-const isBlogPath = (path: string | null | undefined) =>
-  path === '/blog' || path?.startsWith('/blog/');
+const isBlogPath = (path: string | null | undefined): boolean =>
+  path === '/blog' || !!path?.startsWith('/blog/');
 
 const SIDEBAR_NAV_ITEMS = [
   { kind: 'section', id: 'home', href: '/#home', labelKey: 'home.nav.home', Icon: House },

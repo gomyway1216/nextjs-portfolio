@@ -3,7 +3,7 @@
 import { ArrowUpRight, CalendarClock, Layers, Sparkles, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
-import { getProjectPath } from '@/lib/projectRoutes';
+import { COMMUNITY_PROJECT_ID, getProjectPath } from '@/lib/projectRoutes';
 import styles from './CommunityLeadership.module.css';
 
 // Maps to home.community.highlights.* — order is the rendered card order.
@@ -17,7 +17,6 @@ const highlights = [
 const metrics = ['cadence', 'platform', 'network'] as const;
 
 const COMMUNITY_URL = 'https://bayarea-ai.com';
-const COMMUNITY_PROJECT_ID = 'Wr6YDXliDrUvcAAuXAS3';
 
 export default function CommunityLeadership() {
   const { t, i18n } = useTranslation();

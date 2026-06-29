@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { createPlainTextExcerpt } from '@/lib/text';
-import { getProjectPath } from '@/lib/projectRoutes';
+import { COMMUNITY_PROJECT_ID, getProjectPath } from '@/lib/projectRoutes';
 import { getProjectServer } from '@/lib/projects/getProjectsServer';
 import { SITE_URL } from '@/lib/siteConfig';
 import ProjectPage from '@/page/project/ProjectPage';
@@ -74,7 +74,7 @@ export default async function ProjectRoute({ params }: ProjectRouteParams) {
     ...(project.client ? { sourceOrganization: { '@type': 'Organization', name: project.client } } : {}),
     author: { '@id': `${SITE_URL}/#person` },
     isPartOf: { '@type': 'WebSite', name: 'Yudai Yaguchi Portfolio', url: SITE_URL },
-    ...(project.id === 'Wr6YDXliDrUvcAAuXAS3'
+    ...(project.id === COMMUNITY_PROJECT_ID
       ? {
           about: [
             { '@type': 'Organization', name: 'Bay Area AI Study Group', url: 'https://bayarea-ai.com' },

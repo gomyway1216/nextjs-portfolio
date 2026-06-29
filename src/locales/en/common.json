@@ -118,7 +118,8 @@
     "statsLabel": "Tools index summary",
     "toolCount_one": "{{count}} tool",
     "toolCount_other": "{{count}} tools",
-    "workflowCount": "7 workflows",
+    "workflowCount_one": "{{count}} workflow",
+    "workflowCount_other": "{{count}} workflows",
     "open": "Open tool",
     "openTool": "Open {{title}}",
     "scoreTracker": {

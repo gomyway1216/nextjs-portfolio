@@ -115,7 +115,7 @@
     "subtitle": "日々の作業、学習、共有、計画を軽くするために作った実用ツールをまとめています。",
     "statsLabel": "ツール一覧の概要",
     "toolCount_other": "{{count}}件のツール",
-    "workflowCount": "7つのワークフロー",
+    "workflowCount_other": "{{count}}つのワークフロー",
     "open": "ツールを開く",
     "openTool": "{{title}} を開く",
     "scoreTracker": {

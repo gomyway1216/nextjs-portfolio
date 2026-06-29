@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo } from 'react';
 import Link from 'next/link';
 import type { CSSProperties, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -32,7 +33,7 @@ const toolAccent = (accent: string) => ({ '--tool-card-accent': accent } as CSSP
 export default function ToolsIndexPage() {
   const { t } = useTranslation();
 
-  const tools: ToolCard[] = [
+  const tools = useMemo<ToolCard[]>(() => [
     {
       id: 'settli',
       title: t('home.tools.settli.title'),
@@ -131,7 +132,7 @@ export default function ToolsIndexPage() {
         t('toolsPage.todo.features.groups'),
       ],
     },
-  ];
+  ], [t]);
 
   return (
     <main className={styles.page}>
@@ -144,7 +145,7 @@ export default function ToolsIndexPage() {
           meta={(
             <div className={styles.stats} aria-label={t('toolsPage.statsLabel')}>
               <span>{t('toolsPage.toolCount', { count: tools.length })}</span>
-              <span>{t('toolsPage.workflowCount')}</span>
+              <span>{t('toolsPage.workflowCount', { count: tools.length })}</span>
             </div>
           )}
         />

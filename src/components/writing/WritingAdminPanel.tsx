@@ -39,6 +39,11 @@ const s: Record<string, CSSProperties> = {
   checkboxRow: { display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--admin-text-soft)', fontSize: '14px' },
 };
 
+const disabledActionStyle = (disabled: boolean): CSSProperties => ({
+  opacity: disabled ? 0.5 : 1,
+  cursor: disabled ? 'not-allowed' : 'pointer',
+});
+
 export default function PublishedWritingAdminPanel() {
   const { writings, loading, refetch } = useWritings();
   const { createWriting, updateWriting, deleteWriting, loading: saving } = useWritingMutations();
@@ -193,13 +198,49 @@ export default function PublishedWritingAdminPanel() {
               </a>
               {confirmId === w.id ? (
                 <span style={{ display: 'inline-flex', gap: '6px' }}>
-                  <button type="button" disabled={saving} style={{ ...s.iconBtn, color: 'var(--admin-danger-text)', borderColor: 'var(--admin-danger-border)', background: 'var(--admin-danger-soft)' }} onClick={() => handleDelete(w.id)}>Yes</button>
-                  <button type="button" disabled={saving} style={s.iconBtn} onClick={() => setConfirmId(null)}>No</button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    style={{
+                      ...s.iconBtn,
+                      color: 'var(--admin-danger-text)',
+                      borderColor: 'var(--admin-danger-border)',
+                      background: 'var(--admin-danger-soft)',
+                      ...disabledActionStyle(saving),
+                    }}
+                    onClick={() => handleDelete(w.id)}
+                  >
+                    Yes
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    style={{ ...s.iconBtn, ...disabledActionStyle(saving) }}
+                    onClick={() => setConfirmId(null)}
+                  >
+                    No
+                  </button>
                 </span>
               ) : (
                 <span style={{ display: 'inline-flex', gap: '6px' }}>
-                  <button type="button" style={s.iconBtn} onClick={() => openEdit(w)} aria-label={`Edit ${w.title}`}><Pencil size={15} /></button>
-                  <button type="button" style={{ ...s.iconBtn, color: 'var(--admin-danger-text)' }} onClick={() => setConfirmId(w.id)} aria-label={`Delete ${w.title}`}><Trash2 size={15} /></button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    style={{ ...s.iconBtn, ...disabledActionStyle(saving) }}
+                    onClick={() => openEdit(w)}
+                    aria-label={`Edit ${w.title}`}
+                  >
+                    <Pencil size={15} />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={saving}
+                    style={{ ...s.iconBtn, color: 'var(--admin-danger-text)', ...disabledActionStyle(saving) }}
+                    onClick={() => setConfirmId(w.id)}
+                    aria-label={`Delete ${w.title}`}
+                  >
+                    <Trash2 size={15} />
+                  </button>
                 </span>
               )}
             </div>

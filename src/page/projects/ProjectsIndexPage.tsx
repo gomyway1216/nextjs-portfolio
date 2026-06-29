@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import PageIntro from '@/components/common/PageIntro';
 import { createPlainTextExcerpt } from '@/lib/text';
 import * as util from '@/lib/utils/util';
 import type { Project } from '@/services/projectsService';
@@ -75,17 +76,18 @@ export default function ProjectsIndexPage() {
   return (
     <main className={styles.page}>
       <section className={styles.shell}>
-        <header className={styles.hero}>
-          <p className={styles.kicker}>{t('projectsPage.kicker')}</p>
-          <h1 className={styles.title}>{t('projectsPage.title')}</h1>
-          <p className={styles.subtitle}>{t('projectsPage.subtitle')}</p>
-          {!isLoading && !hasError ? (
+        <PageIntro
+          kicker={t('projectsPage.kicker')}
+          title={t('projectsPage.title')}
+          subtitle={t('projectsPage.subtitle')}
+          accent="#0f766e"
+          meta={!isLoading && !hasError ? (
             <div className={styles.stats} aria-label={t('projectsPage.statsLabel')}>
               <span>{t('projectsPage.projectCount', { count: projects.length })}</span>
               <span>{t('projectsPage.categoryCount', { count: categoryCount })}</span>
             </div>
           ) : null}
-        </header>
+        />
 
         <div className={styles.filterBar} aria-label={t('projectsPage.filterLabel')}>
           {categories.map((category) => {
@@ -144,6 +146,7 @@ export default function ProjectsIndexPage() {
                         src={project.thumbImage}
                         alt={project.title || 'Project thumbnail'}
                         fill
+                        loading="lazy"
                         sizes="(max-width: 700px) 100vw, (max-width: 1100px) 50vw, 33vw"
                         style={{ objectFit: 'cover' }}
                       />

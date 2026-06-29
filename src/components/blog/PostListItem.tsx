@@ -126,6 +126,7 @@ const PostListItem = forwardRef<HTMLElement, PostListItemProps>(
                 alt=""
                 width={128}
                 height={128}
+                loading="lazy"
                 unoptimized
               />
             </span>

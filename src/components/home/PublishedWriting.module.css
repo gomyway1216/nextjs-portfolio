@@ -2,11 +2,11 @@
   max-width: 760px;
 }
 
-.header.header h3.heading {
+.header h3.heading {
   overflow-wrap: anywhere;
 }
 
-.header.header p.dek {
+.header p.dek {
   max-width: 720px;
 }
 
@@ -29,7 +29,6 @@
   padding: 18px;
   border: 1px solid var(--border-soft);
   border-radius: 8px;
-  background-color: var(--surface-elevated);
   background: var(--surface-elevated);
   box-shadow: none;
   transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
@@ -149,12 +148,12 @@
 }
 
 @media (max-width: 640px) {
-  .header.header h3.heading {
+  .header h3.heading {
     font-size: clamp(2rem, 11vw, 2.45rem);
     line-height: 1.14;
   }
 
-  .header.header p.dek {
+  .header p.dek {
     font-size: 0.95rem;
   }
 

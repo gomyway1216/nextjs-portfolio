@@ -9,7 +9,7 @@ import { getFirestore } from '@/lib/firebase-admin';
 import type { Profile } from '@/hooks/useProfile';
 import { isValidSocialLink, type ProfileSocialLink } from '@/lib/socialLinks';
 import { WRITING_COLLECTION } from '@/app/api/constants';
-import { parseWritingDoc, publicWritings, type Writing } from '@/lib/writing';
+import { isSafeHttpUrl, parseWritingDoc, publicWritings, type Writing } from '@/lib/writing';
 
 const PROFILE_DOC_ID = 'main';
 
@@ -74,7 +74,7 @@ export default async function Home() {
   let initialWritings: Writing[] = [];
   try {
     const fetched = await getInitialWritingsCached();
-    initialWritings = publicWritings(fetched);
+    initialWritings = publicWritings(fetched).filter((w) => isSafeHttpUrl(w.url));
   } catch (error) {
     console.error('[Home] Failed to load initial writings:', error);
   }

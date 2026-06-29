@@ -57,7 +57,7 @@ export function parseWritingDoc(id: string, data: Record<string, unknown>): Writ
 /** Public, ordered view used by the home section. */
 export function publicWritings(writings: Writing[]): Writing[] {
   return writings
-    .filter((w) => w.isPublic)
+    .filter((w) => w.isPublic && isSafeHttpUrl(w.url))
     .sort((a, b) => a.order - b.order);
 }
 

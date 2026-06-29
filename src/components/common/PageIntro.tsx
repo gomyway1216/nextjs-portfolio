@@ -23,13 +23,20 @@ const PageIntro = ({
   className,
 }: PageIntroProps) => {
   const style = accent ? ({ '--page-intro-accent': accent } as CSSProperties) : undefined;
+  const rootClassName = [
+    styles.root,
+    aside ? styles.withAside : styles.singleColumn,
+    className,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   return (
-    <header className={[styles.root, className].filter(Boolean).join(' ')} style={style}>
+    <header className={rootClassName} style={style}>
       <div className={styles.copy}>
-        <p className={styles.kicker}>{kicker}</p>
+        <div className={styles.kicker}>{kicker}</div>
         <h1 className={styles.title}>{title}</h1>
-        {subtitle ? <p className={styles.subtitle}>{subtitle}</p> : null}
+        {subtitle ? <div className={styles.subtitle}>{subtitle}</div> : null}
         {meta ? <div className={styles.meta}>{meta}</div> : null}
       </div>
       {aside ? <div className={styles.aside}>{aside}</div> : null}

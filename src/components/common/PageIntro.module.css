@@ -2,11 +2,18 @@
   --page-intro-accent: #0f766e;
 
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 300px);
-  column-gap: clamp(20px, 5vw, 48px);
   row-gap: 18px;
   align-items: end;
   margin-bottom: 20px;
+}
+
+.withAside {
+  grid-template-columns: minmax(0, 1fr) minmax(180px, 300px);
+  column-gap: clamp(20px, 5vw, 48px);
+}
+
+.singleColumn {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .copy {
@@ -52,6 +59,14 @@
   color: color-mix(in srgb, var(--foreground) 62%, var(--muted-foreground));
   font-size: clamp(14px, 1.4vw, 16px);
   line-height: 1.6;
+}
+
+.singleColumn .title {
+  max-width: 840px;
+}
+
+.singleColumn .subtitle {
+  max-width: 760px;
 }
 
 .meta {

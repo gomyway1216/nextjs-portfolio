@@ -9,6 +9,7 @@ import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import { getJumpGameUITranslation,getUITranslation } from '../constants/gameTranslations';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { InfoModal } from '../common/InfoModal';
+import styles from './JumpGame.module.css';
 enum Scene {
   GameMain = 'GameMain',
   GameOver = 'GameOver',
@@ -82,9 +83,6 @@ const JumpGame = () => {
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium');
   const [currentStage, setCurrentStage] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
-  const [hoveredDifficulty, setHoveredDifficulty] = useState<Difficulty | null>(null);
-  const [isStartHovered, setIsStartHovered] = useState(false);
-  const [isStopHovered, setIsStopHovered] = useState(false);
   const isMutedRef = useRef(false);
   const jumpCopyRef = useRef(jumpCopy);
   const gameStateRef = useRef<GameState | null>(null);
@@ -918,29 +916,21 @@ const JumpGame = () => {
     };
     setContent({
       center: (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+        <div className={styles.toolbarStats}>
           {isGameStarted && currentStage > 1 && (
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '0.5rem',
-              background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)',
-              borderRadius: '0.5rem', padding: '0.5rem 1rem'
-            }}>
-              <Zap style={{ width: '1.25rem', height: '1.25rem', color: '#eab308' }} />
-              <div>
-                <div style={{ fontSize: '0.625rem', color: 'var(--games-route-muted)', textTransform: 'uppercase' }}>{jumpCopy.stage}</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#eab308' }}>{currentStage}</div>
+            <div className={`${styles.toolbarPill} ${styles.stagePill}`}>
+              <Zap className={styles.toolbarIcon} />
+              <div className={styles.toolbarPillText}>
+                <div className={styles.toolbarLabel}>{jumpCopy.stage}</div>
+                <div className={styles.toolbarValue}>{currentStage}</div>
               </div>
             </div>
           )}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '0.5rem',
-            background: 'rgba(14, 165, 233, 0.1)', border: '1px solid rgba(14, 165, 233, 0.3)',
-            borderRadius: '0.5rem', padding: '0.5rem 1rem'
-          }}>
-            <Trophy style={{ width: '1.25rem', height: '1.25rem', color: '#0ea5e9' }} />
-            <div>
-              <div style={{ fontSize: '0.625rem', color: 'var(--games-route-muted)', textTransform: 'uppercase' }}>{jumpCopy.highScore}</div>
-              <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: '#0ea5e9' }}>{highScore}</div>
+          <div className={`${styles.toolbarPill} ${styles.scorePill}`}>
+            <Trophy className={styles.toolbarIcon} />
+            <div className={styles.toolbarPillText}>
+              <div className={styles.toolbarLabel}>{jumpCopy.highScore}</div>
+              <div className={styles.toolbarValue}>{highScore}</div>
             </div>
           </div>
         </div>
@@ -948,29 +938,22 @@ const JumpGame = () => {
       right: (
         <>
           <button
+            type="button"
             onClick={toggleMute}
-            style={{
-              background: isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(14, 165, 233, 0.2)',
-              border: `1px solid ${isMuted ? 'rgba(239, 68, 68, 0.5)' : 'rgba(14, 165, 233, 0.5)'}`,
-              borderRadius: '0.5rem', color: isMuted ? '#ef4444' : '#0ea5e9',
-              padding: '0.5rem 0.75rem', fontSize: '0.8125rem', fontWeight: '500',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem'
-            }}
+            className={`${styles.toolbarButton} ${isMuted ? styles.mutedButton : ''}`}
+            aria-label={isMuted ? jumpCopy.muted : jumpCopy.sound}
           >
-            {isMuted ? <VolumeX style={{ width: '1rem', height: '1rem' }} /> : <Volume2 style={{ width: '1rem', height: '1rem' }} />}
-            {isMuted ? jumpCopy.muted : jumpCopy.sound}
+            {isMuted ? <VolumeX className={styles.toolbarButtonIcon} /> : <Volume2 className={styles.toolbarButtonIcon} />}
+            <span className={styles.toolbarActionLabel}>{isMuted ? jumpCopy.muted : jumpCopy.sound}</span>
           </button>
           <button
+            type="button"
             onClick={() => setShowInfo(!showInfo)}
-            style={{
-              background: 'rgba(14, 165, 233, 0.2)', border: '1px solid rgba(14, 165, 233, 0.5)',
-              borderRadius: '0.5rem', color: '#0ea5e9', padding: '0.5rem 0.75rem',
-              fontSize: '0.8125rem', fontWeight: '500', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: '0.5rem'
-            }}
+            className={styles.toolbarButton}
+            aria-label={ui.howToPlay}
           >
-            <Info style={{ width: '1rem', height: '1rem' }} />
-            {ui.howToPlay}
+            <Info className={styles.toolbarButtonIcon} />
+            <span className={styles.toolbarActionLabel}>{ui.howToPlay}</span>
           </button>
         </>
       )
@@ -978,32 +961,10 @@ const JumpGame = () => {
     return () => setContent(null);
   }, [isGameStarted, currentStage, highScore, isMuted, showInfo, setContent, ui.howToPlay, jumpCopy]);
 
-  const getDifficultyColor = (diff: Difficulty) => {
-    switch (diff) {
-      case 'easy':
-        return { bg: 'rgba(34, 197, 94, 0.2)', border: '#22c55e', text: '#22c55e' };
-      case 'medium':
-        return { bg: 'rgba(234, 179, 8, 0.2)', border: '#eab308', text: '#eab308' };
-      case 'hard':
-        return { bg: 'rgba(239, 68, 68, 0.2)', border: '#ef4444', text: '#ef4444' };
-    }
-  };
-
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--games-route-bg)',
-      color: 'var(--games-route-fg)',
-      overflow: 'hidden',
-      fontFamily: 'system-ui, -apple-system, sans-serif'
-    }}>
+    <div className={styles.gameShell}>
       {/* Game Canvas */}
-      <div style={{ position: 'relative', width: 'min(480px, calc(100vw - 2rem))', aspectRatio: '1 / 1' }}>
+      <div className={styles.canvasFrame}>
         <canvas
           ref={canvasRef}
           width={480}
@@ -1012,81 +973,33 @@ const JumpGame = () => {
             e.preventDefault();
             triggerJumpAction();
           }}
-          style={{
-            width: '100%',
-            height: '100%',
-            border: '1px solid color-mix(in srgb, #0ea5e9 58%, var(--games-route-border))',
-            borderRadius: '0.5rem',
-            boxShadow: '0 18px 52px color-mix(in srgb, #0ea5e9 18%, transparent), var(--games-route-shadow)',
-            backgroundColor: '#000',
-            cursor: 'pointer',
-            touchAction: 'none',
-          }}
+          className={styles.gameCanvas}
         />
 
         {/* Difficulty Selection */}
         {!isGameStarted && showDifficultySelect && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'var(--games-route-overlay)',
-            backdropFilter: 'blur(14px)',
-            borderRadius: '0.5rem',
-            border: '1px solid var(--games-route-border)',
-            padding: '2rem'
-          }}>
-            <h2 style={{
-              color: 'var(--games-route-fg)',
-              fontSize: '1.875rem',
-              fontWeight: 'bold',
-              marginBottom: '1.5rem',
-              textAlign: 'center'
-            }}>
+          <div className={styles.difficultyOverlay}>
+            <h2 className={styles.difficultyTitle}>
               {jumpCopy.selectDifficulty}
             </h2>
 
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '1rem',
-              width: '100%',
-              maxWidth: '320px',
-              marginBottom: '2rem'
-            }}>
+            <div className={styles.difficultyOptions}>
               {(['easy', 'medium', 'hard'] as Difficulty[]).map((diff) => {
-                const colors = getDifficultyColor(diff);
                 const isSelected = selectedDifficulty === diff;
-                const isHovered = hoveredDifficulty === diff;
 
                 return (
                   <button
                     key={diff}
                     type="button"
                     onClick={() => setSelectedDifficulty(diff)}
-                    onMouseEnter={() => setHoveredDifficulty(diff)}
-                    onMouseLeave={() => setHoveredDifficulty((current) => current === diff ? null : current)}
                     aria-pressed={isSelected}
-                    style={{
-                      background: isSelected ? colors.bg : isHovered ? 'var(--games-route-control-hover)' : 'var(--games-route-control)',
-                      border: `1px solid ${isSelected || isHovered ? colors.border : 'var(--games-route-border)'}`,
-                      borderRadius: '0.5rem',
-                      color: isSelected ? colors.text : 'var(--games-route-fg)',
-                      padding: '1rem',
-                      fontSize: '1.125rem',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                      textTransform: 'uppercase'
-                    }}
+                    className={styles.difficultyButton}
+                    data-difficulty={diff}
                   >
-                    {jumpCopy.difficulties[diff].label}
-                    <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.8 }}>
+                    <span className={styles.difficultyLabel}>{jumpCopy.difficulties[diff].label}</span>
+                    <span className={styles.difficultyDescription}>
                       {jumpCopy.difficulties[diff].description}
-                    </div>
+                    </span>
                   </button>
                 );
               })}
@@ -1095,21 +1008,7 @@ const JumpGame = () => {
             <button
               type="button"
               onClick={startGame}
-              onMouseEnter={() => setIsStartHovered(true)}
-              onMouseLeave={() => setIsStartHovered(false)}
-              style={{
-                background: isStartHovered ? '#0284c7' : '#0ea5e9',
-                border: 'none',
-                borderRadius: '0.5rem',
-                color: '#fff',
-                fontSize: '1.5rem',
-                fontWeight: 'bold',
-                padding: '1.5rem 3rem',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                boxShadow: '0 10px 40px rgba(14, 165, 233, 0.5)',
-                transform: isStartHovered ? 'scale(1.05)' : 'scale(1)'
-              }}
+              className={styles.startButton}
             >
               {jumpCopy.startGame}
             </button>
@@ -1119,24 +1018,11 @@ const JumpGame = () => {
 
       {/* Stop Button */}
       {isGameStarted && (
-        <div style={{ position: 'absolute', bottom: '2rem' }}>
+        <div className={styles.stopButtonWrap}>
           <button
             type="button"
             onClick={stopGame}
-            onMouseEnter={() => setIsStopHovered(true)}
-            onMouseLeave={() => setIsStopHovered(false)}
-            style={{
-              background: isStopHovered ? '#dc2626' : '#ef4444',
-              border: 'none',
-              borderRadius: '0.5rem',
-              color: '#fff',
-              fontSize: '1rem',
-              fontWeight: '600',
-              padding: '0.75rem 2rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              transform: isStopHovered ? 'scale(1.05)' : 'scale(1)'
-            }}
+            className={styles.stopButton}
           >
             {jumpCopy.stopGame}
           </button>

@@ -9,7 +9,7 @@ const AUTH_REQUIRED_ROUTES = [
 ];
 
 const AUTH_REQUIRED_PATTERNS = [
-  /^\/project\/.*\/edit$/,
+  /^\/projects\/[^/]+\/edit$/,
 ];
 
 const ADMIN_ROUTES = [

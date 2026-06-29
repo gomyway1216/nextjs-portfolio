@@ -13,6 +13,7 @@ export default function robots(): MetadataRoute.Robots {
           '/api',
           '/signin',
           '/new-project',
+          '/projects/*/edit',
           '/achievements',
           '/voice-chat',
           '/voice-tasks',

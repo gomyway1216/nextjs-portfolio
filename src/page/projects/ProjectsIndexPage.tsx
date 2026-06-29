@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import PageIntro from '@/components/common/PageIntro';
+import { getProjectPath } from '@/lib/projectRoutes';
 import { createPlainTextExcerpt } from '@/lib/text';
 import * as util from '@/lib/utils/util';
 import type { Project } from '@/services/projectsService';
@@ -136,7 +137,7 @@ export default function ProjectsIndexPage() {
               return (
                 <Link
                   className={styles.card}
-                  href={`/projects/${encodeURIComponent(project.id)}`}
+                  href={getProjectPath(project.id)}
                   key={project.id}
                   aria-label={t('projectsPage.cardLabel', { title: project.title })}
                 >

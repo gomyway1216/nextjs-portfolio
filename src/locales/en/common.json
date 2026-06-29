@@ -76,12 +76,12 @@
     "backToPortfolio": "Back to Portfolio"
   },
   "projectPage": {
-    "loading": "Loading project case study...",
+    "loading": "Loading project...",
     "notFoundTitle": "Project not found",
     "notFoundText": "This project may have been moved or is temporarily unavailable.",
     "backToWork": "Back to projects",
     "edit": "Edit project",
-    "eyebrow": "Project Case Study",
+    "eyebrow": "Selected Project",
     "fallbackClient": "Personal Project",
     "details": "Project details",
     "client": "Client",
@@ -94,8 +94,8 @@
   },
   "projectsPage": {
     "kicker": "Project index",
-    "title": "All Project Case Studies",
-    "subtitle": "A focused index of product and engineering work, with each case study linking to the problem, implementation choices, and outcome.",
+    "title": "Selected Projects",
+    "subtitle": "Personal, community, and engineering projects with context on the problem, implementation choices, and outcome.",
     "statsLabel": "Project index summary",
     "projectCount_one": "{{count}} project",
     "projectCount_other": "{{count}} projects",
@@ -107,8 +107,8 @@
     "error": "Projects are temporarily unavailable.",
     "emptyTitle": "No projects found",
     "emptyText": "Try another category.",
-    "cta": "View case study",
-    "cardLabel": "View {{title}} case study",
+    "cta": "View project",
+    "cardLabel": "View {{title}} project",
     "technologies": "Technologies"
   },
   "toolsPage": {
@@ -1093,7 +1093,7 @@
       "home": "Home",
       "impact": "Impact",
       "experience": "Experience",
-      "writing": "Writing",
+      "writing": "Publications",
       "work": "Projects",
       "tools": "Tools",
       "games": "Games",
@@ -1171,7 +1171,7 @@
       },
       "note": "Sensitive implementation details and private metrics are summarized at a high level here; the focus is scope, ownership, and engineering judgment."
     },
-    "community": {
+      "community": {
       "eyebrow": "Community Leadership",
       "title": "AI community leadership in the Bay Area.",
       "role": "Founder & Organizer — Bay Area AI Study Group",
@@ -1210,17 +1210,19 @@
         }
       },
       "cta": "Visit the community",
+      "caseStudyCta": "Read the platform case study",
+      "showcaseCta": "Read the community write-up",
       "note": "The community runs in Japanese for Bay Area engineers; the platform and event information are also available in English."
     },
     "sections": {
       "work": {
-        "title": "Project Case Studies",
-        "subtitle": "Selected builds with context on the product problem, technical choices, and delivered outcome.",
-        "loading": "Loading case studies...",
+        "title": "Selected Projects",
+        "subtitle": "Personal, community, and engineering builds with context on the problem, technical choices, and outcome.",
+        "loading": "Loading projects...",
         "error": "Projects are temporarily unavailable.",
         "empty": "No projects in this category yet.",
-        "cta": "View case study",
-        "cardLabel": "View {{title}} case study",
+        "cta": "View project",
+        "cardLabel": "View {{title}} project",
         "technologies": "Technologies",
         "viewAll": "View all projects"
       },
@@ -1537,8 +1539,8 @@
       "leaveReply": "Leave a Reply"
     },
     "writing": {
-      "title": "Engineering Writing",
-      "subtitle": "Published Atlas Engineering articles on fintech systems, internal platforms, and product reliability.",
+      "title": "Published Writing",
+      "subtitle": "Organization-published engineering articles on fintech systems, internal platforms, and product reliability.",
       "readLabel": "Read on {{source}}",
       "newTab": "(opens in a new tab)"
     }

@@ -173,6 +173,24 @@
   transform: translate(1px, -1px);
 }
 
+.secondaryCta {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  color: var(--accent-strong);
+  font-size: 0.9rem;
+  font-weight: 500;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.secondaryCta:hover,
+.secondaryCta:focus-visible {
+  color: var(--accent-strong);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
 .note {
   flex: 1 1 320px;
   min-width: 0;
@@ -217,6 +235,11 @@
   }
 
   .cta {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .secondaryCta {
     width: 100%;
     justify-content: center;
   }

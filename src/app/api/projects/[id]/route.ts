@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureAdmin } from '@/lib/auth-utils';
 import { PROJECTS_COLLECTION } from '@/app/api/constants';
+import { resolveProjectRouteId } from '@/lib/projectRoutes';
+import { getProjectServer } from '@/lib/projects/getProjectsServer';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
@@ -12,33 +14,14 @@ export const GET = withActivityLog('next_api.projects.id.GET', async (request: N
   { params }: { params: Promise<{ id: string }> }) => {
   try {
     const { id } = await params;
-    const db = getFirestore();
+    const project = await getProjectServer(id);
 
-    const docRef = db.collection(PROJECTS_COLLECTION).doc(id);
-    const doc = await docRef.get();
-
-    if (!doc.exists) {
+    if (!project) {
       return NextResponse.json(
         { error: 'Project not found' },
         { status: 404 }
       );
     }
-
-    const data = doc.data()!;
-
-    const project = {
-      id: doc.id,
-      title: data.title,
-      date: data.date?.toDate?.()?.toISOString() || data.date,
-      description: data.description,
-      client: data.client,
-      industry: data.industry,
-      thumbImage: data.thumbImage,
-      images: data.images || [],
-      urls: data.urls || [],
-      technologies: data.technologies || [],
-      categories: data.categories || [],
-    };
 
     return NextResponse.json({ project });
   } catch (error) {
@@ -63,7 +46,8 @@ export const PUT = withActivityLog('next_api.projects.id.PUT', async (request: N
       return response!;
     }
 
-    const { id } = await params;
+    const { id: routeId } = await params;
+    const id = resolveProjectRouteId(routeId);
     const body = await request.json();
     const {
       title,
@@ -133,7 +117,8 @@ export const DELETE = withActivityLog('next_api.projects.id.DELETE', async (requ
       return response!;
     }
 
-    const { id } = await params;
+    const { id: routeId } = await params;
+    const id = resolveProjectRouteId(routeId);
     const db = getFirestore();
     const docRef = db.collection(PROJECTS_COLLECTION).doc(id);
 

@@ -2,8 +2,14 @@ import type { Metadata } from 'next';
 import ProjectsIndexPage from '@/page/projects/ProjectsIndexPage';
 
 export const metadata: Metadata = {
-  title: 'Project Case Studies | Yudai Yaguchi',
-  description: 'A complete index of product and engineering case studies by Yudai Yaguchi.',
+  title: 'Selected Projects | Yudai Yaguchi',
+  description: 'Personal, community, and engineering projects built by Yudai Yaguchi.',
+  alternates: { canonical: '/projects' },
+  openGraph: {
+    title: 'Selected Projects | Yudai Yaguchi',
+    description: 'Personal, community, and engineering projects built by Yudai Yaguchi.',
+    url: '/projects',
+  },
 };
 
 export default function ProjectsPage() {

@@ -48,11 +48,9 @@ const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
 
       <ImpactSnapshot />
 
-      {hasPublishedWritings && <PublishedWriting writings={initialWritings} />}
-
       <Resume />
 
-      <CommunityLeadership />
+      {hasPublishedWritings && <PublishedWriting writings={initialWritings} />}
 
       <section id="tools" className="section theme-light dark-bg modern-section">
         <div className="container">
@@ -75,6 +73,8 @@ const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
         </div>
       </section>
       {/* End Portfolio Section */}
+
+      <CommunityLeadership />
 
       <section id="study" className="section modern-section">
         <div className="container">

@@ -17,6 +17,7 @@ import styles from './project-page.module.css';
 
 interface ProjectPageProps {
   projectId: string;
+  initialProject?: Project | null;
 }
 
 function normalizeTechnology(technology: string | TechnologyData | null | undefined): TechnologyData {
@@ -40,9 +41,9 @@ function ProjectFact({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function ProjectPage({ projectId }: ProjectPageProps) {
-  const [project, setProject] = useState<Project | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+export default function ProjectPage({ projectId, initialProject = null }: ProjectPageProps) {
+  const [project, setProject] = useState<Project | null>(initialProject);
+  const [isLoading, setIsLoading] = useState(!initialProject);
   const { currentUser } = useAuth();
   const router = useRouter();
   const { t } = useTranslation();
@@ -51,7 +52,7 @@ export default function ProjectPage({ projectId }: ProjectPageProps) {
     let cancelled = false;
 
     (async () => {
-      if (!projectId) {
+      if (!projectId || initialProject) {
         setIsLoading(false);
         return;
       }
@@ -73,7 +74,7 @@ export default function ProjectPage({ projectId }: ProjectPageProps) {
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [initialProject, projectId]);
 
   const technologies = useMemo(
     () => project?.technologies?.map(normalizeTechnology).filter((tech) => tech?.name) ?? [],
@@ -90,7 +91,7 @@ export default function ProjectPage({ projectId }: ProjectPageProps) {
   const hasImages = Boolean(project?.thumbImage || project?.images?.length);
 
   const handleEdit = () => {
-    router.push(`/projects/${projectId}/edit`);
+    router.push(`/projects/${project?.id ?? projectId}/edit`);
   };
 
   if (isLoading) {

@@ -2,6 +2,8 @@ import type { MetadataRoute } from 'next';
 import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { games } from '@/components/game/constants/games';
+import { getProjectPath } from '@/lib/projectRoutes';
+import { getProjectsServer } from '@/lib/projects/getProjectsServer';
 import { SITE_URL } from '@/lib/siteConfig';
 
 // Regenerate at most once per hour; new posts appear without a deploy.
@@ -40,16 +42,44 @@ async function getPublicPosts(): Promise<BlogEntry[]> {
   }
 }
 
+async function getPublicProjects() {
+  if (isBuildPhase()) return [];
+  try {
+    return await getProjectsServer();
+  } catch (error) {
+    console.error('[sitemap] Failed to load projects:', error);
+    return [];
+  }
+}
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const posts = await getPublicPosts();
+  const [posts, projects] = await Promise.all([
+    getPublicPosts(),
+    getPublicProjects(),
+  ]);
 
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: SITE_URL, changeFrequency: 'weekly', priority: 1 },
     { url: `${SITE_URL}/projects`, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${SITE_URL}/tools`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${SITE_URL}/blog`, changeFrequency: 'daily', priority: 0.8 },
     { url: `${SITE_URL}/games`, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${SITE_URL}/study`, changeFrequency: 'weekly', priority: 0.5 },
   ];
+
+  const toolRoutes: MetadataRoute.Sitemap = [
+    '/tools/settli',
+    '/tools/kaimono',
+    '/tools/kuizu',
+    '/tools/score-tracker',
+    '/tools/markdown-preview',
+    '/tools/railway-planner',
+    '/tools/todo',
+  ].map((path) => ({
+    url: `${SITE_URL}${path}`,
+    changeFrequency: 'monthly',
+    priority: 0.6,
+  }));
 
   const categoryRoutes: MetadataRoute.Sitemap = Array.from(
     new Set(posts.map((post) => post.category).filter((category) => category && category !== 'all')),
@@ -66,11 +96,18 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
+  const projectRoutes: MetadataRoute.Sitemap = projects.map((project) => ({
+    url: `${SITE_URL}${getProjectPath(project.id)}`,
+    lastModified: project.date ? new Date(project.date) : undefined,
+    changeFrequency: 'monthly',
+    priority: 0.7,
+  }));
+
   const gameRoutes: MetadataRoute.Sitemap = games.map((game) => ({
     url: `${SITE_URL}${game.path}`,
     changeFrequency: 'monthly',
     priority: 0.3,
   }));
 
-  return [...staticRoutes, ...categoryRoutes, ...postRoutes, ...gameRoutes];
+  return [...staticRoutes, ...toolRoutes, ...categoryRoutes, ...postRoutes, ...projectRoutes, ...gameRoutes];
 }

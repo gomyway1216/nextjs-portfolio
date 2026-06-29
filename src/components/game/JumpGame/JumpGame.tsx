@@ -941,6 +941,7 @@ const JumpGame = () => {
             type="button"
             onClick={toggleMute}
             className={`${styles.toolbarButton} ${isMuted ? styles.mutedButton : ''}`}
+            aria-label={isMuted ? jumpCopy.muted : jumpCopy.sound}
           >
             {isMuted ? <VolumeX className={styles.toolbarButtonIcon} /> : <Volume2 className={styles.toolbarButtonIcon} />}
             <span className={styles.toolbarActionLabel}>{isMuted ? jumpCopy.muted : jumpCopy.sound}</span>
@@ -949,6 +950,7 @@ const JumpGame = () => {
             type="button"
             onClick={() => setShowInfo(!showInfo)}
             className={styles.toolbarButton}
+            aria-label={ui.howToPlay}
           >
             <Info className={styles.toolbarButtonIcon} />
             <span className={styles.toolbarActionLabel}>{ui.howToPlay}</span>

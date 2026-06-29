@@ -1,6 +1,7 @@
 .gameShell {
   position: relative;
   display: flex;
+  min-height: calc(100vh - 58px);
   min-height: calc(100dvh - 58px);
   align-items: center;
   justify-content: center;
@@ -13,6 +14,7 @@
 
 .canvasFrame {
   position: relative;
+  width: min(480px, calc(100vw - 2rem), calc(100vh - 98px));
   width: min(480px, calc(100vw - 2rem), calc(100dvh - 98px));
   min-width: min(280px, calc(100vw - 2rem));
   aspect-ratio: 1 / 1;
@@ -42,6 +44,7 @@
   border: 1px solid var(--games-route-border);
   border-radius: 0.5rem;
   background: var(--games-route-overlay);
+  -webkit-backdrop-filter: blur(14px);
   backdrop-filter: blur(14px);
   padding: clamp(1rem, 4vw, 1.35rem);
 }
@@ -290,11 +293,13 @@
 @media (max-width: 640px) {
   .gameShell {
     align-items: flex-start;
+    min-height: calc(100vh - 98px);
     min-height: calc(100dvh - 98px);
     padding-block: 1rem;
   }
 
   .canvasFrame {
+    width: min(calc(100vw - 2rem), calc(100vh - 126px));
     width: min(calc(100vw - 2rem), calc(100dvh - 126px));
   }
 

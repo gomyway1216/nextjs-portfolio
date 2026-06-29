@@ -113,7 +113,7 @@
 .skeletonArticle {
   position: relative;
   display: grid;
-  gap: 28px;
+  gap: 18px;
   overflow: hidden;
 }
 
@@ -151,7 +151,7 @@
 
 .skeletonHeader {
   display: grid;
-  gap: 14px;
+  gap: 7px;
 }
 
 .skeletonCategory {
@@ -162,13 +162,13 @@
 
 .skeletonTitle {
   width: min(100%, 780px);
-  height: clamp(46px, 5vw, 58px);
+  height: clamp(34px, 3.9vw, 44px);
   border-radius: 8px;
 }
 
 .skeletonTitleShort {
   width: min(72%, 560px);
-  height: clamp(46px, 5vw, 58px);
+  height: clamp(34px, 3.9vw, 44px);
   border-radius: 8px;
 }
 
@@ -282,12 +282,12 @@
   }
 
   .skeletonArticle {
-    gap: 24px;
+    gap: 18px;
   }
 
   .skeletonTitle,
   .skeletonTitleShort {
-    height: clamp(38px, 11vw, 48px);
+    height: clamp(30px, 9vw, 38px);
   }
 }
 

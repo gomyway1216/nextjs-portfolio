@@ -19,27 +19,27 @@ const EMPTY: WritingInput = {
 
 const s: Record<string, CSSProperties> = {
   header: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', gap: '16px', flexWrap: 'wrap' },
-  title: { fontSize: '22px', fontWeight: 600, color: '#ffffff', margin: 0 },
-  subtitle: { color: '#94a3b8', fontSize: '14px', margin: '4px 0 0' },
-  primaryBtn: { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', border: 'none', background: '#a855f7', color: '#fff', fontWeight: 500, cursor: 'pointer' },
-  card: { border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', overflow: 'hidden' },
-  empty: { padding: '24px', color: '#94a3b8', fontSize: '14px', lineHeight: 1.6 },
-  row: { display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto auto auto', gap: '12px', alignItems: 'center', padding: '14px 18px', borderTop: '1px solid rgba(255,255,255,0.05)' },
-  rowTitle: { color: '#ffffff', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  rowMeta: { color: '#64748b', fontSize: '13px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  title: { fontSize: '22px', fontWeight: 600, color: 'var(--admin-text)', margin: 0 },
+  subtitle: { color: 'var(--admin-text-muted)', fontSize: '14px', margin: '4px 0 0' },
+  primaryBtn: { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--admin-accent)', background: 'var(--admin-accent)', color: 'var(--admin-primary-text)', fontWeight: 500, cursor: 'pointer' },
+  card: { border: '1px solid var(--admin-border)', borderRadius: '8px', background: 'var(--admin-surface)', boxShadow: 'var(--admin-shadow-surface)', overflow: 'hidden' },
+  empty: { padding: '24px', color: 'var(--admin-text-muted)', fontSize: '14px', lineHeight: 1.6 },
+  row: { display: 'grid', gridTemplateColumns: 'minmax(0,1fr) auto auto auto', gap: '12px', alignItems: 'center', padding: '14px 18px', borderTop: '1px solid var(--admin-border)' },
+  rowTitle: { color: 'var(--admin-text)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  rowMeta: { color: 'var(--admin-text-subtle)', fontSize: '13px', marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   badge: { display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', padding: '3px 9px', borderRadius: '999px' },
-  iconBtn: { display: 'inline-flex', padding: '7px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#cbd5e1', cursor: 'pointer' },
-  form: { display: 'grid', gap: '14px', padding: '20px', border: '1px solid rgba(168,85,247,0.3)', borderRadius: '12px', background: 'rgba(168,85,247,0.05)', marginBottom: '20px' },
-  label: { display: 'block', fontSize: '13px', color: '#cbd5e1', marginBottom: '6px', fontWeight: 500 },
-  input: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.03)', color: '#fff', fontSize: '14px', boxSizing: 'border-box' },
+  iconBtn: { display: 'inline-flex', padding: '7px', borderRadius: '8px', border: '1px solid var(--admin-border-strong)', background: 'var(--admin-surface-raised)', color: 'var(--admin-text-muted)', cursor: 'pointer' },
+  form: { display: 'grid', gap: '14px', padding: '20px', border: '1px solid var(--admin-accent-border)', borderRadius: '8px', background: 'var(--admin-accent-soft)', marginBottom: '20px' },
+  label: { display: 'block', fontSize: '13px', color: 'var(--admin-text-muted)', marginBottom: '6px', fontWeight: 500 },
+  input: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--admin-border-strong)', background: 'var(--admin-surface-raised)', color: 'var(--admin-text)', fontSize: '14px', boxSizing: 'border-box' },
   twoCol: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '14px' },
   formActions: { display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' },
-  ghostBtn: { padding: '10px 16px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.15)', background: 'transparent', color: '#cbd5e1', fontWeight: 500, cursor: 'pointer' },
-  error: { color: '#fca5a5', fontSize: '13px', margin: 0 },
-  checkboxRow: { display: 'flex', alignItems: 'center', gap: '8px', color: '#cbd5e1', fontSize: '14px' },
+  ghostBtn: { padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--admin-border-strong)', background: 'var(--admin-surface-raised)', color: 'var(--admin-text)', fontWeight: 500, cursor: 'pointer' },
+  error: { color: 'var(--admin-danger-text)', fontSize: '13px', margin: 0 },
+  checkboxRow: { display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--admin-text-soft)', fontSize: '14px' },
 };
 
-export default function WritingAdminPanel() {
+export default function PublishedWritingAdminPanel() {
   const { writings, loading, refetch } = useWritings();
   const { createWriting, updateWriting, deleteWriting, loading: saving } = useWritingMutations();
 
@@ -180,7 +180,12 @@ export default function WritingAdminPanel() {
                   {w.source}{w.date ? ` · ${w.date.slice(0, 10)}` : ''}
                 </div>
               </div>
-              <span style={{ ...s.badge, background: w.isPublic ? 'rgba(16,185,129,0.15)' : 'rgba(100,116,139,0.2)', color: w.isPublic ? '#6ee7b7' : '#94a3b8' }}>
+              <span style={{
+                ...s.badge,
+                background: w.isPublic ? 'var(--admin-success-soft)' : 'var(--admin-surface-muted)',
+                border: `1px solid ${w.isPublic ? 'var(--admin-success-border)' : 'var(--admin-border)'}`,
+                color: w.isPublic ? 'var(--admin-success)' : 'var(--admin-text-muted)',
+              }}>
                 {w.isPublic ? <Eye size={13} /> : <EyeOff size={13} />}{w.isPublic ? 'Visible' : 'Hidden'}
               </span>
               <a style={s.iconBtn} href={w.url} target="_blank" rel="noopener noreferrer" aria-label={`Open ${w.title}`}>
@@ -188,13 +193,13 @@ export default function WritingAdminPanel() {
               </a>
               {confirmId === w.id ? (
                 <span style={{ display: 'inline-flex', gap: '6px' }}>
-                  <button type="button" disabled={saving} style={{ ...s.iconBtn, color: '#fca5a5', borderColor: 'rgba(239,68,68,0.4)' }} onClick={() => handleDelete(w.id)}>Yes</button>
+                  <button type="button" disabled={saving} style={{ ...s.iconBtn, color: 'var(--admin-danger-text)', borderColor: 'var(--admin-danger-border)', background: 'var(--admin-danger-soft)' }} onClick={() => handleDelete(w.id)}>Yes</button>
                   <button type="button" disabled={saving} style={s.iconBtn} onClick={() => setConfirmId(null)}>No</button>
                 </span>
               ) : (
                 <span style={{ display: 'inline-flex', gap: '6px' }}>
                   <button type="button" style={s.iconBtn} onClick={() => openEdit(w)} aria-label={`Edit ${w.title}`}><Pencil size={15} /></button>
-                  <button type="button" style={{ ...s.iconBtn, color: '#fca5a5' }} onClick={() => setConfirmId(w.id)} aria-label={`Delete ${w.title}`}><Trash2 size={15} /></button>
+                  <button type="button" style={{ ...s.iconBtn, color: 'var(--admin-danger-text)' }} onClick={() => setConfirmId(w.id)} aria-label={`Delete ${w.title}`}><Trash2 size={15} /></button>
                 </span>
               )}
             </div>

@@ -28,32 +28,60 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tooltip } from 'react-tooltip';
 
-// Section IDs the home-page nav scroll-spies on, in document order.
-// The first one whose top crosses into the viewport's top band gets
-// the `active` class.
-const SECTION_IDS_WITH_WRITING = [
-  'home',
-  'impact',
-  'writing',
-  'resume',
-  'community',
-  'tools',
-  'work',
-  'study',
-  'games',
-  'about',
+const isBlogPath = (path: string | null | undefined) =>
+  path === '/blog' || path?.startsWith('/blog/');
+
+const SIDEBAR_NAV_ITEMS = [
+  { kind: 'section', id: 'home', href: '/#home', labelKey: 'home.nav.home', Icon: House },
+  {
+    kind: 'section',
+    id: 'impact',
+    href: '/#impact',
+    labelKey: 'home.nav.impact',
+    Icon: LineChart,
+  },
+  {
+    kind: 'section',
+    id: 'resume',
+    href: '/#resume',
+    labelKey: 'home.nav.resume',
+    Icon: BriefcaseBusiness,
+  },
+  {
+    kind: 'section',
+    id: 'writing',
+    href: '/#writing',
+    labelKey: 'home.nav.writing',
+    Icon: Newspaper,
+  },
+  { kind: 'section', id: 'tools', href: '/tools', labelKey: 'home.nav.tools', Icon: Wrench },
+  { kind: 'section', id: 'work', href: '/#work', labelKey: 'home.nav.work', Icon: FolderKanban },
+  {
+    kind: 'section',
+    id: 'community',
+    href: '/#community',
+    labelKey: 'home.nav.community',
+    Icon: Users,
+  },
+  {
+    kind: 'route',
+    id: 'blog',
+    href: '/blog',
+    labelKey: 'home.nav.blog',
+    Icon: NotebookPen,
+    isActive: isBlogPath,
+  },
+  { kind: 'section', id: 'study', href: '/#study', labelKey: 'home.nav.study', Icon: BookOpenText },
+  { kind: 'section', id: 'games', href: '/#games', labelKey: 'home.nav.games', Icon: Gamepad2 },
+  { kind: 'section', id: 'about', href: '/#about', labelKey: 'home.nav.about', Icon: UserRound },
 ] as const;
-const SECTION_IDS_WITHOUT_WRITING = [
-  'home',
-  'impact',
-  'resume',
-  'community',
-  'tools',
-  'work',
-  'study',
-  'games',
-  'about',
-] as const;
+
+// Section IDs the home-page nav scroll-spies on, in the same order the
+// sidebar renders those section links.
+const SECTION_IDS_WITH_WRITING = SIDEBAR_NAV_ITEMS.flatMap((item) =>
+  item.kind === 'section' ? [item.id] : [],
+);
+const SECTION_IDS_WITHOUT_WRITING = SECTION_IDS_WITH_WRITING.filter((id) => id !== 'writing');
 
 interface HeaderProps {
   showWriting?: boolean;
@@ -108,6 +136,7 @@ const Header = ({ showWriting = false }: HeaderProps) => {
             <div className="hl-logo">
               <Link
                 href="/"
+                aria-label={t('home.nav.home')}
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.home')}
               >
@@ -137,140 +166,46 @@ const Header = ({ showWriting = false }: HeaderProps) => {
           {/* End htl-top */}
 
           <ul className="nav nav-menu">
-            <li className={activeSection === 'home' ? 'active' : ''}>
-              <Link
-                className="nav-link "
-                href="/#home"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.home')}
-                onClick={handleClick}
-              >
-                <House size={20} />
-              </Link>
-            </li>
-            <li className={activeSection === 'impact' ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/#impact"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.impact')}
-                onClick={handleClick}
-              >
-                <LineChart size={20} />
-              </Link>
-            </li>
-            <li className={activeSection === 'resume' ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/#resume"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.resume')}
-                onClick={handleClick}
-              >
-                <BriefcaseBusiness size={20} />
-              </Link>
-            </li>
-            {showWriting && (
-              <li className={activeSection === 'writing' ? 'active' : ''}>
-                <Link
-                  className="nav-link"
-                  href="/#writing"
-                  data-tooltip-id="left-menu-tooltip"
-                  data-tooltip-content={t('home.nav.writing')}
-                  onClick={handleClick}
-                >
-                  <Newspaper size={20} />
-                </Link>
-              </li>
-            )}
-            <li className={pathname === '/blog' || pathname?.startsWith('/blog/') ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/blog"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.blog')}
-                onClick={handleClick}
-              >
-                <NotebookPen size={20} />
-              </Link>
-            </li>
-            <li className={activeSection === 'community' ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/#community"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.community')}
-                onClick={handleClick}
-              >
-                <Users size={20} />
-              </Link>
-            </li>
-            <li className={activeSection === 'tools' ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/tools"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.tools')}
-                onClick={handleClick}
-              >
-                <Wrench size={20} />
-              </Link>
-            </li>
-            <li className={activeSection === 'work' ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/#work"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.work')}
-                onClick={handleClick}
-              >
-                <FolderKanban size={20} />
-              </Link>
-            </li>
-            <li className={activeSection === 'study' ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/#study"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.study')}
-                onClick={handleClick}
-              >
-                <BookOpenText size={20} />
-              </Link>
-            </li>
-            <li className={activeSection === 'games' ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/#games"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.games')}
-                onClick={handleClick}
-              >
-                <Gamepad2 size={20} />
-              </Link>
-            </li>
-            <li className={activeSection === 'about' ? 'active' : ''}>
-              <Link
-                className="nav-link"
-                href="/#about"
-                data-tooltip-id="left-menu-tooltip"
-                data-tooltip-content={t('home.nav.about')}
-                onClick={handleClick}
-              >
-                <UserRound size={20} />
-              </Link>
-            </li>
+            {SIDEBAR_NAV_ITEMS.map((item) => {
+              if (item.id === 'writing' && !showWriting) return null;
+
+              const label = t(item.labelKey);
+              const Icon = item.Icon;
+              const isActive =
+                item.kind === 'section' ? activeSection === item.id : item.isActive(pathname);
+
+              return (
+                <li key={item.id} className={isActive ? 'active' : ''}>
+                  <Link
+                    className="nav-link"
+                    href={item.href}
+                    aria-label={label}
+                    aria-current={
+                      isActive ? (item.kind === 'section' ? 'location' : 'page') : undefined
+                    }
+                    data-tooltip-id="left-menu-tooltip"
+                    data-tooltip-content={label}
+                    onClick={handleClick}
+                  >
+                    <Icon size={20} />
+                  </Link>
+                </li>
+              );
+            })}
             {currentUser && (
               <li>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <a
+                    <button
+                      type="button"
                       className="nav-link"
+                      aria-label={t('home.nav.admin')}
+                      style={{ border: 0, background: 'transparent', cursor: 'pointer', font: 'inherit' }}
                       data-tooltip-id="left-menu-tooltip"
                       data-tooltip-content={t('home.nav.admin')}
                     >
                       <Shield size={20} />
-                    </a>
+                    </button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuItem onClick={() => router.push('/admin')}>

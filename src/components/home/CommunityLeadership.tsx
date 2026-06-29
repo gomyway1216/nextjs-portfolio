@@ -1,7 +1,9 @@
 'use client';
 
 import { ArrowUpRight, CalendarClock, Layers, Sparkles, Users } from 'lucide-react';
+import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
+import { getProjectPath } from '@/lib/projectRoutes';
 import styles from './CommunityLeadership.module.css';
 
 // Maps to home.community.highlights.* — order is the rendered card order.
@@ -15,6 +17,7 @@ const highlights = [
 const metrics = ['cadence', 'platform', 'network'] as const;
 
 const COMMUNITY_URL = 'https://bayarea-ai.com';
+const COMMUNITY_PROJECT_ID = 'Wr6YDXliDrUvcAAuXAS3';
 
 export default function CommunityLeadership() {
   const { t, i18n } = useTranslation();
@@ -66,6 +69,17 @@ export default function CommunityLeadership() {
           >
             {t('home.community.cta')}
             <ArrowUpRight size={18} aria-hidden="true" />
+          </a>
+          <Link className={styles.secondaryCta} href={getProjectPath(COMMUNITY_PROJECT_ID)}>
+            {t('home.community.caseStudyCta')}
+          </Link>
+          <a
+            className={styles.secondaryCta}
+            href={`${COMMUNITY_URL}/${lang}/showcase/jtpa-community-hub-ai`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t('home.community.showcaseCta')}
           </a>
           <p className={styles.note}>{t('home.community.note')}</p>
         </div>

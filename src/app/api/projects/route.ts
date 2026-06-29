@@ -4,6 +4,7 @@ import { ensureAdmin } from '@/lib/auth-utils';
 import { PROJECTS_COLLECTION } from '@/app/api/constants';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
+import { getProjectsServer } from '@/lib/projects/getProjectsServer';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 /**
@@ -13,25 +14,7 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 export const GET = withActivityLog('next_api.projects.GET', async () => {
   const endpoint = '/api/projects';
   try {
-    const db = getFirestore();
-    const snapshot = await db.collection(PROJECTS_COLLECTION).get();
-
-    const projects = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        title: data.title,
-        date: data.date?.toDate?.()?.toISOString() || data.date,
-        description: data.description,
-        client: data.client,
-        industry: data.industry,
-        thumbImage: data.thumbImage,
-        images: data.images || [],
-        urls: data.urls || [],
-        technologies: data.technologies || [],
-        categories: data.categories || [],
-      };
-    });
+    const projects = await getProjectsServer();
 
     return NextResponse.json({ projects });
   } catch (error) {

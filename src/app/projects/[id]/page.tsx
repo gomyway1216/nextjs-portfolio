@@ -1,45 +1,20 @@
 import type { Metadata } from 'next';
-import { PROJECTS_COLLECTION } from '@/app/api/constants';
-import { getFirestore } from '@/lib/firebase-admin';
+import { notFound } from 'next/navigation';
 import { createPlainTextExcerpt } from '@/lib/text';
+import { getProjectPath } from '@/lib/projectRoutes';
+import { getProjectServer } from '@/lib/projects/getProjectsServer';
+import { SITE_URL } from '@/lib/siteConfig';
 import ProjectPage from '@/page/project/ProjectPage';
-
-interface ProjectMetadataData {
-  title: string;
-  description: string;
-  thumbImage?: string;
-}
 
 interface ProjectRouteParams {
   params: Promise<{ id: string }>;
 }
 
-const FALLBACK_DESCRIPTION = 'A portfolio project case study with project context, stack, links, and implementation notes.';
-
-async function getProjectMetadataData(id: string): Promise<ProjectMetadataData | null> {
-  try {
-    const doc = await getFirestore().collection(PROJECTS_COLLECTION).doc(id).get();
-    if (!doc.exists) return null;
-
-    const data = doc.data() ?? {};
-    const title = typeof data.title === 'string' && data.title.trim()
-      ? data.title
-      : 'Project Case Study';
-
-    return {
-      title,
-      description: typeof data.description === 'string' ? data.description : '',
-      thumbImage: typeof data.thumbImage === 'string' ? data.thumbImage : undefined,
-    };
-  } catch (error) {
-    console.error('[projects] generateMetadata fetch failed:', error);
-    return null;
-  }
-}
+const FALLBACK_DESCRIPTION = 'A portfolio project with project context, stack, links, and implementation notes.';
 
 export async function generateMetadata({ params }: ProjectRouteParams): Promise<Metadata> {
   const { id } = await params;
-  const project = await getProjectMetadataData(id);
+  const project = await getProjectServer(id);
 
   if (!project) {
     return {
@@ -50,22 +25,23 @@ export async function generateMetadata({ params }: ProjectRouteParams): Promise<
   }
 
   const description = createPlainTextExcerpt(project.description, 160) || FALLBACK_DESCRIPTION;
-  const canonicalPath = `/projects/${encodeURIComponent(id)}`;
+  const canonicalPath = getProjectPath(project.id);
+  const title = project.title || 'Project';
 
   return {
-    title: project.title,
+    title,
     description,
     alternates: { canonical: canonicalPath },
     openGraph: {
       type: 'article',
-      title: project.title,
+      title,
       description,
       url: canonicalPath,
       ...(project.thumbImage ? { images: [project.thumbImage] } : {}),
     },
     twitter: {
       card: project.thumbImage ? 'summary_large_image' : 'summary',
-      title: project.title,
+      title,
       description,
     },
   };
@@ -73,6 +49,49 @@ export async function generateMetadata({ params }: ProjectRouteParams): Promise<
 
 export default async function ProjectRoute({ params }: ProjectRouteParams) {
   const { id } = await params;
+  const project = await getProjectServer(id);
 
-  return <ProjectPage key={id} projectId={id} />;
+  if (!project) notFound();
+
+  const canonicalPath = getProjectPath(project.id);
+  const description = createPlainTextExcerpt(project.description, 220) || FALLBACK_DESCRIPTION;
+  const projectUrl = `${SITE_URL}${canonicalPath}`;
+  const keywords = [
+    ...project.categories,
+    ...project.technologies.map((technology) =>
+      typeof technology === 'string' ? technology : technology.name,
+    ),
+  ].filter(Boolean);
+  const projectJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'CreativeWork',
+    '@id': `${projectUrl}#creativework`,
+    name: project.title,
+    description,
+    url: projectUrl,
+    ...(project.thumbImage ? { image: project.thumbImage } : {}),
+    ...(project.date ? { dateCreated: project.date } : {}),
+    ...(project.client ? { sourceOrganization: { '@type': 'Organization', name: project.client } } : {}),
+    author: { '@id': `${SITE_URL}/#person` },
+    isPartOf: { '@type': 'WebSite', name: 'Yudai Yaguchi Portfolio', url: SITE_URL },
+    ...(project.id === 'Wr6YDXliDrUvcAAuXAS3'
+      ? {
+          about: [
+            { '@type': 'Organization', name: 'Bay Area AI Study Group', url: 'https://bayarea-ai.com' },
+            { '@type': 'Organization', name: 'JTPA', url: 'https://jtpa.org' },
+          ],
+        }
+      : {}),
+    ...(keywords.length > 0 ? { keywords: keywords.join(', ') } : {}),
+  };
+
+  return (
+    <>
+      <ProjectPage key={id} projectId={id} initialProject={project} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(projectJsonLd).replace(/</g, '\\u003c') }}
+      />
+    </>
+  );
 }

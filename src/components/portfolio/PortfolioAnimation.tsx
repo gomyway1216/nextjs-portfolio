@@ -1,5 +1,6 @@
 'use client';
 import * as util from '@/lib/utils/util';
+import { getProjectPath } from '@/lib/projectRoutes';
 import { createPlainTextExcerpt } from '@/lib/text';
 import type { Project } from '@/services/projectsService';
 import * as projectApi from '@/services/projectsService';
@@ -102,7 +103,7 @@ const PortfolioAnimation = () => {
             >
               <Link
                 className="project-card modern-card"
-                href={`/projects/${encodeURIComponent(project.id)}`}
+                href={getProjectPath(project.id)}
                 aria-label={t('home.sections.work.cardLabel', { title: project.title })}
               >
                 <div className="project-card__media">

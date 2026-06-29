@@ -12,6 +12,7 @@ import {
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
 import { normalizePostCategory, normalizePostTags } from '@/lib/blog/postMetadata';
+import { BLOG_POST_LIST_CACHE_TAG } from '@/lib/blog/cacheTags';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -179,8 +180,7 @@ export const POST = withActivityLog('next_api.post.POST', async (request: NextRe
       translations,
     });
 
-    revalidateTag('blog-posts', 'max');
-    revalidateTag(`blog-post-${docRef.id}`, 'max');
+    revalidateTag(BLOG_POST_LIST_CACHE_TAG, 'max');
 
     return NextResponse.json(
       { id: docRef.id, message: 'Post created successfully' },

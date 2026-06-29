@@ -8,6 +8,7 @@ import {
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
 import { normalizePostCategory, normalizePostTags } from '@/lib/blog/postMetadata';
+import { BLOG_POST_LIST_CACHE_TAG, blogPostDetailCacheTag } from '@/lib/blog/cacheTags';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -135,8 +136,8 @@ export const PUT = withActivityLog('next_api.post.id.PUT', async (request: NextR
 
     await docRef.update(update);
 
-    revalidateTag('blog-posts', 'max');
-    revalidateTag(`blog-post-${id}`, 'max');
+    revalidateTag(BLOG_POST_LIST_CACHE_TAG, 'max');
+    revalidateTag(blogPostDetailCacheTag(id), 'max');
 
     return NextResponse.json({ message: 'Post updated successfully' });
   } catch (error) {
@@ -174,8 +175,8 @@ export const DELETE = withActivityLog('next_api.post.id.DELETE', async (request:
 
     await docRef.delete();
 
-    revalidateTag('blog-posts', 'max');
-    revalidateTag(`blog-post-${id}`, 'max');
+    revalidateTag(BLOG_POST_LIST_CACHE_TAG, 'max');
+    revalidateTag(blogPostDetailCacheTag(id), 'max');
 
     return NextResponse.json({ message: 'Post deleted successfully' });
   } catch (error) {

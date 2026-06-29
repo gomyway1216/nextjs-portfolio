@@ -4,6 +4,7 @@ import { getFirestore } from '@/lib/firebase-admin';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { availableLanguages, type PostTranslations } from '@/lib/blog/postTranslations';
 import { normalizePostTags } from '@/lib/blog/postMetadata';
+import { blogPostDetailCacheTag } from '@/lib/blog/cacheTags';
 import type { DetailPost } from '@/services/postsService';
 
 // Public posts only: private posts keep their existing client-side fetch
@@ -37,5 +38,5 @@ async function fetchPublicPost(id: string): Promise<DetailPost | null> {
 export const getPublicPostCached = (id: string) =>
   unstable_cache(() => fetchPublicPost(id), ['blog-post-detail', id], {
     revalidate: 300,
-    tags: ['blog-posts', `blog-post-${id}`],
+    tags: [blogPostDetailCacheTag(id)],
   })();

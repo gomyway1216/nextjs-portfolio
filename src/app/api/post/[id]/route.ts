@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureAdmin } from '@/lib/auth-utils';
 import { POSTS_COLLECTION } from '@/app/api/constants';
@@ -134,6 +135,9 @@ export const PUT = withActivityLog('next_api.post.id.PUT', async (request: NextR
 
     await docRef.update(update);
 
+    revalidateTag('blog-posts', 'max');
+    revalidateTag(`blog-post-${id}`, 'max');
+
     return NextResponse.json({ message: 'Post updated successfully' });
   } catch (error) {
     console.error('Error updating post:', error);
@@ -169,6 +173,9 @@ export const DELETE = withActivityLog('next_api.post.id.DELETE', async (request:
     }
 
     await docRef.delete();
+
+    revalidateTag('blog-posts', 'max');
+    revalidateTag(`blog-post-${id}`, 'max');
 
     return NextResponse.json({ message: 'Post deleted successfully' });
   } catch (error) {

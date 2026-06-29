@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
 import { ensureAdmin } from '@/lib/auth-utils';
 import { POSTS_COLLECTION } from '@/app/api/constants';
@@ -177,6 +178,9 @@ export const POST = withActivityLog('next_api.post.POST', async (request: NextRe
       image: image || null,
       translations,
     });
+
+    revalidateTag('blog-posts', 'max');
+    revalidateTag(`blog-post-${docRef.id}`, 'max');
 
     return NextResponse.json(
       { id: docRef.id, message: 'Post created successfully' },

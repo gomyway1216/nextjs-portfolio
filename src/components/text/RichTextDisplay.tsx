@@ -26,7 +26,7 @@ const RichTextDisplay = ({ post, showCategory = true }: RichTextDisplayProps) =>
   return (
     <article className={styles.root}>
       <header className={styles.header}>
-        {showCategory && <p className={styles.category}>{category.replace(/-/g, ' ')}</p>}
+        {showCategory && category && <p className={styles.category}>{category.replace(/-/g, ' ')}</p>}
         <h1 className={styles.title}>{title}</h1>
         <p className={styles.date}>{util.formatDate(created)}</p>
         {tags.length > 0 && (

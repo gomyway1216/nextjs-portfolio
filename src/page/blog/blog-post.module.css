@@ -176,6 +176,7 @@
 .skeletonCategory {
   width: 156px;
   height: 26px;
+  margin-left: auto;
   border-radius: 999px;
 }
 

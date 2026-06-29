@@ -91,7 +91,7 @@ const PostPage = ({ initialPost }: PostPageProps) => {
   }
 
   const backCategory = post.category || _category || 'all';
-  const categoryLabel = (post.category || _category).replace(/-/g, ' ');
+  const categoryLabel = post.category ? post.category.replace(/-/g, ' ') : '';
 
   return (
     <main className={styles.page}>

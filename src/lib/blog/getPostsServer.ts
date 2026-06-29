@@ -9,6 +9,7 @@ import {
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
 import { normalizePostTags } from '@/lib/blog/postMetadata';
+import { BLOG_POST_LIST_CACHE_TAG } from '@/lib/blog/cacheTags';
 
 export interface ServerPost {
   id: string;
@@ -87,5 +88,5 @@ async function fetchPostsPage(
 export const getInitialPostsCached = unstable_cache(
   fetchPostsPage,
   ['blog-posts-initial'],
-  { revalidate: 60, tags: ['blog-posts'] },
+  { revalidate: 60, tags: [BLOG_POST_LIST_CACHE_TAG] },
 );

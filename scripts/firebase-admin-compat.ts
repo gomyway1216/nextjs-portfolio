@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-namespace */
 import {
   cert,
   getApp,
@@ -28,14 +29,8 @@ export const apps = new Proxy([] as FirebaseApp[], {
   get(_target, property, receiver) {
     return Reflect.get(getApps(), property, receiver);
   },
-  getOwnPropertyDescriptor(_target, property) {
-    return Object.getOwnPropertyDescriptor(getApps(), property);
-  },
   has(_target, property) {
     return property in getApps();
-  },
-  ownKeys() {
-    return Reflect.ownKeys(getApps());
   },
 });
 
@@ -51,23 +46,38 @@ export const credential = {
   cert,
 };
 
-function getCompatFirestore(targetApp?: FirebaseApp): FirestoreType {
+export function firestore(targetApp?: FirebaseApp): FirestoreType {
   return targetApp ? getFirestore(targetApp) : getFirestore();
 }
 
-export const firestore = Object.assign(getCompatFirestore, {
-  FieldValue: FirestoreFieldValue,
-  Timestamp: FirestoreTimestamp,
-});
+export namespace firestore {
+  export const FieldValue = FirestoreFieldValue;
+  export type FieldValue = FirestoreFieldValue;
+  export const Timestamp = FirestoreTimestamp;
+  export type Timestamp = FirestoreTimestamp;
+  export type Firestore = FirestoreType;
+}
 
 export function auth(targetApp?: FirebaseApp): AuthType {
   return targetApp ? getAuth(targetApp) : getAuth();
+}
+
+export namespace auth {
+  export type Auth = AuthType;
 }
 
 export function storage(targetApp?: FirebaseApp): StorageType {
   return targetApp ? getStorage(targetApp) : getStorage();
 }
 
+export namespace storage {
+  export type Storage = StorageType;
+}
+
 export function database(targetApp?: FirebaseApp): DatabaseType {
   return targetApp ? getDatabase(targetApp) : getDatabase();
+}
+
+export namespace database {
+  export type Database = DatabaseType;
 }

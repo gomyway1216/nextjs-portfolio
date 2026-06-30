@@ -10,6 +10,7 @@
   left: 0;
   top: 0;
   height: 100vh;
+  z-index: 60;
   background: $px-bg-3;
   border-right: 1px solid rgba($px-dark, 0.1);
   .theme-light & {

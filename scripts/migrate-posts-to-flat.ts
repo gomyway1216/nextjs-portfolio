@@ -13,7 +13,7 @@
  * Pass --keep-old to skip deleting the legacy docs after copying.
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 

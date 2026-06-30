@@ -4,7 +4,7 @@
  * Run with: npx tsx scripts/cleanup-hobbies.ts
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 

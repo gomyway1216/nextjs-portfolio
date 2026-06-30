@@ -9,7 +9,7 @@
  * 3. Updates Firestore documents with the new URLs
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 

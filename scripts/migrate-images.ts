@@ -3,7 +3,7 @@
  * and update hobbyItems with new URLs
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import fetch from 'node-fetch';

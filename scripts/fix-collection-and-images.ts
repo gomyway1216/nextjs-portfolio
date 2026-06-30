@@ -5,7 +5,7 @@
  * 3. Update URLs in Firestore
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import fetch from 'node-fetch';

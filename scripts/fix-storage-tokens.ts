@@ -3,7 +3,7 @@
  * This fixes the Console preview/download issue
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';

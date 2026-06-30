@@ -15,7 +15,7 @@
  */
 
 import * as dotenv from 'dotenv';
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -67,8 +67,8 @@ interface SourceAnimeItem {
   description: string;
   score: number;
   tags: Array<{ id: string; name: string }>;
-  created: admin.firestore.Timestamp;
-  lastUpdated: admin.firestore.Timestamp;
+  created: admin.Timestamp;
+  lastUpdated: admin.Timestamp;
 }
 
 interface SourceVoiceActor {
@@ -77,8 +77,8 @@ interface SourceVoiceActor {
   name_japanese: string;
   name_japanese_ruby: string;
   image: string;
-  created: admin.firestore.Timestamp;
-  lastUpdated: admin.firestore.Timestamp;
+  created: admin.Timestamp;
+  lastUpdated: admin.Timestamp;
 }
 
 interface SourceCharacter {
@@ -89,8 +89,8 @@ interface SourceCharacter {
   image: string;
   anime_id: string;
   voice_actor_id: string;
-  created: admin.firestore.Timestamp;
-  lastUpdated: admin.firestore.Timestamp;
+  created: admin.Timestamp;
+  lastUpdated: admin.Timestamp;
 }
 
 async function initializeFirebase() {
@@ -122,7 +122,7 @@ async function initializeFirebase() {
   return admin.app();
 }
 
-async function discoverSourceUserId(db: admin.firestore.Firestore): Promise<string | null> {
+async function discoverSourceUserId(db: admin.Firestore): Promise<string | null> {
   console.log('\nDiscovering source user ID from Firestore...');
 
   // List all root-level collections
@@ -154,7 +154,7 @@ async function discoverSourceUserId(db: admin.firestore.Firestore): Promise<stri
   return null;
 }
 
-async function createHobbyCategories(db: admin.firestore.Firestore) {
+async function createHobbyCategories(db: admin.Firestore) {
   console.log('Creating hobby categories...');
 
   const categories = [
@@ -223,7 +223,7 @@ async function createHobbyCategories(db: admin.firestore.Firestore) {
 }
 
 async function migrateAnimeItems(
-  db: admin.firestore.Firestore,
+  db: admin.Firestore,
   categoryId: string
 ): Promise<Map<string, string>> {
   console.log('\nMigrating anime items...');
@@ -273,7 +273,7 @@ async function migrateAnimeItems(
 }
 
 async function migrateVoiceActors(
-  db: admin.firestore.Firestore,
+  db: admin.Firestore,
   categoryId: string
 ): Promise<Map<string, string>> {
   console.log('\nMigrating voice actors...');
@@ -321,7 +321,7 @@ async function migrateVoiceActors(
 }
 
 async function migrateCharacters(
-  db: admin.firestore.Firestore,
+  db: admin.Firestore,
   categoryId: string,
   animeIdMap: Map<string, string>,
   voiceActorIdMap: Map<string, string>

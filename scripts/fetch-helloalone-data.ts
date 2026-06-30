@@ -5,7 +5,7 @@
 
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -160,7 +160,7 @@ async function fetchFromHelloalone() {
   return { animeItems, voiceActors, characters };
 }
 
-async function getOrCreateCategories(db: admin.firestore.Firestore) {
+async function getOrCreateCategories(db: admin.Firestore) {
   const categories: Record<string, string> = {};
 
   const categoryConfigs = [
@@ -196,7 +196,7 @@ async function getOrCreateCategories(db: admin.firestore.Firestore) {
 }
 
 async function migrateData(
-  db: admin.firestore.Firestore,
+  db: admin.Firestore,
   categories: Record<string, string>,
   data: { animeItems: AnimeItem[]; voiceActors: VoiceActor[]; characters: Character[] }
 ) {

@@ -2,7 +2,7 @@
  * Update all anime with Japanese and English descriptions
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 

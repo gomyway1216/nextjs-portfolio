@@ -2,7 +2,7 @@
  * Verify anime data has scores properly configured
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 

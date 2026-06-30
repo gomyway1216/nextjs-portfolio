@@ -2,7 +2,7 @@
  * Add images for characters that were not found by automatic search
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import fetch from 'node-fetch';

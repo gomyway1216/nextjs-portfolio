@@ -42,7 +42,7 @@
  * }
  */
 
-import * as admin from 'firebase-admin';
+import * as admin from './firebase-admin-compat';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -117,7 +117,7 @@ async function initializeFirebase() {
   return admin.app();
 }
 
-async function getCategories(db: admin.firestore.Firestore) {
+async function getCategories(db: admin.Firestore) {
   const categories: Record<string, string> = {};
 
   const slugs = ['anime', 'voice-actors', 'anime-characters'];
@@ -131,7 +131,7 @@ async function getCategories(db: admin.firestore.Firestore) {
   return categories;
 }
 
-async function getExistingItems(db: admin.firestore.Firestore, hobbyId: string) {
+async function getExistingItems(db: admin.Firestore, hobbyId: string) {
   const existing = new Map<string, string>();
   const snapshot = await db.collection('hobbyItems').where('hobbyId', '==', hobbyId).get();
 
@@ -145,7 +145,7 @@ async function getExistingItems(db: admin.firestore.Firestore, hobbyId: string) 
 }
 
 async function importAnimeItems(
-  db: admin.firestore.Firestore,
+  db: admin.Firestore,
   categoryId: string,
   items: AnimeItem[]
 ): Promise<Map<string, string>> {
@@ -213,7 +213,7 @@ async function importAnimeItems(
 }
 
 async function importVoiceActors(
-  db: admin.firestore.Firestore,
+  db: admin.Firestore,
   categoryId: string,
   items: VoiceActor[]
 ): Promise<Map<string, string>> {
@@ -276,7 +276,7 @@ async function importVoiceActors(
 }
 
 async function importCharacters(
-  db: admin.firestore.Firestore,
+  db: admin.Firestore,
   categoryId: string,
   items: Character[],
   animeIdMap: Map<string, string>,

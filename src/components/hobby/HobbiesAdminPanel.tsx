@@ -46,7 +46,7 @@ User,
 X,
 } from 'lucide-react';
 import Image from 'next/image';
-import { CSSProperties,useState } from 'react';
+import { CSSProperties,useMemo,useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 // Styles (following AdminPage patterns)
@@ -185,6 +185,10 @@ const styles: Record<string, CSSProperties> = {
     width: '34px',
     height: '34px',
     justifyContent: 'center',
+  },
+  disabledButton: {
+    opacity: 0.55,
+    cursor: 'not-allowed',
   },
   input: {
     width: '100%',
@@ -426,8 +430,10 @@ export default function HobbiesAdminPanel() {
 
   // Get selected hobby
   const selectedHobby = categories.find((c) => c.id === selectedHobbyId);
-  const publicCategoryCount = categories.filter((category) => category.isPublic).length;
-  const totalFieldCount = categories.reduce((total, category) => total + category.fields.length, 0);
+  const publicCategoryCount = useMemo(() => categories.filter((category) => category.isPublic).length, [categories]);
+  const totalFieldCount = useMemo(() => categories.reduce((total, category) => total + category.fields.length, 0), [categories]);
+  const isCategorySaveDisabled = categoryMutations.loading || !categoryForm.name.trim() || !categoryForm.description.trim();
+  const isItemSaveDisabled = itemMutations.loading || !itemForm.title.trim();
 
   const handleSelectHobby = (hobbyId: string) => {
     setSelectedHobbyId(hobbyId);
@@ -435,6 +441,13 @@ export default function HobbiesAdminPanel() {
       ...prev,
       customFields: {},
     }));
+  };
+
+  const handleCategoryRowKeyDown = (event: React.KeyboardEvent<HTMLTableRowElement>, hobbyId: string) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleSelectHobby(hobbyId);
+    }
   };
 
   // Handlers
@@ -937,11 +950,15 @@ export default function HobbiesAdminPanel() {
                 {categories.map((category) => (
                   <tr
                     key={category.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={selectedHobbyId === category.id}
                     style={{
                       ...(selectedHobbyId === category.id ? styles.rowSelected : {}),
                       cursor: 'pointer',
                     }}
                     onClick={() => handleSelectHobby(category.id)}
+                    onKeyDown={(event) => handleCategoryRowKeyDown(event, category.id)}
                   >
                     <td style={styles.td}>
                       <span style={styles.rowTitle}>{category.name}</span>
@@ -1384,8 +1401,8 @@ export default function HobbiesAdminPanel() {
               <button
                 type="button"
                 onClick={handleSaveCategory}
-                disabled={categoryMutations.loading}
-                style={{ ...styles.button, ...styles.primaryButton }}
+                disabled={isCategorySaveDisabled}
+                style={{ ...styles.button, ...styles.primaryButton, ...(isCategorySaveDisabled ? styles.disabledButton : {}) }}
               >
                 {categoryMutations.loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />}
                 {editingCategory ? 'Update' : 'Create'}
@@ -1510,6 +1527,7 @@ export default function HobbiesAdminPanel() {
                       </div>
                     ))}
                     <label
+                      aria-label="Upload gallery image"
                       style={styles.galleryUpload}
                     >
                       <input
@@ -1580,8 +1598,8 @@ export default function HobbiesAdminPanel() {
               <button
                 type="button"
                 onClick={handleSaveItem}
-                disabled={itemMutations.loading}
-                style={{ ...styles.button, ...styles.primaryButton }}
+                disabled={isItemSaveDisabled}
+                style={{ ...styles.button, ...styles.primaryButton, ...(isItemSaveDisabled ? styles.disabledButton : {}) }}
               >
                 {itemMutations.loading ? <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={16} />}
                 {editingItem ? 'Update' : 'Create'}

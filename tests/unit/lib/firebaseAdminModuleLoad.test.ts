@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const requireFromHere = createRequire(import.meta.url);
@@ -7,12 +7,12 @@ const requireFromJwksRsa = createRequire(requireFromHere.resolve('jwks-rsa/packa
 
 describe('firebase-admin module loading', () => {
   it('loads auth through CommonJS without resolving an ESM-only jose build', () => {
-    const josePackageJsonPath = requireFromJwksRsa.resolve('jose/package.json');
-    const josePackageJson = JSON.parse(readFileSync(josePackageJsonPath, 'utf8')) as {
-      exports?: { '.'?: { require?: string } };
-    };
+    const joseEntryPath = requireFromJwksRsa.resolve('jose');
 
-    expect(josePackageJson.exports?.['.']?.require).toEqual(expect.any(String));
+    expect(joseEntryPath).toContain(
+      ['jwks-rsa', 'node_modules', 'jose'].join(sep),
+    );
+    expect(() => requireFromJwksRsa('jose')).not.toThrow();
 
     const authModule = requireFromHere('firebase-admin/auth') as {
       getAuth?: unknown;

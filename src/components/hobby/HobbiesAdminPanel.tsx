@@ -46,7 +46,7 @@ User,
 X,
 } from 'lucide-react';
 import Image from 'next/image';
-import { CSSProperties,useEffect,useState } from 'react';
+import { CSSProperties,useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
 // Styles (following AdminPage patterns)
@@ -54,104 +54,186 @@ const styles: Record<string, CSSProperties> = {
   panel: {
     padding: '0',
   },
-  card: {
-    backgroundColor: 'rgba(30, 41, 59, 0.5)',
-    backdropFilter: 'blur(8px)',
-    borderRadius: '16px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    overflow: 'hidden',
+  pageHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '24px',
     marginBottom: '24px',
   },
+  pageTitle: {
+    fontSize: '30px',
+    fontWeight: 650,
+    color: 'var(--admin-text)',
+    lineHeight: 1.15,
+    letterSpacing: 0,
+    margin: '0 0 6px',
+  },
+  pageSubtitle: {
+    color: 'var(--admin-text-muted)',
+    margin: 0,
+    fontSize: '14px',
+  },
+  statGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+    gap: '12px',
+    marginBottom: '20px',
+  },
+  statCard: {
+    backgroundColor: 'var(--admin-surface)',
+    borderRadius: '8px',
+    border: '1px solid var(--admin-border)',
+    padding: '14px 16px',
+    boxShadow: 'var(--admin-shadow-surface)',
+  },
+  statLabel: {
+    color: 'var(--admin-text-subtle)',
+    fontSize: '12px',
+    fontWeight: 600,
+    letterSpacing: 0,
+    margin: '0 0 6px',
+    textTransform: 'uppercase',
+  },
+  statValue: {
+    color: 'var(--admin-text)',
+    fontSize: '24px',
+    fontWeight: 650,
+    lineHeight: 1,
+    margin: 0,
+  },
+  layoutGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'minmax(0, 1fr)',
+    gap: '18px',
+  },
+  card: {
+    backgroundColor: 'var(--admin-surface)',
+    borderRadius: '8px',
+    border: '1px solid var(--admin-border)',
+    overflow: 'hidden',
+    boxShadow: 'var(--admin-shadow-surface)',
+  },
   cardHeader: {
-    padding: '20px 24px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '18px 20px',
+    borderBottom: '1px solid var(--admin-border)',
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
+    gap: '16px',
+    backgroundColor: 'var(--admin-surface)',
   },
   cardTitle: {
-    fontSize: '18px',
+    fontSize: '17px',
     fontWeight: '600',
-    color: '#ffffff',
+    color: 'var(--admin-text)',
     margin: 0,
   },
+  cardSubtitle: {
+    color: 'var(--admin-text-muted)',
+    fontSize: '13px',
+    margin: '4px 0 0',
+  },
   cardBody: {
-    padding: '24px',
+    padding: '18px 20px',
+  },
+  tableWrap: {
+    overflowX: 'auto',
+  },
+  loadingState: {
+    display: 'flex',
+    justifyContent: 'center',
+    padding: '36px 16px',
+    color: 'var(--admin-text-muted)',
   },
   button: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '8px',
-    padding: '10px 20px',
+    minHeight: '38px',
+    padding: '8px 14px',
     borderRadius: '8px',
-    border: 'none',
+    border: '1px solid transparent',
     cursor: 'pointer',
     fontWeight: '500',
     fontSize: '14px',
-    transition: 'all 0.2s',
+    lineHeight: 1.2,
+    transition: 'background-color 160ms ease, border-color 160ms ease, color 160ms ease, box-shadow 160ms ease',
   },
   primaryButton: {
-    background: 'linear-gradient(to right, #a855f7, #ec4899)',
-    color: '#ffffff',
+    backgroundColor: 'var(--admin-accent)',
+    borderColor: 'var(--admin-accent)',
+    color: 'var(--admin-primary-text)',
   },
   outlineButton: {
-    backgroundColor: 'transparent',
-    border: '1px solid rgba(255, 255, 255, 0.2)',
-    color: '#ffffff',
+    backgroundColor: 'var(--admin-surface-raised)',
+    borderColor: 'var(--admin-border-strong)',
+    color: 'var(--admin-text)',
   },
   dangerButton: {
-    backgroundColor: '#ef4444',
-    color: '#ffffff',
+    backgroundColor: 'var(--admin-danger-strong)',
+    borderColor: 'var(--admin-danger-strong)',
+    color: 'var(--admin-danger-button-text)',
   },
   ghostButton: {
     backgroundColor: 'transparent',
-    color: '#94a3b8',
+    border: '1px solid transparent',
+    color: 'var(--admin-text-muted)',
     padding: '8px',
+  },
+  actionButton: {
+    width: '34px',
+    height: '34px',
+    justifyContent: 'center',
   },
   input: {
     width: '100%',
-    padding: '10px 14px',
+    padding: '9px 11px',
     borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    color: '#ffffff',
+    border: '1px solid var(--admin-border-strong)',
+    backgroundColor: 'var(--admin-surface-raised)',
+    color: 'var(--admin-text)',
     fontSize: '14px',
     outline: 'none',
+    lineHeight: 1.45,
+    accentColor: 'var(--admin-accent)',
   },
   textarea: {
     width: '100%',
-    padding: '10px 14px',
+    padding: '9px 11px',
     borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(15, 23, 42, 0.5)',
-    color: '#ffffff',
+    border: '1px solid var(--admin-border-strong)',
+    backgroundColor: 'var(--admin-surface-raised)',
+    color: 'var(--admin-text)',
     fontSize: '14px',
     outline: 'none',
     resize: 'vertical' as const,
     minHeight: '100px',
+    lineHeight: 1.5,
   },
   select: {
     width: '100%',
-    padding: '10px 14px',
+    padding: '9px 11px',
     borderRadius: '8px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
-    backgroundColor: 'rgba(15, 23, 42, 0.8)',
-    color: '#ffffff',
+    border: '1px solid var(--admin-border-strong)',
+    backgroundColor: 'var(--admin-surface-raised)',
+    color: 'var(--admin-text)',
     fontSize: '14px',
     outline: 'none',
     cursor: 'pointer',
+    lineHeight: 1.45,
   },
   label: {
     display: 'block',
-    color: '#cbd5e1',
-    fontSize: '14px',
+    color: 'var(--admin-text-soft)',
+    fontSize: '13px',
     fontWeight: '500',
-    marginBottom: '8px',
+    marginBottom: '6px',
   },
   modal: {
     position: 'fixed' as const,
     inset: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'var(--admin-modal-backdrop)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -159,56 +241,138 @@ const styles: Record<string, CSSProperties> = {
     padding: '16px',
   },
   modalContent: {
-    backgroundColor: '#0f172a',
-    borderRadius: '16px',
-    border: '1px solid rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'var(--admin-surface)',
+    borderRadius: '8px',
+    border: '1px solid var(--admin-border)',
     maxWidth: '800px',
     width: '100%',
     maxHeight: '90vh',
     overflow: 'auto',
+    boxShadow: 'var(--admin-shadow-modal)',
   },
   modalHeader: {
-    padding: '24px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '20px 22px',
+    borderBottom: '1px solid var(--admin-border)',
   },
   modalTitle: {
-    fontSize: '20px',
+    fontSize: '19px',
     fontWeight: '600',
-    color: '#ffffff',
+    color: 'var(--admin-text)',
+    margin: 0,
   },
   modalBody: {
-    padding: '24px',
+    padding: '22px',
   },
   modalFooter: {
-    padding: '24px',
-    borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '18px 22px',
+    borderTop: '1px solid var(--admin-border)',
     display: 'flex',
     justifyContent: 'flex-end',
     gap: '12px',
+    backgroundColor: 'var(--admin-surface-raised)',
   },
   badge: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: '4px',
-    padding: '4px 12px',
+    padding: '3px 9px',
     borderRadius: '9999px',
     fontSize: '12px',
     fontWeight: '500',
+    lineHeight: 1.35,
   },
   table: {
     width: '100%',
-    borderCollapse: 'collapse' as const,
+    borderCollapse: 'separate' as const,
+    borderSpacing: 0,
   },
   th: {
     textAlign: 'left' as const,
-    padding: '16px 24px',
-    fontWeight: '500',
-    color: '#94a3b8',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+    padding: '12px 14px',
+    fontWeight: 600,
+    color: 'var(--admin-text-subtle)',
+    borderBottom: '1px solid var(--admin-border)',
+    backgroundColor: 'var(--admin-surface-muted)',
+    fontSize: '12px',
+    lineHeight: 1.35,
+    letterSpacing: 0,
   },
   td: {
-    padding: '16px 24px',
-    borderBottom: '1px solid rgba(255, 255, 255, 0.05)',
+    padding: '14px',
+    borderBottom: '1px solid var(--admin-border)',
+    color: 'var(--admin-text-soft)',
+    fontSize: '14px',
+  },
+  rowSelected: {
+    backgroundColor: 'var(--admin-accent-soft)',
+    boxShadow: 'inset 3px 0 0 var(--admin-accent)',
+  },
+  rowTitle: {
+    color: 'var(--admin-text)',
+    fontWeight: 500,
+  },
+  helperText: {
+    color: 'var(--admin-text-subtle)',
+    fontSize: '12px',
+    marginTop: '4px',
+  },
+  checkbox: {
+    width: '18px',
+    height: '18px',
+    cursor: 'pointer',
+    accentColor: 'var(--admin-accent)',
+  },
+  checkboxLabel: {
+    color: 'var(--admin-text-soft)',
+    cursor: 'pointer',
+    fontSize: '14px',
+  },
+  fieldCard: {
+    padding: '14px',
+    backgroundColor: 'var(--admin-surface-raised)',
+    borderRadius: '8px',
+    border: '1px solid var(--admin-border)',
+  },
+  emptyState: {
+    color: 'var(--admin-text-subtle)',
+    textAlign: 'center' as const,
+    padding: '36px 16px',
+    border: '1px dashed var(--admin-border-strong)',
+    borderRadius: '8px',
+    backgroundColor: 'var(--admin-surface-muted)',
+  },
+  dropzone: {
+    border: '1px dashed var(--admin-border-strong)',
+    borderRadius: '8px',
+    padding: '20px',
+    textAlign: 'center' as const,
+    backgroundColor: 'var(--admin-surface-muted)',
+  },
+  imageRemoveButton: {
+    position: 'absolute',
+    top: '-8px',
+    right: '-8px',
+    background: 'var(--admin-danger-strong)',
+    border: '1px solid var(--admin-danger-border)',
+    borderRadius: '999px',
+    padding: '4px',
+    cursor: 'pointer',
+    color: 'var(--admin-danger-button-text)',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  galleryUpload: {
+    width: '80px',
+    height: '60px',
+    border: '1px dashed var(--admin-border-strong)',
+    borderRadius: '8px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'pointer',
+    color: 'var(--admin-text-muted)',
+    backgroundColor: 'var(--admin-surface-muted)',
   },
 };
 
@@ -262,16 +426,16 @@ export default function HobbiesAdminPanel() {
 
   // Get selected hobby
   const selectedHobby = categories.find((c) => c.id === selectedHobbyId);
+  const publicCategoryCount = categories.filter((category) => category.isPublic).length;
+  const totalFieldCount = categories.reduce((total, category) => total + category.fields.length, 0);
 
-  // Reset item form when hobby changes
-  useEffect(() => {
-    if (selectedHobby) {
-      setItemForm((prev) => ({
-        ...prev,
-        customFields: {},
-      }));
-    }
-  }, [selectedHobby]);
+  const handleSelectHobby = (hobbyId: string) => {
+    setSelectedHobbyId(hobbyId);
+    setItemForm((prev) => ({
+      ...prev,
+      customFields: {},
+    }));
+  };
 
   // Handlers
   const handleOpenCategoryModal = (category?: HobbyCategory) => {
@@ -634,7 +798,7 @@ export default function HobbiesAdminPanel() {
                 customFields: { ...prev.customFields, [field.name]: e.target.checked },
               }))
             }
-            style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+            style={styles.checkbox}
           />
         );
 
@@ -646,7 +810,7 @@ export default function HobbiesAdminPanel() {
         const relatedCategory = categories.find(c => c.slug === relationConfig.hobbySlug);
         if (!relatedCategory) {
           return (
-            <div style={{ color: '#94a3b8', fontSize: '14px' }}>
+            <div style={{ color: 'var(--admin-text-muted)', fontSize: '14px' }}>
               カテゴリ &quot;{relationConfig.hobbySlug}&quot; が見つかりません
             </div>
           );
@@ -667,7 +831,7 @@ export default function HobbiesAdminPanel() {
               placeholder={`${relatedCategory.name}のアイテムIDを入力`}
               style={styles.input}
             />
-            <p style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+            <p style={styles.helperText}>
               {relatedCategory.name}から選択
             </p>
           </div>
@@ -691,34 +855,74 @@ export default function HobbiesAdminPanel() {
     }
   };
 
+  const renderStatusBadge = (isPublic: boolean) => (
+    <span
+      style={{
+        ...styles.badge,
+        backgroundColor: isPublic ? 'var(--admin-success-soft)' : 'var(--admin-surface-muted)',
+        border: `1px solid ${isPublic ? 'var(--admin-success-border)' : 'var(--admin-border-strong)'}`,
+        color: isPublic ? 'var(--admin-success)' : 'var(--admin-text-muted)',
+      }}
+    >
+      {isPublic ? <Eye size={12} /> : <EyeOff size={12} />}
+      {isPublic ? 'Public' : 'Private'}
+    </span>
+  );
+
   return (
     <div style={styles.panel}>
-      <h1 style={{ fontSize: '36px', fontWeight: 'bold', color: '#ffffff', marginBottom: '8px' }}>
-        Hobbies Management
-      </h1>
-      <p style={{ color: '#94a3b8', marginBottom: '32px' }}>
-        Manage your hobby categories and items
-      </p>
+      <div style={styles.pageHeader}>
+        <div>
+          <h1 style={styles.pageTitle}>Hobbies Management</h1>
+          <p style={styles.pageSubtitle}>Manage hobby categories, custom fields, and public catalog items.</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => handleOpenCategoryModal()}
+          style={{ ...styles.button, ...styles.primaryButton }}
+        >
+          <Plus size={16} /> Add Category
+        </button>
+      </div>
+
+      <div style={styles.statGrid}>
+        <div style={styles.statCard}>
+          <p style={styles.statLabel}>Categories</p>
+          <p style={styles.statValue}>{categories.length}</p>
+        </div>
+        <div style={styles.statCard}>
+          <p style={styles.statLabel}>Public</p>
+          <p style={styles.statValue}>{publicCategoryCount}</p>
+        </div>
+        <div style={styles.statCard}>
+          <p style={styles.statLabel}>Custom Fields</p>
+          <p style={styles.statValue}>{totalFieldCount}</p>
+        </div>
+        <div style={styles.statCard}>
+          <p style={styles.statLabel}>Selected Items</p>
+          <p style={styles.statValue}>{selectedHobby ? items.length : '-'}</p>
+        </div>
+      </div>
+
+      <div style={styles.layoutGrid}>
 
       {/* Categories Section */}
       <div style={styles.card}>
         <div style={styles.cardHeader}>
-          <h3 style={styles.cardTitle}>Hobby Categories</h3>
-          <button
-            onClick={() => handleOpenCategoryModal()}
-            style={{ ...styles.button, ...styles.primaryButton }}
-          >
-            <Plus size={16} /> Add Category
-          </button>
+          <div>
+            <h3 style={styles.cardTitle}>Hobby Categories</h3>
+            <p style={styles.cardSubtitle}>Choose a category to manage its items.</p>
+          </div>
         </div>
         <div style={styles.cardBody}>
           {categoriesLoading ? (
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '24px' }}>
+            <div style={styles.loadingState}>
               <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
             </div>
           ) : categories.length === 0 ? (
-            <p style={{ color: '#64748b', textAlign: 'center' }}>No hobby categories yet</p>
+            <div style={styles.emptyState}>No hobby categories yet.</div>
           ) : (
+            <div style={styles.tableWrap}>
             <table style={styles.table}>
               <thead>
                 <tr>
@@ -734,44 +938,38 @@ export default function HobbiesAdminPanel() {
                   <tr
                     key={category.id}
                     style={{
-                      backgroundColor: selectedHobbyId === category.id ? 'rgba(168, 85, 247, 0.1)' : 'transparent',
+                      ...(selectedHobbyId === category.id ? styles.rowSelected : {}),
                       cursor: 'pointer',
                     }}
-                    onClick={() => setSelectedHobbyId(category.id)}
+                    onClick={() => handleSelectHobby(category.id)}
                   >
                     <td style={styles.td}>
-                      <span style={{ color: '#ffffff', fontWeight: '500' }}>{category.name}</span>
+                      <span style={styles.rowTitle}>{category.name}</span>
                     </td>
-                    <td style={{ ...styles.td, color: '#94a3b8' }}>{category.slug}</td>
-                    <td style={styles.td}>
-                      {category.isPublic ? (
-                        <span style={{ ...styles.badge, backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7' }}>
-                          <Eye size={12} /> Public
-                        </span>
-                      ) : (
-                        <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#94a3b8' }}>
-                          <EyeOff size={12} /> Private
-                        </span>
-                      )}
-                    </td>
-                    <td style={{ ...styles.td, color: '#94a3b8' }}>{category.fields.length} fields</td>
+                    <td style={{ ...styles.td, color: 'var(--admin-text-muted)' }}>{category.slug}</td>
+                    <td style={styles.td}>{renderStatusBadge(category.isPublic)}</td>
+                    <td style={{ ...styles.td, color: 'var(--admin-text-muted)' }}>{category.fields.length} fields</td>
                     <td style={{ ...styles.td, textAlign: 'right' }}>
                       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleOpenCategoryModal(category);
                           }}
-                          style={{ ...styles.ghostButton, borderRadius: '8px' }}
+                          aria-label={`Edit ${category.name}`}
+                          style={{ ...styles.button, ...styles.ghostButton, ...styles.actionButton }}
                         >
                           <Pencil size={16} />
                         </button>
                         <button
+                          type="button"
                           onClick={(e) => {
                             e.stopPropagation();
                             setShowDeleteConfirm({ type: 'category', id: category.id, name: category.name });
                           }}
-                          style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
+                          aria-label={`Delete ${category.name}`}
+                          style={{ ...styles.button, ...styles.ghostButton, ...styles.actionButton, color: 'var(--admin-danger-text)' }}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -781,6 +979,7 @@ export default function HobbiesAdminPanel() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>
@@ -789,8 +988,12 @@ export default function HobbiesAdminPanel() {
       {selectedHobby && (
         <div style={styles.card}>
           <div style={styles.cardHeader}>
-            <h3 style={styles.cardTitle}>{selectedHobby.name} Items</h3>
+            <div>
+              <h3 style={styles.cardTitle}>{selectedHobby.name} Items</h3>
+              <p style={styles.cardSubtitle}>{items.length} items in this category.</p>
+            </div>
             <button
+              type="button"
               onClick={() => handleOpenItemModal()}
               style={{ ...styles.button, ...styles.primaryButton }}
             >
@@ -799,12 +1002,13 @@ export default function HobbiesAdminPanel() {
           </div>
           <div style={styles.cardBody}>
             {itemsLoading ? (
-              <div style={{ display: 'flex', justifyContent: 'center', padding: '24px' }}>
+              <div style={styles.loadingState}>
                 <Loader2 size={24} style={{ animation: 'spin 1s linear infinite' }} />
               </div>
             ) : items.length === 0 ? (
-              <p style={{ color: '#64748b', textAlign: 'center' }}>No items yet</p>
+              <div style={styles.emptyState}>No items yet. Add the first item for this category.</div>
             ) : (
+              <div style={styles.tableWrap}>
               <table style={styles.table}>
                 <thead>
                   <tr>
@@ -818,31 +1022,25 @@ export default function HobbiesAdminPanel() {
                   {items.map((item) => (
                     <tr key={item.id}>
                       <td style={styles.td}>
-                        <span style={{ color: '#ffffff', fontWeight: '500' }}>{item.title}</span>
+                        <span style={styles.rowTitle}>{item.title}</span>
                       </td>
-                      <td style={styles.td}>
-                        {item.isPublic ? (
-                          <span style={{ ...styles.badge, backgroundColor: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7' }}>
-                            <Eye size={12} /> Public
-                          </span>
-                        ) : (
-                          <span style={{ ...styles.badge, backgroundColor: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#94a3b8' }}>
-                            <EyeOff size={12} /> Private
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ ...styles.td, color: '#94a3b8' }}>{item.tags.join(', ') || '-'}</td>
+                      <td style={styles.td}>{renderStatusBadge(item.isPublic)}</td>
+                      <td style={{ ...styles.td, color: 'var(--admin-text-muted)' }}>{item.tags.join(', ') || '-'}</td>
                       <td style={{ ...styles.td, textAlign: 'right' }}>
                         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                           <button
+                            type="button"
                             onClick={() => handleOpenItemModal(item)}
-                            style={{ ...styles.ghostButton, borderRadius: '8px' }}
+                            aria-label={`Edit ${item.title}`}
+                            style={{ ...styles.button, ...styles.ghostButton, ...styles.actionButton }}
                           >
                             <Pencil size={16} />
                           </button>
                           <button
+                            type="button"
                             onClick={() => setShowDeleteConfirm({ type: 'item', id: item.id, name: item.title })}
-                            style={{ ...styles.ghostButton, borderRadius: '8px', color: '#f87171' }}
+                            aria-label={`Delete ${item.title}`}
+                            style={{ ...styles.button, ...styles.ghostButton, ...styles.actionButton, color: 'var(--admin-danger-text)' }}
                           >
                             <Trash2 size={16} />
                           </button>
@@ -852,10 +1050,15 @@ export default function HobbiesAdminPanel() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>
       )}
+      {!selectedHobby && (
+        <div style={styles.emptyState}>Select a category to manage its items.</div>
+      )}
+      </div>
 
       {/* Category Modal */}
       {showCategoryModal && (
@@ -871,36 +1074,42 @@ export default function HobbiesAdminPanel() {
               {!editingCategory && (
                 <div style={{ marginBottom: '24px', display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
                   <button
+                    type="button"
                     onClick={() => handleApplyTemplate('fish')}
                     style={{ ...styles.button, ...styles.outlineButton }}
                   >
                     <Fish size={16} /> 魚図鑑
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleApplyTemplate('ski')}
                     style={{ ...styles.button, ...styles.outlineButton }}
                   >
                     <Mountain size={16} /> スキー
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleApplyTemplate('train')}
                     style={{ ...styles.button, ...styles.outlineButton }}
                   >
                     <Train size={16} /> 鉄道
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleApplyTemplate('anime')}
                     style={{ ...styles.button, ...styles.outlineButton }}
                   >
                     <Tv size={16} /> アニメ
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleApplyTemplate('voice-actor')}
                     style={{ ...styles.button, ...styles.outlineButton }}
                   >
                     <Mic size={16} /> 声優
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleApplyTemplate('anime-character')}
                     style={{ ...styles.button, ...styles.outlineButton }}
                   >
@@ -980,13 +1189,7 @@ export default function HobbiesAdminPanel() {
                 <div>
                   <label style={styles.label}>Cover Image</label>
                   <div
-                    style={{
-                      border: '2px dashed rgba(255, 255, 255, 0.2)',
-                      borderRadius: '12px',
-                      padding: '20px',
-                      textAlign: 'center',
-                      backgroundColor: 'rgba(15, 23, 42, 0.3)',
-                    }}
+                    style={styles.dropzone}
                   >
                     {categoryForm.coverImage ? (
                       <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -999,19 +1202,12 @@ export default function HobbiesAdminPanel() {
                           style={{ maxWidth: '200px', maxHeight: '150px', width: 'auto', height: 'auto', borderRadius: '8px' }}
                         />
                         <button
+                          type="button"
                           onClick={() => setCategoryForm({ ...categoryForm, coverImage: '' })}
-                          style={{
-                            position: 'absolute',
-                            top: '-8px',
-                            right: '-8px',
-                            background: '#ef4444',
-                            border: 'none',
-                            borderRadius: '50%',
-                            padding: '4px',
-                            cursor: 'pointer',
-                          }}
+                          style={styles.imageRemoveButton}
+                          aria-label="Remove cover image"
                         >
-                          <X size={14} color="#fff" />
+                          <X size={14} />
                         </button>
                       </div>
                     ) : (
@@ -1030,11 +1226,11 @@ export default function HobbiesAdminPanel() {
                         />
                         <label htmlFor="cover-upload" style={{ cursor: 'pointer' }}>
                           {uploadingImage ? (
-                            <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: '#64748b' }} />
+                            <Loader2 size={32} style={{ animation: 'spin 1s linear infinite', color: 'var(--admin-text-muted)' }} />
                           ) : (
                             <>
-                              <ImageIcon size={32} color="#64748b" />
-                              <p style={{ color: '#94a3b8', fontSize: '14px', margin: '8px 0 0' }}>
+                              <ImageIcon size={32} color="var(--admin-text-muted)" />
+                              <p style={{ color: 'var(--admin-text-muted)', fontSize: '14px', margin: '8px 0 0' }}>
                                 Click to upload cover image
                               </p>
                             </>
@@ -1051,9 +1247,9 @@ export default function HobbiesAdminPanel() {
                     id="category-public"
                     checked={categoryForm.isPublic}
                     onChange={(e) => setCategoryForm({ ...categoryForm, isPublic: e.target.checked })}
-                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                    style={styles.checkbox}
                   />
-                  <label htmlFor="category-public" style={{ color: '#cbd5e1', cursor: 'pointer' }}>
+                  <label htmlFor="category-public" style={styles.checkboxLabel}>
                     Public
                   </label>
                 </div>
@@ -1061,6 +1257,7 @@ export default function HobbiesAdminPanel() {
                 {/* Custom Fields */}
                 <div>
                   <button
+                    type="button"
                     onClick={() => setExpandedFields(!expandedFields)}
                     style={{
                       ...styles.button,
@@ -1078,12 +1275,7 @@ export default function HobbiesAdminPanel() {
                       {categoryForm.fields.map((field, _index) => (
                         <div
                           key={field.id}
-                          style={{
-                            padding: '16px',
-                            backgroundColor: 'rgba(15, 23, 42, 0.5)',
-                            borderRadius: '12px',
-                            border: '1px solid rgba(255, 255, 255, 0.1)',
-                          }}
+                          style={styles.fieldCard}
                         >
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: '12px', alignItems: 'end' }}>
                             <div>
@@ -1124,8 +1316,10 @@ export default function HobbiesAdminPanel() {
                               </select>
                             </div>
                             <button
+                              type="button"
                               onClick={() => handleRemoveField(field.id)}
-                              style={{ ...styles.ghostButton, color: '#f87171' }}
+                              style={{ ...styles.button, ...styles.ghostButton, ...styles.actionButton, color: 'var(--admin-danger-text)' }}
+                              aria-label={`Remove ${field.label || field.name || 'field'}`}
                             >
                               <Trash2 size={16} />
                             </button>
@@ -1172,6 +1366,7 @@ export default function HobbiesAdminPanel() {
                         </div>
                       ))}
                       <button
+                        type="button"
                         onClick={handleAddField}
                         style={{ ...styles.button, ...styles.outlineButton, justifyContent: 'center' }}
                       >
@@ -1183,10 +1378,11 @@ export default function HobbiesAdminPanel() {
               </div>
             </div>
             <div style={styles.modalFooter}>
-              <button onClick={() => setShowCategoryModal(false)} style={{ ...styles.button, ...styles.outlineButton }}>
+              <button type="button" onClick={() => setShowCategoryModal(false)} style={{ ...styles.button, ...styles.outlineButton }}>
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSaveCategory}
                 disabled={categoryMutations.loading}
                 style={{ ...styles.button, ...styles.primaryButton }}
@@ -1232,13 +1428,7 @@ export default function HobbiesAdminPanel() {
                 <div>
                   <label style={styles.label}>Thumbnail Image</label>
                   <div
-                    style={{
-                      border: '2px dashed rgba(255, 255, 255, 0.2)',
-                      borderRadius: '12px',
-                      padding: '20px',
-                      textAlign: 'center',
-                      backgroundColor: 'rgba(15, 23, 42, 0.3)',
-                    }}
+                    style={styles.dropzone}
                   >
                     {itemForm.thumbImage ? (
                       <div style={{ position: 'relative', display: 'inline-block' }}>
@@ -1251,19 +1441,12 @@ export default function HobbiesAdminPanel() {
                           style={{ maxWidth: '150px', maxHeight: '100px', width: 'auto', height: 'auto', borderRadius: '8px' }}
                         />
                         <button
+                          type="button"
                           onClick={() => setItemForm({ ...itemForm, thumbImage: '' })}
-                          style={{
-                            position: 'absolute',
-                            top: '-8px',
-                            right: '-8px',
-                            background: '#ef4444',
-                            border: 'none',
-                            borderRadius: '50%',
-                            padding: '4px',
-                            cursor: 'pointer',
-                          }}
+                          style={styles.imageRemoveButton}
+                          aria-label="Remove thumbnail image"
                         >
-                          <X size={12} color="#fff" />
+                          <X size={12} />
                         </button>
                       </div>
                     ) : (
@@ -1282,11 +1465,11 @@ export default function HobbiesAdminPanel() {
                         />
                         <label htmlFor="thumb-upload" style={{ cursor: 'pointer' }}>
                           {uploadingImage ? (
-                            <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: '#64748b' }} />
+                            <Loader2 size={24} style={{ animation: 'spin 1s linear infinite', color: 'var(--admin-text-muted)' }} />
                           ) : (
                             <>
-                              <Upload size={24} color="#64748b" />
-                              <p style={{ color: '#94a3b8', fontSize: '12px', margin: '4px 0 0' }}>Upload thumbnail</p>
+                              <Upload size={24} color="var(--admin-text-muted)" />
+                              <p style={{ color: 'var(--admin-text-muted)', fontSize: '12px', margin: '4px 0 0' }}>Upload thumbnail</p>
                             </>
                           )}
                         </label>
@@ -1310,35 +1493,24 @@ export default function HobbiesAdminPanel() {
                           style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '8px' }}
                         />
                         <button
+                          type="button"
                           onClick={() =>
                             setItemForm({ ...itemForm, images: itemForm.images.filter((_, i) => i !== index) })
                           }
                           style={{
-                            position: 'absolute',
+                            ...styles.imageRemoveButton,
                             top: '-6px',
                             right: '-6px',
-                            background: '#ef4444',
-                            border: 'none',
-                            borderRadius: '50%',
                             padding: '2px',
-                            cursor: 'pointer',
                           }}
+                          aria-label={`Remove gallery image ${index + 1}`}
                         >
-                          <X size={10} color="#fff" />
+                          <X size={10} />
                         </button>
                       </div>
                     ))}
                     <label
-                      style={{
-                        width: '80px',
-                        height: '60px',
-                        border: '2px dashed rgba(255, 255, 255, 0.2)',
-                        borderRadius: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: 'pointer',
-                      }}
+                      style={styles.galleryUpload}
                     >
                       <input
                         type="file"
@@ -1352,9 +1524,9 @@ export default function HobbiesAdminPanel() {
                         }}
                       />
                       {uploadingImage ? (
-                        <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: '#64748b' }} />
+                        <Loader2 size={20} style={{ animation: 'spin 1s linear infinite', color: 'var(--admin-text-muted)' }} />
                       ) : (
-                        <Plus size={20} color="#64748b" />
+                        <Plus size={20} color="var(--admin-text-muted)" />
                       )}
                     </label>
                   </div>
@@ -1363,7 +1535,7 @@ export default function HobbiesAdminPanel() {
                 {/* Custom Fields */}
                 {selectedHobby.fields.length > 0 && (
                   <div>
-                    <h4 style={{ color: '#ffffff', marginBottom: '16px' }}>Custom Fields</h4>
+                    <h4 style={{ color: 'var(--admin-text)', margin: '0 0 16px' }}>Custom Fields</h4>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                       {selectedHobby.fields.map((field) => (
                         <div key={field.id}>
@@ -1393,19 +1565,20 @@ export default function HobbiesAdminPanel() {
                     id="item-public"
                     checked={itemForm.isPublic}
                     onChange={(e) => setItemForm({ ...itemForm, isPublic: e.target.checked })}
-                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                    style={styles.checkbox}
                   />
-                  <label htmlFor="item-public" style={{ color: '#cbd5e1', cursor: 'pointer' }}>
+                  <label htmlFor="item-public" style={styles.checkboxLabel}>
                     Public
                   </label>
                 </div>
               </div>
             </div>
             <div style={styles.modalFooter}>
-              <button onClick={() => setShowItemModal(false)} style={{ ...styles.button, ...styles.outlineButton }}>
+              <button type="button" onClick={() => setShowItemModal(false)} style={{ ...styles.button, ...styles.outlineButton }}>
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleSaveItem}
                 disabled={itemMutations.loading}
                 style={{ ...styles.button, ...styles.primaryButton }}
@@ -1423,19 +1596,20 @@ export default function HobbiesAdminPanel() {
         <div style={styles.modal}>
           <div style={{ ...styles.modalContent, maxWidth: '400px' }}>
             <div style={styles.modalHeader}>
-              <h2 style={{ ...styles.modalTitle, color: '#f87171' }}>Confirm Delete</h2>
+              <h2 style={{ ...styles.modalTitle, color: 'var(--admin-danger-text)' }}>Confirm Delete</h2>
             </div>
             <div style={styles.modalBody}>
-              <p style={{ color: '#94a3b8' }}>
-                Are you sure you want to delete <strong style={{ color: '#ffffff' }}>{showDeleteConfirm.name}</strong>?
+              <p style={{ color: 'var(--admin-text-muted)', margin: 0, lineHeight: 1.6 }}>
+                Are you sure you want to delete <strong style={{ color: 'var(--admin-text)' }}>{showDeleteConfirm.name}</strong>?
                 {showDeleteConfirm.type === 'category' && ' This will also delete all items in this category.'}
               </p>
             </div>
             <div style={styles.modalFooter}>
-              <button onClick={() => setShowDeleteConfirm(null)} style={{ ...styles.button, ...styles.outlineButton }}>
+              <button type="button" onClick={() => setShowDeleteConfirm(null)} style={{ ...styles.button, ...styles.outlineButton }}>
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={() => {
                   if (showDeleteConfirm.type === 'category') {
                     handleDeleteCategory(showDeleteConfirm.id);

@@ -12,9 +12,11 @@ import { isValidSocialLink, type ProfileSocialLink } from '@/lib/socialLinks';
 import { WRITING_COLLECTION } from '@/app/api/constants';
 import { isSafeHttpUrl, parseWritingDoc, publicWritings, type Writing } from '@/lib/writing';
 import { getInitialPostsCached, type ServerPost } from '@/lib/blog/getPostsServer';
+import { createPlainTextExcerpt } from '@/lib/text';
 
 const PROFILE_DOC_ID = 'main';
 const HOME_BLOG_POST_LIMIT = 3;
+const HOME_BLOG_EXCERPT_LENGTH = 220;
 
 // Missing/malformed field → undefined (resolveSocialLinks falls back to
 // defaults); a real array is kept even when it filters to empty, so an
@@ -66,12 +68,20 @@ const getInitialWritingsCached = unstable_cache(getInitialWritings, ['home-writi
 
 async function getInitialHomeLanguage() {
   const cookieStore = await cookies();
-  const cookieLang = cookieStore.get('i18nextLng')?.value;
-  if (cookieLang === 'ja' || cookieLang === 'en') return cookieLang;
+  const cookieLang = cookieStore.get('i18nextLng')?.value?.toLowerCase();
+  if (cookieLang?.startsWith('ja')) return 'ja';
+  if (cookieLang?.startsWith('en')) return 'en';
 
   const hdrs = await headers();
   const preferredLanguage = hdrs.get('accept-language')?.split(',')[0]?.trim().toLowerCase();
   return preferredLanguage?.startsWith('ja') ? 'ja' : 'en';
+}
+
+function toHomeBlogPost(post: ServerPost): ServerPost {
+  return {
+    ...post,
+    body: createPlainTextExcerpt(post.body, HOME_BLOG_EXCERPT_LENGTH),
+  };
 }
 
 export default async function Home() {
@@ -96,7 +106,7 @@ export default async function Home() {
   try {
     const language = await getInitialHomeLanguage();
     const fetched = await getInitialPostsCached('all', HOME_BLOG_POST_LIMIT, language);
-    initialBlogPosts = fetched.posts;
+    initialBlogPosts = fetched.posts.map(toHomeBlogPost);
   } catch (error) {
     console.error('[Home] Failed to load initial blog posts:', error);
   }

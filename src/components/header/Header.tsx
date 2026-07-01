@@ -48,6 +48,7 @@ const SIDEBAR_NAV_ITEMS = [
     labelKey: 'home.nav.writing',
     Icon: Newspaper,
   },
+  { id: 'blog', href: '/#blog', labelKey: 'home.nav.blog', Icon: NotebookPen },
   { id: 'tools', href: '/#tools', labelKey: 'home.nav.tools', Icon: Wrench },
   { id: 'work', href: '/#work', labelKey: 'home.nav.work', Icon: FolderKanban },
   {
@@ -56,7 +57,6 @@ const SIDEBAR_NAV_ITEMS = [
     labelKey: 'home.nav.community',
     Icon: Users,
   },
-  { id: 'blog', href: '/#blog', labelKey: 'home.nav.blog', Icon: NotebookPen },
   { id: 'study', href: '/#study', labelKey: 'home.nav.study', Icon: BookOpenText },
   { id: 'games', href: '/#games', labelKey: 'home.nav.games', Icon: Gamepad2 },
   { id: 'about', href: '/#about', labelKey: 'home.nav.about', Icon: UserRound },

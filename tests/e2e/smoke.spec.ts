@@ -19,14 +19,15 @@ test('home page renders the hero and sidebar navigation', async ({ page }) => {
     '/#home',
     '/#impact',
     '/#resume',
-    '/tools',
+    '/#blog',
+    '/#tools',
     '/#work',
     '/#community',
-    '/blog',
     '/#study',
     '/#games',
     '/#about',
   ]);
+  await expect(page.locator('#blog')).toBeVisible();
 });
 
 test('games page lists game cards from the static catalog', async ({ page }) => {

@@ -2,7 +2,6 @@
 
 import RichContentRenderer from '@/components/common/RichContentRenderer';
 import SimpleCarousel from '@/components/portfolio/SimpleCarousel';
-import { Button } from '@/components/ui/button';
 import { createPlainTextExcerpt } from '@/lib/text';
 import * as util from '@/lib/utils/util';
 import { useAuth } from '@/providers/AuthProvider';
@@ -87,6 +86,7 @@ export default function ProjectPage({ projectId, initialProject = null }: Projec
   );
 
   const categories = project?.categories?.filter(Boolean) ?? [];
+  const primaryCategory = categories[0] || '';
   const summary = createPlainTextExcerpt(project?.description, 220);
   const hasImages = Boolean(project?.thumbImage || project?.images?.length);
 
@@ -132,41 +132,42 @@ export default function ProjectPage({ projectId, initialProject = null }: Projec
             <ArrowLeft aria-hidden="true" size={16} strokeWidth={2} />
             {t('projectPage.backToWork')}
           </Link>
-          {currentUser && (
-            <Button onClick={handleEdit} className={styles.editButton}>
-              <Edit3 aria-hidden="true" size={15} strokeWidth={2} />
-              {t('projectPage.edit')}
-            </Button>
-          )}
+          <div className={styles.toolbarMeta}>
+            {primaryCategory && <span className={styles.categoryPill}>{primaryCategory}</span>}
+            {currentUser && (
+              <button type="button" onClick={handleEdit} className={styles.editButton}>
+                <Edit3 aria-hidden="true" size={14} strokeWidth={2} />
+                {t('projectPage.edit')}
+              </button>
+            )}
+          </div>
         </div>
 
         <header className={styles.hero}>
-          <div className={styles.heroCopy}>
-            <p className={styles.eyebrow}>{t('projectPage.eyebrow')}</p>
-            <h1>{project.title}</h1>
-            {summary && <p className={styles.summary}>{summary}</p>}
-            {categories.length > 0 && (
-              <div className={styles.categoryList} aria-label={t('projectPage.categories')}>
-                {categories.map((category) => (
-                  <span key={category}>{category}</span>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className={styles.mediaPanel}>
-            {hasImages ? (
-              <SimpleCarousel
-                images={project.images || []}
-                thumbImage={project.thumbImage || ''}
-              />
-            ) : (
-              <div className={styles.placeholderMedia} aria-hidden="true">
-                {(project.title || 'PR').slice(0, 2)}
-              </div>
-            )}
-          </div>
+          <h1>{project.title}</h1>
+          {project.date && <p className={styles.date}>{util.formatDate(project.date)}</p>}
+          {summary && <p className={styles.summary}>{summary}</p>}
+          {categories.length > 1 && (
+            <div className={styles.categoryList} aria-label={t('projectPage.categories')}>
+              {categories.slice(1).map((category) => (
+                <span key={category}>{category}</span>
+              ))}
+            </div>
+          )}
         </header>
+
+        <div className={styles.mediaPanel}>
+          {hasImages ? (
+            <SimpleCarousel
+              images={project.images || []}
+              thumbImage={project.thumbImage || ''}
+            />
+          ) : (
+            <div className={styles.placeholderMedia} aria-hidden="true">
+              {(project.title || 'PR').slice(0, 2)}
+            </div>
+          )}
+        </div>
 
         <dl className={styles.factGrid}>
           <ProjectFact label={t('projectPage.client')} value={project.client || t('projectPage.fallbackClient')} />

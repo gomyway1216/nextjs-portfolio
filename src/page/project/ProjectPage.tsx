@@ -87,6 +87,7 @@ export default function ProjectPage({ projectId, initialProject = null }: Projec
 
   const categories = project?.categories?.filter(Boolean) ?? [];
   const primaryCategory = categories[0] || '';
+  const formattedDate = useMemo(() => util.formatDate(project?.date), [project?.date]);
   const summary = createPlainTextExcerpt(project?.description, 220);
   const hasImages = Boolean(project?.thumbImage || project?.images?.length);
 
@@ -145,7 +146,7 @@ export default function ProjectPage({ projectId, initialProject = null }: Projec
 
         <header className={styles.hero}>
           <h1>{project.title}</h1>
-          {project.date && <p className={styles.date}>{util.formatDate(project.date)}</p>}
+          {formattedDate && <p className={styles.date}>{formattedDate}</p>}
           {summary && <p className={styles.summary}>{summary}</p>}
           {categories.length > 1 && (
             <div className={styles.categoryList} aria-label={t('projectPage.categories')}>
@@ -172,8 +173,6 @@ export default function ProjectPage({ projectId, initialProject = null }: Projec
         <dl className={styles.factGrid}>
           <ProjectFact label={t('projectPage.client')} value={project.client || t('projectPage.fallbackClient')} />
           <ProjectFact label={t('projectPage.industry')} value={project.industry || ''} />
-          <ProjectFact label={t('projectPage.date')} value={util.formatDate(project.date)} />
-          <ProjectFact label={t('projectPage.categories')} value={categories.join(', ')} />
         </dl>
 
         <div className={styles.contentGrid}>

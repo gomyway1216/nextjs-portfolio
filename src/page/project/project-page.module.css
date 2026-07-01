@@ -228,7 +228,7 @@
 
 .factGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
   gap: 1px;
   overflow: hidden;
   border: 1px solid var(--border);
@@ -387,13 +387,10 @@
 }
 
 :global(.dark) .categoryPill {
-  border-color: var(--border);
   background: color-mix(in srgb, var(--muted) 54%, transparent);
-  color: var(--muted-foreground);
 }
 
 :global(.dark) .categoryList span {
-  border-color: var(--border);
   background: color-mix(in srgb, var(--muted) 48%, transparent);
 }
 
@@ -415,10 +412,6 @@
 @media (max-width: 980px) {
   .contentGrid {
     grid-template-columns: 1fr;
-  }
-
-  .factGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

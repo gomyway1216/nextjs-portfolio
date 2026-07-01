@@ -12,6 +12,7 @@ import GamesSlideshow from '@/components/games/GamesSlideshow';
 import ToolsSection from '@/components/tools/ToolsSection';
 import StudyEntry from '@/components/home/StudyEntry';
 import PublishedWriting from '@/components/home/PublishedWriting';
+import HomeBlogSection, { type HomeBlogPost } from '@/components/home/HomeBlogSection';
 import Footer from '@/components/footer/FooterAnimation';
 import useDocumentTitle from '@/components/useDocumentTitle';
 import { useTranslation } from 'react-i18next';
@@ -22,9 +23,10 @@ import type { Writing } from '@/lib/writing';
 interface HomeOneProps {
   initialProfile?: Profile | null;
   initialWritings?: Writing[];
+  initialBlogPosts?: HomeBlogPost[];
 }
 
-const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
+const HomeOne = ({ initialProfile, initialWritings = [], initialBlogPosts = [] }: HomeOneProps) => {
   const { t } = useTranslation();
   const { resolvedTheme } = useTheme();
   const hasPublishedWritings = initialWritings.length > 0;
@@ -51,6 +53,8 @@ const HomeOne = ({ initialProfile, initialWritings = [] }: HomeOneProps) => {
       <Resume />
 
       {hasPublishedWritings && <PublishedWriting writings={initialWritings} />}
+
+      <HomeBlogSection posts={initialBlogPosts} />
 
       <section id="tools" className="section theme-light dark-bg modern-section">
         <div className="container">

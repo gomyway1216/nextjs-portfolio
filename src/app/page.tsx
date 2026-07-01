@@ -2,6 +2,7 @@
 // stylesheet live here instead of the root layout. Every other route
 // (games, blog, tools, …) skips the AOS payload entirely.
 import 'aos/dist/aos.css';
+import { cookies, headers } from 'next/headers';
 import { unstable_cache } from 'next/cache';
 import AOSInitializer from './AOSInitializer';
 import HomeLightAnimation from '@/views/all-home-version/HomeLightAnimation';
@@ -10,8 +11,10 @@ import type { Profile } from '@/hooks/useProfile';
 import { isValidSocialLink, type ProfileSocialLink } from '@/lib/socialLinks';
 import { WRITING_COLLECTION } from '@/app/api/constants';
 import { isSafeHttpUrl, parseWritingDoc, publicWritings, type Writing } from '@/lib/writing';
+import { getInitialPostsCached, type ServerPost } from '@/lib/blog/getPostsServer';
 
 const PROFILE_DOC_ID = 'main';
+const HOME_BLOG_POST_LIMIT = 3;
 
 // Missing/malformed field → undefined (resolveSocialLinks falls back to
 // defaults); a real array is kept even when it filters to empty, so an
@@ -61,6 +64,16 @@ const getInitialWritingsCached = unstable_cache(getInitialWritings, ['home-writi
   tags: ['writing'],
 });
 
+async function getInitialHomeLanguage() {
+  const cookieStore = await cookies();
+  const cookieLang = cookieStore.get('i18nextLng')?.value;
+  if (cookieLang === 'ja' || cookieLang === 'en') return cookieLang;
+
+  const hdrs = await headers();
+  const preferredLanguage = hdrs.get('accept-language')?.split(',')[0]?.trim().toLowerCase();
+  return preferredLanguage?.startsWith('ja') ? 'ja' : 'en';
+}
+
 export default async function Home() {
   let initialProfile: Profile | null = null;
   try {
@@ -79,10 +92,23 @@ export default async function Home() {
     console.error('[Home] Failed to load initial writings:', error);
   }
 
+  let initialBlogPosts: ServerPost[] = [];
+  try {
+    const language = await getInitialHomeLanguage();
+    const fetched = await getInitialPostsCached('all', HOME_BLOG_POST_LIMIT, language);
+    initialBlogPosts = fetched.posts;
+  } catch (error) {
+    console.error('[Home] Failed to load initial blog posts:', error);
+  }
+
   return (
     <>
       <AOSInitializer />
-      <HomeLightAnimation initialProfile={initialProfile} initialWritings={initialWritings} />
+      <HomeLightAnimation
+        initialProfile={initialProfile}
+        initialWritings={initialWritings}
+        initialBlogPosts={initialBlogPosts}
+      />
     </>
   );
 }

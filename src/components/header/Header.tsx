@@ -23,64 +23,48 @@ import {
   Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tooltip } from 'react-tooltip';
 
-const isBlogPath = (path: string | null | undefined): boolean =>
-  path === '/blog' || !!path?.startsWith('/blog/');
-
 const SIDEBAR_NAV_ITEMS = [
-  { kind: 'section', id: 'home', href: '/#home', labelKey: 'home.nav.home', Icon: House },
+  { id: 'home', href: '/#home', labelKey: 'home.nav.home', Icon: House },
   {
-    kind: 'section',
     id: 'impact',
     href: '/#impact',
     labelKey: 'home.nav.impact',
     Icon: LineChart,
   },
   {
-    kind: 'section',
     id: 'resume',
     href: '/#resume',
     labelKey: 'home.nav.resume',
     Icon: BriefcaseBusiness,
   },
   {
-    kind: 'section',
     id: 'writing',
     href: '/#writing',
     labelKey: 'home.nav.writing',
     Icon: Newspaper,
   },
-  { kind: 'section', id: 'tools', href: '/tools', labelKey: 'home.nav.tools', Icon: Wrench },
-  { kind: 'section', id: 'work', href: '/#work', labelKey: 'home.nav.work', Icon: FolderKanban },
+  { id: 'tools', href: '/#tools', labelKey: 'home.nav.tools', Icon: Wrench },
+  { id: 'work', href: '/#work', labelKey: 'home.nav.work', Icon: FolderKanban },
   {
-    kind: 'section',
     id: 'community',
     href: '/#community',
     labelKey: 'home.nav.community',
     Icon: Users,
   },
-  {
-    kind: 'route',
-    id: 'blog',
-    href: '/blog',
-    labelKey: 'home.nav.blog',
-    Icon: NotebookPen,
-    isActive: isBlogPath,
-  },
-  { kind: 'section', id: 'study', href: '/#study', labelKey: 'home.nav.study', Icon: BookOpenText },
-  { kind: 'section', id: 'games', href: '/#games', labelKey: 'home.nav.games', Icon: Gamepad2 },
-  { kind: 'section', id: 'about', href: '/#about', labelKey: 'home.nav.about', Icon: UserRound },
+  { id: 'blog', href: '/#blog', labelKey: 'home.nav.blog', Icon: NotebookPen },
+  { id: 'study', href: '/#study', labelKey: 'home.nav.study', Icon: BookOpenText },
+  { id: 'games', href: '/#games', labelKey: 'home.nav.games', Icon: Gamepad2 },
+  { id: 'about', href: '/#about', labelKey: 'home.nav.about', Icon: UserRound },
 ] as const;
 
 // Section IDs the home-page nav scroll-spies on, in the same order the
 // sidebar renders those section links.
-const SECTION_IDS_WITH_WRITING = SIDEBAR_NAV_ITEMS.flatMap((item) =>
-  item.kind === 'section' ? [item.id] : [],
-);
+const SECTION_IDS_WITH_WRITING = SIDEBAR_NAV_ITEMS.map((item) => item.id);
 const SECTION_IDS_WITHOUT_WRITING = SECTION_IDS_WITH_WRITING.filter((id) => id !== 'writing');
 
 interface HeaderProps {
@@ -89,9 +73,9 @@ interface HeaderProps {
 
 const Header = ({ showWriting = false }: HeaderProps) => {
   const [click, setClick] = useState<boolean>(false);
-  const handleClick = () => setClick(!click);
+  const handleClick = () => setClick((isOpen) => !isOpen);
+  const closeMenu = () => setClick(false);
   const router = useRouter();
-  const pathname = usePathname();
   const { currentUser, signOut } = useAuth();
   const { t, i18n } = useTranslation();
   const sectionIds = showWriting ? SECTION_IDS_WITH_WRITING : SECTION_IDS_WITHOUT_WRITING;
@@ -135,7 +119,7 @@ const Header = ({ showWriting = false }: HeaderProps) => {
           <div className="hl-top">
             <div className="hl-logo">
               <Link
-                href="/"
+                href="/#home"
                 aria-label={t('home.nav.home')}
                 data-tooltip-id="left-menu-tooltip"
                 data-tooltip-content={t('home.nav.home')}
@@ -171,8 +155,7 @@ const Header = ({ showWriting = false }: HeaderProps) => {
 
               const label = t(item.labelKey);
               const Icon = item.Icon;
-              const isActive =
-                item.kind === 'section' ? activeSection === item.id : item.isActive(pathname);
+              const isActive = activeSection === item.id;
 
               return (
                 <li key={item.id} className={isActive ? 'active' : ''}>
@@ -180,12 +163,10 @@ const Header = ({ showWriting = false }: HeaderProps) => {
                     className="nav-link"
                     href={item.href}
                     aria-label={label}
-                    aria-current={
-                      isActive ? (item.kind === 'section' ? 'location' : 'page') : undefined
-                    }
+                    aria-current={isActive ? 'location' : undefined}
                     data-tooltip-id="left-menu-tooltip"
                     data-tooltip-content={label}
-                    onClick={handleClick}
+                    onClick={closeMenu}
                   >
                     <Icon size={20} />
                   </Link>

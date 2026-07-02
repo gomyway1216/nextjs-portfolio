@@ -11,6 +11,10 @@ import { RouteScrollBehaviorFix } from "@/components/RouteScrollBehaviorFix";
 import { GameToolbarProvider } from "@/contexts/GameToolbarContext";
 import GlobalErrorBoundary from "@/components/GlobalErrorBoundary";
 import PageViewLogger from "@/components/PageViewLogger";
+import {
+  BAY_AREA_AI_PROFILE_URL,
+  BAY_AREA_AI_URL,
+} from "@/lib/communityConfig";
 import { SITE_URL } from "@/lib/siteConfig";
 import { DEFAULT_SOCIAL_LINKS } from "@/lib/socialLinks";
 import "../assets/scss/main.scss";
@@ -40,7 +44,7 @@ const geistMono = Geist_Mono({
 const SITE_NAME = 'Yudai Yaguchi';
 const SITE_TITLE = 'Yudai Yaguchi — Senior Fintech Engineer';
 const SITE_DESCRIPTION =
-  'Senior software engineer with 6+ years building fintech systems across payments, risk/compliance, product growth, and operations tooling.';
+  'Senior software engineer building fintech systems across payments, risk/compliance, and product growth, and founder/organizer of the JTPA-supported Bay Area AI Study Group.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -59,6 +63,9 @@ export const metadata: Metadata = {
     'Next.js',
     'TypeScript',
     'San Francisco',
+    'Bay Area AI Study Group',
+    'JTPA',
+    'AI Community Organizer',
   ],
   authors: [{ name: SITE_NAME, url: SITE_URL }],
   creator: SITE_NAME,
@@ -87,11 +94,10 @@ export const metadata: Metadata = {
 
 // Stable @id values so the Person and Organization nodes can cross-
 // reference each other (founder <-> memberOf) instead of duplicating data.
-// Both ids put the fragment on the canonical root URL (trailing slash
-// before '#') so the Person<->Organization cross-references resolve
-// consistently across JSON-LD/RDF parsers.
+// Keep the community @id aligned with bayarea-ai.com's own JSON-LD so the
+// cross-site graph points at one Organization node.
 const PERSON_ID = `${SITE_URL}/#person`;
-const COMMUNITY_ID = 'https://bayarea-ai.com/#organization';
+const COMMUNITY_ID = `${BAY_AREA_AI_URL}#organization`;
 
 const personJsonLd = {
   '@type': 'Person',
@@ -108,8 +114,12 @@ const personJsonLd = {
   // The founder relationship lives on the Organization node below.
   memberOf: { '@id': COMMUNITY_ID },
   // Static fallback links on purpose: the layout renders without a
-  // profile fetch. Kept in sync via the shared DEFAULT_SOCIAL_LINKS.
-  sameAs: DEFAULT_SOCIAL_LINKS.map((link) => link.url),
+  // profile fetch. Bay Area AI profile URL is included so crawlers can
+  // connect this portfolio Person node to the community profile page.
+  sameAs: [
+    ...DEFAULT_SOCIAL_LINKS.map((link) => link.url),
+    BAY_AREA_AI_PROFILE_URL,
+  ],
   description: SITE_DESCRIPTION,
 };
 
@@ -120,9 +130,9 @@ const communityJsonLd = {
   '@type': 'Organization',
   '@id': COMMUNITY_ID,
   name: 'Bay Area AI Study Group',
-  url: 'https://bayarea-ai.com',
+  url: BAY_AREA_AI_URL,
   description:
-    'A Bay Area community for AI engineers, hosting monthly meetups and a platform for sharing projects, articles, and Q&A.',
+    'A JTPA-supported Bay Area AI community led by Yudai Yaguchi, hosting monthly meetups and a platform for sharing projects, articles, and Q&A.',
   founder: { '@id': PERSON_ID },
 };
 

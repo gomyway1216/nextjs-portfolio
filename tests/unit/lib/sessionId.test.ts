@@ -49,4 +49,32 @@ describe('sessionId', () => {
 
     expect(store.has('portfolio_session_id')).toBe(false);
   });
+
+  it('falls back to getRandomValues when storage access throws', () => {
+    vi.stubGlobal('window', {});
+    vi.stubGlobal('localStorage', {
+      getItem: vi.fn(() => {
+        throw new Error('blocked');
+      }),
+    });
+    vi.stubGlobal('crypto', {
+      getRandomValues: (bytes: Uint8Array) => {
+        bytes.set(Array.from({ length: 16 }, (_, index) => index));
+        return bytes;
+      },
+    });
+
+    expect(getSessionId()).toBe('00010203-0405-4607-8809-0a0b0c0d0e0f');
+  });
+
+  it('ignores storage errors while resetting', () => {
+    vi.stubGlobal('window', {});
+    vi.stubGlobal('localStorage', {
+      removeItem: vi.fn(() => {
+        throw new Error('blocked');
+      }),
+    });
+
+    expect(() => resetSessionId()).not.toThrow();
+  });
 });

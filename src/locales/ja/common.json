@@ -1167,8 +1167,8 @@
     "community": {
       "eyebrow": "コミュニティ運営",
       "title": "Bay Area AI 勉強会の運営。",
-      "role": "Founder & Organizer — Bay Area AI 勉強会",
-      "subtitle": "本業の fintech に加えて、Bay Area AI 勉強会を立ち上げて運営しています。月1回のミートアップと自作のプラットフォームで、エンジニアがプロジェクトや記事、学びを共有しています。",
+      "role": "Founder & Organizer — JTPA支援の Bay Area AI 勉強会",
+      "subtitle": "本業の fintech に加えて、JTPA支援の Bay Area AI 勉強会を立ち上げ、リードしています。月1回のミートアップと自作のプラットフォームで、ベイエリアのエンジニアがプロジェクトや記事、学びを共有しています。",
       "metricsLabel": "コミュニティ運営のハイライト",
       "metrics": {
         "cadence": {
@@ -1181,7 +1181,7 @@
         },
         "network": {
           "value": "JTPA",
-          "label": "日米の技術人材を支援する NPO「JTPA」と連携して運営。"
+          "label": "ベイエリアの日本語話者エンジニア向けに、JTPA支援コミュニティとして運営。"
         }
       },
       "highlights": {
@@ -1199,11 +1199,12 @@
         },
         "bridge": {
           "title": "日米のブリッジ",
-          "description": "JTPA と連携し、ベイエリアの日本語話者エンジニアを AI でつなぐ。"
+          "description": "JTPA と連携し、ベイエリアの日本語話者エンジニア向けAIコミュニティをリード。"
         }
       },
       "cta": "コミュニティを見る",
       "caseStudyCta": "プラットフォーム事例を読む",
+      "profileCta": "コミュニティプロフィールを見る",
       "showcaseCta": "コミュニティ記事を読む",
       "note": "コミュニティはベイエリアの日本語話者向けに日本語で運営していますが、プラットフォームとイベント情報は英語でも参照できます。"
     },

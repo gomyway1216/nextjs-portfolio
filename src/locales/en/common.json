@@ -1174,8 +1174,8 @@
       "community": {
       "eyebrow": "Community Leadership",
       "title": "AI community leadership in the Bay Area.",
-      "role": "Founder & Organizer — Bay Area AI Study Group",
-      "subtitle": "Beyond my fintech work, I founded and run the Bay Area AI Study Group: a monthly meetup and a self-built platform where engineers share projects, articles, and lessons learned.",
+      "role": "Founder & Organizer — JTPA-supported Bay Area AI Study Group",
+      "subtitle": "Beyond my fintech work, I founded and lead the Bay Area AI Study Group, a JTPA-supported AI community and self-built platform where Bay Area engineers share projects, articles, and lessons learned.",
       "metricsLabel": "Community leadership highlights",
       "metrics": {
         "cadence": {
@@ -1188,7 +1188,7 @@
         },
         "network": {
           "value": "JTPA",
-          "label": "Run in partnership with JTPA, a nonprofit supporting Japan–US tech talent."
+          "label": "Led as a JTPA-supported community for Japanese-speaking engineers in the Bay Area."
         }
       },
       "highlights": {
@@ -1206,11 +1206,12 @@
         },
         "bridge": {
           "title": "Japan–US Bridge",
-          "description": "Connect Japanese-speaking engineers in the Bay Area around AI, alongside JTPA."
+          "description": "Lead a Japanese-speaking engineer community around AI in partnership with JTPA."
         }
       },
       "cta": "Visit the community",
       "caseStudyCta": "Read the platform case study",
+      "profileCta": "View my community profile",
       "showcaseCta": "Read the community write-up",
       "note": "The community runs in Japanese for Bay Area engineers; the platform and event information are also available in English."
     },

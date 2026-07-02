@@ -3,6 +3,10 @@
 import { ArrowUpRight, CalendarClock, Layers, Sparkles, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslation } from 'react-i18next';
+import {
+  BAY_AREA_AI_PROFILE_SLUG,
+  getBayAreaAiLocalizedUrl,
+} from '@/lib/communityConfig';
 import { COMMUNITY_PROJECT_ID, getProjectPath } from '@/lib/projectRoutes';
 import styles from './CommunityLeadership.module.css';
 
@@ -16,15 +20,17 @@ const highlights = [
 
 const metrics = ['cadence', 'platform', 'network'] as const;
 
-const COMMUNITY_URL = 'https://bayarea-ai.com';
-
 export default function CommunityLeadership() {
   const { t, i18n } = useTranslation();
   // Send English readers to the English site and JA readers to the JA site.
   // startsWith handles region-coded locales (e.g. 'ja-JP'), matching the
   // detection in app/layout.tsx.
   const lang = i18n.language?.startsWith('ja') ? 'ja' : 'en';
-  const communityHref = `${COMMUNITY_URL}/${lang}`;
+  const communityHref = getBayAreaAiLocalizedUrl(lang);
+  const communityProfileHref = getBayAreaAiLocalizedUrl(
+    lang,
+    `/u/${BAY_AREA_AI_PROFILE_SLUG}`,
+  );
 
   return (
     <section id="community" className={styles.section}>
@@ -74,7 +80,15 @@ export default function CommunityLeadership() {
           </Link>
           <a
             className={styles.secondaryCta}
-            href={`${COMMUNITY_URL}/${lang}/showcase/jtpa-community-hub-ai`}
+            href={communityProfileHref}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {t('home.community.profileCta')}
+          </a>
+          <a
+            className={styles.secondaryCta}
+            href={getBayAreaAiLocalizedUrl(lang, '/showcase/jtpa-community-hub-ai')}
             target="_blank"
             rel="noopener noreferrer"
           >

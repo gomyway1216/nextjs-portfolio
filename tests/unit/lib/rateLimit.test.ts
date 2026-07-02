@@ -1,5 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isRateLimited } from '@/lib/rateLimit';
+import { clientIpFrom, isRateLimited } from '@/lib/rateLimit';
+
+function requestWithHeaders(headers: Record<string, string | null>) {
+  return {
+    headers: {
+      get: (key: string) => headers[key] ?? null,
+    },
+  };
+}
 
 describe('isRateLimited', () => {
   beforeEach(() => {
@@ -44,5 +52,11 @@ describe('isRateLimited', () => {
     }
     expect(isRateLimited(a, { limit: 5, windowMs: 60_000 })).toBe(true);
     expect(isRateLimited(b, { limit: 5, windowMs: 60_000 })).toBe(false);
+  });
+
+  it('extracts client IP from trusted proxy headers', () => {
+    expect(clientIpFrom(requestWithHeaders({ 'x-real-ip': '203.0.113.10' }) as never)).toBe('203.0.113.10');
+    expect(clientIpFrom(requestWithHeaders({ 'x-forwarded-for': '198.51.100.1, 198.51.100.2' }) as never)).toBe('198.51.100.1');
+    expect(clientIpFrom(requestWithHeaders({}) as never)).toBe('unknown');
   });
 });

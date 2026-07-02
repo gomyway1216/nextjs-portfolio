@@ -23,7 +23,6 @@ import {
   Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Tooltip } from 'react-tooltip';
@@ -75,7 +74,6 @@ const Header = ({ showWriting = false }: HeaderProps) => {
   const [click, setClick] = useState<boolean>(false);
   const handleClick = () => setClick((isOpen) => !isOpen);
   const closeMenu = () => setClick(false);
-  const router = useRouter();
   const { currentUser, signOut } = useAuth();
   const { t, i18n } = useTranslation();
   const sectionIds = showWriting ? SECTION_IDS_WITH_WRITING : SECTION_IDS_WITHOUT_WRITING;
@@ -188,11 +186,18 @@ const Header = ({ showWriting = false }: HeaderProps) => {
                       <Shield size={20} />
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => router.push('/admin')}>
-                      Admin Page
+                  <DropdownMenuContent
+                    side="right"
+                    align="start"
+                    sideOffset={12}
+                    className="z-[1000]"
+                  >
+                    <DropdownMenuItem asChild className="cursor-pointer">
+                      <Link href="/admin" onClick={closeMenu}>
+                        {t('home.nav.admin')}
+                      </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleSignOut}>
+                    <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
                       Log out
                     </DropdownMenuItem>
                   </DropdownMenuContent>

@@ -17,5 +17,8 @@ describe('communityConfig', () => {
     expect(getBayAreaAiLocalizedUrl('en-US', '/u/yudai-yaguchi')).toBe(
       'https://bayarea-ai.com/en/u/yudai-yaguchi',
     );
+    expect(getBayAreaAiLocalizedUrl('en-US', 'u/yudai-yaguchi')).toBe(
+      'https://bayarea-ai.com/en/u/yudai-yaguchi',
+    );
   });
 });

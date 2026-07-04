@@ -36,9 +36,13 @@ function playDrop(komashu: number, ts: number, td: number): void {
   moveNumber++;
 }
 
+const VALID_DIFFICULTIES = ['easy', 'medium', 'hard', 'expert', 'master'];
+const difficultyArg = process.argv[2] ?? 'hard';
+const probeDifficulty = (VALID_DIFFICULTIES.includes(difficultyArg) ? difficultyArg : 'hard') as Difficulty;
+
 function askAI(label: string): void {
   const t0 = Date.now();
-  const move = getBestMove(k, GOTE, (process.argv[2] ?? 'hard') as Difficulty, moveNumber, history);
+  const move = getBestMove(k, GOTE, probeDifficulty, moveNumber, history);
   const ms = Date.now() - t0;
   if (!move) {
     console.log(`${label}: NO MOVE`);

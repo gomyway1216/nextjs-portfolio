@@ -1596,7 +1596,7 @@ export class KyokumenImproved {
     let silverLevel = 0;
     let silverOnEdgeApproach = false; // silver on 2六/1六 (can jump to 1五 next)
     for (let suji = 1; suji <= 3; suji++) {
-      for (let dan = 3; dan <= 7; dan++) {
+      for (let dan = 1; dan <= 7; dan++) {
         const p = this.getAt(suji, dan);
         if (p === EMPTY || !isSente(p) || this.getKomashu(p) !== GI) continue;
         const level = dan === 7 ? 1 : dan === 6 ? 2 : dan === 5 ? 3 : 4;
@@ -1666,10 +1666,10 @@ export class KyokumenImproved {
     let silverLevel = 0;
     let silverOnEdgeApproach = false; // silver on 8四/9四
     for (let suji = 7; suji <= 9; suji++) {
-      for (let dan = 3; dan <= 7; dan++) {
+      for (let dan = 3; dan <= 9; dan++) {
         const p = this.getAt(suji, dan);
         if (p === EMPTY || !isGote(p) || this.getKomashu(p) !== GI) continue;
-        // Mirror of the GOTE-defense scan: level 4 = silver broke into SENTE's half (dan 6-7).
+        // Mirror of the GOTE-defense scan: level 4 = silver broke into SENTE's half (dan 6-9).
         const level = dan === 3 ? 1 : dan === 4 ? 2 : dan === 5 ? 3 : 4;
         if (level > silverLevel) silverLevel = level;
         if (dan === 4 && suji >= 8) silverOnEdgeApproach = true;

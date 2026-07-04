@@ -38,8 +38,11 @@ interface GameState {
   moveHistory: Te[];
 }
 
-const isWorkerDifficulty = (difficulty: Difficulty): boolean =>
-  difficulty === 'expert' || difficulty === 'master';
+// All difficulties run in the Worker: the WASM search engine lives there
+// (with the JS book/mate-solver/V20 fallback), and even easy's ~250ms search
+// benefits from staying off the main thread. The main-thread ShogiAI path is
+// kept only as a fallback for when the worker itself fails to load/respond.
+const isWorkerDifficulty = (_difficulty: Difficulty): boolean => true;
 
 function serializeForWorker(k: Kyokumen): SerializedKyokumenImproved {
   // Board: 81 squares, (suji-major, then dan) in 1..9 range.
@@ -76,7 +79,7 @@ const Shogi = () => {
   const [showPromotionDialog, setShowPromotionDialog] = useState<boolean>(false);
   const [pendingMove, setPendingMove] = useState<Te | null>(null);
 
-  // Level 4/5 search runs in a Worker to avoid blocking the UI.
+  // AI search runs in a Worker (all levels) to avoid blocking the UI.
   const workerRef = useRef<ShogiAiWorkerClient | null>(null);
   const aiRequestIdRef = useRef(0);
   const getWorker = useCallback((): ShogiAiWorkerClient => {
@@ -123,7 +126,7 @@ const Shogi = () => {
     // Invalidate any in-flight AI computation (timeouts/worker) from the previous game.
     aiRequestIdRef.current++;
 
-    // New game: clear TT so Level 4/5 starts from a clean cache (optional but helps consistency).
+    // New game: clear the JS + WASM TTs so the engine starts from a clean cache.
     workerRef.current?.clearTT();
 
     const kyokumen = createInitialPosition();
@@ -334,8 +337,9 @@ const Shogi = () => {
           }
         }
 
-        // Levels 1-3: compute on main thread.
-        // Levels 4-5: compute in a Worker with higher time budgets (combined strategy).
+        // All levels: compute in the Worker (WASM engine + JS fallback inside).
+        // This branch only remains as an escape hatch (isWorkerDifficulty is
+        // always true) — the real main-thread fallback lives in the .catch below.
         if (!isWorkerDifficulty(difficulty)) {
           const aiMove = getBestMove(
             gameState.kyokumen,
@@ -419,7 +423,39 @@ const Shogi = () => {
           })
           .catch(() => {
             if (aiRequestIdRef.current !== requestId) return;
-            setGameState(prev => ({ ...prev, isAIThinking: false }));
+
+            // Worker failed (e.g. it could not load): last-resort main-thread search.
+            const aiMove = getBestMove(
+              gameState.kyokumen,
+              aiSide,
+              difficulty,
+              moveNumber,
+              gameState.moveHistory
+            );
+            if (!aiMove) {
+              setGameState(prev => ({ ...prev, isAIThinking: false }));
+              return;
+            }
+
+            const newKyokumen = gameState.kyokumen.clone();
+            newKyokumen.move(aiMove);
+            newKyokumen.teban = playerSide;
+
+            const { isOver, winner } = checkGameOver(newKyokumen);
+
+            setGameState(prev => ({
+              ...prev,
+              kyokumen: newKyokumen,
+              isAIThinking: false,
+              gameOver: isOver,
+              winner,
+              lastMove: aiMove,
+              moveHistory: [...prev.moveHistory, aiMove],
+            }));
+
+            if (isOver && winner === aiSide) {
+              setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+            }
           });
         return;
 

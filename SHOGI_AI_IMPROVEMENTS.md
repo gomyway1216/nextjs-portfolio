@@ -426,7 +426,71 @@ This is still present and may affect the fallback clone-based engine, but the pr
 
 ---
 
-## 7) Future Improvements (Optional)
+## 7) WASM Engine Integration (Production)
+
+The V20 search + `evaluateV3` were ported statement-for-statement to AssemblyScript
+(`wasm-spike/assembly/index.ts`) and verified bit-exact against JS at fixed depth
+(same bestMove, score, node and leaf counts). In timed play the WASM engine reaches
+depth +3..+4 at the same budget (~15x node throughput) and beat the JS V20 10-0 in a
+200ms/move match. See `wasm-spike/README.md` for the full phase 1-3 verification story.
+
+### How it is wired
+
+- **`src/components/game/ShogiImproved/wasmEngine.ts`** — client for the WASM engine.
+  Loads the binary from a **base64 embed** (`wasm/shogiWasmBase64.ts`) so the exact
+  same path works under webpack, Turbopack, vitest and node (no bundler asset/wasm
+  config needed). The instance lives at module scope (~35MB: TT + continuation
+  history) and is reused across moves; `clearWasmTT()` is called on new games only —
+  TT carry-over within a game is a strength feature. Every failure (instantiation,
+  runtime trap, illegal result — the returned move is re-checked against
+  `generateLegalMoves`) returns `null`.
+- **`src/components/game/ShogiImproved/shogi-ai.worker.ts`** — per-move hybrid
+  pipeline, all inside the worker:
+  1. JS opening book (`getOpeningMoveImproved`)
+  2. JS mate-solver probe (`MateSolverImproved`, same gate + ~20% budget policy as
+     `ShogiAIImprovedV20.tryMateSolve`; unused probe time is refunded to the search)
+  3. WASM full search (`setRootTesu(tesu)` then `searchBestMove(budgetMs, 32, qMax)`)
+  4. JS V20 search — fallback whenever `wasmEngine` returns `null`
+- **All difficulties route through the worker** (`isWorkerDifficulty` is now always
+  true in both `Shogi.tsx` and `ShogiImproved.tsx`): even easy's ~250ms search is
+  worth keeping off the main thread. If the worker itself fails (load error), the
+  components fall back to the main-thread JS engines (`ShogiAI.ts` /
+  `getBestMoveV20`) in the request `.catch`.
+- Time budgets are unchanged: easy 250ms / medium 1s / hard 2s / expert 4s /
+  master 5s (quiescence depth 6/8/10/12/12) — the ladder is defined in
+  `DIFFICULTY_BUDGETS` in the worker and must stay in sync with
+  `ShogiAIImprovedV20.getNextTe()` defaults.
+
+### Rebuilding the WASM binary
+
+The build artifacts (`src/components/game/ShogiImproved/wasm/shogi.wasm` and the
+generated `shogiWasmBase64.ts`) are committed; AssemblyScript is NOT part of CI or
+the Vercel build. After changing `wasm-spike/assembly/`:
+
+```bash
+npm install --no-save assemblyscript
+npx asc wasm-spike/assembly/index.ts \
+  --outFile src/components/game/ShogiImproved/wasm/shogi.wasm \
+  -O3 --runtime stub --noAssert
+node src/components/game/ShogiImproved/wasm/gen-wasm-base64.mjs
+# then re-verify:
+node -r tsx/cjs wasm-spike/parity.ts
+node -r tsx/cjs wasm-spike/search-driver.ts
+node -r tsx/cjs wasm-spike/match-wasm-vs-js.ts
+```
+
+### Invariants to keep
+
+- `env.now` (`performance.now`) and `env.abort` must be provided at instantiation.
+- Position load is `clearBoard → setSquare× → setHand× → setSideToMove →
+  finalizePosition`, re-synced from the JS position every move (defensive).
+- `searchBestMove` return value `0` means "no legal move" (mate/stalemate) — mapped
+  to `null` and confirmed by the JS fallback.
+- The search is synchronous: never call `wasmSearchBestMove` on the main thread.
+
+---
+
+## 8) Future Improvements (Optional)
 
 If you want even stronger play without freezing the UI:
 

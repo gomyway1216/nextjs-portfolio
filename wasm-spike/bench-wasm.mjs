@@ -1,13 +1,13 @@
 // bench-wasm.mjs — perft benchmark for the AssemblyScript/WASM shogi spike.
 //
-// Loads wasm-spike/build/shogi.wasm, verifies perft counts (must match
-// scripts/shogi-perft-js.ts exactly), and measures throughput.
+// Loads src/components/game/ShogiImproved/wasm/shogi.wasm, verifies perft
+// counts (must match scripts/shogi-perft-js.ts exactly), and measures throughput.
 //
 // Usage: node wasm-spike/bench-wasm.mjs [maxDepth]
 
 import { readFileSync } from 'node:fs';
 
-const wasmBytes = readFileSync(new URL('./build/shogi.wasm', import.meta.url));
+const wasmBytes = readFileSync(new URL('../src/components/game/ShogiImproved/wasm/shogi.wasm', import.meta.url));
 const { instance } = await WebAssembly.instantiate(wasmBytes, {
   env: {
     abort(_msg, _file, line, col) {

@@ -45,7 +45,7 @@ interface ShogiWasm {
   benchEvaluateV3Full(iters: number): number;
 }
 
-const wasmBytes = readFileSync(join(__dirname, 'build', 'shogi.wasm'));
+const wasmBytes = readFileSync(join(__dirname, '..', 'src', 'components', 'game', 'ShogiImproved', 'wasm', 'shogi.wasm'));
 const wasmModule = new WebAssembly.Module(wasmBytes);
 const instance = new WebAssembly.Instance(wasmModule, {
   env: {

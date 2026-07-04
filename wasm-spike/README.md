@@ -15,8 +15,9 @@ wasm-spike/
   bench-wasm.mjs         # WASM 側 perft ベンチ
   bench-eval.ts          # evaluateV3 の JS vs WASM ベンチ（各局面 10 万回呼び出し）
   parity.ts              # JS⇄WASM パリティハーネス（合法手数・Zobrist ビット一致・evaluateV3 整数一致検証）
-  build/shogi.wasm       # ビルド成果物（16KB）
 scripts/shogi-perft-js.ts # JS 側 perft ベンチ（既存エンジンをそのまま使用）
+src/components/game/ShogiImproved/wasm/shogi.wasm # ビルド成果物（25KB、フェーズ4で本番位置へ移設。ここが唯一の正）
+src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts # 上記の base64 埋め込み（gen-wasm-base64.mjs で再生成）
 ```
 
 ## ビルド手順
@@ -29,11 +30,16 @@ npm install --no-save assemblyscript
 # テーブル再生成（既存TSソースが変わったときのみ必要）
 node wasm-spike/gen-tables.mjs
 
-# コンパイル
+# コンパイル（成果物は本番位置に直接出力）
 npx asc wasm-spike/assembly/index.ts \
-  --outFile wasm-spike/build/shogi.wasm \
+  --outFile src/components/game/ShogiImproved/wasm/shogi.wasm \
   -O3 --runtime stub --noAssert
+
+# base64 埋め込みモジュールの再生成（Worker はこれをロードする）
+node src/components/game/ShogiImproved/wasm/gen-wasm-base64.mjs
 ```
+
+ビルド成果物（`shogi.wasm` と `shogiWasmBase64.ts`）はリポジトリにコミットする。CI/Vercel ビルドには AssemblyScript を入れない（エンジンのソースを変えたときだけローカルで再ビルドしてコミット）。
 
 ## ベンチ実行
 
@@ -161,6 +167,8 @@ WASM ハイブリッド vs JS V20、各手 200ms、curated opening 6手、10局�
 - Worker 統合（→ フェーズ4）
 
 ## フェーズ4（Worker 統合）への引き継ぎ注意
+
+**フェーズ4 は完了済み**: `src/components/game/ShogiImproved/wasmEngine.ts`（WASM クライアント）＋ `shogi-ai.worker.ts`（book → 詰みソルバー → WASM → JS V20 フォールバックのハイブリッド）で本番統合済み。以下は移植時に守った制約のメモ。
 
 - **instantiate 時に `env.now` を渡すこと**（`performance.now.bind(performance)` 等）。渡さないと LinkError。`env.abort` も従来どおり必要。
 - 局面ロードは `clearBoard → setSquare× → setHand× → setSideToMove → finalizePosition`（`search-driver.ts` の `syncWasm` を参照）。1手ごとに再同期するのが安全（`searchBestMove` は make/unmake で必ず局面を復元するが、防御的に）。

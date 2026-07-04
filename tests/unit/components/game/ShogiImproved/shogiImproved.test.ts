@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { InitialPositionImproved } from '@/components/game/ShogiImproved/InitialPositionImproved';
 import { GenerateMovesImproved } from '@/components/game/ShogiImproved/GenerateMovesImproved';
+import type { KyokumenImproved } from '@/components/game/ShogiImproved/KyokumenImproved';
+import { MateSolverImproved } from '@/components/game/ShogiImproved/MateSolverImproved';
 import { getOpeningMoveImproved } from '@/components/game/ShogiImproved/OpeningBookImproved';
 import { ShogiAIImprovedV19 } from '@/components/game/ShogiImproved/ShogiAIImprovedV19';
 import { ShogiAIImprovedV20 } from '@/components/game/ShogiImproved/ShogiAIImprovedV20';
-import { EMPTY, GOU, SENTE, SFU, SKI, SOU, SRY, type Te } from '@/components/game/ShogiImproved/types';
+import { EMPTY, GFU, GOU, SENTE, SFU, SKI, SOU, SRY, type Te } from '@/components/game/ShogiImproved/types';
 
 function pos(suji: number, dan: number): number {
   return (suji << 4) + dan;
@@ -43,6 +45,47 @@ function playMove(
   te.capture = k.get(te.to);
   k.move(te);
   k.toggleTeban();
+}
+
+/**
+ * Verify that `firstMove` starts a forced mate within `pliesLeft` plies.
+ *
+ * Ground truth for the assertions:
+ * - every attacker move must give check (asserted via `isKingInCheck`)
+ * - the leaves must be actual checkmates (in check + `generateLegalMoves().length === 0`)
+ * - EVERY legal defender reply is enumerated (no reply can escape)
+ *
+ * The mate solver only proposes the interior attacker moves; if it proposed a wrong move,
+ * the checkmate/check assertions at the leaves would fail.
+ */
+function verifyForcedMate(k0: KyokumenImproved, firstMove: Te, pliesLeft: number): void {
+  const k = k0.clone();
+  const te = firstMove.clone();
+  te.capture = k.get(te.to);
+  k.move(te);
+  k.toggleTeban();
+
+  // Every move of a mating sequence must check the defender's king.
+  expect(GenerateMovesImproved.isKingInCheck(k, k.teban)).toBe(true);
+
+  const replies = GenerateMovesImproved.generateLegalMoves(k);
+  if (replies.length === 0) return; // checkmate reached
+
+  // Defender still has replies: the attacker must be able to keep mating within the budget.
+  expect(pliesLeft, 'defender survived the announced mate length').toBeGreaterThan(1);
+
+  for (const reply of replies) {
+    const k2 = k.clone();
+    const r = reply.clone();
+    r.capture = k2.get(r.to);
+    k2.move(r);
+    k2.toggleTeban();
+
+    const solver = new MateSolverImproved();
+    const next = solver.solve(k2, { maxPlies: pliesLeft - 2, maxNodes: 1_000_000, maxTimeMs: 0 });
+    expect(next, 'attacker must keep a forced mate after every defender reply').not.toBeNull();
+    verifyForcedMate(k2, next as Te, pliesLeft - 2);
+  }
 }
 
 describe('ShogiImproved', () => {
@@ -120,6 +163,88 @@ describe('ShogiImproved', () => {
     k.toggleTeban();
     expect(GenerateMovesImproved.isKingInCheck(k, k.teban)).toBe(true);
     expect(GenerateMovesImproved.generateLegalMoves(k).length).toBe(0);
+  });
+
+  it('V20 finds a mate in three via the mate solver', () => {
+    // Gote king 5一 (bare), Sente dragon 6四, gold in hand.
+    // Forced line: ▲5三竜 (check through 5二) △4一玉/△6一玉 ▲4二金打/▲6二金打 (gold backed by the
+    // dragon's diagonal) — mate in 3. There is no mate in 1 (adjacent gold drops are undefended).
+    const E = EMPTY;
+    const board: number[][] = [
+      [E, E, E, E, GOU, E, E, E, E], // dan 1 (suji 9..1)
+      [E, E, E, E, E, E, E, E, E], // dan 2
+      [E, E, E, E, E, E, E, E, E], // dan 3
+      [E, E, E, SRY, E, E, E, E, E], // dan 4 (suji 6)
+      [E, E, E, E, E, E, E, E, E], // dan 5
+      [E, E, E, E, E, E, E, E, E], // dan 6
+      [E, E, E, E, E, E, E, E, E], // dan 7
+      [E, E, E, E, E, E, E, E, E], // dan 8
+      [E, E, E, E, SOU, E, E, E, E], // dan 9
+    ];
+
+    const k = InitialPositionImproved.createInitialPosition();
+    InitialPositionImproved.setupCustom(k, board);
+    k.hand[SKI] = 1;
+    k.initAll();
+    k.setTeban(SENTE);
+
+    const ai = new ShogiAIImprovedV20();
+    // maxDepth 2 is too shallow for the main search to prove a 3-ply mate on its own,
+    // so this exercises the dedicated mate-solver path.
+    const move = ai.getNextTe(k, 60, { difficulty: 'medium', maxTimeMs: 0, maxDepth: 2 });
+    expect(move).not.toBeNull();
+
+    verifyForcedMate(k, move as Te, 3);
+  });
+
+  it('MateSolver solves a mate in five with a defender interposition', () => {
+    // Same shape as the mate-in-3 above, but Gote holds a pawn (can interpose △5二歩 after ▲5三竜)
+    // and Sente holds two golds. Forced line:
+    // ▲5三竜 △5二歩打 ▲4二金打 △6一玉 ▲6二金打 (mate) — and the immediate king moves
+    // △4一玉/△6一玉 run into the 3-ply gold mates. No mate in 3 exists (verified by brute force).
+    const E = EMPTY;
+    const board: number[][] = [
+      [E, E, E, E, GOU, E, E, E, E], // dan 1 (suji 9..1)
+      [E, E, E, E, E, E, E, E, E], // dan 2
+      [E, E, E, E, E, E, E, E, E], // dan 3
+      [E, E, E, SRY, E, E, E, E, E], // dan 4 (suji 6)
+      [E, E, E, E, E, E, E, E, E], // dan 5
+      [E, E, E, E, E, E, E, E, E], // dan 6
+      [E, E, E, E, E, E, E, E, E], // dan 7
+      [E, E, E, E, E, E, E, E, E], // dan 8
+      [E, E, E, E, SOU, E, E, E, E], // dan 9
+    ];
+
+    const k = InitialPositionImproved.createInitialPosition();
+    InitialPositionImproved.setupCustom(k, board);
+    k.hand[SKI] = 2;
+    k.hand[GFU] = 1;
+    k.initAll();
+    k.setTeban(SENTE);
+
+    const solver = new MateSolverImproved();
+
+    // No mate within 3 plies: the pawn interposition refutes every 3-ply attempt.
+    expect(solver.solve(k, { maxPlies: 3, maxNodes: 1_000_000, maxTimeMs: 0 })).toBeNull();
+
+    // ...but there is a forced mate in 5.
+    const move = solver.solve(k, { maxPlies: 5, maxNodes: 1_000_000, maxTimeMs: 0 });
+    expect(move).not.toBeNull();
+    verifyForcedMate(k, move as Te, 5);
+
+    // The engine-integrated path finds it too (shallow main depth → solver must provide it).
+    const ai = new ShogiAIImprovedV20();
+    const engineMove = ai.getNextTe(k, 60, { difficulty: 'medium', maxTimeMs: 0, maxDepth: 2 });
+    expect(engineMove).not.toBeNull();
+    verifyForcedMate(k, engineMove as Te, 5);
+  });
+
+  it('MateSolver returns null when there is no mate', () => {
+    const k = InitialPositionImproved.createInitialPosition();
+    k.setTeban(SENTE);
+
+    const solver = new MateSolverImproved();
+    expect(solver.solve(k, { maxPlies: 9, maxNodes: 200_000, maxTimeMs: 200 })).toBeNull();
   });
 
   it('V19 finds a mate in one', () => {

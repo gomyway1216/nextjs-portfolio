@@ -59,7 +59,8 @@ interface MatchConfig {
   difficulty: Difficulty;
   maxDepth: number;
   maxTimeMs: number;
-  // Optional per-side budgets (A/B); fall back to maxTimeMs. Useful to compare
+  // Per-side budgets (A/B). Always populated by parseArgs — they default to `maxTimeMs`
+  // when --maxTimeMsA/--maxTimeMsB are not given. Useful to compare
   // "new engine at a shorter budget" vs "old engine at its old budget".
   maxTimeMsA: number;
   maxTimeMsB: number;

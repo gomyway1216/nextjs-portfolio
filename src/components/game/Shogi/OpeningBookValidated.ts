@@ -22,7 +22,12 @@ function evalForSide(teban: number, k: KyokumenImproved): number {
   return teban === SENTE ? evalSente : -evalSente;
 }
 
-function staticScoreAfterMove(root: KyokumenImproved, teban: number, move: TeImproved): number {
+function staticScoreAfterMove(
+  root: KyokumenImproved,
+  teban: number,
+  move: TeImproved,
+  evalBeforeMove: number
+): number {
   // Ensure capture is set so `back()` restores the correct piece.
   const capture = move.capture || root.ban[move.to];
   const te = new TeImproved(move.koma, move.from, move.to, move.promote, capture);
@@ -34,6 +39,11 @@ function staticScoreAfterMove(root: KyokumenImproved, teban: number, move: TeImp
   // without this, a 1-ply static eval overrates moves that leave the moved piece en prise
   // (e.g. a bishop grabbing a defended pawn), which inflates the baseline and rejects
   // every correct quiet book move.
+  //
+  // Like OpeningBookImproved, the score is additionally clamped to a material-only estimate
+  // (pre-move eval + captured - lost) when the moved piece is realistically lost. Otherwise the
+  // promotion/positional bonuses of a doomed piece (e.g. ▲２二角成's horse) survive in the eval,
+  // inflate the baseline by >2000, and silently disable the book whenever the bishop diagonal opens.
   const moved = root.ban[te.to];
   const movedValue = Math.abs(komaValue[moved]) | 0;
   if (movedValue > 0) {
@@ -44,10 +54,17 @@ function staticScoreAfterMove(root: KyokumenImproved, teban: number, move: TeImp
         te.to,
         teban === SENTE ? GOTE : SENTE
       );
+      const capturedValue = Math.abs(komaValue[capture]) | 0;
+      // Value the doomed piece by its PRE-promotion identity in the clamp (a promote-and-get-
+      // recaptured move is a plain trade of the original piece, not a promoted-piece loss).
+      const movedTradeValue = Math.abs(komaValue[te.koma]) | 0;
       if (!Number.isFinite(selfLeastDefender)) {
-        score -= movedValue;
+        score = Math.min(score - movedValue, evalBeforeMove + capturedValue - movedTradeValue);
       } else if ((enemyLeastAttacker | 0) + 150 < movedValue) {
-        score -= movedValue - (enemyLeastAttacker | 0);
+        score = Math.min(
+          score - (movedValue - (enemyLeastAttacker | 0)),
+          evalBeforeMove + capturedValue - movedTradeValue + (enemyLeastAttacker | 0)
+        );
       }
     }
   }
@@ -135,22 +152,41 @@ export function getOpeningMoveValidated(
   const legalImproved = GenerateMovesImproved.generateLegalMoves(kImproved);
   if (legalImproved.length === 0) return null;
 
+  const evalBeforeMove = evalForSide(teban, kImproved);
   let bestScore = -Infinity;
+  let secondBestScore = -Infinity;
+  let bestIsQuiet = false;
   const scoreByMoveKey = new Map<string, number>();
   for (const move of legalImproved) {
-    const score = staticScoreAfterMove(kImproved, teban, move);
+    const score = staticScoreAfterMove(kImproved, teban, move, evalBeforeMove);
     scoreByMoveKey.set(toImprovedTeKey(move), score);
-    if (score > bestScore) bestScore = score;
+    if (score > bestScore) {
+      secondBestScore = bestScore;
+      bestScore = score;
+      bestIsQuiet = move.from !== 0 && (move.capture || kImproved.ban[move.to]) === 0 && !move.promote;
+    } else if (score > secondBestScore) {
+      secondBestScore = score;
+    }
   }
+
+  // Baseline selection (mirrors OpeningBookImproved):
+  // - when the best 1-ply move is *quiet*, a large lead over the second-best is almost always
+  //   an eval artifact, and in-book positions are known joseki positions — so compare candidates
+  //   against the second-best score instead;
+  // - a book move that does not make the *standing* eval notably worse is always acceptable
+  //   (joseki often deliberately ignores a static "threat" the eval already priced in).
+  const quietAwareBaseline =
+    bestIsQuiet && Number.isFinite(secondBestScore) ? secondBestScore : bestScore;
+  const baselineScore = Math.min(quietAwareBaseline, evalBeforeMove);
 
   const threshold = openingThresholdByDifficulty(difficulty);
   for (const candidate of candidates) {
     const improvedMove = toImprovedTeFromMainTe(candidate.move);
     const score =
       scoreByMoveKey.get(toImprovedTeKey(improvedMove)) ??
-      staticScoreAfterMove(kImproved, teban, improvedMove);
+      staticScoreAfterMove(kImproved, teban, improvedMove, evalBeforeMove);
 
-    if (score >= bestScore - threshold) {
+    if (score >= baselineScore - threshold) {
       return candidate.move;
     }
   }

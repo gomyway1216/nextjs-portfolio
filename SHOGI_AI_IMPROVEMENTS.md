@@ -244,6 +244,37 @@ Adds:
   - **Pooled move generation (V11)**: reuses `Te` objects per ply to reduce allocations (more nodes per time budget)
 - **Hanging-drop safety ordering (all plies)**: mildly penalizes immediately-capturable, undefended drops to reduce ineffective piece drops
 - **Opening pressure gating**: reduces castling/development ordering bias when the king is already under pressure (prevents “castle while dying” behavior)
+- **Mate solver pre-search (`MateSolverImproved`)**: see the dedicated section below
+
+### Mate solver: `MateSolverImproved` (詰みソルバー)
+
+Implemented in `src/components/game/ShogiImproved/MateSolverImproved.ts`, integrated into
+`ShogiAIImprovedV20.getNextTe()` as a pre-search probe.
+
+What it is:
+- A **checks-only AND/OR search** (連続王手の詰み探索) with **iterative deepening over the mate
+  length** (1, 3, 5, ... plies, up to 9). The attacker only plays checking moves; the defender tries
+  *every* legal reply. This proves/refutes “mate in N” exactly, which the heavily pruned main search
+  (futility/LMR/null-move) cannot guarantee for deep sacrifice mates.
+- **Rule-correct**: 打ち歩詰め (pawn-drop mate) is excluded (the pooled generator filters it via
+  `isUtiFuDume`), self-check is filtered lazily after make, and positions already on the current
+  search path are never re-entered (repetition/perpetual-check loop cut).
+- **Allocation-free**: pooled per-ply move lists, make/unmake on a single clone of the caller’s
+  position.
+- A cheap geometric **drop pre-filter** skips the make/unmake for drops that cannot possibly give
+  check (drops never give discovered check), which matters because drops dominate endgame move lists.
+
+Integration policy in V20 (`tryMateSolve`):
+- **Gate (endgame-only)**: runs only when at least one own non-king piece is within Chebyshev
+  distance 3 of the enemy king and (near pieces + own hand pieces) >= 2. In the opening/midgame the
+  gate is off and costs nothing.
+- **Budget**: ~20% of the move time budget, capped at 200ms (fixed 250ms + node cap when the search
+  is untimed, e.g. deterministic tests). Unused/failed probe time is handed back to the main search
+  so total move time stays honest.
+- If a forced mate is found, the mating move is returned **immediately** (skipping the main search).
+
+A/B baseline: `ShogiAIImprovedV20Base.ts` is a frozen pre-mate-solver copy of V20, registered as
+engine `v20base` in `scripts/shogi-ai-match.ts` for regression matches.
 
 ### Experimental engine variant: `ShogiAIImprovedV13`
 
@@ -395,7 +426,71 @@ This is still present and may affect the fallback clone-based engine, but the pr
 
 ---
 
-## 7) Future Improvements (Optional)
+## 7) WASM Engine Integration (Production)
+
+The V20 search + `evaluateV3` were ported statement-for-statement to AssemblyScript
+(`wasm-spike/assembly/index.ts`) and verified bit-exact against JS at fixed depth
+(same bestMove, score, node and leaf counts). In timed play the WASM engine reaches
+depth +3..+4 at the same budget (~15x node throughput) and beat the JS V20 10-0 in a
+200ms/move match. See `wasm-spike/README.md` for the full phase 1-3 verification story.
+
+### How it is wired
+
+- **`src/components/game/ShogiImproved/wasmEngine.ts`** — client for the WASM engine.
+  Loads the binary from a **base64 embed** (`wasm/shogiWasmBase64.ts`) so the exact
+  same path works under webpack, Turbopack, vitest and node (no bundler asset/wasm
+  config needed). The instance lives at module scope (~35MB: TT + continuation
+  history) and is reused across moves; `clearWasmTT()` is called on new games only —
+  TT carry-over within a game is a strength feature. Every failure (instantiation,
+  runtime trap, illegal result — the returned move is re-checked against
+  `generateLegalMoves`) returns `null`.
+- **`src/components/game/ShogiImproved/shogi-ai.worker.ts`** — per-move hybrid
+  pipeline, all inside the worker:
+  1. JS opening book (`getOpeningMoveImproved`)
+  2. JS mate-solver probe (`MateSolverImproved`, same gate + ~20% budget policy as
+     `ShogiAIImprovedV20.tryMateSolve`; unused probe time is refunded to the search)
+  3. WASM full search (`setRootTesu(tesu)` then `searchBestMove(budgetMs, 32, qMax)`)
+  4. JS V20 search — fallback whenever `wasmEngine` returns `null`
+- **All difficulties route through the worker** (`isWorkerDifficulty` is now always
+  true in both `Shogi.tsx` and `ShogiImproved.tsx`): even easy's ~250ms search is
+  worth keeping off the main thread. If the worker itself fails (load error), the
+  components fall back to the main-thread JS engines (`ShogiAI.ts` /
+  `getBestMoveV20`) in the request `.catch`.
+- Time budgets are unchanged: easy 250ms / medium 1s / hard 2s / expert 4s /
+  master 5s (quiescence depth 6/8/10/12/12) — the ladder is defined in
+  `DIFFICULTY_BUDGETS` in the worker and must stay in sync with
+  `ShogiAIImprovedV20.getNextTe()` defaults.
+
+### Rebuilding the WASM binary
+
+The build artifacts (`src/components/game/ShogiImproved/wasm/shogi.wasm` and the
+generated `shogiWasmBase64.ts`) are committed; AssemblyScript is NOT part of CI or
+the Vercel build. After changing `wasm-spike/assembly/`:
+
+```bash
+npm install --no-save assemblyscript
+npx asc wasm-spike/assembly/index.ts \
+  --outFile src/components/game/ShogiImproved/wasm/shogi.wasm \
+  -O3 --runtime stub --noAssert
+node src/components/game/ShogiImproved/wasm/gen-wasm-base64.mjs
+# then re-verify:
+node -r tsx/cjs wasm-spike/parity.ts
+node -r tsx/cjs wasm-spike/search-driver.ts
+node -r tsx/cjs wasm-spike/match-wasm-vs-js.ts
+```
+
+### Invariants to keep
+
+- `env.now` (`performance.now`) and `env.abort` must be provided at instantiation.
+- Position load is `clearBoard → setSquare× → setHand× → setSideToMove →
+  finalizePosition`, re-synced from the JS position every move (defensive).
+- `searchBestMove` return value `0` means "no legal move" (mate/stalemate) — mapped
+  to `null` and confirmed by the JS fallback.
+- The search is synchronous: never call `wasmSearchBestMove` on the main thread.
+
+---
+
+## 8) Future Improvements (Optional)
 
 If you want even stronger play without freezing the UI:
 

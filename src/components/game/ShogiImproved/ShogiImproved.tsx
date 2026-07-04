@@ -27,8 +27,11 @@ const DIFFICULTY_OPTIONS = [
   { label: 'Level 5 (Master)', value: 'master' as Difficulty, description: 'Strongest (~5s)' },
 ];
 
-const isWorkerDifficulty = (difficulty: Difficulty): boolean =>
-  difficulty === 'expert' || difficulty === 'master';
+// All difficulties run in the Worker: the WASM search engine lives there
+// (with the JS book/mate-solver/V20 fallback), and even easy's ~250ms search
+// benefits from staying off the main thread. The main-thread path below is
+// kept only as a fallback for when the worker itself fails to load/respond.
+const isWorkerDifficulty = (_difficulty: Difficulty): boolean => true;
 
 function serializeForWorker(k: KyokumenImproved): SerializedKyokumenImproved {
   const board: number[] = new Array(81);
@@ -423,7 +426,32 @@ const ShogiImproved = () => {
           })
           .catch(() => {
             if (aiRequestIdRef.current !== requestId) return;
-            setGameState(prev => ({ ...prev, isAIThinking: false }));
+
+            // Worker failed (e.g. it could not load): last-resort main-thread search.
+            const aiMove = getBestMoveV20(gameState.kyokumen, GOTE, difficulty, gameState.ply);
+            if (!aiMove) {
+              setGameState(prev => ({ ...prev, isAIThinking: false }));
+              return;
+            }
+
+            const newKyokumen = gameState.kyokumen.clone();
+            newKyokumen.move(aiMove);
+            newKyokumen.setTeban(SENTE);
+
+            const { isOver, winner } = checkGameOver(newKyokumen);
+
+            setGameState(prev => ({
+              ...prev,
+              kyokumen: newKyokumen,
+              isAIThinking: false,
+              gameOver: isOver,
+              winner,
+              ply: prev.ply + 1,
+            }));
+
+            if (isOver && winner === GOTE) {
+              setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+            }
           });
         return;
 

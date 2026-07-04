@@ -2,21 +2,35 @@
  * Dedicated Web Worker for Shogi AI search (Improved engine).
  *
  * Why a worker:
- * - Level 4/5 searches use multi-second time budgets.
- * - Running them on the main thread would freeze the UI.
+ * - Searches are synchronous and use up to multi-second time budgets; running
+ *   them on the main thread would freeze the UI. All difficulties route
+ *   through this worker (even easy's ~250ms search is worth keeping off the
+ *   main thread).
+ *
+ * Move pipeline (hybrid, per move):
+ * 1. JS opening book (getOpeningMoveImproved)
+ * 2. JS mate solver probe (same gate + budget policy as ShogiAIImprovedV20)
+ * 3. WASM full search (wasmEngine.ts — V20 port, ~15x faster / depth +3..+4)
+ * 4. JS V20 search — fallback if the WASM engine is unavailable or fails
  *
  * Protocol:
  * - `bestMove`: compute the best move for a serialized position + difficulty.
- * - `clearTT`: clears the engine's transposition table (useful when starting a new game).
+ * - `clearTT`: clears the transposition tables (call when starting a new game;
+ *   the TT is intentionally kept across moves of one game).
  *
  * Notes:
- * - We keep a single `ShogiAIImproved` instance alive inside the worker so the TT can persist across moves.
- * - The caller should still ignore stale responses if the user moved/reset while the worker was thinking.
+ * - The WASM instance and the fallback `ShogiAIImprovedV20` live at module
+ *   scope so their TTs persist across moves.
+ * - The caller should still ignore stale responses if the user moved/reset
+ *   while the worker was thinking.
  */
 
 import { KyokumenImproved } from './KyokumenImproved';
+import { MateSolverImproved } from './MateSolverImproved';
 import { getOpeningMoveImproved } from './OpeningBookImproved';
 import { ShogiAIImprovedV20 } from './ShogiAIImprovedV20';
+import { EMPTY, FU, getKomashu, HI, isSelf, OU, SENTE, Te } from './types';
+import { clearWasmTT, wasmSearchBestMove } from './wasmEngine';
 import { Difficulty } from '../common/types';
 
 export type SerializedKyokumenImproved = {
@@ -50,6 +64,20 @@ type WorkerResponse =
   | { type: 'error'; id: number; message: string };
 
 const ai = new ShogiAIImprovedV20();
+const mateSolver = new MateSolverImproved();
+
+/**
+ * Time/quiescence budgets per difficulty — MUST stay in sync with the
+ * defaults in ShogiAIImprovedV20.getNextTe() so WASM and the JS fallback
+ * play at the same strength ladder.
+ */
+const DIFFICULTY_BUDGETS: Record<Difficulty, { maxTimeMs: number; quiescenceDepthMax: number }> = {
+  easy: { maxTimeMs: 250, quiescenceDepthMax: 6 },
+  medium: { maxTimeMs: 1000, quiescenceDepthMax: 8 },
+  hard: { maxTimeMs: 2000, quiescenceDepthMax: 10 },
+  expert: { maxTimeMs: 4000, quiescenceDepthMax: 12 },
+  master: { maxTimeMs: 5000, quiescenceDepthMax: 12 },
+};
 
 const ctx: {
   postMessage: (message: WorkerResponse) => void;
@@ -82,23 +110,87 @@ function buildPosition(pos: SerializedKyokumenImproved): KyokumenImproved {
   return k;
 }
 
+/**
+ * Mate-solver gate — port of ShogiAIImprovedV20.shouldTryMateSolve().
+ * Only probe when a mate is plausible: at least one own non-king piece within
+ * Chebyshev distance 3 of the enemy king, and (near pieces + hand pieces) >= 2.
+ */
+function shouldTryMateSolve(k: KyokumenImproved): boolean {
+  const enemyKing = k.teban === SENTE ? k.kingG : k.kingS;
+  if (enemyKing <= 0) return false;
+
+  const kingSuji = enemyKing >> 4;
+  const kingDan = enemyKing & 0x0f;
+
+  let near = 0;
+  for (let ds = -3; ds <= 3; ds++) {
+    const suji = kingSuji + ds;
+    if (suji < 1 || suji > 9) continue;
+    for (let dd = -3; dd <= 3; dd++) {
+      const dan = kingDan + dd;
+      if (dan < 1 || dan > 9) continue;
+      const p = k.get((suji << 4) + dan);
+      if (p === EMPTY) continue;
+      if (isSelf(k.teban, p) && getKomashu(p) !== OU) near++;
+    }
+  }
+  if (near === 0) return false;
+
+  let handCount = 0;
+  for (let type = FU; type <= HI; type++) handCount += k.hand[k.teban | type] | 0;
+
+  return near + handCount >= 2;
+}
+
+/**
+ * Hybrid best-move: book → mate solver → WASM search → JS V20 fallback.
+ * Same gate/budget policy as ShogiAIImprovedV20.tryMateSolve(): ~20% of the
+ * move budget (30..200ms) for the mate probe, remainder to the main search.
+ */
+function computeBestMove(k: KyokumenImproved, difficulty: Difficulty, tesu: number): Te | null {
+  // 1) Opening book.
+  const book = getOpeningMoveImproved(k, difficulty);
+  if (book) return book;
+
+  const budget = DIFFICULTY_BUDGETS[difficulty] ?? DIFFICULTY_BUDGETS.medium;
+
+  // 2) Mate-solver probe.
+  let searchBudgetMs = budget.maxTimeMs;
+  if (shouldTryMateSolve(k)) {
+    const mateStart = performance.now();
+    const budgetMs = Math.max(30, Math.min(200, Math.floor(budget.maxTimeMs * 0.2)));
+    const mate = mateSolver.solve(k, { maxPlies: 9, maxNodes: 150_000, maxTimeMs: budgetMs });
+    if (mate) return mate;
+    const spent = performance.now() - mateStart;
+    searchBudgetMs = Math.max(Math.floor(budget.maxTimeMs / 2), budget.maxTimeMs - Math.ceil(spent));
+  }
+
+  // 3) WASM full search.
+  const wasmMove = wasmSearchBestMove(k, tesu, searchBudgetMs, 32, budget.quiescenceDepthMax);
+  if (wasmMove) return wasmMove;
+
+  // 4) JS V20 fallback (also the "no legal move" confirmation path: for a
+  // genuinely mated position it returns null just like the WASM engine).
+  return ai.getNextTe(k, tesu, { difficulty });
+}
+
 ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const msg = event.data;
 
   if (msg.type === 'clearTT') {
     ai.clearTT();
+    clearWasmTT();
     return;
   }
 
   if (msg.type !== 'bestMove') return;
 
-	  try {
-	    const k = buildPosition(msg.position);
-	    const book = getOpeningMoveImproved(k, msg.difficulty);
-		    const best = book ?? ai.getNextTe(k, msg.tesu | 0, { difficulty: msg.difficulty });
-		    const move: SerializedTeImproved | null = best
-		      ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
-		      : null;
+  try {
+    const k = buildPosition(msg.position);
+    const best = computeBestMove(k, msg.difficulty, msg.tesu | 0);
+    const move: SerializedTeImproved | null = best
+      ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
+      : null;
 
     ctx.postMessage({ type: 'bestMoveResult', id: msg.id, move });
   } catch (e) {

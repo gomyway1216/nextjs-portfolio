@@ -838,6 +838,12 @@ export class ShogiAIImprovedV19 {
   }
 
   private quiescence(k: KyokumenImproved, alpha: number, beta: number, ply: number, depthLeft: number): number {
+    // Hard ply cap: the per-ply pools/caches (move lists, killers, attack cache) are sized for MAX_PLY.
+    // Going past it would index typed arrays out of bounds (silently corrupting the attack cache),
+    // and extremely long check chains must terminate somewhere anyway.
+    if (ply >= ShogiAIImprovedV19.MAX_PLY - 1) {
+      return this.evalForSideToMove(k);
+    }
     // Quiescence search:
     // - when not in check, we only expand "noisy" moves (captures/promotions) so leaf eval isn't on a tactical cliff.
     // - when in check, we must expand *all* legal evasion moves, otherwise we'd miss forced mates.
@@ -976,6 +982,11 @@ export class ShogiAIImprovedV19 {
   private search(k: KyokumenImproved, depthLeft: number, alpha: number, beta: number, ply: number): number {
     if (depthLeft <= 0) {
       return this.quiescence(k, alpha, beta, ply, this.quiescenceDepthMax);
+    }
+
+    // Hard ply cap (see quiescence): protects the per-ply pools/caches from out-of-bounds access.
+    if (ply >= ShogiAIImprovedV19.MAX_PLY - 1) {
+      return this.evalForSideToMove(k);
     }
 
     this.node++;

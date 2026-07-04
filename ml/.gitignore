@@ -1,0 +1,11 @@
+# 大容量ファイル・生成物はコミットしない
+engine/
+bin/
+eval/
+data/
+venv/
+runs/
+*.log
+*.7z
+*.bin
+__pycache__/

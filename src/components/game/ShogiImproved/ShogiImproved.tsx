@@ -14,7 +14,7 @@ import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { InitialPositionImproved } from './InitialPositionImproved';
 import { KyokumenImproved } from './KyokumenImproved';
 import { getOpeningMoveImproved } from './OpeningBookImproved';
-import { getBestMoveV18 } from './ShogiAIImprovedV18';
+import { getBestMoveV19 } from './ShogiAIImprovedV19';
 import type { SerializedKyokumenImproved,SerializedTeImproved,ShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { EMPTY,GOTE,isSente,Position,SENTE,Te,toString } from './types';
@@ -349,7 +349,7 @@ const ShogiImproved = () => {
 	        }
 
 		        if (!isWorkerDifficulty(difficulty)) {
-		          const aiMove = getBestMoveV18(gameState.kyokumen, GOTE, difficulty, gameState.ply);
+		          const aiMove = getBestMoveV19(gameState.kyokumen, GOTE, difficulty, gameState.ply);
 		
 		          if (aiMove) {
 		            const newKyokumen = gameState.kyokumen.clone();

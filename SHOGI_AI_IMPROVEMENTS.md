@@ -19,7 +19,7 @@ Call flow:
 2. `src/components/game/Shogi/ShogiAI.ts`:
    - uses opening book for the first 12 plies (`getOpeningMoveComprehensive()`)
    - converts `Kyokumen` → `KyokumenImproved`
-   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV18.ts` (default)
+   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV19.ts` (default)
    - converts the chosen move back to UI `Te`
 
 This keeps the existing UI logic (and opening book) intact, but replaces the slow clone-heavy search with a much faster make/unmake engine.
@@ -61,6 +61,16 @@ V17 updates (experimental):
 V18 updates (experimental, conservative):
 - Keeps V16 search behavior but adds a per-node cached attack scan and a cheap “hanging drop” ordering at all plies (high-value drops only).
 
+V19 updates (current default):
+- Futility pruning at frontier nodes (depth ≤ 2): skips quiet moves when stand-pat + margin cannot reach alpha,
+  guarded so long-range piece moves and moves near the enemy king are never skipped (hard+).
+- SEE-lite losing-capture pruning in quiescence using the cached attack scans (hard+).
+- Countermove heuristic: quiet refutations of the previous move are ordered just below killer moves.
+- Deeper Late Move Reductions for very late quiet moves (fail-highs are verified by full-depth re-search).
+- LMR + null-move pruning enabled from “hard” (previously expert/master only). Null move is very safe in shogi
+  because zugzwang is essentially nonexistent (drops always provide useful moves).
+- Verified by self-play vs V18 (see benchmark section for the command).
+
 ### Move legality filtering no longer clones positions
 
 The largest performance killer in both engines was cloning during king-safety checks.
@@ -83,9 +93,9 @@ Additionally, the TT key now includes **side-to-move (`teban`)**:
 
 ---
 
-## 2) The Search Algorithm (ShogiAIImprovedV18 default)
+## 2) The Search Algorithm (ShogiAIImprovedV19 default)
 
-Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV18.ts`.
+Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV19.ts`.
 
 The original “base” implementation is still available as:
 - `src/components/game/ShogiImproved/ShogiAIImproved.ts` (V2)
@@ -175,9 +185,9 @@ Adds:
 
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
 
-### Current default: `ShogiAIImprovedV18` (Lv1-5)
+### Current default: `ShogiAIImprovedV19` (Lv1-5)
 
-Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV18.ts`.
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV19.ts`.
 
 Notes:
 - Lv4/Lv5 still run in a Web Worker (`src/components/game/ShogiImproved/shogi-ai.worker.ts`) to avoid blocking the UI.

@@ -1589,14 +1589,17 @@ export class KyokumenImproved {
     }
     if (!rookOnFile) return 0;
 
-    // Silver march level: 1 = approaching (dan 7), 2 = one step out (dan 6), 3 = on the 5th rank.
+    // Silver march level: 1 = approaching (dan 7), 2 = one step out (dan 6), 3 = on the 5th rank,
+    // 4 = broken into GOTE's half (dan 3-4, e.g. the ▲3六銀→2五銀→3四銀 pawn grab).
+    // The dan 3-4 tier is essential: without it the penalty *vanished* exactly when the silver
+    // succeeded (same bug class as promoted majors being invisible to promotion threats).
     let silverLevel = 0;
     let silverOnEdgeApproach = false; // silver on 2六/1六 (can jump to 1五 next)
     for (let suji = 1; suji <= 3; suji++) {
-      for (let dan = 5; dan <= 7; dan++) {
+      for (let dan = 3; dan <= 7; dan++) {
         const p = this.getAt(suji, dan);
         if (p === EMPTY || !isSente(p) || this.getKomashu(p) !== GI) continue;
-        const level = dan === 7 ? 1 : dan === 6 ? 2 : 3;
+        const level = dan === 7 ? 1 : dan === 6 ? 2 : dan === 5 ? 3 : 4;
         if (level > silverLevel) silverLevel = level;
         if (dan === 6 && suji <= 2) silverOnEdgeApproach = true;
       }
@@ -1634,6 +1637,12 @@ export class KyokumenImproved {
       penalty += strongCover ? 120 : 260;
     }
 
+    if (silverLevel >= 4) {
+      // Silver has broken into our half (dan 3-4). This is what the whole plan is for —
+      // keep the pressure penalty alive so the engine prefers evicting it (e.g. 3三歩打).
+      penalty += strongCover ? 180 : 320;
+    }
+
     // Edge route: 歩1四 denies ▲1五銀.
     if (silverOnEdgeApproach) {
       penalty += pawn14 ? -70 : 80;
@@ -1657,10 +1666,11 @@ export class KyokumenImproved {
     let silverLevel = 0;
     let silverOnEdgeApproach = false; // silver on 8四/9四
     for (let suji = 7; suji <= 9; suji++) {
-      for (let dan = 3; dan <= 5; dan++) {
+      for (let dan = 3; dan <= 7; dan++) {
         const p = this.getAt(suji, dan);
         if (p === EMPTY || !isGote(p) || this.getKomashu(p) !== GI) continue;
-        const level = dan === 3 ? 1 : dan === 4 ? 2 : 3;
+        // Mirror of the GOTE-defense scan: level 4 = silver broke into SENTE's half (dan 6-7).
+        const level = dan === 3 ? 1 : dan === 4 ? 2 : dan === 5 ? 3 : 4;
         if (level > silverLevel) silverLevel = level;
         if (dan === 4 && suji >= 8) silverOnEdgeApproach = true;
       }
@@ -1691,6 +1701,10 @@ export class KyokumenImproved {
 
     if (silverLevel >= 3) {
       penalty += strongCover ? 120 : 260;
+    }
+
+    if (silverLevel >= 4) {
+      penalty += strongCover ? 180 : 320;
     }
 
     if (silverOnEdgeApproach) {

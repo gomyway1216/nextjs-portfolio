@@ -19,6 +19,7 @@ test('home page renders the hero and sidebar navigation', async ({ page }) => {
     '/#home',
     '/#impact',
     '/#resume',
+    '/#education',
     '/#blog',
     '/#tools',
     '/#work',
@@ -27,6 +28,11 @@ test('home page renders the hero and sidebar navigation', async ({ page }) => {
     '/#games',
     '/#about',
   ]);
+  const educationLink = page.locator('.header-left .nav-menu a.nav-link[href="/#education"]');
+  await educationLink.click();
+  await expect(page).toHaveURL(/#education$/);
+  await expect(page.locator('#education')).toBeInViewport();
+  await expect(educationLink.locator('xpath=..')).toHaveClass(/active/);
   await expect(page.locator('#blog')).toBeVisible();
 });
 

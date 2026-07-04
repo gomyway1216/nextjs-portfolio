@@ -8,15 +8,18 @@
 // - Move tables: CAN_MOVE / CAN_JUMP / DIFF are auto-generated from the TS source
 //   (see gen-tables.mjs), so movement semantics are byte-identical.
 // - Move generation: port of generatePseudoLegalMovesPooled including nifu,
-//   drop-rank restrictions and forced/optional promotion branches
-//   (forcePromoteMajor for KA/HI included). Uchifuzume (pawn-drop-mate) check is
-//   intentionally omitted — it cannot trigger in the benchmark positions and is
-//   rare/expensive (it recursively generates replies).
+//   drop-rank restrictions, forced/optional promotion branches
+//   (forcePromoteMajor for KA/HI included) and the uchifuzume (pawn-drop-mate)
+//   check — a pawn drop in front of the enemy king that leaves the opponent
+//   with no legal reply is illegal, exactly like GenerateMovesImproved.isUtiFuDume.
 // - Legality: lazy "king left in check" filtering after make (same strategy as
 //   the V20 search path).
 // - Bookkeeping parity: makeMove/unmakeMove maintain incremental material eval
-//   and Zobrist board/hand hashes, mirroring KyokumenImproved.move()/back(), so
-//   the perft comparison approximates real search make/unmake cost.
+//   and Zobrist board/hand hashes, mirroring KyokumenImproved.move()/back().
+//   The Zobrist seeds are generated with the exact same deterministic PRNG and
+//   in the exact same order as KyokumenImproved.initializeHash(), so BanHash /
+//   HandHash / HashVal are BIT-IDENTICAL to the JS engine for any position
+//   (verified by wasm-spike/parity.ts).
 //   (PSQT incremental updates are NOT ported — see README caveats.)
 //
 // Moves are encoded in a single i32:
@@ -65,10 +68,16 @@ let evalMaterial: i32 = 0;
 let banHash: i32 = 0;
 let handHash: i32 = 0;
 
-// Zobrist seeds: values don't matter for perft, only that maintaining them costs
-// the same work as in the JS engine. Same Mulberry32-ish PRNG as the JS side.
-const HASH_SEED = new StaticArray<i32>(64 * BAN_SIZE); // [koma * BAN_SIZE + pos]
-const HAND_HASH_SEED = new StaticArray<i32>(64 * 20);  // [koma * 20 + count]
+// Zobrist seeds — BIT-IDENTICAL to KyokumenImproved.initializeHash():
+// - same deterministic Mulberry32-ish PRNG (Math.imul semantics == u32 mul)
+// - same array dimensions: HashSeed[(GRY+1)=48][16*11], HandHashSeed[(GHI+1)=40][20]
+// - same generation order (row-major: board seeds, then hand seeds, then teban seed)
+const MAX_BAN_KOMA: i32 = 47;  // GRY = GOTE | RY = 32 + 15
+const MAX_HAND_KOMA: i32 = 39; // GHI = GOTE | HI = 32 + 7
+
+const HASH_SEED = new StaticArray<i32>((MAX_BAN_KOMA + 1) * BAN_SIZE); // [koma * BAN_SIZE + pos]
+const HAND_HASH_SEED = new StaticArray<i32>((MAX_HAND_KOMA + 1) * 20); // [koma * 20 + count]
+let TEBAN_HASH_SEED: i32 = 0;
 
 let prngState: u32 = 0x6d2b79f5;
 function rand30(): i32 {
@@ -80,8 +89,10 @@ function rand30(): i32 {
 }
 
 function initSeeds(): void {
-  for (let i = 0; i < 64 * BAN_SIZE; i++) unchecked(HASH_SEED[i] = rand30());
-  for (let i = 0; i < 64 * 20; i++) unchecked(HAND_HASH_SEED[i] = rand30());
+  for (let i = 0; i < (MAX_BAN_KOMA + 1) * BAN_SIZE; i++) unchecked(HASH_SEED[i] = rand30());
+  for (let i = 0; i < (MAX_HAND_KOMA + 1) * 20; i++) unchecked(HAND_HASH_SEED[i] = rand30());
+  const t = rand30();
+  TEBAN_HASH_SEED = t == 0 ? 1 : t; // JS: `rand30() || 1`
 }
 initSeeds();
 
@@ -90,7 +101,7 @@ initSeeds();
 // ---------------------------------------------------------------------------
 
 const MAX_MOVES: i32 = 640; // theoretical shogi max is 593
-const MAX_PLY: i32 = 16;
+const MAX_PLY: i32 = 32;    // perft depth + scratch plies for recursive uchifuzume checks
 const moveBuf = new StaticArray<i32>(MAX_MOVES * MAX_PLY);
 
 // ---------------------------------------------------------------------------
@@ -163,7 +174,9 @@ export function finalizePosition(): void {
       banHash ^= unchecked(HASH_SEED[koma * BAN_SIZE + pos]);
     }
   }
-  for (let koma = 0; koma < 64; koma++) {
+  // Same as KyokumenImproved.calcHash(): cumulative XOR over counts 0..n for
+  // EVERY koma index 0..GHI (empty slots still contribute seed[koma][0]).
+  for (let koma = 0; koma <= MAX_HAND_KOMA; koma++) {
     const n = unchecked(hand[koma]);
     evalMaterial += unchecked(KOMA_VALUE[koma]) * n;
     for (let j = 0; j <= n; j++) {
@@ -320,7 +333,57 @@ function isKingInCheck(side: i32): bool {
 }
 
 // ---------------------------------------------------------------------------
-// Move generation (port of generatePseudoLegalMovesPooled, minus uchifuzume)
+// Uchifuzume (pawn-drop-mate) check — port of GenerateMovesImproved.isUtiFuDume
+// ---------------------------------------------------------------------------
+
+/**
+ * True if the side to move has at least one legal move (uses the moveBuf slice
+ * for `ply` as scratch space). Early-exit is equivalent to the JS
+ * `generateLegalMoves(k).length === 0` emptiness test.
+ */
+function hasLegalMove(ply: i32): bool {
+  const n = generateMoves(ply);
+  const base = ply * MAX_MOVES;
+  const mover = teban;
+  for (let i = 0; i < n; i++) {
+    const m = unchecked(moveBuf[base + i]);
+    makeMove(m);
+    const illegal = isKingInCheck(mover);
+    unmakeMove(m);
+    if (!illegal) return true;
+  }
+  return false;
+}
+
+/**
+ * Pawn-drop-mate test for a pawn drop by `teban` onto `to` (square known empty).
+ * Mirrors GenerateMovesImproved.isUtiFuDume: only a drop directly in front of
+ * the enemy king can be uchifuzume; it is illegal iff the opponent has no legal
+ * reply. Reply generation goes through generateMoves and therefore applies the
+ * uchifuzume rule recursively, exactly like the JS generateLegalMoves path.
+ */
+function isUtiFuDume(to: i32, ply: i32): bool {
+  const mover = teban;
+  const enemy = mover == SENTE ? GOTE : SENTE;
+  const enemyKing = mover == SENTE ? kingG : kingS;
+
+  if (mover == SENTE) {
+    if (enemyKing != to - 1) return false; // not in front of enemy king
+  } else {
+    if (enemyKing != to + 1) return false;
+  }
+
+  const m = encodeMove(FU | mover, 0, to, false, EMPTY);
+  makeMove(m);
+  teban = enemy;
+  const hasReply = hasLegalMove(ply);
+  teban = mover;
+  unmakeMove(m);
+  return !hasReply;
+}
+
+// ---------------------------------------------------------------------------
+// Move generation (port of generatePseudoLegalMovesPooled, incl. uchifuzume)
 // ---------------------------------------------------------------------------
 
 function encodeMove(koma: i32, from: i32, to: i32, promote: bool, capture: i32): i32 {
@@ -453,7 +516,9 @@ function generateMoves(ply: i32): i32 {
         const to = suji + dan;
         if (unchecked(ban[to]) != EMPTY) continue;
 
-        // NOTE: uchifuzume (pawn-drop-mate) check intentionally omitted.
+        // Pawn drop checkmate (uchifuzume) is illegal.
+        if (type == FU && isUtiFuDume(to, ply + 1)) continue;
+
         unchecked(moveBuf[base + n] = encodeMove(koma, 0, to, false, EMPTY));
         n++;
       }
@@ -501,6 +566,10 @@ export function perft(depth: i32): i32 {
   return perftRec(depth, 0);
 }
 
+// ---------------------------------------------------------------------------
+// Harness API (parity.ts / bench-wasm.mjs)
+// ---------------------------------------------------------------------------
+
 /** Expose bookkeeping so the harness can sanity-check make/unmake symmetry. */
 export function getEvalMaterial(): i32 {
   return evalMaterial;
@@ -508,4 +577,51 @@ export function getEvalMaterial(): i32 {
 
 export function getHash(): i32 {
   return banHash ^ handHash;
+}
+
+export function getBanHash(): i32 {
+  return banHash;
+}
+
+export function getHandHash(): i32 {
+  return handHash;
+}
+
+/** Full TT key — same formula as KyokumenImproved: BanHash ^ HandHash ^ (teban seed if GOTE). */
+export function getHashVal(): i32 {
+  return banHash ^ handHash ^ (teban == GOTE ? TEBAN_HASH_SEED : 0);
+}
+
+export function getTeban(): i32 {
+  return teban;
+}
+
+/**
+ * Number of fully legal moves for the side to move (pseudo-legal generation
+ * incl. uchifuzume, then 王手放置 filtering) — comparable 1:1 with
+ * GenerateMovesImproved.generateLegalMoves(k).length.
+ */
+export function countLegalMoves(): i32 {
+  const n = generateMoves(0);
+  const mover = teban;
+  let count = 0;
+  for (let i = 0; i < n; i++) {
+    const m = unchecked(moveBuf[i]);
+    makeMove(m);
+    if (!isKingInCheck(mover)) count++;
+    unmakeMove(m);
+  }
+  return count;
+}
+
+/**
+ * Play a move (as the side to move) and flip the turn, updating the
+ * incremental hashes/eval — equivalent to JS `k.move(te); k.toggleTeban()`.
+ * `capture` is read from the board, like removeSelfMate does before move().
+ */
+export function applyMove(koma: i32, from: i32, to: i32, promote: i32): void {
+  const capture = unchecked(ban[to]);
+  const m = encodeMove(koma, from, to, promote != 0, capture);
+  makeMove(m);
+  teban = teban == SENTE ? GOTE : SENTE;
 }

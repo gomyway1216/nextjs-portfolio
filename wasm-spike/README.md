@@ -8,12 +8,13 @@
 
 ```
 wasm-spike/
-  assembly/index.ts      # AssemblyScript エンジン本体（盤面・make/unmake・手生成・perft）
+  assembly/index.ts      # AssemblyScript エンジン本体（盤面・make/unmake・手生成・打ち歩詰め・Zobrist・perft）
   assembly/tables.ts     # 自動生成（gen-tables.mjs）。canMove/canJump/diff/komaValue/canPromote
   assembly/as-ambient.d.ts # ルート tsconfig で型チェックを通すための ambient 宣言（asc は無視する）
   gen-tables.mjs         # 既存 TS ソースからテーブルを抽出して tables.ts を生成
   bench-wasm.mjs         # WASM 側 perft ベンチ
-  build/shogi.wasm       # ビルド成果物（5.2KB）
+  parity.ts              # JS⇄WASM パリティハーネス（合法手数・Zobrist ビット一致検証）
+  build/shogi.wasm       # ビルド成果物（5.7KB）
 scripts/shogi-perft-js.ts # JS 側 perft ベンチ（既存エンジンをそのまま使用）
 ```
 
@@ -39,6 +40,19 @@ npx asc wasm-spike/assembly/index.ts \
 node -r tsx/cjs scripts/shogi-perft-js.ts 4   # JS（legal / lazy 両方式）
 node wasm-spike/bench-wasm.mjs 4              # WASM
 ```
+
+## パリティ検証（フェーズ1: 手生成完全パリティ + Zobrist ビット一致）
+
+```sh
+node -r tsx/cjs wasm-spike/parity.ts
+```
+
+- シード付きランダム自己対局 50 局（最大 80 手）＋ 打ち歩詰めが実際に発動するカスタム終盤局面 5 個 ＋ perft 相互照合で、累計 **4,184 局面** を照合し **100% 一致**。
+- 各局面で照合する項目:
+  - 合法手数（JS `generateLegalMoves().length` == WASM `countLegalMoves()`、**打ち歩詰め判定込み**）
+  - Zobrist ハッシュの **ビット一致**（`BanHash` / `HandHash` / 手番込み `HashVal`）。初期計算（`calcHash` vs `finalizePosition`）と増分更新（`move()/back()` vs `makeMove/applyMove`）の両経路。
+  - 増分マテリアル評価・手番
+- Zobrist シードは `KyokumenImproved.initializeHash()` と同一の決定的 PRNG（Mulberry32 系）・同一次元（`HashSeed[48][176]` / `HandHashSeed[40][20]` / `TebanHashSeed`）・同一順序で生成しているため、JS 側の TT エントリと WASM 側のキーが将来そのまま互換になる。
 
 ## 正しさの検証
 
@@ -71,11 +85,11 @@ perft 値（王手放置チェックあり合法手数え上げ）が **JS / WAS
 
 - 盤面 make/unmake（`KyokumenImproved.move()/back()` 相当）
 - 増分マテリアル評価（`eval`）
-- 増分 Zobrist ハッシュ（BanHash / HandHash）… perft 前後で復元されることをベンチ内で検証
+- 増分 Zobrist ハッシュ（BanHash / HandHash / HashVal）… JS と**ビット一致**（parity.ts で検証）。perft 前後で復元されることもベンチ内で検証
+- **打ち歩詰めチェック**（`isUtiFuDume` と同一判定。応手生成の再帰も JS と同じ）
 - 王手放置の遅延フィルタ、二歩・打ち場所制限、成り分岐（強制成り＋角飛成り枝刈り）
 
 ## 省略したもの（caveats）
 
-- **打ち歩詰めチェック**（`isUtiFuDume`）: 再帰的に相手の応手を全生成する高コスト処理。ベンチ局面の深さ 4 以内では一度も発動しない（counts 完全一致がその証明）。JS 側はチェックを実行しているため、この分 JS が僅かに不利だが影響は誤差レベル（打ち歩自体が d4 内でほぼ発生しない）。
-- **PSQT 増分更新**: JS の `move()/back()` は psqtEval も更新する（1 手あたり数回のテーブル参照）。WASM 側は未移植なので、実効倍率は上記より数%〜1 割程度小さい可能性がある。
+- **PSQT 増分更新**: JS の `move()/back()` は psqtEval も更新する（1 手あたり数回のテーブル参照）。WASM 側は未移植なので、実効倍率は上記より数%〜1 割程度小さい可能性がある。→ フェーズ2（評価関数）で移植
 - 評価関数（evaluateV3）・探索（alpha-beta/TT）は未移植。→ PLAN.md

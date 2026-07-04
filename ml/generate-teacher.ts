@@ -269,10 +269,12 @@ class UsiEngine {
       this.alive = false;
       this.abortPending(`USI engine process error: ${e.message}`);
     });
-    // stdin の 'error'(EPIPE 等)は未ハンドルだとプロセス全体をクラッシュさせるため握りつぶす
-    proc.stdin.on('error', () => {
+    // stdin の 'error'(EPIPE 等)は未ハンドルだとプロセス全体をクラッシュさせるため握りつぶす。
+    // exit/error と同様に進行中の照会も即 reject し、呼び出し側がタイムアウトを待たず再起動できるようにする。
+    proc.stdin.on('error', (e: Error) => {
       if (this.proc !== proc) return;
       this.alive = false;
+      this.abortPending(`USI engine stdin error: ${e.message}`);
     });
     proc.stdout.on('data', (d: Buffer) => {
       if (this.proc !== proc) return;
@@ -462,7 +464,7 @@ async function main(): Promise<void> {
   }
 
   // --- エンジンプール起動 ---
-  const engines: UsiEngine[] = [];
+  let engines: UsiEngine[] = [];
   for (let i = 0; i < args.engines; i++) engines.push(new UsiEngine());
   await Promise.all(engines.map((e) => e.init()));
   console.log(`[gen] ${engines.length} engine workers ready`);
@@ -495,6 +497,7 @@ async function main(): Promise<void> {
     let cursor = 0;
     let done = 0;
     const lines: string[] = [];
+    const deadEngines = new Set<UsiEngine>();
     await Promise.all(
       engines.map(async (engine) => {
         for (;;) {
@@ -513,6 +516,7 @@ async function main(): Promise<void> {
               console.error(
                 `[gen] engine restart failed, stopping this worker: ${(re as Error).message}`
               );
+              deadEngines.add(engine);
               return;
             }
             continue;
@@ -546,6 +550,19 @@ async function main(): Promise<void> {
       fs.fsyncSync(outFd);
     }
     total += lines.length;
+
+    // 再起動不能になったエンジンをプールから除去。全滅したら無限ループせず明確に停止する。
+    if (deadEngines.size > 0) {
+      for (const e of deadEngines) e.quit();
+      engines = engines.filter((e) => !deadEngines.has(e));
+      console.error(`[gen] removed ${deadEngines.size} dead engine(s); ${engines.length} remaining`);
+      if (engines.length === 0) {
+        fs.closeSync(outFd);
+        throw new Error(
+          `[gen] all USI engines died and could not be restarted (progress saved: ${total} positions; rerun to resume)`
+        );
+      }
+    }
     const rate = pending.length / labSec;
     console.log(
       `[gen] chunk done: +${lines.length} (gen ${genSec.toFixed(1)}s, label ${labSec.toFixed(

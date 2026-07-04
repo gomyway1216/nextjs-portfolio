@@ -176,8 +176,12 @@ def main():
                 line = line.strip()
                 if not line:
                     continue
-                rec = json.loads(line)
-                idx, hands, _ = parse_sfen(rec["sfen"])
+                # train.py と同様、壊れ行(書き込み中断の末尾行など)はスキップして継続する
+                try:
+                    rec = json.loads(line)
+                    idx, hands, _ = parse_sfen(rec["sfen"])
+                except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                    continue
                 pad = idx[:40] + [PAD_IDX] * (40 - len(idx))
                 with torch.no_grad():
                     out_f = model(

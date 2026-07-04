@@ -48,6 +48,7 @@ type EngineName =
   | 'v18'
   | 'v19'
   | 'v20'
+  // Frozen baseline copy of V20 for A/B testing changes against the current engine.
   | 'v20base';
 type OpeningMode = 'none' | 'random' | 'quiet' | 'curated';
 

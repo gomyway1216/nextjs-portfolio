@@ -63,6 +63,7 @@
 	import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, RY, SENTE, Te, UM, WALL, getKomashu, isSelf, komaValue } from './types';
 		import { KyokumenImproved } from './KyokumenImproved';
 		import { GenerateMovesImproved } from './GenerateMovesImproved';
+		import { MateSolverImproved } from './MateSolverImproved';
 		import { MoveListImproved } from './MoveListImproved';
 		import { getOpeningMoveImproved } from './OpeningBookImproved';
 		import { TranspositionTableImprovedPacked } from './TranspositionTableImprovedPacked';
@@ -205,6 +206,10 @@ export class ShogiAIImprovedV20 {
   private prevPtByPly: number[] = new Array(ShogiAIImprovedV20.MAX_PLY).fill(-1);
 
   private rootBest: Te | null = null;
+
+  // V20 mate solver (詰みソルバー): dedicated checks-only AND/OR search used as a pre-search probe.
+  // See `tryMateSolve()` for the gate/budget policy.
+  private mateSolver = new MateSolverImproved();
 
   // V20: remaining depth at the node currently being move-ordered.
   // Used to skip expensive per-move attack scans at frontier nodes (see scoreMove).
@@ -1425,6 +1430,76 @@ export class ShogiAIImprovedV20 {
     }
   }
 
+  /**
+   * Lightweight gate for the mate solver (V20).
+   *
+   * The solver is exact but costs a slice of the move budget, so we only run it when a mate is
+   * plausible: attacking material close to the enemy king and/or pieces in hand to drop. In the
+   * opening/midgame (no pieces near the enemy king) the gate is essentially free and always off.
+   *
+   * Condition: at least one own non-king piece within Chebyshev distance 3 of the enemy king,
+   * and (near pieces + hand pieces) >= 2 — one lone attacker with an empty hand almost never mates.
+   */
+  private shouldTryMateSolve(k: KyokumenImproved): boolean {
+    const enemyKing = k.teban === SENTE ? k.kingG : k.kingS;
+    if (enemyKing <= 0) return false;
+
+    const kingSuji = enemyKing >> 4;
+    const kingDan = enemyKing & 0x0f;
+
+    let near = 0;
+    for (let ds = -3; ds <= 3; ds++) {
+      const suji = kingSuji + ds;
+      if (suji < 1 || suji > 9) continue;
+      for (let dd = -3; dd <= 3; dd++) {
+        const dan = kingDan + dd;
+        if (dan < 1 || dan > 9) continue;
+        const p = k.get((suji << 4) + dan);
+        if (p === EMPTY || p === WALL) continue;
+        if (isSelf(k.teban, p) && getKomashu(p) !== OU) near++;
+      }
+    }
+    if (near === 0) return false;
+
+    let handCount = 0;
+    for (let type = FU; type <= HI; type++) handCount += k.hand[k.teban | type] | 0;
+
+    return near + handCount >= 2;
+  }
+
+  /**
+   * Pre-search mate probe (V20).
+   *
+   * Before the main iterative-deepening search we spend a small, bounded budget asking the exact
+   * question "do I have a forced mate by consecutive checks?". If yes, the mating move is returned
+   * immediately — this is both faster and strictly more reliable than hoping the pruned main
+   * search stumbles onto a deep sacrifice mate.
+   *
+   * Budget policy:
+   * - timed searches: ~20% of the move budget, capped at 200ms (and at least 30ms to be useful)
+   * - untimed searches (maxTimeMs <= 0, e.g. deterministic tests): fixed 250ms + node cap
+   */
+  private tryMateSolve(k: KyokumenImproved, maxTimeMs: number): Te | null {
+    if (!this.shouldTryMateSolve(k)) return null;
+
+    const mateStart = this.nowMs();
+    const budgetMs = maxTimeMs > 0 ? Math.max(30, Math.min(200, Math.floor(maxTimeMs * 0.2))) : 250;
+    const mate = this.mateSolver.solve(k, {
+      maxPlies: 9,
+      maxNodes: 150_000,
+      maxTimeMs: budgetMs,
+    });
+    if (mate) return mate;
+
+    // No mate found: hand the remaining budget to the main search (keeps total move time honest,
+    // which also keeps self-play A/B comparisons fair).
+    if (maxTimeMs > 0) {
+      const spent = this.nowMs() - mateStart;
+      this.maxTimeMs = Math.max(Math.floor(maxTimeMs / 2), maxTimeMs - Math.ceil(spent));
+    }
+    return null;
+  }
+
 	  getNextTe(k: KyokumenImproved, tesu: number = 0, options: ShogiAISearchOptions = {}): Te | null {
 	    // Root move number (used only for opening-like ordering heuristics).
 	    this.rootTesu = tesu | 0;
@@ -1466,6 +1541,12 @@ export class ShogiAIImprovedV20 {
 	    const maxDepth = Math.max(1, Math.min(options.maxDepth ?? defaults.maxDepth, 32));
 	    this.quiescenceDepthMax = Math.max(0, options.quiescenceDepthMax ?? defaults.quiescenceDepthMax);
     this.evaluationMode = options.evaluationMode ?? 'v3';
+
+    // V20 mate solver: before the main search, spend a small budget on an exact "do I have a
+    // forced mate by consecutive checks?" probe (endgame-gated). A found mate is returned
+    // immediately; otherwise the remaining time goes to the normal search (deducted inside).
+    const mateMove = this.tryMateSolve(k, maxTimeMs);
+    if (mateMove) return mateMove;
 
     // Unified search features (V20): everything on, at every level.
     this.enableAspiration = true;

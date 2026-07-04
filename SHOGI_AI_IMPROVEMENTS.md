@@ -244,6 +244,37 @@ Adds:
   - **Pooled move generation (V11)**: reuses `Te` objects per ply to reduce allocations (more nodes per time budget)
 - **Hanging-drop safety ordering (all plies)**: mildly penalizes immediately-capturable, undefended drops to reduce ineffective piece drops
 - **Opening pressure gating**: reduces castling/development ordering bias when the king is already under pressure (prevents “castle while dying” behavior)
+- **Mate solver pre-search (`MateSolverImproved`)**: see the dedicated section below
+
+### Mate solver: `MateSolverImproved` (詰みソルバー)
+
+Implemented in `src/components/game/ShogiImproved/MateSolverImproved.ts`, integrated into
+`ShogiAIImprovedV20.getNextTe()` as a pre-search probe.
+
+What it is:
+- A **checks-only AND/OR search** (連続王手の詰み探索) with **iterative deepening over the mate
+  length** (1, 3, 5, ... plies, up to 9). The attacker only plays checking moves; the defender tries
+  *every* legal reply. This proves/refutes “mate in N” exactly, which the heavily pruned main search
+  (futility/LMR/null-move) cannot guarantee for deep sacrifice mates.
+- **Rule-correct**: 打ち歩詰め (pawn-drop mate) is excluded (the pooled generator filters it via
+  `isUtiFuDume`), self-check is filtered lazily after make, and positions already on the current
+  search path are never re-entered (repetition/perpetual-check loop cut).
+- **Allocation-free**: pooled per-ply move lists, make/unmake on a single clone of the caller’s
+  position.
+- A cheap geometric **drop pre-filter** skips the make/unmake for drops that cannot possibly give
+  check (drops never give discovered check), which matters because drops dominate endgame move lists.
+
+Integration policy in V20 (`tryMateSolve`):
+- **Gate (endgame-only)**: runs only when at least one own non-king piece is within Chebyshev
+  distance 3 of the enemy king and (near pieces + own hand pieces) >= 2. In the opening/midgame the
+  gate is off and costs nothing.
+- **Budget**: ~20% of the move time budget, capped at 200ms (fixed 250ms + node cap when the search
+  is untimed, e.g. deterministic tests). Unused/failed probe time is handed back to the main search
+  so total move time stays honest.
+- If a forced mate is found, the mating move is returned **immediately** (skipping the main search).
+
+A/B baseline: `ShogiAIImprovedV20Base.ts` is a frozen pre-mate-solver copy of V20, registered as
+engine `v20base` in `scripts/shogi-ai-match.ts` for regression matches.
 
 ### Experimental engine variant: `ShogiAIImprovedV13`
 

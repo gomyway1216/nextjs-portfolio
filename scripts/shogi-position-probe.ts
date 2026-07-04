@@ -8,7 +8,7 @@
 import { generateLegalMoves } from '../src/components/game/Shogi/GenerateMoves';
 import { createInitialPosition } from '../src/components/game/Shogi/InitialPosition';
 import { getBestMove } from '../src/components/game/Shogi/ShogiAI';
-import { GOTE, SENTE, Te } from '../src/components/game/Shogi/types';
+import { FU, GOTE, SENTE, Te, getKomashu } from '../src/components/game/Shogi/types';
 
 const k = createInitialPosition();
 k.teban = SENTE;
@@ -27,10 +27,12 @@ function play(fs: number, fd: number, ts: number, td: number, promote = false): 
   moveNumber++;
 }
 
-function playDrop(ts: number, td: number): void {
+function playDrop(komashu: number, ts: number, td: number): void {
   const legal = generateLegalMoves(k);
-  const te = legal.find((m) => m.from.suji === 0 && m.to.suji === ts && m.to.dan === td);
-  if (!te) throw new Error(`illegal drop ${ts}${td}`);
+  const te = legal.find(
+    (m) => m.from.suji === 0 && m.to.suji === ts && m.to.dan === td && getKomashu(m.koma) === komashu
+  );
+  if (!te) throw new Error(`illegal drop ${komashu} to ${ts}${td}`);
   k.move(te);
   history.push(te);
   k.teban = k.teban === SENTE ? GOTE : SENTE;
@@ -65,7 +67,7 @@ askAI('move 10');
 
 // Force the reported (bad) move 10 △4二飛, then sente ▲2三歩打 as in the game.
 play(8, 2, 4, 2); // 10 △4二飛 (as reported)
-playDrop(2, 3); // 11 ▲2三歩打
+playDrop(FU, 2, 3); // 11 ▲2三歩打
 
 console.log('--- position after ▲2三歩打 (threatens 2二歩成 winning the bishop; reported: △9四歩??) ---');
 askAI('move 12');

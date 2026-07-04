@@ -85,6 +85,27 @@ const PLANS: Plan[] = [
     ],
   },
   {
+    // 相掛かりからの銀かすめ取り (reported game): after the rook-file exchange, the silver runs
+    // 3八→2七→3六→2五 and grabs the 3四 pawn if it is ever pushed undefended.
+    name: '相掛かり銀かすめ取り',
+    steps: [
+      { kind: 'move', fs: 2, fd: 7, ts: 2, td: 6 },
+      { kind: 'move', fs: 2, fd: 6, ts: 2, td: 5 },
+      { kind: 'move', fs: 6, fd: 9, ts: 7, td: 8 }, // ▲7八金
+      { kind: 'move', fs: 2, fd: 5, ts: 2, td: 4 },
+      { kind: 'move', fs: 2, fd: 8, ts: 2, td: 4 }, // ▲同飛
+      { kind: 'move', fs: 2, fd: 4, ts: 2, td: 8 }, // rook retreats when chased
+      { kind: 'move', fs: 8, fd: 7, ts: 8, td: 6 }, // ▲同歩 (if gote breaks 8六)
+      { kind: 'drop', komashu: FU, ts: 8, td: 7 }, // ▲8七歩打
+      { kind: 'move', fs: 3, fd: 9, ts: 3, td: 8 },
+      { kind: 'move', fs: 3, fd: 8, ts: 2, td: 7 },
+      { kind: 'move', fs: 2, fd: 7, ts: 3, td: 6 },
+      { kind: 'move', fs: 3, fd: 6, ts: 2, td: 5 },
+      { kind: 'move', fs: 2, fd: 5, ts: 3, td: 4 }, // ▲3四銀 (pawn grab if allowed)
+      { kind: 'move', fs: 2, fd: 5, ts: 1, td: 4 }, // or ▲1四銀 edge grab
+    ],
+  },
+  {
     // 横歩取り模様: quiet build-up then the 2-file break with gold still on 3二.
     name: '横歩取り模様2筋攻め',
     steps: [

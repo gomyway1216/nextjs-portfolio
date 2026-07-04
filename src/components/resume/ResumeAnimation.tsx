@@ -8,6 +8,11 @@ import {
   getLocalizedJobType,
   getLocalizedJobValue,
 } from '@/lib/resumeLocalization';
+import type { Education } from '@/services/resumeService';
+
+const getEducationPassingYear = (education: Education): string => education.passingYear || education.duration || '';
+const getEducationDegreeTitle = (education: Education): string => education.degreeTitle || education.degree || '';
+const getEducationInstituteName = (education: Education): string => education.instituteName || education.school || '';
 
 const Resume = () => {
   const { t, i18n } = useTranslation();
@@ -108,9 +113,9 @@ const Resume = () => {
               <ul className="aducation-box">
                 {educations.map((val, i) => (
                   <li key={i}>
-                    <span>{val.passingYear}</span>
-                    <h6>{val.degreeTitle}</h6>
-                    <p>{val.instituteName}</p>
+                    <span>{getEducationPassingYear(val)}</span>
+                    <h6>{getEducationDegreeTitle(val)}</h6>
+                    <p>{getEducationInstituteName(val)}</p>
                   </li>
                 ))}
               </ul>

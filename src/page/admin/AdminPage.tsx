@@ -31,6 +31,7 @@ Eye,
 EyeOff,
 FileText,
 FolderKanban,
+GraduationCap,
 Heart,
 Image as ImageIcon,
 LayoutDashboard,
@@ -54,7 +55,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CSSProperties,memo,useCallback,useEffect,useRef,useState,type ChangeEvent } from 'react';
 
-type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'taxonomy' | 'jobs' | 'study' | 'hobbies' | 'published-writing' | 'activity-logs';
+type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'taxonomy' | 'jobs' | 'education' | 'study' | 'hobbies' | 'published-writing' | 'activity-logs';
 
 interface Job {
   id: string;
@@ -72,6 +73,17 @@ interface Job {
   hidden?: boolean;
 }
 
+interface Education {
+  id: string;
+  passingYear?: string;
+  degreeTitle?: string;
+  instituteName?: string;
+  duration?: string;
+  degree?: string;
+  school?: string;
+  order?: number;
+}
+
 interface UrlData {
   name: string;
   link: string;
@@ -84,6 +96,10 @@ const getTechName = (tech: string | { name: string; id?: string; type?: string }
   if (tech && typeof tech === 'object' && 'name' in tech) return tech.name;
   return '';
 };
+
+const getEducationPassingYear = (education: Education): string => education.passingYear || education.duration || '';
+const getEducationDegreeTitle = (education: Education): string => education.degreeTitle || education.degree || '';
+const getEducationInstituteName = (education: Education): string => education.instituteName || education.school || '';
 
 const adminColors = {
   page: 'var(--admin-page)',
@@ -513,7 +529,7 @@ const getSectionFromHash = (): AdminSection => {
   if (typeof window === 'undefined') return 'dashboard';
   const hash = window.location.hash.replace('#', '');
   if (hash === 'writing') return 'published-writing';
-  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'taxonomy', 'jobs', 'study', 'hobbies', 'published-writing', 'activity-logs'];
+  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'taxonomy', 'jobs', 'education', 'study', 'hobbies', 'published-writing', 'activity-logs'];
   return validSections.includes(hash as AdminSection) ? (hash as AdminSection) : 'dashboard';
 };
 
@@ -1009,11 +1025,13 @@ const AdminPage = () => {
 
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [education, setEducation] = useState<Education[]>([]);
+  const [educationLoading, setEducationLoading] = useState(true);
 
   // Modal states
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showPostModal, setShowPostModal] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ type: 'project' | 'post' | 'job'; id: string; name: string; category?: string } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ type: 'project' | 'post' | 'job' | 'education'; id: string; name: string; category?: string } | null>(null);
   const [showTaxonomyDeleteConfirm, setShowTaxonomyDeleteConfirm] = useState<{ type: PostTaxonomyType; item: PostTaxonomyItem } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -1040,6 +1058,13 @@ const AdminPage = () => {
     jobDescriptionJa: '',
     order: '0',
     technologies: '',
+  });
+  const [educationFormMode, setEducationFormMode] = useState<null | 'new' | string>(null);
+  const [educationForm, setEducationForm] = useState({
+    passingYear: '',
+    degreeTitle: '',
+    instituteName: '',
+    order: '0',
   });
 
   // Available technologies from API
@@ -1119,21 +1144,6 @@ const AdminPage = () => {
 
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  useEffect(() => {
-    if (authLoading || signingOut) return;
-    if (!currentUser) {
-      router.push('/signin');
-      return;
-    }
-    // Redirect non-admin users to home page
-    if (!isAdmin) {
-      router.push('/');
-      return;
-    }
-    fetchJobs();
-    fetchTechnologies();
-  }, [authLoading, currentUser, isAdmin, router, signingOut]);
-
   const fetchTechnologies = async () => {
     try {
       const technologies = await technologyApi.getTechnologies();
@@ -1174,6 +1184,35 @@ const AdminPage = () => {
       setLoading(false);
     }
   };
+
+  const fetchEducation = async () => {
+    try {
+      const response = await fetch('/api/education');
+      const data = await response.json();
+      const entries = Array.isArray(data.education) ? data.education : [];
+      setEducation([...entries].sort((a: Education, b: Education) => (a.order ?? 0) - (b.order ?? 0)));
+    } catch (error) {
+      console.error('Error fetching education:', error);
+    } finally {
+      setEducationLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authLoading || signingOut) return;
+    if (!currentUser) {
+      router.push('/signin');
+      return;
+    }
+    // Redirect non-admin users to home page
+    if (!isAdmin) {
+      router.push('/');
+      return;
+    }
+    fetchJobs();
+    fetchEducation();
+    fetchTechnologies();
+  }, [authLoading, currentUser, isAdmin, router, signingOut]);
 
   // Single dismissal timer: clearing the previous one keeps an older
   // toast's timeout from hiding a newer message, and the unmount cleanup
@@ -2050,6 +2089,139 @@ const AdminPage = () => {
     }
   };
 
+  const openEducationEditForm = (entry: Education) => {
+    setEducationFormMode(entry.id);
+    setEducationForm({
+      passingYear: getEducationPassingYear(entry),
+      degreeTitle: getEducationDegreeTitle(entry),
+      instituteName: getEducationInstituteName(entry),
+      order: typeof entry.order === 'number' ? String(entry.order) : '0',
+    });
+  };
+
+  const openEducationCreateForm = () => {
+    setEducationFormMode('new');
+    setEducationForm({
+      passingYear: '',
+      degreeTitle: '',
+      instituteName: '',
+      order: education.length > 0 ? String(Math.max(...education.map(e => e.order || 0)) + 1) : '0',
+    });
+  };
+
+  const closeEducationForm = () => setEducationFormMode(null);
+
+  const handleSaveEducationForm = async () => {
+    if (!educationFormMode) return;
+    const isCreate = educationFormMode === 'new';
+
+    if (!educationForm.degreeTitle.trim() || !educationForm.instituteName.trim()) {
+      showMessage('error', 'Degree title and institute name are required');
+      return;
+    }
+
+    const payload: Record<string, unknown> = {
+      passingYear: educationForm.passingYear.trim(),
+      degreeTitle: educationForm.degreeTitle.trim(),
+      instituteName: educationForm.instituteName.trim(),
+      order: Number(educationForm.order) || 0,
+    };
+
+    if (!isCreate) {
+      payload.id = educationFormMode;
+    }
+
+    try {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch('/api/education', {
+        method: isCreate ? 'POST' : 'PUT',
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        showMessage('success', isCreate ? `Created ${educationForm.instituteName}` : `Updated ${educationForm.instituteName}`);
+        closeEducationForm();
+        fetchEducation();
+      } else {
+        const error = await response.json().catch(() => ({}));
+        showMessage('error', `Failed: ${error.error || response.status}`);
+      }
+    } catch (error) {
+      showMessage('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  };
+
+  const renderEducationFormFields = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div>
+          <label style={styles.label}>Degree title *</label>
+          <input
+            value={educationForm.degreeTitle}
+            onChange={(e) => setEducationForm({ ...educationForm, degreeTitle: e.target.value })}
+            placeholder="B.S. in Computer Science"
+            style={styles.input}
+          />
+        </div>
+        <div>
+          <label style={styles.label}>Institute name *</label>
+          <input
+            value={educationForm.instituteName}
+            onChange={(e) => setEducationForm({ ...educationForm, instituteName: e.target.value })}
+            placeholder="San Jose State University"
+            style={styles.input}
+          />
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div>
+          <label style={styles.label}>Passing year / duration</label>
+          <input
+            value={educationForm.passingYear}
+            onChange={(e) => setEducationForm({ ...educationForm, passingYear: e.target.value })}
+            placeholder="2019 - 2021"
+            style={styles.input}
+          />
+        </div>
+        <div>
+          <label style={styles.label}>Order (lower = first)</label>
+          <input
+            type="number"
+            value={educationForm.order}
+            onChange={(e) => setEducationForm({ ...educationForm, order: e.target.value })}
+            style={styles.input}
+          />
+        </div>
+      </div>
+    </div>
+  );
+
+  const handleDeleteEducation = async (id: string, name: string) => {
+    if (isDeleting) return;
+    setIsDeleting(true);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const response = await fetch(`/api/education?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+        headers: { ...authHeaders },
+      });
+
+      if (response.ok) {
+        showMessage('success', `Deleted ${name}`);
+        setShowDeleteConfirm(null);
+        fetchEducation();
+      } else {
+        const error = await response.json().catch(() => ({}));
+        showMessage('error', `Failed: ${error.error || response.status}`);
+      }
+    } catch (error) {
+      showMessage('error', `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   if (authLoading || !currentUser || !isAdmin) {
     return (
       <div style={{ ...styles.container, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -2071,6 +2243,7 @@ const AdminPage = () => {
     { id: 'taxonomy' as AdminSection, label: 'Blog Taxonomy', icon: Tags },
     { id: 'published-writing' as AdminSection, label: 'Published Writing', icon: Newspaper },
     { id: 'jobs' as AdminSection, label: 'Jobs', icon: Briefcase },
+    { id: 'education' as AdminSection, label: 'Education', icon: GraduationCap },
     { id: 'study' as AdminSection, label: 'Study Tool', icon: BookOpen },
     { id: 'hobbies' as AdminSection, label: 'Hobbies', icon: Heart },
     { id: 'activity-logs' as AdminSection, label: 'Activity Log', icon: ScrollText },
@@ -2183,7 +2356,7 @@ const AdminPage = () => {
               <p style={styles.pageSubtitle}>Overview of your portfolio content</p>
 
               {/* Stats Cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
                 <div style={{ ...styles.card, borderColor: adminColors.accentBorder }}>
                   <div style={styles.statCard}>
                     <div style={{ ...styles.statIconWrapper, backgroundColor: adminColors.accentSoft }}>
@@ -2219,6 +2392,18 @@ const AdminPage = () => {
                     </div>
                   </div>
                 </div>
+
+                <div style={{ ...styles.card, borderColor: adminColors.warning }}>
+                  <div style={styles.statCard}>
+                    <div style={{ ...styles.statIconWrapper, backgroundColor: adminColors.warningSoft }}>
+                      <GraduationCap size={22} color={adminColors.warning} />
+                    </div>
+                    <div>
+                      <p style={styles.statNumber}>{educationLoading ? '...' : education.length}</p>
+                      <p style={{ color: adminColors.textMuted, fontSize: '13px' }}>Education</p>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               {/* Quick Actions */}
@@ -2244,6 +2429,12 @@ const AdminPage = () => {
                       style={{ ...styles.button, ...styles.outlineButton }}
                     >
                       <Tags size={16} /> Blog Taxonomy
+                    </button>
+                    <button
+                      onClick={() => { handleSectionChange('education'); openEducationCreateForm(); }}
+                      style={{ ...styles.button, ...styles.outlineButton }}
+                    >
+                      <GraduationCap size={16} /> New Education
                     </button>
                   </div>
                 </div>
@@ -2795,6 +2986,105 @@ const AdminPage = () => {
                   <div style={{ ...styles.card, textAlign: 'center', padding: '48px' }}>
                     <Briefcase size={48} color={adminColors.textSubtle} style={{ marginBottom: '16px' }} />
                     <p style={{ color: adminColors.textSubtle }}>No jobs found</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Education Section */}
+          {activeSection === 'education' && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
+                <div>
+                  <h1 style={styles.pageTitle}>Education</h1>
+                  <p style={{ color: adminColors.textMuted }}>Manage your resume education entries from Firestore</p>
+                </div>
+                <button onClick={openEducationCreateForm} style={{ ...styles.button, ...styles.primaryButton }}>
+                  <Plus size={16} /> Add Education
+                </button>
+              </div>
+
+              {educationFormMode === 'new' && (
+                <div style={{ ...styles.card, marginBottom: '24px' }}>
+                  <div style={{ padding: '20px' }}>
+                    <h3 style={{ fontSize: '17px', fontWeight: 600, color: adminColors.text, marginBottom: '16px' }}>New Education</h3>
+                    {renderEducationFormFields()}
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                      <button onClick={handleSaveEducationForm} style={{ ...styles.button, ...styles.primaryButton }}>
+                        <Save size={16} /> Create
+                      </button>
+                      <button onClick={closeEducationForm} style={{ ...styles.button, ...styles.outlineButton }}>
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {education.map((entry) => {
+                  const degreeTitle = getEducationDegreeTitle(entry);
+                  const instituteName = getEducationInstituteName(entry);
+                  const passingYear = getEducationPassingYear(entry);
+
+                  return (
+                    <div key={entry.id} style={styles.card}>
+                      <div style={{ padding: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+                          <div>
+                            <h3 style={{ fontSize: '19px', fontWeight: '600', color: adminColors.text }}>{degreeTitle || 'Untitled education'}</h3>
+                            <p style={{ color: adminColors.accent }}>{instituteName || 'No institute set'}</p>
+                            <p style={{ fontSize: '14px', color: adminColors.textSubtle }}>{passingYear || 'No year set'}</p>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button
+                              onClick={() => openEducationEditForm(entry)}
+                              style={{ ...styles.button, ...styles.outlineButton }}
+                            >
+                              <Pencil size={16} /> Edit
+                            </button>
+                            <button
+                              onClick={() => setShowDeleteConfirm({
+                                type: 'education',
+                                id: entry.id,
+                                name: degreeTitle || instituteName || entry.id,
+                              })}
+                              style={{ ...styles.button, ...styles.dangerButton }}
+                              aria-label={`Delete ${degreeTitle || instituteName || 'education entry'}`}
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ borderTop: `1px solid ${adminColors.border}`, paddingTop: '16px' }}>
+                          <span style={{ ...styles.badge, backgroundColor: 'transparent', border: `1px solid ${adminColors.borderStrong}`, color: adminColors.textMuted }}>
+                            Order {entry.order ?? 0}
+                          </span>
+                        </div>
+
+                        {educationFormMode === entry.id && (
+                          <div style={{ marginTop: '20px', padding: '16px', backgroundColor: adminColors.surfaceMuted, borderRadius: '8px', border: `1px solid ${adminColors.border}` }}>
+                            {renderEducationFormFields()}
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                              <button onClick={handleSaveEducationForm} style={{ ...styles.button, ...styles.primaryButton }}>
+                                <Save size={16} /> Save
+                              </button>
+                              <button onClick={closeEducationForm} style={{ ...styles.button, ...styles.outlineButton }}>
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+                {education.length === 0 && (
+                  <div style={{ ...styles.card, textAlign: 'center', padding: '48px' }}>
+                    <GraduationCap size={48} color={adminColors.textSubtle} style={{ marginBottom: '16px' }} />
+                    <p style={{ color: adminColors.textSubtle }}>No education entries found</p>
                   </div>
                 )}
               </div>
@@ -3482,6 +3772,8 @@ const AdminPage = () => {
                     handleDeletePost(showDeleteConfirm.id);
                   } else if (showDeleteConfirm.type === 'job') {
                     handleDeleteJob(showDeleteConfirm.id, showDeleteConfirm.name);
+                  } else if (showDeleteConfirm.type === 'education') {
+                    handleDeleteEducation(showDeleteConfirm.id, showDeleteConfirm.name);
                   }
                 }}
                 disabled={isDeleting}

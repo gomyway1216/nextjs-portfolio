@@ -99,10 +99,11 @@ export interface ShogiAISearchOptions {
   /**
    * Evaluation profile selector.
    * - `v3` is the tuned default (same cost, more stable openings).
+   * - `v3t` is v3 with candidate weights (KyokumenImproved.setEvalV3TunedWeights) for A/B tuning experiments.
    * - `v2` is the previous default and includes stronger king-safety/castling heuristics.
    * - `v1` is kept for regression/self-play comparisons.
    */
-  evaluationMode?: 'v1' | 'v2' | 'v3';
+  evaluationMode?: 'v1' | 'v2' | 'v3' | 'v3t';
 }
 
 class TimeUpError extends Error {
@@ -135,13 +136,15 @@ export class ShogiAIImprovedV20 {
   private evalCacheValV2: Int32Array;
   private evalCacheKeyV3: Int32Array;
   private evalCacheValV3: Int32Array;
+  private evalCacheKeyV3T: Int32Array;
+  private evalCacheValV3T: Int32Array;
 
   private leaf = 0;
   private node = 0;
   private startTime = 0;
   private maxTimeMs = 0;
   private quiescenceDepthMax = 0;
-  private evaluationMode: 'v1' | 'v2' | 'v3' = 'v3';
+  private evaluationMode: 'v1' | 'v2' | 'v3' | 'v3t' = 'v3';
 
   // Repetition handling (sennichite) within the current search path.
   // HashVal already includes side-to-move, so a repeated `HashVal` means an actual repetition state.
@@ -260,10 +263,13 @@ export class ShogiAIImprovedV20 {
     this.evalCacheValV2 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
     this.evalCacheKeyV3 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
     this.evalCacheValV3 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
+    this.evalCacheKeyV3T = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
+    this.evalCacheValV3T = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
 
     this.evalCacheKeyV1.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV2.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV3.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV3T.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
   }
 
   clearTT(): void {
@@ -272,6 +278,7 @@ export class ShogiAIImprovedV20 {
     this.evalCacheKeyV1.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV2.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV3.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV3T.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
   }
 
   getStats(): { nodes: number; leaves: number; ttUsage: number } {
@@ -390,6 +397,15 @@ export class ShogiAIImprovedV20 {
       const value = k.evaluate() | 0;
       this.evalCacheKeyV2[index] = key;
       this.evalCacheValV2[index] = value;
+      return value;
+    }
+
+    // v3t (candidate weights for tuning A/B; same structure as v3, separate cache)
+    if (this.evaluationMode === 'v3t') {
+      if (this.evalCacheKeyV3T[index] === key) return this.evalCacheValV3T[index] | 0;
+      const value = (k.evaluateV3Tuned() + this.hangingThreatSente(k)) | 0;
+      this.evalCacheKeyV3T[index] = key;
+      this.evalCacheValV3T[index] = value;
       return value;
     }
 

@@ -13,6 +13,7 @@ import {
   BriefcaseBusiness,
   FolderKanban,
   Gamepad2,
+  GraduationCap,
   House,
   LineChart,
   Newspaper,
@@ -40,6 +41,12 @@ const SIDEBAR_NAV_ITEMS = [
     href: '/#resume',
     labelKey: 'home.nav.resume',
     Icon: BriefcaseBusiness,
+  },
+  {
+    id: 'education',
+    href: '/#education',
+    labelKey: 'home.nav.education',
+    Icon: GraduationCap,
   },
   {
     id: 'writing',

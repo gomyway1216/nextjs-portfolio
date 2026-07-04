@@ -4,7 +4,7 @@
 
 import { Difficulty } from '../common/types';
 import { KyokumenImproved } from '../ShogiImproved/KyokumenImproved';
-import { getBestMoveV19 as getBestMoveImproved } from '../ShogiImproved/ShogiAIImprovedV19';
+import { getBestMoveV20 as getBestMoveImproved } from '../ShogiImproved/ShogiAIImprovedV20';
 import { Te as TeImproved } from '../ShogiImproved/types';
 import { generateLegalMoves } from './GenerateMoves';
 import { Kyokumen } from './Kyokumen';

@@ -18,6 +18,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as readline from 'readline';
 import { spawn, ChildProcessWithoutNullStreams } from 'child_process';
 
 import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
@@ -229,13 +230,54 @@ interface EvalResult {
 }
 
 class UsiEngine {
-  private proc: ChildProcessWithoutNullStreams;
+  private proc!: ChildProcessWithoutNullStreams;
   private buf = '';
   private lineHandler: ((line: string) => void) | null = null;
+  private alive = false;
+  /** 進行中の waitFor/evaluate をプロセス死亡時に即座に reject するためのフック */
+  private pendingAbort: ((e: Error) => void) | null = null;
 
   constructor() {
-    this.proc = spawn(ENGINE_BIN, [], { stdio: ['pipe', 'pipe', 'pipe'] });
-    this.proc.stdout.on('data', (d: Buffer) => {
+    this.spawnProc();
+  }
+
+  private abortPending(msg: string): void {
+    if (this.pendingAbort) {
+      const abort = this.pendingAbort;
+      this.pendingAbort = null;
+      abort(new Error(msg));
+    }
+  }
+
+  private spawnProc(): void {
+    this.buf = '';
+    this.lineHandler = null;
+    this.pendingAbort = null;
+    const proc = spawn(ENGINE_BIN, [], { stdio: ['pipe', 'pipe', 'pipe'] });
+    this.proc = proc;
+    this.alive = true;
+    // 注意: 各ハンドラは restart() 後に旧プロセスから遅れて発火し得るため、
+    // this.proc === proc で「現行プロセスのイベントか」を確認する。
+    // プロセス死亡を検知し、以降の send を安全に失敗させ、進行中の照会を即 reject する
+    proc.on('exit', () => {
+      if (this.proc !== proc) return;
+      this.alive = false;
+      this.abortPending('USI engine process exited unexpectedly');
+    });
+    proc.on('error', (e) => {
+      if (this.proc !== proc) return;
+      this.alive = false;
+      this.abortPending(`USI engine process error: ${e.message}`);
+    });
+    // stdin の 'error'(EPIPE 等)は未ハンドルだとプロセス全体をクラッシュさせるため握りつぶす。
+    // exit/error と同様に進行中の照会も即 reject し、呼び出し側がタイムアウトを待たず再起動できるようにする。
+    proc.stdin.on('error', (e: Error) => {
+      if (this.proc !== proc) return;
+      this.alive = false;
+      this.abortPending(`USI engine stdin error: ${e.message}`);
+    });
+    proc.stdout.on('data', (d: Buffer) => {
+      if (this.proc !== proc) return;
       this.buf += d.toString();
       let idx: number;
       while ((idx = this.buf.indexOf('\n')) >= 0) {
@@ -247,19 +289,34 @@ class UsiEngine {
   }
 
   private send(cmd: string): void {
-    this.proc.stdin.write(cmd + '\n');
+    if (!this.alive || this.proc.stdin.destroyed || !this.proc.stdin.writable) {
+      throw new Error(`USI engine process is not writable (cmd: ${cmd.split(' ')[0]})`);
+    }
+    try {
+      this.proc.stdin.write(cmd + '\n');
+    } catch (e) {
+      this.alive = false;
+      throw new Error(`USI stdin write failed: ${(e as Error).message}`);
+    }
   }
 
   private waitFor(pred: (line: string) => boolean, timeoutMs: number): Promise<void> {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.lineHandler = null;
+        this.pendingAbort = null;
         reject(new Error(`USI timeout waiting (${timeoutMs}ms)`));
       }, timeoutMs);
+      this.pendingAbort = (err) => {
+        clearTimeout(timer);
+        this.lineHandler = null;
+        reject(err);
+      };
       this.lineHandler = (line) => {
         if (pred(line)) {
           clearTimeout(timer);
           this.lineHandler = null;
+          this.pendingAbort = null;
           resolve();
         }
       };
@@ -282,6 +339,22 @@ class UsiEngine {
     this.send('usinewgame');
   }
 
+  /**
+   * プロセスを kill して新プロセスで再初期化する。
+   * evaluate タイムアウト後は旧プロセスが探索継続/出力バッファ残留により
+   * 以降の照会と同期ズレを起こすため、破棄して作り直すのが安全。
+   */
+  async restart(): Promise<void> {
+    this.alive = false;
+    try {
+      this.proc.kill('SIGKILL');
+    } catch {
+      /* noop */
+    }
+    this.spawnProc();
+    await this.init();
+  }
+
   /** 局面を depth 固定で評価し、手番側視点の cp を返す。 */
   evaluate(sfen: string, depth: number): Promise<EvalResult | null> {
     return new Promise((resolve, reject) => {
@@ -289,8 +362,16 @@ class UsiEngine {
       let lastMate: number | null = null;
       const timer = setTimeout(() => {
         this.lineHandler = null;
-        reject(new Error('USI eval timeout'));
+        this.pendingAbort = null;
+        // タイムアウト時、エンジンは探索継続中で bestmove が後から届き得る。
+        // 呼び出し側で restart() して同期ズレを防ぐこと。
+        reject(new Error('USI eval timeout (engine requires restart)'));
       }, 60000);
+      this.pendingAbort = (err) => {
+        clearTimeout(timer);
+        this.lineHandler = null;
+        reject(err);
+      };
       this.lineHandler = (line) => {
         if (line.startsWith('info ')) {
           const m = line.match(/score (cp|mate) (-?\d+)/);
@@ -305,6 +386,7 @@ class UsiEngine {
         } else if (line.startsWith('bestmove')) {
           clearTimeout(timer);
           this.lineHandler = null;
+          this.pendingAbort = null;
           const bestmove = line.split(/\s+/)[1] ?? '';
           if (lastMate !== null) {
             // 詰みスコアを大きな cp に写像 (±30000 - 手数)
@@ -318,8 +400,15 @@ class UsiEngine {
           }
         }
       };
-      this.send(`position sfen ${sfen}`);
-      this.send(`go depth ${depth}`);
+      try {
+        this.send(`position sfen ${sfen}`);
+        this.send(`go depth ${depth}`);
+      } catch (e) {
+        clearTimeout(timer);
+        this.lineHandler = null;
+        this.pendingAbort = null;
+        reject(e as Error);
+      }
     });
   }
 
@@ -350,8 +439,12 @@ async function main(): Promise<void> {
   const seen = new Set<string>();
   let existing = 0;
   if (fs.existsSync(args.out)) {
-    const lines = fs.readFileSync(args.out, 'utf8').split('\n');
-    for (const line of lines) {
+    // 100万行規模でもメモリを食わないよう readline でストリーム読み込みする
+    const rl = readline.createInterface({
+      input: fs.createReadStream(args.out, { encoding: 'utf8' }),
+      crlfDelay: Infinity,
+    });
+    for await (const line of rl) {
       if (!line.trim()) continue;
       try {
         const rec = JSON.parse(line);
@@ -371,7 +464,7 @@ async function main(): Promise<void> {
   }
 
   // --- エンジンプール起動 ---
-  const engines: UsiEngine[] = [];
+  let engines: UsiEngine[] = [];
   for (let i = 0; i < args.engines; i++) engines.push(new UsiEngine());
   await Promise.all(engines.map((e) => e.init()));
   console.log(`[gen] ${engines.length} engine workers ready`);
@@ -404,6 +497,7 @@ async function main(): Promise<void> {
     let cursor = 0;
     let done = 0;
     const lines: string[] = [];
+    const deadEngines = new Set<UsiEngine>();
     await Promise.all(
       engines.map(async (engine) => {
         for (;;) {
@@ -415,11 +509,20 @@ async function main(): Promise<void> {
             res = await engine.evaluate(pos.sfen, args.depth);
           } catch (e) {
             console.error(`[gen] eval error (skip): ${(e as Error).message}`);
+            // タイムアウト/プロセス死亡後はエンジン内部状態が信用できないため再起動する
+            try {
+              await engine.restart();
+            } catch (re) {
+              console.error(
+                `[gen] engine restart failed, stopping this worker: ${(re as Error).message}`
+              );
+              deadEngines.add(engine);
+              return;
+            }
             continue;
           }
-          if (!res || res.bestmove === 'resign' || res.bestmove === 'win') {
-            if (!res) continue;
-          }
+          // スコアなし/投了/宣言勝ちの局面はデータセットに含めない
+          if (!res || res.bestmove === 'resign' || res.bestmove === 'win') continue;
           const rec: Record<string, unknown> = {
             sfen: pos.sfen,
             cp: res.cp,
@@ -442,9 +545,24 @@ async function main(): Promise<void> {
     );
     const labSec = (Date.now() - tLab) / 1000;
 
-    fs.writeSync(outFd, lines.join('\n') + '\n');
-    fs.fsyncSync(outFd);
+    if (lines.length > 0) {
+      fs.writeSync(outFd, lines.join('\n') + '\n');
+      fs.fsyncSync(outFd);
+    }
     total += lines.length;
+
+    // 再起動不能になったエンジンをプールから除去。全滅したら無限ループせず明確に停止する。
+    if (deadEngines.size > 0) {
+      for (const e of deadEngines) e.quit();
+      engines = engines.filter((e) => !deadEngines.has(e));
+      console.error(`[gen] removed ${deadEngines.size} dead engine(s); ${engines.length} remaining`);
+      if (engines.length === 0) {
+        fs.closeSync(outFd);
+        throw new Error(
+          `[gen] all USI engines died and could not be restarted (progress saved: ${total} positions; rerun to resume)`
+        );
+      }
+    }
     const rate = pending.length / labSec;
     console.log(
       `[gen] chunk done: +${lines.length} (gen ${genSec.toFixed(1)}s, label ${labSec.toFixed(

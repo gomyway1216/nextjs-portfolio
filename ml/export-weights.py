@@ -32,9 +32,10 @@ weights.bin のレイアウト (すべて int16 LE, ただし bias は int32 LE)
 """
 
 import argparse
+import array
 import json
 import os
-import struct
+import sys
 
 import torch
 
@@ -140,8 +141,15 @@ def main():
             ("w1_board", "h"), ("w1_hand", "h"), ("b1", "i"),
             ("w2", "h"), ("b2", "i"), ("w3", "h"), ("b3", "i"),
         ]:
-            flat = q[name].flatten().tolist()
-            f.write(struct.pack(f"<{len(flat)}{dtype}", *flat))
+            # 巨大テンソルを struct.pack(*flat) で引数展開すると引数上限に達し得るため
+            # array モジュールでまとめてバイト列化する(レイアウトは LE 固定)。
+            arr = array.array(dtype, q[name].flatten().tolist())
+            assert arr.itemsize == (2 if dtype == "h" else 4), (
+                f"unexpected itemsize {arr.itemsize} for '{dtype}'"
+            )
+            if sys.byteorder == "big":
+                arr.byteswap()
+            f.write(arr.tobytes())
     meta_path = os.path.join(out_dir, "weights.meta.json")
     with open(meta_path, "w") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
@@ -168,8 +176,12 @@ def main():
                 line = line.strip()
                 if not line:
                     continue
-                rec = json.loads(line)
-                idx, hands, _ = parse_sfen(rec["sfen"])
+                # train.py と同様、壊れ行(書き込み中断の末尾行など)はスキップして継続する
+                try:
+                    rec = json.loads(line)
+                    idx, hands, _ = parse_sfen(rec["sfen"])
+                except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                    continue
                 pad = idx[:40] + [PAD_IDX] * (40 - len(idx))
                 with torch.no_grad():
                     out_f = model(
@@ -182,8 +194,11 @@ def main():
                 n += 1
                 if n >= args.verify_n:
                     break
-        mean_d = sum(diffs) / len(diffs)
-        print(f"[export] verify n={n}: mean |cp_float - cp_int| = {mean_d:.2f}cp, max = {max(diffs):.2f}cp")
+        if diffs:
+            mean_d = sum(diffs) / len(diffs)
+            print(f"[export] verify n={n}: mean |cp_float - cp_int| = {mean_d:.2f}cp, max = {max(diffs):.2f}cp")
+        else:
+            print("[export] verify: no valid positions found in verify file — skipped")
 
 
 if __name__ == "__main__":

@@ -140,10 +140,11 @@ def load_dataset(path: str, k_sigmoid: float, cp_clamp: int, limit: int = 0):
                 continue
             try:
                 idx, hands, _ = parse_sfen(rec["sfen"])
-            except (KeyError, IndexError, ValueError):
+                cp = int(rec["cp"])
+            except (KeyError, IndexError, ValueError, TypeError):
                 n_skipped += 1
                 continue
-            cp = max(-cp_clamp, min(cp_clamp, int(rec["cp"])))
+            cp = max(-cp_clamp, min(cp_clamp, cp))
             y = 1.0 / (1.0 + math.exp(-cp / k_sigmoid))
             idx = idx[:MAX_PIECES] + [PAD_IDX] * (MAX_PIECES - len(idx))
             board_rows.append(idx)
@@ -207,23 +208,39 @@ def main():
     ap.add_argument("--cp-clamp", type=int, default=3000)
     ap.add_argument("--val-ratio", type=float, default=0.1)
     ap.add_argument("--limit", type=int, default=0, help="先頭 N 件のみ使用 (0=全件)")
-    ap.add_argument("--device", default="auto", choices=["auto", "mps", "cpu"])
+    ap.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
     ap.add_argument("--seed", type=int, default=42)
     args = ap.parse_args()
 
     torch.manual_seed(args.seed)
     random.seed(args.seed)
 
-    device = ("mps" if torch.backends.mps.is_available() else "cpu") if args.device == "auto" else args.device
+    if args.device == "auto":
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif torch.backends.mps.is_available():
+            device = "mps"
+        else:
+            device = "cpu"
+    else:
+        device = args.device
     print(f"[train] device={device}")
 
     board, hands, y = load_dataset(args.data, args.k, args.cp_clamp, args.limit)
     n = y.shape[0]
     print(f"[train] dataset: {n} positions from {args.data}")
 
+    if n < 2:
+        raise SystemExit(
+            f"[train] error: dataset has only {n} usable position(s); "
+            "need at least 2 for a train/val split. "
+            "Check --data path, --limit, and that the JSONL contains valid records."
+        )
+
     perm = torch.randperm(n)
     board, hands, y = board[perm], hands[perm], y[perm]
-    n_val = max(1, int(n * args.val_ratio))
+    # val は最低1件、かつ train にも最低1件残るようにクランプする
+    n_val = max(1, min(int(n * args.val_ratio), n - 1))
     vb, vh, vy = board[:n_val], hands[:n_val], y[:n_val]
     tb, th, ty = board[n_val:], hands[n_val:], y[n_val:]
     print(f"[train] train={ty.shape[0]} val={vy.shape[0]}")

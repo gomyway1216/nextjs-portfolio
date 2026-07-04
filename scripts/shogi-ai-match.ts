@@ -4,7 +4,7 @@ import path from 'node:path';
 import { deflateSync } from 'node:zlib';
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '../src/components/game/ShogiImproved/InitialPositionImproved';
-import type { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
+import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
 import { ShogiAIImproved } from '../src/components/game/ShogiImproved/ShogiAIImproved';
 import { ShogiAIImprovedV3 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV3';
 import { ShogiAIImprovedV4 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV4';
@@ -23,10 +23,15 @@ import { ShogiAIImprovedV16 } from '../src/components/game/ShogiImproved/ShogiAI
 import { ShogiAIImprovedV17 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV17';
 import { ShogiAIImprovedV18 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV18';
 import { ShogiAIImprovedV19 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV19';
-import { ShogiAIImprovedV20 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV20';
+import {
+  ShogiAIImprovedV20,
+  type ShogiAISearchOptions as ShogiAISearchOptionsV20,
+} from '../src/components/game/ShogiImproved/ShogiAIImprovedV20';
 import { EMPTY, FU, GOTE, OU, SENTE, Te, getKomashu } from '../src/components/game/ShogiImproved/types';
 
-type EvalMode = 'v1' | 'v2' | 'v3';
+// 'v3t' = evaluateV3Tuned() with candidate weights (see KyokumenImproved.setEvalV3TunedWeights);
+// only meaningful with engine v20. Used to A/B tuned weights directly against the current v3 weights.
+type EvalMode = 'v1' | 'v2' | 'v3' | 'v3t';
 type EngineName =
   | 'v2'
   | 'v3'
@@ -49,9 +54,12 @@ type EngineName =
   | 'v20';
 type OpeningMode = 'none' | 'random' | 'quiet' | 'curated';
 
-type EngineInstance = {
-  getNextTe: (...args: Parameters<ShogiAIImproved['getNextTe']>) => ReturnType<ShogiAIImproved['getNextTe']>;
-};
+// Method syntax (not an arrow-typed property) keeps parameter bivariance, so older engines whose
+// options union does not include 'v3t' remain assignable. Passing 'v3t' to a non-v20 engine
+// silently falls back to its v3 evaluation.
+interface EngineInstance {
+  getNextTe(k: KyokumenImproved, tesu?: number, options?: ShogiAISearchOptionsV20): Te | null;
+}
 
 interface MatchConfig {
   games: number;
@@ -119,7 +127,7 @@ function parseEngineArg(value: string | undefined, fallback: EngineName): Engine
 }
 
 function parseEvalArg(value: string | undefined, fallback: EvalMode): EvalMode {
-  if (value === 'v1' || value === 'v2' || value === 'v3') return value;
+  if (value === 'v1' || value === 'v2' || value === 'v3' || value === 'v3t') return value;
   return fallback;
 }
 
@@ -241,6 +249,8 @@ function evaluateSente(k: KyokumenImproved, mode: EvalMode): number {
       return k.evaluate();
     case 'v3':
       return k.evaluateV3();
+    case 'v3t':
+      return k.evaluateV3Tuned();
     default: {
       const exhaustive: never = mode;
       return exhaustive;
@@ -675,8 +685,58 @@ function createEngine(name: EngineName): EngineInstance {
   }
 }
 
+function parseEvalWeightsSpec(
+  envName: string,
+  raw: string
+): Parameters<typeof KyokumenImproved.setEvalV3Weights>[0] {
+  const weights: Parameters<typeof KyokumenImproved.setEvalV3Weights>[0] = {};
+  for (const group of raw.split(';')) {
+    const trimmed = group.trim();
+    if (!trimmed) continue;
+    const [name, valuesRaw] = trimmed.split('=');
+    const values = (valuesRaw ?? '').split(',').map((v) => Number(v.trim()));
+    if (values.length !== 4 || values.some((v) => !Number.isFinite(v))) {
+      throw new Error(`${envName}: invalid group "${trimmed}" (need 4 integers)`);
+    }
+    if (name === 'psqt' || name === 'castle' || name === 'fileDefense' || name === 'promoThreat') {
+      weights[name] = values;
+    } else {
+      throw new Error(`${envName}: unknown group "${name}"`);
+    }
+  }
+  return weights;
+}
+
+/**
+ * Optional evaluateV3 / evaluateV3Tuned weight overrides for A/B experiments
+ * (used with scripts/shogi-texel-tune.ts).
+ *
+ * - `SHOGI_EVAL_V3_WEIGHTS` overrides the weights used by eval mode `v3`.
+ * - `SHOGI_EVAL_V3T_WEIGHTS` overrides the weights used by eval mode `v3t` (v20 only),
+ *   which lets tuned candidate weights play *directly* against the current v3 weights.
+ *
+ * Format: `"psqt=96,112,128,160;castle=32,64,96,128;fileDefense=32,64,96,128;promoThreat=64,96,112,128"`
+ * Any subset of the four groups may be given; each group needs exactly 4 comma-separated integers.
+ */
+function applyEvalV3WeightsFromEnv(quiet: boolean): void {
+  const rawV3 = process.env.SHOGI_EVAL_V3_WEIGHTS;
+  if (rawV3) {
+    KyokumenImproved.setEvalV3Weights(parseEvalWeightsSpec('SHOGI_EVAL_V3_WEIGHTS', rawV3));
+    if (!quiet) console.log('[shogi-ai-match] evalV3 weights overridden:', KyokumenImproved.getEvalV3Weights());
+  }
+
+  const rawV3T = process.env.SHOGI_EVAL_V3T_WEIGHTS;
+  if (rawV3T) {
+    KyokumenImproved.setEvalV3TunedWeights(parseEvalWeightsSpec('SHOGI_EVAL_V3T_WEIGHTS', rawV3T));
+    if (!quiet)
+      console.log('[shogi-ai-match] evalV3t weights overridden:', KyokumenImproved.getEvalV3TunedWeights());
+  }
+}
+
 function main(): void {
   const config = parseArgs(process.argv.slice(2));
+
+  applyEvalV3WeightsFromEnv(config.quiet);
 
   if (!config.quiet) console.log('[shogi-ai-match] config:', config);
 

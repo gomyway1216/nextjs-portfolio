@@ -65,6 +65,95 @@ export class KyokumenImproved {
   private static readonly EVAL_V3_FILE_DEFENSE_W = new Int16Array([32, 64, 96, 128]);
   private static readonly EVAL_V3_PROMO_THREAT_W = new Int16Array([64, 96, 112, 128]);
 
+  // Candidate weights for `evaluateV3Tuned()` (eval mode 'v3t').
+  // These exist so tuning experiments (scripts/shogi-texel-tune.ts) can be A/B validated
+  // *directly* against the current v3 weights in a single self-play match.
+  // They default to the v3 values; override via `setEvalV3TunedWeights()`.
+  private static readonly EVAL_V3T_PSQT_W = new Int16Array(KyokumenImproved.EVAL_V3_PSQT_W);
+  private static readonly EVAL_V3T_CASTLE_W = new Int16Array(KyokumenImproved.EVAL_V3_CASTLE_W);
+  private static readonly EVAL_V3T_FILE_DEFENSE_W = new Int16Array(KyokumenImproved.EVAL_V3_FILE_DEFENSE_W);
+  private static readonly EVAL_V3T_PROMO_THREAT_W = new Int16Array(KyokumenImproved.EVAL_V3_PROMO_THREAT_W);
+
+  /**
+   * Override the phase-indexed evaluation weights used by `evaluateV3()`.
+   *
+   * Intended for offline tuning tools (e.g. `scripts/shogi-texel-tune.ts`) and A/B match
+   * harnesses so they can inject candidate weights without editing this file.
+   * Each array must have exactly 4 entries (index 0=endgame ... 3=opening), fixed-point
+   * with denominator 1<<EVAL_V3_SHIFT (128 === 1.0).
+   */
+  static setEvalV3Weights(weights: {
+    psqt?: readonly number[];
+    castle?: readonly number[];
+    fileDefense?: readonly number[];
+    promoThreat?: readonly number[];
+  }): void {
+    const apply = (target: Int16Array, source: readonly number[] | undefined, name: string): void => {
+      if (!source) return;
+      if (source.length !== target.length) {
+        throw new Error(`setEvalV3Weights: "${name}" must have ${target.length} entries, got ${source.length}`);
+      }
+      for (let i = 0; i < target.length; i++) target[i] = source[i] | 0;
+    };
+    apply(KyokumenImproved.EVAL_V3_PSQT_W, weights.psqt, 'psqt');
+    apply(KyokumenImproved.EVAL_V3_CASTLE_W, weights.castle, 'castle');
+    apply(KyokumenImproved.EVAL_V3_FILE_DEFENSE_W, weights.fileDefense, 'fileDefense');
+    apply(KyokumenImproved.EVAL_V3_PROMO_THREAT_W, weights.promoThreat, 'promoThreat');
+  }
+
+  /**
+   * Same as `setEvalV3Weights`, but targets the candidate weights used by `evaluateV3Tuned()`
+   * (eval mode 'v3t'), so a tuned candidate can play directly against the current v3 weights.
+   */
+  static setEvalV3TunedWeights(weights: {
+    psqt?: readonly number[];
+    castle?: readonly number[];
+    fileDefense?: readonly number[];
+    promoThreat?: readonly number[];
+  }): void {
+    const apply = (target: Int16Array, source: readonly number[] | undefined, name: string): void => {
+      if (!source) return;
+      if (source.length !== target.length) {
+        throw new Error(`setEvalV3TunedWeights: "${name}" must have ${target.length} entries, got ${source.length}`);
+      }
+      for (let i = 0; i < target.length; i++) target[i] = source[i] | 0;
+    };
+    apply(KyokumenImproved.EVAL_V3T_PSQT_W, weights.psqt, 'psqt');
+    apply(KyokumenImproved.EVAL_V3T_CASTLE_W, weights.castle, 'castle');
+    apply(KyokumenImproved.EVAL_V3T_FILE_DEFENSE_W, weights.fileDefense, 'fileDefense');
+    apply(KyokumenImproved.EVAL_V3T_PROMO_THREAT_W, weights.promoThreat, 'promoThreat');
+  }
+
+  /** Snapshot of the current `evaluateV3()` weights (see `setEvalV3Weights`). */
+  static getEvalV3Weights(): {
+    psqt: number[];
+    castle: number[];
+    fileDefense: number[];
+    promoThreat: number[];
+  } {
+    return {
+      psqt: Array.from(KyokumenImproved.EVAL_V3_PSQT_W),
+      castle: Array.from(KyokumenImproved.EVAL_V3_CASTLE_W),
+      fileDefense: Array.from(KyokumenImproved.EVAL_V3_FILE_DEFENSE_W),
+      promoThreat: Array.from(KyokumenImproved.EVAL_V3_PROMO_THREAT_W),
+    };
+  }
+
+  /** Snapshot of the current `evaluateV3Tuned()` weights (see `setEvalV3TunedWeights`). */
+  static getEvalV3TunedWeights(): {
+    psqt: number[];
+    castle: number[];
+    fileDefense: number[];
+    promoThreat: number[];
+  } {
+    return {
+      psqt: Array.from(KyokumenImproved.EVAL_V3T_PSQT_W),
+      castle: Array.from(KyokumenImproved.EVAL_V3T_CASTLE_W),
+      fileDefense: Array.from(KyokumenImproved.EVAL_V3T_FILE_DEFENSE_W),
+      promoThreat: Array.from(KyokumenImproved.EVAL_V3T_PROMO_THREAT_W),
+    };
+  }
+
   private static scaleEvalV3(value: number, weight: number): number {
     // `weight` is fixed-point with denominator 1<<EVAL_V3_SHIFT (128).
     // Use symmetric rounding so negative values don't bias toward 0.
@@ -667,6 +756,34 @@ export class KyokumenImproved {
    * - No new board scans vs v2; this is only phase-aware scaling.
    */
   evaluateV3(): number {
+    return this.evaluateV3WithWeights(
+      KyokumenImproved.EVAL_V3_PSQT_W,
+      KyokumenImproved.EVAL_V3_CASTLE_W,
+      KyokumenImproved.EVAL_V3_FILE_DEFENSE_W,
+      KyokumenImproved.EVAL_V3_PROMO_THREAT_W
+    );
+  }
+
+  /**
+   * Same evaluation as `evaluateV3()` but using the candidate weight arrays
+   * (see `setEvalV3TunedWeights`). Exposed as eval mode 'v3t' so tuned weights
+   * can be A/B validated against the current v3 weights in one self-play match.
+   */
+  evaluateV3Tuned(): number {
+    return this.evaluateV3WithWeights(
+      KyokumenImproved.EVAL_V3T_PSQT_W,
+      KyokumenImproved.EVAL_V3T_CASTLE_W,
+      KyokumenImproved.EVAL_V3T_FILE_DEFENSE_W,
+      KyokumenImproved.EVAL_V3T_PROMO_THREAT_W
+    );
+  }
+
+  private evaluateV3WithWeights(
+    psqtW: Int16Array,
+    castleW: Int16Array,
+    fileDefenseW: Int16Array,
+    promoThreatW: Int16Array
+  ): number {
     // Base: material + the same lightweight terms as v2.
     let score = this.eval | 0;
 
@@ -677,26 +794,23 @@ export class KyokumenImproved {
     const phaseBucket = handTotal <= 2 ? 3 : handTotal <= 6 ? 2 : handTotal <= 10 ? 1 : 0;
     const phase = this.openingPhaseFactorFromHand(handTotal);
 
-    score += KyokumenImproved.scaleEvalV3(
-      this.psqtEval | 0,
-      KyokumenImproved.EVAL_V3_PSQT_W[phaseBucket] ?? 128
-    );
+    score += KyokumenImproved.scaleEvalV3(this.psqtEval | 0, psqtW[phaseBucket] ?? 128);
     score += this.evaluateHandBonus() | 0;
     score += this.evaluateKingSafetyV2WithPhase(phase) | 0;
     score += KyokumenImproved.scaleEvalV3(
       this.evaluateCastleShapes() | 0,
-      KyokumenImproved.EVAL_V3_CASTLE_W[phaseBucket] ?? 128
+      castleW[phaseBucket] ?? 128
     );
     score += this.evaluateMajorPieceActivity() | 0;
 
     // Phase-aware scaling for large opening heuristics.
     score += KyokumenImproved.scaleEvalV3(
       (this.evaluateFileDefense() + this.evaluateClimbingSilverPressure()) | 0,
-      KyokumenImproved.EVAL_V3_FILE_DEFENSE_W[phaseBucket] ?? 0
+      fileDefenseW[phaseBucket] ?? 0
     );
     score += KyokumenImproved.scaleEvalV3(
       this.evaluatePromotionThreats() | 0,
-      KyokumenImproved.EVAL_V3_PROMO_THREAT_W[phaseBucket] ?? 0
+      promoThreatW[phaseBucket] ?? 0
     );
 
     return score;

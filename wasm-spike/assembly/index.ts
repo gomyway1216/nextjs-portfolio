@@ -1509,6 +1509,196 @@ export function evaluateV3Full(): i32 {
 }
 
 // ---------------------------------------------------------------------------
+// NNUE-style neural evaluation (inference only)
+//
+// Mirrors the distillation net trained by ml/train.py and quantized by
+// ml/export-weights.py:
+//
+//   input  : 2268 board one-hot features (28 planes x 81 squares, normalized
+//            to the side-to-move perspective — the board is rotated 180° and
+//            colors are swapped when GOTE is to move, exactly like
+//            train.py parse_sfen) + 14 hand-count features (mine 7 / opp 7)
+//   net    : 2282 -> 256 -> 32 -> 1, ClippedReLU
+//   ints   : the exact integer pipeline of export-weights.py int_forward:
+//              acc  = b1 + Σ w1_board[feat] + Σ w1_hand[i]*count[i]   (i32)
+//              h1   = clamp(acc, 0, 127)
+//              h2   = clamp((w2 @ h1 + b2) >> 6, 0, 127)
+//              out_q = w3 @ h2 + b3          (= real_output * 127 * 64)
+//              cp   = out_q * K / (127*64)   (K = sigmoid scale, default 600)
+//
+// Weights live in a static region of WASM memory with the weights.bin layout
+// (int16/int32 little-endian, exactly as written by export-weights.py), so the
+// host can memcpy the file into getNnueWeightsPtr() without any repacking:
+//
+//   [w1_board int16 x 2268*256]  (feature-major)
+//   [w1_hand  int16 x 14*256]    (feature-major)
+//   [b1       int32 x 256]
+//   [w2       int16 x 32*256]    (row-major)
+//   [b2       int32 x 32]
+//   [w3       int16 x 32]
+//   [b3       int32 x 1]
+//
+// setNnueEnabled(1) switches the search leaf evaluation from evaluateV3Full()
+// to the NNUE net (same SENTE-positive sign convention at the leaf slot);
+// the default (0) leaves the engine behavior completely unchanged.
+// ---------------------------------------------------------------------------
+
+const NNUE_H1: i32 = 256;
+const NNUE_H2: i32 = 32;
+const NNUE_BOARD_FEATS: i32 = 28 * 81; // 2268
+const NNUE_HAND_FEATS: i32 = 14;
+
+// Byte offsets into the weights blob (weights.bin layout).
+const NNUE_W1B_OFF: i32 = 0;
+const NNUE_W1H_OFF: i32 = NNUE_W1B_OFF + NNUE_BOARD_FEATS * NNUE_H1 * 2; // 1,161,216
+const NNUE_B1_OFF: i32 = NNUE_W1H_OFF + NNUE_HAND_FEATS * NNUE_H1 * 2;  // 1,168,384
+const NNUE_W2_OFF: i32 = NNUE_B1_OFF + NNUE_H1 * 4;                     // 1,169,408
+const NNUE_B2_OFF: i32 = NNUE_W2_OFF + NNUE_H2 * NNUE_H1 * 2;           // 1,185,792
+const NNUE_W3_OFF: i32 = NNUE_B2_OFF + NNUE_H2 * 4;                     // 1,185,920
+const NNUE_B3_OFF: i32 = NNUE_W3_OFF + NNUE_H2 * 2;                     // 1,185,984
+const NNUE_TOTAL_BYTES: i32 = NNUE_B3_OFF + 4;                          // 1,185,988
+
+// Static, zero-initialized weight region (host memcpys weights.bin here).
+const NNUE_WEIGHTS: usize = memory.data(NNUE_TOTAL_BYTES, 8);
+
+// Engine komashu (koma & 0x0f) -> train.py piece kind (0..13):
+// [FU,KY,KE,GI,KI,KA,HI,OU,TO,NY,NK,NG,UM,RY]; slots 0 and 13 (unused) = -1.
+const NNUE_KIND = StaticArray.fromArray<i32>([
+  -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, -1, 12, 13,
+]);
+
+let nnueEnabled: bool = false;
+let nnueScaleK: i32 = 600; // k_sigmoid from weights.meta.json (cp = out_q * K / 8128)
+
+// Scratch accumulators (reused; no allocation during search).
+const nnueAcc = new StaticArray<i32>(NNUE_H1);
+
+/** Pointer to the weight region; memcpy weights.bin here (layout-identical). */
+export function getNnueWeightsPtr(): usize {
+  return NNUE_WEIGHTS;
+}
+
+/** Size of the weight region in bytes (must equal weights.bin size). */
+export function getNnueWeightsSize(): i32 {
+  return NNUE_TOTAL_BYTES;
+}
+
+/**
+ * Toggle the NNUE leaf evaluation (0 = evaluateV3Full, the default).
+ * Clears the eval cache so values from the two eval functions never mix.
+ */
+export function setNnueEnabled(flag: i32): void {
+  nnueEnabled = flag != 0;
+  initEvalCache();
+}
+
+/** Set the sigmoid scale K used to convert out_q to centipawns (default 600). */
+export function setNnueScaleK(k: i32): void {
+  nnueScaleK = k;
+}
+
+function nnueAddFeature(feat: i32): void {
+  const base = NNUE_WEIGHTS + <usize>(NNUE_W1B_OFF + feat * NNUE_H1 * 2);
+  for (let j = 0; j < NNUE_H1; j++) {
+    unchecked(nnueAcc[j] = nnueAcc[j] + <i32>load<i16>(base + (<usize>(j << 1))));
+  }
+}
+
+function nnueAddHand(idx: i32, count: i32): void {
+  const base = NNUE_WEIGHTS + <usize>(NNUE_W1H_OFF + idx * NNUE_H1 * 2);
+  for (let j = 0; j < NNUE_H1; j++) {
+    unchecked(nnueAcc[j] = nnueAcc[j] + <i32>load<i16>(base + (<usize>(j << 1))) * count);
+  }
+}
+
+/**
+ * Raw quantized network output out_q (side-to-move perspective), bit-identical
+ * to ml/export-weights.py int_forward on the same position. Read-only.
+ */
+export function nnueEvaluate(): i32 {
+  // Layer 1 accumulator: b1 + board features + hand features.
+  for (let j = 0; j < NNUE_H1; j++) {
+    unchecked(nnueAcc[j] = load<i32>(NNUE_WEIGHTS + <usize>(NNUE_B1_OFF + (j << 2))));
+  }
+
+  const stmSente = teban == SENTE;
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      const koma = unchecked(ban[(suji << 4) + dan]);
+      if (koma == EMPTY) continue;
+      const kind = unchecked(NNUE_KIND[koma & 0x0f]);
+      const isBlack = (koma & SENTE) != 0;
+      // Normalize to the side-to-move perspective (train.py parse_sfen):
+      // GOTE to move => rotate the board 180° and swap colors.
+      let mine: bool;
+      let s: i32;
+      let d: i32;
+      if (stmSente) {
+        mine = isBlack;
+        s = suji;
+        d = dan;
+      } else {
+        mine = !isBlack;
+        s = 10 - suji;
+        d = 10 - dan;
+      }
+      const plane = mine ? kind : kind + 14;
+      nnueAddFeature(plane * 81 + (s - 1) * 9 + (d - 1));
+    }
+  }
+
+  // Hand counts: mine 0..6, opponent 7..13, order FU,KY,KE,GI,KI,KA,HI
+  // (= train.py HAND_ORDER "PLNSGBR").
+  const oppSide = teban == SENTE ? GOTE : SENTE;
+  for (let type = FU; type <= HI; type++) {
+    const cMine = unchecked(hand[teban | type]);
+    if (cMine > 0) nnueAddHand(type - 1, cMine);
+    const cOpp = unchecked(hand[oppSide | type]);
+    if (cOpp > 0) nnueAddHand(type - 1 + 7, cOpp);
+  }
+
+  // h1 = clamp(acc, 0, 127) — clamp in place.
+  for (let j = 0; j < NNUE_H1; j++) {
+    let v = unchecked(nnueAcc[j]);
+    if (v < 0) v = 0;
+    else if (v > 127) v = 127;
+    unchecked(nnueAcc[j] = v);
+  }
+
+  // Layer 2 + output layer: h2 = clamp((w2 @ h1 + b2) >> 6, 0, 127).
+  let outQ = load<i32>(NNUE_WEIGHTS + <usize>NNUE_B3_OFF);
+  for (let i = 0; i < NNUE_H2; i++) {
+    let a2 = load<i32>(NNUE_WEIGHTS + <usize>(NNUE_B2_OFF + (i << 2)));
+    const rowBase = NNUE_WEIGHTS + <usize>(NNUE_W2_OFF + i * NNUE_H1 * 2);
+    for (let j = 0; j < NNUE_H1; j++) {
+      a2 += <i32>load<i16>(rowBase + (<usize>(j << 1))) * unchecked(nnueAcc[j]);
+    }
+    let h2 = a2 >> 6;
+    if (h2 < 0) h2 = 0;
+    else if (h2 > 127) h2 = 127;
+    outQ += <i32>load<i16>(NNUE_WEIGHTS + <usize>(NNUE_W3_OFF + (i << 1))) * h2;
+  }
+  return outQ;
+}
+
+/**
+ * NNUE evaluation in centipawns from the side-to-move perspective:
+ * cp = trunc(out_q * K / (127*64)) — i64 intermediate, truncation toward zero.
+ */
+export function nnueEvaluateCp(): i32 {
+  return <i32>((<i64>nnueEvaluate() * <i64>nnueScaleK) / 8128);
+}
+
+/** NNUE eval micro-bench: run nnueEvaluate() `iters` times inside the module. */
+export function benchNnueEvaluate(iters: i32): i32 {
+  let acc = 0;
+  for (let i = 0; i < iters; i++) {
+    acc = (acc + nnueEvaluate()) | 0;
+  }
+  return acc;
+}
+
+// ---------------------------------------------------------------------------
 // Harness API (parity.ts / bench-wasm.mjs)
 // ---------------------------------------------------------------------------
 
@@ -1686,6 +1876,21 @@ export function clearTT(): void {
 }
 
 function evaluateSenteCached(): i32 {
+  if (nnueEnabled) {
+    // NNUE output depends on the side to move (the board is normalized to the
+    // stm perspective), so the cache key must include teban — unlike
+    // evaluateV3Full, which is teban-independent.
+    const nKey = banHash ^ handHash ^ (teban == GOTE ? TEBAN_HASH_SEED : 0);
+    const nIndex = nKey & EVAL_CACHE_MASK;
+    if (unchecked(evalCacheKeyA[nIndex]) == nKey) return unchecked(evalCacheValA[nIndex]);
+    // Same SENTE-positive convention as evaluateV3Full at the leaf slot:
+    // nnueEvaluateCp() is stm-positive, so negate for GOTE.
+    const stmCp = nnueEvaluateCp();
+    const nValue = teban == SENTE ? stmCp : -stmCp;
+    unchecked(evalCacheKeyA[nIndex] = nKey);
+    unchecked(evalCacheValA[nIndex] = nValue);
+    return nValue;
+  }
   const key = banHash ^ handHash;
   const index = key & EVAL_CACHE_MASK;
   if (unchecked(evalCacheKeyA[index]) == key) return unchecked(evalCacheValA[index]);

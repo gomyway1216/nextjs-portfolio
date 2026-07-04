@@ -15,6 +15,10 @@ wasm-spike/
   bench-wasm.mjs         # WASM 側 perft ベンチ
   bench-eval.ts          # evaluateV3 の JS vs WASM ベンチ（各局面 10 万回呼び出し）
   parity.ts              # JS⇄WASM パリティハーネス（合法手数・Zobrist ビット一致・evaluateV3 整数一致検証）
+  nnue-ref.ts            # NNUE int_forward の TS 参照実装（特徴抽出・SFEN パーサ・ダミー重み生成）
+  nnue-parity.ts         # NNUE AS⇄TS パリティ（ダミー重み、1000 局面ビット一致）
+  nnue-bench.ts          # NNUE eval 単体 + 3秒探索ベンチ（on/off 比較）
+  nnue-verify-reference.ts # 実重み照合（ml/dump-reference.py の出力と 3-way 照合）
 scripts/shogi-perft-js.ts # JS 側 perft ベンチ（既存エンジンをそのまま使用）
 src/components/game/ShogiImproved/wasm/shogi.wasm # ビルド成果物（25KB、フェーズ4で本番位置へ移設。ここが唯一の正）
 src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts # 上記の base64 埋め込み（gen-wasm-base64.mjs で再生成）
@@ -160,6 +164,29 @@ perft 値（王手放置チェックあり合法手数え上げ）が **JS / WAS
 ### 対戦（`node -r tsx/cjs wasm-spike/match-wasm-vs-js.ts`）
 
 WASM ハイブリッド vs JS V20、各手 200ms、curated opening 6手、10局（先後交替）: **WASM 10勝 0敗 0分**。全手合法性検証つき（違法手は即エラー終了）。
+
+## NNUE 風ニューラル評価（推論）
+
+`ml/` の蒸留パイプライン（`train.py` → `export-weights.py`）で学習した小型 NN の**推論**を AssemblyScript に実装した（`assembly/index.ts` の NNUE セクション）。デフォルトは無効で、有効化しない限りエンジンの挙動は従来と完全に同一（parity.ts 4,184 局面 / search-driver 48/48 EXACT で確認済み）。
+
+- **特徴変換**: `train.py parse_sfen` と同一仕様を盤面表現（`ban[(suji<<4)+dan]`）から直接計算。手番側視点に正規化（後手番は盤 180 度回転＋色入替）、28 プレーン×81 マスの one-hot index ＋ 持ち駒 14 次元（自分 7 / 相手 7、FU..HI 順）。python `parse_sfen` との一致はスクリプト照合済み（成駒・持駒・後手番回転含む）。
+- **整数演算**: `export-weights.py int_forward` とビット一致 — `acc = b1 + Σw1_board[feat] + Σw1_hand[i]*count[i]`（i32）→ `clamp(0,127)` → `h2 = clamp((w2@h1 + b2)>>6, 0,127)` → `out_q = w3@h2 + b3`。cp 変換は `trunc(out_q * K / 8128)`（i64 経由、K は `weights.meta.json` の k_sigmoid、デフォルト 600）。
+- **重みロード**: `getNnueWeightsPtr()` が指す WASM メモリ静的領域（1,185,988 bytes）へ `weights.bin` をそのまま memcpy（レイアウト同一、再パック不要）。`getNnueWeightsSize()` でサイズ検証、`setNnueScaleK(k)` で K 設定。
+- **探索統合**: `setNnueEnabled(1)` で探索の葉評価（`evaluateSenteCached`）が `nnueEvaluateCp()`（SENTE 視点へ符号調整、evaluateV3Full と同じ規約）に切替わる。NNUE は手番依存のため eval キャッシュキーに手番シードを含める。`setNnueEnabled(0)`（デフォルト）で従来の `evaluateV3Full`。
+- **exports**: `getNnueWeightsPtr/Size`, `setNnueEnabled`, `setNnueScaleK`, `nnueEvaluate()`（raw out_q, int_forward とビット一致）, `nnueEvaluateCp()`, `benchNnueEvaluate(iters)`。
+
+### 検証
+
+```sh
+node -r tsx/cjs wasm-spike/nnue-parity.ts    # AS vs TS 参照実装（ダミー重み）
+node -r tsx/cjs wasm-spike/nnue-bench.ts     # eval 単体 10万回 + 3秒探索 nnue on/off
+# 実重み照合（torch 環境で ml/dump-reference.py を先に実行 → ml/README.md 参照）
+node -r tsx/cjs wasm-spike/nnue-verify-reference.ts <weights.bin> <reference.json>
+```
+
+- `nnue-ref.ts` = int_forward の TS 移植（`|0` の i32 演算）＋特徴抽出＋ SFEN パーサ＋ダミー重み生成。
+- **パリティ**: シード付きダミー重み（weights.bin 互換バッファ）でランダム自己対局 **1,000 局面**の AS vs TS が out_q / cp とも**ビット一致**（後手番 496 / 持駒あり 681 局面を含む）。NNUE 有効時の探索が合法手を返すことも確認。
+- **速度**（macOS / Apple Silicon / node v20、10 万回 best-of-3）: `nnueEvaluate` ≈ **6.7µs/回**（`evaluateV3Full` ≈ 0.86µs の約 7.8 倍）。3 秒探索の到達深さは v3full の 11〜12 に対し **nnue 6〜7**（葉が約 8 倍重いため）。差分更新 accumulator（make/unmake で第1層を増分維持）を実装すれば葉あたり ≈ w2/w3 の行列積のみになり大幅短縮できる — 現状は毎回フル再計算。
 
 ## 省略したもの（caveats）
 

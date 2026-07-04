@@ -32,9 +32,10 @@ weights.bin のレイアウト (すべて int16 LE, ただし bias は int32 LE)
 """
 
 import argparse
+import array
 import json
 import os
-import struct
+import sys
 
 import torch
 
@@ -140,8 +141,15 @@ def main():
             ("w1_board", "h"), ("w1_hand", "h"), ("b1", "i"),
             ("w2", "h"), ("b2", "i"), ("w3", "h"), ("b3", "i"),
         ]:
-            flat = q[name].flatten().tolist()
-            f.write(struct.pack(f"<{len(flat)}{dtype}", *flat))
+            # 巨大テンソルを struct.pack(*flat) で引数展開すると引数上限に達し得るため
+            # array モジュールでまとめてバイト列化する(レイアウトは LE 固定)。
+            arr = array.array(dtype, q[name].flatten().tolist())
+            assert arr.itemsize == (2 if dtype == "h" else 4), (
+                f"unexpected itemsize {arr.itemsize} for '{dtype}'"
+            )
+            if sys.byteorder == "big":
+                arr.byteswap()
+            f.write(arr.tobytes())
     meta_path = os.path.join(out_dir, "weights.meta.json")
     with open(meta_path, "w") as f:
         json.dump(meta, f, ensure_ascii=False, indent=2)
@@ -182,8 +190,11 @@ def main():
                 n += 1
                 if n >= args.verify_n:
                     break
-        mean_d = sum(diffs) / len(diffs)
-        print(f"[export] verify n={n}: mean |cp_float - cp_int| = {mean_d:.2f}cp, max = {max(diffs):.2f}cp")
+        if diffs:
+            mean_d = sum(diffs) / len(diffs)
+            print(f"[export] verify n={n}: mean |cp_float - cp_int| = {mean_d:.2f}cp, max = {max(diffs):.2f}cp")
+        else:
+            print("[export] verify: no valid positions found in verify file — skipped")
 
 
 if __name__ == "__main__":

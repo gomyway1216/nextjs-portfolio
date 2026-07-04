@@ -1,4 +1,12 @@
 /**
+ * FROZEN SNAPSHOT — do not develop against this file.
+ *
+ * This is the V20 engine as of commit da68e0b (pre-V20.1 / pre-continuation-history), kept verbatim
+ * (classes renamed with a `Base` suffix) so `scripts/shogi-ai-match.ts` can run sensitive
+ * self-play A/B matches: `--engineA v20 --engineB v20base`. The match script rejects identical
+ * engine names on both sides, so a frozen copy is the only way to benchmark V20 against itself.
+ * It is not exported from the game UI and should never be imported outside the match script.
+ *
  * Shogi AI (Improved / Fast Engine)
  *
  * Why this exists:
@@ -27,14 +35,6 @@
  * V18 additions:
  * - Lightweight per-node attack/defense cache for move ordering.
  * - "Hanging drop" ordering at all plies using cheap cached attack scans (reduces suicidal drops without make/unmake).
- *
- * V20.1 additions:
- * - Continuation history: a (previous move piece+to, reply piece+to) score table used in move ordering,
- *   generalizing the countermove heuristic to a graded signal. (~40% fewer nodes to the same depth in
- *   midgame benchmarks.)
- *   Tried and rejected after A/B matches vs the pre-V20.1 engine: ProbCut (per-capture, qsearch-filtered,
- *   margins 300/500 — cut real tactics at short time controls) and history gravity (halving history
- *   between iterative-deepening passes — strictly worse at 200ms/move).
  *
  * V19 additions:
  * - Futility pruning at frontier nodes (depthLeft <= 2): skips quiet moves when stand-pat + margin can't reach alpha,
@@ -115,7 +115,7 @@ class TimeUpError extends Error {
  * - Most strength comes from being able to search deeper (speed), then from move ordering, then evaluation.
  * - The evaluation is intentionally simple; this project prioritizes responsiveness.
  */
-export class ShogiAIImprovedV20 {
+export class ShogiAIImprovedV20Base {
   private static readonly INFINITE = 99_999_999;
   private static readonly MATE = 90_000_000;
   private static readonly MAX_PLY = 64;
@@ -181,8 +181,8 @@ export class ShogiAIImprovedV20 {
   // V19: skip clearly losing captures inside quiescence (SEE-lite via cached attack scans).
   private enableQSeePruning = false;
 
-  private killer1: number[] = new Array(ShogiAIImprovedV20.MAX_PLY).fill(0);
-  private killer2: number[] = new Array(ShogiAIImprovedV20.MAX_PLY).fill(0);
+  private killer1: number[] = new Array(ShogiAIImprovedV20Base.MAX_PLY).fill(0);
+  private killer2: number[] = new Array(ShogiAIImprovedV20Base.MAX_PLY).fill(0);
   private history = new Map<number, number>();
 
   // V19: countermove heuristic.
@@ -190,19 +190,7 @@ export class ShogiAIImprovedV20 {
   // We remember, per previous-move key, the quiet move that last caused a beta cutoff in response.
   private counterMove = new Map<number, number>();
   // The move key that led into each ply on the current search path (index = ply).
-  private prevKeyByPly: number[] = new Array(ShogiAIImprovedV20.MAX_PLY).fill(0);
-
-  // Continuation history (V20.1): generalization of the countermove heuristic.
-  // Indexed by (previous move's piece+to, current move's piece+to) — "after the opponent puts piece X
-  // on square A, moving piece Y to square B tends to cause cutoffs". Unlike `counterMove` (one move per
-  // key) this is a graded score added to ordering, so it also helps rank non-refutation quiet moves.
-  //
-  // Index compression: pieceType (0..15) * 81 board squares = 1296 states per move; side is implied
-  // (the previous move is always by the opponent of the side to move). Flat Int32Array of 1296^2.
-  private static readonly CONT_HIST_DIM = 1296;
-  private contHist = new Int32Array(ShogiAIImprovedV20.CONT_HIST_DIM * ShogiAIImprovedV20.CONT_HIST_DIM);
-  // pieceTo-index of the move that led into each ply on the current search path (-1 = unknown/root).
-  private prevPtByPly: number[] = new Array(ShogiAIImprovedV20.MAX_PLY).fill(-1);
+  private prevKeyByPly: number[] = new Array(ShogiAIImprovedV20Base.MAX_PLY).fill(0);
 
   private rootBest: Te | null = null;
 
@@ -221,7 +209,7 @@ export class ShogiAIImprovedV20 {
 
   // Per-ply move list pool (V11): reduces allocations by reusing `Te` objects across nodes.
   private moveLists: MoveListImproved[] = Array.from(
-    { length: ShogiAIImprovedV20.MAX_PLY },
+    { length: ShogiAIImprovedV20Base.MAX_PLY },
     () => new MoveListImproved()
   );
 
@@ -237,11 +225,11 @@ export class ShogiAIImprovedV20 {
   private static readonly ATTACK_CACHE_SQUARES = 256;
   private static readonly ATTACK_CACHE_INF = 0x7fffffff;
 
-  private attackEpochByPly = new Int32Array(ShogiAIImprovedV20.MAX_PLY);
-  private attackStampSente = new Int32Array(ShogiAIImprovedV20.MAX_PLY * ShogiAIImprovedV20.ATTACK_CACHE_SQUARES);
-  private attackStampGote = new Int32Array(ShogiAIImprovedV20.MAX_PLY * ShogiAIImprovedV20.ATTACK_CACHE_SQUARES);
-  private attackValSente = new Int32Array(ShogiAIImprovedV20.MAX_PLY * ShogiAIImprovedV20.ATTACK_CACHE_SQUARES);
-  private attackValGote = new Int32Array(ShogiAIImprovedV20.MAX_PLY * ShogiAIImprovedV20.ATTACK_CACHE_SQUARES);
+  private attackEpochByPly = new Int32Array(ShogiAIImprovedV20Base.MAX_PLY);
+  private attackStampSente = new Int32Array(ShogiAIImprovedV20Base.MAX_PLY * ShogiAIImprovedV20Base.ATTACK_CACHE_SQUARES);
+  private attackStampGote = new Int32Array(ShogiAIImprovedV20Base.MAX_PLY * ShogiAIImprovedV20Base.ATTACK_CACHE_SQUARES);
+  private attackValSente = new Int32Array(ShogiAIImprovedV20Base.MAX_PLY * ShogiAIImprovedV20Base.ATTACK_CACHE_SQUARES);
+  private attackValGote = new Int32Array(ShogiAIImprovedV20Base.MAX_PLY * ShogiAIImprovedV20Base.ATTACK_CACHE_SQUARES);
 
   /**
    * `tt` is injected so callers can reuse a transposition table across moves (stronger) or create a fresh one (clean).
@@ -249,24 +237,24 @@ export class ShogiAIImprovedV20 {
   constructor(tt: TranspositionTableImprovedPacked = new TranspositionTableImprovedPacked()) {
     this.tt = tt;
 
-    this.evalCacheKeyV1 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
-    this.evalCacheValV1 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
-    this.evalCacheKeyV2 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
-    this.evalCacheValV2 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
-    this.evalCacheKeyV3 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
-    this.evalCacheValV3 = new Int32Array(ShogiAIImprovedV20.EVAL_CACHE_SIZE);
+    this.evalCacheKeyV1 = new Int32Array(ShogiAIImprovedV20Base.EVAL_CACHE_SIZE);
+    this.evalCacheValV1 = new Int32Array(ShogiAIImprovedV20Base.EVAL_CACHE_SIZE);
+    this.evalCacheKeyV2 = new Int32Array(ShogiAIImprovedV20Base.EVAL_CACHE_SIZE);
+    this.evalCacheValV2 = new Int32Array(ShogiAIImprovedV20Base.EVAL_CACHE_SIZE);
+    this.evalCacheKeyV3 = new Int32Array(ShogiAIImprovedV20Base.EVAL_CACHE_SIZE);
+    this.evalCacheValV3 = new Int32Array(ShogiAIImprovedV20Base.EVAL_CACHE_SIZE);
 
-    this.evalCacheKeyV1.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
-    this.evalCacheKeyV2.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
-    this.evalCacheKeyV3.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV1.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV2.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV3.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
   }
 
   clearTT(): void {
     this.tt.clear();
     // Also clear eval caches for reproducibility across games (optional but helps deterministic benchmarks).
-    this.evalCacheKeyV1.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
-    this.evalCacheKeyV2.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
-    this.evalCacheKeyV3.fill(ShogiAIImprovedV20.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV1.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV2.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV3.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
   }
 
   getStats(): { nodes: number; leaves: number; ttUsage: number } {
@@ -370,7 +358,7 @@ export class ShogiAIImprovedV20 {
 
   private evaluateSenteCached(k: KyokumenImproved): number {
     const key = (k.BanHash ^ k.HandHash) | 0;
-    const index = key & (ShogiAIImprovedV20.EVAL_CACHE_SIZE - 1);
+    const index = key & (ShogiAIImprovedV20Base.EVAL_CACHE_SIZE - 1);
 
     if (this.evaluationMode === 'v1') {
       if (this.evalCacheKeyV1[index] === key) return this.evalCacheValV1[index] | 0;
@@ -454,16 +442,6 @@ export class ShogiAIImprovedV20 {
     return piece | (from << 6) | (to << 14) | (promote << 22);
   }
 
-  /**
-   * Compact (pieceType, toSquare) index for the continuation-history table.
-   * Side is intentionally excluded: at any given ply the mover's side is fixed, so it carries no signal.
-   */
-  private pieceToIndex(te: Te): number {
-    const toSuji = te.to >> 4;
-    const toDan = te.to & 0x0f;
-    return getKomashu(te.koma) * 81 + (toSuji - 1) * 9 + (toDan - 1);
-  }
-
   private teFromMoveKey(key: number, k: KyokumenImproved): Te {
     const koma = key & 0x3f;
     const from = (key >> 6) & 0xff;
@@ -476,7 +454,7 @@ export class ShogiAIImprovedV20 {
   private recordKiller(ply: number, key: number): void {
     // "Killer moves" are non-captures that caused a beta cutoff at the same ply elsewhere.
     // They are often good again in similar tactical shapes.
-    if (ply < 0 || ply >= ShogiAIImprovedV20.MAX_PLY) return;
+    if (ply < 0 || ply >= ShogiAIImprovedV20Base.MAX_PLY) return;
     if (this.killer1[ply] !== key) {
       this.killer2[ply] = this.killer1[ply];
       this.killer1[ply] = key;
@@ -488,7 +466,7 @@ export class ShogiAIImprovedV20 {
   }
 
   private beginAttackCacheForNode(ply: number): void {
-    if (ply < 0 || ply >= ShogiAIImprovedV20.MAX_PLY) return;
+    if (ply < 0 || ply >= ShogiAIImprovedV20Base.MAX_PLY) return;
     let next = (this.attackEpochByPly[ply] + 1) | 0;
     // `0` is treated as "unset" in stamp arrays, so avoid it.
     if (next === 0) {
@@ -512,14 +490,14 @@ export class ShogiAIImprovedV20 {
 
     if ((stamp[index] | 0) === epoch) {
       const cached = val[index] | 0;
-      return cached === ShogiAIImprovedV20.ATTACK_CACHE_INF ? Infinity : cached;
+      return cached === ShogiAIImprovedV20Base.ATTACK_CACHE_INF ? Infinity : cached;
     }
 
     const computed = GenerateMovesImproved.getLeastAttackerValue(k, target, defender);
-    const stored = Number.isFinite(computed) ? ((computed | 0) & 0x7fffffff) : ShogiAIImprovedV20.ATTACK_CACHE_INF;
+    const stored = Number.isFinite(computed) ? ((computed | 0) & 0x7fffffff) : ShogiAIImprovedV20Base.ATTACK_CACHE_INF;
     stamp[index] = epoch;
     val[index] = stored;
-    return stored === ShogiAIImprovedV20.ATTACK_CACHE_INF ? Infinity : stored;
+    return stored === ShogiAIImprovedV20Base.ATTACK_CACHE_INF ? Infinity : stored;
   }
 
   /**
@@ -606,22 +584,14 @@ export class ShogiAIImprovedV20 {
 
     // Countermove heuristic (V19): the quiet move that refuted the same previous move elsewhere
     // is likely to refute it here too. Slightly below killers in priority.
-    if (ply > 0 && ply < ShogiAIImprovedV20.MAX_PLY) {
+    if (ply > 0 && ply < ShogiAIImprovedV20Base.MAX_PLY) {
       const prevKey = this.prevKeyByPly[ply] | 0;
       if (prevKey !== 0 && this.counterMove.get(prevKey) === key) score += 1_200_000;
     }
 
-    // 2) Long-term ordering signals (history + continuation history)
+    // 2) Long-term ordering signal
     const historyScore = this.history.get(key);
     if (historyScore) score += historyScore;
-
-    // Continuation history (V20.1): graded "reply quality" signal for the previous move on the path.
-    if (ply > 0 && ply < ShogiAIImprovedV20.MAX_PLY) {
-      const prevPt = this.prevPtByPly[ply] | 0;
-      if (prevPt >= 0) {
-        score += this.contHist[prevPt * ShogiAIImprovedV20.CONT_HIST_DIM + this.pieceToIndex(te)] | 0;
-      }
-    }
 
     // 3) Promotions are usually correct/forcing in shogi.
     if (te.promote) score += 400_000;
@@ -934,7 +904,7 @@ export class ShogiAIImprovedV20 {
     // Hard ply cap: the per-ply pools/caches (move lists, killers, attack cache) are sized for MAX_PLY.
     // Going past it would index typed arrays out of bounds (silently corrupting the attack cache),
     // and extremely long check chains must terminate somewhere anyway.
-    if (ply >= ShogiAIImprovedV20.MAX_PLY - 1) {
+    if (ply >= ShogiAIImprovedV20Base.MAX_PLY - 1) {
       return this.evalForSideToMove(k);
     }
     // Quiescence search:
@@ -1111,7 +1081,7 @@ export class ShogiAIImprovedV20 {
 
       // In shogi, "no legal moves while in check" is checkmate.
       // (While in check no pruning path above skips a move, so this is exact.)
-      if (inCheck && legalTried === 0) return -ShogiAIImprovedV20.MATE + ply;
+      if (inCheck && legalTried === 0) return -ShogiAIImprovedV20Base.MATE + ply;
 
       return alpha;
     } finally {
@@ -1125,7 +1095,7 @@ export class ShogiAIImprovedV20 {
     }
 
     // Hard ply cap (see quiescence): protects the per-ply pools/caches from out-of-bounds access.
-    if (ply >= ShogiAIImprovedV20.MAX_PLY - 1) {
+    if (ply >= ShogiAIImprovedV20Base.MAX_PLY - 1) {
       return this.evalForSideToMove(k);
     }
 
@@ -1140,9 +1110,9 @@ export class ShogiAIImprovedV20 {
 
       // Mate-distance bounds:
       // Stabilize the search around mate scores and avoid searching outside possible mate-in-N ranges.
-      const alphaMate = -ShogiAIImprovedV20.MATE + ply;
+      const alphaMate = -ShogiAIImprovedV20Base.MATE + ply;
       if (alpha < alphaMate) alpha = alphaMate;
-      const betaMate = ShogiAIImprovedV20.MATE - ply;
+      const betaMate = ShogiAIImprovedV20Base.MATE - ply;
       if (beta > betaMate) beta = betaMate;
       if (alpha >= beta) return alpha;
 
@@ -1189,8 +1159,8 @@ export class ShogiAIImprovedV20 {
       if (
         !parentInCheck &&
         depthLeft <= 3 &&
-        beta > -ShogiAIImprovedV20.MATE + 10_000 &&
-        beta < ShogiAIImprovedV20.MATE - 10_000
+        beta > -ShogiAIImprovedV20Base.MATE + 10_000 &&
+        beta < ShogiAIImprovedV20Base.MATE - 10_000
       ) {
         const staticEval = this.evalForSideToMove(k);
         if (staticEval - 200 * depthLeft >= beta) return staticEval;
@@ -1238,8 +1208,8 @@ export class ShogiAIImprovedV20 {
         this.enableFutility &&
         !parentInCheck &&
         depthLeft <= 2 &&
-        alpha > -ShogiAIImprovedV20.MATE + 10_000 &&
-        beta < ShogiAIImprovedV20.MATE - 10_000;
+        alpha > -ShogiAIImprovedV20Base.MATE + 10_000 &&
+        beta < ShogiAIImprovedV20Base.MATE - 10_000;
       const futilityScore = futilityApplicable
         ? this.evalForSideToMove(k) + (depthLeft <= 1 ? this.futilityMargin1 : this.futilityMargin2)
         : 0;
@@ -1255,7 +1225,7 @@ export class ShogiAIImprovedV20 {
         this.enableFutility &&
         !parentInCheck &&
         depthLeft <= 3 &&
-        alpha > -ShogiAIImprovedV20.MATE + 10_000;
+        alpha > -ShogiAIImprovedV20Base.MATE + 10_000;
       const lmpThreshold = 7 + 5 * depthLeft;
 
       for (const te of moves) {
@@ -1315,11 +1285,8 @@ export class ShogiAIImprovedV20 {
         }
         legalTried++;
         this.toggleTeban(k);
-        // Track the path move so child nodes can use the countermove / continuation-history heuristics.
-        if (ply + 1 < ShogiAIImprovedV20.MAX_PLY) {
-          this.prevKeyByPly[ply + 1] = this.moveKey(te);
-          this.prevPtByPly[ply + 1] = this.pieceToIndex(te);
-        }
+        // Track the path move so child nodes can use the countermove heuristic (V19).
+        if (ply + 1 < ShogiAIImprovedV20Base.MAX_PLY) this.prevKeyByPly[ply + 1] = this.moveKey(te);
 
         const baseDepthNext = depthLeft - 1;
         const canCheckExtend = this.enableCheckExtension && ply <= this.checkExtensionMaxPly;
@@ -1390,15 +1357,9 @@ export class ShogiAIImprovedV20 {
             if (te.capture === EMPTY) {
               this.recordKiller(ply, key);
               // V19: remember this quiet move as the refutation of the previous move (countermove heuristic).
-              if (ply > 0 && ply < ShogiAIImprovedV20.MAX_PLY) {
+              if (ply > 0 && ply < ShogiAIImprovedV20Base.MAX_PLY) {
                 const prevKey = this.prevKeyByPly[ply] | 0;
                 if (prevKey !== 0) this.counterMove.set(prevKey, key);
-                // Continuation history (V20.1): graded version of the same signal.
-                const prevPt = this.prevPtByPly[ply] | 0;
-                if (prevPt >= 0) {
-                  const idx = prevPt * ShogiAIImprovedV20.CONT_HIST_DIM + this.pieceToIndex(te);
-                  this.contHist[idx] = (this.contHist[idx] | 0) + depthLeft * depthLeft;
-                }
               }
             }
             this.recordHistory(key, depthLeft);
@@ -1414,7 +1375,7 @@ export class ShogiAIImprovedV20 {
       //   is sound — pruned moves were quiet and cannot be the only legal ones while in check,
       //   because all pruning is disabled when `parentInCheck`.
       if (legalTried === 0) {
-        if (!prunedAny) return parentInCheck ? -ShogiAIImprovedV20.MATE + ply : 0;
+        if (!prunedAny) return parentInCheck ? -ShogiAIImprovedV20Base.MATE + ply : 0;
         return alpha;
       }
 
@@ -1499,8 +1460,6 @@ export class ShogiAIImprovedV20 {
     this.history.clear();
     this.counterMove.clear();
     this.prevKeyByPly.fill(0);
-    this.contHist.fill(0);
-    this.prevPtByPly.fill(-1);
     this.repetitionCount.clear();
     this.repetitionStack.length = 0;
 
@@ -1530,7 +1489,7 @@ export class ShogiAIImprovedV20 {
 	    this.scoreAndSortMoves(position, rootMoves, 0, ttMoveKeyAtRoot, ttSecondMoveKeyAtRoot);
 
     let bestMove: Te | null = rootMoves[0].clone();
-    let bestScore = -ShogiAIImprovedV20.INFINITE;
+    let bestScore = -ShogiAIImprovedV20Base.INFINITE;
     // Small 1-ply sanity selection among the top candidates (cheap but helps a lot under tight time limits).
     for (let i = 0; i < Math.min(6, rootMoves.length); i++) {
       const te = rootMoves[i];
@@ -1560,8 +1519,8 @@ export class ShogiAIImprovedV20 {
         //
         // Benefit: fewer nodes on average at deeper depths because most searches stay inside the window.
         const useAspiration = this.enableAspiration && depth >= 2 && bestMove !== null;
-        const alpha0 = useAspiration ? bestScore - this.aspirationWindow : -ShogiAIImprovedV20.INFINITE;
-        const beta0 = useAspiration ? bestScore + this.aspirationWindow : ShogiAIImprovedV20.INFINITE;
+        const alpha0 = useAspiration ? bestScore - this.aspirationWindow : -ShogiAIImprovedV20Base.INFINITE;
+        const beta0 = useAspiration ? bestScore + this.aspirationWindow : ShogiAIImprovedV20Base.INFINITE;
 
         let score = this.search(position, depth, alpha0, beta0, 0);
         if (useAspiration && (score <= alpha0 || score >= beta0)) {
@@ -1573,7 +1532,7 @@ export class ShogiAIImprovedV20 {
           score = this.search(position, depth, alpha1, beta1, 0);
           if (score <= alpha1 || score >= beta1) {
             this.resetRootBest();
-            score = this.search(position, depth, -ShogiAIImprovedV20.INFINITE, ShogiAIImprovedV20.INFINITE, 0);
+            score = this.search(position, depth, -ShogiAIImprovedV20Base.INFINITE, ShogiAIImprovedV20Base.INFINITE, 0);
           }
         }
 
@@ -1585,7 +1544,7 @@ export class ShogiAIImprovedV20 {
         }
 
         // If a forced mate is found, stop early.
-        if (bestScore >= ShogiAIImprovedV20.MATE - 10_000) break;
+        if (bestScore >= ShogiAIImprovedV20Base.MATE - 10_000) break;
       } catch (e) {
         if (e instanceof TimeUpError) break;
         throw e;
@@ -1597,7 +1556,7 @@ export class ShogiAIImprovedV20 {
     if (options.debug) {
       const elapsed = this.nowMs() - start;
       console.log(
-        `[ShogiAIImprovedV20] depth=${completedDepth}/${maxDepth} score=${bestScore} nodes=${this.node} leaves=${this.leaf} time=${Math.round(elapsed)}ms`
+        `[ShogiAIImprovedV20Base] depth=${completedDepth}/${maxDepth} score=${bestScore} nodes=${this.node} leaves=${this.leaf} time=${Math.round(elapsed)}ms`
       );
     }
 
@@ -1607,14 +1566,14 @@ export class ShogiAIImprovedV20 {
 
 // Shared instance so the TT can persist across moves during a single game.
 // This noticeably improves strength at the same time budget because many positions reoccur (especially via transpositions).
-const sharedAIV20 = new ShogiAIImprovedV20();
+const sharedAIV20Base = new ShogiAIImprovedV20Base();
 
 /**
  * Exported helper for UI/script compatibility.
  * Used by `/games/shogi-improved` and the fast-search path in `/games/shogi`.
  */
-export function getBestMoveV20(k: KyokumenImproved, teban: number, difficulty: Difficulty, tesu: number = 0): Te | null {
+export function getBestMoveV20Base(k: KyokumenImproved, teban: number, difficulty: Difficulty, tesu: number = 0): Te | null {
   // The UI passes `teban` explicitly; keep the position consistent.
   k.setTeban(teban);
-  return sharedAIV20.getNextTe(k, tesu, { difficulty });
+  return sharedAIV20Base.getNextTe(k, tesu, { difficulty });
 }

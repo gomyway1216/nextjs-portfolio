@@ -1,12 +1,10 @@
 /**
- * FROZEN SNAPSHOT — do not develop against this file.
- *
- * This is the V20 engine as of commit da68e0b (pre-V20.1 / pre-continuation-history), kept verbatim
- * (classes renamed with a `Base` suffix) so `scripts/shogi-ai-match.ts` can run sensitive
- * self-play A/B matches: `--engineA v20 --engineB v20base`. The match script rejects identical
- * engine names on both sides, so a frozen copy is the only way to benchmark V20 against itself.
- * It is not exported from the game UI and should never be imported outside the match script.
- *
+ * FROZEN BASELINE COPY of ShogiAIImprovedV20Base.ts wired to OpeningBookImprovedBase (the pre
+ * 2026-07 opening book). Exists so `npm run shogi:match -- --engineB v20base` can A/B the
+ * expanded book against the previous one with an otherwise identical engine.
+ * Do not edit; regenerate from git history if needed.
+ */
+/**
  * Shogi AI (Improved / Fast Engine)
  *
  * Why this exists:
@@ -64,7 +62,7 @@
 		import { KyokumenImproved } from './KyokumenImproved';
 		import { GenerateMovesImproved } from './GenerateMovesImproved';
 		import { MoveListImproved } from './MoveListImproved';
-		import { getOpeningMoveImproved } from './OpeningBookImproved';
+		import { getOpeningMoveImproved } from './OpeningBookImprovedBase';
 		import { TranspositionTableImprovedPacked } from './TranspositionTableImprovedPacked';
 		import { Difficulty } from '../common/types';
 

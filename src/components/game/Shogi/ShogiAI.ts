@@ -501,8 +501,8 @@ export class ShogiAI {
     moveNumber: number = 0,
     moveHistory: Te[] = []
   ): Te | null {
-    // Opening book for first 12 plies
-    if (moveNumber <= 12) {
+    // Opening book for the curated opening window (longest line = 18 plies)
+    if (moveNumber <= 18) {
       const openingMove = getOpeningMoveValidated(k, moveNumber, k.teban, moveHistory, { difficulty: this.difficulty });
       if (openingMove) {
         console.log(`Using opening book move (move ${moveNumber})`);
@@ -595,8 +595,8 @@ export function getBestMove(
   // Ensure caller-provided turn is applied.
   k.teban = teban;
 
-  // Opening book for first 12 plies (keeps variety and avoids slow early searches).
-  if (moveNumber <= 12) {
+  // Opening book for the curated opening window (keeps variety and avoids slow early searches).
+  if (moveNumber <= 18) {
     const openingMove = getOpeningMoveValidated(k, moveNumber, k.teban, moveHistory, { difficulty });
     if (openingMove) {
       console.log(`Using opening book move (move ${moveNumber})`);

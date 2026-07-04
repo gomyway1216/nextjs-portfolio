@@ -53,7 +53,8 @@ type EngineName =
   | 'v18'
   | 'v19'
   | 'v20'
-  // Frozen baseline copy of V20 for A/B testing changes against the current engine.
+  // Frozen baseline copy of V20 (engine + pre-expansion opening book via OpeningBookImprovedBase).
+  // Use as engineB to A/B current changes against the previous production behavior.
   | 'v20base';
 type OpeningMode = 'none' | 'random' | 'quiet' | 'curated';
 

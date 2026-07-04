@@ -19,7 +19,7 @@ Call flow:
 2. `src/components/game/Shogi/ShogiAI.ts`:
    - uses opening book for the first 12 plies (`getOpeningMoveComprehensive()`)
    - converts `Kyokumen` → `KyokumenImproved`
-   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV18.ts` (default)
+   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV19.ts` (default)
    - converts the chosen move back to UI `Te`
 
 This keeps the existing UI logic (and opening book) intact, but replaces the slow clone-heavy search with a much faster make/unmake engine.
@@ -61,6 +61,38 @@ V17 updates (experimental):
 V18 updates (experimental, conservative):
 - Keeps V16 search behavior but adds a per-node cached attack scan and a cheap “hanging drop” ordering at all plies (high-value drops only).
 
+Anti climbing-silver (対棒銀) updates:
+- Reproduced the "primitive 棒銀 always beats the AI" complaint with `scripts/shogi-bogin-repro.ts`
+  (scripted ▲2六歩→2五歩→3八銀→2七銀→2六銀→1五銀/2四歩 attack vs the real `/games/shogi` AI path).
+- Eval (`KyokumenImproved`):
+  - New `evaluateClimbingSilverPressure()` term (v2/v3): models silver-march + rook pressure on the
+    rook file and rewards the joseki defense shapes (角3三 covering 2四, 銀2二/金3二 backing up 2三,
+    歩1四 denying ▲1五銀). Mirrored for both sides.
+  - `evaluatePromotionThreats()` now counts promoted majors (竜/馬) inside the enemy camp — previously
+    they were invisible to this term because promoted piece codes no longer match HI/KA. Kept modest
+    (±350) after self-play showed ±1000 distorts play.
+- Opening books:
+  - `OpeningBookComprehensive`: fixed corrupted entries (e.g. an illegal 8二→3七 "８五歩", the broken
+    相掛かり/横歩取り/風車/角交換振り飛車 lines) and added two 対原始棒銀 gote lines (△3三角型).
+  - `OpeningBookImproved`: added the same 対原始棒銀 (３三角型) line.
+  - The "skip book when |eval| > 200" gate was raised to 900 — ±200 is smaller than normal opening
+    eval noise, so the gate was silently disabling the defensive book exactly when it was needed.
+  - Book safety validators (`OpeningBookValidated` / `OpeningBookImproved`): 1-ply static scores now
+    apply a SEE-lite hanging-piece correction, so a fake "great" capture that hangs the capturing
+    piece no longer inflates the baseline and rejects every quiet book move.
+- Result: at medium, both scripted 棒銀 plans now lose a silver to the AI's defense
+  (△1四歩→歩で銀取り / 数の受け) and the AI goes on to win.
+
+V19 updates (current default):
+- Futility pruning at frontier nodes (depth ≤ 2): skips quiet moves when stand-pat + margin cannot reach alpha,
+  guarded so long-range piece moves and moves near the enemy king are never skipped (hard+).
+- SEE-lite losing-capture pruning in quiescence using the cached attack scans (hard+).
+- Countermove heuristic: quiet refutations of the previous move are ordered just below killer moves.
+- Deeper Late Move Reductions for very late quiet moves (fail-highs are verified by full-depth re-search).
+- LMR + null-move pruning enabled from “hard” (previously expert/master only). Null move is very safe in shogi
+  because zugzwang is essentially nonexistent (drops always provide useful moves).
+- Verified by self-play vs V18 (see benchmark section for the command).
+
 ### Move legality filtering no longer clones positions
 
 The largest performance killer in both engines was cloning during king-safety checks.
@@ -83,9 +115,9 @@ Additionally, the TT key now includes **side-to-move (`teban`)**:
 
 ---
 
-## 2) The Search Algorithm (ShogiAIImprovedV18 default)
+## 2) The Search Algorithm (ShogiAIImprovedV19 default)
 
-Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV18.ts`.
+Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV19.ts`.
 
 The original “base” implementation is still available as:
 - `src/components/game/ShogiImproved/ShogiAIImproved.ts` (V2)
@@ -118,7 +150,7 @@ The engine assigns each move a fast heuristic score used only for sorting:
 Difficulty maps to a time budget and depth cap in `ShogiAIImproved.getNextTe()`:
 
 - easy: `maxDepth <= 4`, `maxTimeMs ~= 250ms`
-- medium: `maxDepth <= 6`, `maxTimeMs ~= 800ms`
+- medium: `maxDepth <= 6`, `maxTimeMs ~= 1200ms` (V19: raised from 800ms; LMR/null-move/futility/aspiration now enabled from medium)
 - hard: `maxDepth <= 8`, `maxTimeMs ~= 2000ms`
 - expert: `maxDepth <= 10`, `maxTimeMs ~= 5000ms` (runs in a Web Worker in `/games/shogi` + `/games/shogi-improved`)
 - master: `maxDepth <= 12`, `maxTimeMs ~= 10000ms` (runs in a Web Worker)
@@ -175,9 +207,9 @@ Adds:
 
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
 
-### Current default: `ShogiAIImprovedV18` (Lv1-5)
+### Current default: `ShogiAIImprovedV19` (Lv1-5)
 
-Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV18.ts`.
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV19.ts`.
 
 Notes:
 - Lv4/Lv5 still run in a Web Worker (`src/components/game/ShogiImproved/shogi-ai.worker.ts`) to avoid blocking the UI.

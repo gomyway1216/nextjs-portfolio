@@ -50,7 +50,49 @@ const IBISHA_OPENINGS: OpeningSequence[] = [
       { from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 }, promote: false, teban: SENTE }, // ☗２六歩
       { from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 }, promote: false, teban: GOTE },  // ☖８四歩
       { from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 }, promote: false, teban: SENTE }, // ☗６八銀
-      { from: { suji: 8, dan: 2 }, to: { suji: 3, dan: 7 }, promote: false, teban: GOTE },  // ☖８五歩
+      { from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 }, promote: false, teban: GOTE },  // ☖８五歩
+    ],
+  },
+  // 対原始棒銀（▲２六歩スタート）— △３三角型の受け
+  // 「▲２五歩には△３三角」「棒銀の銀を五段目(１五)に出させない△１四歩」が骨子。
+  // 参考: 遠山雄亮プロの棒銀対策解説・各定跡サイトの原始棒銀対策。
+  {
+    name: '対原始棒銀（３三角型）',
+    category: '対棒銀',
+    priority: 96,
+    moves: [
+      { from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 }, promote: false, teban: SENTE }, // ☗２六歩
+      { from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 }, promote: false, teban: GOTE },  // ☖３四歩
+      { from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 }, promote: false, teban: SENTE }, // ☗２五歩
+      { from: { suji: 2, dan: 2 }, to: { suji: 3, dan: 3 }, promote: false, teban: GOTE },  // ☖３三角 (２四の交換を防ぐ)
+      { from: { suji: 3, dan: 9 }, to: { suji: 3, dan: 8 }, promote: false, teban: SENTE }, // ☗３八銀
+      { from: { suji: 3, dan: 1 }, to: { suji: 2, dan: 2 }, promote: false, teban: GOTE },  // ☖２二銀 (２三を補強)
+      { from: { suji: 3, dan: 8 }, to: { suji: 2, dan: 7 }, promote: false, teban: SENTE }, // ☗２七銀
+      { from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 }, promote: false, teban: GOTE },  // ☖３二金
+      { from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 }, promote: false, teban: SENTE }, // ☗２六銀
+      { from: { suji: 1, dan: 3 }, to: { suji: 1, dan: 4 }, promote: false, teban: GOTE },  // ☖１四歩 (▲１五銀を防ぐ)
+      { from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 }, promote: false, teban: SENTE }, // ☗７六歩
+      { from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 }, promote: false, teban: GOTE },  // ☖４二玉
+    ],
+  },
+  // 対原始棒銀（▲７六歩を先に突く順）
+  {
+    name: '対原始棒銀（７六歩先行型）',
+    category: '対棒銀',
+    priority: 94,
+    moves: [
+      { from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 }, promote: false, teban: SENTE }, // ☗２六歩
+      { from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 }, promote: false, teban: GOTE },  // ☖３四歩
+      { from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 }, promote: false, teban: SENTE }, // ☗２五歩
+      { from: { suji: 2, dan: 2 }, to: { suji: 3, dan: 3 }, promote: false, teban: GOTE },  // ☖３三角
+      { from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 }, promote: false, teban: SENTE }, // ☗７六歩
+      { from: { suji: 3, dan: 1 }, to: { suji: 2, dan: 2 }, promote: false, teban: GOTE },  // ☖２二銀 (▲３三角成に備える)
+      { from: { suji: 3, dan: 9 }, to: { suji: 3, dan: 8 }, promote: false, teban: SENTE }, // ☗３八銀
+      { from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 }, promote: false, teban: GOTE },  // ☖３二金
+      { from: { suji: 3, dan: 8 }, to: { suji: 2, dan: 7 }, promote: false, teban: SENTE }, // ☗２七銀
+      { from: { suji: 1, dan: 3 }, to: { suji: 1, dan: 4 }, promote: false, teban: GOTE },  // ☖１四歩
+      { from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 }, promote: false, teban: SENTE }, // ☗２六銀
+      { from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 }, promote: false, teban: GOTE },  // ☖４二玉
     ],
   },
   // 角換わり (Bishop Exchange)
@@ -73,22 +115,28 @@ const IBISHA_OPENINGS: OpeningSequence[] = [
     category: '相居飛車',
     priority: 75,
     moves: [
-      { from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 }, promote: false }, // P-2f
-      { from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 }, promote: false }, // P-2e
-      { from: { suji: 2, dan: 8 }, to: { suji: 7, dan: 3 }, promote: false }, // Bx7g+
-      { from: { suji: 8, dan: 8 }, to: { suji: 2, dan: 8 }, promote: false }, // R-2h
+      { from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 }, promote: false, teban: SENTE }, // ☗２六歩
+      { from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 }, promote: false, teban: GOTE },  // ☖８四歩
+      { from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 }, promote: false, teban: SENTE }, // ☗２五歩
+      { from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 }, promote: false, teban: GOTE },  // ☖８五歩
+      { from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 }, promote: false, teban: SENTE }, // ☗７八金
+      { from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 }, promote: false, teban: GOTE },  // ☖３二金 (２三を守る)
     ],
   },
-  // 横歩取り (Side Pawn Capture)
+  // 横歩取り模様 (quiet part only — the actual 横歩 capture branches too much for a static book)
   {
-    name: '横歩取り',
+    name: '横歩取り模様',
     category: '相居飛車',
     priority: 70,
     moves: [
-      { from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 }, promote: false }, // P-7f
-      { from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 }, promote: false }, // P-2f
-      { from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 }, promote: false }, // P-2e
-      { from: { suji: 8, dan: 8 }, to: { suji: 2, dan: 8 }, promote: false }, // R-2h
+      { from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 }, promote: false, teban: SENTE }, // ☗７六歩
+      { from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 }, promote: false, teban: GOTE },  // ☖３四歩
+      { from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 }, promote: false, teban: SENTE }, // ☗２六歩
+      { from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 }, promote: false, teban: GOTE },  // ☖８四歩
+      { from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 }, promote: false, teban: SENTE }, // ☗２五歩
+      { from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 }, promote: false, teban: GOTE },  // ☖８五歩
+      { from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 }, promote: false, teban: SENTE }, // ☗７八金
+      { from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 }, promote: false, teban: GOTE },  // ☖３二金
     ],
   },
   // 右四間飛車 (Right Fourth File Rook)
@@ -138,9 +186,9 @@ const IBISHA_OPENINGS: OpeningSequence[] = [
       { from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 }, promote: false }, // ☖８四歩
       { from: { suji: 5, dan: 9 }, to: { suji: 6, dan: 8 }, promote: false }, // ☗６八王
       { from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 }, promote: false }, // ☖８五歩
-      { from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 }, promote: false }, // ☗７七角 (KEY DEFENSIVE MOVE - FIXED!)
-      { from: { suji: 8, dan: 5 }, to: { suji: 7, dan: 6 }, promote: false }, // ☖８六歩
-      { from: { suji: 7, dan: 6 }, to: { suji: 7, dan: 6 }, promote: false }, // ☗同歩 (capture)
+      { from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 }, promote: false }, // ☗７七角 (KEY DEFENSIVE MOVE)
+      { from: { suji: 8, dan: 5 }, to: { suji: 8, dan: 6 }, promote: false }, // ☖８六歩
+      { from: { suji: 8, dan: 7 }, to: { suji: 8, dan: 6 }, promote: false }, // ☗同歩
       { from: { suji: 8, dan: 2 }, to: { suji: 8, dan: 6 }, promote: false }, // ☖同飛
     ],
   },
@@ -238,16 +286,18 @@ const FURIBISHA_OPENINGS: OpeningSequence[] = [
       { from: { suji: 2, dan: 9 }, to: { suji: 1, dan: 9 }, promote: false }, // K-1i
     ],
   },
-  // 角交換振り飛車 (Bishop Exchange Ranging Rook)
+  // 角交換振り飛車 (Bishop Exchange Ranging Rook) — quiet setup only
   {
     name: '角交換振り飛車',
     category: '振り飛車',
     priority: 80,
     moves: [
-      { from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 }, promote: false }, // P-7f
-      { from: { suji: 2, dan: 8 }, to: { suji: 3, dan: 7 }, promote: false }, // B-3g
-      { from: { suji: 3, dan: 7 }, to: { suji: 8, dan: 2 }, promote: false }, // Bx8b+
-      { from: { suji: 8, dan: 8 }, to: { suji: 6, dan: 8 }, promote: false }, // R-6h
+      { from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 }, promote: false, teban: SENTE }, // ☗７六歩
+      { from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 }, promote: false, teban: GOTE },  // ☖３四歩
+      { from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 }, promote: false, teban: SENTE }, // ☗６六歩
+      { from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 }, promote: false, teban: GOTE },  // ☖８四歩
+      { from: { suji: 7, dan: 9 }, to: { suji: 7, dan: 8 }, promote: false, teban: SENTE }, // ☗７八銀
+      { from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 }, promote: false, teban: GOTE },  // ☖８五歩
     ],
   },
 ];
@@ -277,16 +327,18 @@ const SPECIAL_OPENINGS: OpeningSequence[] = [
       { from: { suji: 6, dan: 8 }, to: { suji: 1, dan: 8 }, promote: false }, // R-1h
     ],
   },
-  // 風車 (Windmill)
+  // 風車模様 (Windmill-ish quiet setup)
   {
-    name: '風車',
+    name: '風車模様',
     category: '振り飛車',
     priority: 60,
     moves: [
-      { from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 }, promote: false }, // P-7f
-      { from: { suji: 2, dan: 8 }, to: { suji: 3, dan: 7 }, promote: false }, // B-3g
-      { from: { suji: 8, dan: 8 }, to: { suji: 6, dan: 8 }, promote: false }, // R-6h
-      { from: { suji: 3, dan: 7 }, to: { suji: 6, dan: 4 }, promote: false }, // B-6d
+      { from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 }, promote: false, teban: SENTE }, // ☗７六歩
+      { from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 }, promote: false, teban: GOTE },  // ☖３四歩
+      { from: { suji: 5, dan: 7 }, to: { suji: 5, dan: 6 }, promote: false, teban: SENTE }, // ☗５六歩
+      { from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 }, promote: false, teban: GOTE },  // ☖８四歩
+      { from: { suji: 4, dan: 9 }, to: { suji: 5, dan: 8 }, promote: false, teban: SENTE }, // ☗５八金右
+      { from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 }, promote: false, teban: GOTE },  // ☖８五歩
     ],
   },
 ];
@@ -364,13 +416,17 @@ export function getOpeningMoveCandidatesComprehensive(
     return [];
   }
 
-  // Don't use opening book if we're under attack or have tactical opportunities
+  // Don't use opening book if the position is already clearly decided (big material swing).
+  //
+  // NOTE: this gate used to be ±200, which is *smaller* than normal opening eval noise
+  // (e.g. ▲2五歩 alone can swing the static eval by several hundred points). That silently
+  // disabled the book for the defending side exactly when it needed its defensive joseki
+  // (対棒銀の△3三角型 etc.). Per-candidate safety is enforced downstream by
+  // `getOpeningMoveValidated()` (1-ply static check vs the best legal move), so this gate
+  // only needs to catch positions where the game has already left "opening" territory.
   const positionEval = kyokumen.evaluate();
   const evalForThisSide = teban === SENTE ? positionEval : -positionEval;
-
-  // If position is tactical/unbalanced (> 200 points), don't use book moves
-  // Lowered from 300 to 200 to catch promotion threats earlier
-  if (Math.abs(evalForThisSide) > 200) {
+  if (Math.abs(evalForThisSide) > 900) {
     return [];
   }
 

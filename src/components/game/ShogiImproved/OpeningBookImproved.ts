@@ -3,7 +3,7 @@ import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { InitialPositionImproved } from './InitialPositionImproved';
 import { KyokumenImproved } from './KyokumenImproved';
 import { MoveListImproved } from './MoveListImproved';
-import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, SENTE, Te, getKomashu } from './types';
+import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, SENTE, Te, getKomashu, komaValue } from './types';
 
 /**
  * OpeningBookImproved (戦法 / 定跡 for the fast make/unmake engine)
@@ -73,7 +73,32 @@ function staticEvalAfterMove(root: KyokumenImproved, move: Te): number {
   // `KyokumenImproved.move()` does NOT flip `teban`, so `root.teban` is still the mover here.
   // We want to compare candidate moves from the mover's perspective (not the opponent's),
   // so we intentionally evaluate *without* toggling.
-  const score = evalForSideToMove(root);
+  let score = evalForSideToMove(root);
+
+  // Hanging-piece correction (SEE-lite):
+  // A pure 1-ply static eval loves moves like a bishop grabbing a defended pawn deep in enemy camp —
+  // the promotion/positional bonuses show up but the immediate recapture does not. That inflates the
+  // "best move" baseline and can reject every (correct) quiet book move. Approximate the recapture here.
+  const moved = root.get(move.to);
+  const movedValue = Math.abs(komaValue[moved]) | 0;
+  if (movedValue > 0) {
+    const enemyLeastAttacker = GenerateMovesImproved.getLeastAttackerValue(root, move.to, root.teban);
+    if (Number.isFinite(enemyLeastAttacker)) {
+      const selfLeastDefender = GenerateMovesImproved.getLeastAttackerValue(
+        root,
+        move.to,
+        root.teban === SENTE ? GOTE : SENTE
+      );
+      if (!Number.isFinite(selfLeastDefender)) {
+        // Undefended and attacked: assume it simply gets taken.
+        score -= movedValue;
+      } else if ((enemyLeastAttacker | 0) + 150 < movedValue) {
+        // Defended, but a clearly cheaper piece can start the exchange: assume a losing trade.
+        score -= movedValue - (enemyLeastAttacker | 0);
+      }
+    }
+  }
+
   root.back(move);
   return score;
 }
@@ -310,6 +335,26 @@ const OPENING_LINES: OpeningLine[] = [
       // Bishop/rook promotion is forced in this engine when legal.
       { teban: SENTE, from: { suji: 8, dan: 8 }, to: { suji: 2, dan: 2 }, promote: true }, // ☗２二角成
       { teban: GOTE, from: { suji: 3, dan: 1 }, to: { suji: 2, dan: 2 } }, // ☖同銀
+    ],
+  },
+  {
+    // 対原始棒銀: ▲２五歩には△３三角、銀の進軍には△２二銀/△３二金、▲１五銀は△１四歩で防ぐ。
+    name: '対原始棒銀 (３三角型)',
+    category: '対棒銀',
+    priority: 88,
+    moves: [
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 2, dan: 2 }, to: { suji: 3, dan: 3 } },  // ☖３三角
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 3, dan: 8 } }, // ☗３八銀
+      { teban: GOTE, from: { suji: 3, dan: 1 }, to: { suji: 2, dan: 2 } },  // ☖２二銀
+      { teban: SENTE, from: { suji: 3, dan: 8 }, to: { suji: 2, dan: 7 } }, // ☗２七銀
+      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六銀
+      { teban: GOTE, from: { suji: 1, dan: 3 }, to: { suji: 1, dan: 4 } },  // ☖１四歩
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
     ],
   },
   {

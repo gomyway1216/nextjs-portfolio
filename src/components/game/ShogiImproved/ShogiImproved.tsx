@@ -14,14 +14,14 @@ import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { InitialPositionImproved } from './InitialPositionImproved';
 import { KyokumenImproved } from './KyokumenImproved';
 import { getOpeningMoveImproved } from './OpeningBookImproved';
-import { getBestMoveV18 } from './ShogiAIImprovedV18';
+import { getBestMoveV19 } from './ShogiAIImprovedV19';
 import type { SerializedKyokumenImproved,SerializedTeImproved,ShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { EMPTY,GOTE,isSente,Position,SENTE,Te,toString } from './types';
 
 const DIFFICULTY_OPTIONS = [
   { label: 'Level 1 (Easy)', value: 'easy' as Difficulty, description: 'Fast (~250ms), depth ≤4' },
-  { label: 'Level 2 (Medium)', value: 'medium' as Difficulty, description: 'Balanced (~800ms), depth ≤6' },
+  { label: 'Level 2 (Medium)', value: 'medium' as Difficulty, description: 'Balanced (~1.2s), depth ≤6' },
   { label: 'Level 3 (Hard)', value: 'hard' as Difficulty, description: 'Strong (~2s), depth ≤8' },
   { label: 'Level 4 (Expert)', value: 'expert' as Difficulty, description: 'Very strong (~5s, Worker), depth ≤10' },
   { label: 'Level 5 (Master)', value: 'master' as Difficulty, description: 'Strongest (~10s, Worker), depth ≤12' },
@@ -349,7 +349,7 @@ const ShogiImproved = () => {
 	        }
 
 		        if (!isWorkerDifficulty(difficulty)) {
-		          const aiMove = getBestMoveV18(gameState.kyokumen, GOTE, difficulty, gameState.ply);
+		          const aiMove = getBestMoveV19(gameState.kyokumen, GOTE, difficulty, gameState.ply);
 		
 		          if (aiMove) {
 		            const newKyokumen = gameState.kyokumen.clone();

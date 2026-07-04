@@ -13,6 +13,7 @@ const { instance } = await WebAssembly.instantiate(wasmBytes, {
     abort(_msg, _file, line, col) {
       throw new Error(`wasm abort at ${line}:${col}`);
     },
+    now: () => performance.now(),
   },
 });
 

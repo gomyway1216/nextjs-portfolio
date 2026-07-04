@@ -98,6 +98,7 @@ const instance = new WebAssembly.Instance(wasmModule, {
     abort(_msg: number, _file: number, line: number, col: number) {
       throw new Error(`wasm abort at ${line}:${col}`);
     },
+    now: () => performance.now(),
   },
 });
 const wasm = instance.exports as unknown as ShogiWasm;

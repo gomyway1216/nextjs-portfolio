@@ -122,8 +122,13 @@ initSeeds();
 // ---------------------------------------------------------------------------
 
 const MAX_MOVES: i32 = 640; // theoretical shogi max is 593
-const MAX_PLY: i32 = 32;    // perft depth + scratch plies for recursive uchifuzume checks
+// Buffer plies: search MAX_PLY (64) + scratch plies for recursive uchifuzume
+// checks (each nesting level uses ply+1 as scratch; 16 spare levels is far
+// beyond anything reachable in practice).
+const MAX_PLY: i32 = 80;
 const moveBuf = new StaticArray<i32>(MAX_MOVES * MAX_PLY);
+// Parallel sort keys for move ordering (phase 3 search).
+const moveScoreBuf = new StaticArray<i32>(MAX_MOVES * MAX_PLY);
 
 // ---------------------------------------------------------------------------
 // Small helpers (mirroring types.ts helpers)
@@ -413,6 +418,10 @@ function hasLegalMove(ply: i32): bool {
  * uchifuzume rule recursively, exactly like the JS generateLegalMoves path.
  */
 function isUtiFuDume(to: i32, ply: i32): bool {
+  // Scratch-ply guard: the reply generation below uses moveBuf slice `ply`;
+  // never index past the buffer (unreachable in practice — it would require
+  // 16+ nested pawn-drop-mate probes on top of a maximum-depth search path).
+  if (ply >= MAX_PLY - 1) return false;
   const mover = teban;
   const enemy = mover == SENTE ? GOTE : SENTE;
   const enemyKing = mover == SENTE ? kingG : kingS;
@@ -1580,4 +1589,1228 @@ export function applyMove(koma: i32, from: i32, to: i32, promote: i32): void {
   const m = encodeMove(koma, from, to, promote != 0, capture);
   makeMove(m);
   teban = teban == SENTE ? GOTE : SENTE;
+}
+
+// ===========================================================================
+// Phase 3: search — full port of ShogiAIImprovedV20 (iterative deepening
+// negamax + alpha-beta + PVS + aspiration + packed TT + killer/history/
+// countermove/continuation-history ordering + null-move / LMR / futility /
+// LMP / RFP / IID / mate-distance bounds + check-aware quiescence with delta
+// and SEE-lite pruning + path repetition detection with contempt).
+//
+// Everything mirrors src/components/game/ShogiImproved/ShogiAIImprovedV20.ts
+// statement-for-statement so that a fixed-depth untimed search returns the
+// SAME best move and score as the JS engine (verified by
+// wasm-spike/search-driver.ts). The only structural difference: JS aborts on
+// time via a thrown TimeUpError; AS has no exceptions, so a `stopped` flag is
+// checked after every recursive call and the partial iteration is discarded
+// exactly like the JS catch-and-break path.
+//
+// The mate solver (MateSolverImproved) and the opening book are intentionally
+// NOT ported: the JS host runs them before calling into WASM (hybrid setup).
+// ===========================================================================
+
+// Host-provided monotonic clock (pass `performance.now` as env.now).
+// @ts-ignore: decorator — AssemblyScript import annotation, ignored by tsc
+@external('env', 'now')
+declare function hostNow(): f64;
+
+const S_INFINITE: i32 = 99_999_999;
+const S_MATE: i32 = 90_000_000;
+const S_MAX_PLY: i32 = 64;
+
+// --- Transposition table (port of TranspositionTableImprovedPacked) ---------
+
+const TT_SIZE: i32 = 0x100000;
+const TT_MASK: i32 = 0x0fffff;
+const TT_EXACT: i32 = 0;
+const TT_LOWER: i32 = 1;
+const TT_UPPER: i32 = 2;
+
+const ttHashA = new StaticArray<i32>(TT_SIZE);
+const ttValueA = new StaticArray<i32>(TT_SIZE);
+const ttFlagA = new StaticArray<u8>(TT_SIZE);
+const ttDepthA = new StaticArray<u8>(TT_SIZE);
+const ttBestA = new StaticArray<i32>(TT_SIZE);
+const ttSecondA = new StaticArray<i32>(TT_SIZE);
+const ttUsedA = new StaticArray<u8>(TT_SIZE);
+
+function ttProbe(hashVal: i32): i32 {
+  const index = hashVal & TT_MASK;
+  if (unchecked(ttUsedA[index]) == 0) return -1;
+  if (unchecked(ttHashA[index]) != hashVal) return -1;
+  return index;
+}
+
+function ttAdd(hashVal: i32, value: i32, alpha: i32, beta: i32, bestKey: i32, remainDepth: i32): void {
+  const index = hashVal & TT_MASK;
+
+  let flag = TT_EXACT;
+  if (value <= alpha) flag = TT_UPPER;
+  else if (value >= beta) flag = TT_LOWER;
+
+  if (unchecked(ttUsedA[index]) != 0 && unchecked(ttHashA[index]) == hashVal) {
+    const oldRemain = <i32>unchecked(ttDepthA[index]);
+    if (remainDepth < oldRemain) return;
+    unchecked(ttSecondA[index] = ttBestA[index]);
+  } else {
+    unchecked(ttUsedA[index] = 1);
+    unchecked(ttHashA[index] = hashVal);
+    unchecked(ttSecondA[index] = 0);
+  }
+
+  unchecked(ttBestA[index] = bestKey);
+  unchecked(ttValueA[index] = value);
+  unchecked(ttFlagA[index] = <u8>flag);
+  unchecked(ttDepthA[index] = <u8>(remainDepth & 0xff));
+}
+
+// --- Evaluation cache (SENTE perspective, keyed WITHOUT side to move) --------
+
+const EVAL_CACHE_SIZE: i32 = 1 << 18;
+const EVAL_CACHE_MASK: i32 = EVAL_CACHE_SIZE - 1;
+const EVAL_CACHE_SENTINEL: i32 = 0x7fffffff;
+
+const evalCacheKeyA = new StaticArray<i32>(EVAL_CACHE_SIZE);
+const evalCacheValA = new StaticArray<i32>(EVAL_CACHE_SIZE);
+
+function initEvalCache(): void {
+  for (let i = 0; i < EVAL_CACHE_SIZE; i++) unchecked(evalCacheKeyA[i] = EVAL_CACHE_SENTINEL);
+}
+initEvalCache();
+
+/** Clear the TT + eval cache (equivalent of ShogiAIImprovedV20.clearTT / fresh engine). */
+export function clearTT(): void {
+  for (let i = 0; i < TT_SIZE; i++) unchecked(ttUsedA[i] = 0);
+  initEvalCache();
+}
+
+function evaluateSenteCached(): i32 {
+  const key = banHash ^ handHash;
+  const index = key & EVAL_CACHE_MASK;
+  if (unchecked(evalCacheKeyA[index]) == key) return unchecked(evalCacheValA[index]);
+  const value = evaluateV3Full();
+  unchecked(evalCacheKeyA[index] = key);
+  unchecked(evalCacheValA[index] = value);
+  return value;
+}
+
+function evalForSideToMove(): i32 {
+  const v = evaluateSenteCached();
+  return teban == SENTE ? v : -v;
+}
+
+// --- Move-key helpers ---------------------------------------------------------
+//
+// jsMoveKey mirrors ShogiAIImprovedV20.moveKey(te):
+//   (koma & 0x3f) | (from << 6) | (to << 14) | (promote << 22)
+// This is also the packed representation returned by searchBestMove() and
+// stored in the TT (bit-compatible with the JS engine's TT keys).
+
+function jsMoveKeyOf(m: i32): i32 {
+  const to = m & 0xff;
+  const from = (m >> 8) & 0xff;
+  const koma = (m >> 16) & 0x7f;
+  const promote = (m >> 23) & 1;
+  return (koma & 0x3f) | (from << 6) | (to << 14) | (promote << 22);
+}
+
+/** Continuation-history (pieceType, toSquare) index — port of pieceToIndex(te). */
+function pieceToIndexOf(m: i32): i32 {
+  const to = m & 0xff;
+  const komashu = (m >> 16) & 0x0f;
+  return komashu * 81 + ((to >> 4) - 1) * 9 + ((to & 0x0f) - 1);
+}
+
+// Compact bijective index of a jsMoveKey, used to back the JS Map-based
+// heuristics (history / counterMove / root-order-bonus cache) with flat
+// arrays. koma&0x3f is 17..47 (side flag included), from is 0 (drop) or a
+// valid square, to is a valid square, promote is 1 bit:
+//   ((koma-16) * 82 + fromIdx) * 81 + toIdx) * 2 + promote   < 425,088
+const HIST_SIZE: i32 = 32 * 82 * 81 * 2;
+
+function moveKeyCompact(key: i32): i32 {
+  const koma = key & 0x3f;
+  const from = (key >> 6) & 0xff;
+  const to = (key >> 14) & 0xff;
+  const promote = (key >> 22) & 1;
+  const toIdx = ((to >> 4) - 1) * 9 + ((to & 0x0f) - 1);
+  const fromIdx = from == 0 ? 0 : ((from >> 4) - 1) * 9 + ((from & 0x0f) - 1) + 1;
+  return (((koma - 16) * 82 + fromIdx) * 81 + toIdx) * 2 + promote;
+}
+
+// --- Ordering heuristic state --------------------------------------------------
+
+const killer1 = new StaticArray<i32>(S_MAX_PLY);
+const killer2 = new StaticArray<i32>(S_MAX_PLY);
+const historyTable = new StaticArray<i32>(HIST_SIZE);
+const counterMoveTable = new StaticArray<i32>(HIST_SIZE); // stores full jsMoveKey (0 = none)
+
+const CONT_DIM: i32 = 1296;
+const contHist = new StaticArray<i32>(CONT_DIM * CONT_DIM);
+
+const prevKeyByPly = new StaticArray<i32>(S_MAX_PLY);
+const prevPtByPly = new StaticArray<i32>(S_MAX_PLY);
+
+// Root-only ordering cache (per-search epoch stamps avoid a full clear).
+const rootBonusVal = new StaticArray<i32>(HIST_SIZE);
+const rootBonusStamp = new StaticArray<i32>(HIST_SIZE);
+let searchEpoch: i32 = 0;
+
+function recordKiller(ply: i32, key: i32): void {
+  if (ply < 0 || ply >= S_MAX_PLY) return;
+  if (unchecked(killer1[ply]) != key) {
+    unchecked(killer2[ply] = killer1[ply]);
+    unchecked(killer1[ply] = key);
+  }
+}
+
+// --- Per-ply attack/defense cache (port of leastAttackerValueCached) ------------
+
+const attackEpochByPly = new StaticArray<i32>(S_MAX_PLY);
+const attackStampS = new StaticArray<i32>(S_MAX_PLY * 256);
+const attackStampG = new StaticArray<i32>(S_MAX_PLY * 256);
+const attackValS = new StaticArray<i32>(S_MAX_PLY * 256);
+const attackValG = new StaticArray<i32>(S_MAX_PLY * 256);
+
+function beginAttackCacheForNode(ply: i32): void {
+  if (ply < 0 || ply >= S_MAX_PLY) return;
+  let next = unchecked(attackEpochByPly[ply]) + 1;
+  if (next == 0) {
+    for (let i = 0; i < S_MAX_PLY * 256; i++) {
+      unchecked(attackStampS[i] = 0);
+      unchecked(attackStampG[i] = 0);
+    }
+    next = 1;
+  }
+  unchecked(attackEpochByPly[ply] = next);
+}
+
+function leastAttackerValueCached(target: i32, defender: i32, ply: i32): i32 {
+  if (target <= 0 || get(target) == WALL) return NO_ATTACKER;
+  const sq = target & 0xff;
+  const index = (ply << 8) | sq;
+  const epoch = unchecked(attackEpochByPly[ply]);
+  if (defender == SENTE) {
+    if (unchecked(attackStampS[index]) == epoch) return unchecked(attackValS[index]);
+    const computed = getLeastAttackerValue(target, defender);
+    unchecked(attackStampS[index] = epoch);
+    unchecked(attackValS[index] = computed);
+    return computed;
+  }
+  if (unchecked(attackStampG[index]) == epoch) return unchecked(attackValG[index]);
+  const computed = getLeastAttackerValue(target, defender);
+  unchecked(attackStampG[index] = epoch);
+  unchecked(attackValG[index] = computed);
+  return computed;
+}
+
+// --- Path repetition (sennichite) — port of pushRepetition/popRepetition --------
+//
+// JS uses Map<hash, count>; the live path is at most ~2*S_MAX_PLY entries
+// (IID re-enters the same ply once), so an exact linear count over the path
+// stack is equivalent and allocation-free.
+
+const REP_STACK_SIZE: i32 = 256;
+const repStack = new StaticArray<i32>(REP_STACK_SIZE);
+let repSize: i32 = 0;
+
+function pushRepetition(hash: i32): bool {
+  let count = 0;
+  for (let i = 0; i < repSize; i++) {
+    if (unchecked(repStack[i]) == hash) count++;
+  }
+  if (count >= 3) return false;
+  if (repSize < REP_STACK_SIZE) {
+    unchecked(repStack[repSize] = hash);
+    repSize++;
+  }
+  return true;
+}
+
+function popRepetition(): void {
+  if (repSize > 0) repSize--;
+}
+
+// --- Search runtime state --------------------------------------------------------
+
+let nodeCount: i32 = 0;
+let leafCount: i32 = 0;
+let searchStartTime: f64 = 0;
+let searchMaxTimeMs: f64 = 0;
+let stopped: bool = false;
+let quiescenceDepthMaxG: i32 = 0;
+
+// V20 unified feature knobs (time-budget dependent ones set in searchBestMove).
+const ASPIRATION_WINDOW: i32 = 300;
+const DELTA_PRUNING_MARGIN: i32 = 150;
+const FUTILITY_MARGIN_1: i32 = 350;
+const FUTILITY_MARGIN_2: i32 = 700;
+const DRAW_CONTEMPT: i32 = 12;
+const CHECK_EXTENSION_MAX_PLY: i32 = 0;
+let nullMoveReductionG: i32 = 2;
+let qCheckMoveLimit: i32 = 1;
+let qCheckTryLimit: i32 = 2;
+
+let rootBestKey: i32 = 0;
+let orderDepthLeft: i32 = 99;
+
+// Root-only metadata (opening-like ordering heuristics).
+let rootTesuG: i32 = 0;
+let rootHandTotalG: i32 = 0;
+let rootInCheckG: bool = false;
+let rootKingDangerG: i32 = 0;
+
+// Result stats.
+let lastSearchScore: i32 = 0;
+let lastSearchDepth: i32 = 0;
+
+function sampleTime(): void {
+  // Same sampling policy as maybeThrowOnTime: check once per ~2048 nodes+leaves.
+  const counter = nodeCount + leafCount;
+  if ((counter & 2047) != 0) return;
+  if (searchMaxTimeMs > 0 && hostNow() - searchStartTime >= searchMaxTimeMs) stopped = true;
+}
+
+function timeUpNow(): bool {
+  return searchMaxTimeMs > 0 && hostNow() - searchStartTime >= searchMaxTimeMs;
+}
+
+function repetitionDrawScore(): i32 {
+  const standPat = evalForSideToMove();
+  if (DRAW_CONTEMPT <= 0) return 0;
+  if (absI(standPat) < 150) return 0;
+  if (standPat > 0) return -DRAW_CONTEMPT;
+  if (standPat < 0) return DRAW_CONTEMPT;
+  return 0;
+}
+
+/** Port of promotionGain(te). */
+function promotionGainOf(koma: i32): i32 {
+  const side = koma & (SENTE + GOTE);
+  const type = koma & 0x0f;
+  const promoted = side | (type + 8);
+  return maxI(0, absI(unchecked(KOMA_VALUE[promoted])) - absI(unchecked(KOMA_VALUE[koma])));
+}
+
+/** Port of computeKingDanger (danger table == KS2_DANGER_BY_KOMASHU + distance bonus). */
+function computeKingDangerAS(side: i32, kingPos: i32): i32 {
+  if (kingPos <= 0) return 0;
+  const kingSuji = kingPos >> 4;
+  const kingDan = kingPos & 0x0f;
+
+  let danger = 0;
+  for (let ds = -2; ds <= 2; ds++) {
+    for (let dd = -2; dd <= 2; dd++) {
+      if (ds == 0 && dd == 0) continue;
+      const suji = kingSuji + ds;
+      const dan = kingDan + dd;
+      if (suji < 1 || suji > 9 || dan < 1 || dan > 9) continue;
+
+      const p = unchecked(ban[(suji << 4) + dan]);
+      if (p == EMPTY || p == WALL) continue;
+      if (isSelf(side, p)) continue;
+
+      const base = unchecked(KS2_DANGER_BY_KOMASHU[p & 0x0f]);
+      if (base == 0) continue;
+
+      const dist = absI(ds) + absI(dd);
+      danger += base + (dist <= 1 ? 6 : dist <= 2 ? 3 : 0);
+    }
+  }
+  return danger;
+}
+
+// --- Root-only ordering bonuses (ports of openingOrderBonusAtRoot /
+//     rootMoveSafetyOrderAdjustment) ---------------------------------------------
+
+function openingOrderBonusAtRootAS(m: i32): i32 {
+  if (rootInCheckG) return 0;
+  if (rootTesuG != 0 && rootTesuG >= 24) return 0;
+  if (rootHandTotalG > 4) return 0;
+
+  const selfKing = teban == SENTE ? kingS : kingG;
+  if (selfKing <= 0) return 0;
+  const selfKingDan = selfKing & 0x0f;
+  if (teban == SENTE) {
+    if (selfKingDan < 7) return 0;
+  } else {
+    if (selfKingDan > 3) return 0;
+  }
+
+  const from = (m >> 8) & 0xff;
+  const capture = (m >> 24) & 0x7f;
+  const promote = (m >> 23) & 1;
+  if (from == 0) return 0;
+  if (capture != EMPTY) return 0;
+  if (promote != 0) return 0;
+
+  const koma = (m >> 16) & 0x7f;
+  const to = m & 0xff;
+  const pieceType = koma & 0x0f;
+  const fromSuji = from >> 4;
+  const fromDan = from & 0x0f;
+  const toSuji = to >> 4;
+  const toDan = to & 0x0f;
+
+  let bonus = 0;
+  const underPressure = rootKingDangerG >= 45;
+
+  const pawnStartDan = teban == SENTE ? 7 : 3;
+  const pawnNextDan = teban == SENTE ? 6 : 4;
+  if (pieceType == FU && fromDan == pawnStartDan && toDan == pawnNextDan) {
+    bonus += underPressure ? 90_000 : 140_000;
+    const distFromCenterFile = absI(fromSuji - 5);
+    bonus += maxI(0, 3 - distFromCenterFile) * (underPressure ? 10_000 : 18_000);
+  }
+
+  if (pieceType == GI || pieceType == KI) {
+    bonus += 70_000;
+    if (teban == SENTE && toDan <= fromDan) bonus += 8_000;
+    if (teban == GOTE && toDan >= fromDan) bonus += 8_000;
+  }
+
+  if (pieceType == KA || pieceType == HI) {
+    bonus += 45_000;
+  }
+
+  if (pieceType == OU) {
+    if (underPressure || rootTesuG < 4) return bonus;
+
+    const fromDist = absI(fromSuji - 5) + absI(fromDan - 5);
+    const toDist = absI(toSuji - 5) + absI(toDan - 5);
+    const away = toDist - fromDist;
+    if (away > 0) bonus += away * 25_000;
+
+    const inHomeCamp = teban == SENTE ? toDan >= 8 : toDan <= 2;
+    if (inHomeCamp) bonus += 20_000;
+  }
+
+  return bonus;
+}
+
+function rootMoveSafetyOrderAdjustmentAS(m: i32, enemyKing: i32): i32 {
+  const to = m & 0xff;
+  if (enemyKing > 0) {
+    const dist = absI((to >> 4) - (enemyKing >> 4)) + absI((to & 0x0f) - (enemyKing & 0x0f));
+    if (dist <= 2) return 0;
+  }
+
+  const from = (m >> 8) & 0xff;
+  const koma = (m >> 16) & 0x7f;
+  const promote = (m >> 23) & 1;
+  const capture = (m >> 24) & 0x7f;
+  const otherSide = teban == SENTE ? GOTE : SENTE;
+
+  if (from == 0) {
+    const enemyLeastAttacker = getLeastAttackerValue(to, teban);
+    if (enemyLeastAttacker == NO_ATTACKER) return 0;
+
+    const selfLeastDefender = getLeastAttackerValue(to, otherSide);
+    if (selfLeastDefender != NO_ATTACKER) {
+      return selfLeastDefender <= enemyLeastAttacker ? 25_000 : 8_000;
+    }
+
+    const pieceValue = absI(unchecked(KOMA_VALUE[koma]));
+    return -minI(320_000, pieceValue * 120);
+  }
+
+  const attackerValue0 = absI(unchecked(KOMA_VALUE[koma]));
+  const capturedValue0 = capture != EMPTY ? absI(unchecked(KOMA_VALUE[capture])) : 0;
+
+  if (capture == EMPTY && promote == 0 && attackerValue0 <= 200) return 0;
+
+  const isQuiet = capture == EMPTY && promote == 0;
+  if (isQuiet && attackerValue0 < 700) return 0;
+  const isSuspiciousCapture = capture != EMPTY && capturedValue0 + 200 < attackerValue0;
+  if (!isQuiet && !isSuspiciousCapture) return 0;
+
+  makeMove(m);
+  let result = 0;
+  const moved = unchecked(ban[to]);
+  const movedValue = absI(unchecked(KOMA_VALUE[moved]));
+
+  const enemyLeastAttacker = getLeastAttackerValue(to, teban);
+  if (enemyLeastAttacker != NO_ATTACKER) {
+    const selfLeastDefender = getLeastAttackerValue(to, otherSide);
+    if (selfLeastDefender != NO_ATTACKER) {
+      result = selfLeastDefender <= enemyLeastAttacker ? 8_000 : 0;
+    } else if (capturedValue0 == 0 && movedValue <= 200) {
+      result = 0;
+    } else {
+      let penalty = minI(240_000, movedValue * 80);
+      if (capturedValue0 > 0) {
+        penalty = maxI(0, penalty - capturedValue0 * 70);
+      }
+      result = -penalty;
+    }
+  }
+  unmakeMove(m);
+  return result;
+}
+
+// --- Move scoring & ordering (port of scoreMove / scoreAndSortMoves) -------------
+
+function scoreMoveAS(m: i32, ply: i32, ttMoveKey: i32, ttSecondMoveKey: i32): i32 {
+  const key = jsMoveKeyOf(m);
+  let score = 0;
+
+  const to = m & 0xff;
+  const from = (m >> 8) & 0xff;
+  const koma = (m >> 16) & 0x7f;
+  const promote = (m >> 23) & 1;
+  const capture = (m >> 24) & 0x7f;
+
+  const enemyKing = teban == SENTE ? kingG : kingS;
+
+  // 1) Strong ordering signals (TT move, then killers)
+  if (ttMoveKey != 0 && key == ttMoveKey) score += 5_000_000;
+  if (ttSecondMoveKey != 0 && key == ttSecondMoveKey) score += 4_000_000;
+  if (key == unchecked(killer1[ply])) score += 2_000_000;
+  if (key == unchecked(killer2[ply])) score += 1_500_000;
+
+  // Countermove heuristic.
+  if (ply > 0 && ply < S_MAX_PLY) {
+    const prevKey = unchecked(prevKeyByPly[ply]);
+    if (prevKey != 0 && unchecked(counterMoveTable[moveKeyCompact(prevKey)]) == key) score += 1_200_000;
+  }
+
+  // 2) Long-term ordering signals (history + continuation history)
+  score += unchecked(historyTable[moveKeyCompact(key)]);
+
+  if (ply > 0 && ply < S_MAX_PLY) {
+    const prevPt = unchecked(prevPtByPly[ply]);
+    if (prevPt >= 0) {
+      score += unchecked(contHist[prevPt * CONT_DIM + pieceToIndexOf(m)]);
+    }
+  }
+
+  // 3) Promotions.
+  if (promote != 0) score += 400_000;
+
+  // 4) Captures: MVV-LVA-ish.
+  if (capture != EMPTY) {
+    const victim = absI(unchecked(KOMA_VALUE[capture]));
+    const attacker = absI(unchecked(KOMA_VALUE[koma]));
+    score += 900_000 + victim * 20 - attacker;
+  }
+
+  // SEE-lite ordering nudge for risky captures (skipped at frontier nodes).
+  if (orderDepthLeft >= 3 && from != 0 && capture != EMPTY) {
+    const attackerValue = absI(unchecked(KOMA_VALUE[koma]));
+    const victimValue = absI(unchecked(KOMA_VALUE[capture]));
+
+    if (attackerValue >= 1000 && victimValue + 200 < attackerValue) {
+      const distToEnemyKing =
+        enemyKing > 0
+          ? absI((to >> 4) - (enemyKing >> 4)) + absI((to & 0x0f) - (enemyKing & 0x0f))
+          : 99;
+
+      if (distToEnemyKing > 2) {
+        const enemyLeastAttacker = leastAttackerValueCached(to, teban, ply);
+        if (enemyLeastAttacker != NO_ATTACKER) {
+          const selfLeastDefender = leastAttackerValueCached(to, teban == SENTE ? GOTE : SENTE, ply);
+          if (selfLeastDefender != NO_ATTACKER) {
+            if (selfLeastDefender <= enemyLeastAttacker) score += 9_000;
+          } else {
+            const penalty = minI(90_000, attackerValue * 30);
+            score -= penalty;
+          }
+        }
+      }
+    }
+  }
+
+  if (from == 0) {
+    // 5) Drops.
+    const pieceType = koma & 0x0f;
+    const selfKing = teban == SENTE ? kingS : kingG;
+
+    const distToEnemyKing =
+      enemyKing > 0
+        ? absI((to >> 4) - (enemyKing >> 4)) + absI((to & 0x0f) - (enemyKing & 0x0f))
+        : 99;
+    const distToSelfKing =
+      selfKing > 0
+        ? absI((to >> 4) - (selfKing >> 4)) + absI((to & 0x0f) - (selfKing & 0x0f))
+        : 99;
+
+    score += 120_000;
+
+    if (pieceType == HI) score += 250_000;
+    else if (pieceType == KA) score += 180_000;
+    else if (pieceType == KI) score += 120_000;
+    else if (pieceType == GI) score += 90_000;
+    else if (pieceType == KE) score += 40_000;
+    else if (pieceType == KY) score += 25_000;
+    else if (pieceType == FU) score += 10_000;
+
+    if (distToEnemyKing <= 4) score += (5 - distToEnemyKing) * 35_000;
+    if (distToSelfKing <= 3) score += (4 - distToSelfKing) * 30_000;
+    if (distToEnemyKing >= 7 && distToSelfKing >= 7) score -= 45_000;
+
+    // Hanging-drop ordering (skipped at frontier nodes).
+    if (orderDepthLeft >= 3 && distToEnemyKing > 2) {
+      const enemyLeastAttacker = leastAttackerValueCached(to, teban, ply);
+      if (enemyLeastAttacker != NO_ATTACKER) {
+        const selfLeastDefender = leastAttackerValueCached(to, teban == SENTE ? GOTE : SENTE, ply);
+        if (selfLeastDefender != NO_ATTACKER) {
+          score += selfLeastDefender <= enemyLeastAttacker ? 14_000 : 3_000;
+        } else {
+          const pieceValue = absI(unchecked(KOMA_VALUE[koma]));
+          if (pieceValue >= 1000) {
+            const cheaperCapture = enemyLeastAttacker + 200 < pieceValue;
+            const basePenalty = cheaperCapture
+              ? minI(260_000, pieceValue * 120)
+              : minI(120_000, pieceValue * 45);
+            // JS: Math.floor(basePenalty * 0.6) — keep the f64 product for bit parity.
+            const softened = distToSelfKing <= 3 ? <i32>Math.floor(<f64>basePenalty * 0.6) : basePenalty;
+            score -= softened;
+          }
+        }
+      }
+    }
+  } else {
+    // 6) Quiet attacker moves approaching the enemy king.
+    if (enemyKing > 0) {
+      const pieceType = koma & 0x0f;
+      const isAttacker =
+        pieceType == HI || pieceType == KA || pieceType == KI || pieceType == GI || pieceType == KE;
+      if (isAttacker) {
+        const dist = absI((to >> 4) - (enemyKing >> 4)) + absI((to & 0x0f) - (enemyKing & 0x0f));
+        if (dist <= 3) score += (4 - dist) * 25_000;
+      }
+    }
+  }
+
+  if (ply == 0) {
+    const cIdx = moveKeyCompact(key);
+    if (unchecked(rootBonusStamp[cIdx]) == searchEpoch) {
+      score += unchecked(rootBonusVal[cIdx]);
+    } else {
+      const bonus = openingOrderBonusAtRootAS(m) + rootMoveSafetyOrderAdjustmentAS(m, enemyKing);
+      unchecked(rootBonusStamp[cIdx] = searchEpoch);
+      unchecked(rootBonusVal[cIdx] = bonus);
+      score += bonus;
+    }
+  }
+
+  return score;
+}
+
+/** Stable descending insertion sort over moveBuf/moveScoreBuf[base+lo .. base+hi). */
+function insertionSortDesc(base: i32, lo: i32, hi: i32): void {
+  for (let i = lo + 1; i < hi; i++) {
+    const m = unchecked(moveBuf[base + i]);
+    const s = unchecked(moveScoreBuf[base + i]);
+    let j = i - 1;
+    while (j >= lo && unchecked(moveScoreBuf[base + j]) < s) {
+      unchecked(moveBuf[base + j + 1] = moveBuf[base + j]);
+      unchecked(moveScoreBuf[base + j + 1] = moveScoreBuf[base + j]);
+      j--;
+    }
+    unchecked(moveBuf[base + j + 1] = m);
+    unchecked(moveScoreBuf[base + j + 1] = s);
+  }
+}
+
+function scoreAndSortMovesAS(ply: i32, n: i32, ttMoveKey: i32, ttSecondMoveKey: i32): void {
+  beginAttackCacheForNode(ply);
+  const base = ply * MAX_MOVES;
+  for (let i = 0; i < n; i++) {
+    unchecked(moveScoreBuf[base + i] = scoreMoveAS(unchecked(moveBuf[base + i]), ply, ttMoveKey, ttSecondMoveKey));
+  }
+  insertionSortDesc(base, 0, n);
+}
+
+// --- Quiescence search (port of quiescence) --------------------------------------
+
+function quiescenceAS(alpha: i32, beta: i32, ply: i32, depthLeft: i32): i32 {
+  if (ply >= S_MAX_PLY - 1) {
+    return evalForSideToMove();
+  }
+  leafCount++;
+  sampleTime();
+  if (stopped) return 0;
+
+  if (!pushRepetition(getHashVal())) return repetitionDrawScore();
+
+  const inCheck = isKingInCheck(teban);
+
+  const standPat = evalForSideToMove();
+  if (!inCheck) {
+    if (standPat >= beta) {
+      popRepetition();
+      return standPat;
+    }
+    if (standPat > alpha) alpha = standPat;
+    if (depthLeft <= 0) {
+      popRepetition();
+      return standPat;
+    }
+  } else {
+    if (depthLeft <= 0) depthLeft = 1;
+  }
+
+  const n = generateMoves(ply);
+  const base = ply * MAX_MOVES;
+
+  // TT best move for quiescence ordering.
+  const qTtIndex = ttProbe(getHashVal());
+  const qTtMoveKey = qTtIndex >= 0 ? unchecked(ttBestA[qTtIndex]) : 0;
+
+  orderDepthLeft = 0;
+  if (inCheck) {
+    scoreAndSortMovesAS(ply, n, qTtMoveKey, 0);
+  } else {
+    // Partition noisy moves to the front (same swap scheme as the JS engine),
+    // then order only the noisy prefix.
+    let noisyCount = 0;
+    for (let i = 0; i < n; i++) {
+      const m = unchecked(moveBuf[base + i]);
+      if (((m >> 24) & 0x7f) != EMPTY || ((m >> 23) & 1) != 0) {
+        if (i != noisyCount) {
+          unchecked(moveBuf[base + i] = moveBuf[base + noisyCount]);
+          unchecked(moveBuf[base + noisyCount] = m);
+        }
+        noisyCount++;
+      }
+    }
+    beginAttackCacheForNode(ply);
+    for (let i = 0; i < noisyCount; i++) {
+      unchecked(moveScoreBuf[base + i] = scoreMoveAS(unchecked(moveBuf[base + i]), ply, qTtMoveKey, 0));
+    }
+    insertionSortDesc(base, 0, noisyCount);
+  }
+  orderDepthLeft = 99;
+
+  let quietChecksSearched = 0;
+  let quietChecksTried = 0;
+  let legalTried = 0;
+  const mover = teban;
+  const enemy = mover == SENTE ? GOTE : SENTE;
+
+  for (let i = 0; i < n; i++) {
+    const m = unchecked(moveBuf[base + i]);
+    const to = m & 0xff;
+    const from = (m >> 8) & 0xff;
+    const koma = (m >> 16) & 0x7f;
+    const promote = (m >> 23) & 1;
+    const capture = (m >> 24) & 0x7f;
+
+    const isNoisy = capture != EMPTY || promote != 0;
+    const canProbeQuietCheck =
+      !inCheck &&
+      !isNoisy &&
+      quietChecksSearched < qCheckMoveLimit &&
+      quietChecksTried < qCheckTryLimit;
+
+    if (!inCheck && !isNoisy && !canProbeQuietCheck) continue;
+
+    // Delta pruning.
+    if (!inCheck && isNoisy) {
+      const victimGain = capture != EMPTY ? absI(unchecked(KOMA_VALUE[capture])) : 0;
+      const promoteGain = promote != 0 ? promotionGainOf(koma) : 0;
+      if (standPat + victimGain + promoteGain + DELTA_PRUNING_MARGIN <= alpha) {
+        continue;
+      }
+    }
+
+    // SEE-lite losing-capture pruning.
+    if (!inCheck && capture != EMPTY && promote == 0 && from != 0) {
+      const attackerValue = absI(unchecked(KOMA_VALUE[koma]));
+      const victimValue = absI(unchecked(KOMA_VALUE[capture]));
+      if (attackerValue >= 1000 && victimValue + 300 <= attackerValue) {
+        const enemyKing = mover == SENTE ? kingG : kingS;
+        const distToEnemyKing =
+          enemyKing > 0
+            ? absI((to >> 4) - (enemyKing >> 4)) + absI((to & 0x0f) - (enemyKing & 0x0f))
+            : 99;
+        if (distToEnemyKing > 2) {
+          const enemyLeastAttacker = leastAttackerValueCached(to, mover, ply);
+          if (enemyLeastAttacker != NO_ATTACKER && enemyLeastAttacker < attackerValue) {
+            continue;
+          }
+        }
+      }
+    }
+
+    makeMove(m);
+    // Lazy legality.
+    if (isKingInCheck(mover)) {
+      unmakeMove(m);
+      continue;
+    }
+    legalTried++;
+    teban = enemy;
+
+    if (!inCheck && !isNoisy) {
+      quietChecksTried++;
+      const givesCheck = isKingInCheck(teban);
+      if (!givesCheck) {
+        teban = mover;
+        unmakeMove(m);
+        continue;
+      }
+      quietChecksSearched++;
+    }
+
+    const score = -quiescenceAS(-beta, -alpha, ply + 1, depthLeft - 1);
+
+    teban = mover;
+    unmakeMove(m);
+    if (stopped) {
+      popRepetition();
+      return 0;
+    }
+
+    if (score > alpha) {
+      alpha = score;
+      if (alpha >= beta) break;
+    }
+  }
+
+  popRepetition();
+  if (inCheck && legalTried == 0) return -S_MATE + ply;
+  return alpha;
+}
+
+// --- Main search (port of search) --------------------------------------------------
+
+function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
+  if (depthLeft <= 0) {
+    return quiescenceAS(alpha, beta, ply, quiescenceDepthMaxG);
+  }
+
+  if (ply >= S_MAX_PLY - 1) {
+    return evalForSideToMove();
+  }
+
+  nodeCount++;
+  sampleTime();
+  if (stopped) return 0;
+
+  if (!pushRepetition(getHashVal())) return repetitionDrawScore();
+
+  const alphaOrig = alpha;
+
+  // Mate-distance bounds.
+  const alphaMate = -S_MATE + ply;
+  if (alpha < alphaMate) alpha = alphaMate;
+  const betaMate = S_MATE - ply;
+  if (beta > betaMate) beta = betaMate;
+  if (alpha >= beta) {
+    popRepetition();
+    return alpha;
+  }
+
+  // Transposition table probe.
+  const hashVal = getHashVal();
+  const ttIndex = ttProbe(hashVal);
+  let ttMoveKey = 0;
+  let ttSecondMoveKey = 0;
+  if (ttIndex >= 0) {
+    ttMoveKey = unchecked(ttBestA[ttIndex]);
+    ttSecondMoveKey = unchecked(ttSecondA[ttIndex]);
+
+    const ttRemainDepth = <i32>unchecked(ttDepthA[ttIndex]);
+    if (ttRemainDepth >= depthLeft) {
+      const ttValue = unchecked(ttValueA[ttIndex]);
+      const ttFlag = <i32>unchecked(ttFlagA[ttIndex]);
+
+      if (ttFlag == TT_EXACT) {
+        if (ply == 0 && ttMoveKey != 0) rootBestKey = ttMoveKey;
+        popRepetition();
+        return ttValue;
+      }
+      if (ttFlag == TT_LOWER && ttValue >= beta) {
+        popRepetition();
+        return ttValue;
+      }
+      if (ttFlag == TT_UPPER && ttValue <= alpha) {
+        popRepetition();
+        return ttValue;
+      }
+    }
+  }
+
+  // Check extension.
+  const parentInCheck = isKingInCheck(teban);
+  if (parentInCheck) depthLeft++;
+
+  // Internal Iterative Deepening.
+  if (ttMoveKey == 0 && depthLeft >= 5 && !parentInCheck) {
+    searchNodeAS(depthLeft - 2, alpha, beta, ply);
+    if (stopped) {
+      popRepetition();
+      return 0;
+    }
+    const iidIndex = ttProbe(hashVal);
+    if (iidIndex >= 0) {
+      ttMoveKey = unchecked(ttBestA[iidIndex]);
+      ttSecondMoveKey = unchecked(ttSecondA[iidIndex]);
+    }
+  }
+
+  // Reverse futility pruning.
+  if (!parentInCheck && depthLeft <= 3 && beta > -S_MATE + 10_000 && beta < S_MATE - 10_000) {
+    const staticEval = evalForSideToMove();
+    if (staticEval - 200 * depthLeft >= beta) {
+      popRepetition();
+      return staticEval;
+    }
+  }
+
+  // Null-move pruning (adaptive reduction).
+  if (!parentInCheck && ply > 0 && depthLeft >= 3) {
+    const standPat = evalForSideToMove();
+    if (standPat >= beta) {
+      const nullR = nullMoveReductionG + (depthLeft >= 7 ? 1 : 0);
+      const reducedDepth = depthLeft - 1 - nullR;
+
+      const mover = teban;
+      teban = mover == SENTE ? GOTE : SENTE;
+      const score = -searchNodeAS(reducedDepth, -beta, -beta + 1, ply + 1);
+      teban = mover;
+      if (stopped) {
+        popRepetition();
+        return 0;
+      }
+      if (score >= beta) {
+        popRepetition();
+        return score;
+      }
+    }
+  }
+
+  // Pseudo-legal generation + lazy legality at make time.
+  const n = generateMoves(ply);
+  const base = ply * MAX_MOVES;
+
+  orderDepthLeft = depthLeft;
+  scoreAndSortMovesAS(ply, n, ttMoveKey, ttSecondMoveKey);
+  orderDepthLeft = 99;
+
+  // Futility pruning precompute (frontier nodes).
+  const futilityApplicable =
+    !parentInCheck && depthLeft <= 2 && alpha > -S_MATE + 10_000 && beta < S_MATE - 10_000;
+  const futilityScore = futilityApplicable
+    ? evalForSideToMove() + (depthLeft <= 1 ? FUTILITY_MARGIN_1 : FUTILITY_MARGIN_2)
+    : 0;
+
+  let bestMoveKey = 0;
+  let searched = 0;
+  let legalTried = 0;
+  let prunedAny = false;
+
+  // Late Move Pruning precompute.
+  const lmpApplicable = !parentInCheck && depthLeft <= 3 && alpha > -S_MATE + 10_000;
+  const lmpThreshold = 7 + 5 * depthLeft;
+
+  const mover = teban;
+  const enemy = mover == SENTE ? GOTE : SENTE;
+
+  for (let i = 0; i < n; i++) {
+    const m = unchecked(moveBuf[base + i]);
+    const to = m & 0xff;
+    const from = (m >> 8) & 0xff;
+    const koma = (m >> 16) & 0x7f;
+    const promote = (m >> 23) & 1;
+    const capture = (m >> 24) & 0x7f;
+
+    // Late Move Pruning: quiet non-drop short-range moves far from the enemy king.
+    if (lmpApplicable && searched >= lmpThreshold && from != 0 && capture == EMPTY && promote == 0) {
+      const movedType = koma & 0x0f;
+      const isLongRange =
+        movedType == KY || movedType == KA || movedType == HI || movedType == UM || movedType == RY;
+      if (!isLongRange) {
+        const enemyKingSq = mover == SENTE ? kingG : kingS;
+        const distToEnemyKing =
+          enemyKingSq > 0
+            ? absI((to >> 4) - (enemyKingSq >> 4)) + absI((to & 0x0f) - (enemyKingSq & 0x0f))
+            : 99;
+        if (distToEnemyKing > 3) {
+          prunedAny = true;
+          continue;
+        }
+      }
+    }
+
+    // Futility skip.
+    if (futilityApplicable && searched > 0 && futilityScore <= alpha && capture == EMPTY && promote == 0) {
+      const movedType = koma & 0x0f;
+      const isLongRange =
+        movedType == KY || movedType == KA || movedType == HI || movedType == UM || movedType == RY;
+      if (!isLongRange) {
+        const enemyKingSq = mover == SENTE ? kingG : kingS;
+        const distToEnemyKing =
+          enemyKingSq > 0
+            ? absI((to >> 4) - (enemyKingSq >> 4)) + absI((to & 0x0f) - (enemyKingSq & 0x0f))
+            : 99;
+        if (distToEnemyKing > 3) {
+          prunedAny = true;
+          continue;
+        }
+      }
+    }
+
+    makeMove(m);
+    // Lazy legality.
+    if (isKingInCheck(mover)) {
+      unmakeMove(m);
+      continue;
+    }
+    legalTried++;
+    teban = enemy;
+
+    // Track the path move for countermove / continuation-history at the child ply.
+    if (ply + 1 < S_MAX_PLY) {
+      unchecked(prevKeyByPly[ply + 1] = jsMoveKeyOf(m));
+      unchecked(prevPtByPly[ply + 1] = pieceToIndexOf(m));
+    }
+
+    const baseDepthNext = depthLeft - 1;
+    const canCheckExtend = ply <= CHECK_EXTENSION_MAX_PLY;
+    const canLMRBase =
+      !parentInCheck &&
+      baseDepthNext >= 3 &&
+      searched >= 4 &&
+      from != 0 &&
+      capture == EMPTY &&
+      promote == 0;
+
+    const givesCheck = canCheckExtend || canLMRBase ? isKingInCheck(teban) : false;
+
+    const depthNext = canCheckExtend && givesCheck ? baseDepthNext + 1 : baseDepthNext;
+    let score = 0;
+    if (searched == 0) {
+      score = -searchNodeAS(depthNext, -beta, -alpha, ply + 1);
+    } else {
+      const canLMR = canLMRBase && !givesCheck;
+
+      let reducedDepth = depthNext;
+      if (canLMR) {
+        reducedDepth = depthNext - 1;
+        if (searched >= 8 && depthNext >= 3) reducedDepth = depthNext - 2;
+        if (searched >= 20 && depthNext >= 5) reducedDepth = depthNext - 3;
+      }
+
+      score = -searchNodeAS(reducedDepth, -alpha - 1, -alpha, ply + 1);
+
+      if (!stopped && reducedDepth != depthNext && score > alpha) {
+        score = -searchNodeAS(depthNext, -alpha - 1, -alpha, ply + 1);
+      }
+
+      if (!stopped && score > alpha && score < beta) {
+        score = -searchNodeAS(depthNext, -beta, -alpha, ply + 1);
+      }
+    }
+
+    teban = mover;
+    unmakeMove(m);
+    if (stopped) {
+      popRepetition();
+      return 0;
+    }
+    searched++;
+
+    if (score > alpha) {
+      alpha = score;
+      bestMoveKey = jsMoveKeyOf(m);
+      if (ply == 0) rootBestKey = bestMoveKey;
+
+      if (alpha >= beta) {
+        const key = bestMoveKey;
+        if (capture == EMPTY) {
+          recordKiller(ply, key);
+          if (ply > 0 && ply < S_MAX_PLY) {
+            const prevKey = unchecked(prevKeyByPly[ply]);
+            if (prevKey != 0) unchecked(counterMoveTable[moveKeyCompact(prevKey)] = key);
+            const prevPt = unchecked(prevPtByPly[ply]);
+            if (prevPt >= 0) {
+              const idx = prevPt * CONT_DIM + pieceToIndexOf(m);
+              unchecked(contHist[idx] = contHist[idx] + depthLeft * depthLeft);
+            }
+          }
+        }
+        const hIdx = moveKeyCompact(key);
+        unchecked(historyTable[hIdx] = historyTable[hIdx] + depthLeft * depthLeft);
+        break;
+      }
+    }
+  }
+
+  // Mate detection with lazy legality.
+  if (legalTried == 0) {
+    popRepetition();
+    if (!prunedAny) return parentInCheck ? -S_MATE + ply : 0;
+    return alpha;
+  }
+
+  ttAdd(hashVal, alpha, alphaOrig, beta, bestMoveKey, depthLeft);
+  popRepetition();
+  return alpha;
+}
+
+// --- Engine API -------------------------------------------------------------------
+
+/** Root move number (used only by the opening-like root ordering heuristics). */
+export function setRootTesu(tesu: i32): void {
+  rootTesuG = tesu;
+}
+
+/**
+ * Search the current position (port of ShogiAIImprovedV20.getNextTe minus the
+ * opening book and mate solver, which the JS host runs first).
+ *
+ * @param maxTimeMs   time budget in ms; <= 0 disables the time limit
+ * @param maxDepth    iterative-deepening depth cap (clamped to 1..32)
+ * @param quiescenceDepthMax max quiescence extension depth
+ * @returns the best move packed as (koma&0x3f) | from<<6 | to<<14 | promote<<22,
+ *          or 0 if the side to move has no legal move.
+ */
+export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax: i32): i32 {
+  // Reset per-search state (mirrors the getNextTe preamble).
+  searchEpoch++;
+  stopped = false;
+  nodeCount = 0;
+  leafCount = 0;
+  rootBestKey = 0;
+  orderDepthLeft = 99;
+  repSize = 0;
+  for (let i = 0; i < S_MAX_PLY; i++) {
+    unchecked(killer1[i] = 0);
+    unchecked(killer2[i] = 0);
+    unchecked(prevKeyByPly[i] = 0);
+    unchecked(prevPtByPly[i] = -1);
+  }
+  for (let i = 0; i < HIST_SIZE; i++) {
+    unchecked(historyTable[i] = 0);
+    unchecked(counterMoveTable[i] = 0);
+  }
+  for (let i = 0; i < CONT_DIM * CONT_DIM; i++) unchecked(contHist[i] = 0);
+
+  searchMaxTimeMs = maxTimeMs;
+  const maxDepthL = maxI(1, minI(maxDepth, 32));
+  quiescenceDepthMaxG = maxI(0, quiescenceDepthMax);
+
+  // Unified V20 feature knobs (time-budget dependent).
+  nullMoveReductionG = maxTimeMs >= 3000 ? 3 : 2;
+  qCheckMoveLimit = maxTimeMs >= 2000 ? 2 : 1;
+  qCheckTryLimit = maxTimeMs >= 2000 ? 8 : 2;
+
+  searchStartTime = hostNow();
+
+  // Root-only metadata.
+  let handTotal = 0;
+  for (let i = 0; i < 64; i++) handTotal += unchecked(hand[i]);
+  rootHandTotalG = handTotal;
+  rootInCheckG = isKingInCheck(teban);
+  const selfKing = teban == SENTE ? kingS : kingG;
+  rootKingDangerG = rootInCheckG ? 999 : computeKingDangerAS(teban, selfKing);
+
+  // Root fallback: eager legal move list (order-preserving filter).
+  const mover = teban;
+  const enemy = mover == SENTE ? GOTE : SENTE;
+  const pseudoN = generateMoves(0);
+  let rootN = 0;
+  for (let i = 0; i < pseudoN; i++) {
+    const m = unchecked(moveBuf[i]);
+    makeMove(m);
+    const illegal = isKingInCheck(mover);
+    unmakeMove(m);
+    if (!illegal) {
+      unchecked(moveBuf[rootN] = m);
+      rootN++;
+    }
+  }
+  if (rootN == 0) {
+    lastSearchScore = 0;
+    lastSearchDepth = 0;
+    return 0;
+  }
+
+  const ttIndexAtRoot = ttProbe(getHashVal());
+  const ttMoveKeyAtRoot = ttIndexAtRoot >= 0 ? unchecked(ttBestA[ttIndexAtRoot]) : 0;
+  const ttSecondMoveKeyAtRoot = ttIndexAtRoot >= 0 ? unchecked(ttSecondA[ttIndexAtRoot]) : 0;
+  scoreAndSortMovesAS(0, rootN, ttMoveKeyAtRoot, ttSecondMoveKeyAtRoot);
+
+  let bestMoveKey = jsMoveKeyOf(unchecked(moveBuf[0]));
+  let bestScore = -S_INFINITE;
+  // 1-ply sanity selection among the top candidates.
+  const sanityN = minI(6, rootN);
+  for (let i = 0; i < sanityN; i++) {
+    const m = unchecked(moveBuf[i]);
+    makeMove(m);
+    teban = enemy;
+
+    const score = -evalForSideToMove();
+
+    teban = mover;
+    unmakeMove(m);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMoveKey = jsMoveKeyOf(m);
+    }
+  }
+  let completedDepth = 0;
+
+  for (let depth = 1; depth <= maxDepthL; depth++) {
+    rootBestKey = 0;
+
+    // Aspiration windows with gradual (4x then full) widening.
+    const useAspiration = depth >= 2;
+    const alpha0 = useAspiration ? bestScore - ASPIRATION_WINDOW : -S_INFINITE;
+    const beta0 = useAspiration ? bestScore + ASPIRATION_WINDOW : S_INFINITE;
+
+    let score = searchNodeAS(depth, alpha0, beta0, 0);
+    if (stopped) break;
+    if (useAspiration && (score <= alpha0 || score >= beta0)) {
+      const wide = ASPIRATION_WINDOW * 4;
+      const alpha1 = score <= alpha0 ? bestScore - wide : alpha0;
+      const beta1 = score >= beta0 ? bestScore + wide : beta0;
+      rootBestKey = 0;
+      score = searchNodeAS(depth, alpha1, beta1, 0);
+      if (stopped) break;
+      if (score <= alpha1 || score >= beta1) {
+        rootBestKey = 0;
+        score = searchNodeAS(depth, -S_INFINITE, S_INFINITE, 0);
+        if (stopped) break;
+      }
+    }
+
+    if (rootBestKey != 0) {
+      bestMoveKey = rootBestKey;
+      bestScore = score;
+      completedDepth = depth;
+    }
+
+    // Forced mate found: stop early.
+    if (bestScore >= S_MATE - 10_000) break;
+
+    if (timeUpNow()) break;
+  }
+
+  lastSearchScore = bestScore;
+  lastSearchDepth = completedDepth;
+  return bestMoveKey;
+}
+
+// --- Search stats -------------------------------------------------------------------
+
+export function getSearchScore(): i32 {
+  return lastSearchScore;
+}
+
+export function getSearchDepth(): i32 {
+  return lastSearchDepth;
+}
+
+export function getSearchNodes(): i32 {
+  return nodeCount;
+}
+
+export function getSearchLeaves(): i32 {
+  return leafCount;
 }

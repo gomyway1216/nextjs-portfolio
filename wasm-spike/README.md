@@ -1,6 +1,6 @@
 # Shogi WASM spike (feasibility check → 段階移植)
 
-将棋エンジン（`src/components/game/ShogiImproved/`）の WebAssembly 化でどれだけ速くなるかを実測するためのスパイク。フェーズ1（盤面表現＋完全合法手生成＋perft＋Zobrist）に続き、**フェーズ2 で評価関数 `evaluateV3()` を完全移植**した（JS と整数一致）。
+将棋エンジン（`src/components/game/ShogiImproved/`）の WebAssembly 化でどれだけ速くなるかを実測するためのスパイク。フェーズ1（盤面表現＋完全合法手生成＋perft＋Zobrist）、フェーズ2（評価関数 `evaluateV3()` の完全移植、JS と整数一致）に続き、**フェーズ3 で V20 探索本体を完全移植**した（固定深さで JS と bestMove・スコア・ノード数まで完全一致）。
 
 フル移植の計画は [PLAN.md](./PLAN.md) を参照。
 
@@ -122,14 +122,52 @@ perft 値（王手放置チェックあり合法手数え上げ）が **JS / WAS
 - 王手放置の遅延フィルタ、二歩・打ち場所制限、成り分岐（強制成り＋角飛成り枝刈り）
 - **評価関数 `evaluateV3` / `evaluateV3Full`（フェーズ2で移植、整数一致）**
 
+## フェーズ3: 探索本体の完全移植
+
+`ShogiAIImprovedV20` の探索を statement-for-statement で AssemblyScript に移植（`assembly/index.ts` 末尾の Phase 3 セクション）:
+
+- 反復深化 + negamax + αβ + **PVS** + **aspiration**（窓 300、4倍→全窓の段階拡張）
+- **パック型 TT**（2^20 スロット、hash/value/flag/remainDepth/bestKey/secondKey、`TranspositionTableImprovedPacked` と同一の置換ポリシー。キーは JS の `moveKey(te)` とビット互換）
+- move ordering: TT best/second → killer×2 → countermove → history + **continuation history（1296×1296）** → promotion/MVV-LVA/SEE-lite nudge/drop ヒューリスティクス/root 専用 opening・safety bonus（`openingOrderBonusAtRoot` / `rootMoveSafetyOrderAdjustment` 込み）。JS の `Map` ベースの history/counterMove/root キャッシュは moveKey の全単射コンパクト索引（425,088 エントリ）のフラット配列で厳密に再現
+- null-move（適応 R: `2or3 + (depthLeft>=7)`）/ LMR 段階(1–3) / futility(d≤2, 350/700) / LMP(d≤3, 7+5d) / RFP(d≤3, 200d) / IID(d≥5) / mate-distance 境界 / root check extension
+- 静止探索: TT 手順序 + 非王手時 noisy 部分ソート（JS と同じ swap パーティション＋挿入ソート） + delta pruning(150) + SEE-lite プルーニング + 王手プローブ（budget 連動上限）
+- 経路上の千日手検出（HashVal カウント 4回目=引き分け + contempt 12）と遅延合法性チェック + `legalTried`/`prunedAny` 詰みステイルメイト判定
+- eval キャッシュ（2^18、キー=`getHash()` 手番なし、値=`evaluateV3Full()` SENTE 視点）
+- **時間管理**: `env.now(): f64` をホストから import（`performance.now` を渡す）。ノード+リーフ 2048 個ごとにサンプリング。AS に例外がないため JS の `TimeUpError` は `stopped` フラグで代替（部分イテレーション破棄のセマンティクスは同一）
+- API: `searchBestMove(maxTimeMs, maxDepth, quiescenceDepthMax): i32`（戻り値 = `(koma&0x3f)|from<<6|to<<14|promote<<22`、0=手なし）、`setRootTesu(tesu)`、`clearTT()`、`getSearchScore/Depth/Nodes/Leaves()`
+- 詰みソルバー（MateSolverImproved）とオープニングブックは**意図的に未移植**（JS 側で先に処理するハイブリッド構成。`match-wasm-vs-js.ts` の `WasmHybridPlayer` がフェーズ4 の形）
+
+### 検証（`node -r tsx/cjs wasm-spike/search-driver.ts`）
+
+固定深さ（maxTimeMs=0、depth 4/5/6 × 16 局面 = 48 比較）で JS V20 と **48/48 完全一致** — bestMove・スコアだけでなく **node 数・leaf 数までバイト一致**（= 探索木が同一）。
+
+### 3秒ベンチ（`--bench`、macOS / Apple Silicon / node v20）
+
+| 局面 | JS depth / nodes / leaves | WASM depth / nodes / leaves |
+|---|---|---|
+| midgame ply24 | 9 / 25,400 / 79,048 | **12** / 373,043 / 1,220,301 |
+| midgame ply33 | 9 / 29,884 / 62,276 | **12** / 433,064 / 1,078,360 |
+| endgame-ish ply42 | 7 / 35,991 / 58,217 | **11** / 398,588 / 1,010,436 |
+
+同一時間で **深さ +3〜+4**、スループット約 15 倍。
+
+### 対戦（`node -r tsx/cjs wasm-spike/match-wasm-vs-js.ts`）
+
+WASM ハイブリッド vs JS V20、各手 200ms、curated opening 6手、10局（先後交替）: **WASM 10勝 0敗 0分**。全手合法性検証つき（違法手は即エラー終了）。
+
 ## 省略したもの（caveats）
 
-- 探索（alpha-beta / TT / 反復深化 / quiescence）は未移植。→ フェーズ3（PLAN.md）
+- 詰みソルバー / オープニングブック（JS 側で先に処理するハイブリッド構成のため意図的に未移植）
+- Worker 統合（→ フェーズ4）
 
-## フェーズ3（探索移植）への引き継ぎ注意
+## フェーズ4（Worker 統合）への引き継ぎ注意
 
-- 葉評価は **`evaluateV3Full()`**（= `evaluateV3()` + `hangingThreat()`）を使うこと。V20 は `evaluateSenteCached` で SENTE 視点値をキャッシュし、negamax では手番に応じて符号反転する（`k.teban === SENTE ? v : -v`）。
-- V20 の eval キャッシュのキーは `(BanHash ^ HandHash) | 0`（手番なし）。WASM 側の `getHash()` がそれに一致する。TT キーは手番込みの `getHashVal()`。
-- `evaluateV3` 系は読み取り専用（局面状態を変更しない）。`hangingThreat` も同様。
-- 探索側の move ordering で使う `getLeastAttackerValue` は移植済み（内部関数。JS の `Infinity` は `NO_ATTACKER = 0x7fffffff` で表現）。
-- perft 用の `moveBuf` は `MAX_PLY = 32`（打ち歩詰め再帰の scratch ply 含む）。探索の最大深さ＋quiescence 深さがこれを超えるなら拡張が必要。
+- **instantiate 時に `env.now` を渡すこと**（`performance.now.bind(performance)` 等）。渡さないと LinkError。`env.abort` も従来どおり必要。
+- 局面ロードは `clearBoard → setSquare× → setHand× → setSideToMove → finalizePosition`（`search-driver.ts` の `syncWasm` を参照）。1手ごとに再同期するのが安全（`searchBestMove` は make/unmake で必ず局面を復元するが、防御的に）。
+- 対局中は `clearTT()` を呼ばない（TT 持ち越しで強くなる）。新規対局で呼ぶ。
+- `setRootTesu(手数)` を検索前に設定（root の opening ordering に影響。未設定でも動くが JS と挙動がずれる）。
+- ハイブリッド順序: JS オープニングブック → JS 詰みソルバー（gate/budget は `match-wasm-vs-js.ts` の `WasmHybridPlayer` を移植）→ WASM `searchBestMove(残り時間, 32, 10)`。
+- 戻り値 0 は「合法手なし」（投了/詰み）。Te 復元は `teFromWasmKey`（capture は盤から読む）。
+- 探索は同期実行でメインスレッドをブロックするため Worker 内で動かすこと（現行 `shogi-ai.worker.ts` と同じ形）。
+- WASM メモリは TT 19MB + continuation history 6.7MB ほかで合計 ~35MB 程度。Worker 生成のたびに instantiate し直すとその分のアロケーションが走る点に注意（使い回し推奨）。
+- 千日手は**探索経路内のみ**検出（JS V20 と同一仕様）。対局全体の千日手判定は従来どおりホスト側で。

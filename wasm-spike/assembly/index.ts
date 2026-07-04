@@ -20,7 +20,19 @@
 //   in the exact same order as KyokumenImproved.initializeHash(), so BanHash /
 //   HandHash / HashVal are BIT-IDENTICAL to the JS engine for any position
 //   (verified by wasm-spike/parity.ts).
-//   (PSQT incremental updates are NOT ported — see README caveats.)
+// - Evaluation (phase 2): full port of KyokumenImproved.evaluateV3() — PSQT
+//   (initializePsqt tables + incremental updates in make/unmake mirroring
+//   KyokumenImproved.move()/back()), hand bonus, king safety v2 (phase-aware,
+//   f64 + Math.round exactly like JS), castle shapes, major piece activity,
+//   file defense, climbing-silver pressure (silver intrusion level 4), and
+//   promotion threats (incl. the ±350 UM/RY-in-enemy-camp bonus), with the
+//   phase-bucket fixed-point scaling of scaleEvalV3 (Math.imul == i32 mul,
+//   symmetric rounding). evaluateV3() is INTEGER-IDENTICAL to the JS engine
+//   (verified by wasm-spike/parity.ts).
+//   evaluateV3Full() = evaluateV3() + hangingThreat(), where hangingThreat is
+//   a port of ShogiAIImprovedV20.hangingThreatSente (silver-and-up, attacked
+//   AND undefended only, (worstGote - worstSente) / 3 truncated). This is the
+//   leaf evaluation the phase-3 search should use.
 //
 // Moves are encoded in a single i32:
 //   bits 0-7   to
@@ -44,9 +56,17 @@ const PROMOTE: i32 = 8;
 const FU: i32 = 1;
 const KY: i32 = 2;
 const KE: i32 = 3;
+const GI: i32 = 4;
+const KI: i32 = 5;
 const KA: i32 = 6;
 const HI: i32 = 7;
 const OU: i32 = 8;
+const TO: i32 = 9;
+const NY: i32 = 10;
+const NK: i32 = 11;
+const NG: i32 = 12;
+const UM: i32 = 14;
+const RY: i32 = 15;
 
 const SOU: i32 = SENTE + OU;
 const GOU: i32 = GOTE + OU;
@@ -65,6 +85,7 @@ let kingG: i32 = 0;
 
 // Incremental bookkeeping (parity with KyokumenImproved.move/back).
 let evalMaterial: i32 = 0;
+let psqtEval: i32 = 0;
 let banHash: i32 = 0;
 let handHash: i32 = 0;
 
@@ -138,9 +159,12 @@ export function clearBoard(): void {
   }
   for (let i = 0; i < 64; i++) unchecked(hand[i] = 0);
   teban = SENTE;
-  kingS = 0;
-  kingG = 0;
+  // JS parity: KyokumenImproved uses -34 for "king not on board" and computes
+  // (kingPos >> 4) / (kingPos & 0x0f) from it in evaluateMajorPieceActivity.
+  kingS = -34;
+  kingG = -34;
   evalMaterial = 0;
+  psqtEval = 0;
   banHash = 0;
   handHash = 0;
 }
@@ -160,10 +184,11 @@ export function setSideToMove(t: i32): void {
 /** Recompute king positions / eval / hashes after manual setup. */
 export function finalizePosition(): void {
   evalMaterial = 0;
+  psqtEval = 0;
   banHash = 0;
   handHash = 0;
-  kingS = 0;
-  kingG = 0;
+  kingS = -34;
+  kingG = -34;
   for (let suji = 1; suji <= 9; suji++) {
     for (let dan = 1; dan <= 9; dan++) {
       const pos = (suji << 4) + dan;
@@ -171,6 +196,7 @@ export function finalizePosition(): void {
       if (koma == SOU) kingS = pos;
       if (koma == GOU) kingG = pos;
       evalMaterial += unchecked(KOMA_VALUE[koma]);
+      psqtEval += psqtValue(koma, pos);
       banHash ^= unchecked(HASH_SEED[koma * BAN_SIZE + pos]);
     }
   }
@@ -214,6 +240,17 @@ function makeMove(m: i32): void {
   const promote = (m >> 23) & 1;
   const capture = (m >> 24) & 0x7f;
 
+  // PSQT incremental update (parity with KyokumenImproved.move()):
+  // - remove captured piece from destination
+  // - remove moved piece from source (if not a drop)
+  // - add moved/promoted piece on destination (below, after the board update)
+  if (capture != EMPTY) {
+    psqtEval -= psqtValue(capture, to);
+  }
+  if (from != 0) {
+    psqtEval -= psqtValue(koma, from);
+  }
+
   // Remove destination occupant from board hash.
   banHash ^= unchecked(HASH_SEED[capture * BAN_SIZE + to]);
 
@@ -247,6 +284,8 @@ function makeMove(m: i32): void {
   unchecked(ban[to] = placed);
   banHash ^= unchecked(HASH_SEED[placed * BAN_SIZE + to]);
 
+  psqtEval += psqtValue(placed, to);
+
   if (koma == SOU) kingS = to;
   else if (koma == GOU) kingG = to;
 }
@@ -262,10 +301,20 @@ function unmakeMove(m: i32): void {
   const placed = promote != 0 ? koma | PROMOTE : koma;
   banHash ^= unchecked(HASH_SEED[placed * BAN_SIZE + to]);
 
+  // PSQT incremental update (parity with KyokumenImproved.back()):
+  // - remove the moved piece currently sitting on `to`
+  // - add back the captured piece (if any)
+  // - add back the mover on `from` (if not a drop, below)
+  psqtEval -= psqtValue(placed, to);
+
   // Restore captured piece (or EMPTY).
   unchecked(ban[to] = capture);
   banHash ^= unchecked(HASH_SEED[capture * BAN_SIZE + to]);
   evalMaterial += unchecked(KOMA_VALUE[capture]);
+
+  if (capture != EMPTY) {
+    psqtEval += psqtValue(capture, to);
+  }
 
   if (capture != EMPTY) {
     const handKoma = (capture & 0x07) | ((capture & SENTE) != 0 ? GOTE : SENTE);
@@ -283,6 +332,7 @@ function unmakeMove(m: i32): void {
     unchecked(ban[from] = koma);
     banHash ^= unchecked(HASH_SEED[EMPTY * BAN_SIZE + from]);
     banHash ^= unchecked(HASH_SEED[koma * BAN_SIZE + from]);
+    psqtEval += psqtValue(koma, from);
     if (promote != 0) {
       evalMaterial -= unchecked(KOMA_VALUE[koma | PROMOTE]);
       evalMaterial += unchecked(KOMA_VALUE[koma]);
@@ -567,12 +617,918 @@ export function perft(depth: i32): i32 {
 }
 
 // ---------------------------------------------------------------------------
+// PSQT (port of KyokumenImproved.initializePsqt / psqtValue)
+//
+// Tables are defined from SENTE's perspective; for GOTE pieces the rank is
+// mirrored (dan' = 10 - dan) and the sign flipped — exactly like the JS code.
+// Layout: PSQT[type * 81 + (dan - 1) * 9 + (suji - 1)], types 0/13 stay zero.
+// ---------------------------------------------------------------------------
+
+const PSQT = new StaticArray<i32>(16 * 81);
+
+// Rank bonus arrays indexed by dan (1..9), SENTE perspective (index 0 unused).
+const PAWN_RANK = StaticArray.fromArray<i32>([0, 0, 18, 16, 14, 12, 10, 6, 2, 0]);
+const LANCE_RANK = StaticArray.fromArray<i32>([0, 0, 14, 12, 10, 8, 6, 4, 2, 0]);
+const KNIGHT_RANK = StaticArray.fromArray<i32>([0, 0, 0, 10, 14, 16, 14, 10, 4, 0]);
+const SILVER_RANK = StaticArray.fromArray<i32>([0, 0, 6, 10, 12, 14, 16, 14, 10, 0]);
+const GOLD_RANK = StaticArray.fromArray<i32>([0, 0, 2, 4, 6, 8, 10, 12, 14, 16]);
+const GOLD_LIKE_ADVANCED = StaticArray.fromArray<i32>([0, 0, 18, 16, 14, 12, 10, 8, 6, 4]);
+
+function absI(x: i32): i32 {
+  return x < 0 ? -x : x;
+}
+
+function minI(a: i32, b: i32): i32 {
+  return a < b ? a : b;
+}
+
+function maxI(a: i32, b: i32): i32 {
+  return a > b ? a : b;
+}
+
+function initPsqtTables(): void {
+  for (let dan = 1; dan <= 9; dan++) {
+    for (let suji = 1; suji <= 9; suji++) {
+      const idx = (dan - 1) * 9 + (suji - 1);
+      const cf = 4 - absI(suji - 5); // centerFile: 0..4
+      const cr = 4 - absI(dan - 5);  // centerRank: 0..4
+
+      unchecked(PSQT[FU * 81 + idx] = unchecked(PAWN_RANK[dan]) + cf);
+      unchecked(PSQT[KY * 81 + idx] = unchecked(LANCE_RANK[dan]) + cf);
+      unchecked(PSQT[KE * 81 + idx] = unchecked(KNIGHT_RANK[dan]) + cf * 2);
+      unchecked(PSQT[GI * 81 + idx] = unchecked(SILVER_RANK[dan]) + cf);
+      unchecked(PSQT[KI * 81 + idx] = unchecked(GOLD_RANK[dan]) + cf);
+
+      unchecked(PSQT[KA * 81 + idx] = cf * 3 + cr * 3);
+      unchecked(PSQT[HI * 81 + idx] = cf * 2 + cr * 2);
+
+      const distFromCenter = absI(suji - 5) + absI(dan - 5);
+      const home = dan >= 8 ? 4 : 0;
+      unchecked(PSQT[OU * 81 + idx] = minI(18, distFromCenter * 2 + home));
+
+      const goldLike = unchecked(GOLD_LIKE_ADVANCED[dan]) + cf;
+      unchecked(PSQT[TO * 81 + idx] = goldLike);
+      unchecked(PSQT[NY * 81 + idx] = goldLike);
+      unchecked(PSQT[NK * 81 + idx] = goldLike);
+      unchecked(PSQT[NG * 81 + idx] = goldLike);
+
+      unchecked(PSQT[UM * 81 + idx] = 6 + cf * 3 + cr * 3);
+      unchecked(PSQT[RY * 81 + idx] = 6 + cf * 3 + cr * 3);
+    }
+  }
+}
+initPsqtTables();
+
+/** Port of KyokumenImproved.psqtValue (SENTE-positive). */
+function psqtValue(koma: i32, pos: i32): i32 {
+  if (koma == EMPTY || koma == WALL) return 0;
+  const suji = pos >> 4;
+  const dan0 = pos & 0x0f;
+  if (suji < 1 || suji > 9 || dan0 < 1 || dan0 > 9) return 0;
+
+  const type = koma & 0x0f;
+  const isS = (koma & SENTE) != 0;
+  const dan = isS ? dan0 : 10 - dan0;
+  const idx = (dan - 1) * 9 + (suji - 1);
+  const v = unchecked(PSQT[type * 81 + idx]);
+  return isS ? v : -v;
+}
+
+// ---------------------------------------------------------------------------
+// Evaluation (full port of KyokumenImproved.evaluateV3 and its terms)
+// ---------------------------------------------------------------------------
+
+// Fixed-point scale: 1.0 === 1 << EVAL_V3_SHIFT (128).
+const EVAL_V3_SHIFT: i32 = 7;
+const EVAL_V3_HALF: i32 = 1 << (EVAL_V3_SHIFT - 1);
+
+// Phase buckets indexed 0=endgame ... 3=opening (by total captured pieces in hand).
+const EVAL_V3_PSQT_W = StaticArray.fromArray<i32>([96, 112, 128, 160]);
+const EVAL_V3_CASTLE_W = StaticArray.fromArray<i32>([32, 64, 96, 128]);
+const EVAL_V3_FILE_DEFENSE_W = StaticArray.fromArray<i32>([32, 64, 96, 128]);
+const EVAL_V3_PROMO_THREAT_W = StaticArray.fromArray<i32>([64, 96, 112, 128]);
+
+/**
+ * Port of KyokumenImproved.scaleEvalV3: `Math.imul(value, weight)` == wrapping
+ * i32 multiply, then symmetric rounding so negative values don't bias toward 0.
+ */
+function scaleEvalV3(value: i32, weight: i32): i32 {
+  const product = value * weight;
+  return product >= 0
+    ? (product + EVAL_V3_HALF) >> EVAL_V3_SHIFT
+    : (product - EVAL_V3_HALF) >> EVAL_V3_SHIFT;
+}
+
+/** Board access by (suji, dan) with WALL for out-of-board — port of getAt. */
+function getAt(suji: i32, dan: i32): i32 {
+  if (suji < 1 || suji > 9 || dan < 1 || dan > 9) return WALL;
+  return unchecked(ban[(suji << 4) + dan]);
+}
+
+/** Port of totalHandPieces: JS loops SFU..GRY (indices past GHI are 0). */
+function totalHandPieces(): i32 {
+  let total = 0;
+  for (let koma = SENTE + FU; koma <= MAX_BAN_KOMA; koma++) {
+    total += unchecked(hand[koma]);
+  }
+  return total;
+}
+
+// --- evaluateHandBonus ------------------------------------------------------
+
+const HAND_BONUS_BY_TYPE = StaticArray.fromArray<i32>([
+  0, 15, 60, 70, 110, 130, 220, 260, 0, 0, 0, 0, 0, 0, 0, 0,
+]);
+
+function evaluateHandBonus(): i32 {
+  let score = 0;
+  for (let koma = SENTE + FU; koma <= SENTE + HI; koma++) {
+    const count = unchecked(hand[koma]);
+    if (count == 0) continue;
+    score += unchecked(HAND_BONUS_BY_TYPE[koma & 0x0f]) * count;
+  }
+  for (let koma = GOTE + FU; koma <= GOTE + HI; koma++) {
+    const count = unchecked(hand[koma]);
+    if (count == 0) continue;
+    score -= unchecked(HAND_BONUS_BY_TYPE[koma & 0x0f]) * count;
+  }
+  return score;
+}
+
+// --- king safety v2 ---------------------------------------------------------
+
+const KS2_DEFENDER_WEIGHT = StaticArray.fromArray<i32>([
+  0, 10, 18, 16, 24, 32, 14, 16, 0, 30, 26, 26, 26, 0, 18, 18,
+]);
+
+const KS2_ENEMY_ADJ_PENALTY = StaticArray.fromArray<i32>([
+  0, 10, 16, 16, 24, 28, 24, 24, 0, 22, 22, 22, 22, 0, 24, 26,
+]);
+
+const KS2_DANGER_BY_KOMASHU = StaticArray.fromArray<i32>([
+  0, 6, 10, 12, 16, 18, 22, 26, 0, 14, 12, 12, 12, 0, 26, 30,
+]);
+
+function enemyProximityDanger(side: i32, kingSuji: i32, kingDan: i32): i32 {
+  let danger = 0;
+  for (let ds = -2; ds <= 2; ds++) {
+    for (let dd = -2; dd <= 2; dd++) {
+      if (ds == 0 && dd == 0) continue;
+      const p = getAt(kingSuji + ds, kingDan + dd);
+      if (p == EMPTY || p == WALL) continue;
+      if (isSelf(side, p)) continue;
+      danger += unchecked(KS2_DANGER_BY_KOMASHU[p & 0x0f]);
+    }
+  }
+  return danger;
+}
+
+function evaluateOneKingSafetyV2(side: i32, kingPos: i32, phase: f64): i32 {
+  const suji = kingPos >> 4;
+  const dan = kingPos & 0x0f;
+
+  let shelter = 0;
+
+  // 1) Immediate 3x3 shelter around the king.
+  for (let dSuji = -1; dSuji <= 1; dSuji++) {
+    for (let dDan = -1; dDan <= 1; dDan++) {
+      if (dSuji == 0 && dDan == 0) continue;
+      const p = getAt(suji + dSuji, dan + dDan);
+      if (p == WALL) continue;
+      if (p == EMPTY) {
+        shelter -= 5;
+        continue;
+      }
+      const komashu = p & 0x0f;
+      if (isSelf(side, p)) shelter += unchecked(KS2_DEFENDER_WEIGHT[komashu]);
+      else shelter -= unchecked(KS2_ENEMY_ADJ_PENALTY[komashu]);
+    }
+  }
+
+  // 2) Pawn-shield / forward shelter (1 and 2 squares ahead).
+  const forward = side == SENTE ? -1 : 1;
+  for (let dSuji = -1; dSuji <= 1; dSuji++) {
+    const p1 = getAt(suji + dSuji, dan + forward);
+    const p2 = getAt(suji + dSuji, dan + forward * 2);
+    if (p1 == WALL) continue;
+
+    if ((p1 == EMPTY || p1 == WALL) && (p2 == EMPTY || p2 == WALL)) {
+      shelter -= 5;
+      continue;
+    }
+
+    const pawn1 = p1 != WALL && p1 != EMPTY && isSelf(side, p1) && (p1 & 0x0f) == FU;
+    const pawn2 = p2 != WALL && p2 != EMPTY && isSelf(side, p2) && (p2 & 0x0f) == FU;
+    if (pawn2) shelter += 12;
+    else if (pawn1) shelter += 6;
+
+    if (p1 != WALL && p1 != EMPTY && !isSelf(side, p1)) shelter -= 10;
+    if (p2 != WALL && p2 != EMPTY && !isSelf(side, p2)) shelter -= 6;
+  }
+
+  // 3) Phase-aware castle-progress incentive with diminishing returns.
+  const distFromCenter = absI(suji - 5) + absI(dan - 5);
+
+  let homeCamp = 0;
+  if (side == SENTE) {
+    if (dan >= 8) homeCamp += 12;
+    if (dan == 9) homeCamp += 10;
+  } else {
+    if (dan <= 2) homeCamp += 12;
+    if (dan == 1) homeCamp += 10;
+  }
+
+  const edgeDist = minI(suji - 1, 9 - suji);
+  const edgeBonus = maxI(0, 4 - edgeDist) * 4;
+
+  const progressRaw = distFromCenter * 2 + homeCamp + edgeBonus;
+  const progress = minI(progressRaw, 60);
+
+  // 4) Urgency override.
+  const danger = enemyProximityDanger(side, suji, dan);
+  const progressFactor: f64 = danger >= 70 ? 0.15 : danger >= 45 ? 0.4 : 1.0;
+
+  // f64 product + Math.round, same expression/association as JS for bit parity.
+  shelter += <i32>Math.round(<f64>progress * phase * progressFactor);
+  shelter -= minI(danger, 160);
+
+  if (shelter > 220) shelter = 220;
+  if (shelter < -220) shelter = -220;
+  return shelter;
+}
+
+function evaluateKingSafetyV2WithPhase(phase: f64): i32 {
+  if (kingS <= 0) return -50_000;
+  if (kingG <= 0) return 50_000;
+  return (
+    evaluateOneKingSafetyV2(SENTE, kingS, phase) -
+    evaluateOneKingSafetyV2(GOTE, kingG, phase)
+  );
+}
+
+// --- castle shapes ----------------------------------------------------------
+
+function castleAt(side: i32, sujiSente: i32, danSente: i32): i32 {
+  const suji = side == SENTE ? sujiSente : 10 - sujiSente;
+  const dan = side == SENTE ? danSente : 10 - danSente;
+  return get((suji << 4) + dan);
+}
+
+function castleHas(side: i32, sujiSente: i32, danSente: i32, type: i32): bool {
+  const p = castleAt(side, sujiSente, danSente);
+  return p != EMPTY && p != WALL && isSelf(side, p) && (p & 0x0f) == type;
+}
+
+function castleScoreForSide(side: i32, kingPos: i32): i32 {
+  if (kingPos <= 0) return 0;
+
+  const kingSuji = kingPos >> 4;
+  const kingDan = kingPos & 0x0f;
+  const ks = side == SENTE ? kingSuji : 10 - kingSuji;
+  const kd = side == SENTE ? kingDan : 10 - kingDan;
+
+  let anaguma = 0;
+  if (ks == 9 && kd == 9) anaguma = 90;
+  else if (ks == 8 && kd == 9) anaguma = 55;
+  else if (ks == 9 && kd == 8) anaguma = 45;
+  if (anaguma != 0) {
+    if (castleHas(side, 8, 9, KI)) anaguma += 40;
+    if (castleHas(side, 9, 8, KI)) anaguma += 40;
+    if (castleHas(side, 8, 8, GI)) anaguma += 25;
+  }
+
+  let mino = 0;
+  if (ks == 8 && kd == 8) mino = 70;
+  else if (ks == 9 && kd == 8) mino = 60;
+  if (mino != 0) {
+    if (castleHas(side, 7, 8, KI)) mino += 35;
+    if (castleHas(side, 8, 9, KI)) mino += 30;
+    if (castleHas(side, 7, 9, GI)) mino += 20;
+  }
+
+  let yagura = 0;
+  if (ks == 7 && kd == 8) yagura = 65;
+  else if (ks == 7 && kd == 9) yagura = 50;
+  if (yagura != 0) {
+    if (castleHas(side, 6, 8, KI)) yagura += 35;
+    if (castleHas(side, 7, 9, KI)) yagura += 30;
+    if (castleHas(side, 7, 7, GI)) yagura += 20;
+  }
+
+  return maxI(anaguma, maxI(mino, yagura));
+}
+
+function evaluateCastleShapes(): i32 {
+  return castleScoreForSide(SENTE, kingS) - castleScoreForSide(GOTE, kingG);
+}
+
+// --- major piece activity ---------------------------------------------------
+
+function countSlidingMobility1(suji: i32, dan: i32, ds: i32, dd: i32): i32 {
+  let count = 0;
+  for (let step = 1; step <= 8; step++) {
+    const p = getAt(suji + ds * step, dan + dd * step);
+    if (p == WALL) break;
+    if (p != EMPTY) {
+      // Can "see" the first occupied square (capture influence), then stop.
+      count++;
+      break;
+    }
+    count++;
+  }
+  return count;
+}
+
+function countAdjacentMobility1(suji: i32, dan: i32, ds: i32, dd: i32): i32 {
+  const p = getAt(suji + ds, dan + dd);
+  return p == EMPTY ? 1 : 0;
+}
+
+function lineToKingBonusRookLike(suji: i32, dan: i32, kingSuji: i32, kingDan: i32): i32 {
+  // Same file
+  if (suji == kingSuji) {
+    const step = dan < kingDan ? 1 : -1;
+    let blockers = 0;
+    for (let d = dan + step; d != kingDan; d += step) {
+      if (getAt(suji, d) != EMPTY) blockers++;
+      if (blockers > 1) break;
+    }
+    if (blockers == 0) return 35;
+    if (blockers == 1) return 15;
+  }
+
+  // Same rank
+  if (dan == kingDan) {
+    const step = suji < kingSuji ? 1 : -1;
+    let blockers = 0;
+    for (let s = suji + step; s != kingSuji; s += step) {
+      if (getAt(s, dan) != EMPTY) blockers++;
+      if (blockers > 1) break;
+    }
+    if (blockers == 0) return 25;
+    if (blockers == 1) return 12;
+  }
+
+  return 0;
+}
+
+function lineToKingBonusBishopLike(suji: i32, dan: i32, kingSuji: i32, kingDan: i32): i32 {
+  const dS = kingSuji - suji;
+  const dD = kingDan - dan;
+  if (absI(dS) != absI(dD) || dS == 0) return 0;
+
+  const stepS = dS > 0 ? 1 : -1;
+  const stepD = dD > 0 ? 1 : -1;
+  let blockers = 0;
+  const n = absI(dS);
+  for (let i = 1; i < n; i++) {
+    if (getAt(suji + stepS * i, dan + stepD * i) != EMPTY) blockers++;
+    if (blockers > 1) break;
+  }
+  if (blockers == 0) return 28;
+  if (blockers == 1) return 12;
+  return 0;
+}
+
+function evaluateMajorPieceActivity(): i32 {
+  let score = 0;
+
+  const kingSujiG = kingG >> 4;
+  const kingDanG = kingG & 0x0f;
+  const kingSujiS = kingS >> 4;
+  const kingDanS = kingS & 0x0f;
+
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      const p = getAt(suji, dan);
+      if (p == EMPTY || p == WALL) continue;
+
+      const komashu = p & 0x0f;
+      const isS = (p & SENTE) != 0;
+
+      // Rook / Dragon
+      if (komashu == HI || komashu == RY) {
+        const mobility =
+          countSlidingMobility1(suji, dan, 1, 0) +
+          countSlidingMobility1(suji, dan, -1, 0) +
+          countSlidingMobility1(suji, dan, 0, 1) +
+          countSlidingMobility1(suji, dan, 0, -1);
+        const lineBonus = isS
+          ? lineToKingBonusRookLike(suji, dan, kingSujiG, kingDanG)
+          : lineToKingBonusRookLike(suji, dan, kingSujiS, kingDanS);
+
+        const base = mobility * 6 + lineBonus;
+        score += isS ? base : -base;
+
+        if (komashu == RY) {
+          const diagAdj =
+            countAdjacentMobility1(suji, dan, 1, 1) +
+            countAdjacentMobility1(suji, dan, 1, -1) +
+            countAdjacentMobility1(suji, dan, -1, 1) +
+            countAdjacentMobility1(suji, dan, -1, -1);
+          const extra = diagAdj * 3;
+          score += isS ? extra : -extra;
+        }
+        continue;
+      }
+
+      // Bishop / Horse
+      if (komashu == KA || komashu == UM) {
+        const mobility =
+          countSlidingMobility1(suji, dan, 1, 1) +
+          countSlidingMobility1(suji, dan, 1, -1) +
+          countSlidingMobility1(suji, dan, -1, 1) +
+          countSlidingMobility1(suji, dan, -1, -1);
+        const lineBonus = isS
+          ? lineToKingBonusBishopLike(suji, dan, kingSujiG, kingDanG)
+          : lineToKingBonusBishopLike(suji, dan, kingSujiS, kingDanS);
+
+        const base = mobility * 5 + lineBonus;
+        score += isS ? base : -base;
+
+        if (komashu == UM) {
+          const orthoAdj =
+            countAdjacentMobility1(suji, dan, 1, 0) +
+            countAdjacentMobility1(suji, dan, -1, 0) +
+            countAdjacentMobility1(suji, dan, 0, 1) +
+            countAdjacentMobility1(suji, dan, 0, -1);
+          const extra = orthoAdj * 3;
+          score += isS ? extra : -extra;
+        }
+      }
+    }
+  }
+
+  return score;
+}
+
+// --- file defense -----------------------------------------------------------
+
+function senteHasType(suji: i32, dan: i32, type: i32): bool {
+  const p = getAt(suji, dan);
+  return (p & SENTE) != 0 && (p & 0x0f) == type;
+}
+
+function goteHasType(suji: i32, dan: i32, type: i32): bool {
+  const p = getAt(suji, dan);
+  return (p & GOTE) != 0 && (p & 0x0f) == type;
+}
+
+function evaluateFileDefense(): i32 {
+  let score = 0;
+
+  // === GOTE's 2-file defense (against SENTE's attack) ===
+  const sentePawnOn26 = senteHasType(2, 6, FU);
+  const sentePawnOn25 = senteHasType(2, 5, FU);
+  const sentePawnOn24 = senteHasType(2, 4, FU);
+
+  const goteBishopOn33 = goteHasType(3, 3, KA);
+  const goteGoldOn32 = goteHasType(3, 2, KI);
+  const gotePawnOn23 = goteHasType(2, 3, FU);
+  const goteBishopOn22 = goteHasType(2, 2, KA);
+
+  const goteBishopMissing = !goteBishopOn33 && !goteBishopOn22;
+
+  const senteAttacking = sentePawnOn26 || sentePawnOn25 || sentePawnOn24;
+
+  if (senteAttacking) {
+    if (goteBishopOn33) {
+      score -= 200;
+    } else if (goteGoldOn32 && gotePawnOn23) {
+      score -= 150;
+    } else {
+      if (sentePawnOn24) {
+        if (!gotePawnOn23) {
+          score += 1000;
+        } else {
+          score += 500;
+        }
+      } else if (sentePawnOn25) {
+        score += 600;
+      } else if (sentePawnOn26) {
+        score += 150;
+      }
+
+      if (goteBishopMissing && !goteBishopOn22) {
+        score += 250;
+      }
+    }
+
+    if (goteBishopOn22 && (sentePawnOn25 || sentePawnOn24)) {
+      score += 300;
+    }
+  }
+
+  // === SENTE's 8-file defense (against GOTE's attack) ===
+  const gotePawnOn84 = goteHasType(8, 4, FU);
+  const gotePawnOn85 = goteHasType(8, 5, FU);
+  const gotePawnOn86 = goteHasType(8, 6, FU);
+
+  const senteBishopOn77 = senteHasType(7, 7, KA);
+  const senteGoldOn78 = senteHasType(7, 8, KI);
+  const sentePawnOn87 = senteHasType(8, 7, FU);
+  const senteBishopOn88 = senteHasType(8, 8, KA);
+
+  const goteAttacking = gotePawnOn84 || gotePawnOn85 || gotePawnOn86;
+
+  if (goteAttacking) {
+    if (senteBishopOn77) {
+      score += 200;
+    } else if (senteGoldOn78 && sentePawnOn87) {
+      score += 150;
+    } else {
+      if (gotePawnOn86) {
+        if (!sentePawnOn87) {
+          score -= 1000;
+        } else {
+          score -= 500;
+        }
+      } else if (gotePawnOn85) {
+        score -= 600;
+      } else if (gotePawnOn84) {
+        score -= 150;
+      }
+    }
+
+    if (senteBishopOn88 && (gotePawnOn85 || gotePawnOn86)) {
+      score -= 300;
+    }
+  }
+
+  return score;
+}
+
+// --- climbing silver (棒銀) pressure ----------------------------------------
+
+/** Positive result = SENTE's climbing silver is dangerous for GOTE. */
+function climbingSilverPenaltyAgainstGote(): i32 {
+  let rookOnFile = false;
+  for (let dan = 5; dan <= 9; dan++) {
+    const p = getAt(2, dan);
+    if (p != EMPTY && (p & SENTE) != 0 && (p & 0x0f) == HI) {
+      rookOnFile = true;
+      break;
+    }
+  }
+  if (!rookOnFile) return 0;
+
+  // Silver march level: 1 = approaching (dan 7), 2 = one step out (dan 6),
+  // 3 = on the 5th rank, 4 = broken into GOTE's half (dan 3-4).
+  let silverLevel = 0;
+  let silverOnEdgeApproach = false; // silver on 2六/1六
+  for (let suji = 1; suji <= 3; suji++) {
+    for (let dan = 1; dan <= 7; dan++) {
+      const p = getAt(suji, dan);
+      if (p == EMPTY || (p & SENTE) == 0 || (p & 0x0f) != GI) continue;
+      const level = dan == 7 ? 1 : dan == 6 ? 2 : dan == 5 ? 3 : 4;
+      if (level > silverLevel) silverLevel = level;
+      if (dan == 6 && suji <= 2) silverOnEdgeApproach = true;
+    }
+  }
+  if (silverLevel == 0) return 0;
+
+  const bishop33 = goteHasType(3, 3, KA);
+  const silver22 = goteHasType(2, 2, GI);
+  const silver23 = goteHasType(2, 3, GI);
+  const silver33 = goteHasType(3, 3, GI);
+  const gold32 = goteHasType(3, 2, KI);
+  const pawn23 = goteHasType(2, 3, FU);
+  const pawn14 = goteHasType(1, 4, FU);
+
+  const strongCover = bishop33 || silver23 || silver33;
+  const backup23 = silver22 || gold32;
+
+  let penalty = 0;
+  if (silverLevel >= 2) {
+    if (strongCover && backup23) penalty -= 220;
+    else if (strongCover) penalty -= 120;
+    else if (backup23 && pawn23) penalty += 140;
+    else penalty += 320;
+  } else {
+    if (!strongCover && !backup23) penalty += 90;
+    else if (strongCover) penalty -= 40;
+  }
+
+  if (silverLevel >= 3) {
+    penalty += strongCover ? 120 : 260;
+  }
+
+  if (silverLevel >= 4) {
+    penalty += strongCover ? 180 : 320;
+  }
+
+  if (silverOnEdgeApproach) {
+    penalty += pawn14 ? -70 : 80;
+  }
+
+  return penalty;
+}
+
+/** Positive result = GOTE's climbing silver is dangerous for SENTE. */
+function climbingSilverPenaltyAgainstSente(): i32 {
+  let rookOnFile = false;
+  for (let dan = 1; dan <= 5; dan++) {
+    const p = getAt(8, dan);
+    if (p != EMPTY && (p & GOTE) != 0 && (p & 0x0f) == HI) {
+      rookOnFile = true;
+      break;
+    }
+  }
+  if (!rookOnFile) return 0;
+
+  let silverLevel = 0;
+  let silverOnEdgeApproach = false; // silver on 8四/9四
+  for (let suji = 7; suji <= 9; suji++) {
+    for (let dan = 3; dan <= 9; dan++) {
+      const p = getAt(suji, dan);
+      if (p == EMPTY || (p & GOTE) == 0 || (p & 0x0f) != GI) continue;
+      const level = dan == 3 ? 1 : dan == 4 ? 2 : dan == 5 ? 3 : 4;
+      if (level > silverLevel) silverLevel = level;
+      if (dan == 4 && suji >= 8) silverOnEdgeApproach = true;
+    }
+  }
+  if (silverLevel == 0) return 0;
+
+  const bishop77 = senteHasType(7, 7, KA);
+  const silver88 = senteHasType(8, 8, GI);
+  const silver87 = senteHasType(8, 7, GI);
+  const silver77 = senteHasType(7, 7, GI);
+  const gold78 = senteHasType(7, 8, KI);
+  const pawn87 = senteHasType(8, 7, FU);
+  const pawn96 = senteHasType(9, 6, FU);
+
+  const strongCover = bishop77 || silver87 || silver77;
+  const backup87 = silver88 || gold78;
+
+  let penalty = 0;
+  if (silverLevel >= 2) {
+    if (strongCover && backup87) penalty -= 220;
+    else if (strongCover) penalty -= 120;
+    else if (backup87 && pawn87) penalty += 140;
+    else penalty += 320;
+  } else {
+    if (!strongCover && !backup87) penalty += 90;
+    else if (strongCover) penalty -= 40;
+  }
+
+  if (silverLevel >= 3) {
+    penalty += strongCover ? 120 : 260;
+  }
+
+  if (silverLevel >= 4) {
+    penalty += strongCover ? 180 : 320;
+  }
+
+  if (silverOnEdgeApproach) {
+    penalty += pawn96 ? -70 : 80;
+  }
+
+  return penalty;
+}
+
+function evaluateClimbingSilverPressure(): i32 {
+  return climbingSilverPenaltyAgainstGote() - climbingSilverPenaltyAgainstSente();
+}
+
+// --- promotion threats ------------------------------------------------------
+
+function evaluatePromotionThreats(): i32 {
+  let score = 0;
+
+  // SENTE pieces about to promote in GOTE territory (dan 1-3).
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 4; dan <= 6; dan++) {
+      const piece = getAt(suji, dan);
+      if (piece == EMPTY || piece == WALL) continue;
+
+      if ((piece & SENTE) != 0) {
+        const komashu = piece & 0x0f;
+        if (komashu == HI || komashu == KA) {
+          let pathClear = true;
+          for (let checkDan = dan - 1; checkDan >= 1; checkDan--) {
+            const blocking = getAt(suji, checkDan);
+            if (blocking != EMPTY) {
+              if ((blocking & SENTE) != 0) pathClear = false;
+              break;
+            }
+          }
+          if (pathClear) {
+            score += 500;
+          }
+        }
+      }
+    }
+
+    // SENTE major piece already in promotion zone (dan 1-3).
+    for (let dan = 1; dan <= 3; dan++) {
+      const piece = getAt(suji, dan);
+      if (piece != EMPTY && (piece & SENTE) != 0) {
+        const komashu = piece & 0x0f;
+        if (komashu == HI || komashu == KA) {
+          score += 800;
+        } else if (komashu == RY || komashu == UM) {
+          score += 350;
+        }
+      }
+    }
+  }
+
+  // GOTE pieces about to promote in SENTE territory (dan 7-9).
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 4; dan <= 6; dan++) {
+      const piece = getAt(suji, dan);
+      if (piece == EMPTY || piece == WALL) continue;
+
+      if ((piece & GOTE) != 0) {
+        const komashu = piece & 0x0f;
+        if (komashu == HI || komashu == KA) {
+          let pathClear = true;
+          for (let checkDan = dan + 1; checkDan <= 9; checkDan++) {
+            const blocking = getAt(suji, checkDan);
+            if (blocking != EMPTY) {
+              if ((blocking & GOTE) != 0) pathClear = false;
+              break;
+            }
+          }
+          if (pathClear) {
+            score -= 500;
+          }
+        }
+      }
+    }
+
+    // GOTE major piece already in promotion zone (dan 7-9).
+    for (let dan = 7; dan <= 9; dan++) {
+      const piece = getAt(suji, dan);
+      if (piece != EMPTY && (piece & GOTE) != 0) {
+        const komashu = piece & 0x0f;
+        if (komashu == HI || komashu == KA) {
+          score -= 800;
+        } else if (komashu == RY || komashu == UM) {
+          score -= 350;
+        }
+      }
+    }
+  }
+
+  return score;
+}
+
+// --- evaluateV3 -------------------------------------------------------------
+
+/**
+ * Full port of KyokumenImproved.evaluateV3() (SENTE-positive), integer-identical
+ * to the JS engine on any position. Read-only: does not modify position state.
+ */
+export function evaluateV3(): i32 {
+  let score = evalMaterial;
+
+  // Phase proxy: total number of captured pieces in both hands.
+  const handTotal = totalHandPieces();
+  const phaseBucket = handTotal <= 2 ? 3 : handTotal <= 6 ? 2 : handTotal <= 10 ? 1 : 0;
+  const phase: f64 = handTotal <= 2 ? 1.0 : handTotal <= 6 ? 0.7 : handTotal <= 10 ? 0.45 : 0.25;
+
+  score += scaleEvalV3(psqtEval, unchecked(EVAL_V3_PSQT_W[phaseBucket]));
+  score += evaluateHandBonus();
+  score += evaluateKingSafetyV2WithPhase(phase);
+  score += scaleEvalV3(evaluateCastleShapes(), unchecked(EVAL_V3_CASTLE_W[phaseBucket]));
+  score += evaluateMajorPieceActivity();
+
+  score += scaleEvalV3(
+    evaluateFileDefense() + evaluateClimbingSilverPressure(),
+    unchecked(EVAL_V3_FILE_DEFENSE_W[phaseBucket])
+  );
+  score += scaleEvalV3(
+    evaluatePromotionThreats(),
+    unchecked(EVAL_V3_PROMO_THREAT_W[phaseBucket])
+  );
+
+  return score;
+}
+
+// --- hanging-piece threat (port of ShogiAIImprovedV20.hangingThreatSente) ----
+
+/** Sentinel for "no attacker" — plays the role of JS Infinity. */
+const NO_ATTACKER: i32 = 0x7fffffff;
+
+/**
+ * Port of GenerateMovesImproved.getLeastAttackerValue: the absolute material
+ * value of the least valuable *enemy* attacker of `target` (`defender` owns the
+ * piece on `target`), or NO_ATTACKER if the square is not attacked.
+ */
+function getLeastAttackerValue(target: i32, defender: i32): i32 {
+  let best = NO_ATTACKER;
+
+  // Direct attacks (non-sliding).
+  for (let direct = 0; direct < 12; direct++) {
+    const pos = target - unchecked(DIFF[direct]);
+    const koma = get(pos);
+    if (isEnemy(defender, koma) && unchecked(CAN_MOVE[(direct << 6) + koma]) != 0) {
+      const value = absI(unchecked(KOMA_VALUE[koma]));
+      if (value < best) best = value;
+    }
+  }
+
+  // Sliding attacks (rook/bishop/lance and promoted variants).
+  for (let direct = 0; direct < 8; direct++) {
+    const d = unchecked(DIFF[direct]);
+    let pos = target - d;
+    let koma = get(pos);
+    while (koma != WALL) {
+      if (isSelf(defender, koma)) break;
+      if (isEnemy(defender, koma)) {
+        if (unchecked(CAN_JUMP[(direct << 6) + koma]) != 0) {
+          const value = absI(unchecked(KOMA_VALUE[koma]));
+          if (value < best) best = value;
+        }
+        break;
+      }
+      pos -= d;
+      koma = get(pos);
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Port of ShogiAIImprovedV20.hangingThreatSente (SENTE-positive): charges each
+ * side ~1/3 of the value of its single most valuable hanging piece (silver and
+ * up, attacked AND undefended only, loss capped at 700).
+ */
+export function hangingThreat(): i32 {
+  let worstSente = 0;
+  let worstGote = 0;
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      const pos = (suji << 4) + dan;
+      const p = unchecked(ban[pos]);
+      if (p == EMPTY) continue;
+      const type = p & 0x0f;
+      if (type == OU) continue;
+      const value = absI(unchecked(KOMA_VALUE[p]));
+      if (value < 1000) continue; // only silver and up
+
+      const side = (p & SENTE) != 0 ? SENTE : GOTE;
+      const attacker = getLeastAttackerValue(pos, side);
+      if (attacker == NO_ATTACKER) continue;
+
+      const defender = getLeastAttackerValue(pos, side == SENTE ? GOTE : SENTE);
+      // Only truly hanging pieces (attacked and undefended) count.
+      if (defender != NO_ATTACKER) continue;
+      const loss = minI(value, 700);
+
+      if (side == SENTE) {
+        if (loss > worstSente) worstSente = loss;
+      } else if (loss > worstGote) {
+        worstGote = loss;
+      }
+    }
+  }
+  // JS: ((worstGote - worstSente) / 3) | 0 — i32 division truncates toward zero
+  // exactly like the JS `| 0` on the fractional quotient.
+  return (worstGote - worstSente) / 3;
+}
+
+/**
+ * evaluateV3 + hanging-piece threat — the exact leaf evaluation the V20 engine
+ * uses in mode 'v3' (`k.evaluateV3() + hangingThreatSente(k)`), SENTE-positive.
+ * This is what the phase-3 WASM search should call at leaves.
+ */
+export function evaluateV3Full(): i32 {
+  return evaluateV3() + hangingThreat();
+}
+
+// ---------------------------------------------------------------------------
 // Harness API (parity.ts / bench-wasm.mjs)
 // ---------------------------------------------------------------------------
 
 /** Expose bookkeeping so the harness can sanity-check make/unmake symmetry. */
 export function getEvalMaterial(): i32 {
   return evalMaterial;
+}
+
+/** Incrementally-maintained PSQT eval (parity with KyokumenImproved.psqtEval). */
+export function getPsqtEval(): i32 {
+  return psqtEval;
+}
+
+/** Eval micro-bench: run evaluateV3() `iters` times inside the module. */
+export function benchEvaluateV3(iters: i32): i32 {
+  let acc = 0;
+  for (let i = 0; i < iters; i++) {
+    acc = (acc + evaluateV3()) | 0;
+  }
+  return acc;
+}
+
+/** Eval micro-bench: run evaluateV3Full() `iters` times inside the module. */
+export function benchEvaluateV3Full(iters: i32): i32 {
+  let acc = 0;
+  for (let i = 0; i < iters; i++) {
+    acc = (acc + evaluateV3Full()) | 0;
+  }
+  return acc;
 }
 
 export function getHash(): i32 {

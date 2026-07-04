@@ -25,10 +25,11 @@
 - perft の JS/WASM 一致テストを vitest 化（`tests/unit/` に追加、wasm ビルド成果物をコミットして CI でも実行可能に）。
 - 完了条件: 多様な局面（持駒・成駒・王手絡み）で perft d1-4 一致。
 
-### Phase 2: 評価関数 evaluateV3 の移植（2〜3 日）
-- `KyokumenImproved.evaluateV3()` と依存項（handBonus / kingSafetyV2 / castleShapes / majorPieceActivity / fileDefense / promotionThreats / PSQT）を移植。
-- float の phase 係数（0.25/0.45/0.7/1.0）は 128 スケールの固定小数点に置換（JS 側と最大 ±1 の丸め差 → 許容するか JS 側も固定小数点化するか決める）。
-- 完了条件: ランダム 1 万局面で JS と評価値一致（丸め差の許容幅を明記）。
+### Phase 2: 評価関数 evaluateV3 の移植（2〜3 日）✅ 完了
+- `KyokumenImproved.evaluateV3()` と依存項（handBonus / kingSafetyV2 / castleShapes / majorPieceActivity / fileDefense / climbingSilver / promotionThreats / PSQT 増分更新）を移植。
+- ~~float の phase 係数は 128 スケールの固定小数点に置換（±1 の丸め差を許容）~~ → **固定小数点化は不要だった**: AS 側でも f64 + `Math.round` を JS と同一式・同一結合順で計算すれば IEEE754 で決定的に一致するため、丸め差 **ゼロ（整数完全一致）** を達成。
+- エンジン側の `hangingThreatSente`（V20）も移植し、`evaluateV3Full()` として export（Phase 3 の葉評価）。
+- 完了条件 ✅: parity.ts の全 4,184 局面（ランダム自己対局 50 局＋カスタム局面）で JS と評価値**完全一致**（許容幅 0）。速度は JS 比 ×27〜31（README 参照）。
 
 ### Phase 3: 探索（V20 alpha-beta + 静止探索 + TT）の移植（3〜5 日）
 - `ShogiAIImprovedV20` の反復深化・move ordering（killer/history/TT move）・静止探索を移植。

@@ -1,5 +1,5 @@
 /**
- * parity.ts — JS ⇄ WASM parity harness for the shogi engine port (phase 1).
+ * parity.ts — JS ⇄ WASM parity harness for the shogi engine port (phases 1+2).
  *
  * Verifies, over thousands of positions, that the AssemblyScript engine
  * (wasm-spike/assembly/index.ts) matches the JS engine exactly on:
@@ -11,6 +11,15 @@
  *                          finalizePosition) and incrementally (move()/back()
  *                          vs makeMove/applyMove)
  *   3. incremental material eval — k.eval vs getEvalMaterial()
+ *   4. incremental PSQT eval — k.psqtEval vs getPsqtEval(), both maintained
+ *                          incrementally through move()/back() vs makeMove
+ *   5. evaluateV3        — k.evaluateV3() vs WASM evaluateV3(), INTEGER-exact
+ *                          (incl. phase buckets, scaleEvalV3 fixed-point
+ *                          rounding, and the f64 Math.round in king safety)
+ *   6. hanging threat    — reference JS re-implementation of
+ *                          ShogiAIImprovedV20.hangingThreatSente (which is
+ *                          private) vs WASM hangingThreat(), plus
+ *                          evaluateV3Full() == evaluateV3() + hangingThreat()
  *
  * Position sources:
  *   - 50 seeded random self-play games from hirate (max 80 plies each),
@@ -39,6 +48,7 @@ import {
   GOTE,
   GOU,
   GRY,
+  OU,
   SENTE,
   SFU,
   SGI,
@@ -48,6 +58,8 @@ import {
   SRY,
   Te,
   getKomashu,
+  isSelf,
+  komaValue,
   toBanString,
 } from '../src/components/game/ShogiImproved/types';
 
@@ -66,6 +78,12 @@ interface ShogiWasm {
   countLegalMoves(): number;
   applyMove(koma: number, from: number, to: number, promote: number): void;
   getEvalMaterial(): number;
+  getPsqtEval(): number;
+  evaluateV3(): number;
+  hangingThreat(): number;
+  evaluateV3Full(): number;
+  benchEvaluateV3(iters: number): number;
+  benchEvaluateV3Full(iters: number): number;
   getHash(): number;
   getBanHash(): number;
   getHandHash(): number;
@@ -100,6 +118,44 @@ function mulberry32(seed: number): () => number {
   };
 }
 
+/**
+ * Reference re-implementation of ShogiAIImprovedV20.hangingThreatSente (which
+ * is private on the engine class), line-for-line, using the same public
+ * GenerateMovesImproved.getLeastAttackerValue helper. Charges each side ~1/3 of
+ * its single most valuable hanging piece (silver and up, attacked AND
+ * undefended, loss capped at 700). SENTE-positive.
+ */
+function jsHangingThreatSente(k: KyokumenImproved): number {
+  let worstSente = 0;
+  let worstGote = 0;
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      const pos = (suji << 4) + dan;
+      const p = k.get(pos);
+      if (p === EMPTY) continue;
+      const type = getKomashu(p);
+      if (type === OU) continue;
+      const value = Math.abs(komaValue[p]) | 0;
+      if (value < 1000) continue; // only silver and up
+
+      const side = isSelf(SENTE, p) ? SENTE : GOTE;
+      const attacker = GenerateMovesImproved.getLeastAttackerValue(k, pos, side);
+      if (!Number.isFinite(attacker)) continue;
+
+      const defender = GenerateMovesImproved.getLeastAttackerValue(k, pos, side === SENTE ? GOTE : SENTE);
+      if (Number.isFinite(defender)) continue;
+      const loss = Math.min(value, 700);
+
+      if (side === SENTE) {
+        if (loss > worstSente) worstSente = loss;
+      } else if (loss > worstGote) {
+        worstGote = loss;
+      }
+    }
+  }
+  return ((worstGote - worstSente) / 3) | 0;
+}
+
 /** Copy the full JS position into the WASM engine (from-scratch sync). */
 function syncWasm(k: KyokumenImproved): void {
   wasm.clearBoard();
@@ -132,15 +188,18 @@ function dumpPosition(k: KyokumenImproved, label: string): void {
   }
   console.error(`hands: ${hands.length > 0 ? hands.join(' ') : '(none)'}`);
   console.error(
-    `JS   BanHash=${k.BanHash} HandHash=${k.HandHash} HashVal=${k.HashVal} eval=${k.eval}`
+    `JS   BanHash=${k.BanHash} HandHash=${k.HandHash} HashVal=${k.HashVal} eval=${k.eval} ` +
+      `psqt=${k.psqtEval} v3=${k.evaluateV3()} hang=${jsHangingThreatSente(k)}`
   );
   console.error(
     `WASM BanHash=${wasm.getBanHash()} HandHash=${wasm.getHandHash()} ` +
-      `HashVal=${wasm.getHashVal()} eval=${wasm.getEvalMaterial()}`
+      `HashVal=${wasm.getHashVal()} eval=${wasm.getEvalMaterial()} ` +
+      `psqt=${wasm.getPsqtEval()} v3=${wasm.evaluateV3()} hang=${wasm.hangingThreat()}`
   );
 }
 
 let comparedPositions = 0;
+let nonzeroHangingThreat = 0; // guard against the hangingThreat check being vacuous
 
 /** Compare JS vs WASM on the current (already synced) position. */
 function comparePosition(k: KyokumenImproved, label: string): Te[] {
@@ -165,6 +224,27 @@ function comparePosition(k: KyokumenImproved, label: string): Te[] {
   }
   if (k.teban !== wasm.getTeban()) {
     errors.push(`teban: JS=${k.teban} WASM=${wasm.getTeban()}`);
+  }
+
+  // Phase 2: evaluation parity (integer-exact).
+  if (k.psqtEval !== wasm.getPsqtEval()) {
+    errors.push(`psqtEval (incremental): JS=${k.psqtEval} WASM=${wasm.getPsqtEval()}`);
+  }
+  const jsV3 = k.evaluateV3() | 0;
+  const wasmV3 = wasm.evaluateV3() | 0;
+  if (jsV3 !== wasmV3) {
+    errors.push(`evaluateV3: JS=${jsV3} WASM=${wasmV3}`);
+  }
+  const jsHang = jsHangingThreatSente(k) | 0;
+  const wasmHang = wasm.hangingThreat() | 0;
+  if (jsHang !== wasmHang) {
+    errors.push(`hangingThreat: JS=${jsHang} WASM=${wasmHang}`);
+  }
+  if (jsHang !== 0) nonzeroHangingThreat++;
+  const jsV3Full = (jsV3 + jsHang) | 0;
+  const wasmV3Full = wasm.evaluateV3Full() | 0;
+  if (jsV3Full !== wasmV3Full) {
+    errors.push(`evaluateV3Full: JS=${jsV3Full} WASM=${wasmV3Full}`);
   }
 
   if (errors.length > 0) {
@@ -446,5 +526,12 @@ for (const pc of perftCases) {
 // Summary
 // ---------------------------------------------------------------------------
 
+if (nonzeroHangingThreat === 0) {
+  console.error('SELF-CHECK FAILED: hangingThreat was 0 on every position (vacuous parity check)');
+  process.exit(1);
+}
+
 console.log(`\nALL PARITY CHECKS PASSED — ${comparedPositions} positions compared, 100% match`);
-console.log('(legal move counts, BanHash/HandHash/HashVal bit-identity, material eval, teban)');
+console.log('(legal move counts, BanHash/HandHash/HashVal bit-identity, material eval, teban,');
+console.log(' incremental psqtEval, evaluateV3, hangingThreat, evaluateV3Full — integer-exact)');
+console.log(`(hangingThreat was nonzero on ${nonzeroHangingThreat}/${comparedPositions} positions — not vacuous)`);

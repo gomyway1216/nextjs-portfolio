@@ -24,6 +24,7 @@ import { ShogiAIImprovedV17 } from '../src/components/game/ShogiImproved/ShogiAI
 import { ShogiAIImprovedV18 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV18';
 import { ShogiAIImprovedV19 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV19';
 import { ShogiAIImprovedV20 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV20';
+import { ShogiAIImprovedV20Base } from '../src/components/game/ShogiImproved/ShogiAIImprovedV20Base';
 import { EMPTY, FU, GOTE, OU, SENTE, Te, getKomashu } from '../src/components/game/ShogiImproved/types';
 
 type EvalMode = 'v1' | 'v2' | 'v3';
@@ -46,7 +47,10 @@ type EngineName =
   | 'v17'
   | 'v18'
   | 'v19'
-  | 'v20';
+  | 'v20'
+  // v20 engine wired to the FROZEN pre-expansion opening book (OpeningBookImprovedBase).
+  // Use as engineB to A/B the current opening book against the previous one.
+  | 'v20base';
 type OpeningMode = 'none' | 'random' | 'quiet' | 'curated';
 
 type EngineInstance = {
@@ -112,7 +116,8 @@ function parseEngineArg(value: string | undefined, fallback: EngineName): Engine
     value === 'v17' ||
     value === 'v18' ||
     value === 'v19' ||
-    value === 'v20'
+    value === 'v20' ||
+    value === 'v20base'
   )
     return value;
   return fallback;
@@ -668,6 +673,8 @@ function createEngine(name: EngineName): EngineInstance {
       return new ShogiAIImprovedV19();
     case 'v20':
       return new ShogiAIImprovedV20();
+    case 'v20base':
+      return new ShogiAIImprovedV20Base();
     default: {
       const exhaustive: never = name;
       throw new Error(`unknown engine: ${exhaustive}`);

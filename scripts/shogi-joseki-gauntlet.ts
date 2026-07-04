@@ -3,7 +3,7 @@
  * and automatically flag suspicious replies.
  *
  * For every AI move we flag:
- * - INSTANT: answered in < 200ms after the opening-book window (first 12 plies; book replies
+ * - INSTANT: answered in < 200ms after the opening-book window (first 18 plies; book replies
  *            inside that window are legitimately instant)
  * - HANGS:   the AI's move left one of its own pieces (silver or higher) capturable for free, or
  *            capturable by a clearly cheaper attacker (SEE-lite). NOTE: this is a heuristic and
@@ -200,9 +200,9 @@ for (const plan of PLANS) {
         const from = move.from.suji === 0 ? '打' : `${move.from.suji}${move.from.dan}`;
         const label = `△${from}->${move.to.suji}${move.to.dan}${move.promote ? '成' : ''}`;
         const problems: string[] = [];
-        // The production book applies for the first 12 plies (ShogiAI.ts moveNumber <= 12);
+        // The production book applies for the first 18 plies (ShogiAI.ts moveNumber <= 18);
         // instant replies inside that window are legitimate book moves.
-        if (ms < 200 && moveNumber > 12) problems.push(`INSTANT(${ms}ms)`);
+        if (ms < 200 && moveNumber > 18) problems.push(`INSTANT(${ms}ms)`);
         if (hang.value >= 900) problems.push(`HANGS(${hang.square}:${hang.value})`);
         if (after - before > 800) problems.push(`EVAL(+${after - before})`);
         if (problems.length > 0) {

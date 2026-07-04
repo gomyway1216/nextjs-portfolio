@@ -26,64 +26,66 @@ const Resume = () => {
 
   return (
     <>
-      <section id="resume" className="section">
+      <section className="section resume-section">
         <div className="container">
-          <div className="title">
-            <h3>{t('home.resume.experienceTitle')}</h3>
-          </div>
-          {/* End title */}
-          <div className="resume-box">
-            {jobs.map((val, i) => (
-              <div
-                className="resume-row"
-                key={i}
-                data-aos="fade-up"
+          <div id="resume" className="resume-anchor">
+            <div className="title">
+              <h3>{t('home.resume.experienceTitle')}</h3>
+            </div>
+            {/* End title */}
+            <div className="resume-box">
+              {jobs.map((val, i) => (
+                <div
+                  className="resume-row"
+                  key={i}
+                  data-aos="fade-up"
 
-                data-aos-delay={val.delayAnimation}
-              >
-                <div className="row">
-                  <div className="col-md-4 col-xl-3">
-                    <div className="rb-left">
-                      <h6>{getLocalizedJobValue(val, 'jobPosition', language)}</h6>
-                      <div className="rob-title">{getLocalizedJobValue(val, 'companyName', language)}</div>
-                      <label>{getLocalizedJobType(val, language, t)}</label>
-                      <p>{val.jobDuration ? formatJobDurationRange(val.jobDuration, language) : ''}</p>
-                      <div className="rb-time">{val.jobDuration ? calculateJobDuration(val.jobDuration, language) : ''}</div>
+                  data-aos-delay={val.delayAnimation}
+                >
+                  <div className="row">
+                    <div className="col-md-4 col-xl-3">
+                      <div className="rb-left">
+                        <h6>{getLocalizedJobValue(val, 'jobPosition', language)}</h6>
+                        <div className="rob-title">{getLocalizedJobValue(val, 'companyName', language)}</div>
+                        <label>{getLocalizedJobType(val, language, t)}</label>
+                        <p>{val.jobDuration ? formatJobDurationRange(val.jobDuration, language) : ''}</p>
+                        <div className="rb-time">{val.jobDuration ? calculateJobDuration(val.jobDuration, language) : ''}</div>
+                      </div>
                     </div>
-                  </div>
-                  <div className="col-md-8 col-xl-9">
-                    <div className="rb-right">
-                      <h6>{getLocalizedJobValue(val, 'companyName', language)}</h6>
-                      <p>{getLocalizedJobValue(val, 'jobDescription', language)}</p>
-                      {val.technologies && val.technologies.length > 0 && (
-                        <div className="mt-3" style={{ marginTop: '1rem' }}>
-                          <strong style={{ fontSize: '14px', marginRight: '8px' }}>{t('home.resume.technologiesLabel')}</strong>
-                          {val.technologies.map((tech, techIndex) => (
-                            <span
-                              key={techIndex}
-                              className="inline-block bg-sky-500 text-white text-sm font-medium px-3 py-1 rounded-full mr-2 mb-2"
-                              style={{
-                                display: 'inline-block',
-                                backgroundColor: '#0ea5e9',
-                                color: 'white',
-                                fontSize: '14px',
-                                fontWeight: '500',
-                                padding: '4px 12px',
-                                borderRadius: '9999px',
-                                marginRight: '8px',
-                                marginBottom: '8px',
-                              }}
-                            >
-                              {tech}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+                    <div className="col-md-8 col-xl-9">
+                      <div className="rb-right">
+                        <h6>{getLocalizedJobValue(val, 'companyName', language)}</h6>
+                        <p>{getLocalizedJobValue(val, 'jobDescription', language)}</p>
+                        {val.technologies && val.technologies.length > 0 && (
+                          <div className="mt-3" style={{ marginTop: '1rem' }}>
+                            <strong style={{ fontSize: '14px', marginRight: '8px' }}>{t('home.resume.technologiesLabel')}</strong>
+                            {val.technologies.map((tech, techIndex) => (
+                              <span
+                                key={techIndex}
+                                className="inline-block bg-sky-500 text-white text-sm font-medium px-3 py-1 rounded-full mr-2 mb-2"
+                                style={{
+                                  display: 'inline-block',
+                                  backgroundColor: '#0ea5e9',
+                                  color: 'white',
+                                  fontSize: '14px',
+                                  fontWeight: '500',
+                                  padding: '4px 12px',
+                                  borderRadius: '9999px',
+                                  marginRight: '8px',
+                                  marginBottom: '8px',
+                                }}
+                              >
+                                {tech}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
 
           {/* separated */}
@@ -95,27 +97,29 @@ const Resume = () => {
           ></div>
           {/* End separated */}
 
-          <div className="title">
-            <h3>{t('home.resume.educationTitle')}</h3>
-          </div>
-
-          <div className="row justify-content-center">
-            <div
-              className="col-lg-10 col-xl-8 m-15px-tb"
-              data-aos="fade-up"
-
-            >
-              <ul className="aducation-box">
-                {educations.map((val, i) => (
-                  <li key={i}>
-                    <span>{val.passingYear}</span>
-                    <h6>{val.degreeTitle}</h6>
-                    <p>{val.instituteName}</p>
-                  </li>
-                ))}
-              </ul>
+          <div id="education" className="resume-anchor">
+            <div className="title">
+              <h3>{t('home.resume.educationTitle')}</h3>
             </div>
-            {/* End .col */}
+
+            <div className="row justify-content-center">
+              <div
+                className="col-lg-10 col-xl-8 m-15px-tb"
+                data-aos="fade-up"
+
+              >
+                <ul className="aducation-box">
+                  {educations.map((val, i) => (
+                    <li key={i}>
+                      <span>{val.passingYear}</span>
+                      <h6>{val.degreeTitle}</h6>
+                      <p>{val.instituteName}</p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              {/* End .col */}
+            </div>
           </div>
         </div>
       </section>

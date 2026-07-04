@@ -511,13 +511,17 @@
   padding-bottom: 28px;
 }
 
-.home-modern #resume.section {
+.home-modern .resume-section.section {
   padding-top: 56px;
 }
 
 .home-modern #about,
-.home-modern #resume {
+.home-modern .resume-section {
   background: transparent;
+}
+
+.home-modern .resume-anchor {
+  scroll-margin-top: 80px;
 }
 
 .home-modern .about-me .img-in {
@@ -642,7 +646,7 @@
     padding: 0 52px;
   }
 
-  .home-modern #resume.section {
+  .home-modern .resume-section.section {
     padding-top: 44px;
   }
 }
@@ -685,7 +689,7 @@
     padding-bottom: 18px;
   }
 
-  .home-modern #resume.section {
+  .home-modern .resume-section.section {
     padding-top: 36px;
   }
 

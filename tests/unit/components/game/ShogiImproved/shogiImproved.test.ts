@@ -125,14 +125,31 @@ describe('ShogiImproved', () => {
     expect(GenerateMovesImproved.generateLegalMoves(k).length).toBe(0);
   });
 
-  it('continues 2六歩△3四歩 with 7六歩 without a safety-filter false negative', () => {
+  it('continues 2六歩△3四歩 with a joseki move without a safety-filter false negative', () => {
     const k = InitialPositionImproved.createInitialPosition();
     k.setTeban(SENTE);
 
     playMove(k, 2, 7, 2, 6, false);
     playMove(k, 3, 3, 3, 4, false);
 
-    const expected = findMove(k, 7, 7, 7, 6, false);
+    // Both ▲7六歩 (居飛車/振り飛車系) and ▲2五歩 (相掛かり/棒銀系) are proper joseki here.
+    const expected76 = findMove(k, 7, 7, 7, 6, false);
+    const expected25 = findMove(k, 2, 6, 2, 5, false);
+    const move = getOpeningMoveImproved(k, 'medium');
+
+    expect(move).not.toBeNull();
+    expect(expected76.equals(move) || expected25.equals(move)).toBe(true);
+  });
+
+  it('answers ▲2五歩 with △3三角 (anti climbing-silver joseki)', () => {
+    const k = InitialPositionImproved.createInitialPosition();
+    k.setTeban(SENTE);
+
+    playMove(k, 2, 7, 2, 6, false); // ▲2六歩
+    playMove(k, 3, 3, 3, 4, false); // △3四歩
+    playMove(k, 2, 6, 2, 5, false); // ▲2五歩
+
+    const expected = findMove(k, 2, 2, 3, 3, false); // △3三角
     const move = getOpeningMoveImproved(k, 'medium');
 
     expect(move).not.toBeNull();

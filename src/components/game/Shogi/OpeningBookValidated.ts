@@ -1,8 +1,8 @@
 import { Difficulty } from '../common/types';
 import { GenerateMovesImproved } from '../ShogiImproved/GenerateMovesImproved';
 import { KyokumenImproved } from '../ShogiImproved/KyokumenImproved';
-import { Te as TeImproved } from '../ShogiImproved/types';
-import { SENTE } from './types';
+import { Te as TeImproved, komaValue } from '../ShogiImproved/types';
+import { GOTE, SENTE } from './types';
 import type { Kyokumen } from './Kyokumen';
 import type { Te } from './types';
 import { getOpeningMoveCandidatesComprehensive } from './OpeningBookComprehensive';
@@ -28,7 +28,30 @@ function staticScoreAfterMove(root: KyokumenImproved, teban: number, move: TeImp
   const te = new TeImproved(move.koma, move.from, move.to, move.promote, capture);
   root.move(te);
   root.toggleTeban();
-  const score = evalForSide(teban, root);
+  let score = evalForSide(teban, root);
+
+  // Hanging-piece correction (SEE-lite), mirroring OpeningBookImproved:
+  // without this, a 1-ply static eval overrates moves that leave the moved piece en prise
+  // (e.g. a bishop grabbing a defended pawn), which inflates the baseline and rejects
+  // every correct quiet book move.
+  const moved = root.ban[te.to];
+  const movedValue = Math.abs(komaValue[moved]) | 0;
+  if (movedValue > 0) {
+    const enemyLeastAttacker = GenerateMovesImproved.getLeastAttackerValue(root, te.to, teban);
+    if (Number.isFinite(enemyLeastAttacker)) {
+      const selfLeastDefender = GenerateMovesImproved.getLeastAttackerValue(
+        root,
+        te.to,
+        teban === SENTE ? GOTE : SENTE
+      );
+      if (!Number.isFinite(selfLeastDefender)) {
+        score -= movedValue;
+      } else if ((enemyLeastAttacker | 0) + 150 < movedValue) {
+        score -= movedValue - (enemyLeastAttacker | 0);
+      }
+    }
+  }
+
   root.toggleTeban();
   root.back(te);
   return score;

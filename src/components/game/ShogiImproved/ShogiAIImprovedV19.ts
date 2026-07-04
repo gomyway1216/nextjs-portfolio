@@ -1207,7 +1207,8 @@ export class ShogiAIImprovedV19 {
 	        case 'easy':
 	          return { maxDepth: 4, maxTimeMs: 250, quiescenceDepthMax: 4 };
         case 'medium':
-          return { maxDepth: 6, maxTimeMs: 800, quiescenceDepthMax: 6 };
+          // ~1.2s is still a human-like tempo and buys a noticeably deeper search.
+          return { maxDepth: 6, maxTimeMs: 1200, quiescenceDepthMax: 6 };
         case 'hard':
           return { maxDepth: 8, maxTimeMs: 2000, quiescenceDepthMax: 8 };
         case 'expert':
@@ -1228,18 +1229,20 @@ export class ShogiAIImprovedV19 {
 	    this.quiescenceDepthMax = Math.max(0, options.quiescenceDepthMax ?? defaults.quiescenceDepthMax);
     this.evaluationMode = options.evaluationMode ?? 'v3';
 
-    // Enable extra search techniques only for higher levels to keep Levels 1-3 stable.
-    this.enableAspiration = difficulty === 'hard' || difficulty === 'expert' || difficulty === 'master';
+    // Enable extra search techniques from "medium" up ("easy" stays intentionally shallow).
+    this.enableAspiration = difficulty !== 'easy';
     this.aspirationWindow =
-      difficulty === 'hard' ? 900
-        : difficulty === 'expert' ? 800
-          : difficulty === 'master' ? 700
-            : 0;
-    // V19: LMR and null-move are enabled from "hard" up (they were expert/master-only before).
+      difficulty === 'medium' ? 1000
+        : difficulty === 'hard' ? 900
+          : difficulty === 'expert' ? 800
+            : difficulty === 'master' ? 700
+              : 0;
+    // V19: LMR and null-move are enabled from "medium" up (they were expert/master-only before).
     // Null move is particularly safe in shogi: passing is essentially never the best option
     // (zugzwang is vanishingly rare because drops always provide useful moves).
-    this.enableLMR = difficulty === 'hard' || difficulty === 'expert' || difficulty === 'master';
-    this.enableNullMove = difficulty === 'hard' || difficulty === 'expert' || difficulty === 'master';
+    // "easy" keeps the original shallow behavior so beginners still have a beatable level.
+    this.enableLMR = difficulty !== 'easy';
+    this.enableNullMove = difficulty !== 'easy';
     this.nullMoveReduction = difficulty === 'master' ? 3 : 2;
     // Tuning notes:
     // - Check extensions / delta pruning / contempt can be powerful but also risky; keep them off until tuned.
@@ -1248,10 +1251,9 @@ export class ShogiAIImprovedV19 {
     this.enableDeltaPruning = difficulty === 'expert' || difficulty === 'master';
     // Keep the margin small to avoid pruning away real tactics; this is purely a quiescence speed knob.
     this.deltaPruningMargin = this.enableDeltaPruning ? (difficulty === 'master' ? 200 : 120) : 0;
-    // V19: futility pruning and quiescence SEE-lite pruning from "hard" up.
-    // (Self-play showed no gain at "medium" time budgets, so keep lower levels on V18 behavior.)
-    this.enableFutility = difficulty === 'hard' || difficulty === 'expert' || difficulty === 'master';
-    this.enableQSeePruning = difficulty === 'hard' || difficulty === 'expert' || difficulty === 'master';
+    // V19: futility pruning and quiescence SEE-lite pruning from "medium" up.
+    this.enableFutility = difficulty !== 'easy';
+    this.enableQSeePruning = difficulty !== 'easy';
     this.drawContempt = difficulty === 'master' ? 16 : difficulty === 'expert' ? 12 : 0;
     this.enableQuiescenceChecks = difficulty === 'master';
     if (this.enableQuiescenceChecks) {

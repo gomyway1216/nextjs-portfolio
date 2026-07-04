@@ -642,6 +642,7 @@ export class KyokumenImproved {
 
     // Add positional evaluation
     score += this.evaluateFileDefense();
+    score += this.evaluateClimbingSilverPressure();
     score += this.evaluatePromotionThreats();
     score += this.evaluateKingSafetyV2();
     score += this.evaluateCastleShapes();
@@ -690,7 +691,7 @@ export class KyokumenImproved {
 
     // Phase-aware scaling for large opening heuristics.
     score += KyokumenImproved.scaleEvalV3(
-      this.evaluateFileDefense() | 0,
+      (this.evaluateFileDefense() + this.evaluateClimbingSilverPressure()) | 0,
       KyokumenImproved.EVAL_V3_FILE_DEFENSE_W[phaseBucket] ?? 0
     );
     score += KyokumenImproved.scaleEvalV3(
@@ -730,7 +731,7 @@ export class KyokumenImproved {
     );
 
     score += KyokumenImproved.scaleEvalV3(
-      this.evaluateFileDefense() | 0,
+      (this.evaluateFileDefense() + this.evaluateClimbingSilverPressure()) | 0,
       KyokumenImproved.EVAL_V3_FILE_DEFENSE_W[phaseBucket] ?? 0
     );
     score += KyokumenImproved.scaleEvalV3(
@@ -1500,6 +1501,14 @@ export class KyokumenImproved {
           const komashu = this.getKomashu(piece);
           if (komashu === HI || komashu === KA) {
             score += 800; // Strong position for SENTE
+          } else if (komashu === RY || komashu === UM) {
+            // A promoted major inside the enemy camp was previously not counted at all
+            // (promoted piece codes no longer match HI/KA), which made the engine underestimate
+            // positions right after an enemy rook broke through and promoted (e.g. 棒銀の成り込み).
+            //
+            // Keep this bonus modest: the material table already values 竜/馬 highly, and
+            // self-play showed that a large extra bonus here (±1000) distorts play.
+            score += 350;
           }
         }
       }
@@ -1536,12 +1545,159 @@ export class KyokumenImproved {
           const komashu = this.getKomashu(piece);
           if (komashu === HI || komashu === KA) {
             score -= 800;
+          } else if (komashu === RY || komashu === UM) {
+            score -= 350;
           }
         }
       }
     }
 
     return score;
+  }
+
+  /**
+   * Climbing-silver (棒銀) pressure on the rook file.
+   *
+   * `evaluateFileDefense()` only looks at the attacking *pawn*, but the classic amateur plan is
+   * pawn + rook + a silver marching up the edge files (▲3八銀→2七→2六→1五 …). Once the silver
+   * reaches the 5th rank the 2四 exchange breaks through unless the defender has the proper shape.
+   *
+   * Joseki-informed defense shapes (mirrored for both sides):
+   * - 角3三 (bishop covering 2四) is the primary defense — "▲2五歩には△3三角" .
+   * - 銀2二 / 金3二 back up 2三 so the exchange doesn't win the file outright.
+   * - 歩1四 denies the ▲1五銀 route ("棒銀を五段目に出させない").
+   *
+   * Returned score is SENTE-positive (like the other eval terms) and is meant to be phase-weighted
+   * by the caller together with `evaluateFileDefense()`.
+   */
+  private evaluateClimbingSilverPressure(): number {
+    // Measured for the defender via mirroring:
+    // GOTE defends the 2-file (attacked by SENTE), SENTE defends the 8-file (attacked by GOTE).
+    return this.climbingSilverPenaltyAgainstGote() - this.climbingSilverPenaltyAgainstSente();
+  }
+
+  /** Positive result = SENTE's climbing silver is dangerous for GOTE (added to SENTE's score). */
+  private climbingSilverPenaltyAgainstGote(): number {
+    // Attacker (SENTE) ingredients: rook on the 2-file + silver advancing on files 1-3.
+    let rookOnFile = false;
+    for (let dan = 5; dan <= 9; dan++) {
+      const p = this.getAt(2, dan);
+      if (p !== EMPTY && isSente(p) && this.getKomashu(p) === HI) {
+        rookOnFile = true;
+        break;
+      }
+    }
+    if (!rookOnFile) return 0;
+
+    // Silver march level: 1 = approaching (dan 7), 2 = one step out (dan 6), 3 = on the 5th rank.
+    let silverLevel = 0;
+    let silverOnEdgeApproach = false; // silver on 2六/1六 (can jump to 1五 next)
+    for (let suji = 1; suji <= 3; suji++) {
+      for (let dan = 5; dan <= 7; dan++) {
+        const p = this.getAt(suji, dan);
+        if (p === EMPTY || !isSente(p) || this.getKomashu(p) !== GI) continue;
+        const level = dan === 7 ? 1 : dan === 6 ? 2 : 3;
+        if (level > silverLevel) silverLevel = level;
+        if (dan === 6 && suji <= 2) silverOnEdgeApproach = true;
+      }
+    }
+    if (silverLevel === 0) return 0;
+
+    // Defender (GOTE) shape.
+    const bishop33 = isGote(this.getAt(3, 3)) && this.getKomashu(this.getAt(3, 3)) === KA;
+    const silver22 = isGote(this.getAt(2, 2)) && this.getKomashu(this.getAt(2, 2)) === GI;
+    const silver23 = isGote(this.getAt(2, 3)) && this.getKomashu(this.getAt(2, 3)) === GI;
+    const silver33 = isGote(this.getAt(3, 3)) && this.getKomashu(this.getAt(3, 3)) === GI;
+    const gold32 = isGote(this.getAt(3, 2)) && this.getKomashu(this.getAt(3, 2)) === KI;
+    const pawn23 = isGote(this.getAt(2, 3)) && this.getKomashu(this.getAt(2, 3)) === FU;
+    const pawn14 = isGote(this.getAt(1, 4)) && this.getKomashu(this.getAt(1, 4)) === FU;
+
+    // A *piece* (not just the pawn) covering 2四, so ▲2四歩△同歩▲同銀 can be met.
+    const strongCover = bishop33 || silver23 || silver33;
+    // Support for the 2三 square so the file doesn't fall after the pawn exchange.
+    const backup23 = silver22 || gold32;
+
+    let penalty = 0;
+    if (silverLevel >= 2) {
+      if (strongCover && backup23) penalty -= 220; // joseki shape (角3三+銀2二 etc.): actively good
+      else if (strongCover) penalty -= 120;
+      else if (backup23 && pawn23) penalty += 140; // gold-only defense still collapses to the classic combo
+      else penalty += 320; // no meaningful defense against the breakthrough
+    } else {
+      // Approaching silver: mild early signal so the defender starts preparing in time.
+      if (!strongCover && !backup23) penalty += 90;
+      else if (strongCover) penalty -= 40;
+    }
+
+    if (silverLevel >= 3) {
+      // Silver reached the 5th rank (2五/1五/3五) — the breakthrough is close to concrete.
+      penalty += strongCover ? 120 : 260;
+    }
+
+    // Edge route: 歩1四 denies ▲1五銀.
+    if (silverOnEdgeApproach) {
+      penalty += pawn14 ? -70 : 80;
+    }
+
+    return penalty;
+  }
+
+  /** Positive result = GOTE's climbing silver is dangerous for SENTE (subtracted from SENTE's score). */
+  private climbingSilverPenaltyAgainstSente(): number {
+    let rookOnFile = false;
+    for (let dan = 1; dan <= 5; dan++) {
+      const p = this.getAt(8, dan);
+      if (p !== EMPTY && isGote(p) && this.getKomashu(p) === HI) {
+        rookOnFile = true;
+        break;
+      }
+    }
+    if (!rookOnFile) return 0;
+
+    let silverLevel = 0;
+    let silverOnEdgeApproach = false; // silver on 8四/9四
+    for (let suji = 7; suji <= 9; suji++) {
+      for (let dan = 3; dan <= 5; dan++) {
+        const p = this.getAt(suji, dan);
+        if (p === EMPTY || !isGote(p) || this.getKomashu(p) !== GI) continue;
+        const level = dan === 3 ? 1 : dan === 4 ? 2 : 3;
+        if (level > silverLevel) silverLevel = level;
+        if (dan === 4 && suji >= 8) silverOnEdgeApproach = true;
+      }
+    }
+    if (silverLevel === 0) return 0;
+
+    const bishop77 = isSente(this.getAt(7, 7)) && this.getKomashu(this.getAt(7, 7)) === KA;
+    const silver88 = isSente(this.getAt(8, 8)) && this.getKomashu(this.getAt(8, 8)) === GI;
+    const silver87 = isSente(this.getAt(8, 7)) && this.getKomashu(this.getAt(8, 7)) === GI;
+    const silver77 = isSente(this.getAt(7, 7)) && this.getKomashu(this.getAt(7, 7)) === GI;
+    const gold78 = isSente(this.getAt(7, 8)) && this.getKomashu(this.getAt(7, 8)) === KI;
+    const pawn87 = isSente(this.getAt(8, 7)) && this.getKomashu(this.getAt(8, 7)) === FU;
+    const pawn96 = isSente(this.getAt(9, 6)) && this.getKomashu(this.getAt(9, 6)) === FU;
+
+    const strongCover = bishop77 || silver87 || silver77;
+    const backup87 = silver88 || gold78;
+
+    let penalty = 0;
+    if (silverLevel >= 2) {
+      if (strongCover && backup87) penalty -= 220;
+      else if (strongCover) penalty -= 120;
+      else if (backup87 && pawn87) penalty += 140;
+      else penalty += 320;
+    } else {
+      if (!strongCover && !backup87) penalty += 90;
+      else if (strongCover) penalty -= 40;
+    }
+
+    if (silverLevel >= 3) {
+      penalty += strongCover ? 120 : 260;
+    }
+
+    if (silverOnEdgeApproach) {
+      penalty += pawn96 ? -70 : 80;
+    }
+
+    return penalty;
   }
 
   // Initial position setup

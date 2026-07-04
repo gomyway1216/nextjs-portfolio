@@ -169,103 +169,6 @@ function varietyPoolSizeByDifficulty(difficulty: Difficulty): number {
   }
 }
 
-function isQuiet(te: Te): boolean {
-  return te.from !== 0 && te.capture === EMPTY && !te.promote;
-}
-
-function scoreResyncMove(k: KyokumenImproved, te: Te): number {
-  // A cheap "opening-like" scorer used when:
-  // - the exact position is not in the curated book, or
-  // - the opponent deviated and all book candidates became unsafe.
-  //
-  // This is intentionally light and deterministic; the safety filter still applies.
-  if (!isQuiet(te)) return -1_000_000_000;
-
-  let score = 0;
-  const pieceType = getKomashu(te.koma);
-  const fromSuji = te.from >> 4;
-  const fromDan = te.from & 0x0f;
-  const toSuji = te.to >> 4;
-  const toDan = te.to & 0x0f;
-
-  // Pawn one-step push from the starting rank.
-  const pawnStartDan = k.teban === SENTE ? 7 : 3;
-  const pawnNextDan = k.teban === SENTE ? 6 : 4;
-  if (pieceType === FU && fromDan === pawnStartDan && toDan === pawnNextDan) {
-    score += 1400;
-    // Prefer central pawn pushes slightly.
-    score += Math.max(0, 3 - Math.abs(fromSuji - 5)) * 140;
-  }
-
-  // Basic development.
-  if (pieceType === GI || pieceType === KI) {
-    score += 900;
-    // Prefer moving off the back rank (tie-break only).
-    if (k.teban === SENTE && toDan <= fromDan) score += 100;
-    if (k.teban === GOTE && toDan >= fromDan) score += 100;
-  }
-
-  // Unblocking long-range pieces.
-  if (pieceType === KA || pieceType === HI) score += 650;
-
-  // Rook shift for 振り飛車 directions (very common resync move).
-  // SENTE rook starts on 2八, GOTE rook starts on 8二.
-  if (pieceType === HI) {
-    if (k.teban === SENTE && fromSuji === 2 && fromDan === 8 && toDan === 8) {
-      if (toSuji === 6 || toSuji === 5 || toSuji === 4) score += 900;
-    }
-    if (k.teban === GOTE && fromSuji === 8 && fromDan === 2 && toDan === 2) {
-      if (toSuji === 4 || toSuji === 5 || toSuji === 6) score += 900;
-    }
-  }
-
-  // Prefer not moving the king extremely early in resync (let search handle tactical king moves).
-  if (pieceType === OU) score -= 800;
-
-  return score;
-}
-
-function pickResyncMove(
-  root: KyokumenImproved,
-  legal: Te[],
-  difficulty: Difficulty,
-  baselineScore: number
-): Te | null {
-  const threshold = openingThresholdByDifficulty(difficulty);
-
-  const candidates = legal
-    .map((m) => ({ move: m, heuristic: scoreResyncMove(root, m) }))
-    .filter((c) => c.heuristic > -1_000_000_000)
-    .sort((a, b) => b.heuristic - a.heuristic)
-    .slice(0, 10); // keep it small: this runs before search
-
-  if (candidates.length === 0) return null;
-
-  const scored: Array<{ move: Te; score: number; heuristic: number }> = [];
-  for (const c of candidates) {
-    const score = staticEvalAfterMove(root, c.move);
-    if (score < baselineScore - threshold) continue;
-    scored.push({ move: c.move, score, heuristic: c.heuristic });
-  }
-  if (scored.length === 0) return null;
-
-  scored.sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    if (b.heuristic !== a.heuristic) return b.heuristic - a.heuristic;
-    return moveKey(a.move).localeCompare(moveKey(b.move));
-  });
-
-  const topScore = scored[0]!.score;
-  const margin = varietyMarginByDifficulty(difficulty);
-  const poolSize = varietyPoolSizeByDifficulty(difficulty);
-  const pool =
-    margin <= 0
-      ? scored.slice(0, 1)
-      : scored.filter((c) => topScore - c.score <= margin).slice(0, Math.min(poolSize, scored.length));
-
-  return pickDeterministic(pool.length > 0 ? pool : scored.slice(0, 1), root.HashVal).move;
-}
-
 // A small curated set of lines. These are intentionally short and "shape oriented".
 // The safety validation step prevents obvious blunders when the opponent deviates.
 const OPENING_LINES: OpeningLine[] = [
@@ -830,18 +733,17 @@ export function getOpeningMoveImproved(
     scored.push({ ...c, score });
   }
 
-  // If the current hash isn't in the book (or all candidates became unsafe), try a "resync" move.
-  // This keeps openings coherent even after small opponent deviations.
-  if (scored.length === 0) {
-    const resync = pickResyncMove(root, legal, difficulty, baselineScore);
-    if (!resync) return null;
-    if (options.debug) {
-      console.log(
-        `[OpeningBookImproved] resync picked=${resync.toString()} baseline=${baselineScore} best=${bestInfo.bestScore}`
-      );
-    }
-    return resync.clone();
-  }
+  // Out of book (or all candidates unsafe): let the engine SEARCH.
+  //
+  // There used to be a "resync" fallback here that picked a plausible quiet developing move with only
+  // a 1-ply static check. That was a crutch for the old slow engine and it was actively dangerous:
+  // - it fired in tactical positions (e.g. right after a rook-file exchange) as long as few pieces
+  //   had been traded, replying in ~1ms with moves like 4二飛 / 9四歩 while the opponent was
+  //   threatening to win a bishop;
+  // - it could never choose drops, so correct defenses like △2三歩 were structurally excluded;
+  // - self-play never caught it because both engines shared the same fallback.
+  // The V20 engine is fast enough that searching out-of-book positions is strictly better.
+  if (scored.length === 0) return null;
 
   // Selection strategy:
   // - Master/Expert: pick the best score (tie-break by priority)

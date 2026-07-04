@@ -86,7 +86,9 @@ for (const line of ALL_OPENING_SEQUENCES) {
         c.move.from.dan === bm.from.dan &&
         c.move.to.suji === bm.to.suji &&
         c.move.to.dan === bm.to.dan &&
-        c.move.promote === bm.promote
+        c.move.promote === bm.promote &&
+        // For drops (from 0,0) the coordinates alone are ambiguous — also match the piece.
+        (bm.from.suji !== 0 || getKomashu(c.move.koma) === getKomashu(found.koma))
     );
     if (!offered) {
       status = `DEAD@${i + 1} (not offered by getOpeningMoveCandidatesComprehensive)`;

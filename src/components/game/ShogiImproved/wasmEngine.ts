@@ -41,6 +41,10 @@ interface ShogiSearchWasm {
 let instance: ShogiSearchWasm | null = null;
 let initFailed = false;
 
+// NOTE: the explicit `Uint8Array<ArrayBuffer>` generic is required by this repo's TypeScript
+// version: a bare `Uint8Array` infers `Uint8Array<ArrayBufferLike>`, which is not assignable to
+// `BufferSource` for `WebAssembly.Module`. Both branches below construct plain-ArrayBuffer-backed
+// arrays, so the annotation is sound.
 function decodeBase64(b64: string): Uint8Array<ArrayBuffer> {
   // atob exists in browsers, workers and node >= 16.
   if (typeof atob === 'function') {
@@ -50,7 +54,12 @@ function decodeBase64(b64: string): Uint8Array<ArrayBuffer> {
     return bytes;
   }
   // Defensive fallback for exotic node builds without the atob global.
-  return new Uint8Array(Buffer.from(b64, 'base64'));
+  // Copy into a fresh Uint8Array so the backing buffer is a plain ArrayBuffer
+  // (Buffer views can be backed by pooled/shared buffers, which upsets BufferSource typing).
+  const buf = Buffer.from(b64, 'base64');
+  const bytes = new Uint8Array(buf.length);
+  bytes.set(buf);
+  return bytes;
 }
 
 /**

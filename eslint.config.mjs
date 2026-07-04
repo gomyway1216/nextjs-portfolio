@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     "node_modules/**",
     "coverage/**",
     ".claude/**",
+    // AssemblyScript sources (WASM engine): use AS decorators/syntax that the TS parser rejects.
+    "wasm-spike/**",
   ]),
   {
     rules: {

@@ -110,8 +110,8 @@ export class MateSolverImproved {
         return Math.abs(ds) === 1 && dd === forward * 2;
       case GI:
         if (Math.abs(ds) > 1 || Math.abs(dd) > 1) return false;
-        // Silver: straight forward + all four diagonals.
-        return dd === forward || Math.abs(ds) === 1;
+        // Silver: straight forward + all four diagonals (never sideways).
+        return dd === forward || (Math.abs(ds) === 1 && dd !== 0);
       case KI:
         if (Math.abs(ds) > 1 || Math.abs(dd) > 1) return false;
         // Gold: everything except the two backward diagonals.

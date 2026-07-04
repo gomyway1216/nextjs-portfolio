@@ -3,9 +3,12 @@
  * and automatically flag suspicious replies.
  *
  * For every AI move we flag:
- * - INSTANT: answered in < 200ms after the opening phase (book moves in the first ~8 plies are OK)
- * - HANGS:   the AI's move left one of its own pieces (silver or higher) capturable for free /
- *            capturable by a clearly cheaper attacker (SEE-lite)
+ * - INSTANT: answered in < 200ms after the opening-book window (first 12 plies; book replies
+ *            inside that window are legitimately instant)
+ * - HANGS:   the AI's move left one of its own pieces (silver or higher) capturable for free, or
+ *            capturable by a clearly cheaper attacker (SEE-lite). NOTE: this is a heuristic and
+ *            false-positives on exchange sequences (e.g. 角交換) where the "hanging" piece just
+ *            captured equal material — review flagged moves manually.
  * - EVAL:    the SENTE-perspective evalV3 jumped by > 800 in the human's favor right after the AI move
  *
  * Usage: node -r tsx/cjs scripts/shogi-joseki-gauntlet.ts [difficulty] [maxPlies]
@@ -14,14 +17,20 @@ import { generateLegalMoves } from '../src/components/game/Shogi/GenerateMoves';
 import { createInitialPosition } from '../src/components/game/Shogi/InitialPosition';
 import { getBestMove } from '../src/components/game/Shogi/ShogiAI';
 import type { Kyokumen } from '../src/components/game/Shogi/Kyokumen';
-import { FU, GOTE, SENTE, Te, getKomashu } from '../src/components/game/Shogi/types';
+import { FU, GOTE, KA, SENTE, Te, getKomashu } from '../src/components/game/Shogi/types';
 import type { Difficulty } from '../src/components/game/common/types';
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
 import { OU, SENTE as ISENTE, GOTE as IGOTE, komaValue } from '../src/components/game/ShogiImproved/types';
 
-const difficulty = (process.argv[2] ?? 'hard') as Difficulty;
-const maxPlies = Number(process.argv[3] ?? 40);
+const VALID_DIFFICULTIES = ['easy', 'medium', 'hard', 'expert', 'master'] as const;
+const difficultyArg = process.argv[2] ?? 'hard';
+if (!(VALID_DIFFICULTIES as readonly string[]).includes(difficultyArg)) {
+  throw new Error(`invalid difficulty "${difficultyArg}" (expected one of ${VALID_DIFFICULTIES.join('/')})`);
+}
+const difficulty = difficultyArg as Difficulty;
+const maxPliesArg = Number(process.argv[3] ?? 40);
+const maxPlies = Number.isFinite(maxPliesArg) && maxPliesArg > 0 ? maxPliesArg : 40;
 
 type Step =
   | { kind: 'move'; fs: number; fd: number; ts: number; td: number; promote?: boolean }
@@ -53,7 +62,7 @@ const PLANS: Plan[] = [
     steps: [
       { kind: 'move', fs: 7, fd: 7, ts: 7, td: 6 },
       { kind: 'move', fs: 8, fd: 8, ts: 2, td: 2, promote: true }, // ▲2二角成 (if diagonal open)
-      { kind: 'drop', komashu: 6, ts: 4, td: 5 }, // ▲4五角打 (KA = 6)
+      { kind: 'drop', komashu: KA, ts: 4, td: 5 }, // ▲4五角打
       { kind: 'move', fs: 4, fd: 5, ts: 2, td: 3, promote: true }, // ▲2三角成 if allowed
       { kind: 'move', fs: 4, fd: 5, ts: 6, td: 3, promote: true }, // or ▲6三角成 if allowed
       { kind: 'move', fs: 2, fd: 7, ts: 2, td: 6 },
@@ -191,7 +200,9 @@ for (const plan of PLANS) {
         const from = move.from.suji === 0 ? '打' : `${move.from.suji}${move.from.dan}`;
         const label = `△${from}->${move.to.suji}${move.to.dan}${move.promote ? '成' : ''}`;
         const problems: string[] = [];
-        if (ms < 200 && moveNumber > 8) problems.push(`INSTANT(${ms}ms)`);
+        // The production book applies for the first 12 plies (ShogiAI.ts moveNumber <= 12);
+        // instant replies inside that window are legitimate book moves.
+        if (ms < 200 && moveNumber > 12) problems.push(`INSTANT(${ms}ms)`);
         if (hang.value >= 900) problems.push(`HANGS(${hang.square}:${hang.value})`);
         if (after - before > 800) problems.push(`EVAL(+${after - before})`);
         if (problems.length > 0) {

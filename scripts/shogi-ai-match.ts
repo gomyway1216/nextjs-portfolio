@@ -23,6 +23,7 @@ import { ShogiAIImprovedV16 } from '../src/components/game/ShogiImproved/ShogiAI
 import { ShogiAIImprovedV17 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV17';
 import { ShogiAIImprovedV18 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV18';
 import { ShogiAIImprovedV19 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV19';
+import { ShogiAIImprovedV20 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV20';
 import { EMPTY, FU, GOTE, OU, SENTE, Te, getKomashu } from '../src/components/game/ShogiImproved/types';
 
 type EvalMode = 'v1' | 'v2' | 'v3';
@@ -44,7 +45,8 @@ type EngineName =
   | 'v16'
   | 'v17'
   | 'v18'
-  | 'v19';
+  | 'v19'
+  | 'v20';
 type OpeningMode = 'none' | 'random' | 'quiet' | 'curated';
 
 type EngineInstance = {
@@ -57,6 +59,10 @@ interface MatchConfig {
   difficulty: Difficulty;
   maxDepth: number;
   maxTimeMs: number;
+  // Optional per-side budgets (A/B); fall back to maxTimeMs. Useful to compare
+  // "new engine at a shorter budget" vs "old engine at its old budget".
+  maxTimeMsA: number;
+  maxTimeMsB: number;
   quiescenceDepthMax: number;
   engineA: EngineName;
   engineB: EngineName;
@@ -104,7 +110,8 @@ function parseEngineArg(value: string | undefined, fallback: EngineName): Engine
     value === 'v16' ||
     value === 'v17' ||
     value === 'v18' ||
-    value === 'v19'
+    value === 'v19' ||
+    value === 'v20'
   )
     return value;
   return fallback;
@@ -201,6 +208,8 @@ function parseArgs(argv: string[]): MatchConfig {
     maxDepth: parseIntArg(argMap.get('maxDepth'), difficulty === 'easy' ? 4 : difficulty === 'medium' ? 5 : 6),
     // Default to a small time limit so running the script doesn't take forever.
     maxTimeMs: parseIntArg(argMap.get('maxTimeMs'), 60),
+    maxTimeMsA: parseIntArg(argMap.get('maxTimeMsA'), parseIntArg(argMap.get('maxTimeMs'), 60)),
+    maxTimeMsB: parseIntArg(argMap.get('maxTimeMsB'), parseIntArg(argMap.get('maxTimeMs'), 60)),
     quiescenceDepthMax: parseIntArg(argMap.get('qDepth'), 6),
     engineA,
     engineB,
@@ -329,8 +338,8 @@ function buildOpeningLine(
 
 function playOneGame(
   openingMoves: Te[],
-  aiSente: { ai: EngineInstance; evalMode: EvalMode },
-  aiGote: { ai: EngineInstance; evalMode: EvalMode },
+  aiSente: { ai: EngineInstance; evalMode: EvalMode; maxTimeMs?: number },
+  aiGote: { ai: EngineInstance; evalMode: EvalMode; maxTimeMs?: number },
   config: Pick<
     MatchConfig,
     'difficulty' | 'maxDepth' | 'maxTimeMs' | 'quiescenceDepthMax' | 'maxPlies' | 'verbose' | 'traceEval'
@@ -372,7 +381,7 @@ function playOneGame(
     const move = current.ai.getNextTe(k, ply, {
       difficulty: config.difficulty,
       maxDepth: config.maxDepth,
-      maxTimeMs: config.maxTimeMs,
+      maxTimeMs: current.maxTimeMs ?? config.maxTimeMs,
       quiescenceDepthMax: config.quiescenceDepthMax,
       evaluationMode: current.evalMode,
     });
@@ -656,6 +665,8 @@ function createEngine(name: EngineName): EngineInstance {
       return new ShogiAIImprovedV18();
     case 'v19':
       return new ShogiAIImprovedV19();
+    case 'v20':
+      return new ShogiAIImprovedV20();
     default: {
       const exhaustive: never = name;
       throw new Error(`unknown engine: ${exhaustive}`);
@@ -690,8 +701,12 @@ function main(): void {
     const aiA = createEngine(config.engineA);
     const aiB = createEngine(config.engineB);
 
-    const sente = swap ? { ai: aiB, evalMode: config.evalB } : { ai: aiA, evalMode: config.evalA };
-    const gote = swap ? { ai: aiA, evalMode: config.evalA } : { ai: aiB, evalMode: config.evalB };
+    const sente = swap
+      ? { ai: aiB, evalMode: config.evalB, maxTimeMs: config.maxTimeMsB }
+      : { ai: aiA, evalMode: config.evalA, maxTimeMs: config.maxTimeMsA };
+    const gote = swap
+      ? { ai: aiA, evalMode: config.evalA, maxTimeMs: config.maxTimeMsA }
+      : { ai: aiB, evalMode: config.evalB, maxTimeMs: config.maxTimeMsB };
 
     if (config.verbose && openingMoves.length > 0) {
       console.log(`\n[game ${gameIndex + 1}] openingIndex=${openingIndex} swapColors=${swap}`);

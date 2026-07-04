@@ -619,6 +619,25 @@ export class GenerateMovesImproved {
    * - This function mutates `out.size` and trims `out.moves.length` to `out.size`.
    */
   static generateLegalMovesPooled(k: KyokumenImproved, out: MoveListImproved): Te[] {
+    this.generatePseudoLegalMovesPooled(k, out);
+    this.removeSelfMateInPlace(k, out);
+    return out.trim();
+  }
+
+  /**
+   * Pseudo-legal pooled generation (V20 speed path).
+   *
+   * Same as `generateLegalMovesPooled` except moves that leave the mover's own king in check are
+   * NOT filtered out. Rationale: with alpha-beta most nodes cut off after searching 1-3 moves, so
+   * paying make/unmake + a king-attack scan for *every* generated move up front (60-120 per node)
+   * wastes the bulk of the search budget. Callers must do the legality test lazily:
+   *
+   *   k.move(te);
+   *   if (GenerateMovesImproved.isKingInCheck(k, k.teban)) { k.back(te); continue; }
+   *
+   * Nifu, drop restrictions and uchifuzume are still enforced here (they are cheap or rare).
+   */
+  static generatePseudoLegalMovesPooled(k: KyokumenImproved, out: MoveListImproved): Te[] {
     out.reset();
 
     // Generate piece moves.
@@ -703,7 +722,6 @@ export class GenerateMovesImproved {
       }
     }
 
-    this.removeSelfMateInPlace(k, out);
     return out.trim();
   }
 

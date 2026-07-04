@@ -3,6 +3,7 @@ import { InitialPositionImproved } from '@/components/game/ShogiImproved/Initial
 import { GenerateMovesImproved } from '@/components/game/ShogiImproved/GenerateMovesImproved';
 import { getOpeningMoveImproved } from '@/components/game/ShogiImproved/OpeningBookImproved';
 import { ShogiAIImprovedV19 } from '@/components/game/ShogiImproved/ShogiAIImprovedV19';
+import { ShogiAIImprovedV20 } from '@/components/game/ShogiImproved/ShogiAIImprovedV20';
 import { EMPTY, GOU, SENTE, SFU, SKI, SOU, SRY, type Te } from '@/components/game/ShogiImproved/types';
 
 function pos(suji: number, dan: number): number {
@@ -87,6 +88,38 @@ describe('ShogiImproved', () => {
 
     const move = getOpeningMoveImproved(k, 'master');
     expect(move).toBeNull();
+  });
+
+  it('V20 finds a mate in one', () => {
+    const E = EMPTY;
+    const board: number[][] = [
+      [E, E, E, E, GOU, E, E, E, E], // dan 1 (suji 9..1)
+      [E, E, E, E, E, E, E, E, E], // dan 2
+      [E, E, E, E, E, SKI, E, E, E], // dan 3 (suji 4)
+      [E, E, E, E, E, E, E, E, E], // dan 4
+      [E, E, E, E, SRY, E, E, E, E], // dan 5
+      [E, E, E, E, E, E, E, E, E], // dan 6
+      [E, E, E, E, E, E, E, E, E], // dan 7
+      [E, E, E, E, E, E, E, E, E], // dan 8
+      [E, E, E, E, SOU, E, E, E, E], // dan 9
+    ];
+
+    const k = InitialPositionImproved.createInitialPosition();
+    InitialPositionImproved.setupCustom(k, board);
+    k.hand[SFU] = 3;
+    k.initAll();
+    k.setTeban(SENTE);
+
+    const ai = new ShogiAIImprovedV20();
+    const move = ai.getNextTe(k, 60, { difficulty: 'medium', maxTimeMs: 0, maxDepth: 3 });
+    expect(move).not.toBeNull();
+
+    const te = (move as Te).clone();
+    te.capture = k.get(te.to);
+    k.move(te);
+    k.toggleTeban();
+    expect(GenerateMovesImproved.isKingInCheck(k, k.teban)).toBe(true);
+    expect(GenerateMovesImproved.generateLegalMoves(k).length).toBe(0);
   });
 
   it('V19 finds a mate in one', () => {

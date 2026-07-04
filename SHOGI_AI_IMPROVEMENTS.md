@@ -19,7 +19,7 @@ Call flow:
 2. `src/components/game/Shogi/ShogiAI.ts`:
    - uses opening book for the first 12 plies (`getOpeningMoveComprehensive()`)
    - converts `Kyokumen` → `KyokumenImproved`
-   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV19.ts` (default)
+   - searches via `src/components/game/ShogiImproved/ShogiAIImprovedV20.ts` (default)
    - converts the chosen move back to UI `Te`
 
 This keeps the existing UI logic (and opening book) intact, but replaces the slow clone-heavy search with a much faster make/unmake engine.
@@ -83,7 +83,24 @@ Anti climbing-silver (対棒銀) updates:
 - Result: at medium, both scripted 棒銀 plans now lose a silver to the AI's defense
   (△1四歩→歩で銀取り / 数の受け) and the AI goes on to win.
 
-V19 updates (current default):
+V20 updates (current default — unified brain):
+- ONE unified search configuration for every difficulty: all techniques (LMR, null-move, futility,
+  reverse-futility, LMP, aspiration, delta pruning, SEE-lite, check extensions, quiescence checks,
+  countermoves, IID) are always on; difficulty ONLY changes the time budget.
+  easy 250ms / medium 1s / hard 2s / expert 4s / master 5s (master was 10s, expert 5s).
+- Major speed work (~3-5x more effective search at the same budget):
+  - Pseudo-legal move generation + lazy legality at make time (`generatePseudoLegalMovesPooled`):
+    king-safety is tested only for moves actually searched, not for all ~80 generated moves per node.
+  - Quiescence no longer scores/sorts quiet moves when not in check (noisy-only partition + insertion sort).
+  - Expensive per-move attack scans in ordering are skipped at frontier nodes.
+  - Reverse futility pruning; TT probes for quiescence ordering; gradual aspiration widening (300 window);
+    Internal Iterative Deepening at deep TT-miss nodes; bigger eval cache (2^18).
+- Hanging-piece threat eval term (engine-side, v3 mode): charges each side ~1/3 of its most valuable
+  attacked-and-undefended piece (silver and up), fixing the "ignores attacks on its own pieces" behavior.
+- Self-play vs V18 at *production* budgets (V18 keeps its old, longer budgets):
+  easy 7-2-3 (equal 250ms) / medium 13-2-1 / hard 10-0-2 (equal time) / expert 6-2-2 (4s vs old 5s) / master 5-2-1 at HALF the old time.
+
+V19 updates:
 - Futility pruning at frontier nodes (depth ≤ 2): skips quiet moves when stand-pat + margin cannot reach alpha,
   guarded so long-range piece moves and moves near the enemy king are never skipped (hard+).
 - SEE-lite losing-capture pruning in quiescence using the cached attack scans (hard+).
@@ -115,9 +132,9 @@ Additionally, the TT key now includes **side-to-move (`teban`)**:
 
 ---
 
-## 2) The Search Algorithm (ShogiAIImprovedV19 default)
+## 2) The Search Algorithm (ShogiAIImprovedV20 default)
 
-Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV19.ts`.
+Default engine wired in the UI is `src/components/game/ShogiImproved/ShogiAIImprovedV20.ts`.
 
 The original “base” implementation is still available as:
 - `src/components/game/ShogiImproved/ShogiAIImproved.ts` (V2)
@@ -207,9 +224,9 @@ Adds:
 
 Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV7.ts`.
 
-### Current default: `ShogiAIImprovedV19` (Lv1-5)
+### Current default: `ShogiAIImprovedV20` (Lv1-5)
 
-Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV19.ts`.
+Implemented in `src/components/game/ShogiImproved/ShogiAIImprovedV20.ts`.
 
 Notes:
 - Lv4/Lv5 still run in a Web Worker (`src/components/game/ShogiImproved/shogi-ai.worker.ts`) to avoid blocking the UI.

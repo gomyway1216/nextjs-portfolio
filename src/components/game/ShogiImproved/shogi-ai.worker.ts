@@ -16,7 +16,7 @@
 
 	import { KyokumenImproved } from './KyokumenImproved';
 	import { getOpeningMoveImproved } from './OpeningBookImproved';
-		import { ShogiAIImprovedV19 } from './ShogiAIImprovedV19';
+		import { ShogiAIImprovedV20 } from './ShogiAIImprovedV20';
 	import { Difficulty } from '../common/types';
 
 export type SerializedKyokumenImproved = {
@@ -49,7 +49,7 @@ type WorkerResponse =
   | { type: 'bestMoveResult'; id: number; move: SerializedTeImproved | null }
   | { type: 'error'; id: number; message: string };
 
-		const ai = new ShogiAIImprovedV19();
+		const ai = new ShogiAIImprovedV20();
 
 const ctx: {
   postMessage: (message: WorkerResponse) => void;

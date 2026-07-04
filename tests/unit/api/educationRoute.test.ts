@@ -49,6 +49,21 @@ describe('/api/education route', () => {
     expect(mocks.getFirestore).not.toHaveBeenCalled();
   });
 
+  it('rejects education creation for authenticated non-admin users', async () => {
+    const { POST } = await import('@/app/api/education/route');
+    const authResponse = Response.json({ error: 'Admin access required' }, { status: 403 });
+    mocks.ensureAdmin.mockResolvedValue({ user: null, response: authResponse });
+
+    const response = await callRoute(POST, makeRequest('https://example.com/api/education', {
+      method: 'POST',
+      body: JSON.stringify({ degreeTitle: 'B.S.', instituteName: 'SJSU' }),
+    }));
+
+    await expect(response.json()).resolves.toMatchObject({ error: 'Admin access required' });
+    expect(response.status).toBe(403);
+    expect(mocks.getFirestore).not.toHaveBeenCalled();
+  });
+
   it('creates an education entry with normalized editable fields', async () => {
     const { POST } = await import('@/app/api/education/route');
     const add = vi.fn().mockResolvedValue({ id: 'education-1' });
@@ -93,9 +108,9 @@ describe('/api/education route', () => {
       method: 'PUT',
       body: JSON.stringify({
         id: 'education-1',
-        passingYear: '2021',
-        degreeTitle: 'M.S. in Software Engineering',
-        instituteName: 'SJSU',
+        passingYear: ' 2021 ',
+        degreeTitle: ' M.S. in Software Engineering ',
+        instituteName: ' SJSU ',
         order: 0,
       }),
     }));
@@ -108,6 +123,23 @@ describe('/api/education route', () => {
       instituteName: 'SJSU',
       order: 0,
     });
+  });
+
+  it('rejects updates that clear required education fields', async () => {
+    const { PUT } = await import('@/app/api/education/route');
+    mocks.ensureAdmin.mockResolvedValue({ user: { uid: 'admin', isAdmin: true } });
+
+    const response = await callRoute(PUT, makeRequest('https://example.com/api/education', {
+      method: 'PUT',
+      body: JSON.stringify({
+        id: 'education-1',
+        degreeTitle: '   ',
+      }),
+    }));
+
+    await expect(response.json()).resolves.toMatchObject({ error: 'degreeTitle cannot be empty' });
+    expect(response.status).toBe(400);
+    expect(mocks.getFirestore).not.toHaveBeenCalled();
   });
 
   it('deletes an education entry by id', async () => {

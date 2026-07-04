@@ -21,7 +21,7 @@ function extractUpdates(body: Record<string, unknown>): Record<string, unknown> 
   for (const field of EDITABLE_STRING_FIELDS) {
     const value = body[field as EditableStringField];
     if (value !== undefined) {
-      updates[field] = typeof value === 'string' ? value : '';
+      updates[field] = typeof value === 'string' ? value.trim() : '';
     }
   }
 
@@ -103,8 +103,8 @@ export const POST = withActivityLog('next_api.education.POST', async (request: N
     const updates = extractUpdates(body);
     updates.degreeTitle = degreeTitle;
     updates.instituteName = instituteName;
-    if (updates.passingYear === undefined && typeof body.duration === 'string') {
-      updates.passingYear = body.duration;
+    if (updates.passingYear === undefined && typeof updates.duration === 'string') {
+      updates.passingYear = updates.duration;
     }
     if (updates.order === undefined) updates.order = 0;
 
@@ -144,6 +144,18 @@ export const PUT = withActivityLog('next_api.education.PUT', async (request: Nex
   }
 
   const updates = extractUpdates(body);
+  if (updates.degreeTitle !== undefined && !updates.degreeTitle) {
+    return NextResponse.json(
+      { error: 'degreeTitle cannot be empty' },
+      { status: 400 }
+    );
+  }
+  if (updates.instituteName !== undefined && !updates.instituteName) {
+    return NextResponse.json(
+      { error: 'instituteName cannot be empty' },
+      { status: 400 }
+    );
+  }
   if (Object.keys(updates).length === 0) {
     return NextResponse.json(
       { error: 'No updatable fields provided' },

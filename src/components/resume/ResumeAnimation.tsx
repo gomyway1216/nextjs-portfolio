@@ -8,11 +8,7 @@ import {
   getLocalizedJobType,
   getLocalizedJobValue,
 } from '@/lib/resumeLocalization';
-import type { Education } from '@/services/resumeService';
-
-const getEducationPassingYear = (education: Education): string => education.passingYear || education.duration || '';
-const getEducationDegreeTitle = (education: Education): string => education.degreeTitle || education.degree || '';
-const getEducationInstituteName = (education: Education): string => education.instituteName || education.school || '';
+import { getEducationDegreeTitle,getEducationInstituteName,getEducationPassingYear } from '@/lib/resumeEducation';
 
 const Resume = () => {
   const { t, i18n } = useTranslation();

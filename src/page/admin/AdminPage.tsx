@@ -8,6 +8,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { normalizePostCategory, normalizePostTag, normalizePostTags } from '@/lib/blog/postMetadata';
 import type { PostLanguage,PostTranslations } from '@/lib/blog/postTranslations';
 import { normalizeTranslationsForMarkdownEditing } from '@/lib/markdownHtml';
+import { getEducationDegreeTitle,getEducationInstituteName,getEducationPassingYear } from '@/lib/resumeEducation';
 import { useAuth } from '@/providers/AuthProvider';
 import * as imageApi from '@/services/imageService';
 import type { ListingPost } from '@/services/postsService';
@@ -96,10 +97,6 @@ const getTechName = (tech: string | { name: string; id?: string; type?: string }
   if (tech && typeof tech === 'object' && 'name' in tech) return tech.name;
   return '';
 };
-
-const getEducationPassingYear = (education: Education): string => education.passingYear || education.duration || '';
-const getEducationDegreeTitle = (education: Education): string => education.degreeTitle || education.degree || '';
-const getEducationInstituteName = (education: Education): string => education.instituteName || education.school || '';
 
 const adminColors = {
   page: 'var(--admin-page)',
@@ -1027,6 +1024,7 @@ const AdminPage = () => {
   const [loading, setLoading] = useState(true);
   const [education, setEducation] = useState<Education[]>([]);
   const [educationLoading, setEducationLoading] = useState(true);
+  const [educationError, setEducationError] = useState<string | null>(null);
 
   // Modal states
   const [showProjectModal, setShowProjectModal] = useState(false);
@@ -1188,11 +1186,16 @@ const AdminPage = () => {
   const fetchEducation = async () => {
     try {
       const response = await fetch('/api/education');
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(typeof data.error === 'string' ? data.error : `HTTP error! status: ${response.status}`);
+      }
       const entries = Array.isArray(data.education) ? data.education : [];
       setEducation([...entries].sort((a: Education, b: Education) => (a.order ?? 0) - (b.order ?? 0)));
+      setEducationError(null);
     } catch (error) {
       console.error('Error fetching education:', error);
+      setEducationError(error instanceof Error ? error.message : 'Failed to fetch education');
     } finally {
       setEducationLoading(false);
     }
@@ -3018,6 +3021,15 @@ const AdminPage = () => {
                         Cancel
                       </button>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {educationError && (
+                <div style={{ ...styles.card, borderColor: adminColors.dangerBorder, backgroundColor: adminColors.dangerSoft, padding: '14px 16px', marginBottom: '16px', color: adminColors.dangerText }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <AlertCircle size={18} />
+                    <span>Failed to load education entries: {educationError}</span>
                   </div>
                 </div>
               )}

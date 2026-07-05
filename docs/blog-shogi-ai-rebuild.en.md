@@ -413,7 +413,7 @@ What if ▲7八銀?  → play it forward a few plies, ask the eval → −2500 (
 
 The **handwritten eval** running in production is a sum of human-readable rules (the skeleton of the implementation in `KyokumenImproved.ts`):
 
-```typescript
+```text
 score  = material balance;      // pawn=100, rook=1040, ... summed difference
 score += piece-square bonuses;  // "this piece on this square is worth +N" tables, phase-weighted
 score += king-safety count;     // gold/silver defenders around the king
@@ -428,7 +428,13 @@ The **neural-net version** is a completely different machine answering the same 
 
 Which leaves the real question: **if you can't read it, how can it be right?** Answer: because "right" is measured by outcomes, not by explainability. There is a perfect precedent close to home — **a strong player's intuition**. A 2-dan player glances at a position and *feels* "Black is better," yet cannot fully verbalize the judgment; the after-the-fact explanations ("material advantage," "thin king") don't describe the actual computation happening in their head, which is invisible even to them. And still the judgment is usually correct. A neural net implements exactly this kind of *intuition that bypasses verbalization* as a block of numbers — where the handwritten eval can only hold knowledge someone managed to put into words, the net absorbs patterns directly from a million of YaneuraOu's judgments.
 
-How do you trust what you can't read? **You don't read it — you examine it.** (1) Measure its deviation from the teacher on 4,000 unseen positions (holdout MAE). (2) Measure how often it agrees with the teacher on *which of two positions is better* (pair_acc 0.89 = agreement 89 times out of 100). (3) Finally, make it play. This article's refrain — "the final gate is always playing the games" — is also a corollary of *unreadable things can only be audited by their behavior*.
+How do you trust what you can't read? **You don't read it — you examine it.**
+
+1. **Measure its deviation from the teacher on 4,000 unseen positions** (holdout MAE)
+2. **Measure how often it agrees with the teacher on *which of two positions is better*** (`val_pair_acc` 0.89 = agreement 89 times out of 100)
+3. **Finally, make it play**
+
+This article's refrain — "the final gate is always playing the games" — is also a corollary of *unreadable things can only be audited by their behavior*.
 
 The flip side of the coin lives in the same place: when the net is wrong, **the reason it is wrong is just as unreadable**. With the handwritten eval we once pinpointed "the climbing-silver term cuts off at rank 4" and fixed that line. A net's mistakes can only be fixed by changing the data and retraining — which is why the seemingly roundabout journey from the 19.6% defeat to "scale up the teacher data" was, in fact, the only repair procedure a neural network offers.
 

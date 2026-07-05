@@ -61,7 +61,11 @@ const SEED_BASE = argNum('--seed', 1);
 const SCALE_K = argNum('--k', 600);
 const SCALE_NUMER = argNum('--scale-numer', 1);
 const SCALE_DENOM = argNum('--scale-denom', 1);
-if (SCALE_NUMER < 1 || SCALE_DENOM < 1) throw new Error('--scale-numer/--scale-denom must be >= 1');
+// Mirror the WASM setter's bounds so a rejected (silently ignored) scale can
+// never masquerade as a 1/1 run.
+if (SCALE_NUMER < 1 || SCALE_DENOM < 1 || SCALE_NUMER > 1_000_000 || SCALE_DENOM > 1_000_000) {
+  throw new Error('--scale-numer/--scale-denom must be between 1 and 1,000,000');
+}
 const OPENING_PLIES = 6;
 const MAX_PLIES = 256;
 const MAX_DEPTH = 32;

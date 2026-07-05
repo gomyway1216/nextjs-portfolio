@@ -231,7 +231,13 @@ console.log('\n=== NNUE output-scale parity (setNnueOutputScale) ===');
       wasm.setNnueOutputScale(numer, denom);
       const asCp = wasm.nnueEvaluateCp() | 0;
       // BigInt division truncates toward zero, matching the WASM i64 div_s.
-      const tsCp = Number((BigInt(outQ) * BigInt(SCALE_K) * BigInt(numer)) / (BigInt(8128) * BigInt(denom)));
+      // Apply the same ±1,000,000 clamp as nnueEvaluateCp() so the reference
+      // stays correct even if a weights/scale case ever pushes past it.
+      const cpClamp = BigInt(1_000_000);
+      let tsCpBig = (BigInt(outQ) * BigInt(SCALE_K) * BigInt(numer)) / (BigInt(8128) * BigInt(denom));
+      if (tsCpBig > cpClamp) tsCpBig = cpClamp;
+      else if (tsCpBig < -cpClamp) tsCpBig = -cpClamp;
+      const tsCp = Number(tsCpBig);
       if (asCp !== tsCp) {
         console.error(`SCALE MISMATCH at ply ${ply} (${numer}/${denom}): AS=${asCp} TS=${tsCp} outQ=${outQ}`);
         process.exit(1);

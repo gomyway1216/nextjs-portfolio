@@ -200,6 +200,46 @@ node -r tsx/cjs wasm-spike/nnue-verify-reference.ts <weights.bin> <reference.jso
 - **速度**（macOS / Apple Silicon / node v20、10 万回 best-of-3）: フル再計算 `nnueEvaluate` ≈ **6.2µs/回** → 差分 `nnueEvaluateFast` ≈ **1.15µs/回**（約 5.4 倍。`evaluateV3Full` ≈ 0.94µs の 1.2 倍まで短縮）。探索内の実効削減（同一探索木で force-full vs fast、固定深さ）は **≈4.85µs/eval** → 探索内の実効 NNUE 評価コスト ≈ **1.4µs**。
 - **3 秒探索**: ダミー重み（ランダム評価面 = move ordering/枝刈りが壊れるため深さは参考値）で nnue(full) depth 6〜8 / 0.11M evals/s → nnue(fast) **depth 7〜8 / 0.23〜0.27M evals/s**（同一評価関数でノード・葉スループット約 2.2 倍）。**マテリアル重み**（正気な評価面、推論コストは同一）では **depth 9〜15**（4局面: 15/10/9/9、0.31〜0.49M evals/s）— v3full の 8〜12 と同等の深さに到達し、学習済み重みでも depth 10 前後が見込める。
 
+### 実重み検証と A/B 対戦（2026-07-04、run100k 重み — 不採用）
+
+学習済み実重み（`ml/runs/run100k/weights.bin`、教師 100k 局面 / val MAE ≈ 405cp）での最終検証の記録。
+
+- **3-way 照合**: `ml/dump-reference.py --n 300`（torch）→ `nnue-verify-reference.ts` で
+  **300/300 局面が WASM == TS == torch int16 シミュレーションとビット一致**（out_q / cp とも）。
+  量子化誤差 |cp_float − cp_int| は mean 26.8cp / max 144.9cp（export 時検証の 24.1/145.3cp と整合）。
+  推論実装は正しい。
+- **等時間 A/B 対戦** `match-nnue-vs-v3.ts`（両側 WASM・素の探索同士、ブック/詰みソルバーなし、
+  評価関数だけが差分。opening 6 plies curated、先後交替、全手合法性チェック）:
+  - 200ms/手 16 局（seed 1）: **NNUE 2 勝 / V3 14 勝 / 0 分（12.5%）**
+  - 1000ms/手 6 局（seed 2）: NNUE 1 勝 / V3 5 勝 / 0 分（16.7%）
+  - 1000ms/手 6 局（seed 3）: NNUE 2 勝 / V3 3 勝 / 1 分（41.7%）
+  - 合計 5.5/28（19.6%）、全 2,660 手合法。**判定: 不合格 → 本番配線は見送り**。
+- **速度は原因ではない**: 等時間 1s 探索で NNUE 側もノード数は同等以上
+  （例: 138k vs 142k nodes）、depth −1〜±0。差分アキュムレータは機能している。
+- **原因仮説**（静的評価の教師近似では NNUE 優位＝ml レポート「合格」だったのに対局で負ける理由）:
+  1. **ノイズ vs 校正**: 探索に効くのは兄弟局面間の相対順位。net の val MAE ≈ 405cp は
+     典型的な手の評価差（<100cp）を大きく上回るノイズで、指し手のランキングを壊す。
+     一方 V3 は絶対スケールこそ教師とずれるが決定的な特徴量ベースで自己一貫しており、
+     単調な校正ずれは alpha-beta の指し手選択に影響しない（教師近似メトリクスは
+     対局強度の予測子として不適切だった）。
+  2. **探索定数のスケール不整合**: `ASPIRATION_WINDOW=300 / DELTA_PRUNING_MARGIN=150 /
+     FUTILITY_MARGIN_1,2=350,700` は V3 スケール（≈3.7×cp、教師フィット cp ≈ 0.2696×v3）
+     前提の定数。NNUE の真の cp 出力では実効 ~3.7 倍のマージンになり枝刈りが甘くなる
+     （q-search の delta pruning は V3 単位の駒価値と NNUE cp の standPat が混在）。
+  3. **教師データの偏り**: |cp|>1000 が 6 割超の自己対戦分布 + 100k という規模
+     （NNUE の通常は数億局面）で、互角圏・終盤の詰み前後の精度が不足
+     （cp は ±3000 クランプで学習しており大差の表現も飽和する）。
+- **次の一手**: 教師データ増量（1M+、均衡局面比率を上げる）／探索マージンの NNUE
+  スケール適応（または net 出力を V3 スケールに合わせる）／相対順位を重視した損失
+  （ペアワイズ/ランキング損失）の検討。推論・差分更新・ロード経路は検証済みなので、
+  強い重みができれば `getNnueWeightsPtr()` へ memcpy → `setNnueScaleK(K)` →
+  `setNnueEnabled(1)` だけで差し替え可能。
+
+```sh
+# A/B 対戦ハーネス（両側 WASM、片側だけ NNUE）
+node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--games 16] [--ms 200] [--seed 1] [--k 600]
+```
+
 ## 省略したもの（caveats）
 
 - 詰みソルバー / オープニングブック（JS 側で先に処理するハイブリッド構成のため意図的に未移植）

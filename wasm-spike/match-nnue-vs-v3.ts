@@ -16,7 +16,12 @@
  *
  * Usage:
  *   node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> \
- *     [--games 16] [--ms 200] [--seed 1] [--k 600]
+ *     [--games 16] [--ms 200] [--seed 1] [--k 600] \
+ *     [--scale-numer 1] [--scale-denom 1]
+ *
+ * --scale-numer/--scale-denom rescale the NNUE cp output before it enters the
+ * search (setNnueOutputScale). Use 37/10 to map true centipawns onto the
+ * evaluateV3Full scale (~3.7x cp) that the search margins were tuned for.
  */
 
 import { readFileSync } from 'node:fs';
@@ -31,6 +36,7 @@ interface ShogiNnueSearchWasm extends ShogiSearchWasm {
   getNnueWeightsPtr(): number;
   getNnueWeightsSize(): number;
   setNnueScaleK(k: number): void;
+  setNnueOutputScale(numer: number, denom: number): void;
   setNnueEnabled(flag: number): void;
 }
 
@@ -44,13 +50,22 @@ function argNum(flag: string, def: number): number {
 
 const weightsPath = process.argv[2];
 if (!weightsPath || weightsPath.startsWith('--')) {
-  console.error('usage: node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--games 16] [--ms 200] [--seed 1] [--k 600]');
+  console.error(
+    'usage: node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1]'
+  );
   process.exit(2);
 }
 const GAMES = argNum('--games', 16);
 const MOVE_MS = argNum('--ms', 200);
 const SEED_BASE = argNum('--seed', 1);
 const SCALE_K = argNum('--k', 600);
+const SCALE_NUMER = argNum('--scale-numer', 1);
+const SCALE_DENOM = argNum('--scale-denom', 1);
+// Mirror the WASM setter's bounds so a rejected (silently ignored) scale can
+// never masquerade as a 1/1 run.
+if (SCALE_NUMER < 1 || SCALE_DENOM < 1 || SCALE_NUMER > 1_000_000 || SCALE_DENOM > 1_000_000) {
+  throw new Error('--scale-numer/--scale-denom must be between 1 and 1,000,000');
+}
 const OPENING_PLIES = 6;
 const MAX_PLIES = 256;
 const MAX_DEPTH = 32;
@@ -203,6 +218,7 @@ function main(): void {
   }
   new Uint8Array(wasmA.memory.buffer, wasmA.getNnueWeightsPtr(), weightsBin.byteLength).set(weightsBin);
   wasmA.setNnueScaleK(SCALE_K);
+  wasmA.setNnueOutputScale(SCALE_NUMER, SCALE_DENOM);
   wasmA.setNnueEnabled(1);
 
   // Instance B: stock hand-crafted evaluateV3Full (NNUE stays disabled).
@@ -216,7 +232,7 @@ function main(): void {
   let draws = 0;
 
   console.log(
-    `=== match: WASM+NNUE(real weights, K=${SCALE_K}) vs WASM+V3 — ${GAMES} games, ${MOVE_MS}ms/move, ` +
+    `=== match: WASM+NNUE(real weights, K=${SCALE_K}, outScale=${SCALE_NUMER}/${SCALE_DENOM}) vs WASM+V3 — ${GAMES} games, ${MOVE_MS}ms/move, ` +
       `opening ${OPENING_PLIES} plies (seed base ${SEED_BASE}), no book / no mate solver ===`
   );
 

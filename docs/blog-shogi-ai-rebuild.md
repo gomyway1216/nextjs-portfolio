@@ -399,25 +399,30 @@ export function nnueEvaluateCp(): i32 {
 
 ### モデルと学習ループを、1行ずつ読む
 
-「機械学習」と言うと巨大で不透明なものを想像するかもしれないが、蒸留に使っているネットワークの定義は**まるごと引用してもこの分量**だ（`ml/train.py`、実コード）。各行が何をしていて、なぜそう設計したのかを注釈する。
+「機械学習」と言うと巨大で不透明なものを想像するかもしれないが、蒸留に使っているネットワークの定義は**まるごと引用してもこの分量**だ（`ml/train.py` の `DistillNet` 全体。コメントは本記事用の注釈に差し替えてある）。各行が何をしていて、なぜそう設計したのかを注釈する。
 
 ```python
 class DistillNet(nn.Module):
     H1 = 256   # 第1層の幅。NNUEの伝統的な設計に倣った値で、これが実行速度をほぼ決める
-    H2 = 32    # 第2層の幅。第1層より2桁小さいのがNNUE系の特徴
+    H2 = 32    # 第2層の幅。第1層の1/8まで一気に絞るのがNNUE系の特徴
 
     def __init__(self):
         super().__init__()
         # ① 盤面の入力層。「7六に先手の歩がある」のような『事実』2268種それぞれに
         #    256個の数字（重みベクトル）を割り当てた巨大な表。局面の評価は
         #    「成立している事実の重みベクトルを全部足す」ことから始まる。
-        #    EmbeddingBag(mode="sum") はその「該当行を引いて足す」を一発でやる部品
-        self.board = nn.EmbeddingBag(BOARD_FEATS + 1, self.H1, mode="sum")
+        #    EmbeddingBag(mode="sum") はその「該当行を引いて足す」を一発でやる部品。
+        #    padding_idx はバッチ整形用のダミー行（常にゼロで評価に寄与しない）
+        self.board = nn.EmbeddingBag(BOARD_FEATS + 1, self.H1, mode="sum", padding_idx=PAD_IDX)
         # ② 持ち駒の入力層。歩を何枚持っているか等14種の枚数 → 同じ256次元へ
-        self.hand  = nn.Linear(HAND_FEATS, self.H1)
+        self.hand  = nn.Linear(HAND_FEATS, self.H1)  # bias が第1層の bias を兼ねる
         # ③④ 縮約層。256次元に散らばった情報を32次元 → 最終的に1個の数字（評価値）へ
         self.l2    = nn.Linear(self.H1, self.H2)
         self.l3    = nn.Linear(self.H2, 1)
+        # 初期値: 盤面テーブルは小さな乱数から出発（ダミー行だけゼロ固定）
+        nn.init.normal_(self.board.weight, std=0.01)
+        with torch.no_grad():
+            self.board.weight[PAD_IDX].zero_()
 
     def forward(self, board_idx, hands):
         a1 = self.board(board_idx) + self.hand(hands)  # 盤面と持ち駒の寄与を合算
@@ -436,13 +441,17 @@ loss = F.mse_loss(torch.sigmoid(out), t)  # やねうら王の採点とのズレ
 
 if args.loss == "ranking":                # ranking版はここが追加で入る
     diff = c.unsqueeze(1) - c.unsqueeze(0)     # バッチ内の全ペアについて教師cp差を計算し、
-    mask = (diff >= 50) & (diff <= 600)        # 「微妙に差がある」ペアだけを選ぶ。
+    mask = (diff >= args.rank_pair_min) & (diff <= args.rank_pair_max)
+    #  「微妙に差がある」ペアだけ選ぶ（既定50〜600cp）。
     #  50cp未満: どちらでもいい差。600cp超: もう明らかな差。その間こそ探索の勝負どころ
-    rank_loss = F.relu(rank_margin_logit - (out[ia] - out[ib])).mean()
-    #  「先生がAの方が良いと言っているのに、お前の採点でAがBをmargin分上回っていない」
-    #  ペアにだけ罰を与える。評価値そのものの正確さは要求しない——順位だけを要求する
-    loss = loss + args.rank_weight * rank_loss
+    ia, ib = mask.nonzero(as_tuple=True)       # 選ばれたペアの添字（Aが良い側/悪い側）
+    if ia.numel() > 0:                         # 該当ペアがあるバッチだけ加算
+        rank_loss = F.relu(rank_margin_logit - (out[ia] - out[ib])).mean()
+        #  「先生がAの方が良いと言っているのに、お前の採点でAがBをmargin分上回っていない」
+        #  ペアにだけ罰を与える。評価値そのものの正確さは要求しない——順位だけを要求する
+        loss = loss + args.rank_weight * rank_loss
 
+opt.zero_grad()   # 前バッチの勾配をクリアし、
 loss.backward()   # 誤差逆伝播。損失が減る方向を58万個のダイヤル全部について同時に計算し、
 opt.step()        # 全ダイヤルを少しずつ回す。これを30万局面×数十周
 ```

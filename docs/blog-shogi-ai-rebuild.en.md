@@ -397,25 +397,30 @@ With the real battleground confirmed, teacher-data generation is running.
 
 ### Reading the model and the training loop, line by line
 
-"Machine learning" may conjure something enormous and opaque, but the network used for distillation is small enough to **quote in full** (`ml/train.py`, actual code). Here is what each line does and why it was designed that way.
+"Machine learning" may conjure something enormous and opaque, but the network used for distillation is small enough to **quote in full** (the complete `DistillNet` from `ml/train.py`; the comments are replaced with annotations for this article). Here is what each line does and why it was designed that way.
 
 ```python
 class DistillNet(nn.Module):
     H1 = 256   # width of layer 1 — the traditional NNUE choice; this dominates inference speed
-    H2 = 32    # width of layer 2 — two orders of magnitude narrower, the NNUE signature
+    H2 = 32    # width of layer 2 — squeezing straight down to 1/8th, the NNUE signature
 
     def __init__(self):
         super().__init__()
         # (1) Board input layer. Each of 2,268 possible 'facts' — like "black pawn
         #     on 7f" — gets its own row of 256 numbers (a weight vector). Evaluating
         #     a position starts by summing the rows of every fact that holds.
-        #     EmbeddingBag(mode="sum") does exactly that lookup-and-sum in one op.
-        self.board = nn.EmbeddingBag(BOARD_FEATS + 1, self.H1, mode="sum")
+        #     EmbeddingBag(mode="sum") does exactly that lookup-and-sum in one op;
+        #     padding_idx is a dummy row for batch shaping (always zero, contributes nothing).
+        self.board = nn.EmbeddingBag(BOARD_FEATS + 1, self.H1, mode="sum", padding_idx=PAD_IDX)
         # (2) Hand input layer: counts of the 14 droppable piece types -> same 256 dims
-        self.hand  = nn.Linear(HAND_FEATS, self.H1)
+        self.hand  = nn.Linear(HAND_FEATS, self.H1)  # its bias doubles as layer 1's bias
         # (3)(4) Reduction layers: 256 dims -> 32 -> a single number (the evaluation)
         self.l2    = nn.Linear(self.H1, self.H2)
         self.l3    = nn.Linear(self.H2, 1)
+        # Init: the board table starts from small random values (dummy row pinned to zero)
+        nn.init.normal_(self.board.weight, std=0.01)
+        with torch.no_grad():
+            self.board.weight[PAD_IDX].zero_()
 
     def forward(self, board_idx, hands):
         a1 = self.board(board_idx) + self.hand(hands)  # combine board + hand contributions
@@ -434,14 +439,18 @@ loss = F.mse_loss(torch.sigmoid(out), t)  # loss = deviation from YaneuraOu's sc
 
 if args.loss == "ranking":                # the ranking variant adds this block
     diff = c.unsqueeze(1) - c.unsqueeze(0)     # teacher cp difference for every in-batch pair,
-    mask = (diff >= 50) & (diff <= 600)        # keep only the *subtly different* pairs.
+    mask = (diff >= args.rank_pair_min) & (diff <= args.rank_pair_max)
+    #  keep only the *subtly different* pairs (default 50–600cp).
     #  Under 50cp: either is fine. Over 600cp: already obvious. In between is where search lives.
-    rank_loss = F.relu(rank_margin_logit - (out[ia] - out[ib])).mean()
-    #  Penalize exactly the pairs where the teacher says A is better but the net
-    #  does not rank A above B by the margin. Absolute accuracy is not demanded —
-    #  only the ordering.
-    loss = loss + args.rank_weight * rank_loss
+    ia, ib = mask.nonzero(as_tuple=True)       # indices of the selected pairs (better/worse side)
+    if ia.numel() > 0:                         # only batches that actually contain such pairs
+        rank_loss = F.relu(rank_margin_logit - (out[ia] - out[ib])).mean()
+        #  Penalize exactly the pairs where the teacher says A is better but the net
+        #  does not rank A above B by the margin. Absolute accuracy is not demanded —
+        #  only the ordering.
+        loss = loss + args.rank_weight * rank_loss
 
+opt.zero_grad()   # clear the previous batch's gradients,
 loss.backward()   # backpropagation: compute, for all 580k dials at once, which way
 opt.step()        # reduces the loss — then nudge every dial. Repeat for 300k positions × dozens of epochs
 ```

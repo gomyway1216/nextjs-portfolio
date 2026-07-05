@@ -16,6 +16,13 @@
 
 使い方:
   ml/venv/bin/python ml/train.py --data ml/data/teacher.jsonl --out ml/runs/smoke --epochs 20
+
+ランキング指向学習 (--loss ranking):
+  シグモイド回帰損失に加え、同一ミニバッチ内で教師cp差が [--rank-pair-min, --rank-pair-max]
+  (既定 [50,600]cp) のペアへ pairwise margin ranking loss (margin=--rank-margin-cp, 重み
+  --rank-weight) を加算する。探索で効く「局面の相対順位」の一致を直接最適化する狙い。
+  順位一致率 (val の教師cp差>100 の固定ペアで予測大小が一致する率) は損失モードに依らず
+  毎 epoch curve.csv の val_pair_acc 列に記録される。
 """
 
 import argparse
@@ -125,8 +132,11 @@ def parse_sfen(sfen: str):
 
 
 def load_dataset(path: str, k_sigmoid: float, cp_clamp: int, limit: int = 0):
-    """JSONL → (board_idx (N,40) int32 padded, hands (N,14) float32, y (N,) float32)"""
-    board_rows, hand_rows, targets = [], [], []
+    """JSONL → (board_idx (N,40) int64 padded, hands (N,14) float32, y (N,) float32, cp (N,) float32)
+
+    cp はクランプ後の教師評価値 (手番側視点, cp 単位)。ランキング損失・順位一致率の計算に使う。
+    """
+    board_rows, hand_rows, targets, cps = [], [], [], []
     n_skipped = 0
     with open(path) as f:
         for line in f:
@@ -150,14 +160,16 @@ def load_dataset(path: str, k_sigmoid: float, cp_clamp: int, limit: int = 0):
             board_rows.append(idx)
             hand_rows.append(hands)
             targets.append(y)
+            cps.append(float(cp))
             if limit and len(targets) >= limit:
                 break
     board = torch.tensor(board_rows, dtype=torch.long)
     hands = torch.tensor(hand_rows, dtype=torch.float32)
     y = torch.tensor(targets, dtype=torch.float32)
+    cp_t = torch.tensor(cps, dtype=torch.float32)
     if n_skipped:
         print(f"[data] skipped {n_skipped} bad lines")
-    return board, hands, y
+    return board, hands, y, cp_t
 
 
 # ---------------------------------------------------------------------------
@@ -210,6 +222,13 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="先頭 N 件のみ使用 (0=全件)")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
     ap.add_argument("--seed", type=int, default=42)
+    # ランキング指向の学習: --loss ranking で同一ミニバッチ内の教師cp差 [rank-pair-min, rank-pair-max]
+    # のペアに pairwise margin ranking loss を加算する (シグモイド回帰損失は常に併用)。
+    ap.add_argument("--loss", default="sigmoid", choices=["sigmoid", "ranking"])
+    ap.add_argument("--rank-weight", type=float, default=1.0, help="ranking loss の重み係数")
+    ap.add_argument("--rank-pair-min", type=float, default=50.0, help="ペア対象の教師cp差 下限")
+    ap.add_argument("--rank-pair-max", type=float, default=600.0, help="ペア対象の教師cp差 上限")
+    ap.add_argument("--rank-margin-cp", type=float, default=50.0, help="margin (cp 単位, ロジット空間では /K)")
     args = ap.parse_args()
 
     torch.manual_seed(args.seed)
@@ -226,7 +245,7 @@ def main():
         device = args.device
     print(f"[train] device={device}")
 
-    board, hands, y = load_dataset(args.data, args.k, args.cp_clamp, args.limit)
+    board, hands, y, cp = load_dataset(args.data, args.k, args.cp_clamp, args.limit)
     n = y.shape[0]
     print(f"[train] dataset: {n} positions from {args.data}")
 
@@ -238,12 +257,23 @@ def main():
         )
 
     perm = torch.randperm(n)
-    board, hands, y = board[perm], hands[perm], y[perm]
+    board, hands, y, cp = board[perm], hands[perm], y[perm], cp[perm]
     # val は最低1件、かつ train にも最低1件残るようにクランプする
     n_val = max(1, min(int(n * args.val_ratio), n - 1))
-    vb, vh, vy = board[:n_val], hands[:n_val], y[:n_val]
-    tb, th, ty = board[n_val:], hands[n_val:], y[n_val:]
-    print(f"[train] train={ty.shape[0]} val={vy.shape[0]}")
+    vb, vh, vy, vcp = board[:n_val], hands[:n_val], y[:n_val], cp[:n_val]
+    tb, th, ty, tcp = board[n_val:], hands[n_val:], y[n_val:], cp[n_val:]
+    print(f"[train] train={ty.shape[0]} val={vy.shape[0]} loss={args.loss}")
+
+    # --- 順位一致率 (pairwise ranking accuracy) 用の固定 val ペア ---
+    # 教師cp差 > 100 のランダムペアについて、予測ロジットの大小関係が教師と一致する率。
+    # 損失モードに依らず毎 epoch 報告する。seed 固定で run 間比較可能。
+    pair_gen = torch.Generator().manual_seed(args.seed + 1)
+    n_pairs_raw = min(200000, n_val * 20)
+    pi = torch.randint(0, n_val, (n_pairs_raw,), generator=pair_gen)
+    pj = torch.randint(0, n_val, (n_pairs_raw,), generator=pair_gen)
+    pair_mask = (vcp[pi] - vcp[pj]).abs() > 100.0
+    pi, pj = pi[pair_mask], pj[pair_mask]
+    print(f"[train] val ranking pairs (|Δcp|>100): {pi.shape[0]}")
 
     model = DistillNet().to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
@@ -252,11 +282,12 @@ def main():
     os.makedirs(args.out, exist_ok=True)
     curve_path = os.path.join(args.out, "curve.csv")
     with open(curve_path, "w") as f:
-        f.write("epoch,train_loss,val_loss,val_mae_cp,lr,sec\n")
+        f.write("epoch,train_loss,val_loss,val_mae_cp,val_pair_acc,lr,sec\n")
 
     def evaluate():
         model.eval()
         total, mae_cp, cnt = 0.0, 0.0, 0
+        outs = []
         with torch.no_grad():
             for i in range(0, vy.shape[0], 4096):
                 b = vb[i : i + 4096].to(device)
@@ -269,10 +300,18 @@ def main():
                 t_logit = torch.logit(t.clamp(1e-6, 1 - 1e-6))
                 mae_cp += (out - t_logit).abs().sum().item() * args.k
                 cnt += t.shape[0]
-        return total / cnt, mae_cp / cnt
+                outs.append(out.cpu())
+        # 順位一致率: 教師cp差>100 の固定ペアで予測の大小が一致する率
+        pair_acc = float("nan")
+        if pi.shape[0] > 0:
+            o = torch.cat(outs)
+            agree = ((o[pi] - o[pj]) * (vcp[pi] - vcp[pj])) > 0
+            pair_acc = agree.float().mean().item()
+        return total / cnt, mae_cp / cnt, pair_acc
 
     best_val = float("inf")
     n_train = ty.shape[0]
+    rank_margin_logit = args.rank_margin_cp / args.k  # margin をロジット空間へ
     for epoch in range(1, args.epochs + 1):
         t0 = time.time()
         model.train()
@@ -285,6 +324,17 @@ def main():
             t = ty[sel].to(device)
             out = model(b, h)
             loss = F.mse_loss(torch.sigmoid(out), t)
+            if args.loss == "ranking":
+                # 同一ミニバッチ内で教師cp差が [rank-pair-min, rank-pair-max] のペアを全列挙し、
+                # margin ranking loss (ロジット空間) を加算する。
+                # diff[a,b] = cp_a - cp_b > 0 となる向きで取るので各非順序ペアは一度だけ現れる。
+                c = tcp[sel].to(device)
+                diff = c.unsqueeze(1) - c.unsqueeze(0)
+                mask = (diff >= args.rank_pair_min) & (diff <= args.rank_pair_max)
+                ia, ib = mask.nonzero(as_tuple=True)
+                if ia.numel() > 0:
+                    rank_loss = F.relu(rank_margin_logit - (out[ia] - out[ib])).mean()
+                    loss = loss + args.rank_weight * rank_loss
             opt.zero_grad()
             loss.backward()
             opt.step()
@@ -292,20 +342,26 @@ def main():
             cnt += t.shape[0]
         sched.step()
         train_loss = total / cnt
-        val_loss, val_mae_cp = evaluate()
+        val_loss, val_mae_cp, val_pair_acc = evaluate()
         sec = time.time() - t0
         lr_now = sched.get_last_lr()[0]
         print(
             f"[train] epoch {epoch:3d}/{args.epochs} train={train_loss:.6f} "
-            f"val={val_loss:.6f} val_mae≈{val_mae_cp:.0f}cp lr={lr_now:.2e} ({sec:.1f}s)"
+            f"val={val_loss:.6f} val_mae≈{val_mae_cp:.0f}cp pair_acc={val_pair_acc:.4f} "
+            f"lr={lr_now:.2e} ({sec:.1f}s)"
         )
         with open(curve_path, "a") as f:
-            f.write(f"{epoch},{train_loss:.6f},{val_loss:.6f},{val_mae_cp:.1f},{lr_now:.6e},{sec:.1f}\n")
+            f.write(
+                f"{epoch},{train_loss:.6f},{val_loss:.6f},{val_mae_cp:.1f},"
+                f"{val_pair_acc:.4f},{lr_now:.6e},{sec:.1f}\n"
+            )
 
         ckpt = {
             "model": model.state_dict(),
             "epoch": epoch,
             "val_loss": val_loss,
+            "val_mae_cp": val_mae_cp,
+            "val_pair_acc": val_pair_acc,
             "args": vars(args),
             "arch": {"input": INPUT_DIM, "h1": DistillNet.H1, "h2": DistillNet.H2, "k": args.k},
         }

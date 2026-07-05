@@ -7,6 +7,10 @@
  * 実行例:
  *   node -r tsx/cjs ml/generate-teacher.ts --target 10000
  *   node -r tsx/cjs ml/generate-teacher.ts --target 100000 --engines 8
+ *   node -r tsx/cjs ml/generate-teacher.ts --target 1000000 --engines 8 --balance
+ *
+ * --balance: ラベリング後に |cp| > --balance-cp (既定 1200) の大差局面を
+ * 採択率 --balance-rate (既定 0.3) で確率的に間引き、互角圏の比率を上げる。
  *
  * 再開可能: 出力ファイル(JSONL)は追記式。既存行の SFEN をロードして重複を排除し、
  * 目標局面数(--target)に達するまで続きから生成する。
@@ -53,6 +57,9 @@ interface Args {
   minPly: number;
   maxPly: number;
   chunk: number; // 生成→ラベリングのチャンクサイズ
+  balance: boolean; // 分布バランス制御 (大差局面の確率的間引き) を有効化
+  balanceCp: number; // |cp| がこの値を超える局面を間引き対象にする
+  balanceRate: number; // 間引き対象局面の採択率 (0..1)
 }
 
 function parseArgs(): Args {
@@ -71,6 +78,11 @@ function parseArgs(): Args {
     minPly: parseInt(get('min-ply', '6'), 10),
     maxPly: parseInt(get('max-ply', '120'), 10),
     chunk: parseInt(get('chunk', '2000'), 10),
+    // --balance: ラベリング後に |cp| > balance-cp の大差局面を確率的に間引き、
+    // 互角圏局面の比率を上げる。追記フォーマット・再開互換は不変。
+    balance: a.includes('--balance'),
+    balanceCp: parseInt(get('balance-cp', '1200'), 10),
+    balanceRate: parseFloat(get('balance-rate', '0.3')),
   };
 }
 
@@ -456,7 +468,10 @@ async function main(): Promise<void> {
     }
   }
   console.log(
-    `[gen] target=${args.target} existing=${existing} depth=${args.depth} engines=${args.engines} out=${args.out}`
+    `[gen] target=${args.target} existing=${existing} depth=${args.depth} engines=${args.engines} out=${args.out}` +
+      (args.balance
+        ? ` balance=on (|cp|>${args.balanceCp} accept ${(args.balanceRate * 100).toFixed(0)}%)`
+        : '')
   );
   if (existing >= args.target) {
     console.log('[gen] already reached target. nothing to do.');
@@ -476,6 +491,7 @@ async function main(): Promise<void> {
   let total = existing;
   const t0 = Date.now();
   let labeledSinceStart = 0;
+  let thinnedSinceStart = 0; // --balance で間引いた局面数 (統計用)
 
   while (total < args.target) {
     // --- フェーズ1: 自己対戦でチャンク分の新規局面を生成 ---
@@ -523,6 +539,12 @@ async function main(): Promise<void> {
           }
           // スコアなし/投了/宣言勝ちの局面はデータセットに含めない
           if (!res || res.bestmove === 'resign' || res.bestmove === 'win') continue;
+          // 分布バランス制御: |cp| が閾値を超える大差局面は採択率 balanceRate で間引く。
+          // seen には登録済みなので同一局面が再ラベリングされることはない (廃棄のみ)。
+          if (args.balance && Math.abs(res.cp) > args.balanceCp && rng() >= args.balanceRate) {
+            thinnedSinceStart++;
+            continue;
+          }
           const rec: Record<string, unknown> = {
             sfen: pos.sfen,
             cp: res.cp,
@@ -567,7 +589,8 @@ async function main(): Promise<void> {
     console.log(
       `[gen] chunk done: +${lines.length} (gen ${genSec.toFixed(1)}s, label ${labSec.toFixed(
         1
-      )}s = ${rate.toFixed(1)} pos/s) total=${total}/${args.target}`
+      )}s = ${rate.toFixed(1)} pos/s) total=${total}/${args.target}` +
+        (args.balance ? ` thinned=${thinnedSinceStart}` : '')
     );
   }
 

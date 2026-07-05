@@ -501,6 +501,31 @@ The way the cores get used is the interesting part. There are 27 processes in to
 
 Two lessons. **When a wait feels long, look at `ps` first to see which process is actually busy** — a common-sense remedy like "use the GPU" whiffs entirely if the bottleneck lives elsewhere. And **speed assets you build once get reused in unexpected places**: the WASM engine built to make the browser opponent stronger turned around and made the machine-learning teacher-data factory 14x faster.
 
+### Anatomy of the final phase: waits you can cut, and waits you must not
+
+Once the million positions were in, here is the remaining pipeline to a verdict, with time estimates:
+
+| Stage | Duration (original plan) | Compressible? |
+|---|---|---|
+| Train 3 runs (base / rank w=1.0 / rank w=0.4, MPS) | 30–45 min | Barely worth it (one GPU, serial is fine) |
+| Quantize + 3-way bit-exact verification | 10 min | No need |
+| A/B screening (3 models × 22 games) | ~1.5 h | **Yes** |
+| A/B finals (top 2 models × 48 games × 1000ms) | **~2.7 h ← dominant** | **Yes** |
+| Production wiring PR if the gate passes | 1–2 h | Normal PR flow |
+| **Total** | **~5 hours** | **→ ~2.5 hours** |
+
+The games dominate — and games carry a constraint fundamentally different from generation: **you cannot shorten the thinking time of a single game**. The thing being measured is "strength when thinking for 1000ms"; speed up the thinking and you've changed the measurement itself. One game ≈ 150 moves × 1 second ≈ several minutes is the *definition* of the experiment, not waste.
+
+What can be cut is the **serialization between games**. One match process effectively uses one core (both sides think alternately inside the same process), so the 14 cores freed by the finished generation job can host **six parallel matches**, split by seed and model. 48 games through one process take 2.7 hours; through six, about 27 minutes. **Nothing inside any single game changes — every game still gets its full thinking time**; we only rearranged the queue, so the measurement is intact and only the wall clock shrinks.
+
+The fairness argument is also different from the generation case, and worth spelling out: time-controlled engine matches are sensitive to machine load, but **both sides of an A/B think alternately inside the same process**, so any load hits both players equally. Keep the parallelism comfortably below the core count (6 matches + training ≈ 8 of 14 cores) and "one side got unlucky with the scheduler" cannot happen structurally.
+
+The time-saving patterns this project kept reusing boil down to three moves:
+
+1. **Identify the busy process** (`ps` — don't pick remedies by intuition)
+2. **Swap in a faster asset you already own** (JS → WASM, only where it changes neither the measurement nor the distribution)
+3. **Tile the incompressible waits in parallel** (thinking time is the definition of the experiment — untouchable; the number of boards running side by side is yours to choose)
+
 And cycle 2's verdict will be decided the same way as ever: **by playing the games.**
 
 ---

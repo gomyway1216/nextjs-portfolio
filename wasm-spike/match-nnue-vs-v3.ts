@@ -251,14 +251,14 @@ function main(): void {
 
   // Instance B: second NNUE (--vs) or the stock hand-crafted evaluateV3Full.
   const wasmB = loadShogiWasm() as ShogiNnueSearchWasm;
-  let bNname = 'V3';
+  let opponentName = 'V3';
   if (weightsPathB) {
     const bucketsB = setupNnueInstance(wasmB, weightsPathB, 'B');
-    bNname = `NNUE-B(buckets=${bucketsB})`;
+    opponentName = `NNUE-B(buckets=${bucketsB})`;
   }
 
   const nnuePlayer = new WasmPlayer(weightsPathB ? `NNUE-A(buckets=${bucketsA})` : 'NNUE', wasmA);
-  const v3Player = new WasmPlayer(bNname, wasmB);
+  const v3Player = new WasmPlayer(opponentName, wasmB);
 
   let nnueWins = 0;
   let v3Wins = 0;

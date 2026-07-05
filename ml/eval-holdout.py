@@ -14,7 +14,6 @@
 
 import argparse
 import importlib.util
-import json
 import os
 
 import torch
@@ -41,18 +40,6 @@ def main():
     ap.add_argument("--device", default="cpu")
     args = ap.parse_args()
 
-    # 生 |cp| (バケット分類用, クランプ前) を読む
-    raw_cp = []
-    with open(args.data) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                raw_cp.append(abs(int(json.loads(line)["cp"])))
-            except (json.JSONDecodeError, KeyError, ValueError, TypeError):
-                continue
-
     results = {}
     pairs = None
     for spec in args.ckpt:
@@ -66,7 +53,6 @@ def main():
 
         board, hands, y, cp, bucket = load_dataset(args.data, k, args.cp_clamp, 0, features)
         n = y.shape[0]
-        assert n == len(raw_cp), f"{name}: dataset rows {n} != raw rows {len(raw_cp)} (kpで玉なし局面がskipされた?)"
 
         outs = []
         with torch.no_grad():
@@ -90,7 +76,10 @@ def main():
         pi, pj = pairs
         pair_acc = (((out[pi] - out[pj]) * (cp[pi] - cp[pj])) > 0).float().mean().item()
 
-        raw = torch.tensor(raw_cp, dtype=torch.float32)
+        # バケット分類はクランプ済み |cp| で行う。境界が (0,300,1000,3000,∞) なので
+        # 生 |cp| で分類した場合と完全等価 (クランプで動くのは 3000+ 内部の値のみ)。
+        # データセットと同じフィルタを通った行だけを使うのでアライメントも保証される。
+        raw = cp.abs()
         bucket_mae = []
         for lo, hi in BUCKET_EDGES:
             m = (raw >= lo) & (raw < hi)

@@ -271,9 +271,9 @@ class DistillNet(nn.Module):
     def expand_hands(self, hands, bucket):
         """(B,14) + bucket (B,) → (B, KP_BUCKETS*14): 自玉バケットのセグメントのみ非ゼロ。"""
         b = hands.shape[0]
-        out = hands.new_zeros(b, self.hand_feats)
-        out.view(b, KP_BUCKETS, HAND_FEATS)[torch.arange(b, device=hands.device), bucket] = hands
-        return out
+        out = hands.new_zeros(b, KP_BUCKETS, HAND_FEATS)
+        out[torch.arange(b, device=hands.device), bucket] = hands
+        return out.view(b, -1)
 
     def forward(self, board_idx, hands, bucket=None):
         hands14 = hands

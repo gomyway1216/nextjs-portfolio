@@ -24,6 +24,7 @@ import { GHI, SFU, Te } from './types';
 import { SHOGI_WASM_BASE64 } from './wasm/shogiWasmBase64';
 
 interface ShogiSearchWasm {
+  memory: WebAssembly.Memory;
   clearBoard(): void;
   setSquare(pos: number, koma: number): void;
   setHand(koma: number, count: number): void;
@@ -36,6 +37,13 @@ interface ShogiSearchWasm {
   getSearchDepth(): number;
   getSearchNodes(): number;
   getSearchLeaves(): number;
+  // NNUE leaf evaluation (see wasm-spike/assembly/index.ts). setNnueOutputScale
+  // exists too but is intentionally NOT wired up here: the 1/1 default measured
+  // strongest in A/B and calibration attempts made it worse.
+  getNnueWeightsPtr(): number;
+  getNnueWeightsSize(): number;
+  setNnueScaleK(k: number): void;
+  setNnueEnabled(flag: number): void;
 }
 
 let instance: ShogiSearchWasm | null = null;
@@ -162,6 +170,117 @@ export function clearWasmTT(): void {
   } catch (e) {
     console.error('[wasmEngine] clearTT failed', e);
   }
+}
+
+// ---------------------------------------------------------------------------
+// NNUE evaluation (run1m-base weights)
+// ---------------------------------------------------------------------------
+
+/**
+ * Exact size of the quantized run1m-base weight file (shogi-distill-v1 layout,
+ * 2282->256->32->1). Must equal the WASM engine's getNnueWeightsSize(); any
+ * mismatch means a corrupt/truncated download and the weights are rejected.
+ */
+export const NNUE_WEIGHTS_BYTES = 1_185_988;
+
+let nnueWeightsLoaded = false;
+// Mirrors the engine-side `nnueEnabled` flag so we only cross into WASM on a
+// real state change (setNnueEnabled clears the eval cache and rebuilds the
+// accumulators, which we do not want on every move).
+let nnueEnabledState = false;
+
+/** True once valid NNUE weights were copied into the engine. */
+export function isNnueWeightsLoaded(): boolean {
+  return nnueWeightsLoaded;
+}
+
+/** Current NNUE-enabled state of the engine (for tests/diagnostics). */
+export function isNnueEnabled(): boolean {
+  return nnueEnabledState;
+}
+
+/**
+ * Copy quantized NNUE weights into the WASM engine and set the sigmoid scale
+ * K (k_sigmoid from weights.meta.json; cp = out_q * K / 8128).
+ *
+ * Returns false — leaving the engine on the hand-crafted V3 evaluation — when
+ * the engine is unavailable, the build lacks the NNUE exports, or the byte
+ * size is not exactly NNUE_WEIGHTS_BYTES. Loading does NOT enable NNUE by
+ * itself; callers opt in per search via setWasmNnueEnabled().
+ */
+export function loadNnueWeights(bytes: Uint8Array, scaleK: number): boolean {
+  const wasm = getInstance();
+  if (!wasm) return false;
+  try {
+    if (
+      !wasm.memory ||
+      typeof wasm.getNnueWeightsPtr !== 'function' ||
+      typeof wasm.getNnueWeightsSize !== 'function' ||
+      typeof wasm.setNnueScaleK !== 'function' ||
+      typeof wasm.setNnueEnabled !== 'function'
+    ) {
+      return false;
+    }
+    if (bytes.byteLength !== NNUE_WEIGHTS_BYTES || bytes.byteLength !== wasm.getNnueWeightsSize()) {
+      console.error(
+        `[wasmEngine] NNUE weights rejected: size=${bytes.byteLength}, expected ${NNUE_WEIGHTS_BYTES} (build) / ${wasm.getNnueWeightsSize()} (engine)`
+      );
+      return false;
+    }
+    // Math.trunc + range check: rejects fractions in (0, 1) that would
+    // truncate to 0, and huge values that `| 0` would wrap to a bogus
+    // (possibly negative) i32. 1e6 is far above any sane sigmoid K (~600) and
+    // matches the engine-side NNUE_MAX_SCALE_PRODUCT headroom.
+    const k = Math.trunc(scaleK);
+    if (!Number.isFinite(scaleK) || k <= 0 || k > 1_000_000) {
+      console.error(`[wasmEngine] NNUE weights rejected: invalid scale K=${scaleK}`);
+      return false;
+    }
+    new Uint8Array(wasm.memory.buffer, wasm.getNnueWeightsPtr(), NNUE_WEIGHTS_BYTES).set(bytes);
+    wasm.setNnueScaleK(k);
+    // If NNUE is somehow already live (re-load), rebuild the accumulators from
+    // the fresh weights so stale activations can never be searched.
+    if (nnueEnabledState) wasm.setNnueEnabled(1);
+    nnueWeightsLoaded = true;
+    return true;
+  } catch (e) {
+    console.error('[wasmEngine] loadNnueWeights failed; the V3 evaluation will be used instead', e);
+    return false;
+  }
+}
+
+/**
+ * Switch the engine's leaf evaluation between NNUE and the hand-crafted V3.
+ *
+ * Call before each search with the difficulty's preference; enabling is a
+ * no-op (stays on V3) until loadNnueWeights() succeeded, so callers can
+ * request NNUE unconditionally and get a silent V3 fallback. Returns the
+ * actual resulting state. Only a real state change crosses into WASM (the
+ * engine-side toggle clears the eval cache).
+ */
+export function setWasmNnueEnabled(enabled: boolean): boolean {
+  const wasm = getInstance();
+  if (!wasm) return false;
+  const desired = enabled && nnueWeightsLoaded;
+  if (desired === nnueEnabledState) return nnueEnabledState;
+  try {
+    wasm.setNnueEnabled(desired ? 1 : 0);
+    // The TT persists across moves and its scores come from the leaf eval; V3
+    // (~3.7x cp) and NNUE (true cp) scales must never mix in one search. A
+    // real eval switch is rare (weights arriving mid-session, or a difficulty
+    // change across the easy boundary), so dropping the TT here is cheap.
+    wasm.clearTT();
+    nnueEnabledState = desired;
+  } catch (e) {
+    console.error('[wasmEngine] setNnueEnabled failed; the V3 evaluation will be used instead', e);
+    nnueEnabledState = false;
+    try {
+      wasm.setNnueEnabled(0);
+    } catch {
+      /* engine unusable; searchBestMove will fail and fall back to JS */
+    }
+  }
+  return nnueEnabledState;
 }
 
 /**

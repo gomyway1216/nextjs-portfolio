@@ -44,7 +44,7 @@ import { getOpeningMoveImproved } from './OpeningBookImproved';
 import { PonderController } from './ponderController';
 import { ShogiAIImprovedV20 } from './ShogiAIImprovedV20';
 import { EMPTY, FU, getKomashu, HI, isSelf, OU, SENTE, Te } from './types';
-import { clearWasmTT, isWasmEngineReady, wasmSearchBestMove } from './wasmEngine';
+import { clearWasmTT, isWasmEngineReady, loadNnueWeights, setWasmNnueEnabled, wasmSearchBestMove } from './wasmEngine';
 import { Difficulty } from '../common/types';
 
 export type SerializedKyokumenImproved = {
@@ -100,6 +100,66 @@ const ponder = new PonderController({
     }
   },
 });
+
+/**
+ * NNUE leaf evaluation (run1m-base weights, 77.1% vs V3 at 1000ms/move).
+ *
+ * The weights ship as a static asset (public/shogi-nnue-weights.bin) and are
+ * fetched asynchronously at worker startup — NOT bundled (base64 embedding
+ * would add ~1.6MB to the worker bundle). Until the fetch resolves, searches
+ * run on the hand-crafted V3 evaluation exactly as before (the first move
+ * comes from the opening book anyway); once loaded, NNUE kicks in from the
+ * next NNUE-gated search. Any failure (network, size mismatch, missing WASM)
+ * silently keeps the V3 path.
+ */
+const NNUE_WEIGHTS_PATH = '/shogi-nnue-weights.bin';
+/** k_sigmoid from ml/runs/run1m-base/weights.meta.json (cp = out_q * K / 8128). */
+const NNUE_SCALE_K = 600;
+
+/**
+ * Absolute weights URL. Workers loaded via a blob: URL (some bundler worker
+ * loaders) would resolve a root-relative fetch against the blob URL and fail;
+ * `self.location.origin` is the creator's origin even in blob workers, so
+ * anchor the path there when available ('null' = opaque origin, fall back).
+ */
+function nnueWeightsUrl(): string {
+  const origin = typeof self !== 'undefined' ? self.location?.origin : undefined;
+  if (origin && origin !== 'null') return new URL(NNUE_WEIGHTS_PATH, origin).toString();
+  return NNUE_WEIGHTS_PATH;
+}
+
+/**
+ * Difficulties that use the NNUE evaluation (>= 1000ms/move, where it measured
+ * 77.1% vs V3). `easy` (250ms) intentionally stays on V3: at ~200ms budgets
+ * V3 measured stronger (NNUE 40.9%), and easy is meant to be weak anyway.
+ */
+const NNUE_DIFFICULTIES: ReadonlySet<Difficulty> = new Set(['medium', 'hard', 'expert', 'master']);
+
+function difficultyUsesNnue(difficulty: Difficulty): boolean {
+  return NNUE_DIFFICULTIES.has(difficulty);
+}
+
+async function fetchNnueWeights(): Promise<void> {
+  try {
+    const res = await fetch(nnueWeightsUrl());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const buf = await res.arrayBuffer();
+    const ok = loadNnueWeights(new Uint8Array(buf), NNUE_SCALE_K);
+    if (process.env.NODE_ENV === 'development') {
+      console.info(
+        ok
+          ? `[shogi-ai.worker] NNUE weights loaded (${buf.byteLength} bytes, K=${NNUE_SCALE_K})`
+          : '[shogi-ai.worker] NNUE weights rejected; using V3 evaluation'
+      );
+    }
+  } catch (e) {
+    // Expected offline / in node tests; the V3 path is the normal fallback.
+    if (process.env.NODE_ENV === 'development') {
+      console.info('[shogi-ai.worker] NNUE weights unavailable; using V3 evaluation', e);
+    }
+  }
+}
+void fetchNnueWeights();
 
 /**
  * Time/quiescence budgets per difficulty — MUST stay in sync with the
@@ -200,7 +260,9 @@ function computeBestMove(k: KyokumenImproved, difficulty: Difficulty, tesu: numb
     searchBudgetMs = Math.max(Math.floor(budget.maxTimeMs / 2), budget.maxTimeMs - Math.ceil(spent));
   }
 
-  // 3) WASM full search.
+  // 3) WASM full search. NNUE per the difficulty gate — a no-op request that
+  // stays on V3 while the weights are not (yet) loaded.
+  setWasmNnueEnabled(difficultyUsesNnue(difficulty));
   const wasmMove = wasmSearchBestMove(k, tesu, searchBudgetMs, 32, budget.quiescenceDepthMax);
   if (wasmMove) return wasmMove;
 
@@ -236,6 +298,11 @@ function startPonder(k: KyokumenImproved, best: Te, difficulty: Difficulty, tesu
   if (PONDER_TRACE) {
     console.info(`[shogi-ai.worker] ponder start (difficulty=${difficulty}, cap=${PONDER_MAX_TOTAL_MS}ms)`);
   }
+  // Keep the ponder search on the same evaluation as the real search for this
+  // difficulty (module-scope WASM state; normally already set by
+  // computeBestMove, and a same-state request is a no-op — but the book path
+  // returns before the gate, and TT entries must not mix eval functions).
+  setWasmNnueEnabled(difficultyUsesNnue(difficulty));
   ponder.start((sliceMs) => {
     // Returns null when the human is already mated/stalemated (or the engine
     // tripped) — stop the session instead of spinning on empty slices.

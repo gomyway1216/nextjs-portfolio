@@ -457,6 +457,29 @@ opt.step()        # reduces the loss — then nudge every dial. Repeat for 300k 
 
 The two losses have **different goals**. `mse_loss` (base) says "match the teacher's score" — studying to reproduce the teacher's exam marks exactly. `rank_loss` says "your scores may drift, but **the direction of 'which of these two positions is better' must agree with the teacher**." That is cycle 1's core lesson — alpha-beta only ever asks the eval "which sibling is better?", never "what is the true score?" — translated directly into the shape of the loss function. Training runs on the Mac's GPU (MPS); one 300k-position run takes 2–4 minutes. Far lighter than the "machine learning = heavy machinery" image.
 
+#### What actually happens inside `loss.backward()`
+
+"Adjust the weights in the direction that reduces the loss" — but who knows that direction, and how? The principle is humble. **For each of the 580,000 weights, ask: "if I nudged this one up a tiny bit, would the loss go up or down, and how steeply?" That slope is the gradient — and then turn each dial a small step in the loss-reducing direction.** `opt.step()` is essentially this one line:
+
+```
+new weight = current weight − learning_rate × slope
+```
+
+The learning rate is "how far to turn per step": too large and you overshoot into divergence, too small and you never arrive (this project starts at 1e-3 with cosine decay).
+
+The non-obvious part is computing the slopes. Naively you would nudge one weight, re-evaluate the whole net, and repeat — 580,000 re-evaluations. Backpropagation uses the chain rule of calculus to push the *blame* for the error backward through the layers, computing **every weight's slope simultaneously in a single backward pass**:
+
+```
+output error: "the evaluation came out 0.3 too low"
+  ↓ blame l3's weights   "the final judgment underweighted this feature"
+  ↓ blame l2's weights   "that feature came out weak because of this reduction"
+  ↓ blame the board table "the numbers in the 'pawn on 7f' row were too small to begin with"
+```
+
+The picture to keep: **someone descending a foggy mountain blindfolded**. Nobody can see the whole map (the correct set of weights), but the slope underfoot is always known exactly. Take a small step in the steepest downhill direction — one minibatch is one step, and 1M positions × 40 epochs ≈ tens of thousands of steps. "val_mae dropped to 437cp" means this descent reached a valley whose altitude is a 437cp average error.
+
+The ranking loss also becomes intuitive in this picture: **changing the penalty reshapes the mountain itself**. On a mountain that only punishes score error, the places where sibling positions are ranked in the wrong order are shallow dips the descent ignores. The ranking term carves those places into deep valleys — so the very same descent algorithm now walks toward lowlands where the *ordering* is right. Where you end up is decided by what you punish.
+
 ### The 300k interim result: proof that data was the bottleneck
 
 At the 300k-line mark we trained both variants on a snapshot and sent them into the same 28-game gauntlet as cycle 1, under identical conditions.

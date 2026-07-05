@@ -495,9 +495,9 @@ Why was the creating side slow? Node.js is single-threaded, so **one process = o
 [gen] chunk done: +1095 (gen 27.5s, label 1.7s = 1176.5 pos/s)   ← after WASM swap
 ```
 
-Combined throughput went from ~8 lines/sec to **~110 lines/sec (14x)**, and the remaining time from **11 hours to 45 minutes**.
+Combined throughput went from ~8 positions/sec to **~110 positions/sec (14x)** (each dataset line is one position, so lines/sec is the same number), and the remaining time from **11 hours to 45 minutes**.
 
-The way the cores get used is the interesting part. There are 27 processes in total (3 Node + 24 engines), yet **on average only 3–4 cores are busy**. The 24 engines are burst workers — they sit idle until ~1,000 positions pile up, grade them all in 1.5 seconds flat, and sit back down. The only always-busy workers are the three Node cores producing positions: **size the always-busy roles to your core count, and overprovision the burst roles** so their bursts never stall the producers.
+The way the cores get used is the interesting part. There are 27 processes in total — 3 Node drivers, **each commanding its own squad of 8 YaneuraOu engines**, hence 24 engines — yet **on average only 3–4 cores are busy**. The 24 engines are burst workers — they sit idle until ~1,000 positions pile up, grade them all in 1.5 seconds flat, and sit back down. The only always-busy workers are the three Node cores producing positions: **size the always-busy roles to your core count, and overprovision the burst roles** so their bursts never stall the producers.
 
 Two lessons. **When a wait feels long, look at `ps` first to see which process is actually busy** — a common-sense remedy like "use the GPU" whiffs entirely if the bottleneck lives elsewhere. And **speed assets you build once get reused in unexpected places**: the WASM engine built to make the browser opponent stronger turned around and made the machine-learning teacher-data factory 14x faster.
 

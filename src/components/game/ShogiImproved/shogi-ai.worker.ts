@@ -86,13 +86,18 @@ const PONDER_SLICE_MS = 200;
 /** Hard cap on pondering per turn so an idle tab does not burn CPU/battery. */
 const PONDER_MAX_TOTAL_MS = 30_000;
 
+/** Dev-only tracing; in production a ponder log line per move is just noise. */
+const PONDER_TRACE = process.env.NODE_ENV === 'development';
+
 const ponder = new PonderController({
   sliceMs: PONDER_SLICE_MS,
   maxTotalMs: PONDER_MAX_TOTAL_MS,
   onSessionEnd: (reason, spentMs) => {
-    // Trace for devtools; `stopped` (a real request arrived) is the common,
-    // interesting case — it means the TT was warmed for exactly `spentMs`.
-    console.info(`[shogi-ai.worker] ponder end (${reason}, ${Math.round(spentMs)}ms)`);
+    // `stopped` (a real request arrived) is the common, interesting case —
+    // it means the TT was warmed for exactly `spentMs`.
+    if (PONDER_TRACE) {
+      console.info(`[shogi-ai.worker] ponder end (${reason}, ${Math.round(spentMs)}ms)`);
+    }
   },
 });
 
@@ -228,7 +233,9 @@ function startPonder(k: KyokumenImproved, best: Te, difficulty: Difficulty, tesu
   const budget = DIFFICULTY_BUDGETS[difficulty] ?? DIFFICULTY_BUDGETS.medium;
   const ponderTesu = (tesu | 0) + 1;
 
-  console.info(`[shogi-ai.worker] ponder start (difficulty=${difficulty}, cap=${PONDER_MAX_TOTAL_MS}ms)`);
+  if (PONDER_TRACE) {
+    console.info(`[shogi-ai.worker] ponder start (difficulty=${difficulty}, cap=${PONDER_MAX_TOTAL_MS}ms)`);
+  }
   ponder.start((sliceMs) => {
     // Returns null when the human is already mated/stalemated (or the engine
     // tripped) — stop the session instead of spinning on empty slices.
@@ -238,6 +245,7 @@ function startPonder(k: KyokumenImproved, best: Te, difficulty: Difficulty, tesu
 
 ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const msg = event.data;
+  if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
 
   if (msg.type === 'ponderControl') {
     if (msg.action === 'suspend') ponder.suspend();

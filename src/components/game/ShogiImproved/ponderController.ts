@@ -66,7 +66,8 @@ export class PonderController {
   constructor(options: PonderControllerOptions = {}) {
     this.sliceMs = Math.max(1, options.sliceMs ?? 200);
     this.maxTotalMs = Math.max(1, options.maxTotalMs ?? 30_000);
-    this.now = options.now ?? (() => performance.now());
+    this.now =
+      options.now ?? (() => (typeof performance !== 'undefined' ? performance.now() : Date.now()));
     this.schedule = options.schedule ?? ((fn) => setTimeout(fn, 0));
     this.onSessionEnd = options.onSessionEnd;
   }

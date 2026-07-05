@@ -88,6 +88,9 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
   };
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', onVisibilityChange);
+    // Sync the initial state: if the page is already hidden when the client is
+    // created (e.g. a background tab), no event fires until the next toggle.
+    onVisibilityChange();
   }
 
   return {

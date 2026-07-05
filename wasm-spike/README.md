@@ -15,6 +15,10 @@ wasm-spike/
   bench-wasm.mjs         # WASM 側 perft ベンチ
   bench-eval.ts          # evaluateV3 の JS vs WASM ベンチ（各局面 10 万回呼び出し）
   parity.ts              # JS⇄WASM パリティハーネス（合法手数・Zobrist ビット一致・evaluateV3 整数一致検証）
+  nnue-ref.ts            # NNUE int_forward の TS 参照実装（特徴抽出・SFEN パーサ・ダミー重み生成）
+  nnue-parity.ts         # NNUE AS⇄TS パリティ（ダミー重み、1000 局面 + 差分アキュムレータ 1200 局面 + 探索一致）
+  nnue-bench.ts          # NNUE eval 単体 + perft オーバーヘッド + 3秒探索ベンチ（full/fast/マテリアル重み比較）
+  nnue-verify-reference.ts # 実重み照合（ml/dump-reference.py の出力と 3-way 照合）
 scripts/shogi-perft-js.ts # JS 側 perft ベンチ（既存エンジンをそのまま使用）
 src/components/game/ShogiImproved/wasm/shogi.wasm # ビルド成果物（25KB、フェーズ4で本番位置へ移設。ここが唯一の正）
 src/components/game/ShogiImproved/wasm/shogiWasmBase64.ts # 上記の base64 埋め込み（gen-wasm-base64.mjs で再生成）
@@ -160,6 +164,81 @@ perft 値（王手放置チェックあり合法手数え上げ）が **JS / WAS
 ### 対戦（`node -r tsx/cjs wasm-spike/match-wasm-vs-js.ts`）
 
 WASM ハイブリッド vs JS V20、各手 200ms、curated opening 6手、10局（先後交替）: **WASM 10勝 0敗 0分**。全手合法性検証つき（違法手は即エラー終了）。
+
+## NNUE 風ニューラル評価（推論）
+
+`ml/` の蒸留パイプライン（`train.py` → `export-weights.py`）で学習した小型 NN の**推論**を AssemblyScript に実装した（`assembly/index.ts` の NNUE セクション）。デフォルトは無効で、有効化しない限りエンジンの挙動は従来と完全に同一（parity.ts 4,184 局面 / search-driver 48/48 EXACT で確認済み）。
+
+- **特徴変換**: `train.py parse_sfen` と同一仕様を盤面表現（`ban[(suji<<4)+dan]`）から直接計算。手番側視点に正規化（後手番は盤 180 度回転＋色入替）、28 プレーン×81 マスの one-hot index ＋ 持ち駒 14 次元（自分 7 / 相手 7、FU..HI 順）。python `parse_sfen` との一致はスクリプト照合済み（成駒・持駒・後手番回転含む）。
+- **整数演算**: `export-weights.py int_forward` とビット一致 — `acc = b1 + Σw1_board[feat] + Σw1_hand[i]*count[i]`（i32）→ `clamp(0,127)` → `h2 = clamp((w2@h1 + b2)>>6, 0,127)` → `out_q = w3@h2 + b3`。cp 変換は `trunc(out_q * K / 8128)`（i64 経由、K は `weights.meta.json` の k_sigmoid、デフォルト 600）。
+- **重みロード**: `getNnueWeightsPtr()` が指す WASM メモリ静的領域（1,185,988 bytes）へ `weights.bin` をそのまま memcpy（レイアウト同一、再パック不要）。`getNnueWeightsSize()` でサイズ検証、`setNnueScaleK(k)` で K 設定。
+- **探索統合**: `setNnueEnabled(1)` で探索の葉評価（`evaluateSenteCached`）が `nnueEvaluateCp()`（SENTE 視点へ符号調整、evaluateV3Full と同じ規約）に切替わる。NNUE は手番依存のため eval キャッシュキーに手番シードを含める。`setNnueEnabled(0)`（デフォルト）で従来の `evaluateV3Full`。
+- **exports**: `getNnueWeightsPtr/Size`, `setNnueEnabled`, `setNnueScaleK`, `nnueEvaluate()`（raw out_q, int_forward とビット一致）, `nnueEvaluateCp()`, `benchNnueEvaluate(iters)`。差分更新関連: `nnueEvaluateFast()`, `nnueRefreshAccumulators()`, `nnueAccMismatch()`, `setNnueForceFull(flag)`, `getNnueEvalCount()/resetNnueEvalCount()`, `benchNnueEvaluateFast(iters)`。
+
+### 差分アキュムレータ（NNUE 高速化）
+
+第1層を毎回フル再計算せず、標準 NNUE と同様に**差分更新**する。
+
+- **両視点アキュムレータ**: 特徴が手番側視点（後手番=盤180度回転+色入替）のため、手番が変わると全特徴が回転する。そこで `nnueAccS`（先手視点）と `nnueAccG`（後手視点）の**2本を常時維持**し、評価時に手番側を選んで clamp → 第2層以降を計算。両 acc は (盤, 持駒) のみの関数で手番に依存しないため、**null move（手番反転のみ）は自動的にゼロコスト**。
+- **遅延適用（lazy）**: 探索は評価回数よりはるかに多くの make/unmake を行う（合法性チェック・打ち歩詰め再帰など）ので、`makeMove` は acc を触らず pending スタックに手を積むだけ（数 ns）。実際に評価が起きた時点で未適用の差分をまとめて折り込み、`unmakeMove` は**適用済みの差分だけ**逆適用する。差分は手のエンコードのみで決まる（盤状態を読まない）ため遅延適用しても正確。視点ごとに適用済みプレフィックスを別管理し、評価に使う側の acc だけ折り込む。perft(4) の make/unmake オーバーヘッドは **±0%**（NNUE 無効時は分岐1つのみ。eager 実装だと +1,348% だった）。
+- **差分のケース分け**（1手 = fused sub/add パス 1〜2 回/acc）: 移動 = `-駒@from, +配置駒@to`（成りは配置駒が成駒）／打ち = `持駒行 -1, +駒@to`／捕獲 = さらに `-被捕獲駒@to, +持駒行(捕獲側, 生駒種) +1`。持ち駒特徴は count×重みで、1手あたりの増減は必ず ±1 なので行の加減算そのもの。
+- **スパース第2層**: 高速パスは h1 が ClippedReLU 後（多くが 0）であることを利用し、`w2` の転置コピー（列単位アクセス、`nnueRefreshAccumulators()` で再構築）で非ゼロ活性だけを積む。i32 加算は mod 2^32 で可換・結合的なので dense 版 / int_forward と**ビット一致**。
+- **リビルド**: `setNnueEnabled(1)` と `finalizePosition()`（局面ロード）で acc と w2 転置をフル再構築。pending スタック溢れ（実際は到達不能）時はフル再計算へフォールバック（遅くなるだけで常に正しい）。
+- **検証**（nnue-parity.ts に統合）: ① `applyMove` 駆動の自己対局 **1,200 局面**で「差分更新後 acc == フルリビルド acc」（make 直後 + `countLegalMoves` の make/unmake 撹拌後の両方）かつ `nnueEvaluateFast() == nnueEvaluate() == TS int_forward` をビット一致で確認（捕獲 148 / 打ち 120 / 成り 34 / 後手番 601 を含む）。② `setNnueForceFull(1)`（葉評価だけフル再計算に切替、探索木は不変）との**固定深さ探索一致** — bestMove・score・nodes・leaves 完全一致、探索後も acc がフルリビルドと一致。
+
+### 検証
+
+```sh
+node -r tsx/cjs wasm-spike/nnue-parity.ts    # AS vs TS 参照実装（ダミー重み）
+node -r tsx/cjs wasm-spike/nnue-bench.ts     # eval 単体 10万回 + 3秒探索 nnue on/off
+# 実重み照合（torch 環境で ml/dump-reference.py を先に実行 → ml/README.md 参照）
+node -r tsx/cjs wasm-spike/nnue-verify-reference.ts <weights.bin> <reference.json>
+```
+
+- `nnue-ref.ts` = int_forward の TS 移植（`|0` の i32 演算）＋特徴抽出＋ SFEN パーサ＋ダミー重み生成＋マテリアル重み生成（温度計コーディングで純マテリアル評価を厳密表現、ベンチ用）。
+- **パリティ**: シード付きダミー重み（weights.bin 互換バッファ）でランダム自己対局 **1,000 局面**の AS vs TS が out_q / cp とも**ビット一致**（後手番 496 / 持駒あり 681 局面を含む）。NNUE 有効時の探索が合法手を返すことも確認。差分アキュムレータの検証（1,200 局面 + 固定深さ探索一致）は上記セクション参照。
+- **速度**（macOS / Apple Silicon / node v20、10 万回 best-of-3）: フル再計算 `nnueEvaluate` ≈ **6.2µs/回** → 差分 `nnueEvaluateFast` ≈ **1.15µs/回**（約 5.4 倍。`evaluateV3Full` ≈ 0.94µs の 1.2 倍まで短縮）。探索内の実効削減（同一探索木で force-full vs fast、固定深さ）は **≈4.85µs/eval** → 探索内の実効 NNUE 評価コスト ≈ **1.4µs**。
+- **3 秒探索**: ダミー重み（ランダム評価面 = move ordering/枝刈りが壊れるため深さは参考値）で nnue(full) depth 6〜8 / 0.11M evals/s → nnue(fast) **depth 7〜8 / 0.23〜0.27M evals/s**（同一評価関数でノード・葉スループット約 2.2 倍）。**マテリアル重み**（正気な評価面、推論コストは同一）では **depth 9〜15**（4局面: 15/10/9/9、0.31〜0.49M evals/s）— v3full の 8〜12 と同等の深さに到達し、学習済み重みでも depth 10 前後が見込める。
+
+### 実重み検証と A/B 対戦（2026-07-04、run100k 重み — 不採用）
+
+学習済み実重み（`ml/runs/run100k/weights.bin`、教師 100k 局面 / val MAE ≈ 405cp）での最終検証の記録。
+
+- **3-way 照合**: `ml/dump-reference.py --n 300`（torch）→ `nnue-verify-reference.ts` で
+  **300/300 局面が WASM == TS == torch int16 シミュレーションとビット一致**（out_q / cp とも）。
+  量子化誤差 |cp_float − cp_int| は mean 26.8cp / max 144.9cp（export 時検証の 24.1/145.3cp と整合）。
+  推論実装は正しい。
+- **等時間 A/B 対戦** `match-nnue-vs-v3.ts`（両側 WASM・素の探索同士、ブック/詰みソルバーなし、
+  評価関数だけが差分。opening 6 plies curated、先後交替、全手合法性チェック）:
+  - 200ms/手 16 局（seed 1）: **NNUE 2 勝 / V3 14 勝 / 0 分（12.5%）**
+  - 1000ms/手 6 局（seed 2）: NNUE 1 勝 / V3 5 勝 / 0 分（16.7%）
+  - 1000ms/手 6 局（seed 3）: NNUE 2 勝 / V3 3 勝 / 1 分（41.7%）
+  - 合計 5.5/28（19.6%）、全 2,660 手合法。**判定: 不合格 → 本番配線は見送り**。
+- **速度は原因ではない**: 等時間 1s 探索で NNUE 側もノード数は同等以上
+  （例: 138k vs 142k nodes）、depth −1〜±0。差分アキュムレータは機能している。
+- **原因仮説**（静的評価の教師近似では NNUE 優位＝ml レポート「合格」だったのに対局で負ける理由）:
+  1. **ノイズ vs 校正**: 探索に効くのは兄弟局面間の相対順位。net の val MAE ≈ 405cp は
+     典型的な手の評価差（<100cp）を大きく上回るノイズで、指し手のランキングを壊す。
+     一方 V3 は絶対スケールこそ教師とずれるが決定的な特徴量ベースで自己一貫しており、
+     単調な校正ずれは alpha-beta の指し手選択に影響しない（教師近似メトリクスは
+     対局強度の予測子として不適切だった）。
+  2. **探索定数のスケール不整合**: `ASPIRATION_WINDOW=300 / DELTA_PRUNING_MARGIN=150 /
+     FUTILITY_MARGIN_1,2=350,700` は V3 スケール（≈3.7×cp、教師フィット cp ≈ 0.2696×v3）
+     前提の定数。NNUE の真の cp 出力では実効 ~3.7 倍のマージンになり枝刈りが甘くなる
+     （q-search の delta pruning は V3 単位の駒価値と NNUE cp の standPat が混在）。
+  3. **教師データの偏り**: |cp|>1000 が 6 割超の自己対戦分布 + 100k という規模
+     （NNUE の通常は数億局面）で、互角圏・終盤の詰み前後の精度が不足
+     （cp は ±3000 クランプで学習しており大差の表現も飽和する）。
+- **次の一手**: 教師データ増量（1M+、均衡局面比率を上げる）／探索マージンの NNUE
+  スケール適応（または net 出力を V3 スケールに合わせる）／相対順位を重視した損失
+  （ペアワイズ/ランキング損失）の検討。推論・差分更新・ロード経路は検証済みなので、
+  強い重みができれば `getNnueWeightsPtr()` へ memcpy → `setNnueScaleK(K)` →
+  `setNnueEnabled(1)` だけで差し替え可能。
+
+```sh
+# A/B 対戦ハーネス（両側 WASM、片側だけ NNUE）
+node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--games 16] [--ms 200] [--seed 1] [--k 600]
+```
 
 ## 省略したもの（caveats）
 

@@ -27,3 +27,16 @@ declare class StaticArray<T> {
 
 /** AssemblyScript intrinsic: skip bounds checks on array access. */
 declare function unchecked<T>(expr: T): T;
+
+declare type usize = number;
+
+/** AssemblyScript intrinsic: raw memory load (little-endian). */
+declare function load<T>(ptr: usize, immOffset?: number): T;
+
+/** AssemblyScript intrinsic: raw memory store (little-endian). */
+declare function store<T>(ptr: usize, value: T, immOffset?: number): void;
+
+/** AssemblyScript `memory` builtins (static data reservation). */
+declare namespace memory {
+  function data(size: i32, align?: i32): usize;
+}

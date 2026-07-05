@@ -214,6 +214,7 @@ export function finalizePosition(): void {
       handHash ^= unchecked(HAND_HASH_SEED[koma * 20 + j]);
     }
   }
+  if (nnueEnabled) nnueRefreshAccumulators();
 }
 
 /** Standard initial position (hirate). */
@@ -293,6 +294,13 @@ function makeMove(m: i32): void {
 
   if (koma == SOU) kingS = to;
   else if (koma == GOU) kingG = to;
+
+  if (nnueEnabled) {
+    // Lazy NNUE accumulator update: just record the move; the delta is applied
+    // only if an evaluation happens below this node (see nnueApplyPending).
+    if (nnuePendLen < NNUE_PEND_CAP) unchecked(nnuePendStack[nnuePendLen] = m);
+    nnuePendLen++;
+  }
 }
 
 function unmakeMove(m: i32): void {
@@ -346,6 +354,19 @@ function unmakeMove(m: i32): void {
 
   if (koma == SOU) kingS = from;
   else if (koma == GOU) kingG = from;
+
+  if (nnueEnabled) {
+    // Invert the NNUE delta only where it was actually folded in.
+    nnuePendLen--;
+    if (nnuePendAppliedS > nnuePendLen) {
+      nnueAccApplyUnmakeS(m);
+      nnuePendAppliedS = nnuePendLen;
+    }
+    if (nnuePendAppliedG > nnuePendLen) {
+      nnueAccApplyUnmakeG(m);
+      nnuePendAppliedG = nnuePendLen;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1509,6 +1530,626 @@ export function evaluateV3Full(): i32 {
 }
 
 // ---------------------------------------------------------------------------
+// NNUE-style neural evaluation (inference only)
+//
+// Mirrors the distillation net trained by ml/train.py and quantized by
+// ml/export-weights.py:
+//
+//   input  : 2268 board one-hot features (28 planes x 81 squares, normalized
+//            to the side-to-move perspective — the board is rotated 180° and
+//            colors are swapped when GOTE is to move, exactly like
+//            train.py parse_sfen) + 14 hand-count features (mine 7 / opp 7)
+//   net    : 2282 -> 256 -> 32 -> 1, ClippedReLU
+//   ints   : the exact integer pipeline of export-weights.py int_forward:
+//              acc  = b1 + Σ w1_board[feat] + Σ w1_hand[i]*count[i]   (i32)
+//              h1   = clamp(acc, 0, 127)
+//              h2   = clamp((w2 @ h1 + b2) >> 6, 0, 127)
+//              out_q = w3 @ h2 + b3          (= real_output * 127 * 64)
+//              cp   = out_q * K / (127*64)   (K = sigmoid scale, default 600)
+//
+// Weights live in a static region of WASM memory with the weights.bin layout
+// (int16/int32 little-endian, exactly as written by export-weights.py), so the
+// host can memcpy the file into getNnueWeightsPtr() without any repacking:
+//
+//   [w1_board int16 x 2268*256]  (feature-major)
+//   [w1_hand  int16 x 14*256]    (feature-major)
+//   [b1       int32 x 256]
+//   [w2       int16 x 32*256]    (row-major)
+//   [b2       int32 x 32]
+//   [w3       int16 x 32]
+//   [b3       int32 x 1]
+//
+// setNnueEnabled(1) switches the search leaf evaluation from evaluateV3Full()
+// to the NNUE net (same SENTE-positive sign convention at the leaf slot);
+// the default (0) leaves the engine behavior completely unchanged.
+// ---------------------------------------------------------------------------
+
+const NNUE_H1: i32 = 256;
+const NNUE_H2: i32 = 32;
+const NNUE_BOARD_FEATS: i32 = 28 * 81; // 2268
+const NNUE_HAND_FEATS: i32 = 14;
+
+// Byte offsets into the weights blob (weights.bin layout).
+const NNUE_W1B_OFF: i32 = 0;
+const NNUE_W1H_OFF: i32 = NNUE_W1B_OFF + NNUE_BOARD_FEATS * NNUE_H1 * 2; // 1,161,216
+const NNUE_B1_OFF: i32 = NNUE_W1H_OFF + NNUE_HAND_FEATS * NNUE_H1 * 2;  // 1,168,384
+const NNUE_W2_OFF: i32 = NNUE_B1_OFF + NNUE_H1 * 4;                     // 1,169,408
+const NNUE_B2_OFF: i32 = NNUE_W2_OFF + NNUE_H2 * NNUE_H1 * 2;           // 1,185,792
+const NNUE_W3_OFF: i32 = NNUE_B2_OFF + NNUE_H2 * 4;                     // 1,185,920
+const NNUE_B3_OFF: i32 = NNUE_W3_OFF + NNUE_H2 * 2;                     // 1,185,984
+const NNUE_TOTAL_BYTES: i32 = NNUE_B3_OFF + 4;                          // 1,185,988
+
+// Static, zero-initialized weight region (host memcpys weights.bin here).
+const NNUE_WEIGHTS: usize = memory.data(NNUE_TOTAL_BYTES, 8);
+
+// Engine komashu (koma & 0x0f) -> train.py piece kind (0..13):
+// [FU,KY,KE,GI,KI,KA,HI,OU,TO,NY,NK,NG,UM,RY]; slots 0 and 13 (unused) = -1.
+const NNUE_KIND = StaticArray.fromArray<i32>([
+  -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, -1, 12, 13,
+]);
+
+let nnueEnabled: bool = false;
+let nnueScaleK: i32 = 600; // k_sigmoid from weights.meta.json (cp = out_q * K / 8128)
+
+// Scratch accumulator (reused; no allocation during search). The full
+// recompute path builds layer 1 here; both paths clamp h1 into it before
+// running layers 2/3.
+const nnueAcc = new StaticArray<i32>(NNUE_H1);
+
+// --- Differential first-layer accumulators ----------------------------------
+//
+// The 2268 board features are normalized to the SIDE-TO-MOVE perspective, so a
+// teban flip rotates every feature. Like standard NNUE we therefore maintain
+// TWO accumulators at all times:
+//
+//   nnueAccS[j] = b1[j] + Σ w1_board[feat as seen from SENTE] + hand terms
+//   nnueAccG[j] = b1[j] + Σ w1_board[feat as seen from GOTE (board rotated
+//                 180°, colors swapped)] + hand terms (GOTE hand = "mine")
+//
+// Both depend only on (ban, hand) — teban is NOT an input; at evaluation time
+// it merely selects which accumulator feeds layers 2/3. (This also makes the
+// search's null move free: it only flips teban, which no accumulator sees.)
+//
+// Hand features contribute weight*count, and every make/unmake changes a hand
+// count by exactly ±1, so hand deltas are plain row add/subs too.
+//
+// LAZY APPLICATION: the search make/unmakes far more moves than it evaluates
+// (lazy legality filtering, uchifuzume probes...), so makeMove does NOT touch
+// the accumulators — it just pushes the move onto a pending stack (a few ns).
+// The deltas are applied on demand when an evaluation actually happens, and
+// unmakeMove inverts a delta only if it had been applied. A move's delta
+// depends only on the move encoding (never on board state), so deferring it
+// is exact. Make/unmake pairs with no evaluation in between cost nothing.
+//
+// The accumulators are rebuilt from scratch by setNnueEnabled(1) and by
+// finalizePosition() (position load), so enable order vs. position setup does
+// not matter as long as weights are loaded before searching.
+const nnueAccS = new StaticArray<i32>(NNUE_H1);
+const nnueAccG = new StaticArray<i32>(NNUE_H1);
+// Scratch for nnueAccMismatch (fresh rebuild compared against the live accs).
+const nnueChkS = new StaticArray<i32>(NNUE_H1);
+const nnueChkG = new StaticArray<i32>(NNUE_H1);
+
+// Pending-move stack for the lazy application (moves made since the last
+// rebuild). CAP is far beyond any reachable path (search MAX_PLY is 64 plus
+// bounded uchifuzume scratch nesting); if it ever overflows, evaluation just
+// falls back to the full recompute — never wrong, only slower.
+// Each perspective tracks its own applied prefix: an evaluation only consults
+// the side-to-move accumulator, so the other perspective's folding is deferred
+// until (and unless) it is actually needed.
+const NNUE_PEND_CAP: i32 = 256;
+const nnuePendStack = new StaticArray<i32>(NNUE_PEND_CAP);
+let nnuePendLen: i32 = 0; // moves made since the last rebuild (path depth)
+let nnuePendAppliedS: i32 = 0; // prefix of the path folded into nnueAccS
+let nnuePendAppliedG: i32 = 0; // prefix of the path folded into nnueAccG
+
+let nnueForceFull: bool = false; // verification: bypass the accumulators
+let nnueEvalCount: i32 = 0; // number of net forward passes (bench/report)
+
+// Column-major transposed copy of w2 (w2t[j][i] = w2[i][j]) for the sparse
+// layer-2 path: h1 is post-ClippedReLU so most entries are zero, and with a
+// column-major layout the dot products only visit the nonzero activations.
+// Rebuilt from the weight region by nnueRefreshAccumulators().
+const NNUE_W2T: usize = memory.data(NNUE_H1 * NNUE_H2 * 2, 8);
+// Layer-2 partial sums for the sparse path.
+const nnueA2 = new StaticArray<i32>(NNUE_H2);
+
+/** Pointer to the weight region; memcpy weights.bin here (layout-identical). */
+export function getNnueWeightsPtr(): usize {
+  return NNUE_WEIGHTS;
+}
+
+/** Size of the weight region in bytes (must equal weights.bin size). */
+export function getNnueWeightsSize(): i32 {
+  return NNUE_TOTAL_BYTES;
+}
+
+/**
+ * Toggle the NNUE leaf evaluation (0 = evaluateV3Full, the default).
+ * Clears the eval cache so values from the two eval functions never mix.
+ */
+export function setNnueEnabled(flag: i32): void {
+  nnueEnabled = flag != 0;
+  if (nnueEnabled) nnueRefreshAccumulators();
+  initEvalCache();
+}
+
+/** Set the sigmoid scale K used to convert out_q to centipawns (default 600). */
+export function setNnueScaleK(k: i32): void {
+  if (nnueScaleK != k) {
+    nnueScaleK = k;
+    // Cached NNUE evaluations were computed with the old K; drop them.
+    initEvalCache();
+  }
+}
+
+/**
+ * Verification switch: with 1, nnueEvaluateCp() recomputes the net from
+ * scratch (nnueEvaluate) even while NNUE is enabled, instead of using the
+ * differential accumulators. Lets the harness run the exact same search twice
+ * and compare fast vs full paths. Clears the eval cache like setNnueEnabled.
+ */
+export function setNnueForceFull(flag: i32): void {
+  nnueForceFull = flag != 0;
+  initEvalCache();
+}
+
+/** Cumulative count of NNUE forward passes (layers 2/3 runs). */
+export function getNnueEvalCount(): i32 {
+  return nnueEvalCount;
+}
+
+export function resetNnueEvalCount(): void {
+  nnueEvalCount = 0;
+}
+
+// --- w1 row addressing (row = 256 int16 weights = 512 bytes) -----------------
+
+/** Byte base of the w1 board-feature row for `koma` on `pos`, SENTE view. */
+function nnueBoardRowS(koma: i32, pos: i32): usize {
+  const kind = unchecked(NNUE_KIND[koma & 0x0f]);
+  const plane = (koma & SENTE) != 0 ? kind : kind + 14;
+  const feat = plane * 81 + ((pos >> 4) - 1) * 9 + ((pos & 0x0f) - 1);
+  return NNUE_WEIGHTS + <usize>(NNUE_W1B_OFF + (feat << 9));
+}
+
+/** Same, GOTE view (board rotated 180°, colors swapped): s→10-s, d→10-d. */
+function nnueBoardRowG(koma: i32, pos: i32): usize {
+  const kind = unchecked(NNUE_KIND[koma & 0x0f]);
+  const plane = (koma & GOTE) != 0 ? kind : kind + 14;
+  const feat = plane * 81 + (9 - (pos >> 4)) * 9 + (9 - (pos & 0x0f));
+  return NNUE_WEIGHTS + <usize>(NNUE_W1B_OFF + (feat << 9));
+}
+
+/**
+ * Byte base of the w1 hand-feature row for `handKoma` (side|type), SENTE view:
+ * rows 0..6 = the perspective owner's hand ("mine"), rows 7..13 = opponent.
+ */
+function nnueHandRowS(handKoma: i32): usize {
+  const type = handKoma & 0x0f;
+  const idx = (handKoma & SENTE) != 0 ? type - 1 : type + 6;
+  return NNUE_WEIGHTS + <usize>(NNUE_W1H_OFF + (idx << 9));
+}
+
+/** Same, GOTE view (GOTE hand = "mine"). */
+function nnueHandRowG(handKoma: i32): usize {
+  const type = handKoma & 0x0f;
+  const idx = (handKoma & GOTE) != 0 ? type - 1 : type + 6;
+  return NNUE_WEIGHTS + <usize>(NNUE_W1H_OFF + (idx << 9));
+}
+
+/** acc += (row at addBase) - (row at subBase), one fused pass (unrolled x4). */
+function nnueRowSubAdd(acc: StaticArray<i32>, subBase: usize, addBase: usize): void {
+  for (let j = 0; j < NNUE_H1; j += 4) {
+    const off = <usize>(j << 1);
+    unchecked(acc[j] = acc[j] + <i32>load<i16>(addBase + off) - <i32>load<i16>(subBase + off));
+    unchecked(acc[j + 1] = acc[j + 1] + <i32>load<i16>(addBase + off, 2) - <i32>load<i16>(subBase + off, 2));
+    unchecked(acc[j + 2] = acc[j + 2] + <i32>load<i16>(addBase + off, 4) - <i32>load<i16>(subBase + off, 4));
+    unchecked(acc[j + 3] = acc[j + 3] + <i32>load<i16>(addBase + off, 6) - <i32>load<i16>(subBase + off, 6));
+  }
+}
+
+/** acc += row * coef (coef may be a hand count or ±1). */
+function nnueRowAddScaled(acc: StaticArray<i32>, base: usize, coef: i32): void {
+  for (let j = 0; j < NNUE_H1; j++) {
+    unchecked(acc[j] = acc[j] + <i32>load<i16>(base + (<usize>(j << 1))) * coef);
+  }
+}
+
+// --- Differential make/unmake updates ----------------------------------------
+//
+// Feature delta of makeMove(m), applied to one perspective's accumulator.
+// Cases:
+//   drop:              hand(mover,type) -1,  +koma@to
+//   quiet / promotion: -koma@from, +placed@to   (placed = koma|PROMOTE if promo)
+//   capture:           additionally -capture@to, hand(mover side, capType) +1
+// Each case pairs one removed row with one added row, so it runs as fused
+// sub/add passes (1 pass for quiet moves and drops, 2 for captures).
+// The S and G variants are duplicated on purpose: an evaluation only needs
+// the side-to-move perspective, so they are applied independently.
+
+function nnueAccApplyMakeS(m: i32): void {
+  const to = m & 0xff;
+  const from = (m >> 8) & 0xff;
+  const koma = (m >> 16) & 0x7f;
+  const placed = ((m >> 23) & 1) != 0 ? koma | PROMOTE : koma;
+  const capture = (m >> 24) & 0x7f;
+
+  if (from == 0) {
+    // Drop: hand count -1, board feature +1 (drops never promote/capture).
+    nnueRowSubAdd(nnueAccS, nnueHandRowS(koma), nnueBoardRowS(koma, to));
+    return;
+  }
+
+  nnueRowSubAdd(nnueAccS, nnueBoardRowS(koma, from), nnueBoardRowS(placed, to));
+
+  if (capture != EMPTY) {
+    const capType = capture & 0x07;
+    if (capType != 0) {
+      const handKoma = capType | ((capture & SENTE) != 0 ? GOTE : SENTE);
+      nnueRowSubAdd(nnueAccS, nnueBoardRowS(capture, to), nnueHandRowS(handKoma));
+    } else {
+      // King capture — unreachable from legal positions, but keep the board
+      // side of the accumulator consistent anyway (no hand feature exists).
+      nnueRowAddScaled(nnueAccS, nnueBoardRowS(capture, to), -1);
+    }
+  }
+}
+
+function nnueAccApplyMakeG(m: i32): void {
+  const to = m & 0xff;
+  const from = (m >> 8) & 0xff;
+  const koma = (m >> 16) & 0x7f;
+  const placed = ((m >> 23) & 1) != 0 ? koma | PROMOTE : koma;
+  const capture = (m >> 24) & 0x7f;
+
+  if (from == 0) {
+    nnueRowSubAdd(nnueAccG, nnueHandRowG(koma), nnueBoardRowG(koma, to));
+    return;
+  }
+
+  nnueRowSubAdd(nnueAccG, nnueBoardRowG(koma, from), nnueBoardRowG(placed, to));
+
+  if (capture != EMPTY) {
+    const capType = capture & 0x07;
+    if (capType != 0) {
+      const handKoma = capType | ((capture & SENTE) != 0 ? GOTE : SENTE);
+      nnueRowSubAdd(nnueAccG, nnueBoardRowG(capture, to), nnueHandRowG(handKoma));
+    } else {
+      nnueRowAddScaled(nnueAccG, nnueBoardRowG(capture, to), -1);
+    }
+  }
+}
+
+/** Exact inverse of nnueAccApplyMakeS (sub/add swapped). */
+function nnueAccApplyUnmakeS(m: i32): void {
+  const to = m & 0xff;
+  const from = (m >> 8) & 0xff;
+  const koma = (m >> 16) & 0x7f;
+  const placed = ((m >> 23) & 1) != 0 ? koma | PROMOTE : koma;
+  const capture = (m >> 24) & 0x7f;
+
+  if (from == 0) {
+    nnueRowSubAdd(nnueAccS, nnueBoardRowS(koma, to), nnueHandRowS(koma));
+    return;
+  }
+
+  nnueRowSubAdd(nnueAccS, nnueBoardRowS(placed, to), nnueBoardRowS(koma, from));
+
+  if (capture != EMPTY) {
+    const capType = capture & 0x07;
+    if (capType != 0) {
+      const handKoma = capType | ((capture & SENTE) != 0 ? GOTE : SENTE);
+      nnueRowSubAdd(nnueAccS, nnueHandRowS(handKoma), nnueBoardRowS(capture, to));
+    } else {
+      nnueRowAddScaled(nnueAccS, nnueBoardRowS(capture, to), 1);
+    }
+  }
+}
+
+/** Exact inverse of nnueAccApplyMakeG (sub/add swapped). */
+function nnueAccApplyUnmakeG(m: i32): void {
+  const to = m & 0xff;
+  const from = (m >> 8) & 0xff;
+  const koma = (m >> 16) & 0x7f;
+  const placed = ((m >> 23) & 1) != 0 ? koma | PROMOTE : koma;
+  const capture = (m >> 24) & 0x7f;
+
+  if (from == 0) {
+    nnueRowSubAdd(nnueAccG, nnueBoardRowG(koma, to), nnueHandRowG(koma));
+    return;
+  }
+
+  nnueRowSubAdd(nnueAccG, nnueBoardRowG(placed, to), nnueBoardRowG(koma, from));
+
+  if (capture != EMPTY) {
+    const capType = capture & 0x07;
+    if (capType != 0) {
+      const handKoma = capType | ((capture & SENTE) != 0 ? GOTE : SENTE);
+      nnueRowSubAdd(nnueAccG, nnueHandRowG(handKoma), nnueBoardRowG(capture, to));
+    } else {
+      nnueRowAddScaled(nnueAccG, nnueBoardRowG(capture, to), 1);
+    }
+  }
+}
+
+/** Build both perspective accumulators from scratch into the given arrays. */
+function nnueBuildAccInto(accS: StaticArray<i32>, accG: StaticArray<i32>): void {
+  for (let j = 0; j < NNUE_H1; j++) {
+    const b = load<i32>(NNUE_WEIGHTS + <usize>(NNUE_B1_OFF + (j << 2)));
+    unchecked(accS[j] = b);
+    unchecked(accG[j] = b);
+  }
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      const pos = (suji << 4) + dan;
+      const koma = unchecked(ban[pos]);
+      if (koma == EMPTY) continue;
+      nnueRowAddScaled(accS, nnueBoardRowS(koma, pos), 1);
+      nnueRowAddScaled(accG, nnueBoardRowG(koma, pos), 1);
+    }
+  }
+  for (let type = FU; type <= HI; type++) {
+    const cS = unchecked(hand[SENTE | type]);
+    if (cS > 0) {
+      nnueRowAddScaled(accS, nnueHandRowS(SENTE | type), cS);
+      nnueRowAddScaled(accG, nnueHandRowG(SENTE | type), cS);
+    }
+    const cG = unchecked(hand[GOTE | type]);
+    if (cG > 0) {
+      nnueRowAddScaled(accS, nnueHandRowS(GOTE | type), cG);
+      nnueRowAddScaled(accG, nnueHandRowG(GOTE | type), cG);
+    }
+  }
+}
+
+/** w2t[j][i] = w2[i][j] (column-major copy for the sparse layer-2 path). */
+function nnueBuildW2T(): void {
+  for (let i = 0; i < NNUE_H2; i++) {
+    const rowBase = NNUE_WEIGHTS + <usize>(NNUE_W2_OFF + (i << 9));
+    for (let j = 0; j < NNUE_H1; j++) {
+      store<i16>(
+        NNUE_W2T + <usize>((((j << 5) + i) << 1)),
+        load<i16>(rowBase + <usize>(j << 1))
+      );
+    }
+  }
+}
+
+/**
+ * Rebuild both differential accumulators (and the transposed w2 copy) from
+ * the current position and weight region.
+ */
+export function nnueRefreshAccumulators(): void {
+  nnuePendLen = 0;
+  nnuePendAppliedS = 0;
+  nnuePendAppliedG = 0;
+  nnueBuildAccInto(nnueAccS, nnueAccG);
+  nnueBuildW2T();
+}
+
+/**
+ * Fold all pending move deltas into the SENTE-perspective accumulator.
+ * Returns false when the path outgrew the pending stack (evaluation then
+ * falls back to the full recompute — never wrong, only slower; unreachable
+ * in practice).
+ */
+function nnueApplyPendingS(): bool {
+  if (nnuePendLen > NNUE_PEND_CAP) return false;
+  while (nnuePendAppliedS < nnuePendLen) {
+    nnueAccApplyMakeS(unchecked(nnuePendStack[nnuePendAppliedS]));
+    nnuePendAppliedS++;
+  }
+  return true;
+}
+
+/** Same for the GOTE-perspective accumulator. */
+function nnueApplyPendingG(): bool {
+  if (nnuePendLen > NNUE_PEND_CAP) return false;
+  while (nnuePendAppliedG < nnuePendLen) {
+    nnueAccApplyMakeG(unchecked(nnuePendStack[nnuePendAppliedG]));
+    nnuePendAppliedG++;
+  }
+  return true;
+}
+
+/**
+ * Verification: bring the incremental accumulators up to date, rebuild fresh
+ * ones, and count entries that differ. 0 = perfectly in sync (max 512);
+ * -1 = pending stack overflowed (differential state unavailable).
+ */
+export function nnueAccMismatch(): i32 {
+  if (!nnueApplyPendingS() || !nnueApplyPendingG()) return -1;
+  nnueBuildAccInto(nnueChkS, nnueChkG);
+  let bad = 0;
+  for (let j = 0; j < NNUE_H1; j++) {
+    if (unchecked(nnueChkS[j]) != unchecked(nnueAccS[j])) bad++;
+    if (unchecked(nnueChkG[j]) != unchecked(nnueAccG[j])) bad++;
+  }
+  return bad;
+}
+
+function nnueAddFeature(feat: i32): void {
+  const base = NNUE_WEIGHTS + <usize>(NNUE_W1B_OFF + feat * NNUE_H1 * 2);
+  for (let j = 0; j < NNUE_H1; j++) {
+    unchecked(nnueAcc[j] = nnueAcc[j] + <i32>load<i16>(base + (<usize>(j << 1))));
+  }
+}
+
+function nnueAddHand(idx: i32, count: i32): void {
+  const base = NNUE_WEIGHTS + <usize>(NNUE_W1H_OFF + idx * NNUE_H1 * 2);
+  for (let j = 0; j < NNUE_H1; j++) {
+    unchecked(nnueAcc[j] = nnueAcc[j] + <i32>load<i16>(base + (<usize>(j << 1))) * count);
+  }
+}
+
+/**
+ * Raw quantized network output out_q (side-to-move perspective), bit-identical
+ * to ml/export-weights.py int_forward on the same position. Read-only.
+ */
+export function nnueEvaluate(): i32 {
+  // Layer 1 accumulator: b1 + board features + hand features.
+  for (let j = 0; j < NNUE_H1; j++) {
+    unchecked(nnueAcc[j] = load<i32>(NNUE_WEIGHTS + <usize>(NNUE_B1_OFF + (j << 2))));
+  }
+
+  const stmSente = teban == SENTE;
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      const koma = unchecked(ban[(suji << 4) + dan]);
+      if (koma == EMPTY) continue;
+      const kind = unchecked(NNUE_KIND[koma & 0x0f]);
+      const isBlack = (koma & SENTE) != 0;
+      // Normalize to the side-to-move perspective (train.py parse_sfen):
+      // GOTE to move => rotate the board 180° and swap colors.
+      let mine: bool;
+      let s: i32;
+      let d: i32;
+      if (stmSente) {
+        mine = isBlack;
+        s = suji;
+        d = dan;
+      } else {
+        mine = !isBlack;
+        s = 10 - suji;
+        d = 10 - dan;
+      }
+      const plane = mine ? kind : kind + 14;
+      nnueAddFeature(plane * 81 + (s - 1) * 9 + (d - 1));
+    }
+  }
+
+  // Hand counts: mine 0..6, opponent 7..13, order FU,KY,KE,GI,KI,KA,HI
+  // (= train.py HAND_ORDER "PLNSGBR").
+  const oppSide = teban == SENTE ? GOTE : SENTE;
+  for (let type = FU; type <= HI; type++) {
+    const cMine = unchecked(hand[teban | type]);
+    if (cMine > 0) nnueAddHand(type - 1, cMine);
+    const cOpp = unchecked(hand[oppSide | type]);
+    if (cOpp > 0) nnueAddHand(type - 1 + 7, cOpp);
+  }
+
+  // h1 = clamp(acc, 0, 127) — clamp in place.
+  for (let j = 0; j < NNUE_H1; j++) {
+    let v = unchecked(nnueAcc[j]);
+    if (v < 0) v = 0;
+    else if (v > 127) v = 127;
+    unchecked(nnueAcc[j] = v);
+  }
+
+  return nnueLayers23();
+}
+
+/**
+ * out_q via the differential accumulators — bit-identical to nnueEvaluate().
+ * Folds any pending make deltas into the accumulators first (lazy update);
+ * the accumulators are rebuilt by setNnueEnabled(1) and finalizePosition().
+ *
+ * Layer 2 runs SPARSE here: h1 = clamp(acc, 0, 127) is post-ClippedReLU, so
+ * zero activations are skipped entirely and each nonzero one adds h * w2t[j]
+ * (a 32-wide column of the transposed w2) into the partial sums. i32 addition
+ * wraps mod 2^32 and is commutative, so the result is bit-identical to the
+ * dense row-major dot products of nnueLayers23()/int_forward.
+ */
+export function nnueEvaluateFast(): i32 {
+  if (teban == SENTE) {
+    if (!nnueApplyPendingS()) return nnueEvaluate();
+  } else {
+    if (!nnueApplyPendingG()) return nnueEvaluate();
+  }
+  nnueEvalCount++;
+  const src = teban == SENTE ? nnueAccS : nnueAccG;
+
+  for (let i = 0; i < NNUE_H2; i++) {
+    unchecked(nnueA2[i] = load<i32>(NNUE_WEIGHTS + <usize>(NNUE_B2_OFF + (i << 2))));
+  }
+
+  for (let j = 0; j < NNUE_H1; j++) {
+    let h = unchecked(src[j]);
+    if (h <= 0) continue;
+    if (h > 127) h = 127;
+    const colBase = NNUE_W2T + <usize>(j << 6); // 32 i16 = 64 bytes per column
+    for (let i = 0; i < NNUE_H2; i += 4) {
+      const off = <usize>(i << 1);
+      unchecked(nnueA2[i] = nnueA2[i] + <i32>load<i16>(colBase + off) * h);
+      unchecked(nnueA2[i + 1] = nnueA2[i + 1] + <i32>load<i16>(colBase + off, 2) * h);
+      unchecked(nnueA2[i + 2] = nnueA2[i + 2] + <i32>load<i16>(colBase + off, 4) * h);
+      unchecked(nnueA2[i + 3] = nnueA2[i + 3] + <i32>load<i16>(colBase + off, 6) * h);
+    }
+  }
+
+  let outQ = load<i32>(NNUE_WEIGHTS + <usize>NNUE_B3_OFF);
+  for (let i = 0; i < NNUE_H2; i++) {
+    let h2 = unchecked(nnueA2[i]) >> 6;
+    if (h2 < 0) h2 = 0;
+    else if (h2 > 127) h2 = 127;
+    outQ += <i32>load<i16>(NNUE_WEIGHTS + <usize>(NNUE_W3_OFF + (i << 1))) * h2;
+  }
+  return outQ;
+}
+
+/**
+ * Layers 2 + 3 on the clamped h1 vector in nnueAcc (shared by both paths).
+ * The dot product is unrolled x4 with independent partial sums; i32 addition
+ * wraps mod 2^32 so the reassociation stays bit-identical to int_forward.
+ */
+function nnueLayers23(): i32 {
+  nnueEvalCount++;
+  // Layer 2 + output layer: h2 = clamp((w2 @ h1 + b2) >> 6, 0, 127).
+  let outQ = load<i32>(NNUE_WEIGHTS + <usize>NNUE_B3_OFF);
+  for (let i = 0; i < NNUE_H2; i++) {
+    const rowBase = NNUE_WEIGHTS + <usize>(NNUE_W2_OFF + i * NNUE_H1 * 2);
+    let s0 = 0;
+    let s1 = 0;
+    let s2 = 0;
+    let s3 = 0;
+    for (let j = 0; j < NNUE_H1; j += 4) {
+      const off = <usize>(j << 1);
+      s0 += <i32>load<i16>(rowBase + off) * unchecked(nnueAcc[j]);
+      s1 += <i32>load<i16>(rowBase + off, 2) * unchecked(nnueAcc[j + 1]);
+      s2 += <i32>load<i16>(rowBase + off, 4) * unchecked(nnueAcc[j + 2]);
+      s3 += <i32>load<i16>(rowBase + off, 6) * unchecked(nnueAcc[j + 3]);
+    }
+    const a2 = load<i32>(NNUE_WEIGHTS + <usize>(NNUE_B2_OFF + (i << 2))) + s0 + s1 + s2 + s3;
+    let h2 = a2 >> 6;
+    if (h2 < 0) h2 = 0;
+    else if (h2 > 127) h2 = 127;
+    outQ += <i32>load<i16>(NNUE_WEIGHTS + <usize>(NNUE_W3_OFF + (i << 1))) * h2;
+  }
+  return outQ;
+}
+
+/**
+ * NNUE evaluation in centipawns from the side-to-move perspective:
+ * cp = trunc(out_q * K / (127*64)) — i64 intermediate, truncation toward zero.
+ * Uses the differential accumulators while NNUE is enabled (unless the
+ * verification force-full switch is on); falls back to the full recompute
+ * otherwise, so standalone harness calls need no accumulator setup.
+ */
+export function nnueEvaluateCp(): i32 {
+  const outQ = nnueEnabled && !nnueForceFull ? nnueEvaluateFast() : nnueEvaluate();
+  return <i32>((<i64>outQ * <i64>nnueScaleK) / 8128);
+}
+
+/** NNUE eval micro-bench: run nnueEvaluate() `iters` times inside the module. */
+export function benchNnueEvaluate(iters: i32): i32 {
+  let acc = 0;
+  for (let i = 0; i < iters; i++) {
+    acc = (acc + nnueEvaluate()) | 0;
+  }
+  return acc;
+}
+
+/** Same micro-bench for the differential path (accumulators must be built). */
+export function benchNnueEvaluateFast(iters: i32): i32 {
+  let acc = 0;
+  for (let i = 0; i < iters; i++) {
+    acc = (acc + nnueEvaluateFast()) | 0;
+  }
+  return acc;
+}
+
+// ---------------------------------------------------------------------------
 // Harness API (parity.ts / bench-wasm.mjs)
 // ---------------------------------------------------------------------------
 
@@ -1686,6 +2327,21 @@ export function clearTT(): void {
 }
 
 function evaluateSenteCached(): i32 {
+  if (nnueEnabled) {
+    // NNUE output depends on the side to move (the board is normalized to the
+    // stm perspective), so the cache key must include teban — unlike
+    // evaluateV3Full, which is teban-independent.
+    const nKey = banHash ^ handHash ^ (teban == GOTE ? TEBAN_HASH_SEED : 0);
+    const nIndex = nKey & EVAL_CACHE_MASK;
+    if (unchecked(evalCacheKeyA[nIndex]) == nKey) return unchecked(evalCacheValA[nIndex]);
+    // Same SENTE-positive convention as evaluateV3Full at the leaf slot:
+    // nnueEvaluateCp() is stm-positive, so negate for GOTE.
+    const stmCp = nnueEvaluateCp();
+    const nValue = teban == SENTE ? stmCp : -stmCp;
+    unchecked(evalCacheKeyA[nIndex] = nKey);
+    unchecked(evalCacheValA[nIndex] = nValue);
+    return nValue;
+  }
   const key = banHash ^ handHash;
   const index = key & EVAL_CACHE_MASK;
   if (unchecked(evalCacheKeyA[index]) == key) return unchecked(evalCacheValA[index]);

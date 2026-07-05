@@ -128,6 +128,22 @@ ml/venv/bin/python ml/export-weights.py --ckpt ml/runs/run1/best.pt --json   # J
   整数演算のみ (int16 重み・int32 アキュムレータ・`>>6` シフト) で推論でき、
   `cp = out_q * K / (127*64)`。`--verify` で float モデルとの誤差 (cp) を確認できる。
 
+### WASM エンジン側との照合 (dump-reference.py)
+
+WASM エンジン (`wasm-spike/assembly/index.ts` の `nnueEvaluate()`) が実重みで
+int_forward とビット一致するかを検証する手順:
+
+```sh
+# torch 環境側 (このリポジトリ + venv)
+ml/venv/bin/python ml/dump-reference.py --ckpt ml/runs/run1/best.pt \
+    --data ml/data/teacher.jsonl --out ml/runs/run1/reference.json --n 200
+ml/venv/bin/python ml/export-weights.py --ckpt ml/runs/run1/best.pt
+
+# torch 不要 (WASM / TS 参照実装 / torch int16 シミュの 3-way 照合)
+node -r tsx/cjs wasm-spike/nnue-verify-reference.ts \
+    ml/runs/run1/weights.bin ml/runs/run1/reference.json
+```
+
 ---
 
 ## 5. 今後の拡張

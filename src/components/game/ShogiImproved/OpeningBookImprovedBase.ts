@@ -1,7 +1,7 @@
 /**
- * FROZEN BASELINE COPY of OpeningBookImproved.ts (pre 2026-07 book expansion).
- * Used only by ShogiAIImprovedV20Base for A/B matches against the expanded book.
- * Do not edit; regenerate from git history if needed.
+ * FROZEN BASELINE COPY of OpeningBookImproved.ts (the book as of the previous production commit,
+ * i.e. before the current YaneuraOu-validated expansion). Used only by ShogiAIImprovedV20Base for
+ * A/B matches against the expanded book. Do not edit; regenerate from git history if needed.
  */
 import { Difficulty } from '../common/types';
 import { GenerateMovesImproved } from './GenerateMovesImproved';
@@ -32,9 +32,10 @@ import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, SENTE, Te, getKomashu, kom
 
 type BookMove = {
   teban: number; // SENTE or GOTE
-  from: { suji: number; dan: number }; // use {0,0} for drops (not used in current lines)
+  from: { suji: number; dan: number }; // use {0,0} for drops (with `drop` set to the piece type)
   to: { suji: number; dan: number };
   promote?: boolean;
+  drop?: number; // piece type (FU/KY/KE/GI/KI/KA/HI) for drop moves; teban is OR'ed in automatically
 };
 
 type OpeningLine = {
@@ -70,9 +71,11 @@ function evalForSideToMove(k: KyokumenImproved): number {
   return k.teban === SENTE ? evalSente : -evalSente;
 }
 
-function staticEvalAfterMove(root: KyokumenImproved, move: Te): number {
+function staticEvalAfterMove(root: KyokumenImproved, move: Te, evalBeforeMove: number): number {
   // IMPORTANT:
   // - `move` is expected to be legal for `root` and to have a correct `capture` field.
+  // - `evalBeforeMove` is `evalForSideToMove(root)` for the *unmoved* root (computed once per
+  //   position by the caller — it is identical for every move from the same root).
   // - This function must be allocation-free (called many times during book safety validation).
   root.move(move);
   // `KyokumenImproved.move()` does NOT flip `teban`, so `root.teban` is still the mover here.
@@ -84,6 +87,12 @@ function staticEvalAfterMove(root: KyokumenImproved, move: Te): number {
   // A pure 1-ply static eval loves moves like a bishop grabbing a defended pawn deep in enemy camp —
   // the promotion/positional bonuses show up but the immediate recapture does not. That inflates the
   // "best move" baseline and can reject every (correct) quiet book move. Approximate the recapture here.
+  //
+  // Beyond subtracting the material value of the doomed piece, we also clamp the score to a
+  // material-only estimate based on the pre-move eval. Without the clamp, moves like ▲２二角成
+  // (an even bishop trade) still scored ~+2400 because the promotion/positional bonuses of the
+  // about-to-be-recaptured horse stayed in the eval — which nuked the baseline and silently
+  // disabled the book in every position where the bishop diagonal was open.
   const moved = root.get(move.to);
   const movedValue = Math.abs(komaValue[moved]) | 0;
   if (movedValue > 0) {
@@ -94,12 +103,22 @@ function staticEvalAfterMove(root: KyokumenImproved, move: Te): number {
         move.to,
         root.teban === SENTE ? GOTE : SENTE
       );
+      const capturedValue = Math.abs(komaValue[move.capture]) | 0;
+      // For the material clamp, value the doomed piece by its PRE-promotion identity: when a
+      // bishop promotes and is immediately recaptured (▲２二角成△同銀 / △７七角成▲同銀), the
+      // promotion never "cashes in" — it is a plain bishop-for-bishop trade, not a horse loss.
+      const movedTradeValue = Math.abs(komaValue[move.koma]) | 0;
       if (!Number.isFinite(selfLeastDefender)) {
         // Undefended and attacked: assume it simply gets taken.
-        score -= movedValue;
+        // Net outcome ≈ what we captured minus what we lose, on top of the pre-move eval.
+        score = Math.min(score - movedValue, evalBeforeMove + capturedValue - movedTradeValue);
       } else if ((enemyLeastAttacker | 0) + 150 < movedValue) {
-        // Defended, but a clearly cheaper piece can start the exchange: assume a losing trade.
-        score -= movedValue - (enemyLeastAttacker | 0);
+        // Defended, but a clearly cheaper piece can start the exchange: assume a losing trade
+        // (we lose the moved piece, they lose their cheapest attacker).
+        score = Math.min(
+          score - (movedValue - (enemyLeastAttacker | 0)),
+          evalBeforeMove + capturedValue - movedTradeValue + (enemyLeastAttacker | 0)
+        );
       }
     }
   }
@@ -122,25 +141,6 @@ function openingThresholdByDifficulty(difficulty: Difficulty): number {
       return 110;
     case 'master':
       return 90;
-  }
-}
-
-function openingOutlierGapByDifficulty(difficulty: Difficulty): number {
-  // If the best 1-ply move is far above the second-best and is *quiet*,
-  // it is often an evaluation artifact (e.g. a heuristic overreacting in the opening).
-  //
-  // In that case we use the second-best score as the baseline so the book doesn't get rejected.
-  switch (difficulty) {
-    case 'easy':
-      return 700;
-    case 'medium':
-      return 600;
-    case 'hard':
-      return 550;
-    case 'expert':
-      return 520;
-    case 'master':
-      return 500;
   }
 }
 
@@ -371,18 +371,25 @@ const OPENING_LINES: OpeningLine[] = [
     ],
   },
   {
-    name: '相振り飛車 (basic)',
+    // 相振り飛車の基本: 先手三間 vs 後手三間。両者とも美濃へ。
+    name: '相振り飛車 (相三間)',
     category: '相振り',
     priority: 74,
     moves: [
       { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
-      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 6, dan: 2 } },  // ☖６二飛 (後手四間方向)
-      { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩
-      { teban: GOTE, from: { suji: 6, dan: 3 }, to: { suji: 6, dan: 4 } },  // ☖６四歩
-      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 6, dan: 8 } }, // ☗６八飛 (先手四間方向)
       { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩 (角道を止めて振り飛車宣言)
+      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 3, dan: 2 } },  // ☖３二飛 (後手三間飛車)
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 7, dan: 8 } }, // ☗７八飛 (先手三間飛車)
+      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二玉
       { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八玉
-      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
+      { teban: GOTE, from: { suji: 6, dan: 2 }, to: { suji: 7, dan: 2 } },  // ☖７二玉
+      { teban: SENTE, from: { suji: 4, dan: 8 }, to: { suji: 3, dan: 8 } }, // ☗３八玉
+      { teban: GOTE, from: { suji: 7, dan: 2 }, to: { suji: 8, dan: 2 } },  // ☖８二玉 (美濃)
+      { teban: SENTE, from: { suji: 3, dan: 8 }, to: { suji: 2, dan: 8 } }, // ☗２八玉 (美濃)
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 7, dan: 2 } },  // ☖７二銀
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 3, dan: 8 } }, // ☗３八銀
+      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 5, dan: 2 } },  // ☖５二金左
     ],
   },
   {
@@ -557,33 +564,274 @@ const OPENING_LINES: OpeningLine[] = [
     ],
   },
   {
+    // 後手四間飛車の正調は△４二飛（旧「△６二飛」は右四間で誤り）。持久戦模様の駒組み。
     name: '後手四間飛車 (basic)',
     category: '振り飛車',
     priority: 72,
     moves: [
       { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
-      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 6, dan: 2 } },  // ☖６二飛
-      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
-      { teban: GOTE, from: { suji: 6, dan: 3 }, to: { suji: 6, dan: 4 } },  // ☖６四歩
-      { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩
       { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
-      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
-      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 4, dan: 3 }, to: { suji: 4, dan: 4 } },  // ☖４四歩 (角道を止める)
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八銀
+      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 4, dan: 2 } },  // ☖４二飛 (四間飛車)
+      { teban: SENTE, from: { suji: 5, dan: 7 }, to: { suji: 5, dan: 6 } }, // ☗５六歩
+      { teban: GOTE, from: { suji: 3, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二銀
+      { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八玉
+      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二玉
+      { teban: SENTE, from: { suji: 6, dan: 8 }, to: { suji: 7, dan: 8 } }, // ☗７八玉
+      { teban: GOTE, from: { suji: 6, dan: 2 }, to: { suji: 7, dan: 2 } },  // ☖７二玉
+      { teban: SENTE, from: { suji: 4, dan: 9 }, to: { suji: 5, dan: 8 } }, // ☗５八金右
+      { teban: GOTE, from: { suji: 7, dan: 2 }, to: { suji: 8, dan: 2 } },  // ☖８二玉 (美濃)
     ],
   },
   {
+    // 後手三間飛車の正調は△３二飛（旧「△７二飛」は誤り）。▲２五歩には△３三角が必須の一手。
     name: '後手三間飛車 (basic)',
     category: '振り飛車',
     priority: 70,
     moves: [
       { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
-      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 7, dan: 2 } },  // ☖７二飛
-      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
-      { teban: GOTE, from: { suji: 7, dan: 3 }, to: { suji: 7, dan: 4 } },  // ☖７四歩
-      { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩
       { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 3, dan: 2 } },  // ☖３二飛 (三間飛車)
       { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 2, dan: 2 }, to: { suji: 3, dan: 3 } },  // ☖３三角 (飛車先を受ける)
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八銀
+      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二玉
+      { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八玉
+      { teban: GOTE, from: { suji: 6, dan: 2 }, to: { suji: 7, dan: 2 } },  // ☖７二玉
+      { teban: SENTE, from: { suji: 6, dan: 8 }, to: { suji: 7, dan: 8 } }, // ☗７八玉
+      { teban: GOTE, from: { suji: 7, dan: 2 }, to: { suji: 8, dan: 2 } },  // ☖８二玉 (美濃)
+      { teban: SENTE, from: { suji: 4, dan: 9 }, to: { suji: 5, dan: 8 } }, // ☗５八金右
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 7, dan: 2 } },  // ☖７二銀
+    ],
+  },
+  // ============================================================================
+  // 検証済み定跡ライン追加分 (2026-07)
+  // - 相掛かり飛車先交換（△２三歩と正しく受け、△８六歩の交換をお返しする完全手順）
+  // - 角換わり基本（▲７八金△３二金型の▲２四歩交換対応 / ▲７七角→▲８八銀の本手順）
+  // - 四間飛車 vs 居飛車急戦（△６二玉→７二玉→８二玉の美濃完成まで）
+  // - ゴキゲン中飛車 / 三間飛車の主要形
+  // ============================================================================
+  {
+    // 相掛かり・飛車先交換型（引き飛車）。▲２四歩△同歩▲同飛には△２三歩が正しい受け。
+    // ▲７八金／△３二金を先に入れるのが本定跡（8八/2二への角打ち・▲７七角の両取り筋を消す）。
+    name: '相掛かり (飛先交換・引き飛車)',
+    category: '相居飛車',
+    priority: 86,
+    moves: [
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八金
+      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金
+      { teban: SENTE, from: { suji: 2, dan: 5 }, to: { suji: 2, dan: 4 } }, // ☗２四歩 (飛車先交換)
+      { teban: GOTE, from: { suji: 2, dan: 3 }, to: { suji: 2, dan: 4 } },  // ☖同歩
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 2, dan: 4 } }, // ☗同飛
+      { teban: GOTE, from: { suji: 0, dan: 0 }, to: { suji: 2, dan: 3 }, drop: FU }, // ☖２三歩 (正しい受け)
+      { teban: SENTE, from: { suji: 2, dan: 4 }, to: { suji: 2, dan: 8 } }, // ☗２八飛 (引き飛車)
+      { teban: GOTE, from: { suji: 8, dan: 5 }, to: { suji: 8, dan: 6 } },  // ☖８六歩 (交換をお返し)
+      { teban: SENTE, from: { suji: 8, dan: 7 }, to: { suji: 8, dan: 6 } }, // ☗同歩
+      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 8, dan: 6 } },  // ☖同飛
+      { teban: SENTE, from: { suji: 0, dan: 0 }, to: { suji: 8, dan: 7 }, drop: FU }, // ☗８七歩
+      { teban: GOTE, from: { suji: 8, dan: 6 }, to: { suji: 8, dan: 4 } },  // ☖８四飛 (浮き飛車: ４段目の横利きで２四をケア)
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 3, dan: 8 } }, // ☗３八銀
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩 (３四は８四飛の横利きが守る)
+    ],
+  },
+  {
+    // 相掛かり・飛車先交換型（浮き飛車）。相浮き飛車の基本形。
+    name: '相掛かり (飛先交換・浮き飛車)',
+    category: '相居飛車',
+    priority: 82,
+    moves: [
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八金
+      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金
+      { teban: SENTE, from: { suji: 2, dan: 5 }, to: { suji: 2, dan: 4 } }, // ☗２四歩
+      { teban: GOTE, from: { suji: 2, dan: 3 }, to: { suji: 2, dan: 4 } },  // ☖同歩
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 2, dan: 4 } }, // ☗同飛
+      { teban: GOTE, from: { suji: 0, dan: 0 }, to: { suji: 2, dan: 3 }, drop: FU }, // ☖２三歩
+      { teban: SENTE, from: { suji: 2, dan: 4 }, to: { suji: 2, dan: 6 } }, // ☗２六飛 (浮き飛車)
+      { teban: GOTE, from: { suji: 8, dan: 5 }, to: { suji: 8, dan: 6 } },  // ☖８六歩
+      { teban: SENTE, from: { suji: 8, dan: 7 }, to: { suji: 8, dan: 6 } }, // ☗同歩
+      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 8, dan: 6 } },  // ☖同飛
+      { teban: SENTE, from: { suji: 0, dan: 0 }, to: { suji: 8, dan: 7 }, drop: FU }, // ☗８七歩
+      { teban: GOTE, from: { suji: 8, dan: 6 }, to: { suji: 8, dan: 4 } },  // ☖８四飛 (相浮き飛車)
+    ],
+  },
+  {
+    // 角換わりの本手順: ▲７七角→▲８八銀と組み替えてから△７七角成▲同銀。
+    name: '角換わり (本組・７七角型)',
+    category: '相居飛車',
+    priority: 84,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 } }, // ☗７七角 (８六の交換を受ける)
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 8, dan: 8 } }, // ☗８八銀
+      { teban: GOTE, from: { suji: 2, dan: 2 }, to: { suji: 7, dan: 7 }, promote: true }, // ☖７七角成
+      { teban: SENTE, from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 } }, // ☗同銀
+      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金 (角打ちに備える)
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 3, dan: 8 } }, // ☗３八銀
+      { teban: GOTE, from: { suji: 3, dan: 1 }, to: { suji: 2, dan: 2 } },  // ☖２二銀
+      { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八金
+      { teban: GOTE, from: { suji: 2, dan: 2 }, to: { suji: 3, dan: 3 } },  // ☖３三銀 (基本形)
+    ],
+  },
+  {
+    // 角換わり模様（▲７八金△３二金型）で▲２四歩と来た場合の交換対応。
+    // △同歩▲同飛△２三歩と受け、△８六歩の交換をお返しして互角の分かれ。
+    name: '角換わり (７八金型・２四歩交換対応)',
+    category: '相居飛車',
+    priority: 79,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八金 (８八を受ける)
+      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金 (２二を受ける)
+      { teban: SENTE, from: { suji: 2, dan: 5 }, to: { suji: 2, dan: 4 } }, // ☗２四歩
+      { teban: GOTE, from: { suji: 2, dan: 3 }, to: { suji: 2, dan: 4 } },  // ☖同歩
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 2, dan: 4 } }, // ☗同飛
+      { teban: GOTE, from: { suji: 0, dan: 0 }, to: { suji: 2, dan: 3 }, drop: FU }, // ☖２三歩
+      { teban: SENTE, from: { suji: 2, dan: 4 }, to: { suji: 2, dan: 8 } }, // ☗２八飛
+      { teban: GOTE, from: { suji: 8, dan: 5 }, to: { suji: 8, dan: 6 } },  // ☖８六歩
+      { teban: SENTE, from: { suji: 8, dan: 7 }, to: { suji: 8, dan: 6 } }, // ☗同歩
+      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 8, dan: 6 } },  // ☖同飛
+      { teban: SENTE, from: { suji: 0, dan: 0 }, to: { suji: 8, dan: 7 }, drop: FU }, // ☗８七歩
+      { teban: GOTE, from: { suji: 8, dan: 6 }, to: { suji: 8, dan: 2 } },  // ☖８二飛
+    ],
+  },
+  {
+    // 後手四間飛車 vs 居飛車急戦の基本形。▲２五歩には△３三角、玉は△６二玉→７二玉→８二玉で美濃完成。
+    name: '後手四間飛車 (vs急戦・美濃完成)',
+    category: '振り飛車',
+    priority: 84,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 4, dan: 3 }, to: { suji: 4, dan: 4 } },  // ☖４四歩 (角道を止める)
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 2, dan: 2 }, to: { suji: 3, dan: 3 } },  // ☖３三角 (飛車先を受ける)
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八銀
+      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 4, dan: 2 } },  // ☖４二飛 (四間飛車)
+      { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八玉
+      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二玉
+      { teban: SENTE, from: { suji: 6, dan: 8 }, to: { suji: 7, dan: 8 } }, // ☗７八玉 (舟囲いへ)
+      { teban: GOTE, from: { suji: 6, dan: 2 }, to: { suji: 7, dan: 2 } },  // ☖７二玉
+      { teban: SENTE, from: { suji: 4, dan: 9 }, to: { suji: 5, dan: 8 } }, // ☗５八金右
+      { teban: GOTE, from: { suji: 7, dan: 2 }, to: { suji: 8, dan: 2 } },  // ☖８二玉 (美濃完成)
+      { teban: SENTE, from: { suji: 5, dan: 7 }, to: { suji: 5, dan: 6 } }, // ☗５六歩
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 7, dan: 2 } },  // ☖７二銀
+    ],
+  },
+  {
+    // 先手四間飛車 vs 後手居飛車急戦。△８五歩には▲７七角。玉は▲４八→３八→２八で美濃完成。
+    name: '四間飛車 (先手・美濃完成)',
+    category: '振り飛車',
+    priority: 83,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩 (角道を止める)
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 6, dan: 8 } }, // ☗６八飛 (四間飛車)
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 } }, // ☗７七角 (飛車先を受ける)
       { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
+      { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八玉
+      { teban: GOTE, from: { suji: 4, dan: 2 }, to: { suji: 3, dan: 2 } },  // ☖３二玉 (舟囲い)
+      { teban: SENTE, from: { suji: 4, dan: 8 }, to: { suji: 3, dan: 8 } }, // ☗３八玉
+      { teban: GOTE, from: { suji: 6, dan: 1 }, to: { suji: 5, dan: 2 } },  // ☖５二金右
+      { teban: SENTE, from: { suji: 3, dan: 8 }, to: { suji: 2, dan: 8 } }, // ☗２八玉 (美濃)
+      { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 3, dan: 8 } }, // ☗３八銀
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀 (急戦準備)
+    ],
+  },
+  {
+    // 後手ゴキゲン中飛車の本手順: △３四歩→△５四歩→△５二飛→△５五歩位取り→美濃。
+    name: 'ゴキゲン中飛車 (後手・本形)',
+    category: '振り飛車',
+    priority: 82,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 5, dan: 2 } },  // ☖５二飛 (ゴキゲン中飛車)
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八銀
+      { teban: GOTE, from: { suji: 5, dan: 4 }, to: { suji: 5, dan: 5 } },  // ☖５五歩 (位取り)
+      { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八玉
+      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二玉
+      { teban: SENTE, from: { suji: 6, dan: 8 }, to: { suji: 7, dan: 8 } }, // ☗７八玉
+      { teban: GOTE, from: { suji: 6, dan: 2 }, to: { suji: 7, dan: 2 } },  // ☖７二玉
+      { teban: SENTE, from: { suji: 4, dan: 9 }, to: { suji: 5, dan: 8 } }, // ☗５八金右
+      { teban: GOTE, from: { suji: 7, dan: 2 }, to: { suji: 8, dan: 2 } },  // ☖８二玉 (美濃)
+      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八銀
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 7, dan: 2 } },  // ☖７二銀
+    ],
+  },
+  {
+    // ゴキゲン中飛車 vs 丸山ワクチン（▲２二角成△同銀）。△３三銀と上がって美濃へ。
+    name: 'ゴキゲン中飛車 (vs丸山ワクチン)',
+    category: '振り飛車',
+    priority: 76,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 5, dan: 2 } },  // ☖５二飛
+      { teban: SENTE, from: { suji: 8, dan: 8 }, to: { suji: 2, dan: 2 }, promote: true }, // ☗２二角成 (丸山ワクチン)
+      { teban: GOTE, from: { suji: 3, dan: 1 }, to: { suji: 2, dan: 2 } },  // ☖同銀
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八銀
+      { teban: GOTE, from: { suji: 2, dan: 2 }, to: { suji: 3, dan: 3 } },  // ☖３三銀 (基本形)
+      { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八玉
+      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二玉
+      { teban: SENTE, from: { suji: 6, dan: 8 }, to: { suji: 7, dan: 8 } }, // ☗７八玉
+      { teban: GOTE, from: { suji: 6, dan: 2 }, to: { suji: 7, dan: 2 } },  // ☖７二玉
+      { teban: SENTE, from: { suji: 4, dan: 9 }, to: { suji: 5, dan: 8 } }, // ☗５八金右
+      { teban: GOTE, from: { suji: 7, dan: 2 }, to: { suji: 8, dan: 2 } },  // ☖８二玉 (美濃)
+    ],
+  },
+  {
+    // 先手三間飛車の美濃完成形。△８五歩には▲７七角。
+    name: '三間飛車 (先手・美濃完成)',
+    category: '振り飛車',
+    priority: 79,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 7, dan: 8 } }, // ☗７八飛 (三間飛車)
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩 (角道を止める)
+      { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
+      { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八玉
+      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
+      { teban: SENTE, from: { suji: 4, dan: 8 }, to: { suji: 3, dan: 8 } }, // ☗３八玉
+      { teban: GOTE, from: { suji: 4, dan: 2 }, to: { suji: 3, dan: 2 } },  // ☖３二玉
+      { teban: SENTE, from: { suji: 3, dan: 8 }, to: { suji: 2, dan: 8 } }, // ☗２八玉 (美濃)
+      { teban: GOTE, from: { suji: 6, dan: 1 }, to: { suji: 5, dan: 2 } },  // ☖５二金右
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 3, dan: 8 } }, // ☗３八銀
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 } }, // ☗７七角 (飛車先を受ける)
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
     ],
   },
 ];
@@ -610,7 +858,11 @@ function buildBook(): Map<number, BookCandidate[]> {
       const to = posOf(mv.to.suji, mv.to.dan);
       const promote = mv.promote ?? false;
 
-      const koma = from === 0 ? 0 : k.get(from);
+      if (from === 0 && !mv.drop) {
+        throw new Error(`[OpeningBookImproved] line=${line.name} drop move without \`drop\` piece type`);
+      }
+      // For drops, `Te.koma` is the dropped piece OR'ed with the side to move.
+      const koma = from === 0 ? (mv.drop! | mv.teban) : k.get(from);
       if (from !== 0 && koma === EMPTY) {
         throw new Error(`[OpeningBookImproved] line=${line.name} empty from square: ${mv.from.suji}${mv.from.dan}`);
       }
@@ -661,10 +913,15 @@ function pickDeterministic<T>(candidates: T[], seed: number): T {
 
 function looksLikeOpening(k: KyokumenImproved): boolean {
   // Cheap phase proxy: few traded pieces (low hand counts) and kings not captured.
+  //
+  // NOTE: the limit must accommodate real joseki exchanges. During the 相掛かり/角換わり
+  // rook-file exchange (▲2四歩△同歩▲同飛△2三歩 … △8六歩▲同歩△同飛▲8七歩) the combined
+  // hand count transiently reaches 3, and a bishop trade adds 2 more. Anything still in book
+  // range is by definition "opening"; positions outside the book return null right after anyway.
   if (k.kingS <= 0 || k.kingG <= 0) return false;
   let hand = 0;
   for (let i = 0; i < k.hand.length; i++) hand += k.hand[i] | 0;
-  return hand <= 2;
+  return hand <= 4;
 }
 
 /**
@@ -674,6 +931,9 @@ function looksLikeOpening(k: KyokumenImproved): boolean {
  * - the side to move is in check
  * - all book candidates fail safety validation
  */
+/** Book usage counters for offline tooling (scripts/shogi-ai-match.ts hit-rate reporting). */
+export const openingBookStats = { probes: 0, hits: 0 };
+
 export function getOpeningMoveImproved(
   k: KyokumenImproved,
   difficulty: Difficulty,
@@ -681,6 +941,11 @@ export function getOpeningMoveImproved(
 ): Te | null {
   if (!looksLikeOpening(k)) return null;
   if (GenerateMovesImproved.isKingInCheck(k, k.teban)) return null;
+  openingBookStats.probes++;
+
+  // Out of book? Bail out before doing any eval work (this is the common case).
+  const candidates = getBook().get(k.HashVal);
+  if (!candidates || candidates.length === 0) return null;
 
   // Validate candidates against current legal moves (the opponent may have deviated).
   const legal = GenerateMovesImproved.generateLegalMovesPooled(k, runtimeMoves);
@@ -691,13 +956,14 @@ export function getOpeningMoveImproved(
   // Compute best static eval among *all* legal moves (for safety threshold).
   // Cache per-position because the same early hashes reoccur across games.
   const root = k.clone();
+  const evalBeforeMove = evalForSideToMove(root);
   let bestInfo = bestScoreCache.get(k.HashVal);
   if (!bestInfo) {
     let bestScore = -Infinity;
     let secondBestScore = -Infinity;
     let bestIsQuiet = false;
     for (const m of legal) {
-      const score = staticEvalAfterMove(root, m);
+      const score = staticEvalAfterMove(root, m, evalBeforeMove);
       if (score > bestScore) {
         secondBestScore = bestScore;
         bestScore = score;
@@ -711,29 +977,36 @@ export function getOpeningMoveImproved(
   }
 
   const threshold = openingThresholdByDifficulty(difficulty);
-  const outlierGap = openingOutlierGapByDifficulty(difficulty);
-  const baselineScore =
-    bestInfo.bestIsQuiet &&
-    Number.isFinite(bestInfo.secondBestScore) &&
-    bestInfo.bestScore - bestInfo.secondBestScore >= outlierGap
+  // Baseline selection:
+  // - If the best 1-ply move is a capture/promotion, it represents real tactics — use it.
+  // - If the best 1-ply move is *quiet*, a large lead over the second-best move is almost always
+  //   an evaluation artifact (e.g. ▲6六角 style "active-looking" moves scoring +500 while every
+  //   real joseki move scores ~+150). In-book positions are exact-hash joseki positions, so we
+  //   use the second-best score as the baseline. When best and second-best are close this changes
+  //   nothing; when they diverge it stops the artifact from silently disabling the whole book.
+  // - Additionally, a book move that does not make the *standing* eval notably worse is always
+  //   acceptable: joseki often deliberately ignores a static "threat" the eval already priced in
+  //   (e.g. ゴキゲン中飛車's △5二飛 while the eval screams about the open 2筋 — the joseki answer
+  //   to ▲2四歩 is the 5筋 counter, which a 1-ply filter can never see). A genuine blunder still
+  //   scores a full piece *below* the standing eval and stays rejected.
+  const quietAwareBaseline =
+    bestInfo.bestIsQuiet && Number.isFinite(bestInfo.secondBestScore)
       ? bestInfo.secondBestScore
       : bestInfo.bestScore;
+  const baselineScore = Math.min(quietAwareBaseline, evalBeforeMove);
 
-  const candidates = getBook().get(k.HashVal);
   const filtered: BookCandidate[] = [];
-  if (candidates && candidates.length > 0) {
-    for (const c of candidates) {
-      const m = legalByKey.get(moveKey(c.move));
-      if (!m) continue;
-      // Keep the `Te` reference from `legal` (allocation-free); we clone only for the return value.
-      filtered.push({ ...c, move: m });
-    }
+  for (const c of candidates) {
+    const m = legalByKey.get(moveKey(c.move));
+    if (!m) continue;
+    // Keep the `Te` reference from `legal` (allocation-free); we clone only for the return value.
+    filtered.push({ ...c, move: m });
   }
 
   // Evaluate book candidates and keep the ones close enough to the best move.
   const scored: Array<BookCandidate & { score: number }> = [];
   for (const c of filtered) {
-    const score = staticEvalAfterMove(root, c.move);
+    const score = staticEvalAfterMove(root, c.move, evalBeforeMove);
     if (score < baselineScore - threshold) continue;
     scored.push({ ...c, score });
   }
@@ -785,5 +1058,6 @@ export function getOpeningMoveImproved(
     );
   }
 
+  openingBookStats.hits++;
   return picked.move.clone();
 }

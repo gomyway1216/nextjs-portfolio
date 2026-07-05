@@ -1,8 +1,8 @@
 /**
- * FROZEN BASELINE COPY of ShogiAIImprovedV20Base.ts wired to OpeningBookImprovedBase (the pre
- * 2026-07 opening book). Exists so `npm run shogi:match -- --engineB v20base` can A/B the
- * expanded book against the previous one with an otherwise identical engine.
- * Do not edit; regenerate from git history if needed.
+ * FROZEN BASELINE COPY of ShogiAIImprovedV20.ts wired to OpeningBookImprovedBase (the book as of
+ * the previous production commit, i.e. before the current book expansion). Exists so
+ * `npm run shogi:match -- --engineB v20base` can A/B book changes against the previous book with
+ * an otherwise identical engine. Do not edit; regenerate from git history / V20 if needed.
  */
 /**
  * Shogi AI (Improved / Fast Engine)
@@ -34,6 +34,14 @@
  * - Lightweight per-node attack/defense cache for move ordering.
  * - "Hanging drop" ordering at all plies using cheap cached attack scans (reduces suicidal drops without make/unmake).
  *
+ * V20.1 additions:
+ * - Continuation history: a (previous move piece+to, reply piece+to) score table used in move ordering,
+ *   generalizing the countermove heuristic to a graded signal. (~40% fewer nodes to the same depth in
+ *   midgame benchmarks.)
+ *   Tried and rejected after A/B matches vs the pre-V20.1 engine: ProbCut (per-capture, qsearch-filtered,
+ *   margins 300/500 — cut real tactics at short time controls) and history gravity (halving history
+ *   between iterative-deepening passes — strictly worse at 200ms/move).
+ *
  * V19 additions:
  * - Futility pruning at frontier nodes (depthLeft <= 2): skips quiet moves when stand-pat + margin can't reach alpha,
  *   with guards for long-range pieces and moves near the enemy king (hard+).
@@ -61,6 +69,7 @@
 	import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, RY, SENTE, Te, UM, WALL, getKomashu, isSelf, komaValue } from './types';
 		import { KyokumenImproved } from './KyokumenImproved';
 		import { GenerateMovesImproved } from './GenerateMovesImproved';
+		import { MateSolverImproved } from './MateSolverImproved';
 		import { MoveListImproved } from './MoveListImproved';
 		import { getOpeningMoveImproved } from './OpeningBookImprovedBase';
 		import { TranspositionTableImprovedPacked } from './TranspositionTableImprovedPacked';
@@ -96,10 +105,11 @@ export interface ShogiAISearchOptions {
   /**
    * Evaluation profile selector.
    * - `v3` is the tuned default (same cost, more stable openings).
+   * - `v3t` is v3 with candidate weights (KyokumenImproved.setEvalV3TunedWeights) for A/B tuning experiments.
    * - `v2` is the previous default and includes stronger king-safety/castling heuristics.
    * - `v1` is kept for regression/self-play comparisons.
    */
-  evaluationMode?: 'v1' | 'v2' | 'v3';
+  evaluationMode?: 'v1' | 'v2' | 'v3' | 'v3t';
 }
 
 class TimeUpError extends Error {
@@ -132,13 +142,15 @@ export class ShogiAIImprovedV20Base {
   private evalCacheValV2: Int32Array;
   private evalCacheKeyV3: Int32Array;
   private evalCacheValV3: Int32Array;
+  private evalCacheKeyV3T: Int32Array;
+  private evalCacheValV3T: Int32Array;
 
   private leaf = 0;
   private node = 0;
   private startTime = 0;
   private maxTimeMs = 0;
   private quiescenceDepthMax = 0;
-  private evaluationMode: 'v1' | 'v2' | 'v3' = 'v3';
+  private evaluationMode: 'v1' | 'v2' | 'v3' | 'v3t' = 'v3';
 
   // Repetition handling (sennichite) within the current search path.
   // HashVal already includes side-to-move, so a repeated `HashVal` means an actual repetition state.
@@ -190,7 +202,23 @@ export class ShogiAIImprovedV20Base {
   // The move key that led into each ply on the current search path (index = ply).
   private prevKeyByPly: number[] = new Array(ShogiAIImprovedV20Base.MAX_PLY).fill(0);
 
+  // Continuation history (V20.1): generalization of the countermove heuristic.
+  // Indexed by (previous move's piece+to, current move's piece+to) — "after the opponent puts piece X
+  // on square A, moving piece Y to square B tends to cause cutoffs". Unlike `counterMove` (one move per
+  // key) this is a graded score added to ordering, so it also helps rank non-refutation quiet moves.
+  //
+  // Index compression: pieceType (0..15) * 81 board squares = 1296 states per move; side is implied
+  // (the previous move is always by the opponent of the side to move). Flat Int32Array of 1296^2.
+  private static readonly CONT_HIST_DIM = 1296;
+  private contHist = new Int32Array(ShogiAIImprovedV20Base.CONT_HIST_DIM * ShogiAIImprovedV20Base.CONT_HIST_DIM);
+  // pieceTo-index of the move that led into each ply on the current search path (-1 = unknown/root).
+  private prevPtByPly: number[] = new Array(ShogiAIImprovedV20Base.MAX_PLY).fill(-1);
+
   private rootBest: Te | null = null;
+
+  // V20 mate solver (詰みソルバー): dedicated checks-only AND/OR search used as a pre-search probe.
+  // See `tryMateSolve()` for the gate/budget policy.
+  private mateSolver = new MateSolverImproved();
 
   // V20: remaining depth at the node currently being move-ordered.
   // Used to skip expensive per-move attack scans at frontier nodes (see scoreMove).
@@ -241,10 +269,13 @@ export class ShogiAIImprovedV20Base {
     this.evalCacheValV2 = new Int32Array(ShogiAIImprovedV20Base.EVAL_CACHE_SIZE);
     this.evalCacheKeyV3 = new Int32Array(ShogiAIImprovedV20Base.EVAL_CACHE_SIZE);
     this.evalCacheValV3 = new Int32Array(ShogiAIImprovedV20Base.EVAL_CACHE_SIZE);
+    this.evalCacheKeyV3T = new Int32Array(ShogiAIImprovedV20Base.EVAL_CACHE_SIZE);
+    this.evalCacheValV3T = new Int32Array(ShogiAIImprovedV20Base.EVAL_CACHE_SIZE);
 
     this.evalCacheKeyV1.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV2.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV3.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV3T.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
   }
 
   clearTT(): void {
@@ -253,6 +284,7 @@ export class ShogiAIImprovedV20Base {
     this.evalCacheKeyV1.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV2.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
     this.evalCacheKeyV3.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
+    this.evalCacheKeyV3T.fill(ShogiAIImprovedV20Base.EVAL_CACHE_SENTINEL);
   }
 
   getStats(): { nodes: number; leaves: number; ttUsage: number } {
@@ -374,6 +406,15 @@ export class ShogiAIImprovedV20Base {
       return value;
     }
 
+    // v3t (candidate weights for tuning A/B; same structure as v3, separate cache)
+    if (this.evaluationMode === 'v3t') {
+      if (this.evalCacheKeyV3T[index] === key) return this.evalCacheValV3T[index] | 0;
+      const value = (k.evaluateV3Tuned() + this.hangingThreatSente(k)) | 0;
+      this.evalCacheKeyV3T[index] = key;
+      this.evalCacheValV3T[index] = value;
+      return value;
+    }
+
     // v3 (V20: includes the hanging-piece threat term; cached together with the base eval)
     if (this.evalCacheKeyV3[index] === key) return this.evalCacheValV3[index] | 0;
     const value = (k.evaluateV3() + this.hangingThreatSente(k)) | 0;
@@ -438,6 +479,16 @@ export class ShogiAIImprovedV20Base {
     const to = te.to & 0xff;
     const promote = te.promote ? 1 : 0;
     return piece | (from << 6) | (to << 14) | (promote << 22);
+  }
+
+  /**
+   * Compact (pieceType, toSquare) index for the continuation-history table.
+   * Side is intentionally excluded: at any given ply the mover's side is fixed, so it carries no signal.
+   */
+  private pieceToIndex(te: Te): number {
+    const toSuji = te.to >> 4;
+    const toDan = te.to & 0x0f;
+    return getKomashu(te.koma) * 81 + (toSuji - 1) * 9 + (toDan - 1);
   }
 
   private teFromMoveKey(key: number, k: KyokumenImproved): Te {
@@ -587,9 +638,17 @@ export class ShogiAIImprovedV20Base {
       if (prevKey !== 0 && this.counterMove.get(prevKey) === key) score += 1_200_000;
     }
 
-    // 2) Long-term ordering signal
+    // 2) Long-term ordering signals (history + continuation history)
     const historyScore = this.history.get(key);
     if (historyScore) score += historyScore;
+
+    // Continuation history (V20.1): graded "reply quality" signal for the previous move on the path.
+    if (ply > 0 && ply < ShogiAIImprovedV20Base.MAX_PLY) {
+      const prevPt = this.prevPtByPly[ply] | 0;
+      if (prevPt >= 0) {
+        score += this.contHist[prevPt * ShogiAIImprovedV20Base.CONT_HIST_DIM + this.pieceToIndex(te)] | 0;
+      }
+    }
 
     // 3) Promotions are usually correct/forcing in shogi.
     if (te.promote) score += 400_000;
@@ -1283,8 +1342,11 @@ export class ShogiAIImprovedV20Base {
         }
         legalTried++;
         this.toggleTeban(k);
-        // Track the path move so child nodes can use the countermove heuristic (V19).
-        if (ply + 1 < ShogiAIImprovedV20Base.MAX_PLY) this.prevKeyByPly[ply + 1] = this.moveKey(te);
+        // Track the path move so child nodes can use the countermove / continuation-history heuristics.
+        if (ply + 1 < ShogiAIImprovedV20Base.MAX_PLY) {
+          this.prevKeyByPly[ply + 1] = this.moveKey(te);
+          this.prevPtByPly[ply + 1] = this.pieceToIndex(te);
+        }
 
         const baseDepthNext = depthLeft - 1;
         const canCheckExtend = this.enableCheckExtension && ply <= this.checkExtensionMaxPly;
@@ -1358,6 +1420,12 @@ export class ShogiAIImprovedV20Base {
               if (ply > 0 && ply < ShogiAIImprovedV20Base.MAX_PLY) {
                 const prevKey = this.prevKeyByPly[ply] | 0;
                 if (prevKey !== 0) this.counterMove.set(prevKey, key);
+                // Continuation history (V20.1): graded version of the same signal.
+                const prevPt = this.prevPtByPly[ply] | 0;
+                if (prevPt >= 0) {
+                  const idx = prevPt * ShogiAIImprovedV20Base.CONT_HIST_DIM + this.pieceToIndex(te);
+                  this.contHist[idx] = (this.contHist[idx] | 0) + depthLeft * depthLeft;
+                }
               }
             }
             this.recordHistory(key, depthLeft);
@@ -1382,6 +1450,76 @@ export class ShogiAIImprovedV20Base {
     } finally {
       if (this.enableRepetition) this.popRepetition();
     }
+  }
+
+  /**
+   * Lightweight gate for the mate solver (V20).
+   *
+   * The solver is exact but costs a slice of the move budget, so we only run it when a mate is
+   * plausible: attacking material close to the enemy king and/or pieces in hand to drop. In the
+   * opening/midgame (no pieces near the enemy king) the gate is essentially free and always off.
+   *
+   * Condition: at least one own non-king piece within Chebyshev distance 3 of the enemy king,
+   * and (near pieces + hand pieces) >= 2 — one lone attacker with an empty hand almost never mates.
+   */
+  private shouldTryMateSolve(k: KyokumenImproved): boolean {
+    const enemyKing = k.teban === SENTE ? k.kingG : k.kingS;
+    if (enemyKing <= 0) return false;
+
+    const kingSuji = enemyKing >> 4;
+    const kingDan = enemyKing & 0x0f;
+
+    let near = 0;
+    for (let ds = -3; ds <= 3; ds++) {
+      const suji = kingSuji + ds;
+      if (suji < 1 || suji > 9) continue;
+      for (let dd = -3; dd <= 3; dd++) {
+        const dan = kingDan + dd;
+        if (dan < 1 || dan > 9) continue;
+        const p = k.get((suji << 4) + dan);
+        if (p === EMPTY || p === WALL) continue;
+        if (isSelf(k.teban, p) && getKomashu(p) !== OU) near++;
+      }
+    }
+    if (near === 0) return false;
+
+    let handCount = 0;
+    for (let type = FU; type <= HI; type++) handCount += k.hand[k.teban | type] | 0;
+
+    return near + handCount >= 2;
+  }
+
+  /**
+   * Pre-search mate probe (V20).
+   *
+   * Before the main iterative-deepening search we spend a small, bounded budget asking the exact
+   * question "do I have a forced mate by consecutive checks?". If yes, the mating move is returned
+   * immediately — this is both faster and strictly more reliable than hoping the pruned main
+   * search stumbles onto a deep sacrifice mate.
+   *
+   * Budget policy:
+   * - timed searches: ~20% of the move budget, capped at 200ms (and at least 30ms to be useful)
+   * - untimed searches (maxTimeMs <= 0, e.g. deterministic tests): fixed 250ms + node cap
+   */
+  private tryMateSolve(k: KyokumenImproved, maxTimeMs: number): Te | null {
+    if (!this.shouldTryMateSolve(k)) return null;
+
+    const mateStart = this.nowMs();
+    const budgetMs = maxTimeMs > 0 ? Math.max(30, Math.min(200, Math.floor(maxTimeMs * 0.2))) : 250;
+    const mate = this.mateSolver.solve(k, {
+      maxPlies: 9,
+      maxNodes: 150_000,
+      maxTimeMs: budgetMs,
+    });
+    if (mate) return mate;
+
+    // No mate found: hand the remaining budget to the main search (keeps total move time honest,
+    // which also keeps self-play A/B comparisons fair).
+    if (maxTimeMs > 0) {
+      const spent = this.nowMs() - mateStart;
+      this.maxTimeMs = Math.max(Math.floor(maxTimeMs / 2), maxTimeMs - Math.ceil(spent));
+    }
+    return null;
   }
 
 	  getNextTe(k: KyokumenImproved, tesu: number = 0, options: ShogiAISearchOptions = {}): Te | null {
@@ -1426,6 +1564,12 @@ export class ShogiAIImprovedV20Base {
 	    this.quiescenceDepthMax = Math.max(0, options.quiescenceDepthMax ?? defaults.quiescenceDepthMax);
     this.evaluationMode = options.evaluationMode ?? 'v3';
 
+    // V20 mate solver: before the main search, spend a small budget on an exact "do I have a
+    // forced mate by consecutive checks?" probe (endgame-gated). A found mate is returned
+    // immediately; otherwise the remaining time goes to the normal search (deducted inside).
+    const mateMove = this.tryMateSolve(k, maxTimeMs);
+    if (mateMove) return mateMove;
+
     // Unified search features (V20): everything on, at every level.
     this.enableAspiration = true;
     // V19 used 700-1000 (7-10 pawns) which barely cuts anything; ~3 pawns keeps most
@@ -1458,6 +1602,8 @@ export class ShogiAIImprovedV20Base {
     this.history.clear();
     this.counterMove.clear();
     this.prevKeyByPly.fill(0);
+    this.contHist.fill(0);
+    this.prevPtByPly.fill(-1);
     this.repetitionCount.clear();
     this.repetitionStack.length = 0;
 
@@ -1564,7 +1710,7 @@ export class ShogiAIImprovedV20Base {
 
 // Shared instance so the TT can persist across moves during a single game.
 // This noticeably improves strength at the same time budget because many positions reoccur (especially via transpositions).
-const sharedAIV20Base = new ShogiAIImprovedV20Base();
+const sharedAIV20 = new ShogiAIImprovedV20Base();
 
 /**
  * Exported helper for UI/script compatibility.
@@ -1573,5 +1719,5 @@ const sharedAIV20Base = new ShogiAIImprovedV20Base();
 export function getBestMoveV20Base(k: KyokumenImproved, teban: number, difficulty: Difficulty, tesu: number = 0): Te | null {
   // The UI passes `teban` explicitly; keep the position consistent.
   k.setTeban(teban);
-  return sharedAIV20Base.getNextTe(k, tesu, { difficulty });
+  return sharedAIV20.getNextTe(k, tesu, { difficulty });
 }

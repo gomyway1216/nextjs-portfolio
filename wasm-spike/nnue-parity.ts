@@ -64,6 +64,7 @@ interface ShogiNnueWasm {
   getNnueWeightsSize(): number;
   setNnueEnabled(flag: number): void;
   setNnueScaleK(k: number): void;
+  setNnueOutputScale(numer: number, denom: number): void;
   setNnueForceFull(flag: number): void;
   nnueEvaluate(): number;
   nnueEvaluateFast(): number;
@@ -197,6 +198,57 @@ console.log(
 if (goteToMove === 0 || withHands === 0 || nonzeroOutQ === 0) {
   console.error('SELF-CHECK FAILED: coverage is vacuous (rotation/hands/output never exercised)');
   process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// setNnueOutputScale parity (rescaled cp, then bit-exact restore at 1/1)
+// ---------------------------------------------------------------------------
+
+console.log('\n=== NNUE output-scale parity (setNnueOutputScale) ===');
+{
+  const SCALE_CASES: Array<[number, number]> = [
+    [37, 10], // true cp -> V3 scale (the production use case)
+    [1, 4],
+    [123, 7],
+  ];
+  const rnd = mulberry32(0x5ca1e0);
+  let checkedScaled = 0;
+  const k = new KyokumenImproved();
+  k.initHirate();
+  for (let ply = 0; ply <= 60; ply++) {
+    if (ply > 0) {
+      const moves = GenerateMovesImproved.generateLegalMoves(k);
+      if (moves.length === 0) break;
+      const te = moves[Math.floor(rnd() * moves.length)];
+      te.capture = k.get(te.to);
+      k.move(te);
+      k.toggleTeban();
+    }
+    if (ply % 10 !== 0) continue;
+    syncWasm(k);
+    const outQ = wasm.nnueEvaluate() | 0;
+    for (const [numer, denom] of SCALE_CASES) {
+      wasm.setNnueOutputScale(numer, denom);
+      const asCp = wasm.nnueEvaluateCp() | 0;
+      // BigInt division truncates toward zero, matching the WASM i64 div_s.
+      const tsCp = Number((BigInt(outQ) * BigInt(SCALE_K) * BigInt(numer)) / (BigInt(8128) * BigInt(denom)));
+      if (asCp !== tsCp) {
+        console.error(`SCALE MISMATCH at ply ${ply} (${numer}/${denom}): AS=${asCp} TS=${tsCp} outQ=${outQ}`);
+        process.exit(1);
+      }
+      checkedScaled++;
+    }
+    // Restore the default and verify bit-parity with the unscaled conversion.
+    wasm.setNnueOutputScale(1, 1);
+    const asDefault = wasm.nnueEvaluateCp() | 0;
+    const tsDefault = outQToCp(outQ, SCALE_K) | 0;
+    if (asDefault !== tsDefault) {
+      console.error(`DEFAULT-SCALE MISMATCH at ply ${ply}: AS=${asDefault} TS=${tsDefault} outQ=${outQ}`);
+      process.exit(1);
+    }
+  }
+  wasm.setNnueOutputScale(1, 1);
+  console.log(`output-scale parity: ${checkedScaled} scaled comparisons bit-exact, default 1/1 restored`);
 }
 
 // ---------------------------------------------------------------------------

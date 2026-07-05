@@ -1590,6 +1590,13 @@ const NNUE_KIND = StaticArray.fromArray<i32>([
 
 let nnueEnabled: bool = false;
 let nnueScaleK: i32 = 600; // k_sigmoid from weights.meta.json (cp = out_q * K / 8128)
+// Output rescale numer/denom applied on top of the cp conversion (default 1/1
+// = plain centipawns). The search margins (ASPIRATION_WINDOW, futility, delta,
+// RFP, ...) were tuned for evaluateV3Full, whose scale is ~3.7x the true cp
+// scale (teacher fit: cp ~= 0.27*v3). Setting e.g. 37/10 maps NNUE cp output
+// onto the V3 scale so every search constant keeps its intended strength.
+let nnueOutNumer: i32 = 1;
+let nnueOutDenom: i32 = 1;
 
 // Scratch accumulator (reused; no allocation during search). The full
 // recompute path builds layer 1 here; both paths clamp h1 into it before
@@ -1679,6 +1686,22 @@ export function setNnueScaleK(k: i32): void {
   if (nnueScaleK != k) {
     nnueScaleK = k;
     // Cached NNUE evaluations were computed with the old K; drop them.
+    initEvalCache();
+  }
+}
+
+/**
+ * Set the NNUE output rescale as a rational numer/denom (default 1/1 = plain
+ * centipawns, bit-identical to the previous behavior). Use 37/10 to map the
+ * true-cp NNUE output onto the evaluateV3Full scale (~3.7x cp) that all the
+ * search margin constants were tuned for. Non-positive arguments are ignored.
+ */
+export function setNnueOutputScale(numer: i32, denom: i32): void {
+  if (numer <= 0 || denom <= 0) return;
+  if (nnueOutNumer != numer || nnueOutDenom != denom) {
+    nnueOutNumer = numer;
+    nnueOutDenom = denom;
+    // Cached NNUE evaluations were computed with the old scale; drop them.
     initEvalCache();
   }
 }
@@ -2128,7 +2151,16 @@ function nnueLayers23(): i32 {
  */
 export function nnueEvaluateCp(): i32 {
   const outQ = nnueEnabled && !nnueForceFull ? nnueEvaluateFast() : nnueEvaluate();
-  return <i32>((<i64>outQ * <i64>nnueScaleK) / 8128);
+  // Fold the output rescale (numer/denom, default 1/1) into the same i64
+  // division so there is only ONE truncation — with 1/1 this is bit-identical
+  // to trunc(out_q * K / 8128). |outQ| < 2^31 and K, numer are small i32s, so
+  // the i64 product cannot overflow. The clamp keeps rescaled values far away
+  // from the mate-score window (S_MATE - 10_000); it is unreachable with the
+  // default scale (|cp| < ~160k even with the extreme dummy-weight ranges).
+  let cp = (<i64>outQ * <i64>nnueScaleK * <i64>nnueOutNumer) / (<i64>8128 * <i64>nnueOutDenom);
+  if (cp > 1_000_000) cp = 1_000_000;
+  else if (cp < -1_000_000) cp = -1_000_000;
+  return <i32>cp;
 }
 
 /** NNUE eval micro-bench: run nnueEvaluate() `iters` times inside the module. */

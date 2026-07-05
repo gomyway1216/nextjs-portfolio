@@ -115,6 +115,75 @@ export function makeDummyWeights(seed: number): Uint8Array {
 }
 
 // ---------------------------------------------------------------------------
+// Synthetic "material NNUE" weights (sane eval surface for search benches)
+// ---------------------------------------------------------------------------
+
+/** Piece values in units of 32 cp, train.py kind order (FU..RY, OU = 0). */
+export const MATERIAL_VU = [100, 430, 450, 640, 690, 890, 1040, 0, 1200, 1150, 1150, 1150, 1450, 1630].map(
+  (v) => Math.round(v / 32)
+);
+export const MATERIAL_SCALE_K = 600;
+const MAT_THERMO = 6; // h1 thermometer neurons 0..5, windows k = -2..3
+const MAT_H2ROWS = 7; // h2 thermometer rows 0..6
+const MAT_WOUT = 434; // 434 * 600 ≈ 32 * 8128 → cp ≈ 32 * x
+
+/**
+ * Generate a weights.bin whose net computes a PURE MATERIAL evaluation,
+ * exactly representable in the integer pipeline via thermometer coding:
+ *
+ *   x    = Σ ±MATERIAL_VU[kind]  (board + hand features, stm perspective)
+ *   h1_n = clamp(x + 127 - 127k, 0, 127)   k = n-2 ∈ {-2..3}  → Σ h1 = x + 381
+ *   h2_r = clamp(((64·Σh1) - 8128r) >> 6)  r = 0..6           → Σ h2 = Σ h1
+ *   outq = 434·Σh2 - 381·434 = 434·x  →  cp = trunc(434·x·600/8128) ≈ 32x
+ *
+ * linear for |x| ≤ 381 (≈ ±12,000 cp — saturates only in hopeless positions).
+ * The random dummy weights destroy move ordering / pruning, so search-depth
+ * numbers on them are meaningless; these weights provide a sane surface whose
+ * cost profile is identical (same architecture, same inference path).
+ */
+export function makeMaterialWeights(): Uint8Array {
+  const bytes = new Uint8Array(NNUE_LAYOUT.totalBytes);
+  const w = weightsFromBuffer(bytes.buffer);
+  for (let plane = 0; plane < 28; plane++) {
+    const v = (plane < 14 ? 1 : -1) * MATERIAL_VU[plane % 14];
+    if (v === 0) continue; // kings
+    for (let sq = 0; sq < 81; sq++) {
+      const base = (plane * 81 + sq) * NNUE_H1;
+      for (let n = 0; n < MAT_THERMO; n++) w.w1Board[base + n] = v;
+    }
+  }
+  for (let i = 0; i < NNUE_HAND_FEATS; i++) {
+    const v = (i < 7 ? 1 : -1) * MATERIAL_VU[i % 7];
+    for (let n = 0; n < MAT_THERMO; n++) w.w1Hand[i * NNUE_H1 + n] = v;
+  }
+  for (let n = 0; n < MAT_THERMO; n++) w.b1[n] = 127 - 127 * (n - 2);
+  for (let r = 0; r < MAT_H2ROWS; r++) {
+    for (let n = 0; n < MAT_THERMO; n++) w.w2[r * NNUE_H1 + n] = 64;
+    w.b2[r] = -8128 * r;
+    w.w3[r] = MAT_WOUT;
+  }
+  w.b3[0] = -381 * MAT_WOUT;
+  return bytes;
+}
+
+/**
+ * Expected cp of the material net on a position (exact in the linear range) —
+ * lets the bench self-check the thermometer construction end to end.
+ */
+export function materialCpReference(pos: NnuePosition): number {
+  const feats = extractFeatures(pos);
+  let x = 0;
+  for (const f of feats.boardFeats) {
+    const plane = Math.floor(f / 81);
+    x += (plane < 14 ? 1 : -1) * MATERIAL_VU[plane % 14];
+  }
+  for (let i = 0; i < NNUE_HAND_FEATS; i++) {
+    x += (i < 7 ? 1 : -1) * MATERIAL_VU[i % 7] * feats.hands[i];
+  }
+  return Math.trunc((MAT_WOUT * x * MATERIAL_SCALE_K) / 8128);
+}
+
+// ---------------------------------------------------------------------------
 // Feature extraction (== ml/train.py parse_sfen, from the engine board rep)
 // ---------------------------------------------------------------------------
 

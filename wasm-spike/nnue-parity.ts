@@ -12,6 +12,15 @@
  *   4. with setNnueEnabled(1), searchBestMove returns a legal move, and with
  *      the flag back to 0 the classic leaf eval still bit-matches JS
  *      evaluateV3Full (i.e. the default path is untouched)
+ *   5. DIFFERENTIAL ACCUMULATORS: over seeded random self-play driven through
+ *      applyMove (incremental path, no per-move re-sync), on 1200+ positions:
+ *      the incrementally-updated accumulators bit-match a from-scratch rebuild
+ *      (after the make path AND after countLegalMoves' make/unmake churn), and
+ *      nnueEvaluateFast() == nnueEvaluate() == TS intForward()
+ *   6. SEARCH EQUIVALENCE: fixed-depth NNUE searches with the differential
+ *      path vs the force-full-recompute path return identical bestMove /
+ *      score / nodes / leaves, and the accumulators are still in sync after
+ *      the search's make/unmake storm
  *
  * Usage: node -r tsx/cjs wasm-spike/nnue-parity.ts
  */
@@ -55,9 +64,17 @@ interface ShogiNnueWasm {
   getNnueWeightsSize(): number;
   setNnueEnabled(flag: number): void;
   setNnueScaleK(k: number): void;
+  setNnueForceFull(flag: number): void;
   nnueEvaluate(): number;
+  nnueEvaluateFast(): number;
   nnueEvaluateCp(): number;
+  nnueAccMismatch(): number;
+  nnueRefreshAccumulators(): void;
   benchNnueEvaluate(iters: number): number;
+  getSearchScore(): number;
+  getSearchDepth(): number;
+  getSearchNodes(): number;
+  getSearchLeaves(): number;
 }
 
 const wasmBytes = readFileSync(
@@ -235,4 +252,157 @@ console.log('\n=== NNUE-enabled search smoke test ===');
   console.log('classic evaluateV3Full path still deterministic after toggling ✓');
 }
 
-console.log(`\nALL NNUE PARITY CHECKS PASSED — ${compared} positions, AS == TS bit-exact`);
+// ---------------------------------------------------------------------------
+// Differential accumulator parity: incremental make/unmake vs full rebuild
+// ---------------------------------------------------------------------------
+//
+// Unlike the section above (which re-syncs + rebuilds per position), this one
+// drives the WASM position incrementally through applyMove, so any drift in
+// the differential accumulator updates accumulates and gets caught.
+
+const TARGET_DIFF = 1200;
+console.log(`\n=== NNUE differential accumulator parity: ${TARGET_DIFF}+ positions ===`);
+wasm.setNnueEnabled(1);
+let diffCompared = 0;
+let diffCaptures = 0;
+let diffDrops = 0;
+let diffPromos = 0;
+let diffGote = 0;
+outerDiff: for (let game = 0; diffCompared < TARGET_DIFF; game++) {
+  const rnd = mulberry32(0xd1ff00 + game * 104729);
+  const k = new KyokumenImproved();
+  k.initHirate();
+  syncWasm(k); // finalizePosition rebuilds the accumulators
+  for (let ply = 0; ply < 140; ply++) {
+    const moves = GenerateMovesImproved.generateLegalMoves(k);
+    if (moves.length === 0) break;
+    const te = moves[Math.floor(rnd() * moves.length)];
+    te.capture = k.get(te.to);
+    k.move(te);
+    k.toggleTeban();
+    wasm.applyMove(te.koma, te.from, te.to, te.promote ? 1 : 0);
+
+    const label = `diff game ${game}, ply ${ply + 1}`;
+    const errors: string[] = [];
+
+    // (a) accumulators after the incremental make == fresh rebuild
+    const mismMake = wasm.nnueAccMismatch();
+    if (mismMake !== 0) errors.push(`acc mismatch after applyMove: ${mismMake}/512 entries`);
+
+    // (b) unmake path: countLegalMoves make/unmakes every legal move
+    wasm.countLegalMoves();
+    const mismUnmake = wasm.nnueAccMismatch();
+    if (mismUnmake !== 0)
+      errors.push(`acc mismatch after countLegalMoves churn: ${mismUnmake}/512 entries`);
+
+    // (c) fast eval == full recompute == TS reference (out_q + cp)
+    const fast = wasm.nnueEvaluateFast() | 0;
+    const full = wasm.nnueEvaluate() | 0;
+    const feats = extractFeatures(k);
+    const tsOutQ = intForward(refWeights, feats) | 0;
+    const cp = wasm.nnueEvaluateCp() | 0; // uses the fast path (nnue enabled)
+    const tsCp = outQToCp(tsOutQ, SCALE_K) | 0;
+    if (fast !== full) errors.push(`out_q: fast=${fast} full=${full}`);
+    if (fast !== tsOutQ) errors.push(`out_q: fast=${fast} TS=${tsOutQ}`);
+    if (cp !== tsCp) errors.push(`cp(fast path)=${cp} TS=${tsCp}`);
+
+    if (errors.length > 0) {
+      console.error(`\nNNUE DIFFERENTIAL MISMATCH at ${label}:`);
+      for (const e of errors) console.error(`  - ${e}`);
+      process.exit(1);
+    }
+
+    diffCompared++;
+    if (te.capture !== 0) diffCaptures++;
+    if (te.from === 0) diffDrops++;
+    if (te.promote) diffPromos++;
+    if (k.teban === GOTE) diffGote++;
+    if (diffCompared >= TARGET_DIFF) break outerDiff;
+  }
+}
+wasm.setNnueEnabled(0);
+console.log(
+  `differential: ${diffCompared}/${diffCompared} positions — acc == rebuild (make + unmake), ` +
+    `fast == full == TS; moves: ${diffCaptures} captures, ${diffDrops} drops, ` +
+    `${diffPromos} promotions, ${diffGote} with GOTE to move`
+);
+if (diffCaptures === 0 || diffDrops === 0 || diffPromos === 0 || diffGote === 0) {
+  console.error('SELF-CHECK FAILED: differential coverage is vacuous (some move kind never hit)');
+  process.exit(1);
+}
+
+// ---------------------------------------------------------------------------
+// Search equivalence: differential fast path vs forced full recompute
+// ---------------------------------------------------------------------------
+
+console.log('\n=== NNUE search equivalence: fast (differential) vs full recompute ===');
+{
+  const rnd = mulberry32(0xfeed42);
+  const k = new KyokumenImproved();
+  k.initHirate();
+  const snapshots = [16, 28, 40, 52];
+  const tests: Array<{ label: string; k: KyokumenImproved; tesu: number }> = [];
+  for (let ply = 0; ply < snapshots[snapshots.length - 1]; ply++) {
+    const moves = GenerateMovesImproved.generateLegalMoves(k);
+    if (moves.length === 0) break;
+    const te = moves[Math.floor(rnd() * moves.length)];
+    te.capture = k.get(te.to);
+    k.move(te);
+    k.toggleTeban();
+    const tesu = ply + 1;
+    if (snapshots.includes(tesu) && GenerateMovesImproved.generateLegalMoves(k).length > 0) {
+      tests.push({ label: `ply${tesu}`, k: k.clone(), tesu });
+    }
+  }
+
+  const DEPTH = 5;
+  for (const t of tests) {
+    wasm.setNnueEnabled(1);
+
+    // Run 1: forced full recompute at every leaf (reference).
+    wasm.setNnueForceFull(1);
+    syncWasm(t.k);
+    wasm.clearTT();
+    wasm.setRootTesu(t.tesu);
+    const keyFull = wasm.searchBestMove(0, DEPTH, 8);
+    const scoreFull = wasm.getSearchScore();
+    const nodesFull = wasm.getSearchNodes();
+    const leavesFull = wasm.getSearchLeaves();
+
+    // Run 2: differential accumulator fast path.
+    wasm.setNnueForceFull(0);
+    syncWasm(t.k);
+    wasm.clearTT();
+    wasm.setRootTesu(t.tesu);
+    const keyFast = wasm.searchBestMove(0, DEPTH, 8);
+    const scoreFast = wasm.getSearchScore();
+    const nodesFast = wasm.getSearchNodes();
+    const leavesFast = wasm.getSearchLeaves();
+
+    // Accumulators must survive the search's make/unmake storm in sync.
+    const mism = wasm.nnueAccMismatch();
+    wasm.setNnueEnabled(0);
+
+    if (
+      keyFull !== keyFast ||
+      scoreFull !== scoreFast ||
+      nodesFull !== nodesFast ||
+      leavesFull !== leavesFast ||
+      mism !== 0
+    ) {
+      console.error(`NNUE SEARCH EQUIVALENCE FAILED at ${t.label} (depth ${DEPTH}):`);
+      console.error(`  full: key=${keyFull} score=${scoreFull} nodes=${nodesFull} leaves=${leavesFull}`);
+      console.error(`  fast: key=${keyFast} score=${scoreFast} nodes=${nodesFast} leaves=${leavesFast}`);
+      console.error(`  acc mismatch after search: ${mism}`);
+      process.exit(1);
+    }
+    console.log(
+      `${t.label} d${DEPTH}: fast == full (key=${keyFast} score=${scoreFast} ` +
+        `nodes=${nodesFast} leaves=${leavesFast}), acc in sync after search ✓`
+    );
+  }
+}
+
+console.log(
+  `\nALL NNUE PARITY CHECKS PASSED — ${compared} recompute + ${diffCompared} differential positions, AS == TS bit-exact`
+);

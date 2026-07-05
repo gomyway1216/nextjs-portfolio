@@ -173,7 +173,8 @@ WASM ハイブリッド vs JS V20、各手 200ms、curated opening 6手、10局�
 - **整数演算**: `export-weights.py int_forward` とビット一致 — `acc = b1 + Σw1_board[feat] + Σw1_hand[i]*count[i]`（i32）→ `clamp(0,127)` → `h2 = clamp((w2@h1 + b2)>>6, 0,127)` → `out_q = w3@h2 + b3`。cp 変換は `trunc(out_q * K / 8128)`（i64 経由、K は `weights.meta.json` の k_sigmoid、デフォルト 600）。
 - **重みロード**: `getNnueWeightsPtr()` が指す WASM メモリ静的領域（1,185,988 bytes）へ `weights.bin` をそのまま memcpy（レイアウト同一、再パック不要）。`getNnueWeightsSize()` でサイズ検証、`setNnueScaleK(k)` で K 設定。
 - **探索統合**: `setNnueEnabled(1)` で探索の葉評価（`evaluateSenteCached`）が `nnueEvaluateCp()`（SENTE 視点へ符号調整、evaluateV3Full と同じ規約）に切替わる。NNUE は手番依存のため eval キャッシュキーに手番シードを含める。`setNnueEnabled(0)`（デフォルト）で従来の `evaluateV3Full`。
-- **exports**: `getNnueWeightsPtr/Size`, `setNnueEnabled`, `setNnueScaleK`, `nnueEvaluate()`（raw out_q, int_forward とビット一致）, `nnueEvaluateCp()`, `benchNnueEvaluate(iters)`。差分更新関連: `nnueEvaluateFast()`, `nnueRefreshAccumulators()`, `nnueAccMismatch()`, `setNnueForceFull(flag)`, `getNnueEvalCount()/resetNnueEvalCount()`, `benchNnueEvaluateFast(iters)`。
+- **出力スケール適応**: `setNnueOutputScale(numer, denom)`（デフォルト 1/1 = 従来とビット一致）。探索定数（ASPIRATION_WINDOW=300 / futility 350,700 / delta 150 / RFP 200·d など）は evaluateV3Full のスケール（≈3.7×真 cp、教師フィット cp≈0.27·v3）前提なので、真の cp を出す NNUE では 37/10 を設定して**評価出力側を V3 スケールに揃える**（案A。マージン定数一式を 1/3.7 に切り替える案Bより変更が一箇所で済み、mate 境界等の他の定数とも整合する）。cp 変換の i64 除算に numer/denom を折り込み（truncation は 1 回のみ）、±1,000,000 でクランプ（mate 窓 `S_MATE−10_000` から十分遠く、デフォルトスケールでは到達不能）。スケール変更時は eval キャッシュを無効化。
+- **exports**: `getNnueWeightsPtr/Size`, `setNnueEnabled`, `setNnueScaleK`, `setNnueOutputScale`, `nnueEvaluate()`（raw out_q, int_forward とビット一致）, `nnueEvaluateCp()`, `benchNnueEvaluate(iters)`。差分更新関連: `nnueEvaluateFast()`, `nnueRefreshAccumulators()`, `nnueAccMismatch()`, `setNnueForceFull(flag)`, `getNnueEvalCount()/resetNnueEvalCount()`, `benchNnueEvaluateFast(iters)`。
 
 ### 差分アキュムレータ（NNUE 高速化）
 
@@ -237,8 +238,31 @@ node -r tsx/cjs wasm-spike/nnue-verify-reference.ts <weights.bin> <reference.jso
 
 ```sh
 # A/B 対戦ハーネス（両側 WASM、片側だけ NNUE）
-node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--games 16] [--ms 200] [--seed 1] [--k 600]
+node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--games 16] [--ms 200] [--seed 1] [--k 600] \
+  [--scale-numer 1] [--scale-denom 1]   # 37/10 = NNUE cp を V3 スケールへ校正
 ```
+
+### スケール適応の単離測定（2026-07-04、setNnueOutputScale 37/10 — 回復せず）
+
+第1サイクル敗因仮説②（探索マージンのスケール不整合）を単離して測るため、同じ run100k
+重み（K=600）に **出力校正 37/10 だけ**を適用して同条件（同 seed・同 opening 方式）で再戦した。
+探索定数・重み・ハーネスの他の条件は一切不変。校正が探索に効いていることは事前に確認済み
+（初期局面 cp 73 → 273、固定深さ d5 で bestMove・nodes が変化）。
+
+| 条件 | 第1サイクル（無校正） | 第2サイクル（37/10 校正） |
+|---|---|---|
+| 200ms×16局 seed1 | 2勝14敗0分（12.5%） | 1勝14敗1分（9.4%） |
+| 1000ms×6局 seed2 | 1勝5敗0分（16.7%） | 0勝6敗0分（0.0%） |
+| 1000ms×6局 seed3 | 2勝3敗1分（41.7%） | 1勝5敗0分（16.7%） |
+| **合計** | **5.5/28（19.6%）** | **2.5/28（8.9%）** |
+
+全 2,620 手合法。**判定: スケール適応単独では回復しない**（−10.7pt。n=28 なので統計的な
+断定はできないが、少なくとも「マージン不整合が主因で、直せば大きく回復する」仮説は棄却）。
+解釈: 無校正だと実効マージンが ~3.7 倍緩く、枝刈りが浅い分だけノイズの多い評価値を追加探索で
+検証していたのが、校正で本来の強度に締まると MAE ≈ 405cp のノイズがそのまま枝刈り判断に乗る
+—— 敗因は仮説①（評価ノイズが指し手ランキングを破壊）が支配的で、教師データの質・量が本丸。
+機構自体（`setNnueOutputScale`）は検証済みで残す: 強い重みができた時に探索定数側を触らず
+1 呼び出しでスケールを揃えられる。
 
 ## 省略したもの（caveats）
 

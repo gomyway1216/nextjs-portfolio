@@ -624,14 +624,14 @@ Then the games. Screening (3 models × 22 games) eliminated rank10; the two fina
 
 Production the same day. The design: aggressive switch, defensive depth:
 
-- The weights (1,185,988 bytes of int16) ship as a static asset (`public/shogi-nnue-weights.bin`), fetched asynchronously at worker startup and copied into WASM memory. **Zero bundle-size increase.** Until the fetch resolves, the engine plays on V3 as before (the first moves come from the book anyway)
+- The weights (1,185,988 bytes — int16 weight matrices plus int32 biases) ship as a static asset (`public/shogi-nnue-weights.bin`), fetched asynchronously at worker startup and copied into WASM memory. **Zero bundle-size increase.** Until the fetch resolves, the engine plays on V3 as before (the first moves come from the book anyway)
 - **Only medium and up (≥1s) use NNUE.** Easy (250ms) stays on V3 — following the measurement that V3 still wins at ~200ms budgets (NNUE 40.9%). The time-control asymmetry observed throughout cycle 2 — deep search compounds ordering accuracy, shallow search leans on score calibration — landed directly in the difficulty design
 - Fetch failure, size mismatch, or WASM trouble all fall back silently to V3. Yesterday's production path is today's insurance
 - Switching NNUE⇔V3 clears the TT (so V3's ~3.7x-scale scores never mix with true-cp scores inside the table)
 
 The review bot earned its keep once more — six findings including a **production-only trap** ("workers loaded via blob URLs break root-relative fetches"), all addressed. After deploy, we verified the weights served from the production URL are SHA1-identical to the repo file. Shipped.
 
-**The "values" of the medium-and-up AI on meetyudai.com are, as of today, not seven months of handwritten rules — they are 580,000 numbers distilled overnight from a million of YaneuraOu's judgments.**
+**The "values" of the medium-and-up AI on meetyudai.com are, as of today, not seven months of handwritten rules — they are some 590,000 numbers distilled overnight from a million of YaneuraOu's judgments.**
 
 ### The strength genealogy (a chain of measurements)
 

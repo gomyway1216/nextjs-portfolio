@@ -113,6 +113,22 @@ ml/venv/bin/python ml/train.py --data ml/data/teacher.jsonl --out ml/runs/run1 -
 - 出力: `runs/<name>/best.pt`, `last.pt`, 学習曲線 `curve.csv`
   (epoch, train_loss, val_loss, val_mae_cp, lr, sec)。
 - 主なオプション: `--epochs` `--batch 256` `--lr 1e-3` `--k 600` `--val-ratio 0.1` `--limit N`
+- **特徴量 (`--features`)**: `board` (既定, 2282次元) / `kp` (縮約King-Piece: 自玉位置を
+  6バケットに量子化し盤面/持ち駒テーブルをバケット毎に複製, 13692次元) /
+  `kp-factor` (同特徴の分解学習: `w1[b][f] = w_shared[f] + w_delta[b][f]`, 本家NNUEの
+  factorizer 定石。エクスポート時に合成されるので推論形式は `kp` と同一)。
+  バケット定義は `kp_bucket()` (WASM/TS 側と厳密一致必須)。
+  第3サイクルの結果 (教師1Mでは base を上回れず、本番不採用) は
+  `ml/data/training-report-3.md` 参照。
+
+### ホールドアウト比較 (eval-holdout.py)
+
+複数チェックポイントを共通ホールドアウトで比較する (MAE / median / pair_acc / |cp|バケット別 MAE):
+
+```sh
+ml/venv/bin/python ml/eval-holdout.py --data ml/data/holdout-1m-4k.jsonl \
+    --ckpt base=ml/runs/run1m-base/best.pt kp6=ml/runs/run1m-kpf/best.pt
+```
 
 ---
 

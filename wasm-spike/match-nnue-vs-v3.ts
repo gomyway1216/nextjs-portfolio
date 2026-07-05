@@ -16,12 +16,18 @@
  *
  * Usage:
  *   node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> \
- *     [--games 16] [--ms 200] [--seed 1] [--k 600] \
+ *     [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] \
  *     [--scale-numer 1] [--scale-denom 1]
+ *
+ * --vs <weights.bin> replaces the V3 side with a SECOND NNUE instance loaded
+ * from that file (direct NNUE-vs-NNUE A/B; side A = first positional arg,
+ * side B = --vs). Both formats (original 1,185,988 B / reduced-KP 7,027,908 B)
+ * are auto-detected from the file size, independently per side.
  *
  * --scale-numer/--scale-denom rescale the NNUE cp output before it enters the
  * search (setNnueOutputScale). Use 37/10 to map true centipawns onto the
  * evaluateV3Full scale (~3.7x cp) that the search margins were tuned for.
+ * (Applies to side A, and to side B when --vs is given.)
  */
 
 import { readFileSync } from 'node:fs';
@@ -29,12 +35,15 @@ import { readFileSync } from 'node:fs';
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
 import { EMPTY, FU, GOTE, OU, SENTE, Te, getKomashu } from '../src/components/game/ShogiImproved/types';
+import { bucketsForByteLength } from './nnue-ref';
 import { loadShogiWasm, syncWasm, teFromWasmKey, type ShogiSearchWasm } from './search-driver';
 
 interface ShogiNnueSearchWasm extends ShogiSearchWasm {
   memory: WebAssembly.Memory;
   getNnueWeightsPtr(): number;
   getNnueWeightsSize(): number;
+  setNnueBuckets(buckets: number): void;
+  getNnueBuckets(): number;
   setNnueScaleK(k: number): void;
   setNnueOutputScale(numer: number, denom: number): void;
   setNnueEnabled(flag: number): void;
@@ -48,13 +57,22 @@ function argNum(flag: string, def: number): number {
   return n;
 }
 
+function argStr(flag: string): string | null {
+  const i = process.argv.indexOf(flag);
+  if (i < 0) return null;
+  const v = process.argv[i + 1];
+  if (!v || v.startsWith('--')) throw new Error(`${flag} requires a value`);
+  return v;
+}
+
 const weightsPath = process.argv[2];
 if (!weightsPath || weightsPath.startsWith('--')) {
   console.error(
-    'usage: node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1]'
+    'usage: node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--vs otherWeights.bin] [--games 16] [--ms 200] [--seed 1] [--k 600] [--scale-numer 1] [--scale-denom 1]'
   );
   process.exit(2);
 }
+const weightsPathB = argStr('--vs');
 const GAMES = argNum('--games', 16);
 const MOVE_MS = argNum('--ms', 200);
 const SEED_BASE = argNum('--seed', 1);
@@ -208,31 +226,47 @@ function playOneGame(nnue: WasmPlayer, v3: WasmPlayer, nnueIsSente: boolean, ope
 
 // ---------------------------------------------------------------------------
 
+/** Load a weights.bin (either format, auto-detected) into a WASM instance and enable NNUE. */
+function setupNnueInstance(wasm: ShogiNnueSearchWasm, path: string, label: string): number {
+  const weightsBin = readFileSync(path);
+  const buckets = bucketsForByteLength(weightsBin.byteLength); // throws on unknown sizes
+  wasm.setNnueBuckets(buckets);
+  if (weightsBin.byteLength !== wasm.getNnueWeightsSize()) {
+    console.error(
+      `${label}: weights.bin size mismatch: file=${weightsBin.byteLength} wasm=${wasm.getNnueWeightsSize()}`
+    );
+    process.exit(1);
+  }
+  new Uint8Array(wasm.memory.buffer, wasm.getNnueWeightsPtr(), weightsBin.byteLength).set(weightsBin);
+  wasm.setNnueScaleK(SCALE_K);
+  wasm.setNnueOutputScale(SCALE_NUMER, SCALE_DENOM);
+  wasm.setNnueEnabled(1);
+  return buckets;
+}
+
 function main(): void {
   // Instance A: NNUE with real trained weights.
   const wasmA = loadShogiWasm() as ShogiNnueSearchWasm;
-  const weightsBin = readFileSync(weightsPath);
-  if (weightsBin.byteLength !== wasmA.getNnueWeightsSize()) {
-    console.error(`weights.bin size mismatch: file=${weightsBin.byteLength} wasm=${wasmA.getNnueWeightsSize()}`);
-    process.exit(1);
-  }
-  new Uint8Array(wasmA.memory.buffer, wasmA.getNnueWeightsPtr(), weightsBin.byteLength).set(weightsBin);
-  wasmA.setNnueScaleK(SCALE_K);
-  wasmA.setNnueOutputScale(SCALE_NUMER, SCALE_DENOM);
-  wasmA.setNnueEnabled(1);
+  const bucketsA = setupNnueInstance(wasmA, weightsPath, 'A');
 
-  // Instance B: stock hand-crafted evaluateV3Full (NNUE stays disabled).
+  // Instance B: second NNUE (--vs) or the stock hand-crafted evaluateV3Full.
   const wasmB = loadShogiWasm() as ShogiNnueSearchWasm;
+  let bNname = 'V3';
+  if (weightsPathB) {
+    const bucketsB = setupNnueInstance(wasmB, weightsPathB, 'B');
+    bNname = `NNUE-B(buckets=${bucketsB})`;
+  }
 
-  const nnuePlayer = new WasmPlayer('NNUE', wasmA);
-  const v3Player = new WasmPlayer('V3', wasmB);
+  const nnuePlayer = new WasmPlayer(weightsPathB ? `NNUE-A(buckets=${bucketsA})` : 'NNUE', wasmA);
+  const v3Player = new WasmPlayer(bNname, wasmB);
 
   let nnueWins = 0;
   let v3Wins = 0;
   let draws = 0;
 
   console.log(
-    `=== match: WASM+NNUE(real weights, K=${SCALE_K}, outScale=${SCALE_NUMER}/${SCALE_DENOM}) vs WASM+V3 — ${GAMES} games, ${MOVE_MS}ms/move, ` +
+    `=== match: WASM+NNUE-A(${weightsPath}, buckets=${bucketsA}, K=${SCALE_K}, outScale=${SCALE_NUMER}/${SCALE_DENOM}) ` +
+      `vs ${weightsPathB ? `WASM+NNUE-B(${weightsPathB})` : 'WASM+V3'} — ${GAMES} games, ${MOVE_MS}ms/move, ` +
       `opening ${OPENING_PLIES} plies (seed base ${SEED_BASE}), no book / no mate solver ===`
   );
 
@@ -251,7 +285,7 @@ function main(): void {
       const nnueWon = nnueIsSente ? result.winner === SENTE : result.winner === GOTE;
       if (nnueWon) nnueWins++;
       else v3Wins++;
-      summary = `WIN ${nnueWon ? 'NNUE' : 'V3'} (${result.reason}, ${result.winner === SENTE ? 'SENTE' : 'GOTE'})`;
+      summary = `WIN ${nnueWon ? nnuePlayer.name : v3Player.name} (${result.reason}, ${result.winner === SENTE ? 'SENTE' : 'GOTE'})`;
     } else {
       draws++;
       summary = `DRAW (${result.reason})`;
@@ -263,9 +297,11 @@ function main(): void {
 
   const decisive = nnueWins + v3Wins;
   const score = nnueWins + draws / 2;
-  console.log(`\nresult: NNUE ${nnueWins} wins / V3 ${v3Wins} wins / ${draws} draws (all ${movesChecked} moves legal)`);
   console.log(
-    `NNUE score: ${score}/${GAMES} (${((score / GAMES) * 100).toFixed(1)}%)` +
+    `\nresult: ${nnuePlayer.name} ${nnueWins} wins / ${v3Player.name} ${v3Wins} wins / ${draws} draws (all ${movesChecked} moves legal)`
+  );
+  console.log(
+    `${nnuePlayer.name} score: ${score}/${GAMES} (${((score / GAMES) * 100).toFixed(1)}%)` +
       (decisive > 0 ? `, decisive-only: ${nnueWins}/${decisive} (${((nnueWins / decisive) * 100).toFixed(1)}%)` : '')
   );
 }

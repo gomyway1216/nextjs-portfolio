@@ -171,10 +171,11 @@ WASM ハイブリッド vs JS V20、各手 200ms、curated opening 6手、10局�
 
 - **特徴変換**: `train.py parse_sfen` と同一仕様を盤面表現（`ban[(suji<<4)+dan]`）から直接計算。手番側視点に正規化（後手番は盤 180 度回転＋色入替）、28 プレーン×81 マスの one-hot index ＋ 持ち駒 14 次元（自分 7 / 相手 7、FU..HI 順）。python `parse_sfen` との一致はスクリプト照合済み（成駒・持駒・後手番回転含む）。
 - **整数演算**: `export-weights.py int_forward` とビット一致 — `acc = b1 + Σw1_board[feat] + Σw1_hand[i]*count[i]`（i32）→ `clamp(0,127)` → `h2 = clamp((w2@h1 + b2)>>6, 0,127)` → `out_q = w3@h2 + b3`。cp 変換は `trunc(out_q * K / 8128)`（i64 経由、K は `weights.meta.json` の k_sigmoid、デフォルト 600）。
-- **重みロード**: `getNnueWeightsPtr()` が指す WASM メモリ静的領域（1,185,988 bytes）へ `weights.bin` をそのまま memcpy（レイアウト同一、再パック不要）。`getNnueWeightsSize()` でサイズ検証、`setNnueScaleK(k)` で K 設定。
+- **重みロード**: `getNnueWeightsPtr()` が指す WASM メモリ静的領域へ `weights.bin` をそのまま memcpy（レイアウト同一、再パック不要）。`getNnueWeightsSize()` でサイズ検証、`setNnueScaleK(k)` で K 設定。
+- **2フォーマット対応（第3サイクル）**: `setNnueBuckets(1|6)` でレイアウト切替。デフォルト 1 = 現行盤面 one-hot（1,185,988 B、従来とビット互換）。6 = **縮約KP**（自玉位置6バケット×盤面/持ち駒テーブル、7,027,908 B、`ml/train.py --features kp|kp-factor` で学習）。静的領域は大きい方（約7MB）で確保するが `memory.data` は data segment を出さないため .wasm バイナリサイズは不変。KP では玉のバケット境界越えでその視点のアキュムレータを盤面から refresh（折り込み済み差分の unmake 時は dirty フラグ→次回評価時に再構築）。ロード側はファイルサイズからフォーマットを自動判別できる（`nnue-ref.ts bucketsForByteLength`）。
 - **探索統合**: `setNnueEnabled(1)` で探索の葉評価（`evaluateSenteCached`）が `nnueEvaluateCp()`（SENTE 視点へ符号調整、evaluateV3Full と同じ規約）に切替わる。NNUE は手番依存のため eval キャッシュキーに手番シードを含める。`setNnueEnabled(0)`（デフォルト）で従来の `evaluateV3Full`。
 - **出力スケール適応**: `setNnueOutputScale(numer, denom)`（デフォルト 1/1 = 従来とビット一致）。探索定数（ASPIRATION_WINDOW=300 / futility 350,700 / delta 150 / RFP 200·d など）は evaluateV3Full のスケール（≈3.7×真 cp、教師フィット cp≈0.27·v3）前提なので、真の cp を出す NNUE では 37/10 を設定して**評価出力側を V3 スケールに揃える**（案A。マージン定数一式を 1/3.7 に切り替える案Bより変更が一箇所で済み、mate 境界等の他の定数とも整合する）。cp 変換の i64 除算に numer/denom を折り込み（truncation は 1 回のみ）、±1,000,000 でクランプ（mate 窓 `S_MATE−10_000` から十分遠く、デフォルトスケールでは到達不能）。スケール変更時は eval キャッシュを無効化。
-- **exports**: `getNnueWeightsPtr/Size`, `setNnueEnabled`, `setNnueScaleK`, `setNnueOutputScale`, `nnueEvaluate()`（raw out_q, int_forward とビット一致）, `nnueEvaluateCp()`, `benchNnueEvaluate(iters)`。差分更新関連: `nnueEvaluateFast()`, `nnueRefreshAccumulators()`, `nnueAccMismatch()`, `setNnueForceFull(flag)`, `getNnueEvalCount()/resetNnueEvalCount()`, `benchNnueEvaluateFast(iters)`。
+- **exports**: `getNnueWeightsPtr/Size`, `setNnueEnabled`, `setNnueBuckets/getNnueBuckets`, `setNnueScaleK`, `setNnueOutputScale`, `nnueEvaluate()`（raw out_q, int_forward とビット一致）, `nnueEvaluateCp()`, `benchNnueEvaluate(iters)`。差分更新関連: `nnueEvaluateFast()`, `nnueRefreshAccumulators()`, `nnueAccMismatch()`, `setNnueForceFull(flag)`, `getNnueEvalCount()/resetNnueEvalCount()`, `benchNnueEvaluateFast(iters)`。
 
 ### 差分アキュムレータ（NNUE 高速化）
 
@@ -185,7 +186,7 @@ WASM ハイブリッド vs JS V20、各手 200ms、curated opening 6手、10局�
 - **差分のケース分け**（1手 = fused sub/add パス 1〜2 回/acc）: 移動 = `-駒@from, +配置駒@to`（成りは配置駒が成駒）／打ち = `持駒行 -1, +駒@to`／捕獲 = さらに `-被捕獲駒@to, +持駒行(捕獲側, 生駒種) +1`。持ち駒特徴は count×重みで、1手あたりの増減は必ず ±1 なので行の加減算そのもの。
 - **スパース第2層**: 高速パスは h1 が ClippedReLU 後（多くが 0）であることを利用し、`w2` の転置コピー（列単位アクセス、`nnueRefreshAccumulators()` で再構築）で非ゼロ活性だけを積む。i32 加算は mod 2^32 で可換・結合的なので dense 版 / int_forward と**ビット一致**。
 - **リビルド**: `setNnueEnabled(1)` と `finalizePosition()`（局面ロード）で acc と w2 転置をフル再構築。pending スタック溢れ（実際は到達不能）時はフル再計算へフォールバック（遅くなるだけで常に正しい）。
-- **検証**（nnue-parity.ts に統合）: ① `applyMove` 駆動の自己対局 **1,200 局面**で「差分更新後 acc == フルリビルド acc」（make 直後 + `countLegalMoves` の make/unmake 撹拌後の両方）かつ `nnueEvaluateFast() == nnueEvaluate() == TS int_forward` をビット一致で確認（捕獲 148 / 打ち 120 / 成り 34 / 後手番 601 を含む）。② `setNnueForceFull(1)`（葉評価だけフル再計算に切替、探索木は不変）との**固定深さ探索一致** — bestMove・score・nodes・leaves 完全一致、探索後も acc がフルリビルドと一致。
+- **検証**（nnue-parity.ts に統合、**buckets=1 / buckets=6 の両フォーマットでフルスイート実行**）: ① `applyMove` 駆動の自己対局 **1,200 局面**で「差分更新後 acc == フルリビルド acc」（make 直後 + `countLegalMoves` の make/unmake 撹拌後の両方）かつ `nnueEvaluateFast() == nnueEvaluate() == TS int_forward` をビット一致で確認（捕獲/打ち/成り/後手番に加え、KP では玉移動 126 回・うち**バケット境界越え 87 回 = refresh 経路**をカバレッジ必須条件として検証）。② `setNnueForceFull(1)`（葉評価だけフル再計算に切替、探索木は不変）との**固定深さ探索一致** — bestMove・score・nodes・leaves 完全一致、探索後も acc がフルリビルドと一致。
 
 ### 検証
 

@@ -3,12 +3,27 @@
 
 依存: PyTorch のみ (numpy 不要)。
 
-入力特徴 (手番側視点, 計2282次元):
+入力特徴 (手番側視点, --features board で計2282次元):
   - 盤面: 28プレーン x 81マス = 2268 (one-hot)
       プレーン 0..13  = 手番側の駒 (FU,KY,KE,GI,KI,KA,HI,OU,TO,NY,NK,NG,UM,RY)
       プレーン 14..27 = 相手側の駒 (同順)
       マス index = (suji-1)*9 + (dan-1)   ※後手番のときは盤を180度回転して手番側視点に正規化
   - 持ち駒: 手番側 7種 + 相手側 7種 = 14 (枚数そのまま, float)
+
+KP風特徴 (--features kp): 自玉(手番側の玉)位置を KP_BUCKETS=6 バケットに量子化し、
+盤面/持ち駒の全特徴をバケット毎に別テーブル化する (縮約 King-Piece)。
+  - 盤面: 6バケット x 2268 = 13608 (active は常に≦40)
+  - 持ち駒: 6バケット x 14 = 84 (自玉バケットのセグメントのみ非ゼロ)
+  バケット定義 (手番側視点の自玉 (suji s, dan d)):
+      d<=7: 5 / d==8: s<=4 → 3, s>=5 → 4 / d==9: s==5 → 0, s<=4 → 1, s>=6 → 2
+  (教師データ実測: b0=47.8% b1=6.0% b2=9.7% b3=11.7% b4=18.5% b5=6.1%)
+
+factorized KP (--features kp-factor): 同じ KP 特徴だが、第1層を
+  w1[b][f] = w_shared[f] (通常init) + w_delta[b][f] (ゼロinit)
+に分解して学習する (本家 NNUE 学習器の factorizer と同じ発想)。共通構造は
+全データが押す共有テーブルに載り、バケット別デルタは偏差だけを学ぶので
+テーブル6倍化による過学習を抑える。推論・エクスポート形式は kp と同一
+(エクスポート時に w_shared + w_delta を合成して量子化する)。
 
 ネットワーク: 2282 -> 256 -> 32 -> 1 (全結合, 活性化 ClippedReLU = clamp(x,0,1))
 ターゲット:   y = sigmoid(cp / K)  (cp は手番側視点, K=600, cp は ±3000 にクランプ)
@@ -58,17 +73,38 @@ INPUT_DIM = BOARD_FEATS + HAND_FEATS  # 2282
 PAD_IDX = BOARD_FEATS  # EmbeddingBag の padding 用ダミー index
 MAX_PIECES = 40  # 盤上の駒は最大 40
 
+# --- KP (King-Piece) 縮約バケット -------------------------------------------
+KP_BUCKETS = 6
+
+
+def kp_bucket(s: int, d: int) -> int:
+    """手番側視点の自玉位置 (suji s, dan d) → バケット 0..5。
+
+    実測分布 (teacher-1m 20万局面) でマスを粗く等分:
+      b0 = (5,9) 玉未移動 47.8% / b1 = d9 s1-4 6.0% / b2 = d9 s6-9 9.7%
+      b3 = d8 s1-4 11.7% / b4 = d8 s5-9 18.5% / b5 = d<=7 6.1%
+    """
+    if d <= 7:
+        return 5
+    if d == 8:
+        return 3 if s <= 4 else 4
+    if s == 5:
+        return 0
+    return 1 if s <= 4 else 2
+
 
 def parse_sfen(sfen: str):
-    """SFEN → (board_indices: list[int], hands: list[float](14), stm_black: bool)
+    """SFEN → (board_indices: list[int], hands: list[float](14), stm_black: bool, king_sq: int)
 
     board_indices は手番側視点に正規化済みの active feature index (0..2267)。
+    king_sq は手番側の自玉の正規化済みマス index (s-1)*9+(d-1) (0..80)。玉なしは -1。
     """
     parts = sfen.split()
     board_s, turn_s, hand_s = parts[0], parts[1], parts[2]
     black_to_move = turn_s == "b"
 
     indices = []
+    king_sq = -1
     dan = 1
     for row in board_s.split("/"):
         suji = 9
@@ -99,6 +135,8 @@ def parse_sfen(sfen: str):
                 s, d = 10 - suji, 10 - dan
             plane = kind if mine else kind + 14
             sq = (s - 1) * 9 + (d - 1)
+            if mine and kind == 7:  # 手番側の玉
+                king_sq = sq
             indices.append(plane * NUM_SQ + sq)
             suji -= 1
             i += 1
@@ -123,7 +161,7 @@ def parse_sfen(sfen: str):
             hands[k if mine else k + 7] += n
             i += 1
 
-    return indices, hands, black_to_move
+    return indices, hands, black_to_move, king_sq
 
 
 # ---------------------------------------------------------------------------
@@ -131,12 +169,17 @@ def parse_sfen(sfen: str):
 # ---------------------------------------------------------------------------
 
 
-def load_dataset(path: str, k_sigmoid: float, cp_clamp: int, limit: int = 0):
-    """JSONL → (board_idx (N,40) int64 padded, hands (N,14) float32, y (N,) float32, cp (N,) float32)
+def load_dataset(path: str, k_sigmoid: float, cp_clamp: int, limit: int = 0, features: str = "board"):
+    """JSONL → (board_idx (N,40) int64 padded, hands (N,14) float32, y (N,) float32,
+                cp (N,) float32, bucket (N,) int64)
 
     cp はクランプ後の教師評価値 (手番側視点, cp 単位)。ランキング損失・順位一致率の計算に使う。
+    features="kp" のときは board_idx にバケットオフセット (bucket*2268) を加算済み。
+    bucket は kp 時のみ意味を持つ (board 時は全 0)。
     """
-    board_rows, hand_rows, targets, cps = [], [], [], []
+    kp = features in ("kp", "kp-factor")
+    pad_idx = (KP_BUCKETS * BOARD_FEATS) if kp else PAD_IDX
+    board_rows, hand_rows, targets, cps, buckets = [], [], [], [], []
     n_skipped = 0
     with open(path) as f:
         for line in f:
@@ -149,27 +192,36 @@ def load_dataset(path: str, k_sigmoid: float, cp_clamp: int, limit: int = 0):
                 n_skipped += 1
                 continue
             try:
-                idx, hands, _ = parse_sfen(rec["sfen"])
+                idx, hands, _, king_sq = parse_sfen(rec["sfen"])
                 cp = int(rec["cp"])
             except (KeyError, IndexError, ValueError, TypeError):
                 n_skipped += 1
                 continue
+            bucket = 0
+            if kp:
+                if king_sq < 0:
+                    n_skipped += 1
+                    continue
+                bucket = kp_bucket(king_sq // 9 + 1, king_sq % 9 + 1)
+                idx = [bucket * BOARD_FEATS + f for f in idx]
             cp = max(-cp_clamp, min(cp_clamp, cp))
             y = 1.0 / (1.0 + math.exp(-cp / k_sigmoid))
-            idx = idx[:MAX_PIECES] + [PAD_IDX] * (MAX_PIECES - len(idx))
+            idx = idx[:MAX_PIECES] + [pad_idx] * (MAX_PIECES - len(idx))
             board_rows.append(idx)
             hand_rows.append(hands)
             targets.append(y)
             cps.append(float(cp))
+            buckets.append(bucket)
             if limit and len(targets) >= limit:
                 break
     board = torch.tensor(board_rows, dtype=torch.long)
     hands = torch.tensor(hand_rows, dtype=torch.float32)
     y = torch.tensor(targets, dtype=torch.float32)
     cp_t = torch.tensor(cps, dtype=torch.float32)
+    bucket_t = torch.tensor(buckets, dtype=torch.long)
     if n_skipped:
         print(f"[data] skipped {n_skipped} bad lines")
-    return board, hands, y, cp_t
+    return board, hands, y, cp_t, bucket_t
 
 
 # ---------------------------------------------------------------------------
@@ -178,30 +230,82 @@ def load_dataset(path: str, k_sigmoid: float, cp_clamp: int, limit: int = 0):
 
 
 class DistillNet(nn.Module):
-    """2282 -> 256 -> 32 -> 1, ClippedReLU。
+    """(2282 | KP:13692) -> 256 -> 32 -> 1, ClippedReLU。
 
     第1層は NNUE 風に EmbeddingBag(盤面 one-hot の和) + Linear(持ち駒) で表現する。
-    数学的には Linear(2282, 256) と等価で、エクスポート時に結合する。
+    数学的には Linear(入力次元, 256) と等価で、エクスポート時に結合する。
+    features="kp" では盤面/持ち駒とも自玉バケット (KP_BUCKETS=6) 毎の別テーブル。
     """
 
     H1 = 256
     H2 = 32
 
-    def __init__(self):
+    def __init__(self, features: str = "board"):
         super().__init__()
-        self.board = nn.EmbeddingBag(BOARD_FEATS + 1, self.H1, mode="sum", padding_idx=PAD_IDX)
-        self.hand = nn.Linear(HAND_FEATS, self.H1)  # bias が第1層の bias を兼ねる
+        self.features = features
+        self.kp = features in ("kp", "kp-factor")
+        self.factored = features == "kp-factor"
+        nb = KP_BUCKETS if self.kp else 1
+        self.board_feats = nb * BOARD_FEATS
+        self.hand_feats = nb * HAND_FEATS
+        self.pad_idx = self.board_feats
+        self.board = nn.EmbeddingBag(self.board_feats + 1, self.H1, mode="sum", padding_idx=self.pad_idx)
+        self.hand = nn.Linear(self.hand_feats, self.H1)  # bias が第1層の bias を兼ねる
         self.l2 = nn.Linear(self.H1, self.H2)
         self.l3 = nn.Linear(self.H2, 1)
-        nn.init.normal_(self.board.weight, std=0.01)
-        with torch.no_grad():
-            self.board.weight[PAD_IDX].zero_()
+        if self.factored:
+            # 分解学習: board/hand はゼロ初期化のバケット別デルタになり、
+            # 共通構造は共有テーブル board_shared/hand_shared が学ぶ。
+            self.board_shared = nn.EmbeddingBag(BOARD_FEATS + 1, self.H1, mode="sum", padding_idx=BOARD_FEATS)
+            self.hand_shared = nn.Linear(HAND_FEATS, self.H1, bias=False)
+            nn.init.normal_(self.board_shared.weight, std=0.01)
+            with torch.no_grad():
+                self.board_shared.weight[BOARD_FEATS].zero_()
+                self.board.weight.zero_()
+                self.hand.weight.zero_()
+        else:
+            nn.init.normal_(self.board.weight, std=0.01)
+            with torch.no_grad():
+                self.board.weight[self.pad_idx].zero_()
 
-    def forward(self, board_idx, hands):
+    def expand_hands(self, hands, bucket):
+        """(B,14) + bucket (B,) → (B, KP_BUCKETS*14): 自玉バケットのセグメントのみ非ゼロ。"""
+        b = hands.shape[0]
+        out = hands.new_zeros(b, self.hand_feats)
+        out.view(b, KP_BUCKETS, HAND_FEATS)[torch.arange(b, device=hands.device), bucket] = hands
+        return out
+
+    def forward(self, board_idx, hands, bucket=None):
+        hands14 = hands
+        if self.kp:
+            hands = self.expand_hands(hands, bucket)
         a1 = self.board(board_idx) + self.hand(hands)
+        if self.factored:
+            # 共有テーブル: バケットオフセットを剥がした素の特徴 index で引く
+            raw_idx = torch.where(
+                board_idx == self.pad_idx,
+                torch.full_like(board_idx, BOARD_FEATS),
+                board_idx % BOARD_FEATS,
+            )
+            a1 = a1 + self.board_shared(raw_idx) + self.hand_shared(hands14)
         h1 = torch.clamp(a1, 0.0, 1.0)
         h2 = torch.clamp(self.l2(h1), 0.0, 1.0)
         return self.l3(h2).squeeze(-1)  # ロジット (≈ cp / K)
+
+    def materialized_w1(self):
+        """第1層の実効テーブル (w1_board (BF,H1), w1_hand (HF,H1), b1 (H1,)) を返す。
+
+        factored のときは shared + delta を合成する (エクスポート形式は kp と同一)。
+        """
+        with torch.no_grad():
+            w1_board = self.board.weight[: self.board_feats]
+            w1_hand = self.hand.weight.t().contiguous()  # (HF, H1)
+            b1 = self.hand.bias
+            if self.factored:
+                nb = KP_BUCKETS
+                w1_board = w1_board + self.board_shared.weight[:BOARD_FEATS].repeat(nb, 1)
+                w1_hand = w1_hand + self.hand_shared.weight.t().repeat(nb, 1)
+            return w1_board, w1_hand, b1
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +326,13 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="先頭 N 件のみ使用 (0=全件)")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument(
+        "--features",
+        default="board",
+        choices=["board", "kp", "kp-factor"],
+        help="board=現行one-hot(2282), kp=自玉バケット×盤面/持ち駒 (KP縮約, 13692), "
+        "kp-factor=同特徴の分解学習 (共有+バケットデルタ, エクスポート形式はkpと同一)",
+    )
     # ランキング指向の学習: --loss ranking で同一ミニバッチ内の教師cp差 [rank-pair-min, rank-pair-max]
     # のペアに pairwise margin ranking loss を加算する (シグモイド回帰損失は常に併用)。
     ap.add_argument("--loss", default="sigmoid", choices=["sigmoid", "ranking"])
@@ -245,9 +356,9 @@ def main():
         device = args.device
     print(f"[train] device={device}")
 
-    board, hands, y, cp = load_dataset(args.data, args.k, args.cp_clamp, args.limit)
+    board, hands, y, cp, bucket = load_dataset(args.data, args.k, args.cp_clamp, args.limit, args.features)
     n = y.shape[0]
-    print(f"[train] dataset: {n} positions from {args.data}")
+    print(f"[train] dataset: {n} positions from {args.data} (features={args.features})")
 
     if n < 2:
         raise SystemExit(
@@ -257,11 +368,11 @@ def main():
         )
 
     perm = torch.randperm(n)
-    board, hands, y, cp = board[perm], hands[perm], y[perm], cp[perm]
+    board, hands, y, cp, bucket = board[perm], hands[perm], y[perm], cp[perm], bucket[perm]
     # val は最低1件、かつ train にも最低1件残るようにクランプする
     n_val = max(1, min(int(n * args.val_ratio), n - 1))
-    vb, vh, vy, vcp = board[:n_val], hands[:n_val], y[:n_val], cp[:n_val]
-    tb, th, ty, tcp = board[n_val:], hands[n_val:], y[n_val:], cp[n_val:]
+    vb, vh, vy, vcp, vbk = board[:n_val], hands[:n_val], y[:n_val], cp[:n_val], bucket[:n_val]
+    tb, th, ty, tcp, tbk = board[n_val:], hands[n_val:], y[n_val:], cp[n_val:], bucket[n_val:]
     print(f"[train] train={ty.shape[0]} val={vy.shape[0]} loss={args.loss}")
 
     # --- 順位一致率 (pairwise ranking accuracy) 用の固定 val ペア ---
@@ -275,7 +386,7 @@ def main():
     pi, pj = pi[pair_mask], pj[pair_mask]
     print(f"[train] val ranking pairs (|Δcp|>100): {pi.shape[0]}")
 
-    model = DistillNet().to(device)
+    model = DistillNet(args.features).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs)
 
@@ -293,7 +404,8 @@ def main():
                 b = vb[i : i + 4096].to(device)
                 h = vh[i : i + 4096].to(device)
                 t = vy[i : i + 4096].to(device)
-                out = model(b, h)
+                bk = vbk[i : i + 4096].to(device)
+                out = model(b, h, bk)
                 pred = torch.sigmoid(out)
                 total += F.mse_loss(pred, t, reduction="sum").item()
                 # 参考: cp 空間での MAE (ロジット差 * K)
@@ -322,7 +434,8 @@ def main():
             b = tb[sel].to(device)
             h = th[sel].to(device)
             t = ty[sel].to(device)
-            out = model(b, h)
+            bk = tbk[sel].to(device)
+            out = model(b, h, bk)
             loss = F.mse_loss(torch.sigmoid(out), t)
             if args.loss == "ranking":
                 # 同一ミニバッチ内で教師cp差が [rank-pair-min, rank-pair-max] のペアを全列挙し、
@@ -363,7 +476,14 @@ def main():
             "val_mae_cp": val_mae_cp,
             "val_pair_acc": val_pair_acc,
             "args": vars(args),
-            "arch": {"input": INPUT_DIM, "h1": DistillNet.H1, "h2": DistillNet.H2, "k": args.k},
+            "arch": {
+                "input": model.board_feats + model.hand_feats,
+                "h1": DistillNet.H1,
+                "h2": DistillNet.H2,
+                "k": args.k,
+                "features": args.features,
+                "kp_buckets": KP_BUCKETS if model.kp else 1,
+            },
         }
         torch.save(ckpt, os.path.join(args.out, "last.pt"))
         if val_loss < best_val:

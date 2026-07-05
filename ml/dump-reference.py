@@ -41,6 +41,9 @@ _export = _load_module("export_weights", "export-weights.py")
 
 DistillNet = _train.DistillNet
 parse_sfen = _train.parse_sfen
+kp_bucket = _train.kp_bucket
+BOARD_FEATS = _train.BOARD_FEATS
+HAND_FEATS = _train.HAND_FEATS
 PAD_IDX = _train.PAD_IDX
 MAX_PIECES = _train.MAX_PIECES
 quantize = _export.quantize
@@ -85,7 +88,8 @@ def main():
     ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
     k_sigmoid = float(ckpt.get("arch", {}).get("k", 600.0))
     k_int = int(round(k_sigmoid))
-    model = DistillNet()
+    features = ckpt.get("arch", {}).get("features", "board")
+    model = DistillNet(features)
     model.load_state_dict(ckpt["model"])
     model.eval()
 
@@ -93,14 +97,26 @@ def main():
 
     positions = []
     for sfen in iter_sfens(args.data):
-        idx, hands, _ = parse_sfen(sfen)
-        pad = idx[:MAX_PIECES] + [PAD_IDX] * (MAX_PIECES - len(idx))
+        idx, hands, _, king_sq = parse_sfen(sfen)
+        bucket = 0
+        if model.kp:
+            if king_sq < 0:
+                continue
+            bucket = kp_bucket(king_sq // 9 + 1, king_sq % 9 + 1)
+            idx = [bucket * BOARD_FEATS + f for f in idx]
+        pad = idx[:MAX_PIECES] + [model.pad_idx] * (MAX_PIECES - len(idx))
+        if model.kp:
+            hands_x = [0.0] * model.hand_feats
+            hands_x[bucket * HAND_FEATS : (bucket + 1) * HAND_FEATS] = hands
+        else:
+            hands_x = hands
         with torch.no_grad():
             out_f = model(
                 torch.tensor([pad], dtype=torch.long),
                 torch.tensor([hands], dtype=torch.float32),
+                torch.tensor([bucket], dtype=torch.long),
             ).item()
-        out_q = int_forward(q, pad, hands)
+        out_q = int_forward(q, pad, hands_x, model.pad_idx)
         positions.append(
             {
                 "sfen": sfen,
@@ -116,6 +132,7 @@ def main():
     out_path = args.out or os.path.join(os.path.dirname(os.path.abspath(args.ckpt)), "reference.json")
     payload = {
         "format": "shogi-distill-reference-v1",
+        "features": features,
         "ckpt": os.path.abspath(args.ckpt),
         "k_sigmoid": k_sigmoid,
         "k_int": k_int,

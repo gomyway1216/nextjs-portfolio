@@ -1,7 +1,9 @@
 /**
- * FROZEN BASELINE COPY of OpeningBookImproved.ts (the book as of the previous production commit,
- * i.e. before the current YaneuraOu-validated expansion). Used only by ShogiAIImprovedV20Base for
- * A/B matches against the expanded book. Do not edit; regenerate from git history if needed.
+ * FROZEN BASELINE COPY of OpeningBookImproved.ts as of origin/main (commit 1ddfaa5), i.e. the
+ * production book BEFORE the current YaneuraOu-validated expansion. Used only by
+ * ShogiAIImprovedV20Base for A/B matches against the expanded book.
+ * Do not edit; regenerate with: git show origin/main:src/components/game/ShogiImproved/OpeningBookImproved.ts
+ * (then re-apply the [OpeningBookImprovedBase] log prefixes and the openingBookStats counters).
  */
 import { Difficulty } from '../common/types';
 import { GenerateMovesImproved } from './GenerateMovesImproved';
@@ -851,7 +853,7 @@ function buildBook(): Map<number, BookCandidate[]> {
 
     for (const mv of line.moves) {
       if (k.teban !== mv.teban) {
-        throw new Error(`[OpeningBookImproved] line=${line.name} expected teban=${mv.teban} but was ${k.teban}`);
+        throw new Error(`[OpeningBookImprovedBase] line=${line.name} expected teban=${mv.teban} but was ${k.teban}`);
       }
 
       const from = posOf(mv.from.suji, mv.from.dan);
@@ -859,12 +861,12 @@ function buildBook(): Map<number, BookCandidate[]> {
       const promote = mv.promote ?? false;
 
       if (from === 0 && !mv.drop) {
-        throw new Error(`[OpeningBookImproved] line=${line.name} drop move without \`drop\` piece type`);
+        throw new Error(`[OpeningBookImprovedBase] line=${line.name} drop move without \`drop\` piece type`);
       }
       // For drops, `Te.koma` is the dropped piece OR'ed with the side to move.
       const koma = from === 0 ? (mv.drop! | mv.teban) : k.get(from);
       if (from !== 0 && koma === EMPTY) {
-        throw new Error(`[OpeningBookImproved] line=${line.name} empty from square: ${mv.from.suji}${mv.from.dan}`);
+        throw new Error(`[OpeningBookImprovedBase] line=${line.name} empty from square: ${mv.from.suji}${mv.from.dan}`);
       }
 
       // Find the exact legal move object (so capture/promote legality matches engine rules).
@@ -875,7 +877,7 @@ function buildBook(): Map<number, BookCandidate[]> {
 
       if (!found) {
         throw new Error(
-          `[OpeningBookImproved] illegal book move in line=${line.name}: from=${from} to=${to} promote=${promote}`
+          `[OpeningBookImprovedBase] illegal book move in line=${line.name}: from=${from} to=${to} promote=${promote}`
         );
       }
 
@@ -1054,7 +1056,7 @@ export function getOpeningMoveImproved(
                     : pieceType === OU ? 'OU'
                       : String(pieceType);
     console.log(
-      `[OpeningBookImproved] ${picked.lineName} picked=${picked.move.toString()} piece=${pieceName} score=${picked.score} baseline=${baselineScore} best=${bestInfo.bestScore}`
+      `[OpeningBookImprovedBase] ${picked.lineName} picked=${picked.move.toString()} piece=${pieceName} score=${picked.score} baseline=${baselineScore} best=${bestInfo.bestScore}`
     );
   }
 

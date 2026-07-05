@@ -112,9 +112,21 @@ const ponder = new PonderController({
  * next NNUE-gated search. Any failure (network, size mismatch, missing WASM)
  * silently keeps the V3 path.
  */
-const NNUE_WEIGHTS_URL = '/shogi-nnue-weights.bin';
+const NNUE_WEIGHTS_PATH = '/shogi-nnue-weights.bin';
 /** k_sigmoid from ml/runs/run1m-base/weights.meta.json (cp = out_q * K / 8128). */
 const NNUE_SCALE_K = 600;
+
+/**
+ * Absolute weights URL. Workers loaded via a blob: URL (some bundler worker
+ * loaders) would resolve a root-relative fetch against the blob URL and fail;
+ * `self.location.origin` is the creator's origin even in blob workers, so
+ * anchor the path there when available ('null' = opaque origin, fall back).
+ */
+function nnueWeightsUrl(): string {
+  const origin = typeof self !== 'undefined' ? self.location?.origin : undefined;
+  if (origin && origin !== 'null') return new URL(NNUE_WEIGHTS_PATH, origin).toString();
+  return NNUE_WEIGHTS_PATH;
+}
 
 /**
  * Difficulties that use the NNUE evaluation (>= 1000ms/move, where it measured
@@ -129,7 +141,7 @@ function difficultyUsesNnue(difficulty: Difficulty): boolean {
 
 async function fetchNnueWeights(): Promise<void> {
   try {
-    const res = await fetch(NNUE_WEIGHTS_URL);
+    const res = await fetch(nnueWeightsUrl());
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buf = await res.arrayBuffer();
     const ok = loadNnueWeights(new Uint8Array(buf), NNUE_SCALE_K);

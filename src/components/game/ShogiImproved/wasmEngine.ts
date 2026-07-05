@@ -213,6 +213,7 @@ export function loadNnueWeights(bytes: Uint8Array, scaleK: number): boolean {
   if (!wasm) return false;
   try {
     if (
+      !wasm.memory ||
       typeof wasm.getNnueWeightsPtr !== 'function' ||
       typeof wasm.getNnueWeightsSize !== 'function' ||
       typeof wasm.setNnueScaleK !== 'function' ||
@@ -226,7 +227,9 @@ export function loadNnueWeights(bytes: Uint8Array, scaleK: number): boolean {
       );
       return false;
     }
-    if (!Number.isFinite(scaleK) || scaleK <= 0) {
+    // (scaleK | 0) also rejects fractional values in (0, 1) that would
+    // truncate to 0 in the WASM call and corrupt the cp conversion.
+    if (!Number.isFinite(scaleK) || (scaleK | 0) <= 0) {
       console.error(`[wasmEngine] NNUE weights rejected: invalid scale K=${scaleK}`);
       return false;
     }

@@ -356,14 +356,19 @@ function unmakeMove(m: i32): void {
   else if (koma == GOU) kingG = from;
 
   if (nnueEnabled) {
-    // Invert the NNUE delta only where it was actually folded in.
+    // Invert the NNUE delta only where it was actually folded in. A folded
+    // KP bucket-crossing king move cannot be inverted row-wise (every feature
+    // of that perspective changed table segment), so mark the accumulator
+    // dirty instead — the next evaluation rebuilds it from the live board.
     nnuePendLen--;
     if (nnuePendAppliedS > nnuePendLen) {
-      nnueAccApplyUnmakeS(m);
+      if (nnueAccSDirty || nnueMoveCrossesS(m)) nnueAccSDirty = true;
+      else nnueAccApplyUnmakeS(m);
       nnuePendAppliedS = nnuePendLen;
     }
     if (nnuePendAppliedG > nnuePendLen) {
-      nnueAccApplyUnmakeG(m);
+      if (nnueAccGDirty || nnueMoveCrossesG(m)) nnueAccGDirty = true;
+      else nnueAccApplyUnmakeG(m);
       nnuePendAppliedG = nnuePendLen;
     }
   }
@@ -1568,19 +1573,43 @@ const NNUE_H1: i32 = 256;
 const NNUE_H2: i32 = 32;
 const NNUE_BOARD_FEATS: i32 = 28 * 81; // 2268
 const NNUE_HAND_FEATS: i32 = 14;
+// Reduced-KP (King-Piece) feature set: the board/hand tables are repeated per
+// own-king bucket (6 coarse king zones, see nnueKpBucket). weights.bin v2.
+const NNUE_KP_BUCKETS: i32 = 6;
 
-// Byte offsets into the weights blob (weights.bin layout).
+// Byte offsets into the weights blob (weights.bin layout). The layout shape is
+// identical for both formats — only the w1 table sizes scale with the bucket
+// count — so the offsets are mutable and recomputed by setNnueBuckets():
+//   buckets=1 (original, 1,185,988 B) / buckets=6 (reduced KP, 7,027,908 B)
 const NNUE_W1B_OFF: i32 = 0;
-const NNUE_W1H_OFF: i32 = NNUE_W1B_OFF + NNUE_BOARD_FEATS * NNUE_H1 * 2; // 1,161,216
-const NNUE_B1_OFF: i32 = NNUE_W1H_OFF + NNUE_HAND_FEATS * NNUE_H1 * 2;  // 1,168,384
-const NNUE_W2_OFF: i32 = NNUE_B1_OFF + NNUE_H1 * 4;                     // 1,169,408
-const NNUE_B2_OFF: i32 = NNUE_W2_OFF + NNUE_H2 * NNUE_H1 * 2;           // 1,185,792
-const NNUE_W3_OFF: i32 = NNUE_B2_OFF + NNUE_H2 * 4;                     // 1,185,920
-const NNUE_B3_OFF: i32 = NNUE_W3_OFF + NNUE_H2 * 2;                     // 1,185,984
-const NNUE_TOTAL_BYTES: i32 = NNUE_B3_OFF + 4;                          // 1,185,988
+let nnueBuckets: i32 = 1;
+let nnueW1hOff: i32 = NNUE_BOARD_FEATS * NNUE_H1 * 2; // 1,161,216 (buckets=1)
+let nnueB1Off: i32 = 0;
+let nnueW2Off: i32 = 0;
+let nnueB2Off: i32 = 0;
+let nnueW3Off: i32 = 0;
+let nnueB3Off: i32 = 0;
+let nnueTotalBytes: i32 = 0;
 
-// Static, zero-initialized weight region (host memcpys weights.bin here).
-const NNUE_WEIGHTS: usize = memory.data(NNUE_TOTAL_BYTES, 8);
+function nnueComputeLayout(buckets: i32): void {
+  nnueBuckets = buckets;
+  nnueW1hOff = NNUE_W1B_OFF + buckets * NNUE_BOARD_FEATS * NNUE_H1 * 2;
+  nnueB1Off = nnueW1hOff + buckets * NNUE_HAND_FEATS * NNUE_H1 * 2;
+  nnueW2Off = nnueB1Off + NNUE_H1 * 4;
+  nnueB2Off = nnueW2Off + NNUE_H2 * NNUE_H1 * 2;
+  nnueW3Off = nnueB2Off + NNUE_H2 * 4;
+  nnueB3Off = nnueW3Off + NNUE_H2 * 2;
+  nnueTotalBytes = nnueB3Off + 4;
+}
+nnueComputeLayout(1);
+
+// Static, zero-initialized weight region sized for the LARGER (KP) format
+// (memory.data only reserves zeroed memory — no data segment is emitted, so
+// the .wasm binary does not grow). The host memcpys weights.bin here.
+const NNUE_KP_TOTAL_BYTES: i32 =
+  NNUE_KP_BUCKETS * (NNUE_BOARD_FEATS + NNUE_HAND_FEATS) * NNUE_H1 * 2 +
+  NNUE_H1 * 4 + NNUE_H2 * NNUE_H1 * 2 + NNUE_H2 * 4 + NNUE_H2 * 2 + 4; // 7,027,908
+const NNUE_WEIGHTS: usize = memory.data(NNUE_KP_TOTAL_BYTES, 8);
 
 // Engine komashu (koma & 0x0f) -> train.py piece kind (0..13):
 // [FU,KY,KE,GI,KI,KA,HI,OU,TO,NY,NK,NG,UM,RY]; slots 0 and 13 (unused) = -1.
@@ -1637,6 +1666,78 @@ const nnueAccG = new StaticArray<i32>(NNUE_H1);
 const nnueChkS = new StaticArray<i32>(NNUE_H1);
 const nnueChkG = new StaticArray<i32>(NNUE_H1);
 
+// --- Reduced-KP king buckets -------------------------------------------------
+//
+// With the KP format (nnueBuckets > 1) every w1 row is additionally selected by
+// the OWN KING's bucket in that perspective's frame. The bucket is cached per
+// perspective as ready-to-add byte offsets (board table / hand table). A king
+// move within its bucket is an ordinary feature delta; a king move that
+// CROSSES a bucket boundary invalidates every feature of that perspective, so
+// that accumulator is rebuilt from the live board instead ("refresh", the
+// standard NNUE approach). Because deltas are applied lazily, a crossing found
+// while folding pending moves simply switches to a rebuild at the current
+// node, and a crossing found while unmaking an already-folded move marks the
+// accumulator dirty (rebuilt on the next evaluation).
+let nnueBktBoardOffS: i32 = 0; // bucketS * 2268 * 512  (bytes)
+let nnueBktHandOffS: i32 = 0; //  bucketS * 14 * 512    (bytes)
+let nnueBktBoardOffG: i32 = 0;
+let nnueBktHandOffG: i32 = 0;
+let nnueAccSDirty: bool = false;
+let nnueAccGDirty: bool = false;
+
+/**
+ * Own-king bucket from stm-normalized (suji s, dan d), both 1..9 — must match
+ * ml/train.py kp_bucket exactly:
+ *   d<=7: 5 / d==8: s<=4 -> 3, s>=5 -> 4 / d==9: s==5 -> 0, s<=4 -> 1, s>=6 -> 2
+ */
+function nnueKpBucket(s: i32, d: i32): i32 {
+  if (d <= 7) return 5;
+  if (d == 8) return s <= 4 ? 3 : 4;
+  if (s == 5) return 0;
+  return s <= 4 ? 1 : 2;
+}
+
+/** Bucket of the SENTE king at board `pos`, SENTE frame. */
+function nnueKpBucketS(pos: i32): i32 {
+  return nnueKpBucket(pos >> 4, pos & 0x0f);
+}
+
+/** Bucket of the GOTE king at board `pos`, GOTE frame (board rotated 180°). */
+function nnueKpBucketG(pos: i32): i32 {
+  return nnueKpBucket(10 - (pos >> 4), 10 - (pos & 0x0f));
+}
+
+/** Does move m relocate the SENTE king across a bucket boundary? */
+function nnueMoveCrossesS(m: i32): bool {
+  if (nnueBuckets == 1) return false;
+  if (((m >> 16) & 0x7f) != SOU) return false;
+  const from = (m >> 8) & 0xff;
+  if (from == 0) return false; // kings are never dropped
+  return nnueKpBucketS(from) != nnueKpBucketS(m & 0xff);
+}
+
+/** Does move m relocate the GOTE king across a bucket boundary? */
+function nnueMoveCrossesG(m: i32): bool {
+  if (nnueBuckets == 1) return false;
+  if (((m >> 16) & 0x7f) != GOU) return false;
+  const from = (m >> 8) & 0xff;
+  if (from == 0) return false;
+  return nnueKpBucketG(from) != nnueKpBucketG(m & 0xff);
+}
+
+/** Refresh the cached bucket byte offsets from the live king positions. */
+function nnueUpdateBucketS(): void {
+  const b = nnueBuckets > 1 && kingS > 0 ? nnueKpBucketS(kingS) : 0;
+  nnueBktBoardOffS = b * NNUE_BOARD_FEATS * NNUE_H1 * 2;
+  nnueBktHandOffS = b * NNUE_HAND_FEATS * NNUE_H1 * 2;
+}
+
+function nnueUpdateBucketG(): void {
+  const b = nnueBuckets > 1 && kingG > 0 ? nnueKpBucketG(kingG) : 0;
+  nnueBktBoardOffG = b * NNUE_BOARD_FEATS * NNUE_H1 * 2;
+  nnueBktHandOffG = b * NNUE_HAND_FEATS * NNUE_H1 * 2;
+}
+
 // Pending-move stack for the lazy application (moves made since the last
 // rebuild). CAP is far beyond any reachable path (search MAX_PLY is 64 plus
 // bounded uchifuzume scratch nesting); if it ever overflows, evaluation just
@@ -1668,7 +1769,7 @@ export function getNnueWeightsPtr(): usize {
 
 /** Size of the weight region in bytes (must equal weights.bin size). */
 export function getNnueWeightsSize(): i32 {
-  return NNUE_TOTAL_BYTES;
+  return nnueTotalBytes;
 }
 
 /**
@@ -1679,6 +1780,26 @@ export function setNnueEnabled(flag: i32): void {
   nnueEnabled = flag != 0;
   if (nnueEnabled) nnueRefreshAccumulators();
   initEvalCache();
+}
+
+/**
+ * Select the weights.bin format: 1 = original board one-hot (default,
+ * 1,185,988 B), 6 = reduced KP (7,027,908 B). Call BEFORE memcpying the
+ * weights (the layout offsets change), then load the blob returned size.
+ * Invalid bucket counts are ignored. Clears the eval cache; rebuilds the
+ * accumulators if NNUE is enabled.
+ */
+export function setNnueBuckets(buckets: i32): void {
+  if (buckets != 1 && buckets != NNUE_KP_BUCKETS) return;
+  if (nnueBuckets == buckets) return;
+  nnueComputeLayout(buckets);
+  if (nnueEnabled) nnueRefreshAccumulators();
+  initEvalCache();
+}
+
+/** Current weights format bucket count (1 = original, 6 = reduced KP). */
+export function getNnueBuckets(): i32 {
+  return nnueBuckets;
 }
 
 // |outQ| < 2^31, so keeping K * numer <= 2^32 (~4.0e9 with headroom) guarantees
@@ -1759,7 +1880,7 @@ function nnueBoardRowS(koma: i32, pos: i32): usize {
   const kind = unchecked(NNUE_KIND[koma & 0x0f]);
   const plane = (koma & SENTE) != 0 ? kind : kind + 14;
   const feat = plane * 81 + ((pos >> 4) - 1) * 9 + ((pos & 0x0f) - 1);
-  return NNUE_WEIGHTS + <usize>(NNUE_W1B_OFF + (feat << 9));
+  return NNUE_WEIGHTS + <usize>(NNUE_W1B_OFF + nnueBktBoardOffS + (feat << 9));
 }
 
 /** Same, GOTE view (board rotated 180°, colors swapped): s→10-s, d→10-d. */
@@ -1767,24 +1888,25 @@ function nnueBoardRowG(koma: i32, pos: i32): usize {
   const kind = unchecked(NNUE_KIND[koma & 0x0f]);
   const plane = (koma & GOTE) != 0 ? kind : kind + 14;
   const feat = plane * 81 + (9 - (pos >> 4)) * 9 + (9 - (pos & 0x0f));
-  return NNUE_WEIGHTS + <usize>(NNUE_W1B_OFF + (feat << 9));
+  return NNUE_WEIGHTS + <usize>(NNUE_W1B_OFF + nnueBktBoardOffG + (feat << 9));
 }
 
 /**
  * Byte base of the w1 hand-feature row for `handKoma` (side|type), SENTE view:
  * rows 0..6 = the perspective owner's hand ("mine"), rows 7..13 = opponent.
+ * (KP: rows live in the own-king bucket's segment, bucketS*14 + idx.)
  */
 function nnueHandRowS(handKoma: i32): usize {
   const type = handKoma & 0x0f;
   const idx = (handKoma & SENTE) != 0 ? type - 1 : type + 6;
-  return NNUE_WEIGHTS + <usize>(NNUE_W1H_OFF + (idx << 9));
+  return NNUE_WEIGHTS + <usize>(nnueW1hOff + nnueBktHandOffS + (idx << 9));
 }
 
 /** Same, GOTE view (GOTE hand = "mine"). */
 function nnueHandRowG(handKoma: i32): usize {
   const type = handKoma & 0x0f;
   const idx = (handKoma & GOTE) != 0 ? type - 1 : type + 6;
-  return NNUE_WEIGHTS + <usize>(NNUE_W1H_OFF + (idx << 9));
+  return NNUE_WEIGHTS + <usize>(nnueW1hOff + nnueBktHandOffG + (idx << 9));
 }
 
 /**
@@ -1956,12 +2078,15 @@ function nnueAccApplyUnmakeG(m: i32): void {
   }
 }
 
-/** Build both perspective accumulators from scratch into the given arrays. */
-function nnueBuildAccInto(accS: StaticArray<i32>, accG: StaticArray<i32>): void {
+/**
+ * Build the SENTE-perspective accumulator from scratch (live board). Also
+ * refreshes the cached SENTE king bucket, so subsequent deltas use the right
+ * table segment.
+ */
+function nnueBuildAccS(accS: StaticArray<i32>): void {
+  nnueUpdateBucketS();
   for (let j = 0; j < NNUE_H1; j++) {
-    const b = load<i32>(NNUE_WEIGHTS + <usize>(NNUE_B1_OFF + (j << 2)));
-    unchecked(accS[j] = b);
-    unchecked(accG[j] = b);
+    unchecked(accS[j] = load<i32>(NNUE_WEIGHTS + <usize>(nnueB1Off + (j << 2))));
   }
   for (let suji = 1; suji <= 9; suji++) {
     for (let dan = 1; dan <= 9; dan++) {
@@ -1969,27 +2094,42 @@ function nnueBuildAccInto(accS: StaticArray<i32>, accG: StaticArray<i32>): void 
       const koma = unchecked(ban[pos]);
       if (koma == EMPTY) continue;
       nnueRowAddScaled(accS, nnueBoardRowS(koma, pos), 1);
+    }
+  }
+  for (let type = FU; type <= HI; type++) {
+    const cS = unchecked(hand[SENTE | type]);
+    if (cS > 0) nnueRowAddScaled(accS, nnueHandRowS(SENTE | type), cS);
+    const cG = unchecked(hand[GOTE | type]);
+    if (cG > 0) nnueRowAddScaled(accS, nnueHandRowS(GOTE | type), cG);
+  }
+}
+
+/** Same for the GOTE perspective. */
+function nnueBuildAccG(accG: StaticArray<i32>): void {
+  nnueUpdateBucketG();
+  for (let j = 0; j < NNUE_H1; j++) {
+    unchecked(accG[j] = load<i32>(NNUE_WEIGHTS + <usize>(nnueB1Off + (j << 2))));
+  }
+  for (let suji = 1; suji <= 9; suji++) {
+    for (let dan = 1; dan <= 9; dan++) {
+      const pos = (suji << 4) + dan;
+      const koma = unchecked(ban[pos]);
+      if (koma == EMPTY) continue;
       nnueRowAddScaled(accG, nnueBoardRowG(koma, pos), 1);
     }
   }
   for (let type = FU; type <= HI; type++) {
     const cS = unchecked(hand[SENTE | type]);
-    if (cS > 0) {
-      nnueRowAddScaled(accS, nnueHandRowS(SENTE | type), cS);
-      nnueRowAddScaled(accG, nnueHandRowG(SENTE | type), cS);
-    }
+    if (cS > 0) nnueRowAddScaled(accG, nnueHandRowG(SENTE | type), cS);
     const cG = unchecked(hand[GOTE | type]);
-    if (cG > 0) {
-      nnueRowAddScaled(accS, nnueHandRowS(GOTE | type), cG);
-      nnueRowAddScaled(accG, nnueHandRowG(GOTE | type), cG);
-    }
+    if (cG > 0) nnueRowAddScaled(accG, nnueHandRowG(GOTE | type), cG);
   }
 }
 
 /** w2t[j][i] = w2[i][j] (column-major copy for the sparse layer-2 path). */
 function nnueBuildW2T(): void {
   for (let i = 0; i < NNUE_H2; i++) {
-    const rowBase = NNUE_WEIGHTS + <usize>(NNUE_W2_OFF + (i << 9));
+    const rowBase = NNUE_WEIGHTS + <usize>(nnueW2Off + (i << 9));
     for (let j = 0; j < NNUE_H1; j++) {
       store<i16>(
         NNUE_W2T + <usize>((((j << 5) + i) << 1)),
@@ -2007,21 +2147,40 @@ export function nnueRefreshAccumulators(): void {
   nnuePendLen = 0;
   nnuePendAppliedS = 0;
   nnuePendAppliedG = 0;
-  nnueBuildAccInto(nnueAccS, nnueAccG);
+  nnueAccSDirty = false;
+  nnueAccGDirty = false;
+  nnueBuildAccS(nnueAccS);
+  nnueBuildAccG(nnueAccG);
   nnueBuildW2T();
 }
 
 /**
  * Fold all pending move deltas into the SENTE-perspective accumulator.
+ * A pending SENTE-king move that crosses a KP bucket boundary (or a dirty
+ * flag left by unmake) invalidates every folded feature, so the accumulator
+ * is rebuilt from the live board instead — evaluation always happens at the
+ * position the pending moves lead to, so the rebuild is exact.
  * Returns false when the path outgrew the pending stack (evaluation then
  * falls back to the full recompute — never wrong, only slower; unreachable
  * in practice).
  */
 function nnueApplyPendingS(): bool {
   if (nnuePendLen > NNUE_PEND_CAP) return false;
-  while (nnuePendAppliedS < nnuePendLen) {
-    nnueAccApplyMakeS(unchecked(nnuePendStack[nnuePendAppliedS]));
-    nnuePendAppliedS++;
+  if (!nnueAccSDirty) {
+    while (nnuePendAppliedS < nnuePendLen) {
+      const m = unchecked(nnuePendStack[nnuePendAppliedS]);
+      if (nnueMoveCrossesS(m)) {
+        nnueAccSDirty = true;
+        break;
+      }
+      nnueAccApplyMakeS(m);
+      nnuePendAppliedS++;
+    }
+  }
+  if (nnueAccSDirty) {
+    nnueBuildAccS(nnueAccS);
+    nnueAccSDirty = false;
+    nnuePendAppliedS = nnuePendLen;
   }
   return true;
 }
@@ -2029,9 +2188,21 @@ function nnueApplyPendingS(): bool {
 /** Same for the GOTE-perspective accumulator. */
 function nnueApplyPendingG(): bool {
   if (nnuePendLen > NNUE_PEND_CAP) return false;
-  while (nnuePendAppliedG < nnuePendLen) {
-    nnueAccApplyMakeG(unchecked(nnuePendStack[nnuePendAppliedG]));
-    nnuePendAppliedG++;
+  if (!nnueAccGDirty) {
+    while (nnuePendAppliedG < nnuePendLen) {
+      const m = unchecked(nnuePendStack[nnuePendAppliedG]);
+      if (nnueMoveCrossesG(m)) {
+        nnueAccGDirty = true;
+        break;
+      }
+      nnueAccApplyMakeG(m);
+      nnuePendAppliedG++;
+    }
+  }
+  if (nnueAccGDirty) {
+    nnueBuildAccG(nnueAccG);
+    nnueAccGDirty = false;
+    nnuePendAppliedG = nnuePendLen;
   }
   return true;
 }
@@ -2043,7 +2214,8 @@ function nnueApplyPendingG(): bool {
  */
 export function nnueAccMismatch(): i32 {
   if (!nnueApplyPendingS() || !nnueApplyPendingG()) return -1;
-  nnueBuildAccInto(nnueChkS, nnueChkG);
+  nnueBuildAccS(nnueChkS);
+  nnueBuildAccG(nnueChkG);
   let bad = 0;
   for (let j = 0; j < NNUE_H1; j++) {
     if (unchecked(nnueChkS[j]) != unchecked(nnueAccS[j])) bad++;
@@ -2068,7 +2240,7 @@ function nnueAddFeature(feat: i32): void {
 }
 
 function nnueAddHand(idx: i32, count: i32): void {
-  nnueRowAddScaled(nnueAcc, NNUE_WEIGHTS + <usize>(NNUE_W1H_OFF + idx * NNUE_H1 * 2), count);
+  nnueRowAddScaled(nnueAcc, NNUE_WEIGHTS + <usize>(nnueW1hOff + idx * NNUE_H1 * 2), count);
 }
 
 /**
@@ -2078,10 +2250,23 @@ function nnueAddHand(idx: i32, count: i32): void {
 export function nnueEvaluate(): i32 {
   // Layer 1 accumulator: b1 + board features + hand features.
   for (let j = 0; j < NNUE_H1; j++) {
-    unchecked(nnueAcc[j] = load<i32>(NNUE_WEIGHTS + <usize>(NNUE_B1_OFF + (j << 2))));
+    unchecked(nnueAcc[j] = load<i32>(NNUE_WEIGHTS + <usize>(nnueB1Off + (j << 2))));
   }
 
   const stmSente = teban == SENTE;
+
+  // Reduced KP: every feature lives in the own-king bucket's table segment.
+  // kingS/kingG are maintained by makeMove/finalizePosition; a scratch
+  // position without a king falls back to bucket 0.
+  let bktFeat = 0; // feature-index offset into w1_board
+  let bktHand = 0; // row offset into w1_hand
+  if (nnueBuckets > 1) {
+    const kp = stmSente ? kingS : kingG;
+    let b = 0;
+    if (kp > 0) b = stmSente ? nnueKpBucketS(kp) : nnueKpBucketG(kp);
+    bktFeat = b * NNUE_BOARD_FEATS;
+    bktHand = b * NNUE_HAND_FEATS;
+  }
   for (let suji = 1; suji <= 9; suji++) {
     for (let dan = 1; dan <= 9; dan++) {
       const koma = unchecked(ban[(suji << 4) + dan]);
@@ -2103,7 +2288,7 @@ export function nnueEvaluate(): i32 {
         d = 10 - dan;
       }
       const plane = mine ? kind : kind + 14;
-      nnueAddFeature(plane * 81 + (s - 1) * 9 + (d - 1));
+      nnueAddFeature(bktFeat + plane * 81 + (s - 1) * 9 + (d - 1));
     }
   }
 
@@ -2112,9 +2297,9 @@ export function nnueEvaluate(): i32 {
   const oppSide = teban == SENTE ? GOTE : SENTE;
   for (let type = FU; type <= HI; type++) {
     const cMine = unchecked(hand[teban | type]);
-    if (cMine > 0) nnueAddHand(type - 1, cMine);
+    if (cMine > 0) nnueAddHand(bktHand + type - 1, cMine);
     const cOpp = unchecked(hand[oppSide | type]);
-    if (cOpp > 0) nnueAddHand(type - 1 + 7, cOpp);
+    if (cOpp > 0) nnueAddHand(bktHand + type - 1 + 7, cOpp);
   }
 
   // h1 = clamp(acc, 0, 127) — clamp in place (SIMD, 4 lanes per store).
@@ -2154,7 +2339,7 @@ export function nnueEvaluateFast(): i32 {
   const srcBase = changetype<usize>(teban == SENTE ? nnueAccS : nnueAccG);
 
   // Layer-2 partial sums (a2[0..31]) seeded with b2, kept in registers.
-  const b2Base = NNUE_WEIGHTS + <usize>NNUE_B2_OFF;
+  const b2Base = NNUE_WEIGHTS + <usize>nnueB2Off;
   let s0 = v128.load(b2Base);
   let s1 = v128.load(b2Base, 16);
   let s2 = v128.load(b2Base, 32);
@@ -2198,7 +2383,7 @@ export function nnueEvaluateFast(): i32 {
   // then outQ = b3 + Σ w3[i]*h2[i] via i16 dot products (h2 <= 127 narrows
   // exactly; every product fits i32, and the wrapping-add reordering of the
   // horizontal sum is bit-identical to the scalar accumulation).
-  const w3Base = NNUE_WEIGHTS + <usize>NNUE_W3_OFF;
+  const w3Base = NNUE_WEIGHTS + <usize>nnueW3Off;
   const h2a = i16x8.narrow_i32x4_s(
     i32x4.min_s(i32x4.max_s(i32x4.shr_s(s0, 6), zero), cap),
     i32x4.min_s(i32x4.max_s(i32x4.shr_s(s1, 6), zero), cap)
@@ -2220,7 +2405,7 @@ export function nnueEvaluateFast(): i32 {
   out4 = i32x4.add(out4, i32x4.dot_i16x8_s(v128.load(w3Base, 32), h2c));
   out4 = i32x4.add(out4, i32x4.dot_i16x8_s(v128.load(w3Base, 48), h2d));
   return (
-    load<i32>(NNUE_WEIGHTS + <usize>NNUE_B3_OFF) +
+    load<i32>(NNUE_WEIGHTS + <usize>nnueB3Off) +
     i32x4.extract_lane(out4, 0) +
     i32x4.extract_lane(out4, 1) +
     i32x4.extract_lane(out4, 2) +
@@ -2248,9 +2433,9 @@ function nnueLayers23(): i32 {
     );
   }
   // Layer 2 + output layer: h2 = clamp((w2 @ h1 + b2) >> 6, 0, 127).
-  let outQ = load<i32>(NNUE_WEIGHTS + <usize>NNUE_B3_OFF);
+  let outQ = load<i32>(NNUE_WEIGHTS + <usize>nnueB3Off);
   for (let i = 0; i < NNUE_H2; i++) {
-    const rowBase = NNUE_WEIGHTS + <usize>(NNUE_W2_OFF + i * NNUE_H1 * 2);
+    const rowBase = NNUE_WEIGHTS + <usize>(nnueW2Off + i * NNUE_H1 * 2);
     let sum = i32x4.splat(0);
     for (let j = 0; j < NNUE_H1; j += 8) {
       const off = <usize>(j << 1);
@@ -2260,7 +2445,7 @@ function nnueLayers23(): i32 {
       );
     }
     const a2 =
-      load<i32>(NNUE_WEIGHTS + <usize>(NNUE_B2_OFF + (i << 2))) +
+      load<i32>(NNUE_WEIGHTS + <usize>(nnueB2Off + (i << 2))) +
       i32x4.extract_lane(sum, 0) +
       i32x4.extract_lane(sum, 1) +
       i32x4.extract_lane(sum, 2) +
@@ -2268,7 +2453,7 @@ function nnueLayers23(): i32 {
     let h2 = a2 >> 6;
     if (h2 < 0) h2 = 0;
     else if (h2 > 127) h2 = 127;
-    outQ += <i32>load<i16>(NNUE_WEIGHTS + <usize>(NNUE_W3_OFF + (i << 1))) * h2;
+    outQ += <i32>load<i16>(NNUE_WEIGHTS + <usize>(nnueW3Off + (i << 1))) * h2;
   }
   return outQ;
 }

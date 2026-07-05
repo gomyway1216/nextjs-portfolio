@@ -474,6 +474,33 @@ Along the way we also applied the 37/10 scale calibration to run300k-rank: 50% �
 
 The 1M full training will produce three runs — base / rank(weight 1.0) / rank(weight 0.3–0.5) — and A/B all of them at BOTH 200ms and 1000ms, 16+ games × 3 seeds each. The gate: **stable >50% at 1000ms** — cross it, and the first neural network to replace the handcrafted eval ships to production.
 
+### Generation is slow: how an "11-hour wait" became 45 minutes
+
+Projecting the remaining generation time toward 1M positions gave **about 11 hours**. "Can't you throw more GPU at it?" — a fair question, but the investigation landed somewhere unexpected. One look at per-process CPU usage settled it:
+
+```
+node (generation driver)   : CPU 100%   ← one core out of 14, maxed out
+YaneuraOu × 8 processes    : CPU ~0%    ← all idle
+machine overall            : 81% idle
+```
+
+The pipeline alternates between (1) **creating** positions via low-budget self-play of our own engine and (2) **labeling** them with the eight YaneuraOu processes. Measured per chunk: **generation 102s vs labeling 1.5s**. The labeling side (capable of ~1,300 positions/sec across 8 engines) was massively underutilized; the bottleneck was the *creating* side from start to finish. GPUs are irrelevant here — YaneuraOu's NNUE is designed to run on CPU+SIMD, and besides, the engines were the ones sitting idle.
+
+Why was the creating side slow? Node.js is single-threaded, so **one process = one core**, and — the kicker — move selection was still using the **JS version** of our engine. The WASM build (15x faster, bit-identical to JS) built for production was sitting right there. The fix came in two steps:
+
+1. **Scale drivers from 1 to 3 processes** (each writing its own file, concatenated later — one core's work spread over three)
+2. **Swap move selection from JS to WASM** (a `--wasm` flag; the position distribution is unchanged since it is the same engine, same search. Chunk generation: 102s → 27s)
+
+```
+[gen] chunk done: +1095 (gen 27.5s, label 1.7s = 1176.5 pos/s)   ← after WASM swap
+```
+
+Combined throughput went from ~8 positions/sec to **~110 positions/sec (14x)** (each dataset line is one position, so lines/sec is the same number), and the remaining time from **11 hours to 45 minutes**.
+
+The way the cores get used is the interesting part. There are 27 processes in total — 3 Node drivers, **each commanding its own squad of 8 YaneuraOu engines**, hence 24 engines — yet **on average only 3–4 cores are busy**. The 24 engines are burst workers — they sit idle until ~1,000 positions pile up, grade them all in 1.5 seconds flat, and sit back down. The only always-busy workers are the three Node cores producing positions: **size the always-busy roles to your core count, and overprovision the burst roles** so their bursts never stall the producers.
+
+Two lessons. **When a wait feels long, look at `ps` first to see which process is actually busy** — a common-sense remedy like "use the GPU" whiffs entirely if the bottleneck lives elsewhere. And **speed assets you build once get reused in unexpected places**: the WASM engine built to make the browser opponent stronger turned around and made the machine-learning teacher-data factory 14x faster.
+
 And cycle 2's verdict will be decided the same way as ever: **by playing the games.**
 
 ---

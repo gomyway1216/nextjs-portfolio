@@ -349,9 +349,11 @@ export function parseSfen(sfen: string): ParsedSfen {
       const isBlack = c === upper;
       const type = promoted ? SFEN_PROMOTED[upper] : SFEN_PIECE[upper];
       if (type === undefined) throw new Error(`bad sfen piece: ${c} in ${boardS}`);
+      if (suji < 1) throw new Error(`sfen rank overflows 9 files: "${row}" in ${boardS}`);
       ban[(suji << 4) + dan] = type | (isBlack ? SENTE : GOTE);
       suji--;
     }
+    if (suji !== 0) throw new Error(`sfen rank has wrong width (${9 - suji}/9 files): "${row}" in ${boardS}`);
   }
 
   if (handS !== undefined && handS !== '-') {

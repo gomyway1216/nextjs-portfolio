@@ -36,7 +36,10 @@ interface ShogiNnueSearchWasm extends ShogiSearchWasm {
 
 function argNum(flag: string, def: number): number {
   const i = process.argv.indexOf(flag);
-  return i >= 0 ? parseInt(process.argv[i + 1], 10) : def;
+  if (i < 0) return def;
+  const n = parseInt(process.argv[i + 1], 10);
+  if (!Number.isFinite(n)) throw new Error(`${flag} requires a numeric value`);
+  return n;
 }
 
 const weightsPath = process.argv[2];

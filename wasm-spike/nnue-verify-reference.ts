@@ -83,7 +83,8 @@ if (weightsBin.byteLength !== NNUE_LAYOUT.totalBytes || wasm.getNnueWeightsSize(
 }
 new Uint8Array(wasm.memory.buffer, wasm.getNnueWeightsPtr(), NNUE_LAYOUT.totalBytes).set(weightsBin);
 const refWeights = weightsFromBuffer(
-  weightsBin.buffer.slice(weightsBin.byteOffset, weightsBin.byteOffset + weightsBin.byteLength)
+  weightsBin.buffer,
+  weightsBin.byteOffset // no ArrayBuffer copy needed
 );
 
 const reference = JSON.parse(readFileSync(referencePath, 'utf8')) as ReferenceFile;

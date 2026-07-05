@@ -57,7 +57,7 @@ def trunc_div(a: int, b: int) -> int:
 
 def iter_sfens(path: str):
     """Yield sfen strings from a teacher JSONL ({"sfen": ...}) or plain-text file."""
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -123,7 +123,7 @@ def main():
         "n": len(positions),
         "positions": positions,
     }
-    with open(out_path, "w") as f:
+    with open(out_path, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=False, indent=1)
     print(f"[dump-reference] wrote {out_path} ({len(positions)} positions, K={k_sigmoid})")
 

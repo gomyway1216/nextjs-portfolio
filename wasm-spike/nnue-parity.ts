@@ -121,7 +121,8 @@ if (wasm.getNnueWeightsSize() !== NNUE_LAYOUT.totalBytes) {
 
 const dummyBytes = makeDummyWeights(SEED);
 const refWeights = weightsFromBuffer(
-  dummyBytes.buffer.slice(dummyBytes.byteOffset, dummyBytes.byteOffset + dummyBytes.byteLength)
+  dummyBytes.buffer,
+  dummyBytes.byteOffset // no ArrayBuffer copy needed
 );
 new Uint8Array(wasm.memory.buffer, wasm.getNnueWeightsPtr(), NNUE_LAYOUT.totalBytes).set(dummyBytes);
 wasm.setNnueScaleK(SCALE_K);

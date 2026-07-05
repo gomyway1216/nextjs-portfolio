@@ -1676,7 +1676,11 @@ export function setNnueEnabled(flag: i32): void {
 
 /** Set the sigmoid scale K used to convert out_q to centipawns (default 600). */
 export function setNnueScaleK(k: i32): void {
-  nnueScaleK = k;
+  if (nnueScaleK != k) {
+    nnueScaleK = k;
+    // Cached NNUE evaluations were computed with the old K; drop them.
+    initEvalCache();
+  }
 }
 
 /**

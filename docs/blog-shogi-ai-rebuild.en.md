@@ -395,6 +395,43 @@ With the real battleground confirmed, teacher-data generation is running.
 - **Ranking loss** (`train.py --loss ranking`): cycle 1's biggest lesson — alpha-beta needs the *ranking of sibling positions*, not absolute regression accuracy — encoded directly into the loss. In-batch position pairs whose teacher cp difference falls in a window (default 50–600cp) get an additional margin ranking loss, and **`val_pair_acc`** (pair-order agreement on pairs with teacher diff > 100cp) is now logged every epoch as the headline metric
 - **A watcher is in place to automatically kick off an interim checkpoint training run at 300k lines** (baseline vs ranking loss comparison)
 
+### What is an evaluation function, anyway — and how can an unreadable machine give correct answers?
+
+Before going deeper into distillation, let's define the protagonist precisely. Contrary to a common assumption, an evaluation function does **not** directly judge "this move is good/bad." It does exactly one thing:
+
+> **Show it a board, and it returns one number.** +250 means "Black is better by two and a half pawns"; −1200 means "White is winning"; 0 means "equal."
+
+Then who decides whether a *move* is good? The search:
+
+```
+What if ▲2四歩?  → play it forward a few plies, ask the eval → +180
+What if ▲7八銀?  → play it forward a few plies, ask the eval → −2500 (hangs the bishop)
+→ play ▲2四歩
+```
+
+**"Move quality" = "a comparison of the scores of the positions that move leads to."** The eval is the judge; the search is a tour guide parading each candidate's future in front of that judge. Cycle 1's lesson — the judge needs correct *orderings* more than correct *scores* — falls straight out of this picture.
+
+The **handwritten eval** running in production is a sum of human-readable rules (the skeleton of the implementation in `KyokumenImproved.ts`):
+
+```typescript
+score  = material balance;      // pawn=100, rook=1040, ... summed difference
+score += piece-square bonuses;  // "this piece on this square is worth +N" tables, phase-weighted
+score += king-safety count;     // gold/silver defenders around the king
+score += castle shapes;         // pattern-matching Yagura / Mino / Anaguma
+score += rook-file defense;
+score += climbing-silver pressure;  // the term added in Chapter 2
+score += major-piece activity;
+return score;                   // e.g. +250
+```
+
+The **neural-net version** is a completely different machine answering the same question (board → number); open it up and you find 580,000 anonymous numbers, with no row labeled "king safety" anywhere. Yet from the search's point of view the two are **fully interchangeable** — the search only demands "a box that returns a number when handed a position," and never asks what's inside. The A/B matches in this chapter are literally "swap the judge, keep the same search, play the games."
+
+Which leaves the real question: **if you can't read it, how can it be right?** Answer: because "right" is measured by outcomes, not by explainability. There is a perfect precedent close to home — **a strong player's intuition**. A 2-dan player glances at a position and *feels* "Black is better," yet cannot fully verbalize the judgment; the after-the-fact explanations ("material advantage," "thin king") don't describe the actual computation happening in their head, which is invisible even to them. And still the judgment is usually correct. A neural net implements exactly this kind of *intuition that bypasses verbalization* as a block of numbers — where the handwritten eval can only hold knowledge someone managed to put into words, the net absorbs patterns directly from a million of YaneuraOu's judgments.
+
+How do you trust what you can't read? **You don't read it — you examine it.** (1) Measure its deviation from the teacher on 4,000 unseen positions (holdout MAE). (2) Measure how often it agrees with the teacher on *which of two positions is better* (pair_acc 0.89 = agreement 89 times out of 100). (3) Finally, make it play. This article's refrain — "the final gate is always playing the games" — is also a corollary of *unreadable things can only be audited by their behavior*.
+
+The flip side of the coin lives in the same place: when the net is wrong, **the reason it is wrong is just as unreadable**. With the handwritten eval we once pinpointed "the climbing-silver term cuts off at rank 4" and fixed that line. A net's mistakes can only be fixed by changing the data and retraining — which is why the seemingly roundabout journey from the 19.6% defeat to "scale up the teacher data" was, in fact, the only repair procedure a neural network offers.
+
 ### Reading the model and the training loop, line by line
 
 "Machine learning" may conjure something enormous and opaque, but the network used for distillation is small enough to **quote in full** (the complete `DistillNet` from `ml/train.py`; the comments are replaced with annotations for this article). Here is what each line does and why it was designed that way.

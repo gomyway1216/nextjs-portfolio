@@ -86,11 +86,17 @@ function getInstance(): ShogiSearchWasm | null {
     const bytes = decodeBase64(SHOGI_WASM_BASE64);
     // The binary uses SIMD128; on an engine without SIMD support validate()
     // returns false (new WebAssembly.Module would throw a CompileError anyway,
-    // this just makes the fallback reason explicit in the log).
-    if (typeof WebAssembly.validate === 'function' && !WebAssembly.validate(bytes)) {
+    // this just makes the fallback reason explicit in the log). The typeof
+    // guards keep environments without WebAssembly (or without validate) on
+    // the ordinary Module-constructor failure path below.
+    if (
+      typeof WebAssembly !== 'undefined' &&
+      typeof WebAssembly.validate === 'function' &&
+      !WebAssembly.validate(bytes)
+    ) {
       initFailed = true;
       console.error(
-        '[wasmEngine] binary rejected — this environment lacks WASM SIMD128 support; the JS engine will be used instead'
+        '[wasmEngine] binary failed WebAssembly.validate (most likely missing SIMD128 support); the JS engine will be used instead'
       );
       return null;
     }

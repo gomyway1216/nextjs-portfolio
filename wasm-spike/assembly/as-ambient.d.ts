@@ -40,3 +40,37 @@ declare function store<T>(ptr: usize, value: T, immOffset?: number): void;
 declare namespace memory {
   function data(size: i32, align?: i32): usize;
 }
+
+/** AssemblyScript intrinsic: reinterpret a value as another type (no-op cast). */
+declare function changetype<T>(value: unknown): T;
+
+/**
+ * WASM SIMD128 builtins (subset used by the NNUE inference). `asc` compiles
+ * these to single v128 instructions; the declarations only satisfy tsc.
+ */
+declare class v128 {
+  private __v128: never; // nominal typing: v128 is not interchangeable with number
+  static load(ptr: usize, immOffset?: number): v128;
+  static store(ptr: usize, value: v128, immOffset?: number): void;
+  static any_true(a: v128): bool;
+}
+
+declare namespace i32x4 {
+  function splat(value: i32): v128;
+  function add(a: v128, b: v128): v128;
+  function sub(a: v128, b: v128): v128;
+  function max_s(a: v128, b: v128): v128;
+  function min_s(a: v128, b: v128): v128;
+  function shr_s(a: v128, shift: i32): v128;
+  function extend_low_i16x8_s(a: v128): v128;
+  function extend_high_i16x8_s(a: v128): v128;
+  function extmul_low_i16x8_s(a: v128, b: v128): v128;
+  function extmul_high_i16x8_s(a: v128, b: v128): v128;
+  function dot_i16x8_s(a: v128, b: v128): v128;
+  function extract_lane(a: v128, idx: number): i32;
+}
+
+declare namespace i16x8 {
+  function splat(value: i16): v128;
+  function narrow_i32x4_s(a: v128, b: v128): v128;
+}

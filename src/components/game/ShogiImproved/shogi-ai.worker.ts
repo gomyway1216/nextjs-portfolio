@@ -133,7 +133,13 @@ function nnueWeightsUrl(): string {
  * 77.1% vs V3). `easy` (250ms) intentionally stays on V3: at ~200ms budgets
  * V3 measured stronger (NNUE 40.9%), and easy is meant to be weak anyway.
  */
-const NNUE_DIFFICULTIES: ReadonlySet<Difficulty> = new Set(['medium', 'hard', 'expert', 'master']);
+// HOTFIX (2026-07-05): reduced from medium..master to medium ONLY after a real
+// 2-dan game exposed NNUE's saturation blindness at decided positions (all 71
+// legal moves within 15cp at |cp|>~1500; nonsense moves like P*81 / K-1一).
+// The 77.1% A/B was measured at 1000ms only — hard+ (2000ms+) was never
+// verified and reverts to V3 until the saturation fix (blend/guard or WDL
+// head + unthinned decisive teacher data) passes a blunder-rate gate.
+const NNUE_DIFFICULTIES: ReadonlySet<Difficulty> = new Set(['medium']);
 
 function difficultyUsesNnue(difficulty: Difficulty): boolean {
   return NNUE_DIFFICULTIES.has(difficulty);

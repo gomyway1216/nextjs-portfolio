@@ -655,6 +655,24 @@ No absolute rating was ever measured (that's decided against humans), but every 
 
 Roughly **+800–1000 Elo cumulative** — the scale of a beginner becoming a dan player. With the usual caveats: self-play Elo overstates strength against humans, and the absolute anchor is unknown. The real grading happens over the board.
 
+### Q. Can it get any stronger? — A. Yes. The blueprint for Cycle 3
+
+Readers will ask, so let's answer up front. **77.1% is not a ceiling.** It's the stage where the *first* step of going neural succeeded — and the remaining headroom is measurable. There are five levers.
+
+**(1) KP features — the biggest headroom.** The current input is a plain one-hot of 2,268 features: "which piece sits on which square," nothing more. Real NNUE doesn't encode the board that way — it uses **piece placement *relative to your own king*** (KP). The same "silver on 5e" becomes a different feature depending on whether your king sits in a static-rook castle or a ranging-rook one — which means the king's context gets expressed orders of magnitude more finely. Given that the single hardest part of seven months of handwritten eval was "valuing the area around the king," this lever can hardly fail to matter. Expected gain: on the order of +200–400 Elo.
+
+**(2) More and better teacher data.** 1M positions → 5–10M. Cycle 2 already made generation 14x faster, so this is a matter of wall-clock waiting, not heroics. At the same time, deepen the teacher's search from depth 8 to 12+ — more accurate model answers from a deeper-reading YaneuraOu. As the run100k → run1m lineage showed (19.6% → 77.1%), we haven't hit diminishing returns on this axis yet.
+
+**(3) WASM SIMD128.** The net's inner loop is almost entirely multiply-accumulate, so computing 4–8 elements per instruction with SIMD128 makes inference 2–4x faster. And as Cycle 2 kept demonstrating: with the same eval, more search nodes compound the ranking accuracy.
+
+**(4) Multithreaded search.** Parallelize the search with SharedArrayBuffer. It requires COOP/COEP headers on Vercel, but once configured, four cores can search roughly four times as many nodes.
+
+**(5) The self-play loop.** Today's teacher positions come from the *old* engine's self-play. Have the NNUE version of ourselves generate them and retrain — a positive loop where every gain in strength produces better-distributed training data.
+
+Where's the theoretical ceiling? The browser as hardware can run professional-grade shogi AI — other sites have already proven that (lishogi, among others, runs the WASM build of YaneuraOu). So the limit isn't the browser; it's this engine's maturity. But this project **will not take the drop-in-someone-else's-engine route**. Growing a homegrown engine by measurement is the point of the project, and it's the owner's explicit policy.
+
+Cycle 3 is underway, following exactly this blueprint.
+
 ---
 
 ## 10. Lessons: what worked and what didn't

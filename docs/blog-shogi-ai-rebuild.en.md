@@ -11,6 +11,7 @@
 - What actually worked was structural: **porting TypeScript → WebAssembly made the search ~15x faster, +3–4 plies deeper, and the new engine beat the old one 10–0**
 - On top of that we built **NNUE distillation**: had YaneuraOu (a superhuman open-source engine) label 100,000 positions, then distilled that knowledge into a 1.13MB neural net that approximates the teacher **2.0–2.5x better than the handwritten eval**
 - The verification methodology itself is full of traps: **self-play statistical degeneration, time-control bias, and mismatched defaults** nearly led us to wrong conclusions several times
+- **Cycle 2 is now in progress**: **pondering** (the AI keeps searching on the human's thinking time, warming the TT) shipped to production, +0.35 mean depth. The leading NNUE-defeat hypothesis — "search margins are miscalibrated to the NNUE scale" — was **rejected by an isolated A/B** (score got *worse*, 19.6% → 8.9%), pinning the real culprit on teacher data. A 1M-position generation run is underway
 
 ---
 
@@ -298,6 +299,9 @@ But the naive "update on every make" made **perft 14x slower** (search makes and
 | #292 | **WASM engine to production** (P1–P4) + 5-agent integration | ✅ 10–0 vs current |
 | #293 | NNUE distillation pipeline | ✅ Code only; data stays local |
 | #294 | ML robustness fixes (10 review findings) | ✅ One of them actually happened an hour later |
+| #295 | NNUE inference in WASM (lazy differential accumulators) + NNUE-vs-V3 A/B harness | ❌ 19.6% with real weights — not adopted; infrastructure preserved, disabled by default |
+| #296 | **Pondering (permanent brain)** | ✅ Mean search depth 9.00 → 9.35; live in production |
+| #297 | NNUE scale calibration `setNnueOutputScale` + isolated A/B | ❌ 8.9% — hypothesis rejected (mechanism kept) |
 
 ### The final A/B: NNUE **failed** — and taught the biggest lesson
 
@@ -305,11 +309,97 @@ The equal-time self-play with real weights (both sides WASM, eval function the o
 
 The diagnosis is the interesting part. **"Closeness to the teacher" (2.0–2.5x better than the handwritten eval) turned out to be a poor predictor of playing strength.** What alpha-beta search needs is the *relative ranking of sibling positions* — and the net's ~405cp error is larger than the typical eval difference between candidate moves (<100cp), so it scrambles rankings. The handwritten eval, meanwhile, is self-consistent even where its absolute scale is off, and a monotone scale error is harmless to alpha-beta. On top of that, the search's margin constants (aspiration/futility/delta) were calibrated to the handwritten eval's scale, making them effectively ~3.7x too generous for a net that outputs true centipawns.
 
-The next moves are documented in the repo: scale the teacher data 100k → 1M (generation is free), raise teacher depth, scale-adapt the search margins, and consider a ranking-oriented loss. **The NNUE infrastructure (inference, accumulator, A/B harness) is preserved in the repo, disabled by default**, ready for the rematch.
+The next moves are documented in the repo: scale the teacher data 100k → 1M (generation is free), raise teacher depth, scale-adapt the search margins, and consider a ranking-oriented loss. **The NNUE infrastructure (inference, accumulator, A/B harness) is preserved in the repo, disabled by default**, ready for the rematch. — That rematch is the next chapter: cycle 2.
 
 ---
 
-## 9. Lessons: what worked and what didn't
+## 9. Cycle 2 (in progress) — thinking on the opponent's time, and killing hypotheses one at a time
+
+Cycle 1's defeat (19.6%) ended with several competing hypotheses about *why*. Cycle 2 runs on three tracks: (1) a structural improvement that works regardless of the eval function — **pondering**; (2) **isolated A/B tests** of the defeat hypotheses; (3) the main assault — **scaling up the teacher data**.
+
+### Pondering (PR #296): the human's thinking time is free compute
+
+A classic engine technique, "permanent brain." The moment the AI answers with its move, the Web Worker would otherwise sit idle while the human thinks — so it keeps searching the reply position (the one the human is looking at right now), warming the WASM transposition table that is kept across moves for the whole game. When the human finally moves, the real search probes a hot TT and reaches a deeper ply within the same time budget.
+
+The heart of the implementation is "how do you make a synchronous search interruptible?" The WASM search is a synchronous call; run it naively for a long stretch and the worker goes deaf to messages. The answer is a loop of short 200ms search slices chained via `setTimeout(0)` (from the header of `ponderController.ts`):
+
+```ts
+// Why slices:
+// - The WASM search is synchronous; a single long call would make the worker
+//   deaf to incoming messages (the next `bestMove`, `clearTT`, ...). Instead
+//   we run one short slice (default 200ms), return to the event loop via
+//   `setTimeout(0)`, and queue the next slice. Any message that arrived during
+//   a slice is dispatched *before* the queued slice callback, so calling
+//   `stop()` from `onmessage` reliably cancels pondering with at most one
+//   slice of latency.
+```
+
+Because the event loop dispatches incoming messages before the queued slice callback, pondering is guaranteed to yield within ~200ms of the human's move. Four safety rails:
+
+- **A generation counter**: bumped on every stop()/start(), so stale timers can never run an old session's search
+- **A 30-second total cap per turn**: an abandoned tab doesn't burn CPU/battery forever
+- **Stop when the tab is hidden**: a worker can't see page visibility, so the client relays `visibilitychange` as `ponderControl` messages; on return, the session resumes with its remaining budget
+- **Disabled for easy difficulty and when WASM isn't loaded** (easy is intentionally weak; without WASM there's no shared TT worth warming)
+
+Zero API changes to the UI components — the worker simply starts thinking right after it answers:
+
+```ts
+// shogi-ai.worker.ts — answer first, then start thinking on the opponent's time
+ctx.postMessage({ type: 'bestMoveResult', id: msg.id, move });
+if (best) startPonder(k, best, msg.difficulty, msg.tesu | 0);
+```
+
+Benchmark (`scripts/shogi-ponder-benchmark.ts`: an identical 40-ply move sequence, hard settings at 2000ms per search, simulating 3 seconds of human thinking): **mean search depth 9.00 → 9.35 (+0.35 plies)** — deeper in 9 of 20 positions, equal in 8, shallower in 3 (TT replacement noise). In the opening, where the TT warms fastest, gains reached +2 plies (e.g., move 5: d11 → d13). Review findings (defensive message checks, a fallback for environments without `performance`, initial visibility sync, dev-only logging) were addressed; merged and live in production.
+
+### The scale-calibration isolated A/B (PR #297): watching a plausible hypothesis die
+
+Cycle 1's defeat hypothesis #2 was well-reasoned: "NNUE outputs true centipawns, but the search margin constants (aspiration window 300, futility 350/700, delta 150, RFP, …) were tuned for the handwritten V3 eval's scale — roughly 3.7x true cp (teacher fit: cp ≈ 0.27×v3). For NNUE they're effectively ~3.7x too generous, so pruning goes soft."
+
+To measure this **without moving any other variable**, we added `setNnueOutputScale(numer, denom)` to the AssemblyScript engine. The rational rescale factor folds into the same i64 division as the cp conversion, so there is exactly one truncation:
+
+```ts
+// wasm-spike/assembly/index.ts (actual code, excerpted)
+export function nnueEvaluateCp(): i32 {
+  const outQ = nnueEnabled && !nnueForceFull ? nnueEvaluateFast() : nnueEvaluate();
+  // Fold the output rescale (numer/denom, default 1/1) into the same i64
+  // division so there is only ONE truncation — with 1/1 this is bit-identical
+  // to trunc(out_q * K / 8128).
+  let cp = (<i64>outQ * <i64>nnueScaleK * <i64>nnueOutNumer) / (<i64>8128 * <i64>nnueOutDenom);
+  // ...clamp and return...
+}
+```
+
+The default 1/1 is **bit-identical** to the previous behavior (a guarantee of zero regression). The setter has overflow guards: numer/denom capped at 1,000,000, the fraction reduced by gcd, and K×numer ≤ 2^32 enforced — no calling order of the setters can produce an overflowing pair.
+
+Same run100k weights (K=600), applying **only the 37/10 calibration**, replayed under identical conditions (same seeds, same opening scheme) against the V3 baseline — 28 games total:
+
+| Condition | Cycle 1 (uncalibrated) | Cycle 2 (37/10 calibrated) |
+|---|---|---|
+| 200ms × 16 games (seed 1) | 2W–14L–0D (12.5%) | 1W–14L–1D (9.4%) |
+| 1000ms × 6 games (seed 2) | 1W–5L–0D (16.7%) | 0W–6L–0D (0.0%) |
+| 1000ms × 6 games (seed 3) | 2W–3L–1D (41.7%) | 1W–5L–0D (16.7%) |
+| **Total** | **5.5/28 (19.6%)** | **2.5/28 (8.9%)** |
+
+**Not only did it fail to recover — it got worse (−10.7pt). Hypothesis rejected.**
+
+The interpretation: uncalibrated, the effectively ~3.7x looser margins meant *shallower pruning* — which had been quietly acting as insurance, re-verifying the noisy evaluations (teacher MAE ≈ 405cp) with extra search. Calibrate the margins back to their intended strength, and the eval noise lands directly on the pruning decisions. **The dominant cause of defeat is the accuracy of the evaluation itself (hypothesis #1: eval noise scrambles move rankings), and the quality and quantity of the teacher data is the real battleground** — now confirmed.
+
+The lesson: **even a well-reasoned mechanistic hypothesis can be rejected by an A/B test.** Cycle 1's post-mortem had three hypotheses; had we "fixed" them all at once, we would never have learned which one mattered. The tedium of isolating one variable at a time paid out right here. The mechanism stays: when strong weights arrive, one call aligns the scales without touching a single search constant.
+
+### Scaling the teacher data (in progress): the main assault
+
+With the real battleground confirmed, teacher-data generation is running.
+
+- **Target: 1,000,000 positions** (10x cycle 1). Eight parallel YaneuraOu processes are generating continuously; currently **past 200k lines**
+- **The `--balance` option**: positions with |cp| > 1200 (decided games) are probabilistically thinned to a 30% acceptance rate after labeling, raising the share of near-equal positions. Cycle 1's data was over 60% |cp| > 1000 — heavy on lopsided endgames and thin on exactly the subtle early/middlegame differences alpha-beta needs most
+- **Ranking loss** (`train.py --loss ranking`): cycle 1's biggest lesson — alpha-beta needs the *ranking of sibling positions*, not absolute regression accuracy — encoded directly into the loss. In-batch position pairs whose teacher cp difference falls in a window (default 50–600cp) get an additional margin ranking loss, and **`val_pair_acc`** (pair-order agreement on pairs with teacher diff > 100cp) is now logged every epoch as the headline metric
+- **A watcher is in place to automatically kick off an interim checkpoint training run at 300k lines** (baseline vs ranking loss comparison)
+
+And cycle 2's verdict will be decided the same way as ever: **by playing the games.**
+
+---
+
+## 10. Lessons: what worked and what didn't
 
 1. **Before assuming "the search is weak", check whether it searched at all.** Thinking-time logs are the strongest diagnostic
 2. **Self-play cannot detect bugs both sides share.** Real human games are the most valuable test cases
@@ -320,8 +410,10 @@ The next moves are documented in the repo: scale the teacher data 100k → 1M (g
 7. **Large eval terms are poison**: ±1000 went 2W–7L; ±350 recovered; the threat term only worked narrowed to "undefended-only, 1/3 value"
 8. **Distrust proxy metrics.** "2x closer to the teacher" passed the quality gate — and then lost the actual games 19.6% to 80.4%. Search doesn't need absolute accuracy; it needs correct sibling rankings. **The final gate must always be: play the games**
 9. **Zero budget is enough.** An open-source engine + a public eval + a local GPU builds a distillation pipeline in hours
+10. **Even well-reasoned mechanistic hypotheses die in A/B tests.** "Miscalibrated search margins are the culprit" made perfect sense — and the isolated test went 19.6% → 8.9%, worse. Isolating one variable at a time is tedious, and it pays
+11. **The opponent's time is free compute.** Pondering is a structural improvement orthogonal to eval quality (+0.35 mean depth, up to +2 plies in the opening) and shipped with zero UI API changes
 
-This project began with its 2-dan owner calling the AI "way too weak." The next milestone is unambiguous: **beat the owner.**
+This project began with its 2-dan owner calling the AI "way too weak." Eleven PRs later (#287–#297), pondering is live in production and cycle 2's teacher-data generation (target: one million positions) is running. The next milestone hasn't changed: **beat the owner.**
 
 ---
 

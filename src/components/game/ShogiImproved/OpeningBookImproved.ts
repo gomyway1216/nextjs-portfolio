@@ -25,7 +25,7 @@ import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, SENTE, Te, getKomashu, kom
  * - If you want a larger book later, extend `OPENING_LINES` or generate it from a dataset.
  */
 
-type BookMove = {
+export type BookMove = {
   teban: number; // SENTE or GOTE
   from: { suji: number; dan: number }; // use {0,0} for drops (with `drop` set to the piece type)
   to: { suji: number; dan: number };
@@ -33,7 +33,7 @@ type BookMove = {
   drop?: number; // piece type (FU/KY/KE/GI/KI/KA/HI) for drop moves; teban is OR'ed in automatically
 };
 
-type OpeningLine = {
+export type OpeningLine = {
   name: string;
   category: string;
   priority: number;
@@ -171,7 +171,9 @@ function varietyPoolSizeByDifficulty(difficulty: Difficulty): number {
 
 // A small curated set of lines. These are intentionally short and "shape oriented".
 // The safety validation step prevents obvious blunders when the opponent deviates.
-const OPENING_LINES: OpeningLine[] = [
+// Exported for validation tooling (scripts/shogi-yaneuraou-book-check.ts etc.) — the runtime
+// entry point is `getOpeningMoveImproved` below, which reads the prebuilt hash map instead.
+export const OPENING_LINES: OpeningLine[] = [
   {
     name: '矢倉 (basic)',
     category: '相居飛車',
@@ -184,12 +186,17 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八金
       { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金 (囲い方向)
 
-      // A few extra "shape" moves so the opening doesn't immediately collapse into random play.
-      // We keep these quiet and non-forcing; safety validation will reject them if tactics demand otherwise.
-      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八銀
-      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
+      // IMPORTANT move order (YaneuraOu-verified): ☗６六歩で角道を止めてから☗７八銀。
+      // 旧手順（☗７八銀→☗６六歩）は７八銀の瞬間に☖８八角成で角をタダ取りされる大悪手だった
+      // （７九銀が８八の唯一の受けで、それが７八に上がると８八が浮く）。
       { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
+      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八銀
       { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 7, dan: 8 }, to: { suji: 7, dan: 7 } }, // ☗７七銀 (矢倉の骨格)
+      { teban: GOTE, from: { suji: 6, dan: 3 }, to: { suji: 6, dan: 4 } },  // ☖６四歩
     ],
   },
   {
@@ -203,10 +210,14 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
       { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八金
       { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二金
-      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八銀
-      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
+      // ☗６六歩→☗７八銀の順 (矢倉basicと同じ理由: 先に７八銀は☖８八角成でタダ取りされる)。
       { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
+      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八銀
       { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八銀 (雁木へ)
+      { teban: GOTE, from: { suji: 3, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二銀
+      { teban: SENTE, from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 } }, // ☗７七角
     ],
   },
   {
@@ -220,6 +231,12 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
       { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
       { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      // YaneuraOu depth18 最善手による延長 (2026-07): 飛先交換。
+      // (居飛車 (…84 early)/(…34 early) も同一局面に合流するため、この延長は共有される。)
+      { teban: SENTE, from: { suji: 2, dan: 5 }, to: { suji: 2, dan: 4 } }, // ☗２四歩
+      { teban: GOTE, from: { suji: 2, dan: 3 }, to: { suji: 2, dan: 4 } },  // ☖同歩
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 2, dan: 4 } }, // ☗同飛
+      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金
     ],
   },
   {
@@ -254,13 +271,17 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 3, dan: 1 }, to: { suji: 2, dan: 2 } },  // ☖２二銀
       { teban: SENTE, from: { suji: 3, dan: 8 }, to: { suji: 2, dan: 7 } }, // ☗２七銀
       { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金
-      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六銀
-      { teban: GOTE, from: { suji: 1, dan: 3 }, to: { suji: 1, dan: 4 } },  // ☖１四歩
-      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
-      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
+      // 旧９手目▲２六銀 (原始棒銀の継続) は depth18/22 で最善と 200cp 超離れるため、
+      // エンジン最善の▲３六銀 (銀を中央寄りに使う) ルートへ差し替え (2026-07)。
+      // △３三角/△２二銀/△３二金という対棒銀の受けの骨格はそのまま残る。
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 3, dan: 6 } }, // ☗３六銀
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 3, dan: 6 }, to: { suji: 4, dan: 5 } }, // ☗４五銀 (３四を狙う)
+      { teban: GOTE, from: { suji: 3, dan: 4 }, to: { suji: 3, dan: 5 } },  // ☖３五歩 (かわす)
     ],
   },
   {
+    // (旧「相掛かり (2-6 start)」は本ラインと完全同一手順の重複だったため削除。)
     name: '相掛かり (basic)',
     category: '相居飛車',
     priority: 72,
@@ -271,19 +292,11 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
       { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
       { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
-    ],
-  },
-  {
-    name: '相掛かり (2-6 start)',
-    category: '相居飛車',
-    priority: 70,
-    moves: [
-      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
-      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
-      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
-      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
-      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
-      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      // YaneuraOu depth18 最善手による延長 (2026-07): 飛先交換まで。
+      { teban: SENTE, from: { suji: 2, dan: 5 }, to: { suji: 2, dan: 4 } }, // ☗２四歩
+      { teban: GOTE, from: { suji: 2, dan: 3 }, to: { suji: 2, dan: 4 } },  // ☖同歩
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 2, dan: 4 } }, // ☗同飛
+      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金 (横歩と２三を受ける)
     ],
   },
   {
@@ -303,6 +316,11 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
       { teban: SENTE, from: { suji: 4, dan: 9 }, to: { suji: 5, dan: 8 } }, // ☗５八金左
       { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金
+      // YaneuraOu depth18 最善手による延長 (2026-07)。
+      { teban: SENTE, from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 } }, // ☗７七角 (飛先を受ける)
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
+      { teban: SENTE, from: { suji: 1, dan: 7 }, to: { suji: 1, dan: 6 } }, // ☗１六歩
+      { teban: GOTE, from: { suji: 1, dan: 3 }, to: { suji: 1, dan: 4 } },  // ☖１四歩
     ],
   },
   {
@@ -318,21 +336,35 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
       { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八玉
       { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
+      // YaneuraOu depth18 最善手による延長 (2026-07)。
+      { teban: SENTE, from: { suji: 1, dan: 7 }, to: { suji: 1, dan: 6 } }, // ☗１六歩
+      { teban: GOTE, from: { suji: 1, dan: 3 }, to: { suji: 1, dan: 4 } },  // ☖１四歩
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 3, dan: 8 } }, // ☗３八銀 (美濃へ)
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
     ],
   },
   {
-    name: '四間飛車 (2-6 start)',
-    category: '振り飛車',
+    // ▲２六歩△３四歩▲７六歩の出だしから飛先交換へ（YaneuraOu検証済み: 全手が depth18 の最善手）。
+    // 旧「四間飛車/三間飛車 (2-6 start)」は▲２六歩＋角道オープンのまま飛車を振る形で、
+    // ▲６八飛/▲７八飛がエンジン最善と200cp以上離れる悪手だったため本ラインに置き換えた。
+    name: '横歩取り模様 (basic)',
+    category: '相居飛車',
     priority: 74,
     moves: [
       { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
       { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
       { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
       { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
-      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 6, dan: 8 } }, // ☗６八飛
-      { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
-      { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八玉
-      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金
+      { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八金
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 2, dan: 5 }, to: { suji: 2, dan: 4 } }, // ☗２四歩 (飛先交換)
+      { teban: GOTE, from: { suji: 2, dan: 3 }, to: { suji: 2, dan: 4 } },  // ☖同歩
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 2, dan: 4 } }, // ☗同飛
+      { teban: GOTE, from: { suji: 8, dan: 5 }, to: { suji: 8, dan: 6 } },  // ☖８六歩 (お返しの交換)
+      { teban: SENTE, from: { suji: 8, dan: 7 }, to: { suji: 8, dan: 6 } }, // ☗同歩
+      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 8, dan: 6 } },  // ☖同飛 (横歩取り基本図の直前)
     ],
   },
   {
@@ -348,21 +380,11 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
       { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八玉
       { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
-    ],
-  },
-  {
-    name: '三間飛車 (2-6 start)',
-    category: '振り飛車',
-    priority: 72,
-    moves: [
-      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
-      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
-      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
-      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
-      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 7, dan: 8 } }, // ☗７八飛
-      { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
-      { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八玉
-      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
+      // YaneuraOu depth18 最善手による延長 (2026-07): ▲７五歩〜▲７六飛の石田流志向。
+      { teban: SENTE, from: { suji: 7, dan: 6 }, to: { suji: 7, dan: 5 } }, // ☗７五歩 (石田流)
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 7, dan: 8 }, to: { suji: 7, dan: 6 } }, // ☗７六飛 (浮き飛車)
+      { teban: GOTE, from: { suji: 1, dan: 3 }, to: { suji: 1, dan: 4 } },  // ☖１四歩
     ],
   },
   {
@@ -378,13 +400,13 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 7, dan: 8 } }, // ☗７八飛 (先手三間飛車)
       { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二玉
       { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八玉
-      { teban: GOTE, from: { suji: 6, dan: 2 }, to: { suji: 7, dan: 2 } },  // ☖７二玉
-      { teban: SENTE, from: { suji: 4, dan: 8 }, to: { suji: 3, dan: 8 } }, // ☗３八玉
-      { teban: GOTE, from: { suji: 7, dan: 2 }, to: { suji: 8, dan: 2 } },  // ☖８二玉 (美濃)
-      { teban: SENTE, from: { suji: 3, dan: 8 }, to: { suji: 2, dan: 8 } }, // ☗２八玉 (美濃)
+      // 旧８手目△７二玉は△３五歩 (石田流の伸び) に depth18 で 200cp 超劣るため、
+      // ほぼ互角次善 (差1cp) の△７二銀→△７一玉ルートに変更 (YaneuraOu検証, 2026-07)。
+      // ▲２八玉/△８二玉まで進める旧形は３筋の歩交換を軽視しすぎで検証を通らず、11手で打ち切る。
       { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 7, dan: 2 } },  // ☖７二銀
-      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 3, dan: 8 } }, // ☗３八銀
-      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 5, dan: 2 } },  // ☖５二金左
+      { teban: SENTE, from: { suji: 4, dan: 8 }, to: { suji: 3, dan: 8 } }, // ☗３八玉
+      { teban: GOTE, from: { suji: 6, dan: 2 }, to: { suji: 7, dan: 1 } },  // ☖７一玉
+      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八銀
     ],
   },
   {
@@ -403,7 +425,10 @@ const OPENING_LINES: OpeningLine[] = [
     ],
   },
   {
-    name: '中飛車 (mino-ish)',
+    // 旧「中飛車 (mino-ish)」を改修 (2026-07): 旧８手目△３二金は△８五歩 (エンジン最善+240cp) を
+    // 逃す手だったため、△８五歩以降を YaneuraOu depth18 最善手で差し替え。▲９六歩〜▲９七角で
+    // ８六を受け、５筋の位を交換するのが中飛車らしい本筋。
+    name: '中飛車 (５筋交換)',
     category: '振り飛車',
     priority: 78,
     moves: [
@@ -414,8 +439,12 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: SENTE, from: { suji: 5, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八玉
       { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
       { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八金
-      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金
-      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八銀
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩 (飛先を伸ばすのが最善)
+      { teban: SENTE, from: { suji: 9, dan: 7 }, to: { suji: 9, dan: 6 } }, // ☗９六歩 (▲９七角の受けを用意)
+      { teban: GOTE, from: { suji: 4, dan: 2 }, to: { suji: 3, dan: 2 } },  // ☖３二玉
+      { teban: SENTE, from: { suji: 5, dan: 6 }, to: { suji: 5, dan: 5 } }, // ☗５五歩 (５筋交換)
+      { teban: GOTE, from: { suji: 5, dan: 4 }, to: { suji: 5, dan: 5 } },  // ☖同歩
+      { teban: SENTE, from: { suji: 5, dan: 8 }, to: { suji: 5, dan: 5 } }, // ☗同飛
       { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
     ],
   },
@@ -459,7 +488,10 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: SENTE, from: { suji: 4, dan: 6 }, to: { suji: 4, dan: 5 } }, // ☗４五歩
       { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
       { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 4, dan: 8 } }, // ☗４八飛
-      { teban: GOTE, from: { suji: 4, dan: 3 }, to: { suji: 4, dan: 4 } },  // ☖４四歩
+      // 旧８手目△４四歩は▲同角/▲同歩で -2100cp 級の大悪手 (YaneuraOu検証)。△３二金が最善。
+      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金
+      { teban: SENTE, from: { suji: 4, dan: 5 }, to: { suji: 4, dan: 4 } }, // ☗４四歩 (位を確保)
+      { teban: GOTE, from: { suji: 6, dan: 1 }, to: { suji: 5, dan: 2 } },  // ☖５二金
     ],
   },
   {
@@ -499,9 +531,10 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
       { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八金
       { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金
-      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八銀
-      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
+      // ☗６六歩→☗７八銀の順 (矢倉basicと同じ理由)。ここから先は矢倉basicと同一局面に合流する。
       { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
+      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八銀
       { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
     ],
   },
@@ -541,6 +574,11 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
       { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
       { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      // YaneuraOu depth18 最善手による延長 (2026-07)。
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
     ],
   },
   {
@@ -556,6 +594,11 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
       { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩
       { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
+      // YaneuraOu depth18 最善手による延長 (2026-07): ▲２四歩の交換には△同歩▲同飛△３二金。
+      { teban: SENTE, from: { suji: 2, dan: 5 }, to: { suji: 2, dan: 4 } }, // ☗２四歩
+      { teban: GOTE, from: { suji: 2, dan: 3 }, to: { suji: 2, dan: 4 } },  // ☖同歩
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 2, dan: 4 } }, // ☗同飛
+      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金
     ],
   },
   {
@@ -653,11 +696,14 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 2, dan: 4 } }, // ☗同飛
       { teban: GOTE, from: { suji: 0, dan: 0 }, to: { suji: 2, dan: 3 }, drop: FU }, // ☖２三歩
       { teban: SENTE, from: { suji: 2, dan: 4 }, to: { suji: 2, dan: 6 } }, // ☗２六飛 (浮き飛車)
-      { teban: GOTE, from: { suji: 8, dan: 5 }, to: { suji: 8, dan: 6 } },  // ☖８六歩
-      { teban: SENTE, from: { suji: 8, dan: 7 }, to: { suji: 8, dan: 6 } }, // ☗同歩
-      { teban: GOTE, from: { suji: 8, dan: 2 }, to: { suji: 8, dan: 6 } },  // ☖同飛
-      { teban: SENTE, from: { suji: 0, dan: 0 }, to: { suji: 8, dan: 7 }, drop: FU }, // ☗８七歩
-      { teban: GOTE, from: { suji: 8, dan: 6 }, to: { suji: 8, dan: 4 } },  // ☖８四飛 (相浮き飛車)
+      // 旧手順の△８六歩▲同歩△同飛は、▲２六飛の横利きで△同飛が丸ごと取られる大悪手だった
+      // (▲7六歩が入っていないので6段目が素通し)。YaneuraOu depth18 最善手で差し替え (2026-07)。
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 7, dan: 2 } },  // ☖７二銀
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 3, dan: 6 } }, // ☗３六飛 (横歩を狙う)
+      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
+      { teban: SENTE, from: { suji: 3, dan: 6 }, to: { suji: 3, dan: 4 } }, // ☗３四飛 (横歩取り)
     ],
   },
   {
@@ -680,6 +726,11 @@ const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 3, dan: 1 }, to: { suji: 2, dan: 2 } },  // ☖２二銀
       { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八金
       { teban: GOTE, from: { suji: 2, dan: 2 }, to: { suji: 3, dan: 3 } },  // ☖３三銀 (基本形)
+      // YaneuraOu depth18 最善手による延長 (2026-07)。
+      { teban: SENTE, from: { suji: 4, dan: 7 }, to: { suji: 4, dan: 6 } }, // ☗４六歩 (腰掛け銀準備)
+      { teban: GOTE, from: { suji: 7, dan: 3 }, to: { suji: 7, dan: 4 } },  // ☖７四歩
+      { teban: SENTE, from: { suji: 9, dan: 7 }, to: { suji: 9, dan: 6 } }, // ☗９六歩 (端の突き合い)
+      { teban: GOTE, from: { suji: 1, dan: 3 }, to: { suji: 1, dan: 4 } },  // ☖１四歩
     ],
   },
   {
@@ -920,6 +971,13 @@ function looksLikeOpening(k: KyokumenImproved): boolean {
 }
 
 /**
+ * Book usage counters for offline tooling (e.g. scripts/shogi-ai-match.ts hit-rate reporting).
+ * `probes` counts opening-phase lookups (past the cheap phase/check gates); `hits` counts
+ * returned book moves. Production code never reads these.
+ */
+export const openingBookStats = { probes: 0, hits: 0 };
+
+/**
  * Returns a safe opening-book move for the current position, or `null` if:
  * - position is not in the book
  * - it's not the opening (by a simple phase proxy)
@@ -933,6 +991,7 @@ export function getOpeningMoveImproved(
 ): Te | null {
   if (!looksLikeOpening(k)) return null;
   if (GenerateMovesImproved.isKingInCheck(k, k.teban)) return null;
+  openingBookStats.probes++;
 
   // Out of book? Bail out before doing any eval work (this is the common case).
   const candidates = getBook().get(k.HashVal);
@@ -1049,5 +1108,6 @@ export function getOpeningMoveImproved(
     );
   }
 
+  openingBookStats.hits++;
   return picked.move.clone();
 }

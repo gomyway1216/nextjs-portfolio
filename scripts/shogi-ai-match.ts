@@ -28,6 +28,8 @@ import {
   type ShogiAISearchOptions as ShogiAISearchOptionsV20,
 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV20';
 import { ShogiAIImprovedV20Base } from '../src/components/game/ShogiImproved/ShogiAIImprovedV20Base';
+import { openingBookStats as bookStatsCurrent } from '../src/components/game/ShogiImproved/OpeningBookImproved';
+import { openingBookStats as bookStatsBase } from '../src/components/game/ShogiImproved/OpeningBookImprovedBase';
 import { EMPTY, FU, GOTE, OU, SENTE, Te, getKomashu } from '../src/components/game/ShogiImproved/types';
 
 // 'v3t' = evaluateV3Tuned() with candidate weights (see KyokumenImproved.setEvalV3TunedWeights);
@@ -831,6 +833,19 @@ function main(): void {
   console.log(`A (engine=${config.engineA}, eval=${config.evalA}) wins: ${aWins}`);
   console.log(`B (engine=${config.engineB}, eval=${config.evalB}) wins: ${bWins}`);
   console.log(`Draws: ${draws}`);
+
+  // Opening-book usage. `current` aggregates every engine wired to OpeningBookImproved (v14+,
+  // including v20); `base` is only ever probed by v20base. In a v20-vs-v20base match this cleanly
+  // attributes book hits per side; hits/game is the "定跡ヒット率" number to compare across runs.
+  const games = Math.max(1, config.games);
+  console.log(
+    `book (current): hits=${bookStatsCurrent.hits} probes=${bookStatsCurrent.probes} ` +
+      `hits/game=${(bookStatsCurrent.hits / games).toFixed(2)}`
+  );
+  console.log(
+    `book (base):    hits=${bookStatsBase.hits} probes=${bookStatsBase.probes} ` +
+      `hits/game=${(bookStatsBase.hits / games).toFixed(2)}`
+  );
 }
 
 main();

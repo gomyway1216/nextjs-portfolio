@@ -5,6 +5,12 @@
  * - request a best move with a Promise API
  * - reuse a single worker instance across moves (fast, TT persists)
  * - terminate cleanly on unmount
+ *
+ * Pondering: after each bestMove response the worker keeps searching on the
+ * human's time to warm its transposition table (see shogi-ai.worker.ts). That
+ * needs no calls from components — the only client-side responsibility is to
+ * suspend it while the page is hidden (workers cannot observe
+ * `visibilitychange` themselves), which this wrapper does automatically.
  */
 
 import { Difficulty } from '../common/types';
@@ -12,7 +18,8 @@ import type { SerializedKyokumenImproved, SerializedTeImproved } from './shogi-a
 
 type WorkerRequest =
   | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty; tesu: number }
-  | { type: 'clearTT' };
+  | { type: 'clearTT' }
+  | { type: 'ponderControl'; action: 'suspend' | 'resume' };
 
 type WorkerResponse =
   | { type: 'bestMoveResult'; id: number; move: SerializedTeImproved | null }
@@ -69,6 +76,20 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
     rejectAll(new Error((event as ErrorEvent).message || 'Worker error'));
   };
 
+  // Pause pondering while the tab is hidden (battery/CPU): the worker cannot
+  // see page visibility, so relay it. Requests keep working while suspended —
+  // only the opponent-time search is paused.
+  const onVisibilityChange = () => {
+    const req: WorkerRequest = {
+      type: 'ponderControl',
+      action: document.visibilityState === 'hidden' ? 'suspend' : 'resume',
+    };
+    worker.postMessage(req);
+  };
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', onVisibilityChange);
+  }
+
   return {
     requestBestMove(position: SerializedKyokumenImproved, difficulty: Difficulty, tesu: number) {
       const id = nextId++;
@@ -83,6 +104,9 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
       worker.postMessage(req);
     },
     terminate() {
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibilityChange);
+      }
       rejectAll(new Error('Worker terminated'));
       worker.terminate();
     },

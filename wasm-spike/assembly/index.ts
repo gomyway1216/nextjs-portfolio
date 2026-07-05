@@ -2424,6 +2424,47 @@ const S_INFINITE: i32 = 99_999_999;
 const S_MATE: i32 = 90_000_000;
 const S_MAX_PLY: i32 = 64;
 
+// --- Shared transposition table hooks (Lazy SMP multi-thread mode) ----------
+//
+// In multi-thread (Lazy SMP) mode every worker keeps its own private WASM
+// instance/memory; the transposition table alone is shared through a
+// SharedArrayBuffer on the JS side (lock-free XOR-checked entries accessed
+// with Atomics — see src/components/game/ShogiImproved/sharedTT.ts). The
+// engine crosses into JS through the three imports below. When
+// sharedTtEnabled is false (single-thread mode, the default) none of them is
+// ever called and the private StaticArray TT behaves exactly as before, so
+// the single-thread search stays bit-identical to the pre-SMP engine.
+
+// @ts-ignore: decorator — AssemblyScript import annotation, ignored by tsc
+@external('env', 'sharedTtProbe')
+declare function hostSharedTtProbe(hashVal: i32): i32;
+// @ts-ignore: decorator — AssemblyScript import annotation, ignored by tsc
+@external('env', 'sharedTtStore')
+declare function hostSharedTtStore(hashVal: i32, value: i32, flagDepth: i32, bestKey: i32): void;
+// @ts-ignore: decorator — AssemblyScript import annotation, ignored by tsc
+@external('env', 'sharedShouldStop')
+declare function hostSharedShouldStop(): i32;
+
+let sharedTtEnabled: bool = false;
+
+/**
+ * flagDepth packing for the shared TT: flag (2 bits) | depth << 2 (8 bits) |
+ * USED bit. The USED bit guarantees a stored flagDepth is never 0, so an
+ * all-zero (empty) slot can never pass the JS-side XOR check.
+ */
+const SHARED_TT_USED_BIT: i32 = 1 << 30;
+
+/** Scratch the JS side fills on a shared-TT probe hit: [value, flagDepth, best, second]. */
+const sharedTtScratch = new StaticArray<i32>(4);
+
+export function getSharedTtScratchPtr(): usize {
+  return changetype<usize>(sharedTtScratch);
+}
+
+export function setSharedTtEnabled(flag: i32): void {
+  sharedTtEnabled = flag != 0;
+}
+
 // --- Transposition table (port of TranspositionTableImprovedPacked) ---------
 
 const TT_SIZE: i32 = 0x100000;
@@ -2440,19 +2481,56 @@ const ttBestA = new StaticArray<i32>(TT_SIZE);
 const ttSecondA = new StaticArray<i32>(TT_SIZE);
 const ttUsedA = new StaticArray<u8>(TT_SIZE);
 
-function ttProbe(hashVal: i32): i32 {
+// Fields of the entry found by the last successful ttLookup(). Single-thread
+// mode copies them out of the StaticArray entry; shared mode unpacks them
+// from sharedTtScratch. Plain globals (not atomics): each thread has its own
+// instance, so these are thread-local by construction.
+let ttHitValue: i32 = 0;
+let ttHitFlag: i32 = 0;
+let ttHitDepth: i32 = 0;
+let ttHitBest: i32 = 0;
+let ttHitSecond: i32 = 0;
+
+/**
+ * Probe the transposition table for hashVal. On a hit fills the ttHit*
+ * globals and returns true. Behavior in single-thread mode is identical to
+ * the previous inline StaticArray probe (pure refactor).
+ */
+function ttLookup(hashVal: i32): bool {
+  if (sharedTtEnabled) {
+    if (hostSharedTtProbe(hashVal) == 0) return false;
+    ttHitValue = unchecked(sharedTtScratch[0]);
+    const fd = unchecked(sharedTtScratch[1]);
+    ttHitFlag = fd & 3;
+    ttHitDepth = (fd >> 2) & 0xff;
+    ttHitBest = unchecked(sharedTtScratch[2]);
+    ttHitSecond = unchecked(sharedTtScratch[3]);
+    return true;
+  }
   const index = hashVal & TT_MASK;
-  if (unchecked(ttUsedA[index]) == 0) return -1;
-  if (unchecked(ttHashA[index]) != hashVal) return -1;
-  return index;
+  if (unchecked(ttUsedA[index]) == 0) return false;
+  if (unchecked(ttHashA[index]) != hashVal) return false;
+  ttHitValue = unchecked(ttValueA[index]);
+  ttHitFlag = <i32>unchecked(ttFlagA[index]);
+  ttHitDepth = <i32>unchecked(ttDepthA[index]);
+  ttHitBest = unchecked(ttBestA[index]);
+  ttHitSecond = unchecked(ttSecondA[index]);
+  return true;
 }
 
 function ttAdd(hashVal: i32, value: i32, alpha: i32, beta: i32, bestKey: i32, remainDepth: i32): void {
-  const index = hashVal & TT_MASK;
-
   let flag = TT_EXACT;
   if (value <= alpha) flag = TT_UPPER;
   else if (value >= beta) flag = TT_LOWER;
+
+  if (sharedTtEnabled) {
+    // Depth-preferred replacement and second-move promotion happen on the JS
+    // side (they need a read-modify-write of the shared entry).
+    hostSharedTtStore(hashVal, value, flag | ((remainDepth & 0xff) << 2) | SHARED_TT_USED_BIT, bestKey);
+    return;
+  }
+
+  const index = hashVal & TT_MASK;
 
   if (unchecked(ttUsedA[index]) != 0 && unchecked(ttHashA[index]) == hashVal) {
     const oldRemain = <i32>unchecked(ttDepthA[index]);
@@ -2690,6 +2768,9 @@ function sampleTime(): void {
   const counter = nodeCount + leafCount;
   if ((counter & 2047) != 0) return;
   if (searchMaxTimeMs > 0 && hostNow() - searchStartTime >= searchMaxTimeMs) stopped = true;
+  // Lazy SMP: helper threads (and a superseded main search) are stopped
+  // through a shared generation cell once the coordinating thread is done.
+  if (sharedTtEnabled && hostSharedShouldStop() != 0) stopped = true;
 }
 
 function timeUpNow(): bool {
@@ -3076,8 +3157,7 @@ function quiescenceAS(alpha: i32, beta: i32, ply: i32, depthLeft: i32): i32 {
   const base = ply * MAX_MOVES;
 
   // TT best move for quiescence ordering.
-  const qTtIndex = ttProbe(getHashVal());
-  const qTtMoveKey = qTtIndex >= 0 ? unchecked(ttBestA[qTtIndex]) : 0;
+  const qTtMoveKey = ttLookup(getHashVal()) ? ttHitBest : 0;
 
   orderDepthLeft = 0;
   if (inCheck) {
@@ -3226,17 +3306,16 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
 
   // Transposition table probe.
   const hashVal = getHashVal();
-  const ttIndex = ttProbe(hashVal);
   let ttMoveKey = 0;
   let ttSecondMoveKey = 0;
-  if (ttIndex >= 0) {
-    ttMoveKey = unchecked(ttBestA[ttIndex]);
-    ttSecondMoveKey = unchecked(ttSecondA[ttIndex]);
+  if (ttLookup(hashVal)) {
+    ttMoveKey = ttHitBest;
+    ttSecondMoveKey = ttHitSecond;
 
-    const ttRemainDepth = <i32>unchecked(ttDepthA[ttIndex]);
+    const ttRemainDepth = ttHitDepth;
     if (ttRemainDepth >= depthLeft) {
-      const ttValue = unchecked(ttValueA[ttIndex]);
-      const ttFlag = <i32>unchecked(ttFlagA[ttIndex]);
+      const ttValue = ttHitValue;
+      const ttFlag = ttHitFlag;
 
       if (ttFlag == TT_EXACT) {
         if (ply == 0 && ttMoveKey != 0) rootBestKey = ttMoveKey;
@@ -3265,10 +3344,9 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
       popRepetition();
       return 0;
     }
-    const iidIndex = ttProbe(hashVal);
-    if (iidIndex >= 0) {
-      ttMoveKey = unchecked(ttBestA[iidIndex]);
-      ttSecondMoveKey = unchecked(ttSecondA[iidIndex]);
+    if (ttLookup(hashVal)) {
+      ttMoveKey = ttHitBest;
+      ttSecondMoveKey = ttHitSecond;
     }
   }
 
@@ -3479,6 +3557,15 @@ export function setRootTesu(tesu: i32): void {
   rootTesuG = tesu;
 }
 
+// First iterative-deepening depth. Lazy SMP helpers use 1 + (helperId & 1) so
+// half the helpers explore one ply ahead of the main thread (standard
+// desynchronization); single-thread mode always keeps the default 1.
+let searchStartDepth: i32 = 1;
+
+export function setSearchStartDepth(d: i32): void {
+  searchStartDepth = maxI(1, minI(d, 8));
+}
+
 /**
  * Search the current position (port of ShogiAIImprovedV20.getNextTe minus the
  * opening book and mate solver, which the JS host runs first).
@@ -3550,9 +3637,12 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
     return 0;
   }
 
-  const ttIndexAtRoot = ttProbe(getHashVal());
-  const ttMoveKeyAtRoot = ttIndexAtRoot >= 0 ? unchecked(ttBestA[ttIndexAtRoot]) : 0;
-  const ttSecondMoveKeyAtRoot = ttIndexAtRoot >= 0 ? unchecked(ttSecondA[ttIndexAtRoot]) : 0;
+  let ttMoveKeyAtRoot = 0;
+  let ttSecondMoveKeyAtRoot = 0;
+  if (ttLookup(getHashVal())) {
+    ttMoveKeyAtRoot = ttHitBest;
+    ttSecondMoveKeyAtRoot = ttHitSecond;
+  }
   scoreAndSortMovesAS(0, rootN, ttMoveKeyAtRoot, ttSecondMoveKeyAtRoot);
 
   let bestMoveKey = jsMoveKeyOf(unchecked(moveBuf[0]));
@@ -3576,7 +3666,7 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
   }
   let completedDepth = 0;
 
-  for (let depth = 1; depth <= maxDepthL; depth++) {
+  for (let depth = searchStartDepth; depth <= maxDepthL; depth++) {
     rootBestKey = 0;
 
     // Aspiration windows with gradual (4x then full) widening.
@@ -3610,6 +3700,7 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
     if (bestScore >= S_MATE - 10_000) break;
 
     if (timeUpNow()) break;
+    if (sharedTtEnabled && hostSharedShouldStop() != 0) break;
   }
 
   lastSearchScore = bestScore;

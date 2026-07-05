@@ -14,12 +14,15 @@
  */
 
 import { Difficulty } from '../common/types';
+import { createSharedTTBuffer } from './sharedTT';
 import type { SerializedKyokumenImproved, SerializedTeImproved } from './shogi-ai.worker';
+import type { HelperInitMessage, MainThreadsInitMessage } from './smpProtocol';
 
 type WorkerRequest =
   | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty; tesu: number }
   | { type: 'clearTT' }
-  | { type: 'ponderControl'; action: 'suspend' | 'resume' };
+  | { type: 'ponderControl'; action: 'suspend' | 'resume' }
+  | MainThreadsInitMessage;
 
 type WorkerResponse =
   | { type: 'bestMoveResult'; id: number; move: SerializedTeImproved | null }
@@ -37,8 +40,70 @@ export interface ShogiAiWorkerClient {
   terminate: () => void;
 }
 
+/**
+ * Total search threads (1 main + N helpers) for Lazy SMP: keep 2 cores free
+ * for the UI/OS, cap at 4 (diminishing returns beyond that for this engine).
+ * 1 means multi-threading is not worth it on this machine.
+ */
+function computeSearchThreadCount(): number {
+  const hc = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency || 1 : 1;
+  return Math.min(4, Math.max(1, hc - 2));
+}
+
+/**
+ * Spawn the Lazy SMP helper workers and wire them to the main AI worker.
+ *
+ * Requirements (any missing → return [] and the game runs exactly as the
+ * previous single-thread build):
+ * - SharedArrayBuffer available == the page is cross-origin isolated (the
+ *   /games/shogi-improved route sends COOP/COEP headers; anywhere else the
+ *   constructor simply does not exist).
+ * - At least 2 usable threads on this machine.
+ *
+ * The client owns all `new Worker(new URL(...))` calls (bundler-statically
+ * analyzable, no nested workers); each helper gets one end of a dedicated
+ * MessageChannel and the main worker gets the other, so after this handshake
+ * the search coordination never touches the UI thread.
+ */
+function trySpawnSmpHelpers(worker: Worker): Worker[] {
+  try {
+    const threads = computeSearchThreadCount();
+    if (threads < 2) return [];
+    const sab = createSharedTTBuffer();
+    if (!sab) return [];
+
+    const helpers: Worker[] = [];
+    const mainPorts: MessagePort[] = [];
+    try {
+      for (let helperId = 0; helperId < threads - 1; helperId++) {
+        const helper = new Worker(new URL('./shogi-ai-helper.worker.ts', import.meta.url), {
+          type: 'module',
+        });
+        helpers.push(helper);
+        const channel = new MessageChannel();
+        const init: HelperInitMessage = { type: 'smpInit', port: channel.port1, sab, helperId };
+        helper.postMessage(init, [channel.port1]);
+        mainPorts.push(channel.port2);
+      }
+    } catch (e) {
+      // e.g. Worker construction rejected — tear down anything half-built.
+      for (const helper of helpers) helper.terminate();
+      console.info('[shogiAiWorkerClient] helper spawn failed; staying single-thread', e);
+      return [];
+    }
+
+    const init: MainThreadsInitMessage = { type: 'smpThreads', sab, ports: mainPorts };
+    worker.postMessage(init, mainPorts);
+    return helpers;
+  } catch (e) {
+    console.info('[shogiAiWorkerClient] multi-thread setup failed; staying single-thread', e);
+    return [];
+  }
+}
+
 export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
   const worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), { type: 'module' });
+  const helpers = trySpawnSmpHelpers(worker);
 
   let nextId = 1;
   const pending = new Map<
@@ -112,6 +177,7 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
       }
       rejectAll(new Error('Worker terminated'));
       worker.terminate();
+      for (const helper of helpers) helper.terminate();
     },
   };
 }

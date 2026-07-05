@@ -19,6 +19,12 @@
  *   the TT is intentionally kept across moves of one game).
  * - `ponderControl`: suspend/resume pondering (sent by the client on
  *   `visibilitychange` so a hidden tab does not burn CPU).
+ * - `smpThreads`: enable Lazy SMP multi-thread search. The client (which owns
+ *   worker spawning) passes the SharedArrayBuffer transposition table and one
+ *   MessagePort per helper worker; from then on this worker coordinates the
+ *   helpers directly (see smpProtocol.ts / sharedTT.ts). Only sent on
+ *   cross-origin-isolated pages with >= 2 usable threads; otherwise this
+ *   worker behaves exactly like the previous single-thread build.
  *
  * Pondering ("permanent brain"):
  * - Right after answering a `bestMove`, the worker keeps searching from the
@@ -42,37 +48,29 @@ import { KyokumenImproved } from './KyokumenImproved';
 import { MateSolverImproved } from './MateSolverImproved';
 import { getOpeningMoveImproved } from './OpeningBookImproved';
 import { PonderController } from './ponderController';
+import { buildPosition, type SerializedKyokumenImproved, type SerializedTeImproved } from './serializedPosition';
 import { ShogiAIImprovedV20 } from './ShogiAIImprovedV20';
+import type { HelperRequest, HelperResponse, MainThreadsInitMessage } from './smpProtocol';
 import { EMPTY, FU, getKomashu, HI, isSelf, OU, SENTE, Te } from './types';
-import { clearWasmTT, isWasmEngineReady, loadNnueWeights, setWasmNnueEnabled, wasmSearchBestMove } from './wasmEngine';
+import {
+  clearWasmTT,
+  enableSharedTT,
+  isWasmEngineReady,
+  loadNnueWeights,
+  publishSearchGeneration,
+  setSearchGeneration,
+  setWasmNnueEnabled,
+  wasmSearchBestMove,
+} from './wasmEngine';
 import { Difficulty } from '../common/types';
 
-export type SerializedKyokumenImproved = {
-  /**
-   * 81 squares (suji 1..9, dan 1..9), in (suji-major, then dan) order:
-   * index = (suji-1)*9 + (dan-1)
-   */
-  board: number[];
-  /**
-   * Hand piece counts indexed by piece code.
-   * This can be longer than the engine's internal `hand[]`; only overlapping indices are copied.
-   */
-  hand: number[];
-  /** Side to move (SENTE or GOTE). */
-  teban: number;
-};
-
-export type SerializedTeImproved = {
-  koma: number;
-  from: number;
-  to: number;
-  promote: boolean;
-};
+export type { SerializedKyokumenImproved, SerializedTeImproved };
 
 type WorkerRequest =
   | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty; tesu: number }
   | { type: 'clearTT' }
-  | { type: 'ponderControl'; action: 'suspend' | 'resume' };
+  | { type: 'ponderControl'; action: 'suspend' | 'resume' }
+  | MainThreadsInitMessage;
 
 type WorkerResponse =
   | { type: 'bestMoveResult'; id: number; move: SerializedTeImproved | null }
@@ -139,12 +137,23 @@ function difficultyUsesNnue(difficulty: Difficulty): boolean {
   return NNUE_DIFFICULTIES.has(difficulty);
 }
 
+/**
+ * Weights bytes kept for the Lazy SMP helpers: each helper runs its own WASM
+ * instance and needs its own copy. Whichever comes last — the fetch resolving
+ * or a helper connecting — triggers the forward (see sendNnueWeightsToHelpers).
+ */
+let nnueWeightsBytes: ArrayBuffer | null = null;
+
 async function fetchNnueWeights(): Promise<void> {
   try {
     const res = await fetch(nnueWeightsUrl());
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const buf = await res.arrayBuffer();
     const ok = loadNnueWeights(new Uint8Array(buf), NNUE_SCALE_K);
+    if (ok) {
+      nnueWeightsBytes = buf;
+      sendNnueWeightsToHelpers();
+    }
     if (process.env.NODE_ENV === 'development') {
       console.info(
         ok
@@ -160,6 +169,58 @@ async function fetchNnueWeights(): Promise<void> {
   }
 }
 void fetchNnueWeights();
+
+// ---------------------------------------------------------------------------
+// Lazy SMP coordination (multi-thread search over a shared TT).
+//
+// The client spawns the helper workers and hands us one MessagePort per
+// helper plus the SharedArrayBuffer TT ('smpThreads' message). From then on
+// this worker coordinates every multi-thread search: publish a generation,
+// broadcast `go`, run the normal WASM search, publish 0 to stop the helpers.
+// Anything failing here leaves smpPorts empty == plain single-thread mode.
+// ---------------------------------------------------------------------------
+
+let smpPorts: MessagePort[] = [];
+let smpGenCounter = 0;
+
+function nextSmpGeneration(): number {
+  // Skip 0 (idle marker) on wrap-around.
+  smpGenCounter = (smpGenCounter + 1) | 0;
+  if (smpGenCounter === 0) smpGenCounter = 1;
+  return smpGenCounter;
+}
+
+function sendNnueWeightsToHelpers(): void {
+  if (!nnueWeightsBytes) return;
+  for (const port of smpPorts) {
+    const req: HelperRequest = { type: 'nnueWeights', bytes: nnueWeightsBytes, scaleK: NNUE_SCALE_K };
+    port.postMessage(req);
+  }
+}
+
+function initSmpThreads(msg: MainThreadsInitMessage): void {
+  if (smpPorts.length > 0) return; // already initialized
+  if (!enableSharedTT(msg.sab, 'main')) {
+    if (PONDER_TRACE) console.info('[shogi-ai.worker] shared TT unavailable; staying single-thread');
+    return;
+  }
+  smpPorts = msg.ports;
+  for (const port of smpPorts) {
+    port.onmessage = (event: MessageEvent<HelperResponse>) => {
+      const res = event.data;
+      if (!res || typeof res !== 'object' || !('type' in res)) return;
+      // Helper node counts are diagnostics only (used to eyeball the thread
+      // scaling in dev); the moves themselves never leave the helpers.
+      if (res.type === 'stats' && PONDER_TRACE) {
+        console.info(`[shogi-ai.worker] helper stats: gen=${res.gen} nodes=${res.nodes} depth=${res.depth}`);
+      }
+    };
+  }
+  sendNnueWeightsToHelpers();
+  if (PONDER_TRACE) {
+    console.info(`[shogi-ai.worker] Lazy SMP enabled: 1 main + ${smpPorts.length} helper thread(s)`);
+  }
+}
 
 /**
  * Time/quiescence budgets per difficulty — MUST stay in sync with the
@@ -181,29 +242,6 @@ const ctx: {
   postMessage: (message: WorkerResponse) => void;
   onmessage: ((event: MessageEvent<WorkerRequest>) => void) | null;
 };
-
-function buildPosition(pos: SerializedKyokumenImproved): KyokumenImproved {
-  const k = new KyokumenImproved();
-
-  // Board (only the playable 9x9; constructor already set WALLs elsewhere)
-  let idx = 0;
-  for (let suji = 1; suji <= 9; suji++) {
-    for (let dan = 1; dan <= 9; dan++) {
-      k.ban[(suji << 4) + dan] = pos.board[idx++] ?? 0;
-    }
-  }
-
-  // Hands (count-based)
-  const limit = Math.min(k.hand.length, pos.hand.length);
-  for (let i = 0; i < limit; i++) {
-    k.hand[i] = pos.hand[i] | 0;
-  }
-
-  // Side to move and incremental state (eval / king positions / hash)
-  k.teban = pos.teban;
-  k.initAll();
-  return k;
-}
 
 /**
  * Mate-solver gate — port of ShogiAIImprovedV20.shouldTryMateSolve().
@@ -241,8 +279,17 @@ function shouldTryMateSolve(k: KyokumenImproved): boolean {
  * Hybrid best-move: book → mate solver → WASM search → JS V20 fallback.
  * Same gate/budget policy as ShogiAIImprovedV20.tryMateSolve(): ~20% of the
  * move budget (30..200ms) for the mate probe, remainder to the main search.
+ *
+ * `raw` is the serialized position `k` was built from; in multi-thread mode
+ * it is forwarded verbatim to the helper workers so all threads search the
+ * exact same root.
  */
-function computeBestMove(k: KyokumenImproved, difficulty: Difficulty, tesu: number): Te | null {
+function computeBestMove(
+  k: KyokumenImproved,
+  raw: SerializedKyokumenImproved,
+  difficulty: Difficulty,
+  tesu: number
+): Te | null {
   // 1) Opening book.
   const book = getOpeningMoveImproved(k, difficulty);
   if (book) return book;
@@ -261,9 +308,41 @@ function computeBestMove(k: KyokumenImproved, difficulty: Difficulty, tesu: numb
   }
 
   // 3) WASM full search. NNUE per the difficulty gate — a no-op request that
-  // stays on V3 while the weights are not (yet) loaded.
-  setWasmNnueEnabled(difficultyUsesNnue(difficulty));
-  const wasmMove = wasmSearchBestMove(k, tesu, searchBudgetMs, 32, budget.quiescenceDepthMax);
+  // stays on V3 while the weights are not (yet) loaded. Toggle the eval
+  // BEFORE waking the helpers: a real switch clears the shared TT, and the
+  // helpers must not be writing entries on the old eval scale meanwhile.
+  const nnue = difficultyUsesNnue(difficulty);
+  setWasmNnueEnabled(nnue);
+
+  // Lazy SMP: wake the helper threads on the same root position. Easy stays
+  // single-thread — it is intentionally weak. Helpers stop via the published
+  // generation the moment our own search returns (see finally).
+  const useSmp = smpPorts.length > 0 && difficulty !== 'easy';
+  let gen = 0;
+  if (useSmp) {
+    gen = nextSmpGeneration();
+    setSearchGeneration(gen);
+    publishSearchGeneration(gen);
+    const go: HelperRequest = {
+      type: 'go',
+      gen,
+      position: raw,
+      tesu,
+      maxTimeMs: searchBudgetMs,
+      quiescenceDepthMax: budget.quiescenceDepthMax,
+      nnue,
+      difficulty,
+    };
+    for (const port of smpPorts) port.postMessage(go);
+  }
+
+  let wasmMove: Te | null = null;
+  try {
+    wasmMove = wasmSearchBestMove(k, tesu, searchBudgetMs, 32, budget.quiescenceDepthMax);
+  } finally {
+    // Stop the helpers even if the search trapped.
+    if (useSmp) publishSearchGeneration(0);
+  }
   if (wasmMove) return wasmMove;
 
   // 4) JS V20 fallback (also the "no legal move" confirmation path: for a
@@ -303,6 +382,15 @@ function startPonder(k: KyokumenImproved, best: Te, difficulty: Difficulty, tesu
   // computeBestMove, and a same-state request is a no-op — but the book path
   // returns before the gate, and TT entries must not mix eval functions).
   setWasmNnueEnabled(difficultyUsesNnue(difficulty));
+  // Pondering stays single-thread (the helpers stay idle — better on battery,
+  // and the warmed entries land in the shared TT anyway because this worker
+  // keeps writing through it). Publish a fresh generation so our own slices
+  // are not stopped by the 0 published when the last real search finished.
+  if (smpPorts.length > 0) {
+    const gen = nextSmpGeneration();
+    setSearchGeneration(gen);
+    publishSearchGeneration(gen);
+  }
   ponder.start((sliceMs) => {
     // Returns null when the human is already mated/stalemated (or the engine
     // tripped) — stop the session instead of spinning on empty slices.
@@ -313,6 +401,11 @@ function startPonder(k: KyokumenImproved, best: Te, difficulty: Difficulty, tesu
 ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const msg = event.data;
   if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
+
+  if (msg.type === 'smpThreads') {
+    initSmpThreads(msg);
+    return;
+  }
 
   if (msg.type === 'ponderControl') {
     if (msg.action === 'suspend') ponder.suspend();
@@ -326,7 +419,9 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
 
   if (msg.type === 'clearTT') {
     ai.clearTT();
-    clearWasmTT();
+    clearWasmTT(); // 'main' role: also clears the shared TT
+    const req: HelperRequest = { type: 'clearTT' };
+    for (const port of smpPorts) port.postMessage(req);
     return;
   }
 
@@ -334,7 +429,7 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
 
   try {
     const k = buildPosition(msg.position);
-    const best = computeBestMove(k, msg.difficulty, msg.tesu | 0);
+    const best = computeBestMove(k, msg.position, msg.difficulty, msg.tesu | 0);
     const move: SerializedTeImproved | null = best
       ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
       : null;

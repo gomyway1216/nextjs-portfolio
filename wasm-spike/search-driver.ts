@@ -59,6 +59,11 @@ export function loadShogiWasm(): ShogiSearchWasm {
         throw new Error(`wasm abort at ${line}:${col}`);
       },
       now: () => performance.now(),
+    // Single-thread stubs for the Lazy SMP shared-TT hooks (never called while
+    // setSharedTtEnabled stays 0, but the imports must link).
+    sharedTtProbe: () => 0,
+    sharedTtStore: () => {},
+    sharedShouldStop: () => 0,
     },
   });
   return instance.exports as unknown as ShogiSearchWasm;

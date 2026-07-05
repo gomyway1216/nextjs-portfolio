@@ -346,8 +346,17 @@ function computeBestMove(
   try {
     wasmMove = wasmSearchBestMove(k, tesu, searchBudgetMs, 32, budget.quiescenceDepthMax);
   } finally {
-    // Stop the helpers even if the search trapped.
-    if (useSmp) publishSearchGeneration(0);
+    // Stop the helpers even if the search trapped, and sync our OWN local
+    // generation back to the idle value. Without the setSearchGeneration(0)
+    // the main worker's local generation would stay at `gen` while the TT
+    // generation returns to 0, so a later non-SMP search on the same isolated
+    // page (easy, or the ponder loop) would see sharedShouldStop() report a
+    // mismatch and bail out after the first ~2048-node check — crippling easy
+    // and silently disabling pondering.
+    if (useSmp) {
+      publishSearchGeneration(0);
+      setSearchGeneration(0);
+    }
   }
   if (wasmMove) return wasmMove;
 

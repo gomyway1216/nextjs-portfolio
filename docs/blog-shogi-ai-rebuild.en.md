@@ -11,7 +11,7 @@
 - What actually worked was structural: **porting TypeScript → WebAssembly made the search ~15x faster, +3–4 plies deeper, and the new engine beat the old one 10–0**
 - On top of that we built **NNUE distillation**: had YaneuraOu (a superhuman open-source engine) label 100,000 positions, then distilled that knowledge into a 1.13MB neural net that approximates the teacher **2.0–2.5x better than the handwritten eval**
 - The verification methodology itself is full of traps: **self-play statistical degeneration, time-control bias, and mismatched defaults** nearly led us to wrong conclusions several times
-- **Cycle 2 is now in progress**: **pondering** (the AI keeps searching on the human's thinking time, warming the TT) shipped to production, +0.35 mean depth. The leading NNUE-defeat hypothesis — "search margins are miscalibrated to the NNUE scale" — was **rejected by an isolated A/B** (score got *worse*, 19.6% → 8.9%), pinning the real culprit on teacher data. A 1M-position generation run is underway
+- **Cycle 2 reached its verdict**: **pondering** (the AI keeps searching on the human's thinking time) shipped to production, +0.35 mean depth. The leading NNUE-defeat hypothesis — "search margins are miscalibrated to the NNUE scale" — was **rejected by an isolated A/B** (19.6% → 8.9%, worse), pinning the culprit on teacher data. **Retrained on 1M positions, the NNUE beat the handcrafted eval 77.1% and shipped to production** (medium and up). Genealogy: 19.6% → 32.1% → **77.1%**
 
 ---
 
@@ -594,6 +594,61 @@ The time-saving patterns this project kept reusing boil down to three moves:
 
 And cycle 2's verdict will be decided the same way as ever: **by playing the games.**
 
+### The verdict: 77.1% — the day the neural net replaced the handwritten eval
+
+With the million positions in (1,008,878 lines; the last 4,000 held out), we trained the three runs (40 epochs, 7–10 minutes each) and first graded **all six generations of models on the same unseen 4,000 positions**:
+
+| Model | MAE | pair_acc | equal-range (0–300) MAE |
+|---|---|---|---|
+| run100k | 558.9cp | 0.8370 | 407cp |
+| run300k-base | 513.6cp | 0.8471 | 366cp |
+| run300k-rank | 645.3cp | 0.8519 | 287cp |
+| **run1m-base** | **458.7cp** | **0.8727** | 258cp |
+| run1m-rank10 | 699.4cp | 0.8613 | **165cp** |
+| run1m-rank04 | 622.8cp | 0.8640 | 217cp |
+
+An unexpected reversal: **at 1M, base overtook the ranking-loss runs even on pair ordering**. At 300k, "ranking loss directly optimizes ordering" had been the winning argument — but with enough data, plain regression learns the ordering too. **Ranking loss was a crutch for data starvation.** One more lesson for the pile: scale the data before reaching for exotic loss functions.
+
+Then the games. Screening (3 models × 22 games) eliminated rank10; the two finalists played **1000ms × 16 games × 3 seeds**:
+
+| Seed | run1m-base | run1m-rank04 |
+|---|---|---|
+| s11 | 12-3-1 (78.1%) | 10-6-0 (62.5%) |
+| s12 | 11-4-1 (71.9%) | 10-5-1 (65.6%) |
+| s13 | 13-3-0 (81.3%) | 9-7-0 (56.3%) |
+| **Total** | **37/48 (77.1%)** | 29.5/48 (61.5%) |
+
+**The adoption gate (>50%) was cleared at 77.1%, with every seed above 70%.** The genealogy: run100k **19.6%** → run300k-rank **32.1%** → run1m-base **77.1%**. The diagnosis reached by killing the scale-calibration hypothesis in an isolated A/B — *teacher data quality × quantity is the real battleground* — turned out to be exactly the winning move.
+
+### Shipping it: PR #305
+
+Production the same day. The design: aggressive switch, defensive depth:
+
+- The weights (1,185,988 bytes of int16) ship as a static asset (`public/shogi-nnue-weights.bin`), fetched asynchronously at worker startup and copied into WASM memory. **Zero bundle-size increase.** Until the fetch resolves, the engine plays on V3 as before (the first moves come from the book anyway)
+- **Only medium and up (≥1s) use NNUE.** Easy (250ms) stays on V3 — following the measurement that V3 still wins at ~200ms budgets (NNUE 40.9%). The time-control asymmetry observed throughout cycle 2 — deep search compounds ordering accuracy, shallow search leans on score calibration — landed directly in the difficulty design
+- Fetch failure, size mismatch, or WASM trouble all fall back silently to V3. Yesterday's production path is today's insurance
+- Switching NNUE⇔V3 clears the TT (so V3's ~3.7x-scale scores never mix with true-cp scores inside the table)
+
+The review bot earned its keep once more — six findings including a **production-only trap** ("workers loaded via blob URLs break root-relative fetches"), all addressed. After deploy, we verified the weights served from the production URL are SHA1-identical to the repo file. Shipped.
+
+**The "values" of the medium-and-up AI on meetyudai.com are, as of today, not seven months of handwritten rules — they are 580,000 numbers distilled overnight from a million of YaneuraOu's judgments.**
+
+### The strength genealogy (a chain of measurements)
+
+No absolute rating was ever measured (that's decided against humans), but every generational matchup was:
+
+| Transition | Measured | Rough Elo |
+|---|---|---|
+| V18 → V19 | 37-17-12 (68.5%) | +135 |
+| V19 → V20 | vs V18: hard 10-0-2, **at half the old time budget** | +200–300 |
+| V20 JS → WASM | 10-0, +3–4 plies at equal time | +250–400 |
+| + JS micro-improvements | neutral at production time (9-12-11) | ±0 |
+| + Pondering | +0.35 mean depth | +20–40 |
+| + Book audit | even in self-play; killed 11 human-exploitable holes (up to −2500cp) | real vs humans |
+| V3 → NNUE | **77.1%** (1000ms, 48 games) | +210 |
+
+Roughly **+800–1000 Elo cumulative** — the scale of a beginner becoming a dan player. With the usual caveats: self-play Elo overstates strength against humans, and the absolute anchor is unknown. The real grading happens over the board.
+
 ---
 
 ## 10. Lessons: what worked and what didn't
@@ -610,7 +665,7 @@ And cycle 2's verdict will be decided the same way as ever: **by playing the gam
 10. **Even well-reasoned mechanistic hypotheses die in A/B tests.** "Miscalibrated search margins are the culprit" made perfect sense — and the isolated test went 19.6% → 8.9%, worse. Isolating one variable at a time is tedious, and it pays
 11. **The opponent's time is free compute.** Pondering is a structural improvement orthogonal to eval quality (+0.35 mean depth, up to +2 plies in the opening) and shipped with zero UI API changes
 
-This project began with its 2-dan owner calling the AI "way too weak." Eleven PRs later (#287–#297), pondering is live in production and cycle 2's teacher-data generation (target: one million positions) is running. The next milestone hasn't changed: **beat the owner.**
+This project began with its 2-dan owner calling the AI "way too weak," and reached its verdict across PRs #287–#305: the instant-answer book bug excised, all difficulties unified onto one brain, a 15x WASM port, thinking on the opponent's time, the opening book audited by a superhuman engine — and finally, **a neural network distilled overnight from a million positions replacing, at 77.1%, an evaluation function that took seven months to handwrite**. That is the AI running on meetyudai.com right now. The remaining milestone hasn't changed: **beat the owner.**
 
 ---
 

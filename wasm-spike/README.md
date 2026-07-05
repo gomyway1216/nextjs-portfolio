@@ -34,10 +34,12 @@ npm install --no-save assemblyscript
 # テーブル再生成（既存TSソースが変わったときのみ必要）
 node wasm-spike/gen-tables.mjs
 
-# コンパイル（成果物は本番位置に直接出力）
+# コンパイル（成果物は本番位置に直接出力。NNUE 推論が SIMD128 を使うので
+# --enable simd が必須。SIMD 非対応環境では WebAssembly.validate が false を
+# 返し、wasmEngine.ts が JS V20 エンジンへフォールバックする）
 npx asc wasm-spike/assembly/index.ts \
   --outFile src/components/game/ShogiImproved/wasm/shogi.wasm \
-  -O3 --runtime stub --noAssert
+  -O3 --runtime stub --noAssert --enable simd
 
 # base64 埋め込みモジュールの再生成（Worker はこれをロードする）
 node src/components/game/ShogiImproved/wasm/gen-wasm-base64.mjs

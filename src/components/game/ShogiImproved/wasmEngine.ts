@@ -121,6 +121,35 @@ export function isWasmEngineReady(): boolean {
   return getInstance() !== null;
 }
 
+/** Diagnostics for the most recent wasmSearchBestMove() call. */
+export interface WasmSearchStats {
+  score: number;
+  depth: number;
+  nodes: number;
+  leaves: number;
+}
+
+/**
+ * Stats of the last completed search (score/depth/nodes/leaves), or null if
+ * the engine is unavailable. Used by benchmarks (e.g. the ponder A/B script)
+ * to compare reached depth at equal time budgets.
+ */
+export function getLastWasmSearchStats(): WasmSearchStats | null {
+  const wasm = getInstance();
+  if (!wasm) return null;
+  try {
+    return {
+      score: wasm.getSearchScore(),
+      depth: wasm.getSearchDepth(),
+      nodes: wasm.getSearchNodes(),
+      leaves: wasm.getSearchLeaves(),
+    };
+  } catch (e) {
+    console.error('[wasmEngine] getLastWasmSearchStats failed', e);
+    return null;
+  }
+}
+
 /**
  * Clear the WASM transposition table. Call when a NEW game starts; do NOT call
  * between moves of the same game (the TT carry-over is a strength feature).

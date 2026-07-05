@@ -17,6 +17,19 @@
  * - `bestMove`: compute the best move for a serialized position + difficulty.
  * - `clearTT`: clears the transposition tables (call when starting a new game;
  *   the TT is intentionally kept across moves of one game).
+ * - `ponderControl`: suspend/resume pondering (sent by the client on
+ *   `visibilitychange` so a hidden tab does not burn CPU).
+ *
+ * Pondering ("permanent brain"):
+ * - Right after answering a `bestMove`, the worker keeps searching from the
+ *   *resulting* position (the human's turn) in short synchronous slices while
+ *   staying responsive to messages (see ponderController.ts). This warms the
+ *   module-scope WASM transposition table, so when the human finally moves,
+ *   the next real search starts from hot TT entries and reaches a deeper ply
+ *   within the same time budget. No API change is needed: pondering starts
+ *   automatically and any subsequent message stops it.
+ * - Disabled for `easy` (that level is intentionally weak) and when the WASM
+ *   engine is unavailable. Capped at PONDER_MAX_TOTAL_MS per turn.
  *
  * Notes:
  * - The WASM instance and the fallback `ShogiAIImprovedV20` live at module
@@ -28,9 +41,10 @@
 import { KyokumenImproved } from './KyokumenImproved';
 import { MateSolverImproved } from './MateSolverImproved';
 import { getOpeningMoveImproved } from './OpeningBookImproved';
+import { PonderController } from './ponderController';
 import { ShogiAIImprovedV20 } from './ShogiAIImprovedV20';
 import { EMPTY, FU, getKomashu, HI, isSelf, OU, SENTE, Te } from './types';
-import { clearWasmTT, wasmSearchBestMove } from './wasmEngine';
+import { clearWasmTT, isWasmEngineReady, wasmSearchBestMove } from './wasmEngine';
 import { Difficulty } from '../common/types';
 
 export type SerializedKyokumenImproved = {
@@ -57,7 +71,8 @@ export type SerializedTeImproved = {
 
 type WorkerRequest =
   | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty; tesu: number }
-  | { type: 'clearTT' };
+  | { type: 'clearTT' }
+  | { type: 'ponderControl'; action: 'suspend' | 'resume' };
 
 type WorkerResponse =
   | { type: 'bestMoveResult'; id: number; move: SerializedTeImproved | null }
@@ -65,6 +80,26 @@ type WorkerResponse =
 
 const ai = new ShogiAIImprovedV20();
 const mateSolver = new MateSolverImproved();
+
+/** One synchronous ponder search slice; short enough to keep the worker responsive. */
+const PONDER_SLICE_MS = 200;
+/** Hard cap on pondering per turn so an idle tab does not burn CPU/battery. */
+const PONDER_MAX_TOTAL_MS = 30_000;
+
+/** Dev-only tracing; in production a ponder log line per move is just noise. */
+const PONDER_TRACE = process.env.NODE_ENV === 'development';
+
+const ponder = new PonderController({
+  sliceMs: PONDER_SLICE_MS,
+  maxTotalMs: PONDER_MAX_TOTAL_MS,
+  onSessionEnd: (reason, spentMs) => {
+    // `stopped` (a real request arrived) is the common, interesting case —
+    // it means the TT was warmed for exactly `spentMs`.
+    if (PONDER_TRACE) {
+      console.info(`[shogi-ai.worker] ponder end (${reason}, ${Math.round(spentMs)}ms)`);
+    }
+  },
+});
 
 /**
  * Time/quiescence budgets per difficulty — MUST stay in sync with the
@@ -174,8 +209,53 @@ function computeBestMove(k: KyokumenImproved, difficulty: Difficulty, tesu: numb
   return ai.getNextTe(k, tesu, { difficulty });
 }
 
+/**
+ * Start pondering ("permanent brain") after answering a bestMove request.
+ *
+ * `k` is the position the AI just searched and `best` the move it answered
+ * with; applying it yields the position the human is now thinking about. We
+ * keep searching that position in PONDER_SLICE_MS slices — the search results
+ * themselves are discarded, but the WASM TT (kept across moves) fills with
+ * exactly the subtree the next real search will probe.
+ *
+ * `k` is owned by this message (buildPosition creates a fresh copy), so
+ * mutating it here is safe.
+ */
+function startPonder(k: KyokumenImproved, best: Te, difficulty: Difficulty, tesu: number): void {
+  // Easy is intentionally weak — do not sharpen it. And without the WASM
+  // engine there is no shared TT worth warming (the JS fallback path is rare
+  // and its search is not slice-friendly at these budgets).
+  if (difficulty === 'easy') return;
+  if (!isWasmEngineReady()) return;
+
+  k.move(best);
+  k.toggleTeban();
+  const budget = DIFFICULTY_BUDGETS[difficulty] ?? DIFFICULTY_BUDGETS.medium;
+  const ponderTesu = (tesu | 0) + 1;
+
+  if (PONDER_TRACE) {
+    console.info(`[shogi-ai.worker] ponder start (difficulty=${difficulty}, cap=${PONDER_MAX_TOTAL_MS}ms)`);
+  }
+  ponder.start((sliceMs) => {
+    // Returns null when the human is already mated/stalemated (or the engine
+    // tripped) — stop the session instead of spinning on empty slices.
+    return wasmSearchBestMove(k, ponderTesu, sliceMs, 32, budget.quiescenceDepthMax) !== null;
+  });
+}
+
 ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const msg = event.data;
+  if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
+
+  if (msg.type === 'ponderControl') {
+    if (msg.action === 'suspend') ponder.suspend();
+    else ponder.resume();
+    return;
+  }
+
+  // Any real request supersedes the current ponder session. Because slices are
+  // short, this handler runs within ~PONDER_SLICE_MS of the message arriving.
+  ponder.stop();
 
   if (msg.type === 'clearTT') {
     ai.clearTT();
@@ -193,10 +273,16 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
       : null;
 
     ctx.postMessage({ type: 'bestMoveResult', id: msg.id, move });
+
+    // Answer first, then start thinking on the opponent's time.
+    if (best) startPonder(k, best, msg.difficulty, msg.tesu | 0);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     ctx.postMessage({ type: 'error', id: msg.id, message });
   }
 };
+
+/** Test-only handle: lets unit tests observe ponder state through the message protocol. */
+export { ponder as __ponderControllerForTests };
 
 export {};

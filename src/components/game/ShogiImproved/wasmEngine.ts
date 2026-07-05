@@ -223,18 +223,21 @@ export function loadNnueWeights(bytes: Uint8Array, scaleK: number): boolean {
     }
     if (bytes.byteLength !== NNUE_WEIGHTS_BYTES || bytes.byteLength !== wasm.getNnueWeightsSize()) {
       console.error(
-        `[wasmEngine] NNUE weights rejected: size=${bytes.byteLength}, expected ${NNUE_WEIGHTS_BYTES}`
+        `[wasmEngine] NNUE weights rejected: size=${bytes.byteLength}, expected ${NNUE_WEIGHTS_BYTES} (build) / ${wasm.getNnueWeightsSize()} (engine)`
       );
       return false;
     }
-    // (scaleK | 0) also rejects fractional values in (0, 1) that would
-    // truncate to 0 in the WASM call and corrupt the cp conversion.
-    if (!Number.isFinite(scaleK) || (scaleK | 0) <= 0) {
+    // Math.trunc + range check: rejects fractions in (0, 1) that would
+    // truncate to 0, and huge values that `| 0` would wrap to a bogus
+    // (possibly negative) i32. 1e6 is far above any sane sigmoid K (~600) and
+    // matches the engine-side NNUE_MAX_SCALE_PRODUCT headroom.
+    const k = Math.trunc(scaleK);
+    if (!Number.isFinite(scaleK) || k <= 0 || k > 1_000_000) {
       console.error(`[wasmEngine] NNUE weights rejected: invalid scale K=${scaleK}`);
       return false;
     }
     new Uint8Array(wasm.memory.buffer, wasm.getNnueWeightsPtr(), NNUE_WEIGHTS_BYTES).set(bytes);
-    wasm.setNnueScaleK(scaleK | 0);
+    wasm.setNnueScaleK(k);
     // If NNUE is somehow already live (re-load), rebuild the accumulators from
     // the fresh weights so stale activations can never be searched.
     if (nnueEnabledState) wasm.setNnueEnabled(1);

@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { GenerateMovesImproved } from '@/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '@/components/game/ShogiImproved/InitialPositionImproved';
 import type { KyokumenImproved } from '@/components/game/ShogiImproved/KyokumenImproved';
+import { getOpeningMoveImproved } from '@/components/game/ShogiImproved/OpeningBookImproved';
 
 type PostedMessage = { type: string; id?: number; move?: unknown; message?: string };
 
@@ -53,19 +54,28 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-/** Deterministic random-play position, deep enough to be out of the opening book. */
+/**
+ * Deterministic random-play position that is GUARANTEED out of the opening
+ * book: after the base 14 plies, keep playing until the book probe misses
+ * (bounded), so computeBestMove() cannot short-circuit via the book and the
+ * search/NNUE path under test is always exercised.
+ */
 function outOfBookPosition(): { k: KyokumenImproved; tesu: number } {
   const k = InitialPositionImproved.createInitialPosition();
   const rnd = mulberry32(0x00e1ee);
-  const plies = 14;
-  for (let ply = 0; ply < plies; ply++) {
+  let plies = 0;
+  const playRandom = () => {
     const moves = GenerateMovesImproved.generateLegalMoves(k);
     expect(moves.length).toBeGreaterThan(0);
     const te = moves[Math.floor(rnd() * moves.length)];
     te.capture = k.get(te.to);
     k.move(te);
     k.toggleTeban();
-  }
+    plies++;
+  };
+  for (let i = 0; i < 14; i++) playRandom();
+  while (getOpeningMoveImproved(k, 'medium') !== null && plies < 60) playRandom();
+  expect(getOpeningMoveImproved(k, 'medium')).toBeNull();
   return { k, tesu: plies };
 }
 

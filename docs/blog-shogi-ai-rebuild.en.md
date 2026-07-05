@@ -462,7 +462,7 @@ The two losses have **different goals**. `mse_loss` (base) says "match the teach
 "Adjust the weights in the direction that reduces the loss" — but who knows that direction, and how? The principle is humble. **For each of the 580,000 weights, ask: "if I nudged this one up a tiny bit, would the loss go up or down, and how steeply?" That slope is the gradient — and then turn each dial a small step in the loss-reducing direction.** `opt.step()` is essentially this one line:
 
 ```
-new weight = current weight − learning_rate × slope
+new_weight = current_weight - learning_rate * slope
 ```
 
 The learning rate is "how far to turn per step": too large and you overshoot into divergence, too small and you never arrive (this project starts at 1e-3 with cosine decay).
@@ -476,7 +476,7 @@ output error: "the evaluation came out 0.3 too low"
   ↓ blame the board table "the numbers in the 'pawn on 7f' row were too small to begin with"
 ```
 
-The picture to keep: **someone descending a foggy mountain blindfolded**. Nobody can see the whole map (the correct set of weights), but the slope underfoot is always known exactly. Take a small step in the steepest downhill direction — one minibatch is one step, and 1M positions × 40 epochs ≈ tens of thousands of steps. "val_mae dropped to 437cp" means this descent reached a valley whose altitude is a 437cp average error.
+The picture to keep: **someone descending a foggy mountain blindfolded**. Nobody can see the whole map (the correct set of weights), but the slope underfoot can be computed at every step — strictly, the slope over the current minibatch, an estimate of the true gradient (that's the "stochastic" in stochastic gradient descent). Take a small step in the steepest downhill direction — one minibatch is one step, and 1M positions × 40 epochs ≈ over a hundred thousand steps. "val_mae dropped to 437cp" means this descent reached a valley whose altitude is a 437cp average error.
 
 The ranking loss also becomes intuitive in this picture: **changing the penalty reshapes the mountain itself**. On a mountain that only punishes score error, the places where sibling positions are ranked in the wrong order are shallow dips the descent ignores. The ranking term carves those places into deep valleys — so the very same descent algorithm now walks toward lowlands where the *ordering* is right. Where you end up is decided by what you punish.
 

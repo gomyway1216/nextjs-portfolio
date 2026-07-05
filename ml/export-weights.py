@@ -18,13 +18,15 @@
       cp    = out_q * K / (127 * 64)    (K は学習時の sigmoid スケール, メタに記録)
 
 weights.bin のレイアウト (すべて int16 LE, ただし bias は int32 LE):
-  [w1_board  int16 x (2268*256)]  (feature-major: w1_board[f*256 + j])
-  [w1_hand   int16 x (14*256)]    (feature-major)
+  [w1_board  int16 x (BF*256)]    (feature-major: w1_board[f*256 + j])
+  [w1_hand   int16 x (HF*256)]    (feature-major)
   [b1        int32 x 256]
   [w2        int16 x (32*256)]    (row-major: w2[i*256 + j], 出力 i)
   [b2        int32 x 32]
   [w3        int16 x 32]
   [b3        int32 x 1]
+  BF/HF = 2268/14 (--features board) または 6*2268/6*14 (--features kp, 自玉バケット順)。
+  KP でもレイアウト構造は同一で、サイズだけがバケット数倍になる (ヘッダなし)。
 
 使い方:
   ml/venv/bin/python ml/export-weights.py --ckpt ml/runs/smoke/best.pt [--json]
@@ -50,8 +52,10 @@ _spec.loader.exec_module(_train)
 
 DistillNet = _train.DistillNet
 parse_sfen = _train.parse_sfen
+kp_bucket = _train.kp_bucket
 BOARD_FEATS = _train.BOARD_FEATS
 HAND_FEATS = _train.HAND_FEATS
+KP_BUCKETS = _train.KP_BUCKETS
 PAD_IDX = _train.PAD_IDX
 
 ACT_SCALE = 127  # 活性値 1.0 の固定小数点表現
@@ -59,10 +63,11 @@ W_SCALE = 64  # 第2層以降の重みスケール
 
 
 def quantize(model: DistillNet, k_sigmoid: float):
+    board_feats = model.board_feats  # 2268 (board) / 13608 (kp)
+    hand_feats = model.hand_feats  # 14 (board) / 84 (kp)
     with torch.no_grad():
-        w1_board = model.board.weight[:BOARD_FEATS]  # (2268, 256)
-        w1_hand = model.hand.weight.t().contiguous()  # (14, 256)
-        b1 = model.hand.bias  # (256,)
+        # factored (kp-factor) は shared+delta を合成した実効テーブルを量子化する
+        w1_board, w1_hand, b1 = model.materialized_w1()  # (BF,256), (HF,256), (256,)
         w2, b2 = model.l2.weight, model.l2.bias  # (32,256), (32,)
         w3, b3 = model.l3.weight.squeeze(0), model.l3.bias  # (32,), (1,)
 
@@ -75,16 +80,19 @@ def quantize(model: DistillNet, k_sigmoid: float):
             "w3": torch.round(w3 * W_SCALE).clamp(-32768, 32767).to(torch.int16),
             "b3": torch.round(b3 * ACT_SCALE * W_SCALE).to(torch.int32),
         }
+    kp = getattr(model, "kp", False)
     meta = {
-        "format": "shogi-distill-v1",
-        "arch": "2282->256->32->1 ClippedReLU",
-        "dims": {"board_feats": BOARD_FEATS, "hand_feats": HAND_FEATS, "h1": 256, "h2": 32},
+        "format": "shogi-distill-v2" if kp else "shogi-distill-v1",
+        "features": model.features,
+        "kp_buckets": KP_BUCKETS if kp else 1,
+        "arch": f"{board_feats + hand_feats}->256->32->1 ClippedReLU",
+        "dims": {"board_feats": board_feats, "hand_feats": hand_feats, "h1": 256, "h2": 32},
         "scales": {"act": ACT_SCALE, "w2": W_SCALE, "w3": W_SCALE},
         "k_sigmoid": k_sigmoid,
         "cp_formula": f"cp = out_q * {k_sigmoid} / {ACT_SCALE * W_SCALE}",
         "layout": [
-            "w1_board int16 x board_feats*256 (feature-major)",
-            "w1_hand int16 x 14*256 (feature-major)",
+            f"w1_board int16 x {board_feats}*256 (feature-major)",
+            f"w1_hand int16 x {hand_feats}*256 (feature-major)",
             "b1 int32 x 256",
             "w2 int16 x 32*256 (row-major)",
             "b2 int32 x 32",
@@ -95,11 +103,15 @@ def quantize(model: DistillNet, k_sigmoid: float):
     return q, meta
 
 
-def int_forward(q, board_idx, hands):
-    """量子化整数演算のシミュレーション (エンジン実装の参照仕様)。"""
+def int_forward(q, board_idx, hands, pad_idx=PAD_IDX):
+    """量子化整数演算のシミュレーション (エンジン実装の参照仕様)。
+
+    KP モデルでは board_idx はバケットオフセット込み、hands は拡張済み (len=84,
+    自玉バケットのセグメントのみ非ゼロ)、pad_idx=6*2268 を渡す。
+    """
     acc = q["b1"].clone()  # int32 (256,)
     for f in board_idx:
-        if f == PAD_IDX:
+        if f == pad_idx:
             continue
         acc += q["w1_board"][f].to(torch.int32)
     for i, c in enumerate(hands):
@@ -125,7 +137,8 @@ def main():
 
     ckpt = torch.load(args.ckpt, map_location="cpu", weights_only=True)
     k_sigmoid = float(ckpt.get("arch", {}).get("k", 600.0))
-    model = DistillNet()
+    features = ckpt.get("arch", {}).get("features", "board")
+    model = DistillNet(features)
     model.load_state_dict(ckpt["model"])
     model.eval()
 
@@ -179,17 +192,29 @@ def main():
                 # train.py と同様、壊れ行(書き込み中断の末尾行など)はスキップして継続する
                 try:
                     rec = json.loads(line)
-                    idx, hands, _ = parse_sfen(rec["sfen"])
+                    idx, hands, _, king_sq = parse_sfen(rec["sfen"])
                 except (json.JSONDecodeError, KeyError, TypeError, ValueError):
                     continue
-                pad = idx[:40] + [PAD_IDX] * (40 - len(idx))
+                bucket = 0
+                if model.kp:
+                    if king_sq < 0:
+                        continue
+                    bucket = kp_bucket(king_sq // 9 + 1, king_sq % 9 + 1)
+                    idx = [bucket * BOARD_FEATS + f for f in idx]
+                pad = idx[:40] + [model.pad_idx] * (40 - len(idx))
+                if model.kp:
+                    hands_x = [0.0] * model.hand_feats
+                    hands_x[bucket * HAND_FEATS : (bucket + 1) * HAND_FEATS] = hands
+                else:
+                    hands_x = hands
                 with torch.no_grad():
                     out_f = model(
                         torch.tensor([pad], dtype=torch.long),
                         torch.tensor([hands], dtype=torch.float32),
+                        torch.tensor([bucket], dtype=torch.long),
                     ).item()
                 cp_float = out_f * k_sigmoid
-                cp_int = int_forward(q, pad, hands) * cp_unit
+                cp_int = int_forward(q, pad, hands_x, model.pad_idx) * cp_unit
                 diffs.append(abs(cp_float - cp_int))
                 n += 1
                 if n >= args.verify_n:

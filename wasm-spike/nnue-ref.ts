@@ -31,10 +31,29 @@ export const NNUE_H1 = 256;
 export const NNUE_H2 = 32;
 export const NNUE_BOARD_FEATS = 28 * 81; // 2268
 export const NNUE_HAND_FEATS = 14;
+/** King buckets of the reduced-KP feature set (weights.bin v2). */
+export const NNUE_KP_BUCKETS = 6;
 
-export const NNUE_LAYOUT = (() => {
-  const w1BoardBytes = NNUE_BOARD_FEATS * NNUE_H1 * 2;
-  const w1HandBytes = NNUE_HAND_FEATS * NNUE_H1 * 2;
+export interface NnueLayout {
+  buckets: number;
+  w1BoardOff: number;
+  w1HandOff: number;
+  b1Off: number;
+  w2Off: number;
+  b2Off: number;
+  w3Off: number;
+  b3Off: number;
+  totalBytes: number;
+}
+
+/**
+ * weights.bin layout for a bucket count. buckets=1 is the original board
+ * one-hot format (1,185,988 B); buckets=6 is the reduced-KP format where both
+ * the board and the hand tables are repeated per own-king bucket (7,027,908 B).
+ */
+export function layoutFor(buckets: number): NnueLayout {
+  const w1BoardBytes = buckets * NNUE_BOARD_FEATS * NNUE_H1 * 2;
+  const w1HandBytes = buckets * NNUE_HAND_FEATS * NNUE_H1 * 2;
   const b1Bytes = NNUE_H1 * 4;
   const w2Bytes = NNUE_H2 * NNUE_H1 * 2;
   const b2Bytes = NNUE_H2 * 4;
@@ -48,6 +67,7 @@ export const NNUE_LAYOUT = (() => {
   const w3Off = b2Off + b2Bytes;
   const b3Off = w3Off + w3Bytes;
   return {
+    buckets,
     w1BoardOff,
     w1HandOff,
     b1Off,
@@ -55,13 +75,37 @@ export const NNUE_LAYOUT = (() => {
     b2Off,
     w3Off,
     b3Off,
-    totalBytes: b3Off + b3Bytes, // 1,185,988
+    totalBytes: b3Off + b3Bytes,
   };
-})();
+}
+
+export const NNUE_LAYOUT = layoutFor(1); // totalBytes 1,185,988
+export const NNUE_KP_LAYOUT = layoutFor(NNUE_KP_BUCKETS); // totalBytes 7,027,908
+
+/** Infer the bucket count of a weights.bin blob from its byte length. */
+export function bucketsForByteLength(byteLength: number): number {
+  if (byteLength === NNUE_LAYOUT.totalBytes) return 1;
+  if (byteLength === NNUE_KP_LAYOUT.totalBytes) return NNUE_KP_BUCKETS;
+  throw new Error(
+    `unrecognized weights.bin size ${byteLength} (expected ${NNUE_LAYOUT.totalBytes} or ${NNUE_KP_LAYOUT.totalBytes})`
+  );
+}
+
+/**
+ * Own-king bucket (stm-normalized suji s / dan d, both 1..9) — must match
+ * ml/train.py kp_bucket exactly.
+ */
+export function kpBucket(s: number, d: number): number {
+  if (d <= 7) return 5;
+  if (d === 8) return s <= 4 ? 3 : 4;
+  if (s === 5) return 0;
+  return s <= 4 ? 1 : 2;
+}
 
 export interface NnueWeights {
-  w1Board: Int16Array; // (2268, 256) feature-major
-  w1Hand: Int16Array; // (14, 256) feature-major
+  buckets: number; // 1 = original, 6 = reduced KP
+  w1Board: Int16Array; // (buckets*2268, 256) feature-major
+  w1Hand: Int16Array; // (buckets*14, 256) feature-major
   b1: Int32Array; // (256,)
   w2: Int16Array; // (32, 256) row-major
   b2: Int32Array; // (32,)
@@ -70,11 +114,12 @@ export interface NnueWeights {
 }
 
 /** View a weights.bin-compatible buffer as typed arrays (no copy). */
-export function weightsFromBuffer(buf: ArrayBufferLike, byteOffset = 0): NnueWeights {
-  const L = NNUE_LAYOUT;
+export function weightsFromBuffer(buf: ArrayBufferLike, byteOffset = 0, buckets = 1): NnueWeights {
+  const L = layoutFor(buckets);
   return {
-    w1Board: new Int16Array(buf, byteOffset + L.w1BoardOff, NNUE_BOARD_FEATS * NNUE_H1),
-    w1Hand: new Int16Array(buf, byteOffset + L.w1HandOff, NNUE_HAND_FEATS * NNUE_H1),
+    buckets,
+    w1Board: new Int16Array(buf, byteOffset + L.w1BoardOff, buckets * NNUE_BOARD_FEATS * NNUE_H1),
+    w1Hand: new Int16Array(buf, byteOffset + L.w1HandOff, buckets * NNUE_HAND_FEATS * NNUE_H1),
     b1: new Int32Array(buf, byteOffset + L.b1Off, NNUE_H1),
     w2: new Int16Array(buf, byteOffset + L.w2Off, NNUE_H2 * NNUE_H1),
     b2: new Int32Array(buf, byteOffset + L.b2Off, NNUE_H2),
@@ -99,9 +144,9 @@ export function mulberry32(seed: number): () => number {
  * Generate a weights.bin-compatible buffer filled with seeded random weights
  * in realistic quantized ranges (no i32 overflow anywhere in the pipeline).
  */
-export function makeDummyWeights(seed: number): Uint8Array {
-  const bytes = new Uint8Array(NNUE_LAYOUT.totalBytes);
-  const w = weightsFromBuffer(bytes.buffer);
+export function makeDummyWeights(seed: number, buckets = 1): Uint8Array {
+  const bytes = new Uint8Array(layoutFor(buckets).totalBytes);
+  const w = weightsFromBuffer(bytes.buffer, 0, buckets);
   const rnd = mulberry32(seed);
   const ri = (lo: number, hi: number): number => lo + Math.floor(rnd() * (hi - lo + 1));
   for (let i = 0; i < w.w1Board.length; i++) w.w1Board[i] = ri(-300, 300);
@@ -174,7 +219,7 @@ export function materialCpReference(pos: NnuePosition): number {
   const feats = extractFeatures(pos);
   let x = 0;
   for (const f of feats.boardFeats) {
-    const plane = Math.floor(f / 81);
+    const plane = Math.floor((f % NNUE_BOARD_FEATS) / 81);
     x += (plane < 14 ? 1 : -1) * MATERIAL_VU[plane % 14];
   }
   for (let i = 0; i < NNUE_HAND_FEATS; i++) {
@@ -198,13 +243,39 @@ export interface NnuePosition {
 const NNUE_KIND = [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, -1, 12, 13];
 
 export interface NnueFeatures {
-  boardFeats: number[]; // active one-hot indices (0..2267), stm-normalized
+  boardFeats: number[]; // active one-hot indices, stm-normalized (KP: bucket-offset included)
   hands: number[]; // 14 counts: mine 0..6, opponent 7..13 (FU..HI order)
+  bucket: number; // own-king KP bucket (0 when buckets === 1)
 }
 
-export function extractFeatures(pos: NnuePosition): NnueFeatures {
+/**
+ * Extract stm-normalized features. With buckets > 1 (reduced KP) every board
+ * feature is offset by bucket*2268 where bucket = kpBucket(own king square in
+ * the stm frame); hand features use row bucket*14+i in intForward.
+ */
+export function extractFeatures(pos: NnuePosition, buckets = 1): NnueFeatures {
   const boardFeats: number[] = [];
   const stmSente = pos.teban === SENTE;
+  let bucket = 0;
+  if (buckets > 1) {
+    // Locate the side-to-move king and quantize its stm-frame square.
+    let ks = -1;
+    let kd = -1;
+    for (let suji = 1; suji <= 9 && ks < 0; suji++) {
+      for (let dan = 1; dan <= 9; dan++) {
+        const koma = pos.ban[(suji << 4) + dan];
+        if (koma === EMPTY) continue;
+        if (NNUE_KIND[koma & 0x0f] === 7 && ((koma & SENTE) !== 0) === stmSente) {
+          ks = stmSente ? suji : 10 - suji;
+          kd = stmSente ? dan : 10 - dan;
+          break;
+        }
+      }
+    }
+    if (ks < 0) throw new Error('extractFeatures: side-to-move king not found (KP features need it)');
+    bucket = kpBucket(ks, kd);
+  }
+  const boardBase = bucket * NNUE_BOARD_FEATS;
   for (let suji = 1; suji <= 9; suji++) {
     for (let dan = 1; dan <= 9; dan++) {
       const koma = pos.ban[(suji << 4) + dan];
@@ -224,7 +295,7 @@ export function extractFeatures(pos: NnuePosition): NnueFeatures {
         d = 10 - dan;
       }
       const plane = mine ? kind : kind + 14;
-      boardFeats.push(plane * 81 + (s - 1) * 9 + (d - 1));
+      boardFeats.push(boardBase + plane * 81 + (s - 1) * 9 + (d - 1));
     }
   }
 
@@ -235,7 +306,7 @@ export function extractFeatures(pos: NnuePosition): NnueFeatures {
     hands[type - 1] = pos.hand[mySide | type] | 0;
     hands[type - 1 + 7] = pos.hand[oppSide | type] | 0;
   }
-  return { boardFeats, hands };
+  return { boardFeats, hands, bucket };
 }
 
 // ---------------------------------------------------------------------------
@@ -244,7 +315,7 @@ export function extractFeatures(pos: NnuePosition): NnueFeatures {
 
 /** out_q = quantized network output (side-to-move perspective), exact i32. */
 export function intForward(w: NnueWeights, feats: NnueFeatures): number {
-  // Layer 1: acc = b1 + Σ w1_board[f] + Σ w1_hand[i] * count[i]
+  // Layer 1: acc = b1 + Σ w1_board[f] + Σ w1_hand[bucket*14+i] * count[i]
   const acc = new Int32Array(NNUE_H1);
   acc.set(w.b1);
   for (const f of feats.boardFeats) {
@@ -253,10 +324,11 @@ export function intForward(w: NnueWeights, feats: NnueFeatures): number {
       acc[j] = (acc[j] + w.w1Board[base + j]) | 0;
     }
   }
+  const handRow0 = (w.buckets > 1 ? feats.bucket : 0) * NNUE_HAND_FEATS;
   for (let i = 0; i < NNUE_HAND_FEATS; i++) {
     const c = feats.hands[i] | 0;
     if (c === 0) continue;
-    const base = i * NNUE_H1;
+    const base = (handRow0 + i) * NNUE_H1;
     for (let j = 0; j < NNUE_H1; j++) {
       acc[j] = (acc[j] + w.w1Hand[base + j] * c) | 0;
     }

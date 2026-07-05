@@ -17,9 +17,10 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import {
-  NNUE_LAYOUT,
+  bucketsForByteLength,
   extractFeatures,
   intForward,
+  layoutFor,
   outQToCp,
   parseSfen,
   weightsFromBuffer,
@@ -50,6 +51,8 @@ interface ShogiNnueWasm {
   finalizePosition(): void;
   getNnueWeightsPtr(): number;
   getNnueWeightsSize(): number;
+  setNnueBuckets(buckets: number): void;
+  getNnueBuckets(): number;
   setNnueScaleK(k: number): void;
   nnueEvaluate(): number;
   nnueEvaluateCp(): number;
@@ -80,17 +83,24 @@ const instance = new WebAssembly.Instance(new WebAssembly.Module(wasmBytes), {
 const wasm = instance.exports as unknown as ShogiNnueWasm;
 
 const weightsBin = readFileSync(weightsPath);
-if (weightsBin.byteLength !== NNUE_LAYOUT.totalBytes || wasm.getNnueWeightsSize() !== NNUE_LAYOUT.totalBytes) {
+// The format (1 = original board one-hot, 6 = reduced KP) is inferred from the
+// exact file size; bucketsForByteLength throws on anything unrecognized.
+const buckets = bucketsForByteLength(weightsBin.byteLength);
+wasm.setNnueBuckets(buckets);
+const layout = layoutFor(buckets);
+if (wasm.getNnueBuckets() !== buckets || wasm.getNnueWeightsSize() !== layout.totalBytes) {
   console.error(
-    `weights.bin size mismatch: file=${weightsBin.byteLength} expected=${NNUE_LAYOUT.totalBytes} wasm=${wasm.getNnueWeightsSize()}`
+    `weights.bin size mismatch: file=${weightsBin.byteLength} (buckets=${buckets}) wasm=${wasm.getNnueWeightsSize()}`
   );
   process.exit(1);
 }
-new Uint8Array(wasm.memory.buffer, wasm.getNnueWeightsPtr(), NNUE_LAYOUT.totalBytes).set(weightsBin);
+new Uint8Array(wasm.memory.buffer, wasm.getNnueWeightsPtr(), layout.totalBytes).set(weightsBin);
 const refWeights = weightsFromBuffer(
   weightsBin.buffer,
-  weightsBin.byteOffset // no ArrayBuffer copy needed
+  weightsBin.byteOffset, // no ArrayBuffer copy needed
+  buckets
 );
+console.log(`weights format: buckets=${buckets} (${layout.totalBytes} bytes)`);
 
 const reference = JSON.parse(readFileSync(referencePath, 'utf8')) as ReferenceFile;
 const kInt = reference.k_int ?? Math.round(reference.k_sigmoid);
@@ -120,7 +130,7 @@ for (const p of reference.positions) {
 
   const asOutQ = wasm.nnueEvaluate() | 0;
   const asCp = wasm.nnueEvaluateCp() | 0;
-  const tsOutQ = intForward(refWeights, extractFeatures(pos)) | 0;
+  const tsOutQ = intForward(refWeights, extractFeatures(pos, buckets)) | 0;
   const tsCp = outQToCp(tsOutQ, kInt) | 0;
 
   const errors: string[] = [];

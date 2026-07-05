@@ -390,10 +390,80 @@ The lesson: **even a well-reasoned mechanistic hypothesis can be rejected by an 
 
 With the real battleground confirmed, teacher-data generation is running.
 
-- **Target: 1,000,000 positions** (10x cycle 1). Eight parallel YaneuraOu processes are generating continuously; currently **past 200k lines**
+- **Target: 1,000,000 positions** (10x cycle 1). Eight parallel YaneuraOu processes are generating continuously; currently **past 680k lines**
 - **The `--balance` option**: positions with |cp| > 1200 (decided games) are probabilistically thinned to a 30% acceptance rate after labeling, raising the share of near-equal positions. Cycle 1's data was over 60% |cp| > 1000 — heavy on lopsided endgames and thin on exactly the subtle early/middlegame differences alpha-beta needs most
 - **Ranking loss** (`train.py --loss ranking`): cycle 1's biggest lesson — alpha-beta needs the *ranking of sibling positions*, not absolute regression accuracy — encoded directly into the loss. In-batch position pairs whose teacher cp difference falls in a window (default 50–600cp) get an additional margin ranking loss, and **`val_pair_acc`** (pair-order agreement on pairs with teacher diff > 100cp) is now logged every epoch as the headline metric
 - **A watcher is in place to automatically kick off an interim checkpoint training run at 300k lines** (baseline vs ranking loss comparison)
+
+### Reading the model and the training loop, line by line
+
+"Machine learning" may conjure something enormous and opaque, but the network used for distillation is small enough to **quote in full** (`ml/train.py`, actual code). Here is what each line does and why it was designed that way.
+
+```python
+class DistillNet(nn.Module):
+    H1 = 256   # width of layer 1 — the traditional NNUE choice; this dominates inference speed
+    H2 = 32    # width of layer 2 — two orders of magnitude narrower, the NNUE signature
+
+    def __init__(self):
+        super().__init__()
+        # (1) Board input layer. Each of 2,268 possible 'facts' — like "black pawn
+        #     on 7f" — gets its own row of 256 numbers (a weight vector). Evaluating
+        #     a position starts by summing the rows of every fact that holds.
+        #     EmbeddingBag(mode="sum") does exactly that lookup-and-sum in one op.
+        self.board = nn.EmbeddingBag(BOARD_FEATS + 1, self.H1, mode="sum")
+        # (2) Hand input layer: counts of the 14 droppable piece types -> same 256 dims
+        self.hand  = nn.Linear(HAND_FEATS, self.H1)
+        # (3)(4) Reduction layers: 256 dims -> 32 -> a single number (the evaluation)
+        self.l2    = nn.Linear(self.H1, self.H2)
+        self.l3    = nn.Linear(self.H2, 1)
+
+    def forward(self, board_idx, hands):
+        a1 = self.board(board_idx) + self.hand(hands)  # combine board + hand contributions
+        h1 = torch.clamp(a1, 0.0, 1.0)   # ClippedReLU: clip into [0,1] — the NNUE activation,
+        h2 = torch.clamp(self.l2(h1), 0.0, 1.0)  # chosen so int16 quantization won't break it
+        return self.l3(h2).squeeze(-1)   # one output ≈ cp / 600
+```
+
+For scale: almost all the parameters live in table (1) — **2,268 rows × 256 columns ≈ 580,000 numbers** — and nowhere in them is "king safety" or "climbing silver" written down. Where the handcrafted eval is a sum of *concepts a human named* (castle shapes, file defense, ...), this is **580,000 anonymous dials that adjust themselves during training**. ClippedReLU is not a stylistic choice but a practical one: because activations are pinned to [0,1], the trained float weights survive quantization to int16 for the WASM engine's integer arithmetic.
+
+The heart of the training loop:
+
+```python
+out = model(b, h)                         # let the net score a minibatch of positions,
+loss = F.mse_loss(torch.sigmoid(out), t)  # loss = deviation from YaneuraOu's scores (= base)
+
+if args.loss == "ranking":                # the ranking variant adds this block
+    diff = c.unsqueeze(1) - c.unsqueeze(0)     # teacher cp difference for every in-batch pair,
+    mask = (diff >= 50) & (diff <= 600)        # keep only the *subtly different* pairs.
+    #  Under 50cp: either is fine. Over 600cp: already obvious. In between is where search lives.
+    rank_loss = F.relu(rank_margin_logit - (out[ia] - out[ib])).mean()
+    #  Penalize exactly the pairs where the teacher says A is better but the net
+    #  does not rank A above B by the margin. Absolute accuracy is not demanded —
+    #  only the ordering.
+    loss = loss + args.rank_weight * rank_loss
+
+loss.backward()   # backpropagation: compute, for all 580k dials at once, which way
+opt.step()        # reduces the loss — then nudge every dial. Repeat for 300k positions × dozens of epochs
+```
+
+The two losses have **different goals**. `mse_loss` (base) says "match the teacher's score" — studying to reproduce the teacher's exam marks exactly. `rank_loss` says "your scores may drift, but **the direction of 'which of these two positions is better' must agree with the teacher**." That is cycle 1's core lesson — alpha-beta only ever asks the eval "which sibling is better?", never "what is the true score?" — translated directly into the shape of the loss function. Training runs on the Mac's GPU (MPS); one 300k-position run takes 2–4 minutes. Far lighter than the "machine learning = heavy machinery" image.
+
+### The 300k interim result: proof that data was the bottleneck
+
+At the 300k-line mark we trained both variants on a snapshot and sent them into the same 28-game gauntlet as cycle 1, under identical conditions.
+
+| Condition | run100k (cycle 1) | run300k-base | run300k-rank |
+|---|---|---|---|
+| 200ms × 16 games (seed1) | 2-14-0 (12.5%) | **6-10-0 (37.5%)** | 3-13-0 (18.8%) |
+| 1000ms × 6 games (seed2) | 1-5-0 (16.7%) | 1-5-0 (16.7%) | **3-3-0 (50.0%)** |
+| 1000ms × 6 games (seed3) | 2-3-1 (41.7%) | 1-5-0 (16.7%) | **3-3-0 (50.0%)** |
+| **Total** | **5.5/28 (19.6%)** | 8/28 (28.6%) | **9/28 (32.1%)** |
+
+Two things to read here. First, **both variants clearly beat run100k**. Even base — with zero changes to the training method — gained +9pt from 3x data plus balance thinning alone: direct confirmation of the "data was the bottleneck" diagnosis. Second, a **time-control asymmetry** appeared: rank reaches **parity (50%) with the handcrafted eval at 1000ms** (production's medium budget) but sinks in 200ms blitz, while base does the reverse. The interpretation fits the theory — the deeper the search, the more pair-ordering accuracy (rank's strength) compounds; in shallow search, calibration of big scores (base's strength) feeds directly into pruning decisions. Production budgets are 1–5 seconds. **Which horse to back is obvious.**
+
+Along the way we also applied the 37/10 scale calibration to run300k-rank: 50% → 25%, worse again. Another nail in the calibration hypothesis's coffin.
+
+The 1M full training will produce three runs — base / rank(weight 1.0) / rank(weight 0.3–0.5) — and A/B all of them at BOTH 200ms and 1000ms, 16+ games × 3 seeds each. The gate: **stable >50% at 1000ms** — cross it, and the first neural network to replace the handcrafted eval ships to production.
 
 And cycle 2's verdict will be decided the same way as ever: **by playing the games.**
 

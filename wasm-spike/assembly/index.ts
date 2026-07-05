@@ -1657,9 +1657,9 @@ let nnueEvalCount: i32 = 0; // number of net forward passes (bench/report)
 // layer-2 path: h1 is post-ClippedReLU so most entries are zero, and with a
 // column-major layout the dot products only visit the nonzero activations.
 // Rebuilt from the weight region by nnueRefreshAccumulators().
-const NNUE_W2T: usize = memory.data(NNUE_H1 * NNUE_H2 * 2, 8);
-// Layer-2 partial sums for the sparse path.
-const nnueA2 = new StaticArray<i32>(NNUE_H2);
+const NNUE_W2T: usize = memory.data(NNUE_H1 * NNUE_H2 * 2, 16);
+// h1 packed to i16 lanes for the dense layer-2 dot products (nnueLayers23).
+const NNUE_H1_I16: usize = memory.data(NNUE_H1 * 2, 16);
 
 /** Pointer to the weight region; memcpy weights.bin here (layout-identical). */
 export function getNnueWeightsPtr(): usize {
@@ -1787,21 +1787,55 @@ function nnueHandRowG(handKoma: i32): usize {
   return NNUE_WEIGHTS + <usize>(NNUE_W1H_OFF + (idx << 9));
 }
 
-/** acc += (row at addBase) - (row at subBase), one fused pass (unrolled x4). */
+/**
+ * acc += (row at addBase) - (row at subBase), one fused SIMD pass: 8 i16
+ * weights per iteration, sign-extended to 2x i32x4 lanes. Element-wise i32
+ * adds/subs wrap exactly like the scalar version, so this stays bit-identical.
+ */
 function nnueRowSubAdd(acc: StaticArray<i32>, subBase: usize, addBase: usize): void {
-  for (let j = 0; j < NNUE_H1; j += 4) {
+  const accBase = changetype<usize>(acc);
+  for (let j = 0; j < NNUE_H1; j += 8) {
     const off = <usize>(j << 1);
-    unchecked(acc[j] = acc[j] + <i32>load<i16>(addBase + off) - <i32>load<i16>(subBase + off));
-    unchecked(acc[j + 1] = acc[j + 1] + <i32>load<i16>(addBase + off, 2) - <i32>load<i16>(subBase + off, 2));
-    unchecked(acc[j + 2] = acc[j + 2] + <i32>load<i16>(addBase + off, 4) - <i32>load<i16>(subBase + off, 4));
-    unchecked(acc[j + 3] = acc[j + 3] + <i32>load<i16>(addBase + off, 6) - <i32>load<i16>(subBase + off, 6));
+    const add8 = v128.load(addBase + off);
+    const sub8 = v128.load(subBase + off);
+    const aoff = <usize>(j << 2);
+    v128.store(
+      accBase + aoff,
+      i32x4.add(
+        v128.load(accBase + aoff),
+        i32x4.sub(i32x4.extend_low_i16x8_s(add8), i32x4.extend_low_i16x8_s(sub8))
+      )
+    );
+    v128.store(
+      accBase + aoff,
+      i32x4.add(
+        v128.load(accBase + aoff, 16),
+        i32x4.sub(i32x4.extend_high_i16x8_s(add8), i32x4.extend_high_i16x8_s(sub8))
+      ),
+      16
+    );
   }
 }
 
-/** acc += row * coef (coef may be a hand count or ±1). */
+/**
+ * acc += row * coef (coef is a hand count 0..18 or ±1, so it fits i16 and
+ * every i16xi16 extmul product is exact — identical to the scalar i32 mul).
+ */
 function nnueRowAddScaled(acc: StaticArray<i32>, base: usize, coef: i32): void {
-  for (let j = 0; j < NNUE_H1; j++) {
-    unchecked(acc[j] = acc[j] + <i32>load<i16>(base + (<usize>(j << 1))) * coef);
+  const accBase = changetype<usize>(acc);
+  const c8 = i16x8.splat(<i16>coef);
+  for (let j = 0; j < NNUE_H1; j += 8) {
+    const w8 = v128.load(base + (<usize>(j << 1)));
+    const aoff = <usize>(j << 2);
+    v128.store(
+      accBase + aoff,
+      i32x4.add(v128.load(accBase + aoff), i32x4.extmul_low_i16x8_s(w8, c8))
+    );
+    v128.store(
+      accBase + aoff,
+      i32x4.add(v128.load(accBase + aoff, 16), i32x4.extmul_high_i16x8_s(w8, c8)),
+      16
+    );
   }
 }
 
@@ -2020,16 +2054,21 @@ export function nnueAccMismatch(): i32 {
 
 function nnueAddFeature(feat: i32): void {
   const base = NNUE_WEIGHTS + <usize>(NNUE_W1B_OFF + feat * NNUE_H1 * 2);
-  for (let j = 0; j < NNUE_H1; j++) {
-    unchecked(nnueAcc[j] = nnueAcc[j] + <i32>load<i16>(base + (<usize>(j << 1))));
+  const accBase = changetype<usize>(nnueAcc);
+  for (let j = 0; j < NNUE_H1; j += 8) {
+    const w8 = v128.load(base + (<usize>(j << 1)));
+    const aoff = <usize>(j << 2);
+    v128.store(accBase + aoff, i32x4.add(v128.load(accBase + aoff), i32x4.extend_low_i16x8_s(w8)));
+    v128.store(
+      accBase + aoff,
+      i32x4.add(v128.load(accBase + aoff, 16), i32x4.extend_high_i16x8_s(w8)),
+      16
+    );
   }
 }
 
 function nnueAddHand(idx: i32, count: i32): void {
-  const base = NNUE_WEIGHTS + <usize>(NNUE_W1H_OFF + idx * NNUE_H1 * 2);
-  for (let j = 0; j < NNUE_H1; j++) {
-    unchecked(nnueAcc[j] = nnueAcc[j] + <i32>load<i16>(base + (<usize>(j << 1))) * count);
-  }
+  nnueRowAddScaled(nnueAcc, NNUE_WEIGHTS + <usize>(NNUE_W1H_OFF + idx * NNUE_H1 * 2), count);
 }
 
 /**
@@ -2078,12 +2117,13 @@ export function nnueEvaluate(): i32 {
     if (cOpp > 0) nnueAddHand(type - 1 + 7, cOpp);
   }
 
-  // h1 = clamp(acc, 0, 127) — clamp in place.
-  for (let j = 0; j < NNUE_H1; j++) {
-    let v = unchecked(nnueAcc[j]);
-    if (v < 0) v = 0;
-    else if (v > 127) v = 127;
-    unchecked(nnueAcc[j] = v);
+  // h1 = clamp(acc, 0, 127) — clamp in place (SIMD, 4 lanes per store).
+  const accBase = changetype<usize>(nnueAcc);
+  const zero = i32x4.splat(0);
+  const cap = i32x4.splat(127);
+  for (let j = 0; j < NNUE_H1; j += 4) {
+    const aoff = <usize>(j << 2);
+    v128.store(accBase + aoff, i32x4.min_s(i32x4.max_s(v128.load(accBase + aoff), zero), cap));
   }
 
   return nnueLayers23();
@@ -2096,9 +2136,13 @@ export function nnueEvaluate(): i32 {
  *
  * Layer 2 runs SPARSE here: h1 = clamp(acc, 0, 127) is post-ClippedReLU, so
  * zero activations are skipped entirely and each nonzero one adds h * w2t[j]
- * (a 32-wide column of the transposed w2) into the partial sums. i32 addition
- * wraps mod 2^32 and is commutative, so the result is bit-identical to the
- * dense row-major dot products of nnueLayers23()/int_forward.
+ * (a 32-wide column of the transposed w2) into the partial sums. The 32
+ * partial sums live in eight i32x4 registers; activations are clamped and
+ * zero-tested 8 at a time (a group of 8 zero activations is skipped with one
+ * any_true), and each nonzero h adds its column via i16xi16 extmuls (exact
+ * products: |w2| < 2^15, h <= 127). i32 addition wraps mod 2^32 and is
+ * commutative, so the result is bit-identical to the dense row-major dot
+ * products of nnueLayers23()/int_forward.
  */
 export function nnueEvaluateFast(): i32 {
   if (teban == SENTE) {
@@ -2107,59 +2151,120 @@ export function nnueEvaluateFast(): i32 {
     if (!nnueApplyPendingG()) return nnueEvaluate();
   }
   nnueEvalCount++;
-  const src = teban == SENTE ? nnueAccS : nnueAccG;
+  const srcBase = changetype<usize>(teban == SENTE ? nnueAccS : nnueAccG);
 
-  for (let i = 0; i < NNUE_H2; i++) {
-    unchecked(nnueA2[i] = load<i32>(NNUE_WEIGHTS + <usize>(NNUE_B2_OFF + (i << 2))));
-  }
+  // Layer-2 partial sums (a2[0..31]) seeded with b2, kept in registers.
+  const b2Base = NNUE_WEIGHTS + <usize>NNUE_B2_OFF;
+  let s0 = v128.load(b2Base);
+  let s1 = v128.load(b2Base, 16);
+  let s2 = v128.load(b2Base, 32);
+  let s3 = v128.load(b2Base, 48);
+  let s4 = v128.load(b2Base, 64);
+  let s5 = v128.load(b2Base, 80);
+  let s6 = v128.load(b2Base, 96);
+  let s7 = v128.load(b2Base, 112);
 
-  for (let j = 0; j < NNUE_H1; j++) {
-    let h = unchecked(src[j]);
-    if (h <= 0) continue;
-    if (h > 127) h = 127;
-    const colBase = NNUE_W2T + <usize>(j << 6); // 32 i16 = 64 bytes per column
-    for (let i = 0; i < NNUE_H2; i += 4) {
-      const off = <usize>(i << 1);
-      unchecked(nnueA2[i] = nnueA2[i] + <i32>load<i16>(colBase + off) * h);
-      unchecked(nnueA2[i + 1] = nnueA2[i + 1] + <i32>load<i16>(colBase + off, 2) * h);
-      unchecked(nnueA2[i + 2] = nnueA2[i + 2] + <i32>load<i16>(colBase + off, 4) * h);
-      unchecked(nnueA2[i + 3] = nnueA2[i + 3] + <i32>load<i16>(colBase + off, 6) * h);
+  const zero = i32x4.splat(0);
+  const cap = i32x4.splat(127);
+  for (let j = 0; j < NNUE_H1; j += 8) {
+    const aoff = <usize>(j << 2);
+    const lo = i32x4.min_s(i32x4.max_s(v128.load(srcBase + aoff), zero), cap);
+    const hi = i32x4.min_s(i32x4.max_s(v128.load(srcBase + aoff, 16), zero), cap);
+    // Clamped activations are 0 iff acc <= 0, so any_true == false means the
+    // scalar loop would have skipped all 8 — safe to skip the whole group.
+    if (!v128.any_true(i16x8.narrow_i32x4_s(lo, hi))) continue;
+    for (let l = 0; l < 8; l++) {
+      let h = load<i32>(srcBase + aoff + (<usize>(l << 2)));
+      if (h <= 0) continue;
+      if (h > 127) h = 127;
+      const hs = i16x8.splat(<i16>h);
+      const colBase = NNUE_W2T + (<usize>((j + l) << 6)); // 32 i16 = 64 bytes
+      const w0 = v128.load(colBase);
+      const w1 = v128.load(colBase, 16);
+      const w2 = v128.load(colBase, 32);
+      const w3 = v128.load(colBase, 48);
+      s0 = i32x4.add(s0, i32x4.extmul_low_i16x8_s(w0, hs));
+      s1 = i32x4.add(s1, i32x4.extmul_high_i16x8_s(w0, hs));
+      s2 = i32x4.add(s2, i32x4.extmul_low_i16x8_s(w1, hs));
+      s3 = i32x4.add(s3, i32x4.extmul_high_i16x8_s(w1, hs));
+      s4 = i32x4.add(s4, i32x4.extmul_low_i16x8_s(w2, hs));
+      s5 = i32x4.add(s5, i32x4.extmul_high_i16x8_s(w2, hs));
+      s6 = i32x4.add(s6, i32x4.extmul_low_i16x8_s(w3, hs));
+      s7 = i32x4.add(s7, i32x4.extmul_high_i16x8_s(w3, hs));
     }
   }
 
-  let outQ = load<i32>(NNUE_WEIGHTS + <usize>NNUE_B3_OFF);
-  for (let i = 0; i < NNUE_H2; i++) {
-    let h2 = unchecked(nnueA2[i]) >> 6;
-    if (h2 < 0) h2 = 0;
-    else if (h2 > 127) h2 = 127;
-    outQ += <i32>load<i16>(NNUE_WEIGHTS + <usize>(NNUE_W3_OFF + (i << 1))) * h2;
-  }
-  return outQ;
+  // Layer 3: h2 = clamp(a2 >> 6, 0, 127) (i32x4.shr_s == scalar >> per lane),
+  // then outQ = b3 + Σ w3[i]*h2[i] via i16 dot products (h2 <= 127 narrows
+  // exactly; every product fits i32, and the wrapping-add reordering of the
+  // horizontal sum is bit-identical to the scalar accumulation).
+  const w3Base = NNUE_WEIGHTS + <usize>NNUE_W3_OFF;
+  const h2a = i16x8.narrow_i32x4_s(
+    i32x4.min_s(i32x4.max_s(i32x4.shr_s(s0, 6), zero), cap),
+    i32x4.min_s(i32x4.max_s(i32x4.shr_s(s1, 6), zero), cap)
+  );
+  const h2b = i16x8.narrow_i32x4_s(
+    i32x4.min_s(i32x4.max_s(i32x4.shr_s(s2, 6), zero), cap),
+    i32x4.min_s(i32x4.max_s(i32x4.shr_s(s3, 6), zero), cap)
+  );
+  const h2c = i16x8.narrow_i32x4_s(
+    i32x4.min_s(i32x4.max_s(i32x4.shr_s(s4, 6), zero), cap),
+    i32x4.min_s(i32x4.max_s(i32x4.shr_s(s5, 6), zero), cap)
+  );
+  const h2d = i16x8.narrow_i32x4_s(
+    i32x4.min_s(i32x4.max_s(i32x4.shr_s(s6, 6), zero), cap),
+    i32x4.min_s(i32x4.max_s(i32x4.shr_s(s7, 6), zero), cap)
+  );
+  let out4 = i32x4.dot_i16x8_s(v128.load(w3Base), h2a);
+  out4 = i32x4.add(out4, i32x4.dot_i16x8_s(v128.load(w3Base, 16), h2b));
+  out4 = i32x4.add(out4, i32x4.dot_i16x8_s(v128.load(w3Base, 32), h2c));
+  out4 = i32x4.add(out4, i32x4.dot_i16x8_s(v128.load(w3Base, 48), h2d));
+  return (
+    load<i32>(NNUE_WEIGHTS + <usize>NNUE_B3_OFF) +
+    i32x4.extract_lane(out4, 0) +
+    i32x4.extract_lane(out4, 1) +
+    i32x4.extract_lane(out4, 2) +
+    i32x4.extract_lane(out4, 3)
+  );
 }
 
 /**
  * Layers 2 + 3 on the clamped h1 vector in nnueAcc (shared by both paths).
- * The dot product is unrolled x4 with independent partial sums; i32 addition
- * wraps mod 2^32 so the reassociation stays bit-identical to int_forward.
+ * h1 (i32 in [0,127]) is packed to i16 lanes once, then each layer-2 row is
+ * an i32x4.dot_i16x8_s dot product (every i16xi16 product is exact in i32);
+ * i32 addition wraps mod 2^32 so the reassociation of the pairwise/horizontal
+ * sums stays bit-identical to int_forward.
  */
 function nnueLayers23(): i32 {
   nnueEvalCount++;
+  // Pack h1 into 256 i16 lanes (values are pre-clamped to [0,127], so the
+  // saturating narrow is exact).
+  const accBase = changetype<usize>(nnueAcc);
+  for (let j = 0; j < NNUE_H1; j += 8) {
+    const aoff = <usize>(j << 2);
+    v128.store(
+      NNUE_H1_I16 + (<usize>(j << 1)),
+      i16x8.narrow_i32x4_s(v128.load(accBase + aoff), v128.load(accBase + aoff, 16))
+    );
+  }
   // Layer 2 + output layer: h2 = clamp((w2 @ h1 + b2) >> 6, 0, 127).
   let outQ = load<i32>(NNUE_WEIGHTS + <usize>NNUE_B3_OFF);
   for (let i = 0; i < NNUE_H2; i++) {
     const rowBase = NNUE_WEIGHTS + <usize>(NNUE_W2_OFF + i * NNUE_H1 * 2);
-    let s0 = 0;
-    let s1 = 0;
-    let s2 = 0;
-    let s3 = 0;
-    for (let j = 0; j < NNUE_H1; j += 4) {
+    let sum = i32x4.splat(0);
+    for (let j = 0; j < NNUE_H1; j += 8) {
       const off = <usize>(j << 1);
-      s0 += <i32>load<i16>(rowBase + off) * unchecked(nnueAcc[j]);
-      s1 += <i32>load<i16>(rowBase + off, 2) * unchecked(nnueAcc[j + 1]);
-      s2 += <i32>load<i16>(rowBase + off, 4) * unchecked(nnueAcc[j + 2]);
-      s3 += <i32>load<i16>(rowBase + off, 6) * unchecked(nnueAcc[j + 3]);
+      sum = i32x4.add(
+        sum,
+        i32x4.dot_i16x8_s(v128.load(rowBase + off), v128.load(NNUE_H1_I16 + off))
+      );
     }
-    const a2 = load<i32>(NNUE_WEIGHTS + <usize>(NNUE_B2_OFF + (i << 2))) + s0 + s1 + s2 + s3;
+    const a2 =
+      load<i32>(NNUE_WEIGHTS + <usize>(NNUE_B2_OFF + (i << 2))) +
+      i32x4.extract_lane(sum, 0) +
+      i32x4.extract_lane(sum, 1) +
+      i32x4.extract_lane(sum, 2) +
+      i32x4.extract_lane(sum, 3);
     let h2 = a2 >> 6;
     if (h2 < 0) h2 = 0;
     else if (h2 > 127) h2 = 127;

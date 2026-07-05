@@ -16,6 +16,11 @@
  *   this off the main thread (it is used from shogi-ai.worker.ts) or in node.
  * - Every failure mode (instantiation, runtime trap, illegal result) returns
  *   null so the caller can fall back to the JS V20 engine.
+ * - The binary requires WASM SIMD128 (the NNUE inference is vectorized). All
+ *   major browsers ship SIMD since 2021-2023 (Chrome 91+, Firefox 89+,
+ *   Safari 16.4+, Node 16.4+); on anything older WebAssembly.validate()
+ *   rejects the binary and the JS V20 engine takes over — same fallback as
+ *   any other instantiation failure, just with a clearer log line.
  */
 
 import { GenerateMovesImproved } from './GenerateMovesImproved';
@@ -79,6 +84,16 @@ function getInstance(): ShogiSearchWasm | null {
   if (initFailed) return null;
   try {
     const bytes = decodeBase64(SHOGI_WASM_BASE64);
+    // The binary uses SIMD128; on an engine without SIMD support validate()
+    // returns false (new WebAssembly.Module would throw a CompileError anyway,
+    // this just makes the fallback reason explicit in the log).
+    if (typeof WebAssembly.validate === 'function' && !WebAssembly.validate(bytes)) {
+      initFailed = true;
+      console.error(
+        '[wasmEngine] binary rejected — this environment lacks WASM SIMD128 support; the JS engine will be used instead'
+      );
+      return null;
+    }
     const wasmModule = new WebAssembly.Module(bytes);
     const wasmInstance = new WebAssembly.Instance(wasmModule, {
       env: {

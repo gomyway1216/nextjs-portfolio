@@ -471,7 +471,7 @@ the Vercel build. After changing `wasm-spike/assembly/`:
 npm install --no-save assemblyscript
 npx asc wasm-spike/assembly/index.ts \
   --outFile src/components/game/ShogiImproved/wasm/shogi.wasm \
-  -O3 --runtime stub --noAssert
+  -O3 --runtime stub --noAssert --enable simd
 node src/components/game/ShogiImproved/wasm/gen-wasm-base64.mjs
 # then re-verify:
 node -r tsx/cjs wasm-spike/parity.ts

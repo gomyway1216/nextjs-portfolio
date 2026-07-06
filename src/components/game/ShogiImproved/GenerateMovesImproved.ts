@@ -275,14 +275,16 @@ export class GenerateMovesImproved {
     }
 
     // Check 8 directions for sliding attacks (rook/bishop/lance and promoted variants).
-    // Every read here is in-bounds: the first `target - step` is >= 0 for any board
-    // square, and the walk terminates on WALL padding before leaving the array, so a
-    // plain `ban[pos]` read is safe (no negative / out-of-range index).
+    // The walk terminates on WALL padding before leaving the playable area, so an
+    // out-of-range read should not happen — but read through `?? WALL` anyway so a
+    // stray index degrades to the WALL sentinel (matching the old `k.get()`) instead
+    // of `undefined`, which would break under `noUncheckedIndexedAccess` and rely on
+    // coercion. No behavioral change: parity/search-driver stay bit-exact.
     for (let direct = 0; direct < 8; direct++) {
       const step = diff[direct];
       const cj = canJump[direct];
       let pos = target - step;
-      let koma = ban[pos];
+      let koma = ban[pos] ?? WALL;
       while (koma !== WALL) {
         if (koma !== EMPTY) {
           if ((koma & selfFlag) !== 0) break;
@@ -290,7 +292,7 @@ export class GenerateMovesImproved {
           break;
         }
         pos -= step;
-        koma = ban[pos];
+        koma = ban[pos] ?? WALL;
       }
     }
 
@@ -328,12 +330,14 @@ export class GenerateMovesImproved {
       }
     }
 
-    // Sliding attacks (rook/bishop/lance and promoted variants).
+    // Sliding attacks (rook/bishop/lance and promoted variants). Read through
+    // `?? WALL` so a stray out-of-range index degrades to the WALL sentinel
+    // (matching the old `k.get()`) rather than `undefined`. No behavioral change.
     for (let direct = 0; direct < 8; direct++) {
       const step = diff[direct];
       const cj = canJump[direct];
       let pos = target - step;
-      let koma = ban[pos];
+      let koma = ban[pos] ?? WALL;
       while (koma !== WALL) {
         if (koma !== EMPTY) {
           if ((koma & selfFlag) !== 0) break;
@@ -344,7 +348,7 @@ export class GenerateMovesImproved {
           break;
         }
         pos -= step;
-        koma = ban[pos];
+        koma = ban[pos] ?? WALL;
       }
     }
 

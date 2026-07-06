@@ -1,6 +1,6 @@
 .piece {
   align-items: center;
-  aspect-ratio: 0.72;
+  aspect-ratio: 0.76;
   display: inline-grid;
   height: 90%;
   justify-items: center;
@@ -11,40 +11,48 @@
   transition: filter 160ms ease, transform 160ms ease;
 }
 
-.piece::before,
-.face {
-  clip-path: polygon(50% 0, 94% 24%, 86% 100%, 14% 100%, 6% 24%);
+.tile {
+  display: block;
+  height: 100%;
+  overflow: visible;
+  width: 100%;
 }
 
-.piece::before {
-  background: linear-gradient(145deg, #7b5427, #442a12);
-  content: '';
-  inset: 0;
-  position: absolute;
+.castShadow {
+  fill: rgba(43, 25, 10, 0.34);
 }
 
-.face {
-  align-items: center;
-  background:
-    radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.42), transparent 30%),
-    linear-gradient(145deg, #f8d98f 0%, #d59c48 48%, #a76628 100%);
-  box-shadow:
-    inset 0 0.12rem 0.2rem rgba(255, 255, 255, 0.35),
-    inset 0 -0.18rem 0.22rem rgba(94, 56, 18, 0.38);
-  display: grid;
-  inset: 0.12rem;
-  justify-items: center;
-  position: absolute;
+.rim {
+  fill: #6f451c;
+}
+
+.body {
+  fill: #e6b765;
+  stroke: #8a5a24;
+  stroke-width: 1.4;
+}
+
+.innerStroke {
+  fill: none;
+  opacity: 0.55;
+  stroke: rgba(255, 242, 194, 0.75);
+  stroke-width: 1.1;
 }
 
 .label {
   color: #1f1308;
-  font-family: 'Yu Mincho', 'Hiragino Mincho ProN', 'Noto Serif JP', serif;
-  font-size: clamp(0.95rem, 3vw, 1.55rem);
-  font-weight: 900;
+  font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'YuMincho', 'Shippori Mincho', 'Noto Serif JP', serif;
+  font-size: clamp(1.05rem, 3vw, 1.66rem);
+  font-weight: 800;
   letter-spacing: 0;
   line-height: 1;
-  text-shadow: 0 0.05rem 0 rgba(255, 241, 190, 0.5);
+  left: 50%;
+  position: absolute;
+  text-shadow: 0 0.04rem 0 rgba(255, 239, 184, 0.32);
+  text-orientation: upright;
+  top: 55%;
+  transform: translate(-50%, -50%) scaleX(0.86);
+  transform-origin: center;
   writing-mode: vertical-rl;
 }
 

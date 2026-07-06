@@ -134,12 +134,16 @@ describe('shogi-ai.worker NNUE difficulty gate', () => {
     expect(nnue.isNnueEnabled()).toBe(false);
   }, 15_000);
 
-  it('keeps hard on the V3 evaluation (2026-07 hotfix: NNUE is medium-only)', () => {
-    const { k, tesu } = outOfBookPosition();
-    send({ type: 'bestMove', id: 105, position: serialize(k), difficulty: 'hard', tesu });
-    expectLegalMove(105, k);
-    expect(nnue.isNnueEnabled()).toBe(false);
-  }, 15_000);
+  it.each(['hard', 'expert', 'master'] as const)(
+    'uses NNUE for %s (re-enabled 2026-07-06 after the cycle-3 saturation fix)',
+    (difficulty) => {
+      const { k, tesu } = outOfBookPosition();
+      send({ type: 'bestMove', id: 105, position: serialize(k), difficulty, tesu });
+      expectLegalMove(105, k);
+      expect(nnue.isNnueEnabled()).toBe(true);
+    },
+    15_000
+  );
 
   it('keeps the NNUE setting across a new game (clearTT)', () => {
     const { k, tesu } = outOfBookPosition();

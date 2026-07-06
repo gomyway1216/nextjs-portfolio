@@ -640,6 +640,22 @@ The review bot earned its keep once more — six findings including a **producti
 
 **The "values" of the medium-and-up AI on meetyudai.com are, as of today, not seven months of handwritten rules — they are some 590,000 numbers distilled overnight from a million of YaneuraOu's judgments.**
 
+### Making the opening book "deeper and wider" — extending it with a superhuman engine as judge
+
+Cycle 2's book audit (PR #299) "killed 11 human-exploitable holes up to −2500cp." At that point the book held 267 positions across 34 lines — but many lines simply *stopped* at 10–14 plies, right where "the strategy takes shape." Stopping isn't fatal (out-of-book play falls back to search), but **the longer the book runs, the more coherent the opening and the higher the hit rate** (how often we can return a good move instantly). So to close out this cycle, I pushed the book one notch "deeper and wider."
+
+**What is an opening book, anyway?** Shogi openings have been studied for centuries, and a body of standard theory (*joseki*) says "in this position, this move is good." A program can store that as a `position → recommended move` table and skip thinking from scratch every opening. It's fast, and it makes the AI's moves look like a real, human-recognizable strategy. The catch is **never mixing a bad move into the table** — once you leave the book you switch to search, so a single bad book move drives you straight down a losing line.
+
+**Why verify with a superhuman engine?** A book move typed in by hand "because it looks good" almost always **has a trap somewhere** (Chapter 2's line where △7七角 hangs the bishop is the classic). So a local YaneuraOu (NNUE, above pro strength) becomes the referee. Every candidate move is read at **depth 18, MultiPV 2**, and only the engine's best move (or a second-best within 50cp of it) is accepted. Concretely: at each line's end position I ask the engine for its best move, append it, ask again, and so on — **chasing the engine's principal variation for a few plies.** That way every added move is one a superhuman engine calls best.
+
+**How many plies added?** Twenty-one lines — Yagura, Bishop-Exchange, Double Wing, Gangi, Fourth-File Rook, Third-File Rook, Central Rook, Counter-Ranging-Rook, Side-Pawn-Capture, anti-Bo-Gin, and more — were each extended by 2–6 plies. Positions grew from **267 → 354 (+87)**, and registered moves from 298 → 387. Every extension consists of the engine's best move for that position (e.g., after the rook-pawn exchange in Bishop-Exchange / Double Wing, we play the "return exchange" △8六歩 ▲同歩 △同飛 all the way through).
+
+**How were blunders prevented?** A verification script re-checks every registered move at depth 18, MultiPV 2 (exit non-zero if any move is ≥200cp worse than the engine best), run after the expansion. Result: **zero new blunders across the 87 added positions.** In fact, extending one Gangi line *past* a borderline position **resolved a pre-existing near-miss that used to just clip the threshold.** The only remaining flag is the Third-File-Rook opening ▲7八飛 — but that is simply the modern engine's verdict that **Ranging Rook sits ~180cp below Static Rook**; at depth 18 it oscillates between 165–218cp with search noise (stable 177cp at depth 20). That move *is* the strategy's defining move (delete it and Third-File Rook vanishes) and is the engine-endorsed *best* Third-File-Rook try, so it stays. It's not a blunder — it's the price of a strategy choice.
+
+**Did it help?** I A/B'd the extended book against the pre-expansion one directly (same v20 engine, only the book swapped; evalV3; 1000ms; 30 games each). With a forced opening that disables the book, it was a dead-even **10-10-10** (no regression). With the book active (no forced opening), it went **15-0-15** — the extended book never lost a game. Book probe counts also rose (926 → 956): a deeper main line means a wider window where we can answer instantly (the book-vs-book main line runs 13 → 17 plies).
+
+The lesson is Chapter 2's again — **book, eval, and verifier are a coupled system.** Any hand-added book line must be cross-checked against a superhuman engine, confirming move by move "is this the best move, and how many cp is the gap?" With that discipline, a book can safely be made deeper.
+
 ### The strength genealogy (a chain of measurements)
 
 No absolute rating was ever measured (that's decided against humans), but every generational matchup was:

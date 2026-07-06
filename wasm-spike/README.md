@@ -285,3 +285,61 @@ node -r tsx/cjs wasm-spike/match-nnue-vs-v3.ts <weights.bin> [--games 16] [--ms 
 - 探索は同期実行でメインスレッドをブロックするため Worker 内で動かすこと（現行 `shogi-ai.worker.ts` と同じ形）。
 - WASM メモリは TT 19MB + continuation history 6.7MB ほかで合計 ~35MB 程度。Worker 生成のたびに instantiate し直すとその分のアロケーションが走る点に注意（使い回し推奨）。
 - 千日手は**探索経路内のみ**検出（JS V20 と同一仕様）。対局全体の千日手判定は従来どおりホスト側で。
+
+## フェーズ5: マルチスレッド探索（Lazy SMP、2026-07）
+
+`/games/shogi-improved` を COOP/COEP でクロスオリジン分離し、SharedArrayBuffer を有効化して
+**Lazy SMP**（min(4, hardwareConcurrency−2) スレッド）で探索する。
+
+### アーキテクチャ（なぜ wasm の `--sharedMemory` を使わないか）
+
+AssemblyScript は静的データ（盤面・履歴テーブル・NNUE アキュムレータ等の全ミュータブル状態）を
+リニアメモリの固定アドレスに置くため、複数インスタンスで 1 つの shared memory を共有すると
+**TT だけでなく全探索状態が衝突**する。回避策（全配列のスレッドローカル・アリーナ化、または
+`--memoryBase` 違いの複数バイナリ）はどちらも大改修で、ビット一致パリティを危険に晒す。
+
+代わりに **各 Worker がプライベート wasm インスタンスを持ち、TT のみを JS 側の
+SharedArrayBuffer で共有**する:
+
+- `src/components/game/ShogiImproved/sharedTT.ts` — ロックフリー共有 TT（2^20 エントリ×32B ≈ 32MB。
+  エントリは XOR チェック付き 5×i32、Atomics で読み書き。破れた読み書きは XOR 検証で miss になる
+  標準の lockless hashing）。ヘッダの generation セルが停止フラグを兼ねる。
+- wasm 側は `sharedTtProbe` / `sharedTtStore` / `sharedShouldStop` の 3 import を追加
+  （`setSharedTtEnabled(1)` のときだけ呼ぶ。**シングルスレッド時は一切呼ばれず、従来の
+  StaticArray TT 経路のまま = ビット一致**。parity / search-driver / nnue-parity で検証済み）。
+- トポロジ: ページ(client) が main worker + N−1 helper worker
+  (`shogi-ai-helper.worker.ts`) を生成し MessageChannel で直結（バンドラ制約上 `new Worker` は
+  すべて window コンテキストから）。main が世代を publish → helper へ `go` → 自分の探索完了で
+  世代を 0 に → helper は ~2048 ノードごとのポーリングで停止。helper の指し手は捨て、
+  共有 TT エントリだけが成果物（これが Lazy SMP）。奇数 helper は反復深化を 1 ply 深い側から
+  開始（標準の非同期化）。ponder はシングルスレッドのまま（helper はアイドル。ponder の
+  書き込みも共有 TT に載るので次の本探索には効く）。
+- フォールバック: SharedArrayBuffer が無い（ヘッダ無し・旧ブラウザ）/ helper 生成失敗 /
+  コア数不足（hc≦3）のときは従来のシングルスレッド経路そのまま。easy 難易度も意図的に ST。
+
+### ヘッダ（next.config.ts）
+
+- `/games/shogi-improved` のみ `COOP: same-origin` + `COEP: require-corp`（サイト全体に付けると
+  外部画像等が壊れるためルート限定）。
+- **`/_next/static/:path*` に `COEP: require-corp` が必須**: 分離ページから dedicated worker を
+  spawn するとき、worker スクリプトのレスポンス自体に互換 COEP が必要（無いと
+  `ERR_BLOCKED_BY_RESPONSE` で worker が起動しない）。非分離ページには無害（逆方向は許可）。
+
+### 検証
+
+```sh
+# ST ビット一致（従来ゲート、全パス）
+node -r tsx/cjs wasm-spike/parity.ts          # 4,184 局面 100%
+node -r tsx/cjs wasm-spike/search-driver.ts   # 48/48 EXACT
+node -r tsx/cjs wasm-spike/nnue-parity.ts public/shogi-nnue-weights.bin
+
+# MT 妥当性（非決定なので別ゲート）: 全手合法 / 同一局面100回の手集合 / ノードスケーリング
+node -r tsx/cjs wasm-spike/mt/mt-sanity.ts --threads 4 --repeats 100
+
+# 強度 A/B: MT(4スレッド) vs ST、NNUE 両側、2000ms/手
+node -r tsx/cjs wasm-spike/mt/match-mt-vs-st.ts --games 24 --ms 2000 --seed 1
+```
+
+実測（macOS / Apple Silicon 14 コア / node v20）: ノード合計 ×3.0（4 スレッド、アイドル時）、
+同一局面 100 回で返る手は 1〜数種に収束、全手合法。強度は README 更新時点の A/B ログ参照
+（PR に記載）。

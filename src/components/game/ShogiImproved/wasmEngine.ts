@@ -25,6 +25,7 @@
 
 import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { KyokumenImproved } from './KyokumenImproved';
+import { SharedTT } from './sharedTT';
 import { GHI, SFU, Te } from './types';
 import { SHOGI_WASM_BASE64 } from './wasm/shogiWasmBase64';
 
@@ -49,10 +50,41 @@ interface ShogiSearchWasm {
   getNnueWeightsSize(): number;
   setNnueScaleK(k: number): void;
   setNnueEnabled(flag: number): void;
+  // Lazy SMP shared-TT hooks (see sharedTT.ts).
+  getSharedTtScratchPtr(): number;
+  setSharedTtEnabled(flag: number): void;
+  setSearchStartDepth(d: number): void;
 }
 
 let instance: ShogiSearchWasm | null = null;
 let initFailed = false;
+
+// ---------------------------------------------------------------------------
+// Lazy SMP shared transposition table state (per worker; see sharedTT.ts).
+//
+// The WASM binary imports sharedTtProbe/sharedTtStore/sharedShouldStop
+// unconditionally, but only calls them while its sharedTtEnabled flag is set,
+// so in single-thread mode the closures below never run and the private
+// in-WASM TT keeps the exact pre-SMP behavior.
+// ---------------------------------------------------------------------------
+
+let sharedTT: SharedTT | null = null;
+/** 'main' clears the shared TT on eval switches; helpers never do. */
+let sharedTTRole: 'main' | 'helper' = 'main';
+/** Generation this worker's current search belongs to (see SharedTT docs). */
+let searchGeneration = 0;
+/** Cached Int32Array over the wasm-side probe scratch (stable after init). */
+let sharedTtScratchView: Int32Array | null = null;
+
+function getSharedTtScratchView(wasm: ShogiSearchWasm): Int32Array {
+  // The engine allocates everything at instantiation and never grows memory
+  // afterwards, but re-check the buffer identity anyway so a hypothetical
+  // grow can never leave us writing into a detached buffer.
+  if (sharedTtScratchView === null || sharedTtScratchView.buffer !== wasm.memory.buffer) {
+    sharedTtScratchView = new Int32Array(wasm.memory.buffer, wasm.getSharedTtScratchPtr(), 4);
+  }
+  return sharedTtScratchView;
+}
 
 // NOTE: the explicit `Uint8Array<ArrayBuffer>` generic is required by this repo's TypeScript
 // version: a bare `Uint8Array` infers `Uint8Array<ArrayBufferLike>`, which is not assignable to
@@ -108,6 +140,20 @@ function getInstance(): ShogiSearchWasm | null {
         },
         // The engine samples env.now() for its time management.
         now: performance.now.bind(performance),
+        // Lazy SMP shared-TT hooks. Only called while the engine's
+        // sharedTtEnabled flag is on (i.e. after enableSharedTT()).
+        sharedTtProbe: (hash: number): number => {
+          const tt = sharedTT;
+          if (!tt || !instance) return 0;
+          return tt.probe(hash, getSharedTtScratchView(instance));
+        },
+        sharedTtStore: (hash: number, value: number, flagDepth: number, best: number): void => {
+          if (sharedTT) sharedTT.store(hash, value, flagDepth, best);
+        },
+        sharedShouldStop: (): number => {
+          const tt = sharedTT;
+          return tt && tt.readGeneration() !== searchGeneration ? 1 : 0;
+        },
       },
     });
     instance = wasmInstance.exports as unknown as ShogiSearchWasm;
@@ -182,14 +228,91 @@ export function getLastWasmSearchStats(): WasmSearchStats | null {
 /**
  * Clear the WASM transposition table. Call when a NEW game starts; do NOT call
  * between moves of the same game (the TT carry-over is a strength feature).
+ *
+ * In multi-thread mode the 'main' worker also clears the shared TT; helper
+ * workers only clear their private caches (the main clears the shared one).
  */
 export function clearWasmTT(): void {
   const wasm = getInstance();
   if (!wasm) return;
   try {
     wasm.clearTT();
+    if (sharedTT && sharedTTRole === 'main') sharedTT.clear();
   } catch (e) {
     console.error('[wasmEngine] clearTT failed', e);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Lazy SMP (multi-thread) controls — see sharedTT.ts and shogi-ai.worker.ts
+// ---------------------------------------------------------------------------
+
+/**
+ * Attach a shared transposition table and switch the engine to shared-TT
+ * mode. Returns false (leaving the engine in single-thread mode) when the
+ * engine is unavailable or the binary predates the SMP exports.
+ */
+export function enableSharedTT(sab: SharedArrayBuffer, role: 'main' | 'helper'): boolean {
+  const wasm = getInstance();
+  if (!wasm) return false;
+  try {
+    if (
+      typeof wasm.getSharedTtScratchPtr !== 'function' ||
+      typeof wasm.setSharedTtEnabled !== 'function' ||
+      typeof wasm.setSearchStartDepth !== 'function'
+    ) {
+      return false;
+    }
+    const tt = new SharedTT(sab);
+    // Prime the scratch view before flipping the engine flag so the very
+    // first probe cannot race instance/view setup.
+    getSharedTtScratchView(wasm);
+    sharedTT = tt;
+    sharedTTRole = role;
+    wasm.setSharedTtEnabled(1);
+    return true;
+  } catch (e) {
+    console.error('[wasmEngine] enableSharedTT failed; staying single-thread', e);
+    sharedTT = null;
+    try {
+      wasm.setSharedTtEnabled(0);
+    } catch {
+      /* engine unusable; searches will fail over to the JS engine */
+    }
+    return false;
+  }
+}
+
+/** True once enableSharedTT() succeeded (diagnostics/tests). */
+export function isSharedTTEnabled(): boolean {
+  return sharedTT !== null;
+}
+
+/**
+ * Set the generation the NEXT search on this worker belongs to. The search
+ * stops (checked every ~2048 nodes) as soon as the published generation in
+ * the shared TT differs — that is how the main thread stops the helpers.
+ */
+export function setSearchGeneration(gen: number): void {
+  searchGeneration = gen | 0;
+}
+
+/** Publish the active generation to all workers (main thread only; 0 = idle). */
+export function publishSearchGeneration(gen: number): void {
+  if (sharedTT) sharedTT.publishGeneration(gen);
+}
+
+/**
+ * First iterative-deepening depth for the next searches (helpers use
+ * 1 + (helperId & 1) to desynchronize from the main thread's ply schedule).
+ */
+export function setWasmSearchStartDepth(depth: number): void {
+  const wasm = getInstance();
+  if (!wasm || typeof wasm.setSearchStartDepth !== 'function') return;
+  try {
+    wasm.setSearchStartDepth(depth | 0);
+  } catch (e) {
+    console.error('[wasmEngine] setSearchStartDepth failed', e);
   }
 }
 
@@ -290,7 +413,11 @@ export function setWasmNnueEnabled(enabled: boolean): boolean {
     // (~3.7x cp) and NNUE (true cp) scales must never mix in one search. A
     // real eval switch is rare (weights arriving mid-session, or a difficulty
     // change across the easy boundary), so dropping the TT here is cheap.
+    // In multi-thread mode the shared TT holds the same scores, so the 'main'
+    // worker drops it too (helpers toggle in lockstep via the go message and
+    // must not race a concurrent clear).
     wasm.clearTT();
+    if (sharedTT && sharedTTRole === 'main') sharedTT.clear();
     nnueEnabledState = desired;
   } catch (e) {
     console.error('[wasmEngine] setNnueEnabled failed; the V3 evaluation will be used instead', e);

@@ -247,7 +247,7 @@ export const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 2, dan: 3 }, to: { suji: 2, dan: 4 } },  // ☖同歩
       { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 2, dan: 4 } }, // ☗同飛
       { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金
-      // YaneuraOu depth18 最善手による延長 (2026-07): ▲６八金右で飛車を安定させ、△８六歩▲同歩△同飛のお返し交換。
+      // YaneuraOu depth18 最善手による延長 (2026-07): ▲７八金（６九の右金）で飛車を安定させ、△８六歩▲同歩△同飛のお返し交換。
       { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八金 (右金を上がって飛車を安定)
       { teban: GOTE, from: { suji: 8, dan: 5 }, to: { suji: 8, dan: 6 } },  // ☖８六歩 (お返しの飛先交換)
       { teban: SENTE, from: { suji: 8, dan: 7 }, to: { suji: 8, dan: 6 } }, // ☗同歩
@@ -454,7 +454,7 @@ export const OPENING_LINES: OpeningLine[] = [
       { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八銀
       // YaneuraOu depth18 最善手による延長 (2026-07): 後手が△３五歩〜△３六歩と３筋の位を取り、▲同歩と応じる。
       { teban: GOTE, from: { suji: 3, dan: 4 }, to: { suji: 3, dan: 5 } },  // ☖３五歩 (石田流の位取り)
-      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 2, dan: 8 } }, // ☗２八玉 (美濃を固める)
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 2, dan: 8 } }, // ☗２八銀 (３九の右銀を美濃の壁に。玉は既に３八)
       { teban: GOTE, from: { suji: 3, dan: 5 }, to: { suji: 3, dan: 6 } },  // ☖３六歩 (位を伸ばす)
       { teban: SENTE, from: { suji: 3, dan: 7 }, to: { suji: 3, dan: 6 } }, // ☗同歩
     ],

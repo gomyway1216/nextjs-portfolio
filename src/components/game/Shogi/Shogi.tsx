@@ -4,9 +4,10 @@
 
 'use client';
 
-import { RotateCcw } from 'lucide-react';
+import { Bot,Clock,Crown,RotateCcw,Swords,UserRound,Zap } from 'lucide-react';
 import { useCallback,useEffect,useRef,useState } from 'react';
-import { Difficulty,GameStats,GameTopBar,InfoModal } from '../common';
+import { Difficulty,DifficultySelector,GameStats,GameTopBar,InfoModal } from '../common';
+import startShellStyles from '../common/GameStartShell.module.css';
 import type { SerializedKyokumenImproved,SerializedTeImproved,ShogiAiWorkerClient } from '../ShogiImproved/shogiAiWorkerClient';
 import { createShogiAiWorkerClient } from '../ShogiImproved/shogiAiWorkerClient';
 import { toFugo } from './FugoNotation';
@@ -16,14 +17,15 @@ import { Kyokumen } from './Kyokumen';
 import { getOpeningMoveValidated } from './OpeningBookValidated';
 import { getBestMove } from './ShogiAI';
 import { EMPTY,GOTE,isSente,komaValue,Position,SENTE,Te,toString } from './types';
+import styles from './ShogiStartScreen.module.css';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 const DIFFICULTY_OPTIONS = [
-  { label: 'Level 1 (Easy)', value: 'easy' as Difficulty, description: 'Fast (~250ms)' },
-  { label: 'Level 2 (Medium)', value: 'medium' as Difficulty, description: 'Balanced (~1s)' },
-  { label: 'Level 3 (Hard)', value: 'hard' as Difficulty, description: 'Strong (~2s)' },
-  { label: 'Level 4 (Expert)', value: 'expert' as Difficulty, description: 'Very strong (~4s)' },
-  { label: 'Level 5 (Master)', value: 'master' as Difficulty, description: 'Strongest (~5s)' },
+  { label: 'Lv1 Practice', value: 'easy' as Difficulty, description: 'Fast reply, light search (~250ms)' },
+  { label: 'Lv2 Standard', value: 'medium' as Difficulty, description: 'Balanced reading and pace (~1s)' },
+  { label: 'Lv3 Strong', value: 'hard' as Difficulty, description: 'Sharper tactics, deeper search (~2s)' },
+  { label: 'Lv4 Expert', value: 'expert' as Difficulty, description: 'Worker-backed serious search (~4s)' },
+  { label: 'Lv5 Master', value: 'master' as Difficulty, description: 'Maximum browser strength (~5s)' },
 ];
 
 interface GameState {
@@ -540,174 +542,79 @@ const Shogi = () => {
     );
   };
 
+  const selectedDifficultyOption = DIFFICULTY_OPTIONS.find(option => option.value === difficulty) ?? DIFFICULTY_OPTIONS[1];
+  const playerSideLabel = playerSide === SENTE ? 'Sente / first move' : 'Gote / AI opens';
+
   if (showDifficultySelect) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        background: '#1a1a2e',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '20px'
-      }}>
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.95)',
-          border: '3px solid #0ea5e9',
-          borderRadius: '1rem',
-          padding: 'clamp(1.25rem, 6vw, 3rem)',
-          boxShadow: '0 0 50px rgba(14, 165, 233, 0.3)',
-          width: 'min(500px, 100%)'
-        }}>
-          <h1 style={{
-            color: '#fff',
-            fontSize: '2.5rem',
-            fontWeight: 'bold',
-            marginBottom: '1rem',
-            textAlign: 'center',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '1rem'
-          }}>
-            ☗ Shogi
-          </h1>
-          <p style={{
-            color: '#9ca3af',
-            textAlign: 'center',
-            marginBottom: '2rem'
-          }}>
-            Japanese Chess
-          </p>
-
-          {/* Side Selection */}
-          <h2 style={{
-            color: '#fff',
-            fontSize: '1.5rem',
-            fontWeight: 'bold',
-            marginBottom: '1rem',
-            textAlign: 'center'
-          }}>
-            Choose Your Side
-          </h2>
-          <div style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            gap: '1rem',
-            marginBottom: '2rem'
-          }}>
-            <button
-              onClick={() => setPlayerSide(SENTE)}
-              style={{
-                flex: 1,
-                background: playerSide === SENTE ? 'rgba(59, 130, 246, 0.5)' : 'rgba(31, 41, 55, 0.5)',
-                border: `2px solid ${playerSide === SENTE ? '#3b82f6' : 'rgba(75, 85, 99, 1)'}`,
-                borderRadius: '0.5rem',
-                color: playerSide === SENTE ? '#fff' : '#9ca3af',
-                padding: '1rem',
-                fontSize: '1.125rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              ☗ Sente (First)
-              <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.8 }}>
-                Black / You move first
-              </div>
-            </button>
-            <button
-              onClick={() => setPlayerSide(GOTE)}
-              style={{
-                flex: 1,
-                background: playerSide === GOTE ? 'rgba(220, 38, 38, 0.5)' : 'rgba(31, 41, 55, 0.5)',
-                border: `2px solid ${playerSide === GOTE ? '#dc2626' : 'rgba(75, 85, 99, 1)'}`,
-                borderRadius: '0.5rem',
-                color: playerSide === GOTE ? '#fff' : '#9ca3af',
-                padding: '1rem',
-                fontSize: '1.125rem',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s'
-              }}
-            >
-              ☖ Gote (Second)
-              <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.8 }}>
-                White / AI moves first
-              </div>
-            </button>
-          </div>
-
-          {/* Difficulty Selection */}
-          <h2 style={{
-            color: '#fff',
-            fontSize: '1.5rem',
-            fontWeight: 'bold',
-            marginBottom: '1rem',
-            textAlign: 'center'
-          }}>
-            Select Difficulty
-          </h2>
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem',
-            marginBottom: '2rem'
-          }}>
-            {DIFFICULTY_OPTIONS.map((option) => {
-              const isSelected = difficulty === option.value;
-              return (
+      <div className={startShellStyles.shell}>
+        <DifficultySelector
+          title="Shogi"
+          subtitle="Japanese chess with validated openings, worker search, and the latest strengthened browser engine."
+          icon={<span className={styles.titleIcon}>☗</span>}
+          selectedDifficulty={difficulty}
+          onSelectDifficulty={setDifficulty}
+          options={DIFFICULTY_OPTIONS}
+          difficultyTitle="Choose engine strength"
+          startLabel="Start Match"
+          onStart={startGame}
+          setupContent={
+            <div className={styles.sidePanel}>
+              <p className={styles.panelLabel}>Choose your side</p>
+              <div className={styles.sideGrid}>
                 <button
-                  key={option.value}
-                  onClick={() => setDifficulty(option.value)}
-                  style={{
-                    background: isSelected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(31, 41, 55, 0.5)',
-                    border: `2px solid ${isSelected ? '#10b981' : 'rgba(75, 85, 99, 1)'}`,
-                    borderRadius: '0.5rem',
-                    color: isSelected ? '#10b981' : '#9ca3af',
-                    padding: '1rem',
-                    fontSize: '1.125rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                    textTransform: 'uppercase'
-                  }}
+                  type="button"
+                  className={styles.sideButton}
+                  data-selected={playerSide === SENTE ? 'true' : 'false'}
+                  data-side="sente"
+                  aria-pressed={playerSide === SENTE}
+                  onClick={() => setPlayerSide(SENTE)}
                 >
-                  {option.label}
-                  <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.8 }}>
-                    {option.description}
-                  </div>
+                  <span className={styles.sideIcon}><UserRound size={18} /></span>
+                  <span className={styles.sideTitle}>Sente</span>
+                  <span className={styles.sideMeta}>Black side, you move first</span>
                 </button>
-              );
-            })}
-          </div>
 
-          <button
-            onClick={startGame}
-            style={{
-              background: '#0ea5e9',
-              border: 'none',
-              borderRadius: '0.5rem',
-              color: '#fff',
-              fontSize: '1.5rem',
-              fontWeight: 'bold',
-              padding: '1.5rem 3rem',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              boxShadow: '0 10px 40px rgba(14, 165, 233, 0.5)',
-              width: '100%'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = '#0284c7';
-              e.currentTarget.style.transform = 'scale(1.05)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = '#0ea5e9';
-              e.currentTarget.style.transform = 'scale(1)';
-            }}
-          >
-            Start Game
-          </button>
-        </div>
+                <button
+                  type="button"
+                  className={styles.sideButton}
+                  data-selected={playerSide === GOTE ? 'true' : 'false'}
+                  data-side="gote"
+                  aria-pressed={playerSide === GOTE}
+                  onClick={() => setPlayerSide(GOTE)}
+                >
+                  <span className={styles.sideIcon}><Bot size={18} /></span>
+                  <span className={styles.sideTitle}>Gote</span>
+                  <span className={styles.sideMeta}>White side, AI plays first</span>
+                </button>
+              </div>
+            </div>
+          }
+          summaryContent={
+            <div className={styles.summaryGrid}>
+              <span className={styles.summaryItem}>
+                <UserRound className={styles.summaryIcon} />
+                <span className={styles.summaryText}>You: {playerSideLabel}</span>
+              </span>
+              <span className={styles.summaryItem}>
+                <Crown className={styles.summaryIcon} />
+                <span className={styles.summaryText}>AI: {selectedDifficultyOption.label}</span>
+              </span>
+              <span className={styles.summaryItem}>
+                <Swords className={styles.summaryIcon} />
+                <span className={styles.summaryText}>Opening book: first 12 plies</span>
+              </span>
+              <span className={styles.summaryItem}>
+                <Zap className={styles.summaryIcon} />
+                <span className={styles.summaryText}>Worker search enabled</span>
+              </span>
+              <span className={styles.summaryItem}>
+                <Clock className={styles.summaryIcon} />
+                <span className={styles.summaryText}>{selectedDifficultyOption.description}</span>
+              </span>
+            </div>
+          }
+        />
       </div>
     );
   }

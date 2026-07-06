@@ -1,0 +1,16 @@
+.shell {
+  align-items: center;
+  background: #171916;
+  color: #f8fafc;
+  display: flex;
+  justify-content: center;
+  min-height: 100vh;
+  padding: clamp(1rem, 4vw, 2rem);
+}
+
+@media (max-width: 520px) {
+  .shell {
+    align-items: flex-start;
+    padding-top: 1rem;
+  }
+}

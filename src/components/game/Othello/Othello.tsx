@@ -7,7 +7,7 @@
 'use client';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-import { Loader2,RotateCcw } from 'lucide-react';
+import { CircleHelp,Cpu,Loader2,Play,RotateCcw } from 'lucide-react';
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { Difficulty,GameStats,GameTopBar,InfoModal } from '../common';
 import { OthelloAI } from './AI';
@@ -676,20 +676,22 @@ const Othello = () => {
   };
 
   const colorSelectorStyle: React.CSSProperties = {
-    marginTop: '1.5rem',
-    marginBottom: '1rem',
+    display: 'grid',
+    gap: '0.65rem',
   };
 
   const colorOptionStyle = (isSelected: boolean): React.CSSProperties => ({
     display: 'flex',
     alignItems: 'center',
     gap: '0.75rem',
-    padding: '0.75rem 1.25rem',
-    backgroundColor: isSelected ? 'rgba(34, 197, 94, 0.2)' : 'rgba(55, 65, 81, 0.5)',
-    border: isSelected ? '2px solid #22c55e' : '2px solid transparent',
-    borderRadius: '0.5rem',
+    padding: '0.85rem',
+    backgroundColor: isSelected ? 'rgba(34, 197, 94, 0.22)' : 'rgba(31, 41, 55, 0.58)',
+    border: isSelected ? '1px solid #22c55e' : '1px solid rgba(75, 85, 99, 0.75)',
+    borderRadius: '8px',
+    color: '#ffffff',
     cursor: 'pointer',
     transition: 'all 0.2s',
+    width: '100%',
   });
 
   // Render the board cells
@@ -753,12 +755,14 @@ const Othello = () => {
   // Color selector component
   const ColorSelector = () => (
     <div style={colorSelectorStyle}>
-      <div style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '0.75rem', textAlign: 'center' }}>
-        Choose your color:
+      <div style={{ color: '#d1d5db', fontSize: '0.85rem', fontWeight: 700 }}>
+        Choose your color
       </div>
-      <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-        <div
+      <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+        <button
+          type="button"
           style={colorOptionStyle(selectedPlayerColor === BLACK)}
+          aria-pressed={selectedPlayerColor === BLACK}
           onClick={() => setSelectedPlayerColor(BLACK)}
         >
           <div style={{
@@ -772,9 +776,11 @@ const Othello = () => {
             <div style={{ color: '#ffffff', fontWeight: 600 }}>Black</div>
             <div style={{ color: '#9ca3af', fontSize: '0.75rem' }}>Move first</div>
           </div>
-        </div>
-        <div
+        </button>
+        <button
+          type="button"
           style={colorOptionStyle(selectedPlayerColor === WHITE)}
+          aria-pressed={selectedPlayerColor === WHITE}
           onClick={() => setSelectedPlayerColor(WHITE)}
         >
           <div style={{
@@ -788,7 +794,7 @@ const Othello = () => {
             <div style={{ color: '#ffffff', fontWeight: 600 }}>White</div>
             <div style={{ color: '#9ca3af', fontSize: '0.75rem' }}>Move second</div>
           </div>
-        </div>
+        </button>
       </div>
     </div>
   );
@@ -804,50 +810,92 @@ const Othello = () => {
       startMultiplayerGame();
     }
 
+    const selectedDifficultyOption = DIFFICULTY_OPTIONS.find(option => option.value === selectedDifficulty) ?? DIFFICULTY_OPTIONS[1];
+
     return (
-      <div style={containerStyle}>
+      <div style={{ ...containerStyle, justifyContent: 'center' }}>
         <div style={{
-          background: 'rgba(0, 0, 0, 0.95)',
-          border: '3px solid #22c55e',
-          borderRadius: '1rem',
-          padding: '2rem',
-          maxWidth: '500px',
-          minWidth: '400px',
+          width: 'min(94vw, 560px)',
+          maxWidth: 'calc(100vw - 1rem)',
+          boxSizing: 'border-box',
+          background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(3, 7, 18, 0.98))',
+          border: '1px solid rgba(34, 197, 94, 0.42)',
+          borderRadius: '8px',
+          padding: 'clamp(1rem, 4vw, 1.5rem)',
+          boxShadow: '0 22px 60px rgba(34, 197, 94, 0.14)',
           color: '#ffffff',
+          display: 'grid',
+          gap: '1rem',
         }}>
+          <div style={{ display: 'grid', gap: '0.35rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
+              <span style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '3rem',
+                height: '3rem',
+                borderRadius: '8px',
+                border: '1px solid rgba(34, 197, 94, 0.42)',
+                background: 'rgba(34, 197, 94, 0.12)',
+              }}>
+                <span style={{ width: '1.1rem', height: '1.1rem', borderRadius: '999px', background: '#111827', border: '2px solid #64748b' }} />
+                <span style={{ width: '1.1rem', height: '1.1rem', borderRadius: '999px', background: '#fff', border: '2px solid #d1d5db', marginLeft: '-0.28rem' }} />
+              </span>
+              <div>
+                <h1 style={{ margin: 0, color: '#f8fafc', fontSize: 'clamp(1.6rem, 6vw, 2.25rem)', lineHeight: 1.05, letterSpacing: 0 }}>Othello</h1>
+                <p style={{ margin: '0.3rem 0 0', color: '#9ca3af', lineHeight: 1.45 }}>
+                  Pick a match type, color, and AI depth before the board opens.
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* Show multiplayer lobby */}
           <OthelloMultiplayerLobby
             multiplayer={multiplayer}
-            onStartSinglePlayer={() => {
-              // This is handled internally by the lobby component
-            }}
             onGameStart={startMultiplayerGame}
           />
 
           {/* AI Difficulty selector - shown when not in multiplayer lobby */}
           {!isInMultiplayerLobby && (
-            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #374151' }}>
-              <h3 style={{ color: '#9ca3af', fontSize: '0.875rem', marginBottom: '1rem', textAlign: 'center' }}>
-                Or play against AI:
-              </h3>
+            <div style={{
+              display: 'grid',
+              gap: '1rem',
+              paddingTop: '1rem',
+              borderTop: '1px solid rgba(75, 85, 99, 0.72)',
+            }}>
+              <div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: '#4ade80', fontSize: '0.75rem', fontWeight: 760, textTransform: 'uppercase' }}>
+                  <Cpu size={14} /> AI match
+                </div>
+                <h2 style={{ margin: '0.25rem 0 0', color: '#f8fafc', fontSize: '1.15rem', lineHeight: 1.2 }}>Set up single player</h2>
+              </div>
 
               {/* Difficulty options */}
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center', marginBottom: '1rem' }}>
+              <div style={{ display: 'grid', gap: '0.65rem', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
                 {DIFFICULTY_OPTIONS.map(option => (
                   <button
+                    type="button"
                     key={option.value}
                     onClick={() => setSelectedDifficulty(option.value)}
                     style={{
-                      padding: '0.5rem 1rem',
-                      borderRadius: '0.5rem',
-                      border: selectedDifficulty === option.value ? '2px solid #22c55e' : '2px solid #374151',
-                      backgroundColor: selectedDifficulty === option.value ? 'rgba(34, 197, 94, 0.2)' : 'transparent',
-                      color: '#ffffff',
+                      padding: '0.85rem',
+                      borderRadius: '8px',
+                      border: selectedDifficulty === option.value ? '1px solid #22c55e' : '1px solid rgba(75, 85, 99, 0.75)',
+                      backgroundColor: selectedDifficulty === option.value ? 'rgba(34, 197, 94, 0.22)' : 'rgba(31, 41, 55, 0.58)',
+                      color: selectedDifficulty === option.value ? '#86efac' : '#d1d5db',
                       cursor: 'pointer',
-                      fontSize: '0.875rem',
+                      fontSize: '0.9rem',
+                      fontWeight: 700,
+                      textAlign: 'left',
                     }}
+                    aria-pressed={selectedDifficulty === option.value}
                   >
-                    {option.label}
+                    <span style={{ display: 'block' }}>{option.label}</span>
+                    <span style={{ display: 'block', marginTop: '0.28rem', color: '#9ca3af', fontSize: '0.74rem', lineHeight: 1.35 }}>
+                      {option.description}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -855,38 +903,51 @@ const Othello = () => {
               <ColorSelector />
 
               <button
+                type="button"
                 onClick={startAIGame}
                 style={{
                   width: '100%',
-                  padding: '0.75rem',
+                  minHeight: '3.1rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  padding: '0.85rem',
                   backgroundColor: '#16a34a',
                   color: '#fff',
                   border: 'none',
-                  borderRadius: '0.5rem',
+                  borderRadius: '8px',
                   fontWeight: 'bold',
                   cursor: 'pointer',
-                  marginTop: '1rem',
                 }}
               >
-                Start vs AI
+                <Play size={17} />
+                Start vs AI ({selectedDifficultyOption.label}, {selectedPlayerColor === BLACK ? 'Black' : 'White'})
               </button>
             </div>
           )}
 
           <button
+            type="button"
             onClick={() => setShowInfoModal(true)}
             style={{
-              background: 'transparent',
-              border: '1px solid #4b5563',
-              borderRadius: '0.5rem',
-              color: '#9ca3af',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.45rem',
+              background: 'rgba(31, 41, 55, 0.48)',
+              border: '1px solid rgba(75, 85, 99, 0.75)',
+              borderRadius: '8px',
+              color: '#d1d5db',
               fontSize: '0.875rem',
-              padding: '0.5rem 1.5rem',
+              fontWeight: 650,
+              minHeight: '2.75rem',
+              padding: '0.65rem 1rem',
               cursor: 'pointer',
-              marginTop: '1rem',
               width: '100%',
             }}
           >
+            <CircleHelp size={16} />
             How to Play
           </button>
         </div>

@@ -260,14 +260,24 @@ export class GenerateMovesImproved {
 
     // Check all 12 directions for direct (non-sliding) attacks.
     // The move tables are encoded so that "subtract diff" walks from king outwards, matching the old Java logic.
+    // NOTE: `target - diff[direct]` can be -1 for a corner king with a knight
+    // direction (target=17, diff=18). `ban[-1]` would be `undefined`; guard with
+    // `pos >= 0 ? ... : WALL` so the read is a real WALL sentinel — this matches the
+    // old `k.get()` (which returned WALL for p<0) exactly and never relies on
+    // `undefined` coercion. The other slots (index 0 and up) are always WALL padding
+    // or real squares.
     for (let direct = 0; direct < 12; direct++) {
-      const koma = ban[target - diff[direct]];
+      const pos = target - diff[direct];
+      const koma = pos >= 0 ? ban[pos] : WALL;
       if ((koma & enemyFlag) !== 0 && canMove[direct][koma]) {
         return true;
       }
     }
 
     // Check 8 directions for sliding attacks (rook/bishop/lance and promoted variants).
+    // Every read here is in-bounds: the first `target - step` is >= 0 for any board
+    // square, and the walk terminates on WALL padding before leaving the array, so a
+    // plain `ban[pos]` read is safe (no negative / out-of-range index).
     for (let direct = 0; direct < 8; direct++) {
       const step = diff[direct];
       const cj = canJump[direct];
@@ -306,9 +316,12 @@ export class GenerateMovesImproved {
 
     let best = Infinity;
 
-    // Direct attacks (non-sliding).
+    // Direct attacks (non-sliding). Guard the single reachable negative index
+    // (`target - diff` = -1 for a corner king + knight direction) with a WALL
+    // sentinel, mirroring the old `k.get()` and isSquareAttacked() above.
     for (let direct = 0; direct < 12; direct++) {
-      const koma = ban[target - diff[direct]];
+      const pos = target - diff[direct];
+      const koma = pos >= 0 ? ban[pos] : WALL;
       if ((koma & enemyFlag) !== 0 && canMove[direct][koma]) {
         const value = Math.abs(komaValue[koma]) | 0;
         if (value < best) best = value;

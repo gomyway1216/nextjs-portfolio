@@ -1,7 +1,7 @@
 import type { FC } from 'react';
 import styles from './ShogiPiece.module.css';
 
-const PROMOTED_LABELS = new Set(['と', '杏', '圭', '全', '馬', '龍']);
+const PROMOTED_LABELS = new Set(['と', '杏', '圭', '全', '馬', '龍', '竜']);
 
 interface ShogiPieceProps {
   label: string;

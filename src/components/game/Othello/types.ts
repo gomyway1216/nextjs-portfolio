@@ -89,9 +89,17 @@ export type Difficulty = DifficultyCommon;
  * AI parameters
  */
 export interface AIParameter {
-  midDepth: number;      // Search depth during mid-game
+  midDepth: number;      // Search depth during mid-game (min depth when timeLimitMs is set)
   wldDepth: number;      // Depth for win/loss/draw determination
   exactDepth: number;    // Depth for exact endgame solving
+  /**
+   * Optional mid-game time budget (ms). When set, the mid-game search
+   * iterative-deepens until the budget is spent instead of stopping at a
+   * fixed depth, so higher tiers reach greater depth while every move stays
+   * time-bounded (no UI freeze). The exact endgame solver is unaffected;
+   * levels without it keep their deterministic fixed-depth search.
+   */
+  timeLimitMs?: number;
 }
 
 /**
@@ -101,9 +109,11 @@ export const AI_PARAMETERS: Record<Difficulty, AIParameter> = {
   easy: { midDepth: 2, wldDepth: 8, exactDepth: 6 },
   medium: { midDepth: 4, wldDepth: 12, exactDepth: 10 },
   hard: { midDepth: 6, wldDepth: 16, exactDepth: 14 },
-  // Keep these aligned with "hard" by default to avoid unexpectedly heavy computation.
-  expert: { midDepth: 6, wldDepth: 16, exactDepth: 14 },
-  master: { midDepth: 6, wldDepth: 16, exactDepth: 14 },
+  // expert/master keep hard's fixed-depth mid-game as a floor but deepen
+  // adaptively within a time budget (see AIParameter.timeLimitMs), so they
+  // out-search hard without any single move freezing the UI.
+  expert: { midDepth: 6, wldDepth: 16, exactDepth: 14, timeLimitMs: 1000 },
+  master: { midDepth: 6, wldDepth: 16, exactDepth: 14, timeLimitMs: 2500 },
 };
 
 /**

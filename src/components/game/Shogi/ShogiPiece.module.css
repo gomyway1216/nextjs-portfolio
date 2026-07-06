@@ -89,7 +89,6 @@
   cursor: pointer;
 }
 
-.piece[data-interactive='true']:hover,
-.piece[data-interactive='true']:focus-visible {
+.piece[data-interactive='true']:hover {
   filter: drop-shadow(0 0 0.32rem rgba(74, 222, 128, 0.85));
 }

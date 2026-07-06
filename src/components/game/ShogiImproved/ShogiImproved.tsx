@@ -780,7 +780,7 @@ const ShogiImproved = () => {
                   justifyContent: 'center',
                   minHeight: '3.1rem',
                   padding: '4px',
-                  border: gameState.selectedCapturedIndex === i ? '2px solid #4299e1' : 'none',
+                  border: gameState.selectedCapturedIndex === i ? '2px solid #4299e1' : '2px solid transparent',
                 }}
               >
                 <ShogiPiece

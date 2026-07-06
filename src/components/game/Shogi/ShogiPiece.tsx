@@ -40,6 +40,7 @@ export const ShogiPiece: FC<ShogiPieceProps> = ({
         <path
           className={styles.castShadow}
           d="M50 7 L85 30 L75 124 L25 124 L15 30 Z"
+          transform="translate(2 3)"
         />
         <path
           className={styles.rim}

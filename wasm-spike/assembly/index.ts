@@ -130,6 +130,16 @@ const moveBuf = new StaticArray<i32>(MAX_MOVES * MAX_PLY);
 // Parallel sort keys for move ordering (phase 3 search).
 const moveScoreBuf = new StaticArray<i32>(MAX_MOVES * MAX_PLY);
 
+// Per-ply scratch for pooled drop generation (bit-exact fast path). Indexed by
+// `ply * 10 + fileIndex` where fileIndex = suji >> 4 (1..9; slot 0 unused).
+// `dropEmptyBits` holds a bitmask with bit `dan` set when that square is EMPTY;
+// `dropSujiHasOwnPawn` flags a nifu (own pawn already on that file). Per-ply
+// (not global) because generateMoves recurses through isUtiFuDume/hasLegalMove
+// using ply+1, which must not clobber the caller's scratch.
+const DROP_SCRATCH_STRIDE: i32 = 10;
+const dropEmptyBits = new StaticArray<i32>(DROP_SCRATCH_STRIDE * MAX_PLY);
+const dropSujiHasOwnPawn = new StaticArray<bool>(DROP_SCRATCH_STRIDE * MAX_PLY);
+
 // ---------------------------------------------------------------------------
 // Small helpers (mirroring types.ts helpers)
 // ---------------------------------------------------------------------------
@@ -569,43 +579,72 @@ function generateMoves(ply: i32): i32 {
   }
 
   // Drop moves.
+  //
+  // Bit-exact fast path (mirrors GenerateMovesImproved.generatePseudoLegal-
+  // MovesPooled): scan the board a single time to build, per file, a bitmask of
+  // EMPTY squares and a nifu flag, then reuse them across all drop piece types.
+  // The old loop re-read the board per (type, suji, dan) and re-scanned each
+  // file for nifu once per drop type. Move set and ORDER are unchanged.
+  let hasDrop = false;
   for (let type = FU; type <= HI; type++) {
-    const koma = type | teban;
-    if (unchecked(hand[koma]) <= 0) continue;
+    if (unchecked(hand[type | teban]) > 0) {
+      hasDrop = true;
+      break;
+    }
+  }
 
+  if (hasDrop) {
+    const scratchBase = ply * DROP_SCRATCH_STRIDE;
+    const ownPawn = FU | teban;
     for (let suji = 0x10; suji <= 0x90; suji += 0x10) {
-      // Nifu (double pawn) restriction.
-      if (type == FU) {
-        let isNifu = false;
-        for (let dan = 1; dan <= 9; dan++) {
-          if (unchecked(ban[suji + dan]) == koma) {
-            isNifu = true;
-            break;
-          }
-        }
-        if (isNifu) continue;
-      }
-
+      let bits = 0;
+      let nifu: bool = false;
       for (let dan = 1; dan <= 9; dan++) {
-        // Knight drop rank restrictions.
-        if (type == KE) {
-          if (teban == SENTE && dan <= 2) continue;
-          if (teban == GOTE && dan >= 8) continue;
+        const c = unchecked(ban[suji + dan]);
+        if (c == EMPTY) bits |= 1 << dan;
+        else if (c == ownPawn) nifu = true;
+      }
+      const s = suji >> 4;
+      unchecked(dropEmptyBits[scratchBase + s] = bits);
+      unchecked(dropSujiHasOwnPawn[scratchBase + s] = nifu);
+    }
+
+    const isSente = teban == SENTE;
+    for (let type = FU; type <= HI; type++) {
+      const koma = type | teban;
+      if (unchecked(hand[koma]) <= 0) continue;
+
+      for (let suji = 0x10; suji <= 0x90; suji += 0x10) {
+        const s = suji >> 4;
+        // Nifu (double pawn) restriction — precomputed.
+        if (type == FU && unchecked(dropSujiHasOwnPawn[scratchBase + s])) continue;
+
+        const bits = unchecked(dropEmptyBits[scratchBase + s]);
+        if (bits == 0) continue;
+
+        for (let dan = 1; dan <= 9; dan++) {
+          // Only empty squares are drop targets.
+          if ((bits & (1 << dan)) == 0) continue;
+
+          // Knight drop rank restrictions.
+          if (type == KE) {
+            if (isSente && dan <= 2) continue;
+            if (!isSente && dan >= 8) continue;
+          }
+          // Pawn / lance drop rank restrictions.
+          if (type == FU || type == KY) {
+            if (isSente && dan == 1) continue;
+            if (!isSente && dan == 9) continue;
+          }
+
+          const to = suji + dan;
+
+          // Pawn drop checkmate (uchifuzume) is illegal.
+          if (type == FU && isUtiFuDume(to, ply + 1)) continue;
+
+          unchecked(moveBuf[base + n] = encodeMove(koma, 0, to, false, EMPTY));
+          n++;
         }
-        // Pawn / lance drop rank restrictions.
-        if (type == FU || type == KY) {
-          if (teban == SENTE && dan == 1) continue;
-          if (teban == GOTE && dan == 9) continue;
-        }
-
-        const to = suji + dan;
-        if (unchecked(ban[to]) != EMPTY) continue;
-
-        // Pawn drop checkmate (uchifuzume) is illegal.
-        if (type == FU && isUtiFuDume(to, ply + 1)) continue;
-
-        unchecked(moveBuf[base + n] = encodeMove(koma, 0, to, false, EMPTY));
-        n++;
       }
     }
   }

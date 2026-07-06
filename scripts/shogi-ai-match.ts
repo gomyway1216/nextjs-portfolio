@@ -57,7 +57,10 @@ type EngineName =
   | 'v20'
   // Frozen baseline copy of V20 (engine + pre-expansion opening book via OpeningBookImprovedBase).
   // Use as engineB to A/B current changes against the previous production behavior.
-  | 'v20base';
+  | 'v20base'
+  // V20 with the experimental restricted drop-move LMP enabled (setDropLmp(true)).
+  // Everything else identical to v20; use `--engineA v20drop --engineB v20` to A/B it.
+  | 'v20drop';
 type OpeningMode = 'none' | 'random' | 'quiet' | 'curated';
 
 // Method syntax (not an arrow-typed property) keeps parameter bivariance, so older engines whose
@@ -127,7 +130,8 @@ function parseEngineArg(value: string | undefined, fallback: EngineName): Engine
     value === 'v18' ||
     value === 'v19' ||
     value === 'v20' ||
-    value === 'v20base'
+    value === 'v20base' ||
+    value === 'v20drop'
   )
     return value;
   return fallback;
@@ -687,6 +691,11 @@ function createEngine(name: EngineName): EngineInstance {
       return new ShogiAIImprovedV20();
     case 'v20base':
       return new ShogiAIImprovedV20Base();
+    case 'v20drop': {
+      const e = new ShogiAIImprovedV20();
+      e.setDropLmp(true);
+      return e;
+    }
     default: {
       const exhaustive: never = name;
       throw new Error(`unknown engine: ${exhaustive}`);

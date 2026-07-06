@@ -97,6 +97,13 @@ export interface ShogiAISearchOptions {
   debug?: boolean;
 
   /**
+   * Override the path check-extension budget (number of +1 check extensions a single
+   * root-to-leaf path may spend). Defaults to the engine's tuned value. Set to 0 to
+   * disable check extensions (used for A/B measurement of the feature's effect).
+   */
+  checkExtensionBudget?: number;
+
+  /**
    * Evaluation profile selector.
    * - `v3` is the tuned default (same cost, more stable openings).
    * - `v3t` is v3 with candidate weights (KyokumenImproved.setEvalV3TunedWeights) for A/B tuning experiments.
@@ -157,9 +164,13 @@ export class ShogiAIImprovedV20 {
   private enableNullMove = false;
   private nullMoveReduction = 2;
 
-  // Check extensions (enabled only for higher difficulties to keep early levels stable).
+  // Check extensions: path-budgeted. `checkExtensionBudget` is how many +1 check
+  // extensions a single root-to-leaf path may spend; `extByPly[ply]` tracks how many
+  // this path has used so far. This deepens forced checking sequences (tsume) near
+  // the root without letting perpetual/spite checks explode the tree. Mirrors the
+  // WASM engine exactly (search-driver parity).
   private enableCheckExtension = false;
-  private checkExtensionMaxPly = 0;
+  private checkExtensionBudget = 0;
 
   // Quiescence delta pruning (speed).
   private enableDeltaPruning = false;
@@ -207,6 +218,10 @@ export class ShogiAIImprovedV20 {
   private contHist = new Int32Array(ShogiAIImprovedV20.CONT_HIST_DIM * ShogiAIImprovedV20.CONT_HIST_DIM);
   // pieceTo-index of the move that led into each ply on the current search path (-1 = unknown/root).
   private prevPtByPly: number[] = new Array(ShogiAIImprovedV20.MAX_PLY).fill(-1);
+
+  // Path-budgeted check extension: number of +1 check extensions used on the root-to-ply
+  // path so far (index = ply). Propagated to the child ply exactly like prevKeyByPly.
+  private extByPly: number[] = new Array(ShogiAIImprovedV20.MAX_PLY).fill(0);
 
   private rootBest: Te | null = null;
 
@@ -1343,7 +1358,11 @@ export class ShogiAIImprovedV20 {
         }
 
         const baseDepthNext = depthLeft - 1;
-        const canCheckExtend = this.enableCheckExtension && ply <= this.checkExtensionMaxPly;
+        // Path-budgeted check extension: allow a +1 extension for a checking move as long
+        // as this path has not already spent its budget. Deepens forced checking sequences
+        // (mates) near the root; the per-path cap prevents perpetual/spite-check explosion.
+        const extUsed = this.extByPly[ply] | 0;
+        const canCheckExtend = this.enableCheckExtension && extUsed < this.checkExtensionBudget;
         const canLMRBase =
           this.enableLMR &&
           !parentInCheck &&
@@ -1361,7 +1380,12 @@ export class ShogiAIImprovedV20 {
         // - First move searched with full window.
         // - Later moves searched with a null window (alpha..alpha+1) to prove they don't beat alpha.
         // - If a null-window search beats alpha, re-search with full window.
-        const depthNext = canCheckExtend && givesCheck ? baseDepthNext + 1 : baseDepthNext;
+        const extended = canCheckExtend && givesCheck;
+        const depthNext = extended ? baseDepthNext + 1 : baseDepthNext;
+        // Carry the path extension count to the child ply (mirrors prevKeyByPly).
+        if (ply + 1 < ShogiAIImprovedV20.MAX_PLY) {
+          this.extByPly[ply + 1] = extUsed + (extended ? 1 : 0);
+        }
         let score: number;
         if (searched === 0) {
           score = -this.search(k, depthNext, -beta, -alpha, ply + 1);
@@ -1575,7 +1599,13 @@ export class ShogiAIImprovedV20 {
     this.enableNullMove = true;
     this.nullMoveReduction = maxTimeMs >= 3000 ? 3 : 2;
     this.enableCheckExtension = true;
-    this.checkExtensionMaxPly = 0; // root-only (ply=0)
+    // Path check-extension budget: how many +1 check extensions a single root-to-leaf path
+    // may spend. Deliberately tiny (1): a single extension lets the horizon-most forced check
+    // be read one ply deeper — enough to reveal a mate at the leaf — while a larger budget makes
+    // check-heavy endgames explode (measured: budget 3 cut completed depth ~2x at fixed time,
+    // budget 1 barely moved it while still changing the chosen move in decided positions).
+    // Kept in lockstep with WASM checkExtBudgetG.
+    this.checkExtensionBudget = options.checkExtensionBudget ?? 1;
     this.enableDeltaPruning = true;
     // Keep the margin small to avoid pruning away real tactics; this is purely a quiescence speed knob.
     this.deltaPruningMargin = 150;
@@ -1598,6 +1628,7 @@ export class ShogiAIImprovedV20 {
     this.prevKeyByPly.fill(0);
     this.contHist.fill(0);
     this.prevPtByPly.fill(-1);
+    this.extByPly.fill(0);
     this.repetitionCount.clear();
     this.repetitionStack.length = 0;
 

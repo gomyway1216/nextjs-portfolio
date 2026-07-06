@@ -365,7 +365,7 @@ The main article keeps returning to "why can't we speed up teacher-data generati
 
 ### 5.1 What GPUs are good at — applying the same computation to a mass of data at once
 
-A **GPU (Graphics Processing Unit)** was originally a graphics chip, specialized for "**applying the same simple computation to a huge amount of data all at once**." It has thousands of small compute cores lined up, all executing the same instruction on different data simultaneously (picture the SIMD from Chapter 3, scaled up thousands of times).
+A **GPU (Graphics Processing Unit)** was originally a graphics chip, specialized for "**applying the same simple computation to a huge amount of data all at once**." It has thousands of small compute cores lined up, all executing the same instruction on different data simultaneously (a mechanism that "processes multiple data with one instruction" is called SIMD, and a GPU is that scaled up thousands of times; see also the glossary in Chapter 7).
 
 Neural network **training** is exactly this. "Push 256 positions through layer 1" is, in substance, a giant **matrix multiplication**, with tens of thousands of independent multiplications and additions. Since you process millions of positions in bulk, it's the GPU's home turf. So:
 

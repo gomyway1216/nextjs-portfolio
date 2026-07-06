@@ -3421,8 +3421,10 @@ function quiescenceAS(alpha: i32, beta: i32, ply: i32, depthLeft: i32): i32 {
     }
 
     makeMove(m);
-    // Lazy legality.
-    if (isKingInCheck(mover)) {
+    // Lazy legality — same drop shortcut as searchNodeAS: a drop (from == 0)
+    // cannot expose the mover's own king, so when the mover was not already in
+    // check (inCheck) every drop is legal and the scan is skipped. Bit-exact.
+    if ((from != 0 || inCheck) && isKingInCheck(mover)) {
       unmakeMove(m);
       continue;
     }
@@ -3638,8 +3640,14 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
     }
 
     makeMove(m);
-    // Lazy legality.
-    if (isKingInCheck(mover)) {
+    // Lazy legality. A drop (from == 0) adds a friendly piece without moving any
+    // existing piece, so it can never expose the mover's own king to a new
+    // attack. Therefore, when the mover was not already in check at this node
+    // (parentInCheck), every drop is guaranteed legal and the isSquareAttacked
+    // scan is skipped. When the mover IS in check the drop must actually block
+    // or capture the checker, so the full test still runs. This yields the
+    // identical legal/illegal decision as the unconditional check (bit-exact).
+    if ((from != 0 || parentInCheck) && isKingInCheck(mover)) {
       unmakeMove(m);
       continue;
     }

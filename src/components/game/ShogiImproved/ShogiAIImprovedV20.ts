@@ -1100,7 +1100,10 @@ export class ShogiAIImprovedV20 {
 
         k.move(te);
         // Lazy legality (V20): the pseudo-legal generator does not filter 王手放置.
-        if (GenerateMovesImproved.isKingInCheck(k, k.teban)) {
+        // Drop fast-path (same as search()): a drop (te.from === 0) cannot expose
+        // the mover's own king, so when the mover was not already in check
+        // (inCheck) every drop is legal and the scan is skipped. Bit-exact.
+        if ((te.from !== 0 || inCheck) && GenerateMovesImproved.isKingInCheck(k, k.teban)) {
           k.back(te);
           continue;
         }
@@ -1330,7 +1333,14 @@ export class ShogiAIImprovedV20 {
         // IMPORTANT: move()/back() do not flip side; we do it explicitly for correctness.
         k.move(te);
         // Lazy legality (V20): the pseudo-legal generator does not filter 王手放置.
-        if (GenerateMovesImproved.isKingInCheck(k, k.teban)) {
+        // Drop fast-path: a drop (te.from === 0) adds a friendly piece without
+        // moving any existing piece, so it can never expose the mover's own king
+        // to a new attack. When the mover was not already in check at this node
+        // (parentInCheck), every drop is therefore guaranteed legal and the
+        // isKingInCheck scan is skipped. When the mover IS in check the drop must
+        // actually block/capture the checker, so the full test still runs. This
+        // yields the identical legal/illegal decision (bit-exact node counts).
+        if ((te.from !== 0 || parentInCheck) && GenerateMovesImproved.isKingInCheck(k, k.teban)) {
           k.back(te);
           continue;
         }

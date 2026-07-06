@@ -16,7 +16,6 @@ Te,
 WALL,
 canPromote,
 getKomashu,
-isEnemy,
 isSelf,
 komaValue
 } from './types';
@@ -249,30 +248,51 @@ export class GenerateMovesImproved {
    * - `teban` is the *defender* (the side that owns the piece sitting on `target`).
    */
   static isSquareAttacked(k: KyokumenImproved, target: number, teban: number): boolean {
-    if (target <= 0 || k.get(target) === WALL) return false;
+    // Inlined board access (bit-exact fast path): read `k.ban` directly instead of
+    // `k.get()` and replace `isEnemy`/`isSelf` helpers with precomputed bit masks.
+    // Algorithm and `canMove`/`canJump` tables are unchanged, so results are
+    // bit-identical to the old ray-walk (verified by perft / parity / search-driver).
+    const ban = k.ban;
+    if (target <= 0 || ban[target] === WALL) return false;
+
+    const enemyFlag = teban === SENTE ? GOTE : SENTE;
+    const selfFlag = teban === SENTE ? SENTE : GOTE;
 
     // Check all 12 directions for direct (non-sliding) attacks.
     // The move tables are encoded so that "subtract diff" walks from king outwards, matching the old Java logic.
+    // NOTE: `target - diff[direct]` can be -1 for a corner king with a knight
+    // direction (target=17, diff=18). `ban[-1]` would be `undefined`; guard with
+    // `pos >= 0 ? ... : WALL` so the read is a real WALL sentinel — this matches the
+    // old `k.get()` (which returned WALL for p<0) exactly and never relies on
+    // `undefined` coercion. The other slots (index 0 and up) are always WALL padding
+    // or real squares.
     for (let direct = 0; direct < 12; direct++) {
       const pos = target - diff[direct];
-      const koma = k.get(pos);
-      if (isEnemy(teban, koma) && canMove[direct][koma]) {
+      const koma = pos >= 0 ? ban[pos] : WALL;
+      if ((koma & enemyFlag) !== 0 && canMove[direct][koma]) {
         return true;
       }
     }
 
     // Check 8 directions for sliding attacks (rook/bishop/lance and promoted variants).
+    // The walk terminates on WALL padding before leaving the playable area, so an
+    // out-of-range read should not happen — but read through `?? WALL` anyway so a
+    // stray index degrades to the WALL sentinel (matching the old `k.get()`) instead
+    // of `undefined`, which would break under `noUncheckedIndexedAccess` and rely on
+    // coercion. No behavioral change: parity/search-driver stay bit-exact.
     for (let direct = 0; direct < 8; direct++) {
-      for (
-        let pos = target - diff[direct], koma = k.get(pos);
-        koma !== WALL;
-        pos -= diff[direct], koma = k.get(pos)
-      ) {
-        if (isSelf(teban, koma)) break;
-        if (isEnemy(teban, koma)) {
-          if (canJump[direct][koma]) return true;
+      const step = diff[direct];
+      const cj = canJump[direct];
+      let pos = target - step;
+      let koma = ban[pos] ?? WALL;
+      while (koma !== WALL) {
+        if (koma !== EMPTY) {
+          if ((koma & selfFlag) !== 0) break;
+          if (cj[koma]) return true;
           break;
         }
+        pos -= step;
+        koma = ban[pos] ?? WALL;
       }
     }
 
@@ -288,35 +308,47 @@ export class GenerateMovesImproved {
    * - Attackers are the enemy of `teban`.
    */
   static getLeastAttackerValue(k: KyokumenImproved, target: number, teban: number): number {
-    if (target <= 0 || k.get(target) === WALL) return Infinity;
+    // Same inlined board-access fast path as isSquareAttacked() — bit-exact with
+    // the old ray-walk (same tables, same first-blocker semantics).
+    const ban = k.ban;
+    if (target <= 0 || ban[target] === WALL) return Infinity;
+
+    const enemyFlag = teban === SENTE ? GOTE : SENTE;
+    const selfFlag = teban === SENTE ? SENTE : GOTE;
 
     let best = Infinity;
 
-    // Direct attacks (non-sliding).
+    // Direct attacks (non-sliding). Guard the single reachable negative index
+    // (`target - diff` = -1 for a corner king + knight direction) with a WALL
+    // sentinel, mirroring the old `k.get()` and isSquareAttacked() above.
     for (let direct = 0; direct < 12; direct++) {
       const pos = target - diff[direct];
-      const koma = k.get(pos);
-      if (isEnemy(teban, koma) && canMove[direct][koma]) {
+      const koma = pos >= 0 ? ban[pos] : WALL;
+      if ((koma & enemyFlag) !== 0 && canMove[direct][koma]) {
         const value = Math.abs(komaValue[koma]) | 0;
         if (value < best) best = value;
       }
     }
 
-    // Sliding attacks (rook/bishop/lance and promoted variants).
+    // Sliding attacks (rook/bishop/lance and promoted variants). Read through
+    // `?? WALL` so a stray out-of-range index degrades to the WALL sentinel
+    // (matching the old `k.get()`) rather than `undefined`. No behavioral change.
     for (let direct = 0; direct < 8; direct++) {
-      for (
-        let pos = target - diff[direct], koma = k.get(pos);
-        koma !== WALL;
-        pos -= diff[direct], koma = k.get(pos)
-      ) {
-        if (isSelf(teban, koma)) break;
-        if (isEnemy(teban, koma)) {
-          if (canJump[direct][koma]) {
+      const step = diff[direct];
+      const cj = canJump[direct];
+      let pos = target - step;
+      let koma = ban[pos] ?? WALL;
+      while (koma !== WALL) {
+        if (koma !== EMPTY) {
+          if ((koma & selfFlag) !== 0) break;
+          if (cj[koma]) {
             const value = Math.abs(komaValue[koma]) | 0;
             if (value < best) best = value;
           }
           break;
         }
+        pos -= step;
+        koma = ban[pos] ?? WALL;
       }
     }
 

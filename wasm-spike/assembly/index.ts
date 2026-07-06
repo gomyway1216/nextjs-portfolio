@@ -389,28 +389,40 @@ function unmakeMove(m: i32): void {
 // ---------------------------------------------------------------------------
 
 function isSquareAttacked(target: i32, defender: i32): bool {
+  // Precompute side masks (mirror of the JS inlined fast path). `enemyFlag`/`selfFlag`
+  // replace the isEnemy()/isSelf() helper calls; bit-exact because piece codes carry
+  // exactly one of SENTE(16)/GOTE(32), and WALL(64) carries neither (so the CAN_MOVE
+  // lookup is short-circuited for WALL exactly as isEnemy() did — important since the
+  // table stride is 64 and koma=64 would otherwise index out of its row).
+  const enemyFlag = defender == SENTE ? GOTE : SENTE;
+  const selfFlag = defender == SENTE ? SENTE : GOTE;
+
   // Direct (non-sliding) attacks: 12 directions.
+  // `get()` (bounds-checked) is kept here because `target - DIFF[d]` can be -1 for a
+  // corner king with a knight direction; AssemblyScript inlines get() anyway.
   for (let direct = 0; direct < 12; direct++) {
     const pos = target - unchecked(DIFF[direct]);
     const koma = get(pos);
-    if (isEnemy(defender, koma) && unchecked(CAN_MOVE[(direct << 6) + koma]) != 0) {
+    if ((koma & enemyFlag) != 0 && unchecked(CAN_MOVE[(direct << 6) + koma]) != 0) {
       return true;
     }
   }
 
-  // Sliding attacks: 8 directions.
+  // Sliding attacks: 8 directions. The first read `target - d` and every subsequent
+  // `pos -= d` stay within [0, BAN_SIZE): rays terminate on WALL padding before
+  // leaving the array, so `unchecked(ban[pos])` is safe here.
   for (let direct = 0; direct < 8; direct++) {
     const d = unchecked(DIFF[direct]);
     let pos = target - d;
-    let koma = get(pos);
+    let koma = unchecked(ban[pos]);
     while (koma != WALL) {
-      if (isSelf(defender, koma)) break;
-      if (isEnemy(defender, koma)) {
+      if (koma != EMPTY) {
+        if ((koma & selfFlag) != 0) break;
         if (unchecked(CAN_JUMP[(direct << 6) + koma]) != 0) return true;
         break;
       }
       pos -= d;
-      koma = get(pos);
+      koma = unchecked(ban[pos]);
     }
   }
 

@@ -974,6 +974,45 @@ This changes behavior, so **I adopt it only if it wins a self-play A/B** — the
 
 **In sum, across these two sections:** the "change which moves you read" prunings (check extension / drop LMP) both failed the A/B, twice. Meanwhile the "make it faster without changing which moves you read" speedups (legality skip / one-pass generation scan) both stacked, with strength risk driven to zero by bit-exact parity. There's still no silver bullet that cures the endgame collapse in one shot, but the discipline itself — **stack zero-risk speedups, and drop behavior changes cleanly when they lose** — became something solid, found the long way around.
 
+#### Third floor: trying to copy YaneuraOu's "bitboards," and what it actually taught me
+
+The two previous floors (legality skip, one-pass generation scan) mostly trimmed **drop-move generation.** But re-profiling surfaced another surprisingly heavy fixed cost in the endgame: **check detection, `isKingInCheck`** (is my own king under an enemy piece's attack?). It runs every time a legal move is selected. The V20 search works by "generate all pseudo-legal moves, then play each one and take it back if it left my king in check" (deferred legality), so **each node runs `isKingInCheck` once per generated move — 90 to 450 times in an endgame.** Micro-bench: **~820ns per call**, and check detection was **about half** the per-node cost of an endgame position. Unlike the previous night's drop speedups (which barely moved node counts), this is a **fixed cost paid at every node**, so cutting it should translate directly into node count — i.e. reachable depth.
+
+**This is where "bitboards" come in.** One reason serious engines like YaneuraOu are fast is exactly this: they hold the board as **bits of an integer** (each square maps to one bit) and process "empty squares," "attack rays," "double pawns" etc. with **AND / OR / shift as batched bit operations.** Instead of walking an array square by square, you inspect 64 squares in one instruction — and with a 64-bit register and the `pext` instruction, even sliding-piece attacks (lance/bishop/rook) resolve in a few ops (magic bitboards). A shogi board is 81 squares, so it doesn't fit in 64 bits and you split it across words, but the principle is the same. **Put the same structural reform in ours and check detection should get faster and nodes should grow** — that was the plan when I started.
+
+**But here I measured honestly.** JavaScript has pitfalls. (1) JS bitwise ops are **32-bit**, so 81 squares don't fit one word, and the "first blocker along a ray" bit-scan for lance/bishop/rook straddles words awkwardly. (2) A real bitboard needs the **occupancy bitboards updated incrementally**, and that update lands on `move()`/`back()` — the **hottest path of all** (applying/undoing a move runs even more often than check detection, which fires only 1-3× per node). **The bookkeeping cost could eat the savings.**
+
+So before rewriting everything as bitboards, I **checked "does it even help" with a light experiment first.** I prototyped a slider-list approach (keep sliding pieces — bishop/rook/lance — in a separate list and test only their line-of-sight to the king) and profiled it in isolation: rebuilding the list cost more than the walk, and it came out **about 2× slower than the current 8-direction ray walk.** In other words, the array-based ray walk is already quite well-optimized for the JS JIT, and switching to slider-lists or incremental bitboards makes the **maintenance cost outweigh the win** — a full bitboard is very likely to be a **net slowdown at this scale in JS.** The previous night's lesson (theoretically faster can fail to help in real search) landed again.
+
+**So nothing works? Not quite.** I took only the part of the bitboard idea that **needs no incremental state.** I rewrote the guts of check detection to **read the board array `ban[]` directly instead of via the `k.get()` method call (which carries a bounds check), and fold the per-cell `isEnemy`/`isSelf` branches into a single bit mask (`enemyFlag`/`selfFlag`) computed once from the side to move.** The algorithm and the attack tables (`canMove`/`canJump`) are **unchanged to the bit** — so the result is **exactly bit-identical to the original.** Since it holds no incremental state, it adds **zero** cost to `move()`/`back()`. In short: "don't become a bitboard, but borrow the prep work of bitboards — bit masks and direct memory access."
+
+```ts
+// Inside check detection: drop k.get(), read ban[] directly, fold the side branch into a mask
+const ban = k.ban;
+const enemyFlag = teban === SENTE ? GOTE : SENTE;  // enemy piece bit (32 or 16)
+const selfFlag  = teban === SENTE ? SENTE : GOTE;  // own piece bit
+// Step attackers (12 dirs): enemy bit set AND the move table says it attacks inward
+for (let d = 0; d < 12; d++) {
+  const koma = ban[target - diff[d]];
+  if ((koma & enemyFlag) !== 0 && canMove[d][koma]) return true;
+}
+// Sliding attackers (8 dirs): empty is transparent, own piece blocks, enemy → consult table & stop
+for (let d = 0; d < 8; d++) {
+  const step = diff[d], cj = canJump[d];
+  let pos = target - step, koma = ban[pos];
+  while (koma !== WALL) {
+    if (koma !== EMPTY) { if ((koma & selfFlag) !== 0) break; if (cj[koma]) return true; break; }
+    pos -= step; koma = ban[pos];
+  }
+}
+```
+
+**Measurements (micro-bench, 500k iterations, 6 endgame positions).** `isKingInCheck`: **820ns → 557ns (~32% off)**. Across the full inner loop containing it ("one node = generate all pseudo-legal moves, play each, check, take back"): **~300,700ns/node → ~246,900ns/node (~18% off)**. Porting the same optimization to the WASM side (AssemblyScript) and rebuilding with `--enable simd`: **perft throughput (dominated by generation + check detection) is +8.5% at hirate depth4 and +9% in a drop-heavy position at depth4.** The engine that actually runs in production is the WASM one, so that's where the real benefit lands. Summing reached nodes over the 6 endgame positions in a fixed-2s JS search: **13,917 → 14,855 (+6.7%)** — per-node speed converts straight into "read more in the same time" (not enough to jump a full ply of depth, but node count grows cleanly).
+
+**Verification is the same three-part set, all green.** Nothing about behavior changed, so of course — but to be sure: perft is JS = WASM = known values bit-for-bit (hirate d1=30/d2=900/d3=25440, drop position d3=418334, etc.), parity across 4,184 positions 100% (down to the Zobrist hash), fixed-depth search 48/48 EXACT (move, score, node count, leaf count), NNUE bit-exact across all formats. tsc / eslint / vitest (306 tests) / build all pass. **Because it's bit-exact, a fixed-depth A/B is a draw by definition** — the difference only shows at fixed time, where being faster lets you read more and be at least as strong. A safe-side change.
+
+**The lesson of this third floor:** "bitboards make it faster" is true, but it's a statement **about environments with 64-bit registers and cheap incremental updates (C++)**; drop it straight into JavaScript and the **maintenance cost eats the win.** Indeed, slider-lists and incremental bitboards measured slower than the status quo in isolation. But take **only the parts of the bitboard toolkit that carry no incremental state (bit masks, direct memory access)** and you can make check detection 32% and nodes ~18% faster **without adding a single bit of cost to `move()`/`back()`.** **Don't take "the structure the textbook prescribes" on faith — profile it in isolation in your own environment and pick up only the parts that pay.** That discipline, learned over and over in the third cycle, held for bitboards too. Not a silver bullet, but a real third floor of zero-risk speedup, stacked.
+
 ---
 
 ## 10. Lessons: what worked and what didn't

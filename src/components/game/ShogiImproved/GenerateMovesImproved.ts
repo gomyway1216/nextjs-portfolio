@@ -216,21 +216,6 @@ const canJump: boolean[][] = [
 
 export class GenerateMovesImproved {
   /**
-   * Per-file scratch tables for pooled drop generation, indexed by file index
-   * 1..9 (i.e. `suji >> 4`; index 0 is unused). `dropEmptyBits[s]` is a bitmask
-   * with bit `dan` set when `ban[(s<<4)+dan]` is EMPTY; `dropSujiHasOwnPawn[s]`
-   * flags whether the side to move already has a pawn on that file (nifu).
-   *
-   * These are single-threaded scratch buffers written and read entirely within
-   * one synchronous `generatePseudoLegalMovesPooled` call. The uchifuzume check
-   * reachable from that loop goes through `generateLegalMoves` (a separate
-   * inline generator that never touches these arrays), so there is no
-   * reentrancy hazard.
-   */
-  private static readonly dropEmptyBits: number[] = new Array<number>(10).fill(0);
-  private static readonly dropSujiHasOwnPawn: boolean[] = new Array<boolean>(10).fill(false);
-
-  /**
    * Returns true if `teban`'s king is attacked by any enemy piece in the current position.
    *
    * This is a core primitive used in:
@@ -709,9 +694,14 @@ export class GenerateMovesImproved {
       const ban = k.ban;
       const ownPawn = k.teban | FU;
       // emptyBits[s] and sujiHasOwnPawn[s] are indexed by the file index 1..9
-      // (suji >> 4). Index 0 is unused.
-      const emptyBits = GenerateMovesImproved.dropEmptyBits;
-      const sujiHasOwnPawn = GenerateMovesImproved.dropSujiHasOwnPawn;
+      // (suji >> 4). Index 0 is unused. These are allocated per call (not shared
+      // statics): the uchifuzume probe below (isUtiFuDume) re-enters move
+      // generation, so sharing one scratch buffer across calls would let the
+      // recursion clobber the outer loop's precomputed masks. Two 10-element
+      // arrays per drop-bearing node are far cheaper than the per-piece-type
+      // board rescans they replace.
+      const emptyBits = new Array<number>(10).fill(0);
+      const sujiHasOwnPawn = new Array<boolean>(10).fill(false);
       for (let suji = 0x10; suji <= 0x90; suji += 0x10) {
         let bits = 0;
         let nifu = false;

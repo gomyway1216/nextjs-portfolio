@@ -187,15 +187,6 @@ export class ShogiAIImprovedV20 {
 
   // EXPERIMENTAL (A/B only, default OFF): drop-move Late Move Pruning.
   //
-  // In drop-heavy endgames the pseudo-legal generator emits dozens of drops per
-  // node (88-93% of all moves). The base LMP explicitly never prunes drops
-  // ("tactically critical in shogi"). This flag enables a *restricted* drop LMP:
-  // at shallow depth, once enough moves have already been searched, a late-sorted
-  // pawn/lance drop far from the enemy king (never a check, never near mating
-  // range) is skipped. Toggled on only for the `v20drop` A/B variant so the
-  // production engine remains bit-exact. Set via setDropLmp() from the harness.
-  private enableDropLmp = false;
-
   private killer1: number[] = new Array(ShogiAIImprovedV20.MAX_PLY).fill(0);
   private killer2: number[] = new Array(ShogiAIImprovedV20.MAX_PLY).fill(0);
   private history = new Map<number, number>();
@@ -298,16 +289,6 @@ export class ShogiAIImprovedV20 {
       leaves: this.leaf,
       ttUsage: this.tt.fillRate(),
     };
-  }
-
-  /**
-   * EXPERIMENTAL (A/B only): enable/disable restricted drop-move Late Move
-   * Pruning. Off by default so production behavior is unchanged; the harness
-   * turns it on for the `v20drop` variant. Must be set before getNextTe(), and
-   * it is not reset there, so it persists across moves within a game.
-   */
-  setDropLmp(enabled: boolean): void {
-    this.enableDropLmp = enabled;
   }
 
   /**
@@ -1321,34 +1302,6 @@ export class ShogiAIImprovedV20 {
                 ? Math.abs((te.to >> 4) - (enemyKingSq >> 4)) + Math.abs((te.to & 0x0f) - (enemyKingSq & 0x0f))
                 : 99;
             if (distToEnemyKing > 3) {
-              prunedAny = true;
-              continue;
-            }
-          }
-        }
-
-        // EXPERIMENTAL drop LMP (A/B only, enableDropLmp): the base LMP above
-        // never touches drops. Here we prune the *least* tactically valuable
-        // drops — a pawn or lance dropped far from the enemy king, late in the
-        // ordering, at shallow depth. Golds/silvers/knights/bishops/rooks are
-        // never pruned (they are the pieces that build mating nets). A larger
-        // threshold + a stricter distance guard (>4) keep this deliberately
-        // conservative; the goal is to see if trimming hopeless quiet drops in
-        // drop-flooded endgames buys enough depth to win the A/B.
-        if (
-          this.enableDropLmp &&
-          lmpApplicable &&
-          te.from === 0 &&
-          searched >= lmpThreshold + 6
-        ) {
-          const droppedType = getKomashu(te.koma);
-          if (droppedType === FU || droppedType === KY) {
-            const enemyKingSq = k.teban === SENTE ? k.kingG : k.kingS;
-            const distToEnemyKing =
-              enemyKingSq > 0
-                ? Math.abs((te.to >> 4) - (enemyKingSq >> 4)) + Math.abs((te.to & 0x0f) - (enemyKingSq & 0x0f))
-                : 99;
-            if (distToEnemyKing > 4) {
               prunedAny = true;
               continue;
             }

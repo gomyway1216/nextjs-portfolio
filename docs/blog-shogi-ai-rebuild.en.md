@@ -12,6 +12,7 @@
 - On top of that we built **NNUE distillation**: had YaneuraOu (a superhuman open-source engine) label 100,000 positions, then distilled that knowledge into a 1.13MB neural net that approximates the teacher **2.0–2.5x better than the handwritten eval**
 - The verification methodology itself is full of traps: **self-play statistical degeneration, time-control bias, and mismatched defaults** nearly led us to wrong conclusions several times
 - **Cycle 2 reached its verdict**: **pondering** (the AI keeps searching on the human's thinking time) shipped to production, +0.35 mean depth. The leading NNUE-defeat hypothesis — "search margins are miscalibrated to the NNUE scale" — was **rejected by an isolated A/B** (19.6% → 8.9%, worse), pinning the culprit on teacher data. **Retrained on 1M positions, the NNUE beat the handcrafted eval 77.1% and shipped to production** (medium and up). Genealogy: 19.6% → 32.1% → **77.1%**
+- **Cycle 3 (in progress)**: **WASM SIMD128 made eval 6.2x faster**; **multithreading (Lazy SMP) gave a +58 Elo point estimate** (n=24, not significant). KP features were a **negative result at 1M positions** (data dilution). And on production hard, **the NNUE lost to the 2-dan author** — the diagnosis pinned **sigmoid saturation** (all 71 moves collapse into a 15cp band at decided positions, indistinguishable) as the main culprit behind the "nonsense moves." **A hotfix narrowed the NNUE to medium only**, and we're now **curing it at the root with 5M positions (balance-rate 0.5, labeling depth 12)**
 
 ---
 
@@ -675,6 +676,125 @@ Cycle 3 is underway, following exactly this blueprint.
 
 ---
 
+## 11. Cycle 3 (in progress) — going faster, and fighting the "nonsense moves"
+
+After writing the blueprint, we actually did the work. The short version: **the speed came exactly as planned. But on the real battleground — strength — the lessons of Cycle 1 and Cycle 2 both came back to collect at once.** This chapter is the full record. Of the blueprint's five levers, the speed ones (SIMD, multithreading) worked cleanly, the knowledge one (KP features) came back a negative result, and the NNUE we had shipped to production **collapsed against a human over the board**. Here is the diagnosis, and what we're doing right now to cure it — with none of the numbers left out.
+
+### 11.1 Making the search faster (confirmed wins)
+
+Speed first. This is a domain you can guarantee mechanically, so the results landed as intended.
+
+**WASM SIMD128 (PR #309).** What is SIMD, first of all? It's a mechanism for **processing multiple pieces of data with a single instruction**. An ordinary CPU instruction handles one "add a and b" at a time. SIMD does "add a1+b1, a2+b2, …, a8+b8 **all at once**" in one instruction. WebAssembly has a 128-bit-wide register called `v128` (think: a temporary box for computation), and you can pack eight 16-bit integers into it and operate on them in one shot.
+
+NNUE inference — the process of computing "how many points is this position worth" — is, once you unwrap it, **almost entirely multiply-accumulate**: "weight × activation, add it in," repeated thousands of times. This is SIMD's home turf. In the actual code (`wasm-spike/assembly/index.ts`), we rewrote the accumulator update (the array that holds the running total) to read eight 16-bit weights at a time with `v128.load`, sign-extend them into `i32x4` lanes, and add them in — eight elements per loop.
+
+Measured, it came out like this.
+
+| Operation | Scalar | SIMD | Speedup |
+| --- | --- | --- | --- |
+| One eval (with diff application) | 1191ns | **191ns** | **6.2x** |
+| Full recompute (no diff) | 6425ns | **1156ns** | **5.6x** |
+| Real search (overall) | — | — | ~**1.4x** |
+
+6.2x on the microbenchmark, 5.6x on full recompute. But the overall effect in real search is only about 1.4x — search does more than evaluate (move generation, alpha-beta pruning checks, etc.), so a 6x-faster eval doesn't stretch the whole thing that far (this is Amdahl's law, exactly). Even so, 1.4x is a lot. As Cycle 2 taught us, **with the same eval, more nodes searched compound the accuracy of ranking sibling moves**.
+
+The most important thing here is **the correctness guarantee**. NNUE inference is built on integer arithmetic. Integer addition is associative (reordering doesn't change the answer), so adding in SIMD batches or one-at-a-time in scalar produces **a bit-for-bit identical result**. Floating point wouldn't allow this (rounding error changes with order). In fact, we searched the same positions with the SIMD and scalar versions and confirmed that **the number of nodes visited matches to the single node**. It got faster, but it doesn't play a single different move. This is a continuation of the "bit-identity" discipline established in the WASM port of Chapter 6.
+
+**Multithreaded search / Lazy SMP (PR #312).** Next, parallelization. On the visitor's browser, **up to four threads search the same position simultaneously**. The technique is called Lazy SMP, and as the name implies it's a "lazy" parallelization — each thread searches independently, but they share results through a **shared transposition table** (a shared notepad where you post the result of a position you've already computed; TT for short). If one thread discovers "this position is a mate," the others read that note and skip the redundant recompute. Rather than strictly dividing the work, the synergy of varied search orders plus the shared notepad makes the whole thing faster.
+
+Result: **nodes go up ~3.0x** (four threads fall short of the ideal 4x, but that's reasonable given sharing/synchronization overhead). And strength? We measured it with an A/B match — the 4-thread multithreaded build (MT) versus the 1-thread single-thread build (ST), at a production-equivalent 1000ms × 24 games.
+
+> **MT 14 wins, 10 losses (58.3%, a point estimate of roughly +58 Elo)**
+
+At a glance, it's ahead. But **to be honest: n=24 is nowhere near statistical significance — it's only a "point estimate."** A 14–10 split over 24 games happens by chance about as often as 14 heads in 24 coin flips. Per the "self-play statistical degeneration" lesson we got stabbed by repeatedly in Chapters 4 and 9, this is a weak "seems to be working" signal, not a settled number. It really should be pushed to 100+ games. Still, with the mechanistic backing of 3.0x nodes, we believe the direction.
+
+Worth recording a technical snag. Sharing positions across threads requires `SharedArrayBuffer` (memory that can be shared between threads). Browsers only permit this under **cross-origin isolation** (a state where the page is isolated from other sites, via two HTTP headers, COOP and COEP) — for security reasons. But if you apply those headers site-wide, externally loaded images and scripts get blocked across the board and **the home page breaks**. So in `next.config.ts` we **scoped COOP/COEP to the shogi page paths only** (a comment in the code spells out "Deliberately NOT site-wide"). Only the shogi page becomes an isolated environment; every other page is untouched — a pinpoint design.
+
+And — this foreshadows the next section — **multithreading only "makes the search faster"; it does not fix the "nonsense move" problem below by even a millimeter.** Fast or slow, if the eval scores the same position wrong in the same way, the move that comes out is identical. Speed and strength are different axes — that's the theme running through this whole chapter.
+
+### 11.2 The negative result on KP features (PR #311)
+
+We tackled the KP features, which the blueprint called "the biggest headroom." The verdict up front: **it whiffed.** But this whiff shares a root with Cycle 2's defeat.
+
+**The aim.** The current NNUE input encodes the board straight as "which piece is on which square." Real (professional-grade) NNUE doesn't do this. It uses **"piece placement relative to your own king"** — King-Piece, KP for short. The same "silver on 5e" is **distinguished as a different feature** depending on whether your king sits in a static-rook castle or a ranging-rook one. That means it can express, orders of magnitude more finely, the single most important and least verbalizable context in shogi: "king safety." Since valuing the area around the king was the single hardest part of seven months of handwritten eval, we figured this could hardly fail. Expected value: +200–400 Elo.
+
+**The implementation.** Full KP explodes the feature count, so we built a **reduced KP that quantizes the king's position into 6 buckets (regions)**. Classify where on the board the king roughly sits into 6 categories, and keep piece-placement features per category. We also prepared a factorized version (which decomposes "king position" and "piece position" so it can learn even with less data). The weight file swelled from **1.19MB to 6.70MB** — more parameters, in exchange for more expressive power.
+
+**The result.** Neither the approximation accuracy on the holdout (positions set aside for validation, never used in training) nor the head-to-head win rate **beat the incumbent.** The reduced-KP, 6-bucket version (kpf6) went **37.5%** against the current NNUE. Not an improvement — a losing record.
+
+**Why.** The cause was "data dilution." Our teacher data is only 1M positions. Split it into 6 buckets and, naively, you get under ~170k positions per bucket on average. Worse, in real shogi games **positions where the king hasn't yet moved from its starting square make up about half of everything** — the opening-to-early-middlegame entryway is common. So the "king hasn't moved" bucket hoards data and the others go empty. We made the representation finer, but there isn't enough data to fill in that fineness. This is **exactly the same "data-shortage wall" as when the NNUE first lost in Cycle 2.**
+
+An intuition for the ML beginner here. **Making features finer increases the model's expressive power (the number of situations it can distinguish). But learning each of those added distinctions requires enough examples for each.** Make the distinctions 10x finer and, in principle, you need 10x the data. Expressive power and data volume can't be raised independently — you have to raise them as a set, or you just mass-produce "fine but hollow" features. That's dilution. KP features are the right direction, but **1M positions was too early.**
+
+So we didn't throw it away — we saved it. The implementation infrastructure for KP (reduction, factorization, weight format) stays intact, and once the 5M positions below are done, we'll **try again**. It's a question of ordering, not a rejection.
+
+### 11.3 A loss over the board, and diagnosing NNUE "saturation"
+
+This is the climax of the chapter — probably of the whole article.
+
+**Background.** In Cycle 2, the NNUE beat the old eval (V3) **77.1%** in self-play. It cleared the quality gate handily, so we shipped it to production at medium difficulty and up (PR #305). The genealogy climbed cleanly, 19.6% → 32.1% → 77.1% — case closed. Or so it should have been.
+
+Except. **The person writing this article (a 2-dan amateur) actually played the production hard difficulty (2 seconds) — and won.** Not by a hair, either, and with the report: "still way too weak. **It keeps playing nonsense moves.**" Dropping a pawn somewhere irrelevant to the mate, walking its own king into the danger zone — moves that any human sees instantly as "what is this," chosen after a full 2 seconds of thought.
+
+This was the complete return of Cycle 1's biggest lesson: **"a self-play win rate does not guarantee strength against humans."** We fell into the same trap a second time. Beating V3 77.1% in self-play, and beating a human 2-dan, were different things.
+
+**The diagnostic method.** To hit it with facts instead of impressions, we ran the entire game record (81 plies) through the reproduction harness. We replayed it through **the exact production call path**, and for each move compared "what the engine picks with NNUE ON" against "what it picks with NNUE OFF (i.e., the V3 eval)." Then we cross-checked every move against **YaneuraOu at depth 18** (the model answer from a professional-grade engine reading to depth 18), quantifying where and how much was lost, in cp (centipawns; an eval unit where one pawn ≈ 100).
+
+**The facts we found, in order.**
+
+**(1) The bad moves weren't an "instant-move bug" — the search genuinely considered them.** The first suspect was a relapse of the "bypass the search and answer instantly" class of bug from Chapter 3. But no. The bad moves reproduced on the NNUE path (ON: 19 of 40 moves disagreed with YaneuraOu), while OFF (V3) the disagreements were only 7. Which means, with NNUE ON, **the engine searched the full 2 seconds and chose that bad move believing it was best**. This isn't a bug — it's a flaw in the evaluation function itself. As diagnoses go, this is the worst kind — the hardest to fix.
+
+**(2) The main culprit is "sigmoid saturation."** This is the core. During training, the NNUE passes the teacher's cp value through the function `sigmoid(cp/600)` before learning from it. Sigmoid is an S-curve that squeezes its input into 0–1, and **as the input grows the output pins to 1 and stops moving** (i.e., it saturates). A sigmoid on `cp/600` **flattens out almost completely once the eval reaches around ±2500cp**. During training this is fine — you don't need to finely distinguish already-decided positions.
+
+But **in the real search**, this is a mortal wound. Consider a near-mate position. At **move 72 of this game — where its own king walks itself into mate, ...K-1a (a loss of 31934cp; since cp counts one pawn as ~100, that's a blunder equivalent to being about 319 pawns of material down)** — what was happening? When we had the NNUE evaluate all 71 legal moves, **all 71 collapsed into a mere 15cp band, indistinguishable from one another.** Whatever you play, it looks like "roughly the same score." In the saturation region, the difference between "the least-bad move" and "the worst move" in a lopsided position gets crushed flat by the sigmoid and vanishes.
+
+Show the same position to V3, and it kept a **spread of about 390cp**. V3 can still rank moves properly in decided positions. **"In a position where the outcome is decided, every move looks like the same score" — this is the direct cause of the "nonsense moves."** If it can't tell moves apart, the engine effectively chooses close to at random. Walking into mate follows naturally.
+
+**(3) A secondary example: move 48, P*8a.** It's not only saturation. At move 48, **a meaningless pawn drop onto the deepest rank of its own camp (8a) (a loss of 1626cp)** was chosen. Here the NNUE **misjudged the position as roughly even**, and as a result "pass-like moves (equivalent to doing nothing)" clustered at the top of the ranking. Dropping a pawn on the very back of your own camp is, in shogi terms, a high-cost move nearly equivalent to killing a piece. But **that cost is nearly invisible to the net.** Why? Because moves of this kind (meaningless drops into one's own camp) are **essentially absent from the teacher data.** YaneuraOu never plays such a move, so the net was never once taught "how bad a pawn drop to your own back rank is." It can't evaluate the cost of a folly it has never seen.
+
+**(4) A further secondary cause: search-speed collapse in the endgame.** Entering the endgame, search speed dropped to **27–41µs/node** and the depth reached fell to **4–6 plies** (far shallower than the opening/middlegame). Read only shallowly and move quality drops. But this is **a separate problem unrelated to the eval** — the same symptom appears with V3, which doesn't use NNUE. It should be separated from saturation (the endgame slowdown remains as its own homework).
+
+**(5) The "true culprit" that worsened the saturation.** Here the story connects back to Cycle 2. Saturation itself is a property of the sigmoid, but **what worsened it into a mortal wound** lay in how the teacher data was made. When generating teacher data in Cycle 2, we used the `--balance` option to **thin decided positions with |cp|>1200 down to 30% of the total.** The aim was "learn lots of the hard, even positions," which was reasonable on its own. But as a side effect, decided positions (lopsided ones) became a **learning-starved region** (OOD in English, Out-Of-Distribution — a region that was barely in the training data, "unknown" to the net).
+
+So it's a double trap. **The region the sigmoid structurally saturates in** and **the region left thin by the thinning** both **overlap in exactly the same "lopsided, decided positions."** Where the distinctions collapse from saturation, the training data is also insufficient. The two meshed together and produced the endgame collapse. Cycle 2's "well-intentioned thinning" bared its fangs in Cycle 3.
+
+**Immediate response: a hotfix (PR #310).** Once the diagnosis was in, we couldn't leave the collapse in production. **We narrowed the NNUE's scope to medium only.** Looking back soberly, the 77.1% figure was measured **at 1000ms only**, and hard (2000ms) and up was merely an **unverified extrapolation** — "read deeper and it should be even stronger." The deeper you read, the easier you reach saturation-region positions, so if anything hard is *more* prone to collapse. So we reverted hard and up to the V3 eval, removing the saturation-borne nonsense from production. In the code (`shogi-ai.worker.ts`) we narrowed `NNUE_DIFFICULTIES` from `medium..master` down to just `medium`, and documented in a comment the collapse symptoms ("all 71 moves within 15cp at a decided position," "nonsense moves like P\*8a / K-1a") and the conditions for restoring it.
+
+**We changed the verification standard itself (the heaviest lesson of this chapter).** The biggest regret is that **using "self-play win rate" as the acceptance criterion was itself the mistake.** 77.1% is a real number, but what it measured was "can it beat V3 in self-play," not "does it avoid blunders in real human games." We passed the proxy metric while the behavior that mattered was broken.
+
+So we swapped the criterion. The acceptance gate from now on is the **"blunder rate" on real game records cross-checked against YaneuraOu depth 18.** Not a self-play win rate — we directly measure "how often it chose a move YaneuraOu wouldn't" in real games against a human. And — **we made this very 81-ply game record a permanent regression test.** No matter what change we make going forward, we always replay this record and check that the blunder rate hasn't risen. No test case is more valuable than a failure a human actually punished.
+
+### 11.4 The road to a real cure — rebuilding the teacher data (in progress, results to be appended)
+
+The diagnosis pinned it: **the main cause of saturation is over-thinning decided positions — a data-distribution problem.** The symptomatic treatment (the hotfix) stopped the bleeding, so next is the cure. Right now **we're rebuilding the teacher data from scratch.**
+
+**5 million positions.** Five times Cycle 2's 1M. We changed two things for generation.
+
+- **balance-rate 0.3 → 0.5.** Raise the acceptance rate of decided positions. Cycle 2 thinned them to 30%, and that's exactly what made the saturation region "learning-starved." This time we bring it back to 50% and **make the net properly learn the saturation region itself.** This is the primary fix.
+- **Labeling depth 8 → 12.** Label each position (i.e., its correct eval value) by having YaneuraOu read deeper. A more accurate model answer.
+
+**Why depth 12 — not 20 or 30?** Beginners always trip here, so, in three points.
+
+1. **The cost grows exponentially.** Each extra ply of search inflates the amount read by roughly 2–3x (it's the multiplication of branches, so exponential). Going depth 8→12 alone makes labeling 15–20x slower. Depth 20 is hundreds of times; depth 30 would be **minutes per position to label** — weeks to months to process 5M. It doesn't fit a realistic wait.
+2. **There's a ceiling on the precision the student can absorb.** This is the essential reason. The NNUE student's approximation error is currently about 450cp. Meanwhile the labeling difference between the teacher's depth 12 and depth 20 averages only 20–50cp. **The teacher's 20–50cp of precision is completely buried and lost inside the student's 450cp of error.** "Even if the teacher grades to the millimeter, the student can only copy to the centimeter" — millimeter precision never reaches the student. Pay the cost of reading deeper and the student's answers don't improve by a single point.
+3. **Depth 12 is the standard "knee" (the cost-benefit bend) of shogi NNUE distillation.** Depth 8 is too shallow — in fact, one of Cycle 2's defeats was this shallowness — and depth 20–30 is for special uses (learning between top-level engines, etc.). For distillation at the 5M scale, around 12 is the sweetest spot where "deeper doesn't reach the student, shallower makes the teacher sloppy."
+
+**Why not mix in the old 1M data?** You might think "1M positions we already built — why not just add them for 5.5M?" But **we don't mix them.** The old data was made with **depth-8 labeling + balance-rate 0.3** — that is, it's **the very culprit carrying the two problems we're now trying to fix (shallow labeling, and over-thinned decided positions = the cause of saturation).** Mix new data into it and the hard-won saturation fix (learning decided positions heavily) gets diluted by the old data's thinness. **Don't mix the cause of the disease into its cure.** The old 1M isn't used for training; it's kept as the "baseline to beat" — the weights currently running in production. The question for pass/fail: can the net made from the new 5M clearly beat this old baseline on the real-game blunder rate?
+
+**Distributed generation across two Macs.** Generating 5M positions takes time, so we're running it in parallel across two Macs on hand. Position generation is **fully parallelizable** — labeling each position is independent, with no need to wait on another position's result (embarrassingly parallel, as it's called). The one thing to watch is RNG collisions: if both machines produce the same positions from the same random stream, that's duplicate generation. But since we seed the RNG with **`time ^ process ID`**, different machines and different processes don't collide on the seed, and the generated positions don't duplicate. We run an M4 Pro (14 cores) and a second machine (12 cores) in parallel, then concatenate both files at the end. As a small optimization, we launch slightly more processes than cores — **oversubscription** (run another process in the gaps of I/O waits so cores don't idle) — to pack the idle cores.
+
+**Another approach: a saturation guard (a code fix that needs no data).** Rebuilding the data is the primary path but it takes time. In parallel, we're considering a code-only way to dodge saturation. The idea is simple: **"in any position where the NNUE eval exceeds |cp|>1500, switch just that position to the V3 eval."** Let V3 take over only the region where saturation crushes the distinctions, and leave even positions to the NNUE. It's an insurance play that could stop the collapse without waiting on data.
+
+**Results to be appended.** That's where things stand as of July 2026. The plan ahead is clear — retrain the NNUE on 5M positions, and judge by **both** an A/B match and the real-game blunder rate. If it clears the blunder-rate gate, restore the NNUE to hard. **This section will be updated once those results are in.** (As Cycles 1 and 2 were, this article is a living record that gets appended to each time a conclusion arrives.)
+
+### 11.5 Lessons of this chapter
+
+- **The self-play trap comes back, over and over.** "A self-play win rate doesn't guarantee strength against humans," which we supposedly learned in Cycle 1, returned in exact form the moment success in Cycle 2 let our guard down. **The game a human actually played is the most valuable test case** — a lesson that thickens every time it hurts.
+- **Judge by behavior (blunder rate, real moves), not a proxy metric (self-play win rate).** "How close to the teacher" doesn't guarantee "no follies in production." The final gate must always measure the behavior itself, not a stand-in.
+- **Speed and strength are different axes.** SIMD and multithreading both reliably sped up the search, but if the eval scores the same position wrong in the same way, the move doesn't change. Speed may be necessary for strength, but it isn't sufficient.
+
+---
+
 ## 10. Lessons: what worked and what didn't
 
 1. **Before assuming "the search is weak", check whether it searched at all.** Thinking-time logs are the strongest diagnostic
@@ -688,6 +808,8 @@ Cycle 3 is underway, following exactly this blueprint.
 9. **Zero budget is enough.** An open-source engine + a public eval + a local GPU builds a distillation pipeline in hours
 10. **Even well-reasoned mechanistic hypotheses die in A/B tests.** "Miscalibrated search margins are the culprit" made perfect sense — and the isolated test went 19.6% → 8.9%, worse. Isolating one variable at a time is tedious, and it pays
 11. **The opponent's time is free compute.** Pondering is a structural improvement orthogonal to eval quality (+0.35 mean depth, up to +2 plies in the opening) and shipped with zero UI API changes
+12. **Speed and strength are different axes.** Cycle 3's SIMD (6.2x eval) and multithreading (3.0x nodes) both reliably sped up the search, but if the eval scores the same position wrong in the same way, not a single move changes. Speed is necessary for strength, not sufficient
+13. **The self-play trap comes back, over and over.** "A self-play win rate doesn't guarantee strength against humans," learned in Cycle 1, returned in Cycle 3 as a real over-the-board loss on production hard. **The game a human actually played is the most valuable test case** — and the final gate should be behavior (blunder rate), not a proxy metric (approximation accuracy, self-play win rate)
 
 This project began with its 2-dan owner calling the AI "way too weak," and reached its verdict across PRs #287–#305: the instant-answer book bug excised, all difficulties unified onto one brain, a 15x WASM port, thinking on the opponent's time, the opening book audited by a superhuman engine — and finally, **a neural network distilled overnight from a million positions replacing, at 77.1%, an evaluation function that took seven months to handwrite**. That is the AI running on meetyudai.com right now. The remaining milestone hasn't changed: **beat the owner.**
 

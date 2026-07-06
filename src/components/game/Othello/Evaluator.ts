@@ -3,7 +3,7 @@
  * Based on Thell 3.0.3 implementation
  *
  * Implements multiple evaluation strategies:
- * - MidEvaluator: Pattern-based evaluation for mid-game
+ * - MidEvaluator: hand-crafted positional + mobility + stability + parity
  * - WLDEvaluator: Win/Loss/Draw evaluation for late game
  * - PerfectEvaluator: Disc count evaluation for endgame
  * - FFEvaluator: Mobility-based evaluation for move ordering
@@ -104,7 +104,11 @@ export interface MidEvaluatorOptions {
 
 /**
  * Mid-game Evaluator
- * Uses pattern-based evaluation similar to Thell's LOGISTELLO-style
+ *
+ * Hand-crafted evaluation: positional table (PSQT) + mobility (both in the
+ * absolute frame) + corner stability + parity. The original Thell/LOGISTELLO
+ * pattern-weight scaffolding was never populated (all-zero, unread) and has
+ * been removed.
  */
 export class MidEvaluator implements Evaluator {
   private readonly opts: MidEvaluatorOptions;

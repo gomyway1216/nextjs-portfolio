@@ -185,6 +185,8 @@ export class ShogiAIImprovedV20 {
   // V19: skip clearly losing captures inside quiescence (SEE-lite via cached attack scans).
   private enableQSeePruning = false;
 
+  // EXPERIMENTAL (A/B only, default OFF): drop-move Late Move Pruning.
+  //
   private killer1: number[] = new Array(ShogiAIImprovedV20.MAX_PLY).fill(0);
   private killer2: number[] = new Array(ShogiAIImprovedV20.MAX_PLY).fill(0);
   private history = new Map<number, number>();

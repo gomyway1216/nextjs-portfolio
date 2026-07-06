@@ -673,50 +673,90 @@ export class GenerateMovesImproved {
     }
 
     // Generate drop moves.
+    //
+    // Bit-exact fast path: before iterating drop piece types, scan the board a
+    // single time to build, per file (suji), a 9-bit mask of EMPTY squares and a
+    // flag for whether the side to move already has a pawn on that file (nifu).
+    // The old code re-read the board once per (type, suji, dan) via k.get() (a
+    // bounds-checked accessor) and re-scanned each file for nifu once per drop
+    // type. Precomputing collapses all of that into one 81-cell pass, and the
+    // inner loop becomes a cheap bit test. Generated move set and ORDER are
+    // unchanged (same type→suji→dan iteration, same push order).
+    let hasDrop = false;
     for (let i = FU; i <= HI; i++) {
-      const koma = i | k.teban;
-      if (k.hand[koma] <= 0) continue;
+      if (k.hand[(i | k.teban)] > 0) {
+        hasDrop = true;
+        break;
+      }
+    }
 
-      const komashu = getKomashu(koma);
-
+    if (hasDrop) {
+      const ban = k.ban;
+      const ownPawn = k.teban | FU;
+      // emptyBits[s] and sujiHasOwnPawn[s] are indexed by the file index 1..9
+      // (suji >> 4). Index 0 is unused. These are allocated per call (not shared
+      // statics): the uchifuzume probe below (isUtiFuDume) re-enters move
+      // generation, so sharing one scratch buffer across calls would let the
+      // recursion clobber the outer loop's precomputed masks. Two 10-element
+      // arrays per drop-bearing node are far cheaper than the per-piece-type
+      // board rescans they replace.
+      const emptyBits = new Array<number>(10).fill(0);
+      const sujiHasOwnPawn = new Array<boolean>(10).fill(false);
       for (let suji = 0x10; suji <= 0x90; suji += 0x10) {
-        // Nifu (double pawn) restriction.
-        if (komashu === FU) {
-          let isNifu = false;
-          for (let dan = 1; dan <= 9; dan++) {
-            const p = suji + dan;
-            if (k.get(p) === (k.teban | FU)) {
-              isNifu = true;
-              break;
-            }
-          }
-          if (isNifu) continue;
-        }
-
+        let bits = 0;
+        let nifu = false;
         for (let dan = 1; dan <= 9; dan++) {
-          // Knight restrictions.
-          if (komashu === KE) {
-            if (k.teban === SENTE && dan <= 2) continue;
-            if (k.teban === GOTE && dan >= 8) continue;
-          }
+          const c = ban[suji + dan];
+          if (c === EMPTY) bits |= 1 << dan;
+          else if (c === ownPawn) nifu = true;
+        }
+        const s = suji >> 4;
+        emptyBits[s] = bits;
+        sujiHasOwnPawn[s] = nifu;
+      }
 
-          // Pawn and lance restrictions.
-          if (komashu === FU || komashu === KY) {
-            if (k.teban === SENTE && dan === 1) continue;
-            if (k.teban === GOTE && dan === 9) continue;
-          }
+      const sente = k.teban === SENTE;
+      for (let i = FU; i <= HI; i++) {
+        const koma = i | k.teban;
+        if (k.hand[koma] <= 0) continue;
 
-          const to = suji + dan;
-          if (k.get(to) !== EMPTY) continue;
+        const komashu = getKomashu(koma);
 
-          const before = out.size;
-          out.push(koma, 0, to, false, EMPTY);
-          const te = out.moves[before]!;
+        for (let suji = 0x10; suji <= 0x90; suji += 0x10) {
+          const s = suji >> 4;
+          // Nifu (double pawn) restriction — precomputed.
+          if (komashu === FU && sujiHasOwnPawn[s]) continue;
 
-          // Pawn drop checkmate (uchifuzume) is illegal.
-          if (komashu === FU && this.isUtiFuDume(k, te)) {
-            out.size = before;
-            continue;
+          const bits = emptyBits[s];
+          if (bits === 0) continue;
+
+          for (let dan = 1; dan <= 9; dan++) {
+            // Only empty squares are drop targets.
+            if ((bits & (1 << dan)) === 0) continue;
+
+            // Knight restrictions.
+            if (komashu === KE) {
+              if (sente && dan <= 2) continue;
+              if (!sente && dan >= 8) continue;
+            }
+
+            // Pawn and lance restrictions.
+            if (komashu === FU || komashu === KY) {
+              if (sente && dan === 1) continue;
+              if (!sente && dan === 9) continue;
+            }
+
+            const to = suji + dan;
+
+            const before = out.size;
+            out.push(koma, 0, to, false, EMPTY);
+            const te = out.moves[before]!;
+
+            // Pawn drop checkmate (uchifuzume) is illegal.
+            if (komashu === FU && this.isUtiFuDume(k, te)) {
+              out.size = before;
+              continue;
+            }
           }
         }
       }

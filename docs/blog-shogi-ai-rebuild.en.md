@@ -931,6 +931,49 @@ All green, and faster. Which means **I don't even need a self-play A/B to confir
 
 **The lesson.** There are two kinds of search speedup. **"Change which moves you read to be smarter"** (like check extension) tends to have gains and losses cancel, and is dangerous unless verified by A/B. By contrast, **"read the same moves but faster"** carries zero strength risk once verified by bit-exact parity. Against the big homework of the endgame collapse, this time I placed the latter — a small step — in a certain form. From here I'll stack up speedups under the same discipline. That's the right path, found the long way around.
 
+#### Continued: this time I sped up "generation" itself, not "legality" (bit-exact again)
+
+Last section I cut the legality check (~49% of node cost). The other mountain was **drop-move *generation* itself (~50%).** I tried to speed that up too, under the same discipline — **don't change the set of moves, their order, or the node count by a single bit.**
+
+The culprit was structural. Drop generation is a triple loop of "piece type (pawn/lance/knight/silver/gold/bishop/rook) × file (9) × rank (9)," and inside it **re-read whether each board square was empty every time.** With 7 piece types in hand, it **rescans the same 81 squares 7 times.** Pawns also have the nifu ban (two pawns of your own on the same file), which likewise walked 9 squares per file. But the set of empty squares and the nifu status **don't depend on the piece type** — yet the board was being licked over once per piece type.
+
+What I did is simple. **Before entering drop generation, scan the board exactly once** and precompute, per file, "a bitmask of empty squares (9 bits)" and "does my own pawn sit on this file (nifu flag)." Then inside the piece-type loop, instead of reading the board, **just test one bit.** The nifu test becomes a single flag lookup. The 81-square scan collapses from "once per piece type" to "once."
+
+```ts
+// One board pass before drop generation (indexed by file = suji>>4)
+for (let suji = 0x10; suji <= 0x90; suji += 0x10) {
+  let bits = 0, nifu = false;
+  for (let dan = 1; dan <= 9; dan++) {
+    const c = ban[suji + dan];
+    if (c === EMPTY) bits |= 1 << dan;        // record empty squares as bits
+    else if (c === ownPawn) nifu = true;      // own pawn → nifu: no pawn drop on this file
+  }
+  emptyBits[suji >> 4] = bits;
+  sujiHasOwnPawn[suji >> 4] = nifu;
+}
+// Inner loop: no board re-reads, just a bit test and a flag lookup
+if (komashu === FU && sujiHasOwnPawn[s]) continue;      // nifu: decided once per file
+if ((bits & (1 << dan)) === 0) continue;                // can't drop unless empty
+```
+
+The **order of generation and the set of moves produced are unchanged** (the type→file→rank triple loop stays, the push order stays). So the same three parity checks as last section stay **all green**: perft 4,184 positions 100% match, fixed-depth search 48/48 EXACT (move, eval score, node and leaf counts), NNUE bit-exact in every format. Having **mathematically guaranteed "only faster,"** I put the same optimization into the WASM side (the AssemblyScript port), rebuilt with `--enable simd`, and regenerated the base64.
+
+> The WASM side had one trap. If you **share the nifu/empty scratch tables in a single global**, the pawn-drop-mate (uchifuzume) check **re-enters the generator recursively**, overwriting the tables mid-loop. The JS side was safe because uchifuzume goes through a separate generator, but WASM comes back into the same function. I made the tables **per search ply** to be recursion-safe — a reminder that a port must preserve not just "the same logic" but "the same safety under the same recursion."
+
+**Measurement (microbenchmark, 200k iterations).** On endgame positions where drops dominate, I timed `generatePseudoLegalMovesPooled` alone. On positions where the scan is the main cost (5–21 pieces in hand), it got **15–27% faster per call (median ~24%)** — exactly the removed per-type board rescans. On positions dominated by uchifuzume recursion, where the scan is a small fraction, it's only a few percent. Fixed-2s reached nodes are, as before, roughly flat to slightly up; not enough to jump depth on its own. But the discipline of **cutting cost with zero loss of strength** held, and together with the legality skip it's the second course in the "stacking" meal.
+
+#### And I took one more swing at a "change which moves we read" pruning
+
+The "only faster" discipline is safe, but **to make depth jump a level, at some point you have to read fewer moves.** So as a behavior-changing experiment I tried **deferred pruning of endgame drops (a drop version of LMP).** The existing LMP (Late Move Pruning: at shallow depth, cut quiet moves that sank to the bottom of the ordering) **stubbornly exempts drops** — in shogi a drop is often the crux of a mating attack, so cutting them is dangerous. Here I touched **only the least valuable drops**: at shallow depth, after enough moves have been read, cut only **pawn/lance drops far from the enemy king** (never gold/silver/knight/bishop/rook — those build the mating net — and never near the enemy king). Both the threshold and the distance guard are set a notch stricter than the existing LMP.
+
+This changes behavior, so **I adopt it only if it wins a self-play A/B** — the lesson from check extension. At the same hard / 2000ms-per-move as production, across multiple seeds for 48 games total (colors swapped for left-right symmetry), I ran it head-to-head against the current v20.
+
+**The result — a loss.** Over 3 seeds, **v20drop 16 wins / v20 24 wins / 8 draws** (per seed: 7-8, 8-8, 1-8). It won no seed and lost clearly overall. The reason is the same shape as check extension. Drop LMP is, in the end, a "change which moves you read" modification: **the time saved by cutting pawn/lance drops buys depth elsewhere, but in the positions where a cut drop happened to be the real line, you drop the ball.** A "pawn/lance drop far from the enemy king" is not always meaningless in a shogi endgame — a dangling pawn setting up a later promotion, a sacrifice laying groundwork, sealing an escape square: a move that looks distant is often part of the mating net. Gains and losses didn't cancel; the losses won.
+
+**So I do not adopt this pruning (`enableDropLmp` stays OFF by default).** Production behavior remains bit-exact — not a single bit changed. The code and the A/B flag (the `v20drop` variant) stay as a "tried it, lost" record, but they have zero effect on the production path. Having decided last section that "if it's neutral, don't ship it," this time I confirmed the same policy with a **clear loss.** What ships to production this time is **only Part A's bit-exact generation speedup** — stacking exactly one rung that cuts cost with zero loss of strength.
+
+**In sum, across these two sections:** the "change which moves you read" prunings (check extension / drop LMP) both failed the A/B, twice. Meanwhile the "make it faster without changing which moves you read" speedups (legality skip / one-pass generation scan) both stacked, with strength risk driven to zero by bit-exact parity. There's still no silver bullet that cures the endgame collapse in one shot, but the discipline itself — **stack zero-risk speedups, and drop behavior changes cleanly when they lose** — became something solid, found the long way around.
+
 ---
 
 ## 10. Lessons: what worked and what didn't

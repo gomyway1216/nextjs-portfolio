@@ -10,6 +10,7 @@ import * as gameSaveApi from '@/services/gameSaveService';
 import { RotateCcw } from 'lucide-react';
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { Difficulty,DifficultySelector,GameStats,GameTopBar,InfoModal } from '../common';
+import startShellStyles from '../common/GameStartShell.module.css';
 import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { InitialPositionImproved } from './InitialPositionImproved';
 import { KyokumenImproved } from './KyokumenImproved';
@@ -603,35 +604,41 @@ const ShogiImproved = () => {
 
   if (showDifficultySelect) {
     return (
-      <DifficultySelector
-        title="Shogi Improved"
-        subtitle="Japanese Chess - Chapter 11"
-        icon="☗"
-        selectedDifficulty={difficulty}
-        onSelectDifficulty={setDifficulty}
-        options={DIFFICULTY_OPTIONS}
-        onStart={startGame}
-        extraContent={
-          currentUser && savedGame ? (
-            <button
-              onClick={resumeSavedGame}
-              style={{
-                marginTop: '16px',
-                padding: '12px 24px',
-                borderRadius: '8px',
-                border: '1px solid rgba(34, 197, 94, 0.5)',
-                background: 'rgba(34, 197, 94, 0.15)',
-                color: '#4ade80',
-                fontSize: '15px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              ▶ Resume saved game (move {savedGame.ply}, {savedGame.difficulty})
-            </button>
-          ) : null
-        }
-      />
+      <div className={startShellStyles.shell}>
+        <DifficultySelector
+          title="Shogi Improved"
+          subtitle="Fast-engine Japanese chess with worker search, saved games, and stronger opening play."
+          icon="☗"
+          selectedDifficulty={difficulty}
+          onSelectDifficulty={setDifficulty}
+          options={DIFFICULTY_OPTIONS}
+          difficultyTitle="Choose engine strength"
+          startLabel="Start Game"
+          onStart={startGame}
+          extraContent={
+            currentUser && savedGame ? (
+              <button
+                type="button"
+                onClick={resumeSavedGame}
+                style={{
+                  width: '100%',
+                  minHeight: '2.9rem',
+                  padding: '0.75rem 1rem',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(34, 197, 94, 0.5)',
+                  background: 'rgba(34, 197, 94, 0.15)',
+                  color: '#4ade80',
+                  fontSize: '0.92rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                }}
+              >
+                Resume saved game (move {savedGame.ply}, {savedGame.difficulty})
+              </button>
+            ) : null
+          }
+        />
+      </div>
     );
   }
 

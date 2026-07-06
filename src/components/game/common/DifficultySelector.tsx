@@ -1,23 +1,29 @@
 /**
- * Reusable difficulty selector
+ * Reusable game setup screen.
  */
 
-import { useState } from 'react';
-import { Difficulty, DifficultyOption } from './types';
+import { Play } from 'lucide-react';
+import type { CSSProperties,FC,ReactNode } from 'react';
+import { Difficulty,DifficultyOption } from './types';
 import { getDifficultyColor } from './utils';
+import styles from './DifficultySelector.module.css';
 
 interface DifficultySelectorProps {
   title: string;
   subtitle?: string;
-  icon?: React.ReactNode;
+  icon?: ReactNode;
   selectedDifficulty: Difficulty;
   onSelectDifficulty: (difficulty: Difficulty) => void;
   options: DifficultyOption[];
   onStart: () => void;
-  extraContent?: React.ReactNode;
+  difficultyTitle?: string;
+  startLabel?: string;
+  setupContent?: ReactNode;
+  summaryContent?: ReactNode;
+  extraContent?: ReactNode;
 }
 
-export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
+export const DifficultySelector: FC<DifficultySelectorProps> = ({
   title,
   subtitle,
   icon,
@@ -25,129 +31,73 @@ export const DifficultySelector: React.FC<DifficultySelectorProps> = ({
   onSelectDifficulty,
   options,
   onStart,
+  difficultyTitle = 'Select Difficulty',
+  startLabel = 'Start Game',
+  setupContent,
+  summaryContent,
   extraContent
 }) => {
-  const [hoveredOption, setHoveredOption] = useState<Difficulty | null>(null);
-  const [isStartHovered, setIsStartHovered] = useState(false);
-
   return (
-    <div style={{
-      width: 'min(92vw, 520px)',
-      maxWidth: 'calc(100vw - 2rem)',
-      background: 'var(--games-route-surface-raised, color-mix(in srgb, var(--card) 90%, #0ea5e9 10%))',
-      border: '1px solid color-mix(in srgb, var(--games-route-border, var(--border)) 58%, #0ea5e9 42%)',
-      borderRadius: '8px',
-      padding: 'clamp(1.25rem, 5vw, 3rem)',
-      boxShadow: '0 24px 70px color-mix(in srgb, #0ea5e9 18%, transparent)',
-      color: 'var(--games-route-fg, var(--card-foreground))'
-    }}>
-      <h1 style={{
-        color: 'var(--games-route-fg, var(--foreground))',
-        fontSize: 'clamp(1.8rem, 7vw, 2.5rem)',
-        fontWeight: 760,
-        marginBottom: '1rem',
-        textAlign: 'center',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '0.75rem',
-        flexWrap: 'wrap',
-        lineHeight: 1.1
-      }}>
-        {icon}
-        {title}
-      </h1>
+    <section className={styles.selector} aria-label={`${title} setup`}>
+      <div className={styles.header}>
+        {icon && <div className={styles.iconSlot}>{icon}</div>}
+        <div>
+          <h1 className={styles.title}>{title}</h1>
 
-      {subtitle && (
-        <p style={{
-          color: 'var(--games-route-muted, var(--muted-foreground))',
-          textAlign: 'center',
-          marginBottom: '2rem',
-          lineHeight: 1.55
-        }}>
-          {subtitle}
-        </p>
-      )}
+          {subtitle && (
+            <p className={styles.subtitle}>
+              {subtitle}
+            </p>
+          )}
+        </div>
+      </div>
 
-      <h2 style={{
-        color: 'var(--games-route-fg, var(--foreground))',
-        fontSize: 'clamp(1.15rem, 4vw, 1.5rem)',
-        fontWeight: 720,
-        marginBottom: '1rem',
-        textAlign: 'center'
-      }}>
-        Select Difficulty
-      </h2>
+      {setupContent && <div className={styles.setupContent}>{setupContent}</div>}
 
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '1rem',
-        marginBottom: '2rem'
-      }}>
+      <div className={styles.sectionHeader}>
+        <span className={styles.sectionKicker}>Game setup</span>
+        <h2 className={styles.sectionTitle}>{difficultyTitle}</h2>
+      </div>
+
+      <div className={styles.optionGrid}>
         {options.map((option) => {
           const colors = getDifficultyColor(option.value);
           const isSelected = selectedDifficulty === option.value;
-          const isHovered = hoveredOption === option.value;
+          const difficultyStyle = {
+            '--difficulty-bg': colors.bg,
+            '--difficulty-border': colors.border,
+            '--difficulty-text': colors.text,
+          } as CSSProperties;
 
           return (
             <button
               type="button"
               key={option.value}
               onClick={() => onSelectDifficulty(option.value)}
-              style={{
-                background: isSelected
-                  ? colors.bg
-                  : isHovered
-                    ? 'var(--games-route-control-hover, color-mix(in srgb, var(--card) 74%, #0ea5e9 26%))'
-                    : 'var(--games-route-control, color-mix(in srgb, var(--card) 82%, var(--muted) 18%))',
-                border: `2px solid ${isSelected || isHovered ? colors.border : 'color-mix(in srgb, var(--games-route-border, var(--border)) 80%, #0ea5e9 20%)'}`,
-                borderRadius: '0.5rem',
-                color: isSelected ? colors.text : 'var(--games-route-muted, var(--muted-foreground))',
-                padding: '0.9rem 1rem',
-                fontSize: 'clamp(0.98rem, 3.4vw, 1.125rem)',
-                fontWeight: '600',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                textTransform: 'uppercase',
-                textAlign: 'center'
-              }}
-              onMouseEnter={() => setHoveredOption(option.value)}
-              onMouseLeave={() => setHoveredOption((current) => current === option.value ? null : current)}
+              className={styles.optionButton}
+              data-selected={isSelected ? 'true' : 'false'}
+              style={difficultyStyle}
+              aria-pressed={isSelected}
             >
-              {option.label}
-              <div style={{ fontSize: '0.75rem', marginTop: '0.25rem', opacity: 0.8 }}>
-                {option.description}
-              </div>
+              <span className={styles.optionLabel}>{option.label}</span>
+              <span className={styles.optionDescription}>{option.description}</span>
             </button>
           );
         })}
       </div>
 
-      {extraContent}
+      {summaryContent && <div className={styles.summaryContent}>{summaryContent}</div>}
+
+      {extraContent && <div className={styles.extraContent}>{extraContent}</div>}
 
       <button
         type="button"
         onClick={onStart}
-        style={{
-          background: isStartHovered ? '#0284c7' : '#0ea5e9',
-          border: 'none',
-          borderRadius: '0.5rem',
-          color: '#fff',
-          fontSize: 'clamp(1.1rem, 4vw, 1.5rem)',
-          fontWeight: 'bold',
-          padding: 'clamp(1rem, 4vw, 1.5rem) clamp(1.25rem, 6vw, 3rem)',
-          cursor: 'pointer',
-          transition: 'all 0.2s',
-          boxShadow: '0 10px 40px rgba(14, 165, 233, 0.5)',
-          transform: isStartHovered ? 'translateY(-1px)' : 'translateY(0)',
-          width: '100%'
-        }}
-        onMouseEnter={() => setIsStartHovered(true)}
-        onMouseLeave={() => setIsStartHovered(false)}
+        className={styles.startButton}
       >
-        Start Game
+        <Play className={styles.startIcon} />
+        <span>{startLabel}</span>
       </button>
-    </div>
+    </section>
   );
 };

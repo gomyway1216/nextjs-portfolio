@@ -10,13 +10,11 @@ import { UseOthelloMultiplayerReturn } from './useOthelloMultiplayer';
 
 interface OthelloMultiplayerLobbyProps {
   multiplayer: UseOthelloMultiplayerReturn;
-  onStartSinglePlayer: () => void;
   onGameStart: () => void;
 }
 
 export function OthelloMultiplayerLobby({
   multiplayer,
-  onStartSinglePlayer,
   onGameStart,
 }: OthelloMultiplayerLobbyProps) {
   const { context, room, myColor } = multiplayer;
@@ -87,23 +85,6 @@ export function OthelloMultiplayerLobby({
           <div style={discStyle(false, 40)} />
         </div>
         <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#4ade80' }}>OTHELLO</h2>
-
-        <button
-          onClick={onStartSinglePlayer}
-          style={{
-            width: '14rem',
-            padding: '0.75rem 1.5rem',
-            backgroundColor: '#16a34a',
-            color: '#ffffff',
-            fontWeight: 'bold',
-            fontSize: '1.125rem',
-            borderRadius: '0.5rem',
-            border: 'none',
-            cursor: 'pointer',
-          }}
-        >
-          Play vs AI
-        </button>
 
         <div className="flex gap-3">
           <button
@@ -426,12 +407,7 @@ export function OthelloMultiplayerLobby({
   // Default: show menu
   return (
     <div className="flex flex-col items-center gap-6 p-4">
-      <button
-        onClick={onStartSinglePlayer}
-        className="w-56 py-3 px-6 bg-green-600 hover:bg-green-500 text-white font-bold text-lg rounded-lg transition-colors"
-      >
-        Play vs AI
-      </button>
+      <p className="text-sm text-gray-400">Choose a multiplayer action above.</p>
     </div>
   );
 }

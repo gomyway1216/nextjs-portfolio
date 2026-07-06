@@ -2835,6 +2835,13 @@ const contHist = new StaticArray<i32>(CONT_DIM * CONT_DIM);
 const prevKeyByPly = new StaticArray<i32>(S_MAX_PLY);
 const prevPtByPly = new StaticArray<i32>(S_MAX_PLY);
 
+// Path-budgeted check extension: extByPly[ply] = number of check extensions used
+// on the root-to-ply path so far. Capped at checkExtBudgetG so forced checking
+// sequences (tsume) are read deeper without spite/perpetual checks exploding the
+// tree. Mirrors the prevKeyByPly propagation pattern exactly (JS parity).
+const extByPly = new StaticArray<i32>(S_MAX_PLY);
+let checkExtBudgetG: i32 = 0;
+
 // Root-only ordering cache (per-search epoch stamps avoid a full clear).
 const rootBonusVal = new StaticArray<i32>(HIST_SIZE);
 const rootBonusStamp = new StaticArray<i32>(HIST_SIZE);
@@ -2930,7 +2937,6 @@ const DELTA_PRUNING_MARGIN: i32 = 150;
 const FUTILITY_MARGIN_1: i32 = 350;
 const FUTILITY_MARGIN_2: i32 = 700;
 const DRAW_CONTEMPT: i32 = 12;
-const CHECK_EXTENSION_MAX_PLY: i32 = 0;
 let nullMoveReductionG: i32 = 2;
 let qCheckMoveLimit: i32 = 1;
 let qCheckTryLimit: i32 = 2;
@@ -3653,7 +3659,12 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
     }
 
     const baseDepthNext = depthLeft - 1;
-    const canCheckExtend = ply <= CHECK_EXTENSION_MAX_PLY;
+    // Path-budgeted check extension: allow a +1 extension for a checking move as
+    // long as this path has not already spent its budget (checkExtBudgetG). This
+    // deepens forced checking sequences (mates) near the root where depth exists,
+    // while the per-path cap prevents perpetual/spite checks from exploding.
+    const extUsed = unchecked(extByPly[ply]);
+    const canCheckExtend = extUsed < checkExtBudgetG;
     const canLMRBase =
       !parentInCheck &&
       baseDepthNext >= 3 &&
@@ -3664,7 +3675,12 @@ function searchNodeAS(depthLeft: i32, alpha: i32, beta: i32, ply: i32): i32 {
 
     const givesCheck = canCheckExtend || canLMRBase ? isKingInCheck(teban) : false;
 
-    const depthNext = canCheckExtend && givesCheck ? baseDepthNext + 1 : baseDepthNext;
+    const extended = canCheckExtend && givesCheck;
+    const depthNext = extended ? baseDepthNext + 1 : baseDepthNext;
+    // Carry the path extension count to the child ply (mirrors prevKeyByPly).
+    if (ply + 1 < S_MAX_PLY) {
+      unchecked(extByPly[ply + 1] = extUsed + (extended ? 1 : 0));
+    }
     let score = 0;
     if (searched == 0) {
       score = -searchNodeAS(depthNext, -beta, -alpha, ply + 1);
@@ -3775,6 +3791,7 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
     unchecked(killer2[i] = 0);
     unchecked(prevKeyByPly[i] = 0);
     unchecked(prevPtByPly[i] = -1);
+    unchecked(extByPly[i] = 0);
   }
   for (let i = 0; i < HIST_SIZE; i++) {
     unchecked(historyTable[i] = 0);
@@ -3790,6 +3807,11 @@ export function searchBestMove(maxTimeMs: f64, maxDepth: i32, quiescenceDepthMax
   nullMoveReductionG = maxTimeMs >= 3000 ? 3 : 2;
   qCheckMoveLimit = maxTimeMs >= 2000 ? 2 : 1;
   qCheckTryLimit = maxTimeMs >= 2000 ? 8 : 2;
+  // Path check-extension budget: how many +1 check extensions a single root-to-leaf
+  // path may spend. Deliberately tiny (1): one extension lets the horizon-most forced
+  // check be read a ply deeper (enough to reveal a mate at the leaf); a larger budget
+  // makes check-heavy endgames explode. Kept in lockstep with JS checkExtensionBudget.
+  checkExtBudgetG = 1;
 
   searchStartTime = hostNow();
 

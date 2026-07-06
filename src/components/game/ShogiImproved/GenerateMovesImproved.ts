@@ -16,7 +16,6 @@ Te,
 WALL,
 canPromote,
 getKomashu,
-isEnemy,
 isSelf,
 komaValue
 } from './types';
@@ -249,30 +248,39 @@ export class GenerateMovesImproved {
    * - `teban` is the *defender* (the side that owns the piece sitting on `target`).
    */
   static isSquareAttacked(k: KyokumenImproved, target: number, teban: number): boolean {
-    if (target <= 0 || k.get(target) === WALL) return false;
+    // Inlined board access (bit-exact fast path): read `k.ban` directly instead of
+    // `k.get()` and replace `isEnemy`/`isSelf` helpers with precomputed bit masks.
+    // Algorithm and `canMove`/`canJump` tables are unchanged, so results are
+    // bit-identical to the old ray-walk (verified by perft / parity / search-driver).
+    const ban = k.ban;
+    if (target <= 0 || ban[target] === WALL) return false;
+
+    const enemyFlag = teban === SENTE ? GOTE : SENTE;
+    const selfFlag = teban === SENTE ? SENTE : GOTE;
 
     // Check all 12 directions for direct (non-sliding) attacks.
     // The move tables are encoded so that "subtract diff" walks from king outwards, matching the old Java logic.
     for (let direct = 0; direct < 12; direct++) {
-      const pos = target - diff[direct];
-      const koma = k.get(pos);
-      if (isEnemy(teban, koma) && canMove[direct][koma]) {
+      const koma = ban[target - diff[direct]];
+      if ((koma & enemyFlag) !== 0 && canMove[direct][koma]) {
         return true;
       }
     }
 
     // Check 8 directions for sliding attacks (rook/bishop/lance and promoted variants).
     for (let direct = 0; direct < 8; direct++) {
-      for (
-        let pos = target - diff[direct], koma = k.get(pos);
-        koma !== WALL;
-        pos -= diff[direct], koma = k.get(pos)
-      ) {
-        if (isSelf(teban, koma)) break;
-        if (isEnemy(teban, koma)) {
-          if (canJump[direct][koma]) return true;
+      const step = diff[direct];
+      const cj = canJump[direct];
+      let pos = target - step;
+      let koma = ban[pos];
+      while (koma !== WALL) {
+        if (koma !== EMPTY) {
+          if ((koma & selfFlag) !== 0) break;
+          if (cj[koma]) return true;
           break;
         }
+        pos -= step;
+        koma = ban[pos];
       }
     }
 
@@ -288,15 +296,20 @@ export class GenerateMovesImproved {
    * - Attackers are the enemy of `teban`.
    */
   static getLeastAttackerValue(k: KyokumenImproved, target: number, teban: number): number {
-    if (target <= 0 || k.get(target) === WALL) return Infinity;
+    // Same inlined board-access fast path as isSquareAttacked() — bit-exact with
+    // the old ray-walk (same tables, same first-blocker semantics).
+    const ban = k.ban;
+    if (target <= 0 || ban[target] === WALL) return Infinity;
+
+    const enemyFlag = teban === SENTE ? GOTE : SENTE;
+    const selfFlag = teban === SENTE ? SENTE : GOTE;
 
     let best = Infinity;
 
     // Direct attacks (non-sliding).
     for (let direct = 0; direct < 12; direct++) {
-      const pos = target - diff[direct];
-      const koma = k.get(pos);
-      if (isEnemy(teban, koma) && canMove[direct][koma]) {
+      const koma = ban[target - diff[direct]];
+      if ((koma & enemyFlag) !== 0 && canMove[direct][koma]) {
         const value = Math.abs(komaValue[koma]) | 0;
         if (value < best) best = value;
       }
@@ -304,19 +317,21 @@ export class GenerateMovesImproved {
 
     // Sliding attacks (rook/bishop/lance and promoted variants).
     for (let direct = 0; direct < 8; direct++) {
-      for (
-        let pos = target - diff[direct], koma = k.get(pos);
-        koma !== WALL;
-        pos -= diff[direct], koma = k.get(pos)
-      ) {
-        if (isSelf(teban, koma)) break;
-        if (isEnemy(teban, koma)) {
-          if (canJump[direct][koma]) {
+      const step = diff[direct];
+      const cj = canJump[direct];
+      let pos = target - step;
+      let koma = ban[pos];
+      while (koma !== WALL) {
+        if (koma !== EMPTY) {
+          if ((koma & selfFlag) !== 0) break;
+          if (cj[koma]) {
             const value = Math.abs(komaValue[koma]) | 0;
             if (value < best) best = value;
           }
           break;
         }
+        pos -= step;
+        koma = ban[pos];
       }
     }
 

@@ -28,6 +28,16 @@ createMove
 } from './types';
 
 /**
+ * Options for constructing an OthelloAI.
+ * Primarily used by the self-play A/B harness (scripts/othello-ai-match.ts)
+ * to swap the mid-game evaluator without touching production defaults.
+ */
+export interface OthelloAIOptions {
+  /** Override the mid-game evaluator (defaults to a fresh MidEvaluator). */
+  midEvaluator?: Evaluator;
+}
+
+/**
  * AI class implementing alpha-beta search
  */
 export class OthelloAI {
@@ -52,10 +62,10 @@ export class OthelloAI {
   private orderingHeight: number = 4;
   private cachingHeight: number = 4;
 
-  constructor(difficulty: Difficulty = 'medium') {
+  constructor(difficulty: Difficulty = 'medium', options?: OthelloAIOptions) {
     this.params = AI_PARAMETERS[difficulty];
 
-    this.midEval = new MidEvaluator();
+    this.midEval = options?.midEvaluator ?? new MidEvaluator();
     this.wldEval = new WLDEvaluator();
     this.perfectEval = new PerfectEvaluator();
     this.ffEval = new FFEvaluator();

@@ -133,6 +133,27 @@ const POSITION_WEIGHTS: number[][] = [
 ];
 
 /**
+ * Tunable options for MidEvaluator. `new MidEvaluator()` uses the current
+ * production defaults; flags exist so the A/B harness can isolate one change
+ * at a time and reproduce past baselines.
+ */
+export interface MidEvaluatorOptions {
+  /**
+   * Whether to evaluate mobility in the absolute (Black-positive) frame.
+   * Defaults to `true` (the corrected behavior, shipped after A/B).
+   *
+   * The legacy code (opt out with `false`, kept as a frozen A/B baseline)
+   * computed mobility relative to the side to move and then multiplied the
+   * whole score by `currentColor` again, double-applying perspective and
+   * inverting the mobility term for White — so White preferred having
+   * *fewer* legal moves. Fixed by computing (blackMobility − whiteMobility)
+   * independently of whose turn it is, matching the positional and stability
+   * terms which are already in the absolute frame.
+   */
+  mobilityFrameFix?: boolean;
+}
+
+/**
  * Mid-game Evaluator
  * Uses pattern-based evaluation similar to Thell's LOGISTELLO-style
  */
@@ -140,8 +161,10 @@ export class MidEvaluator implements Evaluator {
   private readonly stageWeights: Weights[];
   private readonly reversedLast5: number[];
   private readonly first5: number[];
+  private readonly opts: MidEvaluatorOptions;
 
-  constructor() {
+  constructor(opts: MidEvaluatorOptions = {}) {
+    this.opts = opts;
     // Initialize stage weights (15 stages, 4 moves each)
     this.stageWeights = [];
     for (let i = 0; i < 15; i++) {
@@ -221,7 +244,19 @@ export class MidEvaluator implements Evaluator {
     // Save current state
     const savedColor = board.getCurrentColor();
 
-    // Count my mobility
+    if (this.opts.mobilityFrameFix !== false) {
+      // Absolute (Black-positive) frame: computed independently of whose turn
+      // it is, so the caller's final `* currentColor` converts it to the
+      // side-to-move frame consistently with the positional/stability terms.
+      board.setCurrentColor(BLACK);
+      const blackMobility = board.countMobility();
+      board.setCurrentColor(WHITE);
+      const whiteMobility = board.countMobility();
+      board.setCurrentColor(savedColor);
+      return (blackMobility - whiteMobility) * 1000;
+    }
+
+    // Legacy behavior (opt in via mobilityFrameFix: false; see MidEvaluatorOptions).
     const myMobility = board.getMovablePos().length;
 
     // Count opponent's mobility (need to temporarily switch)

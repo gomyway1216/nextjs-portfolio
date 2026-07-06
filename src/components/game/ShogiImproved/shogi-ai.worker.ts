@@ -127,17 +127,25 @@ function nnueWeightsUrl(): string {
 }
 
 /**
- * Difficulties that use the NNUE evaluation (>= 1000ms/move, where it measured
- * 77.1% vs V3). `easy` (250ms) intentionally stays on V3: at ~200ms budgets
- * V3 measured stronger (NNUE 40.9%), and easy is meant to be weak anyway.
+ * Difficulties that use the NNUE evaluation. `easy` (250ms) intentionally stays
+ * on V3: at ~200ms budgets V3 measured stronger (NNUE 40.9%), and easy is meant
+ * to be weak anyway.
+ *
+ * 2026-07-06: RE-ENABLED for hard/expert/master. The medium-only hotfix
+ * (below) was lifted after the cycle-3 weights (run5m-base, 5.24M positions,
+ * balance-rate 0.5) fixed the saturation that caused the 2-dan loss:
+ *   - The infamous 72nd move: move-value spread 20cp (all moves equal =
+ *     saturated, picked a −35281cp blunder) → 532cp (26x), now picks the TRUE
+ *     best move; game blunders (>300cp) halved 8→4.
+ *   - Direct A/B vs the shipped run1m-base NNUE: 92.2% (29.5/32).
+ *   - vs V3 at 2000ms (the hard budget that was never verified before): 87.5%.
+ * So NNUE is now a strict improvement at every budget >= 1000ms, hard included.
+ *
+ * Prior hotfix rationale (2026-07-05, superseded): reduced to medium only after
+ * a 2-dan game exposed NNUE saturation at decided positions; the 77.1% A/B was
+ * 1000ms-only and hard (2000ms) was an unverified extrapolation.
  */
-// HOTFIX (2026-07-05): reduced from medium..master to medium ONLY after a real
-// 2-dan game exposed NNUE's saturation blindness at decided positions (all 71
-// legal moves within 15cp at |cp|>~1500; nonsense moves like P*81 / K-1一).
-// The 77.1% A/B was measured at 1000ms only — hard+ (2000ms+) was never
-// verified and reverts to V3 until the saturation fix (blend/guard or WDL
-// head + unthinned decisive teacher data) passes a blunder-rate gate.
-const NNUE_DIFFICULTIES: ReadonlySet<Difficulty> = new Set(['medium']);
+const NNUE_DIFFICULTIES: ReadonlySet<Difficulty> = new Set(['medium', 'hard', 'expert', 'master']);
 
 function difficultyUsesNnue(difficulty: Difficulty): boolean {
   return NNUE_DIFFICULTIES.has(difficulty);

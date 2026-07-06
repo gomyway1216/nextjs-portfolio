@@ -1,6 +1,6 @@
 .piece {
   align-items: center;
-  aspect-ratio: 0.88;
+  aspect-ratio: 100 / 116;
   display: inline-grid;
   height: 90%;
   justify-items: center;

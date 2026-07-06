@@ -672,7 +672,7 @@ Readers will ask, so let's answer up front. **77.1% is not a ceiling.** It's the
 
 Where's the theoretical ceiling? The browser as hardware can run professional-grade shogi AI — other sites have already proven that (lishogi, among others, runs the WASM build of YaneuraOu). So the limit isn't the browser; it's this engine's maturity. But this project **will not take the drop-in-someone-else's-engine route**. Growing a homegrown engine by measurement is the point of the project, and it's the owner's explicit policy.
 
-Cycle 3 is underway, following exactly this blueprint.
+Cycle 3 followed exactly this blueprint. The next chapter is its full record.
 
 ---
 

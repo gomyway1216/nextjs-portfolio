@@ -12,7 +12,6 @@
 import { Board } from './Board';
 import {
 BLACK,
-BOARD_POWER_SIZE,
 BOARD_SIZE,
 Color,
 EMPTY,
@@ -66,56 +65,6 @@ export class FFEvaluator implements Evaluator {
 }
 
 /**
- * Pattern weights for a single game stage
- */
-interface Weights {
-  parity: number;
-  vector2: number[];  // Rows 2 and 7
-  vector3: number[];  // Rows 3 and 6
-  vector4: number[];  // Rows 4 and 5
-  diag5: number[];    // 5-cell diagonals
-  diag6: number[];    // 6-cell diagonals
-  diag7: number[];    // 7-cell diagonals
-  diag8: number[];    // Main diagonals
-  edge2x: number[];   // Edge + X-square pattern
-  triangle: number[]; // Corner triangle pattern
-  corner25: number[]; // 2x5 corner pattern
-}
-
-/**
- * Create default weights (simplified positional evaluation)
- * In the original Thell, these are loaded from binary weight files
- * This is a simplified version with hand-crafted weights
- */
-function createDefaultWeights(): Weights {
-  const weights: Weights = {
-    parity: 500,  // Parity bonus
-    vector2: new Array(BOARD_POWER_SIZE).fill(0),
-    vector3: new Array(BOARD_POWER_SIZE).fill(0),
-    vector4: new Array(BOARD_POWER_SIZE).fill(0),
-    diag5: new Array(243).fill(0),   // 3^5
-    diag6: new Array(729).fill(0),   // 3^6
-    diag7: new Array(2187).fill(0),  // 3^7
-    diag8: new Array(6561).fill(0),  // 3^8
-    edge2x: new Array(59049).fill(0),    // 3^10
-    triangle: new Array(59049).fill(0),  // 3^10
-    corner25: new Array(59049).fill(0),  // 3^10
-  };
-
-  // Initialize with simple positional values
-  // Corner positions are highly valuable
-  const _cornerBonus = 10000;
-  const _edgeBonus = 2000;
-  const _xSquarePenalty = -5000;
-  const _cSquarePenalty = -2000;
-
-  // Generate simple positional weights for each pattern
-  // This is a simplified version - real Thell uses learned weights
-
-  return weights;
-}
-
-/**
  * Positional weight table for simple evaluation
  * Values represent the strategic importance of each square
  */
@@ -158,38 +107,10 @@ export interface MidEvaluatorOptions {
  * Uses pattern-based evaluation similar to Thell's LOGISTELLO-style
  */
 export class MidEvaluator implements Evaluator {
-  private readonly stageWeights: Weights[];
-  private readonly reversedLast5: number[];
-  private readonly first5: number[];
   private readonly opts: MidEvaluatorOptions;
 
   constructor(opts: MidEvaluatorOptions = {}) {
     this.opts = opts;
-    // Initialize stage weights (15 stages, 4 moves each)
-    this.stageWeights = [];
-    for (let i = 0; i < 15; i++) {
-      this.stageWeights.push(createDefaultWeights());
-    }
-
-    // Initialize corner25 lookup tables
-    this.reversedLast5 = new Array(BOARD_POWER_SIZE);
-    this.first5 = new Array(BOARD_POWER_SIZE);
-
-    for (let i = 0; i < BOARD_POWER_SIZE; i++) {
-      let index = i;
-      const line: number[] = new Array(BOARD_SIZE);
-      for (let j = 0; j < BOARD_SIZE; j++) {
-        line[j] = index % 3;
-        index = Math.floor(index / 3);
-      }
-
-      let rindex = 0;
-      for (let j = BOARD_SIZE - 5; j < BOARD_SIZE; j++) {
-        rindex = 3 * rindex + line[j];
-      }
-      this.reversedLast5[i] = rindex;
-      this.first5[i] = i % 243;
-    }
   }
 
   evaluate(board: Board): number {
@@ -197,9 +118,6 @@ export class MidEvaluator implements Evaluator {
     const destroyed = MULTIPLIER * BOARD_SIZE * BOARD_SIZE;
     if (board.countDisc(board.getCurrentColor()) === 0) return -destroyed;
     if (board.countDisc(-board.getCurrentColor() as Color) === 0) return destroyed;
-
-    const _idx = board.getIndexTable();
-    const _stage = Math.min(14, Math.floor(board.getTurns() / 4));
 
     let evalScore = 0;
 

@@ -119,9 +119,20 @@ function main(): void {
       passStreak = 0;
 
       // 2. Verify make/undo round-trips exactly for every legal move.
+      //    Every move from getMovablePos() must also be accepted by move();
+      //    if not, the undo check below would compare against a no-op and hide
+      //    the real bug, so treat a rejected "legal" move as a mismatch.
       const before = snapshot(board);
       for (const mv of got) {
-        board.move(mv);
+        if (!board.move(mv)) {
+          moveMismatches++;
+          if (moveMismatches <= 5) {
+            console.error(
+              `move() rejected a getMovablePos() move (game ${g}, turn ${board.getTurns()}, ${keyOf(mv)})`,
+            );
+          }
+          continue;
+        }
         board.undo();
         const after = snapshot(board);
         if (after !== before) {
@@ -135,9 +146,11 @@ function main(): void {
         }
       }
 
-      // Advance with a random legal move.
+      // Advance with a random legal move (must succeed).
       const mv = got[Math.floor(rng() * got.length)];
-      board.move(mv);
+      if (!board.move(mv)) {
+        throw new Error(`perft: failed to advance with legal move ${keyOf(mv)} at turn ${board.getTurns()}`);
+      }
     }
   }
 

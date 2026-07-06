@@ -73,6 +73,32 @@ function makeEvaluator(name: EvaluatorName): Evaluator | null {
   }
 }
 
+// OthelloAI carries no cross-call state (getBestMove resets everything at the
+// top), so a single instance per (evaluator, difficulty) is safe to reuse and
+// avoids rebuilding the evaluator's lookup tables on every ply.
+const aiCache = new Map<string, OthelloAI>();
+
+function getCachedAI(spec: PlayerSpec): OthelloAI {
+  const key = `${spec.evaluator}:${spec.difficulty}`;
+  let ai = aiCache.get(key);
+  if (!ai) {
+    ai = new OthelloAI(spec.difficulty, {
+      midEvaluator: makeEvaluator(spec.evaluator) ?? undefined,
+    });
+    aiCache.set(key, ai);
+  }
+  return ai;
+}
+
+/** Apply a move that is expected to be legal; fail fast if it is not. */
+function safeMove(board: Board, mv: Point): void {
+  if (!board.move(mv)) {
+    throw new Error(
+      `Illegal move (${mv.x},${mv.y}) at turn ${board.getTurns()} — move generation or AI is broken`,
+    );
+  }
+}
+
 /** Pick a move for a player from the given legal moves on `board`. */
 function pickMove(
   spec: PlayerSpec,
@@ -83,10 +109,7 @@ function pickMove(
   if (spec.evaluator === 'random') {
     return legalMoves[Math.floor(rng() * legalMoves.length)];
   }
-  const ai = new OthelloAI(spec.difficulty, {
-    midEvaluator: makeEvaluator(spec.evaluator) ?? undefined,
-  });
-  const mv = ai.getBestMove(board);
+  const mv = getCachedAI(spec).getBestMove(board);
   // getBestMove returns null only when there are no legal moves, which the
   // caller has already excluded — but guard anyway.
   return mv ?? legalMoves[0];
@@ -112,7 +135,7 @@ function randomOpening(plies: number, rng: () => number): Point[] {
       break;
     }
     const mv = legal[Math.floor(rng() * legal.length)];
-    board.move(mv);
+    safeMove(board, mv);
     moves.push(mv);
   }
   return moves;
@@ -131,7 +154,7 @@ function playGame(
 ): GameResult {
   const board = new Board();
   for (const mv of opening) {
-    board.move(mv);
+    safeMove(board, mv);
   }
 
   let passStreak = 0;
@@ -147,7 +170,7 @@ function playGame(
     const toMove: Color = board.getCurrentColor();
     const spec = toMove === BLACK ? blackPlayer : whitePlayer;
     const mv = pickMove(spec, board, legal, rng);
-    board.move(mv);
+    safeMove(board, mv);
   }
 
   return {
@@ -241,11 +264,16 @@ function main(): void {
   );
 
   // Silence the per-move AI logging during play; restore for reporting.
+  // try/finally guarantees restoration even if a game throws mid-match.
   const origLog = console.log;
   const t0 = Date.now();
   console.log = () => {};
-  const stats = runMatch(playerA, playerB, numOpenings, openingPlies, seed);
-  console.log = origLog;
+  let stats: MatchStats;
+  try {
+    stats = runMatch(playerA, playerB, numOpenings, openingPlies, seed);
+  } finally {
+    console.log = origLog;
+  }
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
 
   const { aWins, bWins, draws, games, aDiscDiffSum } = stats;

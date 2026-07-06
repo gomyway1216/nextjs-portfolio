@@ -249,9 +249,9 @@ export class MidEvaluator implements Evaluator {
       // it is, so the caller's final `* currentColor` converts it to the
       // side-to-move frame consistently with the positional/stability terms.
       board.setCurrentColor(BLACK);
-      const blackMobility = board.getMovablePos().length;
+      const blackMobility = board.countMobility();
       board.setCurrentColor(WHITE);
-      const whiteMobility = board.getMovablePos().length;
+      const whiteMobility = board.countMobility();
       board.setCurrentColor(savedColor);
       return (blackMobility - whiteMobility) * 1000;
     }

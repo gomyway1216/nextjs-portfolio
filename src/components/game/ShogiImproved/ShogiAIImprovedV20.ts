@@ -1103,7 +1103,7 @@ export class ShogiAIImprovedV20 {
         // Drop fast-path (same as search()): a drop (te.from === 0) cannot expose
         // the mover's own king, so when the mover was not already in check
         // (inCheck) every drop is legal and the scan is skipped. Bit-exact.
-        if (!(te.from === 0 && !inCheck) && GenerateMovesImproved.isKingInCheck(k, k.teban)) {
+        if ((te.from !== 0 || inCheck) && GenerateMovesImproved.isKingInCheck(k, k.teban)) {
           k.back(te);
           continue;
         }
@@ -1340,7 +1340,7 @@ export class ShogiAIImprovedV20 {
         // isKingInCheck scan is skipped. When the mover IS in check the drop must
         // actually block/capture the checker, so the full test still runs. This
         // yields the identical legal/illegal decision (bit-exact node counts).
-        if (!(te.from === 0 && !parentInCheck) && GenerateMovesImproved.isKingInCheck(k, k.teban)) {
+        if ((te.from !== 0 || parentInCheck) && GenerateMovesImproved.isKingInCheck(k, k.teban)) {
           k.back(te);
           continue;
         }

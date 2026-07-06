@@ -890,10 +890,12 @@ NNUEの推論——ニューラルネットが「この局面は何点か」を�
 **「その局面で自玉がまだ王手を受けていない」なら、あらゆるドロップは自動的に合法**。合法性スキャンをまるごと省ける。自玉がすでに王手を受けている場合だけは、その打つ手が王手を防いでいるかを確かめる必要があるので、従来どおり検査する。
 
 ```ts
+const mover = k.teban; // 手番＝この局面で指す側
 k.move(te);
 // ドロップ（te.from === 0）は味方を足すだけなので自玉を新たな王手にさらせない。
 // 打つ前に自玉が王手でなければ（!parentInCheck）、そのドロップは必ず合法 → スキャン省略。
-if (!(te.from === 0 && !parentInCheck) && isKingInCheck(k, mover)) {
+// ド・モルガンで二重否定を畳むと (te.from !== 0 || parentInCheck) と書ける。
+if ((te.from !== 0 || parentInCheck) && isKingInCheck(k, mover)) {
   k.back(te); continue;
 }
 ```

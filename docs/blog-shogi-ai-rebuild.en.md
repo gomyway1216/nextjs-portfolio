@@ -889,10 +889,12 @@ A move that shifts a piece can open a line: an enemy rook/bishop that was hidden
 **if "your king is not already in check in this position," every drop is automatically legal** — the legality scan can be skipped entirely. Only when your king *is* already in check do you still need to verify that the drop actually blocks/captures the checker, so there we check as before.
 
 ```ts
+const mover = k.teban; // the side to move in this position
 k.move(te);
 // A drop (te.from === 0) only adds a friendly piece, so it can't expose the king.
 // If the king wasn't already in check (!parentInCheck), the drop is always legal → skip the scan.
-if (!(te.from === 0 && !parentInCheck) && isKingInCheck(k, mover)) {
+// Folding the double negation via De Morgan gives (te.from !== 0 || parentInCheck).
+if ((te.from !== 0 || parentInCheck) && isKingInCheck(k, mover)) {
   k.back(te); continue;
 }
 ```

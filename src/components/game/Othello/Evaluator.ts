@@ -306,23 +306,24 @@ export class MidEvaluator implements Evaluator {
       for (let y = 1; y <= BOARD_SIZE; y++) {
         const color = board.getColor(x, y);
         if (color !== BLACK && color !== WHITE) continue;
-        let isFrontier = false;
-        for (let dx = -1; dx <= 1 && !isFrontier; dx++) {
-          for (let dy = -1; dy <= 1; dy++) {
-            if (dx === 0 && dy === 0) continue;
-            if (board.getColor(x + dx, y + dy) === EMPTY) {
-              isFrontier = true;
-              break;
-            }
-          }
-        }
-        if (isFrontier) {
+        if (this.isFrontierDisc(board, x, y)) {
           if (color === BLACK) blackFrontier++;
           else whiteFrontier++;
         }
       }
     }
     return (whiteFrontier - blackFrontier) * W;
+  }
+
+  /** True if the disc at (x, y) touches at least one empty square (8-dir). */
+  private isFrontierDisc(board: Board, x: number, y: number): boolean {
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        if (board.getColor(x + dx, y + dy) === EMPTY) return true;
+      }
+    }
+    return false;
   }
 
   /**

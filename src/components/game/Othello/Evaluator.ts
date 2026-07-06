@@ -100,7 +100,45 @@ export interface MidEvaluatorOptions {
    * terms which are already in the absolute frame.
    */
   mobilityFrameFix?: boolean;
+
+  /**
+   * Corner-relative X/C-square correction. Default on (opt out with `false`).
+   * The fixed PSQT penalizes X-squares (-40) and C-squares (-20)
+   * unconditionally, but those squares are only dangerous while the adjacent
+   * corner is still empty; once you *own* the corner they are safe (often
+   * stable). This term adds back the PSQT penalty (plus a small bonus) for
+   * X/C squares whose corner is held by the same color.
+   */
+  cornerRelative?: boolean;
+
+  /**
+   * Frontier-disc term. Default on (opt out with `false`). A "frontier" disc
+   * is adjacent (8-dir) to at least one empty square and is exposed to being
+   * flipped / tends to hand the opponent moves; fewer of one's own is better.
+   * Scored in the absolute frame as (whiteFrontier - blackFrontier) * weight.
+   *
+   * A/B (both terms on) vs the mobility-only eval, medium, color-swapped:
+   * 64.4%+-3.1% (n=240) and 59.0%+-3.2% (n=240) — clear, reproducible win;
+   * neither term alone clears noise (corner ~51.6%, frontier ~53.8%).
+   */
+  frontier?: boolean;
 }
+
+/**
+ * Corners and their adjacent X-square / C-squares, for the corner-relative
+ * term. X-square = the diagonal neighbor; C-squares = the two orthogonal
+ * edge neighbors.
+ */
+const CORNER_ADJACENCY: ReadonlyArray<{
+  corner: [number, number];
+  x: [number, number];
+  c: ReadonlyArray<[number, number]>;
+}> = [
+  { corner: [1, 1], x: [2, 2], c: [[2, 1], [1, 2]] },
+  { corner: [8, 1], x: [7, 2], c: [[7, 1], [8, 2]] },
+  { corner: [1, 8], x: [2, 7], c: [[1, 7], [2, 8]] },
+  { corner: [8, 8], x: [7, 7], c: [[7, 8], [8, 7]] },
+];
 
 /**
  * Mid-game Evaluator
@@ -133,6 +171,16 @@ export class MidEvaluator implements Evaluator {
 
     // Add stability evaluation
     evalScore += this.evaluateStability(board);
+
+    // Corner-relative X/C correction (default on; see MidEvaluatorOptions)
+    if (this.opts.cornerRelative !== false) {
+      evalScore += this.evaluateCornerRelative(board);
+    }
+
+    // Frontier discs (default on; see MidEvaluatorOptions)
+    if (this.opts.frontier !== false) {
+      evalScore += this.evaluateFrontier(board);
+    }
 
     // Add parity
     const parity = (board.countDisc(EMPTY) % 2 === 0 ? 1 : -1) * board.getCurrentColor();
@@ -217,6 +265,65 @@ export class MidEvaluator implements Evaluator {
     }
 
     return score;
+  }
+
+  /**
+   * Corner-relative X/C-square correction (absolute, Black-positive frame).
+   * See MidEvaluatorOptions.cornerRelative. evaluatePosition already subtracts
+   * ~4000 for an X-square and ~2000 for a C-square held; when the adjacent
+   * corner is owned by that same color those squares are safe, so add it back
+   * plus a small stability bonus.
+   */
+  private evaluateCornerRelative(board: Board): number {
+    const X_SAFE = 4500; // cancels the -4000 PSQT X penalty + small bonus
+    const C_SAFE = 2200; // cancels the -2000 PSQT C penalty + small bonus
+    let score = 0;
+    for (const { corner, x, c } of CORNER_ADJACENCY) {
+      const cornerColor = board.getColor(corner[0], corner[1]);
+      if (cornerColor === EMPTY) continue;
+      if (board.getColor(x[0], x[1]) === cornerColor) {
+        score += cornerColor * X_SAFE;
+      }
+      for (const cc of c) {
+        if (board.getColor(cc[0], cc[1]) === cornerColor) {
+          score += cornerColor * C_SAFE;
+        }
+      }
+    }
+    return score;
+  }
+
+  /**
+   * Frontier-disc term (absolute, Black-positive frame). A disc adjacent to at
+   * least one empty square is a "frontier" disc; fewer of one's own is better.
+   * See MidEvaluatorOptions.frontier.
+   */
+  private evaluateFrontier(board: Board): number {
+    const W = 75;
+    let blackFrontier = 0;
+    let whiteFrontier = 0;
+    for (let x = 1; x <= BOARD_SIZE; x++) {
+      for (let y = 1; y <= BOARD_SIZE; y++) {
+        const color = board.getColor(x, y);
+        if (color !== BLACK && color !== WHITE) continue;
+        if (this.isFrontierDisc(board, x, y)) {
+          if (color === BLACK) blackFrontier++;
+          else whiteFrontier++;
+        }
+      }
+    }
+    return (whiteFrontier - blackFrontier) * W;
+  }
+
+  /** True if the disc at (x, y) touches at least one empty square (8-dir). */
+  private isFrontierDisc(board: Board, x: number, y: number): boolean {
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        if (dx === 0 && dy === 0) continue;
+        if (board.getColor(x + dx, y + dy) === EMPTY) return true;
+      }
+    }
+    return false;
   }
 
   /**

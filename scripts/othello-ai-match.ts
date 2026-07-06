@@ -48,11 +48,13 @@ function mulberry32(seed: number): () => number {
 // ----------------------------------------------------------------------------
 // Player specifications
 // ----------------------------------------------------------------------------
-// 'mid'    -> current production default (MidEvaluator with the mobility fix)
-// 'legacy' -> frozen pre-fix production eval (buggy mobility frame); kept as an
-//             immutable A/B baseline so we can always reproduce past deltas.
+// 'mid'    -> current production default (mobility fix + corner-relative + frontier)
+// 'base'   -> mobility-only eval (corner/frontier off): the pre-cf production
+//             eval, i.e. the immediate predecessor baseline for the cf terms.
+// 'legacy' -> frozen original eval (buggy mobility frame + no cf); the oldest
+//             baseline, so we can always reproduce every past delta.
 // 'random' -> uniformly random legal moves (sanity baseline)
-type EvaluatorName = 'mid' | 'legacy' | 'random';
+type EvaluatorName = 'mid' | 'base' | 'legacy' | 'random';
 
 interface PlayerSpec {
   name: string;
@@ -64,8 +66,10 @@ function makeEvaluator(name: EvaluatorName): Evaluator | null {
   switch (name) {
     case 'mid':
       return new MidEvaluator();
+    case 'base':
+      return new MidEvaluator({ cornerRelative: false, frontier: false });
     case 'legacy':
-      return new MidEvaluator({ mobilityFrameFix: false });
+      return new MidEvaluator({ mobilityFrameFix: false, cornerRelative: false, frontier: false });
     case 'random':
       return null; // handled by random mover, no engine
     default:

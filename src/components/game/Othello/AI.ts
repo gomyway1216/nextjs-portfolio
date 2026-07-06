@@ -35,6 +35,10 @@ createMove
 export interface OthelloAIOptions {
   /** Override the mid-game evaluator (defaults to a fresh MidEvaluator). */
   midEvaluator?: Evaluator;
+  /** Override the mid-game base search depth (fixed-depth A/B). */
+  midDepthOverride?: number;
+  /** Override the mid-game time budget in ms (time-control A/B). */
+  timeLimitMs?: number;
 }
 
 /**
@@ -61,9 +65,17 @@ export class OthelloAI {
   // Search parameters
   private orderingHeight: number = 4;
   private cachingHeight: number = 4;
+  private midDepthOverride?: number;
+  // Time control (only active when timeLimitMs is set, i.e. expert/master).
+  private timeLimitMs?: number;
+  private deadline: number = Infinity;
+  private timeChecking: boolean = false;
+  private timeCounter: number = 0;
 
   constructor(difficulty: Difficulty = 'medium', options?: OthelloAIOptions) {
     this.params = AI_PARAMETERS[difficulty];
+    this.midDepthOverride = options?.midDepthOverride;
+    this.timeLimitMs = options?.timeLimitMs ?? this.params.timeLimitMs;
 
     this.midEval = options?.midEvaluator ?? new MidEvaluator();
     this.wldEval = new WLDEvaluator();
@@ -92,6 +104,10 @@ export class OthelloAI {
     this.internalNodes = 0;
     this.leafNodes = 0;
     this.aborted = false;
+    this.timeChecking = false;
+    this.timeCounter = 0;
+    this.deadline =
+      this.timeLimitMs !== undefined ? Date.now() + this.timeLimitMs : Infinity;
 
     this.eval = this.midEval;
     this.orderingEval = this.midEval;
@@ -115,14 +131,41 @@ export class OthelloAI {
    * Mid-game search with iterative deepening
    */
   private moveMidGame(board: Board): Move {
-    const limit = this.params.midDepth + this.boostDepth(board.getTurns());
+    const baseMidDepth = this.midDepthOverride ?? this.params.midDepth;
 
     this.orderingHeight = 4;
     this.cachingHeight = 4;
 
     let bestMove = createMove(0, 0, -InfinityVal);
-    const initialDepth = Math.min(4, limit);
 
+    if (this.timeLimitMs !== undefined) {
+      // Time-bounded iterative deepening. First search up to the fixed-depth
+      // floor (baseMidDepth) WITHOUT the clock, so the move is at least as deep
+      // as hard and always valid; then deepen further until the deadline,
+      // discarding any depth aborted mid-search. try/finally keeps timeChecking
+      // consistent even if the search throws.
+      const MAX_MID_DEPTH = 20;
+      const floorDepth = Math.max(1, baseMidDepth);
+      try {
+        for (let depth = Math.min(4, floorDepth); depth <= floorDepth; depth++) {
+          bestMove = this.topAlphaBeta(board, depth, -InfinityVal, InfinityVal);
+        }
+        this.timeChecking = true;
+        for (let depth = floorDepth + 1; depth <= MAX_MID_DEPTH; depth++) {
+          if (Date.now() >= this.deadline) break;
+          const move = this.topAlphaBeta(board, depth, -InfinityVal, InfinityVal);
+          if (this.aborted) break;
+          bestMove = move;
+        }
+      } finally {
+        this.timeChecking = false;
+      }
+      return bestMove;
+    }
+
+    // Fixed-depth path (easy/medium/hard): unchanged deterministic behavior.
+    const limit = baseMidDepth + this.boostDepth(board.getTurns());
+    const initialDepth = Math.min(4, limit);
     for (let depth = initialDepth; depth <= limit; depth++) {
       const move = this.topAlphaBeta(board, depth, -InfinityVal, InfinityVal);
       if (!this.aborted) {
@@ -170,6 +213,17 @@ export class OthelloAI {
     bestMove = this.topAlphaBeta(board, limit, -InfinityVal, InfinityVal);
 
     return bestMove;
+  }
+
+  /**
+   * Time-control probe: periodically flags the search as aborted once the
+   * deadline passes. No-op unless timeChecking is on (mid-game, budgeted).
+   */
+  private checkTime(): void {
+    if (!this.timeChecking) return;
+    if ((++this.timeCounter & 1023) === 0 && Date.now() >= this.deadline) {
+      this.aborted = true;
+    }
   }
 
   /**
@@ -241,6 +295,7 @@ export class OthelloAI {
    * Normal alpha-beta with move ordering
    */
   private normalAlphaBeta(board: Board, limit: number, alpha: number, beta: number): number {
+    this.checkTime();
     if (limit === 0 || this.aborted) {
       this.leafNodes++;
       return this.eval.evaluate(board);
@@ -309,7 +364,8 @@ export class OthelloAI {
    * Fast alpha-beta without move ordering (for shallow searches)
    */
   private fastAlphaBeta(board: Board, limit: number, alpha: number, beta: number): number {
-    if (limit === 0) {
+    this.checkTime();
+    if (limit === 0 || this.aborted) {
       this.leafNodes++;
       return this.eval.evaluate(board);
     }

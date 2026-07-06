@@ -60,6 +60,8 @@ interface PlayerSpec {
   name: string;
   evaluator: EvaluatorName;
   difficulty: Difficulty;
+  /** Optional mid-game search-depth override (for difficulty-ladder A/B). */
+  midDepth?: number;
 }
 
 function makeEvaluator(name: EvaluatorName): Evaluator | null {
@@ -83,11 +85,12 @@ function makeEvaluator(name: EvaluatorName): Evaluator | null {
 const aiCache = new Map<string, OthelloAI>();
 
 function getCachedAI(spec: PlayerSpec): OthelloAI {
-  const key = `${spec.evaluator}:${spec.difficulty}`;
+  const key = `${spec.evaluator}:${spec.difficulty}:${spec.midDepth ?? 'def'}`;
   let ai = aiCache.get(key);
   if (!ai) {
     ai = new OthelloAI(spec.difficulty, {
       midEvaluator: makeEvaluator(spec.evaluator) ?? undefined,
+      midDepthOverride: spec.midDepth,
     });
     aiCache.set(key, ai);
   }
@@ -258,12 +261,27 @@ function main(): void {
   const numOpenings = parseInt(args.games ?? '20', 10);
   const openingPlies = parseInt(args['opening-plies'] ?? '6', 10);
   const seed = parseInt(args.seed ?? '12345', 10);
+  const parseDepth = (v: string | undefined, flag: string): number | undefined => {
+    if (v === undefined) return undefined;
+    const d = parseInt(v, 10);
+    if (!Number.isFinite(d) || d < 1) {
+      console.error(`Invalid ${flag}: ${v} (expected a positive integer)`);
+      process.exit(1);
+    }
+    return d;
+  };
+  const aDepth = parseDepth(args['a-depth'], '--a-depth');
+  const bDepth = parseDepth(args['b-depth'], '--b-depth');
+  // Per-player difficulty override (for ladder A/B, e.g. expert vs hard).
+  const aDiff = (args['a-diff'] ?? difficulty) as Difficulty;
+  const bDiff = (args['b-diff'] ?? difficulty) as Difficulty;
 
-  const playerA: PlayerSpec = { name: `A:${aName}`, evaluator: aName, difficulty };
-  const playerB: PlayerSpec = { name: `B:${bName}`, evaluator: bName, difficulty };
+  const playerA: PlayerSpec = { name: `A:${aName}`, evaluator: aName, difficulty: aDiff, midDepth: aDepth };
+  const playerB: PlayerSpec = { name: `B:${bName}`, evaluator: bName, difficulty: bDiff, midDepth: bDepth };
 
   console.log(
-    `Othello A/B match: A=${aName} vs B=${bName} | difficulty=${difficulty} | ` +
+    `Othello A/B match: A=${aName}[${aDiff}]${aDepth ? `(d${aDepth})` : ''} vs ` +
+      `B=${bName}[${bDiff}]${bDepth ? `(d${bDepth})` : ''} | ` +
       `${numOpenings} openings x2 = ${numOpenings * 2} games | openingPlies=${openingPlies} | seed=${seed}`,
   );
 

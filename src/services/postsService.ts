@@ -13,6 +13,13 @@ async function throwApiError(response: Response): Promise<never> {
     const parts: string[] = [];
     if (data && typeof data.error === 'string') parts.push(data.error);
     if (data && typeof data.details === 'string') parts.push(data.details);
+    if (
+      data &&
+      typeof data.indexUrl === 'string' &&
+      !parts.some((part) => part.includes(data.indexUrl))
+    ) {
+      parts.push(data.indexUrl);
+    }
     if (parts.length > 0) message = parts.join('\n');
   } catch {
     // body not JSON; keep status-based message
@@ -118,6 +125,9 @@ export async function getPosts(params: {
   // Skip post bodies in the response (each comes back as ''). For lists
   // that only render metadata, e.g. the admin tables.
   excludeBody?: boolean;
+  // Public listing calls normally omit auth. Set this when an admin-facing
+  // screen wants API diagnostic details such as Firestore index URLs.
+  includeAdminDiagnostics?: boolean;
 } = {}): Promise<PostsResponse> {
   const {
     category = 'all',
@@ -127,6 +137,7 @@ export async function getPosts(params: {
     lastVisibleTimestamp,
     language,
     excludeBody,
+    includeAdminDiagnostics,
   } = params;
 
   const queryParams = new URLSearchParams({
@@ -153,7 +164,7 @@ export async function getPosts(params: {
 
   // Admin auth is needed unless the caller is explicitly asking for
   // public-only posts. Both `null` (no filter) and `false` require it.
-  const headers = isPublic === true ? {} : await getAuthHeaders();
+  const headers = isPublic === true && !includeAdminDiagnostics ? {} : await getAuthHeaders();
 
   const response = await fetch(`/api/post?${queryParams}`, {
     headers: {
@@ -264,7 +275,10 @@ export async function deletePostTaxonomyItem(type: PostTaxonomyType, value: stri
   return await response.json() as PostTaxonomyResponse;
 }
 
-export async function getTop4Posts(language?: PostLanguage): Promise<ListingPost[]> {
+export async function getTop4Posts(
+  language?: PostLanguage,
+  options: { includeAdminDiagnostics?: boolean } = {},
+): Promise<ListingPost[]> {
   const queryParams = new URLSearchParams();
   if (language) {
     queryParams.append('language', language);
@@ -272,9 +286,12 @@ export async function getTop4Posts(language?: PostLanguage): Promise<ListingPost
   const qs = queryParams.toString();
   const url = qs ? `/api/post/top?${qs}` : '/api/post/top';
 
+  const headers = options.includeAdminDiagnostics ? await getAuthHeaders() : {};
+
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
+      ...headers,
     },
   });
 

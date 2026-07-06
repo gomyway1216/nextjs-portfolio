@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
 import { getFirestore } from '@/lib/firebase-admin';
-import { ensureAdmin } from '@/lib/auth-utils';
+import { ensureAdmin, getOptionalAdmin } from '@/lib/auth-utils';
 import { POSTS_COLLECTION } from '@/app/api/constants';
 import { logApiError } from '../utils/errorLogger';
 import { ErrorSeverity } from '@/types/errors';
@@ -13,6 +13,7 @@ import {
 } from '@/lib/blog/postTranslations';
 import { normalizePostCategory, normalizePostTags } from '@/lib/blog/postMetadata';
 import { BLOG_POST_LIST_CACHE_TAG } from '@/lib/blog/cacheTags';
+import { getErrorMessage, getFirestoreIndexUrl } from '@/lib/firestoreError';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -114,16 +115,23 @@ export const GET = withActivityLog('next_api.post.GET', async (request: NextRequ
     });
   } catch (error) {
     console.error('Error fetching posts:', error);
+    const message = getErrorMessage(error);
+    const indexUrl = getFirestoreIndexUrl(error);
+    const adminUser = await getOptionalAdmin(request);
     await logApiError({
       severity: ErrorSeverity.HIGH,
       errorType: 'PostsAPI:FetchError',
       message: 'Failed to fetch posts',
-      details: error instanceof Error ? error.message : String(error),
+      details: message,
       stack: error instanceof Error ? error.stack : undefined,
       endpoint: '/api/post',
     });
     return NextResponse.json(
-      { error: 'Failed to fetch posts' },
+      {
+        error: 'Failed to fetch posts',
+        ...(adminUser ? { details: message } : {}),
+        ...(adminUser && indexUrl ? { indexUrl } : {}),
+      },
       { status: 500 }
     );
   }

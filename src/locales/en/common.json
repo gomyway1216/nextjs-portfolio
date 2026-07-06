@@ -150,6 +150,9 @@
       "subtitle": "Notes on product engineering, fintech systems, learning, and the decisions behind the work.",
       "emptyTitle": "No public posts yet",
       "emptyText": "Try another category or come back after the next update.",
+      "errorTitle": "Could not load posts",
+      "errorText": "Please try again later.",
+      "adminErrorText": "Admin diagnostics are shown below. If the error includes a Firestore index URL, open that link to create the missing index.",
       "loading": "Loading posts",
       "signalLabel": "Writing themes",
       "signals": {

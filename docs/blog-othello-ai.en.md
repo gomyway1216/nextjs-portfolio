@@ -40,7 +40,7 @@ Reading through it, I found that **the skeleton was impressive but had holes in 
 
 ### Board representation & move generation (Board.ts)
 
-Not bitboards, but a **"line-index + mobility-table" scheme**. Each row, column, and diagonal of the board is encoded as a base-3 number (empty=0, black=1, white=2 packed into digits), and that number keys a precomputed table of "where can you play on this line and how many discs flip." Each move updates the indices incrementally, so it doesn't rescan the whole board every time. It's not a bitboard, but it's a legitimate and fast enough implementation.
+Not bitboards, but a **"line-index + mobility-table" scheme**. Each row, column, and diagonal of the board is encoded as a base-3 number (each cell packed in as `color+1`; since the color constants are white=-1, empty=0, black=1, the digit values are white=0, empty=1, black=2), and that number keys a precomputed table of "where can you play on this line and how many discs flip." Each move updates the indices incrementally, so it doesn't rescan the whole board every time. It's not a bitboard, but it's a legitimate and fast enough implementation.
 
 ### Search (AI.ts)
 

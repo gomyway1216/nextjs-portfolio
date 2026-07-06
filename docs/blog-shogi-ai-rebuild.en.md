@@ -861,7 +861,57 @@ Concretely, what changed. The "**nonsense moves**" that had been the problem in 
 
 We can now invert a sentence we wrote during the saturation collapse. Back then: "at the decided positions where the AI's eval was crushed by saturation, every move looked the same." **Now, at those same decided positions, it tells the moves apart and trades blows.**
 
-**The remaining homework, honestly.** The eval (NNUE) can trade blows now. But the other symptom found in the diagnosis (11.3) — the **collapse of search speed in the endgame** (with more pieces in hand, a node drops to 27–41µs and reached depth falls to 4–6 plies) — **is still there.** That's a separate, search-side problem unrelated to the eval. We're now working in parallel on **speeding up the search and strengthening the mate solver** (to be appended in a separate chapter / PR). The goal hasn't changed — **3-dan level on hard.** We'll push it there on "both wheels, eval and search." **The eval wheel has started to turn. Search is next.**
+**The remaining homework, honestly.** The eval (NNUE) can trade blows now. But the other symptom found in the diagnosis (11.3) — the **collapse of search speed in the endgame** (with more pieces in hand, a node drops to 27–41µs and reached depth falls to 4–6 plies) — **is still there.** That's a separate, search-side problem unrelated to the eval. We're now working in parallel on **speeding up the search and strengthening the mate solver.** The goal hasn't changed — **3-dan level on hard.** We'll push it there on "both wheels, eval and search." **The eval wheel has started to turn. Search is next.**
+
+### 11.9 Taking on the endgame search collapse — the detour that revealed "speeding up without cutting depth"
+
+I finally started on the homework left in 11.3 and 11.8: **search goes shallow in the endgame.** This section is not a success story but a **record of a detour** — including the idea that didn't work — so the search-improvement narrative can be completed here.
+
+**First, I pinned down *why* it collapses with a profile.** Measuring the innards of one node in a big-hand position:
+
+- **88–93% of generated moves are "drops"** (dropping a piece from hand). With a big hand, candidate drops multiply as (empty squares, ~70) × (piece types). A combinatorial explosion.
+- The cost breakdown of one node was **move generation ≈ 50%, legality check ≈ 49%, evaluation ≈ 1%.** Eval (NNUE) is already fast enough. **What's slow is generating moves and checking their legality.**
+
+The culprit is the sheer quantity of drop moves. So far, the diagnosis held.
+
+**The first thing I tried was "check extension" — and it failed.** The idea: if we can only read shallowly, at least **read the forced single-file lines of consecutive checks deeper.** Mates and finishing sequences often resolve through consecutive checks, so extending only there should reduce endgame oversights — the logic looked right. I implemented it, even with a per-path budget on how many times to extend.
+
+But it **couldn't win a self-play A/B (hard, multiple seeds).** The reason made sense afterward. Check extension is a change that **alters which moves get read.** Reading one line deeper means another line goes shallower. The endgame as a whole isn't faster, so the positions it helps and the positions it hurts cancel out, and the total is **neutral** — meaning the collapse itself wasn't cured. I **shelved this idea (didn't merge).** Admitting a loss is part of the record.
+
+**So I changed the approach at its root. Instead of "changing which moves we read," I went for "read the same moves, but make each one faster."** In principle this can't lose strength: the exact same moves, in the same order, in the same count, just less time — and the time saved buys depth. This constraint of "don't change behavior by a single bit, only make it faster" turns out to be the greatest safety net (more below).
+
+**The idea that worked was a shogi rule so simple it was almost anticlimactic.** The lazy legality check (Appendix D) scans, right after making a move, whether "the side to move left its own king in check." That's about 49% of the total. But —
+
+> **A drop (dropping a piece from hand) doesn't move a single piece already on the board. So it can never expose your own king to a new attack.**
+
+A move that shifts a piece can open a line: an enemy rook/bishop that was hidden behind the moved piece now attacks your king (a pin). That's why the check is needed. But **a drop just "adds" a friendly piece to the board.** Adding a friendly piece can never suddenly put your own king in check. Therefore —
+
+**if "your king is not already in check in this position," every drop is automatically legal** — the legality scan can be skipped entirely. Only when your king *is* already in check do you still need to verify that the drop actually blocks/captures the checker, so there we check as before.
+
+```ts
+k.move(te);
+// A drop (te.from === 0) only adds a friendly piece, so it can't expose the king.
+// If the king wasn't already in check (!parentInCheck), the drop is always legal → skip the scan.
+if (!(te.from === 0 && !parentInCheck) && isKingInCheck(k, mover)) {
+  k.back(te); continue;
+}
+```
+
+Since drops make up 80–90% of moves in the endgame, this one line made the **legality phase about 27% faster** (microbenchmark). The move-generation order, the set of moves read, and the node count were **not changed by a single bit.**
+
+**How did I guarantee "not a single bit changed"?** This is the most important part. Against the ported version (the same change went into both the JS and WASM engines), I passed all three existing parity checks:
+
+- **perft (legal-move counting): 4,184 positions, 100% match** — proof that the legal/illegal verdict for drops is exactly identical.
+- **Fixed-depth search: 48/48 EXACT** — the chosen move, the eval score, and **the node and leaf counts** match exactly between JS and WASM. If even one skipped check's verdict changed, alpha-beta pruning would shift and the node count would move. It didn't — behavior is identical.
+- **NNUE parity: bit-exact in every format.**
+
+All green, and faster. Which means **I don't even need a self-play A/B to confirm "did it get stronger"** — the moves read are mathematically guaranteed identical, so strength is unchanged by definition and only cost drops. This "bit-exact speedup" discipline is powerful precisely because it lets you stop agonizing over A/B variance.
+
+**The honest measurement, too.** It wasn't as dramatic as hoped. In a fixed-2-second endgame search, the node count reached was roughly flat (I only skipped the legality scan; the `move`/`back` body and move generation remain). The legality phase alone got ~27% faster, but that's only a slice of the whole node. **This single change didn't make depth jump a level.** Still, it's a fact that I **cut cost with zero loss of strength**, and as a foundation to stack more speedups on, it's the right direction. Without exaggeration: a small step, but a certain plus, at zero risk.
+
+**Strengthening the mate solver was deferred this time.** I tried extending the checks-only solver's proof length from 9 to 11 plies, but on my set of endgame positions it **found no additional mates** (just spent more time). Putting something whose benefit I can't confirm into production — changing behavior for it — runs against this cycle's "stack it at zero risk" policy. **If it's neutral, don't ship it** — that too is a decision.
+
+**The lesson.** There are two kinds of search speedup. **"Change which moves you read to be smarter"** (like check extension) tends to have gains and losses cancel, and is dangerous unless verified by A/B. By contrast, **"read the same moves but faster"** carries zero strength risk once verified by bit-exact parity. Against the big homework of the endgame collapse, this time I placed the latter — a small step — in a certain form. From here I'll stack up speedups under the same discipline. That's the right path, found the long way around.
 
 ---
 

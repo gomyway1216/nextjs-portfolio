@@ -1,6 +1,6 @@
 .piece {
   align-items: center;
-  aspect-ratio: 0.76;
+  aspect-ratio: 0.88;
   display: inline-grid;
   height: 90%;
   justify-items: center;
@@ -51,7 +51,7 @@
   text-shadow: 0 0.04rem 0 rgba(255, 239, 184, 0.32);
   text-orientation: upright;
   top: 55%;
-  transform: translate(-50%, -50%) scaleX(0.86);
+  transform: translate(-50%, -50%) scaleX(0.94);
   transform-origin: center;
   writing-mode: vertical-rl;
 }

@@ -16,6 +16,7 @@ import { createInitialPosition } from './InitialPosition';
 import { Kyokumen } from './Kyokumen';
 import { getOpeningMoveValidated } from './OpeningBookValidated';
 import { getBestMove } from './ShogiAI';
+import { ShogiPiece } from './ShogiPiece';
 import { EMPTY,GOTE,isSente,komaValue,Position,SENTE,Te,toString } from './types';
 import styles from './ShogiStartScreen.module.css';
 
@@ -512,33 +513,14 @@ const Shogi = () => {
     // When player is Gote: rotate Sente pieces
     const shouldRotate = playerSide === SENTE ? !pieceIsSente : pieceIsSente;
 
-    let backgroundColor = 'transparent';
-    if (isSelected) {
-      backgroundColor = 'rgba(66, 153, 225, 0.3)';
-    } else if (isLastMoveTo) {
-      backgroundColor = 'rgba(255, 215, 0, 0.4)'; // Gold highlight for destination
-    } else if (isLastMoveFrom) {
-      backgroundColor = 'rgba(255, 215, 0, 0.2)'; // Lighter gold for source
-    }
-
     return (
-      <div
-        style={{
-          fontSize: '1.5rem',
-          fontWeight: 'bold',
-          color: pieceIsSente ? '#000' : '#c00',
-          transform: shouldRotate ? 'rotate(180deg)' : 'none',
-          backgroundColor,
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: '4px',
-        }}
-      >
-        {pieceText}
-      </div>
+      <ShogiPiece
+        label={pieceText}
+        isSente={pieceIsSente}
+        rotated={shouldRotate}
+        selected={Boolean(isSelected)}
+        highlight={isLastMoveTo ? 'to' : isLastMoveFrom ? 'from' : undefined}
+      />
     );
   };
 
@@ -655,15 +637,21 @@ const Shogi = () => {
                 <div
                   key={i}
                   style={{
-                    padding: '8px',
-                    background: 'rgba(200,0,0,0.2)',
+                    alignItems: 'center',
+                    background: 'rgba(255,255,255,0.05)',
                     borderRadius: '4px',
-                    fontSize: '1.4rem',
-                    textAlign: 'center',
-                    transform: 'rotate(180deg)',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    minHeight: '3.3rem',
+                    padding: '4px',
                   }}
                 >
-                  {toString(koma)}
+                  <ShogiPiece
+                    label={toString(koma)}
+                    isSente={isSente(koma)}
+                    rotated
+                    inHand
+                  />
                 </div>
               ))}
           </div>
@@ -744,30 +732,28 @@ const Shogi = () => {
                   key={i}
                   onClick={() => handleCapturedClick(originalIndex)}
                   style={{
-                    padding: '8px',
+                    alignItems: 'center',
                     background:
                       gameState.selectedCapturedIndex === originalIndex
-                        ? 'rgba(66,153,225,0.5)'
-                        : 'rgba(0,200,0,0.2)',
+                        ? 'rgba(66,153,225,0.24)'
+                        : 'rgba(255,255,255,0.05)',
                     borderRadius: '4px',
-                    fontSize: '1.4rem',
-                    textAlign: 'center',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    minHeight: '3.3rem',
+                    padding: '4px',
                     cursor: 'pointer',
                     border: gameState.selectedCapturedIndex === originalIndex ? '2px solid #4299e1' : '2px solid transparent',
                     transition: 'all 0.2s',
                   }}
-                  onMouseEnter={(e) => {
-                    if (gameState.selectedCapturedIndex !== originalIndex) {
-                      e.currentTarget.style.background = 'rgba(0,255,0,0.3)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (gameState.selectedCapturedIndex !== originalIndex) {
-                      e.currentTarget.style.background = 'rgba(0,200,0,0.2)';
-                    }
-                  }}
                 >
-                  {toString(koma)}
+                  <ShogiPiece
+                    label={toString(koma)}
+                    isSente={isSente(koma)}
+                    selected={gameState.selectedCapturedIndex === originalIndex}
+                    inHand
+                    interactive
+                  />
                 </div>
               ));
             })()}

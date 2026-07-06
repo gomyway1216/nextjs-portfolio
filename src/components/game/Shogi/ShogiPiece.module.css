@@ -1,0 +1,94 @@
+.piece {
+  align-items: center;
+  aspect-ratio: 0.72;
+  display: inline-grid;
+  height: 90%;
+  justify-items: center;
+  max-height: 3.75rem;
+  min-height: 1.75rem;
+  position: relative;
+  transform: translateZ(0);
+  transition: filter 160ms ease, transform 160ms ease;
+}
+
+.piece::before,
+.face {
+  clip-path: polygon(50% 0, 94% 24%, 86% 100%, 14% 100%, 6% 24%);
+}
+
+.piece::before {
+  background: linear-gradient(145deg, #7b5427, #442a12);
+  content: '';
+  inset: 0;
+  position: absolute;
+}
+
+.face {
+  align-items: center;
+  background:
+    radial-gradient(circle at 28% 18%, rgba(255, 255, 255, 0.42), transparent 30%),
+    linear-gradient(145deg, #f8d98f 0%, #d59c48 48%, #a76628 100%);
+  box-shadow:
+    inset 0 0.12rem 0.2rem rgba(255, 255, 255, 0.35),
+    inset 0 -0.18rem 0.22rem rgba(94, 56, 18, 0.38);
+  display: grid;
+  inset: 0.12rem;
+  justify-items: center;
+  position: absolute;
+}
+
+.label {
+  color: #1f1308;
+  font-family: 'Yu Mincho', 'Hiragino Mincho ProN', 'Noto Serif JP', serif;
+  font-size: clamp(0.95rem, 3vw, 1.55rem);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1;
+  text-shadow: 0 0.05rem 0 rgba(255, 241, 190, 0.5);
+  writing-mode: vertical-rl;
+}
+
+.piece[data-promoted='true'] .label {
+  color: #a52316;
+}
+
+.piece[data-side='gote'][data-promoted='false'] .label {
+  color: #2d1607;
+}
+
+.piece[data-rotated='true'] {
+  transform: rotate(180deg);
+}
+
+.piece[data-selected='true'] {
+  filter: drop-shadow(0 0 0.35rem rgba(96, 165, 250, 0.95));
+}
+
+.piece[data-highlight='from'] {
+  filter: drop-shadow(0 0 0.22rem rgba(250, 204, 21, 0.68));
+}
+
+.piece[data-highlight='to'] {
+  filter: drop-shadow(0 0 0.35rem rgba(250, 204, 21, 0.95));
+}
+
+.piece[data-selected='true'][data-highlight='from'],
+.piece[data-selected='true'][data-highlight='to'] {
+  filter:
+    drop-shadow(0 0 0.35rem rgba(96, 165, 250, 0.95))
+    drop-shadow(0 0 0.2rem rgba(250, 204, 21, 0.75));
+}
+
+.piece[data-in-hand='true'] {
+  height: clamp(2.45rem, 6vw, 3.3rem);
+  max-height: none;
+  min-height: 2.25rem;
+}
+
+.piece[data-interactive='true'] {
+  cursor: pointer;
+}
+
+.piece[data-interactive='true']:hover {
+  filter: drop-shadow(0 0 0.32rem rgba(74, 222, 128, 0.85));
+}

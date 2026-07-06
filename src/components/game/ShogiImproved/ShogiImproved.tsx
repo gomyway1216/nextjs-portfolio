@@ -11,6 +11,7 @@ import { RotateCcw } from 'lucide-react';
 import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { Difficulty,DifficultySelector,GameStats,GameTopBar,InfoModal } from '../common';
 import startShellStyles from '../common/GameStartShell.module.css';
+import { ShogiPiece } from '../Shogi/ShogiPiece';
 import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { InitialPositionImproved } from './InitialPositionImproved';
 import { KyokumenImproved } from './KyokumenImproved';
@@ -582,23 +583,12 @@ const ShogiImproved = () => {
     const isGote = !isSente(koma);
 
     return (
-      <div
-        style={{
-          fontSize: '1.5rem',
-          fontWeight: 'bold',
-          color: isSente(koma) ? '#000' : '#c00',
-          transform: isGote ? 'rotate(180deg)' : 'none',
-          backgroundColor: isSelected ? 'rgba(66, 153, 225, 0.3)' : 'transparent',
-          width: '100%',
-          height: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          borderRadius: '4px',
-        }}
-      >
-        {pieceText}
-      </div>
+      <ShogiPiece
+        label={pieceText}
+        isSente={isSente(koma)}
+        rotated={isGote}
+        selected={Boolean(isSelected)}
+      />
     );
   };
 
@@ -694,24 +684,32 @@ const ShogiImproved = () => {
               <div
                 key={i}
                 style={{
-                  padding: '5px 10px',
-                  background: 'rgba(200,0,0,0.2)',
+                  alignItems: 'center',
+                  background: 'rgba(255,255,255,0.05)',
                   borderRadius: '4px',
-                  fontSize: '1.2rem',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  minHeight: '3.1rem',
+                  padding: '4px',
                 }}
               >
-                {toString(koma)}
+                <ShogiPiece
+                  label={toString(koma)}
+                  isSente={isSente(koma)}
+                  rotated
+                  inHand
+                />
               </div>
             ))}
           </div>
         </div>
 
         {/* Board */}
-        <div style={{ flex: '0 0 auto' }}>
+        <div style={{ flex: '0 1 auto', maxWidth: '100%', overflowX: 'auto' }}>
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(9, 50px)',
+              gridTemplateColumns: 'repeat(9, clamp(34px, 10vw, 50px))',
               gap: '1px',
               background: '#333',
               border: '2px solid #666',
@@ -732,8 +730,8 @@ const ShogiImproved = () => {
                     key={`${suji}-${actualDan}`}
                     onClick={() => handleCellClick(suji, actualDan)}
                     style={{
-                      width: '50px',
-                      height: '50px',
+                      width: 'clamp(34px, 10vw, 50px)',
+                      height: 'clamp(34px, 10vw, 50px)',
                       background: isValidMove ? 'rgba(0, 255, 0, 0.2)' : '#ffe8b8',
                       border: '1px solid #8b7355',
                       cursor: 'pointer',
@@ -771,18 +769,27 @@ const ShogiImproved = () => {
                 key={i}
                 onClick={() => handleCapturedClick(i)}
                 style={{
-                  padding: '5px 10px',
+                  alignItems: 'center',
                   background:
                     gameState.selectedCapturedIndex === i
-                      ? 'rgba(66,153,225,0.5)'
-                      : 'rgba(0,0,0,0.2)',
+                      ? 'rgba(66,153,225,0.24)'
+                      : 'rgba(255,255,255,0.05)',
                   borderRadius: '4px',
-                  fontSize: '1.2rem',
                   cursor: 'pointer',
-                  border: gameState.selectedCapturedIndex === i ? '2px solid #4299e1' : 'none',
+                  display: 'flex',
+                  justifyContent: 'center',
+                  minHeight: '3.1rem',
+                  padding: '4px',
+                  border: gameState.selectedCapturedIndex === i ? '2px solid #4299e1' : '2px solid transparent',
                 }}
               >
-                {toString(koma)}
+                <ShogiPiece
+                  label={toString(koma)}
+                  isSente={isSente(koma)}
+                  selected={gameState.selectedCapturedIndex === i}
+                  inHand
+                  interactive
+                />
               </div>
             ))}
           </div>

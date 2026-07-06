@@ -1604,8 +1604,9 @@ export class ShogiAIImprovedV20 {
     // be read one ply deeper — enough to reveal a mate at the leaf — while a larger budget makes
     // check-heavy endgames explode (measured: budget 3 cut completed depth ~2x at fixed time,
     // budget 1 barely moved it while still changing the chosen move in decided positions).
-    // Kept in lockstep with WASM checkExtBudgetG.
-    this.checkExtensionBudget = options.checkExtensionBudget ?? 1;
+    // Kept in lockstep with WASM checkExtBudgetG. Normalize the (public) option to a
+    // non-negative integer so a negative/fractional override has well-defined behavior.
+    this.checkExtensionBudget = Math.max(0, Math.floor(options?.checkExtensionBudget ?? 1));
     this.enableDeltaPruning = true;
     // Keep the margin small to avoid pruning away real tactics; this is purely a quiescence speed knob.
     this.deltaPruningMargin = 150;

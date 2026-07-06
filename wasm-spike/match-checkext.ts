@@ -115,6 +115,15 @@ function playOneGame(aiExt: ShogiAIImprovedV20, aiBase: ShogiAIImprovedV20, extI
       if (inCheck) return { outcome: 'win', winner: side === SENTE ? GOTE : SENTE, plies: ply };
       return { outcome: 'draw', plies: ply, reason: 'stalemate' };
     }
+    // Validate the engine's move: an illegal move would silently corrupt the board
+    // state and invalidate the whole match, so fail loudly instead.
+    const isLegal = legalMoves.some(
+      (te) => te.koma === move.koma && te.from === move.from && te.to === move.to && te.promote === move.promote
+    );
+    if (!isLegal) {
+      console.error(`ILLEGAL MOVE by ${extToMove ? 'EXT' : 'BASE'} at ply ${ply}: ${move.toString()}`);
+      process.exit(1);
+    }
     move.capture = k.get(move.to);
     k.move(move);
     k.toggleTeban();

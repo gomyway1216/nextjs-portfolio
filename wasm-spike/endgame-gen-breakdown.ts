@@ -50,6 +50,7 @@ function buildEndgamePositions(): Array<{ label: string; k: KyokumenImproved; ha
       const hand = handCount(k);
       if (ply >= 60 && hand >= 6 && GenerateMovesImproved.generateLegalMoves(k).length > 0) {
         out.push({ label: `game${game} ply${ply + 1}`, k: k.clone(), hand });
+        break; // one snapshot per game so the sample spans distinct games, not one game's tail
       }
     }
   }

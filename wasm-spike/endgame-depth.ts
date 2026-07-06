@@ -8,8 +8,8 @@
  *
  *  1. Builds real big-hand endgame positions via biased self-play.
  *  2. Runs the JS V20 engine on each at a fixed time budget with the check
- *     extension ON vs OFF (checkExtensionBudget 3 vs 0) and reports the completed
- *     iterative-deepening depth, node count and chosen move for each.
+ *     extension ON vs OFF (checkExtensionBudget 1 = the shipped value, vs 0) and
+ *     reports the completed iterative-deepening depth, node count and chosen move.
  *
  * The extension does not change the *completed depth number* directly (extensions
  * happen inside a fixed iteration), so we also report whether the chosen move / PV

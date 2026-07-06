@@ -49,9 +49,9 @@
 }
 
 .sideButton[data-selected='true'] {
-  background: color-mix(in srgb, #0f8dbf 28%, var(--games-route-control, #1f2937) 72%);
-  border-color: #0ea5e9;
-  color: #0f172a;
+  background: #0f8dbf;
+  border-color: #38bdf8;
+  color: #f8fafc;
 }
 
 .sideIcon {
@@ -71,7 +71,7 @@
 }
 
 .sideButton[data-selected='true'] .sideMeta {
-  color: #475569;
+  color: #e0f2fe;
 }
 
 .sideTitle {

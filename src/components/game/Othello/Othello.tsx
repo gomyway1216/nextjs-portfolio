@@ -752,8 +752,8 @@ const Othello = () => {
     </div>
   );
 
-  // Color selector component
-  const ColorSelector = () => (
+  // Color selector render helper.
+  const renderColorSelector = () => (
     <div style={colorSelectorStyle}>
       <div style={{ color: '#d1d5db', fontSize: '0.85rem', fontWeight: 700 }}>
         Choose your color
@@ -900,7 +900,7 @@ const Othello = () => {
                 ))}
               </div>
 
-              <ColorSelector />
+              {renderColorSelector()}
 
               <button
                 type="button"

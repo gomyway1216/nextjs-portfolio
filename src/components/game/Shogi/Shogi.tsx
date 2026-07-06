@@ -602,7 +602,7 @@ const Shogi = () => {
               </span>
               <span className={styles.summaryItem}>
                 <Swords className={styles.summaryIcon} />
-                <span className={styles.summaryText}>Opening book: first 12 plies</span>
+                <span className={styles.summaryText}>Opening book: up to 18 plies</span>
               </span>
               <span className={styles.summaryItem}>
                 <Zap className={styles.summaryIcon} />

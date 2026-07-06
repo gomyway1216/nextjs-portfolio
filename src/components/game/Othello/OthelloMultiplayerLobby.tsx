@@ -407,7 +407,7 @@ export function OthelloMultiplayerLobby({
   // Default: show menu
   return (
     <div className="flex flex-col items-center gap-6 p-4">
-      <p className="text-sm text-gray-400">Choose a multiplayer action above or use the AI match setup below.</p>
+      <p className="text-sm text-gray-400">Choose a multiplayer action above.</p>
     </div>
   );
 }

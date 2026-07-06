@@ -1,6 +1,6 @@
 # Strengthening an Othello AI with the Same Discipline I Used for Shogi
 
-> My personal site (meetyudai.com) has a handful of mini-games with AI opponents. I already rebuilt the shogi AI in a separate article ([Shogi AI rebuild](./blog-shogi-ai-rebuild.en.md)). This time I applied the same discipline I established there — *stack only changes that are proven not to regress, verified by A/B* — to the Othello AI. This is a running work-log of what I did, what I learned, and what didn't work, written to be understandable by beginners. Japanese version: [blog-othello-ai.md](./blog-othello-ai.md).
+> My personal site (meetyudai.com) has a handful of mini-games with AI opponents. I already rebuilt the shogi AI in a separate article ([Shogi AI rebuild](./blog-shogi-ai-rebuild.en.md)). This time I applied the same discipline I established there — *stack only changes that are proven not to regress, verified by A/B* — to the Othello AI. This is a running work-log of what I did, what I learned, and what didn't work. Japanese version: [blog-othello-ai.md](./blog-othello-ai.md).
 
 ---
 
@@ -116,7 +116,7 @@ Choosing an "obvious bug" rather than a "plausible new feature" as the first tar
 
 I switched the production default to the fixed version and deployed. The old behavior is frozen as `mobilityFrameFix: false`, kept as an immutable A/B baseline.
 
-### Chapter takeaways (for beginners)
+### Chapter takeaways
 
 - **An evaluation function must return "the score from the side-to-move's view" with a consistent sign.** If just one term's coordinate frame is off, it silently breaks for one color.
 - **Build the ruler (A/B harness + correctness check) before touching code.** Be able to state improvement in numbers, not "it feels stronger."
@@ -141,7 +141,7 @@ I chose **deletion over hoisting (to a module constant).** Sharing code that's n
 
 As a side effect, the A/B runs got faster too (combined with reusing cached AI instances, the same 120 openings went from 119s → ~75s). A step that changed no strength, just cleaned up the foundation.
 
-### Chapter takeaways (for beginners)
+### Chapter takeaways
 
 - **Address review comments only after verifying them.** Behind the surface (heavy initialization) can be the real issue (it was dead code all along).
 - **Even when deleting dead code, confirm "no behavior change" via A/B.** If a single number shifts, then it wasn't dead code.
@@ -183,7 +183,7 @@ Why does it fail alone but work combined? My guess: `cornerRelative` encourages 
 
 I ran the experiments behind throwaway flags (`cornerRelative` / `frontier`) and, once the win was solid, **switched the production default ON** (same style as the mobility fix). The old evaluation is kept as `base` (both terms OFF) as an A/B baseline. And the most important check — **"does the clean production implementation reproduce, exactly, the win rate I measured in the experiment?"** — I ran `mid` (the new default) vs. `base` with the same seed and same game count, confirmed it matched the experiment game-for-game, and only then committed. This guarantees that "the implementation that did well in A/B" and "the implementation I actually shipped" are the same thing.
 
-### Chapter takeaways (for beginners)
+### Chapter takeaways
 
 - **Evaluation terms interact.** If you measure one in isolation and toss it as "no effect," you'll miss the ones that work in combination. Conversely, even when a combination works, **isolate which term contributes** what.
 - **Judge borderline results (52–54%) with more games or in combination** with other terms. Don't jump on a small sample.
@@ -236,7 +236,7 @@ The 7-second freeze seen at depth 7 is gone; every mid-game move is within budge
 
 Time control is non-deterministic (depends on wall-clock), so it's hard to gather a large sample and the error alone is large. But the foundation is the **decisive result that depth 8 crushes depth 6 4–0**, and time control is the mechanism for reaching that depth within a time budget (timing measurements also confirmed expert/master search beyond hard's depth 6). From a state where the top difficulties were "identical to hard," this is a sure step forward. The reason master (2.5s) and expert (1.0s) don't separate in this small sample is that both comfortably beat hard (so the difference is buried) and diminishing returns on depth.
 
-### Chapter takeaways (for beginners)
+### Chapter takeaways
 
 - **A way to make the AI stronger (search deeper) can break UX (freeze).** You won't see it unless you measure "the worst single move's time."
 - **Time control beats fixing the depth.** On a fast machine it goes deeper, on a slow one shallower, and **the thinking time is always constant.** This is what iterative deepening is *for* (it secures a shallow move first, then deepens, so it's safe to be cut off partway).

@@ -6,7 +6,9 @@ import PostListItem from '@/components/blog/PostListItem';
 import * as postApi from '@/services/postsService';
 import type { ListingPost } from '@/services/postsService';
 import SuggestionBar from '@/components/blog/SuggestionBar';
+import LinkedErrorMessage from '@/components/common/LinkedErrorMessage';
 import { useParams } from 'next/navigation';
+import { useAuth } from '@/providers/AuthProvider';
 import { usePosts } from '@/providers/PostsProvider';
 import { useInView } from 'react-intersection-observer';
 import { useTranslation } from 'react-i18next';
@@ -61,6 +63,7 @@ const CategoryPostPage = ({
   initialLanguage,
 }: CategoryPostPageProps = {}) => {
   const { category: routeCategory } = useParams();
+  const { isAdmin } = useAuth();
   const { t, i18n } = useTranslation();
   const language = normalizeLanguage(i18n.language);
   const category =
@@ -89,6 +92,7 @@ const CategoryPostPage = ({
   const [isLoading, setIsLoading] = useState(() => !hasCachedPosts && !hasUsableInitialPage);
   const [hasMore, setHasMore] = useState(initialHasMore ?? true);
   const [previousCacheKey, setPreviousCacheKey] = useState(cacheKey);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Keep the first render after a category/language switch in loading mode,
   // so the empty state cannot flash before the fetch effect runs.
@@ -109,6 +113,7 @@ const CategoryPostPage = ({
 
   const fetchPosts = async () => {
     setIsLoading(true);
+    setFetchError(null);
     try {
       const currentCategoryPage = (currentPageByCategory as Record<string, number>)[cacheKey] || 1;
       const result = await postApi.getPosts({
@@ -118,6 +123,7 @@ const CategoryPostPage = ({
         limit: PAGE_LIMIT,
         lastVisibleTimestamp: lastVisibleDocTimestamps?.[cacheKey],
         language,
+        includeAdminDiagnostics: isAdmin,
       });
 
       const fetchedPosts = result.posts || [];
@@ -141,6 +147,7 @@ const CategoryPostPage = ({
       }
     } catch (error) {
       console.error('[blog] failed to fetch posts', error);
+      setFetchError(error instanceof Error ? error.message : String(error));
       setHasMore(false);
     } finally {
       setIsLoading(false);
@@ -157,6 +164,7 @@ const CategoryPostPage = ({
     const existing = postsByCategory[cacheKey];
     if (existing && existing.length > 0) {
       setHasMore(existing.length > 0);
+      setFetchError(null);
       setIsLoading(false);
       window.scrollTo(0, scrollPosition);
       return;
@@ -170,6 +178,7 @@ const CategoryPostPage = ({
     ) {
       setPostsByCategory(cacheKey, initialPosts);
       setCurrentPageByCategory(cacheKey, 2);
+      setFetchError(null);
       if (initialLastVisibleTimestamp != null) {
         setLastVisibleDocTimestamps((prev: Record<string, number>) => ({
           ...prev,
@@ -186,7 +195,7 @@ const CategoryPostPage = ({
       fetchPosts();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [category, language]);
+  }, [category, language, isAdmin]);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -197,7 +206,7 @@ const CategoryPostPage = ({
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inView, isLoading, hasMore, category, language]);
+  }, [inView, isLoading, hasMore, category, language, isAdmin]);
 
   return (
     <main className={styles.page}>
@@ -248,7 +257,16 @@ const CategoryPostPage = ({
               />
             );
           })}
-          {!isLoading && visiblePosts.length === 0 && (
+          {!isLoading && fetchError && (
+            <div className={`${styles.emptyState} ${styles.errorState}`}>
+              <h2>{t('blogPage.index.errorTitle')}</h2>
+              <p>{t(isAdmin ? 'blogPage.index.adminErrorText' : 'blogPage.index.errorText')}</p>
+              {isAdmin && (
+                <LinkedErrorMessage message={fetchError} className={styles.errorMessage} />
+              )}
+            </div>
+          )}
+          {!isLoading && !fetchError && visiblePosts.length === 0 && (
             <div className={styles.emptyState} role="status">
               <h2>{t('blogPage.index.emptyTitle')}</h2>
               <p>{t('blogPage.index.emptyText')}</p>

@@ -8,6 +8,8 @@ import {
   type PostTranslations,
 } from '@/lib/blog/postTranslations';
 import { normalizePostTags } from '@/lib/blog/postMetadata';
+import { getOptionalAdmin } from '@/lib/auth-utils';
+import { getErrorMessage, getFirestoreIndexUrl } from '@/lib/firestoreError';
 
 import { withActivityLog } from '@/app/api/_lib/withActivityLog';
 
@@ -17,10 +19,9 @@ import { withActivityLog } from '@/app/api/_lib/withActivityLog';
  * requested locale (with fallback).
  *
  * Uses a composite index `(isPublic ASC, lastUpdated DESC)` on the flat
- * `post` collection — if it isn't deployed yet Firestore will throw, and
- * the response body forwards the original error message (which includes
- * the Firebase Console URL for one-click index creation) so the operator
- * can fix it without checking server logs.
+ * `post` collection. If it is missing, admins receive the original
+ * Firestore details and one-click index URL; public callers get only the
+ * generic failure message.
  *
  * Query params:
  * - language: 'en' | 'ja' (default: 'en')
@@ -59,11 +60,14 @@ export const GET = withActivityLog('next_api.post.top.GET', async (request: Next
     return NextResponse.json({ posts: posts.slice(0, 4) });
   } catch (error) {
     console.error('Error fetching top posts:', error);
-    const message = error instanceof Error ? error.message : String(error);
+    const message = getErrorMessage(error);
+    const indexUrl = getFirestoreIndexUrl(error);
+    const adminUser = await getOptionalAdmin(request);
     return NextResponse.json(
       {
         error: 'Failed to fetch top posts',
-        details: message,
+        ...(adminUser ? { details: message } : {}),
+        ...(adminUser && indexUrl ? { indexUrl } : {}),
       },
       { status: 500 },
     );

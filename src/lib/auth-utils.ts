@@ -104,6 +104,29 @@ export async function ensureAdmin(request: NextRequest): Promise<{
 }
 
 /**
+ * Return the admin user when a valid admin bearer token is present. Unlike
+ * ensureAdmin, this is silent for public routes that merely want to decide
+ * whether diagnostic details may be included in a response.
+ */
+export async function getOptionalAdmin(request: NextRequest): Promise<{
+  uid: string;
+  email?: string;
+  isAdmin: true;
+} | null> {
+  const token = getTokenFromRequest(request);
+  if (!token) return null;
+
+  const decodedToken = await verifyIdToken(token);
+  if (!decodedToken || !isAdmin(decodedToken)) return null;
+
+  return {
+    uid: decodedToken.uid,
+    email: decodedToken.email,
+    isAdmin: true,
+  };
+}
+
+/**
  * Ensure that the request has a valid user token
  * Returns the user object if valid, or an error response if not
  */

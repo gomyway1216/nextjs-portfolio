@@ -167,6 +167,32 @@
   line-height: 1.6;
 }
 
+.errorState {
+  border-color: color-mix(in srgb, #ef4444 40%, var(--border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--card) 90%, #fee2e2 10%), var(--card));
+}
+
+.errorMessage {
+  margin-top: 16px;
+  border: 1px solid color-mix(in srgb, #ef4444 36%, var(--border));
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, #ef4444 8%, var(--card));
+  color: var(--foreground);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.errorMessage a {
+  color: #2563eb;
+  text-decoration: underline;
+  word-break: break-all;
+}
+
 .srOnly {
   position: absolute;
   width: 1px;
@@ -316,6 +342,12 @@
 :global(.dark) .loadingCard {
   background:
     linear-gradient(135deg, color-mix(in srgb, var(--card) 90%, #064e3b 10%), var(--card));
+}
+
+:global(.dark) .errorState {
+  border-color: color-mix(in srgb, #ef4444 50%, var(--border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--card) 90%, #7f1d1d 10%), var(--card));
 }
 
 :global(.dark) .loadingCard::after {

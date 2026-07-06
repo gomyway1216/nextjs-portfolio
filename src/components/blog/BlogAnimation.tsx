@@ -9,12 +9,15 @@ import { sanitizeRichHtml } from '@/lib/sanitizeHtml';
 import * as util from '@/lib/utils/util';
 import { useTranslation } from 'react-i18next';
 import { normalizeLanguage } from '@/lib/blog/postTranslations';
+import LinkedErrorMessage from '@/components/common/LinkedErrorMessage';
+import { useAuth } from '@/providers/AuthProvider';
 
 
 // Modal.setAppElement('#root');
 
 const Blogs = () => {
   const { t, i18n } = useTranslation();
+  const { isAdmin } = useAuth();
   // const [isOpen, setIsOpen] = useState(false);
   // const [isOpen2, setIsOpen2] = useState(false);
   // const [isOpen3, setIsOpen3] = useState(false);
@@ -35,7 +38,10 @@ const Blogs = () => {
     setFetchError(null);
     (async () => {
       try {
-        const fetchedPosts = await postApi.getTop4Posts(normalizeLanguage(i18n.language));
+        const fetchedPosts = await postApi.getTop4Posts(
+          normalizeLanguage(i18n.language),
+          { includeAdminDiagnostics: isAdmin },
+        );
         if (!cancelled) setPosts(fetchedPosts);
       } catch (err) {
         if (cancelled) return;
@@ -48,7 +54,7 @@ const Blogs = () => {
     return () => {
       cancelled = true;
     };
-  }, [i18n.language]);
+  }, [i18n.language, isAdmin]);
 
   const handlePostClick = (post: ListingPost) => {
     setSelectedPost(post);
@@ -60,7 +66,7 @@ const Blogs = () => {
     return (
       <div>
         <div>{t('home.blog.comingSoon')}</div>
-        {fetchError && <ErrorWithLinks message={fetchError} />}
+        {fetchError && isAdmin && <LinkedErrorMessage message={fetchError} />}
       </div>
     );
   }
@@ -197,48 +203,6 @@ const Blogs = () => {
       </Dialog.Root>
       {/* End  Modal for Blog-1 */}
     </>
-  );
-};
-
-// Renders an error message verbatim with any URLs turned into clickable
-// links. Firestore "needs an index" errors include a one-click create
-// URL, and we want that URL to be reachable without copy-pasting.
-const URL_REGEX = /(https?:\/\/[^\s)]+)/g;
-
-const ErrorWithLinks = ({ message }: { message: string }) => {
-  const segments: React.ReactNode[] = [];
-  let lastIndex = 0;
-  for (const match of message.matchAll(URL_REGEX)) {
-    const url = match[0];
-    const start = match.index ?? 0;
-    if (start > lastIndex) segments.push(message.slice(lastIndex, start));
-    segments.push(
-      <a key={start} href={url} target="_blank" rel="noopener noreferrer" style={{ color: '#a855f7', textDecoration: 'underline', wordBreak: 'break-all' }}>
-        {url}
-      </a>,
-    );
-    lastIndex = start + url.length;
-  }
-  if (lastIndex < message.length) segments.push(message.slice(lastIndex));
-
-  return (
-    <div
-      role="alert"
-      style={{
-        marginTop: '12px',
-        padding: '12px 14px',
-        border: '1px solid rgba(239, 68, 68, 0.35)',
-        borderRadius: '8px',
-        backgroundColor: 'rgba(239, 68, 68, 0.08)',
-        color: '#fecaca',
-        fontSize: '12px',
-        fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-        whiteSpace: 'pre-wrap',
-        wordBreak: 'break-word',
-      }}
-    >
-      {segments}
-    </div>
   );
 };
 

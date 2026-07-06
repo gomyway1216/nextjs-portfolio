@@ -344,6 +344,12 @@
     linear-gradient(135deg, color-mix(in srgb, var(--card) 90%, #064e3b 10%), var(--card));
 }
 
+:global(.dark) .errorState {
+  border-color: color-mix(in srgb, #ef4444 50%, var(--border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--card) 90%, #7f1d1d 10%), var(--card));
+}
+
 :global(.dark) .loadingCard::after {
   background: linear-gradient(
     100deg,

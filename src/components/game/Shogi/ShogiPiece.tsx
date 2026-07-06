@@ -36,23 +36,23 @@ export const ShogiPiece: FC<ShogiPieceProps> = ({
       data-interactive={interactive ? 'true' : 'false'}
       aria-label={label}
     >
-      <svg className={styles.tile} viewBox="0 0 100 132" aria-hidden="true" focusable="false">
+      <svg className={styles.tile} viewBox="0 0 100 116" aria-hidden="true" focusable="false">
         <path
           className={styles.castShadow}
-          d="M50 7 L85 30 L75 124 L25 124 L15 30 Z"
+          d="M50 7 L90 30 L82 109 L18 109 L10 30 Z"
           transform="translate(2, 3)"
         />
         <path
           className={styles.rim}
-          d="M50 5 L87 29 L77 127 L23 127 L13 29 Z"
+          d="M50 5 L92 29 L84 112 L16 112 L8 29 Z"
         />
         <path
           className={styles.body}
-          d="M50 10 L80 31 L71 119 L29 119 L20 31 Z"
+          d="M50 10 L85 31 L78 105 L22 105 L15 31 Z"
         />
         <path
           className={styles.innerStroke}
-          d="M50 15 L74 34 L66 112 L34 112 L26 34 Z"
+          d="M50 15 L79 34 L73 100 L27 100 L21 34 Z"
           vectorEffect="non-scaling-stroke"
         />
       </svg>

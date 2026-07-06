@@ -139,20 +139,27 @@ export class OthelloAI {
     let bestMove = createMove(0, 0, -InfinityVal);
 
     if (this.timeLimitMs !== undefined) {
-      // Time-bounded iterative deepening. Always finish a shallow first pass
-      // so bestMove is valid even under a tiny budget, then deepen until the
-      // deadline, discarding any depth that was aborted mid-search.
+      // Time-bounded iterative deepening. First search up to the fixed-depth
+      // floor (baseMidDepth) WITHOUT the clock, so the move is at least as deep
+      // as hard and always valid; then deepen further until the deadline,
+      // discarding any depth aborted mid-search. try/finally keeps timeChecking
+      // consistent even if the search throws.
       const MAX_MID_DEPTH = 20;
-      const firstDepth = Math.min(4, baseMidDepth);
-      bestMove = this.topAlphaBeta(board, firstDepth, -InfinityVal, InfinityVal);
-      this.timeChecking = true;
-      for (let depth = firstDepth + 1; depth <= MAX_MID_DEPTH; depth++) {
-        if (Date.now() >= this.deadline) break;
-        const move = this.topAlphaBeta(board, depth, -InfinityVal, InfinityVal);
-        if (this.aborted) break;
-        bestMove = move;
+      const floorDepth = Math.max(1, baseMidDepth);
+      try {
+        for (let depth = Math.min(4, floorDepth); depth <= floorDepth; depth++) {
+          bestMove = this.topAlphaBeta(board, depth, -InfinityVal, InfinityVal);
+        }
+        this.timeChecking = true;
+        for (let depth = floorDepth + 1; depth <= MAX_MID_DEPTH; depth++) {
+          if (Date.now() >= this.deadline) break;
+          const move = this.topAlphaBeta(board, depth, -InfinityVal, InfinityVal);
+          if (this.aborted) break;
+          bestMove = move;
+        }
+      } finally {
+        this.timeChecking = false;
       }
-      this.timeChecking = false;
       return bestMove;
     }
 

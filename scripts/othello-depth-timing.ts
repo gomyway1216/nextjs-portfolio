@@ -31,6 +31,10 @@ function main(): void {
   // A difficulty exercises its real production params (incl. timeLimitMs).
   const arg1 = process.argv[2] ?? '6';
   const games = parseInt(process.argv[3] ?? '3', 10);
+  if (!Number.isFinite(games) || games < 1) {
+    console.error(`Invalid games count: ${process.argv[3]} (expected a positive integer)`);
+    process.exit(1);
+  }
   const rng = mulberry32(12345);
 
   let ai: OthelloAI;
@@ -39,9 +43,14 @@ function main(): void {
     ai = new OthelloAI(arg1 as Difficulty);
     label = `difficulty=${arg1}`;
   } else {
+    const depth = parseInt(arg1, 10);
+    if (!Number.isFinite(depth) || depth < 1) {
+      console.error(`Invalid depth/difficulty: ${arg1} (expected a positive integer or a difficulty name)`);
+      process.exit(1);
+    }
     // Use difficulty 'hard' so endgame params match; override only mid-game depth.
-    ai = new OthelloAI('hard', { midDepthOverride: parseInt(arg1, 10) });
-    label = `depth=${arg1}`;
+    ai = new OthelloAI('hard', { midDepthOverride: depth });
+    label = `depth=${depth}`;
   }
 
   const times: { ms: number; turn: number }[] = [];
@@ -67,9 +76,13 @@ function main(): void {
       const turn = board.getTurns();
       console.log = () => {};
       const t0 = Date.now();
-      const mv = ai.getBestMove(board) as Point;
+      let mv: Point;
+      try {
+        mv = ai.getBestMove(board) as Point;
+      } finally {
+        console.log = origLog;
+      }
       const ms = Date.now() - t0;
-      console.log = origLog;
       times.push({ ms, turn });
       board.move(mv);
     }
@@ -77,6 +90,10 @@ function main(): void {
 
   times.sort((a, b) => a.ms - b.ms);
   const n = times.length;
+  if (n === 0) {
+    console.log(`${label} | games=${games} | no moves recorded (nothing to report)`);
+    return;
+  }
   const mean = times.reduce((s, t) => s + t.ms, 0) / n;
   const p95 = times[Math.floor(n * 0.95)];
   const max = times[n - 1];

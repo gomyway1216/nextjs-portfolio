@@ -261,8 +261,17 @@ function main(): void {
   const numOpenings = parseInt(args.games ?? '20', 10);
   const openingPlies = parseInt(args['opening-plies'] ?? '6', 10);
   const seed = parseInt(args.seed ?? '12345', 10);
-  const aDepth = args['a-depth'] ? parseInt(args['a-depth'], 10) : undefined;
-  const bDepth = args['b-depth'] ? parseInt(args['b-depth'], 10) : undefined;
+  const parseDepth = (v: string | undefined, flag: string): number | undefined => {
+    if (v === undefined) return undefined;
+    const d = parseInt(v, 10);
+    if (!Number.isFinite(d) || d < 1) {
+      console.error(`Invalid ${flag}: ${v} (expected a positive integer)`);
+      process.exit(1);
+    }
+    return d;
+  };
+  const aDepth = parseDepth(args['a-depth'], '--a-depth');
+  const bDepth = parseDepth(args['b-depth'], '--b-depth');
   // Per-player difficulty override (for ladder A/B, e.g. expert vs hard).
   const aDiff = (args['a-diff'] ?? difficulty) as Difficulty;
   const bDiff = (args['b-diff'] ?? difficulty) as Difficulty;

@@ -556,7 +556,7 @@ const Shogi = () => {
           onSelectDifficulty={setDifficulty}
           options={DIFFICULTY_OPTIONS}
           difficultyTitle="Choose engine strength"
-          startLabel="Start Match"
+          startLabel="Start Game"
           onStart={startGame}
           setupContent={
             <div className={styles.sidePanel}>

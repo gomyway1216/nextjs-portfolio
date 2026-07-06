@@ -198,7 +198,7 @@ In the shogi context this lesson runs deeper. The main article's biggest regret:
 
 ## 4. What is PyTorch, and how do you use it
 
-Implementing all of the above — loss → gradient → backprop → descent — by hand is painful. Backprop especially (applying the chain rule across every layer) is error-prone and miserable to hand-write. The tool that **does all of it automatically** is **PyTorch**. It's a Python library from Facebook (now Meta) for building and training neural nets, and the main article's training code (`ml/train.py`) is written in it.
+Implementing all of the above — loss → gradient → backprop → descent — by hand is painful. Backprop especially (applying the chain rule across every layer) is error-prone and miserable to hand-write. The tool that **does all of it automatically** is **PyTorch**. It's a Python library from Facebook (now Meta) for building and training neural nets, and the main article's training code is written in it.
 
 ### 4.1 The four things PyTorch gives you
 

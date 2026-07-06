@@ -12,7 +12,7 @@
 - On top of that we built **NNUE distillation**: had YaneuraOu (a superhuman open-source engine) label 100,000 positions, then distilled that knowledge into a 1.13MB neural net that approximates the teacher **2.0–2.5x better than the handwritten eval**
 - The verification methodology itself is full of traps: **self-play statistical degeneration, time-control bias, and mismatched defaults** nearly led us to wrong conclusions several times
 - **Cycle 2 reached its verdict**: **pondering** (the AI keeps searching on the human's thinking time) shipped to production, +0.35 mean depth. The leading NNUE-defeat hypothesis — "search margins are miscalibrated to the NNUE scale" — was **rejected by an isolated A/B** (19.6% → 8.9%, worse), pinning the culprit on teacher data. **Retrained on 1M positions, the NNUE beat the handcrafted eval 77.1% and shipped to production** (medium and up). Genealogy: 19.6% → 32.1% → **77.1%**
-- **Cycle 3 (complete)**: **WASM SIMD128 made eval 6.2x faster**; **multithreading (Lazy SMP) gave a +58 Elo point estimate** (n=24, not significant). KP features were a **negative result at 1M positions** (data dilution). And on production hard, **the NNUE lost to the 2-dan author** — the diagnosis pinned **sigmoid saturation** (all 71 moves collapse into a 15cp band at decided positions, indistinguishable) as the main culprit behind the "nonsense moves." **A hotfix narrowed the NNUE to medium only**, then we **cured the saturation at the root with 5.24M positions (balance-rate 0.5, labeling depth 12).** Recovering decided positions from Cycle 2's 36% to **49.7%** brought the spread of move values at the culprit 72nd ply back from **20cp → 532cp (26x)**, **halved the blunders 8 → 4**, and won A/B **92.2%** vs. the old NNUE and **84.4%** vs. V3 (at both 1000/2000ms). We **re-enabled the NNUE on hard and effectively replaced V3** (pure-NNUE). And — **the author confirmed over the board that it "definitely got stronger"** (shipped in PR #316)
+- **Cycle 3 (complete)**: **WASM SIMD128 made eval 6.2x faster**; **multithreading (Lazy SMP) gave a +58 Elo point estimate** (n=24, not significant). KP features were a **negative result at 1M positions** (data dilution). And on production hard, **the NNUE lost to the 2-dan author** — the diagnosis pinned **sigmoid saturation** (all 71 moves collapse into a 15cp band at decided positions, indistinguishable) as the main culprit behind the "nonsense moves." **A hotfix narrowed the NNUE to medium only**, then we **cured the saturation at the root with 5.24M positions (balance-rate 0.5, labeling depth 12).** Recovering decided positions from Cycle 2's 36% to **49.7%** brought the spread of move values at the culprit 72nd ply back from **20cp → 532cp (26x)**, **halved the blunders 8 → 4**, and won A/B **92.2%** vs. the old NNUE and **84.4%** vs. V3 (at both 1000/2000ms). We **re-enabled the NNUE on hard and effectively replaced V3** (pure-NNUE). And — **the author confirmed over the board that it "definitely got stronger"** (shipped)
 
 ---
 
@@ -77,7 +77,7 @@ After V19 shipped, the owner's (2-dan) feedback was blunt: **"Is it really stron
 
 ### Build a reproduction harness first
 
-Instead of guessing, we wrote `scripts/shogi-bogin-repro.ts`: a scripted primitive climbing-silver attack (▲2六歩→2五歩→3八銀→2七銀→2六銀→1五銀→2四歩…) thrown at the real production AI entry point, logging eval and material every ply. **Result: the medium AI lost by checkmate in 49 plies.**
+Instead of guessing, we wrote a reproduction script: a scripted primitive climbing-silver attack (▲2六歩→2五歩→3八銀→2七銀→2六銀→1五銀→2四歩…) thrown at the real production AI entry point, logging eval and material every ply. **Result: the medium AI lost by checkmate in 49 plies.**
 
 ```
 ply  9 ▲ 27->26  evalV3(SENTE)=-485   ← silver marching to 2六
@@ -123,7 +123,7 @@ Answering the rook-file exchange with △2三歩 is page one of double-wing theo
 
 ### The smoking gun: thinking time
 
-Reproducing the position through the production path (`scripts/shogi-position-probe.ts`) produced the decisive evidence:
+Reproducing the position through the production path with a probe script produced the decisive evidence:
 
 ```
 move 10: AI(hard) plays 82->42 (23ms)   ← hard has a 2-second budget
@@ -184,7 +184,7 @@ To address "the AI ignores attacks on its own pieces," we added a hanging-piece 
 
 At this point the owner changed the working mode: **"Do everything with subagents, in parallel."** Up to five Claude Code subagents ran concurrently:
 
-- Each agent gets its own **git worktree** (a parallel checkout of the same repo, `.claude/worktrees/agent-xxx/`) so they can't trample each other
+- Each agent gets its own **git worktree** (a parallel checkout of the same repo) so they can't trample each other
 - They write code and run it **as real processes on the local machine** (not in a cloud). There's no terminal window, but a human can watch everything with `ps aux`, `tail -f`, `top`
 - On completion each returns a commit; the orchestrator resolves conflicts, integrates, **independently re-verifies**, and sends it to human review
 
@@ -294,21 +294,21 @@ But the naive "update on every make" made **perft 14x slower** (search makes and
 
 ---
 
-## 8. Timeline (the PRs)
+## 8. Timeline
 
-| PR | Content | Outcome |
-|---|---|---|
-| #287 | V19 (futility/SEE-lite/countermove …) + anti-bōgin eval & book fixes | ✅ 68.5% vs V18 |
-| #288 | V20 unified engine + speed + shorter budgets | ✅ Unbeaten at hard; master wins on half the time |
-| #289 | Remove the resync fallback | ✅ Instant-nonsense class of bug eradicated |
-| #290 | Joseki gauntlet (automated attack-pattern tests) | ✅ Regression harness |
-| #291 | Fix the silver-intrusion eval blind spot | ✅ Pawn-grab route refuted |
-| #292 | **WASM engine to production** (P1–P4) + 5-agent integration | ✅ 10–0 vs current |
-| #293 | NNUE distillation pipeline | ✅ Code only; data stays local |
-| #294 | ML robustness fixes (10 review findings) | ✅ One of them actually happened an hour later |
-| #295 | NNUE inference in WASM (lazy differential accumulators) + NNUE-vs-V3 A/B harness | ❌ 19.6% with real weights — not adopted; infrastructure preserved, disabled by default |
-| #296 | **Pondering (permanent brain)** | ✅ Mean search depth 9.00 → 9.35; live in production |
-| #297 | NNUE scale calibration `setNnueOutputScale` + isolated A/B | ❌ 8.9% — hypothesis rejected (mechanism kept) |
+| Content | Outcome |
+|---|---|
+| V19 (futility/SEE-lite/countermove …) + anti-bōgin eval & book fixes | ✅ 68.5% vs V18 |
+| V20 unified engine + speed + shorter budgets | ✅ Unbeaten at hard; master wins on half the time |
+| Remove the resync fallback | ✅ Instant-nonsense class of bug eradicated |
+| Joseki gauntlet (automated attack-pattern tests) | ✅ Regression harness |
+| Fix the silver-intrusion eval blind spot | ✅ Pawn-grab route refuted |
+| **WASM engine to production** (P1–P4) + 5-agent integration | ✅ 10–0 vs current |
+| NNUE distillation pipeline | ✅ Code only; data stays local |
+| ML robustness fixes (10 review findings) | ✅ One of them actually happened an hour later |
+| NNUE inference in WASM (lazy differential accumulators) + NNUE-vs-V3 A/B harness | ❌ 19.6% with real weights — not adopted; infrastructure preserved, disabled by default |
+| **Pondering (permanent brain)** | ✅ Mean search depth 9.00 → 9.35; live in production |
+| NNUE scale calibration `setNnueOutputScale` + isolated A/B | ❌ 8.9% — hypothesis rejected (mechanism kept) |
 
 ### The final A/B: NNUE **failed** — and taught the biggest lesson
 
@@ -324,11 +324,11 @@ The next moves are documented in the repo: scale the teacher data 100k → 1M (g
 
 Cycle 1's defeat (19.6%) ended with several competing hypotheses about *why*. Cycle 2 runs on three tracks: (1) a structural improvement that works regardless of the eval function — **pondering**; (2) **isolated A/B tests** of the defeat hypotheses; (3) the main assault — **scaling up the teacher data**.
 
-### Pondering (PR #296): the human's thinking time is free compute
+### Pondering: the human's thinking time is free compute
 
 A classic engine technique, "permanent brain." The moment the AI answers with its move, the Web Worker would otherwise sit idle while the human thinks — so it keeps searching the reply position (the one the human is looking at right now), warming the WASM transposition table that is kept across moves for the whole game. When the human finally moves, the real search probes a hot TT and reaches a deeper ply within the same time budget.
 
-The heart of the implementation is "how do you make a synchronous search interruptible?" The WASM search is a synchronous call; run it naively for a long stretch and the worker goes deaf to messages. The answer is a loop of short 200ms search slices chained via `setTimeout(0)` (from the header of `ponderController.ts`):
+The heart of the implementation is "how do you make a synchronous search interruptible?" The WASM search is a synchronous call; run it naively for a long stretch and the worker goes deaf to messages. The answer is a loop of short 200ms search slices chained via `setTimeout(0)` (from the header of the ponder controller):
 
 ```ts
 // Why slices:
@@ -351,21 +351,21 @@ Because the event loop dispatches incoming messages before the queued slice call
 Zero API changes to the UI components — the worker simply starts thinking right after it answers:
 
 ```ts
-// shogi-ai.worker.ts — answer first, then start thinking on the opponent's time
+// the worker — answer first, then start thinking on the opponent's time
 ctx.postMessage({ type: 'bestMoveResult', id: msg.id, move });
 if (best) startPonder(k, best, msg.difficulty, msg.tesu | 0);
 ```
 
-Benchmark (`scripts/shogi-ponder-benchmark.ts`: an identical 40-ply move sequence, hard settings at 2000ms per search, simulating 3 seconds of human thinking): **mean search depth 9.00 → 9.35 (+0.35 plies)** — deeper in 9 of 20 positions, equal in 8, shallower in 3 (TT replacement noise). In the opening, where the TT warms fastest, gains reached +2 plies (e.g., move 5: d11 → d13). Review findings (defensive message checks, a fallback for environments without `performance`, initial visibility sync, dev-only logging) were addressed; merged and live in production.
+Benchmark (an identical 40-ply move sequence, hard settings at 2000ms per search, simulating 3 seconds of human thinking): **mean search depth 9.00 → 9.35 (+0.35 plies)** — deeper in 9 of 20 positions, equal in 8, shallower in 3 (TT replacement noise). In the opening, where the TT warms fastest, gains reached +2 plies (e.g., move 5: d11 → d13). Review findings (defensive message checks, a fallback for environments without `performance`, initial visibility sync, dev-only logging) were addressed; merged and live in production.
 
-### The scale-calibration isolated A/B (PR #297): watching a plausible hypothesis die
+### The scale-calibration isolated A/B: watching a plausible hypothesis die
 
 Cycle 1's defeat hypothesis #2 was well-reasoned: "NNUE outputs true centipawns, but the search margin constants (aspiration window 300, futility 350/700, delta 150, RFP, …) were tuned for the handwritten V3 eval's scale — roughly 3.7x true cp (teacher fit: cp ≈ 0.27×v3). For NNUE they're effectively ~3.7x too generous, so pruning goes soft."
 
 To measure this **without moving any other variable**, we added `setNnueOutputScale(numer, denom)` to the AssemblyScript engine. The rational rescale factor folds into the same i64 division as the cp conversion, so there is exactly one truncation:
 
 ```ts
-// wasm-spike/assembly/index.ts (actual code, excerpted)
+// the actual code (excerpted)
 export function nnueEvaluateCp(): i32 {
   const outQ = nnueEnabled && !nnueForceFull ? nnueEvaluateFast() : nnueEvaluate();
   // Fold the output rescale (numer/denom, default 1/1) into the same i64
@@ -399,7 +399,7 @@ With the real battleground confirmed, teacher-data generation is running.
 
 - **Target: 1,000,000 positions** (10x cycle 1). Eight parallel YaneuraOu processes are generating continuously; currently **past 680k lines**
 - **The `--balance` option**: positions with |cp| > 1200 (decided games) are probabilistically thinned to a 30% acceptance rate after labeling, raising the share of near-equal positions. Cycle 1's data was over 60% |cp| > 1000 — heavy on lopsided endgames and thin on exactly the subtle early/middlegame differences alpha-beta needs most
-- **Ranking loss** (`train.py --loss ranking`): cycle 1's biggest lesson — alpha-beta needs the *ranking of sibling positions*, not absolute regression accuracy — encoded directly into the loss. In-batch position pairs whose teacher cp difference falls in a window (default 50–600cp) get an additional margin ranking loss, and **`val_pair_acc`** (pair-order agreement on pairs with teacher diff > 100cp) is now logged every epoch as the headline metric
+- **Ranking loss** (a `--loss ranking` option on the training script): cycle 1's biggest lesson — alpha-beta needs the *ranking of sibling positions*, not absolute regression accuracy — encoded directly into the loss. In-batch position pairs whose teacher cp difference falls in a window (default 50–600cp) get an additional margin ranking loss, and **`val_pair_acc`** (pair-order agreement on pairs with teacher diff > 100cp) is now logged every epoch as the headline metric
 - **A watcher is in place to automatically kick off an interim checkpoint training run at 300k lines** (baseline vs ranking loss comparison)
 
 ### What is an evaluation function, anyway — and how can an unreadable machine give correct answers?
@@ -418,7 +418,7 @@ What if ▲7八銀?  → play it forward a few plies, ask the eval → −2500 (
 
 **"Move quality" = "a comparison of the scores of the positions that move leads to."** The eval is the judge; the search is a tour guide parading each candidate's future in front of that judge. Cycle 1's lesson — the judge needs correct *orderings* more than correct *scores* — falls straight out of this picture.
 
-The **handwritten eval** running in production is a sum of human-readable rules (the skeleton of the implementation in `KyokumenImproved.ts`):
+The **handwritten eval** running in production is a sum of human-readable rules (the skeleton of the implementation in the board/position class):
 
 ```text
 score  = material balance;      // pawn=100, rook=1040, ... summed difference
@@ -447,7 +447,7 @@ The flip side of the coin lives in the same place: when the net is wrong, **the 
 
 ### Reading the model and the training loop, line by line
 
-"Machine learning" may conjure something enormous and opaque, but the network used for distillation is small enough to **quote in full** (the complete `DistillNet` from `ml/train.py`; the comments are replaced with annotations for this article). Here is what each line does and why it was designed that way.
+"Machine learning" may conjure something enormous and opaque, but the network used for distillation is small enough to **quote in full** (the complete `DistillNet` from the training script; the comments are replaced with annotations for this article). Here is what each line does and why it was designed that way.
 
 ```python
 class DistillNet(nn.Module):
@@ -627,11 +627,11 @@ Then the games. Screening (3 models × 22 games) eliminated rank10; the two fina
 
 **The adoption gate (>50%) was cleared at 77.1%, with every seed above 70%.** The genealogy: run100k **19.6%** → run300k-rank **32.1%** → run1m-base **77.1%**. The diagnosis reached by killing the scale-calibration hypothesis in an isolated A/B — *teacher data quality × quantity is the real battleground* — turned out to be exactly the winning move.
 
-### Shipping it: PR #305
+### Shipping it
 
 Production the same day. The design: aggressive switch, defensive depth:
 
-- The weights (1,185,988 bytes — int16 weight matrices plus int32 biases) ship as a static asset (`public/shogi-nnue-weights.bin`), fetched asynchronously at worker startup and copied into WASM memory. **Zero bundle-size increase.** Until the fetch resolves, the engine plays on V3 as before (the first moves come from the book anyway)
+- The weights (1,185,988 bytes — int16 weight matrices plus int32 biases) ship as a static asset (the weights file), fetched asynchronously at worker startup and copied into WASM memory. **Zero bundle-size increase.** Until the fetch resolves, the engine plays on V3 as before (the first moves come from the book anyway)
 - **Only medium and up (≥1s) use NNUE.** Easy (250ms) stays on V3 — following the measurement that V3 still wins at ~200ms budgets (NNUE 40.9%). The time-control asymmetry observed throughout cycle 2 — deep search compounds ordering accuracy, shallow search leans on score calibration — landed directly in the difficulty design
 - Fetch failure, size mismatch, or WASM trouble all fall back silently to V3. Yesterday's production path is today's insurance
 - Switching NNUE⇔V3 clears the TT (so V3's ~3.7x-scale scores never mix with true-cp scores inside the table)
@@ -642,7 +642,7 @@ The review bot earned its keep once more — six findings including a **producti
 
 ### Making the opening book "deeper and wider" — extending it with a superhuman engine as judge
 
-Cycle 2's book audit (PR #299) "killed 11 human-exploitable holes up to −2500cp." At that point the book held 267 positions across 34 lines — but many lines simply *stopped* at 10–14 plies, right where "the strategy takes shape." Stopping isn't fatal (out-of-book play falls back to search), but **the longer the book runs, the more coherent the opening and the higher the hit rate** (how often we can return a good move instantly). So to close out this cycle, I pushed the book one notch "deeper and wider."
+Cycle 2's book audit "killed 11 human-exploitable holes up to −2500cp." At that point the book held 267 positions across 34 lines — but many lines simply *stopped* at 10–14 plies, right where "the strategy takes shape." Stopping isn't fatal (out-of-book play falls back to search), but **the longer the book runs, the more coherent the opening and the higher the hit rate** (how often we can return a good move instantly). So to close out this cycle, I pushed the book one notch "deeper and wider."
 
 **What is an opening book, anyway?** Shogi openings have been studied for centuries, and a body of standard theory (*joseki*) says "in this position, this move is good." A program can store that as a `position → recommended move` table and skip thinking from scratch every opening. It's fast, and it makes the AI's moves look like a real, human-recognizable strategy. The catch is **never mixing a bad move into the table** — once you leave the book you switch to search, so a single bad book move drives you straight down a losing line.
 
@@ -700,9 +700,9 @@ After writing the blueprint, we actually did the work. The short version: **the 
 
 Speed first. This is a domain you can guarantee mechanically, so the results landed as intended.
 
-**WASM SIMD128 (PR #309).** What is SIMD, first of all? It's a mechanism for **processing multiple pieces of data with a single instruction**. An ordinary CPU instruction handles one "add a and b" at a time. SIMD does "add a1+b1, a2+b2, …, a8+b8 **all at once**" in one instruction. WebAssembly has a 128-bit-wide register called `v128` (think: a temporary box for computation), and you can pack eight 16-bit integers into it and operate on them in one shot.
+**WASM SIMD128.** What is SIMD, first of all? It's a mechanism for **processing multiple pieces of data with a single instruction**. An ordinary CPU instruction handles one "add a and b" at a time. SIMD does "add a1+b1, a2+b2, …, a8+b8 **all at once**" in one instruction. WebAssembly has a 128-bit-wide register called `v128` (think: a temporary box for computation), and you can pack eight 16-bit integers into it and operate on them in one shot.
 
-NNUE inference — the process of computing "how many points is this position worth" — is, once you unwrap it, **almost entirely multiply-accumulate**: "weight × activation, add it in," repeated thousands of times. This is SIMD's home turf. In the actual code (`wasm-spike/assembly/index.ts`), we rewrote the accumulator update (the array that holds the running total) to read eight 16-bit weights at a time with `v128.load`, sign-extend them into `i32x4` lanes, and add them in — eight elements per loop.
+NNUE inference — the process of computing "how many points is this position worth" — is, once you unwrap it, **almost entirely multiply-accumulate**: "weight × activation, add it in," repeated thousands of times. This is SIMD's home turf. In the actual code, we rewrote the accumulator update (the array that holds the running total) to read eight 16-bit weights at a time with `v128.load`, sign-extend them into `i32x4` lanes, and add them in — eight elements per loop.
 
 Measured, it came out like this.
 
@@ -716,7 +716,7 @@ Measured, it came out like this.
 
 The most important thing here is **the correctness guarantee**. NNUE inference is built on integer arithmetic. Integer addition is associative (reordering doesn't change the answer), so adding in SIMD batches or one-at-a-time in scalar produces **a bit-for-bit identical result**. Floating point wouldn't allow this (rounding error changes with order). In fact, we searched the same positions with the SIMD and scalar versions and confirmed that **the number of nodes visited matches to the single node**. It got faster, but it doesn't play a single different move. This is a continuation of the "bit-identity" discipline established in the WASM port of Chapter 6.
 
-**Multithreaded search / Lazy SMP (PR #312).** Next, parallelization. On the visitor's browser, **up to four threads search the same position simultaneously**. The technique is called Lazy SMP, and as the name implies it's a "lazy" parallelization — each thread searches independently, but they share results through a **shared transposition table** (a shared notepad where you post the result of a position you've already computed; TT for short). If one thread discovers "this position is a mate," the others read that note and skip the redundant recompute. Rather than strictly dividing the work, the synergy of varied search orders plus the shared notepad makes the whole thing faster.
+**Multithreaded search / Lazy SMP.** Next, parallelization. On the visitor's browser, **up to four threads search the same position simultaneously**. The technique is called Lazy SMP, and as the name implies it's a "lazy" parallelization — each thread searches independently, but they share results through a **shared transposition table** (a shared notepad where you post the result of a position you've already computed; TT for short). If one thread discovers "this position is a mate," the others read that note and skip the redundant recompute. Rather than strictly dividing the work, the synergy of varied search orders plus the shared notepad makes the whole thing faster.
 
 Result: **nodes go up ~3.0x** (four threads fall short of the ideal 4x, but that's reasonable given sharing/synchronization overhead). And strength? We measured it with an A/B match — the 4-thread multithreaded build (MT) versus the 1-thread single-thread build (ST), at a production-equivalent 1000ms × 24 games.
 
@@ -724,11 +724,11 @@ Result: **nodes go up ~3.0x** (four threads fall short of the ideal 4x, but that
 
 At a glance, it's ahead. But **to be honest: n=24 is nowhere near statistical significance — it's only a "point estimate."** A 14–10 split over 24 games happens by chance about as often as 14 heads in 24 coin flips. Per the "self-play statistical degeneration" lesson we got stabbed by repeatedly in Chapters 4 and 9, this is a weak "seems to be working" signal, not a settled number. It really should be pushed to 100+ games. Still, with the mechanistic backing of 3.0x nodes, we believe the direction.
 
-Worth recording a technical snag. Sharing positions across threads requires `SharedArrayBuffer` (memory that can be shared between threads). Browsers only permit this under **cross-origin isolation** (a state where the page is isolated from other sites, via two HTTP headers, COOP and COEP) — for security reasons. But if you apply those headers site-wide, externally loaded images and scripts get blocked across the board and **the home page breaks**. So in `next.config.ts` we **scoped COOP/COEP to the shogi page paths only** (a comment in the code spells out "Deliberately NOT site-wide"). Only the shogi page becomes an isolated environment; every other page is untouched — a pinpoint design.
+Worth recording a technical snag. Sharing positions across threads requires `SharedArrayBuffer` (memory that can be shared between threads). Browsers only permit this under **cross-origin isolation** (a state where the page is isolated from other sites, via two HTTP headers, COOP and COEP) — for security reasons. But if you apply those headers site-wide, externally loaded images and scripts get blocked across the board and **the home page breaks**. So in the build config we **scoped COOP/COEP to the shogi page paths only** (a comment in the code spells out "Deliberately NOT site-wide"). Only the shogi page becomes an isolated environment; every other page is untouched — a pinpoint design.
 
 And — this foreshadows the next section — **multithreading only "makes the search faster"; it does not fix the "nonsense move" problem below by even a millimeter.** Fast or slow, if the eval scores the same position wrong in the same way, the move that comes out is identical. Speed and strength are different axes — that's the theme running through this whole chapter.
 
-### 11.2 The negative result on KP features (PR #311)
+### 11.2 The negative result on KP features
 
 We tackled the KP features, which the blueprint called "the biggest headroom." The verdict up front: **it whiffed.** But this whiff shares a root with Cycle 2's defeat.
 
@@ -748,7 +748,7 @@ So we didn't throw it away — we saved it. The implementation infrastructure fo
 
 This is the climax of the chapter — probably of the whole article.
 
-**Background.** In Cycle 2, the NNUE beat the old eval (V3) **77.1%** in self-play. It cleared the quality gate handily, so we shipped it to production at medium difficulty and up (PR #305). The genealogy climbed cleanly, 19.6% → 32.1% → 77.1% — case closed. Or so it should have been.
+**Background.** In Cycle 2, the NNUE beat the old eval (V3) **77.1%** in self-play. It cleared the quality gate handily, so we shipped it to production at medium difficulty and up. The genealogy climbed cleanly, 19.6% → 32.1% → 77.1% — case closed. Or so it should have been.
 
 Except. **The person writing this article (a 2-dan amateur) actually played the production hard difficulty (2 seconds) — and won.** Not by a hair, either, and with the report: "still way too weak. **It keeps playing nonsense moves.**" Dropping a pawn somewhere irrelevant to the mate, walking its own king into the danger zone — moves that any human sees instantly as "what is this," chosen after a full 2 seconds of thought.
 
@@ -784,7 +784,7 @@ Terms first. A **decided position** is one where the outcome is essentially sett
 
 So it's a double trap. **The region the sigmoid structurally saturates in** and **the region left thin by the thinning** (OOD in English, Out-Of-Distribution — a region that was barely in the training data, "unknown" to the net) both **overlap in exactly the same "lopsided, decided positions."** Where the distinctions collapse from saturation, the training data is also insufficient. The two meshed together and produced the endgame collapse. Cycle 2's "well-intentioned thinning" bared its fangs in Cycle 3.
 
-**Immediate response: a hotfix (PR #310).** Once the diagnosis was in, we couldn't leave the collapse in production. **We narrowed the NNUE's scope to medium only.** Looking back soberly, the 77.1% figure was measured **at 1000ms only**, and hard (2000ms) and up was merely an **unverified extrapolation** — "read deeper and it should be even stronger." The deeper you read, the easier you reach saturation-region positions, so if anything hard is *more* prone to collapse. So we reverted hard and up to the V3 eval, removing the saturation-borne nonsense from production. In the code (`shogi-ai.worker.ts`) we narrowed `NNUE_DIFFICULTIES` from `medium..master` down to just `medium`, and documented in a comment the collapse symptoms ("all 71 moves within 15cp at a decided position," "nonsense moves like P\*8a / K-1a") and the conditions for restoring it.
+**Immediate response: a hotfix.** Once the diagnosis was in, we couldn't leave the collapse in production. **We narrowed the NNUE's scope to medium only.** Looking back soberly, the 77.1% figure was measured **at 1000ms only**, and hard (2000ms) and up was merely an **unverified extrapolation** — "read deeper and it should be even stronger." The deeper you read, the easier you reach saturation-region positions, so if anything hard is *more* prone to collapse. So we reverted hard and up to the V3 eval, removing the saturation-borne nonsense from production. In the worker code we narrowed `NNUE_DIFFICULTIES` from `medium..master` down to just `medium`, and documented in a comment the collapse symptoms ("all 71 moves within 15cp at a decided position," "nonsense moves like P\*8a / K-1a") and the conditions for restoring it.
 
 **We changed the verification standard itself (the heaviest lesson of this chapter).** The biggest regret is that **using "self-play win rate" as the acceptance criterion was itself the mistake.** 77.1% is a real number, but what it measured was "can it beat V3 in self-play," not "does it avoid blunders in real human games." We passed the proxy metric while the behavior that mattered was broken.
 
@@ -853,12 +853,12 @@ The generalized lesson — **"parallelize" isn't only "line up many copies of th
 
 **Meta-lesson (reconfirmed).** All of these reconfirm the Cycle 1 and 2 lesson that "convenient shortcuts (automation, parallelization) have their own field-specific pitfalls." Same root as self-play's 77.1% failing against a human. **Don't swallow the on-paper "parallelize and it's faster"; measure the generation rate and core usage with `ps` and `wc`, and let those numbers decide the allocation** — that becomes the basic move.
 
-### 11.7 Shipping it — going pure-NNUE (PR #316, merged and deployed)
+### 11.7 Shipping it — going pure-NNUE (merged and deployed)
 
 Having cleared all three gates, we shipped run5m-base to production. The work itself is a rerun of the discipline established in Chapters 6 and 7.
 
-- **Swapping the weights.** We replaced the production weights `public/shogi-nnue-weights.bin` with run5m-base. As with the port, **we lock it down with parity** — verifying that torch (the trained original), the TypeScript implementation, and the WASM implementation agree **bit-for-bit (200/200)** across all post-quantization parameters. The quantization scale K=600 is unchanged. Before shipping, we mechanically guarantee that "the weights we trained" and "the weights running in the browser" don't differ by a single bit.
-- **Re-enabling the NNUE on hard/expert/master.** We **lifted** the "medium only" hotfix (PR #310) we'd applied during the saturation collapse. `NNUE_DIFFICULTIES` went back from just `medium` to `medium..master`, so pure NNUE runs on hard and up. Only easy still uses V3, for lightness.
+- **Swapping the weights.** We replaced the production weights file with run5m-base. As with the port, **we lock it down with parity** — verifying that torch (the trained original), the TypeScript implementation, and the WASM implementation agree **bit-for-bit (200/200)** across all post-quantization parameters. The quantization scale K=600 is unchanged. Before shipping, we mechanically guarantee that "the weights we trained" and "the weights running in the browser" don't differ by a single bit.
+- **Re-enabling the NNUE on hard/expert/master.** We **lifted** the "medium only" hotfix we'd applied during the saturation collapse. `NNUE_DIFFICULTIES` went back from just `medium` to `medium..master`, so pure NNUE runs on hard and up. Only easy still uses V3, for lightness.
 - **= We effectively replaced V3 (pure-NNUE).** This had been the author's request from the start. The V3 eval, handwritten over seven months, now retreats from the board with only one role left — **"a safety net for when loading the NNUE weights fails."** With that last defect, saturation, removed, Cycle 2's goal of "unifying every difficulty onto the NNUE" is finally complete.
 
 One extrapolation worth stating honestly. **We did not measure expert (4000ms) and master (5000ms) by direct A/B.** What we measured goes up to hard-equivalent 2000ms. We re-enabled them anyway because a trend was observed consistently across Cycles 2–3: **the deeper the search, the wider the NNUE's advantage** (e.g., the win rate vs. V3 held up better at the deeper 2000ms than at the shallow 1000ms). We extrapolated from that trend that the advantage holds at longer time controls — but **this is an extrapolation, not a measurement**, and we say so plainly. When we next get real game records at the longer controls, we'll confirm it there.
@@ -1033,7 +1033,7 @@ for (let d = 0; d < 8; d++) {
 14. **Convenient shortcuts have field pitfalls too — measure, then allocate.** In distributed generation we hit trap after trap invisible on paper: oversubscription (32 engines ran 4x slower), corruption from concurrent appends to one file, the bottleneck moving at depth 12. **Don't swallow "parallelize and it's faster"; measure the generation rate and core usage with `ps` and `wc`, and let those numbers decide the allocation.** Shortcuts like automation and parallelization, just like self-play, hide field-specific pitfalls behind their convenience
 15. **The final gate is the author over the board.** However good the proxy metrics (holdout accuracy, self-play win rate), **if a human actually plays it and feels it's "weak," it's weak** — that's exactly what Cycle 2's 77.1% was. Conversely, when we cured the saturation with 5.24M positions and the author himself admitted over the board that it "definitely got stronger," **that was the real victory.** A proxy metric is an instrument for driving development, not the judge of pass/fail. The judge is always the human who actually sits at the board
 
-This project began with its 2-dan owner calling the AI "way too weak." Across PRs #287–#305 it settled Cycle 2, and in Cycle 3 (PRs #309–#316) it **cured the eval's saturation at the root.** The instant-answer book bug excised, all difficulties unified onto one brain, a 15x WASM port, thinking on the opponent's time, the opening book audited by a superhuman engine — **a neural network distilled overnight from a million positions replacing, at 77.1%, an evaluation function that took seven months to handwrite** — and then, in Cycle 3, from the point where that NNUE collapsed against a human on production hard, we **cured the saturation with 5.24M positions and rebuilt it until it can tell moves apart and trade blows even in decided positions.** We effectively replaced V3 on hard, going pure-NNUE — and at last, **the author himself admitted over the board that it "definitely got stronger."** That is the AI running on meetyudai.com right now. The remaining milestone hasn't changed either. The eval can trade blows now; next is curing the endgame search collapse and pushing it to **3-dan level on hard.** On "both wheels, eval and search," there's still road ahead.
+This project began with its 2-dan owner calling the AI "way too weak." It settled Cycle 2, and in Cycle 3 it **cured the eval's saturation at the root.** The instant-answer book bug excised, all difficulties unified onto one brain, a 15x WASM port, thinking on the opponent's time, the opening book audited by a superhuman engine — **a neural network distilled overnight from a million positions replacing, at 77.1%, an evaluation function that took seven months to handwrite** — and then, in Cycle 3, from the point where that NNUE collapsed against a human on production hard, we **cured the saturation with 5.24M positions and rebuilt it until it can tell moves apart and trade blows even in decided positions.** We effectively replaced V3 on hard, going pure-NNUE — and at last, **the author himself admitted over the board that it "definitely got stronger."** That is the AI running on meetyudai.com right now. The remaining milestone hasn't changed either. The eval can trade blows now; next is curing the endgame search collapse and pushing it to **3-dan level on hard.** On "both wheels, eval and search," there's still road ahead.
 
 ---
 

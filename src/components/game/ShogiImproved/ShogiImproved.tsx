@@ -107,6 +107,16 @@ interface GameState {
   ply: number; // 0-based ply count from game start
 }
 
+interface RecordedMove { koma: number; from: number; to: number; promote: boolean; }
+const KIFU_SUJI = '１２３４５６７８９';
+const KIFU_DAN = '一二三四五六七八九';
+// Japanese move notation, e.g. "▲２六歩", "△同飛成", "▲５五角打".
+function moveToKifu(m: RecordedMove, prev: RecordedMove | undefined): string {
+  const side = isSente(m.koma) ? '▲' : '△';
+  const square = prev && prev.to === m.to ? '同' : `${KIFU_SUJI[(m.to >> 4) - 1]}${KIFU_DAN[(m.to & 15) - 1]}`;
+  return `${side}${square}${toString(m.koma)}${m.promote ? '成' : ''}${m.from === 0 ? '打' : ''}`;
+}
+
 const ShogiImproved = () => {
   const _lifecycle = useFeatureLifecycle('game.shogi-improved');
   const { currentUser } = useAuth();
@@ -116,6 +126,9 @@ const ShogiImproved = () => {
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
   const [showPromotionDialog, setShowPromotionDialog] = useState<boolean>(false);
   const [pendingMove, setPendingMove] = useState<Te | null>(null);
+  // Move list (kifu): every applied move, for on-screen display and copy.
+  const [moveList, setMoveList] = useState<RecordedMove[]>([]);
+  const [kifuCopied, setKifuCopied] = useState(false);
   // Mid-game save slot (signed-in users only).
   const [savedGame, setSavedGame] = useState<SavedShogiGame | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -165,6 +178,7 @@ const ShogiImproved = () => {
 	      isAIThinking: false,
 	      ply: 0,
 	    });
+    setMoveList([]);
     setShowPromotionDialog(false);
     setPendingMove(null);
   }, []);
@@ -179,11 +193,28 @@ const ShogiImproved = () => {
     return { isOver: false, winner: null };
   };
 
+  const recordMove = useCallback((te: Te) => {
+    setMoveList(prev => [...prev, { koma: te.koma, from: te.from, to: te.to, promote: te.promote }]);
+  }, []);
+
+  const handleCopyKifu = useCallback(() => {
+    const text = moveList.map((m, i) => `${i + 1} ${moveToKifu(m, moveList[i - 1])}`).join('\n');
+    if (typeof navigator !== 'undefined' && navigator.clipboard) {
+      navigator.clipboard
+        .writeText(text)
+        .then(() => {
+          setKifuCopied(true);
+          setTimeout(() => setKifuCopied(false), 1500);
+        })
+        .catch(() => {});
+    }
+  }, [moveList]);
+
   // Execute move
 	  const executeMove = (te: Te, promote: boolean) => {
 	    const newKyokumen = gameState.kyokumen.clone();
 	    te.promote = promote;
-	    newKyokumen.move(te);
+	    recordMove(te); newKyokumen.move(te);
 	    newKyokumen.setTeban(GOTE);
 
     const { isOver, winner } = checkGameOver(newKyokumen);
@@ -334,7 +365,7 @@ const ShogiImproved = () => {
 	        const bookMove = getOpeningMoveImproved(gameState.kyokumen.clone(), difficulty);
 	        if (bookMove) {
 	          const newKyokumen = gameState.kyokumen.clone();
-	          newKyokumen.move(bookMove);
+	          recordMove(bookMove); newKyokumen.move(bookMove);
 	          newKyokumen.setTeban(SENTE);
 
 	          const { isOver, winner } = checkGameOver(newKyokumen);
@@ -358,7 +389,7 @@ const ShogiImproved = () => {
 		
 		          if (aiMove) {
 		            const newKyokumen = gameState.kyokumen.clone();
-		            newKyokumen.move(aiMove);
+		            recordMove(aiMove); newKyokumen.move(aiMove);
 	            newKyokumen.setTeban(SENTE);
 
             const { isOver, winner } = checkGameOver(newKyokumen);
@@ -408,7 +439,7 @@ const ShogiImproved = () => {
             }
 
 	            const newKyokumen = gameState.kyokumen.clone();
-	            newKyokumen.move(aiMove);
+	            recordMove(aiMove); newKyokumen.move(aiMove);
 	            newKyokumen.setTeban(SENTE);
 
             const { isOver, winner } = checkGameOver(newKyokumen);
@@ -437,7 +468,7 @@ const ShogiImproved = () => {
             }
 
             const newKyokumen = gameState.kyokumen.clone();
-            newKyokumen.move(aiMove);
+            recordMove(aiMove); newKyokumen.move(aiMove);
             newKyokumen.setTeban(SENTE);
 
             const { isOver, winner } = checkGameOver(newKyokumen);
@@ -795,6 +826,39 @@ const ShogiImproved = () => {
           </div>
         </div>
       </div>
+
+      {/* Kifu (move list) */}
+      {moveList.length > 0 && (
+        <div style={{ maxWidth: '1200px', margin: '28px auto 0', display: 'flex', justifyContent: 'center' }}>
+          <div style={{ width: 'min(680px, 100%)', background: 'rgba(255,255,255,0.06)', borderRadius: '8px', padding: '12px 16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>棋譜 ({moveList.length})</h3>
+              <button
+                onClick={handleCopyKifu}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  border: '1px solid rgba(66,153,225,0.6)',
+                  background: kifuCopied ? 'rgba(66,153,225,0.35)' : 'rgba(66,153,225,0.12)',
+                  color: '#8ec5ff',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                }}
+              >
+                {kifuCopied ? 'コピーしました ✓' : '棋譜をコピー'}
+              </button>
+            </div>
+            <div style={{ maxHeight: '170px', overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: '2px 14px', fontSize: '14px', lineHeight: 1.7 }}>
+              {moveList.map((m, i) => (
+                <span key={i} style={{ minWidth: '5.5em', color: '#e6e6e6', fontVariantNumeric: 'tabular-nums' }}>
+                  {i + 1}. {moveToKifu(m, moveList[i - 1])}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Game Over */}
       {gameState.gameOver && (

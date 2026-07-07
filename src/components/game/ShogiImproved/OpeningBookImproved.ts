@@ -21,8 +21,12 @@ import { EMPTY, FU, GI, GOTE, HI, KA, KE, KI, KY, OU, SENTE, Te, getKomashu, kom
  *   - simple static-eval threshold vs the best legal move (difficulty dependent)
  *
  * Notes:
- * - This file intentionally stays dependency-free (no external joseki.bin).
- * - If you want a larger book later, extend `OPENING_LINES` or generate it from a dataset.
+ * - The curated `OPENING_LINES` below are compiled in (regression-tested, always available).
+ * - Additionally, a large-scale external book (a ~50k-position subset of やねうら王の
+ *   新ペタショック定跡, MIT License) can be fetched at runtime from
+ *   `public/shogi-opening-book.bin` — see `ensureExternalOpeningBookLoaded()`. The curated book
+ *   always wins for positions it covers; the external book only extends coverage. If the fetch
+ *   fails (offline, node tests), everything behaves exactly as before.
  */
 
 export type BookMove = {
@@ -1191,6 +1195,154 @@ function getBook(): Map<number, BookCandidate[]> {
   return bookCache;
 }
 
+// ============================================================================
+// External large-scale opening book
+//
+// A ~50,000-position subset of やねうら王「新ペタショック定跡」(2.33M positions, MIT License,
+// https://github.com/yaneurao/YaneuraOu/releases/tag/new_petabook233), pre-filtered to the
+// first ~24 plies with only near-best moves kept (see scripts/shogi-import-petashock-book.ts,
+// verified against YaneuraOu depth 18 by scripts/shogi-petashock-book-verify.ts).
+//
+// The file ships as a static asset and is fetched asynchronously (same pattern as the NNUE
+// weights): it is NOT bundled, and until (or unless) the fetch resolves the curated book above
+// covers the first moves. Runtime safety validation (legality + static-eval threshold) applies
+// to external moves exactly as it does to curated ones.
+// ============================================================================
+
+/** Binary format magic "SBK1"; the writer is scripts/shogi-import-petashock-book.ts. */
+export const EXTERNAL_BOOK_MAGIC = 0x314b4253;
+export const EXTERNAL_OPENING_BOOK_PATH = '/shogi-opening-book.bin';
+
+const EXTERNAL_LINE_NAME = 'ペタショック定跡';
+/** Below every curated priority (curated lines use 55..90) — only matters for tie-breaks. */
+const EXTERNAL_BASE_PRIORITY = 50;
+
+type ExternalBookEntry = {
+  /** `KyokumenImproved.BanHash & 0xffff` — guards against 30-bit HashVal collisions. */
+  check: number;
+  /** Packed move triples (from, to, flags), best-first. flags: bit0 promote, bits1-3 drop type. */
+  moves: Uint8Array;
+};
+
+let externalBook: Map<number, ExternalBookEntry> | null = null;
+let externalBookFetch: Promise<boolean> | null = null;
+
+/**
+ * Parse and install an external book buffer. Returns the number of positions installed
+ * (0 = rejected: bad magic / truncated / corrupt — the previous state is kept).
+ */
+export function loadExternalOpeningBook(buf: ArrayBuffer): number {
+  try {
+    if (buf.byteLength < 8) return 0;
+    const dv = new DataView(buf);
+    if (dv.getUint32(0, true) !== EXTERNAL_BOOK_MAGIC) return 0;
+    const count = dv.getUint32(4, true);
+    const bytes = new Uint8Array(buf);
+    const map = new Map<number, ExternalBookEntry>();
+    let off = 8;
+    for (let i = 0; i < count; i++) {
+      if (off + 7 > buf.byteLength) return 0;
+      const hash = dv.getUint32(off, true);
+      const check = dv.getUint16(off + 4, true);
+      const n = dv.getUint8(off + 6);
+      off += 7;
+      if (n === 0 || off + n * 3 > buf.byteLength) return 0;
+      map.set(hash, { check, moves: bytes.subarray(off, off + n * 3) });
+      off += n * 3;
+    }
+    if (off !== buf.byteLength) return 0;
+    externalBook = map;
+    return map.size;
+  } catch {
+    return 0;
+  }
+}
+
+export function isExternalOpeningBookLoaded(): boolean {
+  return externalBook !== null;
+}
+
+/** Test-only: drop the external book (and any cached fetch) so tests are order-independent. */
+export function clearExternalOpeningBookForTests(): void {
+  externalBook = null;
+  externalBookFetch = null;
+}
+
+/**
+ * Absolute book URL. Workers loaded via a blob: URL would resolve a root-relative fetch
+ * against the blob URL and fail; anchor on the creator's origin when available
+ * (same reasoning as nnueWeightsUrl in shogi-ai.worker.ts).
+ */
+function externalBookUrl(): string {
+  const origin = typeof self !== 'undefined' ? self.location?.origin : undefined;
+  if (origin && origin !== 'null') return new URL(EXTERNAL_OPENING_BOOK_PATH, origin).toString();
+  return EXTERNAL_OPENING_BOOK_PATH;
+}
+
+/**
+ * Fetch + install the external book once (idempotent; callable from both the main thread and
+ * the AI worker — each JS realm has its own module instance, so both call it at startup).
+ * Any failure resolves `false` and leaves the curated-only behavior untouched.
+ */
+export function ensureExternalOpeningBookLoaded(): Promise<boolean> {
+  if (externalBook) return Promise.resolve(true);
+  if (externalBookFetch) return externalBookFetch;
+  externalBookFetch = (async (): Promise<boolean> => {
+    try {
+      if (typeof fetch !== 'function') return false;
+      const res = await fetch(externalBookUrl());
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const n = loadExternalOpeningBook(await res.arrayBuffer());
+      if (process.env.NODE_ENV === 'development') {
+        console.info(
+          n > 0
+            ? `[OpeningBookImproved] external book loaded (${n} positions)`
+            : '[OpeningBookImproved] external book rejected; curated book only'
+        );
+      }
+      return n > 0;
+    } catch (e) {
+      // Expected offline / in node tests; the curated book is the normal fallback.
+      if (process.env.NODE_ENV === 'development') {
+        console.info('[OpeningBookImproved] external book unavailable; curated book only', e);
+      }
+      return false;
+    }
+  })();
+  return externalBookFetch;
+}
+
+/**
+ * Match the packed external moves against the current legal moves. Unmatched moves are
+ * silently dropped (they cannot be played anyway), so a hash collision that survived the
+ * 16-bit board check still cannot inject an illegal move — and the static-eval safety
+ * threshold in getOpeningMoveImproved() still applies to whatever does match.
+ */
+function buildExternalCandidates(entry: ExternalBookEntry, k: KyokumenImproved, legal: Te[]): BookCandidate[] {
+  const out: BookCandidate[] = [];
+  const mv = entry.moves;
+  const n = (mv.length / 3) | 0;
+  for (let i = 0; i < n; i++) {
+    const from = mv[i * 3];
+    const to = mv[i * 3 + 1];
+    const flags = mv[i * 3 + 2];
+    const promote = (flags & 1) !== 0;
+    const dropType = (flags >> 1) & 7;
+    for (let j = 0; j < legal.length; j++) {
+      const m = legal[j];
+      if (m.to !== to || m.from !== from) continue;
+      if (from === 0) {
+        if (m.koma !== (dropType | k.teban)) continue;
+      } else if (m.promote !== promote) {
+        continue;
+      }
+      out.push({ move: m, priority: EXTERNAL_BASE_PRIORITY - i, lineName: EXTERNAL_LINE_NAME });
+      break;
+    }
+  }
+  return out;
+}
+
 function pickDeterministic<T>(candidates: T[], seed: number): T {
   // Deterministic "random" pick without maintaining global RNG state.
   const s = (seed >>> 0) ^ ((seed >>> 16) | 0);
@@ -1216,7 +1368,7 @@ function looksLikeOpening(k: KyokumenImproved): boolean {
  * `probes` counts opening-phase lookups (past the cheap phase/check gates); `hits` counts
  * returned book moves. Production code never reads these.
  */
-export const openingBookStats = { probes: 0, hits: 0 };
+export const openingBookStats = { probes: 0, hits: 0, externalHits: 0 };
 
 /**
  * Returns a safe opening-book move for the current position, or `null` if:
@@ -1235,12 +1387,25 @@ export function getOpeningMoveImproved(
   openingBookStats.probes++;
 
   // Out of book? Bail out before doing any eval work (this is the common case).
-  const candidates = getBook().get(k.HashVal);
-  if (!candidates || candidates.length === 0) return null;
+  // The curated (compiled-in) book wins at position level; the fetched external book only
+  // extends coverage to positions the curated lines do not reach.
+  let candidates = getBook().get(k.HashVal);
+  let externalEntry: ExternalBookEntry | undefined;
+  if (!candidates || candidates.length === 0) {
+    externalEntry = externalBook?.get(k.HashVal);
+    // 16-bit board-hash check: HashVal is only 30 bits, so an unrelated position could
+    // collide with a book entry — treat a check mismatch as out-of-book.
+    if (externalEntry && externalEntry.check !== ((k.BanHash & 0xffff) >>> 0)) externalEntry = undefined;
+    if (!externalEntry) return null;
+  }
 
   // Validate candidates against current legal moves (the opponent may have deviated).
   const legal = GenerateMovesImproved.generateLegalMovesPooled(k, runtimeMoves);
   if (legal.length === 0) return null;
+  if (!candidates || candidates.length === 0) {
+    candidates = buildExternalCandidates(externalEntry!, k, legal);
+    if (candidates.length === 0) return null;
+  }
   const legalByKey = new Map<string, Te>();
   for (const m of legal) legalByKey.set(moveKey(m), m);
 
@@ -1350,5 +1515,6 @@ export function getOpeningMoveImproved(
   }
 
   openingBookStats.hits++;
+  if (picked.lineName === EXTERNAL_LINE_NAME) openingBookStats.externalHits++;
   return picked.move.clone();
 }

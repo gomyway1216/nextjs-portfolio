@@ -9,6 +9,18 @@ export interface HomeGamesConfig {
   gameIds: string[];
 }
 
+export function shouldUseDefaultHomeGameIdsForRuntimeEnv(
+  env: Record<string, string | undefined> = process.env,
+): boolean {
+  const projectId = env.FIREBASE_PROJECT_ID || env.NEXT_PUBLIC_PROJECT_ID;
+  const hasAdminCredentials = Boolean(
+    env.FIREBASE_SERVICE_ACCOUNT_KEY
+      || (env.FIREBASE_CLIENT_EMAIL && env.FIREBASE_PRIVATE_KEY && projectId),
+  );
+
+  return env.CI === 'true' && projectId === 'ci-placeholder' && !hasAdminCredentials;
+}
+
 export function isKnownGameId(gameId: string): boolean {
   return gameById.has(gameId);
 }

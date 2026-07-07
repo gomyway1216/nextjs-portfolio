@@ -6,6 +6,7 @@ import {
   getHomeGamesByIds,
   getUnknownHomeGameIds,
   normalizeHomeGameIds,
+  shouldUseDefaultHomeGameIdsForRuntimeEnv,
 } from '@/lib/homeGames';
 
 describe('home games config helpers', () => {
@@ -34,5 +35,23 @@ describe('home games config helpers', () => {
       'shogi',
       'othello',
     ]);
+  });
+
+  it('skips the Firestore home-games read in CI placeholder Firebase environments', () => {
+    expect(shouldUseDefaultHomeGameIdsForRuntimeEnv({
+      CI: 'true',
+      NEXT_PUBLIC_PROJECT_ID: 'ci-placeholder',
+    })).toBe(true);
+
+    expect(shouldUseDefaultHomeGameIdsForRuntimeEnv({
+      CI: 'true',
+      NEXT_PUBLIC_PROJECT_ID: 'ci-placeholder',
+      FIREBASE_SERVICE_ACCOUNT_KEY: '{}',
+    })).toBe(false);
+
+    expect(shouldUseDefaultHomeGameIdsForRuntimeEnv({
+      CI: 'true',
+      NEXT_PUBLIC_PROJECT_ID: 'real-project',
+    })).toBe(false);
   });
 });

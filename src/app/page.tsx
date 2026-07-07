@@ -13,7 +13,12 @@ import { HOME_GAMES_CONFIG_DOC_ID, SITE_CONFIG_COLLECTION, WRITING_COLLECTION } 
 import { isSafeHttpUrl, parseWritingDoc, publicWritings, type Writing } from '@/lib/writing';
 import { getInitialPostsCached, type ServerPost } from '@/lib/blog/getPostsServer';
 import { createPlainTextExcerpt } from '@/lib/text';
-import { DEFAULT_HOME_GAME_IDS, HOME_GAMES_CACHE_TAG, normalizeHomeGameIds } from '@/lib/homeGames';
+import {
+  DEFAULT_HOME_GAME_IDS,
+  HOME_GAMES_CACHE_TAG,
+  normalizeHomeGameIds,
+  shouldUseDefaultHomeGameIdsForRuntimeEnv,
+} from '@/lib/homeGames';
 
 const PROFILE_DOC_ID = 'main';
 const HOME_BLOG_POST_LIMIT = 3;
@@ -68,6 +73,10 @@ const getInitialWritingsCached = unstable_cache(getInitialWritings, ['home-writi
 });
 
 async function getInitialHomeGameIds(): Promise<string[]> {
+  if (shouldUseDefaultHomeGameIdsForRuntimeEnv()) {
+    return DEFAULT_HOME_GAME_IDS;
+  }
+
   const doc = await getFirestore()
     .collection(SITE_CONFIG_COLLECTION)
     .doc(HOME_GAMES_CONFIG_DOC_ID)

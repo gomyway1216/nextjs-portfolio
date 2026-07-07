@@ -29,6 +29,36 @@ const DIFFICULTY_OPTIONS = [
   { label: 'Level 5 (Master)', value: 'master' as Difficulty, description: 'Strongest (~5s)' },
 ];
 
+// Handicap games (駒落ち). The AI is the 上手 (handicap giver) on the Gote side,
+// so its pieces are the ones removed. Per shogi rules the 上手 always moves first,
+// so every handicap starts with teban = GOTE (the AI plays the opening move).
+type Handicap = 'none' | 'lance' | 'bishop' | 'rook' | 'two-piece';
+
+const HANDICAP_OPTIONS: { value: Handicap; label: string }[] = [
+  { value: 'none', label: '平手' },
+  { value: 'lance', label: '香落ち' },
+  { value: 'bishop', label: '角落ち' },
+  { value: 'rook', label: '飛車落ち' },
+  { value: 'two-piece', label: '二枚落ち' },
+];
+
+const VALID_HANDICAPS: Handicap[] = HANDICAP_OPTIONS.map((o) => o.value);
+
+// Build the starting position for a handicap. Hirate keeps the normal teban
+// (SENTE first); every handicap flips the first move to the 上手 (GOTE / AI).
+function buildInitialKyokumen(handicap: Handicap): KyokumenImproved {
+  if (handicap === 'none') return InitialPositionImproved.createInitialPosition();
+  const k = new KyokumenImproved();
+  switch (handicap) {
+    case 'lance': InitialPositionImproved.setupLanceHandicap(k); break;
+    case 'bishop': InitialPositionImproved.setupBishopHandicap(k); break;
+    case 'rook': InitialPositionImproved.setupRookHandicap(k); break;
+    case 'two-piece': InitialPositionImproved.setupTwoPieceHandicap(k); break;
+  }
+  k.setTeban(GOTE); // 上手（AI）から指す
+  return k;
+}
+
 // All difficulties run in the Worker: the WASM search engine lives there
 // (with the JS book/mate-solver/V20 fallback), and even easy's ~250ms search
 // benefits from staying off the main thread. The main-thread path below is
@@ -79,6 +109,7 @@ interface SavedShogiGame {
   teban: number;
   ply: number;
   difficulty: Difficulty;
+  handicap?: Handicap; // absent on saves from before handicaps existed → treated as 'none'
 }
 
 const VALID_DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
@@ -92,7 +123,8 @@ function isValidSavedGame(value: unknown): value is SavedShogiGame {
     Array.isArray(save.hand) &&
     typeof save.teban === 'number' &&
     typeof save.ply === 'number' &&
-    VALID_DIFFICULTIES.includes(save.difficulty as Difficulty)
+    VALID_DIFFICULTIES.includes(save.difficulty as Difficulty) &&
+    (save.handicap === undefined || VALID_HANDICAPS.includes(save.handicap as Handicap))
   );
 }
 
@@ -132,6 +164,14 @@ const ShogiImproved = () => {
   // Mid-game save slot (signed-in users only).
   const [savedGame, setSavedGame] = useState<SavedShogiGame | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [handicap, setHandicap] = useState<Handicap>('none');
+  // Snapshots of state *before* each of the player's moves, newest last. 待った
+  // (takeback) restores the latest one, undoing the player's last move together
+  // with the AI's reply and returning to the player's previous turn. Only the
+  // player's turns are recorded because that is the only state a takeback
+  // returns to. moveListLen is the kifu length at that point, so restoring also
+  // trims moveList back to match the board (dropping the player move + AI reply).
+  const [history, setHistory] = useState<{ kyokumen: KyokumenImproved; ply: number; moveListLen: number }[]>([]);
 
   const workerRef = useRef<ShogiAiWorkerClient | null>(null);
   const aiRequestIdRef = useRef(0);
@@ -163,13 +203,13 @@ const ShogiImproved = () => {
   }, [gameState.kyokumen]);
 
   // Initialize game
-	  const initGame = useCallback(() => {
+	  const initGame = useCallback((selectedHandicap: Handicap) => {
     // Invalidate any in-flight worker request.
     aiRequestIdRef.current++;
     workerRef.current?.clearTT();
 
 	    setGameState({
-	      kyokumen: InitialPositionImproved.createInitialPosition(),
+	      kyokumen: buildInitialKyokumen(selectedHandicap),
 	      selectedPosition: null,
 	      selectedCapturedIndex: -1,
 	      validMoves: [],
@@ -179,6 +219,7 @@ const ShogiImproved = () => {
 	      ply: 0,
 	    });
     setMoveList([]);
+    setHistory([]);
     setShowPromotionDialog(false);
     setPendingMove(null);
   }, []);
@@ -213,12 +254,20 @@ const ShogiImproved = () => {
 
   // Execute move
 	  const executeMove = (te: Te, promote: boolean) => {
-	    const newKyokumen = gameState.kyokumen.clone();
+	    // Record the pre-move snapshot so 待った can return here. gameState.kyokumen
+	    // is never mutated (we clone before moving), so it is a safe immutable
+	    // snapshot; moveList.length is the kifu length before this move is added.
+	    const prevKyokumen = gameState.kyokumen;
+	    const prevPly = gameState.ply;
+	    const prevMoveListLen = moveList.length;
+	    const newKyokumen = prevKyokumen.clone();
 	    te.promote = promote;
 	    recordMove(te); newKyokumen.move(te);
 	    newKyokumen.setTeban(GOTE);
 
     const { isOver, winner } = checkGameOver(newKyokumen);
+
+    setHistory(h => [...h, { kyokumen: prevKyokumen, ply: prevPly, moveListLen: prevMoveListLen }]);
 
 	    setGameState(prev => ({
 	      ...prev,
@@ -363,7 +412,11 @@ const ShogiImproved = () => {
 	          return;
 	        }
 
-	        const bookMove = getOpeningMoveImproved(gameState.kyokumen.clone(), difficulty);
+	        // The opening book is keyed on hirate positions; skip it in handicap
+	        // games so the AI searches its own (out-of-book) moves instead.
+	        const bookMove = handicap === 'none'
+	          ? getOpeningMoveImproved(gameState.kyokumen.clone(), difficulty)
+	          : null;
 	        if (bookMove) {
 	          const newKyokumen = gameState.kyokumen.clone();
 	          recordMove(bookMove); newKyokumen.move(bookMove);
@@ -491,16 +544,60 @@ const ShogiImproved = () => {
 
       }, 500);
     }
-  }, [gameState.kyokumen.teban, gameState.gameOver, gameState.isAIThinking, difficulty]);
+  }, [gameState.kyokumen.teban, gameState.gameOver, gameState.isAIThinking, difficulty, handicap]);
 
   const startGame = () => {
     setShowDifficultySelect(false);
-    initGame();
+    initGame(handicap);
   };
 
   const resetGame = () => {
-    initGame();
+    initGame(handicap);
   };
+
+  // 待った (takeback): undo the player's last move and the AI's reply, returning
+  // to the player's previous turn. Available only when it is cleanly the
+  // player's move (never mid-AI-search or after game over). Restoring also trims
+  // moveList back to the snapshot's length so the kifu stays in sync with the
+  // board (both the player move and the AI reply are removed).
+  const canUndo =
+    !showDifficultySelect &&
+    !gameState.gameOver &&
+    !gameState.isAIThinking &&
+    gameState.kyokumen.teban === SENTE &&
+    history.length >= 1;
+
+  const handleUndo = useCallback(() => {
+    if (
+      history.length < 1 ||
+      gameState.gameOver ||
+      gameState.isAIThinking ||
+      gameState.kyokumen.teban !== SENTE
+    ) {
+      return;
+    }
+    // Invalidate any in-flight worker request so a late AI reply can't land.
+    aiRequestIdRef.current++;
+    workerRef.current?.clearTT();
+
+    const last = history[history.length - 1];
+    const restored = last.kyokumen.clone();
+    setGameState(prev => ({
+      ...prev,
+      kyokumen: restored,
+      selectedPosition: null,
+      selectedCapturedIndex: -1,
+      validMoves: [],
+      gameOver: false,
+      winner: null,
+      isAIThinking: false,
+      ply: last.ply,
+    }));
+    setMoveList(prev => prev.slice(0, last.moveListLen));
+    setHistory(h => h.slice(0, -1));
+    setShowPromotionDialog(false);
+    setPendingMove(null);
+  }, [history, gameState.gameOver, gameState.isAIThinking, gameState.kyokumen]);
 
   // --- Mid-game save/resume (signed-in users only) ---
 
@@ -532,6 +629,7 @@ const ShogiImproved = () => {
     workerRef.current?.clearTT();
 
     setDifficulty(savedGame.difficulty);
+    setHandicap(savedGame.handicap ?? 'none');
     setGameState({
       kyokumen: deserializeKyokumen(savedGame),
       selectedPosition: null,
@@ -542,6 +640,8 @@ const ShogiImproved = () => {
       isAIThinking: false,
       ply: savedGame.ply,
     });
+    setMoveList([]);
+    setHistory([]);
     setShowPromotionDialog(false);
     setPendingMove(null);
     setShowDifficultySelect(false);
@@ -564,7 +664,7 @@ const ShogiImproved = () => {
     setSaveStatus('saving');
     try {
       const snapshot = serializeForWorker(gameState.kyokumen);
-      const save: SavedShogiGame = { ...snapshot, ply: gameState.ply, difficulty };
+      const save: SavedShogiGame = { ...snapshot, ply: gameState.ply, difficulty, handicap };
       await gameSaveApi.saveGameSave(GAME_SAVE_KEY, save);
       setSavedGame(save);
       setSaveStatus('saved');
@@ -572,7 +672,7 @@ const ShogiImproved = () => {
       console.error('[shogi] failed to save game:', error);
       setSaveStatus('error');
     }
-  }, [currentUser, gameState, difficulty]);
+  }, [currentUser, gameState, difficulty, handicap]);
 
   // Auto-clear the transient save status, cleaning up the timer on
   // unmount so it never fires on a gone component.
@@ -638,26 +738,65 @@ const ShogiImproved = () => {
           startLabel="Start Game"
           onStart={startGame}
           extraContent={
-            currentUser && savedGame ? (
-              <button
-                type="button"
-                onClick={resumeSavedGame}
-                style={{
-                  width: '100%',
-                  minHeight: '2.9rem',
-                  padding: '0.75rem 1rem',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(34, 197, 94, 0.5)',
-                  background: 'rgba(34, 197, 94, 0.15)',
-                  color: '#4ade80',
-                  fontSize: '0.92rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                Resume saved game (move {savedGame.ply}, {savedGame.difficulty})
-              </button>
-            ) : null
+            <>
+              <div style={{ width: '100%' }}>
+                <div style={{ marginBottom: '0.5rem', fontSize: '0.9rem', fontWeight: 700, opacity: 0.85 }}>
+                  手合割 (Handicap)
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {HANDICAP_OPTIONS.map((opt) => {
+                    const active = handicap === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setHandicap(opt.value)}
+                        style={{
+                          padding: '0.5rem 0.85rem',
+                          borderRadius: '8px',
+                          border: active ? '2px solid #4299e1' : '1px solid rgba(255,255,255,0.25)',
+                          background: active ? 'rgba(66,153,225,0.3)' : 'rgba(255,255,255,0.08)',
+                          color: '#fff',
+                          fontSize: '0.9rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p style={{ marginTop: '0.6rem', fontSize: '0.78rem', lineHeight: 1.5, opacity: 0.7 }}>
+                  駒落ちではAI（上手）が先に指します。AIの評価関数(NNUE)は平手で学習しているため、
+                  駒落ちでは合法手を指せますが強さは保証されません。
+                </p>
+              </div>
+              {currentUser && savedGame ? (
+                <button
+                  type="button"
+                  onClick={resumeSavedGame}
+                  style={{
+                    width: '100%',
+                    minHeight: '2.9rem',
+                    padding: '0.75rem 1rem',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(34, 197, 94, 0.5)',
+                    background: 'rgba(34, 197, 94, 0.15)',
+                    color: '#4ade80',
+                    fontSize: '0.92rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Resume saved game (move {savedGame.ply}, {savedGame.difficulty}
+                  {savedGame.handicap && savedGame.handicap !== 'none'
+                    ? `, ${HANDICAP_OPTIONS.find((o) => o.value === savedGame.handicap)?.label}`
+                    : ''}
+                  )
+                </button>
+              ) : null}
+            </>
           }
         />
       </div>
@@ -672,6 +811,24 @@ const ShogiImproved = () => {
         additionalContent={
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             {gameState.isAIThinking && <span style={{ color: '#ffd700' }}>AI Thinking...</span>}
+            <button
+              onClick={handleUndo}
+              disabled={!canUndo}
+              title={canUndo ? '待った（自分の1手＋AIの応手を戻す）' : '自分の手番でのみ使えます'}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                border: '1px solid rgba(251, 191, 36, 0.5)',
+                background: 'rgba(251, 191, 36, 0.12)',
+                color: '#fbbf24',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: canUndo ? 'pointer' : 'not-allowed',
+                opacity: canUndo ? 1 : 0.45,
+              }}
+            >
+              待った
+            </button>
             {currentUser && (
               <button
                 onClick={handleSaveGame}

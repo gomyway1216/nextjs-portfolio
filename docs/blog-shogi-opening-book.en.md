@@ -188,7 +188,7 @@ First, the book was rebuilt with two goals:
 
 The deviation-coverage pass seeds from the 1,200 most-frequently-reached positions, enumerates the book-leaving moves that are still natural (within 300cp), and adds **one YaneuraOu depth-18 reply per deviation**. Result: **49,961 → 97,767 positions** (~1MB gzipped, under the 2.5MB limit). The natural-deviation probe went from **6/10 to 10/10**.
 
-Rebuilding also surfaced **a real hole in v1**: after ▲P-7f, Black's reply △P-3d (only 31cp below best — essentially a co-main move) had been clipped by a "expand at most 5 moves per position" cap during generation, so **the entire Ranging-Rook subtree was missing**. Loosening the cap to 8 at shallow plies fixed it. "The line is right but the surface has holes" — this chapter's own lesson, produced by my own book.
+Rebuilding also surfaced **a real hole in v1**: after ▲P-7f, White's reply △P-3d (only 31cp below best — essentially a co-main move) had been clipped by a "expand at most 5 moves per position" cap during generation, so **the entire Ranging-Rook subtree was missing**. Loosening the cap to 8 at shallow plies fixed it. "The line is right but the surface has holes" — this chapter's own lesson, produced by my own book.
 
 Zero-blunder assurance used the same **deterministic protocol**: all 303,321 moves verified at depth 18, moves with gap > 90cp pruned. The reused 50k positions were carried over only after a determinism gate (12 positions matching cp exactly). Independent-seed re-verification found zero moves with gap > 100cp.
 
@@ -213,7 +213,7 @@ In the problem position, △Rook-8d sank from **15th to 23rd** in the static ran
 
 > Added lesson: **"where it takes effect" decides significance.** A change that touches every position (the eval) turns significant in self-play naturally; a change that only helps when conditions line up (the book) shows its true value against humans. Even for the same word "stronger," the right way to measure depends on the nature of the improvement.
 
-(Both were shipped only after independent verification — re-tallying the A/B logs, re-running the holdouts, bit-exact parity, 330 passing tests. The proxy pair-accuracy was *not* used to decide adoption, keeping faith with the earlier "proxy metrics don't predict playing strength.")
+(Both were shipped only after independent verification — re-tallying the A/B logs, re-running the holdouts, bit-exact parity, the full test suite passing. The proxy pair-accuracy was *not* used to decide adoption, keeping faith with the earlier "proxy metrics don't predict playing strength.")
 
 ## Lessons from this chapter
 

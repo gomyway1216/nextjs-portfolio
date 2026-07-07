@@ -991,6 +991,81 @@ export const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
     ],
   },
+  {
+    // 角道相掛かり（▲７七角△３四歩▲６六歩型）。この▲６六歩局面は従来定跡外で、
+    // NNUEが△８四飛（浮き飛車, YaneuraOu depth20で約−126cp・最善−23cpから100cp以上劣る弱手）
+    // を指していた。本手順は△３三角と収める本筋。YaneuraOu depth20 の最善手で各手を検証 (2026-07)。
+    name: '角道相掛かり (▲６六歩・△３三角型)',
+    category: '相居飛車',
+    priority: 85,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 } }, // ☗７七角 (８六交換を受ける)
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩 (角道を止める)
+      { teban: GOTE, from: { suji: 2, dan: 2 }, to: { suji: 3, dan: 3 } },  // ☖３三角 (最善: △８四飛の浮き飛車は弱手)
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八銀
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 7, dan: 3 }, to: { suji: 7, dan: 4 } },  // ☖７四歩
+      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八銀
+      { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
+      { teban: SENTE, from: { suji: 7, dan: 8 }, to: { suji: 6, dan: 7 } }, // ☗６七銀
+    ],
+  },
+  {
+    // 角道相掛かり（▲６六歩型）で後手が△３二銀と上がる変化。▲６六歩局面で△８四飛を避ける
+    // もう一つの本筋。上記△３三角型と同じ▲６六歩局面(後手番)を別候補として供給する。
+    // YaneuraOu depth20 の最善手で各手を検証 (2026-07)。
+    name: '角道相掛かり (▲６六歩・△３二銀型)',
+    category: '相居飛車',
+    priority: 80,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 } }, // ☗７七角
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩
+      { teban: GOTE, from: { suji: 3, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二銀 (△８四飛を避けるもう一つの本筋)
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 2, dan: 2 }, to: { suji: 3, dan: 3 } },  // ☖３三角
+      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八銀
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
+    ],
+  },
+  {
+    // 相掛かり・飛車先交換（▲２六飛の浮き飛車）から▲３八銀と上がった局面。▲７六歩を保留した
+    // 相掛かりで、この▲３八銀局面(後手番)は従来定跡外でNNUEが弱手を指していた。△３四歩と伸ばして
+    // 局面を落ち着かせる本筋。YaneuraOu depth20 の最善手で各手を検証 (2026-07)。
+    name: '相掛かり (▲２六飛・▲３八銀型)',
+    category: '相居飛車',
+    priority: 81,
+    moves: [
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八金 (８八を受ける)
+      { teban: GOTE, from: { suji: 4, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二金 (２二を受ける)
+      { teban: SENTE, from: { suji: 2, dan: 5 }, to: { suji: 2, dan: 4 } }, // ☗２四歩 (飛車先交換)
+      { teban: GOTE, from: { suji: 2, dan: 3 }, to: { suji: 2, dan: 4 } },  // ☖同歩
+      { teban: SENTE, from: { suji: 2, dan: 8 }, to: { suji: 2, dan: 4 } }, // ☗同飛
+      { teban: GOTE, from: { suji: 0, dan: 0 }, to: { suji: 2, dan: 3 }, drop: FU }, // ☖２三歩 (正しい受け)
+      { teban: SENTE, from: { suji: 2, dan: 4 }, to: { suji: 2, dan: 6 } }, // ☗２六飛 (浮き飛車)
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 7, dan: 2 } },  // ☖７二銀
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 3, dan: 8 } }, // ☗３八銀 (この局面が従来定跡外だった)
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩 (最善: 局面を落ち着かせる)
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 6, dan: 3 }, to: { suji: 6, dan: 4 } },  // ☖６四歩
+      { teban: SENTE, from: { suji: 1, dan: 7 }, to: { suji: 1, dan: 6 } }, // ☗１六歩
+      { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
+    ],
+  },
 ];
 
 let bookCache: Map<number, BookCandidate[]> | null = null;

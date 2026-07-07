@@ -47,6 +47,23 @@ function playMove(
   k.toggleTeban();
 }
 
+/** Play a drop move (`koma` is the base piece type, e.g. GFU; teban is taken from `k`). */
+function playDrop(
+  k: ReturnType<typeof InitialPositionImproved.createInitialPosition>,
+  koma: number,
+  toSuji: number,
+  toDan: number
+): void {
+  const to = pos(toSuji, toDan);
+  const legal = GenerateMovesImproved.generateLegalMoves(k);
+  const te = legal.find((m) => m.from === 0 && m.to === to && m.koma === koma) ?? null;
+  expect(te, `expected legal drop koma=${koma} to=${to}`).not.toBeNull();
+  const move = (te as Te).clone();
+  move.capture = EMPTY;
+  k.move(move);
+  k.toggleTeban();
+}
+
 /**
  * Verify that `firstMove` starts a forced mate within `pliesLeft` plies.
  *
@@ -312,5 +329,57 @@ describe('ShogiImproved', () => {
 
     expect(move).not.toBeNull();
     expect(expected.equals(move)).toBe(true);
+  });
+
+  it('covers the 角道相掛かり ▲6六歩 position with a sound move (not the weak △8四飛)', () => {
+    // ▲7六歩△8四歩▲2六歩△8五歩▲7七角△3四歩▲6六歩 (後手番).
+    // Previously out-of-book: NNUE played △8四飛 (浮き飛車), ~100cp+ worse than best per
+    // YaneuraOu depth20. The book now supplies △3三角 or △3二銀 (both engine-approved).
+    const k = InitialPositionImproved.createInitialPosition();
+    k.setTeban(SENTE);
+    playMove(k, 7, 7, 7, 6, false); // ▲7六歩
+    playMove(k, 8, 3, 8, 4, false); // △8四歩
+    playMove(k, 2, 7, 2, 6, false); // ▲2六歩
+    playMove(k, 8, 4, 8, 5, false); // △8五歩
+    playMove(k, 8, 8, 7, 7, false); // ▲7七角
+    playMove(k, 3, 3, 3, 4, false); // △3四歩
+    playMove(k, 6, 7, 6, 6, false); // ▲6六歩
+
+    const move = getOpeningMoveImproved(k, 'medium');
+    expect(move).not.toBeNull();
+
+    // Must be one of the two engine-approved book replies, and never the weak △8四飛.
+    const bishop33 = findMove(k, 2, 2, 3, 3, false); // △3三角
+    const silver32 = findMove(k, 3, 1, 3, 2, false); // △3二銀
+    const uki84 = findMove(k, 8, 2, 8, 4, false); // △8四飛 (the weak move to avoid)
+    expect(uki84.equals(move)).toBe(false);
+    expect(bishop33.equals(move) || silver32.equals(move)).toBe(true);
+  });
+
+  it('covers the 相掛かり ▲2六飛→▲3八銀 position with a sound move', () => {
+    // ▲2六歩△8四歩▲2五歩△8五歩▲7八金△3二金▲2四歩△同歩▲同飛△2三歩▲2六飛△7二銀▲3八銀 (後手番).
+    // Previously out-of-book. The book now supplies △3四歩 (YaneuraOu depth20 best).
+    const k = InitialPositionImproved.createInitialPosition();
+    k.setTeban(SENTE);
+    playMove(k, 2, 7, 2, 6, false); // ▲2六歩
+    playMove(k, 8, 3, 8, 4, false); // △8四歩
+    playMove(k, 2, 6, 2, 5, false); // ▲2五歩
+    playMove(k, 8, 4, 8, 5, false); // △8五歩
+    playMove(k, 6, 9, 7, 8, false); // ▲7八金
+    playMove(k, 4, 1, 3, 2, false); // △3二金
+    playMove(k, 2, 5, 2, 4, false); // ▲2四歩
+    playMove(k, 2, 3, 2, 4, false); // △同歩
+    playMove(k, 2, 8, 2, 4, false); // ▲同飛
+    // △2三歩 (drop): use findMove's from={0,0} handling; the piece is a pawn from hand.
+    playDrop(k, GFU, 2, 3); // △2三歩打
+    playMove(k, 2, 4, 2, 6, false); // ▲2六飛
+    playMove(k, 7, 1, 7, 2, false); // △7二銀
+    playMove(k, 3, 9, 3, 8, false); // ▲3八銀
+
+    const move = getOpeningMoveImproved(k, 'medium');
+    expect(move).not.toBeNull();
+
+    const push34 = findMove(k, 3, 3, 3, 4, false); // △3四歩
+    expect(push34.equals(move)).toBe(true);
   });
 });

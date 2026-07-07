@@ -55,6 +55,7 @@ import { EMPTY, FU, getKomashu, HI, isSelf, OU, SENTE, Te } from './types';
 import {
   clearWasmTT,
   enableSharedTT,
+  getLastWasmSearchStats,
   isWasmEngineReady,
   loadNnueWeights,
   publishSearchGeneration,
@@ -73,7 +74,21 @@ type WorkerRequest =
   | MainThreadsInitMessage;
 
 type WorkerResponse =
-  | { type: 'bestMoveResult'; id: number; move: SerializedTeImproved | null }
+  | {
+      type: 'bestMoveResult';
+      id: number;
+      move: SerializedTeImproved | null;
+      /**
+       * Optional search diagnostics (backward compatible — additive fields only;
+       * old clients simply ignore them). `scoreCp` is the root score in
+       * centipawns from SENTE's perspective (positive = Sente is better);
+       * present only when the move came from a real search (or the mate
+       * solver), never for opening-book moves. `depth` is the completed
+       * iterative-deepening depth of that search.
+       */
+      scoreCp?: number;
+      depth?: number;
+    }
   | { type: 'error'; id: number; message: string };
 
 const ai = new ShogiAIImprovedV20();
@@ -300,6 +315,23 @@ function shouldTryMateSolve(k: KyokumenImproved): boolean {
   return near + handCount >= 2;
 }
 
+/** computeBestMove result: the move plus optional search diagnostics (see WorkerResponse). */
+interface BestMoveComputation {
+  move: Te | null;
+  /** Root score in centipawns from SENTE's perspective; absent for book moves / JS fallback. */
+  scoreCp?: number;
+  /** Completed search depth; absent when no WASM search ran. */
+  depth?: number;
+}
+
+/** Sente-perspective mate score used when the dedicated mate solver finds a forced mate. */
+const MATE_SCORE_CP = 30000;
+
+/** Convert a score from `teban`'s perspective (negamax root) to SENTE's perspective. */
+function toSenteCp(scoreForTeban: number, teban: number): number {
+  return teban === SENTE ? scoreForTeban : -scoreForTeban;
+}
+
 /**
  * Hybrid best-move: book → mate solver → WASM search → JS V20 fallback.
  * Same gate/budget policy as ShogiAIImprovedV20.tryMateSolve(): ~20% of the
@@ -314,10 +346,10 @@ function computeBestMove(
   raw: SerializedKyokumenImproved,
   difficulty: Difficulty,
   tesu: number
-): Te | null {
+): BestMoveComputation {
   // 1) Opening book.
   const book = getOpeningMoveImproved(k, difficulty);
-  if (book) return book;
+  if (book) return { move: book };
 
   const budget = DIFFICULTY_BUDGETS[difficulty] ?? DIFFICULTY_BUDGETS.medium;
 
@@ -327,7 +359,7 @@ function computeBestMove(
     const mateStart = performance.now();
     const budgetMs = Math.max(30, Math.min(200, Math.floor(budget.maxTimeMs * 0.2)));
     const mate = mateSolver.solve(k, { maxPlies: 9, maxNodes: 150_000, maxTimeMs: budgetMs });
-    if (mate) return mate;
+    if (mate) return { move: mate, scoreCp: toSenteCp(MATE_SCORE_CP, k.teban) };
     const spent = performance.now() - mateStart;
     searchBudgetMs = Math.max(Math.floor(budget.maxTimeMs / 2), budget.maxTimeMs - Math.ceil(spent));
   }
@@ -377,11 +409,20 @@ function computeBestMove(
       setSearchGeneration(0);
     }
   }
-  if (wasmMove) return wasmMove;
+  if (wasmMove) {
+    // Attach root score/depth for the UI's eval bar / status display. Purely
+    // diagnostic: any failure to read stats must never lose the move itself.
+    const stats = getLastWasmSearchStats();
+    if (stats) {
+      return { move: wasmMove, scoreCp: toSenteCp(stats.score, k.teban), depth: stats.depth };
+    }
+    return { move: wasmMove };
+  }
 
   // 4) JS V20 fallback (also the "no legal move" confirmation path: for a
   // genuinely mated position it returns null just like the WASM engine).
-  return ai.getNextTe(k, tesu, { difficulty });
+  // No score is reported — its internal score is not exposed and the path is rare.
+  return { move: ai.getNextTe(k, tesu, { difficulty }) };
 }
 
 /**
@@ -463,12 +504,13 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
 
   try {
     const k = buildPosition(msg.position);
-    const best = computeBestMove(k, msg.position, msg.difficulty, msg.tesu | 0);
+    const result = computeBestMove(k, msg.position, msg.difficulty, msg.tesu | 0);
+    const best = result.move;
     const move: SerializedTeImproved | null = best
       ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
       : null;
 
-    ctx.postMessage({ type: 'bestMoveResult', id: msg.id, move });
+    ctx.postMessage({ type: 'bestMoveResult', id: msg.id, move, scoreCp: result.scoreCp, depth: result.depth });
 
     // Answer first, then start thinking on the opponent's time.
     if (best) startPonder(k, best, msg.difficulty, msg.tesu | 0);

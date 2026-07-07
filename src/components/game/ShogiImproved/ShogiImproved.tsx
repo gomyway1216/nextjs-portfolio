@@ -149,6 +149,54 @@ function moveToKifu(m: RecordedMove, prev: RecordedMove | undefined): string {
   return `${side}${square}${toString(m.koma)}${m.promote ? '成' : ''}${m.from === 0 ? '打' : ''}`;
 }
 
+// localStorage keys for display/sound preferences (best-effort; private
+// browsing may throw, so every access is wrapped in try/catch).
+const PREF_SOUND_KEY = 'shogi-improved-sound';
+const PREF_EVAL_BAR_KEY = 'shogi-improved-eval-bar';
+
+function readBoolPref(key: string): boolean {
+  try {
+    return typeof window !== 'undefined' && window.localStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function writeBoolPref(key: string, value: boolean): void {
+  try {
+    window.localStorage.setItem(key, value ? '1' : '0');
+  } catch {
+    // Preference persistence is best-effort only.
+  }
+}
+
+/** Search info shown by the eval bar / status strip. `scoreCp` is from SENTE's perspective. */
+interface EvalInfo { scoreCp: number; depth?: number; }
+
+/**
+ * Map a sente-perspective centipawn score to Sente's win probability (0..1)
+ * with the standard shogi sigmoid; 600 matches the NNUE's k_sigmoid, so the
+ * bar reads "how won is this for Sente" rather than raw material.
+ */
+function cpToSenteWinRate(scoreCp: number): number {
+  return 1 / (1 + Math.exp(-scoreCp / 600));
+}
+
+/** Style shared by the three display-toggle pills (盤反転 / 形勢バー / 駒音). */
+function togglePillStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: '5px 12px',
+    borderRadius: '999px',
+    border: active ? '1px solid rgba(66,153,225,0.9)' : '1px solid rgba(255,255,255,0.25)',
+    background: active ? 'rgba(66,153,225,0.28)' : 'rgba(255,255,255,0.06)',
+    color: active ? '#bfdcff' : 'rgba(255,255,255,0.75)',
+    fontSize: '12px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    whiteSpace: 'nowrap',
+  };
+}
+
 const ShogiImproved = () => {
   const _lifecycle = useFeatureLifecycle('game.shogi-improved');
   const { currentUser } = useAuth();
@@ -172,6 +220,99 @@ const ShogiImproved = () => {
   // returns to. moveListLen is the kifu length at that point, so restoring also
   // trims moveList back to match the board (dropping the player move + AI reply).
   const [history, setHistory] = useState<{ kyokumen: KyokumenImproved; ply: number; moveListLen: number }[]>([]);
+  // Display-only board flip (後手視点). Never touches move handling: cells keep
+  // their real (suji, dan) identity; only the render order changes.
+  const [boardFlipped, setBoardFlipped] = useState(false);
+  // 駒音 (move sound). Default OFF; persisted.
+  const [soundEnabled, setSoundEnabled] = useState(false);
+  // 形勢バー (eval bar). Default hidden — seeing the engine's own evaluation is
+  // a spoiler/aid, so the player must opt in. Persisted.
+  const [showEvalBar, setShowEvalBar] = useState(false);
+  // Last AI search result (sente-perspective cp + reached depth); null until
+  // the first real search of a game (book moves report no score).
+  const [evalInfo, setEvalInfo] = useState<EvalInfo | null>(null);
+  // Elapsed ms of the current AI think, ticking while isAIThinking.
+  const [thinkElapsedMs, setThinkElapsedMs] = useState(0);
+
+  // Hydrate persisted preferences after mount (not in useState initializers:
+  // SSR markup must match the client's first render).
+  useEffect(() => {
+    setSoundEnabled(readBoolPref(PREF_SOUND_KEY));
+    setShowEvalBar(readBoolPref(PREF_EVAL_BAR_KEY));
+  }, []);
+
+  // Persist synchronously in the event handler (NOT inside the setState
+  // updater — updaters must stay pure and may run deferred/twice).
+  const toggleSound = useCallback(() => {
+    const next = !soundEnabled;
+    writeBoolPref(PREF_SOUND_KEY, next);
+    setSoundEnabled(next);
+  }, [soundEnabled]);
+
+  const toggleEvalBar = useCallback(() => {
+    const next = !showEvalBar;
+    writeBoolPref(PREF_EVAL_BAR_KEY, next);
+    setShowEvalBar(next);
+  }, [showEvalBar]);
+
+  // --- 駒音 (Web Audio click on every applied move) ---
+  // A ref mirrors soundEnabled so playMoveSound (called from recordMove, which
+  // several effects depend on) stays referentially stable.
+  const soundEnabledRef = useRef(false);
+  useEffect(() => { soundEnabledRef.current = soundEnabled; }, [soundEnabled]);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  useEffect(() => {
+    return () => {
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+    };
+  }, []);
+
+  const playMoveSound = useCallback(() => {
+    if (!soundEnabledRef.current || typeof window === 'undefined') return;
+    try {
+      const AC = window.AudioContext ??
+        (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+      if (!AC) return;
+      if (!audioCtxRef.current) audioCtxRef.current = new AC();
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') void ctx.resume();
+      const t0 = ctx.currentTime;
+      // Piece "pachi": a fast-decaying noise burst through a bandpass (the
+      // click) plus a short sine thump (the board resonance). Quiet by design.
+      const dur = 0.055;
+      const buf = ctx.createBuffer(1, Math.max(1, Math.ceil(ctx.sampleRate * dur)), ctx.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 3);
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = buf;
+      const bp = ctx.createBiquadFilter();
+      bp.type = 'bandpass';
+      bp.frequency.value = 2500;
+      bp.Q.value = 1.1;
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.value = 0.22;
+      noise.connect(bp);
+      bp.connect(noiseGain);
+      noiseGain.connect(ctx.destination);
+      noise.start(t0);
+      const osc = ctx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(170, t0);
+      osc.frequency.exponentialRampToValueAtTime(75, t0 + 0.08);
+      const oscGain = ctx.createGain();
+      oscGain.gain.setValueAtTime(0.15, t0);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.09);
+      osc.connect(oscGain);
+      oscGain.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + 0.1);
+    } catch {
+      // Audio is decorative — never let it break a move.
+    }
+  }, []);
 
   const workerRef = useRef<ShogiAiWorkerClient | null>(null);
   const aiRequestIdRef = useRef(0);
@@ -227,6 +368,7 @@ const ShogiImproved = () => {
 	    });
     setMoveList([]);
     setHistory([]);
+    setEvalInfo(null);
     setShowPromotionDialog(false);
     setPendingMove(null);
   }, []);
@@ -241,9 +383,24 @@ const ShogiImproved = () => {
     return { isOver: false, winner: null };
   };
 
+  // Records the applied move in the kifu and plays the (opt-in) piece sound —
+  // the single funnel every applied move goes through (human + all AI paths).
   const recordMove = useCallback((te: Te) => {
     setMoveList(prev => [...prev, { koma: te.koma, from: te.from, to: te.to, promote: te.promote }]);
-  }, []);
+    playMoveSound();
+  }, [playMoveSound]);
+
+  // Tick the elapsed-time display while the AI is thinking. The status strip
+  // reserves its space permanently, so this text never causes layout shift.
+  // The counter starts each think at 0 because the previous cycle's cleanup
+  // reset it (no synchronous setState in the effect body).
+  useEffect(() => {
+    if (!gameState.isAIThinking) return;
+    const start = performance.now();
+    setThinkElapsedMs(0);
+    const timer = setInterval(() => setThinkElapsedMs(performance.now() - start), 100);
+    return () => clearInterval(timer);
+  }, [gameState.isAIThinking]);
 
   const handleCopyKifu = useCallback(() => {
     const text = moveList.map((m, i) => `${i + 1}. ${moveToKifu(m, moveList[i - 1])}`).join('\n');
@@ -483,11 +640,17 @@ const ShogiImproved = () => {
 		        const worker = getWorker();
 		        const position = serializeForWorker(gameState.kyokumen);
 		        worker
-		          .requestBestMove(position, difficulty, gameState.ply)
-		          .then((move) => {
+		          .requestBestMoveWithInfo(position, difficulty, gameState.ply)
+		          .then((info) => {
             if (aiRequestIdRef.current !== requestId) return;
 
-            const aiMove = move ? convertWorkerMoveToImprovedTe(move) : null;
+            // Search diagnostics for the eval bar / status strip (book moves
+            // report none — keep whatever the last real search said).
+            if (info.scoreCp !== undefined) {
+              setEvalInfo({ scoreCp: info.scoreCp, depth: info.depth });
+            }
+
+            const aiMove = info.move ? convertWorkerMoveToImprovedTe(info.move) : null;
             if (!aiMove) {
               setGameState(prev => ({
                 ...prev,
@@ -602,6 +765,8 @@ const ShogiImproved = () => {
     }));
     setMoveList(prev => prev.slice(0, last.moveListLen));
     setHistory(h => h.slice(0, -1));
+    // The last search's eval belongs to the undone position — drop it.
+    setEvalInfo(null);
     setShowPromotionDialog(false);
     setPendingMove(null);
   }, [history, gameState.gameOver, gameState.isAIThinking, gameState.kyokumen]);
@@ -649,6 +814,7 @@ const ShogiImproved = () => {
     });
     setMoveList([]);
     setHistory([]);
+    setEvalInfo(null);
     setShowPromotionDialog(false);
     setPendingMove(null);
     setShowDifficultySelect(false);
@@ -707,10 +873,15 @@ const ShogiImproved = () => {
     }
   }, [showDifficultySelect, gameState.ply, currentUser, savedGame]);
 
+  // The most recently applied move (any side / any path), for the last-move
+  // highlight. Derived from the kifu so undo / reset stay in sync for free.
+  const lastMove = moveList.length > 0 ? moveList[moveList.length - 1] : null;
+
   // Render piece
   const renderPiece = (suji: number, dan: number) => {
     const pos = new Position(suji, dan);
-    const koma = gameState.kyokumen.get(pos.toInt());
+    const posInt = pos.toInt();
+    const koma = gameState.kyokumen.get(posInt);
     if (koma === EMPTY) return null;
 
     const isSelected =
@@ -725,8 +896,10 @@ const ShogiImproved = () => {
       <ShogiPiece
         label={pieceText}
         isSente={isSente(koma)}
-        rotated={isGote}
+        // Pieces point away from the viewer's side; flipping the board flips that too.
+        rotated={isGote !== boardFlipped}
         selected={Boolean(isSelected)}
+        highlight={lastMove && lastMove.to === posInt ? 'to' : undefined}
       />
     );
   };
@@ -817,7 +990,10 @@ const ShogiImproved = () => {
         onInfoClick={() => setShowInfoModal(true)}
         additionalContent={
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {gameState.isAIThinking && <span style={{ color: '#ffd700' }}>AI Thinking...</span>}
+            {/* The AI-thinking indicator lives in the fixed-height status strip
+                above the board (NOT here): rendering it in the toolbar made the
+                flex-wrap toolbar grow a line while thinking, pushing the whole
+                board down on every AI move. */}
             <button
               onClick={handleUndo}
               disabled={!canUndo}
@@ -851,6 +1027,9 @@ const ShogiImproved = () => {
                   fontWeight: 600,
                   cursor: canSaveGame ? 'pointer' : 'not-allowed',
                   opacity: canSaveGame || saveStatus !== 'idle' ? 1 : 0.45,
+                  // Fixed width across all labels (Save game / Saving… / Saved ✓ /
+                  // Save failed) so the toolbar never reflows mid-game.
+                  minWidth: '104px',
                 }}
               >
                 {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved ✓' : saveStatus === 'error' ? 'Save failed' : 'Save game'}
@@ -860,7 +1039,127 @@ const ShogiImproved = () => {
         }
       />
 
-      <div style={{ maxWidth: '1200px', margin: '4rem auto 0', display: 'flex', gap: '40px', flexWrap: 'wrap', justifyContent: 'center' }}>
+      {/* Status strip + eval bar.
+          Layout-shift contract: this block is ALWAYS rendered with fixed row
+          heights — thinking/idle and eval-bar shown/hidden are toggled with
+          `visibility` (which keeps the box) so the board below never moves. */}
+      <div style={{ maxWidth: '1200px', margin: '3rem auto 0' }}>
+        <style>{'@keyframes shogiAiSpin { to { transform: rotate(360deg); } }'}</style>
+        <div
+          style={{
+            height: '28px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+          }}
+          aria-live="polite"
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: '14px',
+              height: '14px',
+              flex: '0 0 auto',
+              borderRadius: '50%',
+              border: '2px solid rgba(255, 215, 0, 0.25)',
+              borderTopColor: '#ffd700',
+              animation: 'shogiAiSpin 0.8s linear infinite',
+              visibility: gameState.isAIThinking ? 'visible' : 'hidden',
+            }}
+          />
+          <span
+            style={{
+              fontSize: '14px',
+              fontWeight: 600,
+              fontVariantNumeric: 'tabular-nums',
+              color: gameState.isAIThinking ? '#ffd700' : 'rgba(255,255,255,0.6)',
+            }}
+          >
+            {gameState.isAIThinking
+              ? 'AIが考えています…'
+              : gameState.gameOver
+                ? '対局終了'
+                : 'あなたの番です'}
+          </span>
+          <span
+            aria-hidden="true"
+            style={{
+              fontSize: '14px',
+              fontWeight: 600,
+              fontVariantNumeric: 'tabular-nums',
+              color: '#ffd700',
+              visibility: gameState.isAIThinking ? 'visible' : 'hidden',
+              minWidth: '3.4em',
+              textAlign: 'left',
+            }}
+          >
+            {(thinkElapsedMs / 1000).toFixed(1)}秒
+          </span>
+        </div>
+        <div style={{ height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div
+            style={{
+              width: 'min(480px, 92vw)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              visibility: showEvalBar ? 'visible' : 'hidden',
+            }}
+          >
+            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', flex: '0 0 auto' }}>▲先手</span>
+            <div
+              style={{
+                flex: '1 1 auto',
+                height: '10px',
+                borderRadius: '5px',
+                overflow: 'hidden',
+                background: '#e9e4d9',
+                border: '1px solid rgba(255,255,255,0.35)',
+              }}
+              role="img"
+              aria-label={
+                evalInfo
+                  ? `形勢: 先手勝率 ${Math.round(cpToSenteWinRate(evalInfo.scoreCp) * 100)}%`
+                  : '形勢: 不明'
+              }
+            >
+              <div
+                style={{
+                  width: `${(evalInfo ? cpToSenteWinRate(evalInfo.scoreCp) : 0.5) * 100}%`,
+                  height: '100%',
+                  background: '#1f1f1f',
+                  transition: 'width 0.4s ease',
+                }}
+              />
+            </div>
+            <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', flex: '0 0 auto' }}>後手△</span>
+            <span
+              style={{
+                fontSize: '12px',
+                color: 'rgba(255,255,255,0.75)',
+                fontVariantNumeric: 'tabular-nums',
+                minWidth: '8.5em',
+                flex: '0 0 auto',
+              }}
+            >
+              {evalInfo
+                ? Math.abs(evalInfo.scoreCp) >= 29000
+                  ? evalInfo.scoreCp > 0
+                    ? '先手勝勢（詰み）'
+                    : '後手勝勢（詰み）'
+                  : `評価値 ${evalInfo.scoreCp >= 0 ? '+' : ''}${evalInfo.scoreCp}${
+                      evalInfo.depth ? `（深さ${evalInfo.depth}）` : ''
+                    }`
+                : '評価値 —'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: '1200px', margin: '10px auto 0', display: 'flex', gap: '40px', flexWrap: 'wrap', justifyContent: 'center' }}>
         {/* Gote Captured Pieces */}
         <div style={{ flex: '0 0 auto' }}>
           <h3 style={{ marginBottom: '10px' }}>AI Pieces (後手)</h3>
@@ -912,14 +1211,21 @@ const ShogiImproved = () => {
               padding: '1px',
             }}
           >
-            {Array.from({ length: 9 }, (_, dan) =>
-              Array.from({ length: 9 }, (_, sujiIdx) => {
-                const suji = 9 - sujiIdx; // Right to left (9→1)
-                const actualDan = dan + 1;
+            {Array.from({ length: 9 }, (_, row) =>
+              Array.from({ length: 9 }, (_, col) => {
+                // Display-only flip: cells keep their real (suji, dan) identity
+                // (clicks, moves, highlights are untouched); only the order the
+                // grid renders them in changes.
+                const suji = boardFlipped ? col + 1 : 9 - col; // normal: right to left (9→1)
+                const actualDan = boardFlipped ? 9 - row : row + 1;
                 const pos = new Position(suji, actualDan);
+                const posInt = pos.toInt();
                 const isValidMove = gameState.validMoves.some(
-                  m => m.to === pos.toInt()
+                  m => m.to === posInt
                 );
+                const isLastTo = lastMove !== null && lastMove.to === posInt;
+                // Drops (from === 0) have no origin square to mark.
+                const isLastFrom = lastMove !== null && lastMove.from !== 0 && lastMove.from === posInt;
 
                 return (
                   <div
@@ -928,7 +1234,13 @@ const ShogiImproved = () => {
                     style={{
                       width: 'clamp(34px, 10vw, 50px)',
                       height: 'clamp(34px, 10vw, 50px)',
-                      background: isValidMove ? 'rgba(0, 255, 0, 0.2)' : '#ffe8b8',
+                      background: isValidMove
+                        ? 'rgba(0, 255, 0, 0.2)'
+                        : isLastTo
+                          ? '#f5c96b' // last move: destination (strong amber)
+                          : isLastFrom
+                            ? '#f8dfa2' // last move: origin (soft amber)
+                            : '#ffe8b8',
                       border: '1px solid #8b7355',
                       cursor: 'pointer',
                       position: 'relative',
@@ -990,6 +1302,47 @@ const ShogiImproved = () => {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Display controls (always rendered, constant content → no layout shift) */}
+      <div
+        style={{
+          maxWidth: '1200px',
+          margin: '18px auto 0',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '10px',
+          flexWrap: 'wrap',
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setBoardFlipped(f => !f)}
+          aria-pressed={boardFlipped}
+          title="盤面の表示だけを180°回転します（操作はそのまま）"
+          style={togglePillStyle(boardFlipped)}
+        >
+          盤反転（後手視点）
+        </button>
+        <button
+          type="button"
+          onClick={toggleEvalBar}
+          aria-pressed={showEvalBar}
+          title="AIの評価値による形勢バーを表示します（ネタバレ注意）"
+          style={togglePillStyle(showEvalBar)}
+        >
+          形勢バー
+        </button>
+        <button
+          type="button"
+          onClick={toggleSound}
+          aria-pressed={soundEnabled}
+          title="着手時に駒音を鳴らします"
+          style={togglePillStyle(soundEnabled)}
+        >
+          駒音
+        </button>
       </div>
 
       {/* Kifu (move list) */}

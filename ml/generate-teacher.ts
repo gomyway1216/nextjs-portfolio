@@ -29,6 +29,8 @@ import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenI
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '../src/components/game/ShogiImproved/InitialPositionImproved';
 import { ShogiAIImprovedV20 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV20';
+import { wasmSearchBestMove } from '../src/components/game/ShogiImproved/wasmEngine';
+import { getOpeningMoveImproved } from '../src/components/game/ShogiImproved/OpeningBookImproved';
 import {
   SENTE,
   GOTE,
@@ -36,10 +38,6 @@ import {
   getKomashu,
   isSente,
   PROMOTE,
-  SFU,
-  SHI,
-  GFU,
-  GHI,
   Te,
 } from '../src/components/game/ShogiImproved/types';
 
@@ -60,6 +58,7 @@ interface Args {
   balance: boolean; // 分布バランス制御 (大差局面の確率的間引き) を有効化
   balanceCp: number; // |cp| がこの値を超える局面を間引き対象にする
   balanceRate: number; // 間引き対象局面の採択率 (0..1)
+  wasm: boolean; // 自己対戦の指し手選択に WASM エンジンを使う (JS 比 ~15x)
 }
 
 function parseArgs(): Args {
@@ -83,6 +82,10 @@ function parseArgs(): Args {
     balance: a.includes('--balance'),
     balanceCp: parseInt(get('balance-cp', '1200'), 10),
     balanceRate: parseFloat(get('balance-rate', '0.3')),
+    // --wasm: 自己対戦の指し手選択を WASM エンジンに切り替える。生成フェーズが
+    // 支配的コスト (実測 gen 102s vs label 1.5s / chunk) なので、ここが ~15x 速くなる。
+    // 局面の性質は同一エンジンの同一探索 (JS版とビット一致) なので分布は変わらない。
+    wasm: a.includes('--wasm'),
   };
 }
 
@@ -212,6 +215,10 @@ function playOneGame(
     let te: Te | null = null;
     if (rng() < args.epsilon) {
       te = legal[Math.floor(rng() * legal.length)];
+    } else if (args.wasm) {
+      // JS 版 getNextTe と同じく定跡を先に引き (分布を揃える)、外れたら WASM 探索
+      // (JS 版とビット一致・~15x 速)。null (詰み/不調) は下のランダム手へ。
+      te = getOpeningMoveImproved(k, 'medium') ?? wasmSearchBestMove(k, ply, args.moveTimeMs, 4, 8);
     } else {
       te = ai.getNextTe(k, ply, {
         difficulty: 'medium',
@@ -235,13 +242,13 @@ const ML_DIR = __dirname;
 const ENGINE_BIN = path.join(ML_DIR, 'bin', 'yaneuraou');
 const EVAL_DIR = path.join(ML_DIR, 'eval', 'eval');
 
-interface EvalResult {
+export interface EvalResult {
   cp: number;
   bestmove: string;
   mate?: number;
 }
 
-class UsiEngine {
+export class UsiEngine {
   private proc!: ChildProcessWithoutNullStreams;
   private buf = '';
   private lineHandler: ((line: string) => void) | null = null;

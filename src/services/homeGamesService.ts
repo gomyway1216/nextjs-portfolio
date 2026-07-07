@@ -18,9 +18,7 @@ async function parseError(response: Response): Promise<string> {
 
 export async function getHomeGamesConfig(): Promise<HomeGamesConfig> {
   const response = await fetch('/api/home-games', {
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    cache: 'no-store',
   });
 
   if (!response.ok) {

@@ -11,8 +11,13 @@ import {
 
 describe('home games config helpers', () => {
   it('falls back to the default game order when the stored value is missing or empty', () => {
-    expect(normalizeHomeGameIds(undefined)).toEqual(DEFAULT_HOME_GAME_IDS);
-    expect(normalizeHomeGameIds([])).toEqual(DEFAULT_HOME_GAME_IDS);
+    const missingConfig = normalizeHomeGameIds(undefined);
+    const emptyConfig = normalizeHomeGameIds([]);
+
+    expect(missingConfig).toEqual(DEFAULT_HOME_GAME_IDS);
+    expect(emptyConfig).toEqual(DEFAULT_HOME_GAME_IDS);
+    expect(missingConfig).not.toBe(DEFAULT_HOME_GAME_IDS);
+    expect(emptyConfig).not.toBe(DEFAULT_HOME_GAME_IDS);
   });
 
   it('keeps known ids in stored order while dropping duplicates and unknown values', () => {

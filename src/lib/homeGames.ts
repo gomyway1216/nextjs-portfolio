@@ -46,7 +46,7 @@ export function getDuplicateHomeGameIds(gameIds: readonly string[]): string[] {
 
 export function normalizeHomeGameIds(value: unknown): string[] {
   if (!Array.isArray(value)) {
-    return DEFAULT_HOME_GAME_IDS;
+    return [...DEFAULT_HOME_GAME_IDS];
   }
 
   const seen = new Set<string>();
@@ -61,7 +61,7 @@ export function normalizeHomeGameIds(value: unknown): string[] {
     validIds.push(item);
   }
 
-  return validIds.length > 0 ? validIds : DEFAULT_HOME_GAME_IDS;
+  return validIds.length > 0 ? validIds : [...DEFAULT_HOME_GAME_IDS];
 }
 
 export function getHomeGamesByIds(gameIds: readonly string[] | undefined): Game[] {

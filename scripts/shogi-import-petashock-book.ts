@@ -68,6 +68,16 @@ const OUT_PATH = argValue('--out', path.resolve(__dirname, '../public/shogi-open
 const META_PATH = argValue('--meta', path.join(os.tmpdir(), 'shogi-opening-book-meta.jsonl'));
 const MAX_PLY = Number(argValue('--max-ply', '24'));
 const MAX_POSITIONS = Number(argValue('--max-positions', '40000'));
+/**
+ * Deep-ply pruning (v2, 30-ply book): from DEEP_FROM onward the frontier of each ply is
+ * capped to DEEP_FRONTIER * DEEP_DECAY^(ply - DEEP_FROM) nodes, keeping the lowest-pathGap
+ * (most mainline-ish) nodes. The petashock "num" (採択回数) field is 0 for every move in this
+ * book, so cumulative distance from the mainline is our "most played" proxy; it is what the
+ * BFS already used for its stop-order. 0 = disabled.
+ */
+const DEEP_FROM = Number(argValue('--deep-from', '0'));
+const DEEP_FRONTIER = Number(argValue('--deep-frontier', '9000'));
+const DEEP_DECAY = Number(argValue('--deep-decay', '0.9'));
 
 /** Stored (playable) moves: at most this far below the entry's best move. */
 const STORE_WINDOW = 50;
@@ -312,6 +322,10 @@ function main(): void {
   for (let ply = 0; ply <= MAX_PLY && frontier.length > 0 && !stop; ply++) {
     // Mainline-ish nodes first so the position budget is spent on plausible lines.
     frontier.sort((a, b) => a.pathGap - b.pathGap);
+    if (DEEP_FROM > 0 && ply >= DEEP_FROM) {
+      const budget = Math.max(1, Math.round(DEEP_FRONTIER * Math.pow(DEEP_DECAY, ply - DEEP_FROM)));
+      if (frontier.length > budget) frontier.length = budget;
+    }
     const next: Node[] = [];
 
     for (const node of frontier) {

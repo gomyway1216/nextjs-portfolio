@@ -1198,10 +1198,15 @@ function getBook(): Map<number, BookCandidate[]> {
 // ============================================================================
 // External large-scale opening book
 //
-// A ~50,000-position subset of やねうら王「新ペタショック定跡」(2.33M positions, MIT License,
-// https://github.com/yaneurao/YaneuraOu/releases/tag/new_petabook233), pre-filtered to the
-// first ~24 plies with only near-best moves kept (see scripts/shogi-import-petashock-book.ts,
-// verified against YaneuraOu depth 18 by scripts/shogi-petashock-book-verify.ts).
+// A ~80,000-position subset of やねうら王「新ペタショック定跡」(2.33M positions, MIT License,
+// https://github.com/yaneurao/YaneuraOu/releases/tag/new_petabook233): every book line up to
+// ply 20 plus mainline-first coverage to ply 30, with only near-best moves kept (see
+// scripts/shogi-import-petashock-book.ts; every stored move is depth-18-checked by
+// scripts/shogi-petashock-book-fullcheck.ts). On top of that, several thousand
+// human-deviation entries (scripts/shogi-book-deviation-cover.ts): for the most-reachable
+// positions of the first 12 plies, every natural non-book move (MultiPV within 300cp of the
+// engine best) gets the engine's depth-18 reply stored, so the first answer to an off-book
+// human move is still book-quality.
 //
 // The file ships as a static asset and is fetched asynchronously (same pattern as the NNUE
 // weights): it is NOT bundled, and until (or unless) the fetch resolves the curated book above

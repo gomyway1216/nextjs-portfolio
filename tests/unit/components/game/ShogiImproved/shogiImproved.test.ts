@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { InitialPositionImproved } from '@/components/game/ShogiImproved/InitialPositionImproved';
 import { GenerateMovesImproved } from '@/components/game/ShogiImproved/GenerateMovesImproved';
-import type { KyokumenImproved } from '@/components/game/ShogiImproved/KyokumenImproved';
+import { KyokumenImproved } from '@/components/game/ShogiImproved/KyokumenImproved';
 import { MateSolverImproved } from '@/components/game/ShogiImproved/MateSolverImproved';
 import { getOpeningMoveImproved } from '@/components/game/ShogiImproved/OpeningBookImproved';
 import { ShogiAIImprovedV19 } from '@/components/game/ShogiImproved/ShogiAIImprovedV19';
 import { ShogiAIImprovedV20 } from '@/components/game/ShogiImproved/ShogiAIImprovedV20';
-import { EMPTY, GFU, GOU, SENTE, SFU, SKI, SOU, SRY, type Te } from '@/components/game/ShogiImproved/types';
+import { EMPTY, GFU, GHI, GKA, GKY, GOTE, GOU, SENTE, SFU, SKI, SOU, SRY, type Te } from '@/components/game/ShogiImproved/types';
 
 function pos(suji: number, dan: number): number {
   return (suji << 4) + dan;
@@ -381,5 +381,50 @@ describe('ShogiImproved', () => {
 
     const push34 = findMove(k, 3, 3, 3, 4, false); // △3四歩
     expect(push34.equals(move)).toBe(true);
+  });
+
+  // 駒落ち (handicap): the 上手 (AI, GOTE) has a piece removed and moves first.
+  it('sets up handicap positions with the correct piece removed and GOTE to move', () => {
+    const countGote = (k: KyokumenImproved, piece: number): number => {
+      let n = 0;
+      for (let suji = 1; suji <= 9; suji++) {
+        for (let dan = 1; dan <= 9; dan++) {
+          if (k.ban[(suji << 4) + dan] === piece) n++;
+        }
+      }
+      return n;
+    };
+
+    // Hirate baseline: GOTE has 2 lances, 1 bishop, 1 rook.
+    const hirate = InitialPositionImproved.createInitialPosition();
+    expect(countGote(hirate, GKY)).toBe(2);
+    expect(countGote(hirate, GKA)).toBe(1);
+    expect(countGote(hirate, GHI)).toBe(1);
+
+    const bishop = new KyokumenImproved();
+    InitialPositionImproved.setupBishopHandicap(bishop);
+    bishop.setTeban(GOTE);
+    expect(countGote(bishop, GKA)).toBe(0); // bishop removed
+    expect(countGote(bishop, GHI)).toBe(1); // rook kept
+    expect(bishop.teban).toBe(GOTE); // 上手 moves first
+    // The 上手 must have legal opening moves so the AI can actually start.
+    expect(GenerateMovesImproved.generateLegalMoves(bishop).length).toBeGreaterThan(0);
+
+    const rook = new KyokumenImproved();
+    InitialPositionImproved.setupRookHandicap(rook);
+    rook.setTeban(GOTE);
+    expect(countGote(rook, GHI)).toBe(0); // rook removed
+    expect(countGote(rook, GKA)).toBe(1); // bishop kept
+
+    const twoPiece = new KyokumenImproved();
+    InitialPositionImproved.setupTwoPieceHandicap(twoPiece);
+    twoPiece.setTeban(GOTE);
+    expect(countGote(twoPiece, GKA)).toBe(0); // both bishop
+    expect(countGote(twoPiece, GHI)).toBe(0); // and rook removed
+
+    const lance = new KyokumenImproved();
+    InitialPositionImproved.setupLanceHandicap(lance);
+    lance.setTeban(GOTE);
+    expect(countGote(lance, GKY)).toBe(1); // one lance removed
   });
 });

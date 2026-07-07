@@ -1,0 +1,35 @@
+.wrapper {
+  align-items: center;
+  display: inline-flex;
+  gap: 0.25rem;
+}
+
+.caption {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.78rem;
+  margin-right: 0.15rem;
+}
+
+.option {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 0.35rem;
+  color: rgba(255, 255, 255, 0.82);
+  cursor: pointer;
+  flex-shrink: 0;
+  font-size: 0.78rem;
+  line-height: 1;
+  padding: 0.32rem 0.5rem;
+  transition: background 120ms ease, border-color 120ms ease;
+  white-space: nowrap;
+}
+
+.option:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.option[data-active='true'] {
+  background: rgba(230, 183, 101, 0.22);
+  border-color: rgba(230, 183, 101, 0.75);
+  color: #f3d9a0;
+}

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import useEmblaCarousel from 'embla-carousel-react';
 import {
@@ -14,12 +14,17 @@ import {
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { usePrefersReducedMotion } from '@/hooks/usePrefersReducedMotion';
-import { games } from '@/components/game/constants/games';
+import { getHomeGamesByIds } from '@/lib/homeGames';
 import './games-carousel.scss';
 
-function GamesSlideshowContent() {
+interface GamesSlideshowProps {
+  gameIds?: string[];
+}
+
+function GamesSlideshowContent({ gameIds }: GamesSlideshowProps) {
   const { t } = useTranslation();
   const prefersReducedMotion = usePrefersReducedMotion();
+  const slideshowGames = useMemo(() => getHomeGamesByIds(gameIds), [gameIds]);
 
   const [emblaRef, emblaApi] = useEmblaCarousel({
     loop: false,
@@ -152,7 +157,7 @@ function GamesSlideshowContent() {
       <div className="games-carousel">
         <div className="games-carousel__viewport" ref={emblaRef}>
           <div className="games-carousel__container">
-            {games.map((game) => {
+            {slideshowGames.map((game) => {
               const gameKey = game.id;
               const title = t(`games.${gameKey}.title`);
               const description = t(`games.${gameKey}.description`);

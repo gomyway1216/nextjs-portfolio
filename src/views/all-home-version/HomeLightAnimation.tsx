@@ -24,9 +24,10 @@ interface HomeOneProps {
   initialProfile?: Profile | null;
   initialWritings?: Writing[];
   initialBlogPosts?: HomeBlogPost[];
+  initialHomeGameIds?: string[];
 }
 
-const HomeOne = ({ initialProfile, initialWritings = [], initialBlogPosts = [] }: HomeOneProps) => {
+const HomeOne = ({ initialProfile, initialWritings = [], initialBlogPosts = [], initialHomeGameIds }: HomeOneProps) => {
   const { t } = useTranslation();
   const { resolvedTheme } = useTheme();
   const hasPublishedWritings = initialWritings.length > 0;
@@ -97,7 +98,7 @@ const HomeOne = ({ initialProfile, initialWritings = [], initialBlogPosts = [] }
             <h3>{t('home.sections.games.title')}</h3>
             <p>{t('home.sections.games.subtitle')}</p>
           </div>
-          <GamesSlideshow />
+          <GamesSlideshow gameIds={initialHomeGameIds} />
         </div>
       </section>
       {/* End Games Section */}

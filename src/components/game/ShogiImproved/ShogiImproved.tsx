@@ -15,7 +15,7 @@ import { ShogiPiece } from '../Shogi/ShogiPiece';
 import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { InitialPositionImproved } from './InitialPositionImproved';
 import { KyokumenImproved } from './KyokumenImproved';
-import { getOpeningMoveImproved } from './OpeningBookImproved';
+import { ensureExternalOpeningBookLoaded,getOpeningMoveImproved } from './OpeningBookImproved';
 import { getBestMoveV20 } from './ShogiAIImprovedV20';
 import type { SerializedKyokumenImproved,SerializedTeImproved,ShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
@@ -184,6 +184,13 @@ const ShogiImproved = () => {
       workerRef.current?.terminate();
       workerRef.current = null;
     };
+  }, []);
+
+  // Large-scale opening book (static asset, ~0.9MB): fetched once, non-blocking. The
+  // main-thread book probe above the worker path uses it; failures silently keep the
+  // compiled-in curated book only.
+  useEffect(() => {
+    void ensureExternalOpeningBookLoaded();
   }, []);
 
 	  const [gameState, setGameState] = useState<GameState>({

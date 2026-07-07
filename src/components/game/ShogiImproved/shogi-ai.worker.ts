@@ -46,7 +46,7 @@
 
 import { KyokumenImproved } from './KyokumenImproved';
 import { MateSolverImproved } from './MateSolverImproved';
-import { getOpeningMoveImproved } from './OpeningBookImproved';
+import { ensureExternalOpeningBookLoaded, getOpeningMoveImproved } from './OpeningBookImproved';
 import { PonderController } from './ponderController';
 import { buildPosition, type SerializedKyokumenImproved, type SerializedTeImproved } from './serializedPosition';
 import { ShogiAIImprovedV20 } from './ShogiAIImprovedV20';
@@ -187,6 +187,13 @@ async function fetchNnueWeights(): Promise<void> {
   }
 }
 void fetchNnueWeights();
+
+/**
+ * Large-scale opening book (public/shogi-opening-book.bin), fetched with the same
+ * static-asset pattern as the NNUE weights. Until it resolves, the compiled-in curated
+ * book covers the first moves; on any failure the curated book keeps working alone.
+ */
+void ensureExternalOpeningBookLoaded();
 
 // ---------------------------------------------------------------------------
 // Lazy SMP coordination (multi-thread search over a shared TT).

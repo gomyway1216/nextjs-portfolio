@@ -150,6 +150,31 @@ And in the middle of that exhaustive run, another trap: with a shared transposit
 
 ---
 
+## 8. So, how much stronger did it get? — an honest measurement
+
+A 50,000-position book shipped — but instead of ending on "and they lived happily ever after," **I measured the effect.** Same engine on both sides, only one side carrying the big book: 144 games of self-play across three conditions (different time controls and opening setups, colors alternating, with 95% confidence intervals).
+
+The honest result: **"a small positive. Not statistically significant."**
+
+| Condition (48 games each) | Book side's score | Elo diff (point estimate) |
+|---|---|---|
+| 2s/move, random opening | 54.2% | +29 |
+| 2s/move, in-book opening | 57.3% | +51 |
+| 1s/move, in-book opening | 51.0% | +7 |
+| **Total, 144 games** | **54.2% (95% CI 46.6–61.7%)** | **+29 (CI crosses 0)** |
+
+The point estimate is +30–50 Elo, but the confidence interval straddles zero. Detecting +50 Elo significantly would take ~400 games; at this sample size all we can honestly say is "a large effect is ruled out; a small positive one is likely."
+
+**The interesting part is the analysis of *why* it's small.** Digging into the logs:
+
+1. **In self-play, the big book barely fires.** The hand-verified curated book already covers the self-play main line through move 17, and one step off that line puts **both** sides out of book. Even with 50,000 positions, the external book contributed only ~1.3–1.4 moves per game. A book only works while the opponent stays on book shapes.
+2. **The "save time in the opening, think deeper in the midgame" effect structurally does not exist here.** The engine's clock is per-move (no game clock), so time saved by book moves doesn't carry over.
+3. Which means the big book's real value shows **against humans, not in self-play.** Humans play book shapes, so the game stays inside the net much longer. Indeed, the author (2-dan) clearly feels the opening improved — **self-play win rate and human-facing quality diverge**, a variation on the last article's "proxy metrics don't predict match strength." The same improvement looks different depending on the arena you measure in.
+
+> Added lesson: **an improvement's value depends on the arena you measure it in.** A book that looks marginal in self-play matters a lot against book-playing humans — and vice versa. Decide *what you want to be strong against* before you measure.
+
+(To be continued: book v2 — 30-ply deepening plus coverage of human deviations — and the NNUE retrain targeting the opening bias are both in progress; results will be appended.)
+
 ## Lessons from this chapter
 
 - **"A verified book" and "a sufficient book" are different things.** Every move can be correct and the coverage still leaks through the holes of a line-shaped book.

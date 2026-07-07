@@ -483,7 +483,12 @@ async function runWorker(
         }
         const childSfen = sfenOf(child);
         await engine.clearHash();
-        engine.setMultiPv(1);
+        // MultiPV=4, NOT 1: fullcheck/verify measure best-vs-move gaps under a MultiPV-4
+        // search, and depth-18 scores shift slightly between MultiPV contexts (a MultiPV-1
+        // best was observed to re-measure up to ~140cp below the MultiPV-4 best for ~0.5%
+        // of positions). Taking PV1 of a MultiPV-4 search makes the stored reply exactly
+        // reproducible under the verification protocol.
+        engine.setMultiPv(4);
         const reply = await engine.search(childSfen, DEPTH);
         engine.setMultiPv(MULTIPV);
         if (reply.length === 0) {

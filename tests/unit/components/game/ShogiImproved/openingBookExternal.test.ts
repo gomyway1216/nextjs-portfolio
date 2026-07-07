@@ -10,6 +10,7 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { GenerateMovesImproved } from '@/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '@/components/game/ShogiImproved/InitialPositionImproved';
@@ -80,11 +81,13 @@ afterEach(() => {
 });
 
 describe('loadExternalOpeningBook', () => {
-  it('loads the real committed book asset (>= 20k positions, <= 1.5MB)', () => {
+  it('loads the real committed book asset (>= 90k positions, <= 2MB raw / <= 2.5MB gzipped)', () => {
     const buf = realBookBuffer();
-    expect(buf.byteLength).toBeLessThanOrEqual(1_500_000); // static-asset budget guard
+    expect(buf.byteLength).toBeLessThanOrEqual(2_000_000); // static-asset budget guard
+    // The transfer budget is on the gzipped size (the asset is served compressed).
+    expect(gzipSync(Buffer.from(buf)).byteLength).toBeLessThanOrEqual(2_500_000);
     const n = loadExternalOpeningBook(buf);
-    expect(n).toBeGreaterThanOrEqual(20_000);
+    expect(n).toBeGreaterThanOrEqual(90_000);
     expect(isExternalOpeningBookLoaded()).toBe(true);
   });
 
@@ -155,11 +158,30 @@ describe('external coverage', () => {
       k.toggleTeban();
     }
 
-    // The curated mainlines are <= ~18 plies and the external book reaches ply ~20; the
-    // deterministic master walk must stay in book for a while and must consult the
-    // external book at least once after the curated line ends.
+    // The curated mainlines are <= ~18 plies and the external book reaches ply 30 on
+    // mainlines; the deterministic master walk must stay in book for a while and must
+    // consult the external book at least once after the curated line ends. (The walk ends
+    // where its specific deterministic path hits a petashock coverage leaf, not at the
+    // book's maximum depth.)
     expect(plies).toBeGreaterThanOrEqual(10);
     expect(openingBookStats.externalHits).toBeGreaterThan(externalHitsBefore);
+  });
+
+  it('answers a natural non-book human move from the deviation cover (▲4八銀 early)', () => {
+    // ▲7六歩 △3四歩 ▲4八銀: a perfectly natural human developing move that is NOT in the
+    // petashock lines (engine-vs-engine books never play it here). v1 dropped out of book;
+    // the v2 deviation cover stores the engine's depth-18 reply for exactly this kind of
+    // position, so the side to move (the AI as gote) must still get a book move.
+    const k = startPosition();
+    playFromTo(k, 7, 7, 7, 6); // ▲７六歩
+    playFromTo(k, 3, 3, 3, 4); // △３四歩
+    playFromTo(k, 3, 9, 4, 8); // ▲４八銀 (deviation)
+    expect(getOpeningMoveImproved(k, 'master')).toBeNull(); // precondition: not yet loaded
+
+    expect(loadExternalOpeningBook(realBookBuffer())).toBeGreaterThan(0);
+    const reply = getOpeningMoveImproved(k, 'master');
+    expect(reply).not.toBeNull();
+    expect(isLegal(k, reply!)).toBe(true);
   });
 
   it('serves an external move for a synthetic entry and honors the collision check', () => {

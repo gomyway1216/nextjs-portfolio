@@ -88,6 +88,14 @@ const EXPAND_WINDOW = 120;
 const EXPAND_ABS_MAX = 400;
 const MAX_STORED_MOVES_PER_POS = 4;
 const MAX_EXPAND_MOVES_PER_POS = 5;
+/**
+ * Humans pick from a WIDE set of reasonable moves in the first few plies (▲7六歩に対する
+ * △3四歩 is petashock's 6th move at gap 31cp — a plain cap of 5 dropped it and with it the
+ * whole 振り飛車/角換わり-via-3四歩 subtree). Allow more expansion branches near the root;
+ * the tree is tiny there, so the position-count cost is small.
+ */
+const SHALLOW_EXPAND_MOVES_PER_POS = Number(argValue('--shallow-expand', '8'));
+const SHALLOW_EXPAND_MAX_PLY = Number(argValue('--shallow-expand-max-ply', '6'));
 
 // --- SFEN helpers (KyokumenImproved -> YaneuraOu book key) ---------------------
 
@@ -345,6 +353,7 @@ function main(): void {
 
       const stored: StoredMove[] = [];
       const expand: Array<{ te: Te; gap: number }> = [];
+      const expandCap = node.ply <= SHALLOW_EXPAND_MAX_PLY ? SHALLOW_EXPAND_MOVES_PER_POS : MAX_EXPAND_MOVES_PER_POS;
       const sortedRows = [...rows].sort((a, b) => b.value - a.value);
       for (const row of sortedRows) {
         const parsed = parseUsi(row.usi.replace(/\+$/, '+')); // no-op; keep explicit
@@ -364,7 +373,7 @@ function main(): void {
         if (gap <= STORE_WINDOW && Math.abs(row.value) <= STORE_ABS_MAX && stored.length < MAX_STORED_MOVES_PER_POS) {
           stored.push({ te, usi: usiOf(ours), value: row.value });
         }
-        if (gap <= EXPAND_WINDOW && Math.abs(row.value) <= EXPAND_ABS_MAX && expand.length < MAX_EXPAND_MOVES_PER_POS) {
+        if (gap <= EXPAND_WINDOW && Math.abs(row.value) <= EXPAND_ABS_MAX && expand.length < expandCap) {
           expand.push({ te, gap });
         }
       }

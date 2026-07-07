@@ -9,10 +9,11 @@ import HomeLightAnimation from '@/views/all-home-version/HomeLightAnimation';
 import { getFirestore } from '@/lib/firebase-admin';
 import type { Profile } from '@/hooks/useProfile';
 import { isValidSocialLink, type ProfileSocialLink } from '@/lib/socialLinks';
-import { WRITING_COLLECTION } from '@/app/api/constants';
+import { HOME_GAMES_CONFIG_DOC_ID, SITE_CONFIG_COLLECTION, WRITING_COLLECTION } from '@/app/api/constants';
 import { isSafeHttpUrl, parseWritingDoc, publicWritings, type Writing } from '@/lib/writing';
 import { getInitialPostsCached, type ServerPost } from '@/lib/blog/getPostsServer';
 import { createPlainTextExcerpt } from '@/lib/text';
+import { DEFAULT_HOME_GAME_IDS, HOME_GAMES_CACHE_TAG, normalizeHomeGameIds } from '@/lib/homeGames';
 
 const PROFILE_DOC_ID = 'main';
 const HOME_BLOG_POST_LIMIT = 3;
@@ -66,6 +67,20 @@ const getInitialWritingsCached = unstable_cache(getInitialWritings, ['home-writi
   tags: ['writing'],
 });
 
+async function getInitialHomeGameIds(): Promise<string[]> {
+  const doc = await getFirestore()
+    .collection(SITE_CONFIG_COLLECTION)
+    .doc(HOME_GAMES_CONFIG_DOC_ID)
+    .get();
+
+  return normalizeHomeGameIds(doc.exists ? doc.data()?.gameIds : undefined);
+}
+
+const getInitialHomeGameIdsCached = unstable_cache(getInitialHomeGameIds, ['home-games-config'], {
+  revalidate: 3600,
+  tags: [HOME_GAMES_CACHE_TAG],
+});
+
 async function getInitialHomeLanguage() {
   const cookieStore = await cookies();
   const cookieLang = cookieStore.get('i18nextLng')?.value?.toLowerCase();
@@ -111,6 +126,13 @@ export default async function Home() {
     console.error('[Home] Failed to load initial blog posts:', error);
   }
 
+  let initialHomeGameIds = DEFAULT_HOME_GAME_IDS;
+  try {
+    initialHomeGameIds = await getInitialHomeGameIdsCached();
+  } catch (error) {
+    console.error('[Home] Failed to load home games config:', error);
+  }
+
   return (
     <>
       <AOSInitializer />
@@ -118,6 +140,7 @@ export default async function Home() {
         initialProfile={initialProfile}
         initialWritings={initialWritings}
         initialBlogPosts={initialBlogPosts}
+        initialHomeGameIds={initialHomeGameIds}
       />
     </>
   );

@@ -32,6 +32,7 @@ Eye,
 EyeOff,
 FileText,
 FolderKanban,
+Gamepad2,
 GraduationCap,
 Heart,
 Image as ImageIcon,
@@ -56,7 +57,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CSSProperties,memo,useCallback,useEffect,useRef,useState,type ChangeEvent } from 'react';
 
-type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'taxonomy' | 'jobs' | 'education' | 'study' | 'hobbies' | 'published-writing' | 'activity-logs';
+type AdminSection = 'dashboard' | 'profile' | 'projects' | 'posts' | 'taxonomy' | 'jobs' | 'education' | 'study' | 'games' | 'hobbies' | 'published-writing' | 'activity-logs';
 
 interface Job {
   id: string;
@@ -166,6 +167,11 @@ const PublishedWritingAdminPanel = dynamic(() => import('@/components/writing/Wr
 const StudyAdminPanel = dynamic(() => import('@/components/study/StudyAdminPanel'), {
   ssr: false,
   loading: () => <AdminSectionLoader label="Loading study tools..." />,
+});
+
+const HomeGamesAdminPanel = dynamic(() => import('@/components/admin/HomeGamesAdminPanel'), {
+  ssr: false,
+  loading: () => <AdminSectionLoader label="Loading home games..." />,
 });
 
 // Styles
@@ -526,7 +532,7 @@ const getSectionFromHash = (): AdminSection => {
   if (typeof window === 'undefined') return 'dashboard';
   const hash = window.location.hash.replace('#', '');
   if (hash === 'writing') return 'published-writing';
-  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'taxonomy', 'jobs', 'education', 'study', 'hobbies', 'published-writing', 'activity-logs'];
+  const validSections: AdminSection[] = ['dashboard', 'profile', 'projects', 'posts', 'taxonomy', 'jobs', 'education', 'study', 'games', 'hobbies', 'published-writing', 'activity-logs'];
   return validSections.includes(hash as AdminSection) ? (hash as AdminSection) : 'dashboard';
 };
 
@@ -2248,6 +2254,7 @@ const AdminPage = () => {
     { id: 'jobs' as AdminSection, label: 'Jobs', icon: Briefcase },
     { id: 'education' as AdminSection, label: 'Education', icon: GraduationCap },
     { id: 'study' as AdminSection, label: 'Study Tool', icon: BookOpen },
+    { id: 'games' as AdminSection, label: 'Home Games', icon: Gamepad2 },
     { id: 'hobbies' as AdminSection, label: 'Hobbies', icon: Heart },
     { id: 'activity-logs' as AdminSection, label: 'Activity Log', icon: ScrollText },
   ];
@@ -3106,6 +3113,11 @@ const AdminPage = () => {
           {/* Study Tool Section */}
           {activeSection === 'study' && (
             <StudyAdminPanel />
+          )}
+
+          {/* Home Games Section */}
+          {activeSection === 'games' && (
+            <HomeGamesAdminPanel onMessage={showMessage} />
           )}
 
           {/* Hobbies Section */}

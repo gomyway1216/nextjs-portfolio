@@ -43,6 +43,10 @@ export const HOBBY_ITEMS_COLLECTION = 'hobby_items';
 export const GAME_SCORES_COLLECTION = 'game_scores';
 export const GAME_SAVES_COLLECTION = 'game_saves';
 
+// Site configuration collection names
+export const SITE_CONFIG_COLLECTION = 'site_config';
+export const HOME_GAMES_CONFIG_DOC_ID = 'home_games';
+
 // Railway Planner collection names
 export const RAILWAY_PLANNER_DRAFTS_COLLECTION = 'railway_planner_drafts';
 

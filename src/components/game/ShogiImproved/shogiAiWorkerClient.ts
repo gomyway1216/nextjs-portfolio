@@ -25,10 +25,22 @@ type WorkerRequest =
   | MainThreadsInitMessage;
 
 type WorkerResponse =
-  | { type: 'bestMoveResult'; id: number; move: SerializedTeImproved | null }
+  | { type: 'bestMoveResult'; id: number; move: SerializedTeImproved | null; scoreCp?: number; depth?: number }
   | { type: 'error'; id: number; message: string };
 
 export type { SerializedKyokumenImproved, SerializedTeImproved };
+
+/**
+ * Best-move answer with optional search diagnostics. `scoreCp` is the root
+ * score in centipawns from SENTE's perspective (positive = Sente better);
+ * absent for opening-book moves and the JS fallback path. `depth` is the
+ * completed search depth when a WASM search ran.
+ */
+export interface BestMoveInfo {
+  move: SerializedTeImproved | null;
+  scoreCp?: number;
+  depth?: number;
+}
 
 export interface ShogiAiWorkerClient {
   requestBestMove: (
@@ -36,6 +48,12 @@ export interface ShogiAiWorkerClient {
     difficulty: Difficulty,
     tesu: number
   ) => Promise<SerializedTeImproved | null>;
+  /** Like requestBestMove, but also surfaces the worker's score/depth diagnostics. */
+  requestBestMoveWithInfo: (
+    position: SerializedKyokumenImproved,
+    difficulty: Difficulty,
+    tesu: number
+  ) => Promise<BestMoveInfo>;
   clearTT: () => void;
   terminate: () => void;
 }
@@ -108,7 +126,7 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
   let nextId = 1;
   const pending = new Map<
     number,
-    { resolve: (move: SerializedTeImproved | null) => void; reject: (err: Error) => void }
+    { resolve: (info: BestMoveInfo) => void; reject: (err: Error) => void }
   >();
 
   const rejectAll = (err: Error) => {
@@ -124,7 +142,7 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
       const p = pending.get(msg.id);
       if (!p) return;
       pending.delete(msg.id);
-      p.resolve(msg.move);
+      p.resolve({ move: msg.move, scoreCp: msg.scoreCp, depth: msg.depth });
       return;
     }
 
@@ -158,37 +176,46 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
     onVisibilityChange();
   }
 
+  const requestBestMoveWithInfo = (
+    position: SerializedKyokumenImproved,
+    difficulty: Difficulty,
+    tesu: number
+  ): Promise<BestMoveInfo> => {
+    const id = nextId++;
+    return new Promise<BestMoveInfo>((resolve, reject) => {
+      // Watchdog: if the worker never answers (an internal search hang), reject
+      // after a generous timeout so the UI never sticks on "AI Thinking..."
+      // forever — the caller then falls back to the main-thread search. 20s is
+      // far above any real search budget (master ~5s), so it only fires on a
+      // genuine hang, never on legitimate play.
+      const timer = setTimeout(() => {
+        if (pending.delete(id)) {
+          reject(new Error('AI worker timed out'));
+        }
+      }, 20000);
+      pending.set(id, {
+        resolve: (info) => { clearTimeout(timer); resolve(info); },
+        reject: (err) => { clearTimeout(timer); reject(err); },
+      });
+      try {
+        const req: WorkerRequest = { type: 'bestMove', id, position, difficulty, tesu: tesu | 0 };
+        worker.postMessage(req);
+      } catch (err) {
+        // postMessage can throw (worker already terminated, DataCloneError,
+        // …). Clean up so the request doesn't linger in `pending` with a live
+        // watchdog timer; the caller then falls back to the main-thread search.
+        clearTimeout(timer);
+        pending.delete(id);
+        reject(err instanceof Error ? err : new Error(String(err)));
+      }
+    });
+  };
+
   return {
     requestBestMove(position: SerializedKyokumenImproved, difficulty: Difficulty, tesu: number) {
-      const id = nextId++;
-      return new Promise<SerializedTeImproved | null>((resolve, reject) => {
-        // Watchdog: if the worker never answers (an internal search hang), reject
-        // after a generous timeout so the UI never sticks on "AI Thinking..."
-        // forever — the caller then falls back to the main-thread search. 20s is
-        // far above any real search budget (master ~5s), so it only fires on a
-        // genuine hang, never on legitimate play.
-        const timer = setTimeout(() => {
-          if (pending.delete(id)) {
-            reject(new Error('AI worker timed out'));
-          }
-        }, 20000);
-        pending.set(id, {
-          resolve: (move) => { clearTimeout(timer); resolve(move); },
-          reject: (err) => { clearTimeout(timer); reject(err); },
-        });
-        try {
-          const req: WorkerRequest = { type: 'bestMove', id, position, difficulty, tesu: tesu | 0 };
-          worker.postMessage(req);
-        } catch (err) {
-          // postMessage can throw (worker already terminated, DataCloneError,
-          // …). Clean up so the request doesn't linger in `pending` with a live
-          // watchdog timer; the caller then falls back to the main-thread search.
-          clearTimeout(timer);
-          pending.delete(id);
-          reject(err instanceof Error ? err : new Error(String(err)));
-        }
-      });
+      return requestBestMoveWithInfo(position, difficulty, tesu).then((info) => info.move);
     },
+    requestBestMoveWithInfo,
     clearTT() {
       const req: WorkerRequest = { type: 'clearTT' };
       worker.postMessage(req);

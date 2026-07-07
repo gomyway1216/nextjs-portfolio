@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowDown,
@@ -62,6 +62,7 @@ export default function HomeGamesAdminPanel({ onMessage }: HomeGamesAdminPanelPr
   const [savedGameIds, setSavedGameIds] = useState<string[]>(DEFAULT_HOME_GAME_IDS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const mountedRef = useRef(false);
 
   const visibleGames = useMemo(() => getHomeGamesByIds(visibleGameIds), [visibleGameIds]);
   const hiddenGames = useMemo(
@@ -70,16 +71,25 @@ export default function HomeGamesAdminPanel({ onMessage }: HomeGamesAdminPanelPr
   );
   const hasChanges = !sameOrder(visibleGameIds, savedGameIds);
 
-  const loadConfig = useCallback(async () => {
-    setLoading(true);
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const fetchConfig = useCallback(async (isCancelled?: () => boolean) => {
     try {
       const config = await getHomeGamesConfig();
+      if (isCancelled?.() || !mountedRef.current) return;
+
       setVisibleGameIds(config.gameIds);
       setSavedGameIds(config.gameIds);
     } catch (error) {
-      onMessage?.('error', `Failed to load home games: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-      setLoading(false);
+      if (!isCancelled?.() && mountedRef.current) {
+        onMessage?.('error', `Failed to load home games: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
     }
   }, [onMessage]);
 
@@ -87,19 +97,9 @@ export default function HomeGamesAdminPanel({ onMessage }: HomeGamesAdminPanelPr
     let cancelled = false;
 
     const loadInitialConfig = async () => {
-      try {
-        const config = await getHomeGamesConfig();
-        if (cancelled) return;
-        setVisibleGameIds(config.gameIds);
-        setSavedGameIds(config.gameIds);
-      } catch (error) {
-        if (!cancelled) {
-          onMessage?.('error', `Failed to load home games: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+      await fetchConfig(() => cancelled);
+      if (!cancelled && mountedRef.current) {
+        setLoading(false);
       }
     };
 
@@ -108,7 +108,17 @@ export default function HomeGamesAdminPanel({ onMessage }: HomeGamesAdminPanelPr
     return () => {
       cancelled = true;
     };
-  }, [onMessage]);
+  }, [fetchConfig]);
+
+  const loadConfig = useCallback(async () => {
+    if (!mountedRef.current) return;
+
+    setLoading(true);
+    await fetchConfig(() => !mountedRef.current);
+    if (mountedRef.current) {
+      setLoading(false);
+    }
+  }, [fetchConfig]);
 
   const handleSave = async () => {
     if (visibleGameIds.length === 0) {

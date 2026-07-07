@@ -75,6 +75,10 @@ export const PUT = withActivityLog('next_api.home-games.PUT', async (request: Ne
 
     return NextResponse.json({ success: true, gameIds: typedGameIds });
   } catch (error) {
+    if (error instanceof SyntaxError) {
+      return jsonError('Invalid JSON body', 400);
+    }
+
     console.error('Error updating home games config:', error);
     return jsonError('Failed to update home games config', 500);
   }

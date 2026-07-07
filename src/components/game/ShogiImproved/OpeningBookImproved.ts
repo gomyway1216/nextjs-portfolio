@@ -1066,6 +1066,61 @@ export const OPENING_LINES: OpeningLine[] = [
       { teban: GOTE, from: { suji: 5, dan: 1 }, to: { suji: 4, dan: 2 } },  // ☖４二玉
     ],
   },
+  {
+    // 角道相掛かり（▲６六歩・△３三角型）の深い延長。#338 の△３三角型は 9手目を ▲４八銀 として
+    // いたが、実戦では 9手目 ▲２五歩 が有力で、その後の 10手目局面（SFEN
+    // "lnsgkgsnl/1r7/p1ppppbpp/6p2/1p5P1/2PB... w - 10")が従来定跡外だった。NNUE はここで
+    // △８四飛（浮き飛車, YaneuraOu depth24 で最善から約58cp以上劣り top6 外の劣手）を指していた。
+    // 本手順は △７四歩 から自然に駒組みを進める本筋で、10手目以降の後手手番（10/12/14/16/18手目）を
+    // すべて YaneuraOu (NNUE 9.60) depth20〜24 の最善級手（top6・最善から100cp未満）で検証 (2026-07)。
+    name: '角道相掛かり (▲２五歩・△７四歩延長型)',
+    category: '相居飛車',
+    priority: 86,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 } }, // ☗７七角
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩 (角道を止める)
+      { teban: GOTE, from: { suji: 2, dan: 2 }, to: { suji: 3, dan: 3 } },  // ☖３三角 (△８四飛の浮き飛車は劣手)
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩 (9手目の有力手・この局面が定跡外だった)
+      { teban: GOTE, from: { suji: 7, dan: 3 }, to: { suji: 7, dan: 4 } },  // ☖７四歩 (最善級: △８四飛を避けて駒組み)
+      { teban: SENTE, from: { suji: 3, dan: 9 }, to: { suji: 4, dan: 8 } }, // ☗４八銀
+      { teban: GOTE, from: { suji: 6, dan: 1 }, to: { suji: 5, dan: 2 } },  // ☖５二金左
+      { teban: SENTE, from: { suji: 3, dan: 7 }, to: { suji: 3, dan: 6 } }, // ☗３六歩
+      { teban: GOTE, from: { suji: 5, dan: 3 }, to: { suji: 5, dan: 4 } },  // ☖５四歩
+      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八銀
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀
+      { teban: SENTE, from: { suji: 4, dan: 8 }, to: { suji: 3, dan: 7 } }, // ☗３七銀
+      { teban: GOTE, from: { suji: 8, dan: 1 }, to: { suji: 7, dan: 3 } },  // ☖７三桂 (後手やや指せる)
+    ],
+  },
+  {
+    // 角道相掛かり（▲６六歩・△３三角型）で 9手目に先手が ▲７八金 と上がる分岐。上の ▲２五歩延長型と
+    // 同じく △８四飛の再発を防ぐため、9手目 ▲７八金 の変化でも良い駒組みを供給する。10手目・12手目・
+    // 14手目の後手手番を YaneuraOu depth20〜24 の最善級手で検証 (2026-07)。
+    name: '角道相掛かり (▲７八金分岐)',
+    category: '相居飛車',
+    priority: 82,
+    moves: [
+      { teban: SENTE, from: { suji: 7, dan: 7 }, to: { suji: 7, dan: 6 } }, // ☗７六歩
+      { teban: GOTE, from: { suji: 8, dan: 3 }, to: { suji: 8, dan: 4 } },  // ☖８四歩
+      { teban: SENTE, from: { suji: 2, dan: 7 }, to: { suji: 2, dan: 6 } }, // ☗２六歩
+      { teban: GOTE, from: { suji: 8, dan: 4 }, to: { suji: 8, dan: 5 } },  // ☖８五歩
+      { teban: SENTE, from: { suji: 8, dan: 8 }, to: { suji: 7, dan: 7 } }, // ☗７七角
+      { teban: GOTE, from: { suji: 3, dan: 3 }, to: { suji: 3, dan: 4 } },  // ☖３四歩
+      { teban: SENTE, from: { suji: 6, dan: 7 }, to: { suji: 6, dan: 6 } }, // ☗６六歩
+      { teban: GOTE, from: { suji: 2, dan: 2 }, to: { suji: 3, dan: 3 } },  // ☖３三角
+      { teban: SENTE, from: { suji: 6, dan: 9 }, to: { suji: 7, dan: 8 } }, // ☗７八金 (9手目の別の自然手)
+      { teban: GOTE, from: { suji: 7, dan: 1 }, to: { suji: 6, dan: 2 } },  // ☖６二銀 (最善級)
+      { teban: SENTE, from: { suji: 7, dan: 9 }, to: { suji: 6, dan: 8 } }, // ☗６八銀
+      { teban: GOTE, from: { suji: 3, dan: 1 }, to: { suji: 3, dan: 2 } },  // ☖３二銀 (最善)
+      { teban: SENTE, from: { suji: 2, dan: 6 }, to: { suji: 2, dan: 5 } }, // ☗２五歩
+      { teban: GOTE, from: { suji: 7, dan: 3 }, to: { suji: 7, dan: 4 } },  // ☖７四歩 (最善級)
+    ],
+  },
 ];
 
 let bookCache: Map<number, BookCandidate[]> | null = null;

@@ -119,13 +119,43 @@ The design:
 
 Once this lands, mainstream openings stay in book to around move 20, and the "loose move's turn" mostly never comes. From whack-a-mole (patching lines the author happens to hit) to **covering the space up front.**
 
-(This section is in progress — implementation and measurements will be appended.)
+### 7.1 The result: a 50,000-position book, live in production
+
+The pipeline is done and deployed. The numbers:
+
+**The data source is the YaneuraOu team's "new Petashock book"** — a 2.33-million-position book used at the World Computer Shogi Championship (WCSC35), published under the **MIT License** with an explicit "feel free to use for research" note. (Checking the license is the first step of any ingestion like this.) From those 2.33M positions, a breadth-first walk from the initial position over the opening (≤20 plies) extracted **49,961 positions / 171,512 moves**.
+
+**Delivery is a static 844KB file (535KB gzipped)** — same scheme as the NNUE weights: not in the code bundle, fetched asynchronously at page start (~86ms measured). If the fetch fails, the engine runs on the hand-written book as before — zero regression. The hand-verified curated lines (the basis of the floating-rook regression tests) always take **per-position priority**.
+
+Coverage, before and after:
+
+| | before (hand-written) | after (Petashock ingestion) |
+|---|---|---|
+| Positions | dozens of lines | **49,961 positions** |
+| Distinct positions at move 10 | a handful | **~1,400** |
+| Distinct positions at move 20 | — | **~5,100** |
+| Measured time in book | out within a few moves | **in book through moves 17–19 at every difficulty**; ~13 moves even against offbeat orders |
+
+The feel changes too: book moves answer in **~0.5s** (vs seconds of search), and the opening simply no longer reaches the "loose move's turn."
+
+### 7.2 The key discovery: even a published book couldn't be trusted blindly
+
+This was the crux of the episode. The Petashock book ships with evaluation scores, so the initial plan was "filter on the bundled evals and the zero-blunder gate is satisfied." **Sample verification said otherwise** — of the moves passing the bundled-eval filter, **about 1.5% were more than 100cp below best when re-measured at depth 18.** A book's scores are from the time it was built; on shallow positions they drift from the current engine's judgment.
+
+So the plan changed to exhaustive verification: **all 171,512 moves (176,941 pre-pruning) were re-scored by YaneuraOu at depth 18, and 5,429 moves more than 90cp below best were pruned.** On the M4 Pro this ran as **12 parallel engines** (never trading depth for speed — parallelism supplies the volume), about 2.5 hours.
+
+And in the middle of that exhaustive run, another trap: with a shared transposition table across parallel engines, **the same position's depth-18 score wobbled by up to ~150cp between runs** — which silently invalidates a 90cp pruning threshold. The fix was a **deterministic protocol that reallocates the TT before every search** (same position → identical score and node count, invariant to how the work is split), established before the measurements counted. An independent-seed re-verification (891 positions / 3,096 moves) found **zero moves >100cp below best.**
+
+> The previous article's lesson — "verification itself is full of traps" — held for book ingestion too. **Don't trust external data's quality labels; re-measure with your own gate. And doubt the measuring instrument itself until it's reproducible.**
 
 ---
 
-## Lessons so far (provisional)
+## Lessons from this chapter
 
 - **"A verified book" and "a sufficient book" are different things.** Every move can be correct and the coverage still leaks through the holes of a line-shaped book.
 - **Verify a fix along the continuation, not just at the position.** Fix one ply and declare victory, and the problem moves one ply deeper (lived experience).
 - **An eval's weaknesses surface at both ends** — the endgame (saturation) and the opening (strategy). The midgame is strong because that's where the training data is thick.
 - **Look for public resources first.** Reinventing the wheel (hand-written book lines) runs straight into a wall of scale.
+- **Never trust external data's quality labels blindly.** The bundled evals let 1.5% inferior moves through; only re-measuring every move with our own depth-18 gate justified the words "zero blunders."
+- **Doubt the measuring instrument until it's reproducible.** A shared TT wobbled identical positions by ~150cp, silently breaking the pruning threshold. Make the measurement deterministic first.
+- **Design the fallback before the feature.** "Fetch fails → hand-written book, unchanged behavior" is what makes a big change safe to ship.

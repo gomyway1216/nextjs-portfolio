@@ -176,8 +176,17 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
           resolve: (move) => { clearTimeout(timer); resolve(move); },
           reject: (err) => { clearTimeout(timer); reject(err); },
         });
-        const req: WorkerRequest = { type: 'bestMove', id, position, difficulty, tesu: tesu | 0 };
-        worker.postMessage(req);
+        try {
+          const req: WorkerRequest = { type: 'bestMove', id, position, difficulty, tesu: tesu | 0 };
+          worker.postMessage(req);
+        } catch (err) {
+          // postMessage can throw (worker already terminated, DataCloneError,
+          // …). Clean up so the request doesn't linger in `pending` with a live
+          // watchdog timer; the caller then falls back to the main-thread search.
+          clearTimeout(timer);
+          pending.delete(id);
+          reject(err instanceof Error ? err : new Error(String(err)));
+        }
       });
     },
     clearTT() {

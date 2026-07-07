@@ -162,7 +162,20 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
     requestBestMove(position: SerializedKyokumenImproved, difficulty: Difficulty, tesu: number) {
       const id = nextId++;
       return new Promise<SerializedTeImproved | null>((resolve, reject) => {
-        pending.set(id, { resolve, reject });
+        // Watchdog: if the worker never answers (an internal search hang), reject
+        // after a generous timeout so the UI never sticks on "AI Thinking..."
+        // forever — the caller then falls back to the main-thread search. 20s is
+        // far above any real search budget (master ~5s), so it only fires on a
+        // genuine hang, never on legitimate play.
+        const timer = setTimeout(() => {
+          if (pending.delete(id)) {
+            reject(new Error('AI worker timed out'));
+          }
+        }, 20000);
+        pending.set(id, {
+          resolve: (move) => { clearTimeout(timer); resolve(move); },
+          reject: (err) => { clearTimeout(timer); reject(err); },
+        });
         const req: WorkerRequest = { type: 'bestMove', id, position, difficulty, tesu: tesu | 0 };
         worker.postMessage(req);
       });

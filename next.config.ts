@@ -94,34 +94,14 @@ const nextConfig: NextConfig = {
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
-      // Cross-origin isolation for the improved-shogi page ONLY: it unlocks
-      // SharedArrayBuffer, which the shogi AI needs for its multi-thread
-      // (Lazy SMP) search. Deliberately NOT site-wide — COEP: require-corp
-      // blocks cross-origin subresources that lack CORP/CORS headers (e.g.
-      // Firebase Storage images used elsewhere); this page only loads
-      // same-origin assets. Browsers/routes without these headers simply get
-      // no SharedArrayBuffer and the AI stays single-thread — see
-      // shogiAiWorkerClient.ts.
-      {
-        source: '/games/shogi-improved',
-        headers: [
-          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
-        ],
-      },
-      // Companion to the above: a cross-origin-isolated page may only spawn a
-      // dedicated Worker whose script response itself carries a compatible
-      // COEP (the HTML spec's "check a global object's embedder policy" —
-      // without this the worker chunk dies with ERR_BLOCKED_BY_RESPONSE).
-      // Harmless everywhere else: on ordinary <script>/fetch loads the header
-      // is ignored, and a non-isolated page may freely spawn workers whose
-      // scripts carry require-corp (only the reverse is blocked).
-      {
-        source: '/_next/static/:path*',
-        headers: [
-          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
-        ],
-      },
+      // NOTE: Cross-origin isolation (COOP/COEP) for /games/shogi-improved was
+      // intentionally REMOVED. It unlocked SharedArrayBuffer, which enabled the
+      // multi-thread (Lazy SMP) search — but that parallel search deadlocked in
+      // production (the page froze on "AI Thinking..." with no recovery), while
+      // its strength benefit was only a ~+58 Elo point estimate (n=24, not
+      // significant). Without these headers the page gets no SharedArrayBuffer
+      // and the AI stays single-thread — the same stable path /games/shogi uses.
+      // See shogiAiWorkerClient.ts (trySpawnSmpHelpers returns [] without SAB).
       {
         source: '/:path*',
         headers: [

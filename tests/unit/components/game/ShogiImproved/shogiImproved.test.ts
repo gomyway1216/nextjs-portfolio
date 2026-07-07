@@ -383,6 +383,58 @@ describe('ShogiImproved', () => {
     expect(push34.equals(move)).toBe(true);
   });
 
+  it('extends the 角道相掛かり line past ▲2五歩 so △8四飛 does not resurface (10th move)', () => {
+    // ▲7六歩△8四歩▲2六歩△8五歩▲7七角△3四歩▲6六歩△3三角▲2五歩 (後手番, 10手目).
+    // This is the position one ply *after* the #338 △3三角 reply: previously out-of-book, so
+    // NNUE relapsed into △8四飛 (浮き飛車), which YaneuraOu depth24 scores ~58cp+ below best and
+    // outside the top6. The book now extends the line and supplies △7四歩 (engine best).
+    // SFEN: lnsgkgsnl/1r7/p1ppppbpp/6p2/1p5P1/2PP5/PPB1PPP1P/7R1/LNSGKGSNL w - 10
+    const k = InitialPositionImproved.createInitialPosition();
+    k.setTeban(SENTE);
+    playMove(k, 7, 7, 7, 6, false); // ▲7六歩
+    playMove(k, 8, 3, 8, 4, false); // △8四歩
+    playMove(k, 2, 7, 2, 6, false); // ▲2六歩
+    playMove(k, 8, 4, 8, 5, false); // △8五歩
+    playMove(k, 8, 8, 7, 7, false); // ▲7七角
+    playMove(k, 3, 3, 3, 4, false); // △3四歩
+    playMove(k, 6, 7, 6, 6, false); // ▲6六歩
+    playMove(k, 2, 2, 3, 3, false); // △3三角
+    playMove(k, 2, 6, 2, 5, false); // ▲2五歩
+
+    const move = getOpeningMoveImproved(k, 'medium');
+    expect(move).not.toBeNull();
+
+    // Must be the engine-approved developing move, and never the weak △8四飛.
+    const push74 = findMove(k, 7, 3, 7, 4, false); // △7四歩 (engine best)
+    const uki84 = findMove(k, 8, 2, 8, 4, false); // △8四飛 (the weak move to avoid)
+    expect(uki84.equals(move)).toBe(false);
+    expect(push74.equals(move)).toBe(true);
+  });
+
+  it('keeps the extended 角道相掛かり line in book several plies deep (12th move)', () => {
+    // Two plies further: ...▲2五歩△7四歩▲4八銀 (後手番, 12手目). Confirms the extension keeps
+    // supplying sound development (△5二金左) rather than falling out of book again.
+    const k = InitialPositionImproved.createInitialPosition();
+    k.setTeban(SENTE);
+    playMove(k, 7, 7, 7, 6, false); // ▲7六歩
+    playMove(k, 8, 3, 8, 4, false); // △8四歩
+    playMove(k, 2, 7, 2, 6, false); // ▲2六歩
+    playMove(k, 8, 4, 8, 5, false); // △8五歩
+    playMove(k, 8, 8, 7, 7, false); // ▲7七角
+    playMove(k, 3, 3, 3, 4, false); // △3四歩
+    playMove(k, 6, 7, 6, 6, false); // ▲6六歩
+    playMove(k, 2, 2, 3, 3, false); // △3三角
+    playMove(k, 2, 6, 2, 5, false); // ▲2五歩
+    playMove(k, 7, 3, 7, 4, false); // △7四歩
+    playMove(k, 3, 9, 4, 8, false); // ▲4八銀
+
+    const move = getOpeningMoveImproved(k, 'medium');
+    expect(move).not.toBeNull();
+
+    const gold52 = findMove(k, 6, 1, 5, 2, false); // △5二金左 (in-book developing move)
+    expect(gold52.equals(move)).toBe(true);
+  });
+
   // 駒落ち (handicap): the 上手 (AI, GOTE) has a piece removed and moves first.
   it('sets up handicap positions with the correct piece removed and GOTE to move', () => {
     const countGote = (k: KyokumenImproved, piece: number): number => {

@@ -195,8 +195,11 @@ function enumerateBookNodes(book: Map<number, BookEntry>): BookNode[] {
   const visited = new Set<string>();
   const nodes: BookNode[] = [];
   const queue: Te[][] = [[]];
-  while (queue.length > 0) {
-    const path = queue.shift()!;
+  // O(n) デキュー: queue.shift() は要素の再インデックスで BFS 全体が O(n²) に
+  // なるため（~86k ノードで顕著）、読み出しヘッドを進めるだけにする。
+  let head = 0;
+  while (head < queue.length) {
+    const path = queue[head++];
     const k = replay(path);
     const key = sfenKey(toSfen(k, path.length + 1));
     if (visited.has(key)) continue;
@@ -319,7 +322,6 @@ async function main(): Promise<void> {
     let cursor = 0;
     const lines: string[] = [];
     const deadEngines = new Set<UsiEngine>();
-    const rngB = mulberry32((args.seed * 7919 + total) >>> 0);
     await Promise.all(
       engines.map(async (engine) => {
         for (;;) {
@@ -341,9 +343,15 @@ async function main(): Promise<void> {
             continue;
           }
           if (!res || res.bestmove === 'resign' || res.bestmove === 'win') continue;
-          if (args.balance && Math.abs(res.cp) > args.balanceCp && rngB() >= args.balanceRate) {
-            thinned++;
-            continue;
+          // 間引きの乱数はワーカーの完了順に依存させない: 位置インデックス i から
+          // 決定的に導く（共有 rngB() を呼び順で消費すると、どの局面が間引かれるかが
+          // エンジンのタイミングで変わり再現性が失われる）。
+          if (args.balance && Math.abs(res.cp) > args.balanceCp) {
+            const keep = mulberry32(((args.seed * 7919 + total) ^ (i * 2654435761)) >>> 0)();
+            if (keep >= args.balanceRate) {
+              thinned++;
+              continue;
+            }
           }
           const rec: Record<string, unknown> = {
             sfen: pos.sfen,

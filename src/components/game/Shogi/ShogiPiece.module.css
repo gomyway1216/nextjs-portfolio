@@ -1,8 +1,22 @@
+/*
+ * "Kiyoyasu-fu" (清安風) brush typeface: Yuji Boku by Kinuta Font Factory
+ * (Yuji Kataoka), SIL Open Font License 1.1. Self-hosted subset containing
+ * only the 16 kanji used on shogi pieces (~8 KB woff2).
+ * License: /public/fonts/OFL-YujiBoku.txt
+ */
+@font-face {
+  font-family: 'Yuji Boku Shogi';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/yuji-boku-shogi.woff2') format('woff2');
+}
+
 .piece {
   align-items: center;
-  aspect-ratio: 100 / 116;
+  aspect-ratio: 100 / 104;
   display: inline-grid;
-  height: 90%;
+  height: 92%;
   justify-items: center;
   max-height: 3.75rem;
   min-height: 1.75rem;
@@ -19,49 +33,81 @@
 }
 
 .castShadow {
-  fill: rgba(43, 25, 10, 0.34);
+  fill: rgba(25, 12, 3, 0.38);
 }
 
-.rim {
-  fill: #6f451c;
+.edge {
+  fill: #63451a;
 }
 
-.body {
-  fill: #e6b765;
-  stroke: #8a5a24;
-  stroke-width: 1.4;
-}
-
-.innerStroke {
+.grain {
   fill: none;
-  opacity: 0.55;
-  stroke: rgba(255, 242, 194, 0.75);
-  stroke-width: 1.1;
+  stroke: rgba(128, 78, 26, 0.16);
+  stroke-width: 1.6;
 }
 
-.label {
-  color: #1f1308;
+.bevelHighlight {
+  fill: none;
+  stroke: rgba(255, 246, 214, 0.65);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+/*
+ * Kanji rendering — three selectable typefaces, switched globally via a
+ * data attribute on <html> (set by ShogiTypefaceSelector, persisted in
+ * localStorage):
+ *   (default / 'kiyoyasu')  brush webfont label  (清安風)
+ *   'ryoko'                 Ryoko vector glyphs  (菱湖)
+ *   'classic'               mincho font label    (楷書)
+ */
+.glyph {
+  display: none;
+}
+
+.glyphInk {
+  fill: #1c1206;
+}
+
+.glyphPaper {
+  fill: #eed093;
+}
+
+.labelText {
+  dominant-baseline: central;
+  fill: #241708;
+  font-family: 'Yuji Boku Shogi', 'Hiragino Mincho ProN', 'Yu Mincho', 'YuMincho', 'Noto Serif JP', serif;
+  font-size: 55px;
+  paint-order: stroke fill;
+  stroke: #241708;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+:global(html[data-shogi-typeface='ryoko']) .glyph {
+  display: inline;
+}
+
+:global(html[data-shogi-typeface='ryoko']) .labelText {
+  display: none;
+}
+
+:global(html[data-shogi-typeface='classic']) .labelText {
   font-family: 'Hiragino Mincho ProN', 'Yu Mincho', 'YuMincho', 'Shippori Mincho', 'Noto Serif JP', serif;
-  font-size: clamp(1.05rem, 3vw, 1.66rem);
+  font-size: 50px;
   font-weight: 800;
-  letter-spacing: 0;
-  line-height: 1;
-  left: 50%;
-  position: absolute;
-  text-shadow: 0 0.04rem 0 rgba(255, 239, 184, 0.32);
-  text-orientation: upright;
-  top: 55%;
-  transform: translate(-50%, -50%) scaleX(0.94);
-  transform-origin: center;
-  writing-mode: vertical-rl;
+  stroke-width: 0.6;
 }
 
-.piece[data-promoted='true'] .label {
-  color: #a52316;
+/* Promoted pieces: vermilion ink */
+.piece[data-promoted='true'] .labelText {
+  fill: #c1271c;
+  stroke: #c1271c;
 }
 
-.piece[data-side='gote'][data-promoted='false'] .label {
-  color: #2d1607;
+.piece[data-promoted='true'] .glyphInk {
+  fill: #c22d17;
 }
 
 .piece[data-rotated='true'] {

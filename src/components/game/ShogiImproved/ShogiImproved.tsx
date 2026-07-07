@@ -12,6 +12,7 @@ import React,{ useCallback,useEffect,useRef,useState } from 'react';
 import { Difficulty,DifficultySelector,GameStats,GameTopBar,InfoModal } from '../common';
 import startShellStyles from '../common/GameStartShell.module.css';
 import { ShogiPiece } from '../Shogi/ShogiPiece';
+import { ShogiTypefaceSelector } from '../Shogi/ShogiTypefaceSelector';
 import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { InitialPositionImproved } from './InitialPositionImproved';
 import { KyokumenImproved } from './KyokumenImproved';
@@ -1160,6 +1161,11 @@ const ShogiImproved = () => {
       </div>
 
       <div style={{ maxWidth: '1200px', margin: '10px auto 0', display: 'flex', gap: '40px', flexWrap: 'wrap', justifyContent: 'center' }}>
+        {/* Typeface selector row: always rendered at a fixed height so the
+            board below never shifts (same layout contract as the status strip). */}
+        <div style={{ flexBasis: '100%', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <ShogiTypefaceSelector />
+        </div>
         {/* Gote Captured Pieces */}
         <div style={{ flex: '0 0 auto' }}>
           <h3 style={{ marginBottom: '10px' }}>AI Pieces (後手)</h3>

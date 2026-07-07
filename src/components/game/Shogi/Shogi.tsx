@@ -17,6 +17,7 @@ import { Kyokumen } from './Kyokumen';
 import { getOpeningMoveValidated } from './OpeningBookValidated';
 import { getBestMove } from './ShogiAI';
 import { ShogiPiece } from './ShogiPiece';
+import { ShogiTypefaceSelector } from './ShogiTypefaceSelector';
 import { EMPTY,GOTE,isSente,komaValue,Position,SENTE,Te,toString } from './types';
 import styles from './ShogiStartScreen.module.css';
 
@@ -614,6 +615,9 @@ const Shogi = () => {
       />
 
       <div style={{ maxWidth: '1600px', margin: '4rem auto 0', display: 'flex', flexWrap: 'wrap', gap: '20px', justifyContent: 'center', alignItems: 'stretch' }}>
+        <div style={{ flexBasis: '100%', display: 'flex', justifyContent: 'center' }}>
+          <ShogiTypefaceSelector />
+        </div>
         {/* AI Captured Pieces - Left side */}
         <div style={{ flex: '1 1 100px', maxWidth: '160px', display: 'flex', flexDirection: 'column' }}>
           <h3 style={{ marginBottom: '10px', fontSize: '0.9rem', textAlign: 'center' }}>

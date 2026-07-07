@@ -46,7 +46,11 @@ def main():
 
     # データは全モデルで同一（1回だけロード）。cp_clamp は決着圏判定に影響するため
     # クランプ前の raw cp が必要 → clamp を十分大きくロードし、y/err 用には別途クランプ。
+    # データセットの特徴量エンコード（KP はバケットオフセット付き）はモデルの
+    # features に依存するため、1回のロードを使い回せるのは全ckptが同一 features の
+    # 場合のみ。異なる features を混在指定したら誤評価になるので明示エラーにする。
     board = hands = cp_raw = None
+    loaded_features = None
     results = {}
     pairs100 = None
     pairs_dec = None
@@ -54,14 +58,24 @@ def main():
     for spec in args.ckpt:
         name, path = spec.split("=", 1)
         ckpt = torch.load(path, map_location="cpu", weights_only=True)
-        k = float(ckpt.get("arch", {}).get("k", args.k))
-        model = DistillNet()
+        arch = ckpt.get("arch", {})
+        k = float(arch.get("k", args.k))
+        feat = arch.get("features", "board")
+        model = DistillNet(features=feat)
         model.load_state_dict(ckpt["model"])
         model.eval().to(args.device)
 
         if board is None:
-            # raw cp を保持するため clamp を大きめ (10^9) でロード
-            board, hands, _, cp_raw, _ = load_dataset(args.data, k, 10 ** 9)
+            # raw cp を保持するため clamp を大きめ (10^9) でロード。データセットの
+            # 特徴量エンコードは最初のモデルの features に合わせる。
+            loaded_features = feat
+            board, hands, _, cp_raw, _ = load_dataset(args.data, k, 10 ** 9, features=feat)
+        elif feat != loaded_features:
+            raise SystemExit(
+                f"[eval] features 混在は不可: '{name}' は features={feat} だが "
+                f"データセットは features={loaded_features} でロード済み。"
+                f"同一 features のckptのみをまとめて指定してください。"
+            )
         n = cp_raw.shape[0]
         # 各モデルの K でクランプ済み cp（誤差評価用）
         cp = cp_raw.clamp(-args.cp_clamp, args.cp_clamp)

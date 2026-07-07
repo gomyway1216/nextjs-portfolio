@@ -198,17 +198,18 @@ const ShogiImproved = () => {
   }, []);
 
   const handleCopyKifu = useCallback(() => {
-    const text = moveList.map((m, i) => `${i + 1} ${moveToKifu(m, moveList[i - 1])}`).join('\n');
+    const text = moveList.map((m, i) => `${i + 1}. ${moveToKifu(m, moveList[i - 1])}`).join('\n');
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard
-        .writeText(text)
-        .then(() => {
-          setKifuCopied(true);
-          setTimeout(() => setKifuCopied(false), 1500);
-        })
-        .catch(() => {});
+      navigator.clipboard.writeText(text).then(() => setKifuCopied(true)).catch(() => {});
     }
   }, [moveList]);
+
+  // Clear the "copied" flash, cleaning up the timer on unmount.
+  useEffect(() => {
+    if (!kifuCopied) return;
+    const t = setTimeout(() => setKifuCopied(false), 1500);
+    return () => clearTimeout(t);
+  }, [kifuCopied]);
 
   // Execute move
 	  const executeMove = (te: Te, promote: boolean) => {
@@ -834,6 +835,7 @@ const ShogiImproved = () => {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <h3 style={{ margin: 0, fontSize: '1rem' }}>棋譜 ({moveList.length})</h3>
               <button
+                type="button"
                 onClick={handleCopyKifu}
                 style={{
                   padding: '6px 14px',

@@ -241,19 +241,19 @@ const ShogiImproved = () => {
     setShowEvalBar(readBoolPref(PREF_EVAL_BAR_KEY));
   }, []);
 
+  // Persist synchronously in the event handler (NOT inside the setState
+  // updater — updaters must stay pure and may run deferred/twice).
   const toggleSound = useCallback(() => {
-    setSoundEnabled(prev => {
-      writeBoolPref(PREF_SOUND_KEY, !prev);
-      return !prev;
-    });
-  }, []);
+    const next = !soundEnabled;
+    writeBoolPref(PREF_SOUND_KEY, next);
+    setSoundEnabled(next);
+  }, [soundEnabled]);
 
   const toggleEvalBar = useCallback(() => {
-    setShowEvalBar(prev => {
-      writeBoolPref(PREF_EVAL_BAR_KEY, !prev);
-      return !prev;
-    });
-  }, []);
+    const next = !showEvalBar;
+    writeBoolPref(PREF_EVAL_BAR_KEY, next);
+    setShowEvalBar(next);
+  }, [showEvalBar]);
 
   // --- 駒音 (Web Audio click on every applied move) ---
   // A ref mirrors soundEnabled so playMoveSound (called from recordMove, which

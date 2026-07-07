@@ -3,11 +3,15 @@
  * real YaneuraOu at fixed depth: no stored move may be worse than the engine best by more than
  * HARD_FAIL_CP (100cp). Runs N engine processes in parallel (Threads=2 each).
  *
- * Reads the meta JSONL produced by shogi-import-petashock-book.ts (sfen + stored moves per
- * position). For each sampled position:
+ * Reads the meta JSONL produced by shogi-import-petashock-book.ts (or the verified meta from
+ * shogi-petashock-book-fullcheck.ts). For each sampled position:
  *   1. `go depth D` with MultiPV=4 — stored moves found in the top-4 get their cp directly.
  *   2. stored moves NOT in the top-4 are re-searched with `searchmoves <move>` to get their cp.
  *   3. gap = bestCp - moveCp; gap > HARD_FAIL_CP is a hard failure (exit 1).
+ *
+ * Uses the same deterministic measurement protocol as the fullcheck script: the TT is cleared
+ * (USI_Hash re-allocation + isready) before every search, so with Threads=1 the values exactly
+ * reproduce the fullcheck measurements regardless of sampling order.
  *
  * Usage:
  *   YANE_BIN=... YANE_EVAL_DIR=... node -r tsx/cjs scripts/shogi-petashock-book-verify.ts \
@@ -31,7 +35,8 @@ const SAMPLE = Number(argValue('--sample', '1000'));
 const PROCS = Number(argValue('--procs', '5'));
 const DEPTH = Number(argValue('--depth', '18'));
 const SEED = Number(argValue('--seed', '42'));
-const THREADS = Number(argValue('--threads', '2'));
+// Threads=1 keeps the fixed-depth measurements deterministic (see protocol note above).
+const THREADS = Number(argValue('--threads', '1'));
 const HARD_FAIL_CP = 100;
 
 const YANE_BIN = process.env.YANE_BIN ?? path.resolve(__dirname, '../ml/bin/yaneuraou');
@@ -108,7 +113,7 @@ class Engine {
     this.send(`setoption name EvalDir value ${YANE_EVAL_DIR}`);
     this.send('setoption name FV_SCALE value 20');
     this.send(`setoption name Threads value ${THREADS}`);
-    this.send('setoption name USI_Hash value 256');
+    this.send('setoption name USI_Hash value 64');
     this.send('setoption name USI_OwnBook value false');
     this.send('setoption name BookFile value no_book');
     this.send('setoption name NetworkDelay value 0');
@@ -121,6 +126,19 @@ class Engine {
 
   setMultiPv(n: number): void {
     this.send(`setoption name MultiPV value ${n}`);
+  }
+
+  /** Clear the TT by re-allocating it (see shogi-petashock-book-fullcheck.ts for rationale). */
+  async clearHash(): Promise<void> {
+    // Two-step realloc: 1MB then back to 64MB. Every measurement must run with the SAME
+    // hash size (the size itself changes search behavior slightly), so a plain size toggle
+    // would break determinism — this always ends on a freshly zeroed 64MB table.
+    this.send('setoption name USI_Hash value 1');
+    this.send('isready');
+    await this.waitFor((l) => l === 'readyok', 30000);
+    this.send('setoption name USI_Hash value 64');
+    this.send('isready');
+    await this.waitFor((l) => l === 'readyok', 30000);
   }
 
   search(sfen: string, depth: number, searchmoves?: string[]): Promise<PvInfo[]> {
@@ -201,6 +219,7 @@ async function runWorker(
   try {
     await engine.init(4);
     for (const e of entries) {
+      await engine.clearHash();
       const top = await engine.search(e.sfen, DEPTH);
       progress();
       if (top.length === 0) continue;
@@ -212,6 +231,7 @@ async function runWorker(
         if (hit) {
           ownCp = hit.cp;
         } else {
+          await engine.clearHash();
           engine.setMultiPv(1);
           const own = await engine.search(e.sfen, DEPTH, [m.usi]);
           engine.setMultiPv(4);

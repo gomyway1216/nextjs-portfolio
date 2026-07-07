@@ -5,8 +5,15 @@
  * move of EVERY position against a local YaneuraOu:
  *   - one `go depth D` (MultiPV=4, Threads=1) per position → moves in the top-4 get their cp
  *   - stored moves outside the top-4 get their own `searchmoves` search
- *   - a move is KEPT only if bestCp - moveCp <= PRUNE_GAP (default 90cp — inside the 100cp
- *     quality bound with margin for TT-state noise between runs)
+ *   - a move is KEPT only if bestCp - moveCp <= PRUNE_GAP (default 90cp, inside the 100cp
+ *     quality bound)
+ *
+ * MEASUREMENT PROTOCOL (deterministic): the transposition table is cleared before EVERY
+ * search (main and searchmoves) by re-allocating USI_Hash + isready. With Threads=1 and a
+ * fixed depth this makes each measurement a pure function of (position, move): re-running
+ * any subset in any order reproduces the exact same cp values and node counts. Without the
+ * clears, TT carry-over between unrelated positions was observed to swing depth-18 scores
+ * by up to ~150cp on ~1% of moves, which would make the <=100cp guarantee unverifiable.
  *
  * Progress is appended to the results JSONL after every position, so the run is RESUMABLE:
  * re-running skips positions already present in the results file.
@@ -139,7 +146,7 @@ class Engine {
     this.send(`setoption name EvalDir value ${YANE_EVAL_DIR}`);
     this.send('setoption name FV_SCALE value 20');
     this.send('setoption name Threads value 1');
-    this.send('setoption name USI_Hash value 256');
+    this.send('setoption name USI_Hash value 64');
     this.send('setoption name USI_OwnBook value false');
     this.send('setoption name BookFile value no_book');
     this.send('setoption name NetworkDelay value 0');
@@ -152,6 +159,23 @@ class Engine {
 
   setMultiPv(n: number): void {
     this.send(`setoption name MultiPV value ${n}`);
+  }
+
+  /**
+   * Clear the transposition table by re-allocating it (usinewgame does NOT fully reset the
+   * engine state; toggling USI_Hash + isready was verified to restore exact determinism —
+   * identical cp AND node counts across runs).
+   */
+  async clearHash(): Promise<void> {
+    // Two-step realloc: 1MB then back to 64MB. Every measurement must run with the SAME
+    // hash size (the size itself changes search behavior slightly), so a plain size toggle
+    // would break determinism — this always ends on a freshly zeroed 64MB table.
+    this.send('setoption name USI_Hash value 1');
+    this.send('isready');
+    await this.waitFor((l) => l === 'readyok', 30000);
+    this.send('setoption name USI_Hash value 64');
+    this.send('isready');
+    await this.waitFor((l) => l === 'readyok', 30000);
   }
 
   search(sfen: string, depth: number, searchmoves?: string[]): Promise<PvInfo[]> {
@@ -210,6 +234,7 @@ async function runWorker(
   try {
     await engine.init();
     for (const e of entries) {
+      await engine.clearHash();
       const top = await engine.search(e.sfen, DEPTH);
       if (top.length === 0) {
         // No PV (should not happen for book positions) — keep nothing, flag via gap=99999.
@@ -228,6 +253,8 @@ async function runWorker(
         if (hit) {
           ownCp = hit.cp;
         } else {
+          // Standalone deterministic measurement: cleared TT + single-PV searchmoves.
+          await engine.clearHash();
           engine.setMultiPv(1);
           const own = await engine.search(e.sfen, DEPTH, [m.usi]);
           engine.setMultiPv(4);

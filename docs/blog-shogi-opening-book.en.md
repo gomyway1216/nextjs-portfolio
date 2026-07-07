@@ -12,7 +12,9 @@
 4. **How the book actually works**: hash lookup, transpositions, falling out of book
 5. **Whack-a-mole, documented**: I fixed one line, and the problem moved one ply deeper
 6. **What real engines do**: books that are orders of magnitude bigger
-7. **The pivot**: from dozens of lines to thousands of positions — a large-scale book pipeline (in progress)
+7. **The pivot**: from dozens of lines to thousands of positions — a large-scale book pipeline
+8. **An honest measurement**: quantifying the book's effect with A/B — and why it looks small in self-play
+9. **Cycle 4**: deepen the book to 30 plies + cure the opening bias by retraining the NNUE (shipped to production)
 
 ---
 
@@ -173,7 +175,45 @@ The point estimate is +30–50 Elo, but the confidence interval straddles zero. 
 
 > Added lesson: **an improvement's value depends on the arena you measure it in.** A book that looks marginal in self-play matters a lot against book-playing humans — and vice versa. Decide *what you want to be strong against* before you measure.
 
-(To be continued: book v2 — 30-ply deepening plus coverage of human deviations — and the NNUE retrain targeting the opening bias are both in progress; results will be appended.)
+## 9. Cycle 4: extend the book to 30 plies, and fix the opening bias in the "brain" itself
+
+The two things flagged as "in progress" at the end of §8 — the **30-ply book deepening plus deviation coverage (v2)** and the **NNUE retrain that targets the opening bias at its root** — both shipped to production. Together they're a clean mirror image of §8's point that "the same improvement looks different depending on where you measure it."
+
+### 9.1 Book v2: 50k → 98k positions, turning a "line" into a "surface"
+
+First, the book was rebuilt with two goals:
+
+1. **Depth**: extend the main lines from ~20 plies to **~30 plies** (all of ply 20, plus the major branches through ply 21–30).
+2. **Surface coverage**: give the book a reply to the "natural deviations from book shape" that humans actually play. Do the §5 whack-a-mole by **exhaustive generation** instead of by hand.
+
+The deviation-coverage pass seeds from the 1,200 most-frequently-reached positions, enumerates the book-leaving moves that are still natural (within 300cp), and adds **one YaneuraOu depth-18 reply per deviation**. Result: **49,961 → 97,767 positions** (~1MB gzipped, under the 2.5MB limit). The natural-deviation probe went from **6/10 to 10/10**.
+
+Rebuilding also surfaced **a real hole in v1**: after ▲P-7f, White's reply △P-3d (only 31cp below best — essentially a co-main move) had been clipped by a "expand at most 5 moves per position" cap during generation, so **the entire Ranging-Rook subtree was missing**. Loosening the cap to 8 at shallow plies fixed it. "The line is right but the surface has holes" — this chapter's own lesson, produced by my own book.
+
+Zero-blunder assurance used the same **deterministic protocol**: all 303,321 moves verified at depth 18, moves with gap > 90cp pruned. The reused 50k positions were carried over only after a determinism gate (12 positions matching cp exactly). Independent-seed re-verification found zero moves with gap > 100cp.
+
+### 9.2 NNUE retrain: the "creepy" △Rook-8d was a brain problem
+
+As pinned down in §3, the root cause of the unnatural opening moves (the floating rook △Rook-8d, etc.) was not the book but the **NNUE's opening bias**. A book only works *while you're inside book shape*. If a weird move appears the instant you leave the book, the thing to fix is **the brain itself**.
+
+So I **retrained** on opening-heavy teacher data, without throwing away existing assets — adding ~560k opening positions: nodes from expanding the production book (Petashock-derived) via BFS, centered on **positions one move after leaving the book** (exactly where the weird moves appear), scored with YaneuraOu depth 12. The mixed training set was ~5.9M positions.
+
+**Adoption was decided by real games, not a proxy metric** — this is the contrast with §8:
+
+| Metric | Before retrain | After retrain |
+|---|---|---|
+| Opening-holdout MAE | 214.7 | **175.6 (−18%)** |
+| Opening-holdout pair-acc | 0.897 | **0.931 (+3.4pt)** |
+| General-holdout pair-acc | 0.9040 | 0.9001 (**−0.4pt**, a small regression, stated honestly) |
+| **Self-play A/B (192 games, colors alternated)** | — | **61.7% win rate (95% CI 54.7–68.3%, p≈0.0006)** |
+
+In the problem position, △Rook-8d sank from **15th to 23rd** in the static ranking, and the floating-rook moves consistently dropped too. Positions where an unnatural move (like a no-promote pawn push) topped the list disappeared.
+
+**And the biggest difference from §8: this time the A/B was statistically significant.** The reason is simple — **the book rarely fires, but the eval works on every move.** §8's large book looked small in self-play because both engines leave the book almost immediately, so the book has "no turn." An eval improvement has no such escape hatch: it acts on every move of every game, so across 192 games the lower bound cleared 50% decisively.
+
+> Added lesson: **"where it takes effect" decides significance.** A change that touches every position (the eval) turns significant in self-play naturally; a change that only helps when conditions line up (the book) shows its true value against humans. Even for the same word "stronger," the right way to measure depends on the nature of the improvement.
+
+(Both were shipped only after independent verification — re-tallying the A/B logs, re-running the holdouts, bit-exact parity, the full test suite passing. The proxy pair-accuracy was *not* used to decide adoption, keeping faith with the earlier "proxy metrics don't predict playing strength.")
 
 ## Lessons from this chapter
 
@@ -184,3 +224,5 @@ The point estimate is +30–50 Elo, but the confidence interval straddles zero. 
 - **Never trust external data's quality labels blindly.** The bundled evals let 1.5% inferior moves through; only re-measuring every move with our own depth-18 gate justified the words "zero blunders."
 - **Doubt the measuring instrument until it's reproducible.** A shared TT wobbled identical positions by ~150cp, silently breaking the pruning threshold. Make the measurement deterministic first.
 - **Design the fallback before the feature.** "Fetch fails → hand-written book, unchanged behavior" is what makes a big change safe to ship.
+- **"Where it takes effect" decides significance.** An eval change (every move) turns significant in self-play; a book change (only under the right conditions) shows its value against humans. Same goal, different correct measurement (Cycle 4).
+- **For a weird move, suspect the brain, not the book.** A blunder the instant you leave book is cured by an opening-heavy retrain. Don't let the proxy metric (pair-acc) decide adoption — settle it on 192 real games.

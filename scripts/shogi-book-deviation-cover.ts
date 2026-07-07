@@ -49,7 +49,10 @@ import {
 
 function argValue(name: string, def: string): string {
   const i = process.argv.indexOf(name);
-  return i >= 0 && process.argv[i + 1] ? process.argv[i + 1] : def;
+  const next = i >= 0 ? process.argv[i + 1] : undefined;
+  // 次トークンが別オプション（'-' 始まり）なら値の指定漏れとみなし def を返す
+  // （例: `--results --out x` で `--out` を値と誤認しない）。
+  return next && !next.startsWith('-') ? next : def;
 }
 
 const BOOK_PATH = argValue('--book', path.resolve(__dirname, '../public/shogi-opening-book.bin'));
@@ -65,8 +68,10 @@ const PROCS = Number(argValue('--procs', '4'));
 /** Dry-run: print seed selection stats and exit without launching engines. */
 const SEEDS_ONLY = process.argv.includes('--seeds-only');
 
-if (!RESULTS_PATH || !OUT_PATH || !META_PATH) {
-  console.error('usage: node -r tsx/cjs scripts/shogi-book-deviation-cover.ts --book <bin> --results <jsonl> --out <bin> --meta <jsonl> [...]');
+// --seeds-only はシード選択の統計だけ出して終了するドライラン。出力系
+// (--results/--out/--meta) は不要なので、それらの必須チェックは通常実行時のみ。
+if (!SEEDS_ONLY && (!RESULTS_PATH || !OUT_PATH || !META_PATH)) {
+  console.error('usage: node -r tsx/cjs scripts/shogi-book-deviation-cover.ts --book <bin> --results <jsonl> --out <bin> --meta <jsonl> [--seeds-only] [...]');
   process.exit(2);
 }
 

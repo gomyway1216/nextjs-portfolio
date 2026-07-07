@@ -68,6 +68,16 @@ const OUT_PATH = argValue('--out', path.resolve(__dirname, '../public/shogi-open
 const META_PATH = argValue('--meta', path.join(os.tmpdir(), 'shogi-opening-book-meta.jsonl'));
 const MAX_PLY = Number(argValue('--max-ply', '24'));
 const MAX_POSITIONS = Number(argValue('--max-positions', '40000'));
+/**
+ * Deep-ply pruning (v2, 30-ply book): from DEEP_FROM onward the frontier of each ply is
+ * capped to DEEP_FRONTIER * DEEP_DECAY^(ply - DEEP_FROM) nodes, keeping the lowest-pathGap
+ * (most mainline-ish) nodes. The petashock "num" (採択回数) field is 0 for every move in this
+ * book, so cumulative distance from the mainline is our "most played" proxy; it is what the
+ * BFS already used for its stop-order. 0 = disabled.
+ */
+const DEEP_FROM = Number(argValue('--deep-from', '0'));
+const DEEP_FRONTIER = Number(argValue('--deep-frontier', '9000'));
+const DEEP_DECAY = Number(argValue('--deep-decay', '0.9'));
 
 /** Stored (playable) moves: at most this far below the entry's best move. */
 const STORE_WINDOW = 50;
@@ -78,6 +88,14 @@ const EXPAND_WINDOW = 120;
 const EXPAND_ABS_MAX = 400;
 const MAX_STORED_MOVES_PER_POS = 4;
 const MAX_EXPAND_MOVES_PER_POS = 5;
+/**
+ * Humans pick from a WIDE set of reasonable moves in the first few plies (▲7六歩に対する
+ * △3四歩 is petashock's 6th move at gap 31cp — a plain cap of 5 dropped it and with it the
+ * whole 振り飛車/角換わり-via-3四歩 subtree). Allow more expansion branches near the root;
+ * the tree is tiny there, so the position-count cost is small.
+ */
+const SHALLOW_EXPAND_MOVES_PER_POS = Number(argValue('--shallow-expand', '8'));
+const SHALLOW_EXPAND_MAX_PLY = Number(argValue('--shallow-expand-max-ply', '6'));
 
 // --- SFEN helpers (KyokumenImproved -> YaneuraOu book key) ---------------------
 
@@ -312,6 +330,10 @@ function main(): void {
   for (let ply = 0; ply <= MAX_PLY && frontier.length > 0 && !stop; ply++) {
     // Mainline-ish nodes first so the position budget is spent on plausible lines.
     frontier.sort((a, b) => a.pathGap - b.pathGap);
+    if (DEEP_FROM > 0 && ply >= DEEP_FROM) {
+      const budget = Math.max(1, Math.round(DEEP_FRONTIER * Math.pow(DEEP_DECAY, ply - DEEP_FROM)));
+      if (frontier.length > budget) frontier.length = budget;
+    }
     const next: Node[] = [];
 
     for (const node of frontier) {
@@ -331,6 +353,7 @@ function main(): void {
 
       const stored: StoredMove[] = [];
       const expand: Array<{ te: Te; gap: number }> = [];
+      const expandCap = node.ply <= SHALLOW_EXPAND_MAX_PLY ? SHALLOW_EXPAND_MOVES_PER_POS : MAX_EXPAND_MOVES_PER_POS;
       const sortedRows = [...rows].sort((a, b) => b.value - a.value);
       for (const row of sortedRows) {
         const parsed = parseUsi(row.usi.replace(/\+$/, '+')); // no-op; keep explicit
@@ -350,7 +373,7 @@ function main(): void {
         if (gap <= STORE_WINDOW && Math.abs(row.value) <= STORE_ABS_MAX && stored.length < MAX_STORED_MOVES_PER_POS) {
           stored.push({ te, usi: usiOf(ours), value: row.value });
         }
-        if (gap <= EXPAND_WINDOW && Math.abs(row.value) <= EXPAND_ABS_MAX && expand.length < MAX_EXPAND_MOVES_PER_POS) {
+        if (gap <= EXPAND_WINDOW && Math.abs(row.value) <= EXPAND_ABS_MAX && expand.length < expandCap) {
           expand.push({ te, gap });
         }
       }

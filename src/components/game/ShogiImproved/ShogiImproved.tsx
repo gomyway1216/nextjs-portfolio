@@ -397,11 +397,9 @@ const ShogiImproved = () => {
   useEffect(() => {
     if (!gameState.isAIThinking) return;
     const start = performance.now();
+    setThinkElapsedMs(0);
     const timer = setInterval(() => setThinkElapsedMs(performance.now() - start), 100);
-    return () => {
-      clearInterval(timer);
-      setThinkElapsedMs(0);
-    };
+    return () => clearInterval(timer);
   }, [gameState.isAIThinking]);
 
   const handleCopyKifu = useCallback(() => {
@@ -1081,10 +1079,24 @@ const ShogiImproved = () => {
             }}
           >
             {gameState.isAIThinking
-              ? `AIが考えています… ${(thinkElapsedMs / 1000).toFixed(1)}秒`
+              ? 'AIが考えています…'
               : gameState.gameOver
                 ? '対局終了'
                 : 'あなたの番です'}
+          </span>
+          <span
+            aria-hidden="true"
+            style={{
+              fontSize: '14px',
+              fontWeight: 600,
+              fontVariantNumeric: 'tabular-nums',
+              color: '#ffd700',
+              visibility: gameState.isAIThinking ? 'visible' : 'hidden',
+              minWidth: '3.4em',
+              textAlign: 'left',
+            }}
+          >
+            {(thinkElapsedMs / 1000).toFixed(1)}秒
           </span>
         </div>
         <div style={{ height: '26px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

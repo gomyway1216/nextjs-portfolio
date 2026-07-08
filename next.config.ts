@@ -117,19 +117,6 @@ const nextConfig: NextConfig = {
       },
     ];
   },
-
-  // The improved Shogi implementation is now served at the canonical
-  // /games/shogi route. Permanently redirect the old /games/shogi-improved
-  // URL (bookmarks, article links) to it so nothing 404s.
-  async redirects() {
-    return [
-      {
-        source: '/games/shogi-improved',
-        destination: '/games/shogi',
-        permanent: true,
-      },
-    ];
-  },
 };
 
 export default nextConfig;

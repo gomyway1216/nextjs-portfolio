@@ -33,17 +33,11 @@ test('shogi is NOT cross-origin isolated (stays single-thread)', async ({ page }
   await expect(page.getByRole('button', { name: /Start Game/i }).first()).toBeVisible();
 });
 
-test('the old /games/shogi-improved URL permanently redirects to /games/shogi', async ({ request, page }) => {
-  // Assert the redirect itself is a permanent 308 to the canonical path.
-  const raw = await request.get('/games/shogi-improved', { maxRedirects: 0 });
-  expect(raw.status()).toBe(308);
-  expect(raw.headers()['location']).toBe('/games/shogi');
-
-  // And that following it lands on the working, playable canonical page.
-  const response = await page.goto('/games/shogi-improved');
-  expect(response!.status()).toBe(200);
-  expect(new URL(page.url()).pathname).toBe('/games/shogi');
-  await expect(page.getByRole('button', { name: /Start Game/i }).first()).toBeVisible();
+test('the old /games/shogi-improved URL no longer exists (404)', async ({ request }) => {
+  // The improved implementation now lives only at /games/shogi; the old route
+  // was removed outright (not redirected).
+  const response = await request.get('/games/shogi-improved');
+  expect(response.status()).toBe(404);
 });
 
 test('no route is cross-origin isolated', async ({ request }) => {

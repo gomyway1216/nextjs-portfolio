@@ -41,7 +41,10 @@ export const Petersburg = () => {
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
           <button
             role="tab"
+            id="petersburg-tab-play"
             aria-selected={tab === 'play'}
+            aria-controls="petersburg-panel-play"
+            tabIndex={tab === 'play' ? 0 : -1}
             className={`${styles.tab} ${tab === 'play' ? styles.tabActive : ''}`}
             onClick={() => setTab('play')}
           >
@@ -49,7 +52,10 @@ export const Petersburg = () => {
           </button>
           <button
             role="tab"
+            id="petersburg-tab-sim"
             aria-selected={tab === 'sim'}
+            aria-controls="petersburg-panel-sim"
+            tabIndex={tab === 'sim' ? 0 : -1}
             className={`${styles.tab} ${tab === 'sim' ? styles.tabActive : ''}`}
             onClick={() => setTab('sim')}
           >
@@ -57,7 +63,15 @@ export const Petersburg = () => {
           </button>
         </div>
 
-        {tab === 'play' ? <PlayTab /> : <SimTab />}
+        {tab === 'play' ? (
+          <div role="tabpanel" id="petersburg-panel-play" aria-labelledby="petersburg-tab-play">
+            <PlayTab />
+          </div>
+        ) : (
+          <div role="tabpanel" id="petersburg-panel-sim" aria-labelledby="petersburg-tab-sim">
+            <SimTab />
+          </div>
+        )}
       </div>
 
       <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.howItWorksTitle}>

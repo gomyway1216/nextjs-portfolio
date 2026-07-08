@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { fairPriceForN, logUtilityFairPrice, playGame } from './engine';
 import { getPetersburgStrings } from './i18n';
@@ -105,7 +105,9 @@ export const PlayTab = () => {
   const meanPayoff = stats.games === 0 ? 0 : stats.totalWon / stats.games;
   const netProfit = stats.totalWon - stats.totalPaid;
   const fairTruncated = fairPriceForN(stats.games);
-  const logPrice = logUtilityFairPrice(wealth);
+  // Bisection is ~4800 iterations; only depends on wealth, so memoize it so it
+  // doesn't re-run on every coin-flip animation frame.
+  const logPrice = useMemo(() => logUtilityFairPrice(wealth), [wealth]);
 
   return (
     <div className={styles.grid2}>
@@ -125,6 +127,7 @@ export const PlayTab = () => {
             onChange={(e) => setEntryPrice(Number(e.target.value))}
             className={styles.slider}
             aria-label={t.entryPrice}
+            disabled={flipping}
           />
         </label>
 
@@ -193,7 +196,11 @@ export const PlayTab = () => {
                     className={styles.chip}
                     style={{ background: `hsl(${hue}, 68%, 42%)`, border: `1px solid hsl(${hue}, 68%, 58%)` }}
                   >
-                    {h.payoff >= 1000 ? `$${(h.payoff / 1000).toFixed(0)}k` : `$${h.payoff}`}
+                    {h.payoff >= Number.MAX_SAFE_INTEGER
+                      ? '∞'
+                      : h.payoff >= 1000
+                        ? `$${(h.payoff / 1000).toFixed(0)}k`
+                        : `$${h.payoff}`}
                   </span>
                 );
               })}

@@ -233,7 +233,10 @@ export async function runPetersburgSweepAsync(
       sum += payoff;
       if (payoff > max) max = payoff;
       if (n > maxFlips) maxFlips = n;
-      const bucket = payoff >= Number.MAX_SAFE_INTEGER ? 60 : Math.floor(Math.log2(payoff));
+      // Capped payoffs (2^53 or larger, prob < 2^-53) go in the terminal
+      // MAX_SAFE_EXPONENT bucket so the histogram and median-from-histogram
+      // treat the value as 2^53, matching payoffForFlips's cap.
+      const bucket = payoff >= Number.MAX_SAFE_INTEGER ? MAX_SAFE_EXPONENT : Math.floor(Math.log2(payoff));
       log2Hist[bucket] = (log2Hist[bucket] ?? 0) + 1;
       const N = j + 1;
       if (anchors.has(N)) {

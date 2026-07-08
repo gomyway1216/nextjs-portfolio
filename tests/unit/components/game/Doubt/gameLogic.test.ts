@@ -196,6 +196,66 @@ describe('Doubt gameLogic', () => {
     }
   });
 
+  it('gives a multi-card mixed claim (partial lie) entirely to the claimant on doubt', () => {
+    // p1 plays two cards claiming rank 1, but only one is actually rank 1.
+    const play = applyAction(stateForHands({
+      p1: [card('a', 'S', 1), card('b', 'H', 7), card('z', 'C', 9)],
+      p2: [card('c', 'D', 3)],
+    }), {
+      actionId: 'play-1',
+      type: 'play',
+      playerId: 'p1',
+      cardIds: ['a', 'b'],
+      timestamp: 10,
+    });
+    expect(play.ok).toBe(true);
+    if (!play.ok) return;
+    expect(play.state.pile.map(c => c.id).sort()).toEqual(['a', 'b']);
+
+    const doubted = applyAction(play.state, {
+      actionId: 'doubt-1',
+      type: 'doubt',
+      playerId: 'p2',
+      timestamp: 11,
+    });
+    expect(doubted.ok).toBe(true);
+    if (doubted.ok) {
+      // Not all cards matched the claim => it was a lie => claimant takes pile.
+      expect(doubted.state.currentTurnPlayerId).toBe('p1');
+      expect(doubted.state.pile).toEqual([]);
+      expect(doubted.state.hands.p1.map(c => c.id).sort()).toEqual(['a', 'b', 'z']);
+      expect(doubted.state.log.at(-1)).toMatchObject({ claimTruth: false, pileTakerId: 'p1' });
+    }
+  });
+
+  it('lets the pile taker play next after a resolved doubt', () => {
+    const play = applyAction(stateForHands({
+      p1: [card('a', 'S', 1), card('b', 'H', 2)],
+      p2: [card('c', 'D', 3)],
+    }, { playerOrder: ['p1', 'p2', 'p3'], hands: {
+      p1: [card('a', 'S', 1), card('b', 'H', 2)],
+      p2: [card('c', 'D', 3)],
+      p3: [card('d', 'C', 4)],
+    } }), {
+      actionId: 'play-1',
+      type: 'play',
+      playerId: 'p1',
+      cardIds: ['a'],
+      timestamp: 10,
+    });
+    expect(play.ok).toBe(true);
+    if (!play.ok) return;
+    // p2 is the challenger; truthful claim => doubter (p2) takes pile and plays next.
+    const doubted = applyAction(play.state, {
+      actionId: 'doubt-1', type: 'doubt', playerId: 'p2', timestamp: 11,
+    });
+    expect(doubted.ok).toBe(true);
+    if (doubted.ok) {
+      expect(doubted.state.currentTurnPlayerId).toBe('p2');
+      expect(doubted.state.phase).toBe('play');
+    }
+  });
+
   it('rejects invalid actions for the current phase and hand', () => {
     const state = stateForHands({
       p1: [card('a', 'S', 1)],

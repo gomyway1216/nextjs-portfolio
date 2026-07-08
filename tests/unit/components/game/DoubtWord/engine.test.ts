@@ -96,10 +96,13 @@ describe('makeClaim', () => {
     }
   });
 
-  it('regression: length-3 word cannot bluff into an unchanged length+letter', () => {
-    // 'neon'->no; pick a 4-letter word and force the -1 length path with same first letter.
-    // Historically length clamping could produce isBluff=false. Verify it never does.
-    const claim = makeClaim('player', 'echo', true, seq([0.0, 0.0, 0.0]));
+  it('regression: a minimum-length word forced down the -1 path still bluffs', () => {
+    // The original bug: for a length-3 word, distorting length by -1 clamped
+    // back to 3 (Math.max(3, ...)), yielding an "unchanged" claim with
+    // isBluff=false. Drive rng to select the length path with a downward delta
+    // and the same first letter, then verify makeClaim never returns a truthful
+    // claim. Uses a literal 3-letter word (the pool's shortest are 4 letters).
+    const claim = makeClaim('player', 'sun', true, seq([0.0, 0.0, 0.0]));
     expect(claim.isBluff).toBe(true);
   });
 

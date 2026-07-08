@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Brain, Check, Eye, Heart, Play, RotateCcw, Sparkles, X } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
@@ -230,7 +230,7 @@ export const DoubtWord = () => {
                     '--difficulty-bg': colors.bg,
                     '--difficulty-border': colors.border,
                     '--difficulty-text': colors.text,
-                  } as React.CSSProperties
+                  } as CSSProperties
                 }
               >
                 <Heart size={13} /> {DIFFICULTY_LIVES[difficulty]} {t.livesLabel}
@@ -295,16 +295,15 @@ export const DoubtWord = () => {
             <h2 className={styles.cardTitle}>{t.yourTurnTitle}</h2>
             <p className={styles.hint}>{t.yourTurnHint}</p>
 
-            <div className={styles.cardEyebrow} aria-hidden="true">{t.pickWord}</div>
-            <div className={styles.wordGrid} role="radiogroup" aria-label={t.pickWord}>
+            <div id="doubtword-pickword" className={styles.cardEyebrow}>{t.pickWord}</div>
+            <div className={styles.wordGrid} role="group" aria-labelledby="doubtword-pickword">
               {game.playerOptions.map((word) => {
                 const selected = game.selectedWord === word;
                 return (
                   <button
                     key={word}
                     type="button"
-                    role="radio"
-                    aria-checked={selected}
+                    aria-pressed={selected}
                     className={`${styles.wordChip} ${selected ? styles.wordChipSelected : ''}`}
                     onClick={() => setGame((prev) => (prev ? { ...prev, selectedWord: word } : prev))}
                   >
@@ -466,20 +465,34 @@ const RoundResult = ({
 }) => {
   const delta = game.lastDelta!;
   const claim = game.currentClaim!;
+  // Tone/icon are driven by how the round went FOR THE PLAYER, not the raw
+  // mechanic name: e.g. the AI correctly doubting the player's bluff is a
+  // 'doubtCorrect' outcome but is bad for the player.
+  const benefit: 'good' | 'bad' | 'neutral' =
+    delta.playerScoreDelta > 0 || delta.aiLivesDelta < 0
+      ? 'good'
+      : delta.playerLivesDelta < 0
+        ? 'bad'
+        : 'neutral';
   const tone =
-    delta.outcome === 'doubtCorrect'
+    benefit === 'good'
       ? styles.outcomeGood
-      : delta.outcome === 'safePass'
+      : benefit === 'neutral'
         ? styles.outcomeNeutral
         : styles.outcomeBad;
-  const goodForPlayer = delta.playerScoreDelta > 0;
+  const icon =
+    benefit === 'good' ? <Check size={15} /> : benefit === 'neutral' ? <Sparkles size={15} /> : <X size={15} />;
+  const message =
+    claim.speaker === 'ai'
+      ? t.outcomes.aiClaim[delta.outcome]
+      : t.outcomes.playerClaim[delta.outcome];
   return (
     <section className={styles.card} aria-live="polite">
       <p className={styles.cardEyebrow}>{claim.speaker === 'ai' ? t.claimantAi : t.claimantYou}</p>
       <h2 className={styles.cardTitle}>{t.roundResultTitle}</h2>
       <span className={`${styles.outcomeBadge} ${tone}`}>
-        {delta.outcome === 'doubtCorrect' || goodForPlayer ? <Check size={15} /> : delta.outcome === 'safePass' ? <Sparkles size={15} /> : <X size={15} />}
-        {t.outcomes[delta.outcome]}
+        {icon}
+        {message}
       </span>
       <div className={styles.resultReveal}>
         <span className={styles.revealWord}>{claim.actualWord}</span>

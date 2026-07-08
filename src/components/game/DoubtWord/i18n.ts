@@ -35,11 +35,26 @@ export interface DoubtWordStrings {
   nextTurn: string;
   aiReacted: (reaction: 'believe' | 'doubt') => string;
   youReacted: (reaction: 'believe' | 'doubt') => string;
+  /**
+   * Result message from the PLAYER's perspective. `claimant` is who made the
+   * claim this round, so the same mechanic outcome reads differently depending
+   * on whether the player was doubting the AI or being doubted by it.
+   */
   outcomes: {
-    doubtCorrect: string;
-    doubtWrong: string;
-    believedBluff: string;
-    safePass: string;
+    // AI was the claimant (player reacted).
+    aiClaim: {
+      doubtCorrect: string;   // player doubted an AI bluff — good
+      doubtWrong: string;     // player doubted an AI truth — bad
+      believedBluff: string;  // player believed an AI bluff — bad
+      safePass: string;       // player believed an AI truth — neutral
+    };
+    // Player was the claimant (AI reacted).
+    playerClaim: {
+      doubtCorrect: string;   // AI doubted the player's bluff — bad
+      doubtWrong: string;     // AI doubted the player's truth — good
+      believedBluff: string;  // AI believed the player's bluff — good
+      safePass: string;       // AI believed the player's truth — neutral
+    };
   };
   gameOverTitle: string;
   youWin: string;
@@ -92,10 +107,18 @@ const en: DoubtWordStrings = {
   aiReacted: (reaction) => (reaction === 'doubt' ? 'The AI doubted you.' : 'The AI believed you.'),
   youReacted: (reaction) => (reaction === 'doubt' ? 'You doubted.' : 'You believed.'),
   outcomes: {
-    doubtCorrect: 'Bluff caught — well read!',
-    doubtWrong: 'Wrong call — it was the truth.',
-    believedBluff: 'Fooled — the claim was a bluff.',
-    safePass: 'Honest claim, believed. Safe pass.',
+    aiClaim: {
+      doubtCorrect: 'Bluff caught — well read!',
+      doubtWrong: 'Wrong call — it was the truth.',
+      believedBluff: 'Fooled — the claim was a bluff.',
+      safePass: 'Honest claim, believed. Safe pass.',
+    },
+    playerClaim: {
+      doubtCorrect: 'Your bluff was caught.',
+      doubtWrong: 'The AI doubted your honest claim — nice.',
+      believedBluff: 'Bluff landed — the AI fell for it!',
+      safePass: 'Honest claim, believed. Safe pass.',
+    },
   },
   gameOverTitle: 'Match over',
   youWin: 'You win!',
@@ -155,10 +178,18 @@ const ja: DoubtWordStrings = {
   aiReacted: (reaction) => (reaction === 'doubt' ? 'AIはあなたを疑った。' : 'AIはあなたを信じた。'),
   youReacted: (reaction) => (reaction === 'doubt' ? 'あなたは疑った。' : 'あなたは信じた。'),
   outcomes: {
-    doubtCorrect: 'ブラフを見破った！',
-    doubtWrong: '誤読。宣言は本当だった。',
-    believedBluff: '騙された。宣言はブラフだった。',
-    safePass: '正直な宣言を信頼。無傷で通過。',
+    aiClaim: {
+      doubtCorrect: 'ブラフを見破った！',
+      doubtWrong: '誤読。宣言は本当だった。',
+      believedBluff: '騙された。宣言はブラフだった。',
+      safePass: '正直な宣言を信頼。無傷で通過。',
+    },
+    playerClaim: {
+      doubtCorrect: 'ブラフを見破られた。',
+      doubtWrong: 'AIが正直な宣言を疑った。ラッキー！',
+      believedBluff: 'ブラフ成功。AIを騙した！',
+      safePass: '正直な宣言を信頼。無傷で通過。',
+    },
   },
   gameOverTitle: '対戦終了',
   youWin: 'あなたの勝ち！',

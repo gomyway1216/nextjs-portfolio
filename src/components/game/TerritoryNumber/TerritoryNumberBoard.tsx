@@ -1,16 +1,20 @@
 /**
  * Territory Number — board + draw-pool + status, presentation only.
  *
- * Parent owns the state machine (AI mode or online host loop). This component
- * just renders, surfaces user intent (selectCard / placeCard), and animates
- * the line-capture overlay when the match ends.
+ * Parent owns the state machine (AI mode or online mode). This component just
+ * renders, surfaces user intent (selectCard / placeCard), animates freshly
+ * placed cards and freshly captured lines, and shows the running score.
+ *
+ * Theme-aware via the shared --games-route-* CSS variables (light/dark).
  */
 
 'use client';
 
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { Board, BoardEvaluation, PlayerSlot } from './types';
-import { LINES } from './types';
+import { getTerritoryNumberStrings } from './i18n';
+import type { GameLanguage } from '../constants/gameTranslations';
+import styles from './TerritoryNumber.module.css';
 
 export type Phase = 'your-turn' | 'opponent-turn' | 'finished';
 
@@ -38,29 +42,18 @@ interface TerritoryNumberBoardProps {
   onPlaceOnCell: (cellIndex: number) => void;
   onLeave: () => void;
   onPlayAgain?: () => void; // shown only when finished
-  language: 'en' | 'ja';
+  /** Optional extra header control (e.g. info button). */
+  headerExtra?: React.ReactNode;
+  language: GameLanguage;
 }
 
-const COLORS = {
-  bg: '#0f172a',
-  panel: 'rgba(15, 23, 42, 0.92)',
-  border: 'rgba(148, 163, 184, 0.25)',
-  text: '#f8fafc',
-  muted: '#94a3b8',
-  p1: '#3b82f6', // blue
-  p2: '#ef4444', // red
-  p1Soft: 'rgba(59, 130, 246, 0.18)',
-  p2Soft: 'rgba(239, 68, 68, 0.18)',
-  unowned: 'rgba(148, 163, 184, 0.12)',
-  cellBg: '#1e293b',
-  highlight: '#fbbf24',
-};
+/** Per-player accent colours (kept vivid so they read in light + dark). */
+const P1 = { color: '#2563eb', soft: 'rgba(37, 99, 235, 0.16)' };
+const P2 = { color: '#ef4444', soft: 'rgba(239, 68, 68, 0.16)' };
+const TIE = { color: '#94a3b8', soft: 'rgba(148, 163, 184, 0.14)' };
 
-const playerColor = (slot: PlayerSlot | null) =>
-  slot === 'p1' ? COLORS.p1 : slot === 'p2' ? COLORS.p2 : COLORS.muted;
-
-const playerSoft = (slot: PlayerSlot | null) =>
-  slot === 'p1' ? COLORS.p1Soft : slot === 'p2' ? COLORS.p2Soft : COLORS.unowned;
+const accent = (slot: PlayerSlot | null) =>
+  slot === 'p1' ? P1 : slot === 'p2' ? P2 : TIE;
 
 export function TerritoryNumberBoard(props: TerritoryNumberBoardProps) {
   const {
@@ -78,19 +71,12 @@ export function TerritoryNumberBoard(props: TerritoryNumberBoardProps) {
     onPlaceOnCell,
     onLeave,
     onPlayAgain,
+    headerExtra,
     language,
   } = props;
 
+  const s = getTerritoryNumberStrings(language);
   const ja = language === 'ja';
-  const t = {
-    leave: ja ? '退室' : 'Leave',
-    playAgain: ja ? 'もう一度' : 'Play Again',
-    yourTurn: ja ? 'あなたの番' : 'Your turn',
-    oppTurn: ja ? '相手の番' : 'Opponent\'s turn',
-    finished: ja ? '終了' : 'Finished',
-    pool: ja ? '残りカード' : 'Remaining',
-    captures: ja ? '獲得ライン' : 'Lines',
-  };
 
   const oppSlot: PlayerSlot = mySlot === 'p1' ? 'p2' : 'p1';
   const myCaptures = mySlot === 'p1' ? evaluation.p1Captures : evaluation.p2Captures;
@@ -98,122 +84,106 @@ export function TerritoryNumberBoard(props: TerritoryNumberBoardProps) {
 
   const canInteract = phase === 'your-turn';
 
+  // Track score changes to trigger a one-shot "bump" animation. We keep the
+  // previous values in refs (mutated only inside the effect) and drive the
+  // animation flag through state so we never read refs during render.
+  const prevMine = useRef(myCaptures);
+  const prevOpp = useRef(oppCaptures);
+  const [myBump, setMyBump] = useState(false);
+  const [oppBump, setOppBump] = useState(false);
+  useEffect(() => {
+    if (prevMine.current !== myCaptures) {
+      prevMine.current = myCaptures;
+      setMyBump(true);
+      const id = setTimeout(() => setMyBump(false), 450);
+      return () => clearTimeout(id);
+    }
+  }, [myCaptures]);
+  useEffect(() => {
+    if (prevOpp.current !== oppCaptures) {
+      prevOpp.current = oppCaptures;
+      setOppBump(true);
+      const id = setTimeout(() => setOppBump(false), 450);
+      return () => clearTimeout(id);
+    }
+  }, [oppCaptures]);
+
+  const myAcc = accent(mySlot);
+  const oppAcc = accent(oppSlot);
+
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: `linear-gradient(to bottom, #020617, ${COLORS.bg})`,
-      color: COLORS.text,
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      overflow: 'auto',
-    }}>
+    <div className={styles.screen}>
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0.75rem 1rem',
-        borderBottom: `1px solid ${COLORS.border}`,
-        gap: '0.75rem',
-      }}>
-        <button
-          onClick={onLeave}
-          style={{
-            padding: '0.4rem 0.85rem',
-            background: 'rgba(220, 38, 38, 0.12)',
-            border: '1px solid rgba(220, 38, 38, 0.4)',
-            borderRadius: '0.5rem',
-            color: '#fecaca',
-            fontWeight: 700,
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-          }}
-        >
-          ← {t.leave}
+      <div className={styles.header}>
+        <button type="button" onClick={onLeave} className={styles.ghostButton}>
+          ← {s.leave}
         </button>
+        <span className={styles.headerTitle}>{ja ? '陣取り数字' : 'Territory Number'}</span>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {headerExtra}
+        </div>
+      </div>
 
-        <ScoreBadge label={opponentLabel} captures={oppCaptures} color={playerColor(oppSlot)} soft={playerSoft(oppSlot)} t={t} />
-        <ScoreBadge label={myLabel} captures={myCaptures} color={playerColor(mySlot)} soft={playerSoft(mySlot)} t={t} />
-
-        <div style={{ width: '5rem' }} />
+      {/* Scoreboard */}
+      <div className={styles.scoreboard}>
+        <ScoreCard
+          name={opponentLabel}
+          captures={oppCaptures}
+          acc={oppAcc}
+          active={phase === 'opponent-turn'}
+          bump={oppBump}
+          turnLabel={s.oppTurn}
+          linesLabel={s.lines}
+        />
+        <ScoreCard
+          name={myLabel}
+          captures={myCaptures}
+          acc={myAcc}
+          active={phase === 'your-turn'}
+          bump={myBump}
+          turnLabel={s.yourTurn}
+          linesLabel={s.lines}
+        />
       </div>
 
       {/* Status line */}
-      <div style={{
-        textAlign: 'center',
-        padding: '0.75rem 1rem 0',
-        fontSize: '0.95rem',
-        fontWeight: 700,
-        color: phase === 'your-turn' ? COLORS.highlight
-              : phase === 'finished' ? COLORS.highlight
-              : COLORS.muted,
-      }}>
-        {phase === 'your-turn' && (statusText ?? t.yourTurn)}
-        {phase === 'opponent-turn' && (statusText ?? t.oppTurn)}
-        {phase === 'finished' && (finalMessage ?? t.finished)}
+      <div className={`${styles.status} ${phase === 'finished' ? styles.statusFinished : ''}`}>
+        {phase === 'your-turn' && (statusText ?? s.yourTurn)}
+        {phase === 'opponent-turn' && (statusText ?? s.oppTurn)}
+        {phase === 'finished' && (finalMessage ?? s.finished)}
       </div>
 
       {/* Board */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '1.25rem',
-      }}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(3, 5.5rem)',
-          gridTemplateRows: 'repeat(3, 5.5rem)',
-          gap: '0.5rem',
-          background: COLORS.panel,
-          border: `1px solid ${COLORS.border}`,
-          borderRadius: '1rem',
-          padding: '0.85rem',
-        }}>
+      <div className={styles.boardArea}>
+        <div className={styles.board} role="grid" aria-label={ja ? '3×3 盤面' : '3 by 3 board'}>
           {board.map((cell, idx) => {
             const empty = cell.value === null;
-            const ownerColor = playerColor(cell.owner);
-            const ownerSoft = playerSoft(cell.owner);
+            const acc = accent(cell.owner);
             const interactable = canInteract && empty && selectedCard !== null;
+            const row = Math.floor(idx / 3) + 1;
+            const col = (idx % 3) + 1;
+            const ownerLabel = cell.owner === mySlot ? myLabel : opponentLabel;
             return (
               <button
                 key={idx}
+                role="gridcell"
                 disabled={!interactable}
                 onClick={() => interactable && onPlaceOnCell(idx)}
                 aria-label={
                   empty
-                    ? (ja ? `空マス ${idx}` : `Empty cell ${idx}`)
-                    : (ja ? `${cell.value} のマス` : `Cell with ${cell.value}`)
+                    ? s.emptyCell(row, col)
+                    : s.filledCell(cell.value as number, ownerLabel)
                 }
-                style={{
-                  width: '5.5rem',
-                  height: '5.5rem',
-                  borderRadius: '0.6rem',
-                  border: empty
-                    ? `2px dashed ${interactable ? COLORS.highlight : COLORS.border}`
-                    : `2px solid ${ownerColor}`,
-                  background: empty
-                    ? (interactable ? 'rgba(251, 191, 36, 0.08)' : COLORS.cellBg)
-                    : ownerSoft,
-                  color: empty ? COLORS.muted : ownerColor,
-                  fontSize: empty ? '1.5rem' : '2.5rem',
-                  fontWeight: 900,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: interactable ? 'pointer' : 'default',
-                  transition: 'transform 0.12s, background 0.12s',
-                  fontFamily: 'system-ui, sans-serif',
-                }}
-                onMouseEnter={(e) => {
-                  if (interactable) e.currentTarget.style.transform = 'scale(1.04)';
-                }}
-                onMouseLeave={(e) => {
-                  if (interactable) e.currentTarget.style.transform = 'scale(1)';
-                }}
+                className={[
+                  styles.cell,
+                  interactable ? styles.cellPlayable : '',
+                  !empty ? styles.cellFilled : '',
+                ].filter(Boolean).join(' ')}
+                style={
+                  !empty
+                    ? ({ ['--own-color' as string]: acc.color, ['--own-soft' as string]: acc.soft } as React.CSSProperties)
+                    : undefined
+                }
               >
                 {empty ? '' : cell.value}
               </button>
@@ -223,28 +193,12 @@ export function TerritoryNumberBoard(props: TerritoryNumberBoardProps) {
       </div>
 
       {/* Line summary */}
-      <LineSummary evaluation={evaluation} ja={ja} />
+      <LineSummary evaluation={evaluation} labels={s.lineLabels} />
 
       {/* Card pool */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '0.6rem',
-        padding: '0.75rem 1rem 1.25rem',
-        borderTop: `1px solid ${COLORS.border}`,
-        background: 'rgba(15, 23, 42, 0.55)',
-      }}>
-        <div style={{
-          fontSize: '0.78rem',
-          color: COLORS.muted,
-          fontWeight: 700,
-          textTransform: 'uppercase',
-          letterSpacing: '0.06em',
-        }}>
-          {t.pool}
-        </div>
-        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+      <div className={styles.pool}>
+        <div className={styles.poolLabel}>{s.remaining}</div>
+        <div className={styles.cards} role="group" aria-label={s.remaining}>
           {[1, 2, 3, 4, 5, 6, 7, 8, 9].map(card => {
             const inPool = remainingCards.includes(card);
             const isSelected = selectedCard === card;
@@ -252,29 +206,17 @@ export function TerritoryNumberBoard(props: TerritoryNumberBoardProps) {
             return (
               <button
                 key={card}
+                type="button"
                 disabled={!interactable}
                 onClick={() => interactable && onSelectCard(card)}
-                aria-label={
-                  inPool
-                    ? (ja ? `カード ${card} を選ぶ` : `Select card ${card}`)
-                    : (ja ? `カード ${card} 使用済み` : `Card ${card} used`)
-                }
-                style={{
-                  width: '3rem',
-                  height: '4rem',
-                  borderRadius: '0.5rem',
-                  border: isSelected
-                    ? `3px solid ${COLORS.highlight}`
-                    : `2px solid ${inPool ? COLORS.border : 'rgba(148,163,184,0.15)'}`,
-                  background: inPool ? '#f1f5f9' : 'rgba(15, 23, 42, 0.6)',
-                  color: inPool ? '#0f172a' : 'rgba(148, 163, 184, 0.4)',
-                  fontSize: '1.5rem',
-                  fontWeight: 900,
-                  cursor: interactable ? 'pointer' : 'default',
-                  opacity: inPool ? 1 : 0.45,
-                  transform: isSelected ? 'translateY(-4px)' : 'translateY(0)',
-                  transition: 'transform 0.12s',
-                }}
+                aria-pressed={isSelected}
+                aria-label={inPool ? s.selectCard(card) : `${card} ${s.used}`}
+                className={[
+                  styles.card,
+                  interactable ? styles.cardPlayable : '',
+                  isSelected ? styles.cardSelected : '',
+                  !inPool ? styles.cardUsed : '',
+                ].filter(Boolean).join(' ')}
               >
                 {card}
               </button>
@@ -283,20 +225,8 @@ export function TerritoryNumberBoard(props: TerritoryNumberBoardProps) {
         </div>
 
         {phase === 'finished' && onPlayAgain && (
-          <button
-            onClick={onPlayAgain}
-            style={{
-              marginTop: '0.5rem',
-              padding: '0.6rem 1.5rem',
-              background: '#16a34a',
-              border: 'none',
-              borderRadius: '0.5rem',
-              color: '#fff',
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}
-          >
-            {t.playAgain}
+          <button type="button" onClick={onPlayAgain} className={styles.primaryButton}>
+            {s.playAgain}
           </button>
         )}
       </div>
@@ -304,70 +234,66 @@ export function TerritoryNumberBoard(props: TerritoryNumberBoardProps) {
   );
 }
 
-function ScoreBadge({
-  label, captures, color, soft, t,
+function ScoreCard({
+  name, captures, acc, active, bump, turnLabel, linesLabel,
 }: {
-  label: string;
+  name: string;
   captures: number;
-  color: string;
-  soft: string;
-  t: { captures: string };
+  acc: { color: string; soft: string };
+  active: boolean;
+  bump: boolean;
+  turnLabel: string;
+  linesLabel: string;
 }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.15rem' }}>
-      <span style={{ color: COLORS.muted, fontSize: '0.78rem', fontWeight: 700 }}>{label}</span>
-      <span style={{
-        background: soft,
-        border: `1px solid ${color}`,
-        color,
-        padding: '0.2rem 0.85rem',
-        borderRadius: '999px',
-        fontWeight: 800,
-        fontSize: '0.85rem',
-      }}>
-        {t.captures}: {captures}
+    <div
+      className={`${styles.scoreCard} ${active ? styles.scoreCardActive : ''}`}
+      style={{
+        ['--sc-border' as string]: acc.color,
+        ['--sc-soft' as string]: acc.soft,
+        ['--sc-text' as string]: acc.color,
+      } as React.CSSProperties}
+    >
+      {active && <span className={styles.turnTag}>{turnLabel}</span>}
+      <span className={styles.scoreName}>
+        <span className={styles.scoreDot} />
+        {name}
+      </span>
+      <span className={`${styles.scoreValue} ${bump ? styles.bump : ''}`}>{captures}</span>
+      <span className={styles.scoreCaptionRow}>
+        <span style={{ fontSize: '0.66rem', color: 'var(--games-route-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {linesLabel}
+        </span>
       </span>
     </div>
   );
 }
 
-function LineSummary({ evaluation, ja }: { evaluation: BoardEvaluation; ja: boolean }) {
-  // 8 small chips, one per line, coloured by winner.
-  const lineLabels = ja
-    ? ['1行目', '2行目', '3行目', '1列目', '2列目', '3列目', '\\対角', '/対角']
-    : ['Row 1', 'Row 2', 'Row 3', 'Col 1', 'Col 2', 'Col 3', '\\ Diag', '/ Diag'];
+function LineSummary({
+  evaluation, labels,
+}: {
+  evaluation: BoardEvaluation;
+  labels: string[];
+}) {
   return (
-    <div style={{
-      display: 'flex',
-      gap: '0.35rem',
-      flexWrap: 'wrap',
-      justifyContent: 'center',
-      padding: '0 1rem 0.75rem',
-    }}>
+    <div className={styles.lineSummary}>
       {evaluation.lines.map((r, i) => {
-        const color = playerColor(r.winner);
-        const soft = playerSoft(r.winner);
-        // Avoid ambiguous "0-0 unowned" looking the same as a 4-4 tied line.
+        const acc = accent(r.winner);
         const empty = r.p1Sum === 0 && r.p2Sum === 0;
-        const sumLabel = empty ? '–' : `${r.p1Sum} – ${r.p2Sum}`;
+        const decided = r.winner !== null;
+        const sumLabel = empty ? '–' : `${r.p1Sum}–${r.p2Sum}`;
         return (
           <div
             key={i}
+            className={`${styles.lineChip} ${decided ? styles.lineChipCaptured : ''}`}
             style={{
-              fontSize: '0.7rem',
-              padding: '0.2rem 0.55rem',
-              background: soft,
-              border: `1px solid ${color}`,
-              borderRadius: '999px',
-              color,
-              fontWeight: 700,
-              minWidth: '5rem',
-              textAlign: 'center',
-            }}
-            // Show line indices on hover for debugging / replays.
-            title={`${lineLabels[i]}: cells ${LINES[i].join(',')}`}
+              ['--chip-border' as string]: acc.color,
+              ['--chip-soft' as string]: acc.soft,
+              ['--chip-text' as string]: acc.color,
+            } as React.CSSProperties}
+            title={labels[i]}
           >
-            {lineLabels[i]} ({sumLabel})
+            {labels[i]} ({sumLabel})
           </div>
         );
       })}

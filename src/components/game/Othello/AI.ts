@@ -42,6 +42,25 @@ export interface OthelloAIOptions {
 }
 
 /**
+ * Transposition-table entry. `flag` records how `score` relates to the true
+ * value: EXACT (inside the window), LOWER (a fail-high / beta cutoff, true
+ * value >= score), or UPPER (a fail-low, true value <= score).
+ */
+const enum TTFlag {
+  Exact = 0,
+  Lower = 1,
+  Upper = 2,
+}
+
+interface TTEntry {
+  depth: number;
+  score: number;
+  flag: TTFlag;
+  bestX: number;
+  bestY: number;
+}
+
+/**
  * AI class implementing alpha-beta search
  */
 export class OthelloAI {
@@ -71,6 +90,15 @@ export class OthelloAI {
   private deadline: number = Infinity;
   private timeChecking: boolean = false;
   private timeCounter: number = 0;
+
+  // Transposition table for the mid-game (non-exact) search. Keyed by the
+  // board's Zobrist hash. Cleared between top-level getBestMove calls so a
+  // stale entry from an earlier position can never leak in; kept across the
+  // iterative-deepening iterations of a single move for move ordering + reuse.
+  private transTable: Map<number, TTEntry> = new Map();
+  // Only the mid-game evaluator's scores are safe to cache. Endgame (WLD /
+  // perfect) search must stay exact, so the TT is disabled there.
+  private ttEnabled: boolean = false;
 
   constructor(difficulty: Difficulty = 'medium', options?: OthelloAIOptions) {
     this.params = AI_PARAMETERS[difficulty];
@@ -111,6 +139,7 @@ export class OthelloAI {
 
     this.eval = this.midEval;
     this.orderingEval = this.midEval;
+    this.transTable.clear();
 
     board.setupEmptyList();
 
@@ -121,8 +150,6 @@ export class OthelloAI {
     } else {
       bestMove = this.moveMidGame(board);
     }
-
-    console.log(`AI: nodes=${this.internalNodes}, leaves=${this.leafNodes}, eval=${bestMove.eval}`);
 
     return { x: bestMove.x, y: bestMove.y };
   }
@@ -135,6 +162,7 @@ export class OthelloAI {
 
     this.orderingHeight = 4;
     this.cachingHeight = 4;
+    this.ttEnabled = true; // mid-game evaluator scores are cacheable
 
     let bestMove = createMove(0, 0, -InfinityVal);
 
@@ -188,8 +216,9 @@ export class OthelloAI {
 
     let bestMove = createMove(0, 0, -InfinityVal);
 
-    // Pre-search with mid-game evaluator
+    // Pre-search with mid-game evaluator (TT-safe: cacheable heuristic scores)
     if (presearchDepth > 0) {
+      this.ttEnabled = true;
       const initialDepth = Math.min(6, presearchDepth);
       for (let depth = initialDepth; depth <= presearchDepth; depth++) {
         const move = this.topAlphaBeta(board, depth, -InfinityVal, InfinityVal);
@@ -198,6 +227,11 @@ export class OthelloAI {
         }
       }
     }
+
+    // Endgame proper must stay exact: disable the TT and clear any mid-game
+    // heuristic entries so WLD/perfect results are never contaminated.
+    this.ttEnabled = false;
+    this.transTable.clear();
 
     // Set evaluator based on remaining moves
     if (MAX_TURNS - board.getTurns() <= this.params.exactDepth) {
@@ -303,6 +337,29 @@ export class OthelloAI {
 
     this.internalNodes++;
 
+    const origAlpha = alpha;
+    const origBeta = beta;
+
+    // --- Transposition-table probe ---
+    // A stored entry searched at least as deep as we need can shrink the
+    // window (LOWER/UPPER) or return outright (EXACT), and always seeds the
+    // move ordering with its best move.
+    let ttBestX = 0;
+    let ttBestY = 0;
+    if (this.ttEnabled) {
+      const entry = this.transTable.get(board.getHash());
+      if (entry !== undefined) {
+        ttBestX = entry.bestX;
+        ttBestY = entry.bestY;
+        if (entry.depth >= limit) {
+          if (entry.flag === TTFlag.Exact) return entry.score;
+          if (entry.flag === TTFlag.Lower && entry.score > alpha) alpha = entry.score;
+          else if (entry.flag === TTFlag.Upper && entry.score < beta) beta = entry.score;
+          if (alpha >= beta) return entry.score;
+        }
+      }
+    }
+
     const movables = board.getMovablePos();
 
     if (movables.length === 0) {
@@ -324,10 +381,24 @@ export class OthelloAI {
     } else {
       this.sortMovesFastestFirst(board, movables);
     }
+    // Bubble the TT best move to the front — it is the single strongest
+    // ordering hint we have.
+    if (ttBestX !== 0) {
+      for (let i = 1; i < movables.length; i++) {
+        if (movables[i].x === ttBestX && movables[i].y === ttBestY) {
+          const m = movables[i];
+          movables[i] = movables[0];
+          movables[0] = m;
+          break;
+        }
+      }
+    }
 
     let scoreMax = -InfinityVal;
     let a = alpha;
     let pvFound = false;
+    let bestX = movables[0].x;
+    let bestY = movables[0].y;
 
     for (const point of movables) {
       board.move(point);
@@ -347,17 +418,43 @@ export class OthelloAI {
       board.undo();
 
       if (score >= beta) {
+        this.ttStore(board, limit, score, TTFlag.Lower, point.x, point.y);
         return score;
       }
 
       if (score > scoreMax) {
-        a = Math.max(a, score);
         scoreMax = score;
+        bestX = point.x;
+        bestY = point.y;
+        a = Math.max(a, score);
         if (score > alpha) pvFound = true;
       }
     }
 
+    const flag =
+      scoreMax <= origAlpha ? TTFlag.Upper : scoreMax >= origBeta ? TTFlag.Lower : TTFlag.Exact;
+    this.ttStore(board, limit, scoreMax, flag, bestX, bestY);
     return scoreMax;
+  }
+
+  /**
+   * Store a search result in the transposition table (depth-preferred
+   * replacement: keep the entry that was searched deeper). No-op when the TT
+   * is disabled (endgame) or the search was aborted mid-node.
+   */
+  private ttStore(
+    board: Board,
+    depth: number,
+    score: number,
+    flag: TTFlag,
+    bestX: number,
+    bestY: number
+  ): void {
+    if (!this.ttEnabled || this.aborted) return;
+    const key = board.getHash();
+    const existing = this.transTable.get(key);
+    if (existing !== undefined && existing.depth > depth) return;
+    this.transTable.set(key, { depth, score, flag, bestX, bestY });
   }
 
   /**

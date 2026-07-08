@@ -1,318 +1,496 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RotateCcw, Settings } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import {
+  Difficulty,
+  DifficultySelector,
+  DifficultyOption,
+  GameStats,
+  GameTopBar,
+  InfoModal,
+} from '../common';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import {
+  Card,
+  Owner,
+  Winner,
+  countScores,
+  createBoard,
+  decideWinner,
+  isBoardCleared,
+  isMatch,
+} from './engine';
+import {
+  AI_CONFIG,
+  AIMemory,
+  createMemory,
+  forgetMatched,
+  observeReveal,
+  planTurn,
+} from './MemoryBattleAI';
+import { getStrings } from './i18n';
+import styles from './MemoryBattle.module.css';
 
-type Phase = 'menu' | 'memorize' | 'guess' | 'reveal' | 'gameover';
-
-interface Card {
-  value: number;
-  revealed: boolean;
-  correct?: boolean;
-  wrong?: boolean;
-}
-
-interface GameState {
-  phase: Phase;
-  round: number;
-  score: number;
-  lives: number;
-  cards: Card[];
-  target: number;
-  timerMs: number;
-  message: string;
-}
-
-const CARD_COUNT = 5;
-const MEMORIZE_MS = 3000;
-const GUESS_MS = 6000;
-const REVEAL_MS = 1200;
-const START_LIVES = 3;
-const VALUE_POOL = [1, 2, 3, 4, 5, 6, 7, 8, 9];
-
-const sample = <T,>(arr: T[], n: number): T[] => {
-  const copy = [...arr];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy.slice(0, n);
+type GridKey = 'small' | 'medium' | 'large';
+const GRID_SPECS: Record<GridKey, { rows: number; cols: number; pairs: number }> = {
+  small: { rows: 3, cols: 4, pairs: 6 },
+  medium: { rows: 4, cols: 4, pairs: 8 },
+  large: { rows: 4, cols: 6, pairs: 12 },
 };
 
-const createRound = (): { cards: Card[]; target: number } => {
-  const values = sample(VALUE_POOL, CARD_COUNT);
-  const cards: Card[] = values.map((value) => ({ value, revealed: true }));
-  const target = values[Math.floor(Math.random() * values.length)];
-  return { cards, target };
-};
+type Phase = 'playing' | 'over';
 
-const createInitialState = (): GameState => ({
-  phase: 'menu',
-  round: 0,
-  score: 0,
-  lives: START_LIVES,
-  cards: [],
-  target: 0,
-  timerMs: 0,
-  message: 'Press Start to begin',
-});
+// Symbols shown on card faces; index by card value.
+const FACE_SYMBOLS = ['🍎', '🍋', '🍇', '🍒', '🥝', '🍑', '🍉', '🫐', '🥥', '🍍', '🥭', '🍓'];
 
-export const MemoryBattle = () => {
+const MISMATCH_DELAY = 950; // ms cards stay revealed after a mismatch
+const AI_FLIP_DELAY = 750; // pause before AI's first flip
+const AI_SECOND_DELAY = 750; // pause before AI's second flip
+const MATCH_LINGER = 550; // ms to celebrate a match before continuing
+
+const MemoryBattle = () => {
   useFeatureLifecycle('game.memory-battle');
-  const [game, setGame] = useState<GameState>(createInitialState);
-  const phaseRef = useRef<Phase>(game.phase);
-  phaseRef.current = game.phase;
+  const { language } = useGameLanguage();
+  const t = useMemo(() => getStrings(language), [language]);
 
-  const startMemorize = useCallback(() => {
-    const round = createRound();
-    setGame((prev) => ({
-      phase: 'memorize',
-      round: prev.round + 1,
-      score: prev.score,
-      lives: prev.lives,
-      cards: round.cards,
-      target: round.target,
-      timerMs: MEMORIZE_MS,
-      message: '5枚の数字を覚えて！',
-    }));
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [gridKey, setGridKey] = useState<GridKey>('medium');
+  const [inSetup, setInSetup] = useState(true);
+  const [showInfo, setShowInfo] = useState(false);
+  const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
+
+  const [board, setBoard] = useState<Card[]>([]);
+  const [flipped, setFlipped] = useState<number[]>([]); // currently face-up, unmatched
+  const [turn, setTurn] = useState<Owner>('player');
+  const [phase, setPhase] = useState<Phase>('playing');
+  const [message, setMessage] = useState<string>('');
+  const [tone, setTone] = useState<'neutral' | 'good' | 'bad'>('neutral');
+  const [mismatchIds, setMismatchIds] = useState<number[]>([]);
+  const [justMatchedIds, setJustMatchedIds] = useState<number[]>([]);
+  const [locked, setLocked] = useState(false); // input locked during animations / AI
+
+  const aiMemory = useRef<AIMemory>(createMemory());
+  const timers = useRef<number[]>([]);
+  // Refs break the resolveFlip <-> runAiTurn / finishGame declaration cycle.
+  const finishGameRef = useRef<(winner: Winner) => void>(() => {});
+  const runAiTurnRef = useRef<(b: Card[]) => void>(() => {});
+
+  const clearTimers = useCallback(() => {
+    timers.current.forEach((id) => window.clearTimeout(id));
+    timers.current = [];
+  }, []);
+  const later = useCallback((fn: () => void, ms: number) => {
+    const id = window.setTimeout(fn, ms);
+    timers.current.push(id);
   }, []);
 
-  const start = useCallback(() => {
-    setGame({
-      phase: 'menu',
-      round: 0,
-      score: 0,
-      lives: START_LIVES,
-      cards: [],
-      target: 0,
-      timerMs: 0,
-      message: '',
-    });
-    requestAnimationFrame(() => startMemorize());
-  }, [startMemorize]);
+  useEffect(() => () => clearTimers(), [clearTimers]);
 
-  useEffect(() => {
-    if (game.phase !== 'memorize' && game.phase !== 'guess' && game.phase !== 'reveal') return;
+  const spec = GRID_SPECS[gridKey];
 
-    const timer = window.setInterval(() => {
-      setGame((prev) => {
-        if (prev.phase !== 'memorize' && prev.phase !== 'guess' && prev.phase !== 'reveal') return prev;
-        const next = { ...prev, timerMs: Math.max(0, prev.timerMs - 100) };
+  const startGame = useCallback(() => {
+    clearTimers();
+    const fresh = createBoard(GRID_SPECS[gridKey].pairs);
+    aiMemory.current = createMemory();
+    setBoard(fresh);
+    setFlipped([]);
+    setMismatchIds([]);
+    setJustMatchedIds([]);
+    setTurn('player');
+    setPhase('playing');
+    setLocked(false);
+    setTone('neutral');
+    setMessage(t.yourTurn);
+    setInSetup(false);
+  }, [clearTimers, gridKey, t.yourTurn]);
 
-        if (next.timerMs > 0) return next;
+  const backToSetup = useCallback(() => {
+    clearTimers();
+    setInSetup(true);
+  }, [clearTimers]);
 
-        if (next.phase === 'memorize') {
-          return {
-            ...next,
-            phase: 'guess',
-            cards: next.cards.map((c) => ({ ...c, revealed: false })),
-            timerMs: GUESS_MS,
-            message: `「${next.target}」はどこ？`,
-          };
+  // Resolve a completed two-card flip. `sel` is exactly two board indices.
+  const resolveFlip = useCallback(
+    (currentBoard: Card[], sel: number[], mover: Owner) => {
+      const [a, b] = sel;
+      const cardA = currentBoard[a];
+      const cardB = currentBoard[b];
+      const cfg = AI_CONFIG[difficulty];
+
+      // AI observes both revealed cards regardless of who flipped them.
+      observeReveal(aiMemory.current, cardA, cfg);
+      observeReveal(aiMemory.current, cardB, cfg);
+
+      if (isMatch(cardA, cardB)) {
+        const nextBoard = currentBoard.map((c) =>
+          c.id === a || c.id === b ? { ...c, matched: true, matchedBy: mover } : c,
+        );
+        forgetMatched(aiMemory.current, nextBoard);
+        setBoard(nextBoard);
+        setFlipped([]);
+        setJustMatchedIds([a, b]);
+        setTone('good');
+        setMessage(mover === 'player' ? t.matchFound : `${t.ai}: ${t.matchFound}`);
+        later(() => setJustMatchedIds([]), MATCH_LINGER + 100);
+
+        if (isBoardCleared(nextBoard)) {
+          const finalScores = countScores(nextBoard);
+          finishGameRef.current(decideWinner(finalScores));
+          return;
         }
-
-        if (next.phase === 'guess') {
-          const lives = next.lives - 1;
-          return {
-            ...next,
-            phase: lives <= 0 ? 'gameover' : 'reveal',
-            cards: next.cards.map((c) => ({ ...c, revealed: true, wrong: c.value !== next.target, correct: c.value === next.target })),
-            lives,
-            timerMs: REVEAL_MS,
-            message: lives <= 0 ? 'ゲームオーバー' : '時間切れ…',
-          };
-        }
-
-        return { ...next, phase: 'menu' };
-      });
-    }, 100);
-
-    return () => window.clearInterval(timer);
-  }, [game.phase]);
-
-  useEffect(() => {
-    if (game.phase !== 'reveal') return;
-    if (game.timerMs > 0) return;
-    const id = window.setTimeout(() => {
-      if (phaseRef.current === 'reveal') startMemorize();
-    }, 50);
-    return () => window.clearTimeout(id);
-  }, [game.phase, game.timerMs, startMemorize]);
-
-  const pickCard = (index: number) => {
-    setGame((prev) => {
-      if (prev.phase !== 'guess') return prev;
-      const picked = prev.cards[index];
-      const isCorrect = picked.value === prev.target;
-      const cards = prev.cards.map((c, i) => {
-        if (i === index) return { ...c, revealed: true, correct: isCorrect, wrong: !isCorrect };
-        if (isCorrect) return c;
-        return c.value === prev.target ? { ...c, revealed: true, correct: true } : c;
-      });
-
-      if (isCorrect) {
-        const timeBonus = Math.ceil(prev.timerMs / 1000);
-        return {
-          ...prev,
-          phase: 'reveal',
-          cards,
-          score: prev.score + 10 + timeBonus,
-          timerMs: REVEAL_MS,
-          message: `正解！ +${10 + timeBonus}点`,
-        };
+        // Same player goes again.
+        later(() => {
+          setTone('neutral');
+          setMessage(mover === 'player' ? t.goAgain : t.aiThinking);
+          if (mover === 'ai') runAiTurnRef.current(nextBoard);
+          else setLocked(false);
+        }, MATCH_LINGER);
+        return;
       }
 
-      const lives = prev.lives - 1;
-      return {
-        ...prev,
-        phase: lives <= 0 ? 'gameover' : 'reveal',
-        cards: cards.map((c) => (c.value === prev.target ? { ...c, revealed: true, correct: true } : c)),
-        lives,
-        timerMs: REVEAL_MS,
-        message: lives <= 0 ? 'ゲームオーバー' : 'はずれ…',
-      };
-    });
-  };
+      // Mismatch: show both, then flip back and pass turn.
+      setMismatchIds([a, b]);
+      setTone('bad');
+      setMessage(t.noMatch);
+      later(() => {
+        setMismatchIds([]);
+        setFlipped([]);
+        const next: Owner = mover === 'player' ? 'ai' : 'player';
+        setTurn(next);
+        setTone('neutral');
+        setMessage(next === 'player' ? t.yourTurn : t.aiTurn);
+        if (next === 'ai') runAiTurnRef.current(currentBoard);
+        else setLocked(false);
+      }, MISMATCH_DELAY);
+    },
+    [difficulty, later, t],
+  );
 
+  const finishGame = useCallback(
+    (winner: Winner) => {
+      setPhase('over');
+      setLocked(true);
+      setFlipped([]);
+      if (winner === 'player') {
+        setStats((s) => ({ ...s, wins: s.wins + 1 }));
+      } else if (winner === 'ai') {
+        setStats((s) => ({ ...s, losses: s.losses + 1 }));
+      } else {
+        setStats((s) => ({ ...s, draws: s.draws + 1 }));
+      }
+    },
+    [],
+  );
+
+  // Drive a full AI turn (two flips) with visible pauses.
+  const runAiTurn = useCallback(
+    (currentBoard: Card[]) => {
+      setLocked(true);
+      setTurn('ai');
+      setTone('neutral');
+      setMessage(t.aiThinking);
+      const cfg = AI_CONFIG[difficulty];
+      const plan = planTurn(currentBoard, aiMemory.current, cfg);
+
+      later(() => {
+        setFlipped([plan.first]);
+        // AI sees the first card it flipped.
+        observeReveal(aiMemory.current, currentBoard[plan.first], cfg);
+        later(() => {
+          setFlipped([plan.first, plan.second]);
+          later(() => resolveFlip(currentBoard, [plan.first, plan.second], 'ai'), 260);
+        }, AI_SECOND_DELAY);
+      }, AI_FLIP_DELAY);
+    },
+    [difficulty, later, resolveFlip, t.aiThinking],
+  );
+
+  // Keep refs pointing at the latest callbacks so resolveFlip can call them
+  // without creating a declaration cycle.
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (game.phase !== 'guess') return;
-      const num = Number(event.key);
-      if (Number.isInteger(num) && num >= 1 && num <= CARD_COUNT) {
-        event.preventDefault();
-        pickCard(num - 1);
+    finishGameRef.current = finishGame;
+    runAiTurnRef.current = runAiTurn;
+  }, [finishGame, runAiTurn]);
+
+  const onCardClick = useCallback(
+    (index: number) => {
+      if (phase !== 'playing' || turn !== 'player' || locked) return;
+      if (board[index]?.matched) return;
+      if (flipped.includes(index)) return;
+      if (flipped.length >= 2) return;
+
+      const nextFlipped = [...flipped, index];
+      setFlipped(nextFlipped);
+
+      if (nextFlipped.length === 2) {
+        setLocked(true);
+        // brief pause so the player sees the second card before resolution
+        later(() => resolveFlip(board, nextFlipped, 'player'), 260);
+      }
+    },
+    [board, flipped, later, locked, phase, resolveFlip, turn],
+  );
+
+  // Keyboard: number keys flip the corresponding card (1-indexed, in-play only).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (phase !== 'playing' || turn !== 'player' || locked) return;
+      const n = Number(e.key);
+      if (!Number.isInteger(n) || n < 1) return;
+      // map the nth in-play, face-down card
+      const inPlay = board.map((c, i) => i).filter((i) => !board[i].matched && !flipped.includes(i));
+      const target = inPlay[n - 1];
+      if (target !== undefined) {
+        e.preventDefault();
+        onCardClick(target);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [game.phase]);
+  }, [board, flipped, locked, onCardClick, phase, turn]);
 
-  const timerSeconds = useMemo(() => (game.timerMs / 1000).toFixed(1), [game.timerMs]);
-  const timerColor = game.phase === 'memorize' ? '#fbbf24' : game.timerMs < 2000 ? '#f87171' : '#67e8f9';
+  const scores = useMemo(() => countScores(board), [board]);
+  const pairsLeft = spec.pairs - scores.player - scores.ai;
+  const winner: Winner = useMemo(() => decideWinner(scores), [scores]);
+
+  const difficultyOptions: DifficultyOption[] = useMemo(
+    () => [
+      { value: 'easy', label: t.difficulties.easy.label, description: t.difficulties.easy.description },
+      { value: 'medium', label: t.difficulties.medium.label, description: t.difficulties.medium.description },
+      { value: 'hard', label: t.difficulties.hard.label, description: t.difficulties.hard.description },
+      { value: 'expert', label: t.difficulties.expert.label, description: t.difficulties.expert.description },
+      { value: 'master', label: t.difficulties.master.label, description: t.difficulties.master.description },
+    ],
+    [t],
+  );
+
+  const gridOptions: { key: GridKey; label: string }[] = [
+    { key: 'small', label: t.grids.small },
+    { key: 'medium', label: t.grids.medium },
+    { key: 'large', label: t.grids.large },
+  ];
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #020617, #111827)', color: '#e2e8f0', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>Memory Battle</h1>
-        <p style={{ marginTop: '0.5rem', color: '#94a3b8' }}>
-          5枚のカードを3秒だけ見せて裏返します。指定された数字の位置を当てよう。
-        </p>
+    <div className={styles.root}>
+      <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} />
 
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <span style={{ borderRadius: '999px', border: '1px solid #334155', background: '#0f172a', padding: '0.35rem 0.8rem' }}>
-            Score: {game.score}
-          </span>
-          <span style={{ borderRadius: '999px', border: '1px solid #334155', background: '#0f172a', padding: '0.35rem 0.8rem' }}>
-            Round: {game.round}
-          </span>
-          <span style={{ borderRadius: '999px', border: '1px solid #334155', background: '#0f172a', padding: '0.35rem 0.8rem' }}>
-            Lives: {'♥'.repeat(Math.max(0, game.lives))}
-            <span style={{ color: '#475569' }}>{'♡'.repeat(Math.max(0, START_LIVES - game.lives))}</span>
-          </span>
-        </div>
-
-        <div style={{ border: '1px solid #334155', borderRadius: '16px', background: '#020617', padding: '1.4rem', textAlign: 'center' }}>
-          {game.phase === 'menu' && (
-            <div style={{ padding: '2rem 0' }}>
-              <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🧠</div>
-              <div style={{ color: '#cbd5e1', marginBottom: '1.2rem', lineHeight: 1.6 }}>
-                5枚のカード(1〜9のうち5枚)が3秒だけ表示されます。<br />
-                裏返ったあと、指定された数字のカードを当ててください。<br />
-                速く当てるほど高得点。ミス3回でゲームオーバー。
-              </div>
-              <button
-                onClick={start}
-                style={{ background: '#22c55e', color: '#022c1f', border: 'none', borderRadius: '12px', padding: '0.8rem 1.6rem', fontWeight: 800, fontSize: '1.05rem', cursor: 'pointer' }}
-              >
-                Start
-              </button>
-            </div>
-          )}
-
-          {game.phase !== 'menu' && (
-            <>
-              <div style={{ fontSize: '2.4rem', fontWeight: 800, color: timerColor, lineHeight: 1.1 }}>{timerSeconds}s</div>
-              <div style={{ marginTop: '0.4rem', minHeight: '1.5rem', color: '#cbd5e1' }}>
-                {game.phase === 'guess' ? (
-                  <span>
-                    「<span style={{ color: '#fde047', fontWeight: 800, fontSize: '1.3em' }}>{game.target}</span>」はどこ？
-                  </span>
-                ) : (
-                  game.message
-                )}
-              </div>
-
-              <div
-                style={{
-                  display: 'grid',
-                  gridTemplateColumns: `repeat(${CARD_COUNT}, 1fr)`,
-                  gap: '0.6rem',
-                  marginTop: '1.2rem',
-                }}
-              >
-                {game.cards.map((card, index) => {
-                  const clickable = game.phase === 'guess';
-                  const bg = card.revealed
-                    ? card.correct
-                      ? 'linear-gradient(160deg, #16a34a, #22c55e)'
-                      : card.wrong
-                        ? 'linear-gradient(160deg, #b91c1c, #ef4444)'
-                        : 'linear-gradient(160deg, #1e3a8a, #3b82f6)'
-                    : 'linear-gradient(160deg, #475569, #1e293b)';
-                  const textColor = card.revealed ? '#fff' : 'transparent';
-                  return (
+      {inSetup ? (
+        <div style={{ width: 'min(100%, 560px)' }}>
+          <DifficultySelector
+            title={t.title}
+            subtitle={t.subtitle}
+            icon={<span style={{ fontSize: '3rem' }}>🧠</span>}
+            selectedDifficulty={difficulty}
+            onSelectDifficulty={setDifficulty}
+            options={difficultyOptions}
+            difficultyTitle={t.difficultyTitle}
+            startLabel={t.startLabel}
+            onStart={startGame}
+            setupContent={
+              <div>
+                <div
+                  style={{
+                    fontSize: '0.8rem',
+                    fontWeight: 700,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    color: '#94a3b8',
+                    marginBottom: '0.5rem',
+                  }}
+                >
+                  {t.gridLabel}
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  {gridOptions.map((g) => (
                     <button
-                      key={index}
-                      onClick={() => clickable && pickCard(index)}
-                      disabled={!clickable}
+                      key={g.key}
+                      type="button"
+                      onClick={() => setGridKey(g.key)}
+                      aria-pressed={gridKey === g.key}
                       style={{
-                        aspectRatio: '2 / 3',
-                        background: bg,
-                        border: card.revealed ? '2px solid rgba(255,255,255,0.25)' : '2px solid #334155',
-                        borderRadius: '12px',
-                        color: textColor,
-                        fontSize: '2.2rem',
-                        fontWeight: 800,
-                        cursor: clickable ? 'pointer' : 'default',
-                        transition: 'transform 0.15s, box-shadow 0.15s',
-                        boxShadow: card.correct ? '0 0 0 3px rgba(34,197,94,0.45)' : card.wrong ? '0 0 0 3px rgba(239,68,68,0.45)' : 'none',
+                        flex: '1 1 120px',
+                        padding: '0.6rem 0.5rem',
+                        borderRadius: '0.6rem',
+                        fontWeight: 700,
+                        fontSize: '0.85rem',
+                        cursor: 'pointer',
+                        color: gridKey === g.key ? '#04263c' : '#cbd5e1',
+                        background: gridKey === g.key ? '#38bdf8' : 'rgba(15,23,42,0.9)',
+                        border:
+                          gridKey === g.key
+                            ? '2px solid #38bdf8'
+                            : '2px solid rgba(100,116,139,0.4)',
+                        transition: 'all 0.15s',
                       }}
-                      onMouseEnter={(e) => { if (clickable) e.currentTarget.style.transform = 'translateY(-3px)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-                      aria-label={`Card ${index + 1}`}
                     >
-                      {card.revealed ? card.value : '?'}
+                      {g.label}
                     </button>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
-
-              <div style={{ marginTop: '0.8rem', color: '#64748b', fontSize: '0.85rem' }}>
-                キーボードの 1〜5 でも選べます
-              </div>
-            </>
-          )}
+            }
+          />
         </div>
-
-        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
-          {game.phase !== 'menu' && (
-            <button
-              onClick={start}
-              style={{ background: '#0ea5e9', color: '#022c4a', border: 'none', borderRadius: '10px', padding: '0.62rem 1rem', fontWeight: 700, cursor: 'pointer' }}
+      ) : (
+        <div className={styles.board}>
+          <div className={styles.scoreRow}>
+            <div
+              className={`${styles.scoreCard} ${styles.scorePlayer}`}
+              data-active={turn === 'player' && phase === 'playing'}
             >
-              {game.phase === 'gameover' ? 'Play Again' : 'Restart'}
-            </button>
-          )}
-          {game.phase === 'gameover' && (
-            <div style={{ color: '#facc15', fontWeight: 700 }}>
-              Final Score: {game.score} (Round {game.round})
+              <span className={styles.scoreName}>{t.youScore}</span>
+              <span className={styles.scoreValue}>{scores.player}</span>
+            </div>
+            <div className={styles.turnBadge}>
+              <span
+                className={styles.turnDot}
+                data-turn={phase === 'playing' ? turn : undefined}
+                aria-hidden
+              />
+              <span>{pairsLeft} {t.pairsLeft}</span>
+            </div>
+            <div
+              className={`${styles.scoreCard} ${styles.scoreAi}`}
+              data-active={turn === 'ai' && phase === 'playing'}
+            >
+              <span className={styles.scoreName}>{t.aiScore}</span>
+              <span className={styles.scoreValue}>{scores.ai}</span>
+            </div>
+          </div>
+
+          <div className={styles.message} data-tone={tone} role="status" aria-live="polite">
+            {message}
+          </div>
+
+          <div
+            className={styles.grid}
+            style={{ gridTemplateColumns: `repeat(${spec.cols}, minmax(0, 1fr))` }}
+            role="grid"
+            aria-label={t.title}
+          >
+            {board.map((card, index) => {
+              const isFaceUp = card.matched || flipped.includes(index);
+              const owner = card.matchedBy;
+              const clickable =
+                phase === 'playing' &&
+                turn === 'player' &&
+                !locked &&
+                !card.matched &&
+                !flipped.includes(index) &&
+                flipped.length < 2;
+              const symbol = FACE_SYMBOLS[card.value] ?? card.value + 1;
+              const cellClass = [
+                styles.cardCell,
+                card.matched ? styles.cardMatched : '',
+                card.matched && owner === 'ai' ? styles.byAi : '',
+                mismatchIds.includes(index) ? styles.cardMismatch : '',
+                justMatchedIds.includes(index) ? styles.cardJustMatched : '',
+              ]
+                .filter(Boolean)
+                .join(' ');
+
+              const ariaLabel = card.matched
+                ? t.matchedAria(owner === 'ai' ? t.ai : t.you, card.value)
+                : isFaceUp
+                  ? String(symbol)
+                  : t.cardAria(index + 1);
+
+              return (
+                <button
+                  key={card.id}
+                  type="button"
+                  role="gridcell"
+                  className={cellClass}
+                  disabled={!clickable}
+                  onClick={() => onCardClick(index)}
+                  aria-label={ariaLabel}
+                >
+                  <span className={styles.cardInner} data-flipped={isFaceUp}>
+                    <span className={`${styles.cardFace} ${styles.cardBack}`} aria-hidden>
+                      ?
+                    </span>
+                    <span className={`${styles.cardFace} ${styles.cardFront}`} aria-hidden>
+                      {symbol}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {phase === 'over' && (
+            <div className={styles.result}>
+              <div
+                className={`${styles.resultTitle} ${
+                  winner === 'player'
+                    ? styles.resultWin
+                    : winner === 'ai'
+                      ? styles.resultLose
+                      : styles.resultDraw
+                }`}
+              >
+                {winner === 'player' ? t.youWin : winner === 'ai' ? t.aiWins : t.draw}
+              </div>
+              <div className={styles.resultSub}>
+                {t.youScore} {scores.player} · {t.aiScore} {scores.ai}
+              </div>
             </div>
           )}
+
+          <div className={styles.buttonRow}>
+            <button type="button" className={styles.primaryBtn} onClick={startGame}>
+              <RotateCcw style={{ width: '1.15rem', height: '1.15rem' }} />
+              {t.playAgain}
+            </button>
+            <button type="button" className={styles.secondaryBtn} onClick={backToSetup}>
+              <Settings style={{ width: '1.15rem', height: '1.15rem' }} />
+              {t.changeSettings}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
+
+      <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={t.howToTitle}>
+        <div style={{ display: 'grid', gap: '1rem', marginBottom: '1.5rem' }}>
+          <div
+            style={{
+              background: 'rgba(14, 165, 233, 0.1)',
+              border: '1px solid rgba(14, 165, 233, 0.3)',
+              borderRadius: '0.5rem',
+              padding: '1rem',
+            }}
+          >
+            <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</div>
+            <h3 style={{ color: '#fff', fontWeight: 600, marginBottom: '0.25rem' }}>
+              {t.objectiveTitle}
+            </h3>
+            <p style={{ color: '#9ca3af', fontSize: '0.875rem', margin: 0 }}>{t.objectiveBody}</p>
+          </div>
+          <div
+            style={{
+              background: 'rgba(14, 165, 233, 0.1)',
+              border: '1px solid rgba(14, 165, 233, 0.3)',
+              borderRadius: '0.5rem',
+              padding: '1rem',
+            }}
+          >
+            <div style={{ color: '#38bdf8', fontWeight: 600, marginBottom: '0.5rem' }}>
+              💡 {t.tipsTitle}
+            </div>
+            <ul style={{ color: '#d1d5db', fontSize: '0.875rem', paddingLeft: '1.5rem', margin: 0 }}>
+              {t.tips.map((tip, i) => (
+                <li key={i}>{tip}</li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </InfoModal>
     </div>
   );
 };
 
+export { MemoryBattle };
 export default MemoryBattle;

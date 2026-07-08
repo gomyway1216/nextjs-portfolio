@@ -143,6 +143,9 @@ export function buildHistogram(
   values: number[],
   bins = 24,
 ): { binStart: number; binEnd: number; count: number }[] {
+  // Guard against non-positive / non-integer bin counts, which would otherwise
+  // yield Infinity/NaN bin widths or an invalid Array.from length.
+  const binCount = Number.isFinite(bins) ? Math.max(1, Math.floor(bins)) : 24;
   if (values.length === 0) return [];
   let lo = Infinity;
   let hi = -Infinity;
@@ -151,15 +154,15 @@ export function buildHistogram(
     if (v > hi) hi = v;
   }
   if (hi === lo) hi = lo + 1;
-  const width = (hi - lo) / bins;
-  const out = Array.from({ length: bins }, (_, i) => ({
+  const width = (hi - lo) / binCount;
+  const out = Array.from({ length: binCount }, (_, i) => ({
     binStart: lo + i * width,
     binEnd: lo + (i + 1) * width,
     count: 0,
   }));
   for (const v of values) {
     let idx = Math.floor((v - lo) / width);
-    if (idx >= bins) idx = bins - 1;
+    if (idx >= binCount) idx = binCount - 1;
     if (idx < 0) idx = 0;
     out[idx].count++;
   }

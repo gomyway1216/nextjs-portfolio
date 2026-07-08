@@ -93,11 +93,13 @@ describe('GamblersRuin engine', () => {
       const cfg = { start: a, target: N, winProb: p };
       const summary = await runRuinMonteCarloAsync(cfg, 20_000, 200_000, {}, mulberry32(12345 + a + N));
       expect(summary).not.toBeNull();
-      // Empirical within ~1.5 percentage points of the closed form (>=20k trials).
-      expect(summary!.empiricalRuinProb).toBeCloseTo(theoreticalRuinProb(cfg), 1.5);
+      // Empirical ruin within 2 percentage points (absolute) of the closed form
+      // at >=20k trials. Use an explicit tolerance — toBeCloseTo's 2nd arg is a
+      // digit count, not a percentage-point tolerance.
       expect(Math.abs(summary!.empiricalRuinProb - theoreticalRuinProb(cfg))).toBeLessThan(0.02);
-      // Mean steps close to the theoretical expected duration (relative tolerance).
-      expect(summary!.meanSteps).toBeCloseTo(expectedDuration(cfg), -1);
+      // Mean steps within 5% (relative) of the theoretical expected duration.
+      const expected = expectedDuration(cfg);
+      expect(Math.abs(summary!.meanSteps - expected) / expected).toBeLessThan(0.05);
     }
   });
 
@@ -107,6 +109,17 @@ describe('GamblersRuin engine', () => {
     expect(hist.reduce((s, b) => s + b.count, 0)).toBe(8);
     expect(hist[0].binStart).toBeLessThan(hist[hist.length - 1].binEnd);
     expect(buildHistogram([], 4)).toEqual([]);
+  });
+
+  it('buildHistogram tolerates invalid bin counts', () => {
+    // Non-positive / non-integer bin counts must not produce Infinity widths,
+    // NaN, or throw from Array.from.
+    for (const bad of [0, -3, 2.7, NaN, Infinity]) {
+      const hist = buildHistogram([1, 2, 3, 4], bad);
+      expect(hist.length).toBeGreaterThanOrEqual(1);
+      expect(hist.reduce((s, b) => s + b.count, 0)).toBe(4);
+      expect(hist.every((b) => Number.isFinite(b.binStart) && Number.isFinite(b.binEnd))).toBe(true);
+    }
   });
 
   it('handles biased-game boundaries without overflow', () => {

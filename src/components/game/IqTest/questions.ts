@@ -15,7 +15,7 @@ export interface MatrixData {
   cellOptions: CellSpec[];
 }
 
-/** Bilingual text: index 0 = ja, 1 = en. */
+/** Bilingual text keyed by language code (`ja` / `en`). */
 export interface Bilingual {
   ja: string;
   en: string;
@@ -127,7 +127,7 @@ const generateArithmetic = (tier: QuestionTier): Question => {
   return {
     type: 'arithmetic',
     tier,
-    prompt: { ja: '? に当てはまる数字は？', en: 'Which number fits the ??' },
+    prompt: { ja: '? に当てはまる数字は？', en: 'Which number replaces the ??' },
     display: `${terms.join(', ')}, ?`,
     options,
     answerIndex,
@@ -149,7 +149,7 @@ const generateGeometric = (tier: QuestionTier): Question => {
   return {
     type: 'geometric',
     tier,
-    prompt: { ja: '? に当てはまる数字は？', en: 'Which number fits the ??' },
+    prompt: { ja: '? に当てはまる数字は？', en: 'Which number replaces the ??' },
     display: `${t.join(', ')}, ?`,
     options,
     answerIndex,
@@ -171,7 +171,7 @@ const generateSquare = (tier: QuestionTier): Question => {
   return {
     type: 'square',
     tier,
-    prompt: { ja: '? に当てはまる数字は？', en: 'Which number fits the ??' },
+    prompt: { ja: '? に当てはまる数字は？', en: 'Which number replaces the ??' },
     display: `${terms.join(', ')}, ?`,
     options,
     answerIndex,
@@ -195,7 +195,7 @@ const generateFibonacci = (tier: QuestionTier): Question => {
   return {
     type: 'fibonacci',
     tier,
-    prompt: { ja: '? に当てはまる数字は？', en: 'Which number fits the ??' },
+    prompt: { ja: '? に当てはまる数字は？', en: 'Which number replaces the ??' },
     display: `${a}, ${b}, ${c}, ${d}, ${e}, ?`,
     options,
     answerIndex,
@@ -223,7 +223,7 @@ const generateAlternating = (tier: QuestionTier): Question => {
     tier,
     prompt: {
       ja: '? に当てはまる数字は？（2つの数列が交互）',
-      en: 'Which number fits the ?? (two interleaved sequences)',
+      en: 'Which number replaces the ?? (two interleaved sequences)',
     },
     display: `${seq.join(', ')}, ?`,
     options,
@@ -419,7 +419,7 @@ const generateLetterSequence = (tier: QuestionTier): Question => {
     tier,
     prompt: {
       ja: '? に当てはまるアルファベットは？',
-      en: 'Which letter fits the ??',
+      en: 'Which letter replaces the ??',
     },
     display: `${terms.join(', ')}, ?`,
     options,
@@ -701,6 +701,9 @@ export const validateQuestion = (q: Question): boolean => {
   if (q.options.length !== 4) return false;
   if (new Set(q.options).size !== 4) return false;
   if (q.answerIndex < 0 || q.answerIndex >= 4) return false;
+  // The correct answer must appear exactly once among the options.
+  const answer = q.options[q.answerIndex];
+  if (q.options.filter((o) => o === answer).length !== 1) return false;
   if (q.matrix) {
     if (q.matrix.cellOptions.length !== 4) return false;
     const keys = q.matrix.cellOptions.map(cellKey);

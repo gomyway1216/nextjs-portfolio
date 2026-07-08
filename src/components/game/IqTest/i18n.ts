@@ -118,12 +118,12 @@ export const getIqStrings = (language: GameLanguage): IqStrings =>
 
 /**
  * Rough estimated-IQ mapping from proportion correct. Not clinically meaningful —
- * a playful score. Centered at ~100 for 50% and scaled to a plausible spread.
+ * a playful score. Linearly maps 0% → 80 and 100% → 145 (so 50% ≈ 113).
  */
 export const estimateIq = (correct: number, total: number): number => {
   if (total === 0) return 100;
   const frac = correct / total;
-  // Map 0..1 → roughly 80..145, centered ~100 at 0.5.
+  // Linear map: 0.0 → 80, 1.0 → 145 (midpoint ~113).
   const iq = 80 + frac * 65;
   return Math.round(iq);
 };

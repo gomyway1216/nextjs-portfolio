@@ -188,8 +188,9 @@ export const IqTest = () => {
 
   // Countdown timer. The tick and the time-out both happen inside the timeout
   // callback (never synchronously in the effect body) to avoid cascading renders.
+  // Paused while the "How to play" modal is open so reading doesn't cost time.
   useEffect(() => {
-    if (!timerEnabled || state.phase !== 'question' || timeLeft <= 0) return;
+    if (!timerEnabled || state.phase !== 'question' || showInfo || timeLeft <= 0) return;
     const id = window.setTimeout(() => {
       if (timeLeft <= 1) {
         choose(null); // time out -> incorrect
@@ -198,7 +199,7 @@ export const IqTest = () => {
       }
     }, 1000);
     return () => window.clearTimeout(id);
-  }, [timerEnabled, state.phase, state.questionIndex, timeLeft, choose]);
+  }, [timerEnabled, state.phase, state.questionIndex, timeLeft, choose, showInfo]);
 
   // Keyboard shortcuts.
   useEffect(() => {
@@ -400,7 +401,7 @@ export const IqTest = () => {
                       onClick={() => state.phase === 'question' && choose(i)}
                       disabled={showFeedback}
                       className={cls.join(' ')}
-                      aria-label={`${i + 1}. ${q.matrix ? `option ${opt}` : opt}${showFeedback && isAnswer ? ` (${t.correctLabel})` : ''}`}
+                      aria-label={`${i + 1}. ${q.matrix ? (language === 'ja' ? `選択肢 ${opt}` : `Option ${opt}`) : opt}${showFeedback && isAnswer ? ` (${t.correctLabel})` : ''}`}
                     >
                       <span className={styles.optionKey}>{i + 1}.</span>
                       {q.matrix ? (

@@ -151,7 +151,7 @@ describe('scoring / IQ estimate', () => {
     expect(score).toBe(20);
   });
 
-  it('estimateIq is monotonic in the number correct and centered near 100 at 50%', () => {
+  it('estimateIq is monotonic in the number correct and maps 0%/50%/100% to 80/~113/145', () => {
     let prev = -Infinity;
     for (let c = 0; c <= 10; c += 1) {
       const iq = estimateIq(c, 10);

@@ -1,50 +1,76 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { GameStats, GameTopBar, InfoModal } from '../common';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getStrings } from './i18n';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
+import styles from './SecretaryProblem.module.css';
 
 type Tab = 'play' | 'sim';
 
 export const SecretaryProblem = () => {
+  const { language } = useGameLanguage();
+  const t = useMemo(() => getStrings(language), [language]);
   const [tab, setTab] = useState<Tab>('play');
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #020617, #111827)', color: '#e2e8f0', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>👔 Secretary Problem</h1>
-        <p style={{ marginTop: '0.4rem', color: '#94a3b8' }}>
-          一人ずつ面接して即決、見送ったら戻れない。最高スコアの 1 人を当てるには？
-          答えは「最初の <strong>37%</strong> をスキップして、その後で観測期の最高を超えた最初の人」。理論最大確率も約 <strong>37%</strong>。
-        </p>
+    <div className={styles.root}>
+      <GameTopBar stats={stats} onInfoClick={() => setInfoOpen(true)} />
 
-        <div style={{ display: 'flex', gap: '0.5rem', margin: '1.25rem 0' }}>
-          <TabButton active={tab === 'play'} onClick={() => setTab('play')}>遊ぶ</TabButton>
-          <TabButton active={tab === 'sim'} onClick={() => setTab('sim')}>シミュレーション</TabButton>
+      <div className={styles.shell}>
+        <header className={styles.header}>
+          <h1 className={styles.title}>
+            <span aria-hidden="true">👔</span> {t.title}
+          </h1>
+          <p className={styles.subtitle}>{t.subtitle}</p>
+        </header>
+
+        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+          <button
+            role="tab"
+            aria-selected={tab === 'play'}
+            className={`${styles.tab} ${tab === 'play' ? styles.tabActive : ''}`}
+            onClick={() => setTab('play')}
+          >
+            {t.tabPlay}
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === 'sim'}
+            className={`${styles.tab} ${tab === 'sim' ? styles.tabActive : ''}`}
+            onClick={() => setTab('sim')}
+          >
+            {t.tabSim}
+          </button>
         </div>
 
-        {tab === 'play' ? <PlayTab /> : <SimTab />}
+        {tab === 'play' ? (
+          <PlayTab t={t} stats={stats} setStats={setStats} />
+        ) : (
+          <SimTab t={t} />
+        )}
       </div>
+
+      <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.infoTitle}>
+        <div className={styles.infoSection}>
+          <h3>{t.infoRulesTitle}</h3>
+          <p>{t.infoRules}</p>
+        </div>
+        <div className={styles.infoSection}>
+          <h3>{t.infoStrategyTitle}</h3>
+          <p>{t.infoStrategy}</p>
+        </div>
+        <div className={styles.infoSection}>
+          <h3>{t.infoWhyTitle}</h3>
+          <p>{t.infoWhy}</p>
+        </div>
+      </InfoModal>
     </div>
   );
 };
-
-const TabButton = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
-  <button
-    onClick={onClick}
-    style={{
-      background: active ? '#f59e0b' : '#1e293b',
-      color: active ? '#0f172a' : '#e2e8f0',
-      border: `1px solid ${active ? '#f59e0b' : '#334155'}`,
-      borderRadius: 10,
-      padding: '0.55rem 1.1rem',
-      fontWeight: 800,
-      cursor: 'pointer',
-      fontSize: '0.95rem',
-    }}
-  >
-    {children}
-  </button>
-);
 
 export default SecretaryProblem;

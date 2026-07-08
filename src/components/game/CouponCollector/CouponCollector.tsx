@@ -1,49 +1,87 @@
 'use client';
 
 import { useState } from 'react';
+import { Info, Globe } from 'lucide-react';
+import { InfoModal } from '../common';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
+import { getStrings } from './i18n';
+import styles from './CouponCollector.module.css';
 
 type Tab = 'play' | 'sim';
 
 export const CouponCollector = () => {
   const [tab, setTab] = useState<Tab>('play');
+  const [showInfo, setShowInfo] = useState(false);
+  const { language, setLanguage } = useGameLanguage();
+  const t = getStrings(language);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #020617, #111827)', color: '#e2e8f0', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>🎟️ Coupon Collector</h1>
-        <p style={{ marginTop: '0.4rem', color: '#94a3b8' }}>
-          全 n 種を集めるのに何回引けばいいか？ 期待値は n·H<sub>n</sub>。「最後の1個」が異様に出ない感覚をデータで確認する。
-        </p>
-
-        <div style={{ display: 'flex', gap: '0.5rem', margin: '1.25rem 0' }}>
-          <TabButton active={tab === 'play'} onClick={() => setTab('play')}>遊ぶ</TabButton>
-          <TabButton active={tab === 'sim'} onClick={() => setTab('sim')}>シミュレーション</TabButton>
+    <div className={styles.root}>
+      <div className={styles.container}>
+        <div className={styles.header}>
+          <div>
+            <h1 className={styles.title}>
+              <span aria-hidden>🎟️</span> {t.title}
+            </h1>
+            <p className={styles.subtitle}>{t.subtitle}</p>
+          </div>
+          <div className={styles.controls}>
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={() => setLanguage(language === 'ja' ? 'en' : 'ja')}
+              aria-label="Toggle language"
+            >
+              <Globe size={16} aria-hidden />
+              {language === 'ja' ? 'EN' : '日本語'}
+            </button>
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={() => setShowInfo(true)}
+              aria-label={t.howToPlay}
+            >
+              <Info size={16} aria-hidden />
+              {t.howToPlay}
+            </button>
+          </div>
         </div>
 
-        {tab === 'play' ? <PlayTab /> : <SimTab />}
+        <div className={styles.tabs} role="tablist" aria-label="Coupon Collector modes">
+          <button
+            role="tab"
+            aria-selected={tab === 'play'}
+            className={`${styles.tab} ${tab === 'play' ? styles.tabActive : ''}`}
+            onClick={() => setTab('play')}
+          >
+            {t.tabPlay}
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === 'sim'}
+            className={`${styles.tab} ${tab === 'sim' ? styles.tabActive : ''}`}
+            onClick={() => setTab('sim')}
+          >
+            {t.tabSim}
+          </button>
+        </div>
+
+        <div className={styles.panel}>{tab === 'play' ? <PlayTab t={t} /> : <SimTab t={t} />}</div>
       </div>
+
+      <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={t.infoTitle}>
+        <div className={styles.infoBody}>
+          <p>{t.infoIntro}</p>
+          <h3>{t.infoFormula}</h3>
+          <p>{t.infoFormulaBody}</p>
+          <h3>{t.infoTail}</h3>
+          <p>{t.infoTailBody}</p>
+        </div>
+      </InfoModal>
     </div>
   );
 };
-
-const TabButton = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
-  <button
-    onClick={onClick}
-    style={{
-      background: active ? '#f59e0b' : '#1e293b',
-      color: active ? '#0f172a' : '#e2e8f0',
-      border: `1px solid ${active ? '#f59e0b' : '#334155'}`,
-      borderRadius: 10,
-      padding: '0.55rem 1.1rem',
-      fontWeight: 800,
-      cursor: 'pointer',
-      fontSize: '0.95rem',
-    }}
-  >
-    {children}
-  </button>
-);
 
 export default CouponCollector;

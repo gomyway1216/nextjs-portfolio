@@ -21,7 +21,7 @@
 サイトには2つの将棋ページがある。
 
 - `/games/shogi` — オリジナルUI + 手順列マッチの定跡ブック + エンジン
-- `/games/shogi-improved` — 高速エンジン用UI + 局面ハッシュマッチの定跡ブック + Web Worker（Lv4/5）
+- `/games/shogi` — 高速エンジン用UI + 局面ハッシュマッチの定跡ブック + Web Worker（Lv4/5）
 
 エンジンは TypeScript 製。`(suji<<4)+dan` の1次元配列盤面、make/unmake方式、Zobristハッシュ+置換表（TT）、negamax+αβ+PVS+反復深化という、教科書的には正しい作り。ここに至るまでに `ShogiAIImprovedV2`〜`V18` という改良の地層が積もっていた。今回の作業の出発点を理解するために、まず系譜を整理する。
 

@@ -1,16 +1,19 @@
 import { test, expect } from '@playwright/test';
 
-// Cross-origin isolation (COOP/COEP) for the improved-shogi page was REMOVED.
+// Cross-origin isolation (COOP/COEP) for the shogi page was REMOVED.
 // It unlocked SharedArrayBuffer, which turned on the multi-thread (Lazy SMP)
 // search — but that parallel search deadlocked in the production build (the
 // page froze permanently on "AI Thinking..."), while its strength benefit was
 // only a ~+58 Elo point estimate (n=24, not significant). The AI now runs
-// single-threaded, the same stable path /games/shogi uses. These tests pin
-// that decision so isolation (and the deadlock) can't be reintroduced by
-// accident. See next.config.ts / shogiAiWorkerClient.ts.
+// single-threaded. These tests pin that decision so isolation (and the
+// deadlock) can't be reintroduced by accident. See next.config.ts /
+// shogiAiWorkerClient.ts.
+//
+// The improved implementation is now served at the canonical /games/shogi
+// route; the old /games/shogi-improved URL permanently redirects here.
 
-test('shogi-improved is NOT cross-origin isolated (stays single-thread)', async ({ page }) => {
-  const response = await page.goto('/games/shogi-improved');
+test('shogi is NOT cross-origin isolated (stays single-thread)', async ({ page }) => {
+  const response = await page.goto('/games/shogi');
   expect(response).not.toBeNull();
   expect(response!.status()).toBe(200);
   expect(response!.headers()['cross-origin-opener-policy']).toBeUndefined();
@@ -30,8 +33,15 @@ test('shogi-improved is NOT cross-origin isolated (stays single-thread)', async 
   await expect(page.getByRole('button', { name: /Start Game/i }).first()).toBeVisible();
 });
 
+test('the old /games/shogi-improved URL redirects to /games/shogi', async ({ page }) => {
+  const response = await page.goto('/games/shogi-improved');
+  expect(response).not.toBeNull();
+  expect(response!.status()).toBe(200);
+  expect(new URL(page.url()).pathname).toBe('/games/shogi');
+});
+
 test('no route is cross-origin isolated', async ({ request }) => {
-  for (const path of ['/', '/games', '/games/shogi-improved']) {
+  for (const path of ['/', '/games', '/games/shogi']) {
     const response = await request.get(path);
     expect(response.status()).toBe(200);
     expect(response.headers()['cross-origin-embedder-policy']).toBeUndefined();

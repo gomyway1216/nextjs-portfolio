@@ -51,9 +51,26 @@ export interface Particle {
   size: number;
 }
 
+/**
+ * Structured banner data. The component maps this to a localized string via
+ * getStrings() so canvas text respects the ja/en UI language — the engine never
+ * hard-codes display text.
+ */
+export type BannerType =
+  | 'gravity'
+  | 'speedUp'
+  | 'slowMotion'
+  | 'paddleGrow'
+  | 'paddleShrink'
+  | 'multiball'
+  | 'stage';
+
 export interface ChaosBanner {
-  kind: ChaosKind;
-  text: string;
+  type: BannerType;
+  /** Present for gravity pulses: the new gravity direction. */
+  gravity?: GravityDirection;
+  /** Present for stage banners: the new stage number. */
+  stage?: number;
   timer: number;
 }
 
@@ -73,8 +90,7 @@ export interface GameState {
   banner: ChaosBanner | null;
   flash: number;
   gravityFlash: number;
-  status: 'ready' | 'playing' | 'stageclear' | 'gameover';
-  launchDelay: number;
+  status: 'ready' | 'playing' | 'gameover';
 }
 
 export const WIDTH = 760;
@@ -264,7 +280,6 @@ export const createGameState = (
     flash: 0,
     gravityFlash: 0,
     status: 'ready',
-    launchDelay: 0,
   };
 };
 
@@ -296,30 +311,25 @@ const spawnParticles = (
   }
 };
 
-const CHAOS_LABELS: Record<GravityDirection, string> = {
-  down: '↓ DOWN',
-  up: '↑ UP',
-  left: '← LEFT',
-  right: '→ RIGHT',
-};
-
 /** Fire a chaos pulse. Returns the kind that fired (for the component's callbacks). */
 export const applyChaos = (
   state: GameState,
   config: DifficultyConfig,
   rng: Rng,
 ): ChaosKind => {
-  // Weight the options; only allow multiball when there's room + it's enabled.
-  const canMultiball = config.allowMultiball && state.balls.length < MAX_BALLS;
+  // Weight the options; multiball needs room, the difficulty flag, AND an
+  // existing ball to clone (guards against an empty balls[] read).
+  const canMultiball =
+    config.allowMultiball && state.balls.length > 0 && state.balls.length < MAX_BALLS;
   const pool: ChaosKind[] = ['gravity', 'gravity', 'speed', 'paddle'];
   if (canMultiball) pool.push('multiball');
   const kind = pool[Math.floor(rng() * pool.length)];
 
-  let text = '';
+  let banner: ChaosBanner;
   if (kind === 'gravity') {
     state.gravity = pickRandomGravity(state.gravity, rng);
     state.gravityFlash = 30;
-    text = `GRAVITY ${CHAOS_LABELS[state.gravity]}`;
+    banner = { type: 'gravity', gravity: state.gravity, timer: 150 };
   } else if (kind === 'speed') {
     const speedUp = rng() > 0.5;
     const mul = speedUp ? config.chaosSpeedMul : 1 / config.chaosSpeedMul;
@@ -329,7 +339,7 @@ export const applyChaos = (
       const target = clamp(m * mul, config.baseSpeed * 0.75, config.baseSpeed * 2.1);
       setSpeed(ball, target);
     }
-    text = speedUp ? 'SPEED UP' : 'SLOW MOTION';
+    banner = { type: speedUp ? 'speedUp' : 'slowMotion', timer: 150 };
   } else if (kind === 'paddle') {
     const grow = rng() > 0.45;
     const factor = grow ? 1.35 : 0.7;
@@ -337,10 +347,12 @@ export const applyChaos = (
     const center = state.paddle.x + state.paddle.width / 2;
     state.paddle.width = next;
     state.paddle.x = clamp(center - next / 2, 0, WIDTH - next);
-    text = grow ? 'PADDLE GROW' : 'PADDLE SHRINK';
+    banner = { type: grow ? 'paddleGrow' : 'paddleShrink', timer: 150 };
   } else {
-    // Multiball: clone the fastest existing ball at a mirrored angle.
-    const source = state.balls[0];
+    // Multiball: clone the fastest existing ball, launched at a mirrored angle.
+    const source = state.balls.reduce((fastest, ball) =>
+      magnitude(ball.vx, ball.vy) > magnitude(fastest.vx, fastest.vy) ? ball : fastest,
+    );
     const clone: Ball = {
       x: source.x,
       y: source.y,
@@ -349,10 +361,10 @@ export const applyChaos = (
       r: source.r,
     };
     state.balls.push(clone);
-    text = 'MULTIBALL';
+    banner = { type: 'multiball', timer: 150 };
   }
 
-  state.banner = { kind, text, timer: 150 };
+  state.banner = banner;
   state.flash = 12;
   return kind;
 };
@@ -604,7 +616,7 @@ export const step = (
     );
     state.chaosTimer = state.chaosInterval;
     state.score += 100; // stage clear bonus
-    state.banner = { kind: 'gravity', text: `STAGE ${state.stage}`, timer: 150 };
+    state.banner = { type: 'stage', stage: state.stage, timer: 150 };
   }
 
   return events;

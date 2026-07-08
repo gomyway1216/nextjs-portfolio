@@ -279,6 +279,45 @@ describe('applyChaos', () => {
     }
     expect(s.balls.length).toBe(1);
   });
+
+  it('never picks multiball (nor crashes) when there are no balls', () => {
+    const s = createGameState('medium', () => 0.5);
+    launch(s);
+    s.balls = []; // pathological: no balls to clone
+    // rng 0.99 would select the last pool entry; multiball must be excluded.
+    expect(() => applyChaos(s, DIFFICULTY_CONFIG.medium, () => 0.99)).not.toThrow();
+    expect(s.balls).toHaveLength(0);
+    expect(s.banner?.type).not.toBe('multiball');
+  });
+
+  it('multiball clones the fastest ball', () => {
+    const s = createGameState('medium', () => 0.5);
+    launch(s);
+    const slow = { x: 100, y: 100, vx: 1, vy: 0, r: 8 };
+    const fast = { x: 200, y: 200, vx: 9, vy: 0, r: 8 };
+    s.balls = [slow, fast];
+    applyChaos(s, DIFFICULTY_CONFIG.medium, () => 0.99); // force multiball
+    expect(s.balls).toHaveLength(3);
+    const clone = s.balls[2];
+    // Cloned from the fast ball (position + mirrored vx of magnitude 9).
+    expect(clone.x).toBe(fast.x);
+    expect(Math.abs(clone.vx)).toBe(9);
+  });
+
+  it('produces structured (non-hardcoded) banner data for each chaos kind', () => {
+    // gravity
+    let s = createGameState('medium', () => 0.5);
+    launch(s);
+    applyChaos(s, DIFFICULTY_CONFIG.medium, seq([0, 0.6]));
+    expect(s.banner?.type).toBe('gravity');
+    expect(s.banner?.gravity).toBeDefined();
+
+    // multiball
+    s = createGameState('medium', () => 0.5);
+    launch(s);
+    applyChaos(s, DIFFICULTY_CONFIG.medium, () => 0.99);
+    expect(s.banner?.type).toBe('multiball');
+  });
 });
 
 describe('chaos pulse cadence via step', () => {

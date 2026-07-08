@@ -9,7 +9,7 @@ import { getDifficultyColor } from '../common';
 import { InfoModal } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import styles from './ChaosBreakout.module.css';
-import { getStrings } from './i18n';
+import { getBannerText, getStrings } from './i18n';
 import {
   BRICK_TOP,
   createGameState,
@@ -54,6 +54,7 @@ export const ChaosBreakout = () => {
   const inputRef = useRef<StepInput>({ pointerX: null, left: false, right: false });
   const difficultyRef = useRef<Difficulty>('medium');
   const phaseRef = useRef<Phase>('menu');
+  const languageRef = useRef(language);
 
   const [phase, setPhase] = useState<Phase>('menu');
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
@@ -70,6 +71,10 @@ export const ChaosBreakout = () => {
   useEffect(() => {
     difficultyRef.current = difficulty;
   }, [difficulty]);
+
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
 
   // ---- Rendering ------------------------------------------------------------
   const draw = useCallback((ctx: CanvasRenderingContext2D, state: GameState) => {
@@ -158,7 +163,7 @@ export const ChaosBreakout = () => {
       ctx.textBaseline = 'middle';
       ctx.shadowColor = 'rgba(103, 232, 249, 0.9)';
       ctx.shadowBlur = 18;
-      ctx.fillText(state.banner.text, WIDTH / 2, BRICK_TOP / 2 + 6);
+      ctx.fillText(getBannerText(state.banner, languageRef.current), WIDTH / 2, BRICK_TOP / 2 + 6);
       ctx.shadowBlur = 0;
       ctx.globalAlpha = 1;
       ctx.textAlign = 'start';
@@ -233,14 +238,18 @@ export const ChaosBreakout = () => {
 
   // ---- Controls -------------------------------------------------------------
   const startGame = useCallback(() => {
-    const s = createGameState(difficultyRef.current);
+    // Use the difficulty state directly so a start immediately after a
+    // difficulty change can't read a stale ref. Keep the ref (read by the
+    // game loop) in sync synchronously as well.
+    difficultyRef.current = difficulty;
+    const s = createGameState(difficulty);
     stateRef.current = s;
     setIsNewBest(false);
     setHud({ score: 0, lives: s.lives, stage: 1, combo: 0, gravity: 'down' });
     inputRef.current = { pointerX: null, left: false, right: false };
-    trackEvent('start', { difficulty: difficultyRef.current });
+    trackEvent('start', { difficulty });
     setPhaseBoth('ready');
-  }, [trackEvent, setPhaseBoth]);
+  }, [difficulty, trackEvent, setPhaseBoth]);
 
   const doLaunch = useCallback(() => {
     const s = stateRef.current;

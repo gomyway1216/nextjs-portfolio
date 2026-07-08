@@ -4,7 +4,7 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
-import type { Difficulty } from './engine';
+import type { ChaosBanner, Difficulty, GravityDirection } from './engine';
 
 export interface ChaosBreakoutStrings {
   title: string;
@@ -128,3 +128,29 @@ const ja: ChaosBreakoutStrings = {
 
 export const getStrings = (language: GameLanguage): ChaosBreakoutStrings =>
   language === 'ja' ? ja : en;
+
+const GRAVITY_LABELS: Record<GameLanguage, Record<GravityDirection, string>> = {
+  en: { down: '↓ DOWN', up: '↑ UP', left: '← LEFT', right: '→ RIGHT' },
+  ja: { down: '↓ 下', up: '↑ 上', left: '← 左', right: '→ 右' },
+};
+
+/** Localize a structured chaos banner for on-canvas display. */
+export const getBannerText = (banner: ChaosBanner, language: GameLanguage): string => {
+  const ja = language === 'ja';
+  switch (banner.type) {
+    case 'gravity':
+      return `${ja ? '重力' : 'GRAVITY'} ${GRAVITY_LABELS[language][banner.gravity ?? 'down']}`;
+    case 'speedUp':
+      return ja ? 'スピードアップ' : 'SPEED UP';
+    case 'slowMotion':
+      return ja ? 'スローモーション' : 'SLOW MOTION';
+    case 'paddleGrow':
+      return ja ? 'パドル拡大' : 'PADDLE GROW';
+    case 'paddleShrink':
+      return ja ? 'パドル縮小' : 'PADDLE SHRINK';
+    case 'multiball':
+      return ja ? 'マルチボール' : 'MULTIBALL';
+    case 'stage':
+      return `${ja ? 'ステージ' : 'STAGE'} ${banner.stage ?? ''}`.trim();
+  }
+};

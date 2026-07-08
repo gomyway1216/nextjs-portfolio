@@ -220,7 +220,7 @@ In the problem position, △Rook-8d sank from **15th to 23rd** in the static ran
 
 Writing only about the wins isn't fair. Real development is mostly **experiments that don't work**. After Cycle 4, I ran two more experiments in parallel to push the strength further. One was a complete dead end; the other is looking shaky too. Records of failure are the useful ones, so here they are, honestly.
 
-### 10.1 Make the endgame faster — a "it was already done" dead end
+### 10.1 Make the endgame faster — an "it was already done" dead end
 
 A real-game endgame miss (a mate overlooked at move 72) made me suspect the endgame search was too slow and too shallow. Material-heavy endgames explode the number of drop moves (160–330 drops vs ~20 board moves). Speed up move generation there, the reasoning went, and it reads deeper.
 
@@ -234,13 +234,13 @@ Worse, **the original "it's slow" diagnosis was itself off-target.** The 27–41
 
 It wasn't a total zero: I left behind a **benchmark that correctly measures endgame throughput and depth on the production WASM path**, and learned, with numbers, that the next endgame hot path is NNUE evaluation, not move generation. In other words, the road to a stronger endgame also loops back to making the **evaluation (the brain) better/faster.**
 
-### 10.2 KP features — the "smarter input" couldn't win (A/B pending)
+### 10.2 KP features — the "smarter input" couldn't win
 
 The second experiment changed **how the NNUE's input is built.** Today the brain feeds the board in directly as "which piece sits on which square." A staple of strong evaluations is **KP (King-Piece)**, which encodes piece placement **relative to your own king's position** — it captures king safety better and is generally said to be a big strength gain. I tried it (splitting the own-king position into 6 buckets, each with its own table: "factored KP").
 
 Training ran fine, and **wiring the KP model into the browser inference (WASM) worked too** (the "inference doesn't support it" wall I'd feared wasn't there — even the per-bucket table selection runs in WASM). So far so good.
 
-The problem is the actual strength. In self-play A/B against the current production (the board-feature runOp1), **the KP version scored 20 wins to 40 over 60 games — a 33.3% win rate (Wilson 95% CI 23–46%)**. Even the upper bound of the interval doesn't reach 50% — meaning it's **statistically, clearly weaker**. Its training pair-accuracy was also marginally lower (KP 0.911 vs board 0.916), and it plainly lost over the board. **Not adopted.**
+The problem is the actual strength. In self-play A/B against the current production (the board-feature runOp1), **the KP version scored 20 wins and 40 losses over 60 games — a 33.3% win rate (Wilson 95% CI 23–46%)**. Even the upper bound of the interval doesn't reach 50% — meaning it's **statistically, clearly weaker**. Its training pair-accuracy was also marginally lower (KP 0.911 vs board 0.916), and it plainly lost over the board. **Not adopted.**
 
 > Lesson: **a "theoretically smarter input" can lose to a plain one.** In Cycle 2, a fancy loss function helped only while data was scarce and got overtaken by plain regression once data was sufficient. KP smells the same: a clever structure may only pay off once there's enough data and training to exploit it (5.9M positions and this training budget couldn't). KP isn't "bad" — it just "didn't win in this configuration." A loss is logged as a loss, and the plain board-feature version stays in production.
 

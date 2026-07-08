@@ -1,78 +1,119 @@
 /**
  * Mini Adventure - React Component
- * A roguelike dungeon crawler game
+ * A roguelike dungeon crawler game.
  */
 
 'use client';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-import { Flame,Heart,Info,Package,RotateCcw,Shield,Sword } from 'lucide-react';
-import React,{ useCallback,useEffect,useRef,useState } from 'react';
-import { GameStats,GameTopBar,InfoModal } from '../common';
-import { getEnemyChar,getEnemyColor } from './Enemies';
-import { createGameState,getDirectionFromKey,processAction } from './GameEngine';
-import { getItemChar,getItemColor } from './Items';
 import {
-ActionType,
-GameState,
-ItemType,
-MAP_HEIGHT,
-MAP_WIDTH,
-StatusEffect,
-TileType
+  ArrowDown, ArrowDownLeft, ArrowDownRight, ArrowLeft, ArrowRight,
+  ArrowUp, ArrowUpLeft, ArrowUpRight, ChevronsDown, Flame, Hand,
+  Heart, Info, PawPrint, Package, RotateCcw, Shield, Sword, Timer,
+} from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { GameStats, GameTopBar, InfoModal } from '../common';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getEnemyChar, getEnemyColor } from './Enemies';
+import {
+  createGameState, getDirectionFromKey, getPlayerAttack, getPlayerDefense, processAction,
+} from './GameEngine';
+import { getMiniAdventureStrings } from './i18n';
+import { getItemChar, getItemColor } from './Items';
+import {
+  ActionType, Direction, GameState, ItemType, MAX_FLOORS, MiniAdventureDifficulty,
+  MAP_HEIGHT, MAP_WIDTH, StatusEffect, TileType, TORCH_MAX,
 } from './types';
+import styles from './MiniAdventure.module.css';
 
-// Tile display characters
 const TILE_CHARS: Record<TileType, string> = {
   [TileType.WALL]: '#',
-  [TileType.FLOOR]: '.',
+  [TileType.FLOOR]: '·',
   [TileType.STAIRS_DOWN]: '>',
   [TileType.DOOR]: '+',
 };
 
 const TILE_COLORS: Record<TileType, string> = {
-  [TileType.WALL]: '#4b5563',
-  [TileType.FLOOR]: '#374151',
+  [TileType.WALL]: '#475569',
+  [TileType.FLOOR]: '#334155',
   [TileType.STAIRS_DOWN]: '#fbbf24',
-  [TileType.DOOR]: '#92400e',
+  [TileType.DOOR]: '#b45309',
 };
+
+const DIFFICULTIES: MiniAdventureDifficulty[] = ['easy', 'normal', 'hard'];
 
 const MiniAdventure: React.FC = () => {
   useFeatureLifecycle('game.mini-adventure');
+  const { language } = useGameLanguage();
+  const t = getMiniAdventureStrings(language);
+
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showInventory, setShowInventory] = useState(false);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
   const [showStartScreen, setShowStartScreen] = useState(true);
+  const [difficulty, setDifficulty] = useState<MiniAdventureDifficulty>('normal');
   const gameContainerRef = useRef<HTMLDivElement>(null);
 
-  // Initialize game
-  const startNewGame = useCallback(() => {
-    const newState = createGameState();
-    setGameState(newState);
+  const startNewGame = useCallback((diff: MiniAdventureDifficulty = difficulty) => {
+    setGameState(createGameState(diff));
     setShowStartScreen(false);
+    setShowInventory(false);
+    setSelectedItemIndex(null);
+  }, [difficulty]);
+
+  const returnToMenu = useCallback(() => {
+    setGameState(null);
+    setShowStartScreen(true);
     setShowInventory(false);
     setSelectedItemIndex(null);
   }, []);
 
-  // Handle keyboard input
+  // ---- Action dispatch helpers (shared by keyboard + touch) ----
+  const dispatch = useCallback((action: Parameters<typeof processAction>[1]) => {
+    setGameState(prev => {
+      if (!prev || prev.gameOver) return prev;
+      const next = processAction(prev, action);
+      // Record the result exactly once, at the moment the run transitions to over.
+      if (next.gameOver && !prev.gameOver) {
+        setStats(s => next.victory
+          ? { ...s, wins: s.wins + 1 }
+          : { ...s, losses: s.losses + 1 });
+      }
+      return next;
+    });
+  }, []);
+
+  const move = useCallback((direction: Direction) => dispatch({ type: ActionType.MOVE, direction }), [dispatch]);
+
+  const activateSelectedItem = useCallback((direction?: Direction) => {
+    if (selectedItemIndex === null) return;
+    dispatch({ type: ActionType.USE_ITEM, itemIndex: selectedItemIndex, direction });
+    setSelectedItemIndex(null);
+    if (direction) setShowInventory(false);
+  }, [dispatch, selectedItemIndex]);
+
+  const dropSelectedItem = useCallback(() => {
+    if (selectedItemIndex === null) return;
+    dispatch({ type: ActionType.DROP, itemIndex: selectedItemIndex });
+    setSelectedItemIndex(null);
+  }, [dispatch, selectedItemIndex]);
+
+  // ---- Keyboard input ----
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!gameState || gameState.gameOver || showStartScreen) return;
 
-    // Prevent default for game keys
-    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'g', '.', '>', 'i', 'p', 'Escape'].includes(e.key)) {
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd', 'g', '.', '>', 'i', 'p', ' ', 'Escape'].includes(e.key)) {
       e.preventDefault();
     }
 
-    // Toggle inventory
     if (e.key === 'i' || e.key === 'I') {
       setShowInventory(prev => !prev);
       setSelectedItemIndex(null);
       return;
     }
 
-    // Close inventory
     if (e.key === 'Escape') {
       if (showInventory) {
         setShowInventory(false);
@@ -81,262 +122,176 @@ const MiniAdventure: React.FC = () => {
       return;
     }
 
-    // If inventory is open, handle item selection
     if (showInventory) {
-      const num = parseInt(e.key);
+      const num = parseInt(e.key, 10);
       if (!isNaN(num) && num >= 1 && num <= gameState.player.inventory.length) {
         setSelectedItemIndex(num - 1);
         return;
       }
-
       if (selectedItemIndex !== null) {
-        // Use selected item
-        if (e.key === 'u' || e.key === 'U' || e.key === 'Enter') {
-          const newState = processAction(gameState, {
-            type: ActionType.USE_ITEM,
-            itemIndex: selectedItemIndex,
-          });
-          setGameState(newState);
-          setSelectedItemIndex(null);
-          return;
-        }
-
-        // Drop selected item
-        if (e.key === 'd' || e.key === 'D') {
-          const newState = processAction(gameState, {
-            type: ActionType.DROP,
-            itemIndex: selectedItemIndex,
-          });
-          setGameState(newState);
-          setSelectedItemIndex(null);
-          return;
-        }
-
-        // Throw card in direction
+        if (e.key === 'u' || e.key === 'U' || e.key === 'Enter') { activateSelectedItem(); return; }
+        if (e.key === 'd' || e.key === 'D') { dropSelectedItem(); return; }
         const dir = getDirectionFromKey(e.key);
         if (dir && gameState.player.inventory[selectedItemIndex]?.type === ItemType.CARD) {
-          const newState = processAction(gameState, {
-            type: ActionType.USE_ITEM,
-            itemIndex: selectedItemIndex,
-            direction: dir,
-          });
-          setGameState(newState);
-          setSelectedItemIndex(null);
-          setShowInventory(false);
+          activateSelectedItem(dir);
           return;
         }
       }
       return;
     }
 
-    // Movement
     const direction = getDirectionFromKey(e.key);
-    if (direction) {
-      const newState = processAction(gameState, {
-        type: ActionType.MOVE,
-        direction,
-      });
-      setGameState(newState);
-      return;
-    }
+    if (direction) { move(direction); return; }
 
-    // Pick up item
-    if (e.key === 'g' || e.key === 'G' || e.key === ',') {
-      const newState = processAction(gameState, { type: ActionType.PICK_UP });
-      setGameState(newState);
-      return;
-    }
+    if (e.key === 'g' || e.key === 'G' || e.key === ',') { dispatch({ type: ActionType.PICK_UP }); return; }
+    if (e.key === '>' || e.key === 'Enter') { dispatch({ type: ActionType.USE_STAIRS }); return; }
+    if (e.key === '.' || e.key === ' ') { dispatch({ type: ActionType.WAIT }); return; }
+    if (e.key === 'p' || e.key === 'P') { dispatch({ type: ActionType.USE_PET }); return; }
+  }, [gameState, showStartScreen, showInventory, selectedItemIndex, move, dispatch, activateSelectedItem, dropSelectedItem]);
 
-    // Use stairs
-    if (e.key === '>' || e.key === 'Enter') {
-      const newState = processAction(gameState, { type: ActionType.USE_STAIRS });
-      setGameState(newState);
-      if (newState.victory) {
-        setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-      }
-      return;
-    }
-
-    // Wait
-    if (e.key === '.' || e.key === ' ') {
-      const newState = processAction(gameState, { type: ActionType.WAIT });
-      setGameState(newState);
-      return;
-    }
-
-    // Use pet
-    if (e.key === 'p' || e.key === 'P') {
-      const newState = processAction(gameState, { type: ActionType.USE_PET });
-      setGameState(newState);
-      return;
-    }
-  }, [gameState, showStartScreen, showInventory, selectedItemIndex]);
-
-  // Add keyboard listener
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  // Focus game container
   useEffect(() => {
-    if (gameContainerRef.current && !showStartScreen) {
-      gameContainerRef.current.focus();
-    }
+    if (gameContainerRef.current && !showStartScreen) gameContainerRef.current.focus();
   }, [showStartScreen]);
 
-  // Track game over
-  useEffect(() => {
-    if (gameState?.gameOver && !gameState.victory) {
-      setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-    }
-  }, [gameState?.gameOver, gameState?.victory]);
-
-  // Render map
+  // ---- Rendering ----
   const renderMap = () => {
     if (!gameState) return null;
-
     const { player, floor } = gameState;
-    const lines: React.ReactElement[] = [];
+    const cells: React.ReactElement[] = [];
 
     for (let y = 0; y < MAP_HEIGHT; y++) {
-      const chars: React.ReactElement[] = [];
-
       for (let x = 0; x < MAP_WIDTH; x++) {
         const tile = floor.tiles[y][x];
         let char = TILE_CHARS[tile.type];
         let color = TILE_COLORS[tile.type];
-        let bgColor = 'transparent';
+        let extraClass = '';
 
-        // Check if visible or explored
         if (!tile.visible && !tile.explored) {
           char = ' ';
-          color = '#000';
+          color = 'transparent';
         } else if (!tile.visible && tile.explored) {
-          // Dim explored tiles
-          color = '#1f2937';
+          color = '#1e293b';
         }
 
-        // Player
-        if (x === player.x && y === player.y) {
-          char = '@';
-          color = '#60a5fa';
-          bgColor = 'rgba(96, 165, 250, 0.2)';
+        if (tile.type === TileType.STAIRS_DOWN && (tile.visible || tile.explored)) {
+          extraClass = styles.stairs;
         }
 
-        // Enemies (only if visible)
         if (tile.visible) {
           const enemy = floor.enemies.find(e => e.x === x && e.y === y && e.hp > 0);
           if (enemy) {
             char = getEnemyChar(enemy);
             color = getEnemyColor(enemy);
-          }
-
-          // Items
-          const item = floor.items.find(i => i.x === x && i.y === y);
-          if (item && !enemy) {
-            char = getItemChar(item.item);
-            color = getItemColor(item.item);
+          } else {
+            const item = floor.items.find(i => i.x === x && i.y === y);
+            if (item) {
+              char = getItemChar(item.item);
+              color = getItemColor(item.item);
+            }
           }
         }
 
-        chars.push(
+        if (x === player.x && y === player.y) {
+          char = '@';
+          color = '#93c5fd';
+          extraClass = styles.player;
+        }
+
+        cells.push(
           <span
             key={`${x}-${y}`}
-            style={{
-              color,
-              backgroundColor: bgColor,
-              fontFamily: 'monospace',
-            }}
+            className={`${styles.cell} ${extraClass}`}
+            style={{ color }}
+            aria-hidden="true"
           >
             {char}
-          </span>
+          </span>,
         );
       }
-
-      lines.push(
-        <div key={y} style={{ height: '16px', lineHeight: '16px' }}>
-          {chars}
-        </div>
-      );
     }
 
-    return lines;
-  };
-
-  // Render status bar
-  const renderStatusBar = () => {
-    if (!gameState) return null;
-    const { player, currentFloor, turn } = gameState;
-
     return (
-      <div style={{
-        display: 'flex',
-        gap: '1.5rem',
-        padding: '0.5rem 1rem',
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        borderRadius: '0.5rem',
-        marginBottom: '0.5rem',
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#ef4444' }}>
-          <Heart size={16} />
-          <span>{player.hp}/{player.maxHp}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#60a5fa' }}>
-          <Sword size={16} />
-          <span>{player.baseAttack + (player.weapon?.weaponData?.attack || 0)}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#34d399' }}>
-          <Shield size={16} />
-          <span>{player.baseDefense + (player.armor?.armorData?.defense || 0)}</span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#fbbf24' }}>
-          <Flame size={16} />
-          <span>{player.torch}</span>
-        </div>
-        <div style={{ color: '#9ca3af' }}>
-          Lv.{player.level} | Floor {currentFloor} | Turn {turn}
-        </div>
-        {player.status !== StatusEffect.NONE && (
-          <div style={{ color: '#f472b6' }}>
-            [{player.status}]
-          </div>
-        )}
-        {player.pet && (
-          <div style={{ color: '#a78bfa' }}>
-            Pet: {player.pet}
-          </div>
-        )}
+      <div
+        className={styles.mapGrid}
+        style={{ gridTemplateColumns: `repeat(${MAP_WIDTH}, 1fr)`, fontSize: 'clamp(7px, 1.7vw, 13px)' }}
+        role="img"
+        aria-label={`Dungeon floor ${gameState.currentFloor}`}
+      >
+        {cells}
       </div>
     );
   };
 
-  // Render message log
-  const renderMessages = () => {
+  const renderHud = () => {
     if (!gameState) return null;
-
-    const recentMessages = gameState.messages.slice(-5);
+    const { player, currentFloor, turn, isOnSurface } = gameState;
+    const atk = getPlayerAttack(player);
+    const def = getPlayerDefense(player);
+    const hpPct = Math.max(0, Math.round((player.hp / player.maxHp) * 100));
+    const torchPct = Math.max(0, Math.round((player.torch / TORCH_MAX) * 100));
 
     return (
-      <div style={{
-        padding: '0.5rem',
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        borderRadius: '0.5rem',
-        marginTop: '0.5rem',
-        maxHeight: '100px',
-        overflow: 'auto',
-      }}>
-        {recentMessages.map((msg, i) => (
+      <>
+        <div className={styles.hud}>
+          <div className={styles.statCard}>
+            <div className={styles.statHead}><Heart size={13} color="var(--ma-hp)" />{t.hp}</div>
+            <div className={styles.statValue}>{Math.max(0, player.hp)}/{player.maxHp}</div>
+            <div className={styles.bar}>
+              <div className={styles.barFill} style={{ width: `${hpPct}%`, background: 'var(--ma-hp)' }} />
+            </div>
+          </div>
+          <div className={styles.statCard}>
+            <div className={styles.statHead}><Flame size={13} color="var(--ma-torch)" />{t.torch}</div>
+            <div className={styles.statValue}>{player.torch}</div>
+            <div className={styles.bar}>
+              <div className={styles.barFill} style={{ width: `${torchPct}%`, background: 'var(--ma-torch)' }} />
+            </div>
+          </div>
+          <div className={styles.statCard}>
+            <div className={styles.statHead}><Sword size={13} color="var(--ma-atk)" />{t.attack}</div>
+            <div className={styles.statValue}>{atk}</div>
+          </div>
+          <div className={styles.statCard}>
+            <div className={styles.statHead}><Shield size={13} color="var(--ma-def)" />{t.defense}</div>
+            <div className={styles.statValue}>{def}</div>
+          </div>
+        </div>
+
+        <div className={styles.metaRow}>
+          <span className={styles.metaPill}>{t.level} {player.level}</span>
+          <span className={styles.metaPill}>
+            {isOnSurface ? t.surface : `${t.floor} ${currentFloor}/${MAX_FLOORS}`}
+          </span>
+          <span className={styles.metaPill}><Timer size={12} /> {turn}</span>
+          {player.status !== StatusEffect.NONE && (
+            <span className={`${styles.metaPill} ${styles.statusPill}`}>{player.status}</span>
+          )}
+          {player.pet && (
+            <span className={`${styles.metaPill} ${styles.petPill}`}><PawPrint size={12} /> {player.pet.replace(/_/g, ' ')}</span>
+          )}
+        </div>
+      </>
+    );
+  };
+
+  const renderMessages = () => {
+    if (!gameState) return null;
+    const recent = gameState.messages.slice(-6);
+    return (
+      <div className={styles.log} aria-live="polite">
+        {recent.map((msg, i) => (
           <div
-            key={i}
-            style={{
-              color: msg.type === 'combat' ? '#ef4444' :
-                     msg.type === 'item' ? '#34d399' :
-                     msg.type === 'important' ? '#fbbf24' : '#9ca3af',
-              fontSize: '0.875rem',
-            }}
+            key={`${msg.turn}-${i}`}
+            className={`${styles.logLine} ${
+              msg.type === 'combat' ? styles.logCombat :
+              msg.type === 'item' ? styles.logItem :
+              msg.type === 'important' ? styles.logImportant : styles.logInfo
+            }`}
           >
             {msg.text}
           </div>
@@ -345,322 +300,253 @@ const MiniAdventure: React.FC = () => {
     );
   };
 
-  // Render inventory panel
+  const renderControls = () => {
+    if (!gameState) return null;
+    const dirBtn = (dir: Direction, label: string, Icon: React.ComponentType<{ size?: number }>) => (
+      <button
+        type="button"
+        className={styles.dBtn}
+        aria-label={label}
+        onClick={() => move(dir)}
+      >
+        <Icon size={18} />
+      </button>
+    );
+
+    return (
+      <div className={styles.controls}>
+        <div className={styles.dpad} aria-label={t.move}>
+          {dirBtn(Direction.UP_LEFT, 'Up-left', ArrowUpLeft)}
+          {dirBtn(Direction.UP, 'Up', ArrowUp)}
+          {dirBtn(Direction.UP_RIGHT, 'Up-right', ArrowUpRight)}
+          {dirBtn(Direction.LEFT, 'Left', ArrowLeft)}
+          <button type="button" className={`${styles.dBtn} ${styles.dCenter}`} aria-label={t.wait} onClick={() => dispatch({ type: ActionType.WAIT })}>
+            {t.wait}
+          </button>
+          {dirBtn(Direction.RIGHT, 'Right', ArrowRight)}
+          {dirBtn(Direction.DOWN_LEFT, 'Down-left', ArrowDownLeft)}
+          {dirBtn(Direction.DOWN, 'Down', ArrowDown)}
+          {dirBtn(Direction.DOWN_RIGHT, 'Down-right', ArrowDownRight)}
+        </div>
+
+        <div className={styles.actionCol}>
+          <button type="button" className={styles.actionBtn} onClick={() => dispatch({ type: ActionType.PICK_UP })}>
+            <Hand size={15} /> {t.pickUp}
+          </button>
+          <button type="button" className={`${styles.actionBtn} ${styles.primary}`} onClick={() => dispatch({ type: ActionType.USE_STAIRS })}>
+            <ChevronsDown size={15} /> {t.stairs}
+          </button>
+          <button
+            type="button"
+            className={styles.actionBtn}
+            aria-expanded={showInventory}
+            onClick={() => { setShowInventory(v => !v); setSelectedItemIndex(null); }}
+          >
+            <Package size={15} /> {t.openInventory}
+          </button>
+          <button type="button" className={styles.actionBtn} disabled={!gameState.player.pet} onClick={() => dispatch({ type: ActionType.USE_PET })}>
+            <PawPrint size={15} /> {t.usePet}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const renderInventory = () => {
     if (!gameState || !showInventory) return null;
-
     const { player } = gameState;
+    const selected = selectedItemIndex !== null ? player.inventory[selectedItemIndex] : null;
+    const isCard = selected?.type === ItemType.CARD;
+    const isEquip = selected?.type === ItemType.WEAPON || selected?.type === ItemType.ARMOR;
 
     return (
-      <div style={{
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        backgroundColor: 'rgba(0, 0, 0, 0.95)',
-        border: '2px solid #4b5563',
-        borderRadius: '0.5rem',
-        padding: '1rem',
-        minWidth: '300px',
-        zIndex: 100,
-      }}>
-        <h3 style={{ color: '#fff', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <Package size={20} />
-          Inventory ({player.inventory.length}/10)
-        </h3>
-
-        {/* Equipment */}
-        <div style={{ marginBottom: '1rem', padding: '0.5rem', backgroundColor: 'rgba(75, 85, 99, 0.3)', borderRadius: '0.25rem' }}>
-          <div style={{ color: '#9ca3af', fontSize: '0.75rem', marginBottom: '0.25rem' }}>Equipped:</div>
-          <div style={{ color: '#60a5fa' }}>
-            Weapon: {player.weapon?.name || 'None'}
+      <div className={styles.overlay} onClick={() => { setShowInventory(false); setSelectedItemIndex(null); }}>
+        <div className={styles.panel} onClick={e => e.stopPropagation()} role="dialog" aria-label={t.inventory}>
+          <div className={styles.panelTitle}>
+            <Package size={18} /> {t.inventory} ({player.inventory.length}/10)
           </div>
-          <div style={{ color: '#34d399' }}>
-            Armor: {player.armor?.name || 'None'}
-          </div>
-        </div>
 
-        {/* Items */}
-        {player.inventory.length === 0 ? (
-          <div style={{ color: '#6b7280' }}>No items</div>
-        ) : (
-          player.inventory.map((item, i) => (
-            <div
-              key={item.id}
-              style={{
-                padding: '0.5rem',
-                backgroundColor: selectedItemIndex === i ? 'rgba(96, 165, 250, 0.2)' : 'transparent',
-                borderRadius: '0.25rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem',
-              }}
-              onClick={() => setSelectedItemIndex(i)}
-            >
-              <span style={{ color: '#6b7280' }}>{i + 1}.</span>
-              <span style={{ color: getItemColor(item) }}>{getItemChar(item)}</span>
-              <span style={{ color: '#fff' }}>{item.name}</span>
-              {item.type === ItemType.EGG && item.eggTurns !== undefined && (
-                <span style={{ color: '#9ca3af', fontSize: '0.75rem' }}>
-                  ({item.eggTurns}/100)
-                </span>
-              )}
+          <div className={styles.equipBox}>
+            <span className={styles.equipLabel}>{t.equipped}</span>
+            <span style={{ color: 'var(--ma-atk)' }}>{t.weapon}: {player.weapon?.name || t.none}</span>
+            <span style={{ color: 'var(--ma-def)' }}>{t.armor}: {player.armor?.name || t.none}</span>
+          </div>
+
+          {player.inventory.length === 0 ? (
+            <div className={styles.hintText}>{t.noItems}</div>
+          ) : (
+            <div className={styles.itemList}>
+              {player.inventory.map((item, i) => (
+                <button
+                  type="button"
+                  key={item.id}
+                  className={styles.itemRow}
+                  data-selected={selectedItemIndex === i}
+                  onClick={() => setSelectedItemIndex(i)}
+                >
+                  <span className={styles.itemGlyph} style={{ color: getItemColor(item) }}>{getItemChar(item)}</span>
+                  <span className={styles.itemName}>{item.name}</span>
+                  {item.type === ItemType.EGG && item.eggTurns !== undefined && (
+                    <span className={styles.itemMeta}>{item.eggTurns}/60</span>
+                  )}
+                  {item.description && item.type !== ItemType.EGG && (
+                    <span className={styles.itemMeta}>{item.description}</span>
+                  )}
+                </button>
+              ))}
             </div>
-          ))
-        )}
-
-        {/* Instructions */}
-        <div style={{ marginTop: '1rem', color: '#6b7280', fontSize: '0.75rem' }}>
-          Press number to select, U to use, D to drop, ESC to close
-          {selectedItemIndex !== null && gameState.player.inventory[selectedItemIndex]?.type === ItemType.CARD && (
-            <div style={{ color: '#f472b6' }}>Arrow key to throw card</div>
           )}
+
+          {selected && (
+            <div className={styles.itemActions}>
+              <button type="button" className={`${styles.smallBtn} ${styles.primary}`} onClick={() => activateSelectedItem()} disabled={isCard}>
+                {isEquip ? t.equip : t.use}
+              </button>
+              <button type="button" className={styles.smallBtn} onClick={dropSelectedItem}>{t.drop}</button>
+            </div>
+          )}
+
+          {isCard && (
+            <div className={styles.hintText}>{t.throwHint}: {['←', '→', '↑', '↓'].join(' ')}
+              <div className={styles.itemActions}>
+                <button type="button" className={styles.smallBtn} onClick={() => activateSelectedItem(Direction.LEFT)} aria-label="Throw left">←</button>
+                <button type="button" className={styles.smallBtn} onClick={() => activateSelectedItem(Direction.UP)} aria-label="Throw up">↑</button>
+                <button type="button" className={styles.smallBtn} onClick={() => activateSelectedItem(Direction.DOWN)} aria-label="Throw down">↓</button>
+                <button type="button" className={styles.smallBtn} onClick={() => activateSelectedItem(Direction.RIGHT)} aria-label="Throw right">→</button>
+              </div>
+            </div>
+          )}
+
+          {!selected && player.inventory.length > 0 && (
+            <div className={styles.hintText}>{t.emptyHint}</div>
+          )}
+
+          <button type="button" className={styles.ghostBtn} style={{ marginTop: '0.75rem' }} onClick={() => { setShowInventory(false); setSelectedItemIndex(null); }}>
+            {t.close}
+          </button>
         </div>
       </div>
     );
   };
 
-  // Render game over screen
   const renderGameOver = () => {
     if (!gameState?.gameOver) return null;
-
+    const win = gameState.victory;
     return (
-      <div style={{
-        position: 'absolute',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        backgroundColor: 'rgba(0, 0, 0, 0.95)',
-        border: `2px solid ${gameState.victory ? '#22c55e' : '#ef4444'}`,
-        borderRadius: '1rem',
-        padding: '2rem',
-        textAlign: 'center',
-        zIndex: 100,
-      }}>
-        <h2 style={{
-          color: gameState.victory ? '#22c55e' : '#ef4444',
-          fontSize: '2rem',
-          marginBottom: '1rem',
-        }}>
-          {gameState.victory ? 'Victory!' : 'Game Over'}
-        </h2>
-        <div style={{ color: '#9ca3af', marginBottom: '1.5rem' }}>
-          <div>Floor: {gameState.currentFloor}</div>
-          <div>Level: {gameState.player.level}</div>
-          <div>Turns: {gameState.turn}</div>
+      <div className={styles.overlay}>
+        <div className={styles.panel} role="dialog" aria-label={win ? t.victory : t.defeat}>
+          <div className={`${styles.gameOverTitle} ${win ? styles.gameOverWin : styles.gameOverLose}`}>
+            {win ? t.victory : t.defeat}
+          </div>
+          <div className={styles.summaryGrid}>
+            <div className={styles.summaryCell}>
+              <div className={styles.summaryLabel}>{t.floor}</div>
+              <div className={styles.summaryValue}>{gameState.currentFloor}</div>
+            </div>
+            <div className={styles.summaryCell}>
+              <div className={styles.summaryLabel}>{t.level}</div>
+              <div className={styles.summaryValue}>{gameState.player.level}</div>
+            </div>
+            <div className={styles.summaryCell}>
+              <div className={styles.summaryLabel}>{t.enemiesDefeated}</div>
+              <div className={styles.summaryValue}>{gameState.enemiesDefeated}</div>
+            </div>
+            <div className={styles.summaryCell}>
+              <div className={styles.summaryLabel}>{t.turn}</div>
+              <div className={styles.summaryValue}>{gameState.turn}</div>
+            </div>
+          </div>
+          <div className={styles.overBtns}>
+            <button type="button" className={styles.startBtn} onClick={() => startNewGame(gameState.difficulty)}>
+              <RotateCcw size={18} /> {t.playAgain}
+            </button>
+            <button type="button" className={styles.ghostBtn} onClick={returnToMenu}>{t.backToMenu}</button>
+          </div>
         </div>
-        <button
-          onClick={startNewGame}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            padding: '0.75rem 1.5rem',
-            backgroundColor: '#3b82f6',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '0.5rem',
-            cursor: 'pointer',
-            fontSize: '1rem',
-            margin: '0 auto',
-          }}
-        >
-          <RotateCcw size={20} />
-          Play Again
-        </button>
       </div>
     );
   };
 
-  // Info modal content
   const infoContent = (
-    <div style={{ color: '#d1d5db' }}>
-      <p style={{ marginBottom: '0.75rem' }}>
-        <strong>Objective:</strong> Descend through 10 floors and defeat the Dragon boss!
-      </p>
-      <p style={{ marginBottom: '0.5rem' }}><strong>Controls:</strong></p>
-      <ul style={{ listStyle: 'none', marginLeft: '0', marginBottom: '0.75rem' }}>
-        <li>Arrow Keys / WASD - Move & Attack</li>
-        <li>G or , - Pick up item</li>
-        <li>&gt; or Enter - Use stairs</li>
-        <li>. or Space - Wait a turn</li>
-        <li>I - Open inventory</li>
-        <li>P - Use pet ability</li>
-      </ul>
-      <p style={{ marginBottom: '0.5rem' }}><strong>Tips:</strong></p>
-      <ul style={{ listStyle: 'disc', marginLeft: '1.5rem' }}>
-        <li>Keep your torch lit - darkness increases damage taken!</li>
-        <li>HP regenerates slowly when you move or attack</li>
-        <li>Eggs hatch after 100 turns into helpful pets</li>
-        <li>Watch out for Worms - they eat your eggs!</li>
-        <li>The Dragon boss resists magic attacks</li>
-      </ul>
+    <div className={styles.infoBlock}>
+      <p><span className={styles.infoHead}>{t.objective}:</span> {t.objectiveText}</p>
+      <p className={styles.infoHead}>{t.controlsTitle}</p>
+      <ul>{t.controlsList.map((c, i) => <li key={i}>{c}</li>)}</ul>
+      <p className={styles.infoHead}>{t.tipsTitle}</p>
+      <ul>{t.tips.map((tip, i) => <li key={i}>{tip}</li>)}</ul>
     </div>
   );
 
-  // Start screen
+  // ---- Start screen ----
   if (showStartScreen) {
     return (
-      <div style={{
-        position: 'fixed',
-        inset: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(to bottom, #111827, #000)',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        padding: '1rem',
-      }}>
-        <div style={{
-          background: 'rgba(0, 0, 0, 0.95)',
-          border: '3px solid #3b82f6',
-          borderRadius: '1rem',
-          padding: '3rem',
-          textAlign: 'center',
-          maxWidth: '500px',
-        }}>
-          <h1 style={{
-            color: '#fff',
-            fontSize: '2.5rem',
-            marginBottom: '0.5rem',
-          }}>
-            Mini Adventure
-          </h1>
-          <p style={{
-            color: '#9ca3af',
-            marginBottom: '2rem',
-          }}>
-            A roguelike dungeon crawler
-          </p>
+      <div className={styles.startScreen}>
+        <div className={styles.startCard}>
+          <h1 className={styles.startTitle}>{t.title}</h1>
+          <p className={styles.startTag}>{t.tagline}</p>
 
-          <div style={{
-            color: '#6b7280',
-            fontSize: '0.875rem',
-            marginBottom: '2rem',
-            textAlign: 'left',
-          }}>
-            <p>Descend through 10 floors of the dungeon.</p>
-            <p>Find equipment, manage your torch, and defeat the Dragon!</p>
-            <p>Be careful - death is permanent!</p>
+          <div className={styles.introList}>
+            {t.intro.map((line, i) => (
+              <div className={styles.introItem} key={i}>
+                <span className={styles.introBullet}>▸</span>
+                <span>{line}</span>
+              </div>
+            ))}
           </div>
 
-          <button
-            onClick={startNewGame}
-            style={{
-              background: '#3b82f6',
-              border: 'none',
-              borderRadius: '0.5rem',
-              color: '#fff',
-              fontSize: '1.5rem',
-              fontWeight: 'bold',
-              padding: '1rem 3rem',
-              cursor: 'pointer',
-              width: '100%',
-            }}
-          >
-            Start Game
-          </button>
+          <div className={styles.diffLabel}>{t.difficulty}</div>
+          <div className={styles.diffGrid}>
+            {DIFFICULTIES.map(d => (
+              <button
+                type="button"
+                key={d}
+                className={styles.diffBtn}
+                data-selected={difficulty === d}
+                aria-pressed={difficulty === d}
+                onClick={() => setDifficulty(d)}
+              >
+                <div className={styles.diffName}>{t.difficultyNames[d]}</div>
+                <div className={styles.diffDesc}>{t.difficultyDescs[d]}</div>
+              </button>
+            ))}
+          </div>
 
-          <button
-            onClick={() => setShowInfo(true)}
-            style={{
-              background: 'transparent',
-              border: '1px solid #4b5563',
-              borderRadius: '0.5rem',
-              color: '#9ca3af',
-              fontSize: '1rem',
-              padding: '0.75rem 2rem',
-              cursor: 'pointer',
-              width: '100%',
-              marginTop: '1rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-            }}
-          >
-            <Info size={18} />
-            How to Play
+          <button type="button" className={styles.startBtn} onClick={() => startNewGame(difficulty)}>
+            <Sword size={20} /> {t.start}
+          </button>
+          <button type="button" className={styles.ghostBtn} onClick={() => setShowInfo(true)}>
+            <Info size={18} /> {t.howToPlay}
           </button>
         </div>
 
-        <InfoModal
-          isOpen={showInfo}
-          title="How to Play"
-          onClose={() => setShowInfo(false)}
-        >
+        <InfoModal isOpen={showInfo} title={t.howToPlay} onClose={() => setShowInfo(false)}>
           {infoContent}
         </InfoModal>
       </div>
     );
   }
 
-  // Main game screen
+  // ---- Main game screen ----
   return (
-    <div
-      ref={gameContainerRef}
-      tabIndex={0}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(to bottom, #111827, #000)',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        padding: '1rem',
-        outline: 'none',
-      }}
-    >
-      <div style={{ width: '100%', maxWidth: '700px' }}>
-        <GameTopBar
-          stats={stats}
-          onInfoClick={() => setShowInfo(true)}
-        />
+    <div ref={gameContainerRef} tabIndex={0} className={styles.root}>
+      <div className={styles.frame}>
+        <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} />
 
-        {renderStatusBar()}
+        {renderHud()}
 
-        <div style={{
-          position: 'relative',
-          backgroundColor: '#000',
-          padding: '0.5rem',
-          borderRadius: '0.5rem',
-          border: '2px solid #374151',
-        }}>
-          <div style={{
-            fontFamily: 'monospace',
-            fontSize: '14px',
-            lineHeight: '16px',
-            whiteSpace: 'pre',
-          }}>
-            {renderMap()}
-          </div>
-
+        <div className={styles.mapWrap}>
+          {renderMap()}
           {renderInventory()}
           {renderGameOver()}
         </div>
 
         {renderMessages()}
+        {renderControls()}
 
-        {/* Controls hint */}
-        <div style={{
-          marginTop: '0.5rem',
-          textAlign: 'center',
-          color: '#6b7280',
-          fontSize: '0.75rem',
-        }}>
-          Move: Arrows/WASD | Pick up: G | Stairs: &gt; | Wait: . | Inventory: I | Pet: P
-        </div>
+        <div className={styles.keyHint}>{t.controlsHint}</div>
       </div>
 
-      <InfoModal
-        isOpen={showInfo}
-        title="How to Play"
-        onClose={() => setShowInfo(false)}
-      >
+      <InfoModal isOpen={showInfo} title={t.howToPlay} onClose={() => setShowInfo(false)}>
         {infoContent}
       </InfoModal>
     </div>

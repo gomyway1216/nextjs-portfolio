@@ -144,44 +144,46 @@ export const DoubtWord = () => {
   );
 
   // Player declares their own claim; the AI reacts.
+  // The RNG-driven claim + AI reaction are computed OUTSIDE the state updater so
+  // the updater stays pure (React may invoke it more than once, e.g. in Strict
+  // Mode / concurrent rendering).
   const sendPlayerClaim = useCallback(() => {
-    setGame((prev) => {
-      if (!prev || prev.phase !== 'playerClaim' || !prev.selectedWord) return prev;
-      const claim = makeClaim('player', prev.selectedWord, prev.playerBluff);
-      const reaction = aiReactToClaim(
-        { claimedFirst: claim.claimedFirst, claimedLength: claim.claimedLength },
-        difficulty,
-      );
-      return applyDelta(prev, claim, reaction, 'ai');
-    });
-  }, [applyDelta, difficulty]);
+    if (!game || game.phase !== 'playerClaim' || !game.selectedWord) return;
+    const claim = makeClaim('player', game.selectedWord, game.playerBluff);
+    const reaction = aiReactToClaim(
+      { claimedFirst: claim.claimedFirst, claimedLength: claim.claimedLength },
+      difficulty,
+    );
+    setGame((prev) => (prev ? applyDelta(prev, claim, reaction, 'ai') : prev));
+  }, [game, applyDelta, difficulty]);
 
   const advance = useCallback(() => {
-    setGame((prev) => {
-      if (!prev || prev.phase !== 'roundResult') return prev;
-      if (prev.nextClaimant === 'ai') {
-        const word = randomFrom(WORD_POOL);
-        scheduleReveal();
-        return {
-          ...prev,
-          phase: 'aiDecision',
-          currentClaim: aiMakeClaim(word, difficulty),
-          lastReaction: null,
-          lastDelta: null,
-        };
-      }
-      const options = sampleWords(3);
-      return {
-        ...prev,
-        phase: 'playerClaim',
-        playerOptions: options,
-        selectedWord: options[0],
-        playerBluff: false,
-        lastReaction: null,
-        lastDelta: null,
-      };
-    });
-  }, [difficulty, scheduleReveal]);
+    if (!game || game.phase !== 'roundResult') return;
+    if (game.nextClaimant === 'ai') {
+      const claim = aiMakeClaim(randomFrom(WORD_POOL), difficulty);
+      scheduleReveal();
+      setGame((prev) =>
+        prev
+          ? { ...prev, phase: 'aiDecision', currentClaim: claim, lastReaction: null, lastDelta: null }
+          : prev,
+      );
+      return;
+    }
+    const options = sampleWords(3);
+    setGame((prev) =>
+      prev
+        ? {
+            ...prev,
+            phase: 'playerClaim',
+            playerOptions: options,
+            selectedWord: options[0],
+            playerBluff: false,
+            lastReaction: null,
+            lastDelta: null,
+          }
+        : prev,
+    );
+  }, [game, difficulty, scheduleReveal]);
 
   // Record win/loss/draw once when the match ends.
   useEffect(() => {

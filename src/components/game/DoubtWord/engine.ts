@@ -109,14 +109,14 @@ export const makeClaim = (
 
   let claimedLength = length;
   if (distortLength) {
-    // Pick a different length within a plausible band.
+    // Pick a different length within a plausible band. delta is ±1, and the
+    // clamps at either boundary swap in length±1, so `candidate` is always
+    // in [MIN_LEN, MAX_LEN] AND guaranteed different from `length`.
     const delta = rng() < 0.5 ? -1 : 1;
     let candidate = length + delta;
     if (candidate < MIN_LEN) candidate = length + 1;
     if (candidate > MAX_LEN) candidate = length - 1;
-    // Guarantee a real change even at the clamp boundaries.
-    claimedLength = candidate === length ? Math.min(MAX_LEN, length + 1) : candidate;
-    if (claimedLength === length) claimedLength = Math.max(MIN_LEN, length - 1);
+    claimedLength = candidate;
   }
 
   let claimedFirst = first;
@@ -250,9 +250,9 @@ export const aiMakeClaim = (
 
   // Try a few candidate bluffs and keep the most plausible one for stronger AIs.
   const candidates = Math.max(1, Math.round(1 + profile.readSkill * 3));
-  let best: Claim | null = null;
-  let bestScore = -Infinity;
-  for (let i = 0; i < candidates; i += 1) {
+  let best = makeClaim('ai', word, true, rng);
+  let bestScore = plausibility(best.claimedFirst, best.claimedLength);
+  for (let i = 1; i < candidates; i += 1) {
     const candidate = makeClaim('ai', word, true, rng);
     const score = plausibility(candidate.claimedFirst, candidate.claimedLength);
     if (score > bestScore) {
@@ -260,7 +260,7 @@ export const aiMakeClaim = (
       best = candidate;
     }
   }
-  return best ?? makeClaim('ai', word, true, rng);
+  return best;
 };
 
 // ---------------------------------------------------------------------------

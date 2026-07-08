@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { ConvergenceChart, PayoffHistogram } from './charts';
 import { SweepSummary, runPetersburgSweepAsync } from './engine';
+import { getPetersburgStrings } from './i18n';
+import styles from './petersburg.module.css';
 
 const LIMITS = { maxN: { min: 1000, max: 1_000_000 } };
 const DEFAULTS = { maxN: 100_000 };
@@ -10,7 +13,13 @@ const DEFAULTS = { maxN: 100_000 };
 const clamp = (v: number, min: number, max: number) =>
   Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : min;
 
+const fmtMoney = (v: number) =>
+  v >= Number.MAX_SAFE_INTEGER ? '$9e15+' : `$${Math.round(v).toLocaleString()}`;
+
 export const SimTab = () => {
+  const { language } = useGameLanguage();
+  const t = getPetersburgStrings(language);
+
   const [maxN, setMaxN] = useState(DEFAULTS.maxN);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
@@ -20,10 +29,13 @@ export const SimTab = () => {
   const abortRef = useRef<AbortController | null>(null);
   const mountedRef = useRef(true);
 
-  useEffect(() => () => {
-    mountedRef.current = false;
-    abortRef.current?.abort();
-  }, []);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+      abortRef.current?.abort();
+    },
+    [],
+  );
 
   const run = async () => {
     if (runningRef.current) return;
@@ -53,20 +65,29 @@ export const SimTab = () => {
     }
   };
 
-  const runLabel = running && progress
-    ? `Running… ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`
-    : 'シミュレーション実行';
+  const reset = () => {
+    abortRef.current?.abort();
+    setResult(null);
+    setProgress(null);
+  };
+
+  const pct = progress ? Math.round((progress.done / progress.total) * 100) : 0;
+  const runLabel =
+    running && progress
+      ? `${t.running}… ${progress.done.toLocaleString()} / ${progress.total.toLocaleString()}`
+      : t.runSim;
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '1rem' }}>
-        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', opacity: running ? 0.6 : 1 }}>
-          <span style={{ color: '#94a3b8', fontSize: '0.72rem' }}>最大試行数</span>
+      <div className={styles.simControls}>
+        <label className={styles.field} style={{ opacity: running ? 0.6 : 1 }}>
+          <span className={styles.fieldLabel}>{t.trials}</span>
           <input
             type="number"
             value={maxN}
             min={LIMITS.maxN.min}
             max={LIMITS.maxN.max}
+            step={1000}
             disabled={running}
             onChange={(e) => {
               const raw = e.target.value;
@@ -74,81 +95,86 @@ export const SimTab = () => {
               const v = Number(raw);
               if (Number.isFinite(v)) setMaxN(v);
             }}
-            style={{ background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: 8, padding: '0.45rem 0.6rem', fontSize: '0.9rem', width: 140 }}
+            className={styles.numberInput}
+            aria-label={t.trials}
           />
         </label>
-        <button
-          onClick={run}
-          disabled={running}
-          style={{
-            background: running ? '#1e293b' : '#22c55e',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 10,
-            padding: '0.65rem 1.4rem',
-            fontWeight: 800,
-            cursor: running ? 'wait' : 'pointer',
-            fontSize: '1rem',
-            minWidth: 240,
-          }}
-        >
+        <button className={styles.runBtn} onClick={run} disabled={running}>
           {runLabel}
         </button>
-        <span style={{ color: '#64748b', fontSize: '0.8rem' }}>
-          実測 平均は N にゆっくり比例して伸びる — 「無限期待値」の正体を可視化。
-        </span>
+        {result && !running && (
+          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={reset}>
+            {t.reset}
+          </button>
+        )}
+        <span className={styles.simHint}>{t.simHint}</span>
       </div>
 
-      {result ? <Results summary={result} /> : <Intro />}
+      {running && progress && (
+        <div className={styles.progressTrack} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+          <div className={styles.progressFill} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+
+      {result ? <Results summary={result} t={t} /> : <Intro t={t} />}
     </div>
   );
 };
 
-const Intro = () => (
-  <div style={{ background: '#020617', border: '1px solid #1e293b', borderRadius: 12, padding: '1rem', color: '#94a3b8', fontSize: '0.9rem', lineHeight: 1.6 }}>
-    <strong style={{ color: '#fbbf24' }}>このタブ:</strong> N ゲームをプレイし、N を増やすごとに実測の (1) 平均 (2) 中央値 (3) 最大配当 (4) 「公正な価格」 log₂(N)/2 をプロット。
-    <strong> 平均は無限大に発散しないが、対数的に増える</strong>のがわかります — 巨大な配当が稀に出るたびに平均が跳ね上がる。
+const Intro = ({ t }: { t: ReturnType<typeof getPetersburgStrings> }) => (
+  <div className={styles.explainer} style={{ marginTop: 0 }}>
+    {t.simIntro}
   </div>
 );
 
-const Results = ({ summary }: { summary: SweepSummary }) => {
+const Results = ({
+  summary,
+  t,
+}: {
+  summary: SweepSummary;
+  t: ReturnType<typeof getPetersburgStrings>;
+}) => {
   const last = summary.points[summary.points.length - 1];
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <div>
-        <h3 style={{ margin: '0 0 0.5rem', color: '#fbbf24' }}>収束の振る舞い ({summary.total.toLocaleString()} ゲーム)</h3>
-        <ConvergenceChart points={summary.points} />
-        <p style={{ marginTop: '0.4rem', color: '#64748b', fontSize: '0.8rem' }}>
-          実測平均 (水色) ≈ 公正価格 log₂(N)/2 (黄破線)。中央値 (緑) は常に $1-2 付近で停滞。最大 (ピンク) は指数的に増える — これが「無限期待値」の数学的源泉。
-        </p>
+    <div className={styles.stack}>
+      <div className={styles.card}>
+        <h3 className={styles.sectionTitle} style={{ color: '#f59e0b' }}>
+          {t.convergence} ({summary.total.toLocaleString()})
+        </h3>
+        <div className={styles.chartWrap}>
+          <ConvergenceChart points={summary.points} t={t} />
+        </div>
+        <p className={styles.caption}>{t.convergenceCaption}</p>
       </div>
 
-      <div>
-        <h4 style={{ margin: '0 0 0.4rem', color: '#cbd5e1' }}>最終地点での実測値</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem' }}>
-          <Stat label="N" value={last.N.toLocaleString()} color="#67e8f9" />
-          <Stat label="平均配当" value={`$${last.mean.toFixed(2)}`} color="#67e8f9" />
-          <Stat label="log₂(N)/2 (理論)" value={`$${last.fairPrice.toFixed(2)}`} color="#fbbf24" />
-          <Stat label="中央値" value={`$${last.median.toFixed(2)}`} color="#4ade80" />
-          <Stat label="最大配当" value={`$${last.max.toLocaleString()}`} color="#f472b6" />
+      <div className={styles.card}>
+        <h4 className={styles.sectionTitle}>{t.finalReadout}</h4>
+        <div className={styles.readoutGrid}>
+          <Stat label="N" value={last.N.toLocaleString()} color="#38bdf8" />
+          <Stat label={t.meanLabel} value={`$${last.mean.toFixed(2)}`} color="#38bdf8" />
+          <Stat label={t.fairTheory} value={`$${last.fairPrice.toFixed(2)}`} color="#f59e0b" />
+          <Stat label={t.medianLabel} value={`$${last.median.toFixed(2)}`} color="#22c55e" />
+          <Stat label={t.maxPayout} value={fmtMoney(last.max)} color="#ec4899" />
+          <Stat label={t.longestStreak} value={`${summary.maxFlips} ${t.flips}`} color="#a78bfa" />
         </div>
       </div>
 
-      <div>
-        <h4 style={{ margin: '0 0 0.4rem', color: '#cbd5e1' }}>配当の分布 (log₂ バケット)</h4>
-        <PayoffHistogram log2Hist={summary.log2Hist} total={summary.total} />
-        <p style={{ marginTop: '0.4rem', color: '#64748b', fontSize: '0.8rem' }}>
-          各バケットは前の半分の頻度 — 完璧な幾何分布。黄色のマーカー = 理論度数 N · (1/2)^(k+1)。
-          高額バケットほどサンプル数は少ないが、その 1 回が平均を大きく動かす。
-        </p>
+      <div className={styles.card}>
+        <h4 className={styles.sectionTitle}>{t.distribution}</h4>
+        <div className={styles.chartWrap}>
+          <PayoffHistogram log2Hist={summary.log2Hist} total={summary.total} t={t} />
+        </div>
+        <p className={styles.caption}>{t.distributionCaption}</p>
       </div>
     </div>
   );
 };
 
 const Stat = ({ label, value, color }: { label: string; value: string; color: string }) => (
-  <div style={{ background: '#020617', border: `1px solid ${color}44`, borderRadius: 10, padding: '0.55rem 0.7rem' }}>
-    <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>{label}</div>
-    <div style={{ color, fontSize: '1.15rem', fontWeight: 800 }}>{value}</div>
+  <div className={styles.stat}>
+    <div className={styles.statLabel}>{label}</div>
+    <div className={styles.statValue} style={{ color }}>
+      {value}
+    </div>
   </div>
 );

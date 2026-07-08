@@ -1,44 +1,102 @@
 'use client';
 
-import { useState } from 'react';
-import { playGame } from './engine';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { fairPriceForN, logUtilityFairPrice, playGame } from './engine';
+import { getPetersburgStrings } from './i18n';
+import styles from './petersburg.module.css';
 
 interface SessionStats {
   games: number;
-  totalPaid: number;     // 累計 entry price (if any)
+  totalPaid: number;
   totalWon: number;
   maxPayoff: number;
 }
 
 const INITIAL: SessionStats = { games: 0, totalPaid: 0, totalWon: 0, maxPayoff: 0 };
 
+const fmtMoney = (v: number) =>
+  v >= Number.MAX_SAFE_INTEGER ? '$9e15+' : `$${Math.round(v).toLocaleString()}`;
+
 export const PlayTab = () => {
+  const { language } = useGameLanguage();
+  const t = getPetersburgStrings(language);
+
   const [entryPrice, setEntryPrice] = useState(5);
+  const [wealth, setWealth] = useState(1000);
   const [stats, setStats] = useState<SessionStats>(INITIAL);
   const [lastGame, setLastGame] = useState<{ n: number; payoff: number } | null>(null);
   const [history, setHistory] = useState<{ n: number; payoff: number }[]>([]);
+  const [flipping, setFlipping] = useState(false);
+  const [flipSeq, setFlipSeq] = useState<boolean[]>([]); // true=heads, false=tails (last)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const play = (n: number) => {
-    let totalWon = 0;
-    let maxPayoff = stats.maxPayoff;
-    const newHistory: { n: number; payoff: number }[] = [];
-    for (let i = 0; i < n; i++) {
-      const r = playGame();
-      totalWon += r.payoff;
-      if (r.payoff > maxPayoff) maxPayoff = r.payoff;
-      newHistory.push(r);
-    }
-    setLastGame(newHistory[newHistory.length - 1] ?? null);
-    setHistory((h) => [...h, ...newHistory].slice(-200));
-    setStats((s) => ({
-      games: s.games + n,
-      totalPaid: s.totalPaid + entryPrice * n,
-      totalWon: s.totalWon + totalWon,
-      maxPayoff,
-    }));
-  };
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
+
+  const applyResults = useCallback(
+    (results: { n: number; payoff: number }[]) => {
+      let totalWon = 0;
+      let maxPayoff = 0;
+      for (const r of results) {
+        totalWon += r.payoff;
+        if (r.payoff > maxPayoff) maxPayoff = r.payoff;
+      }
+      setLastGame(results[results.length - 1] ?? null);
+      setHistory((h) => [...h, ...results].slice(-240));
+      setStats((s) => ({
+        games: s.games + results.length,
+        totalPaid: s.totalPaid + entryPrice * results.length,
+        totalWon: s.totalWon + totalWon,
+        maxPayoff: Math.max(s.maxPayoff, maxPayoff),
+      }));
+    },
+    [entryPrice],
+  );
+
+  // Single flip is animated coin-by-coin for feel; batches resolve instantly.
+  const playOne = useCallback(() => {
+    if (flipping) return;
+    const r = playGame();
+    setFlipping(true);
+    setFlipSeq([]);
+    let shown = 0;
+    const total = r.n; // number of flips (n-1 heads + 1 tails)
+    const step = () => {
+      shown += 1;
+      const isTails = shown === total;
+      setFlipSeq((seq) => [...seq, !isTails]);
+      if (isTails) {
+        timerRef.current = setTimeout(() => {
+          setFlipping(false);
+          applyResults([r]);
+        }, 260);
+      } else {
+        timerRef.current = setTimeout(step, 190);
+      }
+    };
+    timerRef.current = setTimeout(step, 120);
+  }, [flipping, applyResults]);
+
+  const playBatch = useCallback(
+    (n: number) => {
+      if (flipping) return;
+      const results: { n: number; payoff: number }[] = [];
+      for (let i = 0; i < n; i++) results.push(playGame());
+      setFlipSeq([]);
+      applyResults(results);
+    },
+    [flipping, applyResults],
+  );
 
   const reset = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setFlipping(false);
+    setFlipSeq([]);
     setStats(INITIAL);
     setHistory([]);
     setLastGame(null);
@@ -46,15 +104,18 @@ export const PlayTab = () => {
 
   const meanPayoff = stats.games === 0 ? 0 : stats.totalWon / stats.games;
   const netProfit = stats.totalWon - stats.totalPaid;
-  const fairTruncated = stats.games === 0 ? 0 : Math.log2(stats.games) / 2;
+  const fairTruncated = fairPriceForN(stats.games);
+  const logPrice = logUtilityFairPrice(wealth);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: '1.25rem' }}>
-      <div>
-        <label style={{ display: 'block', marginBottom: '0.8rem' }}>
-          <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.3rem' }}>
-            参加料 (1 ゲームあたり): <strong style={{ color: '#fbbf24' }}>${entryPrice}</strong>
-          </div>
+    <div className={styles.grid2}>
+      {/* Left: play */}
+      <div className={styles.card}>
+        <label className={styles.sliderLabel}>
+          <span className={styles.sliderLabelRow}>
+            <span>{t.entryPrice}</span>
+            <span className={styles.sliderValue}>${entryPrice}</span>
+          </span>
           <input
             type="range"
             min={0}
@@ -62,85 +123,142 @@ export const PlayTab = () => {
             step={1}
             value={entryPrice}
             onChange={(e) => setEntryPrice(Number(e.target.value))}
-            style={{ width: '100%', accentColor: '#f59e0b' }}
+            className={styles.slider}
+            aria-label={t.entryPrice}
           />
         </label>
 
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.8rem' }}>
-          <button onClick={() => play(1)} style={btn('#22c55e')}>🎲 1回</button>
-          <button onClick={() => play(10)} style={btn('#0ea5e9')}>10 回</button>
-          <button onClick={() => play(100)} style={btn('#0ea5e9')}>100 回</button>
-          <button onClick={() => play(1000)} style={btn('#0ea5e9')}>1000 回</button>
-          <button onClick={reset} style={btn('#1e293b', false, '#94a3b8', '#334155')}>リセット</button>
+        <div className={styles.coinStage} aria-live="polite">
+          {flipping && flipSeq.length === 0 ? (
+            <div className={`${styles.coin} ${styles.coinFlipping}`} aria-hidden>
+              ?
+            </div>
+          ) : flipSeq.length > 0 ? (
+            flipSeq.map((isHead, i) => (
+              <div
+                key={i}
+                className={`${styles.coin} ${isHead ? styles.coinHead : styles.coinTail}`}
+                title={isHead ? 'H' : 'T'}
+              >
+                {isHead ? 'H' : 'T'}
+              </div>
+            ))
+          ) : (
+            <div style={{ color: 'var(--games-route-muted)', fontSize: '0.85rem' }}>
+              {t.flip1} →
+            </div>
+          )}
+        </div>
+
+        <div className={styles.controls}>
+          <button className={`${styles.btn} ${styles.btnPrimary}`} onClick={playOne} disabled={flipping}>
+            🎲 {flipping ? t.flipping : t.flip1}
+          </button>
+          <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => playBatch(10)} disabled={flipping}>
+            {t.play10}
+          </button>
+          <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => playBatch(100)} disabled={flipping}>
+            {t.play100}
+          </button>
+          <button className={`${styles.btn} ${styles.btnSecondary}`} onClick={() => playBatch(1000)} disabled={flipping}>
+            {t.play1000}
+          </button>
+          <button className={`${styles.btn} ${styles.btnGhost}`} onClick={reset}>
+            {t.reset}
+          </button>
         </div>
 
         {lastGame && (
-          <div style={{ padding: '0.7rem 0.9rem', borderRadius: 10, background: lastGame.payoff >= entryPrice ? '#15803d44' : '#7f1d1d44', border: `1px solid ${lastGame.payoff >= entryPrice ? '#4ade80' : '#f87171'}`, color: lastGame.payoff >= entryPrice ? '#4ade80' : '#fca5a5', fontWeight: 700 }}>
-            最後のゲーム: <strong>{lastGame.n} flips</strong> → 配当 <strong>${lastGame.payoff.toLocaleString()}</strong>
+          <div
+            className={`${styles.lastGame} ${lastGame.payoff >= entryPrice ? styles.lastWin : styles.lastLoss}`}
+          >
+            {t.lastGame}: <strong>{lastGame.n} {t.flips}</strong> → {t.payout}{' '}
+            <strong>{fmtMoney(lastGame.payoff)}</strong>
           </div>
         )}
 
-        <div style={{ marginTop: '0.6rem', display: 'flex', flexWrap: 'wrap', gap: '0.2rem', maxHeight: 80, overflowY: 'auto' }}>
-          {history.slice(-200).map((h, i) => {
-            const log2 = h.payoff >= Number.MAX_SAFE_INTEGER ? 50 : Math.floor(Math.log2(Math.max(1, h.payoff)));
-            const hue = Math.min(360, 200 - log2 * 18);
-            return (
-              <span
-                key={i}
-                title={`flips=${h.n}, payoff=$${h.payoff}`}
-                style={{
-                  minWidth: 28, height: 22, borderRadius: 3,
-                  background: `hsl(${hue}, 70%, 40%)`,
-                  color: '#fff', border: `1px solid hsl(${hue}, 70%, 60%)`,
-                  fontSize: '0.7rem', fontWeight: 800,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '0 4px',
-                }}
-              >
-                ${h.payoff >= 1000 ? `${(h.payoff / 1000).toFixed(0)}k` : h.payoff}
-              </span>
-            );
-          })}
-        </div>
+        {history.length > 0 && (
+          <>
+            <div className={styles.statLabel} style={{ marginTop: '0.85rem' }}>
+              {t.recentPayouts}
+            </div>
+            <div className={styles.chips}>
+              {history.slice(-120).map((h, i) => {
+                const log2 = h.payoff >= Number.MAX_SAFE_INTEGER ? 50 : Math.floor(Math.log2(Math.max(1, h.payoff)));
+                const hue = Math.max(0, Math.min(280, 200 - log2 * 20));
+                return (
+                  <span
+                    key={i}
+                    title={`${h.n} ${t.flips} → $${h.payoff.toLocaleString()}`}
+                    className={styles.chip}
+                    style={{ background: `hsl(${hue}, 68%, 42%)`, border: `1px solid hsl(${hue}, 68%, 58%)` }}
+                  >
+                    {h.payoff >= 1000 ? `$${(h.payoff / 1000).toFixed(0)}k` : `$${h.payoff}`}
+                  </span>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
-      <div>
-        <h3 style={{ margin: '0 0 0.6rem', color: '#fbbf24' }}>セッション統計</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <Stat label="プレイ数" value={`${stats.games}`} color="#67e8f9" />
-          <Stat label="平均配当" value={`$${meanPayoff.toFixed(2)}`} color="#67e8f9" />
-          <Stat label="累計配当" value={`$${stats.totalWon.toLocaleString()}`} color="#4ade80" />
-          <Stat label="支払い" value={`$${stats.totalPaid.toLocaleString()}`} color="#94a3b8" />
-          <Stat label="差し引き" value={`${netProfit >= 0 ? '+' : '−'}$${Math.abs(netProfit).toLocaleString()}`} color={netProfit >= 0 ? '#4ade80' : '#f87171'} />
-          <Stat label="最大配当" value={`$${stats.maxPayoff.toLocaleString()}`} color="#f472b6" />
-          <Stat label="参加料 (1ゲーム)" value={`$${entryPrice}`} color="#fbbf24" />
-          <Stat label="「公正な」価格 ≈ log₂(N)/2" value={`$${fairTruncated.toFixed(2)}`} color="#fbbf24" />
+      {/* Right: stats + explorer */}
+      <div className={styles.card}>
+        <h3 className={styles.sectionTitle} style={{ color: '#f59e0b' }}>
+          {t.sessionStats}
+        </h3>
+        <div className={styles.statGrid}>
+          <Stat label={t.played} value={stats.games.toLocaleString()} color="#38bdf8" />
+          <Stat label={t.meanPayout} value={`$${meanPayoff.toFixed(2)}`} color="#38bdf8" />
+          <Stat label={t.totalWon} value={fmtMoney(stats.totalWon)} color="#22c55e" />
+          <Stat label={t.paid} value={fmtMoney(stats.totalPaid)} color="var(--games-route-muted)" />
+          <Stat
+            label={t.net}
+            value={`${netProfit >= 0 ? '+' : '−'}${fmtMoney(Math.abs(netProfit))}`}
+            color={netProfit >= 0 ? '#22c55e' : '#ef4444'}
+          />
+          <Stat label={t.maxPayout} value={fmtMoney(stats.maxPayoff)} color="#ec4899" />
+          <Stat label={t.entryPrice} value={`$${entryPrice}`} color="#f59e0b" />
+          <Stat label={t.fairPriceLog} value={`$${fairTruncated.toFixed(2)}`} color="#f59e0b" />
         </div>
 
-        <div style={{ marginTop: '1rem', padding: '0.7rem 0.9rem', background: '#020617', border: '1px solid #1e293b', borderRadius: 10, color: '#cbd5e1', fontSize: '0.85rem', lineHeight: 1.55 }}>
-          <strong style={{ color: '#fbbf24' }}>セントペテルブルクのパラドックス:</strong> コインを連続して投げ、初めて裏が出るまでの表の枚数で配当が決まる。
-          表 0 回 (即 T) → $1、HT → $2、HHT → $4、…、表 n-1 回 → $2^(n-1)。<br />
-          期待値 = Σ (1/2)^n · 2^(n-1) = Σ 1/2 = <strong>無限大</strong>。
-          だが大半の人は数ドル以上払う気にならない。中央値は $1-2 で、平均は N に応じてゆっくり log₂(N)/2 で増える — これが「無限の期待値」と「直感的に妥当な価格」のギャップ。
+        {/* Log-utility willingness-to-pay explorer */}
+        <div className={styles.explainer}>
+          <strong>{t.explorer}</strong>
+          <label className={styles.sliderLabel} style={{ margin: '0.65rem 0 0' }}>
+            <span className={styles.sliderLabelRow}>
+              <span>{t.wealth}</span>
+              <span className={styles.sliderValue}>${wealth.toLocaleString()}</span>
+            </span>
+            <input
+              type="range"
+              min={10}
+              max={1_000_000}
+              step={10}
+              value={wealth}
+              onChange={(e) => setWealth(Number(e.target.value))}
+              className={styles.slider}
+              aria-label={t.wealth}
+            />
+          </label>
+          <div style={{ marginTop: '0.5rem' }}>
+            {t.logUtilityPrice}:{' '}
+            <strong style={{ color: '#f59e0b', fontSize: '1.1rem' }}>${logPrice.toFixed(2)}</strong>
+          </div>
+          <p style={{ margin: '0.55rem 0 0', color: 'var(--games-route-muted)', fontSize: '0.8rem' }}>
+            {t.logUtilityHint}
+          </p>
         </div>
       </div>
     </div>
   );
 };
 
-const btn = (bg: string, disabled = false, color = '#fff', border?: string): React.CSSProperties => ({
-  background: disabled ? '#1e293b' : bg,
-  color: disabled ? '#475569' : color,
-  border: border ? `1px solid ${border}` : 'none',
-  borderRadius: 10,
-  padding: '0.55rem 1.1rem',
-  fontWeight: 700,
-  cursor: disabled ? 'not-allowed' : 'pointer',
-});
-
 const Stat = ({ label, value, color }: { label: string; value: string; color: string }) => (
-  <div style={{ background: '#020617', border: `1px solid ${color}44`, borderRadius: 10, padding: '0.55rem 0.7rem' }}>
-    <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>{label}</div>
-    <div style={{ color, fontSize: '1.15rem', fontWeight: 800 }}>{value}</div>
+  <div className={styles.stat}>
+    <div className={styles.statLabel}>{label}</div>
+    <div className={styles.statValue} style={{ color }}>
+      {value}
+    </div>
   </div>
 );

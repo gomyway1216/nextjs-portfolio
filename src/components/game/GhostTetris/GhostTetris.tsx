@@ -45,10 +45,24 @@ export const GhostTetris = () => {
     setGame({ ...createGame(), phase: 'playing' });
   }, []);
 
+  // Wall-clock time when the game was paused, so we can shift lockedAt
+  // timestamps forward on resume and the ghosts don't jump ahead in their fade.
+  const pauseStartRef = useRef(0);
+
   const togglePause = useCallback(() => {
     setGame((prev) => {
-      if (prev.phase === 'playing') return { ...prev, phase: 'paused' };
-      if (prev.phase === 'paused') return { ...prev, phase: 'playing' };
+      const nowTime = Date.now();
+      if (prev.phase === 'playing') {
+        pauseStartRef.current = nowTime;
+        return { ...prev, phase: 'paused' };
+      }
+      if (prev.phase === 'paused') {
+        const pauseDuration = nowTime - pauseStartRef.current;
+        const lockedAt = prev.lockedAt.map((row) =>
+          row.map((time) => (time > 0 ? time + pauseDuration : 0)),
+        );
+        return { ...prev, phase: 'playing', lockedAt };
+      }
       return prev;
     });
   }, []);
@@ -397,14 +411,28 @@ export const GhostTetris = () => {
 
 const NextPreview = ({ id }: { id: number }) => {
   const shape = SHAPES[id - 1];
+  if (!shape || !shape[0]) return null;
+
+  // Center the piece in a fixed 4x4 grid so the sidebar never shifts between
+  // pieces of different widths, and guard against an invalid id.
+  const h = shape.length;
   const w = shape[0].length;
+  const grid = Array.from({ length: 4 }, () => Array<number>(4).fill(0));
+  const rOffset = Math.floor((4 - h) / 2);
+  const cOffset = Math.floor((4 - w) / 2);
+  for (let r = 0; r < h; r += 1) {
+    for (let c = 0; c < w; c += 1) {
+      grid[r + rOffset][c + cOffset] = shape[r][c];
+    }
+  }
+
   return (
     <div
       className={styles.nextGrid}
-      style={{ gridTemplateColumns: `repeat(${w}, 20px)` }}
+      style={{ gridTemplateColumns: 'repeat(4, 20px)' }}
       aria-hidden
     >
-      {shape.flatMap((row, y) =>
+      {grid.flatMap((row, y) =>
         row.map((cell, x) => (
           <div
             key={`${x}-${y}`}

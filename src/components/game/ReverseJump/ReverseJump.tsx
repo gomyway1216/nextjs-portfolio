@@ -78,9 +78,11 @@ export const ReverseJump = () => {
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
   const hudAccumRef = useRef(0);
-  // Keep the latest high score in a ref so the game loop never reads a stale
-  // closure value (useHighScore may resolve its Firebase sync mid-game).
+  // Keep the latest high score and its setter in refs so the game loop never
+  // reads a stale closure value (useHighScore may resolve its Firebase sync
+  // mid-game).
   const highScoreRef = useRef(highScore);
+  const updateHighScoreRef = useRef(updateHighScore);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -91,6 +93,9 @@ export const ReverseJump = () => {
   useEffect(() => {
     highScoreRef.current = highScore;
   }, [highScore]);
+  useEffect(() => {
+    updateHighScoreRef.current = updateHighScore;
+  }, [updateHighScore]);
 
   const config = DIFFICULTY_CONFIG[difficulty];
 
@@ -329,6 +334,13 @@ export const ReverseJump = () => {
     const cfg = DIFFICULTY_CONFIG[difficultyRef.current];
 
     const tick = (time: number) => {
+      // Guard on the authoritative phase: after a pause/game-over is triggered
+      // the effect cleanup that cancels this rAF hasn't run yet, so bail out
+      // immediately instead of simulating an extra (possibly fatal) frame.
+      if (phaseRef.current !== 'playing') {
+        rafRef.current = null;
+        return;
+      }
       const rt = runtimeRef.current;
       if (lastTimeRef.current === 0) {
         lastTimeRef.current = time;
@@ -399,7 +411,7 @@ export const ReverseJump = () => {
         const finalScore = rt.score;
         if (finalScore > highScoreRef.current) {
           setIsNewBest(true);
-          updateHighScore(finalScore);
+          updateHighScoreRef.current(finalScore);
         }
         setPhase('gameover');
         return;
@@ -415,8 +427,8 @@ export const ReverseJump = () => {
         rafRef.current = null;
       }
     };
-    // draw is stable via useCallback; high score is read through highScoreRef and
-    // updateHighScore is a stable callback, so the loop only needs to re-run on phase.
+    // draw is stable via useCallback; high score and its setter are read through
+    // refs, so the loop only needs to re-run when the phase changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 

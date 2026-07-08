@@ -444,6 +444,15 @@ const Othello = () => {
     }
   }, [multiplayer]);
 
+  // When the lobby transitions to "playing", leave the setup screen and enter
+  // the multiplayer game. Driven by an effect (not called during render) so it
+  // can't trigger state updates mid-render or double-fire under Strict Mode.
+  useEffect(() => {
+    if (!showDifficultySelect) return;
+    if (multiplayer.context.lobbyState !== 'playing') return;
+    void startMultiplayerGame();
+  }, [showDifficultySelect, multiplayer.context.lobbyState, startMultiplayerGame]);
+
   // ---- Info modal content ----
   const infoContent = (
     <div className={styles.infoBody}>
@@ -489,7 +498,11 @@ const Othello = () => {
             type="button"
             className={`${styles.cell} ${canClick ? styles.playable : ''}`}
             onClick={() => handleCellClick(x, y)}
-            disabled={!canClick}
+            // Keep every cell focusable so keyboard users can move across the
+            // board and hear each square's coordinate/occupancy label. Illegal
+            // moves are prevented via aria-disabled + the guard in
+            // handleCellClick, not `disabled` (which would remove focus).
+            aria-disabled={!canClick}
             aria-label={
               color === BLACK
                 ? `${coord} ${t.black}`
@@ -524,9 +537,7 @@ const Othello = () => {
     const isInMultiplayerLobby =
       multiplayer.context.lobbyState !== 'idle' || multiplayer.context.roomId !== null;
 
-    if (multiplayer.context.lobbyState === 'playing') {
-      startMultiplayerGame();
-    }
+    // The lobby -> game transition is handled by the effect above, not here.
 
     const selDiff = t.difficultyLabels[selectedDifficulty];
 

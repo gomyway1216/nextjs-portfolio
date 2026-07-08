@@ -42,15 +42,19 @@ export interface OthelloAIOptions {
 }
 
 /**
- * Transposition-table entry. `flag` records how `score` relates to the true
- * value: EXACT (inside the window), LOWER (a fail-high / beta cutoff, true
- * value >= score), or UPPER (a fail-low, true value <= score).
+ * Transposition-table entry flag: how `score` relates to the true value.
+ * EXACT (inside the window), LOWER (a fail-high / beta cutoff, true value
+ * >= score), or UPPER (a fail-low, true value <= score).
+ *
+ * Modeled as an `as const` object + union type rather than a `const enum`,
+ * which the repo's `isolatedModules: true` tsconfig disallows.
  */
-const enum TTFlag {
-  Exact = 0,
-  Lower = 1,
-  Upper = 2,
-}
+const TTFlag = {
+  Exact: 0,
+  Lower: 1,
+  Upper: 2,
+} as const;
+type TTFlag = (typeof TTFlag)[keyof typeof TTFlag];
 
 interface TTEntry {
   depth: number;

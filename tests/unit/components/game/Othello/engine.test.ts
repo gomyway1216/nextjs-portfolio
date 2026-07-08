@@ -3,9 +3,9 @@
  *
  * Covers the parts most likely to regress: legal-move generation and disc
  * flipping (against an independent brute-force reference), Zobrist-hash
- * make/undo consistency, exact endgame solving, and the soundness of the
- * transposition-table-backed mid-game search (must agree with a TT-free
- * reference search to the last centi-disc).
+ * make/undo consistency, exact endgame solving (against an independent
+ * perfect negamax), and that the transposition-table-backed mid-game search
+ * always returns legal moves and drives a full game to a decided result.
  */
 
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -246,7 +246,7 @@ function perfectNegamax(board: Board): number {
 }
 
 describe('AI — transposition table soundness', () => {
-  it('produces the same evaluation as the reference search would allow', () => {
+  it('drives a full game with only legal moves to a filled, decided board', () => {
     // Playing a full game vs a fixed AI must terminate with a legal, filled
     // board and a decided result — a smoke test that the TT-driven search
     // never returns an illegal move or corrupts board state.

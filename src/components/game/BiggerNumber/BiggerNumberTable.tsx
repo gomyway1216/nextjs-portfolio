@@ -3,18 +3,6 @@
  *
  * Pure presentational + interaction layer. The parent (AI mode or Online mode)
  * owns the state machine and passes everything in via props.
- *
- *   ┌────────────────────────────────────────────┐
- *   │ Opponent name           Wins: 3            │
- *   │ Opponent's hand (face-down)                │
- *   │                                            │
- *   │ Round 4 / 10        ┌──┐    ┌──┐           │
- *   │                     │? │ vs │? │           │
- *   │ Last round result   └──┘    └──┘           │
- *   │                                            │
- *   │ Your hand (face-up, click to pick)         │
- *   │ You name           Wins: 2                 │
- *   └────────────────────────────────────────────┘
  */
 
 'use client';
@@ -22,8 +10,18 @@
 import React from 'react';
 import type { CardValue } from './types';
 import { cardLabel, isDragon } from './gameLogic';
+import { getStrings } from './i18n';
+import styles from './BiggerNumberTable.module.css';
 
-export type RoundPhase = 'picking' | 'waiting-opponent' | 'revealing' | 'between-rounds' | 'finished';
+export type RoundPhase =
+  | 'picking'
+  | 'waiting-opponent'
+  | 'revealing'
+  | 'between-rounds'
+  | 'finished';
+
+/** Which side (if any) took the round that is currently being shown. */
+export type RevealWinner = 'you' | 'opponent' | 'tie' | null;
 
 interface BiggerNumberTableProps {
   // Identities
@@ -41,10 +39,11 @@ interface BiggerNumberTableProps {
   // Picks
   yourPick: CardValue | null;
   opponentPickCount: number; // 0 or 1 — whether opponent has locked in
-  yourPickShown: CardValue | null;     // null while hidden, set during reveal
+  yourPickShown: CardValue | null; // null while hidden, set during reveal
   opponentPickShown: CardValue | null; // null while hidden, set during reveal
   // Phase / messaging
   phase: RoundPhase;
+  revealWinner?: RevealWinner;
   lastResultText: string | null;
   finalMessage: string | null;
   // Callbacks
@@ -54,43 +53,45 @@ interface BiggerNumberTableProps {
   language: 'en' | 'ja';
 }
 
-const COLORS = {
-  bg: '#0f172a',
-  panel: 'rgba(15, 23, 42, 0.92)',
-  border: 'rgba(148, 163, 184, 0.25)',
-  borderHot: 'rgba(251, 191, 36, 0.55)',
-  text: '#f8fafc',
-  muted: '#94a3b8',
-  win: '#4ade80',
-  lose: '#f87171',
-  tie: '#fbbf24',
-  faceUp: '#f1f5f9',
-  faceDown: '#1e293b',
-  faceUpText: '#0f172a',
-  dragon: '#fbbf24',
+type CardSize = 'small' | 'medium' | 'large';
+
+const SIZES: Record<CardSize, { w: number; h: number; font: string }> = {
+  small: { w: 40, h: 56, font: '1.25rem' },
+  medium: { w: 62, h: 88, font: '2.2rem' },
+  large: { w: 92, h: 130, font: '3.4rem' },
 };
 
-function cardFace(card: CardValue, opts: { facedown?: boolean; small?: boolean } = {}) {
-  const { facedown, small } = opts;
-  const size = small ? { w: 44, h: 60, font: '1.4rem' } : { w: 88, h: 124, font: '3.25rem' };
+interface CardFaceOpts {
+  facedown?: boolean;
+  size?: CardSize;
+  animate?: boolean;
+}
+
+function CardFace({ card, opts = {} }: { card: CardValue; opts?: CardFaceOpts }) {
+  const { facedown, size = 'large', animate } = opts;
+  const dim = SIZES[size];
 
   if (facedown) {
     return (
-      <div style={{
-        width: size.w,
-        height: size.h,
-        borderRadius: '0.5rem',
-        background: 'linear-gradient(135deg, #0f172a, #1e293b 60%, #0b1220)',
-        border: '1px solid rgba(148, 163, 184, 0.3)',
-        boxShadow: '0 6px 14px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(148, 163, 184, 0.15)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: 'rgba(148, 163, 184, 0.6)',
-        fontSize: small ? '0.85rem' : '1.5rem',
-        fontWeight: 800,
-        letterSpacing: '0.05em',
-      }}>
+      <div
+        aria-hidden="true"
+        style={{
+          width: dim.w,
+          height: dim.h,
+          borderRadius: '0.55rem',
+          background:
+            'repeating-linear-gradient(135deg, #1e293b 0 8px, #172033 8px 16px)',
+          border: '1px solid rgba(148, 163, 184, 0.35)',
+          boxShadow:
+            '0 6px 14px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(148, 163, 184, 0.15)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'rgba(148, 163, 184, 0.65)',
+          fontSize: size === 'small' ? '0.85rem' : '1.5rem',
+          fontWeight: 800,
+        }}
+      >
         ?
       </div>
     );
@@ -98,23 +99,47 @@ function cardFace(card: CardValue, opts: { facedown?: boolean; small?: boolean }
 
   const dragon = isDragon(card);
   return (
-    <div style={{
-      width: size.w,
-      height: size.h,
-      borderRadius: '0.5rem',
-      background: dragon ? 'linear-gradient(135deg, #1e293b, #0b1220)' : '#f1f5f9',
-      border: dragon ? '2px solid rgba(251, 191, 36, 0.85)' : '1px solid rgba(148, 163, 184, 0.4)',
-      boxShadow: '0 6px 14px rgba(0, 0, 0, 0.45)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      color: dragon ? COLORS.dragon : COLORS.faceUpText,
-      fontSize: size.font,
-      fontWeight: 900,
-      fontFamily: dragon ? 'serif' : 'system-ui, sans-serif',
-    }}>
+    <div
+      className={animate ? styles.revealAnim : undefined}
+      style={{
+        width: dim.w,
+        height: dim.h,
+        borderRadius: '0.55rem',
+        background: dragon
+          ? 'linear-gradient(135deg, #1e293b, #0b1220)'
+          : 'linear-gradient(135deg, #ffffff, #e8eef7)',
+        border: dragon
+          ? '2px solid rgba(251, 191, 36, 0.9)'
+          : '1px solid rgba(148, 163, 184, 0.5)',
+        boxShadow: dragon
+          ? '0 6px 16px rgba(251,191,36,0.25), 0 6px 14px rgba(0,0,0,0.45)'
+          : '0 6px 14px rgba(0, 0, 0, 0.4)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: dragon ? '#fbbf24' : '#0f172a',
+        fontSize: dim.font,
+        fontWeight: 900,
+        fontFamily: dragon ? 'serif' : 'system-ui, sans-serif',
+      }}
+    >
       {cardLabel(card)}
     </div>
+  );
+}
+
+function Pips({ count, target, side }: { count: number; target: number; side: 'you' | 'opp' }) {
+  return (
+    <span className={styles.pips} aria-hidden="true">
+      {Array.from({ length: target }).map((_, i) => (
+        <span
+          key={i}
+          className={`${styles.pip} ${
+            i < count ? (side === 'you' ? styles.pipYouOn : styles.pipOppOn) : ''
+          }`}
+        />
+      ))}
+    </span>
   );
 }
 
@@ -134,6 +159,7 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
     yourPickShown,
     opponentPickShown,
     phase,
+    revealWinner = null,
     lastResultText,
     finalMessage,
     onPickCard,
@@ -142,252 +168,175 @@ export function BiggerNumberTable(props: BiggerNumberTableProps) {
     language,
   } = props;
 
-  const ja = language === 'ja';
-  const t = {
-    you: ja ? 'あなた' : 'You',
-    wins: ja ? '勝' : 'Wins',
-    round: ja ? 'ラウンド' : 'Round',
-    target: ja ? `${winsToWin}勝先取` : `First to ${winsToWin}`,
-    pickPrompt: ja ? '手札から1枚選んで「セーノ！」' : 'Pick a card and reveal!',
-    waitingOpp: ja ? '相手の選択を待っています...' : 'Waiting for opponent...',
-    youLocked: ja ? '札を伏せました' : 'Card locked in',
-    revealing: ja ? 'オープン！' : 'Reveal!',
-    leave: ja ? '退室' : 'Leave',
-    again: ja ? 'もう一度' : 'Play Again',
-  };
-
+  const t = getStrings(language);
   const canPick = phase === 'picking';
+  const showingReveal = phase === 'between-rounds' || phase === 'finished';
+
+  const arenaStateClass =
+    showingReveal && revealWinner === 'you'
+      ? styles.arenaWinYou
+      : showingReveal && revealWinner === 'opponent'
+        ? styles.arenaWinOpp
+        : phase === 'revealing'
+          ? styles.arenaHot
+          : '';
 
   const opponentCards = Array.from({ length: opponentHandCount });
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: `linear-gradient(to bottom, #020617, ${COLORS.bg})`,
-      color: COLORS.text,
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      overflow: 'auto',
-    }}>
+    <div className={styles.root}>
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0.85rem 1.25rem',
-        borderBottom: `1px solid ${COLORS.border}`,
-      }}>
-        <button
-          onClick={onLeave}
-          style={{
-            padding: '0.4rem 0.9rem',
-            background: 'rgba(220, 38, 38, 0.12)',
-            border: '1px solid rgba(220, 38, 38, 0.4)',
-            borderRadius: '0.5rem',
-            color: '#fecaca',
-            fontWeight: 700,
-            cursor: 'pointer',
-            fontSize: '0.85rem',
-          }}
-        >
+      <div className={styles.header}>
+        <button className={styles.leaveBtn} onClick={onLeave} aria-label={t.leave}>
           ← {t.leave}
         </button>
-        <div style={{ color: COLORS.muted, fontSize: '0.85rem', fontWeight: 700 }}>
-          {t.round} {round} / {totalRounds} · {t.target}
+        <div className={styles.roundMeta}>
+          <span className={styles.roundMetaMain}>
+            {t.round} {round} / {totalRounds}
+          </span>
+          <span className={styles.roundMetaSub}>{t.target(winsToWin)}</span>
         </div>
-        <div style={{ width: '5rem' }} />
+        <div style={{ minWidth: '5rem' }} aria-hidden="true" />
       </div>
 
       {/* Opponent panel */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '0.6rem',
-        padding: '1rem 1rem 0.5rem',
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-          fontSize: '0.95rem',
-        }}>
-          <span style={{ color: COLORS.muted }}>{opponentLabel}</span>
-          <span style={{
-            background: 'rgba(248, 113, 113, 0.15)',
-            border: '1px solid rgba(248, 113, 113, 0.3)',
-            color: COLORS.lose,
-            padding: '0.15rem 0.7rem',
-            borderRadius: '999px',
-            fontWeight: 800,
-            fontSize: '0.85rem',
-          }}>
-            {t.wins}: {opponentWins}
+      <div className={styles.section}>
+        <div className={styles.paneLabelRow}>
+          <span className={styles.paneName}>{opponentLabel}</span>
+          <span className={`${styles.scorePill} ${styles.scorePillOpp}`} aria-label={`${opponentLabel} ${t.wins} ${opponentWins}`}>
+            {t.wins} {opponentWins}
+            <Pips count={opponentWins} target={winsToWin} side="opp" />
           </span>
-          {opponentPickCount > 0 && phase !== 'revealing' && (
-            <span style={{ color: COLORS.tie, fontSize: '0.8rem', fontWeight: 700 }}>
-              ✓ {t.youLocked}
-            </span>
+          {opponentPickCount > 0 && phase !== 'revealing' && !showingReveal && (
+            <span className={styles.lockedTag}>✓ {t.locking}</span>
           )}
         </div>
-        <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div className={styles.oppHand}>
           {opponentCards.map((_, idx) => (
-            <div key={idx}>{cardFace(0, { facedown: true, small: true })}</div>
+            <CardFace key={idx} card={0} opts={{ facedown: true, size: 'small' }} />
           ))}
+          {opponentHandCount === 0 && (
+            <span className={styles.roundMetaSub}>{t.noCardsLeft}</span>
+          )}
         </div>
       </div>
 
       {/* Center stage */}
-      <div style={{
-        flex: 1,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: '1rem',
-        padding: '1rem',
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '2.5rem',
-          background: COLORS.panel,
-          border: `1px solid ${phase === 'revealing' ? COLORS.borderHot : COLORS.border}`,
-          borderRadius: '1rem',
-          padding: '1.25rem 2rem',
-          minHeight: '10rem',
-          transition: 'border-color 0.25s',
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem' }}>
-            <div style={{ fontSize: '0.75rem', color: COLORS.muted, fontWeight: 700 }}>{opponentLabel}</div>
-            {opponentPickShown != null
-              ? cardFace(opponentPickShown)
-              : opponentPickCount > 0
-              ? cardFace(0, { facedown: true })
-              : <div style={{ width: 88, height: 124, border: `2px dashed ${COLORS.border}`, borderRadius: '0.5rem' }} />}
+      <div className={styles.stage}>
+        <div
+          className={`${styles.arena} ${arenaStateClass}`}
+          role="group"
+          aria-label={t.scoreboard}
+        >
+          <div className={styles.slot}>
+            <div className={styles.slotLabel}>{opponentLabel}</div>
+            {opponentPickShown != null ? (
+              <CardFace
+                card={opponentPickShown}
+                opts={{ animate: showingReveal, size: 'large' }}
+              />
+            ) : opponentPickCount > 0 ? (
+              <CardFace card={0} opts={{ facedown: true, size: 'large' }} />
+            ) : (
+              <EmptySlot />
+            )}
           </div>
-          <div style={{ fontSize: '1.5rem', color: COLORS.muted, fontWeight: 800 }}>VS</div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.4rem' }}>
-            <div style={{ fontSize: '0.75rem', color: COLORS.muted, fontWeight: 700 }}>{t.you}</div>
-            {yourPickShown != null
-              ? cardFace(yourPickShown)
-              : yourPick != null
-              ? cardFace(0, { facedown: true })
-              : <div style={{ width: 88, height: 124, border: `2px dashed ${COLORS.border}`, borderRadius: '0.5rem' }} />}
+          <div className={styles.vs}>VS</div>
+          <div className={styles.slot}>
+            <div className={styles.slotLabel}>{t.you}</div>
+            {yourPickShown != null ? (
+              <CardFace
+                card={yourPickShown}
+                opts={{ animate: showingReveal, size: 'large' }}
+              />
+            ) : yourPick != null ? (
+              <CardFace card={0} opts={{ facedown: true, size: 'large' }} />
+            ) : (
+              <EmptySlot />
+            )}
           </div>
         </div>
 
-        <div style={{ minHeight: '1.5rem', textAlign: 'center', fontWeight: 700 }}>
-          {phase === 'picking' && (
-            <span style={{ color: COLORS.tie }}>{t.pickPrompt}</span>
-          )}
+        <div className={styles.statusLine} role="status" aria-live="polite">
+          {phase === 'picking' && <span className={styles.statusPrompt}>{t.pickPrompt}</span>}
           {phase === 'waiting-opponent' && (
-            <span style={{ color: COLORS.muted }}>{t.waitingOpp}</span>
+            <span className={styles.statusMuted}>{t.aiThinking}</span>
           )}
-          {phase === 'revealing' && (
-            <span style={{ color: COLORS.tie, fontSize: '1.15rem' }}>{t.revealing}</span>
-          )}
+          {phase === 'revealing' && <span className={styles.statusReveal}>{t.reveal}</span>}
           {phase === 'between-rounds' && lastResultText && (
-            <span style={{ color: COLORS.text }}>{lastResultText}</span>
+            <span
+              className={
+                revealWinner === 'you'
+                  ? styles.statusWin
+                  : revealWinner === 'opponent'
+                    ? styles.statusLose
+                    : styles.statusTie
+              }
+            >
+              {lastResultText}
+            </span>
           )}
           {phase === 'finished' && finalMessage && (
-            <span style={{ color: COLORS.tie, fontSize: '1.15rem' }}>{finalMessage}</span>
+            <span className={styles.statusFinal}>{finalMessage}</span>
           )}
         </div>
       </div>
 
       {/* Your hand */}
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '0.75rem',
-        padding: '0.5rem 1rem 1.25rem',
-        borderTop: `1px solid ${COLORS.border}`,
-        background: 'rgba(15, 23, 42, 0.5)',
-      }}>
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '1rem',
-          fontSize: '0.95rem',
-        }}>
-          <span style={{ color: COLORS.muted }}>{youLabel}</span>
-          <span style={{
-            background: 'rgba(74, 222, 128, 0.15)',
-            border: '1px solid rgba(74, 222, 128, 0.3)',
-            color: COLORS.win,
-            padding: '0.15rem 0.7rem',
-            borderRadius: '999px',
-            fontWeight: 800,
-            fontSize: '0.85rem',
-          }}>
-            {t.wins}: {yourWins}
+      <div className={styles.handSection}>
+        <div className={styles.paneLabelRow}>
+          <span className={styles.paneName}>{youLabel}</span>
+          <span className={`${styles.scorePill} ${styles.scorePillYou}`} aria-label={`${youLabel} ${t.wins} ${yourWins}`}>
+            {t.wins} {yourWins}
+            <Pips count={yourWins} target={winsToWin} side="you" />
           </span>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+        <div className={styles.hand} role="group" aria-label={t.handLabel}>
           {yourHand.map((card) => {
             const cardKey = isDragon(card) ? 'dragon' : `n${card}`;
-            const interactive = canPick;
+            const label = isDragon(card) ? t.dragonCard : t.cardN(card);
             return (
               <button
                 key={cardKey}
-                onClick={() => interactive && onPickCard(card)}
-                disabled={!interactive}
-                aria-label={
-                  isDragon(card)
-                    ? (ja ? '龍タイル' : 'Dragon card')
-                    : (ja ? `${card}のカード` : `Card ${card}`)
-                }
-                style={{
-                  padding: 0,
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: interactive ? 'pointer' : 'default',
-                  opacity: interactive ? 1 : 0.55,
-                  transform: 'translateY(0)',
-                  transition: 'transform 0.15s, filter 0.15s',
-                  filter: interactive ? 'drop-shadow(0 0 0 transparent)' : 'grayscale(0.3)',
-                }}
-                onMouseEnter={(e) => {
-                  if (interactive) e.currentTarget.style.transform = 'translateY(-6px)';
-                }}
-                onMouseLeave={(e) => {
-                  if (interactive) e.currentTarget.style.transform = 'translateY(0)';
-                }}
+                type="button"
+                onClick={() => canPick && onPickCard(card)}
+                disabled={!canPick}
+                aria-label={label}
+                title={label}
+                className={`${styles.cardBtn} ${!canPick ? styles.cardBtnDisabled : ''}`}
               >
-                {cardFace(card)}
+                <CardFace card={card} opts={{ size: 'medium' }} />
               </button>
             );
           })}
           {yourHand.length === 0 && (
-            <div style={{ color: COLORS.muted, fontSize: '0.9rem', padding: '1rem' }}>
-              {ja ? '手札を使い切りました' : 'No cards left'}
+            <div className={styles.statusMuted} style={{ padding: '1rem' }}>
+              {t.noCardsLeft}
             </div>
           )}
         </div>
 
         {phase === 'finished' && onPlayAgain && (
-          <button
-            onClick={onPlayAgain}
-            style={{
-              marginTop: '0.5rem',
-              padding: '0.6rem 1.5rem',
-              background: '#16a34a',
-              border: 'none',
-              borderRadius: '0.5rem',
-              color: '#fff',
-              fontWeight: 800,
-              cursor: 'pointer',
-            }}
-          >
-            {t.again}
+          <button className={styles.playAgainBtn} onClick={onPlayAgain} type="button">
+            {t.playAgain}
           </button>
         )}
       </div>
     </div>
+  );
+}
+
+function EmptySlot() {
+  return (
+    <div
+      aria-hidden="true"
+      style={{
+        width: SIZES.large.w,
+        height: SIZES.large.h,
+        border: '2px dashed rgba(148, 163, 184, 0.3)',
+        borderRadius: '0.55rem',
+      }}
+    />
   );
 }

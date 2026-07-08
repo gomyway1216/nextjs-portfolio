@@ -250,6 +250,15 @@ function solvedValue(
   const cached = memo.get(key);
   if (cached !== undefined) return cached;
 
+  // Break tie-replay cycles: under the `replay` tie rule, both sides revealing
+  // the same card returns the cards and consumes no round, so subgameValue can
+  // recurse back into this exact state. Seed the memo with a heuristic (score
+  // margin toward the target) so that self-reference resolves to a finite value
+  // instead of overflowing the stack; it is overwritten with the true value
+  // once the matrix is solved.
+  const heuristic = (ctx.oppWinsNeeded - ctx.myWinsNeeded) / rules.winsToWin;
+  memo.set(key, heuristic);
+
   const matrix = myHand.map((mine) =>
     oppHand.map((opp) => subgameValue(rules, myHand, oppHand, mine, opp, ctx, memo)),
   );

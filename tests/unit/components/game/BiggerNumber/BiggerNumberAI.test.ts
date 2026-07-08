@@ -115,6 +115,19 @@ describe('pickAICard — hard (Nash mixed strategy)', () => {
     const { card } = pickAICard('hard', rules, [3, 4], [], undefined, rng);
     expect([3, 4]).toContain(card);
   });
+
+  it('does not stack-overflow on tie-replay rules (lookahead cycle)', () => {
+    // Under `replay`, both sides revealing the same tile returns the cards and
+    // consumes no round, so the sub-game can recurse into the same state.
+    const replayRules: BiggerNumberRules = { ...rules, tieRule: 'replay' };
+    const ctx: MatchContext = { myWinsNeeded: 2, oppWinsNeeded: 2, roundsLeft: 4 };
+    const hand: CardValue[] = [1, 5, 9, 'dragon'];
+    expect(() =>
+      pickAICard('hard', replayRules, hand, [1, 5, 9, 'dragon'], ctx, rng),
+    ).not.toThrow();
+    const { card } = pickAICard('hard', replayRules, hand, [1, 5, 9, 'dragon'], ctx, rng);
+    expect(hand).toContain(card);
+  });
 });
 
 describe('solveZeroSumGame', () => {

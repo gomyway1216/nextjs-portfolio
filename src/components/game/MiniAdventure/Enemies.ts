@@ -328,15 +328,17 @@ function bfsNextStep(
 ): Direction | null {
   const startKey = (x: number, y: number) => `${x},${y}`;
   const visited = new Set<string>([startKey(enemy.x, enemy.y)]);
-  // Queue holds cells plus the first direction taken to reach them.
+  // Queue holds cells plus the first direction taken to reach them. We advance
+  // via an index (not Array.shift) so dequeue stays O(1) and BFS stays O(n).
   const queue: { x: number; y: number; firstDir: Direction | null }[] = [
     { x: enemy.x, y: enemy.y, firstDir: null },
   ];
+  let head = 0;
 
   const directions = Object.values(Direction);
 
-  while (queue.length > 0) {
-    const cur = queue.shift()!;
+  while (head < queue.length) {
+    const cur = queue[head++];
 
     for (const dir of directions) {
       const offset = DIRECTION_OFFSETS[dir];

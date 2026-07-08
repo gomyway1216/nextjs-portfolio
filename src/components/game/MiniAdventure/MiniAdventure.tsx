@@ -220,7 +220,7 @@ const MiniAdventure: React.FC = () => {
         className={styles.mapGrid}
         style={{ gridTemplateColumns: `repeat(${MAP_WIDTH}, 1fr)`, fontSize: 'clamp(7px, 1.7vw, 13px)' }}
         role="img"
-        aria-label={`Dungeon floor ${gameState.currentFloor}`}
+        aria-label={gameState.isOnSurface ? t.aria.surfaceMap : t.aria.floorMap(gameState.currentFloor)}
       >
         {cells}
       </div>
@@ -316,17 +316,17 @@ const MiniAdventure: React.FC = () => {
     return (
       <div className={styles.controls}>
         <div className={styles.dpad} aria-label={t.move}>
-          {dirBtn(Direction.UP_LEFT, 'Up-left', ArrowUpLeft)}
-          {dirBtn(Direction.UP, 'Up', ArrowUp)}
-          {dirBtn(Direction.UP_RIGHT, 'Up-right', ArrowUpRight)}
-          {dirBtn(Direction.LEFT, 'Left', ArrowLeft)}
+          {dirBtn(Direction.UP_LEFT, t.aria.dir.upLeft, ArrowUpLeft)}
+          {dirBtn(Direction.UP, t.aria.dir.up, ArrowUp)}
+          {dirBtn(Direction.UP_RIGHT, t.aria.dir.upRight, ArrowUpRight)}
+          {dirBtn(Direction.LEFT, t.aria.dir.left, ArrowLeft)}
           <button type="button" className={`${styles.dBtn} ${styles.dCenter}`} aria-label={t.wait} onClick={() => dispatch({ type: ActionType.WAIT })}>
             {t.wait}
           </button>
-          {dirBtn(Direction.RIGHT, 'Right', ArrowRight)}
-          {dirBtn(Direction.DOWN_LEFT, 'Down-left', ArrowDownLeft)}
-          {dirBtn(Direction.DOWN, 'Down', ArrowDown)}
-          {dirBtn(Direction.DOWN_RIGHT, 'Down-right', ArrowDownRight)}
+          {dirBtn(Direction.RIGHT, t.aria.dir.right, ArrowRight)}
+          {dirBtn(Direction.DOWN_LEFT, t.aria.dir.downLeft, ArrowDownLeft)}
+          {dirBtn(Direction.DOWN, t.aria.dir.down, ArrowDown)}
+          {dirBtn(Direction.DOWN_RIGHT, t.aria.dir.downRight, ArrowDownRight)}
         </div>
 
         <div className={styles.actionCol}>
@@ -409,10 +409,10 @@ const MiniAdventure: React.FC = () => {
           {isCard && (
             <div className={styles.hintText}>{t.throwHint}: {['←', '→', '↑', '↓'].join(' ')}
               <div className={styles.itemActions}>
-                <button type="button" className={styles.smallBtn} onClick={() => activateSelectedItem(Direction.LEFT)} aria-label="Throw left">←</button>
-                <button type="button" className={styles.smallBtn} onClick={() => activateSelectedItem(Direction.UP)} aria-label="Throw up">↑</button>
-                <button type="button" className={styles.smallBtn} onClick={() => activateSelectedItem(Direction.DOWN)} aria-label="Throw down">↓</button>
-                <button type="button" className={styles.smallBtn} onClick={() => activateSelectedItem(Direction.RIGHT)} aria-label="Throw right">→</button>
+                <button type="button" className={styles.smallBtn} onClick={() => activateSelectedItem(Direction.LEFT)} aria-label={t.aria.throwDir.left}>←</button>
+                <button type="button" className={styles.smallBtn} onClick={() => activateSelectedItem(Direction.UP)} aria-label={t.aria.throwDir.up}>↑</button>
+                <button type="button" className={styles.smallBtn} onClick={() => activateSelectedItem(Direction.DOWN)} aria-label={t.aria.throwDir.down}>↓</button>
+                <button type="button" className={styles.smallBtn} onClick={() => activateSelectedItem(Direction.RIGHT)} aria-label={t.aria.throwDir.right}>→</button>
               </div>
             </div>
           )}

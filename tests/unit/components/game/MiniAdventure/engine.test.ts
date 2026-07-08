@@ -288,13 +288,24 @@ describe('items', () => {
     const potionIdx = state.player.inventory.findIndex(i => i.type === ItemType.POTION);
     expect(potionIdx).toBeGreaterThanOrEqual(0);
     state = processAction(state, { type: ActionType.USE_ITEM, itemIndex: potionIdx });
-    expect(state.player.hp).toBeGreaterThan(5);
-    expect(state.player.hp).toBeLessThanOrEqual(state.player.maxHp);
+    // maxHp is 30 at level 1, so healing 30 from 5 caps at maxHp.
+    expect(state.player.hp).toBe(state.player.maxHp);
   });
 
-  it('a fresh potion object heals 30', () => {
+  it('a potion heals exactly 30 HP when there is headroom', () => {
+    let state = createGameState('easy');
+    state.player.maxHp = 100;
+    state.player.hp = 40;
+    const potionIdx = state.player.inventory.findIndex(i => i.type === ItemType.POTION);
+    expect(potionIdx).toBeGreaterThanOrEqual(0);
+    state = processAction(state, { type: ActionType.USE_ITEM, itemIndex: potionIdx });
+    expect(state.player.hp).toBe(70); // 40 + 30
+  });
+
+  it('a fresh potion object is a potion with a 30 HP description', () => {
     const potion = createPotion();
     expect(potion.type).toBe(ItemType.POTION);
+    expect(potion.description).toContain('30');
   });
 });
 

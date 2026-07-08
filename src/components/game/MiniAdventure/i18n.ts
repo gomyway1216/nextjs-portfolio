@@ -60,6 +60,16 @@ export interface MiniAdventureStrings {
   tipsTitle: string;
   controlsList: string[];
   tips: string[];
+  // Accessibility labels (screen readers)
+  aria: {
+    surfaceMap: string;
+    floorMap: (floor: number) => string;
+    dir: Record<
+      'up' | 'down' | 'left' | 'right' | 'upLeft' | 'upRight' | 'downLeft' | 'downRight',
+      string
+    >;
+    throwDir: Record<'up' | 'down' | 'left' | 'right', string>;
+  };
 }
 
 const en: MiniAdventureStrings = {
@@ -131,6 +141,26 @@ const en: MiniAdventureStrings = {
     'Watch out for Worms — they eat your eggs!',
     'The Dragon resists magic — you must beat it in melee.',
   ],
+  aria: {
+    surfaceMap: 'Surface map',
+    floorMap: (floor: number) => `Dungeon floor ${floor}`,
+    dir: {
+      up: 'Move up',
+      down: 'Move down',
+      left: 'Move left',
+      right: 'Move right',
+      upLeft: 'Move up-left',
+      upRight: 'Move up-right',
+      downLeft: 'Move down-left',
+      downRight: 'Move down-right',
+    },
+    throwDir: {
+      up: 'Throw up',
+      down: 'Throw down',
+      left: 'Throw left',
+      right: 'Throw right',
+    },
+  },
 };
 
 const ja: MiniAdventureStrings = {
@@ -202,6 +232,26 @@ const ja: MiniAdventureStrings = {
     'ワームに注意 — 卵を食べられてしまう！',
     'ドラゴンは魔法に耐性 — 近接で倒すしかない。',
   ],
+  aria: {
+    surfaceMap: '地上マップ',
+    floorMap: (floor: number) => `ダンジョン ${floor} 階`,
+    dir: {
+      up: '上へ移動',
+      down: '下へ移動',
+      left: '左へ移動',
+      right: '右へ移動',
+      upLeft: '左上へ移動',
+      upRight: '右上へ移動',
+      downLeft: '左下へ移動',
+      downRight: '右下へ移動',
+    },
+    throwDir: {
+      up: '上へ投げる',
+      down: '下へ投げる',
+      left: '左へ投げる',
+      right: '右へ投げる',
+    },
+  },
 };
 
 export function getMiniAdventureStrings(language: GameLanguage): MiniAdventureStrings {

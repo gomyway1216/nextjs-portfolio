@@ -247,6 +247,9 @@ const JumpGame = () => {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      // Only act while a game is running; otherwise leave Space/ArrowUp to the
+      // page (scrolling, activating the difficulty-screen buttons, etc.).
+      if (!gameStateRef.current) return;
       // Only intercept the game controls; leave other keys (tab, devtools) alone.
       if (e.code === 'Space' || e.code === 'ArrowUp' || e.key === ' ' || e.key === 'ArrowUp') {
         e.preventDefault();
@@ -962,7 +965,10 @@ const JumpGame = () => {
           }}
         >
           {jumpCopy.infoSections.map((section, index) => {
-            const style = infoCardStyles[index];
+            // Fall back gracefully if more info sections than card styles are added.
+            const style =
+              (infoCardStyles as readonly (typeof infoCardStyles)[number][])[index] ??
+              { icon: '💡', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.1)', border: 'rgba(14, 165, 233, 0.3)' };
             return (
               <div
                 key={section.title}

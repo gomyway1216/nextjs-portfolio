@@ -127,7 +127,9 @@ export const checkCollision = (
 ): boolean => {
   const diffX = charX - objX;
   const diffY = charY - objY;
-  return Math.hypot(diffX, diffY) < charR + objR;
+  // Compare squared distances to skip the per-frame sqrt.
+  const combinedRadius = charR + objR;
+  return diffX * diffX + diffY * diffY < combinedRadius * combinedRadius;
 };
 
 /**

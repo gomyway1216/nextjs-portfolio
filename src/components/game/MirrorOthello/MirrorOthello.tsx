@@ -1,351 +1,352 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { RotateCcw } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-type Cell = -1 | 0 | 1;
+import {
+  Difficulty,
+  DifficultySelector,
+  GameStats,
+  GameTopBar,
+  InfoModal,
+} from '../common';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { chooseAIMove } from './ai';
+import {
+  advance,
+  AI,
+  Cell,
+  cellLabel,
+  countDiscs,
+  createInitialBoard,
+  EMPTY,
+  getValidMoves,
+  PLAYER,
+  pliesUntilMirror,
+  Point,
+  type GameResult,
+} from './engine';
+import { getMirrorOthelloStrings } from './i18n';
+import styles from './MirrorOthello.module.css';
+
 type Phase = 'menu' | 'playing' | 'gameover';
 
-type Result = 'player' | 'ai' | 'draw' | null;
-
-interface Point {
-  x: number;
-  y: number;
-}
-
 interface GameState {
-  phase: Phase;
   board: Cell[][];
   currentColor: Cell;
   validMoves: Point[];
   turnCount: number;
-  message: string;
-  result: Result;
-  stats: {
-    wins: number;
-    losses: number;
-    draws: number;
-  };
+  lastMove: Point | null;
+  result: GameResult | null;
 }
 
-const SIZE = 8;
-const PLAYER: Cell = 1;
-const AI: Cell = -1;
-const EMPTY: Cell = 0;
-const MIRROR_INTERVAL = 4;
-
-const DIRECTIONS: Point[] = [
-  { x: -1, y: -1 },
-  { x: 0, y: -1 },
-  { x: 1, y: -1 },
-  { x: -1, y: 0 },
-  { x: 1, y: 0 },
-  { x: -1, y: 1 },
-  { x: 0, y: 1 },
-  { x: 1, y: 1 },
-];
-
-const inside = (x: number, y: number) => x >= 0 && x < SIZE && y >= 0 && y < SIZE;
-
-const createInitialBoard = (): Cell[][] => {
-  const board: Cell[][] = Array.from({ length: SIZE }, () => Array(SIZE).fill(EMPTY) as Cell[]);
-  board[3][3] = AI;
-  board[4][4] = AI;
-  board[3][4] = PLAYER;
-  board[4][3] = PLAYER;
-  return board;
-};
-
-const getFlips = (board: Cell[][], x: number, y: number, color: Cell): Point[] => {
-  if (board[y][x] !== EMPTY) return [];
-
-  const flips: Point[] = [];
-
-  for (const dir of DIRECTIONS) {
-    const line: Point[] = [];
-    let cx = x + dir.x;
-    let cy = y + dir.y;
-
-    while (inside(cx, cy) && board[cy][cx] === -color) {
-      line.push({ x: cx, y: cy });
-      cx += dir.x;
-      cy += dir.y;
-    }
-
-    if (line.length > 0 && inside(cx, cy) && board[cy][cx] === color) {
-      flips.push(...line);
-    }
-  }
-
-  return flips;
-};
-
-const getValidMoves = (board: Cell[][], color: Cell): Point[] => {
-  const moves: Point[] = [];
-  for (let y = 0; y < SIZE; y += 1) {
-    for (let x = 0; x < SIZE; x += 1) {
-      if (getFlips(board, x, y, color).length > 0) {
-        moves.push({ x, y });
-      }
-    }
-  }
-  return moves;
-};
-
-const applyMove = (board: Cell[][], x: number, y: number, color: Cell): Cell[][] => {
-  const flips = getFlips(board, x, y, color);
-  if (flips.length === 0) return board;
-
-  const next = board.map((row) => [...row]) as Cell[][];
-  next[y][x] = color;
-  for (const point of flips) {
-    next[point.y][point.x] = color;
-  }
-  return next;
-};
-
-const mirrorHorizontally = (board: Cell[][]): Cell[][] => {
-  return board.map((row) => [...row].reverse() as Cell[]);
-};
-
-const countDiscs = (board: Cell[][]) => {
-  let black = 0;
-  let white = 0;
-  for (const row of board) {
-    for (const cell of row) {
-      if (cell === PLAYER) black += 1;
-      if (cell === AI) white += 1;
-    }
-  }
-  return { black, white };
-};
-
-const pickAIMove = (board: Cell[][], moves: Point[]): Point => {
-  let best = moves[0];
-  let bestScore = -Infinity;
-
-  for (const move of moves) {
-    const flips = getFlips(board, move.x, move.y, AI).length;
-    const cornerBonus = (move.x === 0 || move.x === 7) && (move.y === 0 || move.y === 7) ? 20 : 0;
-    const edgeBonus = move.x === 0 || move.x === 7 || move.y === 0 || move.y === 7 ? 4 : 0;
-
-    const nextBoard = applyMove(board, move.x, move.y, AI);
-    const playerMobility = getValidMoves(nextBoard, PLAYER).length;
-    const score = flips * 3 + cornerBonus + edgeBonus - playerMobility;
-
-    if (score > bestScore) {
-      bestScore = score;
-      best = move;
-    }
-  }
-
-  return best;
-};
-
-const cellLabel = (x: number, y: number): string => `${String.fromCharCode(97 + x)}${y + 1}`;
-
-const createInitialState = (): GameState => {
+const freshGame = (): GameState => {
   const board = createInitialBoard();
   return {
-    phase: 'menu',
     board,
     currentColor: PLAYER,
     validMoves: getValidMoves(board, PLAYER),
     turnCount: 0,
-    message: 'Start game',
+    lastMove: null,
     result: null,
-    stats: {
-      wins: 0,
-      losses: 0,
-      draws: 0,
-    },
   };
 };
 
-const playMove = (prev: GameState, point: Point, color: Cell): GameState => {
-  const flips = getFlips(prev.board, point.x, point.y, color);
-  if (flips.length === 0) {
-    return prev;
-  }
-
-  let board = applyMove(prev.board, point.x, point.y, color);
-  const turnCount = prev.turnCount + 1;
-  let message = `${color === PLAYER ? 'You' : 'AI'} played ${cellLabel(point.x, point.y)}.`;
-
-  if (turnCount % MIRROR_INTERVAL === 0) {
-    board = mirrorHorizontally(board);
-    message += ' Board mirrored!';
-  }
-
-  const nextColor = -color as Cell;
-  const nextMoves = getValidMoves(board, nextColor);
-
-  if (nextMoves.length > 0) {
-    return {
-      ...prev,
-      board,
-      currentColor: nextColor,
-      validMoves: nextMoves,
-      turnCount,
-      message,
-    };
-  }
-
-  const sameColorMoves = getValidMoves(board, color);
-  if (sameColorMoves.length > 0) {
-    return {
-      ...prev,
-      board,
-      currentColor: color,
-      validMoves: sameColorMoves,
-      turnCount,
-      message: `${message} ${nextColor === PLAYER ? 'You' : 'AI'} pass.`,
-    };
-  }
-
-  const counts = countDiscs(board);
-  let result: Result = 'draw';
-  if (counts.black > counts.white) result = 'player';
-  if (counts.white > counts.black) result = 'ai';
-  const nextStats = { ...prev.stats };
-  if (result === 'player') nextStats.wins += 1;
-  if (result === 'ai') nextStats.losses += 1;
-  if (result === 'draw') nextStats.draws += 1;
-
-  return {
-    ...prev,
-    board,
-    currentColor: EMPTY,
-    validMoves: [],
-    turnCount,
-    phase: 'gameover',
-    result,
-    message: `Game Over: You ${counts.black} - ${counts.white} AI`,
-    stats: nextStats,
-  };
-};
+const AI_DELAY_MS = 480;
+const FLIP_ANIM_MS = 500;
 
 export const MirrorOthello = () => {
   useFeatureLifecycle('game.mirror-othello');
-  const [game, setGame] = useState<GameState>(createInitialState);
+  const { language } = useGameLanguage();
+  const t = useMemo(() => getMirrorOthelloStrings(language), [language]);
 
-  const start = () => {
-    setGame((prev) => {
-      const board = createInitialBoard();
+  const [phase, setPhase] = useState<Phase>('menu');
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [game, setGame] = useState<GameState>(freshGame);
+  const [message, setMessage] = useState<string>('');
+  const [showInfo, setShowInfo] = useState(false);
+  const [flipping, setFlipping] = useState(false);
+  const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
+
+  const flipTimer = useRef<number | null>(null);
+  const aiTimer = useRef<number | null>(null);
+
+  const clearTimers = useCallback(() => {
+    if (flipTimer.current) window.clearTimeout(flipTimer.current);
+    if (aiTimer.current) window.clearTimeout(aiTimer.current);
+    flipTimer.current = null;
+    aiTimer.current = null;
+  }, []);
+
+  useEffect(() => () => clearTimers(), [clearTimers]);
+
+  const start = useCallback(() => {
+    clearTimers();
+    setGame(freshGame());
+    setMessage(t.yourTurn);
+    setFlipping(false);
+    setPhase('playing');
+  }, [clearTimers, t.yourTurn]);
+
+  const triggerFlipAnim = useCallback(() => {
+    setFlipping(true);
+    flipTimer.current = window.setTimeout(() => setFlipping(false), FLIP_ANIM_MS);
+  }, []);
+
+  /** Apply a single ply and derive the next UI state + messages. */
+  const commitMove = useCallback(
+    (prev: GameState, point: Point, color: Cell): GameState => {
+      const step = advance(prev.board, point, color, prev.turnCount);
+      if (!step) return prev;
+
+      const who = color === PLAYER ? t.you : t.ai;
+      let msg = t.played(who, cellLabel(point.x, point.y));
+      if (step.mirrored) {
+        msg += ` ${t.mirrored}`;
+        triggerFlipAnim();
+      }
+      if (step.passed) {
+        msg += ` ${step.nextColor === PLAYER ? t.youPass : t.aiPass}`;
+      }
+
+      if (step.gameOver) {
+        const counts = countDiscs(step.board);
+        const result: GameResult =
+          counts.player > counts.ai
+            ? 'player'
+            : counts.ai > counts.player
+              ? 'ai'
+              : 'draw';
+        setStats((s) => ({
+          wins: s.wins + (result === 'player' ? 1 : 0),
+          losses: s.losses + (result === 'ai' ? 1 : 0),
+          draws: s.draws + (result === 'draw' ? 1 : 0),
+        }));
+        setMessage(t.gameOver(counts.player, counts.ai));
+        setPhase('gameover');
+        return {
+          board: step.board,
+          currentColor: EMPTY,
+          validMoves: [],
+          turnCount: step.turnCount,
+          lastMove: point,
+          result,
+        };
+      }
+
+      if (!step.mirrored && !step.passed) {
+        setMessage(step.nextColor === PLAYER ? t.yourTurn : t.aiThinking);
+      } else {
+        setMessage(msg);
+      }
+
       return {
-        phase: 'playing',
-        board,
-        currentColor: PLAYER,
-        validMoves: getValidMoves(board, PLAYER),
-        turnCount: 0,
-        message: 'Your turn',
+        board: step.board,
+        currentColor: step.nextColor,
+        validMoves: step.nextMoves,
+        turnCount: step.turnCount,
+        lastMove: point,
         result: null,
-        stats: prev.stats,
       };
-    });
-  };
+    },
+    [t, triggerFlipAnim],
+  );
 
+  // AI turn driver.
   useEffect(() => {
-    if (game.phase !== 'playing' || game.currentColor !== AI) return;
+    if (phase !== 'playing' || game.currentColor !== AI) return;
     if (game.validMoves.length === 0) return;
 
-    const timer = window.setTimeout(() => {
+    aiTimer.current = window.setTimeout(() => {
       setGame((prev) => {
-        if (prev.phase !== 'playing' || prev.currentColor !== AI || prev.validMoves.length === 0) return prev;
-        const move = pickAIMove(prev.board, prev.validMoves);
-        return playMove(prev, move, AI);
+        if (prev.currentColor !== AI || prev.validMoves.length === 0) return prev;
+        const move = chooseAIMove(prev.board, difficulty, prev.turnCount);
+        if (!move) return prev;
+        return commitMove(prev, move, AI);
       });
-    }, 460);
+    }, AI_DELAY_MS);
 
-    return () => window.clearTimeout(timer);
-  }, [game.phase, game.currentColor, game.validMoves]);
+    return () => {
+      if (aiTimer.current) window.clearTimeout(aiTimer.current);
+      aiTimer.current = null;
+    };
+  }, [phase, game.currentColor, game.validMoves, game.turnCount, difficulty, commitMove]);
+
+  const onCellClick = useCallback(
+    (x: number, y: number) => {
+      if (phase !== 'playing') return;
+      setGame((prev) => {
+        if (prev.currentColor !== PLAYER) return prev;
+        if (!prev.validMoves.some((m) => m.x === x && m.y === y)) return prev;
+        return commitMove(prev, { x, y }, PLAYER);
+      });
+    },
+    [phase, commitMove],
+  );
 
   const counts = useMemo(() => countDiscs(game.board), [game.board]);
+  const untilMirror = pliesUntilMirror(game.turnCount);
+  const isPlayerTurn = phase === 'playing' && game.currentColor === PLAYER;
 
-  const onCellClick = (x: number, y: number) => {
-    if (game.phase !== 'playing' || game.currentColor !== PLAYER) return;
-    setGame((prev) => {
-      if (prev.phase !== 'playing' || prev.currentColor !== PLAYER) return prev;
-      return playMove(prev, { x, y }, PLAYER);
-    });
-  };
-
-  const isValidMove = (x: number, y: number): boolean => {
-    return game.validMoves.some((move) => move.x === x && move.y === y);
-  };
+  const validSet = useMemo(() => {
+    const set = new Set<string>();
+    if (isPlayerTurn) {
+      for (const m of game.validMoves) set.add(`${m.x},${m.y}`);
+    }
+    return set;
+  }, [game.validMoves, isPlayerTurn]);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #020617, #0f172a)', color: '#e2e8f0', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>Mirror Othello</h1>
-        <p style={{ marginTop: '0.5rem', color: '#94a3b8' }}>4手ごとに盤面が左右反転。角取り戦略が突然崩れるオセロ。</p>
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        overflow: 'auto',
+        background: 'var(--games-route-bg, #050505)',
+        color: 'var(--games-route-fg, #f5f5f7)',
+      }}
+    >
+      <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} />
 
-        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.35rem 0.8rem', background: '#0f172a' }}>You: {counts.black}</span>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.35rem 0.8rem', background: '#0f172a' }}>AI: {counts.white}</span>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.35rem 0.8rem', background: '#0f172a' }}>Turn: {game.turnCount}</span>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.35rem 0.8rem', background: '#0f172a' }}>Stats {game.stats.wins}W-{game.stats.losses}L-{game.stats.draws}D</span>
-        </div>
+      <div className={styles.page} style={{ marginTop: '4.5rem' }}>
+        {phase === 'menu' ? (
+          <DifficultySelector
+            title={t.title}
+            subtitle={t.subtitle}
+            icon={<span style={{ fontSize: '2.75rem' }}>🔄</span>}
+            selectedDifficulty={difficulty}
+            onSelectDifficulty={setDifficulty}
+            options={t.difficultyOptions}
+            onStart={start}
+            difficultyTitle={t.selectDifficulty}
+            startLabel={t.start}
+          />
+        ) : (
+          <>
+            <header className={styles.header}>
+              <h1 className={styles.title}>{t.title}</h1>
+              <p className={styles.subtitle}>{t.subtitle}</p>
+            </header>
 
-        <div style={{ marginBottom: '0.75rem', minHeight: '1.4rem', color: '#cbd5e1' }}>{game.message}</div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${SIZE}, minmax(38px, 56px))`, gap: '6px', maxWidth: '520px' }}>
-          {game.board.flatMap((row, y) =>
-            row.map((cell, x) => {
-              const canPlay = game.phase === 'playing' && game.currentColor === PLAYER && isValidMove(x, y);
-              return (
-                <button
-                  key={`${x}-${y}`}
-                  onClick={() => onCellClick(x, y)}
-                  disabled={!canPlay}
-                  style={{
-                    aspectRatio: '1 / 1',
-                    border: '1px solid #334155',
-                    borderRadius: '8px',
-                    background: '#065f46',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: canPlay ? 'pointer' : 'default',
-                    position: 'relative',
-                    padding: 0,
-                  }}
+            <div className={styles.statusBar}>
+              <span className={styles.scorePill} data-active={isPlayerTurn}>
+                <span className={`${styles.disc} ${styles.discDark}`} aria-hidden />
+                {t.you}: {counts.player}
+              </span>
+              <span
+                className={styles.scorePill}
+                data-active={phase === 'playing' && game.currentColor === AI}
+              >
+                <span className={`${styles.disc} ${styles.discLight}`} aria-hidden />
+                {t.ai}: {counts.ai}
+              </span>
+              {phase === 'playing' && (
+                <span
+                  className={styles.mirrorPill}
+                  data-imminent={untilMirror === 1}
+                  aria-live="polite"
                 >
-                  {cell !== EMPTY && (
-                    <span
-                      style={{
-                        width: '75%',
-                        height: '75%',
-                        borderRadius: '999px',
-                        background: cell === PLAYER ? '#111827' : '#f8fafc',
-                        border: cell === PLAYER ? '1px solid #6b7280' : '1px solid #94a3b8',
-                        display: 'block',
-                      }}
-                    />
-                  )}
-                  {cell === EMPTY && canPlay && (
-                    <span style={{ width: '26%', height: '26%', borderRadius: '999px', background: 'rgba(251, 191, 36, 0.95)' }} />
-                  )}
-                </button>
-              );
-            }),
-          )}
-        </div>
-
-        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-          <button
-            onClick={start}
-            style={{ background: '#22c55e', border: 'none', borderRadius: '10px', padding: '0.62rem 1rem', fontWeight: 700, cursor: 'pointer' }}
-          >
-            {game.phase === 'playing' ? 'Restart' : game.phase === 'gameover' ? 'Play Again' : 'Start'}
-          </button>
-          {game.phase === 'gameover' && game.result && (
-            <div style={{ alignSelf: 'center', color: game.result === 'player' ? '#86efac' : game.result === 'ai' ? '#fda4af' : '#fde68a' }}>
-              {game.result === 'player' ? 'You Win' : game.result === 'ai' ? 'AI Wins' : 'Draw'}
+                  🔄 {t.untilMirror(untilMirror)}
+                </span>
+              )}
             </div>
-          )}
-        </div>
+
+            <div className={styles.message} role="status" aria-live="polite">
+              {message}
+            </div>
+
+            <div className={styles.boardWrap}>
+              <div
+                className={styles.board}
+                data-flipping={flipping}
+                role="grid"
+                aria-label={t.title}
+              >
+                {game.board.flatMap((row, y) =>
+                  row.map((cell, x) => {
+                    const playable = validSet.has(`${x},${y}`);
+                    const isLast =
+                      game.lastMove?.x === x && game.lastMove?.y === y;
+                    return (
+                      <button
+                        key={`${x}-${y}`}
+                        type="button"
+                        className={styles.cell}
+                        data-playable={playable}
+                        data-last={isLast}
+                        onClick={() => onCellClick(x, y)}
+                        disabled={!playable}
+                        aria-label={
+                          cellLabel(x, y) +
+                          (cell === PLAYER
+                            ? ` — ${t.you}`
+                            : cell === AI
+                              ? ` — ${t.ai}`
+                              : playable
+                                ? ` — ${t.legalHint}`
+                                : '')
+                        }
+                      >
+                        {cell !== EMPTY && (
+                          <span
+                            className={`${styles.stone} ${
+                              cell === PLAYER ? styles.stoneDark : styles.stoneLight
+                            }`}
+                          />
+                        )}
+                        {cell === EMPTY && playable && (
+                          <span className={styles.hint} aria-hidden />
+                        )}
+                      </button>
+                    );
+                  }),
+                )}
+              </div>
+            </div>
+
+            <div className={styles.controls}>
+              <button
+                type="button"
+                className={styles.restartButton}
+                onClick={start}
+              >
+                <RotateCcw size={18} aria-hidden />
+                {phase === 'gameover' ? t.playAgain : t.restart}
+              </button>
+              {phase === 'gameover' && game.result && (
+                <div
+                  className={`${styles.result} ${
+                    game.result === 'player'
+                      ? styles.resultWin
+                      : game.result === 'ai'
+                        ? styles.resultLose
+                        : styles.resultDraw
+                  }`}
+                >
+                  {game.result === 'player'
+                    ? t.youWin
+                    : game.result === 'ai'
+                      ? t.aiWins
+                      : t.draw}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
+
+      <InfoModal
+        isOpen={showInfo}
+        onClose={() => setShowInfo(false)}
+        title={t.infoTitle}
+      >
+        <ul className={styles.infoList}>
+          {t.howToPlay.map((line, i) => (
+            <li key={i}>{line}</li>
+          ))}
+        </ul>
+      </InfoModal>
     </div>
   );
 };

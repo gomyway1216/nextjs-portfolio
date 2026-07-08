@@ -132,8 +132,12 @@
 }
 .rulesList li { margin-bottom: 0.2rem; }
 
-/* Center the RuleConfigEditor block the parent renders. */
-.setupCard > :global(div) { align-self: center; }
+/* Center only the RuleConfigEditor block (its root <div> carries no module
+   class). Excluding our own classed divs keeps .diffGrid / .rulesBox / etc.
+   full-width under the card's `align-items: stretch`. */
+.setupCard > :global(div):not(.setupIcon):not(.diffGrid):not(.rulesBox) {
+  align-self: center;
+}
 
 /* Light mode */
 :global(html.light) .setupRoot,

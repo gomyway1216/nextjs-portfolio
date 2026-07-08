@@ -295,6 +295,10 @@ interface GameSolution {
 }
 
 export function solveZeroSumGame(matrix: number[][], iterations = 2000): GameSolution {
+  // Defensive: iterations is the divisor for the strategy/value averages, so a
+  // non-positive or non-finite value would produce NaN probabilities. Clamp it.
+  iterations = Number.isFinite(iterations) ? Math.max(1, Math.floor(iterations)) : 2000;
+
   const rows = matrix.length;
   const cols = matrix[0]?.length ?? 0;
 

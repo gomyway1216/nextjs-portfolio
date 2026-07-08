@@ -167,6 +167,22 @@ describe('solveZeroSumGame', () => {
     expect(value).toBe(-2); // row plays its only action; opponent minimises
     expect(strategy).toEqual([1]);
   });
+
+  it('clamps invalid iteration counts instead of producing NaN', () => {
+    for (const bad of [0, -50, NaN]) {
+      const { value, strategy } = solveZeroSumGame(
+        [
+          [1, -1],
+          [-1, 1],
+        ],
+        bad,
+      );
+      expect(Number.isNaN(value)).toBe(false);
+      const sum = strategy.reduce((a, b) => a + b, 0);
+      expect(sum).toBeCloseTo(1, 5);
+      for (const p of strategy) expect(Number.isNaN(p)).toBe(false);
+    }
+  });
 });
 
 describe('hard AI is not exploitable by a fixed counter', () => {

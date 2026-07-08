@@ -33,7 +33,6 @@ export const PlayTab = ({ t }: { t: BirthdayStrings }) => {
   const dealTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const collision = useMemo(() => findFirstCollision(birthdays), [birthdays]);
   const currentStats = stats[n] ?? { trials: 0, matches: 0 };
   const dealing = revealed < birthdays.length;
 
@@ -99,21 +98,23 @@ export const PlayTab = ({ t }: { t: BirthdayStrings }) => {
     if (autoTimer.current) clearInterval(autoTimer.current);
   }, []);
 
-  // Changing the group size stops any auto-deal loop and clamps the reveal
-  // count so we never show more chips than the new group has.
+  // Changing the group size stops any auto-deal loop and shows a fresh group of
+  // that size immediately (without recording a trial), so the chips, status and
+  // stats stay consistent with the slider value.
   const changeN = (next: number) => {
     setN(next);
     setAutoDeal(false);
     clearDealTimer();
-    setRevealed((r) => Math.min(r, next));
+    setBirthdays(generateBirthdays(next));
+    setRevealed(next);
   };
 
   const reset = () => setStats({});
 
   const empirical = currentStats.trials === 0 ? null : currentStats.matches / currentStats.trials;
   const theoretical = theoreticalMatchProb(n);
-  const visible = birthdays.slice(0, revealed);
-  const visibleCollision = findFirstCollision(visible);
+  const visible = useMemo(() => birthdays.slice(0, revealed), [birthdays, revealed]);
+  const visibleCollision = useMemo(() => findFirstCollision(visible), [visible]);
 
   return (
     <div className={styles.grid}>
@@ -178,7 +179,7 @@ export const PlayTab = ({ t }: { t: BirthdayStrings }) => {
 
         <div className={styles.chips} aria-label={`${visible.length} ${t.person}`}>
           {visible.map((d, i) => {
-            const isMatch = collision !== null && collision.day === d && i <= revealed;
+            const isMatch = visibleCollision !== null && visibleCollision.day === d;
             return (
               <span
                 key={i}

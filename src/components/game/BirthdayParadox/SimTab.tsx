@@ -42,8 +42,10 @@ export const SimTab = ({ t, language }: SimTabProps) => {
     runningRef.current = true;
     setRunning(true);
     setResult(null);
-    const safeMaxN = clamp(maxN, LIMITS.maxN.min, LIMITS.maxN.max);
-    const safeTrials = clamp(trialsPerN, LIMITS.trialsPerN.min, LIMITS.trialsPerN.max);
+    // Floor to integers: runBirthdaySweepAsync requires Number.isInteger and
+    // throws otherwise, so a decimal typed into the fields must be normalized.
+    const safeMaxN = Math.floor(clamp(maxN, LIMITS.maxN.min, LIMITS.maxN.max));
+    const safeTrials = Math.floor(clamp(trialsPerN, LIMITS.trialsPerN.min, LIMITS.trialsPerN.max));
     setProgress({ done: 0, total: safeMaxN });
 
     const controller = new AbortController();

@@ -43,7 +43,8 @@ export interface GameState {
 
 /**
  * Base (spawn-state) tetromino matrices.
- * I and O use a 4x4 grid; the rest use a 3x3 grid so SRS rotation is centred.
+ * I uses a 4x4 grid and O a 2x2 grid (O is rotation-invariant); the rest use a
+ * 3x3 grid so SRS rotation stays centred.
  */
 export const SHAPES: Record<TetrominoType, number[][]> = {
   I: [

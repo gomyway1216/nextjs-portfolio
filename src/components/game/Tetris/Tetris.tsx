@@ -93,6 +93,15 @@ const Tetris = () => {
   const pausedRef = useRef(false);
   const difficultyRef = useRef<Difficulty>('medium');
   const animatingRef = useRef(false);
+  const clearTimerRef = useRef<number | null>(null);
+
+  const cancelClearTimer = useCallback(() => {
+    if (clearTimerRef.current !== null) {
+      clearTimeout(clearTimerRef.current);
+      clearTimerRef.current = null;
+    }
+    animatingRef.current = false;
+  }, []);
 
   const DIFFICULTY_OPTIONS = useMemo(
     () => [
@@ -136,8 +145,10 @@ const Tetris = () => {
         s.lines += cleared;
         s.level = getLevel(s.lines);
         s.score += calculateScore(cleared, s.level);
-        updateHighScore(s.score);
       }
+      // Persist the high score on every lock so soft/hard-drop points aren't
+      // lost when a piece locks (or the game ends) without clearing a line.
+      updateHighScore(s.score);
       s.board = boardAfter;
       const alive = spawnFromQueue(s);
       sync();
@@ -152,7 +163,14 @@ const Tetris = () => {
       animatingRef.current = true;
       setClearingRows(full);
       sync();
-      window.setTimeout(() => {
+      clearTimerRef.current = window.setTimeout(() => {
+        clearTimerRef.current = null;
+        // Bail out if the game was reset / left / unmounted during the animation
+        // (the state object we captured is no longer the active one).
+        if (stateRef.current !== s) {
+          animatingRef.current = false;
+          return;
+        }
         const { newBoard } = clearLines(merged);
         setClearingRows([]);
         animatingRef.current = false;
@@ -169,12 +187,20 @@ const Tetris = () => {
     return !s || s.gameOver || pausedRef.current || animatingRef.current;
   };
 
-  const resetLockIfGrounded = (s: RunningState) => {
-    const grounded = !isValidPosition(s.board, {
+  // Whether the piece at its CURRENT position is resting on the stack/floor.
+  const isGrounded = (s: RunningState) =>
+    !isValidPosition(s.board, {
       ...s.current,
       position: { ...s.current.position, y: s.current.position.y + 1 },
     });
-    if (grounded && lockResetsRef.current < MAX_LOCK_RESETS) {
+
+  // Reset the lock-delay timer after a successful move/rotate. `wasGrounded`
+  // is measured BEFORE the move: if the piece was resting and the action kept
+  // it in play (including a kick that lifts it off the floor), the accumulated
+  // lock progress must be cleared so it doesn't lock prematurely. Capped by
+  // MAX_LOCK_RESETS to prevent infinite stalling.
+  const resetLockAfterAction = (wasGrounded: boolean) => {
+    if (wasGrounded && lockResetsRef.current < MAX_LOCK_RESETS) {
       lockTimerRef.current = 0;
       lockResetsRef.current += 1;
     }
@@ -184,10 +210,11 @@ const Tetris = () => {
     (dx: number) => {
       if (isBusy()) return;
       const s = stateRef.current!;
+      const wasGrounded = isGrounded(s);
       const moved = { ...s.current, position: { x: s.current.position.x + dx, y: s.current.position.y } };
       if (isValidPosition(s.board, moved)) {
         s.current = moved;
-        resetLockIfGrounded(s);
+        resetLockAfterAction(wasGrounded);
         sync();
       }
     },
@@ -198,10 +225,11 @@ const Tetris = () => {
     (dir: 1 | -1) => {
       if (isBusy()) return;
       const s = stateRef.current!;
+      const wasGrounded = isGrounded(s);
       const r = tryRotate(s.board, s.current, dir);
       if (r) {
         s.current = r;
-        resetLockIfGrounded(s);
+        resetLockAfterAction(wasGrounded);
         sync();
       }
     },
@@ -239,7 +267,16 @@ const Tetris = () => {
     } else {
       const swap = s.hold;
       s.hold = currentType;
-      s.current = createTetromino(swap);
+      const piece = createTetromino(swap);
+      s.current = piece;
+      // Block-out: if the held piece can't spawn, end the game cleanly like
+      // spawnFromQueue does rather than leaving an overlapping piece in play.
+      if (!isValidPosition(s.board, piece)) {
+        s.gameOver = true;
+        sync();
+        setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+        return;
+      }
     }
     s.canHold = false;
     lockTimerRef.current = 0;
@@ -318,6 +355,7 @@ const Tetris = () => {
   }, []);
 
   const initGame = useCallback(() => {
+    cancelClearTimer();
     const queue = refillQueue([], NEXT_QUEUE_SIZE);
     const first = queue.shift()!;
     const s: RunningState = {
@@ -335,13 +373,12 @@ const Tetris = () => {
     lockTimerRef.current = 0;
     lockResetsRef.current = 0;
     softDropRef.current = false;
-    animatingRef.current = false;
     setClearingRows([]);
     pausedRef.current = false;
     setIsPaused(false);
     setView({ ...s });
     startLoop();
-  }, [startLoop]);
+  }, [startLoop, cancelClearTimer]);
 
   const togglePause = useCallback(() => {
     const s = stateRef.current;
@@ -425,10 +462,13 @@ const Tetris = () => {
     difficultyRef.current = difficulty;
   }, [difficulty]);
 
-  // Cleanup RAF on unmount.
+  // Cleanup RAF and any pending line-clear timeout on unmount. Clearing
+  // stateRef lets any in-flight async callback bail out safely.
   useEffect(() => {
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (clearTimerRef.current !== null) clearTimeout(clearTimerRef.current);
+      stateRef.current = null;
     };
   }, []);
 
@@ -441,7 +481,9 @@ const Tetris = () => {
 
   const backToMenu = () => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    cancelClearTimer();
     stateRef.current = null;
+    setClearingRows([]);
     setView(null);
     setShowDifficultySelect(true);
   };

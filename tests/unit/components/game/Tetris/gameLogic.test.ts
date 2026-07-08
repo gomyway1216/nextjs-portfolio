@@ -155,6 +155,15 @@ describe('collision / bounds', () => {
     // Shifted up by one row there is no overlap.
     expect(isValidPosition(board, { ...t, position: { x: 3, y: y - 1 } })).toBe(true);
   });
+
+  it('a fresh piece spawning into a filled top is invalid (block-out)', () => {
+    const board = createEmptyBoard();
+    // Fill the spawn rows so no new piece can appear cleanly.
+    for (let y = 0; y < 4; y++) board[y] = filledRow();
+    for (const type of ALL_TYPES) {
+      expect(isValidPosition(board, createTetromino(type))).toBe(false);
+    }
+  });
 });
 
 describe('line clearing', () => {

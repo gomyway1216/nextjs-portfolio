@@ -105,6 +105,35 @@ describe('generateMaze solvability', () => {
     expect(grid[8][8]).toBe(OPEN);
     expect(isSolvable(grid, { x: 0, y: 0 }, { x: 8, y: 8 })).toBe(true);
   });
+
+  it('effective wall density is meaningful and tracks the requested density', () => {
+    const size = 15;
+    const interior = size * size - 2; // exclude start + goal
+    const countWalls = (g: ReturnType<typeof generateMaze>) => g.flat().filter((c) => c === WALL).length;
+
+    // Average effective density over several seeds should be close to the
+    // requested density (walls that would block the path get reverted, so it
+    // never exceeds the target and stays within a reasonable band below it).
+    const measure = (density: number) => {
+      let walls = 0;
+      const runs = 12;
+      for (let s = 0; s < runs; s += 1) {
+        walls += countWalls(generateMaze(size, density, seeded(100 + s)));
+      }
+      return walls / runs / interior;
+    };
+
+    const low = measure(0.1);
+    const high = measure(0.3);
+    // Denser request -> denser maze.
+    expect(high).toBeGreaterThan(low);
+    // Never exceeds the requested target (we only add up to floor(interior*d)).
+    expect(low).toBeLessThanOrEqual(0.1 + 1e-9);
+    expect(high).toBeLessThanOrEqual(0.3 + 1e-9);
+    // Achieves a substantial fraction of the target (not near-zero).
+    expect(low).toBeGreaterThan(0.05);
+    expect(high).toBeGreaterThan(0.18);
+  });
 });
 
 describe('buildMaze', () => {

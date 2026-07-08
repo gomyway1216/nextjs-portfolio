@@ -160,11 +160,10 @@ export const isSolvable = (grid: Grid, start: Position, goal: Position): boolean
 /**
  * Generate a solvable maze.
  *
- * Strategy:
- *  1. Carve a guaranteed winding corridor from start to goal (random walk that
- *     always makes progress) so a solution ALWAYS exists.
- *  2. Sprinkle additional walls on non-corridor cells up to `wallDensity`,
- *     re-checking solvability so we never block the only path.
+ * Strategy: start from a fully-open board and re-wall random interior cells up
+ * to `wallDensity`, reverting any wall that would sever the only start->goal
+ * path. Since walls are only ever kept when the maze stays solvable, a solution
+ * ALWAYS exists by construction.
  *
  * `rng` defaults to Math.random but can be injected for deterministic tests.
  */
@@ -177,65 +176,16 @@ export const generateMaze = (
   const start: Position = { x: 0, y: 0 };
   const goal: Position = { x: clampedSize - 1, y: clampedSize - 1 };
 
-  // Start fully walled, then carve.
+  // Start from a fully-open board (which is trivially solvable), then re-wall
+  // random interior cells up to `wallDensity`, reverting any wall that would cut
+  // the only path. Because we only ever add walls that keep start->goal
+  // reachable, the maze is ALWAYS solvable by construction, and the density
+  // parameter is meaningful: the final wall count targets `wallDensity` of the
+  // interior cells (effective density can be slightly lower on tight maps where
+  // some candidate walls are load-bearing and get reverted).
   const grid: Grid = Array.from({ length: clampedSize }, () =>
-    Array.from<Cell>({ length: clampedSize }).fill(WALL),
+    Array.from<Cell>({ length: clampedSize }).fill(OPEN),
   );
-
-  // 1. Carve a guaranteed corridor via a biased random walk toward the goal.
-  const corridor = new Set<string>();
-  let cx = start.x;
-  let cy = start.y;
-  grid[cy][cx] = OPEN;
-  corridor.add(`${cx},${cy}`);
-
-  let guard = clampedSize * clampedSize * 8;
-  while ((cx !== goal.x || cy !== goal.y) && guard-- > 0) {
-    // 65% of the time step toward the goal, otherwise wander (keeps it winding).
-    const towardGoal = rng() < 0.65;
-    let dx = 0;
-    let dy = 0;
-    if (towardGoal) {
-      const preferX = Math.abs(goal.x - cx) >= Math.abs(goal.y - cy);
-      if (preferX && cx !== goal.x) dx = goal.x > cx ? 1 : -1;
-      else if (cy !== goal.y) dy = goal.y > cy ? 1 : -1;
-      else dx = goal.x > cx ? 1 : -1;
-    } else {
-      const dir = DIRECTIONS[Math.floor(rng() * DIRECTIONS.length)];
-      dx = dir.x;
-      dy = dir.y;
-    }
-    const nx = cx + dx;
-    const ny = cy + dy;
-    if (!inBounds(grid, nx, ny)) continue;
-    cx = nx;
-    cy = ny;
-    grid[cy][cx] = OPEN;
-    corridor.add(`${cx},${cy}`);
-  }
-
-  // Safety net: if the walk somehow didn't reach the goal, carve an L-path.
-  if (grid[goal.y][goal.x] === WALL || !isSolvable(grid, start, goal)) {
-    for (let x = 0; x < clampedSize; x += 1) {
-      grid[0][x] = OPEN;
-      corridor.add(`${x},0`);
-    }
-    for (let y = 0; y < clampedSize; y += 1) {
-      grid[y][clampedSize - 1] = OPEN;
-      corridor.add(`${clampedSize - 1},${y}`);
-    }
-  }
-
-  // 2. Open up some extra cells to create branches, then re-add walls up to the
-  // density. First open everything not yet open, then re-wall randomly while
-  // keeping solvable — this yields organic, memorizable layouts.
-  for (let y = 0; y < clampedSize; y += 1) {
-    for (let x = 0; x < clampedSize; x += 1) {
-      if (grid[y][x] === WALL && rng() < 0.55) {
-        grid[y][x] = OPEN;
-      }
-    }
-  }
 
   const interior: Position[] = [];
   for (let y = 0; y < clampedSize; y += 1) {
@@ -250,12 +200,11 @@ export const generateMaze = (
     [interior[i], interior[j]] = [interior[j], interior[i]];
   }
 
-  const targetWalls = Math.floor(interior.length * wallDensity) + corridorWallBudget(clampedSize, wallDensity);
-  let wallsAdded = grid.flat().filter((c) => c === WALL).length;
+  const targetWalls = Math.floor(interior.length * wallDensity);
+  let wallsAdded = 0;
 
   for (const cell of interior) {
     if (wallsAdded >= targetWalls) break;
-    if (grid[cell.y][cell.x] === WALL) continue;
     grid[cell.y][cell.x] = WALL;
     if (isSolvable(grid, start, goal)) {
       wallsAdded += 1;
@@ -268,9 +217,6 @@ export const generateMaze = (
   grid[goal.y][goal.x] = OPEN;
   return grid;
 };
-
-const corridorWallBudget = (size: number, density: number): number =>
-  Math.floor(size * size * density * 0.4);
 
 export interface StageConfig {
   size: number;

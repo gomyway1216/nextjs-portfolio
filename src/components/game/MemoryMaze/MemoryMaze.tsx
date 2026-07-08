@@ -370,7 +370,13 @@ export const MemoryMaze = () => {
                   style={{ width: cellSize, height: cellSize }}
                   role="gridcell"
                   aria-label={
-                    isPlayer ? 'player' : isGoal ? 'goal' : isWall && wallVisible ? 'wall' : 'path'
+                    isPlayer
+                      ? t.cellPlayer
+                      : isGoal
+                        ? t.cellGoal
+                        : isWall && wallVisible
+                          ? t.cellWall
+                          : t.cellPath
                   }
                 />
               );

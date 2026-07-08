@@ -38,6 +38,11 @@ export interface MemoryMazeStrings {
   howToBody: string[];
   controls: string;
   controlsDetail: string;
+  // Grid cell aria-labels (for screen readers)
+  cellPlayer: string;
+  cellGoal: string;
+  cellWall: string;
+  cellPath: string;
 }
 
 const en: MemoryMazeStrings = {
@@ -79,6 +84,10 @@ const en: MemoryMazeStrings = {
   ],
   controls: 'Controls',
   controlsDetail: 'Arrow keys / WASD, on-screen D-pad, or swipe on touch devices.',
+  cellPlayer: 'player',
+  cellGoal: 'goal',
+  cellWall: 'wall',
+  cellPath: 'path',
 };
 
 const ja: MemoryMazeStrings = {
@@ -120,6 +129,10 @@ const ja: MemoryMazeStrings = {
   ],
   controls: '操作',
   controlsDetail: '矢印キー / WASD、画面上の十字キー、タッチではスワイプで移動。',
+  cellPlayer: 'プレイヤー',
+  cellGoal: 'ゴール',
+  cellWall: '壁',
+  cellPath: '通路',
 };
 
 export const getStrings = (language: GameLanguage): MemoryMazeStrings =>

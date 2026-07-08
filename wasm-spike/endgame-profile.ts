@@ -122,7 +122,9 @@ function main(): void {
         const list = GenerateMovesImproved.generatePseudoLegalMovesPooled(k, pool);
         for (let j = 0; j < list.length; j++) {
           const te = list[j];
-          te.capture = k.get(te.to);
+          // generatePseudoLegalMovesPooled already set te.capture correctly
+          // (k.get(to) for board moves, EMPTY for drops), so no re-read is
+          // needed here — that keeps this loop timing pure legality work.
           k.move(te);
           GenerateMovesImproved.isKingInCheck(k, k.teban);
           k.back(te);

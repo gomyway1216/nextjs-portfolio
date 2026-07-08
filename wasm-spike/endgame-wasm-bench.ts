@@ -87,7 +87,9 @@ function main(): void {
       wasm.setRootTesu(p.tesu);
       const t0 = performance.now();
       const key = wasm.searchBestMove(budgetMs, 32, 10);
-      const dt = performance.now() - t0;
+      // Guard against a 0ms measurement (instant book/mate hit or coarse timer)
+      // so the nps division below can't produce Infinity/NaN.
+      const dt = Math.max(0.1, performance.now() - t0);
       const nodes = wasm.getSearchNodes();
       const leaves = wasm.getSearchLeaves();
       const total = nodes + leaves;

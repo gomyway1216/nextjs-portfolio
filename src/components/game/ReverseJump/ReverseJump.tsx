@@ -36,6 +36,8 @@ interface Runtime {
   nextObstacleId: number;
   wantJump: boolean;
   duckHeld: boolean;
+  /** accumulated ground-scroll offset (world units) for motion hatching */
+  groundOffset: number;
 }
 
 const FLIP_WARN_MS = 1600;
@@ -52,6 +54,7 @@ const createRuntime = (config = DIFFICULTY_CONFIG.medium): Runtime => ({
   nextObstacleId: 1,
   wantJump: false,
   duckHeld: false,
+  groundOffset: 0,
 });
 
 export const ReverseJump = () => {
@@ -75,6 +78,9 @@ export const ReverseJump = () => {
   const rafRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
   const hudAccumRef = useRef(0);
+  // Keep the latest high score in a ref so the game loop never reads a stale
+  // closure value (useHighScore may resolve its Firebase sync mid-game).
+  const highScoreRef = useRef(highScore);
 
   useEffect(() => {
     phaseRef.current = phase;
@@ -82,6 +88,9 @@ export const ReverseJump = () => {
   useEffect(() => {
     difficultyRef.current = difficulty;
   }, [difficulty]);
+  useEffect(() => {
+    highScoreRef.current = highScore;
+  }, [highScore]);
 
   const config = DIFFICULTY_CONFIG[difficulty];
 
@@ -151,8 +160,16 @@ export const ReverseJump = () => {
         }
         return;
       }
-      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown') {
-        e.preventDefault();
+      // Only swallow the browser's default (page scroll) for keys we actually
+      // consume, so idle screens still scroll normally with the keyboard.
+      if (phaseRef.current === 'playing') {
+        if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+          e.preventDefault();
+        }
+      } else if (phaseRef.current === 'menu' || phaseRef.current === 'gameover') {
+        if (e.code === 'Space' || e.code === 'Enter') {
+          e.preventDefault();
+        }
       }
       if (e.repeat) return;
 
@@ -250,7 +267,7 @@ export const ReverseJump = () => {
     // Subtle ground hatching for a sense of motion
     ctx.strokeStyle = 'rgba(148,163,184,0.18)';
     ctx.lineWidth = 1;
-    const dashOffset = (Date.now() / 8) % 40;
+    const dashOffset = rt.groundOffset;
     for (let x = -dashOffset; x < WORLD.width; x += 40) {
       ctx.beginPath();
       ctx.moveTo(x, WORLD.groundY + 8);
@@ -339,6 +356,9 @@ export const ReverseJump = () => {
 
       // Scroll + spawn
       const speed = speedForScore(rt.score, cfg);
+      // Advance the ground hatching in lockstep with the world scroll so the
+      // motion visually matches the obstacle speed (40 = hatch pitch).
+      rt.groundOffset = (rt.groundOffset + speed * dt) % 40;
       rt.spawnTimer -= dt;
       for (const obs of rt.obstacles) {
         obs.x -= speed * dt;
@@ -377,7 +397,7 @@ export const ReverseJump = () => {
 
       if (dead) {
         const finalScore = rt.score;
-        if (finalScore > highScore) {
+        if (finalScore > highScoreRef.current) {
           setIsNewBest(true);
           updateHighScore(finalScore);
         }
@@ -395,7 +415,8 @@ export const ReverseJump = () => {
         rafRef.current = null;
       }
     };
-    // draw is stable via useCallback; highScore/updateHighScore intentionally captured fresh per start.
+    // draw is stable via useCallback; high score is read through highScoreRef and
+    // updateHighScore is a stable callback, so the loop only needs to re-run on phase.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 

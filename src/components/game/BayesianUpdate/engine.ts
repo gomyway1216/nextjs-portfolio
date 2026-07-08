@@ -31,6 +31,26 @@ export function posteriorStd(p: Posterior): number {
   return Math.sqrt(posteriorVariance(p));
 }
 
+/**
+ * Posterior mode (MAP estimate) — the location that maximises the Beta density.
+ * The Beta density's shape depends on where α, β sit relative to 1:
+ *   - α > 1, β > 1  → single interior peak at (α−1)/(α+β−2).
+ *   - α ≤ 1, β > 1  → strictly decreasing, peak at the 0 boundary.
+ *   - α > 1, β ≤ 1  → strictly increasing, peak at the 1 boundary.
+ *   - α < 1, β < 1  → U-shaped: bimodal at BOTH 0 and 1 (no single mode).
+ *   - α = 1, β = 1  → uniform (every point is a maximum; no unique mode).
+ * The last two cases have no single MAP value, so we return `null`; callers
+ * should render them as "no unique mode" rather than a fabricated number.
+ */
+export function posteriorMode(p: Posterior): number | null {
+  const { alpha, beta } = p;
+  if (alpha > 1 && beta > 1) return (alpha - 1) / (alpha + beta - 2);
+  if (alpha > 1 && beta <= 1) return 1;
+  if (alpha <= 1 && beta > 1) return 0;
+  // α ≤ 1 and β ≤ 1: uniform (1,1) or U-shaped bimodal — no unique interior mode.
+  return null;
+}
+
 /** ln(Γ(z)) via Lanczos approximation. */
 function logGamma(z: number): number {
   if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - logGamma(1 - z);
@@ -49,6 +69,87 @@ function logGamma(z: number): number {
 
 export function logBeta(a: number, b: number): number {
   return logGamma(a) + logGamma(b) - logGamma(a + b);
+}
+
+/**
+ * Continued fraction for the incomplete beta function, evaluated with the
+ * modified Lentz method (Numerical Recipes §6.4, `betacf`).
+ */
+function betaContinuedFraction(x: number, a: number, b: number): number {
+  const tiny = 1e-30;
+  const qab = a + b;
+  const qap = a + 1;
+  const qam = a - 1;
+  let c = 1;
+  let d = 1 - (qab * x) / qap;
+  if (Math.abs(d) < tiny) d = tiny;
+  d = 1 / d;
+  let h = d;
+  for (let m = 1; m <= 300; m++) {
+    const m2 = 2 * m;
+    // even step
+    let aa = (m * (b - m) * x) / ((qam + m2) * (a + m2));
+    d = 1 + aa * d;
+    if (Math.abs(d) < tiny) d = tiny;
+    c = 1 + aa / c;
+    if (Math.abs(c) < tiny) c = tiny;
+    d = 1 / d;
+    h *= d * c;
+    // odd step
+    aa = -((a + m) * (qab + m) * x) / ((a + m2) * (qap + m2));
+    d = 1 + aa * d;
+    if (Math.abs(d) < tiny) d = tiny;
+    c = 1 + aa / c;
+    if (Math.abs(c) < tiny) c = tiny;
+    d = 1 / d;
+    const del = d * c;
+    h *= del;
+    if (Math.abs(del - 1) < 1e-14) break;
+  }
+  return h;
+}
+
+/**
+ * Regularized incomplete beta function I_x(a, b) = P(X ≤ x) for X ~ Beta(a, b).
+ * Uses the continued fraction plus the symmetry I_x(a,b) = 1 − I_{1−x}(b,a) so
+ * the fraction is only evaluated in its fast-converging regime. Accurate to ~1e-12.
+ */
+export function betaCdf(x: number, a: number, b: number): number {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const logFront = a * Math.log(x) + b * Math.log(1 - x) - logBeta(a, b);
+  const front = Math.exp(logFront);
+  if (x < (a + 1) / (a + b + 2)) {
+    return (front * betaContinuedFraction(x, a, b)) / a;
+  }
+  return 1 - (front * betaContinuedFraction(1 - x, b, a)) / b;
+}
+
+/** Inverse CDF (quantile) of Beta(a, b) via bisection on betaCdf. */
+export function betaQuantile(q: number, a: number, b: number): number {
+  if (q <= 0) return 0;
+  if (q >= 1) return 1;
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    // Once the bracket can no longer be split in double precision, further
+    // iterations are redundant — bail out early (also cuts betaCdf calls on
+    // the render path when sliders drag).
+    if (mid === lo || mid === hi) break;
+    if (betaCdf(mid, a, b) < q) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * Exact equal-tailed credible interval [q_(1−level)/2, q_(1+level)/2] of the
+ * Beta posterior, computed analytically (no sampling noise).
+ */
+export function credibleIntervalExact(p: Posterior, level = 0.95): [number, number] {
+  const tail = (1 - level) / 2;
+  return [betaQuantile(tail, p.alpha, p.beta), betaQuantile(1 - tail, p.alpha, p.beta)];
 }
 
 /** Beta(α, β) pdf at x ∈ [0, 1]. */

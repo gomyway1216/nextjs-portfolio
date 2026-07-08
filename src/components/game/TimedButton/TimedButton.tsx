@@ -56,8 +56,17 @@ export const TimedButton = () => {
   const rafRef = useRef<number | null>(null);
   const roundRef = useRef<RoundState | null>(null);
   const phaseRef = useRef<Phase>('setup');
+  const resultsRef = useRef<RoundResult[]>([]);
+  const timeoutRef = useRef<number | null>(null);
 
   const tuning = DIFFICULTY_TUNING[difficulty];
+
+  // Keep phaseRef synchronous with `phase` for guards, but note that some
+  // handlers below also set it eagerly so a same-tick double-trigger is caught.
+  const setPhaseSync = useCallback((next: Phase) => {
+    phaseRef.current = next;
+    setPhase(next);
+  }, []);
 
   useEffect(() => {
     roundRef.current = round;
@@ -65,6 +74,9 @@ export const TimedButton = () => {
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
+  useEffect(() => {
+    resultsRef.current = results;
+  }, [results]);
 
   // ---- Marker animation via rAF + performance.now (no setInterval drift) ----
   useEffect(() => {
@@ -98,12 +110,17 @@ export const TimedButton = () => {
       roundRef.current = next;
       setRound(next);
       setLastResult(null);
-      setPhase('running');
+      setPhaseSync('running');
     },
-    [tuning.targetHalfWidth]
+    [tuning.targetHalfWidth, setPhaseSync]
   );
 
   const startRun = useCallback(() => {
+    if (timeoutRef.current !== null) {
+      clearTimeout(timeoutRef.current);
+      timeoutRef.current = null;
+    }
+    resultsRef.current = [];
     setResults([]);
     setRunScore(0);
     setLastResult(null);
@@ -113,9 +130,13 @@ export const TimedButton = () => {
   }, [beginRound]);
 
   const stopMarker = useCallback(() => {
+    // Synchronous guard: flip the phase ref *before* any work so a same-tick
+    // double-trigger (key repeat, tap+key) can't score the round twice or
+    // schedule the advance timer more than once.
     if (phaseRef.current !== 'running') return;
     const r = roundRef.current;
     if (!r) return;
+    phaseRef.current = 'result';
 
     // Freeze animation immediately.
     if (rafRef.current !== null) {
@@ -129,33 +150,33 @@ export const TimedButton = () => {
 
     const result = scoreRound(pos, r.targetCenter, tuning);
     setLastResult(result);
-    setResults((prev) => {
-      const updated = [...prev, result];
-      setRunScore(updated.reduce((sum, x) => sum + x.score, 0));
-      return updated;
-    });
+
+    // Derive the updated results from a ref (no side effects inside a state
+    // updater, no stale-closure read of `results`).
+    const updated = [...resultsRef.current, result];
+    resultsRef.current = updated;
+    setResults(updated);
+    setRunScore((prev) => prev + result.score);
     setPhase('result');
 
     const nextIndex = r.index + 1;
     const total = tuning.rounds;
-    window.setTimeout(() => {
+    timeoutRef.current = window.setTimeout(() => {
+      timeoutRef.current = null;
       if (phaseRef.current !== 'result') return;
       if (nextIndex >= total) {
-        setResults((finalResults) => {
-          const summary = summarizeRun(finalResults);
-          setRunScore(summary.totalScore);
-          if (summary.totalScore > highScore) {
-            updateHighScore(summary.totalScore);
-            setIsNewBest(true);
-          }
-          return finalResults;
-        });
-        setPhase('summary');
+        const summary = summarizeRun(updated);
+        setRunScore(summary.totalScore);
+        if (summary.totalScore > highScore) {
+          updateHighScore(summary.totalScore);
+          setIsNewBest(true);
+        }
+        setPhaseSync('summary');
       } else {
         beginRound(nextIndex);
       }
     }, 900);
-  }, [tuning, beginRound, highScore, updateHighScore]);
+  }, [tuning, beginRound, highScore, updateHighScore, setPhaseSync]);
 
   // ---- Global keyboard controls ----
   useEffect(() => {
@@ -163,8 +184,16 @@ export const TimedButton = () => {
       if (event.code !== 'Space' && event.code !== 'Enter') return;
       // Don't hijack keys while a dialog/other control is focused for typing.
       if (showInfo) return;
-      event.preventDefault();
       const current = phaseRef.current;
+      // While NOT in an active round, let a focused button handle Space/Enter
+      // natively so keyboard activation of the difficulty / start / play-again /
+      // change-difficulty controls keeps working. We only take over the keys to
+      // stop the marker during a running round.
+      const activeEl = typeof document !== 'undefined' ? document.activeElement : null;
+      if (current !== 'running' && activeEl instanceof HTMLElement && activeEl.tagName === 'BUTTON') {
+        return;
+      }
+      event.preventDefault();
       if (current === 'running') {
         stopMarker();
       } else if (current === 'setup' || current === 'summary') {
@@ -204,10 +233,11 @@ export const TimedButton = () => {
     return () => setContent(null);
   }, [setContent, highScore, copy.best, ui.howToPlay, openInfo]);
 
-  // Cleanup rAF on unmount.
+  // Cleanup rAF and any pending round-advance timeout on unmount.
   useEffect(() => {
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      if (timeoutRef.current !== null) clearTimeout(timeoutRef.current);
     };
   }, []);
 
@@ -245,11 +275,15 @@ export const TimedButton = () => {
   const targetHalfWidthPct = tuning.targetHalfWidth * 100;
   const targetCenterPct = (round?.targetCenter ?? 0.5) * 100;
 
+  // The track is a decorative visualisation. The real, labelled control is the
+  // action <button> below (and Space/Enter work globally), so we hide the track
+  // from assistive tech to avoid presenting a non-focusable element that
+  // behaves like a control. The pointer handler stays as a tap-anywhere
+  // convenience for touch/mouse users.
   const renderTrack = (interactive: boolean) => (
     <div
       className={styles.trackWrap}
-      role="img"
-      aria-label={`${copy.hitTheTarget}. ${copy.precision}: ${Math.round(displayedPrecision * 100)}%`}
+      aria-hidden="true"
       onPointerDown={
         interactive
           ? (e) => {
@@ -372,7 +406,7 @@ export const TimedButton = () => {
               <button
                 type="button"
                 className={styles.secondaryButton}
-                onClick={() => setPhase('setup')}
+                onClick={() => setPhaseSync('setup')}
               >
                 {copy.changeDifficulty}
               </button>

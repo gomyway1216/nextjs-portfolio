@@ -1,55 +1,112 @@
 /**
  * Space Invaders - Game Engine
+ *
+ * The functions at the top of this file are intentionally pure so they can be
+ * unit-tested without a canvas/DOM (see the tests in
+ * tests/unit/components/game/SpaceInvaders).
  */
 
 import {
-BULLET_HEIGHT,
-BULLET_SPEED,
-BULLET_WIDTH,
-CANVAS_HEIGHT,
-CANVAS_WIDTH,
-ENEMY_BULLET_SPEED,
-ENEMY_COLS,
-ENEMY_CONFIGS,
-ENEMY_HEIGHT,
-ENEMY_MOVE_DOWN,
-ENEMY_OFFSET_LEFT,
-ENEMY_OFFSET_TOP,
-ENEMY_PADDING,
-ENEMY_ROWS,
-ENEMY_SHOOT_CHANCE,
-ENEMY_SPEED_INCREASE,
-ENEMY_WIDTH,
-Enemy,
-EnemyFormation,
-EnemyType,
-GameState,
-INITIAL_ENEMY_SPEED,
-INITIAL_LIVES,
-InputState,
-PLAYER_HEIGHT,
-PLAYER_SHOOT_COOLDOWN,
-PLAYER_SPEED,
-PLAYER_WIDTH,
-PLAYER_Y,
-Player,
-SHIELD_BLOCK_SIZE,
-SHIELD_COUNT,
-SHIELD_HEIGHT,
-SHIELD_WIDTH,
-SHIELD_Y,
-Shield,
-ShieldBlock,
-SoundEvents,
-UFO_HEIGHT,
-UFO_POINTS,
-UFO_SPAWN_CHANCE,
-UFO_SPEED,
-UFO_WIDTH,
-createSoundEvents
+  BULLET_HEIGHT,
+  BULLET_SPEED,
+  BULLET_WIDTH,
+  CANVAS_HEIGHT,
+  CANVAS_WIDTH,
+  DIFFICULTY_SETTINGS,
+  Difficulty,
+  ENEMY_BULLET_SPEED,
+  ENEMY_COLS,
+  ENEMY_CONFIGS,
+  ENEMY_HEIGHT,
+  ENEMY_MOVE_DOWN,
+  ENEMY_OFFSET_LEFT,
+  ENEMY_OFFSET_TOP,
+  ENEMY_PADDING,
+  ENEMY_ROWS,
+  ENEMY_SHOOT_CHANCE,
+  ENEMY_SPEED_INCREASE,
+  ENEMY_WIDTH,
+  Enemy,
+  EnemyFormation,
+  EnemyType,
+  EXTRA_LIFE_EVERY,
+  GameState,
+  INITIAL_ENEMY_SPEED,
+  INITIAL_LIVES,
+  InputState,
+  MAX_LIVES,
+  MAX_WAVE_DESCENT,
+  PLAYER_HEIGHT,
+  PLAYER_SHOOT_COOLDOWN,
+  PLAYER_SPEED,
+  PLAYER_WIDTH,
+  PLAYER_Y,
+  Player,
+  SHIELD_BLOCK_SIZE,
+  SHIELD_COUNT,
+  SHIELD_HEIGHT,
+  SHIELD_WIDTH,
+  SHIELD_Y,
+  Shield,
+  ShieldBlock,
+  SoundEvents,
+  UFO_HEIGHT,
+  UFO_POINTS,
+  UFO_SPAWN_CHANCE,
+  UFO_SPEED,
+  UFO_WIDTH,
+  WAVE_DESCENT_STEP,
+  createSoundEvents,
 } from './types';
 
-// Create player
+const TOTAL_ENEMIES = ENEMY_ROWS * ENEMY_COLS;
+
+// --- Pure helpers (unit-tested) -----------------------------------------
+
+/** AABB collision test between two rectangles. */
+export function checkCollision(
+  x1: number, y1: number, w1: number, h1: number,
+  x2: number, y2: number, w2: number, h2: number
+): boolean {
+  return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+}
+
+/**
+ * How much the formation march speeds up as ranks thin out. Starts at 1x with a
+ * full formation and ramps to ~2.2x once only a single invader is left, so the
+ * classic "last alien sprints" tension is preserved.
+ */
+export function speedMultiplierForRemaining(remaining: number, total: number = TOTAL_ENEMIES): number {
+  if (total <= 0) return 1;
+  const cleared = 1 - Math.max(0, Math.min(remaining, total)) / total;
+  return 1 + cleared * 1.2;
+}
+
+/** March/animation cadence (in ticks) — faster as fewer invaders remain. */
+export function marchIntervalForRemaining(remaining: number, total: number = TOTAL_ENEMIES): number {
+  if (total <= 0) return 10;
+  const cleared = 1 - Math.max(0, Math.min(remaining, total)) / total;
+  return Math.max(8, Math.round(48 - cleared * 38));
+}
+
+/** Base march speed for a given level and difficulty. */
+export function formationSpeedForLevel(level: number, difficulty: Difficulty): number {
+  const base = INITIAL_ENEMY_SPEED + (level - 1) * ENEMY_SPEED_INCREASE;
+  return base * DIFFICULTY_SETTINGS[difficulty].speedMultiplier;
+}
+
+/** Vertical offset each new wave spawns at (descends with level, then clamps). */
+export function waveDescentOffset(level: number): number {
+  return Math.min((level - 1) * WAVE_DESCENT_STEP, MAX_WAVE_DESCENT);
+}
+
+/** Points awarded for destroying an enemy of the given type. */
+export function pointsForEnemy(type: EnemyType): number {
+  return ENEMY_CONFIGS[type].points;
+}
+
+// --- Factory functions ---------------------------------------------------
+
 function createPlayer(): Player {
   return {
     x: (CANVAS_WIDTH - PLAYER_WIDTH) / 2,
@@ -60,13 +117,13 @@ function createPlayer(): Player {
   };
 }
 
-// Create enemy formation
-function createFormation(level: number): EnemyFormation {
+/** Build the invader grid for a wave. Later waves start lower on screen. */
+export function createFormation(level: number, difficulty: Difficulty = 'normal'): EnemyFormation {
   const enemies: Enemy[] = [];
+  const topOffset = ENEMY_OFFSET_TOP + waveDescentOffset(level);
 
   for (let row = 0; row < ENEMY_ROWS; row++) {
     for (let col = 0; col < ENEMY_COLS; col++) {
-      // Determine enemy type based on row
       let type: EnemyType;
       if (row === 0) {
         type = EnemyType.SQUID;
@@ -78,7 +135,7 @@ function createFormation(level: number): EnemyFormation {
 
       enemies.push({
         x: ENEMY_OFFSET_LEFT + col * (ENEMY_WIDTH + ENEMY_PADDING),
-        y: ENEMY_OFFSET_TOP + row * (ENEMY_HEIGHT + ENEMY_PADDING),
+        y: topOffset + row * (ENEMY_HEIGHT + ENEMY_PADDING),
         width: ENEMY_WIDTH,
         height: ENEMY_HEIGHT,
         type,
@@ -92,12 +149,11 @@ function createFormation(level: number): EnemyFormation {
   return {
     enemies,
     direction: 1,
-    speed: INITIAL_ENEMY_SPEED + (level - 1) * ENEMY_SPEED_INCREASE,
+    speed: formationSpeedForLevel(level, difficulty),
     moveDown: false,
   };
 }
 
-// Create shields
 function createShields(): Shield[] {
   const shields: Shield[] = [];
   const shieldSpacing = (CANVAS_WIDTH - SHIELD_COUNT * SHIELD_WIDTH) / (SHIELD_COUNT + 1);
@@ -106,15 +162,12 @@ function createShields(): Shield[] {
     const shieldX = shieldSpacing + i * (SHIELD_WIDTH + shieldSpacing);
     const blocks: ShieldBlock[] = [];
 
-    // Create shield shape (arch-like)
     const cols = Math.floor(SHIELD_WIDTH / SHIELD_BLOCK_SIZE);
     const rows = Math.floor(SHIELD_HEIGHT / SHIELD_BLOCK_SIZE);
 
     for (let row = 0; row < rows; row++) {
       for (let col = 0; col < cols; col++) {
-        // Create arch shape - remove bottom center blocks
         const isBottomCenter = row >= rows - 3 && col >= Math.floor(cols / 3) && col < Math.ceil(2 * cols / 3);
-        // Round top corners
         const isTopCorner = row < 2 && (col < 2 || col >= cols - 2);
 
         if (!isBottomCenter && !isTopCorner) {
@@ -134,17 +187,25 @@ function createShields(): Shield[] {
 }
 
 // Create initial game state
-export function createGameState(level: number = 1, score: number = 0, lives: number = INITIAL_LIVES): GameState {
+export function createGameState(
+  level: number = 1,
+  score: number = 0,
+  lives?: number,
+  difficulty: Difficulty = 'normal'
+): GameState {
+  const startingLives = lives ?? DIFFICULTY_SETTINGS[difficulty].startingLives ?? INITIAL_LIVES;
   return {
     player: createPlayer(),
     bullets: [],
-    formation: createFormation(level),
+    formation: createFormation(level, difficulty),
     ufo: null,
     shields: createShields(),
     score,
     highScore: 0,
-    lives,
+    lives: startingLives,
     level,
+    difficulty,
+    nextExtraLifeAt: EXTRA_LIFE_EVERY,
     gameOver: false,
     victory: false,
     isPaused: false,
@@ -156,25 +217,18 @@ export function createGameState(level: number = 1, score: number = 0, lives: num
 // Reset after death
 export function resetAfterDeath(state: GameState): void {
   state.player = createPlayer();
-  state.bullets = [];
+  // Clear enemy fire so the player isn't instantly killed again on respawn.
+  state.bullets = state.bullets.filter(b => !b.isEnemy);
 }
 
 // Advance to next level
 export function nextLevel(state: GameState): void {
   state.level++;
-  state.formation = createFormation(state.level);
+  state.formation = createFormation(state.level, state.difficulty);
   state.bullets = [];
   state.ufo = null;
   state.shields = createShields();
   state.player = createPlayer();
-}
-
-// Check collision between two rectangles
-function checkCollision(
-  x1: number, y1: number, w1: number, h1: number,
-  x2: number, y2: number, w2: number, h2: number
-): boolean {
-  return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
 }
 
 // Get bottom-most enemies for each column (the ones that can shoot)
@@ -195,13 +249,32 @@ function getShootingEnemies(formation: EnemyFormation): Enemy[] {
   return Array.from(columnBottomEnemies.values());
 }
 
+/**
+ * Award any extra lives earned by crossing score thresholds. Mutates `state`
+ * and returns true if a life was granted (so the caller can play a sound).
+ */
+export function grantExtraLives(state: GameState): boolean {
+  let granted = false;
+  while (state.score >= state.nextExtraLifeAt) {
+    if (state.lives < MAX_LIVES) {
+      state.lives++;
+      granted = true;
+    }
+    state.nextExtraLifeAt += EXTRA_LIFE_EVERY;
+  }
+  return granted;
+}
+
 // Update game state
 export function updateGame(state: GameState, input: InputState, deltaTime: number, now: number): SoundEvents {
   const sounds = createSoundEvents();
 
   if (state.gameOver || state.victory || state.isPaused) return sounds;
 
-  const dt = deltaTime / 16.67; // Normalize to ~60fps
+  const difficulty = DIFFICULTY_SETTINGS[state.difficulty];
+  // Normalize to ~60fps and clamp so a long tab-switch stall can't teleport
+  // objects through each other.
+  const dt = Math.min(deltaTime / 16.67, 2.5);
   state.animationTick++;
 
   // Move player
@@ -234,7 +307,7 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
     const bullet = state.bullets[i];
 
     if (bullet.isEnemy) {
-      bullet.y += ENEMY_BULLET_SPEED * dt;
+      bullet.y += ENEMY_BULLET_SPEED * difficulty.bulletSpeedMultiplier * dt;
     } else {
       bullet.y -= BULLET_SPEED * dt;
     }
@@ -246,6 +319,7 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
     }
 
     // Check bullet-shield collision
+    let hitShield = false;
     for (const shield of state.shields) {
       for (const block of shield.blocks) {
         if (!block.active) continue;
@@ -256,15 +330,17 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
         )) {
           block.active = false;
           state.bullets.splice(i, 1);
+          hitShield = true;
           break;
         }
       }
-      if (!state.bullets[i]) break;
+      if (hitShield) break;
     }
-    if (!state.bullets[i]) continue;
+    if (hitShield) continue;
 
     // Player bullet hitting enemies
     if (!bullet.isEnemy) {
+      let hit = false;
       for (const enemy of state.formation.enemies) {
         if (!enemy.active) continue;
 
@@ -273,11 +349,16 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
           enemy.x, enemy.y, enemy.width, enemy.height
         )) {
           enemy.active = false;
-          state.score += enemy.config.points;
+          state.score += pointsForEnemy(enemy.type);
           state.bullets.splice(i, 1);
           sounds.enemyHit = true;
+          hit = true;
           break;
         }
+      }
+      if (hit) {
+        if (grantExtraLives(state)) sounds.extraLife = true;
+        continue;
       }
 
       // Player bullet hitting UFO
@@ -288,8 +369,10 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
         )) {
           state.score += state.ufo.points;
           state.ufo.active = false;
+          state.ufo = null;
           state.bullets.splice(i, 1);
           sounds.ufoHit = true;
+          if (grantExtraLives(state)) sounds.extraLife = true;
         }
       }
     } else {
@@ -317,14 +400,9 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
   const activeEnemies = state.formation.enemies.filter(e => e.active);
 
   if (activeEnemies.length === 0) {
-    // All enemies defeated
-    if (state.level >= 5) {
-      state.victory = true;
-      sounds.levelComplete = true;
-    } else {
-      nextLevel(state);
-      sounds.levelComplete = true;
-    }
+    // Wave cleared — endless progression, each wave harder than the last.
+    nextLevel(state);
+    sounds.levelComplete = true;
     return sounds;
   }
 
@@ -339,10 +417,8 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
     maxY = Math.max(maxY, enemy.y + enemy.height);
   }
 
-  // Speed increases as fewer enemies remain
-  // Speed increases gradually as fewer enemies remain (max 1.5x at the end)
-  const speedMultiplier = 1 + (1 - activeEnemies.length / (ENEMY_ROWS * ENEMY_COLS)) * 0.5;
-  const currentSpeed = state.formation.speed * speedMultiplier;
+  // Speed increases as fewer enemies remain.
+  const currentSpeed = state.formation.speed * speedMultiplierForRemaining(activeEnemies.length);
 
   // Move formation
   if (state.formation.moveDown) {
@@ -358,27 +434,23 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
       sounds.gameOver = true;
       return sounds;
     }
-    // Don't check wall collision this frame - we just dropped and changed direction
   } else {
     const moveX = currentSpeed * state.formation.direction * dt;
 
-    // Check wall collision BEFORE moving
     const willHitRightWall = state.formation.direction > 0 && maxX + moveX >= CANVAS_WIDTH - 5;
     const willHitLeftWall = state.formation.direction < 0 && minX + moveX <= 5;
 
     if (willHitRightWall || willHitLeftWall) {
       state.formation.moveDown = true;
     } else {
-      // Only move if not hitting wall
       for (const enemy of activeEnemies) {
         enemy.x += moveX;
       }
     }
   }
 
-  // Update animation frame and march sound
-  // March tempo increases as fewer enemies remain
-  const marchInterval = Math.max(10, Math.floor(60 - (1 - activeEnemies.length / (ENEMY_ROWS * ENEMY_COLS)) * 40));
+  // Update animation frame and march sound; tempo increases as ranks thin.
+  const marchInterval = marchIntervalForRemaining(activeEnemies.length);
   if (state.animationTick % marchInterval === 0) {
     for (const enemy of activeEnemies) {
       enemy.animFrame = (enemy.animFrame + 1) % 2;
@@ -388,10 +460,16 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
     state.marchCounter++;
   }
 
-  // Enemy shooting
+  // Enemy shooting. Rate scales with level and difficulty, and is divided among
+  // shooters so a nearly-cleared formation doesn't become trivially safe.
   const shootingEnemies = getShootingEnemies(state.formation);
+  const fireChance =
+    ENEMY_SHOOT_CHANCE *
+    (1 + state.level * 0.2) *
+    difficulty.fireRateMultiplier *
+    dt;
   for (const enemy of shootingEnemies) {
-    if (Math.random() < ENEMY_SHOOT_CHANCE * (1 + state.level * 0.2)) {
+    if (Math.random() < fireChance) {
       state.bullets.push({
         x: enemy.x + enemy.width / 2 - BULLET_WIDTH / 2,
         y: enemy.y + enemy.height,
@@ -403,7 +481,7 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
     }
   }
 
-  // Enemy collision with shields
+  // Enemy collision with shields (erode blocks they touch)
   for (const enemy of activeEnemies) {
     for (const shield of state.shields) {
       for (const block of shield.blocks) {
@@ -420,7 +498,7 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
   }
 
   // UFO logic
-  if (!state.ufo && Math.random() < UFO_SPAWN_CHANCE) {
+  if (!state.ufo && Math.random() < UFO_SPAWN_CHANCE * dt) {
     const direction = Math.random() < 0.5 ? 1 : -1;
     state.ufo = {
       x: direction === 1 ? -UFO_WIDTH : CANVAS_WIDTH,
@@ -437,7 +515,6 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
   if (state.ufo && state.ufo.active) {
     state.ufo.x += UFO_SPEED * state.ufo.direction * dt;
 
-    // Remove if off screen
     if (state.ufo.x < -UFO_WIDTH || state.ufo.x > CANVAS_WIDTH) {
       state.ufo = null;
     }

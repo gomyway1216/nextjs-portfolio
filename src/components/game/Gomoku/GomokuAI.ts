@@ -43,7 +43,7 @@ export const checkWinFromPosition = (
   col: number,
   player: Player
 ): Position[] | null => {
-  if (!player || board[row][col] !== player) return null;
+  if (!player || !inBounds(row, col) || board[row][col] !== player) return null;
 
   for (const { dr, dc } of DIRECTIONS) {
     const line: Position[] = [{ row, col }];
@@ -239,6 +239,32 @@ const isWinningMove = (
 };
 
 /**
+ * Sum of the shape scores of every run of `player` stones that touches
+ * (row, col), across all four directions. For each direction we walk back to
+ * the run's true anchor (the lowest-index `player` stone) and score it exactly
+ * once, so runs longer than the queried cell are not undercounted.
+ * Assumes (row, col) currently holds a `player` stone.
+ */
+const shapeScoreThrough = (
+  board: GomokuBoard,
+  row: number,
+  col: number,
+  player: Player
+): number => {
+  let total = 0;
+  for (const { dr, dc } of DIRECTIONS) {
+    let ar = row;
+    let ac = col;
+    while (inBounds(ar - dr, ac - dc) && board[ar - dr][ac - dc] === player) {
+      ar -= dr;
+      ac -= dc;
+    }
+    total += scoreRunAt(board, ar, ac, dr, dc, player);
+  }
+  return total;
+};
+
+/**
  * Heuristic value of a single move for ordering purposes — the immediate shape
  * score gained for the mover plus the opponent shape it disrupts.
  */
@@ -251,20 +277,11 @@ const moveHeuristic = (
   const opp = opponentOf(player);
 
   board[row][col] = player;
-  let offence = 0;
-  for (const { dr, dc } of DIRECTIONS) {
-    offence += scoreRunAt(board, row, col, dr, dc, player);
-    // also account for the run extending behind the anchor
-    offence += scoreRunAt(board, row - dr, col - dc, dr, dc, player);
-  }
+  const offence = shapeScoreThrough(board, row, col, player);
   board[row][col] = null;
 
   board[row][col] = opp;
-  let defence = 0;
-  for (const { dr, dc } of DIRECTIONS) {
-    defence += scoreRunAt(board, row, col, dr, dc, opp);
-    defence += scoreRunAt(board, row - dr, col - dc, dr, dc, opp);
-  }
+  const defence = shapeScoreThrough(board, row, col, opp);
   board[row][col] = null;
 
   return offence + defence * 0.9;
@@ -307,6 +324,10 @@ const WIN_SCORE = SCORE.FIVE;
 /**
  * Negamax-style alpha-beta but expressed as explicit max/min for clarity.
  * `maximizing` is true when it's AI's turn to move.
+ *
+ * A win can only be completed by the stone just placed, so instead of scanning
+ * the whole board with findWinner() at every node we check only the last move
+ * (passed in via last*). This keeps deep searches (expert/master) responsive.
  */
 const alphabeta = (
   board: GomokuBoard,
@@ -314,11 +335,20 @@ const alphabeta = (
   alpha: number,
   beta: number,
   maximizing: boolean,
-  breadth: number
+  breadth: number,
+  lastRow?: number,
+  lastCol?: number,
+  lastPlayer?: Player
 ): number => {
-  const winner = findWinner(board);
-  if (winner === AI) return WIN_SCORE + depth; // sooner wins score higher
-  if (winner === PLAYER) return -WIN_SCORE - depth;
+  if (
+    lastPlayer &&
+    lastRow !== undefined &&
+    lastCol !== undefined &&
+    checkWinFromPosition(board, lastRow, lastCol, lastPlayer)
+  ) {
+    // The player who just moved has won; a sooner win scores higher.
+    return lastPlayer === AI ? WIN_SCORE + depth : -WIN_SCORE - depth;
+  }
   if (depth === 0) return evaluateBoard(board);
 
   const player = maximizing ? AI : PLAYER;
@@ -329,7 +359,7 @@ const alphabeta = (
     let best = -Infinity;
     for (const { row, col } of moves) {
       board[row][col] = AI;
-      const val = alphabeta(board, depth - 1, alpha, beta, false, breadth);
+      const val = alphabeta(board, depth - 1, alpha, beta, false, breadth, row, col, AI);
       board[row][col] = null;
       if (val > best) best = val;
       if (best > alpha) alpha = best;
@@ -340,7 +370,7 @@ const alphabeta = (
     let best = Infinity;
     for (const { row, col } of moves) {
       board[row][col] = PLAYER;
-      const val = alphabeta(board, depth - 1, alpha, beta, true, breadth);
+      const val = alphabeta(board, depth - 1, alpha, beta, true, breadth, row, col, PLAYER);
       board[row][col] = null;
       if (val < best) best = val;
       if (best < beta) beta = best;
@@ -415,7 +445,17 @@ export const getBestMove = (
 
   for (const move of candidates) {
     board[move.row][move.col] = AI;
-    const value = alphabeta(board, depth - 1, alpha, beta, false, breadth);
+    const value = alphabeta(
+      board,
+      depth - 1,
+      alpha,
+      beta,
+      false,
+      breadth,
+      move.row,
+      move.col,
+      AI
+    );
     board[move.row][move.col] = null;
     scored.push({ move, value });
     if (value > alpha) alpha = value;
@@ -423,12 +463,15 @@ export const getBestMove = (
 
   scored.sort((a, b) => b.value - a.value);
 
-  // Easy tier: 35% of the time, take the second-best move (if it isn't much
-  // worse) so a beginner has a fighting chance. Never throw away a win/block.
+  // Easy tier: 35% of the time, take the second-best move so a beginner has a
+  // fighting chance — but only when it's not much worse than the best (within
+  // EASY_SLACK), and never when the best move is a win/block.
+  const EASY_SLACK = SCORE.OPEN_THREE;
   if (
     difficulty === 'easy' &&
     scored.length > 1 &&
     scored[0].value < WIN_SCORE &&
+    scored[0].value - scored[1].value <= EASY_SLACK &&
     Math.random() < 0.35
   ) {
     return scored[1].move;

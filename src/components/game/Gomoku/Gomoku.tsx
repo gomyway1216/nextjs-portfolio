@@ -238,7 +238,7 @@ const Gomoku = () => {
           <div
             className={styles.boardWrap}
             role="grid"
-            aria-label={`${t.title} 15 by 15 board`}
+            aria-label={t.boardLabel(BOARD_SIZE)}
           >
             <div className={styles.board}>
               <svg className={styles.grid} viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -293,13 +293,8 @@ const Gomoku = () => {
                 rowArr.map((cell, col) => {
                   const last = isLastMoveCell(row, col);
                   const win = isWinningCell(row, col);
-                  const label = `${language === 'ja' ? '行' : 'row'} ${row + 1}, ${
-                    language === 'ja' ? '列' : 'column'
-                  } ${col + 1}${
-                    cell
-                      ? ` — ${cell === PLAYER ? t.black : t.white}`
-                      : ''
-                  }`;
+                  const stone = cell ? (cell === PLAYER ? t.black : t.white) : null;
+                  const label = t.cellLabel(row + 1, col + 1, stone);
                   return (
                     <button
                       key={`${row}-${col}`}

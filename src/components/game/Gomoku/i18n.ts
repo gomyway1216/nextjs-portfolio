@@ -25,6 +25,10 @@ export interface GomokuStrings {
   changeDifficulty: string;
   black: string;
   white: string;
+  /** Accessible board label, given the board size (e.g. 15). */
+  boardLabel: (size: number) => string;
+  /** Accessible label for a single intersection. */
+  cellLabel: (row: number, col: number, stone: string | null) => string;
   infoTitle: string;
   objectiveTitle: string;
   objectiveBody: string;
@@ -54,6 +58,9 @@ const en: GomokuStrings = {
   changeDifficulty: 'Change Difficulty',
   black: 'Black',
   white: 'White',
+  boardLabel: (size) => `Gomoku ${size} by ${size} board`,
+  cellLabel: (row, col, stone) =>
+    `row ${row}, column ${col}${stone ? ` — ${stone}` : ''}`,
   infoTitle: 'How to Play Gomoku',
   objectiveTitle: 'Objective',
   objectiveBody:
@@ -96,6 +103,9 @@ const ja: GomokuStrings = {
   changeDifficulty: '難易度を変更',
   black: '黒',
   white: '白',
+  boardLabel: (size) => `五目並べ ${size}×${size} の盤面`,
+  cellLabel: (row, col, stone) =>
+    `${row}行 ${col}列${stone ? ` — ${stone}` : ''}`,
   infoTitle: '五目並べの遊び方',
   objectiveTitle: '目的',
   objectiveBody:

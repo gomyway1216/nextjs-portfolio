@@ -8,6 +8,7 @@ interface CurveChartProps {
   legendTheoretical: string;
   legendSimulation: string;
   axisLabel: string;
+  ariaLabel: string;
   width?: number;
   height?: number;
 }
@@ -21,6 +22,7 @@ export const CurveChart = ({
   legendTheoretical,
   legendSimulation,
   axisLabel,
+  ariaLabel,
   width = 720,
   height = 320,
 }: CurveChartProps) => {
@@ -46,7 +48,7 @@ export const CurveChart = ({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label="Probability of a shared birthday versus group size"
+      aria-label={ariaLabel}
       style={{
         background: 'var(--games-route-surface-solid, #fff)',
         borderRadius: 12,

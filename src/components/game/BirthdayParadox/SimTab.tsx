@@ -150,6 +150,7 @@ const Results = ({
             legendTheoretical={t.legendTheoretical}
             legendSimulation={t.legendSimulation}
             axisLabel={t.axisN}
+            ariaLabel={t.chartAria}
           />
         </div>
         <p className={styles.caption}>{t.crossing(nf(summary.fiftyPercentN), nf(summary.ninetyNinePercentN))}</p>

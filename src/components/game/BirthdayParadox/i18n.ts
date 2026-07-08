@@ -40,6 +40,7 @@ export interface BirthdayStrings {
   legendTheoretical: string;
   legendSimulation: string;
   axisN: string;
+  chartAria: string;
   convergence: string;
   // Info modal body
   infoTitle: string;
@@ -86,6 +87,7 @@ const en: BirthdayStrings = {
   legendTheoretical: 'Theoretical',
   legendSimulation: 'Simulation',
   axisN: 'Group size n',
+  chartAria: 'Line chart: probability of a shared birthday versus group size, simulation versus theory.',
   convergence: 'Mean abs. error (sim vs theory)',
   infoTitle: 'The Birthday Paradox',
   infoP1:
@@ -134,6 +136,7 @@ const ja: BirthdayStrings = {
   legendTheoretical: '理論値',
   legendSimulation: 'シミュレーション',
   axisN: 'グループ人数 n',
+  chartAria: '折れ線グラフ：グループ人数に対する誕生日が被る確率、シミュレーションと理論値の比較。',
   convergence: '平均絶対誤差（実測 vs 理論）',
   infoTitle: '誕生日のパラドックス',
   infoP1:

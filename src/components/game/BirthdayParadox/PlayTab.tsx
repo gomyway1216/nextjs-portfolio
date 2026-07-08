@@ -81,6 +81,9 @@ export const PlayTab = ({ t }: { t: BirthdayStrings }) => {
   // Auto-deal loop: rapid trials to watch empirical converge on theory.
   useEffect(() => {
     if (!autoDeal) return;
+    // Cancel any in-flight animated deal so the two intervals don't race on
+    // the `revealed` counter.
+    clearDealTimer();
     autoTimer.current = setInterval(() => {
       const bd = generateBirthdays(n);
       setBirthdays(bd);

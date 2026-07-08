@@ -12,6 +12,7 @@ import {
   TileType,
   Tile,
   chebyshevDistance,
+  DifficultyConfig,
 } from './types';
 
 // Unique ID generator
@@ -172,8 +173,14 @@ export function getEnemyTemplate(type: EnemyType): EnemyTemplate | undefined {
   return ENEMY_TEMPLATES.find(t => t.type === type);
 }
 
-// Create enemy instance
-export function createEnemy(type: EnemyType, x: number, y: number, floorLevel: number): Enemy {
+// Create enemy instance. statMult scales hp/attack for difficulty tiers.
+export function createEnemy(
+  type: EnemyType,
+  x: number,
+  y: number,
+  floorLevel: number,
+  statMult = 1,
+): Enemy {
   const template = getEnemyTemplate(type);
   if (!template) {
     throw new Error(`Unknown enemy type: ${type}`);
@@ -181,8 +188,8 @@ export function createEnemy(type: EnemyType, x: number, y: number, floorLevel: n
 
   // Scale stats with floor level
   const levelBonus = Math.floor((floorLevel - template.minFloor) * 0.5);
-  const hp = template.baseHp + levelBonus * 3;
-  const attack = template.baseAttack + levelBonus;
+  const hp = Math.max(1, Math.round((template.baseHp + levelBonus * 3) * statMult));
+  const attack = Math.max(1, Math.round((template.baseAttack + levelBonus) * statMult));
   const defense = template.baseDefense + Math.floor(levelBonus * 0.5);
 
   return {
@@ -224,6 +231,25 @@ export function getEnemyColor(enemy: Enemy): string {
   return template?.color || '#ef4444';
 }
 
+// How far an enemy will start actively chasing the player.
+const CHASE_RANGE = 10;
+// BFS is bounded to this radius so pathfinding stays cheap.
+const BFS_RADIUS = 12;
+
+function validDirections(
+  enemy: Enemy,
+  tiles: Tile[][],
+  enemies: Enemy[],
+): Direction[] {
+  const directions = Object.values(Direction);
+  return directions.filter(dir => {
+    const offset = DIRECTION_OFFSETS[dir];
+    const newX = enemy.x + offset.dx;
+    const newY = enemy.y + offset.dy;
+    return canEnemyMoveTo(newX, newY, tiles, enemies, enemy.canPassWalls);
+  });
+}
+
 // Enemy AI: Get next move direction
 export function getEnemyMove(
   enemy: Enemy,
@@ -238,13 +264,7 @@ export function getEnemyMove(
 
   // If confused, move randomly
   if (enemy.status === StatusEffect.CONFUSED) {
-    const directions = Object.values(Direction);
-    const validDirs = directions.filter(dir => {
-      const offset = DIRECTION_OFFSETS[dir];
-      const newX = enemy.x + offset.dx;
-      const newY = enemy.y + offset.dy;
-      return canEnemyMoveTo(newX, newY, tiles, enemies, enemy.canPassWalls);
-    });
+    const validDirs = validDirections(enemy, tiles, enemies);
     if (validDirs.length === 0) return null;
     return validDirs[Math.floor(Math.random() * validDirs.length)];
   }
@@ -253,16 +273,10 @@ export function getEnemyMove(
   const distToPlayer = chebyshevDistance(enemy, playerPos);
 
   // If too far, don't chase (enemies only chase within range)
-  if (distToPlayer > 10) {
+  if (distToPlayer > CHASE_RANGE) {
     // Wander randomly
     if (Math.random() < 0.3) {
-      const directions = Object.values(Direction);
-      const validDirs = directions.filter(dir => {
-        const offset = DIRECTION_OFFSETS[dir];
-        const newX = enemy.x + offset.dx;
-        const newY = enemy.y + offset.dy;
-        return canEnemyMoveTo(newX, newY, tiles, enemies, enemy.canPassWalls);
-      });
+      const validDirs = validDirections(enemy, tiles, enemies);
       if (validDirs.length > 0) {
         return validDirs[Math.floor(Math.random() * validDirs.length)];
       }
@@ -270,28 +284,87 @@ export function getEnemyMove(
     return null;
   }
 
-  // Chase player - simple pathfinding
-  let bestDir: Direction | null = null;
-  let bestDist = distToPlayer;
+  // Ghosts ignore walls, so a straight greedy step is always optimal for them.
+  if (!enemy.canPassWalls) {
+    // Try BFS to find the true next step toward the player. This lets enemies
+    // navigate around wall corners instead of getting stuck (the old greedy
+    // approach only moved when a step strictly reduced distance).
+    const bfsDir = bfsNextStep(enemy, playerPos, tiles, enemies);
+    if (bfsDir) return bfsDir;
+  }
 
-  const directions = Object.values(Direction);
-  for (const dir of directions) {
+  // Fallback: greedy step. Pick the move that most reduces distance; among
+  // equally-good moves choose randomly so enemies don't all hug the same wall.
+  let bestDist = Infinity;
+  const bestDirs: Direction[] = [];
+
+  for (const dir of validDirections(enemy, tiles, enemies)) {
     const offset = DIRECTION_OFFSETS[dir];
-    const newX = enemy.x + offset.dx;
-    const newY = enemy.y + offset.dy;
-
-    if (!canEnemyMoveTo(newX, newY, tiles, enemies, enemy.canPassWalls)) {
-      continue;
-    }
-
-    const newDist = chebyshevDistance({ x: newX, y: newY }, playerPos);
+    const newDist = chebyshevDistance(
+      { x: enemy.x + offset.dx, y: enemy.y + offset.dy },
+      playerPos,
+    );
     if (newDist < bestDist) {
       bestDist = newDist;
-      bestDir = dir;
+      bestDirs.length = 0;
+      bestDirs.push(dir);
+    } else if (newDist === bestDist) {
+      bestDirs.push(dir);
     }
   }
 
-  return bestDir;
+  // Only chase if it actually gets us closer than standing still.
+  if (bestDirs.length === 0 || bestDist >= distToPlayer) return null;
+  return bestDirs[Math.floor(Math.random() * bestDirs.length)];
+}
+
+// Bounded BFS returning the first step of the shortest path to the player.
+// Treats other living enemies as blockers so they don't stack.
+function bfsNextStep(
+  enemy: Enemy,
+  playerPos: Position,
+  tiles: Tile[][],
+  enemies: Enemy[],
+): Direction | null {
+  const startKey = (x: number, y: number) => `${x},${y}`;
+  const visited = new Set<string>([startKey(enemy.x, enemy.y)]);
+  // Queue holds cells plus the first direction taken to reach them. We advance
+  // via an index (not Array.shift) so dequeue stays O(1) and BFS stays O(n).
+  const queue: { x: number; y: number; firstDir: Direction | null }[] = [
+    { x: enemy.x, y: enemy.y, firstDir: null },
+  ];
+  let head = 0;
+
+  const directions = Object.values(Direction);
+
+  while (head < queue.length) {
+    const cur = queue[head++];
+
+    for (const dir of directions) {
+      const offset = DIRECTION_OFFSETS[dir];
+      const nx = cur.x + offset.dx;
+      const ny = cur.y + offset.dy;
+      const key = startKey(nx, ny);
+      if (visited.has(key)) continue;
+
+      // Stay within a bounded window around the enemy for performance.
+      if (Math.abs(nx - enemy.x) > BFS_RADIUS || Math.abs(ny - enemy.y) > BFS_RADIUS) {
+        continue;
+      }
+
+      // Reaching the player: return the first step of this path.
+      if (nx === playerPos.x && ny === playerPos.y) {
+        return cur.firstDir ?? dir;
+      }
+
+      if (!canEnemyMoveTo(nx, ny, tiles, enemies, enemy.canPassWalls)) continue;
+
+      visited.add(key);
+      queue.push({ x: nx, y: ny, firstDir: cur.firstDir ?? dir });
+    }
+  }
+
+  return null;
 }
 
 // Check if enemy can move to position
@@ -328,6 +401,8 @@ export function isAdjacentToPlayer(enemy: Enemy, playerPos: Position): boolean {
 }
 
 // Create boss enemy for final floor
-export function createBoss(x: number, y: number): Enemy {
-  return createEnemy(EnemyType.DRAGON, x, y, 10);
+export function createBoss(x: number, y: number, config?: DifficultyConfig): Enemy {
+  const boss = createEnemy(EnemyType.DRAGON, x, y, 10, config?.enemyStatMult ?? 1);
+  boss.name = 'Dragon';
+  return boss;
 }

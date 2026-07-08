@@ -48,8 +48,8 @@ const ARMORS: Omit<ArmorData, 'id'>[] = [
 
 // Scroll definitions
 const SCROLLS: { effect: ScrollEffect; name: string; description: string }[] = [
-  { effect: ScrollEffect.FIREBALL, name: 'Fireball Scroll', description: 'Deals fire damage to an enemy' },
-  { effect: ScrollEffect.FREEZE, name: 'Freeze Scroll', description: 'Freezes an enemy for 5 turns' },
+  { effect: ScrollEffect.FIREBALL, name: 'Fireball Scroll', description: 'Burns all visible enemies' },
+  { effect: ScrollEffect.FREEZE, name: 'Freeze Scroll', description: 'Freezes all visible enemies' },
   { effect: ScrollEffect.TELEPORT, name: 'Teleport Scroll', description: 'Teleport to a random location' },
   { effect: ScrollEffect.MAP_REVEAL, name: 'Map Scroll', description: 'Reveals the entire floor' },
   { effect: ScrollEffect.POWER_UP, name: 'Power Scroll', description: 'Boosts attack for 10 turns' },

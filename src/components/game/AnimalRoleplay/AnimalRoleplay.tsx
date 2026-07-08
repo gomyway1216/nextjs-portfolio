@@ -5,7 +5,7 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { GameTopBar, InfoModal, GameStats } from '../common';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
@@ -65,6 +65,9 @@ export function AnimalRoleplay() {
   const [state, setState] = useState(() => createInitialState('normal'));
   // Guards against double-fire (rapid clicks / key-repeat) mutating the same turn.
   const resolvingRef = useRef(false);
+  // Ensures win/loss + best-score is recorded exactly once per finished run
+  // (survives React Strict Mode's double-invoked effects in development).
+  const hasRecordedRef = useRef(false);
 
   const currentAnimal = state.selectedAnimalId ? ANIMAL_PROFILES[state.selectedAnimalId] : null;
   const isPlaying = !!state.selectedAnimalId && !state.outcome;
@@ -105,29 +108,31 @@ export function AnimalRoleplay() {
       : t('games.animal-roleplay.ui.result.fail', { action: actionLabel, event: eventLabel });
   }, [state.lastLog, t]);
 
-  const recordOutcome = useCallback(
-    (
-      prevOutcome: (typeof state)['outcome'],
-      next: typeof state,
-    ) => {
-      if (!prevOutcome && next.outcome) {
-        setStats((prevStats) =>
-          next.outcome === 'win'
-            ? { ...prevStats, wins: prevStats.wins + 1 }
-            : { ...prevStats, losses: prevStats.losses + 1 },
-        );
-        setBestScore((prevBest) => {
-          if (next.score > prevBest) {
-            setIsNewBest(true);
-            return next.score;
-          }
-          setIsNewBest(false);
-          return prevBest;
-        });
+  // Record win/loss + best score as a side effect of the run finishing, not
+  // inside a state updater (updaters must stay pure; Strict Mode runs them twice).
+  // hasRecordedRef keeps this idempotent so the double-invoked effect in dev
+  // can't double-count wins/losses or the best score.
+  useEffect(() => {
+    if (!state.outcome) {
+      hasRecordedRef.current = false;
+      return;
+    }
+    if (hasRecordedRef.current) return;
+    hasRecordedRef.current = true;
+
+    setStats((prevStats) =>
+      state.outcome === 'win'
+        ? { ...prevStats, wins: prevStats.wins + 1 }
+        : { ...prevStats, losses: prevStats.losses + 1 },
+    );
+    setBestScore((prevBest) => {
+      if (state.score > prevBest) {
+        setIsNewBest(true);
+        return state.score;
       }
-    },
-    [],
-  );
+      return prevBest;
+    });
+  }, [state.outcome, state.score]);
 
   const startWithAnimal = (animalId: AnimalId) => {
     resolvingRef.current = false;
@@ -135,23 +140,19 @@ export function AnimalRoleplay() {
     setState(startGameWithAnimal(animalId, difficulty));
   };
 
-  const handleAction = useCallback(
-    (actionId: ActionId) => {
-      if (resolvingRef.current) return;
-      resolvingRef.current = true;
-      setState((prev) => {
-        if (!prev.selectedAnimalId || prev.outcome) {
-          resolvingRef.current = false;
-          return prev;
-        }
-        const next = resolveTurn(prev, actionId);
-        recordOutcome(prev.outcome, next);
+  const handleAction = useCallback((actionId: ActionId) => {
+    if (resolvingRef.current) return;
+    resolvingRef.current = true;
+    setState((prev) => {
+      if (!prev.selectedAnimalId || prev.outcome) {
         resolvingRef.current = false;
-        return next;
-      });
-    },
-    [recordOutcome],
-  );
+        return prev;
+      }
+      const next = resolveTurn(prev, actionId);
+      resolvingRef.current = false;
+      return next;
+    });
+  }, []);
 
   const handleReplay = () => {
     if (!state.selectedAnimalId) return;
@@ -272,20 +273,26 @@ export function AnimalRoleplay() {
 
             <div className={styles.card}>
               <div className={styles.sectionLabel}>{local.difficulty.heading}</div>
-              <div className={styles.diffRow} role="radiogroup" aria-label={local.difficulty.heading}>
+              <div className={styles.diffRow}>
+                {/* Native radios (visually hidden) give real radiogroup keyboard
+                    navigation — arrow keys move + select — for free. */}
                 {DIFFICULTIES.map((diff) => (
-                  <button
+                  <label
                     key={diff}
-                    type="button"
-                    role="radio"
-                    aria-checked={difficulty === diff}
-                    data-selected={difficulty === diff ? 'true' : 'false'}
                     className={styles.diffButton}
-                    onClick={() => setDifficulty(diff)}
+                    data-selected={difficulty === diff ? 'true' : 'false'}
                   >
+                    <input
+                      type="radio"
+                      name="animal-roleplay-difficulty"
+                      value={diff}
+                      checked={difficulty === diff}
+                      onChange={() => setDifficulty(diff)}
+                      className={styles.srOnly}
+                    />
                     <div className={styles.diffLabel}>{local.difficulty.labels[diff]}</div>
                     <div className={styles.diffDesc}>{local.difficulty.descriptions[diff]}</div>
-                  </button>
+                  </label>
                 ))}
               </div>
             </div>

@@ -69,6 +69,18 @@ function computeSearchThreadCount(): number {
 }
 
 /**
+ * SMP FREEZE-REPRODUCTION INSTRUMENTATION (temporary; see PR). Kept ON in
+ * production so the freeze can be reproduced on the Vercel preview. All lines
+ * prefixed `[SMP][client]`. Removed with the freeze-proofing follow-up.
+ */
+const SMP_TRACE = true;
+function smpClientLog(...args: unknown[]): void {
+  if (SMP_TRACE) console.info('[SMP][client]', ...args);
+}
+/** How long a request may run with no worker response before we start yelling. */
+const STALL_HEARTBEAT_MS = 3000;
+
+/**
  * Spawn the Lazy SMP helper workers and wire them to the main AI worker.
  *
  * Requirements (any missing → return [] and the game runs exactly as the
@@ -85,10 +97,25 @@ function computeSearchThreadCount(): number {
  */
 function trySpawnSmpHelpers(worker: Worker): Worker[] {
   try {
+    const isolated =
+      typeof globalThis !== 'undefined' && 'crossOriginIsolated' in globalThis
+        ? (globalThis as { crossOriginIsolated?: boolean }).crossOriginIsolated
+        : undefined;
+    const hc = typeof navigator !== 'undefined' ? navigator.hardwareConcurrency : undefined;
     const threads = computeSearchThreadCount();
-    if (threads < 2) return [];
+    smpClientLog(
+      `spawn check: crossOriginIsolated=${isolated} hardwareConcurrency=${hc} ` +
+        `-> searchThreads=${threads} SAB=${typeof SharedArrayBuffer !== 'undefined'}`
+    );
+    if (threads < 2) {
+      smpClientLog('staying single-thread (threads < 2)');
+      return [];
+    }
     const sab = createSharedTTBuffer();
-    if (!sab) return [];
+    if (!sab) {
+      smpClientLog('staying single-thread (SharedArrayBuffer unavailable — not cross-origin isolated?)');
+      return [];
+    }
 
     const helpers: Worker[] = [];
     const mainPorts: MessagePort[] = [];
@@ -112,9 +139,10 @@ function trySpawnSmpHelpers(worker: Worker): Worker[] {
 
     const init: MainThreadsInitMessage = { type: 'smpThreads', sab, ports: mainPorts };
     worker.postMessage(init, mainPorts);
+    smpClientLog(`Lazy SMP spawned: ${helpers.length} helper worker(s) + main; SMP is ON`);
     return helpers;
   } catch (e) {
-    console.info('[shogiAiWorkerClient] multi-thread setup failed; staying single-thread', e);
+    console.error('[SMP][client] multi-thread setup failed; staying single-thread', e);
     return [];
   }
 }
@@ -183,6 +211,24 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
   ): Promise<BestMoveInfo> => {
     const id = nextId++;
     return new Promise<BestMoveInfo>((resolve, reject) => {
+      const t0 = performance.now();
+      smpClientLog(`request START id=${id} difficulty=${difficulty} tesu=${tesu}`);
+
+      // STALL HEARTBEAT (instrumentation): the client main thread stays
+      // responsive even when the AI worker is frozen inside a synchronous
+      // search, so it is the only place that can report a freeze in real time.
+      // Every STALL_HEARTBEAT_MS with the request still pending we log the
+      // elapsed time; once past the difficulty's budget the line is an error so
+      // a genuine stall stands out. This does NOT abort the search — the point
+      // of the instrumented build is to observe the raw freeze.
+      const heartbeat = setInterval(() => {
+        const elapsed = performance.now() - t0;
+        console.error(
+          `[SMP][client] STALL? id=${id} still pending after ${elapsed.toFixed(0)}ms ` +
+            `(difficulty=${difficulty}) — worker not responding`
+        );
+      }, STALL_HEARTBEAT_MS);
+
       // Watchdog: if the worker never answers (an internal search hang), reject
       // after a generous timeout so the UI never sticks on "AI Thinking..."
       // forever — the caller then falls back to the main-thread search. 20s is
@@ -190,12 +236,19 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
       // genuine hang, never on legitimate play.
       const timer = setTimeout(() => {
         if (pending.delete(id)) {
+          clearInterval(heartbeat);
+          console.error(`[SMP][client] request id=${id} TIMED OUT after 20000ms (hard watchdog) — freeze confirmed`);
           reject(new Error('AI worker timed out'));
         }
       }, 20000);
       pending.set(id, {
-        resolve: (info) => { clearTimeout(timer); resolve(info); },
-        reject: (err) => { clearTimeout(timer); reject(err); },
+        resolve: (info) => {
+          clearTimeout(timer);
+          clearInterval(heartbeat);
+          smpClientLog(`request END id=${id} elapsed=${(performance.now() - t0).toFixed(0)}ms depth=${info.depth ?? '?'}`);
+          resolve(info);
+        },
+        reject: (err) => { clearTimeout(timer); clearInterval(heartbeat); reject(err); },
       });
       try {
         const req: WorkerRequest = { type: 'bestMove', id, position, difficulty, tesu: tesu | 0 };
@@ -205,6 +258,7 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
         // …). Clean up so the request doesn't linger in `pending` with a live
         // watchdog timer; the caller then falls back to the main-thread search.
         clearTimeout(timer);
+        clearInterval(heartbeat);
         pending.delete(id);
         reject(err instanceof Error ? err : new Error(String(err)));
       }

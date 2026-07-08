@@ -56,9 +56,11 @@ import {
   clearWasmTT,
   enableSharedTT,
   getLastWasmSearchStats,
+  getSharedTtCounters,
   isWasmEngineReady,
   loadNnueWeights,
   publishSearchGeneration,
+  resetSharedTtCounters,
   setSearchGeneration,
   setWasmNnueEnabled,
   wasmSearchBestMove,
@@ -101,6 +103,22 @@ const PONDER_MAX_TOTAL_MS = 30_000;
 
 /** Dev-only tracing; in production a ponder log line per move is just noise. */
 const PONDER_TRACE = process.env.NODE_ENV === 'development';
+
+/**
+ * SMP FREEZE-REPRODUCTION INSTRUMENTATION (temporary; see PR).
+ *
+ * Kept ON in production builds (NOT gated on NODE_ENV) so the freeze can be
+ * reproduced on the Vercel preview with full logs in the browser console. All
+ * lines are prefixed `[SMP]` for easy filtering. Remove together with the
+ * freeze-proofing follow-up.
+ */
+const SMP_TRACE = true;
+function smpLog(...args: unknown[]): void {
+  if (SMP_TRACE) console.info('[SMP][main]', ...args);
+}
+function smpErr(...args: unknown[]): void {
+  console.error('[SMP][main]', ...args);
+}
 
 const ponder = new PonderController({
   sliceMs: PONDER_SLICE_MS,
@@ -240,8 +258,9 @@ function sendNnueWeightsToHelpers(): void {
 
 function initSmpThreads(msg: MainThreadsInitMessage): void {
   if (smpPorts.length > 0) return; // already initialized
+  smpLog(`initSmpThreads: ${msg.ports.length} helper port(s), sab=${msg.sab.byteLength} bytes`);
   if (!enableSharedTT(msg.sab, 'main')) {
-    if (PONDER_TRACE) console.info('[shogi-ai.worker] shared TT unavailable; staying single-thread');
+    smpErr('shared TT unavailable; staying single-thread (enableSharedTT returned false)');
     return;
   }
   smpPorts = msg.ports;
@@ -251,15 +270,15 @@ function initSmpThreads(msg: MainThreadsInitMessage): void {
       if (!res || typeof res !== 'object' || !('type' in res)) return;
       // Helper node counts are diagnostics only (used to eyeball the thread
       // scaling in dev); the moves themselves never leave the helpers.
-      if (res.type === 'stats' && PONDER_TRACE) {
-        console.info(`[shogi-ai.worker] helper stats: gen=${res.gen} nodes=${res.nodes} depth=${res.depth}`);
+      if (res.type === 'ready') {
+        smpLog(`helper ready: ok=${res.ok}`);
+      } else if (res.type === 'stats') {
+        smpLog(`helper stats: gen=${res.gen} nodes=${res.nodes} depth=${res.depth}`);
       }
     };
   }
   sendNnueWeightsToHelpers();
-  if (PONDER_TRACE) {
-    console.info(`[shogi-ai.worker] Lazy SMP enabled: 1 main + ${smpPorts.length} helper thread(s)`);
-  }
+  smpLog(`Lazy SMP ENABLED: 1 main + ${smpPorts.length} helper thread(s)`);
 }
 
 /**
@@ -391,12 +410,42 @@ function computeBestMove(
       difficulty,
     };
     for (const port of smpPorts) port.postMessage(go);
+    smpLog(
+      `search START gen=${gen} tesu=${tesu} budget=${searchBudgetMs}ms nnue=${nnue} ` +
+        `qmax=${budget.quiescenceDepthMax} helpers=${smpPorts.length} (broadcast 'go')`
+    );
+  } else {
+    smpLog(`search START single-thread tesu=${tesu} budget=${searchBudgetMs}ms nnue=${nnue}`);
   }
 
+  resetSharedTtCounters();
+  const searchT0 = performance.now();
   let wasmMove: Te | null = null;
+  let trapped = false;
   try {
+    // NOTE: this is a synchronous, blocking call. If it never returns, the
+    // whole worker message loop is stuck here — that IS the production freeze.
+    // The client-side heartbeat (shogiAiWorkerClient.ts) is what stays alive to
+    // report the stall, because this thread cannot log while blocked inside it.
     wasmMove = wasmSearchBestMove(k, tesu, searchBudgetMs, 32, budget.quiescenceDepthMax);
+  } catch (e) {
+    trapped = true;
+    smpErr(`wasmSearchBestMove THREW gen=${gen}`, e);
+    throw e;
   } finally {
+    const elapsed = performance.now() - searchT0;
+    const c = getSharedTtCounters();
+    const stats = getLastWasmSearchStats();
+    const overBudget = elapsed - searchBudgetMs;
+    const line =
+      `search END gen=${gen} elapsed=${elapsed.toFixed(0)}ms (budget=${searchBudgetMs}ms, ` +
+      `over=${overBudget.toFixed(0)}ms) depth=${stats?.depth ?? '?'} nodes=${stats?.nodes ?? '?'} ` +
+      `ttProbes=${c.probes} ttStores=${c.stores} shouldStops=${c.shouldStops} trapped=${trapped}`;
+    // A search that overran its budget by a wide margin is the slowdown/freeze
+    // signature — surface it as an error so it stands out in the console.
+    if (overBudget > searchBudgetMs) smpErr('SLOW/STALL ' + line);
+    else smpLog(line);
+
     // Stop the helpers even if the search trapped, and sync our OWN local
     // generation back to the idle value. Without the setSearchGeneration(0)
     // the main worker's local generation would stay at `gen` while the TT
@@ -407,6 +456,7 @@ function computeBestMove(
     if (useSmp) {
       publishSearchGeneration(0);
       setSearchGeneration(0);
+      smpLog(`published gen=0 (stop helpers) after gen=${gen}`);
     }
   }
   if (wasmMove) {

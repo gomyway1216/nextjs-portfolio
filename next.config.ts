@@ -94,14 +94,41 @@ const nextConfig: NextConfig = {
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
-      // NOTE: Cross-origin isolation (COOP/COEP) for /games/shogi-improved was
-      // intentionally REMOVED. It unlocked SharedArrayBuffer, which enabled the
-      // multi-thread (Lazy SMP) search — but that parallel search deadlocked in
-      // production (the page froze on "AI Thinking..." with no recovery), while
-      // its strength benefit was only a ~+58 Elo point estimate (n=24, not
-      // significant). Without these headers the page gets no SharedArrayBuffer
-      // and the AI stays single-thread — the same stable path /games/shogi uses.
-      // See shogiAiWorkerClient.ts (trySpawnSmpHelpers returns [] without SAB).
+      // ⚠️ TEMPORARY — SMP FREEZE-REPRODUCTION PREVIEW (see instrumented PR).
+      // Cross-origin isolation (COOP/COEP) on /games/shogi is RE-ENABLED here so
+      // SharedArrayBuffer exists and the multi-thread (Lazy SMP) search turns
+      // on. This is deliberately the RAW parallel search (no freeze-proofing
+      // yet) so the historical production freeze ("AI Thinking..." forever) can
+      // be reproduced in real Chrome on the Vercel preview with the [SMP] logs
+      // wired into the workers/client. Do NOT ship this to meetyudai.com as-is:
+      // the freeze-proofing follow-up must land first. When SAB is present,
+      // trySpawnSmpHelpers spawns helpers (see shogiAiWorkerClient.ts).
+      //
+      // For SAB the DOCUMENT needs COOP:same-origin + COEP:require-corp, and
+      // every same-origin subresource (JS chunks, workers, wasm, NNUE weights,
+      // opening book) must be loadable under require-corp — hence CORP:
+      // same-origin on the static/asset routes below.
+      {
+        source: '/games/shogi',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+      {
+        // Next build output + public assets must carry CORP so the isolated
+        // /games/shogi document can embed them under require-corp.
+        source: '/_next/:path*',
+        headers: [{ key: 'Cross-Origin-Resource-Policy', value: 'same-origin' }],
+      },
+      {
+        source: '/shogi-nnue-weights.bin',
+        headers: [{ key: 'Cross-Origin-Resource-Policy', value: 'same-origin' }],
+      },
+      {
+        source: '/shogi-opening-book.bin',
+        headers: [{ key: 'Cross-Origin-Resource-Policy', value: 'same-origin' }],
+      },
       {
         source: '/:path*',
         headers: [

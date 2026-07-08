@@ -76,6 +76,34 @@ let searchGeneration = 0;
 /** Cached Int32Array over the wasm-side probe scratch (stable after init). */
 let sharedTtScratchView: Int32Array | null = null;
 
+// ---------------------------------------------------------------------------
+// SMP FREEZE-REPRODUCTION INSTRUMENTATION (temporary; see PR).
+//
+// Every WASM->JS boundary crossing for the shared TT is counted here so the
+// workers can log per-search probe/store/shouldStop volume. This is the prime
+// freeze suspect: in the shared-TT hot path the engine crosses into JS on
+// *every* TT probe and store (i.e. at almost every interior search node), each
+// touching a 32MB SharedArrayBuffer through Atomics. A pathological explosion
+// of this count (or a shouldStop that never flips) is exactly what we want to
+// see when the production page freezes. Counters are process-global and read
+// (then reset) around each search by the worker.
+// ---------------------------------------------------------------------------
+let ttProbeCount = 0;
+let ttStoreCount = 0;
+let ttShouldStopCount = 0;
+
+/** Snapshot the shared-TT boundary-crossing counters (does not reset them). */
+export function getSharedTtCounters(): { probes: number; stores: number; shouldStops: number } {
+  return { probes: ttProbeCount, stores: ttStoreCount, shouldStops: ttShouldStopCount };
+}
+
+/** Reset the shared-TT boundary-crossing counters (call before a search). */
+export function resetSharedTtCounters(): void {
+  ttProbeCount = 0;
+  ttStoreCount = 0;
+  ttShouldStopCount = 0;
+}
+
 function getSharedTtScratchView(wasm: ShogiSearchWasm): Int32Array {
   // The engine allocates everything at instantiation and never grows memory
   // afterwards, but re-check the buffer identity anyway so a hypothetical
@@ -143,14 +171,17 @@ function getInstance(): ShogiSearchWasm | null {
         // Lazy SMP shared-TT hooks. Only called while the engine's
         // sharedTtEnabled flag is on (i.e. after enableSharedTT()).
         sharedTtProbe: (hash: number): number => {
+          ttProbeCount++;
           const tt = sharedTT;
           if (!tt || !instance) return 0;
           return tt.probe(hash, getSharedTtScratchView(instance));
         },
         sharedTtStore: (hash: number, value: number, flagDepth: number, best: number): void => {
+          ttStoreCount++;
           if (sharedTT) sharedTT.store(hash, value, flagDepth, best);
         },
         sharedShouldStop: (): number => {
+          ttShouldStopCount++;
           const tt = sharedTT;
           return tt && tt.readGeneration() !== searchGeneration ? 1 : 0;
         },

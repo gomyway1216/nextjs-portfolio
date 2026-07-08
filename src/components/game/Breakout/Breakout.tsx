@@ -125,6 +125,9 @@ const Breakout: React.FC = () => {
   // Keyboard input.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Only intercept game keys while actually playing, so the menu (and the
+      // rest of the page) keep normal keyboard behaviour.
+      if (screen !== 'playing') return;
       const state = gameStateRef.current;
       const k = e.key;
       if (k === 'ArrowLeft' || k === 'a' || k === 'A') {
@@ -136,16 +139,17 @@ const Breakout: React.FC = () => {
         inputRef.current.pointerX = null;
         e.preventDefault();
       } else if (k === 'p' || k === 'P' || k === 'Escape') {
-        if (screen === 'playing') togglePause();
+        togglePause();
         e.preventDefault();
       } else if (k === ' ' || k === 'Enter') {
-        if (screen === 'playing' && state && !state.gameOver && !state.victory) {
+        if (state && !state.gameOver && !state.victory) {
           launchBall(state);
         }
         e.preventDefault();
       }
     };
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (screen !== 'playing') return;
       const k = e.key;
       if (k === 'ArrowLeft' || k === 'a' || k === 'A') inputRef.current.left = false;
       if (k === 'ArrowRight' || k === 'd' || k === 'D') inputRef.current.right = false;
@@ -339,7 +343,8 @@ const Breakout: React.FC = () => {
       updateGame(state, inputRef.current, deltaTime);
       render(ctx, state);
 
-      if (state.score > 0) updateHighScore(state.score);
+      // Only persist genuinely new highs (avoids scheduling a state update every frame).
+      if (state.score > highScoreRef.current) updateHighScore(state.score);
 
       const nowOver = state.gameOver || state.victory;
       if (nowOver && !resultRecordedRef.current) {

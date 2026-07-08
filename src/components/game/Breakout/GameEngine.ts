@@ -234,7 +234,7 @@ export function createGameState(difficulty: Difficulty = 'medium', level = 1): G
     launched: false,
     difficulty,
     config,
-  flash: 0,
+    flash: 0,
   };
 }
 
@@ -375,8 +375,8 @@ function updateEffects(state: GameState): void {
   }
   if (speedReset) {
     for (const ball of state.balls) {
-      // Restore toward the difficulty base speed (not the accumulated speed).
-      setBallSpeed(ball, clamp(state.config.ballSpeed, state.config.ballSpeed, MAX_BALL_SPEED));
+      // Restore to the difficulty base speed (not the accumulated speed).
+      setBallSpeed(ball, state.config.ballSpeed);
     }
   }
   state.activeEffects = state.activeEffects.filter((e) => e.endTime > now);

@@ -72,7 +72,7 @@ export function getBrickType(index: number): BrickType {
 // Difficulty tuning
 export interface DifficultyConfig {
   ballSpeed: number; // initial ball speed (units/frame @60fps)
-  speedIncrement: number; // added each brick hit
+  speedIncrement: number; // added to ball speed each time a brick is destroyed
   lives: number;
   powerUpChance: number; // 0..1 drop chance per destroyed brick
   paddleWidth: number;

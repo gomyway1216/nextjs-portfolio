@@ -132,7 +132,9 @@ const JumpGame = () => {
       try {
         const audioContext = audioContextRef.current;
         if (audioContext.state === 'suspended') {
-          audioContext.resume();
+          // resume() is async; swallow rejections (e.g. autoplay policy) so they
+          // don't surface as unhandled promise rejections.
+          void audioContext.resume().catch(() => {});
         }
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
@@ -843,7 +845,10 @@ const JumpGame = () => {
       if (!newMutedState && audioContextRef.current) {
         try {
           const audioContext = audioContextRef.current;
-          if (audioContext.state === 'suspended') audioContext.resume();
+          if (audioContext.state === 'suspended') {
+            // Async resume(); swallow rejections so they aren't left unhandled.
+            void audioContext.resume().catch(() => {});
+          }
         } catch {}
       }
     };

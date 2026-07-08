@@ -188,8 +188,8 @@ export const updatePowerups = (
 
 /**
  * Points awarded for clearing one obstacle, scaled by the current combo.
- * Combo 0/1 -> base points; each additional chained dodge adds a 10% bonus,
- * capped at +150% so scoring stays readable.
+ * Combo 0 (and any negative value) -> base points; every combo level adds a
+ * +10% bonus (so combo 1 = +10%), capped at +150% so scoring stays readable.
  */
 export const dodgePoints = (combo: number): number => {
   const multiplier = 1 + Math.min(Math.max(combo, 0) * 0.1, 1.5);

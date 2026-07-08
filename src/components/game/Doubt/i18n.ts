@@ -93,6 +93,11 @@ export interface DoubtStrings {
   tip: string;
 
   errorSelectCards: string;
+  errorGeneric: string;
+
+  youSuffix: string;
+  verdictTruth: string;
+  verdictBluff: string;
 }
 
 const en: DoubtStrings = {
@@ -173,6 +178,11 @@ const en: DoubtStrings = {
   tip: 'Tip: drag cards from your hand into the play area, or just tap them.',
 
   errorSelectCards: 'Select 1–4 cards',
+  errorGeneric: 'That move is not allowed right now.',
+
+  youSuffix: ' (You)',
+  verdictTruth: 'TRUTH',
+  verdictBluff: 'BLUFF',
 };
 
 const ja: DoubtStrings = {
@@ -253,6 +263,11 @@ const ja: DoubtStrings = {
   tip: 'ヒント：手札をプレイエリアにドラッグ、またはタップで選べます。',
 
   errorSelectCards: '1〜4 枚を選んでください',
+  errorGeneric: 'その操作は今はできません。',
+
+  youSuffix: '（あなた）',
+  verdictTruth: '本物',
+  verdictBluff: 'ブラフ',
 };
 
 export function getDoubtStrings(language: GameLanguage): DoubtStrings {

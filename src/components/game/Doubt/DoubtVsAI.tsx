@@ -116,9 +116,9 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
   const canSelectMore = isMyTurn && gameState?.phase === 'play' && selectedCardIds.length < 4;
 
   const validatePlay = useMemo(() => {
-    if (!gameState) return { ok: false, error: 'No game' };
-    if (!isMyTurn) return { ok: false, error: 'Not your turn' };
-    if (gameState.phase !== 'play') return { ok: false, error: 'Not in play phase' };
+    // These first three are guard states where the Play button is already disabled;
+    // they should never surface to the user, but keep the message localized just in case.
+    if (!gameState || !isMyTurn || gameState.phase !== 'play') return { ok: false, error: t.errorGeneric };
     if (selectedCardIds.length < 1 || selectedCardIds.length > 4) return { ok: false, error: t.errorSelectCards };
     const probe: DoubtAction = {
       actionId: 'probe',
@@ -128,8 +128,10 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
       timestamp: 0,
     };
     const result = applyAction(gameState, probe);
-    return result.ok ? { ok: true, error: null } : { ok: false, error: result.error };
-  }, [gameState, humanId, isMyTurn, selectedCardIds, t.errorSelectCards]);
+    // The engine returns internal English strings; surface a localized card-count
+    // hint for the common case and a generic localized message otherwise.
+    return result.ok ? { ok: true, error: null } : { ok: false, error: t.errorSelectCards };
+  }, [gameState, humanId, isMyTurn, selectedCardIds, t.errorGeneric, t.errorSelectCards]);
 
   const clearTimers = useCallback(() => {
     if (aiTimeoutRef.current) {
@@ -209,7 +211,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
       if (!prev) return prev;
       const result = applyAction(prev, action);
       if (!result.ok) {
-        setLocalError(result.error);
+        setLocalError(t.errorGeneric);
         return prev;
       }
       return result.state;
@@ -232,7 +234,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
       if (!prev) return prev;
       const result = applyAction(prev, action);
       if (!result.ok) {
-        setLocalError(result.error);
+        setLocalError(t.errorGeneric);
         return prev;
       }
       return result.state;
@@ -274,7 +276,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
       if (!prev) return prev;
       const result = applyAction(prev, action);
       if (!result.ok) {
-        setLocalError(result.error);
+        setLocalError(t.errorGeneric);
         return prev;
       }
       return result.state;
@@ -607,7 +609,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
                           <span style={{ fontSize: '0.85rem', fontWeight: 800, color: p.isMe ? '#fbbf24' : '#e5e7eb' }}>
-                            {p.name}{p.isMe ? ' (You)' : ''}
+                            {p.name}{p.isMe ? t.youSuffix : ''}
                           </span>
                           {p.isTurn && <span aria-hidden style={{ fontSize: '0.7rem' }}>🎯</span>}
                         </div>
@@ -705,7 +707,7 @@ export function DoubtVsAI({ onBackToMenu }: DoubtVsAIProps) {
                           color: revealPile.truth ? '#22c55e' : '#f87171',
                           marginLeft: '0.35rem',
                         }}>
-                          {revealPile.truth ? 'TRUTH' : 'BLUFF'}
+                          {revealPile.truth ? t.verdictTruth : t.verdictBluff}
                         </span>
                       </div>
                     ) : pileCount === 0 ? (

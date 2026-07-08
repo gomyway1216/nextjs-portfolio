@@ -232,11 +232,8 @@ describe('Doubt gameLogic', () => {
     const play = applyAction(stateForHands({
       p1: [card('a', 'S', 1), card('b', 'H', 2)],
       p2: [card('c', 'D', 3)],
-    }, { playerOrder: ['p1', 'p2', 'p3'], hands: {
-      p1: [card('a', 'S', 1), card('b', 'H', 2)],
-      p2: [card('c', 'D', 3)],
       p3: [card('d', 'C', 4)],
-    } }), {
+    }, { playerOrder: ['p1', 'p2', 'p3'] }), {
       actionId: 'play-1',
       type: 'play',
       playerId: 'p1',

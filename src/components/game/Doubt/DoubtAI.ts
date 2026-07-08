@@ -126,12 +126,12 @@ export function estimateClaimTruthProbability(params: {
   return Math.max(0, Math.min(1, p));
 }
 
-/** Count cards not visible to this AI (everything except its own hand and the pile
- * it can see the size of). Opponents' hands + hidden pile faces are all "unseen". */
+/** Count cards whose faces this AI cannot see: everything except its own hand.
+ * Opponents' hands AND the face-down pile are all hidden, so both count as
+ * "unseen" (we subtract only the AI's own hand from the 52-card deck). */
 function countUnseen(state: DoubtNetworkState, playerId: string): number {
   const myHand = state.hands[playerId]?.length ?? 0;
   const total = 52;
-  // The pile faces are hidden to the AI, so treat them as unseen too.
   return Math.max(1, total - myHand);
 }
 
@@ -237,9 +237,10 @@ export function decidePlay(
     return { type: 'play', cardIds: hand.map(c => c.id) };
   }
 
-  // Expert/hard: if hand is tiny (<=4) time a bluff to go out by claiming them all.
-  if (config.timesGoingOut && hand.length >= 1 && hand.length <= 4) {
-    // Only worth it when the whole hand can be dumped in one legal-count play.
+  // Expert/hard: if the hand is tiny (<=4) time a bluff to go out by claiming them
+  // all. Only attempt this high-risk bluff when the pile is small enough that being
+  // doubted (opponents guard going-out aggressively) would not be catastrophic.
+  if (config.timesGoingOut && hand.length >= 1 && hand.length <= 4 && state.pile.length <= 8) {
     return { type: 'play', cardIds: hand.map(c => c.id) };
   }
 

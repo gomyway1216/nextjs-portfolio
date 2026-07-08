@@ -16,6 +16,7 @@ import {
   sortHand,
 } from './gameLogic';
 import { decideDaifugoAction } from './DaifugoAI';
+import type { DaifugoDifficulty } from './DaifugoAI';
 import { rankToLabel } from './types';
 import type { Card } from './types';
 import { PlayingCard, PlayingCardStyles } from './PlayingCard';
@@ -113,8 +114,20 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     you: translate('games.daifugo.ui.table.you'),
   };
 
+  const isJa = (translate('games.daifugo.title') || '').match(/[぀-ヿ一-鿿]/) !== null
+    || (typeof window !== 'undefined' && (document?.documentElement?.lang ?? '').startsWith('ja'));
+
   const [playerName, setPlayerName] = useState('You');
   const [aiCount, setAiCount] = useState<number>(2); // total players = aiCount + 1 (min 3, max 6)
+  const [difficulty, setDifficulty] = useState<DaifugoDifficulty>('medium');
+
+  const difficultyOptions = useMemo(() => ([
+    { value: 'easy' as const, label: isJa ? 'かんたん' : 'Easy', desc: isJa ? '低い札から素直に出す' : 'Plays low cards plainly' },
+    { value: 'medium' as const, label: isJa ? 'ふつう' : 'Medium', desc: isJa ? '強い札を温存する' : 'Saves strong cards' },
+    { value: 'hard' as const, label: isJa ? 'つよい' : 'Hard', desc: isJa ? 'パスを読み、8切りを狙う' : 'Passes wisely, uses 8-cut' },
+    { value: 'expert' as const, label: isJa ? 'エキスパート' : 'Expert', desc: isJa ? '相手の手札枚数を意識' : 'Reads opponents’ hands' },
+    { value: 'master' as const, label: isJa ? 'マスター' : 'Master', desc: isJa ? '隙のない最善手' : 'Near-optimal play' },
+  ]), [isJa]);
 
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [selectedGiveCardIds, setSelectedGiveCardIds] = useState<string[]>([]);
@@ -354,7 +367,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
         if (!prev || prev.finished) return prev;
         if (prev.currentTurnPlayerId !== currentPlayerId) return prev;
 
-        const decision = decideDaifugoAction(prev, currentPlayerId);
+        const decision = decideDaifugoAction(prev, currentPlayerId, difficulty);
         const action: DaifugoAction = decision.type === 'play'
           ? {
             actionId: createActionId(),
@@ -384,7 +397,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
         aiTimeoutRef.current = null;
       }
     };
-  }, [gameState, players]);
+  }, [gameState, players, difficulty]);
 
   const toggleCard = (cardId: string) => {
     setLocalError(null);
@@ -516,7 +529,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
       fontFamily: 'monospace',
       letterSpacing: '0.08em',
     }}>
-      AI ×{Math.max(2, Math.min(5, aiCount))} (total {Math.max(2, Math.min(5, aiCount)) + 1})
+      AI ×{Math.max(2, Math.min(5, aiCount))} · {difficultyOptions.find(o => o.value === difficulty)?.label}
     </div>
   );
 
@@ -525,16 +538,24 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
     const disabled = !isMyTurn || gameState?.finished;
 
     return (
-      <PlayingCard
+      <div
         key={card.id}
-        card={card}
-        selected={selected}
-        disabled={disabled}
-        onClick={() => toggleCard(card.id)}
-        size="medium"
-        variant="hand"
-        animationDelay={Math.min(idx * 25, 200)}
-      />
+        style={{
+          marginLeft: idx > 0 ? '-1.1rem' : 0,
+          transition: 'margin 0.15s ease',
+          flex: '0 0 auto',
+        }}
+      >
+        <PlayingCard
+          card={card}
+          selected={selected}
+          disabled={disabled}
+          onClick={() => toggleCard(card.id)}
+          size="medium"
+          variant="hand"
+          animationDelay={Math.min(idx * 25, 200)}
+        />
+      </div>
     );
   };
 
@@ -628,7 +649,54 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                   </select>
                   <span style={{ color: '#6b7280' }}>{d.total} {aiCount + 1}</span>
                 </label>
+              </div>
 
+              {/* Difficulty selector */}
+              <div style={{ marginTop: '1rem' }}>
+                <div style={{ color: '#9ca3af', fontSize: '0.85rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+                  {isJa ? 'AIの強さ' : 'AI difficulty'}
+                </div>
+                <div
+                  role="group"
+                  aria-label={isJa ? 'AIの強さ' : 'AI difficulty'}
+                  style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}
+                >
+                  {difficultyOptions.map((opt) => {
+                    const active = difficulty === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => setDifficulty(opt.value)}
+                        title={opt.desc}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          gap: '0.15rem',
+                          padding: '0.5rem 0.85rem',
+                          minWidth: '8.5rem',
+                          borderRadius: '0.75rem',
+                          border: active ? '2px solid #16a34a' : '1px solid rgba(55, 65, 81, 1)',
+                          background: active ? 'rgba(22, 163, 74, 0.18)' : '#111827',
+                          color: '#e5e7eb',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <span style={{ fontWeight: 800, fontSize: '0.9rem', color: active ? '#22c55e' : '#e5e7eb' }}>
+                          {opt.label}
+                        </span>
+                        <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>{opt.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginTop: '1.25rem', alignItems: 'center' }}>
                 <button
                   onClick={startGame}
                   style={{
@@ -665,9 +733,42 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
               }}>
                 {/* Header */}
                 <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-                    <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>{d.vsAI}</div>
-                    <div style={{ color: '#9ca3af', fontSize: '0.85rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <div style={{ color: '#fff', fontWeight: 900, fontSize: '1.1rem' }}>{d.vsAI}</div>
+                      <span style={{
+                        fontSize: '0.7rem',
+                        fontWeight: 800,
+                        color: '#93c5fd',
+                        background: 'rgba(59,130,246,0.15)',
+                        border: '1px solid rgba(59,130,246,0.4)',
+                        borderRadius: '0.5rem',
+                        padding: '0.1rem 0.5rem',
+                      }}>
+                        {difficultyOptions.find(o => o.value === difficulty)?.label}
+                      </span>
+                    </div>
+                    <div
+                      role="status"
+                      aria-live="polite"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        alignSelf: 'flex-start',
+                        color: isMyTurn ? '#052e16' : '#e5e7eb',
+                        background: isMyTurn ? '#22c55e' : 'rgba(75,85,99,0.5)',
+                        border: `1px solid ${isMyTurn ? '#16a34a' : 'rgba(107,114,128,0.6)'}`,
+                        borderRadius: '999px',
+                        padding: '0.2rem 0.7rem',
+                        fontSize: '0.8rem',
+                        fontWeight: 800,
+                      }}>
+                      <span aria-hidden style={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        background: isMyTurn ? '#052e16' : '#9ca3af',
+                        animation: isMyTurn ? 'daifugoPulse 1.2s ease-in-out infinite' : undefined,
+                      }} />
                       {d.round} {gameState.round} · {isMyTurn ? d.yourTurn : `${playerNameOf(gameState.currentTurnPlayerId)}${d.playerTurn}`}
                     </div>
                     {gameState.finished && (
@@ -946,13 +1047,17 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 	                    </div>
 	                  )}
 
-	                  <div style={{
+	                  <div
+	                    role="group"
+	                    aria-label={d.yourHand}
+	                    style={{
 	                    marginTop: '0.75rem',
 	                    display: 'flex',
-	                    gap: '0.5rem',
                     flexWrap: 'nowrap',
                     overflowX: 'auto',
-                    paddingBottom: '0.25rem',
+                    alignItems: 'flex-end',
+                    paddingTop: '0.75rem',
+                    paddingBottom: '0.5rem',
                   }}>
                     {myHand.map(renderCard)}
                   </div>

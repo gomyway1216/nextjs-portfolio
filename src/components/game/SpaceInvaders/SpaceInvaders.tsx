@@ -33,6 +33,8 @@ import { MultiplayerLobby } from './MultiplayerLobby';
 import { toNetworkGameState, MultiplayerPlayer } from './multiplayerTypes';
 import styles from './SpaceInvaders.module.css';
 
+const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard'];
+
 const DIFFICULTY_ACCENTS: Record<Difficulty, string> = {
   easy: '#22c55e',
   normal: '#38bdf8',
@@ -212,7 +214,31 @@ const SpaceInvaders: React.FC = () => {
   const lastSyncRef = useRef<number>(0);
   const animationFrameRef = useRef<number>(0);
   const finishedRef = useRef<boolean>(false);
+  // High score at the moment the current run started, so we can tell a genuine
+  // beat (score strictly greater) from a tie or a run that never surpassed it.
+  const runStartHighScoreRef = useRef<number>(0);
+  const diffRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const [touchActive, setTouchActive] = useState({ left: false, right: false, shoot: false });
+
+  // WAI-ARIA radio-group keyboard navigation for the difficulty selector:
+  // arrow keys move selection (and focus) with wrap-around.
+  const handleDifficultyKeyDown = useCallback((e: React.KeyboardEvent, index: number) => {
+    let nextIndex = index;
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      nextIndex = (index + 1) % DIFFICULTIES.length;
+    } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      nextIndex = (index - 1 + DIFFICULTIES.length) % DIFFICULTIES.length;
+    } else if (e.key === 'Home') {
+      nextIndex = 0;
+    } else if (e.key === 'End') {
+      nextIndex = DIFFICULTIES.length - 1;
+    } else {
+      return;
+    }
+    e.preventDefault();
+    setDifficulty(DIFFICULTIES[nextIndex]);
+    diffRefs.current[nextIndex]?.focus();
+  }, []);
 
   // Multiplayer hook
   const multiplayer = useMultiplayer();
@@ -245,12 +271,13 @@ const SpaceInvaders: React.FC = () => {
     finishedRef.current = false;
     lastTimeRef.current = 0;
     lastSyncRef.current = 0;
+    runStartHighScoreRef.current = highScore;
     const newState = createGameState(1, 0, undefined, mode === 'multi' ? 'normal' : difficulty);
     setActiveGame(newState);
     setGameMode(mode);
     setShowStartScreen(false);
     return newState;
-  }, [difficulty, setActiveGame]);
+  }, [difficulty, highScore, setActiveGame]);
 
   const startSinglePlayer = useCallback(() => {
     beginGame('single');
@@ -290,8 +317,9 @@ const SpaceInvaders: React.FC = () => {
     finishedRef.current = false;
     lastTimeRef.current = 0;
     lastSyncRef.current = 0;
+    runStartHighScoreRef.current = highScore;
     setActiveGame(createGameState(1, 0, undefined, difficulty));
-  }, [difficulty, setActiveGame]);
+  }, [difficulty, highScore, setActiveGame]);
 
   // Toggle pause
   const togglePause = useCallback(() => {
@@ -454,27 +482,15 @@ const SpaceInvaders: React.FC = () => {
       ctx.fillStyle = '#fff';
       ctx.font = '24px Arial';
       ctx.fillText(`${t.finalScore}: ${state.score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 10);
-      if (state.score >= highScore && state.score > 0) {
+      // Show the banner only when this run strictly beat the high score it
+      // started with (a tie is not a new record).
+      if (state.score > runStartHighScoreRef.current && state.score > 0) {
         ctx.fillStyle = '#fbbf24';
         ctx.font = 'bold 18px Arial';
         ctx.fillText(t.newHighScore, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 46);
       }
     }
-
-    // Victory overlay
-    if (state.victory) {
-      ctx.fillStyle = 'rgba(3, 6, 16, 0.85)';
-      ctx.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
-      ctx.fillStyle = '#22c55e';
-      ctx.font = 'bold 48px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(t.victory.toUpperCase(), CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 - 30);
-      ctx.fillStyle = '#fff';
-      ctx.font = '24px Arial';
-      ctx.fillText(`${t.finalScore}: ${state.score}`, CANVAS_WIDTH / 2, CANVAS_HEIGHT / 2 + 20);
-    }
-  }, [t, highScore]);
+  }, [t]);
 
   // Game loop — single RAF driven by refs (state syncs to React for the HUD).
   useEffect(() => {
@@ -605,16 +621,19 @@ const SpaceInvaders: React.FC = () => {
 
           <span className={styles.sectionLabel}>{t.difficulty}</span>
           <div className={styles.diffGrid} role="radiogroup" aria-label={t.difficulty}>
-            {(['easy', 'normal', 'hard'] as Difficulty[]).map((d) => (
+            {DIFFICULTIES.map((d, i) => (
               <button
                 key={d}
+                ref={(el) => { diffRefs.current[i] = el; }}
                 type="button"
                 role="radio"
                 aria-checked={difficulty === d}
+                tabIndex={difficulty === d ? 0 : -1}
                 data-selected={difficulty === d}
                 className={styles.diffButton}
                 style={{ ['--diff-accent' as string]: DIFFICULTY_ACCENTS[d] }}
                 onClick={() => setDifficulty(d)}
+                onKeyDown={(e) => handleDifficultyKeyDown(e, i)}
               >
                 <span className={styles.diffName}>{t.difficultyLabels[d]}</span>
                 <span className={styles.diffDesc}>{t.difficultyDescriptions[d]}</span>

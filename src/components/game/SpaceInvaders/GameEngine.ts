@@ -460,8 +460,10 @@ export function updateGame(state: GameState, input: InputState, deltaTime: numbe
     state.marchCounter++;
   }
 
-  // Enemy shooting. Rate scales with level and difficulty, and is divided among
-  // shooters so a nearly-cleared formation doesn't become trivially safe.
+  // Enemy shooting. Only the bottom-most invader in each column can fire, and
+  // each rolls independently against `fireChance` per frame. The chance scales
+  // with level and difficulty and is normalized by `dt` so the fire rate is
+  // frame-rate independent.
   const shootingEnemies = getShootingEnemies(state.formation);
   const fireChance =
     ENEMY_SHOOT_CHANCE *

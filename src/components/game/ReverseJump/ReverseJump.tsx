@@ -1,416 +1,604 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Info, Pause, Play, RotateCcw } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-type ObstacleType = 'ground' | 'overhead';
+import { useHighScore } from '@/hooks/useHighScore';
+import { InfoModal } from '../common/InfoModal';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getReverseJumpCopy } from './i18n';
+import styles from './ReverseJump.module.css';
+import {
+  ControlMode,
+  createObstacle,
+  Difficulty,
+  DIFFICULTY_CONFIG,
+  intersects,
+  Obstacle,
+  playerBox,
+  speedForScore,
+  stepPlayer,
+  WORLD,
+} from './gameLogic';
 
-interface Obstacle {
-  id: number;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  type: ObstacleType;
-  scored: boolean;
-}
+type Phase = 'menu' | 'playing' | 'paused' | 'gameover';
 
-type GamePhase = 'menu' | 'playing' | 'gameover';
-
-interface GameState {
-  phase: GamePhase;
+interface Runtime {
   playerY: number;
   velocityY: number;
   ducking: boolean;
   obstacles: Obstacle[];
   score: number;
-  controlInverted: boolean;
-  switchTimerMs: number;
-  spawnCooldown: number;
+  mode: ControlMode;
+  swapTimerMs: number;
+  spawnTimer: number;
+  nextObstacleId: number;
+  wantJump: boolean;
+  duckHeld: boolean;
 }
 
-const GAME_WIDTH = 860;
-const GAME_HEIGHT = 320;
-const GROUND_Y = 260;
-const PLAYER_X = 90;
-const PLAYER_W = 42;
-const PLAYER_STAND_H = 56;
-const PLAYER_DUCK_H = 32;
+const FLIP_WARN_MS = 1600;
 
-const createInitialState = (): GameState => ({
-  phase: 'menu',
-  playerY: GROUND_Y,
+const createRuntime = (config = DIFFICULTY_CONFIG.medium): Runtime => ({
+  playerY: WORLD.groundY,
   velocityY: 0,
   ducking: false,
   obstacles: [],
   score: 0,
-  controlInverted: false,
-  switchTimerMs: 8000,
-  spawnCooldown: 95,
+  mode: 'normal',
+  swapTimerMs: config.swapIntervalMs,
+  spawnTimer: 0.6,
+  nextObstacleId: 1,
+  wantJump: false,
+  duckHeld: false,
 });
-
-const intersects = (
-  ax: number,
-  ay: number,
-  aw: number,
-  ah: number,
-  bx: number,
-  by: number,
-  bw: number,
-  bh: number,
-): boolean => {
-  return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
-};
-
-const createObstacle = (id: number): Obstacle => {
-  const overhead = Math.random() < 0.35;
-  if (overhead) {
-    return {
-      id,
-      x: GAME_WIDTH + 30,
-      y: GROUND_Y - 90,
-      width: 52,
-      height: 20,
-      type: 'overhead',
-      scored: false,
-    };
-  }
-
-  return {
-    id,
-    x: GAME_WIDTH + 30,
-    y: GROUND_Y - 44,
-    width: 34,
-    height: 44,
-    type: 'ground',
-    scored: false,
-  };
-};
 
 export const ReverseJump = () => {
   useFeatureLifecycle('game.reverse-jump');
-  const [game, setGame] = useState<GameState>(createInitialState);
-  const [highScore, setHighScore] = useState(() => {
-    if (typeof window === 'undefined') {
-      return 0;
-    }
+  const { language } = useGameLanguage();
+  const copy = getReverseJumpCopy(language);
+  const [highScore, updateHighScore] = useHighScore('reverse-jump');
 
-    const saved = window.localStorage.getItem('reverse-jump-high-score');
-    if (!saved) {
-      return 0;
-    }
+  const [phase, setPhase] = useState<Phase>('menu');
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [infoOpen, setInfoOpen] = useState(false);
 
-    const parsed = Number.parseInt(saved, 10);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  });
-  const jumpRequestedRef = useRef(false);
-  const duckHeldRef = useRef(false);
-  const obstacleIdRef = useRef(1);
+  // HUD mirror state (updated at a throttled cadence from the loop).
+  const [hud, setHud] = useState({ score: 0, mode: 'normal' as ControlMode, swapTimerMs: DIFFICULTY_CONFIG.medium.swapIntervalMs });
+  const [isNewBest, setIsNewBest] = useState(false);
 
-  const startGame = () => {
-    jumpRequestedRef.current = false;
-    duckHeldRef.current = false;
-    setGame({ ...createInitialState(), phase: 'playing' });
-  };
-
-  const triggerPrimary = (inverted: boolean) => {
-    if (inverted) {
-      duckHeldRef.current = true;
-      window.setTimeout(() => {
-        duckHeldRef.current = false;
-      }, 220);
-      return;
-    }
-
-    jumpRequestedRef.current = true;
-  };
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const runtimeRef = useRef<Runtime>(createRuntime());
+  const phaseRef = useRef<Phase>('menu');
+  const difficultyRef = useRef<Difficulty>('medium');
+  const rafRef = useRef<number | null>(null);
+  const lastTimeRef = useRef<number>(0);
+  const hudAccumRef = useRef(0);
 
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.repeat) return;
+    phaseRef.current = phase;
+  }, [phase]);
+  useEffect(() => {
+    difficultyRef.current = difficulty;
+  }, [difficulty]);
 
-      if (event.code === 'Space') {
-        event.preventDefault();
-        if (game.phase === 'playing') {
-          triggerPrimary(game.controlInverted);
-        }
+  const config = DIFFICULTY_CONFIG[difficulty];
+
+  // ---- Input intent ----
+  const triggerAction = useCallback((intent: 'primary' | 'secondary') => {
+    const rt = runtimeRef.current;
+    if (phaseRef.current !== 'playing') return;
+    // resolveAction inlined via mode so refs stay authoritative
+    const normal = intent === 'primary' ? 'jump' : 'duck';
+    const action =
+      rt.mode === 'normal' ? normal : normal === 'jump' ? 'duck' : 'jump';
+    if (action === 'jump') {
+      rt.wantJump = true;
+    } else {
+      rt.duckHeld = true;
+    }
+  }, []);
+
+  const releaseAction = useCallback((intent: 'primary' | 'secondary') => {
+    const rt = runtimeRef.current;
+    const normal = intent === 'primary' ? 'jump' : 'duck';
+    const action =
+      rt.mode === 'normal' ? normal : normal === 'jump' ? 'duck' : 'jump';
+    if (action === 'duck') {
+      rt.duckHeld = false;
+    }
+  }, []);
+
+  const startGame = useCallback(() => {
+    runtimeRef.current = createRuntime(DIFFICULTY_CONFIG[difficultyRef.current]);
+    setIsNewBest(false);
+    setHud({ score: 0, mode: 'normal', swapTimerMs: DIFFICULTY_CONFIG[difficultyRef.current].swapIntervalMs });
+    lastTimeRef.current = 0;
+    setPhase('playing');
+  }, []);
+
+  const togglePause = useCallback(() => {
+    setPhase((p) => {
+      if (p === 'playing') return 'paused';
+      if (p === 'paused') {
+        lastTimeRef.current = 0;
+        return 'playing';
       }
+      return p;
+    });
+  }, []);
 
-      if (event.code === 'ArrowDown') {
-        event.preventDefault();
-        if (game.phase !== 'playing') return;
-
-        if (game.controlInverted) {
-          jumpRequestedRef.current = true;
-        } else {
-          duckHeldRef.current = true;
-        }
+  // Auto-pause when the tab is hidden so the player never returns to an
+  // unfair, time-skipped state (rAF also stops firing while hidden).
+  useEffect(() => {
+    const onVisibility = () => {
+      if (document.hidden && phaseRef.current === 'playing') {
+        setPhase('paused');
       }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
-      if (event.code === 'ArrowUp') {
-        event.preventDefault();
-        if (game.phase !== 'playing') return;
-
-        if (game.controlInverted) {
-          duckHeldRef.current = true;
-        } else {
-          jumpRequestedRef.current = true;
+  // ---- Keyboard ----
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'KeyP') {
+        if (phaseRef.current === 'playing' || phaseRef.current === 'paused') {
+          e.preventDefault();
+          togglePause();
         }
+        return;
+      }
+      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+        e.preventDefault();
+      }
+      if (e.repeat) return;
+
+      if (phaseRef.current === 'menu' || phaseRef.current === 'gameover') {
+        if (e.code === 'Space' || e.code === 'Enter') {
+          startGame();
+        }
+        return;
+      }
+      if (phaseRef.current !== 'playing') return;
+
+      if (e.code === 'Space' || e.code === 'ArrowUp') {
+        triggerAction('primary');
+      } else if (e.code === 'ArrowDown') {
+        triggerAction('secondary');
       }
     };
 
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (event.code === 'ArrowDown') {
-        if (!game.controlInverted) {
-          duckHeldRef.current = false;
-        }
-      }
-      if (event.code === 'ArrowUp') {
-        if (game.controlInverted) {
-          duckHeldRef.current = false;
-        }
-      }
-      if (event.code === 'Space') {
-        if (game.controlInverted) {
-          duckHeldRef.current = false;
-        }
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space' || e.code === 'ArrowUp') {
+        releaseAction('primary');
+      } else if (e.code === 'ArrowDown') {
+        releaseAction('secondary');
       }
     };
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
-
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
     };
-  }, [game.phase, game.controlInverted]);
+  }, [startGame, triggerAction, releaseAction, togglePause]);
 
+  // ---- Pointer (split the field: left = primary, right = secondary) ----
+  const pointerIntent = useRef<Map<number, 'primary' | 'secondary'>>(new Map());
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (phaseRef.current !== 'playing') return;
+      const rect = e.currentTarget.getBoundingClientRect();
+      const intent: 'primary' | 'secondary' =
+        e.clientX - rect.left < rect.width / 2 ? 'primary' : 'secondary';
+      pointerIntent.current.set(e.pointerId, intent);
+      triggerAction(intent);
+    },
+    [triggerAction],
+  );
+
+  const onPointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      const intent = pointerIntent.current.get(e.pointerId);
+      if (intent) {
+        releaseAction(intent);
+        pointerIntent.current.delete(e.pointerId);
+      }
+    },
+    [releaseAction],
+  );
+
+  // ---- Rendering ----
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Handle DPR + responsive sizing.
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const pw = Math.round(rect.width * dpr);
+    const ph = Math.round(rect.height * dpr);
+    if (canvas.width !== pw || canvas.height !== ph) {
+      canvas.width = pw;
+      canvas.height = ph;
+    }
+    const sx = canvas.width / WORLD.width;
+    const sy = canvas.height / WORLD.height;
+
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
+    ctx.clearRect(0, 0, WORLD.width, WORLD.height);
+
+    const rt = runtimeRef.current;
+    const inverted = rt.mode === 'inverted';
+    const accent = inverted ? '#fb7185' : '#38bdf8';
+
+    // Ground line
+    ctx.strokeStyle = 'rgba(148,163,184,0.55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, WORLD.groundY + 1);
+    ctx.lineTo(WORLD.width, WORLD.groundY + 1);
+    ctx.stroke();
+
+    // Subtle ground hatching for a sense of motion
+    ctx.strokeStyle = 'rgba(148,163,184,0.18)';
+    ctx.lineWidth = 1;
+    const dashOffset = (Date.now() / 8) % 40;
+    for (let x = -dashOffset; x < WORLD.width; x += 40) {
+      ctx.beginPath();
+      ctx.moveTo(x, WORLD.groundY + 8);
+      ctx.lineTo(x + 18, WORLD.groundY + 8);
+      ctx.stroke();
+    }
+
+    // Obstacles
+    for (const obs of rt.obstacles) {
+      if (obs.type === 'low') {
+        ctx.fillStyle = '#f59e0b';
+        roundRect(ctx, obs.x, obs.y, obs.width, obs.height, 6);
+        ctx.fill();
+        // spike top accent
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        roundRect(ctx, obs.x + 4, obs.y + 4, obs.width - 8, 6, 3);
+        ctx.fill();
+      } else {
+        ctx.fillStyle = '#a78bfa';
+        roundRect(ctx, obs.x, obs.y, obs.width, obs.height, 6);
+        ctx.fill();
+        // tether up to the ceiling so it reads as "overhead"
+        ctx.strokeStyle = 'rgba(167,139,250,0.4)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(obs.x + obs.width / 2, 0);
+        ctx.lineTo(obs.x + obs.width / 2, obs.y);
+        ctx.stroke();
+      }
+    }
+
+    // Player
+    const box = playerBox(rt.playerY, rt.ducking);
+    ctx.fillStyle = accent;
+    roundRect(ctx, box.x, box.y, box.w, box.h, 8);
+    ctx.fill();
+    // eye to show a facing / liveliness
+    ctx.fillStyle = 'rgba(4,18,31,0.85)';
+    const eyeY = box.y + Math.min(14, box.h * 0.3);
+    ctx.beginPath();
+    ctx.arc(box.x + box.w - 12, eyeY, 3.2, 0, Math.PI * 2);
+    ctx.fill();
+  }, []);
+
+  // ---- Main loop ----
   useEffect(() => {
-    if (game.phase !== 'playing') {
+    if (phase !== 'playing') {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      // Still render one frame for paused/gameover/menu so the canvas reflects state.
+      if (phase === 'paused' || phase === 'gameover') {
+        draw();
+      }
       return;
     }
 
-    const frame = window.setInterval(() => {
-      setGame((prev) => {
-        if (prev.phase !== 'playing') {
-          return prev;
+    const cfg = DIFFICULTY_CONFIG[difficultyRef.current];
+
+    const tick = (time: number) => {
+      const rt = runtimeRef.current;
+      if (lastTimeRef.current === 0) {
+        lastTimeRef.current = time;
+      }
+      // Clamp dt to avoid huge jumps after a tab is backgrounded.
+      const dt = Math.min(0.05, (time - lastTimeRef.current) / 1000);
+      lastTimeRef.current = time;
+
+      // Physics
+      const wantJump = rt.wantJump;
+      rt.wantJump = false;
+      const p = stepPlayer(rt.playerY, rt.velocityY, dt, wantJump);
+      rt.playerY = p.playerY;
+      rt.velocityY = p.velocityY;
+      rt.ducking = rt.duckHeld && p.onGround;
+
+      // Control flip timer
+      rt.swapTimerMs -= dt * 1000;
+      if (rt.swapTimerMs <= 0) {
+        rt.mode = rt.mode === 'normal' ? 'inverted' : 'normal';
+        rt.swapTimerMs = cfg.swapIntervalMs;
+        // Clear held ducks so a stuck key doesn't carry the wrong action across a flip.
+        rt.duckHeld = false;
+      }
+
+      // Scroll + spawn
+      const speed = speedForScore(rt.score, cfg);
+      rt.spawnTimer -= dt;
+      for (const obs of rt.obstacles) {
+        obs.x -= speed * dt;
+      }
+      rt.obstacles = rt.obstacles.filter((o) => o.x + o.width > -60);
+
+      if (rt.spawnTimer <= 0) {
+        rt.obstacles.push(createObstacle(rt.nextObstacleId, cfg));
+        rt.nextObstacleId += 1;
+        const gap = cfg.minSpawnGap + Math.random() * (cfg.maxSpawnGap - cfg.minSpawnGap);
+        // Scale spawn gap down slightly with speed so density stays fair.
+        rt.spawnTimer = gap * (cfg.baseSpeed / speed);
+      }
+
+      // Scoring + collision
+      const box = playerBox(rt.playerY, rt.ducking);
+      let dead = false;
+      for (const obs of rt.obstacles) {
+        if (!obs.scored && obs.x + obs.width < WORLD.playerX) {
+          obs.scored = true;
+          rt.score += 1;
         }
-
-        let { playerY, velocityY, controlInverted, switchTimerMs, spawnCooldown } = prev;
-        const onGround = playerY >= GROUND_Y - 0.001;
-
-        if (jumpRequestedRef.current && onGround) {
-          velocityY = -11;
-          jumpRequestedRef.current = false;
-        } else if (jumpRequestedRef.current && !onGround) {
-          jumpRequestedRef.current = false;
+        if (intersects(box.x, box.y, box.w, box.h, obs.x, obs.y, obs.width, obs.height)) {
+          dead = true;
         }
+      }
 
-        velocityY += 0.58;
-        playerY += velocityY;
-        if (playerY > GROUND_Y) {
-          playerY = GROUND_Y;
-          velocityY = 0;
+      draw();
+
+      // Throttle HUD react-state updates (~15fps) to avoid re-render churn.
+      hudAccumRef.current += dt;
+      if (hudAccumRef.current >= 0.066 || dead) {
+        hudAccumRef.current = 0;
+        setHud({ score: rt.score, mode: rt.mode, swapTimerMs: Math.max(0, rt.swapTimerMs) });
+      }
+
+      if (dead) {
+        const finalScore = rt.score;
+        if (finalScore > highScore) {
+          setIsNewBest(true);
+          updateHighScore(finalScore);
         }
+        setPhase('gameover');
+        return;
+      }
 
-        const ducking = duckHeldRef.current && playerY === GROUND_Y;
-
-        switchTimerMs -= 16;
-        if (switchTimerMs <= 0) {
-          controlInverted = !controlInverted;
-          switchTimerMs = 8000;
-          duckHeldRef.current = false;
-        }
-
-        const speed = Math.min(11, 4.5 + prev.score * 0.04);
-
-        spawnCooldown -= 1;
-        const nextObstacles = prev.obstacles
-          .map((obs) => ({ ...obs, x: obs.x - speed }))
-          .filter((obs) => obs.x + obs.width > -40);
-
-        if (spawnCooldown <= 0) {
-          nextObstacles.push(createObstacle(obstacleIdRef.current));
-          obstacleIdRef.current += 1;
-          const minCooldown = Math.max(52, 90 - Math.floor(prev.score / 3));
-          const maxCooldown = Math.max(78, 130 - Math.floor(prev.score / 2));
-          spawnCooldown = minCooldown + Math.floor(Math.random() * (maxCooldown - minCooldown + 1));
-        }
-
-        const playerH = ducking ? PLAYER_DUCK_H : PLAYER_STAND_H;
-        const playerTop = playerY - playerH;
-
-        let score = prev.score;
-        let hit = false;
-
-        for (const obstacle of nextObstacles) {
-          if (!obstacle.scored && obstacle.x + obstacle.width < PLAYER_X) {
-            obstacle.scored = true;
-            score += 1;
-          }
-
-          if (
-            intersects(
-              PLAYER_X,
-              playerTop,
-              PLAYER_W,
-              playerH,
-              obstacle.x,
-              obstacle.y,
-              obstacle.width,
-              obstacle.height,
-            )
-          ) {
-            hit = true;
-          }
-        }
-
-        if (hit) {
-          if (score > highScore) {
-            setHighScore(score);
-            if (typeof window !== 'undefined') {
-              window.localStorage.setItem('reverse-jump-high-score', String(score));
-            }
-          }
-
-          return {
-            ...prev,
-            phase: 'gameover',
-            playerY,
-            velocityY,
-            ducking,
-            obstacles: nextObstacles,
-            score,
-            controlInverted,
-            switchTimerMs,
-            spawnCooldown,
-          };
-        }
-
-        return {
-          ...prev,
-          playerY,
-          velocityY,
-          ducking,
-          obstacles: nextObstacles,
-          score,
-          controlInverted,
-          switchTimerMs,
-          spawnCooldown,
-        };
-      });
-    }, 16);
-
-    return () => {
-      window.clearInterval(frame);
+      rafRef.current = requestAnimationFrame(tick);
     };
-  }, [game.phase, highScore]);
 
-  const controlLabel = useMemo(() => {
-    return game.controlInverted ? 'INVERTED' : 'NORMAL';
-  }, [game.controlInverted]);
+    rafRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
+    // draw is stable via useCallback; highScore/updateHighScore intentionally captured fresh per start.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
-  const timeToSwap = Math.ceil(game.switchTimerMs / 1000);
-  const playerHeight = game.ducking ? PLAYER_DUCK_H : PLAYER_STAND_H;
+  // Redraw idle frames when mode colors or phase change.
+  useEffect(() => {
+    draw();
+  }, [draw, hud.mode, phase]);
+
+  const cfgSwap = config.swapIntervalMs;
+  const swapSeconds = Math.ceil(hud.swapTimerMs / 1000);
+  const showFlipWarn = phase === 'playing' && hud.swapTimerMs <= FLIP_WARN_MS;
+  const swapPct = Math.max(0, Math.min(100, (hud.swapTimerMs / cfgSwap) * 100));
+  const modeIsInverted = hud.mode === 'inverted';
+
+  const diffLabel: Record<Difficulty, string> = {
+    easy: copy.easy,
+    medium: copy.medium,
+    hard: copy.hard,
+  };
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #020617, #0f172a)', color: '#e2e8f0', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: '960px', margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>Reverse Jump</h1>
-        <p style={{ marginTop: '0.5rem', color: '#94a3b8' }}>操作が8秒ごとに反転。低い障害物はジャンプ、高い障害物はしゃがみで回避。</p>
+    <div className={styles.shell}>
+      <header className={styles.header}>
+        <h1 className={styles.title}>{copy.title}</h1>
+        <p className={styles.tagline}>{copy.tagline}</p>
+      </header>
 
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <span style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '999px', padding: '0.4rem 0.8rem' }}>Score: {game.score}</span>
-          <span style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '999px', padding: '0.4rem 0.8rem' }}>High: {highScore}</span>
-          <span style={{ background: game.controlInverted ? '#7f1d1d' : '#1e293b', border: '1px solid #334155', borderRadius: '999px', padding: '0.4rem 0.8rem' }}>Mode: {controlLabel}</span>
-          <span style={{ background: '#0f172a', border: '1px solid #334155', borderRadius: '999px', padding: '0.4rem 0.8rem' }}>Swap in: {timeToSwap}s</span>
+      <div className={styles.hud}>
+        <div className={styles.stat}>
+          <span className={styles.statLabel}>{copy.score}</span>
+          <span className={styles.statValue}>{hud.score}</span>
         </div>
-
+        <div className={styles.stat}>
+          <span className={styles.statLabel}>{copy.best}</span>
+          <span className={styles.statValue}>{highScore}</span>
+        </div>
         <div
-          onClick={() => {
-            if (game.phase === 'playing') {
-              triggerPrimary(game.controlInverted);
-            }
-          }}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && game.phase === 'playing') {
-              triggerPrimary(game.controlInverted);
-            }
-          }}
-          style={{
-            width: '100%',
-            maxWidth: `${GAME_WIDTH}px`,
-            height: `${GAME_HEIGHT}px`,
-            borderRadius: '16px',
-            border: '1px solid #334155',
-            background: 'linear-gradient(180deg, #0f172a, #1e293b)',
-            position: 'relative',
-            overflow: 'hidden',
-            outline: 'none',
-          }}
+          className={`${styles.stat} ${styles.modeStat} ${modeIsInverted ? styles.modeInverted : styles.modeNormal}`}
+          aria-live="polite"
         >
-          <div style={{ position: 'absolute', left: 0, right: 0, bottom: `${GAME_HEIGHT - GROUND_Y}px`, height: '2px', background: '#94a3b8' }} />
-
-          <div
-            style={{
-              position: 'absolute',
-              left: `${PLAYER_X}px`,
-              bottom: `${GAME_HEIGHT - game.playerY}px`,
-              width: `${PLAYER_W}px`,
-              height: `${playerHeight}px`,
-              borderRadius: '8px',
-              background: game.controlInverted ? '#fb7185' : '#38bdf8',
-              transition: 'height 80ms linear',
-            }}
-          />
-
-          {game.obstacles.map((obstacle) => (
-            <div
-              key={obstacle.id}
-              style={{
-                position: 'absolute',
-                left: `${obstacle.x}px`,
-                top: `${obstacle.y}px`,
-                width: `${obstacle.width}px`,
-                height: `${obstacle.height}px`,
-                borderRadius: '6px',
-                background: obstacle.type === 'ground' ? '#f59e0b' : '#a78bfa',
-              }}
-            />
-          ))}
-
-          {game.phase !== 'playing' && (
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(2, 6, 23, 0.75)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', padding: '1rem' }}>
-              <h2 style={{ margin: 0, fontSize: '1.75rem' }}>{game.phase === 'menu' ? 'Ready?' : 'Game Over'}</h2>
-              {game.phase === 'gameover' && <p style={{ margin: '0.5rem 0 0', color: '#cbd5e1' }}>Final Score: {game.score}</p>}
-              <button
-                onClick={startGame}
-                style={{
-                  marginTop: '1rem',
-                  background: '#0ea5e9',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '10px',
-                  padding: '0.6rem 1.1rem',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                }}
-              >
-                {game.phase === 'menu' ? 'Start' : 'Retry'}
-              </button>
-            </div>
-          )}
+          <span className={styles.statLabel}>{copy.mode}</span>
+          <span
+            className={`${styles.statValue} ${modeIsInverted ? styles.modeValueInverted : styles.modeValueNormal}`}
+          >
+            {modeIsInverted ? copy.modeInverted : copy.modeNormal}
+          </span>
         </div>
-
-        <p style={{ marginTop: '1rem', color: '#94a3b8', fontSize: '0.95rem' }}>
-          操作: `Space` / `↑` / タップ = メイン操作、`↓` = サブ操作。反転中はジャンプとしゃがみが入れ替わります。
-        </p>
+        <div className={styles.stat} style={{ color: modeIsInverted ? '#fb7185' : '#38bdf8' }}>
+          <span className={styles.statLabel}>{copy.swapIn}</span>
+          <span className={styles.statValue} style={{ color: 'var(--games-route-fg)' }}>
+            {copy.seconds(Math.max(0, swapSeconds))}
+          </span>
+          <div className={styles.swapBarTrack}>
+            <div className={styles.swapBarFill} style={{ width: `${swapPct}%` }} />
+          </div>
+        </div>
       </div>
+
+      <div
+        className={`${styles.stage} ${modeIsInverted ? styles.stageInverted : ''}`}
+        role="application"
+        aria-label={copy.a11yPlayfield}
+        tabIndex={0}
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerCancel={onPointerUp}
+        onPointerLeave={onPointerUp}
+      >
+        <canvas ref={canvasRef} className={styles.canvas} />
+
+        {showFlipWarn && (
+          <div className={styles.flipWarn}>⟲ {copy.swapIn} {copy.seconds(Math.max(1, swapSeconds))}</div>
+        )}
+
+        {phase === 'paused' && (
+          <div className={styles.overlay}>
+            <h2 className={styles.overlayTitle}>{copy.paused}</h2>
+            <button type="button" className={styles.primaryButton} onClick={togglePause}>
+              {copy.resume}
+            </button>
+          </div>
+        )}
+
+        {(phase === 'menu' || phase === 'gameover') && (
+          <div className={styles.overlay}>
+            <h2 className={styles.overlayTitle}>
+              {phase === 'menu' ? copy.ready : copy.gameOver}
+            </h2>
+            {phase === 'gameover' && (
+              <>
+                <p className={styles.overlaySub}>
+                  {copy.finalScore}: {hud.score}
+                </p>
+                {isNewBest && <p className={styles.newBest}>🏆 {copy.newBest}</p>}
+              </>
+            )}
+
+            {phase === 'menu' && (
+              <div className={styles.diffRow} role="group" aria-label={copy.difficulty}>
+                {(['easy', 'medium', 'hard'] as Difficulty[]).map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    className={`${styles.diffButton} ${difficulty === d ? styles.diffActive : ''}`}
+                    aria-pressed={difficulty === d}
+                    onClick={() => setDifficulty(d)}
+                  >
+                    {diffLabel[d]}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button type="button" className={styles.primaryButton} onClick={startGame}>
+              {phase === 'menu' ? copy.start : copy.retry}
+            </button>
+            <p className={styles.overlayHint}>{copy.tapHint}</p>
+          </div>
+        )}
+      </div>
+
+      <div className={styles.footer}>
+        <p className={styles.controlsHint}>
+          {copy.controlKeyboard}
+          <br />
+          {copy.controlTouch}
+        </p>
+        <div className={styles.actionButtons}>
+          {(phase === 'playing' || phase === 'paused') && (
+            <button type="button" className={styles.ghostButton} onClick={togglePause}>
+              {phase === 'paused' ? (
+                <Play className={styles.ghostIcon} />
+              ) : (
+                <Pause className={styles.ghostIcon} />
+              )}
+              {phase === 'paused' ? copy.resume : copy.pause}
+            </button>
+          )}
+          {phase !== 'menu' && (
+            <button type="button" className={styles.ghostButton} onClick={startGame}>
+              <RotateCcw className={styles.ghostIcon} />
+              {copy.retry}
+            </button>
+          )}
+          <button
+            type="button"
+            className={styles.ghostButton}
+            onClick={() => setInfoOpen(true)}
+            aria-label={copy.howToPlay}
+          >
+            <Info className={styles.ghostIcon} />
+            {copy.howToPlay}
+          </button>
+        </div>
+      </div>
+
+      <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={copy.instrTitle}>
+        <div className={styles.modalBody}>
+          <div className={styles.modalSection}>
+            <ol className={styles.modalList}>
+              {copy.instr.map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ol>
+          </div>
+          <div className={styles.modalSection}>
+            <h3>{copy.controlsHeading}</h3>
+            <ul className={styles.modalList} style={{ listStyle: 'none', paddingLeft: 0 }}>
+              <li>
+                <span className={styles.modalKbd}>Space</span> / <span className={styles.modalKbd}>↑</span> — {copy.primaryControl}
+              </li>
+              <li>
+                <span className={styles.modalKbd}>↓</span> — {copy.secondaryControl}
+              </li>
+              <li>
+                <span className={styles.modalKbd}>P</span> — {copy.pause}
+              </li>
+            </ul>
+            <p style={{ margin: '0.5rem 0 0', color: 'var(--games-route-muted)' }}>{copy.invertNote}</p>
+          </div>
+        </div>
+      </InfoModal>
     </div>
   );
 };
+
+// --- canvas helpers ---
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
 
 export default ReverseJump;

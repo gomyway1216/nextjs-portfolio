@@ -18,7 +18,7 @@
 
 ## 0. Background: the original system and the version genealogy
 
-At the time the site had two shogi pages (now consolidated into `/games/shogi`; the old `/games/shogi-improved` redirects there):
+At the time the site had two shogi pages (now consolidated into `/games/shogi`; the old `/games/shogi-improved` route was removed):
 
 - `/games/shogi` — original UI + a move-sequence-matching opening book + engine
 - `/games/shogi-improved` (now consolidated into `/games/shogi`) — fast-engine UI + a position-hash-matching opening book + Web Worker (Lv4/5)

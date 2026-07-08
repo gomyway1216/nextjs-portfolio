@@ -18,7 +18,7 @@
 
 ## 0. 前提：もともとのシステムとバージョンの系譜
 
-当時サイトには2つの将棋ページがあった（現在は `/games/shogi` に統合済み。旧 `/games/shogi-improved` はそこへリダイレクトする）。
+当時サイトには2つの将棋ページがあった（現在は `/games/shogi` に統合済み。旧 `/games/shogi-improved` は削除された）。
 
 - `/games/shogi` — オリジナルUI + 手順列マッチの定跡ブック + エンジン
 - `/games/shogi-improved`（現在は `/games/shogi` に統合）— 高速エンジン用UI + 局面ハッシュマッチの定跡ブック + Web Worker（Lv4/5）

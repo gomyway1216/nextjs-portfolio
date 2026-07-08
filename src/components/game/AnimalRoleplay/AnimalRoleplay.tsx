@@ -5,35 +5,66 @@
 'use client';
 
 import Link from 'next/link';
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { GameTopBar, InfoModal, GameStats } from '../common';
-import { ACTION_DEFINITIONS, ANIMAL_PROFILES, createInitialState, resolveTurn, startGameWithAnimal } from './gameLogic';
-import { ActionId, AnimalId, TurnLogEntry, MAX_HP, MAX_HUNGER, MAX_TURNS } from './types';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import {
+  ACTION_DEFINITIONS,
+  ANIMAL_PROFILES,
+  createInitialState,
+  effectiveThreat,
+  predictSuccessChance,
+  resolveTurn,
+  startGameWithAnimal,
+} from './gameLogic';
+import { getLocalStrings } from './i18n';
+import {
+  ActionId,
+  AnimalId,
+  Difficulty,
+  MAX_HP,
+  MAX_HUNGER,
+  MAX_TURNS,
+  SCORE_METER_MAX,
+  TurnLogEntry,
+} from './types';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-const statColors: Record<'hp' | 'hunger' | 'score', string> = {
-  hp: '#ef4444',
-  hunger: '#f59e0b',
-  score: '#22c55e',
-};
+import styles from './AnimalRoleplay.module.css';
+
+const DIFFICULTIES: Difficulty[] = ['easy', 'normal', 'hard'];
 
 function formatDelta(value: number): string {
   return value > 0 ? `+${value}` : `${value}`;
 }
 
-function getMeterColor(value: number): string {
-  if (value >= 70) return '#22c55e';
-  if (value >= 35) return '#f59e0b';
+function getMeterColor(pct: number): string {
+  if (pct >= 70) return '#22c55e';
+  if (pct >= 35) return '#f59e0b';
   return '#ef4444';
+}
+
+function getChanceStyle(chance: number): React.CSSProperties {
+  if (chance >= 65) return { background: 'rgba(34,197,94,0.25)', color: '#86efac' };
+  if (chance >= 40) return { background: 'rgba(245,158,11,0.25)', color: '#fde68a' };
+  return { background: 'rgba(239,68,68,0.25)', color: '#fca5a5' };
 }
 
 export function AnimalRoleplay() {
   useFeatureLifecycle('game.animal-roleplay');
   const { t } = useTranslation();
+  const { language } = useGameLanguage();
+  const local = useMemo(() => getLocalStrings(language), [language]);
+
   const [showInfo, setShowInfo] = useState(false);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
-  const [state, setState] = useState(() => createInitialState());
+  const [difficulty, setDifficulty] = useState<Difficulty>('normal');
+  const [bestScore, setBestScore] = useState(0);
+  const [isNewBest, setIsNewBest] = useState(false);
+  const [state, setState] = useState(() => createInitialState('normal'));
+  // Guards against double-fire (rapid clicks / key-repeat) mutating the same turn.
+  const resolvingRef = useRef(false);
 
   const currentAnimal = state.selectedAnimalId ? ANIMAL_PROFILES[state.selectedAnimalId] : null;
   const isPlaying = !!state.selectedAnimalId && !state.outcome;
@@ -74,114 +105,131 @@ export function AnimalRoleplay() {
       : t('games.animal-roleplay.ui.result.fail', { action: actionLabel, event: eventLabel });
   }, [state.lastLog, t]);
 
-  const startWithAnimal = (animalId: AnimalId) => {
-    setState(startGameWithAnimal(animalId));
-  };
-
-  const handleAction = (actionId: ActionId) => {
-    setState((prev) => {
-      if (!prev.selectedAnimalId || prev.outcome) return prev;
-      const next = resolveTurn(prev, actionId);
-      if (!prev.outcome && next.outcome) {
+  const recordOutcome = useCallback(
+    (
+      prevOutcome: (typeof state)['outcome'],
+      next: typeof state,
+    ) => {
+      if (!prevOutcome && next.outcome) {
         setStats((prevStats) =>
           next.outcome === 'win'
             ? { ...prevStats, wins: prevStats.wins + 1 }
-            : { ...prevStats, losses: prevStats.losses + 1 }
+            : { ...prevStats, losses: prevStats.losses + 1 },
         );
+        setBestScore((prevBest) => {
+          if (next.score > prevBest) {
+            setIsNewBest(true);
+            return next.score;
+          }
+          setIsNewBest(false);
+          return prevBest;
+        });
       }
-      return next;
-    });
+    },
+    [],
+  );
+
+  const startWithAnimal = (animalId: AnimalId) => {
+    resolvingRef.current = false;
+    setIsNewBest(false);
+    setState(startGameWithAnimal(animalId, difficulty));
   };
+
+  const handleAction = useCallback(
+    (actionId: ActionId) => {
+      if (resolvingRef.current) return;
+      resolvingRef.current = true;
+      setState((prev) => {
+        if (!prev.selectedAnimalId || prev.outcome) {
+          resolvingRef.current = false;
+          return prev;
+        }
+        const next = resolveTurn(prev, actionId);
+        recordOutcome(prev.outcome, next);
+        resolvingRef.current = false;
+        return next;
+      });
+    },
+    [recordOutcome],
+  );
 
   const handleReplay = () => {
     if (!state.selectedAnimalId) return;
-    setState(startGameWithAnimal(state.selectedAnimalId));
+    resolvingRef.current = false;
+    setIsNewBest(false);
+    setState(startGameWithAnimal(state.selectedAnimalId, difficulty));
   };
 
   const handleChangeAnimal = () => {
-    setState(createInitialState());
+    resolvingRef.current = false;
+    setIsNewBest(false);
+    setState(createInitialState(difficulty));
   };
 
   const turnDisplay = state.outcome ? state.turn : Math.min(state.turn + 1, MAX_TURNS);
-
-  const renderStatusCard = (label: string, value: number, max: number, kind: 'hp' | 'hunger' | 'score') => (
-    <div style={{
-      background: 'rgba(17, 24, 39, 0.88)',
-      border: '1px solid rgba(75, 85, 99, 0.8)',
-      borderRadius: '0.75rem',
-      padding: '0.75rem',
-    }}>
-      <div style={{ color: '#cbd5e1', fontSize: '0.8rem', marginBottom: '0.35rem' }}>{label}</div>
-      <div style={{ color: '#fff', fontWeight: 800, fontSize: '1.2rem' }}>{value}</div>
-      <div style={{
-        marginTop: '0.4rem',
-        height: '0.4rem',
-        background: 'rgba(148, 163, 184, 0.2)',
-        borderRadius: '9999px',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          width: `${Math.max(0, Math.min(100, (value / max) * 100))}%`,
-          height: '100%',
-          borderRadius: '9999px',
-          background: kind === 'score' ? statColors.score : getMeterColor((value / max) * 100),
-          transition: 'width 0.2s ease',
-        }} />
-      </div>
-    </div>
-  );
+  const progressPct = Math.min(100, (state.turn / MAX_TURNS) * 100);
 
   const renderAnimalStat = (label: string, value: number) => (
-    <div style={{ display: 'grid', gridTemplateColumns: '84px 1fr auto', alignItems: 'center', gap: '0.5rem' }}>
-      <span style={{ color: '#cbd5e1', fontSize: '0.75rem' }}>{label}</span>
-      <div style={{
-        height: '0.35rem',
-        borderRadius: '9999px',
-        background: 'rgba(148, 163, 184, 0.25)',
-        overflow: 'hidden',
-      }}>
-        <div style={{
-          height: '100%',
-          width: `${(value / 5) * 100}%`,
-          background: '#38bdf8',
-        }} />
+    <div className={styles.statRow}>
+      <span className={styles.statName}>{label}</span>
+      <div className={styles.statTrack}>
+        <div className={styles.statFill} style={{ width: `${(value / 5) * 100}%` }} />
       </div>
-      <span style={{ color: '#fff', fontSize: '0.75rem', fontWeight: 700 }}>{value}</span>
+      <span className={styles.statValue}>{value}</span>
     </div>
   );
+
+  const renderStatusCard = (
+    label: string,
+    value: number,
+    max: number,
+    kind: 'hp' | 'hunger' | 'score',
+    delta: number | null,
+  ) => {
+    const pct = Math.max(0, Math.min(100, (value / max) * 100));
+    const color = kind === 'score' ? '#22c55e' : getMeterColor(pct);
+    return (
+      <div className={styles.statusCard}>
+        <div className={styles.statusLabel}>
+          <span>{label}</span>
+          {delta != null && delta !== 0 ? (
+            <span
+              className={styles.statusDelta}
+              style={{ color: delta > 0 ? '#86efac' : '#fca5a5' }}
+            >
+              {formatDelta(delta)}
+            </span>
+          ) : null}
+        </div>
+        <div className={styles.statusValue}>{value}</div>
+        <div className={styles.meterTrack}>
+          <div className={styles.meterFill} style={{ width: `${pct}%`, background: color }} />
+        </div>
+      </div>
+    );
+  };
 
   const renderLogItem = (log: TurnLogEntry) => {
     const actionLabel = t(`games.animal-roleplay.ui.actions.${log.actionId}.label`);
     const eventLabel = t(`games.animal-roleplay.ui.events.${log.eventId}.title`);
     return (
-      <div
-        key={`${log.turn}-${log.actionId}`}
-        style={{
-          border: '1px solid rgba(75, 85, 99, 0.6)',
-          borderRadius: '0.6rem',
-          padding: '0.65rem',
-          background: 'rgba(2, 6, 23, 0.45)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ color: '#e2e8f0', fontSize: '0.85rem' }}>
+      <div key={`${log.turn}-${log.actionId}`} className={styles.logItem}>
+        <div className={styles.logHead}>
+          <div className={styles.logTurn}>
             {t('games.animal-roleplay.ui.turnLabel', { current: log.turn, total: MAX_TURNS })}
           </div>
-          <span style={{
-            borderRadius: '9999px',
-            padding: '0.1rem 0.5rem',
-            fontSize: '0.7rem',
-            fontWeight: 700,
-            color: '#fff',
-            background: log.success ? '#16a34a' : '#b91c1c',
-          }}>
-            {log.success ? t('games.animal-roleplay.ui.resultTag.success') : t('games.animal-roleplay.ui.resultTag.fail')}
+          <span
+            className={`${styles.logTag} ${log.success ? styles.logTagSuccess : styles.logTagFail}`}
+          >
+            {log.success
+              ? t('games.animal-roleplay.ui.resultTag.success')
+              : t('games.animal-roleplay.ui.resultTag.fail')}
           </span>
         </div>
-        <div style={{ marginTop: '0.4rem', color: '#cbd5e1', fontSize: '0.85rem' }}>
+        <div className={styles.logBody}>
           {eventLabel} / {actionLabel}
         </div>
-        <div style={{ marginTop: '0.35rem', display: 'flex', gap: '0.65rem', flexWrap: 'wrap', fontSize: '0.75rem' }}>
+        <div className={styles.logDeltas}>
           <span style={{ color: log.hpDelta >= 0 ? '#86efac' : '#fca5a5' }}>
             {t('games.animal-roleplay.ui.hpLabel')} {formatDelta(log.hpDelta)}
           </span>
@@ -197,233 +245,240 @@ export function AnimalRoleplay() {
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      overflowY: 'auto',
-      background: 'radial-gradient(circle at top, #164e63 0%, #0f172a 50%, #020617 100%)',
-      padding: '1rem',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-    }}>
-      <div style={{ maxWidth: '980px', margin: '0 auto', width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.8rem', gap: '0.75rem' }}>
-          <Link
-            href="/games"
-            style={{
-              color: '#cbd5e1',
-              textDecoration: 'none',
-              fontSize: '0.9rem',
-              fontWeight: 700,
-            }}
-          >
+    <div className={styles.root}>
+      <div className={styles.shell}>
+        <div className={styles.header}>
+          <Link href="/games" className={styles.backLink}>
             ← {t('navigation.backToGames')}
           </Link>
-          <h1 style={{ margin: 0, color: '#fff', fontSize: '1.5rem' }}>{t('games.animal-roleplay.title')}</h1>
+          <h1 className={styles.title}>{t('games.animal-roleplay.title')}</h1>
         </div>
 
         <GameTopBar
           stats={stats}
           onInfoClick={() => setShowInfo(true)}
           additionalContent={
-            <div style={{
-              color: '#93c5fd',
-              border: '1px solid rgba(59, 130, 246, 0.4)',
-              borderRadius: '9999px',
-              padding: '0.2rem 0.7rem',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              background: 'rgba(59, 130, 246, 0.15)',
-            }}>
+            <div className={styles.turnPill}>
               {t('games.animal-roleplay.ui.turnLabel', { current: turnDisplay, total: MAX_TURNS })}
             </div>
           }
         />
 
         {!state.selectedAnimalId ? (
-          <div style={{
-            marginTop: '1rem',
-            background: 'rgba(2, 6, 23, 0.7)',
-            border: '1px solid rgba(56, 189, 248, 0.35)',
-            borderRadius: '1rem',
-            padding: '1.2rem',
-          }}>
-            <p style={{ margin: 0, color: '#cbd5e1', lineHeight: 1.6 }}>
-              {t('games.animal-roleplay.ui.selectAnimalDescription')}
-            </p>
-
-            <div style={{
-              marginTop: '1rem',
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-              gap: '0.9rem',
-            }}>
-              {(Object.keys(ANIMAL_PROFILES) as AnimalId[]).map((animalId) => {
-                const animal = ANIMAL_PROFILES[animalId];
-                return (
-                  <div
-                    key={animalId}
-                    style={{
-                      borderRadius: '0.9rem',
-                      border: '1px solid rgba(100, 116, 139, 0.6)',
-                      padding: '0.9rem',
-                      background: 'rgba(15, 23, 42, 0.85)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
-                      <span style={{ fontSize: '1.8rem' }}>{animal.emoji}</span>
-                      <div>
-                        <div style={{ color: '#fff', fontSize: '1rem', fontWeight: 800 }}>
-                          {t(`games.animal-roleplay.ui.animals.${animalId}.name`)}
-                        </div>
-                        <div style={{ color: '#93c5fd', fontSize: '0.75rem' }}>
-                          {t(`games.animal-roleplay.ui.animals.${animalId}.passive`)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gap: '0.35rem' }}>
-                      {renderAnimalStat(t('games.animal-roleplay.ui.stats.speed'), animal.speed)}
-                      {renderAnimalStat(t('games.animal-roleplay.ui.stats.strength'), animal.strength)}
-                      {renderAnimalStat(t('games.animal-roleplay.ui.stats.stealth'), animal.stealth)}
-                      {renderAnimalStat(t('games.animal-roleplay.ui.stats.intelligence'), animal.intelligence)}
-                    </div>
-
-                    <button
-                      onClick={() => startWithAnimal(animalId)}
-                      style={{
-                        marginTop: '0.8rem',
-                        width: '100%',
-                        border: 'none',
-                        borderRadius: '0.6rem',
-                        cursor: 'pointer',
-                        background: '#0284c7',
-                        color: '#fff',
-                        fontWeight: 800,
-                        fontSize: '0.9rem',
-                        padding: '0.6rem 0.8rem',
-                      }}
-                    >
-                      {t('games.animal-roleplay.ui.startAs', { animal: t(`games.animal-roleplay.ui.animals.${animalId}.name`) })}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div style={{ marginTop: '1rem', display: 'grid', gap: '0.9rem' }}>
-            <div style={{
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              borderRadius: '0.9rem',
-              padding: '0.9rem',
-              background: 'rgba(2, 6, 23, 0.7)',
-            }}>
-              <div style={{ color: '#bfdbfe', fontSize: '0.85rem' }}>{t('games.animal-roleplay.ui.currentAnimal')}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.2rem' }}>
-                <span style={{ fontSize: '1.7rem' }}>{currentAnimal?.emoji}</span>
-                <div style={{ color: '#fff', fontSize: '1.1rem', fontWeight: 800 }}>
-                  {currentAnimal ? t(`games.animal-roleplay.ui.animals.${currentAnimal.id}.name`) : ''}
-                </div>
-              </div>
+          <div className={styles.setup}>
+            <div className={`${styles.card} ${styles.cardAccent}`}>
+              <p className={styles.lede}>{t('games.animal-roleplay.ui.selectAnimalDescription')}</p>
             </div>
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-              gap: '0.7rem',
-            }}>
-              {renderStatusCard(t('games.animal-roleplay.ui.hpLabel'), state.hp, MAX_HP, 'hp')}
-              {renderStatusCard(t('games.animal-roleplay.ui.hungerLabel'), state.hunger, MAX_HUNGER, 'hunger')}
-              {renderStatusCard(t('games.animal-roleplay.ui.scoreLabel'), state.score, 120, 'score')}
-            </div>
-
-            {isPlaying && state.currentEvent ? (
-              <div style={{
-                border: '1px solid rgba(14, 165, 233, 0.45)',
-                borderRadius: '0.9rem',
-                padding: '1rem',
-                background: 'rgba(15, 23, 42, 0.82)',
-              }}>
-                <div style={{ color: '#7dd3fc', fontSize: '0.82rem', marginBottom: '0.3rem' }}>
-                  {t('games.animal-roleplay.ui.eventNow')}
-                </div>
-                <div style={{ color: '#fff', fontSize: '1.2rem', fontWeight: 800 }}>
-                  {t(`games.animal-roleplay.ui.events.${state.currentEvent.id}.title`)}
-                </div>
-                <p style={{ margin: '0.35rem 0 0', color: '#cbd5e1', lineHeight: 1.5 }}>
-                  {t(`games.animal-roleplay.ui.events.${state.currentEvent.id}.description`)}
-                </p>
-              </div>
-            ) : null}
-
-            <div style={{
-              border: '1px solid rgba(71, 85, 105, 0.65)',
-              borderRadius: '0.9rem',
-              padding: '1rem',
-              background: 'rgba(2, 6, 23, 0.65)',
-            }}>
-              <div style={{ color: '#e2e8f0', fontWeight: 700, marginBottom: '0.55rem' }}>
-                {t('games.animal-roleplay.ui.chooseAction')}
-              </div>
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '0.6rem',
-              }}>
-                {ACTION_DEFINITIONS.map((action) => (
+            <div className={styles.card}>
+              <div className={styles.sectionLabel}>{local.difficulty.heading}</div>
+              <div className={styles.diffRow} role="radiogroup" aria-label={local.difficulty.heading}>
+                {DIFFICULTIES.map((diff) => (
                   <button
-                    key={action.id}
-                    onClick={() => handleAction(action.id)}
-                    disabled={!isPlaying}
-                    style={{
-                      border: '1px solid rgba(56, 189, 248, 0.4)',
-                      borderRadius: '0.7rem',
-                      background: isPlaying ? 'rgba(14, 116, 144, 0.4)' : 'rgba(51, 65, 85, 0.45)',
-                      color: isPlaying ? '#fff' : '#94a3b8',
-                      cursor: isPlaying ? 'pointer' : 'not-allowed',
-                      textAlign: 'left',
-                      padding: '0.65rem 0.7rem',
-                    }}
+                    key={diff}
+                    type="button"
+                    role="radio"
+                    aria-checked={difficulty === diff}
+                    data-selected={difficulty === diff ? 'true' : 'false'}
+                    className={styles.diffButton}
+                    onClick={() => setDifficulty(diff)}
                   >
-                    <div style={{ fontWeight: 800 }}>
-                      {t(`games.animal-roleplay.ui.actions.${action.id}.label`)}
-                    </div>
-                    <div style={{ marginTop: '0.2rem', fontSize: '0.75rem', lineHeight: 1.4 }}>
-                      {t(`games.animal-roleplay.ui.actions.${action.id}.description`)}
-                    </div>
+                    <div className={styles.diffLabel}>{local.difficulty.labels[diff]}</div>
+                    <div className={styles.diffDesc}>{local.difficulty.descriptions[diff]}</div>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div style={{
-              border: '1px solid rgba(71, 85, 105, 0.65)',
-              borderRadius: '0.9rem',
-              padding: '0.9rem',
-              background: 'rgba(15, 23, 42, 0.82)',
-            }}>
-              <div style={{ color: '#e2e8f0', fontWeight: 700 }}>
-                {t('games.animal-roleplay.ui.latestResult')}
+            <div className={styles.card}>
+              <div className={styles.sectionLabel}>{local.chooseAnimalHeading}</div>
+              <div className={styles.animalGrid}>
+                {(Object.keys(ANIMAL_PROFILES) as AnimalId[]).map((animalId) => {
+                  const animal = ANIMAL_PROFILES[animalId];
+                  const animalName = t(`games.animal-roleplay.ui.animals.${animalId}.name`);
+                  return (
+                    <div key={animalId} className={styles.animalCard}>
+                      <div className={styles.animalHead}>
+                        <span className={styles.animalEmoji} aria-hidden="true">
+                          {animal.emoji}
+                        </span>
+                        <div>
+                          <div className={styles.animalName}>{animalName}</div>
+                          <div className={styles.animalPassive}>
+                            {t(`games.animal-roleplay.ui.animals.${animalId}.passive`)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'grid', gap: '0.35rem' }}>
+                        {renderAnimalStat(t('games.animal-roleplay.ui.stats.speed'), animal.speed)}
+                        {renderAnimalStat(t('games.animal-roleplay.ui.stats.strength'), animal.strength)}
+                        {renderAnimalStat(t('games.animal-roleplay.ui.stats.stealth'), animal.stealth)}
+                        {renderAnimalStat(
+                          t('games.animal-roleplay.ui.stats.intelligence'),
+                          animal.intelligence,
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        className={styles.primaryButton}
+                        onClick={() => startWithAnimal(animalId)}
+                      >
+                        {t('games.animal-roleplay.ui.startAs', { animal: animalName })}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-              <p style={{ margin: '0.35rem 0 0', color: '#cbd5e1', lineHeight: 1.5 }}>
-                {latestResultText}
-              </p>
+            </div>
+          </div>
+        ) : (
+          <div className={styles.play}>
+            <div className={`${styles.card} ${styles.cardAccent}`}>
+              <div className={styles.headerBar}>
+                <div className={styles.animalChip}>
+                  <span className={styles.chipEmoji} aria-hidden="true">
+                    {currentAnimal?.emoji}
+                  </span>
+                  <div>
+                    <div className={styles.chipName}>
+                      {currentAnimal
+                        ? t(`games.animal-roleplay.ui.animals.${currentAnimal.id}.name`)
+                        : ''}
+                    </div>
+                    <div className={styles.chipMeta}>
+                      {local.difficulty.labels[state.difficulty]} · {local.bestScore} {bestScore}
+                    </div>
+                  </div>
+                </div>
+                <div className={styles.progressWrap} aria-hidden="true">
+                  <span className={styles.progressText}>{local.progress}</span>
+                  <div className={styles.progressTrack}>
+                    <div className={styles.progressFill} style={{ width: `${progressPct}%` }} />
+                  </div>
+                  <span className={styles.progressText}>
+                    {state.turn}/{MAX_TURNS}
+                  </span>
+                </div>
+              </div>
             </div>
 
-            <div style={{
-              border: '1px solid rgba(71, 85, 105, 0.65)',
-              borderRadius: '0.9rem',
-              padding: '0.9rem',
-              background: 'rgba(2, 6, 23, 0.65)',
-            }}>
-              <div style={{ color: '#e2e8f0', fontWeight: 700, marginBottom: '0.55rem' }}>
-                {t('games.animal-roleplay.ui.logTitle')}
+            <div className={styles.statusGrid}>
+              {renderStatusCard(
+                t('games.animal-roleplay.ui.hpLabel'),
+                state.hp,
+                MAX_HP,
+                'hp',
+                state.lastLog?.hpDelta ?? null,
+              )}
+              {renderStatusCard(
+                t('games.animal-roleplay.ui.hungerLabel'),
+                state.hunger,
+                MAX_HUNGER,
+                'hunger',
+                state.lastLog?.hungerDelta ?? null,
+              )}
+              {renderStatusCard(
+                t('games.animal-roleplay.ui.scoreLabel'),
+                state.score,
+                SCORE_METER_MAX,
+                'score',
+                state.lastLog?.scoreDelta ?? null,
+              )}
+            </div>
+
+            {isPlaying && state.currentEvent ? (
+              <div className={styles.eventCard} aria-live="polite">
+                <div className={styles.eventKicker}>{t('games.animal-roleplay.ui.eventNow')}</div>
+                <div className={styles.eventTitle}>
+                  {t(`games.animal-roleplay.ui.events.${state.currentEvent.id}.title`)}
+                </div>
+                <p className={styles.eventDesc}>
+                  {t(`games.animal-roleplay.ui.events.${state.currentEvent.id}.description`)}
+                </p>
+                <div className={styles.eventMeters}>
+                  <span className={styles.eventMeter} style={{ color: '#fca5a5' }}>
+                    <span
+                      className={styles.eventDot}
+                      style={{ background: '#ef4444' }}
+                      aria-hidden="true"
+                    />
+                    {local.threat} {effectiveThreat(state.currentEvent, state.difficulty)}
+                  </span>
+                  <span className={styles.eventMeter} style={{ color: '#86efac' }}>
+                    <span
+                      className={styles.eventDot}
+                      style={{ background: '#22c55e' }}
+                      aria-hidden="true"
+                    />
+                    {local.food} {state.currentEvent.foodRichness}
+                  </span>
+                </div>
               </div>
-              <div style={{ display: 'grid', gap: '0.55rem' }}>
+            ) : null}
+
+            <div className={styles.card}>
+              <div className={styles.sectionLabel}>
+                {t('games.animal-roleplay.ui.chooseAction')}
+              </div>
+              <div className={styles.actionGrid}>
+                {ACTION_DEFINITIONS.map((action) => {
+                  const chance =
+                    isPlaying && currentAnimal && state.currentEvent
+                      ? predictSuccessChance(
+                          currentAnimal,
+                          state.currentEvent,
+                          action.id,
+                          state.difficulty,
+                          state.hp,
+                          state.hunger,
+                        )
+                      : null;
+                  const actionLabel = t(`games.animal-roleplay.ui.actions.${action.id}.label`);
+                  return (
+                    <button
+                      key={action.id}
+                      type="button"
+                      onClick={() => handleAction(action.id)}
+                      disabled={!isPlaying}
+                      className={styles.actionButton}
+                      aria-label={
+                        chance != null
+                          ? `${actionLabel} — ${local.successChance} ${chance}%`
+                          : actionLabel
+                      }
+                    >
+                      <div className={styles.actionTop}>
+                        <span className={styles.actionLabel}>{actionLabel}</span>
+                        {chance != null ? (
+                          <span className={styles.actionChance} style={getChanceStyle(chance)}>
+                            {chance}%
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className={styles.actionDesc}>
+                        {t(`games.animal-roleplay.ui.actions.${action.id}.description`)}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {isPlaying ? <p className={styles.actionHint}>{local.actionHint}</p> : null}
+            </div>
+
+            <div className={styles.card}>
+              <div className={styles.sectionLabel}>
+                {t('games.animal-roleplay.ui.latestResult')}
+              </div>
+              <p className={styles.lede}>{latestResultText}</p>
+            </div>
+
+            <div className={styles.card}>
+              <div className={styles.sectionLabel}>{t('games.animal-roleplay.ui.logTitle')}</div>
+              <div className={styles.logList}>
                 {recentLogs.length === 0 ? (
-                  <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.85rem' }}>
-                    {t('games.animal-roleplay.ui.logEmpty')}
-                  </p>
+                  <p className={styles.logEmpty}>{t('games.animal-roleplay.ui.logEmpty')}</p>
                 ) : (
                   recentLogs.map(renderLogItem)
                 )}
@@ -431,43 +486,21 @@ export function AnimalRoleplay() {
             </div>
 
             {state.outcome ? (
-              <div style={{
-                border: '1px solid rgba(14, 165, 233, 0.45)',
-                borderRadius: '1rem',
-                padding: '1rem',
-                background: 'rgba(8, 47, 73, 0.45)',
-              }}>
-                <h2 style={{ margin: 0, color: '#fff', fontSize: '1.25rem' }}>{outcomeTitle}</h2>
-                <p style={{ margin: '0.45rem 0 0', color: '#cbd5e1', lineHeight: 1.5 }}>
-                  {outcomeMessage}
-                </p>
-                <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginTop: '0.8rem' }}>
-                  <button
-                    onClick={handleReplay}
-                    style={{
-                      border: 'none',
-                      borderRadius: '0.6rem',
-                      background: '#0284c7',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontWeight: 800,
-                      padding: '0.55rem 0.9rem',
-                    }}
-                  >
+              <div className={styles.outcomeCard} role="status" aria-live="polite">
+                <h2 className={styles.outcomeTitle}>
+                  {outcomeTitle}
+                  {isNewBest ? (
+                    <span className={styles.bestPill} style={{ marginLeft: '0.6rem' }}>
+                      {local.bestBadge}
+                    </span>
+                  ) : null}
+                </h2>
+                <p className={styles.outcomeMsg}>{outcomeMessage}</p>
+                <div className={styles.outcomeActions}>
+                  <button type="button" className={styles.primaryButton} onClick={handleReplay}>
                     {t('games.animal-roleplay.ui.playAgain')}
                   </button>
-                  <button
-                    onClick={handleChangeAnimal}
-                    style={{
-                      border: '1px solid rgba(148, 163, 184, 0.8)',
-                      borderRadius: '0.6rem',
-                      background: 'transparent',
-                      color: '#e2e8f0',
-                      cursor: 'pointer',
-                      fontWeight: 700,
-                      padding: '0.55rem 0.9rem',
-                    }}
-                  >
+                  <button type="button" className={styles.ghostButton} onClick={handleChangeAnimal}>
                     {t('games.animal-roleplay.ui.changeAnimal')}
                   </button>
                 </div>
@@ -488,14 +521,18 @@ export function AnimalRoleplay() {
           <h3 style={{ color: '#fff', marginBottom: '0.5rem' }}>{t('games.howToPlay')}</h3>
           <ul style={{ marginTop: 0, paddingLeft: '1.25rem' }}>
             {howToPlay.map((step, index) => (
-              <li key={index} style={{ marginBottom: '0.35rem' }}>{step}</li>
+              <li key={index} style={{ marginBottom: '0.35rem' }}>
+                {step}
+              </li>
             ))}
           </ul>
 
           <h3 style={{ color: '#fff', marginBottom: '0.5rem' }}>{t('games.features')}</h3>
           <ul style={{ marginTop: 0, paddingLeft: '1.25rem' }}>
             {features.map((feature, index) => (
-              <li key={index} style={{ marginBottom: '0.35rem' }}>{feature}</li>
+              <li key={index} style={{ marginBottom: '0.35rem' }}>
+                {feature}
+              </li>
             ))}
           </ul>
         </div>

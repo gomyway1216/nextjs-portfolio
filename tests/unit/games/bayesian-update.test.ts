@@ -60,13 +60,22 @@ describe('posterior moments (closed form)', () => {
   });
 
   it('mode = (alpha-1)/(alpha+beta-2) when both > 1', () => {
-    const p: Posterior = { alpha: 5, beta: 3 };
-    expect(close(posteriorMode(p), (5 - 1) / (5 + 3 - 2))).toBe(true);
+    const mode = posteriorMode({ alpha: 5, beta: 3 });
+    expect(mode).not.toBeNull();
+    expect(close(mode as number, (5 - 1) / (5 + 3 - 2))).toBe(true);
   });
 
-  it('mode clamps to boundary for one-sided weak shapes', () => {
-    expect(posteriorMode({ alpha: 1, beta: 4 })).toBe(0);
-    expect(posteriorMode({ alpha: 4, beta: 1 })).toBe(1);
+  it('mode is at the boundary for one-sided shapes', () => {
+    expect(posteriorMode({ alpha: 1, beta: 4 })).toBe(0); // decreasing
+    expect(posteriorMode({ alpha: 4, beta: 1 })).toBe(1); // increasing
+    expect(posteriorMode({ alpha: 2, beta: 1 })).toBe(1); // beta = 1, increasing
+    expect(posteriorMode({ alpha: 1, beta: 2 })).toBe(0); // alpha = 1, decreasing
+  });
+
+  it('mode is null when there is no unique MAP (uniform or U-shaped bimodal)', () => {
+    expect(posteriorMode(UNIFORM_PRIOR)).toBeNull(); // Beta(1,1) uniform
+    expect(posteriorMode({ alpha: 0.5, beta: 0.5 })).toBeNull(); // Jeffreys, bimodal at 0 and 1
+    expect(posteriorMode({ alpha: 0.5, beta: 0.8 })).toBeNull(); // both < 1, U-shaped
   });
 });
 

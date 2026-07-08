@@ -26,11 +26,18 @@ export interface BayesianStrings {
   statObserved: string;
   statMean: string;
   statMode: string;
+  statModeNone: string;
   statStd: string;
   statCI: string;
   yourGuess: string;
   guessValue: string;
   guessDiff: string;
+
+  // Chart accessibility labels
+  chartAriaPosterior: (alpha: string, beta: string) => string;
+  chartAriaTrajectories: (trials: number, p: string) => string;
+  simProgressLabel: string;
+  simProgressValue: (done: number, total: number) => string;
 
   legendPrior: string;
   legendPosterior: string;
@@ -91,11 +98,17 @@ const ja: BayesianStrings = {
   statObserved: '観測 (表 / 裏)',
   statMean: '推定値 p̂ (事後平均)',
   statMode: '最頻値 (MAP)',
+  statModeNone: '一意でない',
   statStd: '不確かさ σ',
   statCI: '95% 信用区間',
   yourGuess: 'あなたの予想 p',
   guessValue: '予想',
   guessDiff: '真値との差',
+
+  chartAriaPosterior: (alpha, beta) => `事後分布 Beta(${alpha}, ${beta}) の密度曲線`,
+  chartAriaTrajectories: (trials, p) => `${trials} 試行の事後平均が真値 ${p} に収束する様子`,
+  simProgressLabel: 'シミュレーションの進捗',
+  simProgressValue: (done, total) => `${total} 試行中 ${done} 完了`,
 
   legendPrior: '事前分布',
   legendPosterior: '事後分布',
@@ -160,11 +173,17 @@ const en: BayesianStrings = {
   statObserved: 'Observed (H / T)',
   statMean: 'Estimate p̂ (posterior mean)',
   statMode: 'Mode (MAP)',
+  statModeNone: 'not unique',
   statStd: 'Uncertainty σ',
   statCI: '95% credible interval',
   yourGuess: 'Your guess for p',
   guessValue: 'Guess',
   guessDiff: 'Error vs truth',
+
+  chartAriaPosterior: (alpha, beta) => `Posterior Beta(${alpha}, ${beta}) density curve`,
+  chartAriaTrajectories: (trials, p) => `${trials} posterior-mean trajectories converging to ${p}`,
+  simProgressLabel: 'Simulation progress',
+  simProgressValue: (done, total) => `${done} of ${total} trials complete`,
 
   legendPrior: 'Prior',
   legendPosterior: 'Posterior',

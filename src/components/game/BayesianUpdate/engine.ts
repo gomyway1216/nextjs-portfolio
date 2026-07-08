@@ -32,15 +32,23 @@ export function posteriorStd(p: Posterior): number {
 }
 
 /**
- * Posterior mode (MAP estimate). Defined at the peak of the Beta density.
- * For α, β > 1 the mode is (α−1)/(α+β−2); with a flat/weak prior it may sit
- * at a boundary, so we clamp to [0, 1].
+ * Posterior mode (MAP estimate) — the location that maximises the Beta density.
+ * The Beta density's shape depends on where α, β sit relative to 1:
+ *   - α > 1, β > 1  → single interior peak at (α−1)/(α+β−2).
+ *   - α ≤ 1, β > 1  → strictly decreasing, peak at the 0 boundary.
+ *   - α > 1, β ≤ 1  → strictly increasing, peak at the 1 boundary.
+ *   - α < 1, β < 1  → U-shaped: bimodal at BOTH 0 and 1 (no single mode).
+ *   - α = 1, β = 1  → uniform (every point is a maximum; no unique mode).
+ * The last two cases have no single MAP value, so we return `null`; callers
+ * should render them as "no unique mode" rather than a fabricated number.
  */
-export function posteriorMode(p: Posterior): number {
+export function posteriorMode(p: Posterior): number | null {
   const { alpha, beta } = p;
   if (alpha > 1 && beta > 1) return (alpha - 1) / (alpha + beta - 2);
-  if (alpha <= 1 && beta <= 1) return 0.5; // uniform-ish: no interior peak
-  return alpha <= 1 ? 0 : 1;
+  if (alpha > 1 && beta <= 1) return 1;
+  if (alpha <= 1 && beta > 1) return 0;
+  // α ≤ 1 and β ≤ 1: uniform (1,1) or U-shaped bimodal — no unique interior mode.
+  return null;
 }
 
 /** ln(Γ(z)) via Lanczos approximation. */
@@ -125,6 +133,10 @@ export function betaQuantile(q: number, a: number, b: number): number {
   let hi = 1;
   for (let i = 0; i < 80; i++) {
     const mid = (lo + hi) / 2;
+    // Once the bracket can no longer be split in double precision, further
+    // iterations are redundant — bail out early (also cuts betaCdf calls on
+    // the render path when sliders drag).
+    if (mid === lo || mid === hi) break;
     if (betaCdf(mid, a, b) < q) lo = mid;
     else hi = mid;
   }

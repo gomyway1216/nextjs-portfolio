@@ -12,6 +12,8 @@ interface PosteriorChartProps {
   credInterval?: [number, number] | null;
   /** Posterior mean marker. */
   mean?: number | null;
+  /** Localized accessible label for the chart. */
+  ariaLabel?: string;
   width?: number;
   height?: number;
 }
@@ -36,6 +38,7 @@ export const PosteriorChart = ({
   trueP,
   credInterval,
   mean,
+  ariaLabel,
   width = 720,
   height = 280,
 }: PosteriorChartProps) => {
@@ -67,7 +70,7 @@ export const PosteriorChart = ({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label={`Posterior Beta(${posterior.alpha.toFixed(1)}, ${posterior.beta.toFixed(1)})`}
+      aria-label={ariaLabel ?? `Posterior Beta(${posterior.alpha.toFixed(1)}, ${posterior.beta.toFixed(1)})`}
       style={{ background: 'var(--muted)', borderRadius: 12, border: '1px solid var(--border)' }}
     >
       {/* horizontal baseline */}
@@ -190,6 +193,8 @@ interface MultiTrajProps {
   axisLabel?: string;
   startLabel?: string;
   endLabel?: string;
+  /** Localized accessible label for the chart. */
+  ariaLabel?: string;
   width?: number;
   height?: number;
 }
@@ -201,6 +206,7 @@ export const MultiTrajectoryChart = ({
   axisLabel,
   startLabel,
   endLabel,
+  ariaLabel,
   width = 720,
   height = 300,
 }: MultiTrajProps) => {
@@ -220,7 +226,7 @@ export const MultiTrajectoryChart = ({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label={`Posterior mean trajectories converging to ${trueP.toFixed(3)}`}
+      aria-label={ariaLabel ?? `Posterior mean trajectories converging to ${trueP.toFixed(3)}`}
       style={{ background: 'var(--muted)', borderRadius: 12, border: '1px solid var(--border)' }}
     >
       {[0, 0.25, 0.5, 0.75, 1].map((p) => {

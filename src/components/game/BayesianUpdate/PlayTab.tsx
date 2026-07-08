@@ -141,6 +141,7 @@ export const PlayTab = ({ t }: { t: BayesianStrings }) => {
           trueP={reveal ? trueP : null}
           credInterval={stats.ci}
           mean={stats.mean}
+          ariaLabel={t.chartAriaPosterior(posterior.alpha.toFixed(1), posterior.beta.toFixed(1))}
         />
 
         <div className={styles.legend}>
@@ -244,7 +245,7 @@ export const PlayTab = ({ t }: { t: BayesianStrings }) => {
         <div className={styles.statGrid}>
           <Stat label={t.statObserved} value={`${heads} / ${tails}`} />
           <Stat label={t.statMean} value={stats.mean.toFixed(3)} />
-          <Stat label={t.statMode} value={stats.mode.toFixed(3)} />
+          <Stat label={t.statMode} value={stats.mode === null ? t.statModeNone : stats.mode.toFixed(3)} />
           <Stat label={t.statStd} value={stats.std.toFixed(3)} />
           <Stat label={t.statCI} value={`[${stats.ci[0].toFixed(2)}, ${stats.ci[1].toFixed(2)}]`} />
         </div>

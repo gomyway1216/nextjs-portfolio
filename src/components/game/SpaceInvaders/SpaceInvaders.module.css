@@ -1,0 +1,376 @@
+/* Space Invaders — layout & UI (dark-mode friendly, responsive) */
+
+.page {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: clamp(0.75rem, 3vw, 1.5rem);
+  background:
+    radial-gradient(1200px 600px at 50% -10%, rgba(56, 189, 248, 0.12), transparent 60%),
+    linear-gradient(to bottom, #05060c, #0d1024);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: #e5e7eb;
+  box-sizing: border-box;
+}
+
+/* ---------- Start screen ---------- */
+
+.startCard {
+  width: 100%;
+  max-width: 460px;
+  background: rgba(10, 14, 28, 0.86);
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 1.1rem;
+  padding: clamp(1.25rem, 4vw, 2rem);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  text-align: center;
+}
+
+.brand {
+  font-size: clamp(1.6rem, 6vw, 2.2rem);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  margin: 0 0 0.35rem;
+  background: linear-gradient(120deg, #4ade80, #38bdf8, #a855f7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.tagline {
+  color: #9ca3af;
+  font-size: 0.92rem;
+  margin: 0 0 1.4rem;
+  line-height: 1.4;
+}
+
+.sectionLabel {
+  display: block;
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7c8aa5;
+  margin: 0 0 0.55rem;
+}
+
+.diffGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 1.4rem;
+}
+
+.diffButton {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.7rem 0.5rem;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  background: rgba(148, 163, 184, 0.06);
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  text-align: center;
+}
+
+.diffButton:hover {
+  transform: translateY(-1px);
+  border-color: rgba(56, 189, 248, 0.5);
+}
+
+.diffButton[data-selected='true'] {
+  border-color: var(--diff-accent, #38bdf8);
+  background: color-mix(in srgb, var(--diff-accent, #38bdf8) 16%, transparent);
+  box-shadow: 0 0 0 1px var(--diff-accent, #38bdf8) inset, 0 6px 18px color-mix(in srgb, var(--diff-accent, #38bdf8) 30%, transparent);
+}
+
+.diffButton:focus-visible {
+  outline: 2px solid var(--diff-accent, #38bdf8);
+  outline-offset: 2px;
+}
+
+.diffName {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #f1f5f9;
+}
+
+.diffDesc {
+  font-size: 0.68rem;
+  color: #94a3b8;
+  line-height: 1.25;
+}
+
+.infoLink {
+  margin-top: 1rem;
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 0.6rem;
+  color: #9ca3af;
+  font-size: 0.85rem;
+  padding: 0.5rem 1.4rem;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.infoLink:hover {
+  border-color: rgba(56, 189, 248, 0.55);
+  color: #e2e8f0;
+}
+
+/* ---------- Game screen ---------- */
+
+.gameWrap {
+  width: 100%;
+  max-width: 800px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.hud {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.55rem 0.9rem;
+  border-radius: 0.7rem;
+  background: rgba(10, 14, 28, 0.8);
+  border: 1px solid rgba(56, 189, 248, 0.22);
+}
+
+.hudBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.hudBlockRight {
+  align-items: flex-end;
+}
+
+.hudLabel {
+  font-size: 0.62rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #7c8aa5;
+}
+
+.hudValue {
+  font-size: 1.1rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #f1f5f9;
+}
+
+.hudValueHi {
+  color: #fbbf24;
+}
+
+.hudCenter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+
+.wavePill {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 0.15rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.16);
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #7dd3fc;
+}
+
+.livesRow {
+  display: flex;
+  gap: 0.28rem;
+  align-items: center;
+  height: 1.1rem;
+}
+
+.lifeIcon {
+  width: 16px;
+  height: 12px;
+  color: #4ade80;
+}
+
+.canvasFrame {
+  position: relative;
+  border-radius: 0.8rem;
+  overflow: hidden;
+  border: 1px solid rgba(56, 189, 248, 0.35);
+  box-shadow: 0 0 40px rgba(34, 197, 94, 0.12), 0 20px 60px rgba(0, 0, 0, 0.5);
+  background: #05060c;
+  line-height: 0;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  touch-action: none;
+}
+
+.buttonRow {
+  display: flex;
+  justify-content: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.65rem 1.3rem;
+  border-radius: 0.6rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: transform 0.12s, filter 0.15s, background 0.15s;
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btnSecondary {
+  background: rgba(148, 163, 184, 0.14);
+  border-color: rgba(148, 163, 184, 0.3);
+  color: #e2e8f0;
+}
+
+.btnSecondary:hover {
+  background: rgba(148, 163, 184, 0.24);
+}
+
+.btnPrimary {
+  background: linear-gradient(120deg, #22c55e, #16a34a);
+  color: #04140a;
+  font-weight: 800;
+}
+
+.btnPrimary:hover {
+  filter: brightness(1.08);
+}
+
+.hint {
+  text-align: center;
+  color: #6b7280;
+  font-size: 0.72rem;
+}
+
+/* ---------- Touch controls (mobile) ---------- */
+
+.touchControls {
+  display: none;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.25rem;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.touchDpad {
+  display: flex;
+  gap: 0.6rem;
+}
+
+.touchBtn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  background: rgba(30, 41, 59, 0.85);
+  color: #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touchBtn:active,
+.touchBtnActive {
+  background: rgba(56, 189, 248, 0.35);
+  border-color: #38bdf8;
+}
+
+.touchFire {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  border: 1px solid rgba(34, 197, 94, 0.55);
+  background: rgba(22, 163, 74, 0.9);
+  color: #ecfdf5;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.touchFire:active,
+.touchFireActive {
+  background: rgba(34, 197, 94, 1);
+  transform: scale(0.96);
+}
+
+/* Show touch controls on coarse pointers / small screens */
+@media (pointer: coarse), (max-width: 720px) {
+  .touchControls {
+    display: flex;
+  }
+}
+
+/* ---------- Info modal content ---------- */
+
+.info p {
+  margin: 0 0 0.75rem;
+  line-height: 1.5;
+  color: #cbd5e1;
+}
+
+.info h3 {
+  margin: 1rem 0 0.4rem;
+  font-size: 0.95rem;
+  color: #f1f5f9;
+}
+
+.info ul {
+  margin: 0 0 0.5rem;
+  padding-left: 1.2rem;
+  color: #cbd5e1;
+  line-height: 1.55;
+}
+
+.infoPlain {
+  list-style: none;
+  padding-left: 0;
+}
+
+.enemyDot {
+  display: inline-block;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 3px;
+  margin-right: 0.45rem;
+  vertical-align: middle;
+}

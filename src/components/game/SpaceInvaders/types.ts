@@ -27,16 +27,21 @@ export const ENEMY_HEIGHT = 30;
 export const ENEMY_PADDING = 15;
 export const ENEMY_OFFSET_TOP = 80;
 export const ENEMY_OFFSET_LEFT = (CANVAS_WIDTH - (ENEMY_COLS * (ENEMY_WIDTH + ENEMY_PADDING) - ENEMY_PADDING)) / 2;
-export const ENEMY_MOVE_DOWN = 10; // Reduced from 20 - enemies drop less each time
-export const INITIAL_ENEMY_SPEED = 0.5; // Reduced from 1 - slower initial speed
-export const ENEMY_SPEED_INCREASE = 0.1; // Reduced from 0.3 - slower level scaling
-export const ENEMY_SHOOT_CHANCE = 0.001; // Reduced from 0.002 - enemies shoot less often
+export const ENEMY_MOVE_DOWN = 10; // pixels dropped each time the formation reverses
+export const INITIAL_ENEMY_SPEED = 0.5;
+export const ENEMY_SPEED_INCREASE = 0.12; // per-level speed scaling
+export const ENEMY_SHOOT_CHANCE = 0.0012; // base per-shooter, per-frame chance
+
+// Each new wave starts a little lower than the last (classic descending waves),
+// clamped so it never spawns on top of the shields.
+export const WAVE_DESCENT_STEP = 14;
+export const MAX_WAVE_DESCENT = WAVE_DESCENT_STEP * 6;
 
 // UFO settings
 export const UFO_WIDTH = 60;
 export const UFO_HEIGHT = 25;
 export const UFO_SPEED = 3;
-export const UFO_SPAWN_CHANCE = 0.001;
+export const UFO_SPAWN_CHANCE = 0.0012;
 export const UFO_POINTS = [50, 100, 150, 300];
 
 // Shield settings
@@ -48,6 +53,44 @@ export const SHIELD_BLOCK_SIZE = 5;
 
 // Lives
 export const INITIAL_LIVES = 3;
+export const MAX_LIVES = 5;
+// Award an extra life every time the score crosses this threshold.
+export const EXTRA_LIFE_EVERY = 1500;
+
+// Difficulty tiers -------------------------------------------------------
+export type Difficulty = 'easy' | 'normal' | 'hard';
+
+export interface DifficultySettings {
+  /** Multiplier on formation march speed. */
+  speedMultiplier: number;
+  /** Multiplier on enemy fire rate. */
+  fireRateMultiplier: number;
+  /** Starting lives. */
+  startingLives: number;
+  /** Multiplier on enemy bullet fall speed. */
+  bulletSpeedMultiplier: number;
+}
+
+export const DIFFICULTY_SETTINGS: Record<Difficulty, DifficultySettings> = {
+  easy: {
+    speedMultiplier: 0.8,
+    fireRateMultiplier: 0.6,
+    startingLives: 4,
+    bulletSpeedMultiplier: 0.85,
+  },
+  normal: {
+    speedMultiplier: 1,
+    fireRateMultiplier: 1,
+    startingLives: 3,
+    bulletSpeedMultiplier: 1,
+  },
+  hard: {
+    speedMultiplier: 1.3,
+    fireRateMultiplier: 1.6,
+    startingLives: 2,
+    bulletSpeedMultiplier: 1.25,
+  },
+};
 
 // Enemy types with colors and points
 export enum EnemyType {
@@ -135,6 +178,7 @@ export interface SoundEvents {
   levelComplete: boolean;
   gameOver: boolean;
   enemyMarch: boolean;
+  extraLife: boolean;
   marchPitch: number;
 }
 
@@ -149,6 +193,7 @@ export function createSoundEvents(): SoundEvents {
     levelComplete: false,
     gameOver: false,
     enemyMarch: false,
+    extraLife: false,
     marchPitch: 0,
   };
 }
@@ -163,6 +208,9 @@ export interface GameState {
   highScore: number;
   lives: number;
   level: number;
+  difficulty: Difficulty;
+  /** Score threshold for the next extra life. */
+  nextExtraLifeAt: number;
   gameOver: boolean;
   victory: boolean;
   isPaused: boolean;

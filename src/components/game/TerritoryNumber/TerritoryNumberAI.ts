@@ -336,7 +336,12 @@ function minimax(
   let beta = betaIn;
 
   // Order the child moves from the mover's perspective for better pruning.
-  const ordered = orderedMoves(board, toMove);
+  // At depth 1 every child is a leaf that returns positionalScore directly, so
+  // ordering (which itself scores every move) is wasted work with nothing left
+  // to prune — loop unordered instead.
+  const ordered = depth > 1
+    ? orderedMoves(board, toMove)
+    : allMoves(emptyCellIndices(board), remainingCards(board));
 
   let best = isMax ? -Infinity : Infinity;
   for (const move of ordered) {

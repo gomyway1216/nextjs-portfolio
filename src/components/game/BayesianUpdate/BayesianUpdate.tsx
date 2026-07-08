@@ -1,49 +1,65 @@
 'use client';
 
 import { useState } from 'react';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getStrings } from './i18n';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
+import styles from './BayesianUpdate.module.css';
 
 type Tab = 'play' | 'sim';
 
 export const BayesianUpdate = () => {
+  const { language } = useGameLanguage();
+  const t = getStrings(language);
   const [tab, setTab] = useState<Tab>('play');
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #020617, #111827)', color: '#e2e8f0', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>🪙 Bayesian Update</h1>
-        <p style={{ marginTop: '0.4rem', color: '#94a3b8' }}>
-          隠された確率 p を持つコイン。事前分布 Beta(1, 1) から始めて、観測 1 回ごとに事後分布が鋭くなる様子を体感する。
-        </p>
+    <div className={styles.root}>
+      <div className={styles.container}>
+        <header className={styles.header}>
+          <h1 className={styles.title}>
+            <span aria-hidden>🪙</span>
+            {t.title}
+          </h1>
+          <p className={styles.subtitle}>{t.subtitle}</p>
+        </header>
 
-        <div style={{ display: 'flex', gap: '0.5rem', margin: '1.25rem 0' }}>
-          <TabButton active={tab === 'play'} onClick={() => setTab('play')}>遊ぶ</TabButton>
-          <TabButton active={tab === 'sim'} onClick={() => setTab('sim')}>シミュレーション</TabButton>
+        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+          <button
+            role="tab"
+            id="tab-play"
+            aria-selected={tab === 'play'}
+            aria-controls="panel-play"
+            className={`${styles.tab} ${tab === 'play' ? styles.tabActive : ''}`}
+            onClick={() => setTab('play')}
+          >
+            {t.tabPlay}
+          </button>
+          <button
+            role="tab"
+            id="tab-sim"
+            aria-selected={tab === 'sim'}
+            aria-controls="panel-sim"
+            className={`${styles.tab} ${tab === 'sim' ? styles.tabActive : ''}`}
+            onClick={() => setTab('sim')}
+          >
+            {t.tabSim}
+          </button>
         </div>
 
-        {tab === 'play' ? <PlayTab /> : <SimTab />}
+        {tab === 'play' ? (
+          <div role="tabpanel" id="panel-play" aria-labelledby="tab-play">
+            <PlayTab t={t} />
+          </div>
+        ) : (
+          <div role="tabpanel" id="panel-sim" aria-labelledby="tab-sim">
+            <SimTab t={t} />
+          </div>
+        )}
       </div>
     </div>
   );
 };
-
-const TabButton = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
-  <button
-    onClick={onClick}
-    style={{
-      background: active ? '#f59e0b' : '#1e293b',
-      color: active ? '#0f172a' : '#e2e8f0',
-      border: `1px solid ${active ? '#f59e0b' : '#334155'}`,
-      borderRadius: 10,
-      padding: '0.55rem 1.1rem',
-      fontWeight: 800,
-      cursor: 'pointer',
-      fontSize: '0.95rem',
-    }}
-  >
-    {children}
-  </button>
-);
 
 export default BayesianUpdate;

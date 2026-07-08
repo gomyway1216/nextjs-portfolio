@@ -31,6 +31,18 @@ export function posteriorStd(p: Posterior): number {
   return Math.sqrt(posteriorVariance(p));
 }
 
+/**
+ * Posterior mode (MAP estimate). Defined at the peak of the Beta density.
+ * For α, β > 1 the mode is (α−1)/(α+β−2); with a flat/weak prior it may sit
+ * at a boundary, so we clamp to [0, 1].
+ */
+export function posteriorMode(p: Posterior): number {
+  const { alpha, beta } = p;
+  if (alpha > 1 && beta > 1) return (alpha - 1) / (alpha + beta - 2);
+  if (alpha <= 1 && beta <= 1) return 0.5; // uniform-ish: no interior peak
+  return alpha <= 1 ? 0 : 1;
+}
+
 /** ln(Γ(z)) via Lanczos approximation. */
 function logGamma(z: number): number {
   if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - logGamma(1 - z);
@@ -49,6 +61,83 @@ function logGamma(z: number): number {
 
 export function logBeta(a: number, b: number): number {
   return logGamma(a) + logGamma(b) - logGamma(a + b);
+}
+
+/**
+ * Continued fraction for the incomplete beta function, evaluated with the
+ * modified Lentz method (Numerical Recipes §6.4, `betacf`).
+ */
+function betaContinuedFraction(x: number, a: number, b: number): number {
+  const tiny = 1e-30;
+  const qab = a + b;
+  const qap = a + 1;
+  const qam = a - 1;
+  let c = 1;
+  let d = 1 - (qab * x) / qap;
+  if (Math.abs(d) < tiny) d = tiny;
+  d = 1 / d;
+  let h = d;
+  for (let m = 1; m <= 300; m++) {
+    const m2 = 2 * m;
+    // even step
+    let aa = (m * (b - m) * x) / ((qam + m2) * (a + m2));
+    d = 1 + aa * d;
+    if (Math.abs(d) < tiny) d = tiny;
+    c = 1 + aa / c;
+    if (Math.abs(c) < tiny) c = tiny;
+    d = 1 / d;
+    h *= d * c;
+    // odd step
+    aa = -((a + m) * (qab + m) * x) / ((a + m2) * (qap + m2));
+    d = 1 + aa * d;
+    if (Math.abs(d) < tiny) d = tiny;
+    c = 1 + aa / c;
+    if (Math.abs(c) < tiny) c = tiny;
+    d = 1 / d;
+    const del = d * c;
+    h *= del;
+    if (Math.abs(del - 1) < 1e-14) break;
+  }
+  return h;
+}
+
+/**
+ * Regularized incomplete beta function I_x(a, b) = P(X ≤ x) for X ~ Beta(a, b).
+ * Uses the continued fraction plus the symmetry I_x(a,b) = 1 − I_{1−x}(b,a) so
+ * the fraction is only evaluated in its fast-converging regime. Accurate to ~1e-12.
+ */
+export function betaCdf(x: number, a: number, b: number): number {
+  if (x <= 0) return 0;
+  if (x >= 1) return 1;
+  const logFront = a * Math.log(x) + b * Math.log(1 - x) - logBeta(a, b);
+  const front = Math.exp(logFront);
+  if (x < (a + 1) / (a + b + 2)) {
+    return (front * betaContinuedFraction(x, a, b)) / a;
+  }
+  return 1 - (front * betaContinuedFraction(1 - x, b, a)) / b;
+}
+
+/** Inverse CDF (quantile) of Beta(a, b) via bisection on betaCdf. */
+export function betaQuantile(q: number, a: number, b: number): number {
+  if (q <= 0) return 0;
+  if (q >= 1) return 1;
+  let lo = 0;
+  let hi = 1;
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    if (betaCdf(mid, a, b) < q) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+/**
+ * Exact equal-tailed credible interval [q_(1−level)/2, q_(1+level)/2] of the
+ * Beta posterior, computed analytically (no sampling noise).
+ */
+export function credibleIntervalExact(p: Posterior, level = 0.95): [number, number] {
+  const tail = (1 - level) / 2;
+  return [betaQuantile(tail, p.alpha, p.beta), betaQuantile(1 - tail, p.alpha, p.beta)];
 }
 
 /** Beta(α, β) pdf at x ∈ [0, 1]. */

@@ -43,7 +43,7 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
   const stats = useMemo<GameStats>(() => ({ wins: 0, losses: 0, draws: 0 }), []);
   const [showInfo, setShowInfo] = useState(false);
 
-  const [playerName, setPlayerName] = useState('You');
+  const [playerName, setPlayerName] = useState('');
   const [aiCount, setAiCount] = useState<number>(3); // total players = aiCount + 1 (min 3, max 6)
   const [difficulty, setDifficulty] = useState<ShichinarabeAIDifficulty>('hard');
 
@@ -410,7 +410,7 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
 
               <div className={styles.field} style={{ marginTop: '1.25rem' }}>
                 <span className={styles.fieldLabel}>{t.difficulty}</span>
-                <div className={styles.diffRow} role="radiogroup" aria-label={t.difficulty}>
+                <div className={styles.diffRow} role="group" aria-label={t.difficulty}>
                   {DIFFICULTY_ORDER.map((d) => {
                     const colors = getDifficultyColor(d);
                     const isSel = difficulty === d;
@@ -418,9 +418,7 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
                       <button
                         key={d}
                         type="button"
-                        role="radio"
-                        aria-checked={isSel}
-                        tabIndex={isSel ? 0 : -1}
+                        aria-pressed={isSel}
                         data-selected={isSel ? 'true' : 'false'}
                         className={styles.diffButton}
                         style={{
@@ -482,7 +480,9 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
                       .sort((a, b) => (a.place ?? 999) - (b.place ?? 999))
                       .map((p) => (
                         <div key={p.id} className={styles.standRow}>
-                          {p.place && p.place <= 3 ? <span className={styles.medal}>{MEDALS[p.place - 1]}</span> : <span>{t.place(p.place ?? 0)}</span>}
+                          {p.place && p.place <= 3
+                            ? <span className={styles.medal} role="img" aria-label={t.place(p.place)}>{MEDALS[p.place - 1]}</span>
+                            : <span>{t.place(p.place ?? 0)}</span>}
                           <span style={{ color: p.isMe ? '#fbbf24' : undefined }}>{p.name}</span>
                         </div>
                       ))}

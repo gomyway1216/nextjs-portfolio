@@ -279,6 +279,44 @@ describe('Shichinarabe elimination redistribution', () => {
       expect(result.state.currentTurnPlayerId).toBe('p1');
     }
   });
+
+  it('flushes a gap-held eliminated card once an active player later plays its neighbour', () => {
+    // p2 is already eliminated holding S5, but S6 was still with an active player at
+    // elimination time, so S5 stayed in p2's hand (a gap). When p1 plays S6, S5 must
+    // now be revealed onto the table — otherwise the spade run stays blocked forever.
+    const base = stateForHand([card('s6', 'S', 6)]);
+    const state: ShichinarabeNetworkState = {
+      ...base,
+      playerOrder: ['p1', 'p2', 'p3'],
+      currentTurnPlayerId: 'p1',
+      maxPasses: 3,
+      passCounts: { p1: 0, p2: 3, p3: 0 },
+      eliminatedOrder: ['p2'],
+      hands: {
+        p1: [card('s6', 'S', 6)],
+        p2: [card('s5', 'S', 5)], // gap-held: needs S6 first
+        p3: [card('h9', 'H', 9)],
+      },
+    };
+
+    const result = applyAction(state, {
+      actionId: 'a1',
+      type: 'play',
+      playerId: 'p1',
+      cardId: 's6',
+      timestamp: 10,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      // S6 (by p1) then S5 (revealed from p2) both land, so low reaches 5.
+      expect(result.state.table.S).toEqual({ low: 5, high: 7 });
+      expect(result.state.hands.p2).toHaveLength(0);
+      const revealed = result.state.log.filter((e) => e.detail === 'Revealed on elimination');
+      expect(revealed).toHaveLength(1);
+      expect(revealed[0]?.card).toEqual({ suit: 'S', rank: 5 });
+    }
+  });
 });
 
 describe('Shichinarabe AI difficulty tiers', () => {

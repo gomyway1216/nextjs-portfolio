@@ -47,7 +47,8 @@ const CONFIG: Record<ShichinarabeAIDifficulty, AIConfig> = {
   medium: { ownChain: 3, opponentGift: 0, blockAggression: 0, noise: 8, canStrategicPass: false },
   hard: { ownChain: 5, opponentGift: 2, blockAggression: 0, noise: 2, canStrategicPass: false },
   expert: { ownChain: 6, opponentGift: 3, blockAggression: 1, noise: 0, canStrategicPass: true },
-  master: { ownChain: 7, opponentGift: 4, blockAggression: 1.6, noise: 0, canStrategicPass: true },
+  // master blockAggression 2 => holds even for a single gated rival (1 * 2 >= 2).
+  master: { ownChain: 7, opponentGift: 4, blockAggression: 2, noise: 0, canStrategicPass: true },
 };
 
 function buildSuitRankSets(hand: Card[]): Record<CardSuit, Set<number>> {

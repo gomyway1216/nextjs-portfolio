@@ -1,24 +1,27 @@
 /**
- * endgame-profile.ts — measure the per-node cost of move generation in
- * drop-heavy endgame positions, plus fixed-time reached-node / depth.
+ * endgame-profile.ts — micro-profile of per-node cost in material-heavy endgames.
  *
- * Two measurements:
- *  1. Micro-benchmark of GenerateMovesImproved.generatePseudoLegalMovesPooled()
- *     on endgame positions where most pieces are in hand (drops dominate).
- *     Reports ns/call and generated-move count so before/after node cost can be
- *     compared directly.
- *  2. Fixed 2000ms JS V20 search on the same positions, reporting reached nodes
- *     and completed depth.
+ * Diagnosis goal: the engine's per-node cost balloons from ~4µs (opening/midgame)
+ * to 27–41µs in positions with large hands, collapsing endgame search depth from
+ * 11–12 to 4–6. This script isolates *which* part of a node is responsible by
+ * timing the three suspects independently on the same set of positions:
  *
- * Usage:
- *   node -r tsx/cjs wasm-spike/endgame-profile.ts            # micro-bench only
- *   node -r tsx/cjs wasm-spike/endgame-profile.ts --search   # + fixed-2s search
+ *   (A) generatePseudoLegalMovesPooled  — move generation (drops explode with big hands)
+ *   (B) lazy legality filter            — make/unmake + isKingInCheck per move
+ *   (C) evaluateV3Full                  — leaf evaluation (the V20 leaf value)
+ *
+ * Positions are built from seeded self-play biased toward captures/promotions so
+ * the hands grow, then filtered to those with a large total hand count. This is a
+ * CPU-light micro-bench (bounded iteration counts, no deep search), safe to run
+ * while other A/B matches are using the machine.
+ *
+ * Usage: node -r tsx/cjs wasm-spike/endgame-profile.ts
  */
 
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
 import { MoveListImproved } from '../src/components/game/ShogiImproved/MoveListImproved';
-import { ShogiAIImprovedV20 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV20';
+import { FU, GOTE, HI, SENTE, Te, getKomashu } from '../src/components/game/ShogiImproved/types';
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -31,118 +34,136 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-/**
- * Build deterministic drop-heavy endgame positions via deep random self-play
- * that prefers captures (so many pieces migrate into hand).
- */
-function buildEndgamePositions(): Array<{ label: string; k: KyokumenImproved; tesu: number }> {
-  const out: Array<{ label: string; k: KyokumenImproved; tesu: number }> = [];
+function handCount(k: KyokumenImproved): number {
+  let n = 0;
+  for (let type = FU; type <= HI; type++) {
+    n += (k.hand[SENTE | type] | 0) + (k.hand[GOTE | type] | 0);
+  }
+  return n;
+}
+
+/** Play a biased self-play game; snapshot positions with big hands. */
+function buildEndgamePositions(): Array<{ label: string; k: KyokumenImproved; hand: number }> {
+  const out: Array<{ label: string; k: KyokumenImproved; hand: number }> = [];
   for (let game = 0; game < 6; game++) {
-    const rnd = mulberry32(0xe11d90 + game * 2654435761);
+    const rnd = mulberry32(0xe11a9e + game * 104729);
     const k = new KyokumenImproved();
     k.initHirate();
-    let tesu = 0;
-    const targetPly = 70 + game * 6;
-    for (let ply = 0; ply < targetPly; ply++) {
+    for (let ply = 0; ply < 110; ply++) {
       const moves = GenerateMovesImproved.generateLegalMoves(k);
       if (moves.length === 0) break;
-      // Prefer captures 70% of the time to drive pieces into hand.
-      const captures = moves.filter((m) => m.capture !== 0);
-      let te;
-      if (captures.length > 0 && rnd() < 0.7) {
-        te = captures[Math.floor(rnd() * captures.length)];
+      // Bias: prefer captures and promotions to grow hands / reach sharp endgames.
+      let pick: Te;
+      const noisy = moves.filter((m) => m.capture !== 0 || m.promote);
+      if (noisy.length > 0 && rnd() < 0.75) {
+        pick = noisy[Math.floor(rnd() * noisy.length)];
       } else {
-        te = moves[Math.floor(rnd() * moves.length)];
+        pick = moves[Math.floor(rnd() * moves.length)];
       }
-      te.capture = k.get(te.to);
-      k.move(te);
+      pick.capture = k.get(pick.to);
+      k.move(pick);
       k.toggleTeban();
-      tesu = ply + 1;
-    }
-    if (GenerateMovesImproved.generateLegalMoves(k).length > 0) {
-      out.push({ label: `game${game} ply${tesu}`, k: k.clone(), tesu });
+      const hand = handCount(k);
+      if (ply >= 60 && hand >= 6 && GenerateMovesImproved.generateLegalMoves(k).length > 0) {
+        out.push({ label: `game${game} ply${ply + 1}`, k: k.clone(), hand });
+        break; // one snapshot per game so the sample spans distinct games, not one game's tail
+      }
     }
   }
-  return out;
+  // Keep a spread of the highest-hand positions (now at most one per game).
+  out.sort((a, b) => b.hand - a.hand);
+  return out.slice(0, 4);
 }
 
-function handSummary(k: KyokumenImproved): string {
-  let total = 0;
-  for (let koma = 0; koma < k.hand.length; koma++) total += k.hand[koma] | 0;
-  return `handTotal=${total}`;
+function bestOf(runs: number, fn: () => void): number {
+  let best = Infinity;
+  for (let r = 0; r < runs; r++) {
+    const t0 = performance.now();
+    fn();
+    const dt = performance.now() - t0;
+    if (dt < best) best = dt;
+  }
+  return best;
 }
 
-function microBench(): void {
+function main(): void {
   const positions = buildEndgamePositions();
-  const list = new MoveListImproved();
+  console.log(`=== endgame node-cost micro-profile (JS engine, big-hand positions) ===\n`);
 
-  console.log('=== drop-heavy pseudo-legal generation micro-bench ===');
-  let grandCalls = 0;
-  let grandNs = 0;
-  let grandMoves = 0;
+  const ITER = 3_000; // iterations per measurement
+  const pool = new MoveListImproved();
+
+  // Totals for an aggregate "typical big-hand node" cost estimate.
+  let sumGenNs = 0;
+  let sumLegalNs = 0;
+  let sumEvalNs = 0;
+  let sumMoves = 0;
+  let count = 0;
+
   for (const p of positions) {
-    // Measure generated-move count once.
-    GenerateMovesImproved.generatePseudoLegalMovesPooled(p.k, list);
-    const moveCount = list.size;
+    const k = p.k;
 
-    // Warmup.
-    for (let i = 0; i < 20000; i++) GenerateMovesImproved.generatePseudoLegalMovesPooled(p.k, list);
+    // (A) pseudo-legal move generation
+    let moveCount = 0;
+    const genMs = bestOf(3, () => {
+      for (let i = 0; i < ITER; i++) {
+        const list = GenerateMovesImproved.generatePseudoLegalMovesPooled(k, pool);
+        moveCount = list.length;
+      }
+    });
 
-    const iters = 200000;
-    const t0 = process.hrtime.bigint();
-    for (let i = 0; i < iters; i++) GenerateMovesImproved.generatePseudoLegalMovesPooled(p.k, list);
-    const t1 = process.hrtime.bigint();
-    const ns = Number(t1 - t0);
-    const nsPer = ns / iters;
-    grandCalls += iters;
-    grandNs += ns;
-    grandMoves += moveCount;
-    console.log(
-      `  ${p.label.padEnd(16)} ${handSummary(p.k).padEnd(14)} moves=${String(moveCount).padStart(3)}  ${nsPer.toFixed(1)} ns/call  (${(nsPer / Math.max(1, moveCount)).toFixed(2)} ns/move)`
-    );
+    // (B) lazy legality filter over the generated list (make/unmake + isKingInCheck)
+    const legalMs = bestOf(3, () => {
+      for (let i = 0; i < ITER; i++) {
+        const list = GenerateMovesImproved.generatePseudoLegalMovesPooled(k, pool);
+        for (let j = 0; j < list.length; j++) {
+          const te = list[j];
+          te.capture = k.get(te.to);
+          k.move(te);
+          GenerateMovesImproved.isKingInCheck(k, k.teban);
+          k.back(te);
+        }
+      }
+    });
+    // Subtract the generation cost embedded in (B) to isolate legality work.
+    const legalOnlyMs = Math.max(0, legalMs - genMs);
+
+    // (C) leaf evaluation (the value V20 uses at a leaf: evaluateV3 + hangingThreat)
+    const evalMs = bestOf(3, () => {
+      for (let i = 0; i < ITER; i++) {
+        k.evaluateV3();
+      }
+    });
+
+    const genNs = (genMs / ITER) * 1000;
+    const legalNs = (legalOnlyMs / ITER) * 1000;
+    const evalNs = (evalMs / ITER) * 1000;
+    const nodeNs = genNs + legalNs + evalNs;
+
+    sumGenNs += genNs;
+    sumLegalNs += legalNs;
+    sumEvalNs += evalNs;
+    sumMoves += moveCount;
+    count++;
+
+    console.log(`${p.label}  (hand=${p.hand}, pseudo-moves=${moveCount})`);
+    console.log(`  gen        ${genNs.toFixed(2)} ns/node`);
+    console.log(`  legality   ${legalNs.toFixed(2)} ns/node  (${(legalNs / Math.max(1, moveCount)).toFixed(2)} ns/move × ${moveCount})`);
+    console.log(`  eval(V3)   ${evalNs.toFixed(2)} ns/node`);
+    console.log(`  ~node cost ${nodeNs.toFixed(0)} ns  (gen ${(100 * genNs / nodeNs).toFixed(0)}% / legal ${(100 * legalNs / nodeNs).toFixed(0)}% / eval ${(100 * evalNs / nodeNs).toFixed(0)}%)\n`);
   }
-  console.log(
-    `  --- aggregate: ${(grandNs / grandCalls).toFixed(1)} ns/call over ${positions.length} positions, avg moves=${(grandMoves / positions.length).toFixed(1)} ---`
-  );
+
+  const g = sumGenNs / count;
+  const l = sumLegalNs / count;
+  const e = sumEvalNs / count;
+  const node = g + l + e;
+  console.log(`=== average across ${count} big-hand positions (avg pseudo-moves=${(sumMoves / count).toFixed(0)}) ===`);
+  console.log(`  gen        ${g.toFixed(0)} ns  (${(100 * g / node).toFixed(0)}%)`);
+  console.log(`  legality   ${l.toFixed(0)} ns  (${(100 * l / node).toFixed(0)}%)`);
+  console.log(`  eval(V3)   ${e.toFixed(0)} ns  (${(100 * e / node).toFixed(0)}%)`);
+  console.log(`  node total ${node.toFixed(0)} ns  (~${(node / 1000).toFixed(1)} µs)`);
+  console.log(`\nNote: JS timings (WASM is ~27–30× faster per the eval bench, but the *relative*`);
+  console.log(`breakdown between gen/legality/eval is what identifies the hot path).`);
 }
 
-function fixedSearch(): void {
-  const positions = buildEndgamePositions();
-  const budget = 2000;
-  console.log(`\n=== fixed ${budget}ms JS V20 search (reached nodes / depth) ===`);
-  let totalNodes = 0;
-  for (const p of positions) {
-    const ai = new ShogiAIImprovedV20();
-    const origLog = console.log;
-    let line: string | null = null;
-    console.log = (...args: unknown[]) => {
-      const s = String(args[0] ?? '');
-      if (s.startsWith('[ShogiAIImprovedV20]')) line = s;
-      else origLog(...args);
-    };
-    try {
-      ai.getNextTe(p.k, p.tesu, {
-        maxTimeMs: budget,
-        maxDepth: 32,
-        quiescenceDepthMax: 10,
-        evaluationMode: 'v3',
-        debug: true,
-      });
-    } finally {
-      console.log = origLog;
-    }
-    const m = line ? /depth=(\d+)\/\d+ score=(-?\d+) nodes=(\d+) leaves=(\d+)/.exec(line) : null;
-    if (m) {
-      totalNodes += parseInt(m[3], 10);
-      console.log(`  ${p.label.padEnd(16)} depth=${m[1]} nodes=${m[3]} leaves=${m[4]}`);
-    } else {
-      console.log(`  ${p.label.padEnd(16)} (book/mate, no search line)`);
-    }
-  }
-  console.log(`  --- total reached nodes: ${totalNodes} ---`);
-}
-
-if (require.main === module) {
-  microBench();
-  if (process.argv.includes('--search')) fixedSearch();
-}
+main();

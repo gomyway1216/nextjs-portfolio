@@ -17,17 +17,19 @@ interface WheelProps {
 }
 
 const SLICE_DEG = 360 / POCKET_COUNT;
-const SPIN_TURNS = 6;
+const WHEEL_TURNS = 6;
+const BALL_TURNS = 11; // ball travels the opposite way, faster
 const SPIN_DURATION_MS = 3800;
 
 const colorFill: Record<string, string> = {
-  red: '#dc2626',
-  black: '#0f172a',
-  green: '#15803d',
+  red: '#d11f2a',
+  black: '#1a1a1f',
+  green: '#0f7a3d',
 };
 
-export const Wheel = ({ result, spinId, onSettled, size = 320 }: WheelProps) => {
+export const Wheel = ({ result, spinId, onSettled, size = 300 }: WheelProps) => {
   const [rotation, setRotation] = useState(0);
+  const [ballRotation, setBallRotation] = useState(0);
   const prevSpinId = useRef<number>(0);
   const settleTimer = useRef<number | null>(null);
 
@@ -44,7 +46,17 @@ export const Wheel = ({ result, spinId, onSettled, size = 320 }: WheelProps) => 
     setRotation((current) => {
       const currentMod = ((current % 360) + 360) % 360;
       const delta = ((targetWithinTurn - currentMod) % 360 + 360) % 360;
-      return current + delta + SPIN_TURNS * 360;
+      return current + delta + WHEEL_TURNS * 360;
+    });
+    // The ball counter-rotates and lands over the same slice: because the
+    // ball sits in the OUTER static frame, to appear over the winning pocket
+    // (which ends at the top) the ball must point straight up (0deg within
+    // the turn), spinning the opposite direction for realism.
+    setBallRotation((current) => {
+      const currentMod = ((current % 360) + 360) % 360;
+      // target 0 (top) going negative (counter-clockwise)
+      const delta = ((0 - currentMod) % 360 + 360) % 360; // positive forward
+      return current - (BALL_TURNS * 360 - delta);
     });
 
     if (settleTimer.current) window.clearTimeout(settleTimer.current);
@@ -58,8 +70,10 @@ export const Wheel = ({ result, spinId, onSettled, size = 320 }: WheelProps) => 
   }, [spinId, result, onSettled]);
 
   const radius = size / 2;
-  const innerRadius = radius * 0.45;
-  const labelRadius = radius * 0.78;
+  const innerRadius = radius * 0.46;
+  const labelRadius = radius * 0.79;
+  const ballOrbit = radius * 0.9;
+  const spinning = spinId !== 0;
 
   const slices = WHEEL_ORDER.map((n, i) => {
     const startAngle = i * SLICE_DEG - 90; // -90 so index 0 is at top
@@ -70,12 +84,12 @@ export const Wheel = ({ result, spinId, onSettled, size = 320 }: WheelProps) => 
     const labelY = radius + Math.sin((midAngle * Math.PI) / 180) * labelRadius;
     return (
       <g key={`${n}-${i}`}>
-        <path d={path} fill={colorFill[colorOf(n)]} stroke="#1e293b" strokeWidth={0.5} />
+        <path d={path} fill={colorFill[colorOf(n)]} stroke="rgba(0,0,0,0.5)" strokeWidth={0.5} />
         <text
           x={labelX}
           y={labelY}
           fill="#fff"
-          fontSize={radius * 0.07}
+          fontSize={radius * 0.072}
           fontWeight={700}
           textAnchor="middle"
           dominantBaseline="middle"
@@ -87,8 +101,18 @@ export const Wheel = ({ result, spinId, onSettled, size = 320 }: WheelProps) => 
     );
   });
 
+  const spinTransition = `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.17, 0.84, 0.32, 1.0)`;
+
   return (
-    <div style={{ position: 'relative', width: size, height: size + 24, margin: '0 auto' }}>
+    <div
+      style={{ position: 'relative', width: size, height: size + 24, margin: '0 auto' }}
+      role="img"
+      aria-label={
+        result !== null && !spinning
+          ? `Roulette wheel showing ${result}`
+          : 'Roulette wheel'
+      }
+    >
       {/* Pointer at top */}
       <div
         style={{
@@ -98,13 +122,15 @@ export const Wheel = ({ result, spinId, onSettled, size = 320 }: WheelProps) => 
           transform: 'translateX(-50%)',
           width: 0,
           height: 0,
-          borderLeft: '12px solid transparent',
-          borderRight: '12px solid transparent',
-          borderTop: '20px solid #fbbf24',
-          zIndex: 2,
+          borderLeft: '11px solid transparent',
+          borderRight: '11px solid transparent',
+          borderTop: '18px solid var(--rl-gold, #e0a83c)',
+          zIndex: 3,
           filter: 'drop-shadow(0 2px 3px rgba(0,0,0,0.6))',
         }}
       />
+
+      {/* Rotating wheel */}
       <svg
         width={size}
         height={size}
@@ -112,14 +138,40 @@ export const Wheel = ({ result, spinId, onSettled, size = 320 }: WheelProps) => 
         style={{
           marginTop: 24,
           transform: `rotate(${rotation}deg)`,
-          transition: spinId === 0 ? 'none' : `transform ${SPIN_DURATION_MS}ms cubic-bezier(0.17, 0.84, 0.32, 1.0)`,
+          transition: spinning ? spinTransition : 'none',
           display: 'block',
         }}
       >
-        <circle cx={radius} cy={radius} r={radius - 1} fill="#1e293b" />
+        <circle cx={radius} cy={radius} r={radius - 1} fill="#3a2410" />
+        <circle cx={radius} cy={radius} r={radius - 3} fill="none" stroke="#e0a83c" strokeWidth={2} opacity={0.6} />
         {slices}
-        <circle cx={radius} cy={radius} r={innerRadius} fill="#0f172a" stroke="#334155" strokeWidth={2} />
-        <circle cx={radius} cy={radius} r={innerRadius * 0.35} fill="#334155" />
+        <circle cx={radius} cy={radius} r={innerRadius} fill="#241608" stroke="#e0a83c" strokeWidth={2} />
+        <circle cx={radius} cy={radius} r={innerRadius * 0.55} fill="#3a2410" />
+        <circle cx={radius} cy={radius} r={innerRadius * 0.2} fill="#e0a83c" />
+      </svg>
+
+      {/* Ball layer — separate SVG so it can rotate independently */}
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 24,
+          pointerEvents: 'none',
+          transform: `rotate(${ballRotation}deg)`,
+          transition: spinning ? spinTransition : 'none',
+        }}
+      >
+        <circle
+          cx={radius}
+          cy={radius - ballOrbit}
+          r={radius * 0.045}
+          fill="#f8fafc"
+          stroke="#94a3b8"
+          strokeWidth={0.5}
+        />
       </svg>
     </div>
   );

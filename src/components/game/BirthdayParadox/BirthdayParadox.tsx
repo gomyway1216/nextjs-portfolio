@@ -1,49 +1,75 @@
 'use client';
 
 import { useState } from 'react';
+import { Info } from 'lucide-react';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
+import { InfoModal } from '../common/InfoModal';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getStrings } from './i18n';
+import styles from './BirthdayParadox.module.css';
 
 type Tab = 'play' | 'sim';
 
 export const BirthdayParadox = () => {
   const [tab, setTab] = useState<Tab>('play');
+  const [infoOpen, setInfoOpen] = useState(false);
+  const { language } = useGameLanguage();
+  const t = getStrings(language);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #020617, #111827)', color: '#e2e8f0', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>🎂 Birthday Paradox</h1>
-        <p style={{ marginTop: '0.4rem', color: '#94a3b8' }}>
-          直感に反する確率の典型。少人数で誕生日が被る確率を実験で体感し、シミュレーションで理論値に重なるのを確認する。
-        </p>
+    <div className={styles.root}>
+      <div className={styles.shell}>
+        <header className={styles.header}>
+          <div>
+            <h1 className={styles.title}>
+              <span aria-hidden>🎂</span> {t.title}
+            </h1>
+            <p className={styles.subtitle}>{t.subtitle}</p>
+          </div>
+          <button
+            type="button"
+            className={styles.infoBtn}
+            onClick={() => setInfoOpen(true)}
+            aria-label={t.howToPlay}
+          >
+            <Info size={16} aria-hidden />
+            {t.howToPlay}
+          </button>
+        </header>
 
-        <div style={{ display: 'flex', gap: '0.5rem', margin: '1.25rem 0' }}>
-          <TabButton active={tab === 'play'} onClick={() => setTab('play')}>遊ぶ</TabButton>
-          <TabButton active={tab === 'sim'} onClick={() => setTab('sim')}>シミュレーション</TabButton>
+        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+          <button
+            role="tab"
+            aria-selected={tab === 'play'}
+            className={`${styles.tab} ${tab === 'play' ? styles.tabActive : ''}`}
+            onClick={() => setTab('play')}
+          >
+            {t.tabPlay}
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === 'sim'}
+            className={`${styles.tab} ${tab === 'sim' ? styles.tabActive : ''}`}
+            onClick={() => setTab('sim')}
+          >
+            {t.tabSim}
+          </button>
         </div>
 
-        {tab === 'play' ? <PlayTab /> : <SimTab />}
+        {tab === 'play' ? <PlayTab t={t} /> : <SimTab t={t} language={language} />}
       </div>
+
+      <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.infoTitle}>
+        <div className={styles.infoBody}>
+          <p>{t.infoP1}</p>
+          <p>{t.infoP2}</p>
+          <code className={styles.formula}>{t.infoFormula}</code>
+          <p>{t.infoP3}</p>
+        </div>
+      </InfoModal>
     </div>
   );
 };
-
-const TabButton = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
-  <button
-    onClick={onClick}
-    style={{
-      background: active ? '#f59e0b' : '#1e293b',
-      color: active ? '#0f172a' : '#e2e8f0',
-      border: `1px solid ${active ? '#f59e0b' : '#334155'}`,
-      borderRadius: 10,
-      padding: '0.55rem 1.1rem',
-      fontWeight: 800,
-      cursor: 'pointer',
-      fontSize: '0.95rem',
-    }}
-  >
-    {children}
-  </button>
-);
 
 export default BirthdayParadox;

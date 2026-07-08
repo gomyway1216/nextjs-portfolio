@@ -6,6 +6,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Info } from 'lucide-react';
 import { TerritoryNumberBoard, type Phase } from './TerritoryNumberBoard';
 import { pickAIMove } from './TerritoryNumberAI';
 import {
@@ -23,12 +24,16 @@ import type {
   PlayerSlot,
 } from './types';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { InfoModal } from '../common';
+import { getDifficultyColor } from '../common/utils';
+import { getTerritoryNumberStrings } from './i18n';
+import styles from './TerritoryNumber.module.css';
 
 interface TerritoryNumberVsAIProps {
   onBackToMenu: () => void;
 }
 
-const AI_THINK_MS = 600;
+const AI_THINK_MS = 550;
 
 function pickFirstPlayer(rule: FirstPlayerRule): PlayerSlot {
   switch (rule) {
@@ -43,13 +48,15 @@ function pickFirstPlayer(rule: FirstPlayerRule): PlayerSlot {
 
 export function TerritoryNumberVsAI({ onBackToMenu }: TerritoryNumberVsAIProps) {
   const { language } = useGameLanguage();
-  const ja = language === 'ja';
+  const s = getTerritoryNumberStrings(language);
 
   const [phase, setPhase] = useState<'setup' | 'playing'>('setup');
   const [difficulty, setDifficulty] = useState<AIDifficulty>('medium');
   const [firstRule, setFirstRule] = useState<FirstPlayerRule>('host');
+  const [infoOpen, setInfoOpen] = useState(false);
 
-  const [humanSlot, setHumanSlot] = useState<PlayerSlot>('p1');
+  const humanSlot: PlayerSlot = 'p1'; // human is always p1 (blue); AI is p2 (red).
+  const aiSlot: PlayerSlot = 'p2';
   const [board, setBoard] = useState<Board>(emptyBoard());
   const [currentTurn, setCurrentTurn] = useState<PlayerSlot>('p1');
   const [selectedCard, setSelectedCard] = useState<number | null>(null);
@@ -64,15 +71,14 @@ export function TerritoryNumberVsAI({ onBackToMenu }: TerritoryNumberVsAIProps) 
   }, []);
   useEffect(() => clearAiTimer, [clearAiTimer]);
 
-  const aiSlot: PlayerSlot = humanSlot === 'p1' ? 'p2' : 'p1';
-
   const evaluation = useMemo(() => evaluateBoard(board), [board]);
   const remaining = useMemo(() => remainingCards(board), [board]);
   const matchOutcome = useMemo(() => evaluateMatch(board), [board]);
   const finished = matchOutcome !== undefined;
 
-  const myLabel = ja ? 'あなた' : 'You';
-  const opponentLabel = ja ? `AI (${difficulty})` : `AI (${difficulty})`;
+  const myLabel = s.you;
+  const difficultyLabel = difficulty === 'easy' ? s.easy : difficulty === 'medium' ? s.medium : s.hard;
+  const opponentLabel = `AI · ${difficultyLabel}`;
 
   // Drive the AI when it's its turn.
   useEffect(() => {
@@ -81,8 +87,8 @@ export function TerritoryNumberVsAI({ onBackToMenu }: TerritoryNumberVsAIProps) 
     if (currentTurn !== aiSlot) return;
     clearAiTimer();
     aiTimerRef.current = setTimeout(() => {
-      // Re-check before mutating: state may have moved on (component unmount,
-      // user pressed Leave, etc.) while the timer was pending.
+      // Re-check before mutating: state may have moved on (unmount, Leave, etc.)
+      // while the timer was pending.
       if (isBoardFull(board)) return;
       const move = pickAIMove(difficulty, board, aiSlot);
       const next = placeCard(board, move.cellIndex, move.card, aiSlot);
@@ -97,7 +103,6 @@ export function TerritoryNumberVsAI({ onBackToMenu }: TerritoryNumberVsAIProps) 
     setBoard(emptyBoard());
     setCurrentTurn(first);
     setSelectedCard(null);
-    setHumanSlot('p1'); // human is always p1 visually; AI is p2.
     setPhase('playing');
     clearAiTimer();
   }, [firstRule, clearAiTimer]);
@@ -120,175 +125,172 @@ export function TerritoryNumberVsAI({ onBackToMenu }: TerritoryNumberVsAIProps) 
 
   const handleLeave = useCallback(() => {
     clearAiTimer();
-    onBackToMenu();
-  }, [clearAiTimer, onBackToMenu]);
+    setPhase('setup');
+  }, [clearAiTimer]);
 
-  // Final message
   const finalMessage = useMemo(() => {
     if (matchOutcome === undefined) return null;
-    if (matchOutcome === humanSlot) return ja ? '🎉 あなたの勝利！' : '🎉 You won the match!';
-    if (matchOutcome === aiSlot) return ja ? '😢 AIの勝利' : '😢 AI won the match';
-    return ja ? '🤝 引き分け' : '🤝 Draw';
-  }, [matchOutcome, humanSlot, aiSlot, ja]);
+    if (matchOutcome === humanSlot) return s.youWon;
+    if (matchOutcome === aiSlot) return s.aiWon;
+    return s.draw;
+  }, [matchOutcome, humanSlot, aiSlot, s]);
 
   const statusText = useMemo(() => {
     if (finished) return null;
     if (currentTurn === humanSlot) {
-      if (selectedCard === null) return ja ? 'カードを1枚選んでください' : 'Pick a card';
-      return ja ? `${selectedCard} を置くマスをタップ` : `Tap a cell to place ${selectedCard}`;
+      if (selectedCard === null) return s.pickCard;
+      return s.tapToPlace(selectedCard);
     }
-    return ja ? 'AIが考えています...' : 'AI is thinking...';
-  }, [finished, currentTurn, humanSlot, selectedCard, ja]);
+    return s.aiThinking;
+  }, [finished, currentTurn, humanSlot, selectedCard, s]);
 
   const tablePhase: Phase = finished ? 'finished'
     : currentTurn === humanSlot ? 'your-turn' : 'opponent-turn';
 
+  const infoButton = (
+    <button
+      type="button"
+      onClick={() => setInfoOpen(true)}
+      className={styles.ghostButton}
+      aria-label={s.howToPlayTitle}
+    >
+      <Info size={16} aria-hidden />
+      <span>{s.howToPlayTitle}</span>
+    </button>
+  );
+
+  const infoModal = (
+    <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={s.strategyTitle}>
+      <ol className={styles.modalList}>
+        {s.strategyBody.map((line, i) => <li key={i}>{line}</li>)}
+      </ol>
+      <div className={styles.legend}>
+        <span className={styles.legendItem}>
+          <span className={styles.legendSwatch} style={{ background: '#2563eb' }} />
+          {s.legendYou}
+        </span>
+        <span className={styles.legendItem}>
+          <span className={styles.legendSwatch} style={{ background: '#ef4444' }} />
+          {s.legendAi}
+        </span>
+        <span className={styles.legendItem}>
+          <span className={styles.legendSwatch} style={{ background: '#94a3b8' }} />
+          {s.legendTie}
+        </span>
+      </div>
+    </InfoModal>
+  );
+
   // ---- Setup screen ----
   if (phase === 'setup') {
+    const difficultyOptions: Array<{ value: AIDifficulty; label: string; desc: string }> = [
+      { value: 'easy', label: s.easy, desc: s.easyDesc },
+      { value: 'medium', label: s.medium, desc: s.mediumDesc },
+      { value: 'hard', label: s.hard, desc: s.hardDesc },
+    ];
+    const firstOptions: Array<{ value: FirstPlayerRule; label: string }> = [
+      { value: 'host', label: s.firstMoveYou },
+      { value: 'guest', label: s.firstMoveAi },
+      { value: 'random', label: s.firstMoveRandom },
+    ];
+
     return (
-      <div style={{
-        position: 'fixed',
-        inset: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        background: 'linear-gradient(to bottom, #020617, #0f172a)',
-        color: '#f8fafc',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
-        overflow: 'auto',
-        padding: '1.25rem',
-        gap: '1rem',
-      }}>
-        <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <button
-            onClick={onBackToMenu}
-            style={{
-              padding: '0.4rem 0.9rem',
-              background: 'transparent',
-              border: '1px solid rgba(148, 163, 184, 0.35)',
-              color: '#cbd5e1',
-              borderRadius: '0.5rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-              fontSize: '0.85rem',
-            }}
-          >
-            ← {ja ? 'モード選択' : 'Mode select'}
+      <div className={styles.screen}>
+        <div className={styles.header}>
+          <button type="button" onClick={onBackToMenu} className={styles.ghostButton}>
+            ← {s.modeSelect}
           </button>
-          <div style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-            {ja ? 'AI対戦' : 'VS AI'}
+          <span className={styles.headerTitle}>{s.vsAi}</span>
+          {infoButton}
+        </div>
+
+        <div className={styles.setupScroll}>
+          <div className={styles.setupCard}>
+            <div className={styles.setupHero}>
+              <span className={styles.setupIcon}>🎯</span>
+              <div>
+                <h1 className={styles.setupTitle}>{language === 'ja' ? '陣取り数字' : 'Territory Number'}</h1>
+                <p className={styles.setupSubtitle}>{s.setupHint}</p>
+              </div>
+            </div>
+
+            <div>
+              <div className={styles.sectionKicker}>{s.gameSetup}</div>
+              <h2 className={styles.sectionTitle}>{s.aiDifficulty}</h2>
+              <div className={styles.optionGrid}>
+                {difficultyOptions.map(o => {
+                  const colors = getDifficultyColor(o.value);
+                  const selected = difficulty === o.value;
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => setDifficulty(o.value)}
+                      className={styles.optionButton}
+                      data-selected={selected ? 'true' : 'false'}
+                      aria-pressed={selected}
+                      style={{
+                        ['--opt-border' as string]: colors.border,
+                        ['--opt-bg' as string]: colors.bg,
+                        ['--opt-text' as string]: colors.text,
+                      } as React.CSSProperties}
+                    >
+                      <span className={styles.optionLabel}>{o.label}</span>
+                      <span className={styles.optionDesc}>{o.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <h2 className={styles.sectionTitle}>{s.firstMove}</h2>
+              <div className={styles.pillRow}>
+                {firstOptions.map(o => (
+                  <button
+                    key={o.value}
+                    type="button"
+                    onClick={() => setFirstRule(o.value)}
+                    className={`${styles.pill} ${firstRule === o.value ? styles.pillActive : ''}`}
+                    aria-pressed={firstRule === o.value}
+                  >
+                    {o.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button type="button" onClick={startMatch} className={styles.primaryButton}>
+              {s.startMatch}
+            </button>
           </div>
         </div>
-
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem', marginTop: '1rem' }}>
-          <h2 style={{ margin: 0, color: '#fbbf24', fontSize: '1.5rem' }}>
-            {ja ? 'AI 難易度' : 'AI difficulty'}
-          </h2>
-          <Pillset
-            options={[
-              { value: 'easy', label: ja ? '弱い' : 'Easy' },
-              { value: 'medium', label: ja ? '普通' : 'Medium' },
-              { value: 'hard', label: ja ? '強い' : 'Hard' },
-            ]}
-            value={difficulty}
-            onChange={setDifficulty}
-          />
-
-          <h2 style={{ margin: '0.5rem 0 0', color: '#fbbf24', fontSize: '1.25rem' }}>
-            {ja ? '先手' : 'First move'}
-          </h2>
-          <Pillset
-            options={[
-              { value: 'host', label: ja ? 'あなた' : 'You' },
-              { value: 'guest', label: 'AI' },
-              { value: 'random', label: ja ? 'ランダム' : 'Random' },
-            ]}
-            value={firstRule}
-            onChange={setFirstRule}
-          />
-
-          <button
-            onClick={startMatch}
-            style={{
-              marginTop: '1rem',
-              padding: '0.7rem 2rem',
-              background: '#2563eb',
-              border: 'none',
-              borderRadius: '0.65rem',
-              color: '#fff',
-              fontWeight: 800,
-              fontSize: '1rem',
-              cursor: 'pointer',
-            }}
-          >
-            {ja ? '対戦開始' : 'Start match'}
-          </button>
-
-          <p style={{ margin: '1rem 0 0', maxWidth: '34rem', textAlign: 'center', color: '#94a3b8', fontSize: '0.85rem', lineHeight: 1.6 }}>
-            {ja
-              ? '中央マスは4ライン、コーナーは3ライン、辺は2ライン。9を温存するか早めに通すか、読み合おう。'
-              : 'Centre cell hits 4 lines, corners 3, edges 2. When to spend your 9 and when to save it — read your opponent.'}
-          </p>
-        </div>
+        {infoModal}
       </div>
     );
   }
 
   return (
-    <TerritoryNumberBoard
-      board={board}
-      remainingCards={remaining}
-      selectedCard={selectedCard}
-      mySlot={humanSlot}
-      myLabel={myLabel}
-      opponentLabel={opponentLabel}
-      evaluation={evaluation}
-      phase={tablePhase}
-      finalMessage={finalMessage}
-      statusText={statusText}
-      onSelectCard={handleSelectCard}
-      onPlaceOnCell={handlePlaceOnCell}
-      onLeave={handleLeave}
-      onPlayAgain={startMatch}
-      language={language}
-    />
-  );
-}
-
-interface PillsetOption<T extends string> {
-  value: T;
-  label: string;
-}
-
-function Pillset<T extends string>({
-  options, value, onChange,
-}: {
-  options: PillsetOption<T>[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-      {options.map(o => {
-        const active = o.value === value;
-        return (
-          <button
-            key={o.value}
-            onClick={() => onChange(o.value)}
-            style={{
-              padding: '0.5rem 1.1rem',
-              background: active ? '#16a34a' : 'transparent',
-              border: `1px solid ${active ? '#22c55e' : 'rgba(148, 163, 184, 0.35)'}`,
-              color: active ? '#fff' : '#cbd5e1',
-              borderRadius: '999px',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            {o.label}
-          </button>
-        );
-      })}
-    </div>
+    <>
+      <TerritoryNumberBoard
+        board={board}
+        remainingCards={remaining}
+        selectedCard={selectedCard}
+        mySlot={humanSlot}
+        myLabel={myLabel}
+        opponentLabel={opponentLabel}
+        evaluation={evaluation}
+        phase={tablePhase}
+        finalMessage={finalMessage}
+        statusText={statusText}
+        onSelectCard={handleSelectCard}
+        onPlaceOnCell={handlePlaceOnCell}
+        onLeave={handleLeave}
+        onPlayAgain={startMatch}
+        headerExtra={infoButton}
+        language={language}
+      />
+      {infoModal}
+    </>
   );
 }

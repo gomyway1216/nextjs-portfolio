@@ -12,6 +12,22 @@
 
 export const DAYS_IN_YEAR = 365;
 
+/**
+ * Small, fast, deterministic PRNG (mulberry32). Kept local to this game so the
+ * Birthday Paradox engine has no cross-game dependency. Given the same seed it
+ * always yields the same stream — used for reproducible demos and tests.
+ */
+export function createSeededRng(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let t = state;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 export function theoreticalMatchProb(n: number): number {
   if (n <= 1) return 0;
   if (n > DAYS_IN_YEAR) return 1; // pigeonhole
@@ -142,4 +158,30 @@ export async function runBirthdaySweepAsync(
     fiftyPercentN: findCrossing(0.5),
     ninetyNinePercentN: findCrossing(0.99),
   };
+}
+
+/**
+ * Synchronous Monte-Carlo estimate of P(match) for a fixed group size `n`.
+ * Runs `trials` independent groups and returns the empirical collision rate.
+ * By the law of large numbers this converges to `theoreticalMatchProb(n)`.
+ */
+export function estimateMatchProb(
+  n: number,
+  trials: number,
+  rng: () => number = Math.random,
+): number {
+  if (n <= 1 || trials <= 0) return 0;
+  const seen = new Uint8Array(DAYS_IN_YEAR);
+  let matches = 0;
+  for (let t = 0; t < trials; t++) {
+    seen.fill(0);
+    let collided = false;
+    for (let i = 0; i < n; i++) {
+      const d = Math.floor(rng() * DAYS_IN_YEAR);
+      if (seen[d] === 1) { collided = true; break; }
+      seen[d] = 1;
+    }
+    if (collided) matches++;
+  }
+  return matches / trials;
 }

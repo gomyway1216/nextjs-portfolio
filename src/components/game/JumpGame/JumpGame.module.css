@@ -36,6 +36,37 @@
   touch-action: none;
 }
 
+.hudHint {
+  position: absolute;
+  bottom: 0.55rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0.28rem 0.75rem;
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  border-radius: 9999px;
+  background: rgba(8, 15, 30, 0.55);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  color: rgba(226, 232, 240, 0.82);
+  font-size: clamp(0.6rem, 2.6vw, 0.72rem);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: hudHintFade 4s ease forwards;
+}
+
+@keyframes hudHintFade {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 .difficultyOverlay {
   position: absolute;
   inset: 0;
@@ -100,7 +131,7 @@
 
 .difficultyButton[data-difficulty='easy']:hover,
 .difficultyButton[data-difficulty='easy']:focus-visible,
-.difficultyButton[data-difficulty='easy'][aria-pressed='true'] {
+.difficultyButton[data-difficulty='easy'][aria-checked='true'] {
   border-color: #22c55e;
   background: rgba(34, 197, 94, 0.16);
   color: #16a34a;
@@ -108,7 +139,7 @@
 
 .difficultyButton[data-difficulty='medium']:hover,
 .difficultyButton[data-difficulty='medium']:focus-visible,
-.difficultyButton[data-difficulty='medium'][aria-pressed='true'] {
+.difficultyButton[data-difficulty='medium'][aria-checked='true'] {
   border-color: #eab308;
   background: rgba(234, 179, 8, 0.17);
   color: #ca8a04;
@@ -116,7 +147,7 @@
 
 .difficultyButton[data-difficulty='hard']:hover,
 .difficultyButton[data-difficulty='hard']:focus-visible,
-.difficultyButton[data-difficulty='hard'][aria-pressed='true'] {
+.difficultyButton[data-difficulty='hard'][aria-checked='true'] {
   border-color: #ef4444;
   background: rgba(239, 68, 68, 0.15);
   color: #dc2626;

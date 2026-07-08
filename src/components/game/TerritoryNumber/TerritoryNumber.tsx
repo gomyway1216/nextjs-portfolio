@@ -6,6 +6,7 @@
 
 import Link from 'next/link';
 import React, { useState } from 'react';
+import { Bot, Users } from 'lucide-react';
 import { TerritoryNumberVsAI } from './TerritoryNumberVsAI';
 import { TerritoryNumberOnline } from './TerritoryNumberOnline';
 import {
@@ -14,7 +15,9 @@ import {
   LanguageSelector,
 } from '../contexts/GameLanguageContext';
 import { getGameTranslation } from '../constants/gameTranslations';
+import { getTerritoryNumberStrings } from './i18n';
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import styles from './TerritoryNumber.module.css';
 
 type Mode = 'menu' | 'ai' | 'online';
 
@@ -23,6 +26,7 @@ function TerritoryNumberContent() {
   const [mode, setMode] = useState<Mode>('menu');
   const { language } = useGameLanguage();
   const t = getGameTranslation('territory-number', language);
+  const s = getTerritoryNumberStrings(language);
 
   if (mode === 'ai') return <TerritoryNumberVsAI onBackToMenu={() => setMode('menu')} />;
   if (mode === 'online') return <TerritoryNumberOnline onBackToMenu={() => setMode('menu')} />;
@@ -30,97 +34,59 @@ function TerritoryNumberContent() {
   const ja = language === 'ja';
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      background: 'linear-gradient(to bottom, #020617, #0f172a)',
-      overflow: 'auto',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      padding: '1.25rem',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Link
-          href="/games"
-          style={{ color: '#94a3b8', textDecoration: 'none', fontSize: '0.875rem', fontWeight: 700 }}
-        >
-          {ja ? '← ゲーム一覧へ' : '← Back to Games'}
+    <div className={styles.screen}>
+      <div className={styles.header}>
+        <Link href="/games" className={styles.ghostButton}>
+          ← {s.backToGames}
         </Link>
         <LanguageSelector />
-        <div style={{ color: '#6b7280', fontSize: '0.875rem' }}>{t.title}</div>
+        <span className={styles.headerTitle}>{t.title}</span>
       </div>
 
-      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 0' }}>
-        <div style={{
-          width: 'min(720px, 100%)',
-          background: 'rgba(0, 0, 0, 0.92)',
-          border: '2px solid rgba(251, 191, 36, 0.35)',
-          borderRadius: '1rem',
-          padding: '2rem',
-          textAlign: 'center',
-        }}>
-          <div style={{ fontSize: '4rem', marginBottom: '0.75rem' }}>🎯</div>
-          <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 900, color: '#fbbf24' }}>
-            {t.title}
-          </h1>
-          <p style={{ marginTop: '0.75rem', color: '#94a3b8', fontSize: '1rem' }}>
+      <div className={styles.setupScroll}>
+        <div className={styles.setupCard} style={{ textAlign: 'center', alignItems: 'center' }}>
+          <div className={styles.setupIcon} style={{ fontSize: '3.5rem' }}>🎯</div>
+          <h1 className={styles.setupTitle}>{t.title}</h1>
+          <p className={styles.setupSubtitle}>
             {ja ? 'モードを選んでプレイ開始' : 'Choose a mode to start playing.'}
           </p>
 
-          <div style={{
-            display: 'flex',
-            gap: '0.75rem',
-            justifyContent: 'center',
-            flexWrap: 'wrap',
-            marginTop: '1.25rem',
-          }}>
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', justifyContent: 'center', width: '100%' }}>
             <button
+              type="button"
               onClick={() => setMode('ai')}
-              style={{
-                padding: '0.85rem 1.25rem',
-                borderRadius: '0.9rem',
-                border: '1px solid rgba(55, 65, 81, 1)',
-                backgroundColor: '#16a34a',
-                color: '#fff',
-                fontWeight: 900,
-                cursor: 'pointer',
-                minWidth: '14rem',
-              }}
+              className={styles.optionButton}
+              style={{ flex: '1 1 12rem', alignItems: 'center', textAlign: 'center' }}
             >
-              {ja ? 'AI対戦' : 'Play vs AI'}
+              <Bot size={26} aria-hidden />
+              <span className={styles.optionLabel}>{s.vsAi}</span>
+              <span className={styles.optionDesc}>
+                {ja ? '3段階のAIと1対1' : 'One-on-one against a tiered AI'}
+              </span>
             </button>
             <button
+              type="button"
               onClick={() => setMode('online')}
-              style={{
-                padding: '0.85rem 1.25rem',
-                borderRadius: '0.9rem',
-                border: '1px solid rgba(55, 65, 81, 1)',
-                backgroundColor: '#2563eb',
-                color: '#fff',
-                fontWeight: 900,
-                cursor: 'pointer',
-                minWidth: '14rem',
-              }}
+              className={styles.optionButton}
+              style={{ flex: '1 1 12rem', alignItems: 'center', textAlign: 'center' }}
             >
-              {ja ? 'オンライン対戦 (2人)' : 'Online (2 players)'}
+              <Users size={26} aria-hidden />
+              <span className={styles.optionLabel}>
+                {ja ? 'オンライン対戦' : 'Online (2 players)'}
+              </span>
+              <span className={styles.optionDesc}>
+                {ja ? 'ルームコードで友達と' : 'Play a friend with a room code'}
+              </span>
             </button>
           </div>
 
-          <div style={{
-            marginTop: '1.5rem',
-            padding: '1rem',
-            background: 'rgba(251, 191, 36, 0.1)',
-            border: '1px solid rgba(251, 191, 36, 0.3)',
-            borderRadius: '0.75rem',
-            textAlign: 'left',
-          }}>
-            <div style={{ color: '#fbbf24', fontWeight: 700, marginBottom: '0.5rem' }}>
-              {ja ? '遊び方' : 'How to Play'}
+          <div className={styles.setupHint} style={{ textAlign: 'left', width: '100%' }}>
+            <div style={{ fontWeight: 800, marginBottom: '0.5rem', color: 'var(--games-route-fg)' }}>
+              {s.howToPlayTitle}
             </div>
-            <ul style={{ margin: 0, paddingLeft: '1.25rem', color: '#94a3b8', fontSize: '0.875rem', lineHeight: 1.6 }}>
+            <ul style={{ margin: 0, paddingLeft: '1.2rem', lineHeight: 1.7 }}>
               {t.howToPlay.map((item, idx) => (
-                <li key={idx} style={{ marginBottom: '0.25rem' }}>{item}</li>
+                <li key={idx}>{item}</li>
               ))}
             </ul>
           </div>

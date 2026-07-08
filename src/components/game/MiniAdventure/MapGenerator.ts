@@ -196,9 +196,15 @@ function generateItems(tiles: Tile[][], floorLevel: number, rooms: Room[], exclu
 }
 
 // Generate enemies for the floor
-function generateEnemies(tiles: Tile[][], floorLevel: number, exclude: Position[]): Enemy[] {
+function generateEnemies(
+  tiles: Tile[][],
+  floorLevel: number,
+  exclude: Position[],
+  statMult: number,
+): Enemy[] {
   const enemies: Enemy[] = [];
   const enemyTypes = getEnemiesForFloor(floorLevel);
+  if (enemyTypes.length === 0) return enemies;
   const enemyCount = 4 + Math.floor(Math.random() * 3) + Math.floor(floorLevel / 2);
 
   // Generate regular enemies
@@ -206,7 +212,7 @@ function generateEnemies(tiles: Tile[][], floorLevel: number, exclude: Position[
     const pos = getRandomFloorPosition(tiles, [...exclude, ...enemies.map(e => ({ x: e.x, y: e.y }))]);
     if (pos) {
       const enemyType = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
-      const enemy = createEnemy(enemyType, pos.x, pos.y, floorLevel);
+      const enemy = createEnemy(enemyType, pos.x, pos.y, floorLevel, statMult);
       enemies.push(enemy);
     }
   }
@@ -215,7 +221,11 @@ function generateEnemies(tiles: Tile[][], floorLevel: number, exclude: Position[
 }
 
 // Generate a complete floor
-export function generateFloor(floorLevel: number, playerStartPos?: Position): GameFloor {
+export function generateFloor(
+  floorLevel: number,
+  playerStartPos?: Position,
+  enemyStatMult = 1,
+): GameFloor {
   const tiles = createEmptyMap();
   const rooms = generateRooms();
 
@@ -257,7 +267,7 @@ export function generateFloor(floorLevel: number, playerStartPos?: Position): Ga
 
   // Generate enemies (excluding player start, stairs, and items)
   const enemyExclude = [...exclude, ...items.map(it => ({ x: it.x, y: it.y }))];
-  const enemies = generateEnemies(tiles, floorLevel, enemyExclude);
+  const enemies = generateEnemies(tiles, floorLevel, enemyExclude, enemyStatMult);
 
   return {
     level: floorLevel,

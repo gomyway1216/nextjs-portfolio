@@ -4,15 +4,20 @@
  */
 
 import { createBoss,getEnemyMove,isAdjacentToPlayer } from './Enemies';
+import { createPotion,createTorch } from './Items';
 import { generateFloor,generateSurface,revealEntireMap,updateVisibility } from './MapGenerator';
 import {
 ActionType,
 CardEffect,
+DIFFICULTY_CONFIGS,
 Direction,
 DIRECTION_OFFSETS,
+DifficultyConfig,
 EGG_HATCH_TURNS,
 Enemy,
+EnemyType,
 GameAction,
+GameFloor,
 GameState,
 getExpForLevel,
 getVisionRadius,
@@ -22,15 +27,20 @@ Item,
 ItemType,
 LogMessage,
 MAX_FLOORS,
+MiniAdventureDifficulty,
 PetType,
 Player,
 Position,
 ScrollEffect,
 StatusEffect,
+Tile,
 TileType,
-TORCH_DECAY_RATE,
 TORCH_MAX
 } from './types';
+
+function difficultyConfig(state: GameState): DifficultyConfig {
+  return DIFFICULTY_CONFIGS[state.difficulty];
+}
 
 // Create initial player
 function createPlayer(x: number, y: number): Player {
@@ -56,7 +66,8 @@ function createPlayer(x: number, y: number): Player {
 }
 
 // Create initial game state
-export function createGameState(): GameState {
+export function createGameState(difficulty: MiniAdventureDifficulty = 'normal'): GameState {
+  const config = DIFFICULTY_CONFIGS[difficulty];
   const surface = generateSurface();
   const startPos = surface.rooms[0] ? {
     x: Math.floor(surface.rooms[0].x + surface.rooms[0].width / 2),
@@ -64,6 +75,10 @@ export function createGameState(): GameState {
   } : { x: 20, y: 12 };
 
   const player = createPlayer(startPos.x, startPos.y);
+
+  // Starting supplies scale with difficulty so the run is winnable.
+  for (let i = 0; i < config.startPotions; i++) player.inventory.push(createPotion());
+  for (let i = 0; i < config.startTorches; i++) player.inventory.push(createTorch(50));
 
   // Update initial visibility
   updateVisibility(surface.tiles, player.x, player.y, getVisionRadius(player.torch));
@@ -80,6 +95,9 @@ export function createGameState(): GameState {
       { text: 'Arrow keys or WASD to move. Press "." to wait.', type: 'info', turn: 0 },
     ],
     isOnSurface: true,
+    difficulty,
+    bossDefeated: false,
+    enemiesDefeated: 0,
   };
 }
 
@@ -93,7 +111,7 @@ function addMessage(state: GameState, text: string, type: LogMessage['type'] = '
 }
 
 // Get player's total attack
-function getPlayerAttack(player: Player): number {
+export function getPlayerAttack(player: Player): number {
   let attack = player.baseAttack;
   if (player.weapon?.weaponData) {
     attack += player.weapon.weaponData.attack;
@@ -105,7 +123,7 @@ function getPlayerAttack(player: Player): number {
 }
 
 // Get player's total defense
-function getPlayerDefense(player: Player): number {
+export function getPlayerDefense(player: Player): number {
   let defense = player.baseDefense;
   if (player.armor?.armorData) {
     defense += player.armor.armorData.defense;
@@ -116,12 +134,24 @@ function getPlayerDefense(player: Player): number {
   return defense;
 }
 
-// Calculate damage
-function calculateDamage(attack: number, defense: number): number {
-  const baseDamage = Math.max(1, attack - defense);
-  // Add some randomness
-  const variance = Math.floor(baseDamage * 0.2);
-  return baseDamage + Math.floor(Math.random() * (variance * 2 + 1)) - variance;
+// Base (pre-variance) damage: always at least 1 so combat never stalls.
+export function baseDamage(attack: number, defense: number): number {
+  return Math.max(1, attack - defense);
+}
+
+// The possible damage range for an attack, given the +/-20% variance.
+export function damageRange(attack: number, defense: number): { min: number; max: number } {
+  const base = baseDamage(attack, defense);
+  const variance = Math.floor(base * 0.2);
+  return { min: base - variance, max: base + variance };
+}
+
+// Calculate damage (with randomness)
+export function calculateDamage(attack: number, defense: number): number {
+  const base = baseDamage(attack, defense);
+  const variance = Math.floor(base * 0.2);
+  const rolled = base + Math.floor(Math.random() * (variance * 2 + 1)) - variance;
+  return Math.max(1, rolled);
 }
 
 // Check if position is walkable
@@ -172,6 +202,17 @@ function processMovement(state: GameState, direction: Direction): boolean {
   return true;
 }
 
+// Register an enemy kill: award exp, track stats, flag the boss.
+function registerKill(state: GameState, enemy: Enemy): void {
+  addMessage(state, `You defeated the ${enemy.name}! (+${enemy.expValue} exp)`, 'combat');
+  state.enemiesDefeated++;
+  if (enemy.type === EnemyType.DRAGON) {
+    state.bossDefeated = true;
+    addMessage(state, 'The Dragon falls! The way out is open — reach the stairs to escape.', 'important');
+  }
+  gainExp(state, enemy.expValue);
+}
+
 // Process player attack
 function processPlayerAttack(state: GameState, enemy: Enemy): void {
   const { player } = state;
@@ -182,8 +223,7 @@ function processPlayerAttack(state: GameState, enemy: Enemy): void {
   addMessage(state, `You hit the ${enemy.name} for ${damage} damage!`, 'combat');
 
   if (enemy.hp <= 0) {
-    addMessage(state, `You defeated the ${enemy.name}! (+${enemy.expValue} exp)`, 'combat');
-    gainExp(state, enemy.expValue);
+    registerKill(state, enemy);
   }
 }
 
@@ -211,6 +251,7 @@ function gainExp(state: GameState, exp: number): void {
 // Use stairs
 function climbStairs(state: GameState): boolean {
   const { player, floor, currentFloor } = state;
+  const config = difficultyConfig(state);
   const tile = floor.tiles[player.y][player.x];
 
   if (tile.type !== TileType.STAIRS_DOWN) {
@@ -218,11 +259,17 @@ function climbStairs(state: GameState): boolean {
     return false;
   }
 
+  // On the final floor the stairs only work once the Dragon is slain.
+  if (currentFloor === MAX_FLOORS && !state.bossDefeated) {
+    addMessage(state, 'The Dragon blocks your escape. Defeat it first!', 'important');
+    return false;
+  }
+
   // Descend to next floor
   const newFloorLevel = currentFloor + 1;
 
   if (newFloorLevel > MAX_FLOORS) {
-    // Victory!
+    // Victory! (only reachable after defeating the boss on floor 10)
     state.victory = true;
     state.gameOver = true;
     addMessage(state, 'You escaped the dungeon! Victory!', 'important');
@@ -230,7 +277,7 @@ function climbStairs(state: GameState): boolean {
   }
 
   // Generate new floor
-  const newFloor = generateFloor(newFloorLevel);
+  const newFloor = generateFloor(newFloorLevel, undefined, config.enemyStatMult);
 
   // Find start position (first room)
   const startRoom = newFloor.rooms[0];
@@ -241,7 +288,7 @@ function climbStairs(state: GameState): boolean {
 
   // Add boss on final floor
   if (newFloorLevel === MAX_FLOORS) {
-    const boss = createBoss(newFloor.stairsPos.x, newFloor.stairsPos.y - 1);
+    const boss = createBoss(newFloor.stairsPos.x, newFloor.stairsPos.y - 1, config);
     newFloor.enemies.push(boss);
     addMessage(state, 'You sense a powerful presence on this floor...', 'important');
   }
@@ -379,8 +426,7 @@ function readScroll(state: GameState, scroll: Item, itemIndex: number): boolean 
           enemy.hp -= damage;
           damaged++;
           if (enemy.hp <= 0) {
-            addMessage(state, `The ${enemy.name} is incinerated! (+${enemy.expValue} exp)`, 'combat');
-            gainExp(state, enemy.expValue);
+            registerKill(state, enemy);
           }
         }
       }
@@ -455,8 +501,7 @@ function applyCardEffect(state: GameState, card: Item, enemy: Enemy): void {
       enemy.hp -= damage;
       addMessage(state, `The card hits ${enemy.name} for ${damage} damage!`, 'combat');
       if (enemy.hp <= 0) {
-        addMessage(state, `You defeated the ${enemy.name}! (+${enemy.expValue} exp)`, 'combat');
-        gainExp(state, enemy.expValue);
+        registerKill(state, enemy);
       }
       break;
 
@@ -620,8 +665,10 @@ function processEnemyTurns(state: GameState): void {
 
       // Normal attack
       const damage = calculateDamage(enemy.attack, getPlayerDefense(player));
-      // Extra damage if torch is out
-      const finalDamage = player.torch <= 0 ? Math.floor(damage * 1.5) : damage;
+      // Extra damage if torch is out (scales with difficulty)
+      const finalDamage = player.torch <= 0
+        ? Math.floor(damage * difficultyConfig(state).darknessMult)
+        : damage;
       player.hp -= finalDamage;
       addMessage(state, `The ${enemy.name} hits you for ${finalDamage} damage!`, 'combat');
 
@@ -659,7 +706,7 @@ function processTurnEnd(state: GameState): void {
 
   // Torch decay (only in dungeon)
   if (!isOnSurface && player.torch > 0) {
-    player.torch = Math.max(0, player.torch - TORCH_DECAY_RATE);
+    player.torch = Math.max(0, player.torch - difficultyConfig(state).torchDecay);
     if (player.torch === 0) {
       addMessage(state, 'Your torch has gone out! Danger increases!', 'important');
     } else if (player.torch === 20) {
@@ -703,12 +750,40 @@ function getPetName(pet: PetType): string {
   }
 }
 
+// Deep-clone the mutable parts of the game state so processAction stays pure
+// (callers keep their previous snapshot intact — important for React state and
+// for undo/save features). Tiles/enemies/items/inventory are all copied.
+function cloneFloor(floor: GameFloor): GameFloor {
+  return {
+    level: floor.level,
+    stairsPos: { ...floor.stairsPos },
+    rooms: floor.rooms.map(r => ({ ...r })),
+    tiles: floor.tiles.map(row => row.map((t: Tile) => ({ ...t }))),
+    enemies: floor.enemies.map(e => ({ ...e })),
+    items: floor.items.map(fi => ({ x: fi.x, y: fi.y, item: { ...fi.item } })),
+  };
+}
+
+export function cloneGameState(state: GameState): GameState {
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      weapon: state.player.weapon ? { ...state.player.weapon } : null,
+      armor: state.player.armor ? { ...state.player.armor } : null,
+      inventory: state.player.inventory.map(i => ({ ...i })),
+    },
+    floor: cloneFloor(state.floor),
+    messages: state.messages.map(m => ({ ...m })),
+  };
+}
+
 // Process game action
 export function processAction(state: GameState, action: GameAction): GameState {
   if (state.gameOver) return state;
 
-  // Create new state
-  const newState = { ...state };
+  // Create new state (deep copy so the caller's snapshot is untouched)
+  const newState = cloneGameState(state);
   let turnTaken = false;
 
   switch (action.type) {

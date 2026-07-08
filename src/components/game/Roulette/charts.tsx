@@ -5,9 +5,11 @@ interface BankrollChartProps {
   initialBankroll: number;
   width?: number;
   height?: number;
+  yLabel?: string;
+  xLabel?: string;
 }
 
-export const BankrollChart = ({ trajectory, initialBankroll, width = 600, height = 240 }: BankrollChartProps) => {
+export const BankrollChart = ({ trajectory, initialBankroll, width = 600, height = 240, yLabel, xLabel }: BankrollChartProps) => {
   if (trajectory.length === 0) return null;
   const padding = { top: 12, right: 12, bottom: 24, left: 48 };
   const innerW = width - padding.left - padding.right;
@@ -30,34 +32,117 @@ export const BankrollChart = ({ trajectory, initialBankroll, width = 600, height
   const lastX = xScale(trajectory.length - 1);
 
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ background: '#020617', borderRadius: 8, border: '1px solid #1e293b' }}>
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ background: 'var(--games-route-surface-raised)', borderRadius: 8, border: '1px solid var(--games-route-border)' }}>
       {/* y-axis grid */}
       {[0, 0.25, 0.5, 0.75, 1].map((p) => {
         const y = padding.top + innerH * (1 - p);
         const val = Math.round(minY + (maxY - minY) * p);
         return (
           <g key={p}>
-            <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="#1e293b" strokeDasharray="2 4" />
-            <text x={padding.left - 6} y={y + 4} textAnchor="end" fill="#64748b" fontSize="10">{val}</text>
+            <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="var(--games-route-border)" strokeDasharray="2 4" />
+            <text x={padding.left - 6} y={y + 4} textAnchor="end" fill="var(--games-route-muted)" fontSize="10">{val}</text>
           </g>
         );
       })}
 
       {/* initial bankroll reference line */}
-      <line x1={padding.left} x2={width - padding.right} y1={initialY} y2={initialY} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} />
+      <line x1={padding.left} x2={width - padding.right} y1={initialY} y2={initialY} stroke="#e0a83c" strokeDasharray="4 4" strokeWidth={1} />
 
       {/* trajectory */}
-      <polyline points={points} fill="none" stroke="#67e8f9" strokeWidth={1.5} />
+      <polyline points={points} fill="none" stroke="#38bdf8" strokeWidth={1.5} />
 
       {bust && (
         <g>
-          <circle cx={lastX} cy={yScale(0)} r={5} fill="#f87171" />
-          <text x={lastX} y={yScale(0) - 8} textAnchor="middle" fill="#f87171" fontSize="11" fontWeight={700}>BUST</text>
+          <circle cx={lastX} cy={yScale(0)} r={5} fill="#ef4444" />
+          <text x={lastX} y={yScale(0) - 8} textAnchor="middle" fill="#ef4444" fontSize="11" fontWeight={700}>BUST</text>
         </g>
       )}
 
-      <text x={padding.left} y={padding.top + 10} fill="#94a3b8" fontSize="10">資金</text>
-      <text x={width - padding.right} y={height - 6} textAnchor="end" fill="#94a3b8" fontSize="10">スピン数 ({trajectory.length - 1})</text>
+      {yLabel && <text x={padding.left} y={padding.top + 10} fill="var(--games-route-muted)" fontSize="10">{yLabel}</text>}
+      {xLabel && <text x={width - padding.right} y={height - 6} textAnchor="end" fill="var(--games-route-muted)" fontSize="10">{xLabel} ({trajectory.length - 1})</text>}
+    </svg>
+  );
+};
+
+interface EdgeChartProps {
+  points: { spins: number; edge: number }[];
+  /** Theoretical edge to draw as a reference line (e.g. -1/37). */
+  theoretical: number;
+  width?: number;
+  height?: number;
+  theoreticalLabel?: string;
+}
+
+/**
+ * Plots empirical player return (edge) vs. spins on a log-x axis. The line
+ * should visibly settle toward the dashed theoretical reference (-2.70%).
+ */
+export const EdgeChart = ({ points, theoretical, width = 600, height = 260, theoreticalLabel }: EdgeChartProps) => {
+  if (points.length === 0) return null;
+  const padding = { top: 16, right: 16, bottom: 28, left: 52 };
+  const innerW = width - padding.left - padding.right;
+  const innerH = height - padding.top - padding.bottom;
+
+  // y-domain: symmetric-ish band around 0 that always includes the data + ref.
+  let yMin = theoretical;
+  let yMax = 0;
+  for (const p of points) {
+    if (p.edge < yMin) yMin = p.edge;
+    if (p.edge > yMax) yMax = p.edge;
+  }
+  // pad
+  const pad = Math.max(0.02, (yMax - yMin) * 0.15);
+  yMin -= pad;
+  yMax += pad;
+
+  const logMin = Math.log10(Math.max(1, points[0].spins));
+  const logMax = Math.log10(Math.max(10, points[points.length - 1].spins));
+  const xScale = (spins: number) =>
+    padding.left + ((Math.log10(Math.max(1, spins)) - logMin) / Math.max(1e-9, logMax - logMin)) * innerW;
+  const yScale = (v: number) => padding.top + innerH - ((v - yMin) / (yMax - yMin)) * innerH;
+
+  const line = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xScale(p.spins).toFixed(1)} ${yScale(p.edge).toFixed(1)}`).join(' ');
+  const zeroY = yScale(0);
+  const theoY = yScale(theoretical);
+
+  // x gridlines at powers of 10
+  const ticks: number[] = [];
+  for (let e = Math.ceil(logMin); e <= Math.floor(logMax); e++) ticks.push(10 ** e);
+
+  const fmtPct = (v: number) => `${(v * 100).toFixed(1)}%`;
+
+  return (
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ background: 'var(--games-route-surface-raised)', borderRadius: 8, border: '1px solid var(--games-route-border)' }}>
+      {/* y grid */}
+      {[0, 0.25, 0.5, 0.75, 1].map((f) => {
+        const val = yMax - (yMax - yMin) * f;
+        const y = padding.top + innerH * f;
+        return (
+          <g key={f}>
+            <line x1={padding.left} x2={width - padding.right} y1={y} y2={y} stroke="var(--games-route-border)" strokeDasharray="2 4" />
+            <text x={padding.left - 6} y={y + 4} textAnchor="end" fill="var(--games-route-muted)" fontSize="10">{fmtPct(val)}</text>
+          </g>
+        );
+      })}
+
+      {/* x ticks */}
+      {ticks.map((tck) => (
+        <text key={tck} x={xScale(tck)} y={height - 8} textAnchor="middle" fill="var(--games-route-muted)" fontSize="10">
+          {tck >= 1000 ? `${tck / 1000}k` : tck}
+        </text>
+      ))}
+
+      {/* zero line */}
+      <line x1={padding.left} x2={width - padding.right} y1={zeroY} y2={zeroY} stroke="var(--games-route-muted)" strokeWidth={1} opacity={0.5} />
+
+      {/* theoretical reference */}
+      <line x1={padding.left} x2={width - padding.right} y1={theoY} y2={theoY} stroke="#e0a83c" strokeDasharray="5 4" strokeWidth={1.5} />
+      {theoreticalLabel && (
+        <text x={width - padding.right} y={theoY - 5} textAnchor="end" fill="#e0a83c" fontSize="10" fontWeight={700}>{theoreticalLabel}</text>
+      )}
+
+      {/* empirical line */}
+      <path d={line} fill="none" stroke="#38bdf8" strokeWidth={2} />
     </svg>
   );
 };
@@ -100,7 +185,7 @@ export const Histogram = ({ values, bins = 24, width = 600, height = 200, color 
   const barW = innerW / bins;
 
   return (
-    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ background: '#020617', borderRadius: 8, border: '1px solid #1e293b' }}>
+    <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" style={{ background: 'var(--games-route-surface-raised)', borderRadius: 8, border: '1px solid var(--games-route-border)' }}>
       {counts.map((c, i) => {
         const h = (c / maxCount) * innerH;
         return (
@@ -116,11 +201,11 @@ export const Histogram = ({ values, bins = 24, width = 600, height = 200, color 
         );
       })}
       {/* x-axis labels (min, mid, max) */}
-      <text x={padding.left} y={height - 8} fill="#64748b" fontSize="10">{Math.round(min)}</text>
-      <text x={padding.left + innerW / 2} y={height - 8} textAnchor="middle" fill="#64748b" fontSize="10">{Math.round(min + range / 2)}</text>
-      <text x={width - padding.right} y={height - 8} textAnchor="end" fill="#64748b" fontSize="10">{Math.round(max)}</text>
+      <text x={padding.left} y={height - 8} fill="var(--games-route-muted)" fontSize="10">{Math.round(min)}</text>
+      <text x={padding.left + innerW / 2} y={height - 8} textAnchor="middle" fill="var(--games-route-muted)" fontSize="10">{Math.round(min + range / 2)}</text>
+      <text x={width - padding.right} y={height - 8} textAnchor="end" fill="var(--games-route-muted)" fontSize="10">{Math.round(max)}</text>
       {xLabel && (
-        <text x={padding.left + innerW / 2} y={padding.top + 10} textAnchor="middle" fill="#94a3b8" fontSize="10">{xLabel}</text>
+        <text x={padding.left + innerW / 2} y={padding.top + 10} textAnchor="middle" fill="var(--games-route-muted)" fontSize="10">{xLabel}</text>
       )}
     </svg>
   );

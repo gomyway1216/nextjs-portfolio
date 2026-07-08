@@ -25,6 +25,11 @@ export function colorOf(n: number): Color {
 export type OutsideBet =
   | { kind: 'red' | 'black' | 'odd' | 'even' | 'low' | 'high' };
 export type DozenBet = { kind: 'dozen'; which: 1 | 2 | 3 };
+/**
+ * Column bet (2:1). Column 1 = {1,4,7,…,34}, column 2 = {2,5,8,…,35},
+ * column 3 = {3,6,9,…,36}. A number n (1-36) is in column ((n-1) % 3) + 1.
+ */
+export type ColumnBet = { kind: 'column'; which: 1 | 2 | 3 };
 export type StraightBet = { kind: 'straight'; number: number };
 /**
  * Inside multi-number bets: split (2 nums, 17:1), street (3, 11:1),
@@ -36,7 +41,24 @@ export type SplitBet = { kind: 'split'; numbers: [number, number] };
 export type StreetBet = { kind: 'street'; numbers: [number, number, number] };
 export type CornerBet = { kind: 'corner'; numbers: [number, number, number, number] };
 export type LineBet = { kind: 'line'; numbers: [number, number, number, number, number, number] };
-export type Bet = OutsideBet | DozenBet | StraightBet | SplitBet | StreetBet | CornerBet | LineBet;
+export type Bet = OutsideBet | DozenBet | ColumnBet | StraightBet | SplitBet | StreetBet | CornerBet | LineBet;
+
+/**
+ * Nominal odds displayed on the felt, in the "X:1" convention (profit-to-stake).
+ * The payout multiplier returned by `payoutMultiplier` is this value + 1 (it
+ * includes the returned stake). Kept as a single source of truth so UI labels
+ * and tests can't drift from the engine.
+ */
+export const BET_ODDS = {
+  straight: 35,
+  split: 17,
+  street: 11,
+  corner: 8,
+  line: 5,
+  dozen: 2,
+  column: 2,
+  even: 1,
+} as const;
 
 /** Returns payout multiplier (incl. stake) if bet wins, else 0. */
 export function payoutMultiplier(bet: Bet, result: number): number {
@@ -63,6 +85,9 @@ export function payoutMultiplier(bet: Bet, result: number): number {
       const hi = lo + 11;
       return result >= lo && result <= hi ? 3 : 0;
     }
+    case 'column':
+      // result is 1-36 here (0 handled above). Column = ((n-1) % 3) + 1.
+      return ((result - 1) % 3) + 1 === bet.which ? 3 : 0;
     case 'straight':
       return result === bet.number ? 36 : 0;
     case 'split':
@@ -83,6 +108,70 @@ export function isEvenMoney(bet: Bet): boolean {
 
 export function spin(rng: () => number = Math.random): number {
   return Math.floor(rng() * POCKET_COUNT);
+}
+
+/**
+ * The theoretical house edge of European single-zero roulette: 1/37.
+ * Every bet type shares this edge because the payouts are calibrated to a
+ * 36-pocket wheel while the wheel actually has 37 pockets.
+ */
+export const HOUSE_EDGE = 1 / POCKET_COUNT; // ≈ 0.027027 → 2.70%
+
+// ---------- House-edge convergence simulation ----------
+
+export interface HouseEdgePoint {
+  /** Number of spins played so far (cumulative). */
+  spins: number;
+  /** Empirical player return = (total returned - total wagered) / total wagered. */
+  edge: number;
+}
+
+export interface HouseEdgeResult {
+  /** Sampled convergence points (log-ish spacing), for plotting. */
+  points: HouseEdgePoint[];
+  /** Final empirical player edge across all spins (negative = house wins). */
+  finalEdge: number;
+  totalSpins: number;
+}
+
+/**
+ * Flat-bet one unit on `bet` every spin and track how the *empirical* player
+ * return converges toward the theoretical -2.70%. This is the honest "law of
+ * large numbers" demonstration: any single bet type drifts to the same edge.
+ *
+ * We record a point roughly every `samplePoints` steps on a logarithmic
+ * schedule so early volatility and late convergence are both visible.
+ */
+export function simulateHouseEdge(
+  bet: Bet,
+  totalSpins: number,
+  samplePoints = 60,
+  rng: () => number = Math.random,
+): HouseEdgeResult {
+  if (!Number.isInteger(totalSpins) || totalSpins <= 0) {
+    throw new Error('simulateHouseEdge: totalSpins must be a positive integer');
+  }
+  // Precompute the log-spaced spin counts at which we snapshot the edge.
+  const sampleAt = new Set<number>();
+  for (let i = 1; i <= samplePoints; i++) {
+    const frac = i / samplePoints;
+    sampleAt.add(Math.max(1, Math.round(totalSpins ** frac)));
+  }
+  sampleAt.add(totalSpins);
+
+  const points: HouseEdgePoint[] = [];
+  let wagered = 0;
+  let returned = 0;
+  for (let s = 1; s <= totalSpins; s++) {
+    const result = spin(rng);
+    wagered += 1;
+    returned += payoutMultiplier(bet, result); // stake-inclusive return
+    if (sampleAt.has(s)) {
+      points.push({ spins: s, edge: (returned - wagered) / wagered });
+    }
+  }
+  const finalEdge = (returned - wagered) / wagered;
+  return { points, finalEdge, totalSpins };
 }
 
 // ---------- Martingale simulation ----------

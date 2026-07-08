@@ -420,6 +420,7 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
                         type="button"
                         role="radio"
                         aria-checked={isSel}
+                        tabIndex={isSel ? 0 : -1}
                         data-selected={isSel ? 'true' : 'false'}
                         className={styles.diffButton}
                         style={{
@@ -578,7 +579,10 @@ export function ShichinarabeVsAI({ onBackToMenu }: ShichinarabeVsAIProps) {
                                 onDragEnter={() => { if (canAcceptDrop) setDragOverSlot(slotKey); }}
                                 onDragLeave={() => setDragOverSlot((prev) => (prev === slotKey ? null : prev))}
                                 onDragOver={(e) => {
-                                  if (!isMyTurn || gameState.finished) return;
+                                  // Only accept (and show the 'move' cursor) when this exact
+                                  // slot matches the dragged card; otherwise leave the browser's
+                                  // default "no-drop" feedback.
+                                  if (!canAcceptDrop) return;
                                   e.preventDefault();
                                   e.dataTransfer.dropEffect = 'move';
                                 }}

@@ -179,18 +179,26 @@ function shouldStrategicPass(
   // How many opponents each candidate would gift a play to.
   let maxGift = 0;
   let bestBenefitsMe = false;
+  let hasSafePlay = false;
   for (const card of playable) {
     const bounds = state.table[card.suit];
     const gift = opponentGiftCount(state, meId, card.suit, card.rank);
     if (gift > maxGift) maxGift = gift;
-    if (iBenefitDownstream(myRanks[card.suit], card.suit, card.rank, bounds)) bestBenefitsMe = true;
+    if (iBenefitDownstream(myRanks[card.suit], card.suit, card.rank, bounds)) {
+      bestBenefitsMe = true;
+    } else if (gift === 0) {
+      // A card that neither helps us downstream nor gifts an opponent is a free,
+      // safe way to shed a card while still keeping the blocking cards in hand.
+      hasSafePlay = true;
+    }
   }
 
-  // If every legal card only helps opponents and none extends our own chain,
-  // holding (passing) can be worth it — scaled by aggression and how many rivals gate.
-  // Expert (blockAggression 1) holds when >=2 rivals wait behind a card; master
-  // (blockAggression 1.6) will hold even for a single gated rival.
-  if (!bestBenefitsMe && maxGift >= 1) {
+  // Only hold back (pass) when every legal card is bad: none extends our own chain
+  // and none is a safe play — so the remaining options all gift opponents. Otherwise
+  // we'd waste a pass when we could progress harmlessly. Scaled by aggression and how
+  // many rivals gate: expert (blockAggression 1) holds when >=2 rivals wait behind a
+  // card; master (blockAggression 1.6) will hold even for a single gated rival.
+  if (!bestBenefitsMe && !hasSafePlay && maxGift >= 1) {
     return maxGift * cfg.blockAggression >= 2;
   }
   return false;

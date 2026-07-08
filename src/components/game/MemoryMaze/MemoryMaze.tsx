@@ -1,232 +1,196 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Brain } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import {
+  DifficultySelector,
+  GameStats,
+  GameTopBar,
+  InfoModal,
+  type Difficulty,
+  type DifficultyOption,
+} from '../common';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import {
+  DIFFICULTY_ORDER,
+  buildMaze,
+  computeStageScore,
+  getStageConfig,
+  type Maze,
+  type Position,
+} from './engine';
+import { getStrings } from './i18n';
+import styles from './MemoryMaze.module.css';
+
 type Phase = 'menu' | 'preview' | 'playing' | 'won' | 'lost';
 
-interface Position {
-  x: number;
-  y: number;
-}
-
-interface GameState {
+interface RunState {
   phase: Phase;
+  difficulty: Difficulty;
   stage: number;
-  size: number;
-  grid: number[][];
+  maze: Maze;
   player: Position;
-  goal: Position;
-  previewMs: number;
-  timerSec: number;
-  moves: number;
   visited: boolean[][];
-  bestStage: number;
+  moves: number;
+  lives: number;
+  peekMs: number;
+  peekTotalMs: number;
+  timeSec: number;
+  timeTotalSec: number;
+  score: number;
+  lastGained: number;
   message: string;
+  tone: 'neutral' | 'good' | 'bad';
+  bump: Position | null;
+  lossReason: 'time' | 'lives' | null;
 }
 
-const createVisited = (size: number): boolean[][] => {
-  const visited = Array.from({ length: size }, () => Array(size).fill(false));
+const makeVisited = (size: number): boolean[][] => {
+  const visited = Array.from({ length: size }, () => Array<boolean>(size).fill(false));
   visited[0][0] = true;
   return visited;
 };
 
-const hasPath = (grid: number[][]): boolean => {
-  const size = grid.length;
-  const queue: Position[] = [{ x: 0, y: 0 }];
-  const seen = Array.from({ length: size }, () => Array(size).fill(false));
-  seen[0][0] = true;
-
-  const dirs: Position[] = [
-    { x: 1, y: 0 },
-    { x: -1, y: 0 },
-    { x: 0, y: 1 },
-    { x: 0, y: -1 },
-  ];
-
-  while (queue.length > 0) {
-    const current = queue.shift();
-    if (!current) break;
-    if (current.x === size - 1 && current.y === size - 1) {
-      return true;
-    }
-
-    for (const dir of dirs) {
-      const nx = current.x + dir.x;
-      const ny = current.y + dir.y;
-      if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue;
-      if (seen[ny][nx]) continue;
-      if (grid[ny][nx] === 1) continue;
-      seen[ny][nx] = true;
-      queue.push({ x: nx, y: ny });
-    }
-  }
-
-  return false;
-};
-
-const generateGrid = (size: number, wallRate: number): number[][] => {
-  for (let attempt = 0; attempt < 300; attempt += 1) {
-    const grid = Array.from({ length: size }, () =>
-      Array.from({ length: size }, () => (Math.random() < wallRate ? 1 : 0)),
-    );
-    grid[0][0] = 0;
-    grid[size - 1][size - 1] = 0;
-
-    if (hasPath(grid)) {
-      return grid;
-    }
-  }
-
-  const fallback = Array.from({ length: size }, () => Array(size).fill(0));
-  return fallback;
-};
-
-const setupStage = (stage: number, bestStage: number): GameState => {
-  const size = Math.min(15, 7 + stage);
-  const wallRate = Math.min(0.34, 0.2 + stage * 0.018);
-  const grid = generateGrid(size, wallRate);
-  const timerSec = Math.max(16, 45 - stage * 2);
-
-  return {
-    phase: 'preview',
-    stage,
-    size,
-    grid,
-    player: { x: 0, y: 0 },
-    goal: { x: size - 1, y: size - 1 },
-    previewMs: 3200,
-    timerSec,
-    moves: 0,
-    visited: createVisited(size),
-    bestStage,
-    message: 'Memorize the map...'
-  };
-};
-
-const createInitial = (): GameState => ({
-  phase: 'menu',
-  stage: 1,
-  size: 0,
-  grid: [],
-  player: { x: 0, y: 0 },
-  goal: { x: 0, y: 0 },
-  previewMs: 0,
-  timerSec: 0,
-  moves: 0,
-  visited: [],
-  bestStage: 1,
-  message: 'Start game',
-});
-
 export const MemoryMaze = () => {
   useFeatureLifecycle('game.memory-maze');
-  const [game, setGame] = useState<GameState>(createInitial);
+  const { language } = useGameLanguage();
+  const t = getStrings(language);
 
-  const start = () => {
-    setGame((prev) => setupStage(1, prev.bestStage));
-  };
+  const [difficulty, setDifficulty] = useState<Difficulty>('easy');
+  const [showInfo, setShowInfo] = useState(false);
+  const [best, setBest] = useState(0);
+  const [totalStats, setTotalStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
+  const [run, setRun] = useState<RunState | null>(null);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
-  const startNextStage = () => {
-    setGame((prev) => setupStage(prev.stage + 1, Math.max(prev.bestStage, prev.stage + 1)));
-  };
+  const phase: Phase = run?.phase ?? 'menu';
 
+  const recordWin = useCallback((stage: number) => {
+    setBest((b) => Math.max(b, stage));
+    setTotalStats((s) => ({ ...s, wins: s.wins + 1 }));
+  }, []);
+
+  const recordLoss = useCallback(() => {
+    setTotalStats((s) => ({ ...s, losses: s.losses + 1 }));
+  }, []);
+
+  const startStage = useCallback(
+    (diff: Difficulty, stage: number, carryScore: number) => {
+      const maze = buildMaze(diff, stage);
+      const cfg = getStageConfig(diff, stage);
+      setRun({
+        phase: 'preview',
+        difficulty: diff,
+        stage,
+        maze,
+        player: { ...maze.start },
+        visited: makeVisited(maze.size),
+        moves: 0,
+        lives: cfg.lives,
+        peekMs: cfg.peekMs,
+        peekTotalMs: cfg.peekMs,
+        timeSec: cfg.timeSec,
+        timeTotalSec: cfg.timeSec,
+        score: carryScore,
+        lastGained: 0,
+        message: t.memorize,
+        tone: 'neutral',
+        bump: null,
+        lossReason: null,
+      });
+    },
+    [t.memorize],
+  );
+
+  const startNewGame = useCallback(() => {
+    startStage(difficulty, 1, 0);
+  }, [difficulty, startStage]);
+
+  const nextStage = useCallback(() => {
+    if (!run) return;
+    startStage(run.difficulty, run.stage + 1, run.score);
+  }, [run, startStage]);
+
+  // Preview countdown -> transition to playing.
   useEffect(() => {
-    if (game.phase !== 'preview') return;
-
-    const timer = window.setInterval(() => {
-      setGame((prev) => {
-        if (prev.phase !== 'preview') return prev;
-
-        const nextMs = prev.previewMs - 100;
+    if (phase !== 'preview') return;
+    const id = window.setInterval(() => {
+      setRun((prev) => {
+        if (!prev || prev.phase !== 'preview') return prev;
+        const nextMs = prev.peekMs - 100;
         if (nextMs <= 0) {
-          return {
-            ...prev,
-            phase: 'playing',
-            previewMs: 0,
-            message: 'Maze hidden. Reach the goal!',
-          };
+          return { ...prev, peekMs: 0, phase: 'playing', message: t.recall, tone: 'neutral' };
         }
-
-        return { ...prev, previewMs: nextMs };
+        return { ...prev, peekMs: nextMs };
       });
     }, 100);
+    return () => window.clearInterval(id);
+  }, [phase, t.recall]);
 
-    return () => window.clearInterval(timer);
-  }, [game.phase]);
-
+  // Recall timer.
   useEffect(() => {
-    if (game.phase !== 'playing') return;
-
-    const timer = window.setInterval(() => {
-      setGame((prev) => {
-        if (prev.phase !== 'playing') return prev;
-
-        const nextTimer = prev.timerSec - 1;
-        if (nextTimer <= 0) {
-          return {
-            ...prev,
-            timerSec: 0,
-            phase: 'lost',
-            message: 'Time up!',
-          };
+    if (phase !== 'playing') return;
+    const id = window.setInterval(() => {
+      setRun((prev) => {
+        if (!prev || prev.phase !== 'playing') return prev;
+        const nextTime = prev.timeSec - 1;
+        if (nextTime <= 0) {
+          recordLoss();
+          return { ...prev, timeSec: 0, phase: 'lost', lossReason: 'time', message: t.timeUp, tone: 'bad' };
         }
-
-        return {
-          ...prev,
-          timerSec: nextTimer,
-        };
+        return { ...prev, timeSec: nextTime };
       });
     }, 1000);
+    return () => window.clearInterval(id);
+  }, [phase, t.timeUp, recordLoss]);
 
-    return () => window.clearInterval(timer);
-  }, [game.phase]);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (game.phase !== 'playing') return;
-
-      let dx = 0;
-      let dy = 0;
-
-      if (event.code === 'ArrowLeft' || event.code === 'KeyA') dx = -1;
-      if (event.code === 'ArrowRight' || event.code === 'KeyD') dx = 1;
-      if (event.code === 'ArrowUp' || event.code === 'KeyW') dy = -1;
-      if (event.code === 'ArrowDown' || event.code === 'KeyS') dy = 1;
-      if (dx === 0 && dy === 0) return;
-
-      event.preventDefault();
-
-      setGame((prev) => {
-        if (prev.phase !== 'playing') return prev;
-
+  const move = useCallback(
+    (dx: number, dy: number) => {
+      setRun((prev) => {
+        if (!prev || prev.phase !== 'playing') return prev;
         const nx = prev.player.x + dx;
         const ny = prev.player.y + dy;
+        if (nx < 0 || ny < 0 || nx >= prev.maze.size || ny >= prev.maze.size) return prev;
 
-        if (nx < 0 || ny < 0 || nx >= prev.size || ny >= prev.size) {
-          return prev;
-        }
-
-        if (prev.grid[ny][nx] === 1) {
-          return {
-            ...prev,
-            message: 'Wall!',
-          };
+        // Hit a wall -> lose a life.
+        if (prev.maze.grid[ny][nx] === 1) {
+          const lives = prev.lives - 1;
+          if (lives <= 0) {
+            recordLoss();
+            return { ...prev, lives: 0, phase: 'lost', lossReason: 'lives', message: t.outOfLives, tone: 'bad', bump: { x: nx, y: ny } };
+          }
+          return { ...prev, lives, message: t.wall, tone: 'bad', bump: { x: nx, y: ny } };
         }
 
         const visited = prev.visited.map((row) => [...row]);
         visited[ny][nx] = true;
+        const moves = prev.moves + 1;
 
-        const reachedGoal = nx === prev.goal.x && ny === prev.goal.y;
-        if (reachedGoal) {
+        // Reached the goal.
+        if (nx === prev.maze.goal.x && ny === prev.maze.goal.y) {
+          const gained = computeStageScore({
+            difficulty: prev.difficulty,
+            stage: prev.stage,
+            optimalLength: prev.maze.solution.length,
+            moves,
+            timeLeftSec: prev.timeSec,
+            livesLeft: prev.lives,
+          });
+          recordWin(prev.stage);
           return {
             ...prev,
             player: { x: nx, y: ny },
             visited,
-            moves: prev.moves + 1,
+            moves,
             phase: 'won',
-            bestStage: Math.max(prev.bestStage, prev.stage),
-            message: `Stage ${prev.stage} clear!`,
+            score: prev.score + gained,
+            lastGained: gained,
+            message: t.stageClear,
+            tone: 'good',
+            bump: null,
           };
         }
 
@@ -234,105 +198,271 @@ export const MemoryMaze = () => {
           ...prev,
           player: { x: nx, y: ny },
           visited,
-          moves: prev.moves + 1,
-          message: 'Keep going',
+          moves,
+          message: t.keepGoing,
+          tone: 'neutral',
+          bump: null,
         };
       });
+    },
+    [t.keepGoing, t.outOfLives, t.stageClear, t.wall, recordWin, recordLoss],
+  );
+
+  // Keyboard controls.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (phase !== 'playing') return;
+      let dx = 0;
+      let dy = 0;
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') dx = -1;
+      else if (e.code === 'ArrowRight' || e.code === 'KeyD') dx = 1;
+      else if (e.code === 'ArrowUp' || e.code === 'KeyW') dy = -1;
+      else if (e.code === 'ArrowDown' || e.code === 'KeyS') dy = 1;
+      else return;
+      e.preventDefault();
+      move(dx, dy);
     };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [phase, move]);
 
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [game.phase]);
+  // Touch swipe controls on the board.
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0];
+    touchStart.current = { x: touch.clientX, y: touch.clientY };
+  }, []);
 
-  const previewSeconds = Math.ceil(game.previewMs / 1000);
+  const onTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (!touchStart.current) return;
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - touchStart.current.x;
+      const dy = touch.clientY - touchStart.current.y;
+      touchStart.current = null;
+      const absX = Math.abs(dx);
+      const absY = Math.abs(dy);
+      if (Math.max(absX, absY) < 24) return; // ignore taps
+      if (absX > absY) move(dx > 0 ? 1 : -1, 0);
+      else move(0, dy > 0 ? 1 : -1);
+    },
+    [move],
+  );
 
   const cellSize = useMemo(() => {
-    if (game.size <= 9) return 36;
-    if (game.size <= 12) return 30;
-    return 24;
-  }, [game.size]);
+    const size = run?.maze.size ?? 0;
+    if (size <= 7) return 42;
+    if (size <= 9) return 36;
+    if (size <= 11) return 30;
+    if (size <= 13) return 26;
+    if (size <= 15) return 22;
+    return 19;
+  }, [run?.maze.size]);
 
-  return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0b1120, #020617)', color: '#e5e7eb', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: '940px', margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>Memory Maze</h1>
-        <p style={{ marginTop: '0.5rem', color: '#94a3b8' }}>最初の3秒で迷路を記憶して、暗闇の中でゴールを探す。</p>
+  const difficultyOptions: DifficultyOption[] = useMemo(
+    () =>
+      DIFFICULTY_ORDER.map((value) => ({
+        value,
+        label: t.difficulty[value].label,
+        description: t.difficulty[value].description,
+      })),
+    [t.difficulty],
+  );
 
-        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.35rem 0.8rem', background: '#0f172a' }}>Stage: {game.stage}</span>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.35rem 0.8rem', background: '#0f172a' }}>Timer: {game.timerSec}s</span>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.35rem 0.8rem', background: '#0f172a' }}>Moves: {game.moves}</span>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.35rem 0.8rem', background: '#0f172a' }}>Best Stage: {game.bestStage}</span>
-          {game.phase === 'preview' && <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.35rem 0.8rem', background: '#1e293b' }}>Hide in: {previewSeconds}s</span>}
-        </div>
+  const stats: GameStats = totalStats;
 
-        <div style={{ marginBottom: '0.8rem', minHeight: '1.3rem', color: '#cbd5e1' }}>{game.message}</div>
+  // ----- Rendering -----
+  const renderBoard = (r: RunState) => {
+    const revealAll = r.phase === 'preview' || r.phase === 'won' || r.phase === 'lost';
+    const solutionSet = new Set(r.maze.solution.map((p) => `${p.x},${p.y}`));
 
-        {game.phase !== 'menu' && game.grid.length > 0 && (
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: `repeat(${game.size}, ${cellSize}px)`,
-              gap: '4px',
-              width: 'fit-content',
-              border: '1px solid #334155',
-              borderRadius: '14px',
-              padding: '0.7rem',
-              background: '#020617',
-            }}
-          >
-            {game.grid.flatMap((row, y) =>
-              row.map((cell, x) => {
-                const isPlayer = game.player.x === x && game.player.y === y;
-                const isGoal = game.goal.x === x && game.goal.y === y;
-                const dist = Math.abs(game.player.x - x) + Math.abs(game.player.y - y);
-                const nearPlayer = dist <= 1;
-                const revealWalls = game.phase !== 'playing' || nearPlayer;
+    return (
+      <div
+        className={styles.boardWrap}
+        ref={boardRef}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        <div
+          className={`${styles.board} ${r.phase === 'preview' ? styles.boardReveal : ''}`}
+          style={{ gridTemplateColumns: `repeat(${r.maze.size}, ${cellSize}px)` }}
+          role="grid"
+          aria-label={t.title}
+        >
+          {r.maze.grid.flatMap((row, y) =>
+            row.map((cell, x) => {
+              const isPlayer = r.player.x === x && r.player.y === y;
+              const isGoal = r.maze.goal.x === x && r.maze.goal.y === y;
+              const isVisited = r.visited[y]?.[x];
+              const isBump = r.bump?.x === x && r.bump?.y === y;
+              const dist = Math.abs(r.player.x - x) + Math.abs(r.player.y - y);
+              const isWall = cell === 1;
 
-                let background = '#0f172a';
-                if (cell === 1 && revealWalls) background = '#475569';
-                if (cell === 1 && !revealWalls) background = '#020617';
-                if (cell === 0 && game.visited[y]?.[x]) background = '#1d4ed8';
-                if (isGoal) background = '#22c55e';
-                if (isPlayer) background = '#f59e0b';
+              // During recall, only walls adjacent to the player are revealed.
+              const wallVisible = revealAll || (r.phase === 'playing' && dist <= 1);
+              const onSolution = solutionSet.has(`${x},${y}`);
 
-                return (
-                  <div
-                    key={`${x}-${y}`}
-                    style={{
-                      width: `${cellSize}px`,
-                      height: `${cellSize}px`,
-                      borderRadius: '6px',
-                      border: '1px solid rgba(148, 163, 184, 0.15)',
-                      background,
-                    }}
-                  />
-                );
-              }),
-            )}
-          </div>
-        )}
+              const classes = [styles.cell];
+              if (isWall && wallVisible) classes.push(styles.cellWall);
+              else if (isWall) classes.push(styles.cellHiddenWall);
+              if (!isWall && r.phase === 'preview' && onSolution) classes.push(styles.cellPath);
+              if (!isWall && isVisited && r.phase !== 'preview') classes.push(styles.cellVisited);
+              if (isGoal) classes.push(styles.cellGoal);
+              if (isPlayer) classes.push(styles.cellPlayer);
+              if (isBump) classes.push(styles.cellBump);
 
-        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem', flexWrap: 'wrap' }}>
-          <button
-            onClick={start}
-            style={{ background: '#22c55e', border: 'none', borderRadius: '10px', padding: '0.62rem 1rem', fontWeight: 700, cursor: 'pointer' }}
-          >
-            {game.phase === 'menu' ? 'Start' : 'Restart'}
-          </button>
-
-          {game.phase === 'won' && (
-            <button
-              onClick={startNextStage}
-              style={{ background: '#38bdf8', border: 'none', borderRadius: '10px', padding: '0.62rem 1rem', fontWeight: 700, cursor: 'pointer', color: '#082f49' }}
-            >
-              Next Stage
-            </button>
+              return (
+                <div
+                  key={`${x}-${y}`}
+                  className={classes.join(' ')}
+                  style={{ width: cellSize, height: cellSize }}
+                  role="gridcell"
+                  aria-label={
+                    isPlayer ? 'player' : isGoal ? 'goal' : isWall && wallVisible ? 'wall' : 'path'
+                  }
+                />
+              );
+            }),
           )}
         </div>
 
-        <p style={{ marginTop: '0.8rem', color: '#94a3b8' }}>操作: 矢印キー または WASD</p>
+        {(r.phase === 'won' || r.phase === 'lost') && (
+          <div className={styles.overlay}>
+            <p className={styles.overlayTitle} data-tone={r.phase === 'won' ? 'win' : 'lose'}>
+              {r.phase === 'won'
+                ? t.stageClear
+                : r.lossReason === 'time'
+                  ? t.timeUp
+                  : t.outOfLives}
+            </p>
+            <div className={styles.overlayStat}>
+              {t.score}: <strong>{r.score}</strong>
+              {r.phase === 'won' && r.lastGained > 0 ? ` (+${r.lastGained})` : ''}
+            </div>
+            <div className={styles.overlayStat}>
+              {t.stage}: <strong>{r.stage}</strong> · {t.moves}: <strong>{r.moves}</strong>
+            </div>
+            <div className={styles.actions}>
+              {r.phase === 'won' && (
+                <button type="button" className={`${styles.btn} ${styles.btnNext}`} onClick={nextStage}>
+                  {t.nextStage}
+                </button>
+              )}
+              <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={startNewGame}>
+                {t.playAgain}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
+    );
+  };
+
+  return (
+    <div className={styles.page}>
+      <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} />
+
+      <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={t.howToTitle}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', lineHeight: 1.6 }}>
+          {t.howToBody.map((line, i) => (
+            <p key={i} style={{ margin: 0 }}>{line}</p>
+          ))}
+          <p style={{ margin: 0, fontWeight: 700 }}>{t.controls}</p>
+          <p style={{ margin: 0 }}>{t.controlsDetail}</p>
+        </div>
+      </InfoModal>
+
+      {phase === 'menu' || !run ? (
+        <DifficultySelector
+          title={t.title}
+          subtitle={t.subtitle}
+          icon={<Brain size={28} />}
+          selectedDifficulty={difficulty}
+          onSelectDifficulty={setDifficulty}
+          options={difficultyOptions}
+          onStart={startNewGame}
+          difficultyTitle={t.selectDifficulty}
+          startLabel={t.start}
+        />
+      ) : (
+        <div className={styles.shell}>
+          <div className={styles.hud}>
+            <div className={styles.hudItem}>
+              <span className={styles.hudLabel}>{t.stage}</span>
+              <span className={styles.hudValue}>{run.stage}</span>
+            </div>
+            <div className={styles.hudItem}>
+              <span className={styles.hudLabel}>{t.time}</span>
+              <span className={styles.hudValue} data-alert={run.phase === 'playing' && run.timeSec <= 5}>
+                {run.phase === 'preview' ? Math.ceil(run.peekMs / 1000) : run.timeSec}s
+              </span>
+            </div>
+            <div className={styles.hudItem}>
+              <span className={styles.hudLabel}>{t.lives}</span>
+              <span className={styles.hearts} aria-label={`${run.lives} ${t.lives}`}>
+                {'♥'.repeat(run.lives) || '—'}
+              </span>
+            </div>
+            <div className={styles.hudItem}>
+              <span className={styles.hudLabel}>{t.moves}</span>
+              <span className={styles.hudValue}>{run.moves}</span>
+            </div>
+            <div className={styles.hudItem}>
+              <span className={styles.hudLabel}>{t.score}</span>
+              <span className={styles.hudValue}>{run.score}</span>
+            </div>
+            <div className={styles.hudItem}>
+              <span className={styles.hudLabel}>{t.best}</span>
+              <span className={styles.hudValue}>{best}</span>
+            </div>
+          </div>
+
+          <div
+            className={styles.peekBarTrack}
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={
+              run.phase === 'preview'
+                ? Math.round((run.peekMs / run.peekTotalMs) * 100)
+                : Math.round((run.timeSec / run.timeTotalSec) * 100)
+            }
+          >
+            <div
+              className={`${styles.peekBarFill} ${run.phase !== 'preview' ? styles.timeBarFill : ''}`}
+              data-alert={run.phase === 'playing' && run.timeSec <= 5}
+              style={{
+                width:
+                  run.phase === 'preview'
+                    ? `${(run.peekMs / run.peekTotalMs) * 100}%`
+                    : `${(run.timeSec / run.timeTotalSec) * 100}%`,
+              }}
+            />
+          </div>
+
+          <div className={styles.message} data-tone={run.tone}>
+            {run.message}
+          </div>
+
+          {renderBoard(run)}
+
+          {run.phase === 'playing' && (
+            <div className={styles.dpad} aria-label="direction pad">
+              <button type="button" className={`${styles.dpadBtn} ${styles.dpadUp}`} onClick={() => move(0, -1)} aria-label="up">↑</button>
+              <button type="button" className={`${styles.dpadBtn} ${styles.dpadLeft}`} onClick={() => move(-1, 0)} aria-label="left">←</button>
+              <button type="button" className={`${styles.dpadBtn} ${styles.dpadRight}`} onClick={() => move(1, 0)} aria-label="right">→</button>
+              <button type="button" className={`${styles.dpadBtn} ${styles.dpadDown}`} onClick={() => move(0, 1)} aria-label="down">↓</button>
+            </div>
+          )}
+
+          <p className={styles.hint}>{t.controlsDetail}</p>
+
+          <div className={styles.actions}>
+            <button type="button" className={`${styles.btn} ${styles.btnGhost}`} onClick={() => setRun(null)}>
+              {t.restart}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

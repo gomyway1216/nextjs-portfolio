@@ -1,12 +1,17 @@
 /**
- * JumpGame game logic - pure functions separated from UI
+ * JumpGame game logic - pure functions separated from UI.
+ *
+ * These functions carry no React/DOM state so they can be unit-tested in
+ * isolation (see tests/unit/components/game/JumpGame).
  */
 
 import { Difficulty } from '../common/types';
-import { Enemy,GAME_CONSTANTS,Powerup } from './types';
+import { Enemy, EnemyType, GAME_CONSTANTS, Powerup } from './types';
+
+const { HEIGHT_MAP } = GAME_CONSTANTS;
 
 /**
- * Get difficulty multiplier for enemy speed
+ * Get difficulty multiplier for enemy speed.
  */
 export const getDifficultyMultiplier = (difficulty: Difficulty): number => {
   switch (difficulty) {
@@ -22,84 +27,79 @@ export const getDifficultyMultiplier = (difficulty: Difficulty): number => {
 };
 
 /**
- * Create a new enemy with random properties
+ * Which obstacle heights are allowed for a given difficulty/stage.
+ * Easy mode eases players in with ground-only, then ground-heavy stages.
+ */
+export const getAllowedEnemyTypes = (
+  stage: number,
+  difficulty: Difficulty
+): EnemyType[] => {
+  if (difficulty === 'easy' && stage === 1) {
+    return ['ground'];
+  }
+  if (difficulty === 'easy' && stage < 5) {
+    return ['ground', 'ground', 'ground', 'mid'];
+  }
+  return ['ground', 'mid', 'high'];
+};
+
+/**
+ * Create a new enemy with random properties, avoiding both height and
+ * horizontal collisions with existing enemies so the field stays fair.
  */
 export const createEnemy = (
   baseSpeed: number,
   stage: number,
   difficulty: Difficulty,
-  existingEnemies?: Enemy[]
+  existingEnemies?: Enemy[],
+  rng: () => number = Math.random
 ): Enemy => {
-  const heightMap: Record<'ground' | 'mid' | 'high', number> = {
-    ground: 400,
-    mid: 320,
-    high: 240,
-  };
+  const types = getAllowedEnemyTypes(stage, difficulty);
 
-  let types: ('ground' | 'mid' | 'high')[] = ['ground', 'mid', 'high'];
-
-  // Easy mode: only ground obstacles for stage 1
-  if (difficulty === 'easy' && stage === 1) {
-    types = ['ground'];
-  } else if (difficulty === 'easy' && stage < 5) {
-    types = ['ground', 'ground', 'ground', 'mid'];
-  }
-
-  // Get heights of existing enemies
   const occupiedHeights = new Set<number>();
-  if (existingEnemies && existingEnemies.length > 0) {
-    existingEnemies.forEach(enemy => {
-      occupiedHeights.add(enemy.y);
-    });
-  }
+  (existingEnemies ?? []).forEach((enemy) => occupiedHeights.add(enemy.y));
 
-  // Filter out occupied heights
-  let availableTypes = types.filter(type => !occupiedHeights.has(heightMap[type]));
+  let availableTypes = types.filter(
+    (type) => !occupiedHeights.has(HEIGHT_MAP[type])
+  );
 
   if (availableTypes.length === 0) {
-    const allTypes: ('ground' | 'mid' | 'high')[] = ['ground', 'mid', 'high'];
-    availableTypes = allTypes.filter(type => !occupiedHeights.has(heightMap[type]));
+    const allTypes: EnemyType[] = ['ground', 'mid', 'high'];
+    availableTypes = allTypes.filter(
+      (type) => !occupiedHeights.has(HEIGHT_MAP[type])
+    );
     if (availableTypes.length === 0) {
       availableTypes = ['ground'];
     }
   }
 
-  const type = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+  const type = availableTypes[Math.floor(rng() * availableTypes.length)];
 
-  // Speed variation based on difficulty
+  // Per-difficulty speed variation, tightened so nothing feels unfair.
   let speedVariation: number;
   if (difficulty === 'easy') {
-    speedVariation = baseSpeed * (0.95 + Math.random() * 0.1);
+    speedVariation = baseSpeed * (0.95 + rng() * 0.1);
   } else if (difficulty === 'medium') {
-    speedVariation = baseSpeed * (0.85 + Math.random() * 0.3);
+    speedVariation = baseSpeed * (0.85 + rng() * 0.3);
   } else {
-    speedVariation = baseSpeed * (0.7 + Math.random() * 0.6);
+    speedVariation = baseSpeed * (0.7 + rng() * 0.6);
   }
 
   const speed = speedVariation + (stage - 1) * 0.3;
 
-  // Calculate spawn position with minimum distance
+  // Horizontal spawn spacing so obstacles never cluster on top of each other.
   let spawnX = 600;
   const minDistance = 250;
-
   if (existingEnemies && existingEnemies.length > 0) {
     let attemptCount = 0;
     let validPosition = false;
-
     while (!validPosition && attemptCount < 10) {
-      spawnX = 600 + Math.random() * 300;
-      validPosition = true;
-
-      for (const enemy of existingEnemies) {
-        const distance = Math.abs(spawnX - enemy.x);
-        if (distance < minDistance) {
-          validPosition = false;
-          break;
-        }
-      }
+      spawnX = 600 + rng() * 300;
+      validPosition = existingEnemies.every(
+        (enemy) => Math.abs(spawnX - enemy.x) >= minDistance
+      );
       attemptCount++;
     }
-
     if (!validPosition) {
       spawnX = 900;
     }
@@ -107,15 +107,15 @@ export const createEnemy = (
 
   return {
     x: spawnX,
-    y: heightMap[type],
+    y: HEIGHT_MAP[type],
     r: GAME_CONSTANTS.ENEMY_RADIUS,
-    speed: speed,
-    type: type,
+    speed,
+    type,
   };
 };
 
 /**
- * Check collision between character and object
+ * Circle-vs-circle collision (used for round powerups).
  */
 export const checkCollision = (
   charX: number,
@@ -127,39 +127,82 @@ export const checkCollision = (
 ): boolean => {
   const diffX = charX - objX;
   const diffY = charY - objY;
-  const distance = Math.sqrt(diffX * diffX + diffY * diffY);
-  return distance < charR + objR;
+  return Math.hypot(diffX, diffY) < charR + objR;
 };
 
 /**
- * Update enemy positions
+ * Circle-vs-axis-aligned-square collision. Enemies are drawn as squares, so
+ * treating them as circles made corners unfairly forgiving. This closest-point
+ * test is pixel-accurate to the rendered hitbox.
+ *
+ * @param halfSize half the side length of the square (square spans objR*2).
+ */
+export const checkCircleSquareCollision = (
+  charX: number,
+  charY: number,
+  charR: number,
+  squareX: number,
+  squareY: number,
+  halfSize: number
+): boolean => {
+  const closestX = Math.max(squareX - halfSize, Math.min(charX, squareX + halfSize));
+  const closestY = Math.max(squareY - halfSize, Math.min(charY, squareY + halfSize));
+  const dx = charX - closestX;
+  const dy = charY - closestY;
+  return dx * dx + dy * dy < charR * charR;
+};
+
+/**
+ * Update enemy positions (immutable). `dt` normalises to 60fps so the game
+ * feels identical on 60/120/144Hz displays.
  */
 export const updateEnemies = (
   enemies: Enemy[],
-  slowMoMultiplier: number
-): Enemy[] => {
-  return enemies.map(enemy => ({
-    ...enemy,
-    x: enemy.x - enemy.speed * slowMoMultiplier
-  })).filter(enemy => enemy.x >= -100);
-};
+  slowMoMultiplier: number,
+  dt = 1
+): Enemy[] =>
+  enemies
+    .map((enemy) => ({
+      ...enemy,
+      x: enemy.x - enemy.speed * slowMoMultiplier * dt,
+    }))
+    .filter((enemy) => enemy.x >= -100);
 
 /**
- * Update powerup positions
+ * Update powerup positions (immutable, delta-time aware).
  */
 export const updatePowerups = (
   powerups: Powerup[],
   baseSpeed: number,
-  slowMoMultiplier: number
-): Powerup[] => {
-  return powerups.map(powerup => ({
-    ...powerup,
-    x: powerup.x - baseSpeed * slowMoMultiplier
-  })).filter(powerup => powerup.x >= -50);
+  slowMoMultiplier: number,
+  dt = 1
+): Powerup[] =>
+  powerups
+    .map((powerup) => ({
+      ...powerup,
+      x: powerup.x - baseSpeed * slowMoMultiplier * dt,
+    }))
+    .filter((powerup) => powerup.x >= -50);
+
+/**
+ * Points awarded for clearing one obstacle, scaled by the current combo.
+ * Combo 0/1 -> base points; each additional chained dodge adds a 10% bonus,
+ * capped at +150% so scoring stays readable.
+ */
+export const dodgePoints = (combo: number): number => {
+  const multiplier = 1 + Math.min(Math.max(combo, 0) * 0.1, 1.5);
+  return Math.round(GAME_CONSTANTS.BASE_DODGE_POINTS * multiplier);
 };
 
 /**
- * Calculate max enemies for current stage
+ * Stage derived purely from score, so it can never drift out of sync with
+ * the fragile `score % 500 === 0` check the old code relied on.
+ */
+export const stageForScore = (score: number): number =>
+  Math.floor(Math.max(score, 0) / GAME_CONSTANTS.STAGE_SCORE_STEP) + 1;
+
+/**
+ * Calculate max concurrent enemies for the current stage (capped at 3 heights).
  */
 export const getMaxEnemies = (stage: number, difficulty: Difficulty): number => {
   if (difficulty === 'easy') {
@@ -167,3 +210,12 @@ export const getMaxEnemies = (stage: number, difficulty: Difficulty): number => 
   }
   return Math.min(3, Math.floor(stage / 3) + 1);
 };
+
+/**
+ * Jump launch velocity/gravity. Kept as a helper so physics tuning lives in
+ * one place and is testable.
+ */
+export const getJumpImpulse = (): { speed: number; acceleration: number } => ({
+  speed: GAME_CONSTANTS.JUMP_SPEED,
+  acceleration: GAME_CONSTANTS.JUMP_GRAVITY,
+});

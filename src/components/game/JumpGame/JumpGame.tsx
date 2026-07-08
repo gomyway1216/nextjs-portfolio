@@ -2,60 +2,40 @@
 
 import { useGameToolbar } from '@/contexts/GameToolbarContext';
 import { useHighScore } from '@/hooks/useHighScore';
-import { Info,Trophy,Volume2,VolumeX,Zap } from 'lucide-react';
-import { useEffect,useRef,useState } from 'react';
+import { Info, Trophy, Volume2, VolumeX, Zap } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-import { getJumpGameUITranslation,getUITranslation } from '../constants/gameTranslations';
+import { getJumpGameUITranslation, getUITranslation } from '../constants/gameTranslations';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { InfoModal } from '../common/InfoModal';
+import {
+  checkCircleSquareCollision,
+  checkCollision,
+  createEnemy,
+  dodgePoints,
+  getDifficultyMultiplier,
+  getJumpImpulse,
+  stageForScore,
+} from './gameLogic';
+import { Enemy, GAME_CONSTANTS, GameState, Scene } from './types';
 import styles from './JumpGame.module.css';
-enum Scene {
-  GameMain = 'GameMain',
-  GameOver = 'GameOver',
-}
 
 type Difficulty = 'easy' | 'medium' | 'hard';
 
-interface Enemy {
-  x: number;
-  y: number;
-  r: number;
-  speed: number;
-  type: 'ground' | 'mid' | 'high';
-}
-
-interface Powerup {
-  x: number;
-  y: number;
-  r: number;
-  type: 'shield' | 'slow' | 'heart';
-}
-
-interface GameState {
-  characterPosX: number;
-  characterPosY: number;
-  characterR: number;
-  speed: number;
-  acceleration: number;
-  enemies: Enemy[];
-  powerups: Powerup[];
-  baseSpeed: number;
-  score: number;
-  scene: Scene;
-  frameCount: number;
-  bound: boolean;
-  stage: number;
-  difficulty: Difficulty;
-  combo: number;
-  hasShield: boolean;
-  shieldTimer: number;
-  slowMoTimer: number;
-  lives: number;
-  maxLives: number;
-  lastHeartSpawn: number;
-  invincibilityTimer: number;
-}
+const {
+  CANVAS_SIZE,
+  GROUND_Y,
+  GROUND_LINE_Y,
+  CHARACTER_X,
+  CHARACTER_RADIUS,
+  MAX_LIVES,
+  HEART_SPAWN_INTERVAL,
+  INVINCIBILITY_FRAMES,
+  SHIELD_FRAMES,
+  SLOWMO_FRAMES,
+  SLOWMO_FACTOR,
+} = GAME_CONSTANTS;
 
 const infoCardStyles = [
   { icon: '⌨️', color: '#0ea5e9', bg: 'rgba(14, 165, 233, 0.1)', border: 'rgba(14, 165, 233, 0.3)' },
@@ -68,6 +48,20 @@ const infoCardStyles = [
   { icon: '💎', color: '#a855f7', bg: 'rgba(168, 85, 247, 0.1)', border: 'rgba(168, 85, 247, 0.3)' },
   { icon: '🔥', color: '#eab308', bg: 'rgba(234, 179, 8, 0.1)', border: 'rgba(234, 179, 8, 0.3)' },
 ] as const;
+
+// Parallax mountain / cloud layers, generated once for a stable skyline.
+const CLOUDS = [
+  { x: 60, y: 90, s: 26, speed: 0.18 },
+  { x: 220, y: 60, s: 20, speed: 0.24 },
+  { x: 360, y: 110, s: 30, speed: 0.14 },
+  { x: 470, y: 70, s: 22, speed: 0.2 },
+];
+const HILLS = [
+  { x: 40, w: 150, h: 70, speed: 0.5 },
+  { x: 200, w: 190, h: 95, speed: 0.5 },
+  { x: 380, w: 160, h: 78, speed: 0.5 },
+  { x: 520, w: 200, h: 100, speed: 0.5 },
+];
 
 const JumpGame = () => {
   useFeatureLifecycle('game.jump-game');
@@ -87,10 +81,13 @@ const JumpGame = () => {
   const jumpCopyRef = useRef(jumpCopy);
   const gameStateRef = useRef<GameState | null>(null);
   const animationIdRef = useRef<number | null>(null);
+  const lastTimeRef = useRef<number | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const keyDownHandlerRef = useRef<((e: KeyboardEvent) => void) | null>(null);
+  // Latest values the rAF loop needs, kept in refs so the loop never captures
+  // a stale closure (the classic requestAnimationFrame bug).
+  const updateHighScoreRef = useRef(updateHighScore);
+  const selectedDifficultyRef = useRef<Difficulty>(selectedDifficulty);
 
-  // Keep isMutedRef in sync with isMuted state
   useEffect(() => {
     isMutedRef.current = isMuted;
   }, [isMuted]);
@@ -99,7 +96,15 @@ const JumpGame = () => {
     jumpCopyRef.current = jumpCopy;
   }, [jumpCopy]);
 
-  // Initialize audio context once
+  useEffect(() => {
+    updateHighScoreRef.current = updateHighScore;
+  }, [updateHighScore]);
+
+  useEffect(() => {
+    selectedDifficultyRef.current = selectedDifficulty;
+  }, [selectedDifficulty]);
+
+  // Initialize audio context once.
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -110,7 +115,7 @@ const JumpGame = () => {
           throw new Error('Web Audio API not available');
         }
         audioContextRef.current = new AudioContextConstructor();
-      } catch (_e) {
+      } catch {
         console.warn('Web Audio API not available');
       }
     }
@@ -121,455 +126,395 @@ const JumpGame = () => {
     };
   }, []);
 
-  // Web Audio API for better sound effects
-  const createSound = (frequency: number, duration: number, type: OscillatorType = 'sine') => {
-    if (isMutedRef.current || !audioContextRef.current || typeof window === 'undefined') return;
-    try {
-      const audioContext = audioContextRef.current;
-
-      // Resume audio context if suspended (browser autoplay policy)
-      if (audioContext.state === 'suspended') {
-        audioContext.resume();
+  const createSound = useCallback(
+    (frequency: number, duration: number, type: OscillatorType = 'sine') => {
+      if (isMutedRef.current || !audioContextRef.current || typeof window === 'undefined') return;
+      try {
+        const audioContext = audioContextRef.current;
+        if (audioContext.state === 'suspended') {
+          audioContext.resume();
+        }
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        oscillator.frequency.value = frequency;
+        oscillator.type = type;
+        gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + duration);
+      } catch {
+        // Silently ignore audio failures.
       }
+    },
+    []
+  );
 
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-
-      oscillator.frequency.value = frequency;
-      oscillator.type = type;
-
-      gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration);
-
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + duration);
-    } catch (_e) {
-      // Silently fail if audio context not available
-    }
-  };
-
-  const playJumpSound = () => {
+  const playJumpSound = useCallback(() => {
     createSound(400, 0.1, 'square');
     setTimeout(() => createSound(600, 0.1, 'square'), 50);
-  };
+  }, [createSound]);
 
-  const playScoreSound = () => {
+  const playScoreSound = useCallback(() => {
     createSound(800, 0.08, 'sine');
     setTimeout(() => createSound(1000, 0.08, 'sine'), 40);
     setTimeout(() => createSound(1200, 0.12, 'sine'), 80);
-  };
+  }, [createSound]);
 
-  const playCollisionSound = () => {
+  const playCollisionSound = useCallback(() => {
     createSound(100, 0.3, 'sawtooth');
-  };
+  }, [createSound]);
 
-  const playStageCompleteSound = () => {
+  const playStageCompleteSound = useCallback(() => {
     createSound(600, 0.1, 'sine');
     setTimeout(() => createSound(700, 0.1, 'sine'), 70);
     setTimeout(() => createSound(800, 0.1, 'sine'), 140);
     setTimeout(() => createSound(1000, 0.15, 'sine'), 210);
-  };
+  }, [createSound]);
 
-  const playPowerupSound = () => {
+  const playPowerupSound = useCallback(() => {
     createSound(1000, 0.08, 'sine');
     setTimeout(() => createSound(1200, 0.08, 'sine'), 40);
     setTimeout(() => createSound(1400, 0.08, 'sine'), 80);
     setTimeout(() => createSound(1600, 0.12, 'sine'), 120);
-  };
+  }, [createSound]);
 
-  const playHealSound = () => {
+  const playHealSound = useCallback(() => {
     createSound(800, 0.1, 'sine');
     setTimeout(() => createSound(1000, 0.1, 'sine'), 60);
     setTimeout(() => createSound(1200, 0.15, 'sine'), 120);
-  };
+  }, [createSound]);
 
-  const getDifficultyMultiplier = (difficulty: Difficulty): number => {
-    switch (difficulty) {
-      case 'easy':
-        return 0.7; // Slower obstacles for easier gameplay
-      case 'medium':
-        return 1.0;
-      case 'hard':
-        return 1.5;
-      default:
-        return 1.0;
-    }
-  };
-
-  const createEnemy = (baseSpeed: number, stage: number, difficulty: Difficulty, existingEnemies?: Enemy[]): Enemy => {
-    let types: ('ground' | 'mid' | 'high')[] = ['ground', 'mid', 'high'];
-
-    // Easy mode: only ground obstacles for stage 1
-    if (difficulty === 'easy' && stage === 1) {
-      types = ['ground'];
-    } else if (difficulty === 'easy' && stage < 5) {
-      // Easy mode stages 2-4: mostly ground with some mid
-      types = ['ground', 'ground', 'ground', 'mid'];
-    }
-
-    // Get heights of ALL existing enemies to prevent any duplicates at same height
-    const occupiedHeights = new Set<number>();
-    if (existingEnemies && existingEnemies.length > 0) {
-      existingEnemies.forEach(enemy => {
-        occupiedHeights.add(enemy.y);
-      });
-    }
-
-    // Map types to heights
-    const heightMap: Record<'ground' | 'mid' | 'high', number> = {
-      ground: 400,
-      mid: 320,
-      high: 240,
-    };
-
-    // Filter out types that are already occupied
-    let availableTypes = types.filter(type => !occupiedHeights.has(heightMap[type]));
-
-    // If all heights are occupied, try to use ANY available height (not restricted by difficulty)
-    if (availableTypes.length === 0) {
-      console.warn('All restricted heights occupied! Trying any height...');
-      // Try all possible heights
-      const allTypes: ('ground' | 'mid' | 'high')[] = ['ground', 'mid', 'high'];
-      availableTypes = allTypes.filter(type => !occupiedHeights.has(heightMap[type]));
-
-      // If still no available heights, something is wrong - use ground as fallback
-      if (availableTypes.length === 0) {
-        console.error('ALL heights occupied! Using ground as fallback.');
-        availableTypes = ['ground'];
-      }
-    }
-
-    const type = availableTypes[Math.floor(Math.random() * availableTypes.length)] as 'ground' | 'mid' | 'high';
-
-    // Speed variation based on difficulty
-    let speedVariation: number;
-    if (difficulty === 'easy') {
-      // Easy mode: minimal speed variation (±5%)
-      speedVariation = baseSpeed * (0.95 + Math.random() * 0.1);
-    } else if (difficulty === 'medium') {
-      // Medium mode: moderate variation (±15%)
-      speedVariation = baseSpeed * (0.85 + Math.random() * 0.3);
-    } else {
-      // Hard mode: high variation (±30%)
-      speedVariation = baseSpeed * (0.7 + Math.random() * 0.6);
-    }
-
-    const speed = speedVariation + (stage - 1) * 0.3; // Reduced stage speed increase
-
-    const y = heightMap[type];
-
-    // Calculate spawn position with minimum distance from other enemies
-    let spawnX = 600;
-    const minDistance = 250; // Minimum horizontal distance between enemies
-
-    // Find a spawn position that's far enough from all existing enemies
-    if (existingEnemies && existingEnemies.length > 0) {
-      let attemptCount = 0;
-      let validPosition = false;
-
-      while (!validPosition && attemptCount < 10) {
-        spawnX = 600 + Math.random() * 300; // Wider spawn range
-        validPosition = true;
-
-        // Check distance from all existing enemies
-        for (const enemy of existingEnemies) {
-          const distance = Math.abs(spawnX - enemy.x);
-          if (distance < minDistance) {
-            validPosition = false;
-            break;
-          }
-        }
-        attemptCount++;
-      }
-
-      // If we couldn't find a good position, use far right
-      if (!validPosition) {
-        spawnX = 900;
-      }
-    }
-
-    return {
-      x: spawnX,
-      y: y,
-      r: 16,
-      speed: speed,
-      type: type,
-    };
-  };
-
-  const initGame = (difficulty: Difficulty = selectedDifficulty): GameState => {
+  const initGame = useCallback((difficulty: Difficulty): GameState => {
     const multiplier = getDifficultyMultiplier(difficulty);
     const baseSpeed = 5 * multiplier;
 
-    // Start with fewer enemies to ensure no height conflicts
-    // Easy mode: only 1 enemy initially since we restrict heights
     const firstEnemy = createEnemy(baseSpeed, 1, difficulty, []);
     const enemies: Enemy[] = [firstEnemy];
 
-    // Only add second enemy if NOT easy mode (to avoid duplicate heights)
     if (difficulty !== 'easy') {
       const secondEnemy = createEnemy(baseSpeed, 1, difficulty, [firstEnemy]);
-      secondEnemy.x = 900; // Space them out
+      secondEnemy.x = 900;
       enemies.push(secondEnemy);
     }
 
     return {
-      characterPosX: 100,
-      characterPosY: 400,
-      characterR: 16,
+      characterPosX: CHARACTER_X,
+      characterPosY: GROUND_Y,
+      characterR: CHARACTER_RADIUS,
       speed: 0,
       acceleration: 0,
-      enemies: enemies,
+      enemies,
       powerups: [],
-      baseSpeed: baseSpeed,
+      baseSpeed,
       score: 0,
       scene: Scene.GameMain,
       frameCount: 0,
-      bound: false,
       stage: 1,
-      difficulty: difficulty,
+      difficulty,
       combo: 0,
+      bestCombo: 0,
       hasShield: false,
       shieldTimer: 0,
       slowMoTimer: 0,
-      lives: 3,
-      maxLives: 3,
+      lives: MAX_LIVES,
+      maxLives: MAX_LIVES,
       lastHeartSpawn: 0,
       invincibilityTimer: 0,
     };
-  };
+  }, []);
 
-  const triggerJumpAction = () => {
+  const triggerJumpAction = useCallback(() => {
     const state = gameStateRef.current;
     if (!state) return;
 
     if (state.scene === Scene.GameMain) {
-      if (state.speed === 0) {
-        // Slightly higher jump with longer float time
-        state.speed = -17;
-        state.acceleration = 0.9;
+      // Only jump when grounded (prevents mid-air double jumps).
+      if (state.characterPosY >= GROUND_Y && state.speed === 0) {
+        const { speed, acceleration } = getJumpImpulse();
+        state.speed = speed;
+        state.acceleration = acceleration;
         playJumpSound();
       }
     } else if (state.scene === Scene.GameOver) {
       if (state.frameCount > 60) {
-        gameStateRef.current = initGame(state.difficulty);
+        gameStateRef.current = initGame(state.difficulty as Difficulty);
+        setCurrentStage(1);
       }
     }
-  };
+  }, [initGame, playJumpSound]);
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    // Prevent default behavior (especially for spacebar scrolling)
-    e.preventDefault();
-    e.stopPropagation();
-    triggerJumpAction();
-  };
-
-  const update = (state: GameState) => {
-    if (state.scene === Scene.GameMain) {
-      // Update character
-      state.speed += state.acceleration;
-      state.characterPosY += state.speed;
-      if (state.characterPosY > 400) {
-        state.characterPosY = 400;
-        state.speed = 0;
-        state.acceleration = 0;
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      // Only intercept the game controls; leave other keys (tab, devtools) alone.
+      if (e.code === 'Space' || e.code === 'ArrowUp' || e.key === ' ' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        triggerJumpAction();
       }
+    },
+    [triggerJumpAction]
+  );
+  const handleKeyDownRef = useRef(handleKeyDown);
+  useEffect(() => {
+    handleKeyDownRef.current = handleKeyDown;
+  }, [handleKeyDown]);
 
-      // Update timers
-      if (state.shieldTimer > 0) {
-        state.shieldTimer--;
-        if (state.shieldTimer === 0) {
-          state.hasShield = false;
+  /**
+   * Advance the simulation by `dt` (1 = one 60fps frame). Delta-time keeps the
+   * game running at the same pace on 60/120/144Hz displays.
+   */
+  const update = useCallback(
+    (state: GameState, dt: number) => {
+      if (state.scene === Scene.GameMain) {
+        // Character physics.
+        state.speed += state.acceleration * dt;
+        state.characterPosY += state.speed * dt;
+        if (state.characterPosY > GROUND_Y) {
+          state.characterPosY = GROUND_Y;
+          state.speed = 0;
+          state.acceleration = 0;
         }
-      }
-      if (state.slowMoTimer > 0) state.slowMoTimer--;
-      if (state.invincibilityTimer > 0) state.invincibilityTimer--;
 
-      // Spawn heart every 30 seconds (1800 frames at 60fps)
-      if (state.frameCount - state.lastHeartSpawn > 1800 && state.powerups.filter(p => p.type === 'heart').length === 0) {
-        state.powerups.push({
-          x: 600,
-          y: 400, // On the ground
-          r: 12,
-          type: 'heart',
-        });
-        state.lastHeartSpawn = state.frameCount;
-      }
+        // Timers (counted in frames).
+        if (state.shieldTimer > 0) {
+          state.shieldTimer = Math.max(0, state.shieldTimer - dt);
+          if (state.shieldTimer === 0) state.hasShield = false;
+        }
+        if (state.slowMoTimer > 0) state.slowMoTimer = Math.max(0, state.slowMoTimer - dt);
+        if (state.invincibilityTimer > 0) {
+          state.invincibilityTimer = Math.max(0, state.invincibilityTimer - dt);
+        }
 
-      // Slow-mo multiplier
-      const slowMoMultiplier = state.slowMoTimer > 0 ? 0.5 : 1.0;
+        // Heart every 30s if not already present.
+        if (
+          state.frameCount - state.lastHeartSpawn > HEART_SPAWN_INTERVAL &&
+          state.powerups.every((p) => p.type !== 'heart')
+        ) {
+          state.powerups.push({ x: 600, y: GROUND_Y, r: 12, type: 'heart' });
+          state.lastHeartSpawn = state.frameCount;
+        }
 
-      // Update enemies
-      for (let i = state.enemies.length - 1; i >= 0; i--) {
-        const enemy = state.enemies[i];
-        enemy.x -= enemy.speed * slowMoMultiplier;
+        const slowMoMultiplier = state.slowMoTimer > 0 ? SLOWMO_FACTOR : 1.0;
 
-        // If enemy passed the screen, remove it and add score
-        if (enemy.x < -100) {
-          state.enemies.splice(i, 1);
-          state.score += 100;
-          state.combo++;
+        // Enemies.
+        for (let i = state.enemies.length - 1; i >= 0; i--) {
+          const enemy = state.enemies[i];
+          enemy.x -= enemy.speed * slowMoMultiplier * dt;
 
-          // Play score sound
-          playScoreSound();
+          if (enemy.x < -100) {
+            state.enemies.splice(i, 1);
+            state.combo++;
+            state.bestCombo = Math.max(state.bestCombo, state.combo);
+            state.score += dodgePoints(state.combo);
+            playScoreSound();
 
-          // Spawn new enemy at a different height than existing ones
-          state.enemies.push(createEnemy(state.baseSpeed, state.stage, state.difficulty, state.enemies));
+            state.enemies.push(
+              createEnemy(state.baseSpeed, state.stage, state.difficulty as Difficulty, state.enemies)
+            );
 
-          // Spawn powerup randomly (10% chance, but not hearts)
-          if (Math.random() < 0.1 && state.powerups.filter(p => p.type !== 'heart').length < 2) {
-            const powerupType: 'shield' | 'slow' = Math.random() < 0.5 ? 'shield' : 'slow';
-            state.powerups.push({
-              x: 600,
-              y: 350 - Math.random() * 150,
-              r: 12,
-              type: powerupType,
-            });
-          }
-
-          // Progressive difficulty: increase speed every 500 points
-          if (state.score % 500 === 0 && state.score > 0) {
-            state.stage += 1;
-            setCurrentStage(state.stage);
-            playStageCompleteSound();
-
-            // Add more enemies at higher stages (max 3 since we have 3 heights)
-            if (state.stage % 3 === 0 && state.enemies.length < 3) {
-              state.enemies.push(createEnemy(state.baseSpeed, state.stage, state.difficulty, state.enemies));
+            // 10% chance to drop a shield/slow powerup (max 2 on field).
+            if (Math.random() < 0.1 && state.powerups.filter((p) => p.type !== 'heart').length < 2) {
+              const powerupType: 'shield' | 'slow' = Math.random() < 0.5 ? 'shield' : 'slow';
+              state.powerups.push({ x: 600, y: 350 - Math.random() * 150, r: 12, type: powerupType });
             }
+
+            // Stage derived from score so it can't desync.
+            const nextStage = stageForScore(state.score);
+            if (nextStage > state.stage) {
+              state.stage = nextStage;
+              setCurrentStage(state.stage);
+              playStageCompleteSound();
+              if (state.stage % 3 === 0 && state.enemies.length < 3) {
+                state.enemies.push(
+                  createEnemy(state.baseSpeed, state.stage, state.difficulty as Difficulty, state.enemies)
+                );
+              }
+            }
+
+            updateHighScoreRef.current(state.score);
+          }
+        }
+
+        // Powerups.
+        for (let i = state.powerups.length - 1; i >= 0; i--) {
+          const powerup = state.powerups[i];
+          powerup.x -= state.baseSpeed * slowMoMultiplier * dt;
+
+          if (powerup.x < -50) {
+            state.powerups.splice(i, 1);
+            continue;
           }
 
-          // Update high score
-          updateHighScore(state.score);
-        }
-      }
-
-      // Update powerups
-      for (let i = state.powerups.length - 1; i >= 0; i--) {
-        const powerup = state.powerups[i];
-        powerup.x -= state.baseSpeed * slowMoMultiplier;
-
-        // Remove if off screen
-        if (powerup.x < -50) {
-          state.powerups.splice(i, 1);
-          continue;
-        }
-
-        // Check collision with character
-        const diffX = state.characterPosX - powerup.x;
-        const diffY = state.characterPosY - powerup.y;
-        const distance = Math.sqrt(diffX * diffX + diffY * diffY);
-        if (distance < state.characterR + powerup.r) {
-          if (powerup.type === 'shield') {
-            playPowerupSound();
-            state.hasShield = true;
-            state.shieldTimer = 300; // 5 seconds at 60fps
-            state.powerups.splice(i, 1);
-          } else if (powerup.type === 'slow') {
-            playPowerupSound();
-            state.slowMoTimer = 180; // 3 seconds at 60fps
-            state.powerups.splice(i, 1);
-          } else if (powerup.type === 'heart') {
-            if (state.lives < state.maxLives) {
+          if (
+            checkCollision(
+              state.characterPosX,
+              state.characterPosY,
+              state.characterR,
+              powerup.x,
+              powerup.y,
+              powerup.r
+            )
+          ) {
+            if (powerup.type === 'shield') {
+              playPowerupSound();
+              state.hasShield = true;
+              state.shieldTimer = SHIELD_FRAMES;
+              state.powerups.splice(i, 1);
+            } else if (powerup.type === 'slow') {
+              playPowerupSound();
+              state.slowMoTimer = SLOWMO_FRAMES;
+              state.powerups.splice(i, 1);
+            } else if (powerup.type === 'heart' && state.lives < state.maxLives) {
               playHealSound();
               state.lives++;
               state.powerups.splice(i, 1);
             }
           }
         }
-      }
 
-      // Collision detection with enemies (only if not invincible)
-      // Make sure invincibilityTimer is never negative or invalid
-      if (state.invincibilityTimer < 0 || !Number.isFinite(state.invincibilityTimer)) {
-        state.invincibilityTimer = 0;
-      }
-
-      if (state.invincibilityTimer === 0) {
-        for (const enemy of state.enemies) {
-          const diffX = state.characterPosX - enemy.x;
-          const diffY = state.characterPosY - enemy.y;
-          const distance = Math.sqrt(diffX * diffX + diffY * diffY);
-
-          if (distance < state.characterR + enemy.r) {
-
-            if (state.hasShield) {
-              // Shield protects once, then breaks
-              console.log('Shield broke! Lives:', state.lives);
-              state.hasShield = false;
-              state.shieldTimer = 0;
-              playPowerupSound(); // Break sound
-              // Give brief invincibility after shield breaks
-              state.invincibilityTimer = 60; // 1 second
-            } else {
-              // Lose a life
-              console.log('Hit! Lives before:', state.lives);
-              state.lives--;
-              console.log('Lives after:', state.lives);
-              state.combo = 0; // Reset combo on hit
-              playCollisionSound();
-
-              if (state.lives <= 0) {
-                // Game over
-                console.log('Game Over!');
-                state.scene = Scene.GameOver;
-                state.frameCount = 0;
+        // Enemy collision (square hitbox) unless invincible.
+        if (state.invincibilityTimer <= 0) {
+          state.invincibilityTimer = 0;
+          for (const enemy of state.enemies) {
+            if (
+              checkCircleSquareCollision(
+                state.characterPosX,
+                state.characterPosY,
+                state.characterR,
+                enemy.x,
+                enemy.y,
+                enemy.r
+              )
+            ) {
+              if (state.hasShield) {
+                state.hasShield = false;
+                state.shieldTimer = 0;
+                playPowerupSound();
+                state.invincibilityTimer = 60;
               } else {
-                // Temporary invincibility after getting hit
-                console.log('Setting invincibility to 120 frames');
-                state.invincibilityTimer = 120; // 2 seconds of invincibility
+                state.lives--;
+                state.combo = 0;
+                playCollisionSound();
+                if (state.lives <= 0) {
+                  state.scene = Scene.GameOver;
+                  state.frameCount = 0;
+                } else {
+                  state.invincibilityTimer = INVINCIBILITY_FRAMES;
+                }
               }
+              break;
             }
-            break; // Only process one collision per frame
           }
         }
+      } else if (state.scene === Scene.GameOver) {
+        for (const enemy of state.enemies) {
+          enemy.x -= enemy.speed * dt;
+        }
       }
-    } else if (state.scene === Scene.GameOver) {
-      // Game over - enemies keep moving
-      for (const enemy of state.enemies) {
-        enemy.x -= enemy.speed;
-      }
+
+      state.frameCount += dt;
+    },
+    [
+      playCollisionSound,
+      playHealSound,
+      playPowerupSound,
+      playScoreSound,
+      playStageCompleteSound,
+    ]
+  );
+  const updateRef = useRef(update);
+  useEffect(() => {
+    updateRef.current = update;
+  }, [update]);
+
+  const drawBackground = useCallback((ctx: CanvasRenderingContext2D, state: GameState) => {
+    const slow = state.slowMoTimer > 0;
+    // Sky gradient (blue-tinted during slow-mo).
+    const sky = ctx.createLinearGradient(0, 0, 0, CANVAS_SIZE);
+    if (slow) {
+      sky.addColorStop(0, '#0b1d4d');
+      sky.addColorStop(1, '#071233');
+    } else {
+      sky.addColorStop(0, '#0b1220');
+      sky.addColorStop(0.55, '#111a2e');
+      sky.addColorStop(1, '#1a2540');
+    }
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+    // Stars (static twinkle).
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    for (let i = 0; i < 24; i++) {
+      const sx = (i * 71 + 20) % CANVAS_SIZE;
+      const sy = (i * 43 + 15) % 190;
+      const tw = 0.35 + 0.35 * Math.sin(state.frameCount * 0.05 + i);
+      ctx.globalAlpha = tw;
+      ctx.fillRect(sx, sy, 2, 2);
+    }
+    ctx.globalAlpha = 1;
+
+    // Parallax clouds.
+    for (const c of CLOUDS) {
+      const cx = ((c.x - state.frameCount * c.speed) % (CANVAS_SIZE + 80) + CANVAS_SIZE + 80) % (CANVAS_SIZE + 80) - 40;
+      ctx.fillStyle = 'rgba(148, 163, 184, 0.18)';
+      ctx.beginPath();
+      ctx.arc(cx, c.y, c.s, 0, Math.PI * 2);
+      ctx.arc(cx + c.s * 0.9, c.y + 6, c.s * 0.75, 0, Math.PI * 2);
+      ctx.arc(cx - c.s * 0.9, c.y + 6, c.s * 0.7, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    state.frameCount++;
-  };
-
-  const draw = (
-    ctx: CanvasRenderingContext2D,
-    state: GameState
-  ) => {
-    const copy = jumpCopyRef.current;
-
-    ctx.imageSmoothingEnabled = false;
-
-    if (state.scene === Scene.GameMain) {
-      // Background (add slow-mo tint)
-      if (state.slowMoTimer > 0) {
-        ctx.fillStyle = 'rgb(0, 10, 30)'; // Blue tint for slow-mo
-      } else {
-        ctx.fillStyle = 'rgb(0,0,0)';
-      }
-      ctx.fillRect(0, 0, 480, 480);
-
-      // Draw ground line
-      ctx.strokeStyle = 'rgb(100,100,100)';
-      ctx.lineWidth = 2;
+    // Parallax hills.
+    for (const h of HILLS) {
+      const period = CANVAS_SIZE + h.w;
+      const hx = ((h.x - state.frameCount * h.speed) % period + period) % period - h.w / 2;
+      ctx.fillStyle = 'rgba(30, 41, 59, 0.55)';
       ctx.beginPath();
-      ctx.moveTo(0, 420);
-      ctx.lineTo(480, 420);
-      ctx.stroke();
+      ctx.moveTo(hx - h.w / 2, GROUND_LINE_Y);
+      ctx.quadraticCurveTo(hx, GROUND_LINE_Y - h.h, hx + h.w / 2, GROUND_LINE_Y);
+      ctx.closePath();
+      ctx.fill();
+    }
 
-      // Draw powerups
+    // Ground.
+    ctx.fillStyle = '#0a0f1c';
+    ctx.fillRect(0, GROUND_LINE_Y, CANVAS_SIZE, CANVAS_SIZE - GROUND_LINE_Y);
+    ctx.strokeStyle = 'rgba(14, 165, 233, 0.65)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, GROUND_LINE_Y);
+    ctx.lineTo(CANVAS_SIZE, GROUND_LINE_Y);
+    ctx.stroke();
+
+    // Scrolling ground dashes for a sense of speed.
+    ctx.strokeStyle = 'rgba(56, 189, 248, 0.35)';
+    ctx.lineWidth = 3;
+    const dashGap = 40;
+    const offset = (state.frameCount * state.baseSpeed) % dashGap;
+    ctx.beginPath();
+    for (let x = -offset; x < CANVAS_SIZE; x += dashGap) {
+      ctx.moveTo(x, GROUND_LINE_Y + 16);
+      ctx.lineTo(x + 18, GROUND_LINE_Y + 16);
+    }
+    ctx.stroke();
+  }, []);
+
+  const draw = useCallback(
+    (ctx: CanvasRenderingContext2D, state: GameState) => {
+      const copy = jumpCopyRef.current;
+      ctx.imageSmoothingEnabled = true;
+
+      drawBackground(ctx, state);
+
+      // Powerups.
       for (const powerup of state.powerups) {
         ctx.save();
         ctx.translate(powerup.x, powerup.y);
-        ctx.rotate((state.frameCount * Math.PI * 2) / 60); // Rotate
-
+        ctx.rotate((state.frameCount * Math.PI * 2) / 90);
+        ctx.shadowBlur = 12;
         if (powerup.type === 'shield') {
-          // Shield powerup (green hexagon)
+          ctx.shadowColor = '#22c55e';
           ctx.fillStyle = '#22c55e';
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 2;
@@ -585,7 +530,7 @@ const JumpGame = () => {
           ctx.fill();
           ctx.stroke();
         } else if (powerup.type === 'slow') {
-          // Slow powerup (purple diamond)
+          ctx.shadowColor = '#a855f7';
           ctx.fillStyle = '#a855f7';
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 2;
@@ -598,69 +543,77 @@ const JumpGame = () => {
           ctx.fill();
           ctx.stroke();
         } else if (powerup.type === 'heart') {
-          // Heart powerup (red heart)
+          ctx.shadowColor = '#ef4444';
           ctx.fillStyle = '#ef4444';
           ctx.strokeStyle = '#ffffff';
           ctx.lineWidth = 2;
           const r = powerup.r;
-
-          // Draw heart shape
           ctx.beginPath();
           ctx.moveTo(0, r / 4);
-          // Left curve
           ctx.bezierCurveTo(-r, -r / 2, -r * 1.5, r / 2, 0, r * 1.5);
-          // Right curve
           ctx.bezierCurveTo(r * 1.5, r / 2, r, -r / 2, 0, r / 4);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
         }
-
         ctx.restore();
       }
 
-      // Draw enemies
+      // Enemies (rounded squares with glow).
       for (const enemy of state.enemies) {
-        ctx.fillStyle = '#ef4444'; // Red color
+        ctx.save();
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = 'rgba(239, 68, 68, 0.7)';
+        ctx.fillStyle = '#ef4444';
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 3;
-        const enemySize = enemy.r * 2;
-        ctx.fillRect(
-          enemy.x - enemy.r,
-          enemy.y - enemy.r,
-          enemySize,
-          enemySize
-        );
-        ctx.strokeRect(
-          enemy.x - enemy.r,
-          enemy.y - enemy.r,
-          enemySize,
-          enemySize
-        );
-
-        // Draw enemy type indicator
+        const size = enemy.r * 2;
+        const rad = 5;
+        const x = enemy.x - enemy.r;
+        const y = enemy.y - enemy.r;
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(x, y, size, size, rad);
+        } else {
+          ctx.rect(x, y, size, size);
+        }
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
         if (enemy.type === 'high') {
           ctx.fillStyle = '#fbbf24';
-          ctx.fillRect(enemy.x - 2, enemy.y - 2, 4, 4);
+          ctx.fillRect(enemy.x - 3, enemy.y - 3, 6, 6);
         }
       }
 
-      // Draw character (blue circle with white outline)
-      // Flash when invincible (but not from shield)
+      // Character.
       const isFlashing = state.invincibilityTimer > 0 && !state.hasShield;
-      const showCharacter = !isFlashing || (state.frameCount % 10 < 5);
-
+      const showCharacter = !isFlashing || state.frameCount % 10 < 5;
       if (showCharacter) {
-        ctx.fillStyle = '#0ea5e9'; // Sky blue color
+        ctx.save();
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = 'rgba(14, 165, 233, 0.8)';
+        const grad = ctx.createRadialGradient(
+          state.characterPosX - 5,
+          state.characterPosY - 5,
+          2,
+          state.characterPosX,
+          state.characterPosY,
+          state.characterR
+        );
+        grad.addColorStop(0, '#7dd3fc');
+        grad.addColorStop(1, '#0284c7');
+        ctx.fillStyle = grad;
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.arc(state.characterPosX, state.characterPosY, state.characterR, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+        ctx.restore();
       }
 
-      // Draw shield if active
+      // Shield ring.
       if (state.hasShield) {
         ctx.strokeStyle = '#22c55e';
         ctx.lineWidth = 3;
@@ -671,232 +624,209 @@ const JumpGame = () => {
         ctx.setLineDash([]);
       }
 
-      // Draw score
-      ctx.fillStyle = 'rgb(255,255,255)';
-      ctx.font = 'bold 16pt Arial';
-      const scoreLabel = `${copy.score.toUpperCase()}: ${state.score}`;
-      const scoreLabelWidth = ctx.measureText(scoreLabel).width;
-      ctx.fillText(scoreLabel, 460 - scoreLabelWidth, 40);
-
-      // Draw lives (hearts)
-      for (let i = 0; i < state.lives; i++) {
-        ctx.fillStyle = '#ef4444';
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 2;
-
-        const heartX = 460 - (i * 25);
-        const heartY = 60;
-        const heartSize = 8;
-
-        ctx.save();
-        ctx.translate(heartX, heartY);
-        ctx.beginPath();
-        ctx.moveTo(0, heartSize / 4);
-        ctx.bezierCurveTo(-heartSize, -heartSize / 2, -heartSize * 1.5, heartSize / 2, 0, heartSize * 1.5);
-        ctx.bezierCurveTo(heartSize * 1.5, heartSize / 2, heartSize, -heartSize / 2, 0, heartSize / 4);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-      }
-
-      // Draw combo
-      if (state.combo > 1) {
-        ctx.fillStyle = '#eab308';
-        ctx.font = 'bold 12pt Arial';
-        ctx.fillText(`${copy.combo.toUpperCase()} x${state.combo}`, 20, 460);
-      }
-
-      // Draw stage indicator
-      if (state.stage > 1) {
-        ctx.fillStyle = '#eab308';
-        ctx.font = 'bold 14pt Arial';
-        ctx.fillText(`${copy.stage.toUpperCase()} ${state.stage}`, 20, 40);
-      }
-
-      // Draw active effects
-      let effectY = 70;
-      if (state.slowMoTimer > 0) {
-        ctx.fillStyle = '#a855f7';
-        ctx.font = 'bold 10pt Arial';
-        ctx.fillText(`${copy.slowMo.toUpperCase()}: ${Math.ceil(state.slowMoTimer / 60)}s`, 20, effectY);
-        effectY += 20;
-      }
-      if (state.shieldTimer > 0) {
-        ctx.fillStyle = '#22c55e';
-        ctx.font = 'bold 10pt Arial';
-        ctx.fillText(`${copy.shield.toUpperCase()}: ${Math.ceil(state.shieldTimer / 60)}s`, 20, effectY);
-        effectY += 20;
-      }
-      // Debug: Show invincibility status
-      if (state.invincibilityTimer > 0) {
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = 'bold 10pt Arial';
-        ctx.fillText(`${copy.invincible.toUpperCase()}: ${Math.ceil(state.invincibilityTimer / 60)}s`, 20, effectY);
-      }
-    } else if (state.scene === Scene.GameOver) {
-      // Background with fade
-      const fadeAlpha = Math.min(state.frameCount / 60, 0.7);
-      ctx.fillStyle = 'rgb(0,0,0)';
-      ctx.fillRect(0, 0, 480, 480);
-      ctx.fillStyle = `rgba(0, 0, 0, ${fadeAlpha})`;
-      ctx.fillRect(0, 0, 480, 480);
-
-      // Draw ground line
-      ctx.strokeStyle = 'rgb(100,100,100)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, 420);
-      ctx.lineTo(480, 420);
-      ctx.stroke();
-
-      // Draw particle explosion effect
-      if (state.frameCount < 60) {
-        const particleCount = 20;
-        for (let i = 0; i < particleCount; i++) {
-          const angle = (Math.PI * 2 * i) / particleCount;
-          const speed = state.frameCount * 3;
-          const x = state.characterPosX + Math.cos(angle) * speed;
-          const y = state.characterPosY + Math.sin(angle) * speed;
-          const alpha = 1 - state.frameCount / 60;
-          const size = 6 - (state.frameCount / 60) * 4;
-
-          ctx.fillStyle = `rgba(14, 165, 233, ${alpha})`;
-          ctx.beginPath();
-          ctx.arc(x, y, size, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      }
-
-      // Draw enemies (faded)
-      for (const enemy of state.enemies) {
-        ctx.globalAlpha = 0.5;
-        ctx.fillStyle = '#ef4444';
-        ctx.strokeStyle = '#ffffff';
-        ctx.lineWidth = 3;
-        const enemySize = enemy.r * 2;
-        ctx.fillRect(
-          enemy.x - enemy.r,
-          enemy.y - enemy.r,
-          enemySize,
-          enemySize
-        );
-        ctx.strokeRect(
-          enemy.x - enemy.r,
-          enemy.y - enemy.r,
-          enemySize,
-          enemySize
-        );
-        ctx.globalAlpha = 1.0;
-      }
-
-      // Draw score
-      ctx.fillStyle = 'rgb(255,255,255)';
-      ctx.font = 'bold 16pt Arial';
-      const scoreLabel = `${copy.score.toUpperCase()}: ${state.score}`;
-      const scoreLabelWidth = ctx.measureText(scoreLabel).width;
-      ctx.fillText(scoreLabel, 460 - scoreLabelWidth, 40);
-
-      // Draw game over text with fade-in and scale
-      if (state.frameCount > 30) {
-        const textAlpha = Math.min((state.frameCount - 30) / 30, 1);
-        const textScale = 0.5 + (Math.min((state.frameCount - 30) / 30, 1) * 0.5);
-
-        ctx.save();
-        ctx.translate(240, 200);
-        ctx.scale(textScale, textScale);
-        ctx.fillStyle = `rgba(255, 255, 255, ${textAlpha})`;
-        ctx.font = 'bold 48pt Arial';
-        const gameOverLabel = copy.gameOver.toUpperCase();
-        const gameOverWidth = ctx.measureText(gameOverLabel).width;
-        ctx.fillText(gameOverLabel, -gameOverWidth / 2, 0);
-        ctx.restore();
-
-        // Draw final score
-        if (state.frameCount > 45) {
-          ctx.fillStyle = `rgba(14, 165, 233, ${Math.min((state.frameCount - 45) / 30, 1)})`;
-          ctx.font = 'bold 24pt Arial';
-          const finalScoreLabel = `${copy.finalScore}: ${state.score}`;
-          const finalScoreWidth = ctx.measureText(finalScoreLabel).width;
-          ctx.fillText(finalScoreLabel, 240 - finalScoreWidth / 2, 260);
-        }
-      }
-
-      // Draw restart prompt
-      if (state.frameCount > 60) {
-        const blinkAlpha = Math.sin(state.frameCount * 0.1) * 0.3 + 0.7;
-        ctx.fillStyle = `rgba(14, 165, 233, ${blinkAlpha})`;
+      if (state.scene === Scene.GameMain) {
+        // Score.
+        ctx.fillStyle = 'rgb(255,255,255)';
         ctx.font = 'bold 16pt Arial';
-        const restartLabel = copy.restartPrompt;
-        const restartWidth = ctx.measureText(restartLabel).width;
-        ctx.fillText(restartLabel, 240 - restartWidth / 2, 320);
+        const scoreLabel = `${copy.score.toUpperCase()}: ${state.score}`;
+        const scoreLabelWidth = ctx.measureText(scoreLabel).width;
+        ctx.fillText(scoreLabel, 460 - scoreLabelWidth, 40);
+
+        // Lives.
+        for (let i = 0; i < state.lives; i++) {
+          ctx.fillStyle = '#ef4444';
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 2;
+          const heartX = 460 - i * 25;
+          const heartY = 60;
+          const hs = 8;
+          ctx.save();
+          ctx.translate(heartX, heartY);
+          ctx.beginPath();
+          ctx.moveTo(0, hs / 4);
+          ctx.bezierCurveTo(-hs, -hs / 2, -hs * 1.5, hs / 2, 0, hs * 1.5);
+          ctx.bezierCurveTo(hs * 1.5, hs / 2, hs, -hs / 2, 0, hs / 4);
+          ctx.closePath();
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        // Combo.
+        if (state.combo > 1) {
+          ctx.fillStyle = '#eab308';
+          ctx.font = 'bold 12pt Arial';
+          ctx.fillText(`${copy.combo.toUpperCase()} x${state.combo}`, 20, 460);
+        }
+
+        // Stage.
+        if (state.stage > 1) {
+          ctx.fillStyle = '#eab308';
+          ctx.font = 'bold 14pt Arial';
+          ctx.fillText(`${copy.stage.toUpperCase()} ${state.stage}`, 20, 40);
+        }
+
+        // Active effects.
+        let effectY = 70;
+        if (state.slowMoTimer > 0) {
+          ctx.fillStyle = '#a855f7';
+          ctx.font = 'bold 10pt Arial';
+          ctx.fillText(`${copy.slowMo.toUpperCase()}: ${Math.ceil(state.slowMoTimer / 60)}s`, 20, effectY);
+          effectY += 20;
+        }
+        if (state.shieldTimer > 0) {
+          ctx.fillStyle = '#22c55e';
+          ctx.font = 'bold 10pt Arial';
+          ctx.fillText(`${copy.shield.toUpperCase()}: ${Math.ceil(state.shieldTimer / 60)}s`, 20, effectY);
+          effectY += 20;
+        }
+        if (state.invincibilityTimer > 0) {
+          ctx.fillStyle = '#fbbf24';
+          ctx.font = 'bold 10pt Arial';
+          ctx.fillText(`${copy.invincible.toUpperCase()}: ${Math.ceil(state.invincibilityTimer / 60)}s`, 20, effectY);
+        }
+      } else if (state.scene === Scene.GameOver) {
+        const fadeAlpha = Math.min(state.frameCount / 60, 0.72);
+        ctx.fillStyle = `rgba(2, 6, 16, ${fadeAlpha})`;
+        ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+        // Explosion particles.
+        if (state.frameCount < 60) {
+          const particleCount = 22;
+          for (let i = 0; i < particleCount; i++) {
+            const angle = (Math.PI * 2 * i) / particleCount;
+            const dist = state.frameCount * 3;
+            const x = state.characterPosX + Math.cos(angle) * dist;
+            const y = state.characterPosY + Math.sin(angle) * dist;
+            const alpha = 1 - state.frameCount / 60;
+            const size = 6 - (state.frameCount / 60) * 4;
+            ctx.fillStyle = `rgba(56, 189, 248, ${alpha})`;
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+
+        // Score in corner.
+        ctx.fillStyle = 'rgb(255,255,255)';
+        ctx.font = 'bold 16pt Arial';
+        const scoreLabel = `${copy.score.toUpperCase()}: ${state.score}`;
+        const scoreLabelWidth = ctx.measureText(scoreLabel).width;
+        ctx.fillText(scoreLabel, 460 - scoreLabelWidth, 40);
+
+        if (state.frameCount > 30) {
+          const textAlpha = Math.min((state.frameCount - 30) / 30, 1);
+          const textScale = 0.5 + Math.min((state.frameCount - 30) / 30, 1) * 0.5;
+          ctx.save();
+          ctx.translate(240, 190);
+          ctx.scale(textScale, textScale);
+          ctx.fillStyle = `rgba(255, 255, 255, ${textAlpha})`;
+          ctx.font = 'bold 46pt Arial';
+          const gameOverLabel = copy.gameOver.toUpperCase();
+          const gameOverWidth = ctx.measureText(gameOverLabel).width;
+          ctx.fillText(gameOverLabel, -gameOverWidth / 2, 0);
+          ctx.restore();
+
+          if (state.frameCount > 45) {
+            const a = Math.min((state.frameCount - 45) / 30, 1);
+            ctx.fillStyle = `rgba(56, 189, 248, ${a})`;
+            ctx.font = 'bold 24pt Arial';
+            const finalScoreLabel = `${copy.finalScore}: ${state.score}`;
+            const finalScoreWidth = ctx.measureText(finalScoreLabel).width;
+            ctx.fillText(finalScoreLabel, 240 - finalScoreWidth / 2, 250);
+
+            if (state.bestCombo > 1) {
+              ctx.fillStyle = `rgba(234, 179, 8, ${a})`;
+              ctx.font = 'bold 15pt Arial';
+              const comboLabel = `${copy.combo.toUpperCase()} x${state.bestCombo}`;
+              const comboWidth = ctx.measureText(comboLabel).width;
+              ctx.fillText(comboLabel, 240 - comboWidth / 2, 284);
+            }
+          }
+        }
+
+        if (state.frameCount > 60) {
+          const blinkAlpha = Math.sin(state.frameCount * 0.1) * 0.3 + 0.7;
+          ctx.fillStyle = `rgba(56, 189, 248, ${blinkAlpha})`;
+          ctx.font = 'bold 16pt Arial';
+          const restartLabel = copy.restartPrompt;
+          const restartWidth = ctx.measureText(restartLabel).width;
+          ctx.fillText(restartLabel, 240 - restartWidth / 2, 324);
+        }
       }
-    }
-  };
+    },
+    [drawBackground]
+  );
+  const drawRef = useRef(draw);
+  useEffect(() => {
+    drawRef.current = draw;
+  }, [draw]);
 
-  const gameLoop = () => {
-    if (!canvasRef.current || !gameStateRef.current) return;
+  // The loop is fully stable: it reads all mutable state through refs, so it
+  // never captures a stale closure and can safely re-schedule itself. It reads
+  // every mutable value through a ref, so it is defined once and held in a ref.
+  const gameLoopRef = useRef<(timestamp: number) => void>(() => {});
+  useEffect(() => {
+    const loop = (timestamp: number) => {
+      if (!canvasRef.current || !gameStateRef.current) return;
+      const ctx = canvasRef.current.getContext('2d');
+      if (!ctx) return;
 
-    const ctx = canvasRef.current.getContext('2d');
-    if (!ctx) return;
+      // Delta-time in 60fps units, clamped to avoid huge jumps after a tab stall.
+      if (lastTimeRef.current == null) lastTimeRef.current = timestamp;
+      const elapsedMs = timestamp - lastTimeRef.current;
+      lastTimeRef.current = timestamp;
+      const dt = Math.min(elapsedMs / (1000 / 60), 3);
 
-    const state = gameStateRef.current;
+      const state = gameStateRef.current;
+      updateRef.current(state, dt > 0 ? dt : 1);
+      drawRef.current(ctx, state);
 
-    update(state);
-    draw(ctx, state);
+      animationIdRef.current = requestAnimationFrame(loop);
+    };
+    gameLoopRef.current = loop;
+  }, []);
 
-    animationIdRef.current = requestAnimationFrame(gameLoop);
-  };
-
-  const startGame = () => {
+  const startGame = useCallback(() => {
     if (!canvasRef.current) return;
-
-    // Blur any focused element (like the Start button) to prevent space from triggering it
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
 
-    gameStateRef.current = initGame(selectedDifficulty);
+    gameStateRef.current = initGame(selectedDifficultyRef.current);
     setCurrentStage(1);
     setIsGameStarted(true);
     setShowDifficultySelect(false);
+    lastTimeRef.current = null;
 
-    if (keyDownHandlerRef.current) {
-      document.removeEventListener('keydown', keyDownHandlerRef.current);
-    }
+    animationIdRef.current = requestAnimationFrame((t) => gameLoopRef.current(t));
+  }, [initGame]);
 
-    // Add keyboard event listener
-    keyDownHandlerRef.current = handleKeyDown;
-    document.addEventListener('keydown', handleKeyDown);
-
-    // Start game loop
-    gameLoop();
-  };
-
-  const stopGame = () => {
+  const stopGame = useCallback(() => {
     if (animationIdRef.current) {
       cancelAnimationFrame(animationIdRef.current);
       animationIdRef.current = null;
     }
-    if (keyDownHandlerRef.current) {
-      document.removeEventListener('keydown', keyDownHandlerRef.current);
-      keyDownHandlerRef.current = null;
-    }
     gameStateRef.current = null;
+    lastTimeRef.current = null;
     setIsGameStarted(false);
     setShowDifficultySelect(true);
     setCurrentStage(1);
-  };
+  }, []);
 
+  // Single global keydown listener; delegates to the latest handler via ref.
+  useEffect(() => {
+    const listener = (e: KeyboardEvent) => handleKeyDownRef.current(e);
+    document.addEventListener('keydown', listener);
+    return () => document.removeEventListener('keydown', listener);
+  }, []);
+
+  // Cleanup rAF on unmount.
   useEffect(() => {
     return () => {
       if (animationIdRef.current) {
         cancelAnimationFrame(animationIdRef.current);
         animationIdRef.current = null;
-      }
-      if (keyDownHandlerRef.current) {
-        document.removeEventListener('keydown', keyDownHandlerRef.current);
-        keyDownHandlerRef.current = null;
       }
       gameStateRef.current = null;
     };
@@ -956,19 +886,20 @@ const JumpGame = () => {
             <span className={styles.toolbarActionLabel}>{ui.howToPlay}</span>
           </button>
         </>
-      )
+      ),
     });
     return () => setContent(null);
   }, [isGameStarted, currentStage, highScore, isMuted, showInfo, setContent, ui.howToPlay, jumpCopy]);
 
   return (
     <div className={styles.gameShell}>
-      {/* Game Canvas */}
       <div className={styles.canvasFrame}>
         <canvas
           ref={canvasRef}
-          width={480}
-          height={480}
+          width={CANVAS_SIZE}
+          height={CANVAS_SIZE}
+          role="application"
+          aria-label={`${ui.howToPlay} — ${jumpCopy.infoSections[0]?.description ?? ''}`}
           onPointerDown={(e) => {
             e.preventDefault();
             triggerJumpAction();
@@ -976,69 +907,62 @@ const JumpGame = () => {
           className={styles.gameCanvas}
         />
 
-        {/* Difficulty Selection */}
+        {isGameStarted && (
+          <div className={styles.hudHint} aria-hidden="true">
+            {jumpCopy.infoSections[0]?.description}
+          </div>
+        )}
+
         {!isGameStarted && showDifficultySelect && (
           <div className={styles.difficultyOverlay}>
-            <h2 className={styles.difficultyTitle}>
-              {jumpCopy.selectDifficulty}
-            </h2>
+            <h2 className={styles.difficultyTitle}>{jumpCopy.selectDifficulty}</h2>
 
-            <div className={styles.difficultyOptions}>
+            <div className={styles.difficultyOptions} role="radiogroup" aria-label={jumpCopy.selectDifficulty}>
               {(['easy', 'medium', 'hard'] as Difficulty[]).map((diff) => {
                 const isSelected = selectedDifficulty === diff;
-
                 return (
                   <button
                     key={diff}
                     type="button"
+                    role="radio"
                     onClick={() => setSelectedDifficulty(diff)}
-                    aria-pressed={isSelected}
+                    aria-checked={isSelected}
                     className={styles.difficultyButton}
                     data-difficulty={diff}
                   >
                     <span className={styles.difficultyLabel}>{jumpCopy.difficulties[diff].label}</span>
-                    <span className={styles.difficultyDescription}>
-                      {jumpCopy.difficulties[diff].description}
-                    </span>
+                    <span className={styles.difficultyDescription}>{jumpCopy.difficulties[diff].description}</span>
                   </button>
                 );
               })}
             </div>
 
-            <button
-              type="button"
-              onClick={startGame}
-              className={styles.startButton}
-            >
+            <button type="button" onClick={startGame} className={styles.startButton}>
               {jumpCopy.startGame}
             </button>
           </div>
         )}
       </div>
 
-      {/* Stop Button */}
       {isGameStarted && (
         <div className={styles.stopButtonWrap}>
-          <button
-            type="button"
-            onClick={stopGame}
-            className={styles.stopButton}
-          >
+          <button type="button" onClick={stopGame} className={styles.stopButton}>
             {jumpCopy.stopGame}
           </button>
         </div>
       )}
 
       <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={ui.howToPlay}>
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-          gap: '1rem',
-          marginBottom: '1.5rem'
-        }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+            gap: '1rem',
+            marginBottom: '1.5rem',
+          }}
+        >
           {jumpCopy.infoSections.map((section, index) => {
             const style = infoCardStyles[index];
-
             return (
               <div
                 key={section.title}
@@ -1046,25 +970,27 @@ const JumpGame = () => {
                   background: style.bg,
                   border: `1px solid ${style.border}`,
                   borderRadius: '0.5rem',
-                  padding: '1rem'
+                  padding: '1rem',
                 }}
               >
                 <div style={{ color: style.color, fontSize: '2rem', marginBottom: '0.5rem' }}>{style.icon}</div>
-                <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>{section.title}</h3>
-                <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>
-                  {section.description}
-                </p>
+                <h3 style={{ color: 'var(--games-route-fg)', fontWeight: '600', marginBottom: '0.25rem' }}>
+                  {section.title}
+                </h3>
+                <p style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem' }}>{section.description}</p>
               </div>
             );
           })}
         </div>
 
-        <div style={{
-          background: 'rgba(14, 165, 233, 0.1)',
-          border: '1px solid rgba(14, 165, 233, 0.3)',
-          borderRadius: '0.5rem',
-          padding: '1rem'
-        }}>
+        <div
+          style={{
+            background: 'rgba(14, 165, 233, 0.1)',
+            border: '1px solid rgba(14, 165, 233, 0.3)',
+            borderRadius: '0.5rem',
+            padding: '1rem',
+          }}
+        >
           <div style={{ color: '#0ea5e9', fontWeight: '600', marginBottom: '0.5rem' }}>💡 {jumpCopy.proTipsTitle}</div>
           <ul style={{ color: 'var(--games-route-muted)', fontSize: '0.875rem', paddingLeft: '1.5rem', margin: 0 }}>
             {jumpCopy.proTips.map((tip) => (

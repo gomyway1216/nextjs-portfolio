@@ -139,6 +139,41 @@ export class Indexer {
 }
 
 /**
+ * Zobrist hash keys for the transposition table.
+ *
+ * One 32-bit key per (square, color) pair plus a side-to-move key. Kept as a
+ * flat typed array indexed by `(y*8 + x) * 2 + colorSlot` where colorSlot is
+ * 0 for BLACK and 1 for WHITE. Deterministically seeded so hashes are stable
+ * across runs (important for reproducible A/B search and tests).
+ */
+const ZOBRIST_BLACK: Uint32Array = new Uint32Array(64);
+const ZOBRIST_WHITE: Uint32Array = new Uint32Array(64);
+let ZOBRIST_SIDE = 0;
+
+(function initZobrist() {
+  // xorshift32 PRNG with a fixed seed for deterministic keys.
+  let seed = 0x1a2b3c4d;
+  const next = (): number => {
+    seed ^= seed << 13;
+    seed ^= seed >>> 17;
+    seed ^= seed << 5;
+    return seed >>> 0;
+  };
+  for (let i = 0; i < 64; i++) {
+    ZOBRIST_BLACK[i] = next();
+    ZOBRIST_WHITE[i] = next();
+  }
+  ZOBRIST_SIDE = next();
+})();
+
+function zobristAt(x: number, y: number, color: Color): number {
+  const sq = (y - 1) * 8 + (x - 1);
+  if (color === BLACK) return ZOBRIST_BLACK[sq];
+  if (color === WHITE) return ZOBRIST_WHITE[sq];
+  return 0;
+}
+
+/**
  * Board class representing the Othello game state
  */
 export class Board {
@@ -166,6 +201,9 @@ export class Board {
 
   // Empty squares list (for fast move generation)
   private emptyList: Point[] = [];
+
+  // Incremental Zobrist hash of the position, including side-to-move.
+  private hash: number = 0;
 
   constructor(rawBoard?: Color[], turnColor?: Color) {
     if (rawBoard && turnColor !== undefined) {
@@ -214,6 +252,7 @@ export class Board {
     this.indexTable.recalc(this);
     this.updateLog = [];
     this.setupEmptyList();
+    this.recalcHash();
   }
 
   /**
@@ -243,6 +282,33 @@ export class Board {
     this.indexTable.recalc(this);
     this.updateLog = [];
     this.setupEmptyList();
+    this.recalcHash();
+  }
+
+  /**
+   * Recompute the full Zobrist hash from the current board + side to move.
+   * Called after any bulk board reset; move/pass/undo maintain it incrementally.
+   */
+  private recalcHash(): void {
+    let h = 0;
+    for (let y = 1; y <= BOARD_SIZE; y++) {
+      for (let x = 1; x <= BOARD_SIZE; x++) {
+        const color = this.rawBoard[x][y];
+        if (color === BLACK || color === WHITE) {
+          h ^= zobristAt(x, y, color);
+        }
+      }
+    }
+    if (this.currentColor === WHITE) h ^= ZOBRIST_SIDE;
+    this.hash = h >>> 0;
+  }
+
+  /**
+   * Current Zobrist hash of the position (32-bit, includes side to move).
+   * Used as a transposition-table key by the AI search.
+   */
+  getHash(): number {
+    return this.hash;
   }
 
   /**
@@ -307,6 +373,7 @@ export class Board {
   recalcIndices(): void {
     this.indexTable.recalc(this);
     this.setupEmptyList();
+    this.recalcHash();
   }
 
   /**
@@ -563,6 +630,18 @@ export class Board {
     // Update indices
     this.indexTable.update(update);
 
+    // Update Zobrist hash: placed disc adds color c; each flipped disc toggles
+    // from -c to c (XOR both keys).
+    let h = this.hash;
+    h ^= zobristAt(point.x, point.y, c);
+    const enemy = -c as Color;
+    for (let i = 1; i < update.length; i++) {
+      h ^= zobristAt(update[i].x, update[i].y, enemy);
+      h ^= zobristAt(update[i].x, update[i].y, c);
+    }
+    h ^= ZOBRIST_SIDE; // side to move flips
+    this.hash = h >>> 0;
+
     // Store update log
     this.updateLog.push(update);
 
@@ -578,6 +657,7 @@ export class Board {
    */
   pass(): boolean {
     this.currentColor = -this.currentColor as Color;
+    this.hash = (this.hash ^ ZOBRIST_SIDE) >>> 0;
     this.updateLog.push([]); // Empty update for pass
     return true;
   }
@@ -593,11 +673,27 @@ export class Board {
     const update = this.updateLog.pop()!;
 
     if (update.length === 0) {
-      // Was a pass
+      // Was a pass — only the side-to-move key changed.
+      this.hash = (this.hash ^ ZOBRIST_SIDE) >>> 0;
       return true;
     }
 
     this.turns--;
+
+    // Reverse the Zobrist hash: undo the placed disc and un-flip each disc
+    // (color c -> enemy). Symmetric to move()'s update above.
+    {
+      const c = update[0].color;
+      const enemy = -c as Color;
+      let h = this.hash;
+      h ^= zobristAt(update[0].x, update[0].y, c);
+      for (let i = 1; i < update.length; i++) {
+        h ^= zobristAt(update[i].x, update[i].y, c);
+        h ^= zobristAt(update[i].x, update[i].y, enemy);
+      }
+      h ^= ZOBRIST_SIDE;
+      this.hash = h >>> 0;
+    }
 
     // Reverse index updates
     this.indexTable.reverse(update);
@@ -647,6 +743,7 @@ export class Board {
     newBoard.indexTable.recalc(newBoard);
     newBoard.updateLog = [];
     newBoard.setupEmptyList();
+    newBoard.recalcHash();
 
     return newBoard;
   }

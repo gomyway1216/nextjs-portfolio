@@ -1,36 +1,45 @@
 /**
  * Othello Game Component
- * Based on Thell 3.0.3 implementation
- * Supports both single-player (vs AI) and multiplayer modes
+ * Based on Thell 3.0.3 engine (see AI.ts / Board.ts / Evaluator.ts).
+ * Supports single-player (vs AI) and the existing Firebase multiplayer lobby.
+ *
+ * This file owns presentation only; all game rules live in the engine classes.
+ * UI is theme-aware, bilingual (ja/en) and fully responsive — see
+ * Othello.module.css and i18n.ts.
  */
 
 'use client';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-import { CircleHelp,Cpu,Loader2,Play,RotateCcw } from 'lucide-react';
-import React,{ useCallback,useEffect,useRef,useState } from 'react';
-import { Difficulty,GameStats,GameTopBar,InfoModal } from '../common';
+import { CircleHelp, Cpu, Loader2, Play, RotateCcw } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Difficulty, GameStats, GameTopBar, InfoModal } from '../common';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { OthelloAI } from './AI';
 import { Board } from './Board';
+import { getOthelloStrings } from './i18n';
 import { initMobilityTables } from './MobilityTable';
 import { OthelloMultiplayerLobby } from './OthelloMultiplayerLobby';
+import styles from './Othello.module.css';
 import type { MoveHistoryEntry } from './multiplayerTypes';
-import {
-BLACK,
-BOARD_SIZE,
-Color,
-EMPTY,
-Point,
-pointToString,
-WHITE,
-} from './types';
+import { BLACK, BOARD_SIZE, Color, EMPTY, Point, pointToString, WHITE } from './types';
 import { useOthelloMultiplayer } from './useOthelloMultiplayer';
 
-const DIFFICULTY_OPTIONS = [
-  { label: 'Easy', value: 'easy' as Difficulty, description: 'Depth 2 search' },
-  { label: 'Medium', value: 'medium' as Difficulty, description: 'Depth 4 search' },
-  { label: 'Hard', value: 'hard' as Difficulty, description: 'Depth 6 search' },
-];
+const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
+
+/**
+ * A structured (language-independent) description of the current status, so
+ * the visible string can be recomputed on a language switch without replaying
+ * the game. `payload` carries whatever the phrasing needs.
+ */
+type StatusKind =
+  | { kind: 'toPlay'; color: Color }
+  | { kind: 'mustPass'; color: Color }
+  | { kind: 'passed'; passer: Color }
+  | { kind: 'aiPlayed'; move: string; next: Color }
+  | { kind: 'blackWin'; a: number; b: number }
+  | { kind: 'whiteWin'; a: number; b: number }
+  | { kind: 'draw'; a: number; b: number };
 
 interface OthelloState {
   board: Board;
@@ -38,7 +47,7 @@ interface OthelloState {
   gameOver: boolean;
   winner: Color | null;
   isAIThinking: boolean;
-  message: string;
+  status: StatusKind;
   lastMove: Point | null;
   moveHistory: MoveHistoryEntry[];
 }
@@ -47,6 +56,9 @@ type GameMode = 'menu' | 'ai' | 'multiplayer';
 
 const Othello = () => {
   const _lifecycle = useFeatureLifecycle('game.othello');
+  const { language } = useGameLanguage();
+  const t = useMemo(() => getOthelloStrings(language), [language]);
+
   const [difficulty, setDifficulty] = useState<Difficulty>('medium');
   const [selectedDifficulty, setSelectedDifficulty] = useState<Difficulty>('medium');
   const [playerColor, setPlayerColor] = useState<Color>(BLACK);
@@ -56,9 +68,7 @@ const Othello = () => {
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
   const [gameMode, setGameMode] = useState<GameMode>('menu');
 
-  // Multiplayer hook
   const multiplayer = useOthelloMultiplayer();
-
   const aiColor = playerColor === BLACK ? WHITE : BLACK;
 
   const [gameState, setGameState] = useState<OthelloState>(() => {
@@ -69,21 +79,42 @@ const Othello = () => {
       gameOver: false,
       winner: null,
       isAIThinking: false,
-      message: 'Black to play',
+      status: { kind: 'toPlay', color: BLACK },
       lastMove: null,
       moveHistory: [],
     };
   });
 
-  // Ref to track the last processed network state update
   const lastProcessedUpdate = useRef<number>(0);
 
-  // Initialize mobility tables on mount
   useEffect(() => {
     initMobilityTables();
   }, []);
 
-  // Initialize game
+  // ---- Status phrasing (language-aware, computed from StatusKind) ----
+  const statusText = useCallback(
+    (s: StatusKind): string => {
+      const name = (c: Color) => (c === BLACK ? t.black : t.white);
+      switch (s.kind) {
+        case 'toPlay':
+          return s.color === BLACK ? t.blackToPlay : t.whiteToPlay;
+        case 'mustPass':
+          return s.color === BLACK ? t.blackMustPass : t.whiteMustPass;
+        case 'passed':
+          return t.passed(name(s.passer), name((-s.passer) as Color));
+        case 'aiPlayed':
+          return t.aiPlayed(s.move, name(s.next));
+        case 'blackWin':
+          return t.blackWins(s.a, s.b);
+        case 'whiteWin':
+          return t.whiteWins(s.a, s.b);
+        case 'draw':
+          return t.draw(s.a, s.b);
+      }
+    },
+    [t]
+  );
+
   const initGame = useCallback((newPlayerColor: Color) => {
     const board = new Board();
     const isPlayerTurn = newPlayerColor === BLACK;
@@ -92,324 +123,225 @@ const Othello = () => {
       validMoves: board.getMovablePos(),
       gameOver: false,
       winner: null,
-      isAIThinking: !isPlayerTurn, // AI thinks first if player is white
-      message: 'Black to play',
+      isAIThinking: !isPlayerTurn,
+      status: { kind: 'toPlay', color: BLACK },
       lastMove: null,
       moveHistory: [],
     });
   }, []);
 
-  // Check game state and update message
-  const checkGameState = useCallback((board: Board): { isOver: boolean; winner: Color | null; message: string } => {
-    if (board.isGameOver()) {
-      const blackCount = board.countDisc(BLACK);
-      const whiteCount = board.countDisc(WHITE);
-
-      if (blackCount > whiteCount) {
-        return { isOver: true, winner: BLACK, message: `Black wins ${blackCount}-${whiteCount}!` };
-      } else if (whiteCount > blackCount) {
-        return { isOver: true, winner: WHITE, message: `White wins ${whiteCount}-${blackCount}!` };
-      } else {
-        return { isOver: true, winner: null, message: `Draw ${blackCount}-${whiteCount}!` };
+  // Terminal / turn evaluation returning a language-independent status.
+  const checkGameState = useCallback(
+    (board: Board): { isOver: boolean; winner: Color | null; status: StatusKind } => {
+      if (board.isGameOver()) {
+        const b = board.countDisc(BLACK);
+        const w = board.countDisc(WHITE);
+        if (b > w) return { isOver: true, winner: BLACK, status: { kind: 'blackWin', a: b, b: w } };
+        if (w > b) return { isOver: true, winner: WHITE, status: { kind: 'whiteWin', a: w, b } };
+        return { isOver: true, winner: null, status: { kind: 'draw', a: b, b: w } };
       }
-    }
+      const currentColor = board.getCurrentColor();
+      if (board.getMovablePos().length === 0) {
+        return { isOver: false, winner: null, status: { kind: 'mustPass', color: currentColor } };
+      }
+      return { isOver: false, winner: null, status: { kind: 'toPlay', color: currentColor } };
+    },
+    []
+  );
 
-    const currentColor = board.getCurrentColor();
-    const movables = board.getMovablePos();
+  const handleCellClick = useCallback(
+    (x: number, y: number) => {
+      if (gameState.gameOver || gameState.isAIThinking) return;
+      if (gameMode === 'ai' && gameState.board.getCurrentColor() !== playerColor) return;
+      if (gameMode === 'multiplayer' && gameState.board.getCurrentColor() !== multiplayer.myColor) return;
 
-    if (movables.length === 0) {
-      return {
-        isOver: false,
-        winner: null,
-        message: `${currentColor === BLACK ? 'Black' : 'White'} must pass`,
+      const point: Point = { x, y };
+      const currentColor = gameState.board.getCurrentColor();
+      if (!gameState.validMoves.some((m) => m.x === x && m.y === y)) return;
+
+      const newBoard = gameState.board.clone();
+      if (!newBoard.move(point)) return;
+
+      const newMoveEntry: MoveHistoryEntry = {
+        moveNumber: gameState.moveHistory.length + 1,
+        color: currentColor,
+        move: point,
+        timestamp: Date.now(),
       };
-    }
+      const newMoveHistory = [...gameState.moveHistory, newMoveEntry];
+      const { isOver, winner, status } = checkGameState(newBoard);
 
-    return {
-      isOver: false,
-      winner: null,
-      message: `${currentColor === BLACK ? 'Black' : 'White'} to play`,
-    };
-  }, []);
+      if (isOver) {
+        setGameState((prev) => ({
+          ...prev,
+          board: newBoard,
+          validMoves: [],
+          gameOver: true,
+          winner,
+          status,
+          lastMove: point,
+          moveHistory: newMoveHistory,
+        }));
 
-  // Handle player move (works for both AI and multiplayer modes)
-  const handleCellClick = useCallback((x: number, y: number) => {
-    if (gameState.gameOver || gameState.isAIThinking) return;
-
-    // In AI mode, check if it's player's turn
-    if (gameMode === 'ai' && gameState.board.getCurrentColor() !== playerColor) return;
-
-    // In multiplayer mode, check if it's my turn
-    if (gameMode === 'multiplayer' && gameState.board.getCurrentColor() !== multiplayer.myColor) return;
-
-    const point: Point = { x, y };
-    const currentColor = gameState.board.getCurrentColor();
-
-    const isValid = gameState.validMoves.some(m => m.x === x && m.y === y);
-    if (!isValid) return;
-
-    const newBoard = gameState.board.clone();
-    if (!newBoard.move(point)) return;
-
-    // Create move history entry
-    const newMoveEntry: MoveHistoryEntry = {
-      moveNumber: gameState.moveHistory.length + 1,
-      color: currentColor,
-      move: point,
-      timestamp: Date.now(),
-    };
-    const newMoveHistory = [...gameState.moveHistory, newMoveEntry];
-
-    const { isOver, winner, message } = checkGameState(newBoard);
-
-    if (isOver) {
-      setGameState(prev => ({
-        ...prev,
-        board: newBoard,
-        validMoves: [],
-        gameOver: true,
-        winner,
-        message,
-        lastMove: point,
-        moveHistory: newMoveHistory,
-      }));
-
-      // Update stats based on mode
-      if (gameMode === 'ai') {
-        if (winner === playerColor) {
-          setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-        } else if (winner === aiColor) {
-          setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-        } else {
-          setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
+        if (gameMode === 'ai') {
+          if (winner === playerColor) setStats((p) => ({ ...p, wins: p.wins + 1 }));
+          else if (winner === aiColor) setStats((p) => ({ ...p, losses: p.losses + 1 }));
+          else setStats((p) => ({ ...p, draws: p.draws + 1 }));
+        } else if (gameMode === 'multiplayer') {
+          if (winner === multiplayer.myColor) setStats((p) => ({ ...p, wins: p.wins + 1 }));
+          else if (winner === multiplayer.opponentColor) setStats((p) => ({ ...p, losses: p.losses + 1 }));
+          else setStats((p) => ({ ...p, draws: p.draws + 1 }));
+          void multiplayer.makeMove(point);
         }
-      } else if (gameMode === 'multiplayer') {
-        if (winner === multiplayer.myColor) {
-          setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-        } else if (winner === multiplayer.opponentColor) {
-          setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-        } else {
-          setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
-        }
-        // Tell the CF about the winning move; it broadcasts the
-        // gameOver / winner fields. We don't write `gameState` from the
-        // client any more — the dispatcher is the single writer.
+        return;
+      }
+
+      if (gameMode === 'multiplayer') {
         void multiplayer.makeMove(point);
       }
-      return;
-    }
 
-    // In multiplayer, the CF flips discs and broadcasts the new state.
-    // The optimistic local update above keeps the UI snappy until the
-    // RTDB subscription overwrites it with the authoritative result.
-    if (gameMode === 'multiplayer') {
-      void multiplayer.makeMove(point);
-    }
+      setGameState((prev) => ({
+        ...prev,
+        board: newBoard,
+        validMoves: newBoard.getMovablePos(),
+        status,
+        lastMove: point,
+        moveHistory: newMoveHistory,
+        isAIThinking: gameMode === 'ai',
+      }));
+    },
+    [gameState, checkGameState, playerColor, aiColor, gameMode, multiplayer]
+  );
 
-    setGameState(prev => ({
-      ...prev,
-      board: newBoard,
-      validMoves: newBoard.getMovablePos(),
-      message,
-      lastMove: point,
-      moveHistory: newMoveHistory,
-      isAIThinking: gameMode === 'ai', // Only AI thinking in AI mode
-    }));
-  }, [gameState, checkGameState, playerColor, aiColor, gameMode, multiplayer]);
-
-  // Effect to sync game state from Firebase (handles opponent moves and passes)
+  // ---- Multiplayer sync from Firebase (unchanged logic) ----
   useEffect(() => {
     if (gameMode !== 'multiplayer') return;
     if (!multiplayer.gameState) return;
-
     const networkState = multiplayer.gameState;
-
-    // Check if this is a newer state than what we've already processed
-    // Use lastUpdate timestamp to detect new updates (including passes)
-    if (networkState.lastUpdate <= lastProcessedUpdate.current) {
-      return;
-    }
-
-    // Mark this update as processed
+    if (networkState.lastUpdate <= lastProcessedUpdate.current) return;
     lastProcessedUpdate.current = networkState.lastUpdate;
 
-    console.log('[Othello] Syncing from network state:', {
-      currentTurn: networkState.currentTurn === BLACK ? 'Black' : 'White',
-      turnNumber: networkState.turnNumber,
-      moveHistoryLength: networkState.moveHistory?.length || 0,
-      lastUpdate: networkState.lastUpdate,
-    });
-
-    // Reconstruct the board from network state
     const newBoard = new Board();
-    // Apply the network board state
     for (let y = 1; y <= 8; y++) {
       for (let x = 1; x <= 8; x++) {
         const index = (y - 1) * 8 + (x - 1);
-        const color = networkState.board[index];
-        newBoard.setColor(x, y, color as Color);
+        newBoard.setColor(x, y, networkState.board[index] as Color);
       }
     }
-    // Set the current turn and recalculate indices
     newBoard.setCurrentColor(networkState.currentTurn);
     newBoard.setTurns(networkState.turnNumber);
     newBoard.recalcIndices();
 
-    const currentTurnColor = networkState.currentTurn === BLACK ? 'Black' : 'White';
-    let message = `${currentTurnColor} to play`;
-
     if (networkState.gameOver) {
+      let status: StatusKind;
       if (networkState.winner === BLACK) {
-        message = `Black wins ${networkState.blackCount}-${networkState.whiteCount}!`;
+        status = { kind: 'blackWin', a: networkState.blackCount, b: networkState.whiteCount };
       } else if (networkState.winner === WHITE) {
-        message = `White wins ${networkState.whiteCount}-${networkState.blackCount}!`;
+        status = { kind: 'whiteWin', a: networkState.whiteCount, b: networkState.blackCount };
       } else {
-        message = `Draw ${networkState.blackCount}-${networkState.whiteCount}!`;
+        status = { kind: 'draw', a: networkState.blackCount, b: networkState.whiteCount };
       }
 
-      setGameState(prev => ({
+      setGameState((prev) => ({
         ...prev,
         board: newBoard,
         validMoves: [],
         gameOver: true,
         winner: networkState.winner,
-        message,
+        status,
         lastMove: networkState.lastMove,
         moveHistory: networkState.moveHistory || prev.moveHistory,
       }));
 
-      // Update stats if game just ended
       if (!gameState.gameOver) {
-        if (networkState.winner === multiplayer.myColor) {
-          setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-        } else if (networkState.winner === multiplayer.opponentColor) {
-          setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-        } else {
-          setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
-        }
+        if (networkState.winner === multiplayer.myColor) setStats((p) => ({ ...p, wins: p.wins + 1 }));
+        else if (networkState.winner === multiplayer.opponentColor) setStats((p) => ({ ...p, losses: p.losses + 1 }));
+        else setStats((p) => ({ ...p, draws: p.draws + 1 }));
       }
       return;
     }
 
-    // Check if current player must pass
     const validMoves = newBoard.getMovablePos();
-    if (validMoves.length === 0) {
-      message = `${currentTurnColor} must pass`;
-    }
+    const status: StatusKind =
+      validMoves.length === 0
+        ? { kind: 'mustPass', color: networkState.currentTurn }
+        : { kind: 'toPlay', color: networkState.currentTurn };
 
-    setGameState(prev => ({
+    setGameState((prev) => ({
       ...prev,
       board: newBoard,
-      validMoves: validMoves,
-      message,
+      validMoves,
+      status,
       lastMove: networkState.lastMove,
       moveHistory: networkState.moveHistory || prev.moveHistory,
       gameOver: false,
     }));
   }, [gameMode, multiplayer.gameState, multiplayer.myColor, multiplayer.opponentColor, gameState.gameOver]);
 
-  // Auto-pass effect for multiplayer mode when current player has no valid moves
+  // ---- Multiplayer auto-pass (unchanged logic) ----
   useEffect(() => {
     if (gameMode !== 'multiplayer') return;
     if (gameState.gameOver) return;
-
     const currentColor = gameState.board.getCurrentColor();
     const validMoves = gameState.board.getMovablePos();
-
-    // Only auto-pass if it's my turn and I have no valid moves
     if (currentColor !== multiplayer.myColor) return;
     if (validMoves.length > 0) return;
 
-    // Check if game is over (neither player can move)
-    const newBoard = gameState.board.clone();
-    newBoard.pass();
-    const opponentMoves = newBoard.getMovablePos();
-
-    if (opponentMoves.length === 0) {
-      // Game over - neither player can move
-      const { winner, message } = checkGameState(gameState.board);
-      setGameState(prev => ({
-        ...prev,
-        gameOver: true,
-        winner,
-        message,
-        validMoves: [],
-      }));
-
-      // Update stats and notify
-      if (winner === multiplayer.myColor) {
-        setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-      } else if (winner === multiplayer.opponentColor) {
-        setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-      } else {
-        setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
-      }
-
-      // CF is the writer; gameOver/winner come back via the subscription.
+    const probe = gameState.board.clone();
+    probe.pass();
+    if (probe.getMovablePos().length === 0) {
+      const { winner, status } = checkGameState(gameState.board);
+      setGameState((prev) => ({ ...prev, gameOver: true, winner, status, validMoves: [] }));
+      if (winner === multiplayer.myColor) setStats((p) => ({ ...p, wins: p.wins + 1 }));
+      else if (winner === multiplayer.opponentColor) setStats((p) => ({ ...p, losses: p.losses + 1 }));
+      else setStats((p) => ({ ...p, draws: p.draws + 1 }));
       return;
     }
 
-    // Auto-pass after a short delay so user can see the message
     const timeoutId = setTimeout(() => {
       const passedBoard = gameState.board.clone();
       passedBoard.pass();
-
-      const colorName = currentColor === BLACK ? 'Black' : 'White';
-      const nextColorName = currentColor === BLACK ? 'White' : 'Black';
-
-      // Add pass to move history
       const passEntry: MoveHistoryEntry = {
         moveNumber: gameState.moveHistory.length + 1,
         color: currentColor,
-        move: null, // null indicates pass
+        move: null,
         timestamp: Date.now(),
       };
-      const newMoveHistory = [...gameState.moveHistory, passEntry];
-
-      setGameState(prev => ({
+      setGameState((prev) => ({
         ...prev,
         board: passedBoard,
         validMoves: passedBoard.getMovablePos(),
-        message: `${colorName} passed. ${nextColorName} to play`,
+        status: { kind: 'passed', passer: currentColor },
         lastMove: null,
-        moveHistory: newMoveHistory,
+        moveHistory: [...prev.moveHistory, passEntry],
       }));
-
-      // In the CF model the server already advanced past any forced
-      // pass when resolving the previous move, so we shouldn't normally
-      // reach this branch. Local UI state is still updated above for
-      // resilience against transient sync gaps.
-    }, 1500); // 1.5 second delay to show "must pass" message
+    }, 1500);
 
     return () => clearTimeout(timeoutId);
   }, [gameMode, gameState.board, gameState.gameOver, gameState.validMoves, gameState.moveHistory, multiplayer.myColor, multiplayer, checkGameState]);
 
-  // AI move effect (only runs in AI mode)
+  // ---- AI move (single-player) ----
   useEffect(() => {
     if (gameMode !== 'ai') return;
     if (!gameState.isAIThinking || gameState.gameOver) return;
 
     const currentBoard = gameState.board;
     if (currentBoard.getCurrentColor() !== aiColor) {
-      setGameState(prev => ({ ...prev, isAIThinking: false }));
+      setGameState((prev) => ({ ...prev, isAIThinking: false }));
       return;
     }
 
     if (currentBoard.getMovablePos().length === 0) {
       const newBoard = currentBoard.clone();
       newBoard.pass();
-
-      const { isOver, winner, message } = checkGameState(newBoard);
-      const aiColorName = aiColor === BLACK ? 'Black' : 'White';
-      const playerColorName = playerColor === BLACK ? 'Black' : 'White';
-
-      setGameState(prev => ({
+      const { isOver, winner, status } = checkGameState(newBoard);
+      setGameState((prev) => ({
         ...prev,
         board: newBoard,
         validMoves: newBoard.getMovablePos(),
         gameOver: isOver,
         winner,
-        message: isOver ? message : `${aiColorName} passed. ${playerColorName} to play`,
+        status: isOver ? status : { kind: 'passed', passer: aiColor },
         isAIThinking: false,
       }));
       return;
@@ -419,22 +351,17 @@ const Othello = () => {
       const ai = new OthelloAI(difficulty);
       const bestMove = ai.getBestMove(currentBoard);
 
-      const aiColorName = aiColor === BLACK ? 'Black' : 'White';
-      const playerColorName = playerColor === BLACK ? 'Black' : 'White';
-
       if (!bestMove) {
         const newBoard = currentBoard.clone();
         newBoard.pass();
-
-        const { isOver, winner, message } = checkGameState(newBoard);
-
-        setGameState(prev => ({
+        const { isOver, winner, status } = checkGameState(newBoard);
+        setGameState((prev) => ({
           ...prev,
           board: newBoard,
           validMoves: newBoard.getMovablePos(),
           gameOver: isOver,
           winner,
-          message: isOver ? message : `${aiColorName} passed. ${playerColorName} to play`,
+          status: isOver ? status : { kind: 'passed', passer: aiColor },
           isAIThinking: false,
         }));
         return;
@@ -442,59 +369,52 @@ const Othello = () => {
 
       const newBoard = currentBoard.clone();
       newBoard.move(bestMove);
-
-      const { isOver, winner, message } = checkGameState(newBoard);
+      const { isOver, winner, status } = checkGameState(newBoard);
 
       if (isOver) {
-        setGameState(prev => ({
+        setGameState((prev) => ({
           ...prev,
           board: newBoard,
           validMoves: [],
           gameOver: true,
           winner,
-          message,
+          status,
           lastMove: bestMove,
           isAIThinking: false,
         }));
-
-        if (winner === playerColor) {
-          setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-        } else if (winner === aiColor) {
-          setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-        } else {
-          setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
-        }
+        if (winner === playerColor) setStats((p) => ({ ...p, wins: p.wins + 1 }));
+        else if (winner === aiColor) setStats((p) => ({ ...p, losses: p.losses + 1 }));
+        else setStats((p) => ({ ...p, draws: p.draws + 1 }));
         return;
       }
 
       const playerMovables = newBoard.getMovablePos();
       if (playerMovables.length === 0 && !newBoard.isGameOver()) {
         newBoard.pass();
-        setGameState(prev => ({
+        setGameState((prev) => ({
           ...prev,
           board: newBoard,
           validMoves: newBoard.getMovablePos(),
-          message: `${playerColorName} passed. ${aiColorName} to play`,
+          status: { kind: 'passed', passer: playerColor },
           lastMove: bestMove,
           isAIThinking: true,
         }));
         return;
       }
 
-      setGameState(prev => ({
+      setGameState((prev) => ({
         ...prev,
         board: newBoard,
         validMoves: playerMovables,
-        message: `${aiColorName} played ${pointToString(bestMove)}. ${playerColorName} to play`,
+        status: { kind: 'aiPlayed', move: pointToString(bestMove), next: playerColor },
         lastMove: bestMove,
         isAIThinking: false,
       }));
-    }, 500);
+    }, 450);
 
     return () => clearTimeout(timeoutId);
   }, [gameMode, gameState.isAIThinking, gameState.gameOver, gameState.board, difficulty, checkGameState, playerColor, aiColor]);
 
-  // Start AI game with selected difficulty and color
   const startAIGame = useCallback(() => {
     setDifficulty(selectedDifficulty);
     setPlayerColor(selectedPlayerColor);
@@ -503,575 +423,326 @@ const Othello = () => {
     initGame(selectedPlayerColor);
   }, [initGame, selectedDifficulty, selectedPlayerColor]);
 
-  // Start multiplayer game
   const startMultiplayerGame = useCallback(async () => {
     const board = new Board();
-    const initialMoveHistory: MoveHistoryEntry[] = [];
-
-    // Reset the last processed update timestamp for new game
     lastProcessedUpdate.current = 0;
-
     setGameState({
       board,
       validMoves: board.getMovablePos(),
       gameOver: false,
       winner: null,
       isAIThinking: false,
-      message: 'Black to play',
+      status: { kind: 'toPlay', color: BLACK },
       lastMove: null,
-      moveHistory: initialMoveHistory,
+      moveHistory: [],
     });
     setPlayerColor(multiplayer.myColor);
     setShowDifficultySelect(false);
     setGameMode('multiplayer');
-
-    // If host, tell the CF to build + write the initial game state.
-    // The CF is the single writer; this call returns once the state is
-    // live in RTDB and our subscription will pick it up.
     if (multiplayer.context.isHost) {
       await multiplayer.startGame();
     }
   }, [multiplayer]);
 
-  // Legacy startGame for backwards compatibility
-  const _startGame = startAIGame;
+  // When the lobby transitions to "playing", leave the setup screen and enter
+  // the multiplayer game. Driven by an effect (not called during render) so it
+  // can't trigger state updates mid-render or double-fire under Strict Mode.
+  useEffect(() => {
+    if (!showDifficultySelect) return;
+    if (multiplayer.context.lobbyState !== 'playing') return;
+    void startMultiplayerGame();
+  }, [showDifficultySelect, multiplayer.context.lobbyState, startMultiplayerGame]);
 
-  // Styles
-  const containerStyle: React.CSSProperties = {
-    position: 'fixed',
-    inset: 0,
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'linear-gradient(to bottom, #111827, #000)',
-    overflow: 'auto',
-    fontFamily: 'system-ui, -apple-system, sans-serif',
-    padding: '1rem',
-  };
+  // ---- Info modal content ----
+  const infoContent = (
+    <div className={styles.infoBody}>
+      <p>
+        <strong>{t.objectiveTitle}:</strong> {t.objectiveBody}
+      </p>
+      <p>
+        <strong>{t.rulesTitle}</strong>
+      </p>
+      <ul>
+        {t.rules.map((r, i) => (
+          <li key={i}>{r}</li>
+        ))}
+      </ul>
+      <p>
+        <strong>{t.strategyTitle}</strong>
+      </p>
+      <ul>
+        {t.strategies.map((s, i) => (
+          <li key={i}>{s}</li>
+        ))}
+      </ul>
+    </div>
+  );
 
-  const gameContainerStyle: React.CSSProperties = {
-    width: '100%',
-    maxWidth: '500px',
-  };
-
-  const scoreDisplayStyle: React.CSSProperties = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '1rem',
-    padding: '0 0.5rem',
-  };
-
-  const scoreItemStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-  };
-
-  const discStyle = (isBlack: boolean): React.CSSProperties => ({
-    width: '24px',
-    height: '24px',
-    borderRadius: '50%',
-    backgroundColor: isBlack ? '#1a1a1a' : '#ffffff',
-    border: isBlack ? '2px solid #374151' : '2px solid #d1d5db',
-  });
-
-  const messageContainerStyle: React.CSSProperties = {
-    textAlign: 'center',
-    marginBottom: '1rem',
-    height: '2rem',
-  };
-
-  const boardContainerStyle: React.CSSProperties = {
-    backgroundColor: '#166534',
-    padding: '0.5rem',
-    borderRadius: '0.5rem',
-    boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-  };
-
-  const labelsRowStyle: React.CSSProperties = {
-    display: 'flex',
-    marginLeft: '1.5rem',
-    marginBottom: '0.25rem',
-  };
-
-  const labelStyle: React.CSSProperties = {
-    width: '48px',
-    textAlign: 'center',
-    color: '#9ca3af',
-    fontSize: '0.875rem',
-  };
-
-  const boardRowStyle: React.CSSProperties = {
-    display: 'flex',
-  };
-
-  const rowLabelsStyle: React.CSSProperties = {
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'space-around',
-    marginRight: '0.25rem',
-  };
-
-  const rowLabelStyle: React.CSSProperties = {
-    height: '48px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#9ca3af',
-    fontSize: '0.875rem',
-    width: '20px',
-  };
-
-  const gridStyle: React.CSSProperties = {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(8, 48px)',
-    gap: 0,
-    border: '2px solid #14532d',
-    borderRadius: '4px',
-  };
-
-  const getCellStyle = (isValidMove: boolean, canClick: boolean): React.CSSProperties => ({
-    width: '48px',
-    height: '48px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: isValidMove && !gameState.isAIThinking ? 'rgba(34, 197, 94, 0.5)' : '#16a34a',
-    border: '1px solid #15803d',
-    cursor: canClick ? 'pointer' : 'default',
-  });
-
-  const getDiscStyle = (color: Color, isLastMove: boolean): React.CSSProperties => ({
-    width: '40px',
-    height: '40px',
-    borderRadius: '50%',
-    backgroundColor: color === BLACK ? '#1a1a1a' : '#ffffff',
-    border: color === BLACK ? '2px solid #374151' : '2px solid #d1d5db',
-    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.3)',
-    outline: isLastMove ? '3px solid #facc15' : 'none',
-    outlineOffset: '2px',
-  });
-
-  const hintDotStyle: React.CSSProperties = {
-    width: '12px',
-    height: '12px',
-    borderRadius: '50%',
-    backgroundColor: 'rgba(74, 222, 128, 0.6)',
-  };
-
-  const buttonStyle: React.CSSProperties = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    padding: '0.75rem 1.5rem',
-    backgroundColor: '#16a34a',
-    color: '#ffffff',
-    border: 'none',
-    borderRadius: '0.5rem',
-    fontWeight: 600,
-    cursor: 'pointer',
-    transition: 'background-color 0.2s',
-  };
-
-  const colorSelectorStyle: React.CSSProperties = {
-    display: 'grid',
-    gap: '0.65rem',
-  };
-
-  const colorOptionStyle = (isSelected: boolean): React.CSSProperties => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.75rem',
-    padding: '0.85rem',
-    backgroundColor: isSelected ? 'rgba(34, 197, 94, 0.22)' : 'rgba(31, 41, 55, 0.58)',
-    border: isSelected ? '1px solid #22c55e' : '1px solid rgba(75, 85, 99, 0.75)',
-    borderRadius: '8px',
-    color: '#ffffff',
-    cursor: 'pointer',
-    transition: 'all 0.2s',
-    width: '100%',
-  });
-
-  // Render the board cells
+  // ---- Board render ----
   const renderBoard = () => {
-    const cells = [];
-
-    // Determine if player can click based on game mode
     const myTurnColor = gameMode === 'multiplayer' ? multiplayer.myColor : playerColor;
+    const cells: React.ReactNode[] = [];
 
     for (let y = 1; y <= BOARD_SIZE; y++) {
       for (let x = 1; x <= BOARD_SIZE; x++) {
         const color = gameState.board.getColor(x, y);
-        const isValidMove = gameState.validMoves.some(m => m.x === x && m.y === y);
+        const isValidMove = gameState.validMoves.some((m) => m.x === x && m.y === y);
         const isLastMove = gameState.lastMove?.x === x && gameState.lastMove?.y === y;
-        const canClick = isValidMove && !gameState.isAIThinking && !gameState.gameOver &&
-          gameState.board.getCurrentColor() === myTurnColor;
+        const showHint = isValidMove && !gameState.isAIThinking && !gameState.gameOver;
+        const canClick = showHint && gameState.board.getCurrentColor() === myTurnColor;
+        const coord = `${String.fromCharCode(96 + x)}${y}`;
 
         cells.push(
-          <div
+          <button
             key={`${x}-${y}`}
-            style={getCellStyle(isValidMove, canClick)}
+            type="button"
+            className={`${styles.cell} ${canClick ? styles.playable : ''}`}
             onClick={() => handleCellClick(x, y)}
+            // Keep every cell focusable so keyboard users can move across the
+            // board and hear each square's coordinate/occupancy label. Illegal
+            // moves are prevented via aria-disabled + the guard in
+            // handleCellClick, not `disabled` (which would remove focus).
+            aria-disabled={!canClick}
+            aria-label={
+              color === BLACK
+                ? `${coord} ${t.black}`
+                : color === WHITE
+                  ? `${coord} ${t.white}`
+                  : canClick
+                    ? `${coord} — ${t.yourTurn}`
+                    : coord
+            }
           >
-            {color !== EMPTY && <div style={getDiscStyle(color, isLastMove)} />}
-            {color === EMPTY && isValidMove && !gameState.isAIThinking && (
-              <div style={hintDotStyle} />
+            {color !== EMPTY && (
+              <span
+                className={`${styles.disc} ${color === BLACK ? styles.showBlack : styles.showWhite} ${
+                  isLastMove ? styles.placed : ''
+                }`}
+              >
+                <span className={`${styles.discFace} ${styles.discBlack}`} />
+                <span className={`${styles.discFace} ${styles.discWhite}`} />
+                {isLastMove && <span className={styles.lastRing} />}
+              </span>
             )}
-          </div>
+            {color === EMPTY && showHint && <span className={styles.hint} />}
+          </button>
         );
       }
     }
-
     return cells;
   };
 
-  // Info modal content
-  const infoContent = (
-    <div style={{ color: '#d1d5db' }}>
-      <p style={{ marginBottom: '0.75rem' }}>
-        <strong>Objective:</strong> Have more discs than your opponent when the game ends.
-      </p>
-      <p style={{ marginBottom: '0.5rem' }}><strong>Rules:</strong></p>
-      <ul style={{ listStyle: 'disc', marginLeft: '1.5rem', marginBottom: '0.75rem' }}>
-        <li>Black moves first</li>
-        <li>Place a disc to flip opponent&apos;s discs</li>
-        <li>You must flip at least one disc to make a move</li>
-        <li>Flip discs in all 8 directions simultaneously</li>
-        <li>If you can&apos;t move, you must pass</li>
-        <li>Game ends when neither player can move</li>
-      </ul>
-      <p style={{ marginBottom: '0.5rem' }}><strong>Strategy:</strong></p>
-      <ul style={{ listStyle: 'disc', marginLeft: '1.5rem' }}>
-        <li>Corners are very valuable - they can never be flipped</li>
-        <li>Avoid placing discs adjacent to corners (X-squares)</li>
-        <li>Control the edges for stability</li>
-        <li>Sometimes having fewer discs mid-game is better</li>
-      </ul>
-    </div>
-  );
-
-  // Color selector render helper.
-  const renderColorSelector = () => (
-    <div style={colorSelectorStyle}>
-      <div style={{ color: '#d1d5db', fontSize: '0.85rem', fontWeight: 700 }}>
-        Choose your color
-      </div>
-      <div style={{ display: 'grid', gap: '0.75rem', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
-        <button
-          type="button"
-          style={colorOptionStyle(selectedPlayerColor === BLACK)}
-          aria-pressed={selectedPlayerColor === BLACK}
-          onClick={() => setSelectedPlayerColor(BLACK)}
-        >
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '50%',
-            backgroundColor: '#1a1a1a',
-            border: '2px solid #374151',
-          }} />
-          <div>
-            <div style={{ color: '#ffffff', fontWeight: 600 }}>Black</div>
-            <div style={{ color: '#9ca3af', fontSize: '0.75rem' }}>Move first</div>
-          </div>
-        </button>
-        <button
-          type="button"
-          style={colorOptionStyle(selectedPlayerColor === WHITE)}
-          aria-pressed={selectedPlayerColor === WHITE}
-          onClick={() => setSelectedPlayerColor(WHITE)}
-        >
-          <div style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '50%',
-            backgroundColor: '#ffffff',
-            border: '2px solid #d1d5db',
-          }} />
-          <div>
-            <div style={{ color: '#ffffff', fontWeight: 600 }}>White</div>
-            <div style={{ color: '#9ca3af', fontSize: '0.75rem' }}>Move second</div>
-          </div>
-        </button>
-      </div>
-    </div>
-  );
-
-  // Show multiplayer lobby or difficulty selector
+  // ---- Setup / lobby screen ----
   if (showDifficultySelect) {
-    // Check if we're in multiplayer lobby mode
-    const isInMultiplayerLobby = multiplayer.context.lobbyState !== 'idle' ||
-      multiplayer.context.roomId !== null;
+    const isInMultiplayerLobby =
+      multiplayer.context.lobbyState !== 'idle' || multiplayer.context.roomId !== null;
 
-    // If multiplayer game is starting/playing, redirect to game
-    if (multiplayer.context.lobbyState === 'playing') {
-      startMultiplayerGame();
-    }
+    // The lobby -> game transition is handled by the effect above, not here.
 
-    const selectedDifficultyOption = DIFFICULTY_OPTIONS.find(option => option.value === selectedDifficulty) ?? DIFFICULTY_OPTIONS[1];
+    const selDiff = t.difficultyLabels[selectedDifficulty];
 
     return (
-      <div style={{ ...containerStyle, justifyContent: 'center' }}>
-        <div style={{
-          width: 'min(94vw, 560px)',
-          maxWidth: 'calc(100vw - 1rem)',
-          boxSizing: 'border-box',
-          background: 'linear-gradient(180deg, rgba(15, 23, 42, 0.98), rgba(3, 7, 18, 0.98))',
-          border: '1px solid rgba(34, 197, 94, 0.42)',
-          borderRadius: '8px',
-          padding: 'clamp(1rem, 4vw, 1.5rem)',
-          boxShadow: '0 22px 60px rgba(34, 197, 94, 0.14)',
-          color: '#ffffff',
-          display: 'grid',
-          gap: '1rem',
-        }}>
-          <div style={{ display: 'grid', gap: '0.35rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem' }}>
-              <span style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '3rem',
-                height: '3rem',
-                borderRadius: '8px',
-                border: '1px solid rgba(34, 197, 94, 0.42)',
-                background: 'rgba(34, 197, 94, 0.12)',
-              }}>
-                <span style={{ width: '1.1rem', height: '1.1rem', borderRadius: '999px', background: '#111827', border: '2px solid #64748b' }} />
-                <span style={{ width: '1.1rem', height: '1.1rem', borderRadius: '999px', background: '#fff', border: '2px solid #d1d5db', marginLeft: '-0.28rem' }} />
-              </span>
-              <div>
-                <h1 style={{ margin: 0, color: '#f8fafc', fontSize: 'clamp(1.6rem, 6vw, 2.25rem)', lineHeight: 1.05, letterSpacing: 0 }}>Othello</h1>
-                <p style={{ margin: '0.3rem 0 0', color: '#9ca3af', lineHeight: 1.45 }}>
-                  Pick a match type, color, and AI depth before the board opens.
-                </p>
-              </div>
+      <div className={styles.page} style={{ justifyContent: 'center' }}>
+        <div className={styles.setupCard}>
+          <div className={styles.setupHeader}>
+            <span className={styles.setupBadge}>
+              <span className={`${styles.badgeDisc} ${styles.black}`} />
+              <span className={`${styles.badgeDisc} ${styles.white}`} />
+            </span>
+            <div>
+              <h1 className={styles.setupTitle}>{t.title}</h1>
+              <p className={styles.setupTagline}>{t.tagline}</p>
             </div>
           </div>
 
-          {/* Show multiplayer lobby */}
-          <OthelloMultiplayerLobby
-            multiplayer={multiplayer}
-            onGameStart={startMultiplayerGame}
-          />
+          <OthelloMultiplayerLobby multiplayer={multiplayer} onGameStart={startMultiplayerGame} />
 
-          {/* AI Difficulty selector - shown when not in multiplayer lobby */}
           {!isInMultiplayerLobby && (
-            <div style={{
-              display: 'grid',
-              gap: '1rem',
-              paddingTop: '1rem',
-              borderTop: '1px solid rgba(75, 85, 99, 0.72)',
-            }}>
+            <div className={styles.setupSection}>
               <div>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: '#4ade80', fontSize: '0.75rem', fontWeight: 760, textTransform: 'uppercase' }}>
-                  <Cpu size={14} /> AI match
-                </div>
-                <h2 style={{ margin: '0.25rem 0 0', color: '#f8fafc', fontSize: '1.15rem', lineHeight: 1.2 }}>Set up single player</h2>
+                <span className={styles.kicker}>
+                  <Cpu size={14} /> {t.aiMatch}
+                </span>
+                <h2 className={styles.sectionHeading}>{t.setupSinglePlayer}</h2>
               </div>
 
-              {/* Difficulty options */}
-              <div style={{ display: 'grid', gap: '0.65rem', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
-                {DIFFICULTY_OPTIONS.map(option => (
+              <div>
+                <div className={styles.fieldLabel} style={{ marginBottom: '0.5rem' }}>
+                  {t.difficulty}
+                </div>
+                <div className={styles.optionGrid}>
+                  {DIFFICULTY_ORDER.map((value) => {
+                    const d = t.difficultyLabels[value];
+                    return (
+                      <button
+                        type="button"
+                        key={value}
+                        onClick={() => setSelectedDifficulty(value)}
+                        className={styles.optionButton}
+                        data-selected={selectedDifficulty === value ? 'true' : 'false'}
+                        aria-pressed={selectedDifficulty === value}
+                      >
+                        <span className={styles.optionLabel}>{d.label}</span>
+                        <span className={styles.optionDesc}>{d.description}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <div className={styles.fieldLabel} style={{ marginBottom: '0.5rem' }}>
+                  {t.chooseColor}
+                </div>
+                <div className={styles.colorRow}>
                   <button
                     type="button"
-                    key={option.value}
-                    onClick={() => setSelectedDifficulty(option.value)}
-                    style={{
-                      padding: '0.85rem',
-                      borderRadius: '8px',
-                      border: selectedDifficulty === option.value ? '1px solid #22c55e' : '1px solid rgba(75, 85, 99, 0.75)',
-                      backgroundColor: selectedDifficulty === option.value ? 'rgba(34, 197, 94, 0.22)' : 'rgba(31, 41, 55, 0.58)',
-                      color: selectedDifficulty === option.value ? '#86efac' : '#d1d5db',
-                      cursor: 'pointer',
-                      fontSize: '0.9rem',
-                      fontWeight: 700,
-                      textAlign: 'left',
-                    }}
-                    aria-pressed={selectedDifficulty === option.value}
+                    className={styles.colorOption}
+                    data-selected={selectedPlayerColor === BLACK ? 'true' : 'false'}
+                    aria-pressed={selectedPlayerColor === BLACK}
+                    onClick={() => setSelectedPlayerColor(BLACK)}
                   >
-                    <span style={{ display: 'block' }}>{option.label}</span>
-                    <span style={{ display: 'block', marginTop: '0.28rem', color: '#9ca3af', fontSize: '0.74rem', lineHeight: 1.35 }}>
-                      {option.description}
+                    <span className={`${styles.colorSwatch} ${styles.black}`} />
+                    <span>
+                      <span className={styles.colorName}>{t.black}</span>
+                      <span style={{ display: 'block' }} className={styles.colorSub}>
+                        {t.moveFirst}
+                      </span>
                     </span>
                   </button>
-                ))}
+                  <button
+                    type="button"
+                    className={styles.colorOption}
+                    data-selected={selectedPlayerColor === WHITE ? 'true' : 'false'}
+                    aria-pressed={selectedPlayerColor === WHITE}
+                    onClick={() => setSelectedPlayerColor(WHITE)}
+                  >
+                    <span className={`${styles.colorSwatch} ${styles.white}`} />
+                    <span>
+                      <span className={styles.colorName}>{t.white}</span>
+                      <span style={{ display: 'block' }} className={styles.colorSub}>
+                        {t.moveSecond}
+                      </span>
+                    </span>
+                  </button>
+                </div>
               </div>
 
-              {renderColorSelector()}
-
-              <button
-                type="button"
-                onClick={startAIGame}
-                style={{
-                  width: '100%',
-                  minHeight: '3.1rem',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                  padding: '0.85rem',
-                  backgroundColor: '#16a34a',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '8px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                }}
-              >
+              <button type="button" onClick={startAIGame} className={styles.btnPrimary} style={{ width: '100%' }}>
                 <Play size={17} />
-                Start vs AI ({selectedDifficultyOption.label}, {selectedPlayerColor === BLACK ? 'Black' : 'White'})
+                {t.startVsAi} · {selDiff.label} · {selectedPlayerColor === BLACK ? t.black : t.white}
               </button>
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={() => setShowInfoModal(true)}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.45rem',
-              background: 'rgba(31, 41, 55, 0.48)',
-              border: '1px solid rgba(75, 85, 99, 0.75)',
-              borderRadius: '8px',
-              color: '#d1d5db',
-              fontSize: '0.875rem',
-              fontWeight: 650,
-              minHeight: '2.75rem',
-              padding: '0.65rem 1rem',
-              cursor: 'pointer',
-              width: '100%',
-            }}
-          >
+          <button type="button" onClick={() => setShowInfoModal(true)} className={styles.btnGhost} style={{ width: '100%' }}>
             <CircleHelp size={16} />
-            How to Play
+            {t.howToPlay}
           </button>
         </div>
 
-        <InfoModal
-          isOpen={showInfoModal}
-          title="How to Play Othello"
-          onClose={() => setShowInfoModal(false)}
-        >
+        <InfoModal isOpen={showInfoModal} title={t.howToPlay} onClose={() => setShowInfoModal(false)}>
           {infoContent}
         </InfoModal>
       </div>
     );
   }
 
-  const _isPlayerTurn = gameState.board.getCurrentColor() === playerColor && !gameState.gameOver;
-  const _isAITurn = gameState.board.getCurrentColor() === aiColor && !gameState.gameOver;
+  // ---- In-game screen ----
+  const currentColor = gameState.board.getCurrentColor();
+  const blackActive = currentColor === BLACK && !gameState.gameOver;
+  const whiteActive = currentColor === WHITE && !gameState.gameOver;
+
+  const roleFor = (side: Color): string => {
+    if (gameState.gameOver) return '';
+    if (currentColor !== side) return '';
+    if (gameMode === 'multiplayer') {
+      return multiplayer.myColor === side ? t.yourTurn : t.opponentTurn(multiplayer.otherPlayer?.name || '—');
+    }
+    return playerColor === side ? t.yourTurn : t.aiTurn;
+  };
+
+  const isWaitingForOpponent =
+    gameMode === 'multiplayer' && currentColor !== multiplayer.myColor && !gameState.gameOver;
 
   return (
-    <div style={containerStyle}>
-      <div style={gameContainerStyle}>
-        <GameTopBar
-          stats={stats}
-          onInfoClick={() => setShowInfoModal(true)}
-        />
+    <div className={styles.page}>
+      <div className={styles.shell}>
+        <GameTopBar stats={stats} onInfoClick={() => setShowInfoModal(true)} />
 
-        {/* Score display */}
-        <div style={scoreDisplayStyle}>
-          <div style={scoreItemStyle}>
-            <div style={discStyle(true)} />
-            <span style={{ color: '#ffffff', fontWeight: 'bold', fontSize: '1.125rem' }}>
-              {gameState.board.countDisc(BLACK)}
+        {/* Scoreboard */}
+        <div className={styles.scoreboard}>
+          <div className={`${styles.scoreSide} ${blackActive ? styles.active : ''}`}>
+            <span className={`${styles.scoreDisc} ${styles.black}`} />
+            <span className={styles.scoreMeta}>
+              <span className={styles.scoreCount}>{gameState.board.countDisc(BLACK)}</span>
+              <span className={styles.scoreRole}>{roleFor(BLACK)}</span>
             </span>
-            {gameState.board.getCurrentColor() === BLACK && !gameState.gameOver && (
-              <span style={{ color: '#4ade80', fontSize: '0.875rem' }}>
-                {gameMode === 'multiplayer'
-                  ? (multiplayer.myColor === BLACK ? '(Your turn)' : `(${multiplayer.otherPlayer?.name || 'Opponent'}'s turn)`)
-                  : (playerColor === BLACK ? '(Your turn)' : '(AI turn)')
-                }
-              </span>
-            )}
           </div>
-          <div style={scoreItemStyle}>
-            {gameState.board.getCurrentColor() === WHITE && !gameState.gameOver && (
-              <span style={{ color: '#4ade80', fontSize: '0.875rem' }}>
-                {gameMode === 'multiplayer'
-                  ? (multiplayer.myColor === WHITE ? '(Your turn)' : `(${multiplayer.otherPlayer?.name || 'Opponent'}'s turn)`)
-                  : (playerColor === WHITE ? '(Your turn)' : '(AI turn)')
-                }
-              </span>
-            )}
-            <span style={{ color: '#ffffff', fontWeight: 'bold', fontSize: '1.125rem' }}>
-              {gameState.board.countDisc(WHITE)}
-            </span>
-            <div style={discStyle(false)} />
-          </div>
-        </div>
 
-        {/* Player indicator */}
-        <div style={{ textAlign: 'center', marginBottom: '0.5rem' }}>
-          <span style={{ color: '#6b7280', fontSize: '0.75rem' }}>
+          <span className={styles.scoreVs}>
             {gameMode === 'multiplayer'
-              ? `You are ${multiplayer.myColor === BLACK ? 'Black' : 'White'} vs ${multiplayer.otherPlayer?.name || 'Opponent'}`
-              : `You are playing as ${playerColor === BLACK ? 'Black' : 'White'}`
-            }
+              ? t.youAreVs(
+                  multiplayer.myColor === BLACK ? t.black : t.white,
+                  multiplayer.otherPlayer?.name || '—'
+                )
+              : t.youAre(playerColor === BLACK ? t.black : t.white)}
           </span>
+
+          <div className={`${styles.scoreSide} ${styles.right} ${whiteActive ? styles.active : ''}`}>
+            <span className={`${styles.scoreDisc} ${styles.white}`} />
+            <span className={styles.scoreMeta} style={{ textAlign: 'right' }}>
+              <span className={styles.scoreCount}>{gameState.board.countDisc(WHITE)}</span>
+              <span className={styles.scoreRole}>{roleFor(WHITE)}</span>
+            </span>
+          </div>
         </div>
 
-        {/* Message */}
-        <div style={messageContainerStyle}>
+        {/* Status */}
+        <div className={`${styles.status} ${gameState.gameOver ? styles.over : ''}`} role="status" aria-live="polite">
           {gameState.isAIThinking && gameMode === 'ai' ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#facc15' }}>
-              <Loader2 style={{ width: '20px', height: '20px', animation: 'spin 1s linear infinite' }} />
-              <span>AI is thinking...</span>
-            </div>
-          ) : gameMode === 'multiplayer' && gameState.board.getCurrentColor() !== multiplayer.myColor && !gameState.gameOver ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', color: '#facc15' }}>
-              <Loader2 style={{ width: '20px', height: '20px', animation: 'spin 1s linear infinite' }} />
-              <span>Waiting for {multiplayer.otherPlayer?.name || 'opponent'}...</span>
-            </div>
+            <>
+              <Loader2 className={styles.spinner} />
+              <span>{t.thinking}</span>
+            </>
+          ) : isWaitingForOpponent ? (
+            <>
+              <Loader2 className={styles.spinner} />
+              <span>{t.waitingFor(multiplayer.otherPlayer?.name || '—')}</span>
+            </>
           ) : (
-            <span style={{
-              fontSize: '1.125rem',
-              color: gameState.gameOver ? '#facc15' : '#d1d5db',
-              fontWeight: gameState.gameOver ? 'bold' : 'normal',
-            }}>
-              {gameState.message}
-            </span>
+            <span>{statusText(gameState.status)}</span>
           )}
         </div>
 
         {/* Board */}
-        <div style={boardContainerStyle}>
-          {/* Column labels */}
-          <div style={labelsRowStyle}>
-            {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map(letter => (
-              <div key={letter} style={labelStyle}>
-                {letter}
-              </div>
+        <div className={styles.boardFrame}>
+          <div className={styles.coordsTop} aria-hidden="true">
+            {['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((c) => (
+              <span key={c} className={styles.coordLabel}>
+                {c}
+              </span>
             ))}
           </div>
-
-          <div style={boardRowStyle}>
-            {/* Row labels */}
-            <div style={rowLabelsStyle}>
-              {[1, 2, 3, 4, 5, 6, 7, 8].map(num => (
-                <div key={num} style={rowLabelStyle}>
-                  {num}
-                </div>
+          <div className={styles.boardBody}>
+            <div className={styles.coordsLeft} aria-hidden="true">
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
+                <span key={n} className={styles.coordRowLabel}>
+                  {n}
+                </span>
               ))}
             </div>
-
-            {/* Board grid */}
-            <div style={gridStyle}>
+            <div className={styles.grid} role="grid" aria-label={t.title}>
               {renderBoard()}
             </div>
           </div>
         </div>
 
-        {/* Game over actions */}
+        {/* Game-over actions */}
         {gameState.gameOver && (
-          <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'center', gap: '0.5rem' }}>
+          <div className={styles.actions}>
             <button
-              style={buttonStyle}
+              className={styles.btnPrimary}
               onClick={() => {
                 if (gameMode === 'multiplayer') {
                   multiplayer.resetMultiplayer();
@@ -1081,47 +752,43 @@ const Othello = () => {
                   initGame(playerColor);
                 }
               }}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#15803d'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#16a34a'}
             >
-              <RotateCcw style={{ width: '20px', height: '20px' }} />
-              {gameMode === 'multiplayer' ? 'Back to Lobby' : 'Play Again'}
+              <RotateCcw size={18} />
+              {gameMode === 'multiplayer' ? t.backToLobby : t.playAgain}
             </button>
+            {gameMode === 'ai' && (
+              <button
+                className={styles.btnGhost}
+                onClick={() => {
+                  setShowDifficultySelect(true);
+                  setGameMode('menu');
+                }}
+              >
+                {t.newGame}
+              </button>
+            )}
           </div>
         )}
 
-        {/* Move History */}
-        <div style={{
-          marginTop: '1rem',
-          padding: '0.75rem',
-          background: 'rgba(255,255,255,0.1)',
-          borderRadius: '0.5rem',
-          maxHeight: '200px',
-          overflowY: 'auto',
-        }}>
-          <h3 style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: '#9ca3af' }}>Move History</h3>
+        {/* Move history */}
+        <div className={styles.history}>
+          <h3 className={styles.historyTitle}>{t.moveHistory}</h3>
           {gameState.moveHistory.length === 0 ? (
-            <p style={{ color: '#6b7280', fontSize: '0.75rem' }}>No moves yet</p>
+            <p className={styles.historyEmpty}>{t.noMoves}</p>
           ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+            <div className={styles.historyList}>
               {gameState.moveHistory.map((entry, i) => {
-                const colorLabel = entry.color === BLACK ? '●' : '○';
-                const moveLabel = entry.move
-                  ? `${String.fromCharCode(96 + entry.move.x)}${entry.move.y}`
-                  : 'Pass';
                 const isLast = i === gameState.moveHistory.length - 1;
+                const label = entry.move ? `${String.fromCharCode(96 + entry.move.x)}${entry.move.y}` : t.pass;
                 return (
                   <span
                     key={i}
-                    style={{
-                      padding: '0.125rem 0.375rem',
-                      background: isLast ? 'rgba(250, 204, 21, 0.3)' : 'rgba(0,0,0,0.3)',
-                      borderRadius: '0.25rem',
-                      fontSize: '0.75rem',
-                      color: entry.move ? '#d1d5db' : '#facc15',
-                    }}
+                    className={`${styles.historyChip} ${isLast ? styles.last : ''} ${
+                      entry.move ? '' : styles.pass
+                    }`}
                   >
-                    {entry.moveNumber}. {colorLabel}{moveLabel}
+                    <span className={`${styles.chipDisc} ${entry.color === BLACK ? styles.black : styles.white}`} />
+                    {entry.moveNumber}. {label}
                   </span>
                 );
               })}
@@ -1130,21 +797,9 @@ const Othello = () => {
         </div>
       </div>
 
-      <InfoModal
-        isOpen={showInfoModal}
-        title="How to Play Othello"
-        onClose={() => setShowInfoModal(false)}
-      >
+      <InfoModal isOpen={showInfoModal} title={t.howToPlay} onClose={() => setShowInfoModal(false)}>
         {infoContent}
       </InfoModal>
-
-      {/* CSS for spinner animation */}
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 };

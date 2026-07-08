@@ -1,221 +1,485 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Info, Target, Trophy } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-type Holder = 'player' | 'ai';
-type GamePhase = 'menu' | 'playing' | 'gameover';
+import { useGameToolbar } from '@/contexts/GameToolbarContext';
+import { useHighScore } from '@/hooks/useHighScore';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getUITranslation } from '../constants/gameTranslations';
+import { InfoModal } from '../common/InfoModal';
+import { getDifficultyColor } from '../common/utils';
+import { getTimedButtonCopy } from './i18n';
+import {
+  DIFFICULTY_ORDER,
+  DIFFICULTY_TUNING,
+  markerPosition,
+  pickTargetCenter,
+  scoreRound,
+  summarizeRun,
+  type Difficulty,
+  type HitRating,
+  type RoundResult,
+} from './gameLogic';
+import styles from './TimedButton.module.css';
 
-interface GameState {
-  phase: GamePhase;
-  playerScore: number;
-  aiScore: number;
-  holder: Holder;
-  timerMs: number;
-  roundMs: number;
-  playerCooldown: number;
-  aiCooldown: number;
-  freezeMs: number;
-  message: string;
+type Phase = 'setup' | 'running' | 'result' | 'summary';
+
+interface RoundState {
+  index: number; // 0-based
+  targetCenter: number;
+  startTime: number;
 }
 
-const TARGET_SCORE = 5;
-
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-const createRound = () => {
-  const roundMs = 5000 + Math.floor(Math.random() * 7000);
-  const holder: Holder = Math.random() > 0.5 ? 'player' : 'ai';
-  return { roundMs, holder };
-};
-
-const createInitialState = (): GameState => {
-  return {
-    phase: 'menu',
-    playerScore: 0,
-    aiScore: 0,
-    holder: 'player',
-    timerMs: 10000,
-    roundMs: 10000,
-    playerCooldown: 0,
-    aiCooldown: 0,
-    freezeMs: 0,
-    message: 'Press Start',
-  };
-};
+const RATING_ORDER: HitRating[] = ['perfect', 'great', 'good', 'miss'];
 
 export const TimedButton = () => {
   useFeatureLifecycle('game.timed-button');
-  const [game, setGame] = useState<GameState>(createInitialState);
+  const { setContent } = useGameToolbar();
+  const { language } = useGameLanguage();
+  const copy = getTimedButtonCopy(language);
+  const ui = getUITranslation(language);
 
-  const start = () => {
-    const round = createRound();
-    setGame({
-      phase: 'playing',
-      playerScore: 0,
-      aiScore: 0,
-      holder: round.holder,
-      timerMs: round.roundMs,
-      roundMs: round.roundMs,
-      playerCooldown: 0,
-      aiCooldown: 0,
-      freezeMs: 0,
-      message: `Round start. ${round.holder === 'player' ? 'You' : 'AI'} hold the bomb.`,
-    });
-  };
+  const [difficulty, setDifficulty] = useState<Difficulty>('easy');
+  const [highScore, updateHighScore] = useHighScore(`timed-button-${difficulty}`);
+  const [phase, setPhase] = useState<Phase>('setup');
+  const [showInfo, setShowInfo] = useState(false);
 
-  const passBomb = () => {
-    setGame((prev) => {
-      if (prev.phase !== 'playing' || prev.freezeMs > 0) return prev;
-      if (prev.holder !== 'player' || prev.playerCooldown > 0) return prev;
-      return {
-        ...prev,
-        holder: 'ai',
-        playerCooldown: 520,
-        message: 'You passed the bomb.',
-      };
-    });
-  };
+  const [round, setRound] = useState<RoundState | null>(null);
+  const [results, setResults] = useState<RoundResult[]>([]);
+  const [lastResult, setLastResult] = useState<RoundResult | null>(null);
+  const [markerPos, setMarkerPos] = useState(0.5);
+  const [runScore, setRunScore] = useState(0);
+  const [isNewBest, setIsNewBest] = useState(false);
+
+  const rafRef = useRef<number | null>(null);
+  const roundRef = useRef<RoundState | null>(null);
+  const phaseRef = useRef<Phase>('setup');
+
+  const tuning = DIFFICULTY_TUNING[difficulty];
 
   useEffect(() => {
-    if (game.phase !== 'playing') return;
-
-    const timer = window.setInterval(() => {
-      setGame((prev) => {
-        if (prev.phase !== 'playing') return prev;
-
-        let next = { ...prev };
-
-        if (next.freezeMs > 0) {
-          next.freezeMs = Math.max(0, next.freezeMs - 50);
-          next.playerCooldown = Math.max(0, next.playerCooldown - 50);
-          next.aiCooldown = Math.max(0, next.aiCooldown - 50);
-
-          if (next.freezeMs === 0 && next.playerScore < TARGET_SCORE && next.aiScore < TARGET_SCORE) {
-            const round = createRound();
-            next = {
-              ...next,
-              holder: round.holder,
-              timerMs: round.roundMs,
-              roundMs: round.roundMs,
-              playerCooldown: 0,
-              aiCooldown: 0,
-              message: `Next round. ${round.holder === 'player' ? 'You' : 'AI'} start with bomb.`,
-            };
-          }
-
-          return next;
-        }
-
-        next.playerCooldown = Math.max(0, next.playerCooldown - 50);
-        next.aiCooldown = Math.max(0, next.aiCooldown - 50);
-        next.timerMs -= 50;
-
-        if (next.holder === 'ai' && next.aiCooldown <= 0) {
-          const pressure = clamp(1 - next.timerMs / next.roundMs, 0, 1);
-          const chancePerTick = (0.04 + pressure * 0.75) * 0.09;
-          if (Math.random() < chancePerTick) {
-            next.holder = 'player';
-            next.aiCooldown = 520;
-            next.message = 'AI passed the bomb.';
-          }
-        }
-
-        if (next.timerMs <= 0) {
-          const loser = next.holder;
-          const winner = loser === 'player' ? 'ai' : 'player';
-          if (winner === 'player') {
-            next.playerScore += 1;
-          } else {
-            next.aiScore += 1;
-          }
-          next.timerMs = 0;
-          next.freezeMs = 1400;
-          next.message = `💥 Boom! ${loser === 'player' ? 'You' : 'AI'} exploded.`;
-
-          if (next.playerScore >= TARGET_SCORE || next.aiScore >= TARGET_SCORE) {
-            next.phase = 'gameover';
-          }
-        }
-
-        return next;
-      });
-    }, 50);
-
-    return () => window.clearInterval(timer);
-  }, [game.phase]);
-
+    roundRef.current = round;
+  }, [round]);
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.code === 'Space' || event.code === 'Enter') {
-        event.preventDefault();
-        passBomb();
+    phaseRef.current = phase;
+  }, [phase]);
+
+  // ---- Marker animation via rAF + performance.now (no setInterval drift) ----
+  useEffect(() => {
+    if (phase !== 'running') return;
+
+    let active = true;
+    const tick = () => {
+      if (!active) return;
+      const r = roundRef.current;
+      if (r) {
+        const elapsed = performance.now() - r.startTime;
+        setMarkerPos(markerPosition(elapsed, tuning.periodMs));
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+    rafRef.current = requestAnimationFrame(tick);
+
+    return () => {
+      active = false;
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
       }
     };
+  }, [phase, tuning.periodMs]);
 
+  const beginRound = useCallback(
+    (index: number) => {
+      const targetCenter = pickTargetCenter(tuning.targetHalfWidth);
+      const next: RoundState = { index, targetCenter, startTime: performance.now() };
+      roundRef.current = next;
+      setRound(next);
+      setLastResult(null);
+      setPhase('running');
+    },
+    [tuning.targetHalfWidth]
+  );
+
+  const startRun = useCallback(() => {
+    setResults([]);
+    setRunScore(0);
+    setLastResult(null);
+    setIsNewBest(false);
+    setMarkerPos(0);
+    beginRound(0);
+  }, [beginRound]);
+
+  const stopMarker = useCallback(() => {
+    if (phaseRef.current !== 'running') return;
+    const r = roundRef.current;
+    if (!r) return;
+
+    // Freeze animation immediately.
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+
+    const elapsed = performance.now() - r.startTime;
+    const pos = markerPosition(elapsed, tuning.periodMs);
+    setMarkerPos(pos);
+
+    const result = scoreRound(pos, r.targetCenter, tuning);
+    setLastResult(result);
+    setResults((prev) => {
+      const updated = [...prev, result];
+      setRunScore(updated.reduce((sum, x) => sum + x.score, 0));
+      return updated;
+    });
+    setPhase('result');
+
+    const nextIndex = r.index + 1;
+    const total = tuning.rounds;
+    window.setTimeout(() => {
+      if (phaseRef.current !== 'result') return;
+      if (nextIndex >= total) {
+        setResults((finalResults) => {
+          const summary = summarizeRun(finalResults);
+          setRunScore(summary.totalScore);
+          if (summary.totalScore > highScore) {
+            updateHighScore(summary.totalScore);
+            setIsNewBest(true);
+          }
+          return finalResults;
+        });
+        setPhase('summary');
+      } else {
+        beginRound(nextIndex);
+      }
+    }, 900);
+  }, [tuning, beginRound, highScore, updateHighScore]);
+
+  // ---- Global keyboard controls ----
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.code !== 'Space' && event.code !== 'Enter') return;
+      // Don't hijack keys while a dialog/other control is focused for typing.
+      if (showInfo) return;
+      event.preventDefault();
+      const current = phaseRef.current;
+      if (current === 'running') {
+        stopMarker();
+      } else if (current === 'setup' || current === 'summary') {
+        startRun();
+      }
+    };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
+  }, [stopMarker, startRun, showInfo]);
+
+  // ---- Toolbar (HUD best score + info button) ----
+  const openInfo = useCallback(() => setShowInfo(true), []);
+  useEffect(() => {
+    setContent({
+      center: (
+        <div className={styles.toolbarStats}>
+          <div className={styles.toolbarPill}>
+            <Trophy className={styles.toolbarIcon} />
+            <span>
+              {copy.best}: {highScore}
+            </span>
+          </div>
+        </div>
+      ),
+      right: (
+        <button
+          type="button"
+          onClick={openInfo}
+          className={styles.toolbarButton}
+          aria-label={ui.howToPlay}
+        >
+          <Info className={styles.toolbarButtonIcon} />
+          <span className={styles.toolbarActionLabel}>{ui.howToPlay}</span>
+        </button>
+      ),
+    });
+    return () => setContent(null);
+  }, [setContent, highScore, copy.best, ui.howToPlay, openInfo]);
+
+  // Cleanup rAF on unmount.
+  useEffect(() => {
+    return () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
   }, []);
 
-  const winnerText = useMemo(() => {
-    if (game.playerScore === game.aiScore) return 'Draw';
-    return game.playerScore > game.aiScore ? 'You Win' : 'AI Wins';
-  }, [game.playerScore, game.aiScore]);
+  const summary = useMemo(() => summarizeRun(results), [results]);
 
-  const timerSeconds = (game.timerMs / 1000).toFixed(2);
+  const displayedPrecision = lastResult?.precision ?? 0;
+  const markerState = useMemo(() => {
+    if (phase === 'running') return 'moving';
+    if (!lastResult) return 'stopped';
+    if (lastResult.rating === 'perfect') return 'perfect';
+    if (lastResult.rating === 'miss') return 'miss';
+    return 'stopped';
+  }, [phase, lastResult]);
 
-  return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #020617, #111827)', color: '#e2e8f0', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>Timed Button</h1>
-        <p style={{ marginTop: '0.5rem', color: '#94a3b8' }}>爆発前にボムを押し付ける「押す/待つ」心理戦。先に5点取った方が勝ち。</p>
+  const ratingLabel = (rating: HitRating): string => {
+    switch (rating) {
+      case 'perfect':
+        return copy.perfect;
+      case 'great':
+        return copy.great;
+      case 'good':
+        return copy.good;
+      case 'miss':
+        return copy.miss;
+    }
+  };
 
-        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <span style={{ borderRadius: '999px', border: '1px solid #334155', background: '#0f172a', padding: '0.35rem 0.8rem' }}>You: {game.playerScore}</span>
-          <span style={{ borderRadius: '999px', border: '1px solid #334155', background: '#0f172a', padding: '0.35rem 0.8rem' }}>AI: {game.aiScore}</span>
-          <span style={{ borderRadius: '999px', border: '1px solid #334155', background: '#0f172a', padding: '0.35rem 0.8rem' }}>Holder: {game.holder === 'player' ? 'You' : 'AI'}</span>
-        </div>
+  const precisionColor = (p: number): string => {
+    if (p >= 0.9) return 'var(--tb-perfect)';
+    if (p >= 0.6) return 'var(--tb-target)';
+    if (p > 0) return 'var(--tb-accent)';
+    return 'var(--tb-miss)';
+  };
 
-        <div style={{ border: '1px solid #334155', borderRadius: '16px', background: '#020617', padding: '1.2rem', textAlign: 'center' }}>
-          <div style={{ fontSize: '3rem', fontWeight: 800, color: game.timerMs < 2500 ? '#f87171' : '#67e8f9' }}>{timerSeconds}s</div>
-          <div style={{ marginTop: '0.4rem', minHeight: '1.5rem', color: '#cbd5e1' }}>{game.message}</div>
+  const targetHalfWidthPct = tuning.targetHalfWidth * 100;
+  const targetCenterPct = (round?.targetCenter ?? 0.5) * 100;
 
-          <button
-            onClick={passBomb}
-            disabled={game.phase !== 'playing' || game.holder !== 'player' || game.playerCooldown > 0 || game.freezeMs > 0}
-            style={{
-              marginTop: '1rem',
-              width: '100%',
-              maxWidth: '360px',
-              background: game.holder === 'player' ? '#f97316' : '#334155',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '14px',
-              padding: '0.9rem 1rem',
-              fontSize: '1.15rem',
-              fontWeight: 800,
-              cursor: game.holder === 'player' ? 'pointer' : 'not-allowed',
-              opacity: game.playerCooldown > 0 ? 0.55 : 1,
-            }}
-          >
-            PASS BOMB
-          </button>
-
-          {game.playerCooldown > 0 && <div style={{ marginTop: '0.45rem', color: '#94a3b8' }}>Cooldown: {(game.playerCooldown / 1000).toFixed(2)}s</div>}
-        </div>
-
-        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-          <button
-            onClick={start}
-            style={{ background: '#22c55e', border: 'none', borderRadius: '10px', padding: '0.62rem 1rem', fontWeight: 700, cursor: 'pointer' }}
-          >
-            {game.phase === 'playing' ? 'Restart' : game.phase === 'gameover' ? 'Play Again' : 'Start'}
-          </button>
-          {game.phase === 'gameover' && <div style={{ alignSelf: 'center', color: '#facc15' }}>{winnerText}</div>}
-        </div>
-      </div>
+  const renderTrack = (interactive: boolean) => (
+    <div
+      className={styles.trackWrap}
+      role="img"
+      aria-label={`${copy.hitTheTarget}. ${copy.precision}: ${Math.round(displayedPrecision * 100)}%`}
+      onPointerDown={
+        interactive
+          ? (e) => {
+              e.preventDefault();
+              stopMarker();
+            }
+          : undefined
+      }
+      style={interactive ? { cursor: 'pointer' } : undefined}
+    >
+      <div className={styles.trackTicks} />
+      <div
+        className={styles.targetZone}
+        style={{
+          left: `${targetCenterPct - targetHalfWidthPct}%`,
+          width: `${targetHalfWidthPct * 2}%`,
+        }}
+      />
+      <div className={styles.targetCenter} style={{ left: `${targetCenterPct}%` }} />
+      <div
+        className={styles.marker}
+        data-state={markerState}
+        style={{ left: `${markerPos * 100}%` }}
+      />
     </div>
   );
+
+  // ---------------- Render ----------------
+  if (phase === 'setup') {
+    return (
+      <div className={styles.shell}>
+        <div className={styles.panel}>
+          <section className={styles.setup} aria-label={`${copy.title} setup`}>
+            <div className={styles.setupHeader}>
+              <div className={styles.setupIcon} aria-hidden="true">
+                <Target size={26} />
+              </div>
+              <div>
+                <h1 className={styles.title}>{copy.title}</h1>
+                <p className={styles.tagline}>{copy.tagline}</p>
+              </div>
+            </div>
+
+            <p className={styles.sectionLabel}>{copy.selectDifficulty}</p>
+            <div className={styles.difficultyGrid}>
+              {DIFFICULTY_ORDER.map((diff) => {
+                const colors = getDifficultyColor(diff);
+                const selected = difficulty === diff;
+                return (
+                  <button
+                    key={diff}
+                    type="button"
+                    className={styles.difficultyButton}
+                    data-selected={selected ? 'true' : 'false'}
+                    aria-pressed={selected}
+                    onClick={() => setDifficulty(diff)}
+                    style={{ ['--diff-color' as string]: colors.border }}
+                  >
+                    <span className={styles.difficultyLabel}>{copy.difficulties[diff].label}</span>
+                    <span className={styles.difficultyDesc}>{copy.difficulties[diff].description}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            <button type="button" className={styles.primaryButton} onClick={startRun}>
+              {copy.start}
+            </button>
+          </section>
+        </div>
+        {renderInfoModal()}
+      </div>
+    );
+  }
+
+  if (phase === 'summary') {
+    return (
+      <div className={styles.shell}>
+        <div className={styles.panel}>
+          <section className={styles.summary} aria-live="polite">
+            <h2 className={styles.summaryTitle}>{copy.runComplete}</h2>
+            <div className={styles.summaryScore}>{runScore}</div>
+            {isNewBest && (
+              <span className={styles.newBest}>
+                <Trophy size={16} /> {copy.newBest}
+              </span>
+            )}
+
+            <div className={styles.breakdown}>
+              {RATING_ORDER.map((rating) => {
+                const count =
+                  rating === 'perfect'
+                    ? summary.perfects
+                    : rating === 'great'
+                      ? summary.greats
+                      : rating === 'good'
+                        ? summary.goods
+                        : summary.misses;
+                return (
+                  <div key={rating} className={styles.breakdownCell}>
+                    <span className={styles.breakdownValue}>{count}</span>
+                    <span className={styles.breakdownLabel}>{ratingLabel(rating)}</span>
+                  </div>
+                );
+              })}
+              <div className={styles.breakdownCell}>
+                <span className={styles.breakdownValue}>{Math.round(summary.averagePrecision * 100)}%</span>
+                <span className={styles.breakdownLabel}>{copy.avgPrecision}</span>
+              </div>
+              <div className={styles.breakdownCell}>
+                <span className={styles.breakdownValue}>{Math.round(summary.bestPrecision * 100)}%</span>
+                <span className={styles.breakdownLabel}>{copy.bestPrecision}</span>
+              </div>
+            </div>
+
+            <div className={styles.summaryActions}>
+              <button type="button" className={styles.primaryButton} onClick={startRun}>
+                {copy.playAgain}
+              </button>
+              <button
+                type="button"
+                className={styles.secondaryButton}
+                onClick={() => setPhase('setup')}
+              >
+                {copy.changeDifficulty}
+              </button>
+            </div>
+          </section>
+        </div>
+        {renderInfoModal()}
+      </div>
+    );
+  }
+
+  // running / result
+  const interactive = phase === 'running';
+  return (
+    <div className={styles.shell}>
+      <div className={styles.panel}>
+        <div className={styles.hud}>
+          <div className={styles.hudCard}>
+            <span className={styles.hudLabel}>{copy.round}</span>
+            <span className={styles.hudValue}>
+              {(round?.index ?? 0) + 1}/{tuning.rounds}
+            </span>
+          </div>
+          <div className={styles.hudCard}>
+            <span className={styles.hudLabel}>{copy.score}</span>
+            <span className={styles.hudValue}>{runScore}</span>
+          </div>
+          <div className={styles.hudCard}>
+            <span className={styles.hudLabel}>{copy.best}</span>
+            <span className={styles.hudValue}>{highScore}</span>
+          </div>
+        </div>
+
+        <section className={styles.stage}>
+          {renderTrack(interactive)}
+
+          <div className={styles.precisionMeter} aria-hidden="true">
+            <div className={styles.precisionTrack}>
+              <div
+                className={styles.precisionFill}
+                style={{
+                  transform: `scaleX(${displayedPrecision})`,
+                  background: precisionColor(displayedPrecision),
+                }}
+              />
+            </div>
+            <div className={styles.precisionCaption}>
+              <span>{copy.precision}</span>
+              <span>{Math.round(displayedPrecision * 100)}%</span>
+            </div>
+          </div>
+
+          <div
+            className={styles.feedback}
+            data-rating={lastResult ? lastResult.rating : undefined}
+            aria-live="assertive"
+          >
+            {lastResult ? (
+              <>
+                {ratingLabel(lastResult.rating)}
+                {lastResult.rating !== 'miss' && (
+                  <span style={{ fontWeight: 700, opacity: 0.85 }}> +{lastResult.score}</span>
+                )}
+              </>
+            ) : (
+              <span className={styles.feedbackHint}>{copy.hitTheTarget}</span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            className={styles.actionButton}
+            onClick={stopMarker}
+            disabled={!interactive}
+            aria-label={interactive ? copy.tapToStop : copy.hitTheTarget}
+          >
+            {interactive ? copy.tapToStop : ratingLabel((lastResult ?? { rating: 'good' }).rating)}
+          </button>
+          <p className={styles.actionHint}>{copy.controlsHint}</p>
+        </section>
+      </div>
+      {renderInfoModal()}
+    </div>
+  );
+
+  function renderInfoModal() {
+    return (
+      <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={copy.howToPlay}>
+        <div className={styles.infoGrid}>
+          {copy.infoSections.map((section) => (
+            <div key={section.title} className={styles.infoCard}>
+              <h3 className={styles.infoCardTitle}>{section.title}</h3>
+              <p className={styles.infoCardText}>{section.description}</p>
+            </div>
+          ))}
+        </div>
+        <div className={styles.tipsBox}>
+          <div className={styles.tipsTitle}>💡 {copy.proTipsTitle}</div>
+          <ul className={styles.tipsList}>
+            {copy.proTips.map((tip) => (
+              <li key={tip}>{tip}</li>
+            ))}
+          </ul>
+        </div>
+      </InfoModal>
+    );
+  }
 };
 
 export default TimedButton;

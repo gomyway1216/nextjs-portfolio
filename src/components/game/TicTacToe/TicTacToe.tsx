@@ -1,98 +1,111 @@
 /**
- * TicTacToe game component - refactored with common components
+ * TicTacToe game component.
  */
 
 'use client';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
 import { RotateCcw } from 'lucide-react';
-import { useEffect,useState } from 'react';
-import { Difficulty,DifficultySelector,GameStats,GameStatus,GameTopBar,InfoModal } from '../common';
-import { checkWinner,getBestMove,isBoardFull } from './TicTacToeAI';
-import { AI,Player,PLAYER } from './types';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Difficulty,
+  DifficultyOption,
+  DifficultySelector,
+  GameStats,
+  GameStatus,
+  GameTopBar,
+  InfoModal
+} from '../common';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { checkWinner, getBestMove, isBoardFull } from './TicTacToeAI';
+import { getTicTacToeCopy } from './i18n';
+import { AI, Player, PLAYER } from './types';
+import styles from './TicTacToe.module.css';
 
-const DIFFICULTY_OPTIONS = [
-  { value: 'easy' as Difficulty, label: 'Easy', description: 'AI makes random moves' },
-  { value: 'medium' as Difficulty, label: 'Medium', description: 'AI plays strategically sometimes' },
-  { value: 'hard' as Difficulty, label: 'Hard', description: 'Unbeatable AI - good luck!' }
-];
+const DIFFICULTY_ORDER: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
+
+const emptyBoard = (): Player[] => Array(9).fill(null);
 
 const TicTacToe = () => {
   const _lifecycle = useFeatureLifecycle('game.tic-tac-toe');
-  const [board, setBoard] = useState<Player[]>(Array(9).fill(null));
+  const { language } = useGameLanguage();
+  const copy = useMemo(() => getTicTacToeCopy(language), [language]);
+
+  const [board, setBoard] = useState<Player[]>(emptyBoard);
   const [isPlayerTurn, setIsPlayerTurn] = useState(true);
   const [gameStatus, setGameStatus] = useState<GameStatus>('playing');
-  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [difficulty, setDifficulty] = useState<Difficulty>('hard');
+  const [playerFirst, setPlayerFirst] = useState(true);
   const [showDifficultySelect, setShowDifficultySelect] = useState(true);
   const [showInfo, setShowInfo] = useState(false);
   const [stats, setStats] = useState<GameStats>({ wins: 0, losses: 0, draws: 0 });
   const [winningLine, setWinningLine] = useState<number[] | null>(null);
+  const [lastMove, setLastMove] = useState<number | null>(null);
 
-  // Handle player move
-  const handleCellClick = (index: number) => {
-    if (!isPlayerTurn || board[index] !== null || gameStatus !== 'playing') {
-      return;
-    }
+  const difficultyOptions: DifficultyOption[] = useMemo(
+    () =>
+      DIFFICULTY_ORDER.map(value => ({
+        value,
+        label: copy.difficulties[value].label,
+        description: copy.difficulties[value].description
+      })),
+    [copy]
+  );
 
-    const newBoard = [...board];
-    newBoard[index] = PLAYER;
-    setBoard(newBoard);
-
+  const settle = useCallback((newBoard: Player[], mover: Player): boolean => {
     const { winner, line } = checkWinner(newBoard);
     if (winner === PLAYER) {
       setGameStatus('win');
       setWinningLine(line);
       setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-      return;
+      return true;
     }
-
+    if (winner === AI) {
+      setGameStatus('lose');
+      setWinningLine(line);
+      setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+      return true;
+    }
     if (isBoardFull(newBoard)) {
       setGameStatus('draw');
       setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
-      return;
+      return true;
     }
+    setIsPlayerTurn(mover === AI);
+    return false;
+  }, []);
 
-    setIsPlayerTurn(false);
+  const handleCellClick = (index: number) => {
+    if (!isPlayerTurn || board[index] !== null || gameStatus !== 'playing') return;
+    const newBoard = [...board];
+    newBoard[index] = PLAYER;
+    setBoard(newBoard);
+    setLastMove(index);
+    settle(newBoard, PLAYER);
   };
 
   // AI move
   useEffect(() => {
-    if (!isPlayerTurn && gameStatus === 'playing') {
-      const timer = setTimeout(() => {
-        const move = getBestMove([...board], difficulty);
-        if (move !== -1) {
-          const newBoard = [...board];
-          newBoard[move] = AI;
-          setBoard(newBoard);
+    if (isPlayerTurn || gameStatus !== 'playing') return;
+    const timer = setTimeout(() => {
+      const move = getBestMove([...board], difficulty);
+      if (move === -1) return;
+      const newBoard = [...board];
+      newBoard[move] = AI;
+      setBoard(newBoard);
+      setLastMove(move);
+      settle(newBoard, AI);
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [isPlayerTurn, gameStatus, board, difficulty, settle]);
 
-          const { winner, line } = checkWinner(newBoard);
-          if (winner === AI) {
-            setGameStatus('lose');
-            setWinningLine(line);
-            setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-            return;
-          }
-
-          if (isBoardFull(newBoard)) {
-            setGameStatus('draw');
-            setStats(prev => ({ ...prev, draws: prev.draws + 1 }));
-            return;
-          }
-
-          setIsPlayerTurn(true);
-        }
-      }, 500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [isPlayerTurn, gameStatus, board, difficulty]);
-
-  const resetGame = () => {
-    setBoard(Array(9).fill(null));
-    setIsPlayerTurn(true);
+  const resetGame = useCallback(() => {
+    setBoard(emptyBoard());
     setGameStatus('playing');
     setWinningLine(null);
-  };
+    setLastMove(null);
+    setIsPlayerTurn(playerFirst);
+  }, [playerFirst]);
 
   const startGame = () => {
     setShowDifficultySelect(false);
@@ -104,218 +117,145 @@ const TicTacToe = () => {
     resetGame();
   };
 
+  const statusText = () => {
+    switch (gameStatus) {
+      case 'win':
+        return { cls: styles.turnWin, title: copy.youWin, sub: copy.youWinSub };
+      case 'lose':
+        return { cls: styles.turnLose, title: copy.aiWins, sub: copy.aiWinsSub };
+      case 'draw':
+        return { cls: styles.turnDraw, title: copy.draw, sub: copy.drawSub };
+      default:
+        return {
+          cls: styles.turnPlaying,
+          title: isPlayerTurn ? copy.yourTurn : copy.aiThinking,
+          sub: `${copy.youAre} · ${copy.aiIs}`
+        };
+    }
+  };
+
+  const status = statusText();
+
+  const firstMoveToggle = (
+    <div className={styles.firstMove}>
+      <span className={styles.firstMoveLabel}>{copy.firstMove}</span>
+      <div className={styles.toggleRow} role="group" aria-label={copy.firstMove}>
+        <button
+          type="button"
+          className={styles.toggle}
+          data-active={playerFirst ? 'true' : 'false'}
+          aria-pressed={playerFirst}
+          onClick={() => setPlayerFirst(true)}
+        >
+          {copy.youFirst}
+        </button>
+        <button
+          type="button"
+          className={styles.toggle}
+          data-active={!playerFirst ? 'true' : 'false'}
+          aria-pressed={!playerFirst}
+          onClick={() => setPlayerFirst(false)}
+        >
+          {copy.aiFirst}
+        </button>
+      </div>
+    </div>
+  );
+
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'safe center',
-      background: 'linear-gradient(to bottom, #111827, #000)',
-      overflow: 'auto',
-      fontFamily: 'system-ui, -apple-system, sans-serif',
-      padding: '5rem 1rem 1.5rem'
-    }}>
+    <div className={styles.page}>
       <GameTopBar stats={stats} onInfoClick={() => setShowInfo(true)} />
 
-      <div style={{ position: 'relative', width: showDifficultySelect ? 'auto' : 'min(100%, 430px)' }}>
-        {showDifficultySelect ? (
-          <DifficultySelector
-            title="Tic Tac Toe"
-            subtitle="Challenge the AI and test your strategy!"
-            icon={<><span style={{ fontSize: '3rem' }}>⭕</span><span style={{ fontSize: '3rem' }}>❌</span></>}
-            selectedDifficulty={difficulty}
-            onSelectDifficulty={setDifficulty}
-            options={DIFFICULTY_OPTIONS}
-            onStart={startGame}
-          />
-        ) : (
-          <div style={{
-            background: 'rgba(0, 0, 0, 0.95)',
-            border: '3px solid #0ea5e9',
-            borderRadius: '1rem',
-            padding: 'clamp(1rem, 5vw, 2rem)',
-            boxShadow: '0 0 50px rgba(14, 165, 233, 0.3)',
-            width: '100%'
-          }}>
-            {/* Status */}
-            <div style={{ textAlign: 'center', marginBottom: '1.5rem', minHeight: '4rem' }}>
+      {showDifficultySelect ? (
+        <DifficultySelector
+          title={copy.title}
+          subtitle={copy.subtitle}
+          icon={
+            <>
+              <span aria-hidden style={{ fontSize: '3rem' }}>⭕</span>
+              <span aria-hidden style={{ fontSize: '3rem' }}>❌</span>
+            </>
+          }
+          selectedDifficulty={difficulty}
+          onSelectDifficulty={setDifficulty}
+          options={difficultyOptions}
+          onStart={startGame}
+          difficultyTitle={copy.selectDifficulty}
+          startLabel={copy.start}
+          extraContent={firstMoveToggle}
+        />
+      ) : (
+        <div className={styles.panel}>
+          <div className={styles.status} aria-live="polite">
+            <p className={`${styles.statusTitle} ${status.cls}`}>
               {gameStatus === 'playing' && (
-                <div>
-                  <div style={{ color: '#0ea5e9', fontSize: '1.5rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                    {isPlayerTurn ? "Your Turn" : "AI Thinking..."}
-                  </div>
-                  <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-                    You are X · AI is O
-                  </div>
-                </div>
+                <span className={styles.turnDot} style={{ background: 'currentColor' }} aria-hidden />
               )}
-              {gameStatus === 'win' && (
-                <div>
-                  <div style={{ color: '#22c55e', fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                    🎉 You Win!
-                  </div>
-                  <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Great strategy!</div>
-                </div>
-              )}
-              {gameStatus === 'lose' && (
-                <div>
-                  <div style={{ color: '#ef4444', fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                    AI Wins
-                  </div>
-                  <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Try again!</div>
-                </div>
-              )}
-              {gameStatus === 'draw' && (
-                <div>
-                  <div style={{ color: '#eab308', fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
-                    It&apos;s a Draw!
-                  </div>
-                  <div style={{ color: '#9ca3af', fontSize: '0.875rem' }}>Well played!</div>
-                </div>
-              )}
-            </div>
-
-            {/* Board */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-              gap: '0.5rem',
-              marginBottom: '1.5rem',
-              width: '100%'
-            }}>
-              {board.map((cell, index) => {
-                const isWinningCell = winningLine?.includes(index);
-                return (
-                  <button
-                    key={index}
-                    onClick={() => handleCellClick(index)}
-                    disabled={!isPlayerTurn || cell !== null || gameStatus !== 'playing'}
-                    style={{
-                      width: '100%',
-                      aspectRatio: '1 / 1',
-                      background: isWinningCell ? 'rgba(14, 165, 233, 0.3)' : 'rgba(31, 41, 55, 0.8)',
-                      border: isWinningCell ? '3px solid #0ea5e9' : '2px solid rgba(75, 85, 99, 1)',
-                      borderRadius: '0.5rem',
-                      cursor: (isPlayerTurn && cell === null && gameStatus === 'playing') ? 'pointer' : 'default',
-                      transition: 'all 0.2s',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: 'clamp(2.4rem, 14vw, 4rem)',
-                      fontWeight: 'bold'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (isPlayerTurn && cell === null && gameStatus === 'playing') {
-                        e.currentTarget.style.background = 'rgba(14, 165, 233, 0.2)';
-                        e.currentTarget.style.borderColor = '#0ea5e9';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isWinningCell) {
-                        e.currentTarget.style.background = 'rgba(31, 41, 55, 0.8)';
-                        e.currentTarget.style.borderColor = 'rgba(75, 85, 99, 1)';
-                      }
-                    }}
-                  >
-                    {cell === 'X' && <span style={{ color: '#0ea5e9' }}>✕</span>}
-                    {cell === 'O' && <span style={{ color: '#ef4444' }}>○</span>}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Buttons */}
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <button
-                onClick={resetGame}
-                style={{
-                  flex: '1 1 150px',
-                  background: '#0ea5e9',
-                  border: 'none',
-                  borderRadius: '0.5rem',
-                  color: '#fff',
-                  fontSize: '1rem',
-                  fontWeight: '600',
-                  padding: '0.75rem 2rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = '#0284c7';
-                  e.currentTarget.style.transform = 'scale(1.05)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = '#0ea5e9';
-                  e.currentTarget.style.transform = 'scale(1)';
-                }}
-              >
-                <RotateCcw style={{ width: '1.25rem', height: '1.25rem' }} />
-                Play Again
-              </button>
-
-              <button
-                onClick={backToMenu}
-                style={{
-                  flex: '1 1 150px',
-                  background: 'rgba(75, 85, 99, 0.8)',
-                  border: '1px solid rgba(107, 114, 128, 1)',
-                  borderRadius: '0.5rem',
-                  color: '#fff',
-                  fontSize: '1rem',
-                  fontWeight: '600',
-                  padding: '0.75rem 2rem',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(107, 114, 128, 0.8)';
-                  e.currentTarget.style.transform = 'scale(1.05)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(75, 85, 99, 0.8)';
-                  e.currentTarget.style.transform = 'scale(1)';
-                }}
-              >
-                Change Difficulty
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title="How to Play">
-        <div style={{ display: 'grid', gap: '1rem', marginBottom: '1.5rem' }}>
-          <div style={{
-            background: 'rgba(14, 165, 233, 0.1)',
-            border: '1px solid rgba(14, 165, 233, 0.3)',
-            borderRadius: '0.5rem',
-            padding: '1rem'
-          }}>
-            <div style={{ color: '#0ea5e9', fontSize: '2rem', marginBottom: '0.5rem' }}>🎯</div>
-            <h3 style={{ color: '#fff', fontWeight: '600', marginBottom: '0.25rem' }}>Objective</h3>
-            <p style={{ color: '#9ca3af', fontSize: '0.875rem' }}>
-              Get three of your marks (X) in a row - horizontally, vertically, or diagonally - before the AI does!
+              {status.title}
             </p>
+            <p className={styles.statusSub}>{status.sub}</p>
           </div>
 
-          <div style={{
-            background: 'rgba(14, 165, 233, 0.1)',
-            border: '1px solid rgba(14, 165, 233, 0.3)',
-            borderRadius: '0.5rem',
-            padding: '1rem'
-          }}>
-            <div style={{ color: '#0ea5e9', fontWeight: '600', marginBottom: '0.5rem' }}>💡 Pro Tips</div>
-            <ul style={{ color: '#d1d5db', fontSize: '0.875rem', paddingLeft: '1.5rem', margin: 0 }}>
-              <li>Start in the center or corners for best strategy</li>
-              <li>Always block the opponent when they have two in a row</li>
-              <li>Create &quot;forks&quot; - positions where you can win in two ways</li>
-              <li>On Hard mode, the AI never makes mistakes!</li>
+          <div className={styles.board} role="grid" aria-label={copy.title}>
+            {board.map((cell, index) => {
+              const isWin = winningLine?.includes(index);
+              const playable = isPlayerTurn && cell === null && gameStatus === 'playing';
+              const label =
+                cell === 'X' ? copy.youAre : cell === 'O' ? copy.aiIs : `${copy.yourTurn} ${index + 1}`;
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  role="gridcell"
+                  onClick={() => handleCellClick(index)}
+                  disabled={!playable}
+                  aria-label={label}
+                  className={[
+                    styles.cell,
+                    playable ? styles.playable : '',
+                    isWin ? styles.win : ''
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  {cell && (
+                    <span
+                      className={`${cell === 'X' ? styles.markX : styles.markO} ${
+                        isWin ? styles.winMark : index === lastMove ? styles.mark : ''
+                      }`}
+                    >
+                      {cell === 'X' ? '✕' : '○'}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className={styles.actions}>
+            <button type="button" onClick={resetGame} className={`${styles.btn} ${styles.btnPrimary}`}>
+              <RotateCcw className={styles.icon} aria-hidden />
+              {copy.playAgain}
+            </button>
+            <button type="button" onClick={backToMenu} className={`${styles.btn} ${styles.btnSecondary}`}>
+              {copy.changeDifficulty}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={copy.howToPlay}>
+        <div className={styles.infoCards}>
+          <div className={styles.infoCard}>
+            <h3 className={styles.infoHeading}>🎯 {copy.objectiveTitle}</h3>
+            <p className={styles.infoBody}>{copy.objectiveBody}</p>
+          </div>
+          <div className={styles.infoCard}>
+            <h3 className={styles.infoHeading}>💡 {copy.tipsTitle}</h3>
+            <ul className={styles.infoList}>
+              {copy.tips.map((tip, i) => (
+                <li key={i}>{tip}</li>
+              ))}
             </ul>
           </div>
         </div>

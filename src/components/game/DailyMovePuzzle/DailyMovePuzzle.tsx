@@ -1,268 +1,291 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays, Info, Lightbulb, RotateCcw, Share2, Undo2 } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-type Mark = 'X' | 'O' | null;
+import { InfoModal } from '../common/InfoModal';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getStrings } from './i18n';
+import { getDateKey, getPuzzleForDate, type Mark } from './engine';
+import styles from './DailyMovePuzzle.module.css';
 
-interface Puzzle {
-  board: Mark[];
-  side: 'X' | 'O';
-  correctMove: number;
-  prompt: string;
-  explanation: string;
-}
+type Feedback = 'idle' | 'wrong' | 'solved';
 
-const PUZZLES: Puzzle[] = [
-  {
-    board: ['X', 'X', null, 'O', 'O', null, null, null, null],
-    side: 'X',
-    correctMove: 2,
-    prompt: 'X to move: win in one.',
-    explanation: 'Top row finishes immediately.',
-  },
-  {
-    board: ['X', 'X', null, 'O', 'O', null, 'X', null, null],
-    side: 'O',
-    correctMove: 5,
-    prompt: 'O to move: one-move checkmate.',
-    explanation: 'Middle row becomes O-O-O.',
-  },
-  {
-    board: ['X', 'O', null, 'X', 'O', null, null, null, null],
-    side: 'X',
-    correctMove: 6,
-    prompt: 'X to move: find the vertical kill.',
-    explanation: 'Left column closes with X-X-X.',
-  },
-  {
-    board: ['X', null, 'X', 'O', 'O', null, 'X', null, null],
-    side: 'O',
-    correctMove: 5,
-    prompt: 'O to move: simple finish.',
-    explanation: 'Middle row wins directly.',
-  },
-  {
-    board: ['X', 'O', 'O', null, 'X', null, null, null, null],
-    side: 'X',
-    correctMove: 8,
-    prompt: 'X to move: diagonal strike.',
-    explanation: 'Diagonal 0-4-8 completes.',
-  },
-  {
-    board: ['X', 'X', 'O', 'X', 'O', null, null, null, null],
-    side: 'O',
-    correctMove: 6,
-    prompt: 'O to move: opposite diagonal win.',
-    explanation: 'Diagonal 2-4-6 completes.',
-  },
-  {
-    board: [null, 'O', 'X', 'O', 'X', null, null, null, null],
-    side: 'X',
-    correctMove: 6,
-    prompt: 'X to move: corner tactic.',
-    explanation: 'Diagonal 2-4-6 is the key.',
-  },
-  {
-    board: ['X', null, null, 'O', 'O', null, 'X', 'X', null],
-    side: 'O',
-    correctMove: 5,
-    prompt: 'O to move: punish instantly.',
-    explanation: 'Middle row is forced win.',
-  },
-  {
-    board: ['O', 'X', 'O', null, 'X', null, null, null, null],
-    side: 'X',
-    correctMove: 7,
-    prompt: 'X to move: vertical idea.',
-    explanation: 'Column 2 (index 1,4,7) finishes.',
-  },
-  {
-    board: ['O', 'X', 'X', null, 'O', null, null, null, null],
-    side: 'O',
-    correctMove: 8,
-    prompt: 'O to move: long diagonal finish.',
-    explanation: 'Diagonal 0-4-8 completes.',
-  },
-  {
-    board: ['O', 'O', null, 'X', 'X', null, null, null, 'O'],
-    side: 'X',
-    correctMove: 5,
-    prompt: 'X to move: no hesitation.',
-    explanation: 'Middle row ends the game.',
-  },
-  {
-    board: ['O', null, 'X', 'X', 'O', null, null, null, null],
-    side: 'O',
-    correctMove: 8,
-    prompt: 'O to move: close the diagonal.',
-    explanation: 'Diagonal 0-4-8 is decisive.',
-  },
-];
-
-const winningLines = [
-  [0, 1, 2],
-  [3, 4, 5],
-  [6, 7, 8],
-  [0, 3, 6],
-  [1, 4, 7],
-  [2, 5, 8],
-  [0, 4, 8],
-  [2, 4, 6],
-];
-
-const getDateKey = (): string => {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
-};
-
-const hashString = (text: string): number => {
-  let hash = 0;
-  for (let i = 0; i < text.length; i += 1) {
-    hash = (hash * 31 + text.charCodeAt(i)) >>> 0;
-  }
-  return hash;
-};
-
-const getWinnerLine = (board: Mark[], mark: 'X' | 'O'): number[] | null => {
-  for (const line of winningLines) {
-    if (line.every((index) => board[index] === mark)) {
-      return line;
-    }
-  }
-  return null;
-};
+const STORAGE_KEY = 'daily-move-puzzle-last-solved';
 
 export const DailyMovePuzzle = () => {
   useFeatureLifecycle('game.daily-move-puzzle');
-  const dateKey = getDateKey();
-  const puzzleIndex = hashString(dateKey) % PUZZLES.length;
-  const puzzle = PUZZLES[puzzleIndex];
+  const { language } = useGameLanguage();
+  const t = getStrings(language);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // One-time client mount flag to gate hydration-sensitive rendering.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
+
+  const dateKey = useMemo(() => getDateKey(), []);
+  const puzzle = useMemo(() => getPuzzleForDate(dateKey), [dateKey]);
 
   const [attempts, setAttempts] = useState(0);
+  const [wrongPicks, setWrongPicks] = useState<number[]>([]);
   const [solved, setSolved] = useState(false);
-  const [message, setMessage] = useState('Choose the winning square.');
-  const [completedToday, setCompletedToday] = useState(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-    return window.localStorage.getItem('daily-move-puzzle-last-solved') === dateKey;
+  const [feedback, setFeedback] = useState<Feedback>('idle');
+  const [lastWrong, setLastWrong] = useState<number | null>(null);
+  const [showHint, setShowHint] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const [completedToday, setCompletedToday] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.localStorage.getItem(STORAGE_KEY) === dateKey;
   });
 
-  const board = useMemo(() => {
-    const cells = [...puzzle.board];
-    if (solved) {
-      cells[puzzle.correctMove] = puzzle.side;
-    }
+  const cellRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const displayBoard = useMemo<Mark[]>(() => {
+    const cells = puzzle.board.slice();
+    if (solved) cells[puzzle.correctMove] = puzzle.side;
     return cells;
   }, [puzzle, solved]);
 
-  const winLine = useMemo(() => {
-    if (!solved) return null;
-    return getWinnerLine(board, puzzle.side);
-  }, [board, puzzle.side, solved]);
+  const handlePick = useCallback(
+    (index: number) => {
+      if (solved) return;
+      if (puzzle.board[index] !== null) return;
+      if (wrongPicks.includes(index)) return;
 
-  const onCellClick = (index: number) => {
-    if (solved) return;
-    if (puzzle.board[index] !== null) return;
+      setShareStatus('idle');
+      setShowHint(false);
+      setAttempts((prev) => prev + 1);
 
-    setAttempts((prev) => prev + 1);
-
-    if (index === puzzle.correctMove) {
-      setSolved(true);
-      setMessage(`Correct in ${attempts + 1} attempt(s). ${puzzle.explanation}`);
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem('daily-move-puzzle-last-solved', dateKey);
+      if (index === puzzle.correctMove) {
+        setSolved(true);
+        setFeedback('solved');
+        if (typeof window !== 'undefined') {
+          window.localStorage.setItem(STORAGE_KEY, dateKey);
+        }
+        setCompletedToday(true);
+        return;
       }
-      setCompletedToday(true);
-      return;
-    }
 
-    setMessage('Not this square. Try another move.');
-  };
+      setWrongPicks((prev) => [...prev, index]);
+      setLastWrong(index);
+      setFeedback('wrong');
+    },
+    [solved, puzzle.board, puzzle.correctMove, wrongPicks, dateKey],
+  );
 
-  const reset = () => {
+  const undo = useCallback(() => {
+    if (solved || wrongPicks.length === 0) return;
+    setWrongPicks((prev) => prev.slice(0, -1));
+    setAttempts((prev) => Math.max(0, prev - 1));
+    setLastWrong(null);
+    setFeedback('idle');
+    setShareStatus('idle');
+  }, [solved, wrongPicks.length]);
+
+  const reset = useCallback(() => {
     setAttempts(0);
+    setWrongPicks([]);
     setSolved(false);
-    setMessage('Choose the winning square.');
-  };
+    setFeedback('idle');
+    setLastWrong(null);
+    setShowHint(false);
+    setShareStatus('idle');
+  }, []);
 
-  const shareResult = async () => {
-    const text = `Daily One-Move Puzzle ${dateKey}: solved in ${attempts} attempt(s).`;
+  const share = useCallback(async () => {
+    const text = t.shareText(dateKey, attempts);
     try {
-      await navigator.clipboard.writeText(text);
-      setMessage('Result copied to clipboard.');
+      // navigator.clipboard is undefined on insecure origins / older browsers.
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setShareStatus('copied');
+      } else {
+        setShareStatus('failed');
+      }
     } catch {
-      setMessage(text);
+      setShareStatus('failed');
     }
-  };
+  }, [t, dateKey, attempts]);
+
+  const statusText = solved
+    ? shareStatus === 'copied'
+      ? t.copied
+      : shareStatus === 'failed'
+        ? t.copyFailed
+        : attempts === 1
+          ? t.solvedPerfect
+          : t.solvedIn(attempts)
+    : feedback === 'wrong'
+      ? t.wrong
+      : t.hint;
+
+  const statusClass =
+    shareStatus === 'failed'
+      ? styles.statusError
+      : solved
+        ? styles.statusSuccess
+        : feedback === 'wrong'
+          ? styles.statusError
+          : '';
+
+  const markClass = (mark: Mark) =>
+    mark === 'X' ? styles.markX : mark === 'O' ? styles.markO : '';
+
+  // Avoid a hydration mismatch: the date key and localStorage-derived state are
+  // client-only, so render nothing until mounted on the client.
+  if (!mounted) {
+    return null;
+  }
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #0f172a, #111827)', color: '#e5e7eb', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>Daily One-Move Puzzle</h1>
-        <p style={{ marginTop: '0.5rem', color: '#94a3b8' }}>毎日1問、1手で勝つマスを当てる短時間パズル。</p>
+    <div className={styles.page} style={{ background: 'var(--games-route-bg)' }}>
+      <div className={styles.shell}>
+        <header className={styles.header}>
+          <h1 className={styles.title}>
+            <CalendarDays aria-hidden size={30} /> {t.title}
+          </h1>
+          <p className={styles.subtitle}>{t.subtitle}</p>
+        </header>
 
-        <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', background: '#0f172a', padding: '0.35rem 0.8rem' }}>Date: {dateKey}</span>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', background: '#0f172a', padding: '0.35rem 0.8rem' }}>Puzzle #{puzzleIndex + 1}</span>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', background: '#0f172a', padding: '0.35rem 0.8rem' }}>Side: {puzzle.side}</span>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', background: '#0f172a', padding: '0.35rem 0.8rem' }}>Attempts: {attempts}</span>
-          {completedToday && <span style={{ border: '1px solid #166534', borderRadius: '999px', background: 'rgba(22, 101, 52, 0.35)', padding: '0.35rem 0.8rem' }}>Solved Today</span>}
-        </div>
-
-        <div style={{ border: '1px solid #334155', borderRadius: '12px', background: '#020617', padding: '1rem', marginBottom: '1rem' }}>
-          <div style={{ marginBottom: '0.55rem', color: '#cbd5e1' }}>{puzzle.prompt}</div>
-          <div style={{ color: '#94a3b8', minHeight: '1.4rem' }}>{message}</div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 110px)', gap: '10px', justifyContent: 'start' }}>
-          {board.map((cell, index) => {
-            const isWinningCell = winLine?.includes(index);
-            return (
-              <button
-                key={index}
-                onClick={() => onCellClick(index)}
-                disabled={solved || puzzle.board[index] !== null}
-                style={{
-                  width: '110px',
-                  height: '110px',
-                  borderRadius: '10px',
-                  border: isWinningCell ? '2px solid #22c55e' : '1px solid #334155',
-                  background: isWinningCell ? 'rgba(34, 197, 94, 0.2)' : '#0f172a',
-                  color: '#f8fafc',
-                  fontSize: '2.2rem',
-                  fontWeight: 800,
-                  cursor: puzzle.board[index] === null && !solved ? 'pointer' : 'default',
-                }}
-              >
-                {cell ?? ''}
-              </button>
-            );
-          })}
-        </div>
-
-        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
-          <button
-            onClick={reset}
-            style={{ background: '#22c55e', border: 'none', borderRadius: '10px', padding: '0.62rem 1rem', fontWeight: 700, cursor: 'pointer' }}
-          >
-            Retry Puzzle
-          </button>
-
-          {solved && (
-            <button
-              onClick={shareResult}
-              style={{ background: '#38bdf8', color: '#082f49', border: 'none', borderRadius: '10px', padding: '0.62rem 1rem', fontWeight: 700, cursor: 'pointer' }}
-            >
-              Copy Result
-            </button>
+        <div className={styles.pills}>
+          <span className={styles.pill}>
+            <span className={styles.pillLabel}>{t.date}</span> {dateKey}
+          </span>
+          <span className={styles.pill}>
+            <span className={styles.pillLabel}>{t.side}</span>
+            <span className={`${styles.turnMark} ${markClass(puzzle.side)}`} style={{ width: '1.3rem', height: '1.3rem', fontSize: '0.9rem' }}>
+              {puzzle.side}
+            </span>
+          </span>
+          <span className={styles.pill}>
+            <span className={styles.pillLabel}>{t.par}</span> 1
+          </span>
+          <span className={styles.pill}>
+            <span className={styles.pillLabel}>{t.attempts}</span> {attempts}
+          </span>
+          {completedToday && (
+            <span className={`${styles.pill} ${styles.pillSolved}`}>✓ {t.solvedToday}</span>
           )}
         </div>
+
+        <section className={styles.card} aria-live="polite">
+          <p className={styles.prompt}>
+            <span className={styles.turnBadge}>
+              <span className={`${styles.turnMark} ${markClass(puzzle.side)}`}>{puzzle.side}</span>
+              {t.prompt(puzzle.side)}
+            </span>
+          </p>
+
+          {solved && (
+            <div className={styles.celebration}>
+              <span className={styles.celebrationTitle}>🎉 {t.celebration}</span>
+            </div>
+          )}
+
+          <div
+            className={styles.board}
+            role="grid"
+            aria-label={t.boardLabel}
+          >
+            {displayBoard.map((cell, index) => {
+              const row = Math.floor(index / 3) + 1;
+              const col = (index % 3) + 1;
+              const isWinningCell = solved && puzzle.winningLine.includes(index);
+              const isWrong = wrongPicks.includes(index);
+              const isHint = showHint && !solved && index === puzzle.correctMove;
+              const content =
+                cell === 'X' ? 'X' : cell === 'O' ? 'O' : isWrong ? '✕' : t.empty;
+
+              const classes = [
+                styles.cell,
+                cell === null && !isWrong ? styles.cellEmpty : '',
+                cell === 'X' ? styles.cellX : '',
+                cell === 'O' ? styles.cellO : '',
+                isWinningCell ? styles.cellWin : '',
+                isHint ? styles.cellHint : '',
+                isWrong && index === lastWrong ? styles.cellWrong : '',
+                solved && index === puzzle.correctMove ? styles.placed : '',
+              ]
+                .filter(Boolean)
+                .join(' ');
+
+              return (
+                <button
+                  key={index}
+                  ref={(el) => {
+                    cellRefs.current[index] = el;
+                  }}
+                  type="button"
+                  role="gridcell"
+                  className={classes}
+                  onClick={() => handlePick(index)}
+                  disabled={solved || cell !== null || isWrong}
+                  aria-label={t.cellLabel(row, col, content)}
+                  aria-disabled={solved || cell !== null || isWrong}
+                >
+                  {cell === 'X' || cell === 'O' ? cell : isWrong ? '✕' : ''}
+                </button>
+              );
+            })}
+          </div>
+
+          <p className={`${styles.status} ${statusClass}`}>{statusText}</p>
+
+          <div className={styles.actions}>
+            {!solved && (
+              <button
+                type="button"
+                className={styles.btn}
+                onClick={undo}
+                disabled={wrongPicks.length === 0}
+              >
+                <Undo2 aria-hidden size={16} /> {t.undo}
+              </button>
+            )}
+            {!solved && (
+              <button
+                type="button"
+                className={styles.btn}
+                onClick={() => setShowHint((v) => !v)}
+                aria-pressed={showHint}
+              >
+                <Lightbulb aria-hidden size={16} /> {t.hintBtn}
+              </button>
+            )}
+            <button type="button" className={styles.btn} onClick={reset}>
+              <RotateCcw aria-hidden size={16} /> {t.reset}
+            </button>
+            {solved && (
+              <button type="button" className={`${styles.btn} ${styles.btnShare}`} onClick={share}>
+                <Share2 aria-hidden size={16} /> {t.share}
+              </button>
+            )}
+          </div>
+        </section>
+
+        <div style={{ textAlign: 'center' }}>
+          <button
+            type="button"
+            className={styles.btn}
+            onClick={() => setInfoOpen(true)}
+            aria-label={t.howToPlay}
+          >
+            <Info aria-hidden size={16} /> {t.howToPlay}
+          </button>
+        </div>
       </div>
+
+      <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.infoTitle}>
+        <ul className={styles.infoList}>
+          {t.infoBody.map((line, i) => (
+            <li key={i}>{line}</li>
+          ))}
+        </ul>
+      </InfoModal>
     </div>
   );
 };

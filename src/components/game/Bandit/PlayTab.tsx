@@ -54,16 +54,15 @@ export const PlayTab = () => {
   }, [showHint, done, arms, step]);
 
   const pull = useCallback((i: number) => {
-    if (i < 0 || i >= probs.length) return;
-    setStep((s) => {
-      if (s >= T) return s;
-      const reward = Math.random() < probs[i] ? 1 : 0;
-      setArms((a) => a.map((arm, idx) => (idx === i ? { ...arm, pulls: arm.pulls + 1, rewards: arm.rewards + reward } : arm)));
-      setHistory((h) => [...h, { arm: i, reward }]);
-      setFlash({ arm: i, reward, id: s });
-      return s + 1;
-    });
-  }, [probs, T]);
+    if (i < 0 || i >= probs.length || step >= T) return;
+    // Side effects and randomness live in the handler, not in a state updater,
+    // so React Strict Mode's double-invocation of updaters can't double-count.
+    const reward = Math.random() < probs[i] ? 1 : 0;
+    setArms((a) => a.map((arm, idx) => (idx === i ? { ...arm, pulls: arm.pulls + 1, rewards: arm.rewards + reward } : arm)));
+    setHistory((h) => [...h, { arm: i, reward }]);
+    setFlash({ arm: i, reward, id: step });
+    setStep((s) => s + 1);
+  }, [probs, T, step]);
 
   const newGame = useCallback((nextK = k) => {
     const np = randomProbs(nextK);
@@ -84,6 +83,8 @@ export const PlayTab = () => {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // Don't hijack browser/OS shortcuts like Cmd+R / Ctrl+R.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.key >= '1' && e.key <= String(arms.length)) {
         pull(Number(e.key) - 1);
       } else if (e.key.toLowerCase() === 'r') {
@@ -118,7 +119,7 @@ export const PlayTab = () => {
               value={T}
               min={10}
               max={500}
-              onChange={(e) => setT(Number(e.target.value) || 50)}
+              onChange={(e) => setT(Math.max(10, Math.min(500, Number(e.target.value) || 50)))}
               style={inputStyle(80)}
             />
           </label>

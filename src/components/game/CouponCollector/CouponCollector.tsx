@@ -32,7 +32,7 @@ export const CouponCollector = () => {
               type="button"
               className={styles.iconBtn}
               onClick={() => setLanguage(language === 'ja' ? 'en' : 'ja')}
-              aria-label="Toggle language"
+              aria-label={t.toggleLanguage}
             >
               <Globe size={16} aria-hidden />
               {language === 'ja' ? 'EN' : '日本語'}

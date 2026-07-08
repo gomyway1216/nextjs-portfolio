@@ -10,6 +10,7 @@ export interface CouponStrings {
   tabPlay: string;
   tabSim: string;
   howToPlay: string;
+  toggleLanguage: string;
   // Play tab
   sizeLabel: string;
   drawOne: string;
@@ -72,6 +73,7 @@ const en: CouponStrings = {
   tabPlay: 'Play',
   tabSim: 'Simulate',
   howToPlay: 'How it works',
+  toggleLanguage: 'Switch to Japanese',
   sizeLabel: 'Collection size (n)',
   drawOne: 'Draw one',
   completeNow: 'Finish instantly',
@@ -139,6 +141,7 @@ const ja: CouponStrings = {
   tabPlay: '遊ぶ',
   tabSim: 'シミュレーション',
   howToPlay: '仕組み',
+  toggleLanguage: '英語に切り替え',
   sizeLabel: 'コレクションのサイズ (n)',
   drawOne: '1回引く',
   completeNow: '一気に完成',

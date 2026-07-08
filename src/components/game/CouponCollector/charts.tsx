@@ -1,11 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, type CSSProperties } from 'react';
 
 const AXIS = 'var(--games-route-muted, #64748b)';
 const GRID = 'var(--games-route-border, #1e293b)';
 const SURFACE = 'var(--games-route-surface-solid, #020617)';
-const svgStyle: React.CSSProperties = {
+const svgStyle: CSSProperties = {
   background: SURFACE,
   borderRadius: 10,
   border: `1px solid ${GRID}`,
@@ -110,6 +110,9 @@ export const DistributionChart = ({
   height = 240,
 }: HistogramProps) => {
   const { counts, min, max, binSize } = useMemo(() => {
+    if (values.length === 0) {
+      return { counts: [] as number[], min: 0, max: 0, binSize: 0 };
+    }
     let mn = values[0];
     let mx = values[0];
     for (let i = 1; i < values.length; i++) {

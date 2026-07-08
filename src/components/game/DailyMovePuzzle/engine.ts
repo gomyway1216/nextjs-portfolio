@@ -82,11 +82,9 @@ export const isValidPuzzle = (puzzle: Puzzle): boolean => {
 
   const xCount = board.filter((c) => c === 'X').length;
   const oCount = board.filter((c) => c === 'O').length;
-  // In tic-tac-toe X moves first, so counts differ by at most one and the side
-  // to move must not already have more marks than the other.
-  if (Math.abs(xCount - oCount) > 1) return false;
-  if (side === 'X' && xCount > oCount) return false;
-  if (side === 'O' && oCount > xCount) return false;
+  // In tic-tac-toe X moves first. On X's turn the counts must be exactly equal;
+  // on O's turn X must have exactly one more mark than O.
+  if (side === 'X' ? xCount !== oCount : xCount !== oCount + 1) return false;
 
   const winning = findWinningMoves(board, side);
   if (winning.length !== 1 || winning[0] !== correctMove) return false;
@@ -152,13 +150,11 @@ export const generatePuzzle = (seed: number): Puzzle => {
     board[sideCells[0]] = side;
     board[sideCells[1]] = side;
 
-    // Place opponent marks. To keep counts legal we place the right number:
-    // X moves first so if side is X, X has one more mark than O after the move.
-    // Before the move the side already has 2 marks; the opponent needs enough
-    // to make the counts consistent. side===X => xBefore=2 => oCount in {1,2};
-    // side===O => oBefore=2 => xCount in {2,3}. Pick within range for variety.
-    const oppMin = side === 'X' ? 1 : 2;
-    const oppCount = oppMin + Math.floor(rng() * 2); // min or min+1
+    // Place opponent marks. The side to move already has exactly 2 marks, so
+    // the opponent count is fully determined by legal tic-tac-toe counts:
+    // - side === 'X' (X's turn, counts equal): O must have exactly 2 marks.
+    // - side === 'O' (O's turn, X leads by one): X must have exactly 3 marks.
+    const oppCount = side === 'X' ? 2 : 3;
 
     const otherCells = shuffleInPlace(
       Array.from({ length: 9 }, (_, i) => i).filter(
@@ -185,8 +181,9 @@ export const generatePuzzle = (seed: number): Puzzle => {
   }
 
   // Deterministic fallback that is always valid (should be unreachable).
+  // X wins uniquely at index 2; O has no line and counts are equal.
   return {
-    board: ['X', 'X', null, 'O', 'O', null, null, null, null],
+    board: ['X', 'X', null, 'O', null, null, null, 'O', null],
     side: 'X',
     correctMove: 2,
     winningLine: [0, 1, 2],

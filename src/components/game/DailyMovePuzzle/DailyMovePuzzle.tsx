@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, Info, Lightbulb, RotateCcw, Share2, Undo2 } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
@@ -18,6 +18,13 @@ export const DailyMovePuzzle = () => {
   useFeatureLifecycle('game.daily-move-puzzle');
   const { language } = useGameLanguage();
   const t = getStrings(language);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    // One-time client mount flag to gate hydration-sensitive rendering.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setMounted(true);
+  }, []);
 
   const dateKey = useMemo(() => getDateKey(), []);
   const puzzle = useMemo(() => getPuzzleForDate(dateKey), [dateKey]);
@@ -92,8 +99,13 @@ export const DailyMovePuzzle = () => {
   const share = useCallback(async () => {
     const text = t.shareText(dateKey, attempts);
     try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
+      // navigator.clipboard is undefined on insecure origins / older browsers.
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+      } else {
+        setCopied(false);
+      }
     } catch {
       setCopied(false);
     }
@@ -117,6 +129,12 @@ export const DailyMovePuzzle = () => {
 
   const markClass = (mark: Mark) =>
     mark === 'X' ? styles.markX : mark === 'O' ? styles.markO : '';
+
+  // Avoid a hydration mismatch: the date key and localStorage-derived state are
+  // client-only, so render nothing until mounted on the client.
+  if (!mounted) {
+    return null;
+  }
 
   return (
     <div className={styles.page} style={{ background: 'var(--games-route-bg)' }}>

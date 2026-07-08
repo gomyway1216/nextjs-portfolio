@@ -169,4 +169,25 @@ describe('getBestMove blunder behavior', () => {
   it('returns -1 on a full board', () => {
     expect(getBestMove(b('XOXOXOOXO'), 'master')).toBe(-1);
   });
+
+  // rng is consulted twice: once to trigger the blunder, once to pick the cell.
+  const seq = (...vals: number[]) => {
+    let i = 0;
+    return () => vals[Math.min(i++, vals.length - 1)];
+  };
+
+  it('never returns an out-of-bounds cell when the index rng() >= 1', () => {
+    // First call (0) enters the blunder branch; second call (1) would over-index
+    // the cells array without clamping.
+    const board = b('X.O.X.O..');
+    const m = getBestMove(board, 'easy', seq(0, 1));
+    expect(m).not.toBeUndefined();
+    expect(board[m]).toBeNull();
+  });
+
+  it('never returns an out-of-bounds cell when the index rng() is negative', () => {
+    const board = b('X.O.X.O..');
+    const m = getBestMove(board, 'easy', seq(0, -0.5));
+    expect(board[m]).toBeNull();
+  });
 });

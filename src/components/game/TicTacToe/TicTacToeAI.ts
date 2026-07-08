@@ -97,7 +97,7 @@ export const getOptimalMove = (board: Player[], mark: Player): number => {
   let bestScore = -Infinity;
   let bestMove = cells[0];
   // Evaluate in priority order so equal-scoring moves favor center/corners.
-  for (const i of [...CELL_PRIORITY].filter(c => board[c] === null)) {
+  for (const i of CELL_PRIORITY.filter(c => board[c] === null)) {
     board[i] = mark;
     const score = minimax(board, mark, opponentOf(mark), 0);
     board[i] = null;
@@ -143,7 +143,9 @@ export const getBestMove = (
     // otherwise pick a random legal cell.
     const winNow = findWinningMove(board, AI);
     if (winNow !== -1) return winNow;
-    return cells[Math.floor(rng() * cells.length)];
+    // Clamp so an rng() that returns >= 1 (or < 0) can't index out of bounds.
+    const idx = Math.min(cells.length - 1, Math.max(0, Math.floor(rng() * cells.length)));
+    return cells[idx];
   }
 
   return getOptimalMove(board, AI);

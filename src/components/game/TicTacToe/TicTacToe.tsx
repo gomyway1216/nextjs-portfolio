@@ -196,7 +196,7 @@ const TicTacToe = () => {
             <p className={styles.statusSub}>{status.sub}</p>
           </div>
 
-          <div className={styles.board} role="grid" aria-label={copy.title}>
+          <div className={styles.board} role="group" aria-label={copy.title}>
             {board.map((cell, index) => {
               const isWin = winningLine?.includes(index);
               const playable = isPlayerTurn && cell === null && gameStatus === 'playing';
@@ -206,7 +206,6 @@ const TicTacToe = () => {
                 <button
                   key={index}
                   type="button"
-                  role="gridcell"
                   onClick={() => handleCellClick(index)}
                   disabled={!playable}
                   aria-label={label}

@@ -96,12 +96,17 @@ describe('MirrorOthello AI — evaluation', () => {
     let color: Cell = PLAYER;
     let turn = 0;
     let guard = 0;
-    while (guard < 80) {
+    const GUARD_LIMIT = 200; // generous: at most 60 placements + passes
+    let terminated = false;
+    while (guard < GUARD_LIMIT) {
       guard += 1;
       const moves = getValidMoves(board, color);
       if (moves.length === 0) {
         const opp = -color as Cell;
-        if (getValidMoves(board, opp).length === 0) break;
+        if (getValidMoves(board, opp).length === 0) {
+          terminated = true; // neither side can move — real game over
+          break;
+        }
         color = opp;
         continue;
       }
@@ -119,7 +124,11 @@ describe('MirrorOthello AI — evaluation', () => {
       }
       color = -color as Cell;
     }
-    // Sanity: the loop ran and produced a filled-ish board.
-    expect(guard).toBeGreaterThan(4);
+    // The game must actually reach a terminal state, NOT stop because it hit
+    // the iteration guard — that would signal a non-terminating / pass bug.
+    expect(terminated).toBe(true);
+    expect(guard).toBeLessThan(GUARD_LIMIT);
+    // And it should have played a meaningful number of plies.
+    expect(turn).toBeGreaterThan(4);
   });
 });

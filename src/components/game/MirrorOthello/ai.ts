@@ -184,8 +184,13 @@ const negamax = (
     const opponent = -color as Cell;
     const oppMoves = getValidMoves(board, opponent);
     if (oppMoves.length === 0) {
+      // Double pass — game over. Use the exact disc-count outcome, not the
+      // heuristic, so a winning majority is never mis-scored.
       const sign = color === AI ? 1 : -1;
-      return sign * evaluate(board);
+      const { player, ai } = countDiscs(board);
+      const diff = ai - player;
+      const score = diff > 0 ? WIN_SCORE + diff : diff < 0 ? -WIN_SCORE + diff : 0;
+      return sign * score;
     }
     // Passing does NOT consume a ply-count mirror here in real rules the
     // mirror is tied to actual moves, so a pass keeps turnCount as-is.
@@ -204,7 +209,9 @@ const negamax = (
       const sign = color === AI ? 1 : -1;
       const { player, ai } = countDiscs(step.board);
       const diff = ai - player;
-      score = sign * (diff >= 0 ? WIN_SCORE + diff : -WIN_SCORE + diff);
+      const terminalScore =
+        diff > 0 ? WIN_SCORE + diff : diff < 0 ? -WIN_SCORE + diff : 0;
+      score = sign * terminalScore;
     } else if (step.nextColor === color) {
       // Opponent passed — same side moves again, no perspective flip.
       score = negamax(
@@ -283,7 +290,7 @@ export const chooseAIMove = (
     if (step.gameOver) {
       const { player, ai } = countDiscs(step.board);
       const diff = ai - player;
-      score = diff >= 0 ? WIN_SCORE + diff : -WIN_SCORE + diff;
+      score = diff > 0 ? WIN_SCORE + diff : diff < 0 ? -WIN_SCORE + diff : 0;
     } else if (step.nextColor === AI) {
       score = negamax(step.board, AI, step.turnCount, depth - 1, alpha, beta);
     } else {

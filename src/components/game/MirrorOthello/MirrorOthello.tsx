@@ -90,15 +90,20 @@ export const MirrorOthello = () => {
   }, [clearTimers, t.yourTurn]);
 
   const triggerFlipAnim = useCallback(() => {
+    if (flipTimer.current) window.clearTimeout(flipTimer.current);
     setFlipping(true);
     flipTimer.current = window.setTimeout(() => setFlipping(false), FLIP_ANIM_MS);
   }, []);
 
-  /** Apply a single ply and derive the next UI state + messages. */
+  /**
+   * Apply a single ply and derive the next UI state + messages. This is a
+   * plain callback (not a `setGame` updater) so it can call state setters
+   * directly — React updater functions must stay pure/side-effect-free.
+   */
   const commitMove = useCallback(
-    (prev: GameState, point: Point, color: Cell): GameState => {
-      const step = advance(prev.board, point, color, prev.turnCount);
-      if (!step) return prev;
+    (point: Point, color: Cell) => {
+      const step = advance(game.board, point, color, game.turnCount);
+      if (!step) return;
 
       const who = color === PLAYER ? t.you : t.ai;
       let msg = t.played(who, cellLabel(point.x, point.y));
@@ -125,14 +130,15 @@ export const MirrorOthello = () => {
         }));
         setMessage(t.gameOver(counts.player, counts.ai));
         setPhase('gameover');
-        return {
+        setGame({
           board: step.board,
           currentColor: EMPTY,
           validMoves: [],
           turnCount: step.turnCount,
           lastMove: point,
           result,
-        };
+        });
+        return;
       }
 
       if (!step.mirrored && !step.passed) {
@@ -141,16 +147,16 @@ export const MirrorOthello = () => {
         setMessage(msg);
       }
 
-      return {
+      setGame({
         board: step.board,
         currentColor: step.nextColor,
         validMoves: step.nextMoves,
         turnCount: step.turnCount,
         lastMove: point,
         result: null,
-      };
+      });
     },
-    [t, triggerFlipAnim],
+    [game, t, triggerFlipAnim],
   );
 
   // AI turn driver.
@@ -159,30 +165,33 @@ export const MirrorOthello = () => {
     if (game.validMoves.length === 0) return;
 
     aiTimer.current = window.setTimeout(() => {
-      setGame((prev) => {
-        if (prev.currentColor !== AI || prev.validMoves.length === 0) return prev;
-        const move = chooseAIMove(prev.board, difficulty, prev.turnCount);
-        if (!move) return prev;
-        return commitMove(prev, move, AI);
-      });
+      const move = chooseAIMove(game.board, difficulty, game.turnCount);
+      if (!move) return;
+      commitMove(move, AI);
     }, AI_DELAY_MS);
 
     return () => {
       if (aiTimer.current) window.clearTimeout(aiTimer.current);
       aiTimer.current = null;
     };
-  }, [phase, game.currentColor, game.validMoves, game.turnCount, difficulty, commitMove]);
+  }, [
+    phase,
+    game.currentColor,
+    game.validMoves,
+    game.board,
+    game.turnCount,
+    difficulty,
+    commitMove,
+  ]);
 
   const onCellClick = useCallback(
     (x: number, y: number) => {
       if (phase !== 'playing') return;
-      setGame((prev) => {
-        if (prev.currentColor !== PLAYER) return prev;
-        if (!prev.validMoves.some((m) => m.x === x && m.y === y)) return prev;
-        return commitMove(prev, { x, y }, PLAYER);
-      });
+      if (game.currentColor !== PLAYER) return;
+      if (!game.validMoves.some((m) => m.x === x && m.y === y)) return;
+      commitMove({ x, y }, PLAYER);
     },
-    [phase, commitMove],
+    [phase, game, commitMove],
   );
 
   const counts = useMemo(() => countDiscs(game.board), [game.board]);

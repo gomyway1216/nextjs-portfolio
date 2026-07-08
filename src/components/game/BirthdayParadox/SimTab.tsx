@@ -1,8 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CurveChart } from './charts';
 import { SweepSummary, runBirthdaySweepAsync } from './engine';
+import type { BirthdayStrings } from './i18n';
+import type { GameLanguage } from '../constants/gameTranslations';
+import styles from './BirthdayParadox.module.css';
 
 const LIMITS = {
   maxN: { min: 10, max: 200 },
@@ -13,7 +16,12 @@ const DEFAULTS = { maxN: 100, trialsPerN: 1000 };
 const clamp = (v: number, min: number, max: number) =>
   Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : min;
 
-export const SimTab = () => {
+interface SimTabProps {
+  t: BirthdayStrings;
+  language: GameLanguage;
+}
+
+export const SimTab = ({ t, language }: SimTabProps) => {
   const [maxN, setMaxN] = useState(DEFAULTS.maxN);
   const [trialsPerN, setTrialsPerN] = useState(DEFAULTS.trialsPerN);
   const [running, setRunning] = useState(false);
@@ -33,7 +41,6 @@ export const SimTab = () => {
     if (runningRef.current) return;
     runningRef.current = true;
     setRunning(true);
-    // Clear stale chart so the user isn't reading old data while progress runs.
     setResult(null);
     const safeMaxN = clamp(maxN, LIMITS.maxN.min, LIMITS.maxN.max);
     const safeTrials = clamp(trialsPerN, LIMITS.trialsPerN.min, LIMITS.trialsPerN.max);
@@ -60,89 +67,128 @@ export const SimTab = () => {
     }
   };
 
-  const runLabel = running && progress
-    ? `Running… n=${progress.done} / ${progress.total}`
-    : 'シミュレーション実行';
+  const runLabel = running && progress ? t.running(progress.done, progress.total) : t.runSim;
+  const pct = progress ? (progress.done / progress.total) * 100 : 0;
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: '1rem' }}>
-        <NumField label="最大グループ人数 n" value={maxN} {...LIMITS.maxN} onChange={setMaxN} />
-        <NumField label="n ごとの試行回数" value={trialsPerN} {...LIMITS.trialsPerN} onChange={setTrialsPerN} />
+      <div className={styles.controls}>
+        <NumField label={t.maxGroup} value={maxN} {...LIMITS.maxN} onChange={setMaxN} />
+        <NumField label={t.trialsPerN} value={trialsPerN} {...LIMITS.trialsPerN} onChange={setTrialsPerN} />
         <button
+          type="button"
           onClick={run}
           disabled={running}
-          style={{
-            background: running ? '#1e293b' : '#22c55e',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 10,
-            padding: '0.65rem 1.4rem',
-            fontWeight: 800,
-            cursor: running ? 'wait' : 'pointer',
-            fontSize: '1rem',
-            minWidth: 220,
-          }}
+          className={`${styles.btn} ${styles.btnPrimary}`}
+          style={{ minWidth: 220, cursor: running ? 'wait' : undefined }}
         >
           {runLabel}
         </button>
       </div>
 
-      {result ? <Results summary={result} /> : <Intro />}
+      {running && (
+        <div className={styles.progress} aria-hidden>
+          <div className={styles.progressFill} style={{ width: `${pct}%` }} />
+        </div>
+      )}
+
+      {result ? (
+        <Results summary={result} t={t} language={language} />
+      ) : (
+        !running && <Intro t={t} />
+      )}
     </div>
   );
 };
 
-const Intro = () => (
-  <div style={{ background: '#020617', border: '1px solid #1e293b', borderRadius: 12, padding: '1rem', color: '#94a3b8', fontSize: '0.9rem', lineHeight: 1.6 }}>
-    <strong style={{ color: '#fbbf24' }}>このタブ:</strong> 各人数 <code>n</code> について「2人以上が誕生日を共有する」確率を試行して、
-    <strong> シミュレーション (水色) と理論値 (黄) の重なり具合</strong>を見ます。
-    <br />
-    <strong>n=23 で約 50%、n=50 で約 97%、n=70 で 99.9% 以上</strong> という急上昇カーブが特徴。
-    23 人の方が「365 日の年だから 12 月までに誰かは被るかも」という直感より遥かに早く 50% に到達することが分かります。
+const Intro = ({ t }: { t: BirthdayStrings }) => (
+  <div className={styles.hint} style={{ marginTop: 0 }}>
+    <strong>{t.simIntroTitle}: </strong>
+    {t.simIntro}
   </div>
 );
 
-const Results = ({ summary }: { summary: SweepSummary }) => {
+const Results = ({
+  summary,
+  t,
+  language,
+}: {
+  summary: SweepSummary;
+  t: BirthdayStrings;
+  language: GameLanguage;
+}) => {
   const annotations = [
-    summary.fiftyPercentN !== null ? { n: summary.fiftyPercentN, label: '50%', color: '#fbbf24' } : null,
-    summary.ninetyNinePercentN !== null ? { n: summary.ninetyNinePercentN, label: '99%', color: '#f472b6' } : null,
+    summary.fiftyPercentN !== null ? { n: summary.fiftyPercentN, label: '50%', color: '#f59e0b' } : null,
+    summary.ninetyNinePercentN !== null ? { n: summary.ninetyNinePercentN, label: '99%', color: '#ec4899' } : null,
   ].filter((a): a is { n: number; label: string; color: string } => a !== null);
 
-  // Sample anchor stats
   const at = (n: number) => summary.points.find((p) => p.n === n) ?? null;
   const p23 = at(23);
   const p50 = at(50);
   const p70 = at(70);
 
+  // Mean absolute error between simulation and theory — a single number that
+  // shrinks as trials grow, quantifying "the sim matches the math".
+  const mae = useMemo(() => {
+    if (summary.points.length === 0) return 0;
+    const sum = summary.points.reduce((acc, p) => acc + Math.abs(p.empirical - p.theoretical), 0);
+    return sum / summary.points.length;
+  }, [summary.points]);
+
+  const nf = (n: number | null) => (n === null ? '—' : n.toLocaleString(language === 'ja' ? 'ja-JP' : 'en-US'));
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      <div>
-        <h3 style={{ margin: '0 0 0.5rem', color: '#fbbf24' }}>P(誕生日が被る) vs グループ人数 ({summary.trialsPerN.toLocaleString()} 試行/n)</h3>
-        <CurveChart points={summary.points} annotations={annotations} />
-        <p style={{ marginTop: '0.5rem', color: '#64748b', fontSize: '0.8rem' }}>
-          縦線: 理論上初めて <strong style={{ color: '#fbbf24' }}>50% を超える n = {summary.fiftyPercentN ?? '—'}</strong>、
-          {' '}<strong style={{ color: '#f472b6' }}>99% を超える n = {summary.ninetyNinePercentN ?? '—'}</strong>
-        </p>
+      <div className={styles.card}>
+        <h3 className={styles.sectionTitle}>{t.chartTitle(summary.trialsPerN.toLocaleString())}</h3>
+        <div className={styles.chartWrap}>
+          <CurveChart
+            points={summary.points}
+            annotations={annotations}
+            legendTheoretical={t.legendTheoretical}
+            legendSimulation={t.legendSimulation}
+            axisLabel={t.axisN}
+          />
+        </div>
+        <p className={styles.caption}>{t.crossing(nf(summary.fiftyPercentN), nf(summary.ninetyNinePercentN))}</p>
       </div>
 
       <div>
-        <h4 style={{ margin: '0 0 0.4rem', color: '#cbd5e1' }}>主要な n のスナップショット</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem' }}>
-          {p23 && <Snapshot n={23} p={p23} accent="#fbbf24" />}
-          {p50 && <Snapshot n={50} p={p50} accent="#67e8f9" />}
-          {p70 && <Snapshot n={70} p={p70} accent="#f472b6" />}
+        <h4 className={styles.sectionTitle} style={{ fontSize: '0.95rem' }}>{t.snapshotTitle}</h4>
+        <div className={styles.snapGrid}>
+          {p23 && <Snapshot n={23} p={p23} accent="#d97706" simLabel={t.simEmpirical} />}
+          {p50 && <Snapshot n={50} p={p50} accent="#0891b2" simLabel={t.simEmpirical} />}
+          {p70 && <Snapshot n={70} p={p70} accent="#db2777" simLabel={t.simEmpirical} />}
+          <div className={styles.stat}>
+            <div className={styles.statLabel}>{t.convergence}</div>
+            <div className={styles.statValue} style={{ fontSize: '1.35rem' }}>
+              {(mae * 100).toFixed(2)}%
+            </div>
+            <div className={styles.statSub}>{summary.trialsPerN.toLocaleString()} × {summary.maxN}</div>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-const Snapshot = ({ n, p, accent }: { n: number; p: { empirical: number; theoretical: number }; accent: string }) => (
-  <div style={{ background: '#020617', border: `1px solid ${accent}44`, borderRadius: 10, padding: '0.6rem 0.8rem' }}>
-    <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>n = {n}</div>
-    <div style={{ color: accent, fontSize: '1.3rem', fontWeight: 800 }}>{(p.theoretical * 100).toFixed(1)}%</div>
-    <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>シム実測: {(p.empirical * 100).toFixed(1)}%</div>
+const Snapshot = ({
+  n,
+  p,
+  accent,
+  simLabel,
+}: {
+  n: number;
+  p: { empirical: number; theoretical: number };
+  accent: string;
+  simLabel: string;
+}) => (
+  <div className={styles.stat}>
+    <div className={styles.statLabel}>n = {n}</div>
+    <div className={styles.statValue} style={{ color: accent, fontSize: '1.4rem' }}>
+      {(p.theoretical * 100).toFixed(1)}%
+    </div>
+    <div className={styles.statSub}>{simLabel}: {(p.empirical * 100).toFixed(1)}%</div>
   </div>
 );
 
@@ -154,9 +200,10 @@ interface NumFieldProps {
   onChange: (v: number) => void;
 }
 const NumField = ({ label, value, min, max, onChange }: NumFieldProps) => (
-  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-    <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{label}</span>
+  <label className={styles.field}>
+    <span className={styles.fieldLabel}>{label}</span>
     <input
+      className={styles.numInput}
       type="number"
       value={value}
       min={min}
@@ -166,15 +213,6 @@ const NumField = ({ label, value, min, max, onChange }: NumFieldProps) => (
         if (raw === '') return onChange(0);
         const v = Number(raw);
         if (Number.isFinite(v)) onChange(v);
-      }}
-      style={{
-        background: '#0f172a',
-        color: '#e2e8f0',
-        border: '1px solid #334155',
-        borderRadius: 8,
-        padding: '0.5rem 0.7rem',
-        fontSize: '0.95rem',
-        width: 140,
       }}
     />
   </label>

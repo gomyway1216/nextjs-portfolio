@@ -3,47 +3,79 @@
 import { useState } from 'react';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { makeT } from './i18n';
+import styles from './GamblersRuin.module.css';
 
 type Tab = 'play' | 'sim';
 
 export const GamblersRuin = () => {
   const [tab, setTab] = useState<Tab>('play');
+  const [showInfo, setShowInfo] = useState(false);
+  const { language } = useGameLanguage();
+  const t = makeT(language);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #020617, #111827)', color: '#e2e8f0', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>💸 Gambler&apos;s Ruin</h1>
-        <p style={{ marginTop: '0.4rem', color: '#94a3b8' }}>
-          公平 (p=0.5) でも有限資金だと破産する確率は (N − a) / N。少しでも p &lt; 0.5 なら破産はほぼ確実 — その閾値を実験で確かめる。
-        </p>
+    <div className={styles.root}>
+      <div className={styles.shell}>
+        <header className={styles.header}>
+          <div>
+            <h1 className={styles.title}>💸 {t('title')}</h1>
+            <p className={styles.subtitle}>{t('subtitle')}</p>
+          </div>
+          <div className={styles.headerActions}>
+            <button
+              type="button"
+              className={styles.infoBtn}
+              onClick={() => setShowInfo(true)}
+              aria-label={t('infoTitle')}
+            >
+              ⓘ {t('info')}
+            </button>
+          </div>
+        </header>
 
-        <div style={{ display: 'flex', gap: '0.5rem', margin: '1.25rem 0' }}>
-          <TabButton active={tab === 'play'} onClick={() => setTab('play')}>遊ぶ</TabButton>
-          <TabButton active={tab === 'sim'} onClick={() => setTab('sim')}>シミュレーション</TabButton>
+        <div className={styles.tabs} role="tablist" aria-label={t('title')}>
+          <button
+            role="tab"
+            aria-selected={tab === 'play'}
+            className={`${styles.tab} ${tab === 'play' ? styles.tabActive : ''}`}
+            onClick={() => setTab('play')}
+          >
+            ▶ {t('tabPlay')}
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === 'sim'}
+            className={`${styles.tab} ${tab === 'sim' ? styles.tabActive : ''}`}
+            onClick={() => setTab('sim')}
+          >
+            📊 {t('tabSim')}
+          </button>
         </div>
 
-        {tab === 'play' ? <PlayTab /> : <SimTab />}
+        {tab === 'play' ? <PlayTab t={t} /> : <SimTab t={t} />}
       </div>
+
+      {showInfo && (
+        <div
+          className={styles.overlay}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t('infoTitle')}
+          onClick={() => setShowInfo(false)}
+        >
+          <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+            <h2 className={styles.modalTitle}>{t('infoTitle')}</h2>
+            <div className={styles.modalBody}>{t('infoBody')}</div>
+            <button type="button" className={styles.modalClose} onClick={() => setShowInfo(false)} autoFocus>
+              {t('close')}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
-
-const TabButton = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
-  <button
-    onClick={onClick}
-    style={{
-      background: active ? '#f59e0b' : '#1e293b',
-      color: active ? '#0f172a' : '#e2e8f0',
-      border: `1px solid ${active ? '#f59e0b' : '#334155'}`,
-      borderRadius: 10,
-      padding: '0.55rem 1.1rem',
-      fontWeight: 800,
-      cursor: 'pointer',
-      fontSize: '0.95rem',
-    }}
-  >
-    {children}
-  </button>
-);
 
 export default GamblersRuin;

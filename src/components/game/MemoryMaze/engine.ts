@@ -104,7 +104,7 @@ const DIRECTIONS: Position[] = [
 ];
 
 const inBounds = (grid: Grid, x: number, y: number): boolean =>
-  y >= 0 && y < grid.length && x >= 0 && x < grid[0].length;
+  grid.length > 0 && y >= 0 && y < grid.length && x >= 0 && x < grid[0].length;
 
 /**
  * Breadth-first search returning the shortest path (list of positions from

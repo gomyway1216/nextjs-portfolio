@@ -27,6 +27,8 @@ import styles from './MemoryMaze.module.css';
 type Phase = 'menu' | 'preview' | 'playing' | 'won' | 'lost';
 
 interface RunState {
+  /** Unique id per stage instance so outcome recording can dedupe. */
+  runId: number;
   phase: Phase;
   difficulty: Difficulty;
   stage: number;
@@ -53,6 +55,80 @@ const makeVisited = (size: number): boolean[][] => {
   return visited;
 };
 
+interface Messages {
+  recall: string;
+  timeUp: string;
+  wall: string;
+  outOfLives: string;
+  stageClear: string;
+  keepGoing: string;
+}
+
+/** Pure: advance the recall clock by one second. */
+const tickTimer = (prev: RunState, msg: Messages): RunState => {
+  if (prev.phase !== 'playing') return prev;
+  const nextTime = prev.timeSec - 1;
+  if (nextTime <= 0) {
+    return { ...prev, timeSec: 0, phase: 'lost', lossReason: 'time', message: msg.timeUp, tone: 'bad' };
+  }
+  return { ...prev, timeSec: nextTime };
+};
+
+/** Pure: apply a directional move, producing the next run state. */
+const applyMove = (prev: RunState, dx: number, dy: number, msg: Messages): RunState => {
+  if (prev.phase !== 'playing') return prev;
+  const nx = prev.player.x + dx;
+  const ny = prev.player.y + dy;
+  if (nx < 0 || ny < 0 || nx >= prev.maze.size || ny >= prev.maze.size) return prev;
+
+  // Hit a wall -> lose a life.
+  if (prev.maze.grid[ny][nx] === 1) {
+    const lives = prev.lives - 1;
+    if (lives <= 0) {
+      return { ...prev, lives: 0, phase: 'lost', lossReason: 'lives', message: msg.outOfLives, tone: 'bad', bump: { x: nx, y: ny } };
+    }
+    return { ...prev, lives, message: msg.wall, tone: 'bad', bump: { x: nx, y: ny } };
+  }
+
+  const visited = prev.visited.map((row) => [...row]);
+  visited[ny][nx] = true;
+  const moves = prev.moves + 1;
+
+  // Reached the goal.
+  if (nx === prev.maze.goal.x && ny === prev.maze.goal.y) {
+    const gained = computeStageScore({
+      difficulty: prev.difficulty,
+      stage: prev.stage,
+      optimalLength: prev.maze.solution.length,
+      moves,
+      timeLeftSec: prev.timeSec,
+      livesLeft: prev.lives,
+    });
+    return {
+      ...prev,
+      player: { x: nx, y: ny },
+      visited,
+      moves,
+      phase: 'won',
+      score: prev.score + gained,
+      lastGained: gained,
+      message: msg.stageClear,
+      tone: 'good',
+      bump: null,
+    };
+  }
+
+  return {
+    ...prev,
+    player: { x: nx, y: ny },
+    visited,
+    moves,
+    message: msg.keepGoing,
+    tone: 'neutral',
+    bump: null,
+  };
+};
+
 export const MemoryMaze = () => {
   useFeatureLifecycle('game.memory-maze');
   const { language } = useGameLanguage();
@@ -65,23 +141,56 @@ export const MemoryMaze = () => {
   const [run, setRun] = useState<RunState | null>(null);
   const boardRef = useRef<HTMLDivElement>(null);
   const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const runIdRef = useRef(0);
+  const recordedRef = useRef<number | null>(null);
+  // Mirror of `run` for reading current state inside event/timer callbacks
+  // without making them depend on `run` (keeps handlers stable).
+  const runRef = useRef<RunState | null>(null);
+  useEffect(() => {
+    runRef.current = run;
+  }, [run]);
 
   const phase: Phase = run?.phase ?? 'menu';
 
-  const recordWin = useCallback((stage: number) => {
-    setBest((b) => Math.max(b, stage));
-    setTotalStats((s) => ({ ...s, wins: s.wins + 1 }));
-  }, []);
+  const messages: Messages = useMemo(
+    () => ({
+      recall: t.recall,
+      timeUp: t.timeUp,
+      wall: t.wall,
+      outOfLives: t.outOfLives,
+      stageClear: t.stageClear,
+      keepGoing: t.keepGoing,
+    }),
+    [t.recall, t.timeUp, t.wall, t.outOfLives, t.stageClear, t.keepGoing],
+  );
 
-  const recordLoss = useCallback(() => {
-    setTotalStats((s) => ({ ...s, losses: s.losses + 1 }));
+  // Commit a computed next state, recording the win/loss outcome exactly once
+  // per stage (deduped via runId). Recording happens here in the event/timer
+  // handler — not inside a setState updater (which must stay pure) and not in
+  // an effect — so it can't double-count.
+  const commitRun = useCallback((next: RunState | null) => {
+    if (next && (next.phase === 'won' || next.phase === 'lost') && recordedRef.current !== next.runId) {
+      recordedRef.current = next.runId;
+      if (next.phase === 'won') {
+        setBest((b) => Math.max(b, next.stage));
+        setTotalStats((s) => ({ ...s, wins: s.wins + 1 }));
+      } else {
+        setTotalStats((s) => ({ ...s, losses: s.losses + 1 }));
+      }
+    }
+    // Keep the mirror in sync immediately so back-to-back moves in the same
+    // frame read fresh state (the effect-based sync would lag by a commit).
+    runRef.current = next;
+    setRun(next);
   }, []);
 
   const startStage = useCallback(
     (diff: Difficulty, stage: number, carryScore: number) => {
       const maze = buildMaze(diff, stage);
       const cfg = getStageConfig(diff, stage);
+      runIdRef.current += 1;
       setRun({
+        runId: runIdRef.current,
         phase: 'preview',
         difficulty: diff,
         stage,
@@ -134,78 +243,20 @@ export const MemoryMaze = () => {
   useEffect(() => {
     if (phase !== 'playing') return;
     const id = window.setInterval(() => {
-      setRun((prev) => {
-        if (!prev || prev.phase !== 'playing') return prev;
-        const nextTime = prev.timeSec - 1;
-        if (nextTime <= 0) {
-          recordLoss();
-          return { ...prev, timeSec: 0, phase: 'lost', lossReason: 'time', message: t.timeUp, tone: 'bad' };
-        }
-        return { ...prev, timeSec: nextTime };
-      });
+      const current = runRef.current;
+      if (!current || current.phase !== 'playing') return;
+      commitRun(tickTimer(current, messages));
     }, 1000);
     return () => window.clearInterval(id);
-  }, [phase, t.timeUp, recordLoss]);
+  }, [phase, messages, commitRun]);
 
   const move = useCallback(
     (dx: number, dy: number) => {
-      setRun((prev) => {
-        if (!prev || prev.phase !== 'playing') return prev;
-        const nx = prev.player.x + dx;
-        const ny = prev.player.y + dy;
-        if (nx < 0 || ny < 0 || nx >= prev.maze.size || ny >= prev.maze.size) return prev;
-
-        // Hit a wall -> lose a life.
-        if (prev.maze.grid[ny][nx] === 1) {
-          const lives = prev.lives - 1;
-          if (lives <= 0) {
-            recordLoss();
-            return { ...prev, lives: 0, phase: 'lost', lossReason: 'lives', message: t.outOfLives, tone: 'bad', bump: { x: nx, y: ny } };
-          }
-          return { ...prev, lives, message: t.wall, tone: 'bad', bump: { x: nx, y: ny } };
-        }
-
-        const visited = prev.visited.map((row) => [...row]);
-        visited[ny][nx] = true;
-        const moves = prev.moves + 1;
-
-        // Reached the goal.
-        if (nx === prev.maze.goal.x && ny === prev.maze.goal.y) {
-          const gained = computeStageScore({
-            difficulty: prev.difficulty,
-            stage: prev.stage,
-            optimalLength: prev.maze.solution.length,
-            moves,
-            timeLeftSec: prev.timeSec,
-            livesLeft: prev.lives,
-          });
-          recordWin(prev.stage);
-          return {
-            ...prev,
-            player: { x: nx, y: ny },
-            visited,
-            moves,
-            phase: 'won',
-            score: prev.score + gained,
-            lastGained: gained,
-            message: t.stageClear,
-            tone: 'good',
-            bump: null,
-          };
-        }
-
-        return {
-          ...prev,
-          player: { x: nx, y: ny },
-          visited,
-          moves,
-          message: t.keepGoing,
-          tone: 'neutral',
-          bump: null,
-        };
-      });
+      const current = runRef.current;
+      if (!current || current.phase !== 'playing') return;
+      commitRun(applyMove(current, dx, dy, messages));
     },
-    [t.keepGoing, t.outOfLives, t.stageClear, t.wall, recordWin, recordLoss],
+    [messages, commitRun],
   );
 
   // Keyboard controls.
@@ -229,6 +280,7 @@ export const MemoryMaze = () => {
   // Touch swipe controls on the board.
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     const touch = e.touches[0];
+    if (!touch) return;
     touchStart.current = { x: touch.clientX, y: touch.clientY };
   }, []);
 
@@ -236,6 +288,7 @@ export const MemoryMaze = () => {
     (e: React.TouchEvent) => {
       if (!touchStart.current) return;
       const touch = e.changedTouches[0];
+      if (!touch) return;
       const dx = touch.clientX - touchStart.current.x;
       const dy = touch.clientY - touchStart.current.y;
       touchStart.current = null;

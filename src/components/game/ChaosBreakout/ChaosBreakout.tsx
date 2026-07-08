@@ -1,394 +1,572 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Heart, Info, Pause, Play, RotateCcw, Sparkles, Trophy, Zap } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
-type GravityDirection = 'down' | 'up' | 'left' | 'right';
-type GamePhase = 'menu' | 'playing' | 'gameover';
+import { useHighScore } from '@/hooks/useHighScore';
+import { getDifficultyColor } from '../common';
+import { InfoModal } from '../common';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import styles from './ChaosBreakout.module.css';
+import { getBannerText, getStrings } from './i18n';
+import {
+  BRICK_TOP,
+  createGameState,
+  type Difficulty,
+  DIFFICULTY_CONFIG,
+  type GameState,
+  HEIGHT,
+  launch,
+  step,
+  type StepInput,
+  WIDTH,
+} from './engine';
 
-interface Ball {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  r: number;
-}
+type Phase = 'menu' | 'ready' | 'playing' | 'paused' | 'gameover';
 
-interface Paddle {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
+const DIFFICULTIES: Difficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
 
-interface Brick {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  alive: boolean;
-  color: string;
-}
+const GRAVITY_ARROW: Record<GameState['gravity'], string> = {
+  down: '↓',
+  up: '↑',
+  left: '←',
+  right: '→',
+};
 
-interface RuntimeState {
-  ball: Ball;
-  paddle: Paddle;
-  bricks: Brick[];
-  gravity: GravityDirection;
+interface Hud {
   score: number;
   lives: number;
   stage: number;
-  chaosTimer: number;
-  chaosText: string;
-  chaosTextTimer: number;
+  combo: number;
+  gravity: GameState['gravity'];
 }
 
-const WIDTH = 760;
-const HEIGHT = 460;
-const BRICK_ROWS = 6;
-const BRICK_COLS = 10;
-
-const createBricks = (): Brick[] => {
-  const colors = ['#0ea5e9', '#22c55e', '#f59e0b', '#f97316', '#a855f7', '#fb7185'];
-  const margin = 10;
-  const totalGap = margin * (BRICK_COLS + 1);
-  const brickWidth = (WIDTH - totalGap) / BRICK_COLS;
-  const brickHeight = 22;
-
-  const bricks: Brick[] = [];
-  for (let row = 0; row < BRICK_ROWS; row += 1) {
-    for (let col = 0; col < BRICK_COLS; col += 1) {
-      bricks.push({
-        x: margin + col * (brickWidth + margin),
-        y: 56 + row * (brickHeight + 10),
-        width: brickWidth,
-        height: brickHeight,
-        alive: true,
-        color: colors[row % colors.length],
-      });
-    }
-  }
-  return bricks;
-};
-
-const createRuntimeState = (): RuntimeState => ({
-  ball: {
-    x: WIDTH / 2,
-    y: HEIGHT - 110,
-    vx: 4.2,
-    vy: -4.2,
-    r: 8,
-  },
-  paddle: {
-    x: WIDTH / 2 - 56,
-    y: HEIGHT - 32,
-    width: 112,
-    height: 12,
-  },
-  bricks: createBricks(),
-  gravity: 'down',
-  score: 0,
-  lives: 3,
-  stage: 1,
-  chaosTimer: 600,
-  chaosText: 'Chaos starts in 10s',
-  chaosTextTimer: 120,
-});
-
-const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
-
-const gravityVector = (direction: GravityDirection) => {
-  if (direction === 'down') return { gx: 0, gy: 0.055 };
-  if (direction === 'up') return { gx: 0, gy: -0.055 };
-  if (direction === 'left') return { gx: -0.055, gy: 0 };
-  return { gx: 0.055, gy: 0 };
-};
-
-const pickRandomGravity = (current: GravityDirection): GravityDirection => {
-  const options: GravityDirection[] = ['down', 'up', 'left', 'right'];
-  const filtered = options.filter((item) => item !== current);
-  return filtered[Math.floor(Math.random() * filtered.length)];
-};
-
 export const ChaosBreakout = () => {
-  useFeatureLifecycle('game.chaos-breakout');
+  const { trackEvent } = useFeatureLifecycle('game.chaos-breakout');
+  const { language } = useGameLanguage();
+  const t = getStrings(language);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const runtimeRef = useRef<RuntimeState>(createRuntimeState());
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const stateRef = useRef<GameState | null>(null);
   const frameRef = useRef<number | null>(null);
-  const keysRef = useRef({ left: false, right: false });
+  const inputRef = useRef<StepInput>({ pointerX: null, left: false, right: false });
+  const difficultyRef = useRef<Difficulty>('medium');
+  const phaseRef = useRef<Phase>('menu');
+  const languageRef = useRef(language);
 
-  const [phase, setPhase] = useState<GamePhase>('menu');
-  const [hud, setHud] = useState({
-    score: 0,
-    lives: 3,
-    stage: 1,
-    gravity: 'down' as GravityDirection,
-    chaosText: 'Chaos starts in 10s',
-  });
+  const [phase, setPhase] = useState<Phase>('menu');
+  const [difficulty, setDifficulty] = useState<Difficulty>('medium');
+  const [highScore, updateHighScore] = useHighScore('chaos-breakout');
+  const [showInfo, setShowInfo] = useState(false);
+  const [isNewBest, setIsNewBest] = useState(false);
+  const [hud, setHud] = useState<Hud>({ score: 0, lives: 0, stage: 1, combo: 0, gravity: 'down' });
 
-  const resetGame = () => {
-    runtimeRef.current = createRuntimeState();
-    setHud({ score: 0, lives: 3, stage: 1, gravity: 'down', chaosText: 'Chaos starts in 10s' });
-  };
-
-  const draw = (ctx: CanvasRenderingContext2D, state: RuntimeState) => {
-    ctx.clearRect(0, 0, WIDTH, HEIGHT);
-    const gradient = ctx.createLinearGradient(0, 0, 0, HEIGHT);
-    gradient.addColorStop(0, '#0f172a');
-    gradient.addColorStop(1, '#020617');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
-
-    for (const brick of state.bricks) {
-      if (!brick.alive) continue;
-      ctx.fillStyle = brick.color;
-      ctx.fillRect(brick.x, brick.y, brick.width, brick.height);
-      ctx.strokeStyle = 'rgba(15, 23, 42, 0.7)';
-      ctx.strokeRect(brick.x, brick.y, brick.width, brick.height);
-    }
-
-    ctx.fillStyle = '#22d3ee';
-    ctx.fillRect(state.paddle.x, state.paddle.y, state.paddle.width, state.paddle.height);
-
-    ctx.beginPath();
-    ctx.arc(state.ball.x, state.ball.y, state.ball.r, 0, Math.PI * 2);
-    ctx.fillStyle = '#fef08a';
-    ctx.fill();
-
-    ctx.fillStyle = 'rgba(148, 163, 184, 0.35)';
-    ctx.font = '14px monospace';
-    ctx.fillText(`GRAVITY: ${state.gravity.toUpperCase()}`, 16, HEIGHT - 16);
-  };
+  const setPhaseBoth = useCallback((p: Phase) => {
+    phaseRef.current = p;
+    setPhase(p);
+  }, []);
 
   useEffect(() => {
-    if (phase !== 'playing') {
-      if (frameRef.current !== null) {
-        cancelAnimationFrame(frameRef.current);
-      }
-      return;
+    difficultyRef.current = difficulty;
+  }, [difficulty]);
+
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
+
+  // ---- Rendering ------------------------------------------------------------
+  const draw = useCallback((ctx: CanvasRenderingContext2D, state: GameState) => {
+    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+    const bg = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+    bg.addColorStop(0, '#0b1120');
+    bg.addColorStop(1, '#020617');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+    // Gravity direction tint on the edge the ball is being pulled toward.
+    if (state.gravityFlash > 0) {
+      const a = (state.gravityFlash / 30) * 0.35;
+      ctx.fillStyle = `rgba(103, 232, 249, ${a})`;
+      const band = 60;
+      if (state.gravity === 'down') ctx.fillRect(0, HEIGHT - band, WIDTH, band);
+      else if (state.gravity === 'up') ctx.fillRect(0, 0, WIDTH, band);
+      else if (state.gravity === 'left') ctx.fillRect(0, 0, band, HEIGHT);
+      else ctx.fillRect(WIDTH - band, 0, band, HEIGHT);
     }
 
+    // Bricks
+    for (const brick of state.bricks) {
+      if (brick.hp <= 0) continue;
+      const dim = brick.hp < brick.maxHp ? 0.55 : 1;
+      ctx.globalAlpha = dim;
+      ctx.fillStyle = brick.color;
+      const r = 5;
+      roundRect(ctx, brick.x, brick.y, brick.width, brick.height, r);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      // top highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      roundRect(ctx, brick.x, brick.y, brick.width, brick.height / 2, r);
+      ctx.fill();
+    }
+
+    // Particles
+    for (const pt of state.particles) {
+      ctx.globalAlpha = Math.max(0, pt.life);
+      ctx.fillStyle = pt.color;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Paddle
+    const p = state.paddle;
+    const pg = ctx.createLinearGradient(p.x, 0, p.x + p.width, 0);
+    pg.addColorStop(0, '#22d3ee');
+    pg.addColorStop(1, '#a855f7');
+    ctx.fillStyle = pg;
+    roundRect(ctx, p.x, p.y, p.width, p.height, 7);
+    ctx.fill();
+    ctx.shadowColor = 'rgba(168, 85, 247, 0.6)';
+    ctx.shadowBlur = 12;
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // Balls
+    for (const ball of state.balls) {
+      ctx.beginPath();
+      ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+      ctx.fillStyle = '#fef08a';
+      ctx.shadowColor = 'rgba(250, 204, 21, 0.8)';
+      ctx.shadowBlur = 16;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+
+    // White flash on chaos pulse
+    if (state.flash > 0) {
+      ctx.fillStyle = `rgba(255,255,255,${(state.flash / 12) * 0.22})`;
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    }
+
+    // Chaos banner
+    if (state.banner) {
+      const a = Math.min(1, state.banner.timer / 40);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '700 30px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(103, 232, 249, 0.9)';
+      ctx.shadowBlur = 18;
+      ctx.fillText(getBannerText(state.banner, languageRef.current), WIDTH / 2, BRICK_TOP / 2 + 6);
+      ctx.shadowBlur = 0;
+      ctx.globalAlpha = 1;
+      ctx.textAlign = 'start';
+      ctx.textBaseline = 'alphabetic';
+    }
+  }, []);
+
+  // ---- Game loop ------------------------------------------------------------
+  useEffect(() => {
+    if (phase !== 'playing') return;
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    const state = stateRef.current;
+    if (!canvas || !state) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
+    let hudFrame = 0;
+
     const loop = () => {
-      const state = runtimeRef.current;
+      if (phaseRef.current !== 'playing') return;
+      const s = stateRef.current;
+      if (!s) return;
 
-      if (keysRef.current.left) {
-        state.paddle.x -= 7;
-      }
-      if (keysRef.current.right) {
-        state.paddle.x += 7;
-      }
-      state.paddle.x = clamp(state.paddle.x, 0, WIDTH - state.paddle.width);
+      const events = step(s, inputRef.current, difficultyRef.current);
 
-      state.chaosTimer -= 1;
-      if (state.chaosTimer <= 0) {
-        const roll = Math.floor(Math.random() * 3);
-        if (roll === 0) {
-          state.gravity = pickRandomGravity(state.gravity);
-          state.chaosText = `Chaos: gravity -> ${state.gravity.toUpperCase()}`;
-        } else if (roll === 1) {
-          const mul = 1.2 + Math.random() * 0.55;
-          state.ball.vx *= mul;
-          state.ball.vy *= mul;
-          state.chaosText = `Chaos: speed x${mul.toFixed(2)}`;
-        } else {
-          const nextWidth = 70 + Math.random() * 120;
-          state.paddle.width = nextWidth;
-          state.paddle.x = clamp(state.paddle.x, 0, WIDTH - state.paddle.width);
-          state.chaosText = `Chaos: paddle width ${Math.round(nextWidth)}px`;
+      if (events.chaos) trackEvent('chaos', { kind: events.chaos });
+      if (events.stageCleared) trackEvent('stage', { stage: s.stage });
+
+      // Throttle HUD state updates to ~10/s to avoid re-render storms.
+      hudFrame += 1;
+      if (hudFrame % 6 === 0 || events.lifeLost || events.stageCleared) {
+        setHud({
+          score: s.score,
+          lives: s.lives,
+          stage: s.stage,
+          combo: s.combo,
+          gravity: s.gravity,
+        });
+      }
+
+      draw(ctx, s);
+
+      if (events.gameOver) {
+        setHud({ score: s.score, lives: 0, stage: s.stage, combo: 0, gravity: s.gravity });
+        if (s.score > highScore) {
+          updateHighScore(s.score);
+          setIsNewBest(true);
         }
-        state.chaosTextTimer = 180;
-        state.chaosTimer = 600;
+        trackEvent('gameover', { score: s.score, stage: s.stage });
+        setPhaseBoth('gameover');
+        return;
       }
 
-      if (state.chaosTextTimer > 0) {
-        state.chaosTextTimer -= 1;
-      } else {
-        state.chaosText = 'Survive the next chaos pulse';
-      }
-
-      const g = gravityVector(state.gravity);
-      state.ball.vx += g.gx;
-      state.ball.vy += g.gy;
-
-      state.ball.vx = clamp(state.ball.vx, -11, 11);
-      state.ball.vy = clamp(state.ball.vy, -11, 11);
-
-      state.ball.x += state.ball.vx;
-      state.ball.y += state.ball.vy;
-
-      if (state.ball.x - state.ball.r <= 0) {
-        state.ball.x = state.ball.r;
-        state.ball.vx *= -1;
-      }
-      if (state.ball.x + state.ball.r >= WIDTH) {
-        state.ball.x = WIDTH - state.ball.r;
-        state.ball.vx *= -1;
-      }
-      if (state.ball.y - state.ball.r <= 0) {
-        state.ball.y = state.ball.r;
-        state.ball.vy *= -1;
-      }
-
-      const inPaddleX = state.ball.x >= state.paddle.x && state.ball.x <= state.paddle.x + state.paddle.width;
-      const touchingPaddle =
-        state.ball.y + state.ball.r >= state.paddle.y &&
-        state.ball.y + state.ball.r <= state.paddle.y + state.paddle.height &&
-        inPaddleX &&
-        state.ball.vy > 0;
-
-      if (touchingPaddle) {
-        const relative = (state.ball.x - (state.paddle.x + state.paddle.width / 2)) / (state.paddle.width / 2);
-        state.ball.vx += relative * 1.2;
-        state.ball.vy = -Math.abs(state.ball.vy) * 0.95;
-      }
-
-      for (const brick of state.bricks) {
-        if (!brick.alive) continue;
-        const hitX = state.ball.x + state.ball.r > brick.x && state.ball.x - state.ball.r < brick.x + brick.width;
-        const hitY = state.ball.y + state.ball.r > brick.y && state.ball.y - state.ball.r < brick.y + brick.height;
-        if (!hitX || !hitY) continue;
-
-        brick.alive = false;
-        state.score += 10;
-
-        const overlapLeft = state.ball.x + state.ball.r - brick.x;
-        const overlapRight = brick.x + brick.width - (state.ball.x - state.ball.r);
-        const overlapTop = state.ball.y + state.ball.r - brick.y;
-        const overlapBottom = brick.y + brick.height - (state.ball.y - state.ball.r);
-
-        const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
-        if (minOverlap === overlapLeft || minOverlap === overlapRight) {
-          state.ball.vx *= -1;
-        } else {
-          state.ball.vy *= -1;
-        }
-        break;
-      }
-
-      const remaining = state.bricks.filter((brick) => brick.alive).length;
-      if (remaining === 0) {
-        state.stage += 1;
-        state.bricks = createBricks();
-        state.ball.x = WIDTH / 2;
-        state.ball.y = HEIGHT - 110;
-        state.ball.vx = (Math.random() > 0.5 ? 1 : -1) * (4 + state.stage * 0.3);
-        state.ball.vy = -4.6 - state.stage * 0.25;
-        state.chaosText = `Stage ${state.stage} started`; 
-        state.chaosTextTimer = 150;
-      }
-
-      const outOfBounds =
-        state.ball.x < -48 ||
-        state.ball.x > WIDTH + 48 ||
-        state.ball.y > HEIGHT + 48 ||
-        state.ball.y < -48;
-
-      if (outOfBounds) {
-        state.lives -= 1;
-        state.ball.x = WIDTH / 2;
-        state.ball.y = HEIGHT - 110;
-        state.ball.vx = (Math.random() > 0.5 ? 1 : -1) * (4 + state.stage * 0.3);
-        state.ball.vy = -4.2;
-        state.gravity = 'down';
-        state.chaosText = `Life lost. ${state.lives} left`;
-        state.chaosTextTimer = 160;
-        if (state.lives <= 0) {
-          setPhase('gameover');
-        }
-      }
-
-      setHud({
-        score: state.score,
-        lives: state.lives,
-        stage: state.stage,
-        gravity: state.gravity,
-        chaosText: state.chaosText,
-      });
-
-      draw(ctx, state);
       frameRef.current = requestAnimationFrame(loop);
     };
 
     frameRef.current = requestAnimationFrame(loop);
-
     return () => {
-      if (frameRef.current !== null) {
-        cancelAnimationFrame(frameRef.current);
-      }
+      if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     };
-  }, [phase]);
+  }, [phase, draw, trackEvent, highScore, updateHighScore, setPhaseBoth]);
 
+  // Draw a single static frame for non-playing phases (ready / paused / gameover).
   useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
-        keysRef.current.left = true;
-      }
-      if (event.code === 'ArrowRight' || event.code === 'KeyD') {
-        keysRef.current.right = true;
+    if (phase === 'playing' || phase === 'menu') return;
+    const canvas = canvasRef.current;
+    const state = stateRef.current;
+    if (!canvas || !state) return;
+    const ctx = canvas.getContext('2d');
+    if (ctx) draw(ctx, state);
+  }, [phase, draw]);
+
+  // ---- Controls -------------------------------------------------------------
+  const startGame = useCallback(() => {
+    // Use the difficulty state directly so a start immediately after a
+    // difficulty change can't read a stale ref. Keep the ref (read by the
+    // game loop) in sync synchronously as well.
+    difficultyRef.current = difficulty;
+    const s = createGameState(difficulty);
+    stateRef.current = s;
+    setIsNewBest(false);
+    setHud({ score: 0, lives: s.lives, stage: 1, combo: 0, gravity: 'down' });
+    inputRef.current = { pointerX: null, left: false, right: false };
+    trackEvent('start', { difficulty });
+    setPhaseBoth('ready');
+  }, [difficulty, trackEvent, setPhaseBoth]);
+
+  const doLaunch = useCallback(() => {
+    const s = stateRef.current;
+    if (!s) return;
+    if (phaseRef.current === 'ready') {
+      launch(s);
+      setPhaseBoth('playing');
+    }
+  }, [setPhaseBoth]);
+
+  const togglePause = useCallback(() => {
+    if (phaseRef.current === 'playing') setPhaseBoth('paused');
+    else if (phaseRef.current === 'paused') setPhaseBoth('playing');
+  }, [setPhaseBoth]);
+
+  // Keyboard
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      switch (e.code) {
+        case 'ArrowLeft':
+        case 'KeyA':
+          inputRef.current.left = true;
+          inputRef.current.pointerX = null;
+          break;
+        case 'ArrowRight':
+        case 'KeyD':
+          inputRef.current.right = true;
+          inputRef.current.pointerX = null;
+          break;
+        case 'Space':
+          if (phaseRef.current === 'ready') {
+            e.preventDefault();
+            doLaunch();
+          } else if (phaseRef.current === 'menu' || phaseRef.current === 'gameover') {
+            e.preventDefault();
+            startGame();
+          }
+          break;
+        case 'KeyP':
+        case 'Escape':
+          if (phaseRef.current === 'playing' || phaseRef.current === 'paused') {
+            e.preventDefault();
+            togglePause();
+          }
+          break;
       }
     };
-
-    const onKeyUp = (event: KeyboardEvent) => {
-      if (event.code === 'ArrowLeft' || event.code === 'KeyA') {
-        keysRef.current.left = false;
-      }
-      if (event.code === 'ArrowRight' || event.code === 'KeyD') {
-        keysRef.current.right = false;
-      }
+    const up = (e: KeyboardEvent) => {
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') inputRef.current.left = false;
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') inputRef.current.right = false;
     };
-
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('keydown', down);
+    window.addEventListener('keyup', up);
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('keydown', down);
+      window.removeEventListener('keyup', up);
     };
+  }, [doLaunch, startGame, togglePause]);
+
+  // Pointer (mouse + touch) maps to paddle position in game coordinates.
+  const pointerToGameX = useCallback((clientX: number): number | null => {
+    const wrap = wrapRef.current;
+    if (!wrap) return null;
+    const rect = wrap.getBoundingClientRect();
+    if (rect.width === 0) return null;
+    const ratio = (clientX - rect.left) / rect.width;
+    return Math.max(0, Math.min(1, ratio)) * WIDTH;
   }, []);
 
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (phaseRef.current !== 'playing' && phaseRef.current !== 'ready') return;
+      const x = pointerToGameX(e.clientX);
+      if (x !== null) inputRef.current.pointerX = x;
+    },
+    [pointerToGameX],
+  );
+
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      // Capture the pointer so the paddle keeps tracking even if a fast drag
+      // leaves the stage bounds.
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        /* setPointerCapture can throw for stale pointer ids; safe to ignore */
+      }
+      const x = pointerToGameX(e.clientX);
+      if (x !== null) inputRef.current.pointerX = x;
+      if (phaseRef.current === 'ready') doLaunch();
+    },
+    [pointerToGameX, doLaunch],
+  );
+
+  // ---- Derived --------------------------------------------------------------
+  const maxLives = DIFFICULTY_CONFIG[difficulty].lives;
+  const showCanvas = phase !== 'menu';
+
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem 1rem', background: 'linear-gradient(180deg, #030712, #0f172a)', color: '#e2e8f0' }}>
-      <div style={{ maxWidth: '980px', margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>Chaos Breakout</h1>
-        <p style={{ marginTop: '0.5rem', color: '#94a3b8' }}>10秒ごとに重力・速度・パドル幅がカオス変化するブロック崩し。</p>
-
-        <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', marginBottom: '0.9rem' }}>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.4rem 0.75rem', background: '#0f172a' }}>Score: {hud.score}</span>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.4rem 0.75rem', background: '#0f172a' }}>Lives: {hud.lives}</span>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.4rem 0.75rem', background: '#0f172a' }}>Stage: {hud.stage}</span>
-          <span style={{ border: '1px solid #334155', borderRadius: '999px', padding: '0.4rem 0.75rem', background: '#0f172a' }}>Gravity: {hud.gravity.toUpperCase()}</span>
-        </div>
-
-        <div style={{ marginBottom: '0.8rem', minHeight: '1.4rem', color: '#fca5a5' }}>{hud.chaosText}</div>
-
-        <canvas
-          ref={canvasRef}
-          width={WIDTH}
-          height={HEIGHT}
-          style={{ width: '100%', maxWidth: `${WIDTH}px`, border: '1px solid #334155', borderRadius: '14px', display: 'block', background: '#020617' }}
-        />
-
-        <div style={{ display: 'flex', gap: '0.75rem', marginTop: '1rem' }}>
+    <div className={styles.page}>
+      <div className={styles.shell}>
+        <header className={styles.header}>
+          <div className={styles.titleBlock}>
+            <span className={styles.logo} aria-hidden="true">
+              <Zap size={26} strokeWidth={2.4} />
+            </span>
+            <div>
+              <h1 className={styles.title}>{t.title}</h1>
+              <p className={styles.tagline}>{t.tagline}</p>
+            </div>
+          </div>
           <button
-            onClick={() => {
-              resetGame();
-              setPhase('playing');
-            }}
-            style={{ background: '#22d3ee', color: '#083344', border: 'none', borderRadius: '10px', padding: '0.65rem 1rem', fontWeight: 700, cursor: 'pointer' }}
+            type="button"
+            className={styles.infoBtn}
+            onClick={() => setShowInfo(true)}
+            aria-label={t.howToPlay}
           >
-            {phase === 'playing' ? 'Restart' : phase === 'gameover' ? 'Play Again' : 'Start'}
+            <Info size={16} />
+            <span>{t.howToPlay}</span>
           </button>
-          {phase === 'gameover' && <div style={{ alignSelf: 'center', color: '#fca5a5' }}>Game Over</div>}
-        </div>
+        </header>
 
-        <p style={{ marginTop: '0.75rem', color: '#94a3b8' }}>操作: ← → または A / D</p>
+        {showCanvas && (
+          <>
+            <div className={styles.hud} aria-live="polite">
+              <div className={styles.stat}>
+                <span className={styles.statLabel}>{t.score}</span>
+                <span className={styles.statValue}>{hud.score.toLocaleString()}</span>
+              </div>
+              <div className={styles.stat}>
+                <span className={styles.statLabel}>{t.best}</span>
+                <span className={styles.statValue} data-tone="best">
+                  {Math.max(highScore, hud.score).toLocaleString()}
+                </span>
+              </div>
+              <div className={styles.stat}>
+                <span className={styles.statLabel}>{t.lives}</span>
+                <span className={styles.livesRow} aria-label={`${hud.lives} / ${maxLives}`}>
+                  {Array.from({ length: maxLives }).map((_, i) => (
+                    <Heart
+                      key={i}
+                      size={15}
+                      className={i < hud.lives ? styles.heart : styles.heartEmpty}
+                      fill={i < hud.lives ? 'currentColor' : 'none'}
+                    />
+                  ))}
+                </span>
+              </div>
+              <div className={styles.stat}>
+                <span className={styles.statLabel}>{t.stage}</span>
+                <span className={styles.statValue}>{hud.stage}</span>
+              </div>
+              <div className={styles.stat}>
+                <span className={styles.statLabel}>{t.gravity}</span>
+                <span className={styles.statValue} data-tone="gravity">
+                  {GRAVITY_ARROW[hud.gravity]} {hud.gravity.toUpperCase()}
+                </span>
+              </div>
+              {/* Always mounted so the HUD grid doesn't reflow; just fade it. */}
+              <div
+                className={styles.stat}
+                aria-hidden={hud.combo <= 1}
+                style={{
+                  opacity: hud.combo > 1 ? 1 : 0,
+                  visibility: hud.combo > 1 ? 'visible' : 'hidden',
+                  transition: 'opacity 0.2s',
+                }}
+              >
+                <span className={styles.statLabel}>{t.combo}</span>
+                <span className={styles.statValue}>x{hud.combo}</span>
+              </div>
+            </div>
+
+            <div
+              ref={wrapRef}
+              className={styles.stageWrap}
+              onPointerMove={onPointerMove}
+              onPointerDown={onPointerDown}
+            >
+              <canvas
+                ref={canvasRef}
+                width={WIDTH}
+                height={HEIGHT}
+                className={styles.canvas}
+                aria-label={t.title}
+                role="img"
+              />
+
+              {phase === 'ready' && (
+                <div className={styles.overlay}>
+                  <h2 className={styles.overlayTitle}>{t.ready}</h2>
+                  <p className={styles.overlayHint}>{t.readyHint}</p>
+                </div>
+              )}
+              {phase === 'paused' && (
+                <div className={styles.overlay}>
+                  <h2 className={styles.overlayTitle}>{t.paused}</h2>
+                  <button type="button" className={styles.primaryBtn} onClick={togglePause}>
+                    <Play size={18} /> {t.resume}
+                  </button>
+                </div>
+              )}
+              {phase === 'gameover' && (
+                <div className={styles.overlay}>
+                  <h2 className={styles.overlayTitle} data-tone="over">
+                    {t.gameOver}
+                  </h2>
+                  <p className={styles.overlayHint}>
+                    {t.finalScore}: <span className={styles.overlayScore}>{hud.score.toLocaleString()}</span>
+                  </p>
+                  {isNewBest && (
+                    <span className={styles.newBest}>
+                      <Trophy size={16} /> {t.newBest}
+                    </span>
+                  )}
+                  <button type="button" className={styles.primaryBtn} onClick={startGame}>
+                    <RotateCcw size={18} /> {t.playAgain}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className={styles.controls}>
+              {(phase === 'playing' || phase === 'paused') && (
+                <button type="button" className={styles.ghostBtn} onClick={togglePause}>
+                  {phase === 'paused' ? <Play size={16} /> : <Pause size={16} />}
+                  {phase === 'paused' ? t.resume : t.pause}
+                </button>
+              )}
+              <button type="button" className={styles.ghostBtn} onClick={startGame}>
+                <RotateCcw size={16} /> {t.restart}
+              </button>
+            </div>
+
+            <p className={styles.hint}>{t.controls[0]}</p>
+          </>
+        )}
+
+        {phase === 'menu' && (
+          <section className={styles.setup} aria-label={t.difficultyTitle}>
+            <p className={styles.setupHeading}>{t.difficultyTitle}</p>
+            <h2 className={styles.setupTitle}>{t.tagline}</h2>
+            <div className={styles.difficultyGrid} role="radiogroup" aria-label={t.difficultyTitle}>
+              {DIFFICULTIES.map((d) => {
+                const colors = getDifficultyColor(d);
+                const info = t.difficulties[d];
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    role="radio"
+                    aria-checked={difficulty === d}
+                    data-selected={difficulty === d}
+                    className={styles.difficultyBtn}
+                    style={
+                      {
+                        '--diff-bg': colors.bg,
+                        '--diff-border': colors.border,
+                        '--diff-text': colors.text,
+                      } as React.CSSProperties
+                    }
+                    onClick={() => setDifficulty(d)}
+                  >
+                    <span className={styles.difficultyLabel}>{info.label}</span>
+                    <span className={styles.difficultyDesc}>{info.description}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <button type="button" className={styles.primaryBtn} onClick={startGame}>
+              <Play size={18} /> {t.start}
+            </button>
+          </section>
+        )}
       </div>
+
+      <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={t.title}>
+        <div className={styles.modalText}>
+          <p>{t.tagline}</p>
+          <h3>
+            <Sparkles size={15} style={{ verticalAlign: '-2px', marginRight: 4 }} />
+            {t.chaosTitle}
+          </h3>
+          <p>{t.chaosIntro}</p>
+          <ul>
+            {t.chaosList.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          <h3>{t.controlsTitle}</h3>
+          <ul>
+            {t.controls.map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+        </div>
+      </InfoModal>
     </div>
   );
 };
+
+function roundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  r: number,
+) {
+  const radius = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + radius, y);
+  ctx.arcTo(x + w, y, x + w, y + h, radius);
+  ctx.arcTo(x + w, y + h, x, y + h, radius);
+  ctx.arcTo(x, y + h, x, y, radius);
+  ctx.arcTo(x, y, x + w, y, radius);
+  ctx.closePath();
+}
 
 export default ChaosBreakout;

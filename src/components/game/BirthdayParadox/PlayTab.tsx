@@ -1,15 +1,18 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
+  createSeededRng,
   dayLabel,
   findFirstCollision,
   generateBirthdays,
   theoreticalMatchProb,
 } from './engine';
-import { createSeededRng } from '../BayesianUpdate/engine';
+import type { BirthdayStrings } from './i18n';
+import styles from './BirthdayParadox.module.css';
 
 const DEFAULT_N = 23;
+const MIN_N = 2;
 const MAX_N = 100;
 
 interface Stats {
@@ -17,88 +20,174 @@ interface Stats {
   matches: number;
 }
 
-export const PlayTab = () => {
+export const PlayTab = ({ t }: { t: BirthdayStrings }) => {
   const [n, setN] = useState(DEFAULT_N);
-  const [birthdays, setBirthdays] = useState<number[]>(() => generateBirthdays(DEFAULT_N, createSeededRng(0x5eed1234)));
+  const [birthdays, setBirthdays] = useState<number[]>(() =>
+    generateBirthdays(DEFAULT_N, createSeededRng(0x5eed1234)),
+  );
+  // How many chips are currently revealed (drives the "dealing" animation).
+  const [revealed, setRevealed] = useState(DEFAULT_N);
   const [stats, setStats] = useState<Record<number, Stats>>({});
+  const [autoDeal, setAutoDeal] = useState(false);
 
-  const collision = useMemo(() => findFirstCollision(birthdays), [birthdays]);
+  const dealTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const autoTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
   const currentStats = stats[n] ?? { trials: 0, matches: 0 };
+  const dealing = revealed < birthdays.length;
 
-  const generate = () => {
-    const bd = generateBirthdays(n);
-    setBirthdays(bd);
+  const recordDeal = (bd: number[], size: number) => {
     const matched = findFirstCollision(bd) !== null;
     setStats((s) => {
-      const prev = s[n] ?? { trials: 0, matches: 0 };
-      return { ...s, [n]: { trials: prev.trials + 1, matches: prev.matches + (matched ? 1 : 0) } };
+      const prev = s[size] ?? { trials: 0, matches: 0 };
+      return {
+        ...s,
+        [size]: { trials: prev.trials + 1, matches: prev.matches + (matched ? 1 : 0) },
+      };
     });
+  };
+
+  const clearDealTimer = () => {
+    if (dealTimer.current) {
+      clearInterval(dealTimer.current);
+      dealTimer.current = null;
+    }
+  };
+
+  // Deal a fresh group, revealing chips one by one for a tactile feel.
+  const deal = (animate: boolean) => {
+    const bd = generateBirthdays(n);
+    setBirthdays(bd);
+    recordDeal(bd, n);
+    clearDealTimer();
+    if (!animate || n <= 12) {
+      setRevealed(bd.length);
+      return;
+    }
+    setRevealed(0);
+    const step = Math.max(1, Math.round(n / 24));
+    dealTimer.current = setInterval(() => {
+      setRevealed((r) => {
+        const next = r + step;
+        if (next >= bd.length) {
+          clearDealTimer();
+          return bd.length;
+        }
+        return next;
+      });
+    }, 24);
+  };
+
+  // Auto-deal loop: rapid trials to watch empirical converge on theory.
+  useEffect(() => {
+    if (!autoDeal) return;
+    // Cancel any in-flight animated deal so the two intervals don't race on
+    // the `revealed` counter.
+    clearDealTimer();
+    autoTimer.current = setInterval(() => {
+      const bd = generateBirthdays(n);
+      setBirthdays(bd);
+      setRevealed(bd.length);
+      recordDeal(bd, n);
+    }, 120);
+    return () => {
+      if (autoTimer.current) clearInterval(autoTimer.current);
+      autoTimer.current = null;
+    };
+  }, [autoDeal, n]);
+
+  useEffect(() => () => {
+    clearDealTimer();
+    if (autoTimer.current) clearInterval(autoTimer.current);
+  }, []);
+
+  // Changing the group size stops any auto-deal loop and shows a fresh group of
+  // that size immediately (without recording a trial), so the chips, status and
+  // stats stay consistent with the slider value.
+  const changeN = (next: number) => {
+    setN(next);
+    setAutoDeal(false);
+    clearDealTimer();
+    setBirthdays(generateBirthdays(next));
+    setRevealed(next);
   };
 
   const reset = () => setStats({});
 
   const empirical = currentStats.trials === 0 ? null : currentStats.matches / currentStats.trials;
   const theoretical = theoreticalMatchProb(n);
+  const visible = useMemo(() => birthdays.slice(0, revealed), [birthdays, revealed]);
+  const visibleCollision = useMemo(() => findFirstCollision(visible), [visible]);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: '1.25rem' }}>
-      <div>
-        <label style={{ display: 'block', marginBottom: '0.75rem' }}>
-          <div style={{ color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.3rem', display: 'flex', justifyContent: 'space-between' }}>
-            <span>グループ人数</span>
-            <span style={{ color: '#fbbf24', fontWeight: 700 }}>n = {n}</span>
+    <div className={styles.grid}>
+      {/* Left: controls + birthday chips */}
+      <div className={styles.card}>
+        <label>
+          <div className={styles.labelRow}>
+            <span>{t.groupSize}</span>
+            <span className={styles.nValue}>n = {n}</span>
           </div>
           <input
+            className={styles.slider}
             type="range"
-            min={2}
+            min={MIN_N}
             max={MAX_N}
             value={n}
-            onChange={(e) => setN(Number(e.target.value))}
-            style={{ width: '100%', accentColor: '#f59e0b' }}
+            onChange={(e) => changeN(Number(e.target.value))}
+            aria-label={`${t.groupSize}: ${n}`}
           />
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: '#64748b', marginTop: '0.2rem' }}>
-            <span>2</span><span>23</span><span>50</span><span>{MAX_N}</span>
+          <div className={styles.tickRow} aria-hidden>
+            <span>{MIN_N}</span>
+            <span>23</span>
+            <span>50</span>
+            <span>{MAX_N}</span>
           </div>
         </label>
 
-        <button
-          onClick={generate}
-          style={{
-            background: '#22c55e',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 10,
-            padding: '0.6rem 1.3rem',
-            fontWeight: 800,
-            cursor: 'pointer',
-            fontSize: '1rem',
-          }}
-        >
-          🎲 {n}人ぶん生成
-        </button>
-
-        <div style={{ marginTop: '0.8rem', padding: '0.6rem 0.8rem', borderRadius: 10, border: `1px solid ${collision ? '#dc2626' : '#334155'}`, background: collision ? '#7f1d1d33' : '#020617' }}>
-          <div style={{ color: collision ? '#fca5a5' : '#94a3b8', fontWeight: 700 }}>
-            {collision ? `🎯 一致あり: ${dayLabel(collision.day)} (人 #${collision.indices.map((i) => i + 1).join(' & #')})` : '一致なし'}
-          </div>
+        <div className={styles.actions}>
+          <button
+            type="button"
+            className={`${styles.btn} ${styles.btnPrimary}`}
+            onClick={() => deal(true)}
+            disabled={autoDeal}
+          >
+            🎲 {t.generate}
+          </button>
+          <button
+            type="button"
+            className={`${styles.btn} ${autoDeal ? styles.btnActive : styles.btnSecondary}`}
+            onClick={() => setAutoDeal((a) => !a)}
+            aria-pressed={autoDeal}
+          >
+            {autoDeal ? `⏹ ${t.stopAuto}` : `⚡ ${t.autoDeal}`}
+          </button>
         </div>
 
-        <div style={{ marginTop: '0.8rem', display: 'flex', flexWrap: 'wrap', gap: '0.3rem', maxHeight: 280, overflowY: 'auto', padding: '0.4rem', background: '#020617', borderRadius: 8, border: '1px solid #1e293b' }}>
-          {birthdays.map((d, i) => {
-            const isMatch = collision !== null && collision.day === d;
+        <div
+          className={`${styles.status} ${visibleCollision ? styles.statusMatch : ''}`}
+          role="status"
+          aria-live="polite"
+        >
+          {dealing
+            ? t.dealing
+            : visibleCollision
+              ? t.matchFound(
+                  dayLabel(visibleCollision.day),
+                  visibleCollision.indices[0] + 1,
+                  visibleCollision.indices[1] + 1,
+                )
+              : t.noMatch}
+        </div>
+
+        <div className={styles.chips} aria-label={`${visible.length} ${t.person}`}>
+          {visible.map((d, i) => {
+            const isMatch = visibleCollision !== null && visibleCollision.day === d;
             return (
               <span
                 key={i}
-                style={{
-                  background: isMatch ? '#dc2626' : '#1e293b',
-                  color: '#fff',
-                  border: `1px solid ${isMatch ? '#fca5a5' : '#334155'}`,
-                  borderRadius: 6,
-                  padding: '0.2rem 0.45rem',
-                  fontSize: '0.75rem',
-                  fontWeight: isMatch ? 800 : 500,
-                }}
-                title={`Person #${i + 1}`}
+                className={`${styles.chip} ${isMatch ? styles.chipMatch : ''}`}
+                title={`${t.person} #${i + 1}`}
               >
                 {dayLabel(d)}
               </span>
@@ -107,36 +196,47 @@ export const PlayTab = () => {
         </div>
       </div>
 
-      <div>
-        <h3 style={{ margin: '0 0 0.6rem', color: '#fbbf24' }}>n = {n} の戦績</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <StatCard label="あなたの実測" value={empirical === null ? '—' : `${(empirical * 100).toFixed(1)}%`} sub={`${currentStats.matches} / ${currentStats.trials}`} color="#67e8f9" />
-          <StatCard label="理論値" value={`${(theoretical * 100).toFixed(2)}%`} sub={`n = ${n}`} color="#fbbf24" />
+      {/* Right: stats + comparison meter + hint */}
+      <div className={styles.card}>
+        <h3 className={styles.sectionTitle}>n = {n}</h3>
+        <div className={styles.statGrid}>
+          <div className={styles.stat}>
+            <div className={styles.statLabel}>{t.yourEmpirical}</div>
+            <div className={styles.statValue} style={{ color: 'var(--bp-sim)' }}>
+              {empirical === null ? '—' : `${(empirical * 100).toFixed(1)}%`}
+            </div>
+            <div className={styles.statSub}>{t.trialsLabel(currentStats.matches, currentStats.trials)}</div>
+          </div>
+          <div className={styles.stat}>
+            <div className={styles.statLabel}>{t.theoretical}</div>
+            <div className={styles.statValue} style={{ color: 'var(--bp-accent-strong)' }}>
+              {(theoretical * 100).toFixed(2)}%
+            </div>
+            <div className={styles.statSub}>n = {n}</div>
+          </div>
         </div>
 
-        <div style={{ marginTop: '0.8rem' }}>
-          <button
-            onClick={reset}
-            style={{ background: '#1e293b', color: '#94a3b8', border: '1px solid #334155', borderRadius: 10, padding: '0.45rem 1rem', cursor: 'pointer' }}
-          >
-            戦績リセット
+        <div className={styles.meter} aria-hidden>
+          <div className={styles.meterTrack}>
+            <div
+              className={styles.meterFill}
+              style={{ width: `${(empirical ?? 0) * 100}%` }}
+            />
+            <div className={styles.meterTheory} style={{ left: `${theoretical * 100}%` }} />
+          </div>
+        </div>
+
+        <div className={styles.actions}>
+          <button type="button" className={`${styles.btn} ${styles.btnSecondary}`} onClick={reset}>
+            {t.reset}
           </button>
         </div>
 
-        <div style={{ marginTop: '1rem', padding: '0.7rem 0.9rem', background: '#020617', border: '1px solid #1e293b', borderRadius: 10, color: '#cbd5e1', fontSize: '0.85rem', lineHeight: 1.6 }}>
-          <strong style={{ color: '#fbbf24' }}>誕生日のパラドックス:</strong>
-          {' '}わずか <strong>23 人</strong>集めれば誕生日が被る確率が <strong>50%</strong> を超える、というのが直感に反する点。
-          {' '}スライダーを動かして「同じ被り確率を得るのに何人必要か」を試してみてください。
+        <div className={styles.hint}>
+          <strong>{t.playHintTitle}: </strong>
+          {t.playHint}
         </div>
       </div>
     </div>
   );
 };
-
-const StatCard = ({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) => (
-  <div style={{ background: '#020617', border: `1px solid ${color}55`, borderRadius: 10, padding: '0.6rem 0.7rem' }}>
-    <div style={{ color: '#94a3b8', fontSize: '0.75rem' }}>{label}</div>
-    <div style={{ color, fontSize: '1.4rem', fontWeight: 800 }}>{value}</div>
-    <div style={{ color: '#475569', fontSize: '0.7rem' }}>{sub}</div>
-  </div>
-);

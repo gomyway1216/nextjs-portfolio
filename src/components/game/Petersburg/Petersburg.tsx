@@ -1,49 +1,93 @@
 'use client';
 
 import { useState } from 'react';
+import { Info } from 'lucide-react';
+import { InfoModal } from '../common';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getPetersburgStrings } from './i18n';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
+import styles from './petersburg.module.css';
 
 type Tab = 'play' | 'sim';
 
 export const Petersburg = () => {
+  const { language } = useGameLanguage();
+  const t = getPetersburgStrings(language);
   const [tab, setTab] = useState<Tab>('play');
+  const [infoOpen, setInfoOpen] = useState(false);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #020617, #111827)', color: '#e2e8f0', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>🪙 St. Petersburg Paradox</h1>
-        <p style={{ marginTop: '0.4rem', color: '#94a3b8' }}>
-          コインを連続で投げ、初めての裏が出るまでの表で配当 $2^(n-1)。期待値は <strong>無限大</strong> なのに、誰も無限のお金は払わない。なぜか？ をシミュレーションで体感する。
-        </p>
+    <div className={styles.root}>
+      <div className={styles.shell}>
+        <header className={styles.header}>
+          <div>
+            <h1 className={styles.title}>
+              <span aria-hidden>🪙</span> {t.title}
+            </h1>
+            <p className={styles.subtitle}>{t.subtitle}</p>
+          </div>
+          <button
+            type="button"
+            className={styles.infoBtn}
+            onClick={() => setInfoOpen(true)}
+            aria-label={t.info}
+          >
+            <Info size={16} aria-hidden />
+            <span>{t.info}</span>
+          </button>
+        </header>
 
-        <div style={{ display: 'flex', gap: '0.5rem', margin: '1.25rem 0' }}>
-          <TabButton active={tab === 'play'} onClick={() => setTab('play')}>遊ぶ</TabButton>
-          <TabButton active={tab === 'sim'} onClick={() => setTab('sim')}>シミュレーション</TabButton>
+        <div className={styles.tabs} role="tablist" aria-label={t.title}>
+          <button
+            role="tab"
+            id="petersburg-tab-play"
+            aria-selected={tab === 'play'}
+            aria-controls="petersburg-panel-play"
+            tabIndex={tab === 'play' ? 0 : -1}
+            className={`${styles.tab} ${tab === 'play' ? styles.tabActive : ''}`}
+            onClick={() => setTab('play')}
+          >
+            {t.tabPlay}
+          </button>
+          <button
+            role="tab"
+            id="petersburg-tab-sim"
+            aria-selected={tab === 'sim'}
+            aria-controls="petersburg-panel-sim"
+            tabIndex={tab === 'sim' ? 0 : -1}
+            className={`${styles.tab} ${tab === 'sim' ? styles.tabActive : ''}`}
+            onClick={() => setTab('sim')}
+          >
+            {t.tabSim}
+          </button>
         </div>
 
-        {tab === 'play' ? <PlayTab /> : <SimTab />}
+        {tab === 'play' ? (
+          <div role="tabpanel" id="petersburg-panel-play" aria-labelledby="petersburg-tab-play">
+            <PlayTab />
+          </div>
+        ) : (
+          <div role="tabpanel" id="petersburg-panel-sim" aria-labelledby="petersburg-tab-sim">
+            <SimTab />
+          </div>
+        )}
       </div>
+
+      <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.howItWorksTitle}>
+        <ol className={styles.modalList}>
+          {t.howItWorks.map((step, i) => (
+            <li key={i} className={styles.modalItem}>
+              <span className={styles.modalNum} aria-hidden>
+                {i + 1}
+              </span>
+              <span>{step}</span>
+            </li>
+          ))}
+        </ol>
+      </InfoModal>
     </div>
   );
 };
-
-const TabButton = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
-  <button
-    onClick={onClick}
-    style={{
-      background: active ? '#f59e0b' : '#1e293b',
-      color: active ? '#0f172a' : '#e2e8f0',
-      border: `1px solid ${active ? '#f59e0b' : '#334155'}`,
-      borderRadius: 10,
-      padding: '0.55rem 1.1rem',
-      fontWeight: 800,
-      cursor: 'pointer',
-      fontSize: '0.95rem',
-    }}
-  >
-    {children}
-  </button>
-);
 
 export default Petersburg;

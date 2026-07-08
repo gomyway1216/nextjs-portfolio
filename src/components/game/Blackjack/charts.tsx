@@ -1,20 +1,20 @@
 'use client';
 
 import { SimSummary, StrategyName } from './engine';
-import type { getBlackjackStrings } from './i18n';
-import { fmt } from './i18n';
+import { fmt, type BlackjackStrings } from './i18n';
 
 interface MultiTrajectoryProps {
   series: { label: string; color: string; values: number[]; x: number[] }[];
   baseline: number;
   baselineLabel: string;
   handsAxis: string;
+  ariaLabel: string;
   width?: number;
   height?: number;
 }
 
 export const MultiTrajectoryChart = ({
-  series, baseline, baselineLabel, handsAxis, width = 720, height = 280,
+  series, baseline, baselineLabel, handsAxis, ariaLabel, width = 720, height = 280,
 }: MultiTrajectoryProps) => {
   if (series.length === 0) return null;
   const padding = { top: 16, right: 16, bottom: 32, left: 56 };
@@ -43,7 +43,7 @@ export const MultiTrajectoryChart = ({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       role="img"
-      aria-label="Bankroll trajectory by strategy"
+      aria-label={ariaLabel}
       style={{ background: 'rgba(6,20,16,0.8)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)' }}
     >
       {[0, 0.25, 0.5, 0.75, 1].map((p) => {
@@ -88,7 +88,7 @@ interface EdgeBarsProps {
   results: SimSummary[];
   stratLabel: (n: StrategyName) => string;
   stratColor: (n: StrategyName) => string;
-  s: ReturnType<typeof getBlackjackStrings>;
+  s: BlackjackStrings;
 }
 
 export const EdgeBars = ({ results, stratLabel, stratColor, s }: EdgeBarsProps) => {

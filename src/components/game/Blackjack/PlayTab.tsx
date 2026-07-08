@@ -285,7 +285,8 @@ export const PlayTab = () => {
       }
       return {
         ...st,
-        hands: st.hands + 1,
+        // Count each settled hand (a split round settles multiple hands).
+        hands: st.hands + settled.length,
         net: st.net + net,
         wins: st.wins + wins,
         losses: st.losses + losses,
@@ -316,7 +317,8 @@ export const PlayTab = () => {
   const canDoubleUI = state.phase === 'playing' && activeHand?.cards.length === 2 && bankroll >= (activeHand?.bet ?? BET);
   const canSplitUI = state.phase === 'playing' && activeHand && activeHand.cards.length === 2 && isPair(activeHand.cards) && state.hands.length < 4 && bankroll >= activeHand.bet;
 
-  const winRate = stats.hands === 0 ? null : stats.wins / (stats.wins + stats.losses + stats.pushes || 1);
+  // Exclude pushes from the denominator to match the Simulate tab's win %.
+  const winRate = (stats.wins + stats.losses) === 0 ? null : stats.wins / (stats.wins + stats.losses);
   const followTotal = stats.hintFollows + stats.hintDiverges;
   const followRate = followTotal === 0 ? null : stats.hintFollows / followTotal;
 
@@ -502,7 +504,9 @@ const PlayerValue = ({ cards, outcome, s }: { cards: Card[]; outcome?: Hand['out
   if (cards.length === 0) return null;
   const v = handValue(cards);
   const bust = isBust(cards);
-  const bj = isBlackjack(cards);
+  // Only a natural (resolved with outcome 'blackjack') counts as Blackjack; a
+  // two-card 21 made after a split (e.g. split Aces + ten) is an ordinary 21.
+  const bj = outcome === 'blackjack';
   const cls = outcome === 'win' || outcome === 'blackjack' ? styles.win : outcome === 'lose' || bust ? styles.lose : '';
   return (
     <span className={`${styles.valueBadge} ${cls}`}>

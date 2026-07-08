@@ -69,6 +69,7 @@ export interface BlackjackStrings {
     edgeGain: string; // interpolate {value}
     edgeLoss: string; // interpolate {value}
     trajectoryTitle: string;
+    trajectoryAria: string;
     detailsTitle: string;
     baselineLabel: string;
     handsAxis: string;
@@ -146,6 +147,7 @@ const en: BlackjackStrings = {
     edgeGain: '+{{value}}% you',
     edgeLoss: '−{{value}}% house',
     trajectoryTitle: 'Bankroll over time',
+    trajectoryAria: 'Bankroll trajectory by strategy over the simulated hands',
     detailsTitle: 'Details',
     baselineLabel: 'Start',
     handsAxis: 'hands',
@@ -223,6 +225,7 @@ const ja: BlackjackStrings = {
     edgeGain: '+{{value}}% 有利',
     edgeLoss: '−{{value}}% ハウス',
     trajectoryTitle: '残高の推移',
+    trajectoryAria: '戦略別の残高推移（シミュレーションハンド数に対して）',
     detailsTitle: '詳細',
     baselineLabel: '開始',
     handsAxis: 'ハンド',

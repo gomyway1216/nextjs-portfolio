@@ -169,6 +169,7 @@ const Results = ({
         baseline={startingBankroll}
         baselineLabel={s.sim.baselineLabel}
         handsAxis={s.sim.handsAxis}
+        ariaLabel={s.sim.trajectoryAria}
       />
     </div>
 

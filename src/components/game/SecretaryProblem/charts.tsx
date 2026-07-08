@@ -32,7 +32,9 @@ export const SuccessCurveChart = ({
   const innerH = height - padding.top - padding.bottom;
   const n = points.length;
   const xScale = (r: number) => padding.left + (r / Math.max(1, n - 1)) * innerW;
-  const yScale = (v: number) => padding.top + innerH - (v / 0.5) * innerH;
+  // Clamp to padding.top so noisy Monte-Carlo points above the 50% axis cap
+  // flatline at the top of the chart instead of clipping outside the viewport.
+  const yScale = (v: number) => Math.max(padding.top, padding.top + innerH - (v / 0.5) * innerH);
 
   const empPath = points
     .map((p) => `${xScale(p.r).toFixed(1)},${yScale(p.successRate).toFixed(1)}`)

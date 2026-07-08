@@ -32,7 +32,10 @@ export const SecretaryProblem = () => {
         <div className={styles.tabs} role="tablist" aria-label={t.title}>
           <button
             role="tab"
+            id="sp-tab-play"
+            aria-controls="sp-panel-play"
             aria-selected={tab === 'play'}
+            tabIndex={tab === 'play' ? 0 : -1}
             className={`${styles.tab} ${tab === 'play' ? styles.tabActive : ''}`}
             onClick={() => setTab('play')}
           >
@@ -40,7 +43,10 @@ export const SecretaryProblem = () => {
           </button>
           <button
             role="tab"
+            id="sp-tab-sim"
+            aria-controls="sp-panel-sim"
             aria-selected={tab === 'sim'}
+            tabIndex={tab === 'sim' ? 0 : -1}
             className={`${styles.tab} ${tab === 'sim' ? styles.tabActive : ''}`}
             onClick={() => setTab('sim')}
           >
@@ -48,11 +54,22 @@ export const SecretaryProblem = () => {
           </button>
         </div>
 
-        {tab === 'play' ? (
-          <PlayTab t={t} stats={stats} setStats={setStats} />
-        ) : (
-          <SimTab t={t} />
-        )}
+        <div
+          role="tabpanel"
+          id="sp-panel-play"
+          aria-labelledby="sp-tab-play"
+          hidden={tab !== 'play'}
+        >
+          {tab === 'play' && <PlayTab t={t} stats={stats} setStats={setStats} />}
+        </div>
+        <div
+          role="tabpanel"
+          id="sp-panel-sim"
+          aria-labelledby="sp-tab-sim"
+          hidden={tab !== 'sim'}
+        >
+          {tab === 'sim' && <SimTab t={t} />}
+        </div>
       </div>
 
       <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={t.infoTitle}>

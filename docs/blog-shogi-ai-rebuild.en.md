@@ -18,10 +18,10 @@
 
 ## 0. Background: the original system and the version genealogy
 
-The site has two shogi pages:
+At the time the site had two shogi pages (now consolidated into `/games/shogi`; the old `/games/shogi-improved` redirects there):
 
 - `/games/shogi` — original UI + a move-sequence-matching opening book + engine
-- `/games/shogi-improved` — fast-engine UI + a position-hash-matching opening book + Web Worker (Lv4/5)
+- `/games/shogi-improved` (now consolidated into `/games/shogi`) — fast-engine UI + a position-hash-matching opening book + Web Worker (Lv4/5)
 
 The engine is TypeScript: a 1-D board array indexed `(suji<<4)+dan`, make/unmake, Zobrist hashing + transposition table (TT), negamax + alpha-beta + PVS + iterative deepening. Textbook-correct. Layered on top was a geological record of improvements: `ShogiAIImprovedV2` through `V18`.
 

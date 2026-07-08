@@ -1,9 +1,14 @@
 /**
- * Shogi game page
+ * Shogi game page.
+ *
+ * This is the canonical Shogi route. It renders the improved implementation
+ * (stronger NNUE eval, 30-ply opening book, kifu, handicap, takeback, 3D
+ * pieces, selectable typefaces). The former `/games/shogi-improved` route now
+ * permanently redirects here (see next.config.ts).
  */
 
-import Shogi from '@/components/game/Shogi';
+import { ShogiImproved } from '@/components/game/ShogiImproved';
 
 export default function ShogiPage() {
-  return <Shogi />;
+  return <ShogiImproved />;
 }

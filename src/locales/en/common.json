@@ -941,20 +941,20 @@
     },
     "timed-button": {
       "title": "Timed Button",
-      "description": "Pass the bomb at the right moment before the hidden timer expires.",
-      "longDescription": "Timed Button is a minimal psychological duel. The bomb timer is always ticking and either player can pass it. Press too early and you give control away; press too late and it explodes in your hands.",
+      "description": "Stop the sweeping marker inside the target zone — a precision timing challenge.",
+      "longDescription": "Timed Button is a precision reaction game. A marker sweeps back and forth across a track; tap at the perfect moment to stop it inside the target zone. The closer to dead center, the higher your score. Five difficulty tiers tighten the zone and speed up the sweep.",
       "howToPlay": [
-        "If you hold the bomb, press to pass it",
-        "Cooldown prevents spam passing",
-        "Explosion gives a point to the opponent",
-        "Rounds continue automatically",
-        "First to 5 points wins"
+        "Watch the marker sweep across the track",
+        "Tap the button (or press Space) to stop it",
+        "Land inside the target zone to score",
+        "The closer to the center, the more points",
+        "Pick a difficulty and beat your best score"
       ],
       "features": [
-        "Single-button core mechanic",
-        "Hidden-timer pressure",
-        "AI timing behavior",
-        "Fast rematch loop"
+        "Precision timing core mechanic",
+        "Center-weighted precision scoring",
+        "Five difficulty tiers",
+        "Per-tier best-score tracking"
       ]
     },
     "mirror-othello": {

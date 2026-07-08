@@ -8,8 +8,10 @@ import {
   getPlayableCardsForPlayer,
   getPlayableRanksForSuit,
   isCardPlayable,
+  redistributeEliminatedHand,
   sortHand,
 } from '@/components/game/Shichinarabe/gameLogic';
+import { decideShichinarabeAction } from '@/components/game/Shichinarabe/ShichinarabeAI';
 import type { ShichinarabeNetworkState } from '@/components/game/Shichinarabe/multiplayerTypes';
 import type { Card } from '@/components/game/Shichinarabe/types';
 
@@ -200,5 +202,161 @@ describe('Shichinarabe gameLogic', () => {
       cardId: 's5',
       timestamp: 1,
     })).toEqual({ ok: false, error: 'Card not playable' });
+  });
+});
+
+describe('Shichinarabe elimination redistribution', () => {
+  it('places all adjacent cards of an eliminated hand onto the table, iterating outward', () => {
+    const hands = {
+      dead: [card('s6', 'S', 6), card('s5', 'S', 5), card('s4', 'S', 4), card('h8', 'H', 8)],
+    };
+    const table = {
+      S: { low: 7, high: 7 },
+      H: { low: 7, high: 7 },
+      D: { low: 7, high: 7 },
+      C: { low: 7, high: 7 },
+    };
+
+    const placed = redistributeEliminatedHand(hands, table, 'dead');
+
+    // S6 -> S5 -> S4 chain plus H8 all become playable in sequence.
+    expect(table.S).toEqual({ low: 4, high: 7 });
+    expect(table.H).toEqual({ low: 7, high: 8 });
+    expect(hands.dead).toHaveLength(0);
+    expect(placed).toContainEqual({ suit: 'S', rank: 6 });
+    expect(placed).toContainEqual({ suit: 'S', rank: 4 });
+    expect(placed).toContainEqual({ suit: 'H', rank: 8 });
+  });
+
+  it('leaves a card in hand when its neighbour toward 7 is still missing (gap held elsewhere)', () => {
+    const hands = {
+      dead: [card('s5', 'S', 5)], // 6 is missing, so 5 cannot connect yet
+    };
+    const table = {
+      S: { low: 7, high: 7 },
+      H: { low: 7, high: 7 },
+      D: { low: 7, high: 7 },
+      C: { low: 7, high: 7 },
+    };
+
+    const placed = redistributeEliminatedHand(hands, table, 'dead');
+
+    expect(placed).toHaveLength(0);
+    expect(table.S).toEqual({ low: 7, high: 7 });
+    expect(hands.dead.map((c) => c.id)).toEqual(['s5']);
+  });
+
+  it('reveals the eliminated hand through applyAction and logs the placements', () => {
+    const base = stateForHand([card('s6', 'S', 6)]);
+    const state: ShichinarabeNetworkState = {
+      ...base,
+      playerOrder: ['p1', 'p2'],
+      currentTurnPlayerId: 'p2',
+      maxPasses: 1,
+      passCounts: { p1: 0, p2: 0 },
+      hands: {
+        p1: [card('s6', 'S', 6)],
+        p2: [card('h8', 'H', 8), card('h9', 'H', 9)],
+      },
+    };
+
+    const result = applyAction(state, {
+      actionId: 'x',
+      type: 'pass',
+      playerId: 'p2',
+      timestamp: 5,
+    });
+
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.state.eliminatedOrder).toEqual(['p2']);
+      // p2's H8 then H9 are revealed onto the table.
+      expect(result.state.table.H).toEqual({ low: 7, high: 9 });
+      expect(result.state.hands.p2).toHaveLength(0);
+      const revealed = result.state.log.filter((e) => e.detail === 'Revealed on elimination');
+      expect(revealed).toHaveLength(2);
+      // Turn passes to the next active player (p1).
+      expect(result.state.currentTurnPlayerId).toBe('p1');
+    }
+  });
+});
+
+describe('Shichinarabe AI difficulty tiers', () => {
+  function multiState(hands: Record<string, Card[]>, table = {
+    S: { low: 7, high: 7 },
+    H: { low: 7, high: 7 },
+    D: { low: 7, high: 7 },
+    C: { low: 7, high: 7 },
+  }): ShichinarabeNetworkState {
+    return {
+      version: 1,
+      playerOrder: Object.keys(hands),
+      hands,
+      table,
+      currentTurnPlayerId: Object.keys(hands)[0]!,
+      passCounts: Object.fromEntries(Object.keys(hands).map((k) => [k, 0])),
+      maxPasses: 3,
+      finishedOrder: [],
+      eliminatedOrder: [],
+      finished: false,
+      winnerId: null,
+      resultOrder: [],
+      ranks: null,
+      startedAt: 1,
+      log: [],
+      lastUpdate: 1,
+    };
+  }
+
+  it('always plays a legal card when only one legal move exists (any tier)', () => {
+    const state = multiState({ ai: [card('s6', 'S', 6)], other: [card('h8', 'H', 8)] });
+    for (const d of ['easy', 'medium', 'hard', 'expert', 'master'] as const) {
+      const decision = decideShichinarabeAction(state, 'ai', d);
+      expect(decision).toEqual({ type: 'play', cardId: 's6' });
+    }
+  });
+
+  it('passes when it has no legal move', () => {
+    const state = multiState({ ai: [card('s5', 'S', 5)], other: [card('h8', 'H', 8)] });
+    expect(decideShichinarabeAction(state, 'ai', 'master')).toEqual({ type: 'pass' });
+  });
+
+  it('never decides for a player when it is not their turn', () => {
+    const state = multiState({ ai: [card('s6', 'S', 6)], other: [card('h8', 'H', 8)] });
+    expect(decideShichinarabeAction(state, 'other', 'hard')).toEqual({ type: 'pass' });
+  });
+
+  it('hard tier prefers extending its own chain over an isolated card', () => {
+    // S6 unblocks the AI's own S5,S4; C8 is isolated. Expect it to play S6.
+    const state = multiState({
+      ai: [card('s6', 'S', 6), card('s5', 'S', 5), card('s4', 'S', 4), card('c8', 'C', 8)],
+      other: [card('h8', 'H', 8)],
+    });
+    const decision = decideShichinarabeAction(state, 'ai', 'hard');
+    expect(decision).toEqual({ type: 'play', cardId: 's6' });
+  });
+
+  it('expert may strategically pass to hold a key blocking card', () => {
+    // The AI's only legal card is S6, which two opponents are both waiting behind
+    // (both hold S5). Playing it would immediately free both rivals, and it does not
+    // extend the AI's own hand — so an expert holds it back by passing.
+    const state = multiState({
+      ai: [card('s6', 'S', 6), card('c2', 'C', 2), card('c3', 'C', 3), card('c4', 'C', 4), card('c5', 'C', 5)],
+      opp1: [card('s5a', 'S', 5)],
+      opp2: [card('s5b', 'S', 5)],
+    });
+    const decision = decideShichinarabeAction(state, 'ai', 'expert');
+    expect(decision).toEqual({ type: 'pass' });
+  });
+
+  it('expert plays instead of blocking when it is close to going out', () => {
+    // Same blocking pressure, but the AI has few cards left — racing beats blocking.
+    const state = multiState({
+      ai: [card('s6', 'S', 6), card('c8', 'C', 8)],
+      opp1: [card('s5a', 'S', 5)],
+      opp2: [card('s5b', 'S', 5)],
+    });
+    const decision = decideShichinarabeAction(state, 'ai', 'expert');
+    expect(decision.type).toBe('play');
   });
 });

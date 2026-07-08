@@ -88,6 +88,46 @@ function getNextActivePlayerId(state: ShichinarabeNetworkState, fromPlayerId: st
   return fromPlayerId;
 }
 
+/**
+ * When a player is eliminated (pass limit), their remaining hand is revealed and
+ * placed onto the table. Cards are placed at their proper positions as soon as they
+ * become adjacent to their suit's run; we iterate because placing one card can open
+ * up the next. Cards whose neighbour is still held by an active player remain as gaps
+ * and get filled in naturally later (this matches real 七並べ table dynamics).
+ *
+ * Mutates the provided `hands` and `table` copies. Returns the cards that were placed
+ * (in placement order) so callers can log them.
+ */
+export function redistributeEliminatedHand(
+  hands: Record<string, Card[]>,
+  table: Record<CardSuit, { low: number; high: number }>,
+  eliminatedPlayerId: string
+): { suit: CardSuit; rank: number }[] {
+  const placed: { suit: CardSuit; rank: number }[] = [];
+  let remaining = hands[eliminatedPlayerId] ?? [];
+
+  let progressed = true;
+  while (progressed && remaining.length > 0) {
+    progressed = false;
+    const stillHeld: Card[] = [];
+    for (const card of remaining) {
+      const bounds = table[card.suit];
+      if (bounds && (card.rank === bounds.low - 1 || card.rank === bounds.high + 1)) {
+        if (card.rank === bounds.low - 1) bounds.low = card.rank;
+        else bounds.high = card.rank;
+        placed.push({ suit: card.suit, rank: card.rank });
+        progressed = true;
+      } else {
+        stillHeld.push(card);
+      }
+    }
+    remaining = stillHeld;
+  }
+
+  hands[eliminatedPlayerId] = sortHand(remaining);
+  return placed;
+}
+
 export function getPlayableRanksForSuit(bounds: { low: number; high: number }): number[] {
   const playable: number[] = [];
   if (bounds.low > MIN_RANK) playable.push(bounds.low - 1);
@@ -185,6 +225,8 @@ export function applyAction(
     }];
 
     let eliminatedOrder = state.eliminatedOrder;
+    let nextHands = state.hands;
+    let nextTable = state.table;
     if ((nextPassCounts[action.playerId] ?? 0) >= state.maxPasses && !state.eliminatedOrder.includes(action.playerId)) {
       eliminatedOrder = [...state.eliminatedOrder, action.playerId];
       logEntries.push({
@@ -194,10 +236,35 @@ export function applyAction(
         detail: 'Eliminated (pass limit)',
         timestamp: action.timestamp,
       });
+
+      // Reveal and place the eliminated player's hand onto the table.
+      const handsCopy: Record<string, Card[]> = {};
+      for (const [pid, hand] of Object.entries(state.hands)) handsCopy[pid] = [...hand];
+      const tableCopy = {
+        S: { ...state.table.S },
+        H: { ...state.table.H },
+        D: { ...state.table.D },
+        C: { ...state.table.C },
+      } as ShichinarabeNetworkState['table'];
+      const placed = redistributeEliminatedHand(handsCopy, tableCopy, action.playerId);
+      nextHands = handsCopy;
+      nextTable = tableCopy;
+      for (const p of placed) {
+        logEntries.push({
+          id: createId('log'),
+          type: 'play',
+          playerId: action.playerId,
+          card: { suit: p.suit, rank: p.rank },
+          detail: 'Revealed on elimination',
+          timestamp: action.timestamp,
+        });
+      }
     }
 
     const nextStateBase: ShichinarabeNetworkState = {
       ...state,
+      hands: nextHands,
+      table: nextTable,
       passCounts: nextPassCounts,
       eliminatedOrder,
       log: [...state.log, ...logEntries],

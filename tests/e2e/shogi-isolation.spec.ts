@@ -33,10 +33,11 @@ test('shogi is NOT cross-origin isolated (stays single-thread)', async ({ page }
   await expect(page.getByRole('button', { name: /Start Game/i }).first()).toBeVisible();
 });
 
-test('the old /games/shogi-improved URL no longer exists (404)', async ({ request }) => {
+test('the old /games/shogi-improved URL no longer exists (direct 404, not a redirect)', async ({ request }) => {
   // The improved implementation now lives only at /games/shogi; the old route
-  // was removed outright (not redirected).
-  const response = await request.get('/games/shogi-improved');
+  // was removed outright. maxRedirects:0 pins that the FIRST response is a 404,
+  // so a reintroduced redirect-that-ends-at-404 would still fail this test.
+  const response = await request.get('/games/shogi-improved', { maxRedirects: 0 });
   expect(response.status()).toBe(404);
 });
 

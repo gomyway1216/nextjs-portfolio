@@ -36,6 +36,15 @@ describe('GamblersRuin engine', () => {
     expect(expectedDuration({ start: 10, target: 20, winProb: 0.5 })).toBe(100);
   });
 
+  it('stays numerically stable for p extremely close to 0.5', () => {
+    // The biased closed forms divide by (q - p); without a fair-game epsilon
+    // snap these would lose significance and drift from the true values.
+    expect(expectedDuration({ start: 10, target: 20, winProb: 0.50000001 })).toBeCloseTo(100, 5);
+    expect(expectedDuration({ start: 10, target: 20, winProb: 0.49999999 })).toBeCloseTo(100, 5);
+    expect(theoreticalRuinProb({ start: 10, target: 20, winProb: 0.50000001 })).toBeCloseTo(0.5, 5);
+    expect(theoreticalRuinProb({ start: 10, target: 20, winProb: 0.49999999 })).toBeCloseTo(0.5, 5);
+  });
+
   it('matches the closed-form ruin probability for fair and biased cases', () => {
     // Fair game: P(ruin) = (N - a) / N.
     expect(theoreticalRuinProb({ start: 4, target: 10, winProb: 0.5 })).toBeCloseTo(0.6, 12);

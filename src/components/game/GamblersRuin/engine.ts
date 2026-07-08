@@ -31,11 +31,19 @@ export interface RunResult {
   trajectory: number[];
 }
 
+/**
+ * Treat p within this distance of 0.5 as a fair game. The biased closed forms
+ * divide by (q - p), so for p extremely close to 0.5 they suffer catastrophic
+ * cancellation and return inaccurate values; snapping to the exact fair-game
+ * formula avoids that instability.
+ */
+const FAIR_EPS = 1e-5;
+
 export function theoreticalRuinProb(config: RuinConfig): number {
   const { start: a, target: N, winProb: p } = config;
   if (a <= 0) return 1;
   if (a >= N) return 0;
-  if (p === 0.5) return (N - a) / N;
+  if (Math.abs(p - 0.5) < FAIR_EPS) return (N - a) / N;
   const q = 1 - p;
   const r = q / p;
   // Standard form (r^a - r^N) / (1 - r^N) overflows when r > 1 and N is large
@@ -58,7 +66,7 @@ export function theoreticalRuinProb(config: RuinConfig): number {
 export function expectedDuration(config: RuinConfig): number {
   const { start: a, target: N, winProb: p } = config;
   if (a <= 0 || a >= N) return 0;
-  if (p === 0.5) return a * (N - a);
+  if (Math.abs(p - 0.5) < FAIR_EPS) return a * (N - a);
   const q = 1 - p;
   const r = q / p;
   // E[T] = a/(q-p) - (N/(q-p)) * (1 - r^a) / (1 - r^N).
@@ -204,7 +212,7 @@ export async function runRuinMonteCarloAsync(
       if (step === maxSteps && bk > 0 && bk < config.target) capped++;
       allSteps[j] = step;
       totalSteps += step;
-      if ((j + 1) % sampleEvery === 0) {
+      if ((j + 1) % sampleEvery === 0 && j + 1 !== trials) {
         convergence.push({ trial: j + 1, ruinProb: ruined / (j + 1) });
       }
     }

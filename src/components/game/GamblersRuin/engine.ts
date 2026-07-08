@@ -11,8 +11,9 @@
  *   if p == q:  P(ruin) = (N - a) / N
  *   else:       P(ruin) = ( (q/p)^a - (q/p)^N ) / ( 1 - (q/p)^N )
  *
- * Expected duration (when reachable, p != q version is complex — we report
- * just the fair-game closed form: E[T] = a * (N - a) ).
+ * Expected duration until absorption at 0 or N (the classic result):
+ *   if p == q:  E[T] = a * (N - a)
+ *   else:       E[T] = a/(q-p) - (N/(q-p)) * (1 - (q/p)^a) / (1 - (q/p)^N)
  */
 
 export interface RuinConfig {
@@ -47,7 +48,33 @@ export function theoreticalRuinProb(config: RuinConfig): number {
   return (Math.pow(r, a) - Math.pow(r, N)) / (1 - Math.pow(r, N));
 }
 
-/** Expected duration for the fair game (p=0.5). For biased games we return NaN. */
+/**
+ * Expected number of steps until absorption (hitting 0 or N), for any p in (0,1).
+ * Fair game: E[T] = a(N-a). Biased game: the closed form above. The r^a / r^N
+ * powers are bounded because a,N are small integers and r stays moderate for
+ * the p range we allow (0.01..0.99); for extreme r the ratio still evaluates
+ * to a finite value in practice.
+ */
+export function expectedDuration(config: RuinConfig): number {
+  const { start: a, target: N, winProb: p } = config;
+  if (a <= 0 || a >= N) return 0;
+  if (p === 0.5) return a * (N - a);
+  const q = 1 - p;
+  const r = q / p;
+  // E[T] = a/(q-p) - (N/(q-p)) * (1 - r^a) / (1 - r^N).
+  // For r > 1 (p < 0.5), 1 - r^N can overflow for large N; rewrite by dividing
+  // numerator and denominator of the fraction by r^N to keep terms in range.
+  let frac: number;
+  if (r > 1) {
+    // (1 - r^a)/(1 - r^N) = (r^{-N} - r^{a-N}) / (r^{-N} - 1)
+    frac = (Math.pow(r, -N) - Math.pow(r, a - N)) / (Math.pow(r, -N) - 1);
+  } else {
+    frac = (1 - Math.pow(r, a)) / (1 - Math.pow(r, N));
+  }
+  return a / (q - p) - (N / (q - p)) * frac;
+}
+
+/** @deprecated use expectedDuration. Kept for the fair-game path. */
 export function fairExpectedDuration(config: RuinConfig): number {
   if (config.winProb !== 0.5) return NaN;
   return config.start * (config.target - config.start);
@@ -94,8 +121,41 @@ export interface SimSummary {
   theoreticalRuinProb: number;
   meanSteps: number;
   medianSteps: number;
-  /** Final outcome bankrolls (mostly 0 or N) for the small distribution chip row. */
+  theoreticalMeanSteps: number;
+  /** Per-trial step counts (kept for downstream stats / histograms). */
   allSteps: number[];
+  /** Histogram of step counts (equal-width bins) for the distribution chart. */
+  stepHistogram: { binStart: number; binEnd: number; count: number }[];
+  /** Running empirical ruin estimate sampled as trials accumulate (for the convergence chart). */
+  convergence: { trial: number; ruinProb: number }[];
+}
+
+/** Build an equal-width histogram of the provided values. */
+export function buildHistogram(
+  values: number[],
+  bins = 24,
+): { binStart: number; binEnd: number; count: number }[] {
+  if (values.length === 0) return [];
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const v of values) {
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  if (hi === lo) hi = lo + 1;
+  const width = (hi - lo) / bins;
+  const out = Array.from({ length: bins }, (_, i) => ({
+    binStart: lo + i * width,
+    binEnd: lo + (i + 1) * width,
+    count: 0,
+  }));
+  for (const v of values) {
+    let idx = Math.floor((v - lo) / width);
+    if (idx >= bins) idx = bins - 1;
+    if (idx < 0) idx = 0;
+    out[idx].count++;
+  }
+  return out;
 }
 
 export interface SimOptions {
@@ -124,6 +184,11 @@ export async function runRuinMonteCarloAsync(
   let capped = 0;
   let totalSteps = 0;
 
+  // Sample the running ruin estimate ~60 times over the whole run for a
+  // convergence chart, plus the final point.
+  const convergence: { trial: number; ruinProb: number }[] = [];
+  const sampleEvery = Math.max(1, Math.floor(trials / 60));
+
   for (let i = 0; i < trials; i += chunkSize) {
     const end = Math.min(i + chunkSize, trials);
     for (let j = i; j < end; j++) {
@@ -139,11 +204,15 @@ export async function runRuinMonteCarloAsync(
       if (step === maxSteps && bk > 0 && bk < config.target) capped++;
       allSteps[j] = step;
       totalSteps += step;
+      if ((j + 1) % sampleEvery === 0) {
+        convergence.push({ trial: j + 1, ruinProb: ruined / (j + 1) });
+      }
     }
     options.onProgress?.(end, trials);
     if (options.signal?.aborted) return null;
     if (end < trials) await new Promise<void>((res) => setTimeout(res, 0));
   }
+  convergence.push({ trial: trials, ruinProb: ruined / trials });
 
   const sorted = [...allSteps].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
@@ -160,6 +229,9 @@ export async function runRuinMonteCarloAsync(
     theoreticalRuinProb: theoreticalRuinProb(config),
     meanSteps: totalSteps / trials,
     medianSteps: median,
+    theoreticalMeanSteps: expectedDuration(config),
     allSteps,
+    stepHistogram: buildHistogram(allSteps, 24),
+    convergence,
   };
 }

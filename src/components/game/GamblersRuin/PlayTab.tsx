@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { TrajectoryChart } from './charts';
-import { RuinConfig, RunResult, fairExpectedDuration, runRuin, theoreticalRuinProb } from './engine';
+import { RuinConfig, RunResult, expectedDuration, runRuin, theoreticalRuinProb } from './engine';
+import type { TFn } from './i18n';
+import styles from './GamblersRuin.module.css';
 
 const STEP_INTERVAL_MS = 30;
 const PLAY_MAX_STEPS = 5000;
@@ -14,7 +16,7 @@ interface SessionStats {
   reached: number;
 }
 
-export const PlayTab = () => {
+export const PlayTab = ({ t }: { t: TFn }) => {
   const [config, setConfig] = useState<RuinConfig>(defaultConfig);
   const [bankroll, setBankroll] = useState(defaultConfig.start);
   const [steps, setSteps] = useState(0);
@@ -47,9 +49,11 @@ export const PlayTab = () => {
   const updateConfig = <K extends keyof RuinConfig>(key: K, value: RuinConfig[K]) => {
     const next: RuinConfig = { ...config, [key]: value };
     if (key === 'start' || key === 'target') {
-      const start = key === 'start' ? Number(value) : next.start;
-      const target = key === 'target' ? Number(value) : next.target;
-      if (start <= 0 || start >= target) return; // refuse invalid combo
+      // Keep 0 < start < target by nudging the sibling if needed.
+      if (next.start >= next.target) {
+        if (key === 'start') next.target = Math.min(200, next.start + 1);
+        else next.start = Math.max(1, next.target - 1);
+      }
     }
     setConfig(next);
     reset(next);
@@ -58,13 +62,9 @@ export const PlayTab = () => {
   const playOneStep = () => {
     if (running || result) return;
     const won = Math.random() < config.winProb;
-    // Compute next state first, then dispatch the setters sequentially —
-    // calling other setters inside a functional updater is an anti-pattern
-    // (updaters can re-run in Strict Mode and would dispatch duplicate
-    // session-stat increments).
     const nextBankroll = won ? bankroll + 1 : bankroll - 1;
     setBankroll(nextBankroll);
-    setTrajectory((t) => [...t, nextBankroll]);
+    setTrajectory((tj) => [...tj, nextBankroll]);
     setSteps((s) => s + 1);
     if (nextBankroll <= 0 || nextBankroll >= config.target) {
       const outcome = nextBankroll <= 0 ? 'ruined' : 'reached';
@@ -81,11 +81,9 @@ export const PlayTab = () => {
     runningRef.current = true;
     cancelledRef.current = false;
     setRunning(true);
-    // Pre-compute the rest of the run so we can replay it visually without
-    // re-rolling per-tick (which would diverge from a single random walk).
     const full = runRuin(config, PLAY_MAX_STEPS);
-    const trail = full.trajectory; // includes start element
-    let i = trajectory.length; // continue from current visible step
+    const trail = full.trajectory;
+    let i = 1;
     const tick = () => {
       if (cancelledRef.current) {
         runningRef.current = false;
@@ -109,11 +107,9 @@ export const PlayTab = () => {
       i++;
       timerRef.current = window.setTimeout(tick, STEP_INTERVAL_MS);
     };
-    // Reset visible state to the start point of `full` (since runRuin starts fresh).
     setBankroll(full.trajectory[0]);
     setSteps(0);
     setTrajectory([full.trajectory[0]]);
-    i = 1;
     tick();
   };
 
@@ -126,109 +122,103 @@ export const PlayTab = () => {
   };
 
   const theoreticalRuin = theoreticalRuinProb(config);
-  const fairE = fairExpectedDuration(config);
+  const expDur = expectedDuration(config);
+  const bankrollColor = result?.outcome === 'ruined'
+    ? 'var(--gr-ruin)'
+    : result?.outcome === 'reached'
+      ? 'var(--gr-reach)'
+      : 'var(--gr-info)';
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: '1.25rem' }}>
-      <div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem', marginBottom: '0.8rem' }}>
-          <NumField label="開始 a" value={config.start} min={1} max={config.target - 1} onChange={(v) => updateConfig('start', v)} disabled={running} />
-          <NumField label="目標 N" value={config.target} min={config.start + 1} max={200} onChange={(v) => updateConfig('target', v)} disabled={running} />
-          <FloatField label="勝率 p" value={config.winProb} min={0.01} max={0.99} step={0.01} onChange={(v) => updateConfig('winProb', v)} disabled={running} />
+    <div className={styles.playGrid}>
+      <div className={styles.panel}>
+        <div className={styles.controls}>
+          <Slider label={t('start')} value={config.start} min={1} max={config.target - 1} onChange={(v) => updateConfig('start', v)} disabled={running} />
+          <Slider label={t('target')} value={config.target} min={config.start + 1} max={200} onChange={(v) => updateConfig('target', v)} disabled={running} />
+          <Slider label={t('winProb')} value={config.winProb} min={0.01} max={0.99} step={0.01} onChange={(v) => updateConfig('winProb', v)} disabled={running} format={(v) => v.toFixed(2)} />
         </div>
 
-        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '0.8rem' }}>
-          <button onClick={playOneStep} disabled={running || result !== null} style={btn('#22c55e', running || result !== null)}>1回</button>
+        <div className={styles.btnRow}>
+          <button onClick={playOneStep} disabled={running || result !== null} className={`${styles.btn} ${styles.btnGreen}`}>{t('step1')}</button>
           {running ? (
-            <button onClick={stopAuto} style={btn('#f97316')}>⏸ 停止</button>
+            <button onClick={stopAuto} className={`${styles.btn} ${styles.btnOrange}`}>⏸ {t('stop')}</button>
           ) : (
-            <button onClick={autoPlay} disabled={result !== null} style={btn('#0ea5e9', result !== null)}>▶ オート</button>
+            <button onClick={autoPlay} disabled={result !== null} className={`${styles.btn} ${styles.btnBlue}`}>▶ {t('auto')}</button>
           )}
-          <button onClick={() => reset()} style={btn('#1e293b', false, '#94a3b8', '#334155')}>リセット</button>
+          <button onClick={() => reset()} className={`${styles.btn} ${styles.btnGhost}`}>{t('reset')}</button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-          <Stat label="現在の資金" value={`${bankroll}`} color={result?.outcome === 'ruined' ? '#f87171' : result?.outcome === 'reached' ? '#4ade80' : '#67e8f9'} />
-          <Stat label="ステップ数" value={`${steps}`} color="#a78bfa" />
+        <div className={styles.statGrid}>
+          <Stat label={t('bankroll')} value={`${bankroll}`} color={bankrollColor} />
+          <Stat label={t('stepsLabel')} value={`${steps}`} color="var(--gr-purple)" />
         </div>
 
         {result && (
-          <div style={{ marginTop: '0.6rem', padding: '0.6rem 0.8rem', borderRadius: 10, background: result.outcome === 'ruined' ? '#7f1d1d44' : '#15803d44', border: `1px solid ${result.outcome === 'ruined' ? '#f87171' : '#4ade80'}`, color: result.outcome === 'ruined' ? '#fca5a5' : '#4ade80', fontWeight: 700 }}>
-            {result.outcome === 'ruined' ? `💥 破産 — ${steps} ステップで $0` : `🏆 目標達成 — ${steps} ステップで $${config.target}`}
+          <div className={`${styles.banner} ${result.outcome === 'ruined' ? styles.bannerRuin : styles.bannerReach}`} role="status">
+            {result.outcome === 'ruined'
+              ? `💥 ${t('ruinedMsg', { steps })}`
+              : `🏆 ${t('reachedMsg', { steps, target: config.target })}`}
           </div>
         )}
       </div>
 
-      <div>
-        <h3 style={{ margin: '0 0 0.5rem', color: '#fbbf24' }}>理論値 & このセッション</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.8rem' }}>
-          <Stat label="理論破産確率" value={`${(theoreticalRuin * 100).toFixed(2)}%`} color="#f87171" />
-          <Stat label="理論期待ステップ (p=0.5)" value={Number.isFinite(fairE) ? `${fairE}` : '— (p≠0.5)'} color="#fbbf24" />
-          <Stat label="セッション破産回数" value={`${sessionStats.ruined}`} color="#f87171" />
-          <Stat label="セッション達成回数" value={`${sessionStats.reached}`} color="#4ade80" />
+      <div className={styles.panel}>
+        <h3 className={styles.sectionHeading}>{t('theoryHeading')}</h3>
+        <div className={styles.statGridWide}>
+          <Stat label={t('theoRuin')} value={`${(theoreticalRuin * 100).toFixed(2)}%`} color="var(--gr-ruin)" />
+          <Stat label={t('theoReach')} value={`${((1 - theoreticalRuin) * 100).toFixed(2)}%`} color="var(--gr-reach)" />
+          <Stat label={t('expDuration')} value={expDur.toFixed(1)} color="var(--gr-accent-strong)" />
+          <Stat label={t('sessionRuined')} value={`${sessionStats.ruined}`} color="var(--gr-ruin)" />
+          <Stat label={t('sessionReached')} value={`${sessionStats.reached}`} color="var(--gr-reach)" />
         </div>
 
-        <h4 style={{ margin: '0 0 0.3rem', color: '#cbd5e1', fontSize: '0.95rem' }}>資金の推移</h4>
+        <h4 className={styles.subHeading} style={{ marginTop: '0.9rem' }}>{t('bankrollTrend')}</h4>
         <TrajectoryChart trajectories={[trajectory]} start={config.start} target={config.target} height={220} />
-        <p style={{ marginTop: '0.5rem', color: '#64748b', fontSize: '0.8rem', lineHeight: 1.5 }}>
-          <strong style={{ color: '#cbd5e1' }}>ガンブラーズ・ルイン:</strong> 公平な (p=0.5) ゲームでも、破産する確率は (N - a) / N。
-          わずかでも p &lt; 0.5 になると、破産はほぼ確実になります。シミュレーションタブで「何百回も試して、何回破産するか」を測れます。
+        <p className={styles.caption}>
+          <strong style={{ color: 'var(--gr-text)' }}>{t('title')}:</strong> {t('introBody')}
         </p>
       </div>
     </div>
   );
 };
 
-const btn = (bg: string, disabled = false, color = '#fff', border?: string): React.CSSProperties => ({
-  background: disabled ? '#1e293b' : bg,
-  color: disabled ? '#475569' : color,
-  border: border ? `1px solid ${border}` : 'none',
-  borderRadius: 10,
-  padding: '0.55rem 1.1rem',
-  fontWeight: 700,
-  cursor: disabled ? 'not-allowed' : 'pointer',
-});
-
 const Stat = ({ label, value, color }: { label: string; value: string; color: string }) => (
-  <div style={{ background: '#020617', border: `1px solid ${color}44`, borderRadius: 10, padding: '0.55rem 0.7rem' }}>
-    <div style={{ color: '#94a3b8', fontSize: '0.72rem' }}>{label}</div>
-    <div style={{ color, fontSize: '1.25rem', fontWeight: 800 }}>{value}</div>
+  <div className={styles.stat} style={{ borderColor: `color-mix(in srgb, ${color} 40%, var(--gr-border))` }}>
+    <div className={styles.statLabel}>{label}</div>
+    <div className={styles.statValue} style={{ color }}>{value}</div>
   </div>
 );
 
-const NumField = ({ label, value, min, max, onChange, disabled }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void; disabled?: boolean }) => (
-  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-    <span style={{ color: '#94a3b8', fontSize: '0.7rem' }}>{label}</span>
-    <input
-      type="number"
-      value={value}
-      min={min}
-      max={max}
-      disabled={disabled}
-      onChange={(e) => {
-        const v = Number(e.target.value);
-        if (Number.isFinite(v)) onChange(v);
-      }}
-      style={{ background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: 8, padding: '0.4rem 0.6rem', fontSize: '0.9rem' }}
-    />
-  </label>
-);
+interface SliderProps {
+  label: string;
+  value: number;
+  min: number;
+  max: number;
+  step?: number;
+  onChange: (v: number) => void;
+  disabled?: boolean;
+  format?: (v: number) => string;
+}
 
-const FloatField = ({ label, value, min, max, step, onChange, disabled }: { label: string; value: number; min: number; max: number; step: number; onChange: (v: number) => void; disabled?: boolean }) => (
-  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-    <span style={{ color: '#94a3b8', fontSize: '0.7rem' }}>{label}</span>
+const Slider = ({ label, value, min, max, step = 1, onChange, disabled, format }: SliderProps) => (
+  <label className={`${styles.field} ${disabled ? styles.disabled : ''}`}>
+    <span className={styles.fieldLabel}>
+      {label}
+      <span className={styles.fieldValue}>{format ? format(value) : value}</span>
+    </span>
     <input
-      type="number"
+      type="range"
+      className={styles.slider}
       value={value}
       min={min}
       max={max}
       step={step}
       disabled={disabled}
+      aria-label={label}
       onChange={(e) => {
         const v = Number(e.target.value);
         if (Number.isFinite(v)) onChange(v);
       }}
-      style={{ background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: 8, padding: '0.4rem 0.6rem', fontSize: '0.9rem' }}
     />
   </label>
 );

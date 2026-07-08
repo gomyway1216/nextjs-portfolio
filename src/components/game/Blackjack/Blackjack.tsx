@@ -1,53 +1,74 @@
 'use client';
 
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Info } from 'lucide-react';
+import { InfoModal } from '../common';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getBlackjackStrings } from './i18n';
 import { PlayTab } from './PlayTab';
 import { SimTab } from './SimTab';
+import styles from './blackjack.module.css';
 
 type Tab = 'play' | 'sim';
 
 export const Blackjack = () => {
-  const { t } = useTranslation();
+  const { language } = useGameLanguage();
+  const s = getBlackjackStrings(language);
   const [tab, setTab] = useState<Tab>('play');
+  const [infoOpen, setInfoOpen] = useState(false);
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #020617, #111827)', color: '#e2e8f0', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: 1100, margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>🃏 Blackjack — Basic Strategy</h1>
-        <p style={{ marginTop: '0.4rem', color: '#94a3b8' }}>
-          {t('games.blackjack.subtitle1')}
-          {' '}
-          {t('games.blackjack.subtitle2')}
-        </p>
+    <div className={styles.root}>
+      <div className={styles.shell}>
+        <header className={styles.header}>
+          <div className={styles.titleWrap}>
+            <h1 className={styles.title}><span aria-hidden>🃏</span>{s.title}</h1>
+            <p className={styles.subtitle}>{s.subtitle}</p>
+          </div>
+          <div className={styles.headerButtons}>
+            <button
+              type="button"
+              className={styles.iconBtn}
+              onClick={() => setInfoOpen(true)}
+              aria-label={s.play.rulesTitle}
+            >
+              <Info size={16} aria-hidden />
+              {s.play.rulesTitle}
+            </button>
+          </div>
+        </header>
 
-        <div style={{ display: 'flex', gap: '0.5rem', margin: '1.25rem 0' }}>
-          <TabButton active={tab === 'play'} onClick={() => setTab('play')}>{t('games.blackjack.tabs.play')}</TabButton>
-          <TabButton active={tab === 'sim'} onClick={() => setTab('sim')}>{t('games.blackjack.tabs.sim')}</TabButton>
+        <div className={styles.tabs} role="tablist" aria-label={s.title}>
+          <button
+            role="tab"
+            aria-selected={tab === 'play'}
+            className={`${styles.tab} ${tab === 'play' ? styles.tabActive : ''}`}
+            onClick={() => setTab('play')}
+          >
+            {s.tabs.play}
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === 'sim'}
+            className={`${styles.tab} ${tab === 'sim' ? styles.tabActive : ''}`}
+            onClick={() => setTab('sim')}
+          >
+            {s.tabs.sim}
+          </button>
         </div>
 
         {tab === 'play' ? <PlayTab /> : <SimTab />}
       </div>
+
+      <InfoModal isOpen={infoOpen} onClose={() => setInfoOpen(false)} title={s.play.rulesTitle}>
+        <ul style={{ lineHeight: 1.7, paddingLeft: '1.1rem', margin: 0 }}>
+          {s.play.rules.map((r, i) => (
+            <li key={i} style={{ marginBottom: '0.5rem' }}>{r}</li>
+          ))}
+        </ul>
+      </InfoModal>
     </div>
   );
 };
-
-const TabButton = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
-  <button
-    onClick={onClick}
-    style={{
-      background: active ? '#f59e0b' : '#1e293b',
-      color: active ? '#0f172a' : '#e2e8f0',
-      border: `1px solid ${active ? '#f59e0b' : '#334155'}`,
-      borderRadius: 10,
-      padding: '0.55rem 1.1rem',
-      fontWeight: 800,
-      cursor: 'pointer',
-      fontSize: '0.95rem',
-    }}
-  >
-    {children}
-  </button>
-);
 
 export default Blackjack;

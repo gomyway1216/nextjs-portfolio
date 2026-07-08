@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+import { getBlackjackStrings, fmt } from './i18n';
 import { EdgeBars, MultiTrajectoryChart } from './charts';
 import { SimSummary, StrategyName, runBlackjackSimAsync } from './engine';
+import styles from './blackjack.module.css';
 
 const LIMITS = {
   hands: { min: 100, max: 200_000 },
@@ -12,21 +14,25 @@ const LIMITS = {
 };
 const DEFAULTS = { hands: 20_000, startingBankroll: 1000, baseBet: 1 };
 
-const STRATEGIES: { name: StrategyName; label: string; color: string }[] = [
-  { name: 'basic', label: 'Basic Strategy', color: '#4ade80' },
-  { name: 'mimic-dealer', label: 'Mimic Dealer (≤16 hit)', color: '#fbbf24' },
-  { name: 'always-stand', label: 'Always Stand', color: '#f87171' },
+const STRAT_ORDER: { name: StrategyName; color: string }[] = [
+  { name: 'basic', color: '#4ade80' },
+  { name: 'mimic-dealer', color: '#fbbf24' },
+  { name: 'always-stand', color: '#f87171' },
 ];
-
-const STRAT_META: Record<string, { label: string; color: string }> = Object.fromEntries(
-  STRATEGIES.map((s) => [s.name, { label: s.label, color: s.color }]),
-);
 
 const clamp = (v: number, min: number, max: number) =>
   Number.isFinite(v) ? Math.min(max, Math.max(min, v)) : min;
 
 export const SimTab = () => {
-  const { t } = useTranslation();
+  const { language } = useGameLanguage();
+  const s = getBlackjackStrings(language);
+
+  const stratLabel = (name: StrategyName) =>
+    name === 'basic' ? s.sim.strategyLabels.basic
+      : name === 'mimic-dealer' ? s.sim.strategyLabels.mimic
+        : s.sim.strategyLabels.stand;
+  const stratColor = (name: StrategyName) => STRAT_ORDER.find((x) => x.name === name)?.color ?? '#94a3b8';
+
   const [hands, setHands] = useState(DEFAULTS.hands);
   const [startingBankroll, setStartingBankroll] = useState(DEFAULTS.startingBankroll);
   const [baseBet, setBaseBet] = useState(DEFAULTS.baseBet);
@@ -55,9 +61,9 @@ export const SimTab = () => {
     abortRef.current = controller;
     const summaries: SimSummary[] = [];
     try {
-      for (let i = 0; i < STRATEGIES.length; i++) {
+      for (let i = 0; i < STRAT_ORDER.length; i++) {
         setProgress({ done: 0, total: safeHands, strategyIdx: i });
-        const summary = await runBlackjackSimAsync(STRATEGIES[i].name, safeHands, {
+        const summary = await runBlackjackSimAsync(STRAT_ORDER[i].name, safeHands, {
           signal: controller.signal,
           onProgress: (done, total) => {
             if (mountedRef.current) setProgress({ done, total, strategyIdx: i });
@@ -80,128 +86,134 @@ export const SimTab = () => {
   };
 
   const runLabel = running && progress
-    ? t('games.blackjack.sim.runningLabel', {
-        strategy: STRATEGIES[progress.strategyIdx].label,
+    ? fmt(s.sim.running, {
+        strategy: stratLabel(STRAT_ORDER[progress.strategyIdx].name),
         done: progress.done.toLocaleString(),
         total: progress.total.toLocaleString(),
       })
-    : t('games.blackjack.sim.runButton');
+    : s.sim.runButton;
+
+  const progressPct = progress ? (progress.done / progress.total) * 100 : 0;
 
   return (
-    <div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.6rem', marginBottom: '1rem' }}>
-        <NumField label={t('games.blackjack.sim.handsPerStrategy')} value={hands} {...LIMITS.hands} onChange={setHands} />
-        <NumField label={t('games.blackjack.sim.startingBankroll')} value={startingBankroll} {...LIMITS.startingBankroll} onChange={setStartingBankroll} />
-        <NumField label={t('games.blackjack.sim.betPerHand')} value={baseBet} {...LIMITS.baseBet} onChange={setBaseBet} />
+    <div className={styles.felt}>
+      <div className={styles.controls}>
+        <NumField label={s.sim.handsPerStrategy} value={hands} {...LIMITS.hands} onChange={setHands} />
+        <NumField label={s.sim.startingBankroll} value={startingBankroll} {...LIMITS.startingBankroll} onChange={setStartingBankroll} />
+        <NumField label={s.sim.betPerHand} value={baseBet} {...LIMITS.baseBet} onChange={setBaseBet} />
       </div>
 
-      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1rem' }}>
-        <button
-          onClick={run}
-          disabled={running}
-          style={{
-            background: running ? '#1e293b' : '#22c55e',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 10,
-            padding: '0.65rem 1.4rem',
-            fontWeight: 800,
-            cursor: running ? 'wait' : 'pointer',
-            fontSize: '1rem',
-            minWidth: 280,
-          }}
-        >
-          {runLabel}
-        </button>
-        <span style={{ color: '#64748b', fontSize: '0.8rem' }}>
-          {t('games.blackjack.sim.runNote')}
-        </span>
+      <div className={styles.runRow}>
+        <button className={styles.runBtn} onClick={run} disabled={running}>{runLabel}</button>
+        <span className={styles.runNote}>{s.sim.runNote}</span>
       </div>
 
-      {results.length > 0 ? <Results results={results} startingBankroll={startingBankroll} /> : <Intro />}
+      {running && (
+        <div className={styles.progressTrack} aria-hidden>
+          <div className={styles.progressFill} style={{ width: `${progressPct}%` }} />
+        </div>
+      )}
+
+      {results.length > 0 ? (
+        <Results
+          results={results}
+          startingBankroll={startingBankroll}
+          s={s}
+          stratLabel={stratLabel}
+          stratColor={stratColor}
+        />
+      ) : (
+        <Intro s={s} />
+      )}
     </div>
   );
 };
 
-const Intro = () => {
-  const { t } = useTranslation();
-  return (
-  <div style={{ background: '#020617', border: '1px solid #1e293b', borderRadius: 12, padding: '1rem', color: '#94a3b8', fontSize: '0.9rem', lineHeight: 1.6 }}>
-    <strong style={{ color: '#fbbf24' }}>{t('games.blackjack.sim.introTitle')}</strong> {t('games.blackjack.sim.introBody')}
-    <ul style={{ marginTop: '0.5rem', paddingLeft: '1.2rem' }}>
-      <li><strong style={{ color: '#4ade80' }}>Basic Strategy</strong>: {t('games.blackjack.sim.introBasic')}</li>
-      <li><strong style={{ color: '#fbbf24' }}>Mimic Dealer</strong>: {t('games.blackjack.sim.introMimic')}</li>
-      <li><strong style={{ color: '#f87171' }}>Always Stand</strong>: {t('games.blackjack.sim.introStand')}</li>
+const Intro = ({ s }: { s: ReturnType<typeof getBlackjackStrings> }) => (
+  <div className={styles.introCard}>
+    <strong>{s.sim.introTitle}</strong> {s.sim.introBody}
+    <ul>
+      <li><strong style={{ color: '#4ade80' }}>{s.sim.strategyLabels.basic}</strong>: {s.sim.introBasic}</li>
+      <li><strong style={{ color: '#fbbf24' }}>{s.sim.strategyLabels.mimic}</strong>: {s.sim.introMimic}</li>
+      <li><strong style={{ color: '#f87171' }}>{s.sim.strategyLabels.stand}</strong>: {s.sim.introStand}</li>
     </ul>
-    {t('games.blackjack.sim.introFooter')}
+    {s.sim.introFooter}
   </div>
-  );
-};
+);
 
-const Results = ({ results, startingBankroll }: { results: SimSummary[]; startingBankroll: number }) => {
-  const { t } = useTranslation();
-  return (
-  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-    <div>
-      <h3 style={{ margin: '0 0 0.5rem', color: '#fbbf24' }}>{t('games.blackjack.sim.edgeTitle')}</h3>
-      <EdgeBars results={results} labels={STRAT_META} />
-      <p style={{ marginTop: '0.5rem', color: '#64748b', fontSize: '0.8rem' }}>
-        {t('games.blackjack.sim.edgeNote')}
-      </p>
+const Results = ({
+  results, startingBankroll, s, stratLabel, stratColor,
+}: {
+  results: SimSummary[];
+  startingBankroll: number;
+  s: ReturnType<typeof getBlackjackStrings>;
+  stratLabel: (n: StrategyName) => string;
+  stratColor: (n: StrategyName) => string;
+}) => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+    <div className={styles.simSection}>
+      <h3>{s.sim.edgeTitle}</h3>
+      <EdgeBars results={results} stratLabel={stratLabel} stratColor={stratColor} s={s} />
+      <p className={styles.noteText}>{s.sim.edgeNote}</p>
     </div>
 
-    <div>
-      <h4 style={{ margin: '0 0 0.4rem', color: '#cbd5e1' }}>{t('games.blackjack.sim.trajectoryTitle')}</h4>
+    <div className={styles.simSection}>
+      <h4>{s.sim.trajectoryTitle}</h4>
       <MultiTrajectoryChart
         series={results.map((r) => ({
-          label: STRAT_META[r.strategy].label,
-          color: STRAT_META[r.strategy].color,
+          label: stratLabel(r.strategy),
+          color: stratColor(r.strategy),
           values: r.trajectory,
           x: r.trajectoryX,
         }))}
         baseline={startingBankroll}
+        baselineLabel={s.sim.baselineLabel}
+        handsAxis={s.sim.handsAxis}
+        ariaLabel={s.sim.trajectoryAria}
       />
     </div>
 
-    <div>
-      <h4 style={{ margin: '0 0 0.4rem', color: '#cbd5e1' }}>{t('games.blackjack.sim.detailsTitle')}</h4>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-        <thead>
-          <tr style={{ color: '#94a3b8', textAlign: 'left' }}>
-            <th style={{ padding: '0.3rem 0.5rem' }}>{t('games.blackjack.sim.table.strategy')}</th>
-            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{t('games.blackjack.sim.table.winRate')}</th>
-            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>BJ</th>
-            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>RTP</th>
-            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{t('games.blackjack.sim.table.edge')}</th>
-            <th style={{ padding: '0.3rem 0.5rem', textAlign: 'right' }}>{t('games.blackjack.sim.table.totalNet')}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {results.map((r) => {
-            const meta = STRAT_META[r.strategy];
-            const wr = (r.winCount / r.hands) * 100;
-            return (
-              <tr key={r.strategy} style={{ borderTop: '1px solid #1e293b' }}>
-                <td style={{ padding: '0.45rem 0.5rem', color: meta.color, fontWeight: 700 }}>{meta.label}</td>
-                <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontFamily: 'ui-monospace, monospace' }}>{wr.toFixed(1)}%</td>
-                <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontFamily: 'ui-monospace, monospace' }}>{r.blackjackCount}</td>
-                <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontFamily: 'ui-monospace, monospace' }}>{(r.rtp * 100).toFixed(2)}%</td>
-                <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontFamily: 'ui-monospace, monospace', color: r.edge > 0 ? '#f87171' : '#4ade80' }}>{(r.edge * 100).toFixed(2)}%</td>
-                <td style={{ padding: '0.45rem 0.5rem', textAlign: 'right', fontFamily: 'ui-monospace, monospace', color: r.totalNet >= 0 ? '#4ade80' : '#f87171' }}>{r.totalNet >= 0 ? '+' : ''}{r.totalNet.toFixed(0)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+    <div className={styles.simSection}>
+      <h4>{s.sim.detailsTitle}</h4>
+      <div className={styles.tableScroll}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th>{s.sim.table.strategy}</th>
+              <th style={{ textAlign: 'right' }}>{s.sim.table.winRate}</th>
+              <th style={{ textAlign: 'right' }}>BJ</th>
+              <th style={{ textAlign: 'right' }}>RTP</th>
+              <th style={{ textAlign: 'right' }}>{s.sim.table.edge}</th>
+              <th style={{ textAlign: 'right' }}>{s.sim.table.totalNet}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {results.map((r) => {
+              const decided = r.winCount + r.loseCount; // exclude pushes from win %
+              const wr = decided === 0 ? 0 : (r.winCount / decided) * 100;
+              return (
+                <tr key={r.strategy}>
+                  <td style={{ color: stratColor(r.strategy), fontWeight: 700 }}>{stratLabel(r.strategy)}</td>
+                  <td style={{ textAlign: 'right' }}>{wr.toFixed(1)}%</td>
+                  <td style={{ textAlign: 'right' }}>{r.blackjackCount}</td>
+                  <td style={{ textAlign: 'right' }}>{(r.rtp * 100).toFixed(2)}%</td>
+                  <td style={{ textAlign: 'right', color: r.edge > 0 ? '#f87171' : '#4ade80' }}>{(r.edge * 100).toFixed(2)}%</td>
+                  <td style={{ textAlign: 'right', color: r.totalNet >= 0 ? '#4ade80' : '#f87171' }}>{r.totalNet >= 0 ? '+' : ''}{r.totalNet.toFixed(0)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
-  );
-};
+);
 
 const NumField = ({ label, value, min, max, onChange }: { label: string; value: number; min: number; max: number; onChange: (v: number) => void }) => (
-  <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
-    <span style={{ color: '#94a3b8', fontSize: '0.72rem' }}>{label}</span>
+  <label className={styles.field}>
+    <span className={styles.fieldLabel}>{label}</span>
     <input
+      className={styles.fieldInput}
       type="number"
       value={value}
       min={min}
@@ -210,7 +222,6 @@ const NumField = ({ label, value, min, max, onChange }: { label: string; value: 
         const v = Number(e.target.value);
         if (Number.isFinite(v)) onChange(v);
       }}
-      style={{ background: '#0f172a', color: '#e2e8f0', border: '1px solid #334155', borderRadius: 8, padding: '0.45rem 0.6rem', fontSize: '0.9rem' }}
     />
   </label>
 );

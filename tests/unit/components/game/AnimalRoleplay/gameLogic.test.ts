@@ -198,6 +198,23 @@ describe('resolveTurn', () => {
     expect(next.score).toBeGreaterThan(s.score);
   });
 
+  it('logs the actually-applied hp delta after clamping at the ceiling', () => {
+    // hp near the ceiling: a big rest heal gets clamped, and the logged hpDelta
+    // must equal the real change (not the raw pre-clamp value).
+    const s = playing({ hp: 98, hunger: MAX_HUNGER });
+    const next = resolveTurn(s, 'rest', alwaysSucceed);
+    expect(next.hp).toBe(MAX_HP);
+    expect(next.lastLog?.hpDelta).toBe(next.hp - s.hp);
+  });
+
+  it('does not credit score for hp that clamping discarded', () => {
+    // At full HP a successful rest cannot raise HP, so the +floor(hpDelta/4)
+    // bonus must not fire from phantom healing.
+    const full = playing({ hp: MAX_HP, hunger: MAX_HUNGER });
+    const next = resolveTurn(full, 'rest', alwaysSucceed);
+    expect(next.lastLog?.hpDelta).toBe(0);
+  });
+
   it('does not mutate the previous state object', () => {
     const s = playing();
     const snapshot = JSON.parse(JSON.stringify(s));

@@ -71,8 +71,9 @@ function getRandomEvent(rng: Rng, previousId: TurnEvent['id'] | null): TurnEvent
 }
 
 /**
- * Effective threat of an event given difficulty. Kept as a helper so the UI can
- * show the same number the engine uses.
+ * Rounded, 0-100 clamped threat for DISPLAY. The internal chance/failure math
+ * uses the exact unrounded `threat * threatMultiplier`; this helper is a
+ * presentation-friendly approximation of that value for the event card.
  */
 export function effectiveThreat(event: TurnEvent, difficulty: Difficulty): number {
   return clamp(Math.round(event.threat * DIFFICULTY_CONFIG[difficulty].threatMultiplier), 0, 100);
@@ -294,19 +295,21 @@ export function resolveTurn(
     ? resolveSuccess(animal, event, actionId)
     : resolveFailure(event, actionId, state.difficulty);
 
-  let hpDelta = effects.hpDelta;
-  const hungerDelta = effects.hungerDelta;
+  const rawHpDelta = effects.hpDelta;
   let scoreDelta = Math.round(effects.scoreDelta * (effects.scoreDelta > 0 ? cfg.scoreMultiplier : 1));
 
-  const nextHunger = clamp(state.hunger + hungerDelta, 0, MAX_HUNGER);
-  let nextHp = clamp(state.hp + hpDelta, 0, MAX_HP);
+  const nextHunger = clamp(state.hunger + effects.hungerDelta, 0, MAX_HUNGER);
+  let nextHp = clamp(state.hp + rawHpDelta, 0, MAX_HP);
 
   // Starvation penalty once hunger reaches zero (scaled by difficulty).
   if (nextHunger <= 0) {
-    const bite = cfg.starvationBite;
-    nextHp = clamp(nextHp - bite, 0, MAX_HP);
-    hpDelta -= bite;
+    nextHp = clamp(nextHp - cfg.starvationBite, 0, MAX_HP);
   }
+
+  // Report the deltas that were actually applied after clamping, so the UI badges
+  // are accurate and the score bonus never rewards HP that clamping discarded.
+  const hpDelta = nextHp - state.hp;
+  const hungerDelta = nextHunger - state.hunger;
 
   const nextTurn = state.turn + 1;
   const nextScore = Math.max(

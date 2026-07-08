@@ -34,7 +34,7 @@ export interface TurnEvent {
   foodRichness: number; // 0-100
 }
 
-/** Difficulty tiers scale threat, starvation bite, and rest recovery. */
+/** Difficulty tiers scale threat, success chance, starvation bite, and score reward. */
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
 export interface DifficultyConfig {

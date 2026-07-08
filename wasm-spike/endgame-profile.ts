@@ -21,7 +21,7 @@
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
 import { MoveListImproved } from '../src/components/game/ShogiImproved/MoveListImproved';
-import { FU, GOTE, HI, SENTE, Te, getKomashu } from '../src/components/game/ShogiImproved/types';
+import { FU, GOTE, HI, SENTE, Te } from '../src/components/game/ShogiImproved/types';
 
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
@@ -88,6 +88,10 @@ function bestOf(runs: number, fn: () => void): number {
 
 function main(): void {
   const positions = buildEndgamePositions();
+  if (positions.length === 0) {
+    console.log('No big-hand positions were generated (thresholds too strict?). Nothing to profile.');
+    return;
+  }
   console.log(`=== endgame node-cost micro-profile (JS engine, big-hand positions) ===\n`);
 
   const ITER = 3_000; // iterations per measurement
@@ -135,9 +139,10 @@ function main(): void {
       }
     });
 
-    const genNs = (genMs / ITER) * 1000;
-    const legalNs = (legalOnlyMs / ITER) * 1000;
-    const evalNs = (evalMs / ITER) * 1000;
+    // performance.now() is in milliseconds; ms→ns is ×1e6.
+    const genNs = (genMs / ITER) * 1e6;
+    const legalNs = (legalOnlyMs / ITER) * 1e6;
+    const evalNs = (evalMs / ITER) * 1e6;
     const nodeNs = genNs + legalNs + evalNs;
 
     sumGenNs += genNs;

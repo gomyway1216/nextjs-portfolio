@@ -59,10 +59,18 @@ function buildEndgamePositions(): Array<{ label: string; k: KyokumenImproved; ha
 }
 
 function main(): void {
-  const budgetMs = process.argv[2] ? parseInt(process.argv[2], 10) : 1000;
-  const runs = process.argv[3] ? parseInt(process.argv[3], 10) : 3;
+  const posInt = (raw: string | undefined, fallback: number): number => {
+    const v = raw !== undefined ? parseInt(raw, 10) : NaN;
+    return Number.isFinite(v) && v > 0 ? v : fallback;
+  };
+  const budgetMs = posInt(process.argv[2], 1000);
+  const runs = posInt(process.argv[3], 3);
   const wasm = loadShogiWasm();
   const positions = buildEndgamePositions();
+  if (positions.length === 0) {
+    console.log('No big-hand positions were generated (thresholds too strict?). Nothing to benchmark.');
+    return;
+  }
   console.log(
     `=== WASM endgame bench (budget=${budgetMs}ms, best-of-${runs}, ${positions.length} big-hand positions) ===\n`
   );

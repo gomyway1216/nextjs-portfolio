@@ -1,10 +1,12 @@
 /**
- * endgame-gen-breakdown.ts — break move generation itself into board-moves vs
- * drop-moves vs the uchifuzume probe, on big-hand positions.
+ * endgame-gen-breakdown.ts — on big-hand positions, count how the pseudo-legal
+ * move list splits into board moves vs drop moves, and time the full pooled
+ * generation path (board + drops + the uchifuzume probe) as a single bucket.
  *
  * The node-cost profile showed generation is ~50% of a big-hand node. This
  * splits that cost so we know whether to attack drops, board moves, or the
- * uchifuzume check. CPU-light (bounded iterations).
+ * uchifuzume check (it is one path, so it is timed as one bucket). CPU-light
+ * (bounded iterations).
  *
  * Usage: node -r tsx/cjs wasm-spike/endgame-gen-breakdown.ts
  */
@@ -71,6 +73,10 @@ function bestOf(runs: number, fn: () => void): number {
 
 function main(): void {
   const positions = buildEndgamePositions();
+  if (positions.length === 0) {
+    console.log('No big-hand positions were generated (thresholds too strict?). Nothing to measure.');
+    return;
+  }
   console.log(`=== generation breakdown (big-hand positions) ===\n`);
   const ITER = 4_000;
   const pool = new MoveListImproved();
@@ -91,7 +97,8 @@ function main(): void {
     const fullMs = bestOf(3, () => {
       for (let i = 0; i < ITER; i++) GenerateMovesImproved.generatePseudoLegalMovesPooled(k, pool);
     });
-    const fullNs = (fullMs / ITER) * 1000;
+    // performance.now() is in milliseconds; ms→ns is ×1e6.
+    const fullNs = (fullMs / ITER) * 1e6;
 
     console.log(`${p.label}  (hand=${p.hand}, board=${board}, drops=${drops}, total=${list.length})`);
     console.log(`  full gen   ${fullNs.toFixed(1)} ns/node  (${(fullNs / Math.max(1, list.length)).toFixed(2)} ns per generated move)\n`);

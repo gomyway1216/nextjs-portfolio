@@ -38,6 +38,22 @@ export interface RunResult {
   finalCounts: number[];
 }
 
+/**
+ * Deterministic PRNG (mulberry32). Seed with any 32-bit integer. Used by the
+ * tests and by any caller that wants reproducible bandit runs. Returns a
+ * function that yields uniform floats in [0, 1).
+ */
+export function mulberry32(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 const argmax = (xs: number[], tiebreakRng: () => number): number => {
   let best = -Infinity;
   let bestIdx = 0;
@@ -81,6 +97,74 @@ function sampleBeta(alpha: number, beta: number, rng: () => number): number {
   return x / (x + y);
 }
 
+/** Per-arm empirical statistics used to pick the next arm. */
+export interface ArmStats {
+  /** Pull count per arm. */
+  counts: number[];
+  /** Success (reward) sum per arm. */
+  sums: number[];
+  /** Total pulls so far across all arms (= sum of counts). */
+  total: number;
+}
+
+/**
+ * Decide which arm a learning strategy would pull next, given the current
+ * empirical stats. Pure function shared by both the Monte-Carlo runner and the
+ * interactive "hint" feature so the two can never diverge.
+ *
+ * `random`, `optimal` and unknown strategies are handled by the caller (they
+ * don't depend on `stats`); this covers the four learning strategies. Returns
+ * -1 for strategies this helper does not decide.
+ */
+export function chooseArm(
+  strategy: StrategyName,
+  stats: ArmStats,
+  epsilon: number,
+  rng: () => number,
+): number {
+  const { counts, sums, total } = stats;
+  const K = counts.length;
+  const means = () => counts.map((c, i) => (c === 0 ? 0 : sums[i] / c));
+
+  if (strategy === 'eps-greedy') {
+    if (rng() < epsilon) return Math.floor(rng() * K);
+    return argmax(means(), rng);
+  }
+  if (strategy === 'greedy') {
+    const unpulled = counts.indexOf(0);
+    if (unpulled !== -1) return unpulled;
+    return argmax(means(), rng);
+  }
+  if (strategy === 'ucb1') {
+    const unpulled = counts.indexOf(0);
+    if (unpulled !== -1) return unpulled;
+    const lnt = Math.log(Math.max(1, total));
+    const ucb = counts.map((c, i) => sums[i] / c + Math.sqrt((2 * lnt) / c));
+    return argmax(ucb, rng);
+  }
+  if (strategy === 'thompson') {
+    const samples = counts.map((c, i) => sampleBeta(sums[i] + 1, c - sums[i] + 1, rng));
+    return argmax(samples, rng);
+  }
+  return -1;
+}
+
+/**
+ * Wilson score interval for a Bernoulli proportion — a well-behaved confidence
+ * interval even for small n (unlike the naive normal approximation). z=1.96 for
+ * a 95% interval. Returns [low, high] clamped to [0, 1]; for n=0 returns the
+ * full [0, 1] range. Used by the UI to draw per-arm confidence bars.
+ */
+export function wilsonInterval(successes: number, n: number, z = 1.96): [number, number] {
+  if (n <= 0) return [0, 1];
+  const phat = successes / n;
+  const z2 = z * z;
+  const denom = 1 + z2 / n;
+  const center = (phat + z2 / (2 * n)) / denom;
+  const half = (z * Math.sqrt((phat * (1 - phat)) / n + z2 / (4 * n * n))) / denom;
+  return [Math.max(0, center - half), Math.min(1, center + half)];
+}
+
 /** One full run of T pulls with the given strategy. */
 export function runStrategy(
   strategy: StrategyName,
@@ -111,39 +195,11 @@ export function runStrategy(
       choice = Math.floor(rng() * K);
     } else if (strategy === 'optimal') {
       choice = bestArm;
-    } else if (strategy === 'eps-greedy') {
-      if (rng() < epsilon) choice = Math.floor(rng() * K);
-      else {
-        const means = counts.map((c, i) => (c === 0 ? 0 : sums[i] / c));
-        choice = argmax(means, rng);
-      }
-    } else if (strategy === 'greedy') {
-      // Pure exploit: 1 pull of each arm to seed, then always argmax of means.
-      if (t < K) choice = t;
-      else {
-        const means = counts.map((c, i) => (c === 0 ? 0 : sums[i] / c));
-        choice = argmax(means, rng);
-      }
-    } else if (strategy === 'ucb1') {
-      // Seed by pulling each arm once.
-      if (t < K) choice = t;
-      else {
-        const lnt = Math.log(t);
-        const ucb = counts.map((c, i) => {
-          const mean = c === 0 ? 0 : sums[i] / c;
-          const bonus = c === 0 ? Infinity : Math.sqrt((2 * lnt) / c);
-          return mean + bonus;
-        });
-        choice = argmax(ucb, rng);
-      }
     } else {
-      // thompson
-      const samples = counts.map((c, i) => {
-        const alpha = sums[i] + 1; // Beta(α, β) with prior Beta(1, 1)
-        const beta = c - sums[i] + 1;
-        return sampleBeta(alpha, beta, rng);
-      });
-      choice = argmax(samples, rng);
+      // The four learning strategies share their decision logic with the
+      // interactive hint feature via chooseArm(). `t` equals the number of
+      // pulls made so far, which is exactly UCB1's time index.
+      choice = chooseArm(strategy, { counts, sums, total: t }, epsilon, rng);
     }
 
     const reward = rng() < config.trueProbs[choice] ? 1 : 0;

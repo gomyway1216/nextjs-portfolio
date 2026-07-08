@@ -145,7 +145,7 @@ export const SimTab = () => {
         </button>
         {running && (
           <button onClick={stop} style={{ background: '#7f1d1d', color: '#fecaca', border: '1px solid #b91c1c', borderRadius: 10, padding: '0.65rem 1.1rem', fontWeight: 700, cursor: 'pointer' }}>
-            {language === 'ja' ? '停止' : 'Stop'}
+            {t.stop}
           </button>
         )}
         <span style={{ color: '#64748b', fontSize: '0.8rem' }}>{t.simCaption}</span>

@@ -202,6 +202,12 @@ export function runStrategy(
       choice = chooseArm(strategy, { counts, sums, total: t }, epsilon, rng);
     }
 
+    // Fail fast on an unsupported strategy rather than indexing with -1 and
+    // silently propagating undefined/NaN through the whole run.
+    if (choice < 0 || choice >= K) {
+      throw new Error(`runStrategy: unsupported strategy "${strategy}"`);
+    }
+
     const reward = rng() < config.trueProbs[choice] ? 1 : 0;
     counts[choice]++;
     sums[choice] += reward;

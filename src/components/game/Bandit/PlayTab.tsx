@@ -188,7 +188,7 @@ export const PlayTab = () => {
           })}
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.2rem', maxHeight: 80, overflowY: 'auto', padding: '0.4rem', background: '#020617', borderRadius: 8, border: '1px solid #1e293b' }} aria-label="history">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.2rem', maxHeight: 80, overflowY: 'auto', padding: '0.4rem', background: '#020617', borderRadius: 8, border: '1px solid #1e293b' }} aria-label={t.historyLabel}>
           {history.length === 0 && <span style={{ color: '#475569', fontSize: '0.75rem' }}>{t.notPulledYet}</span>}
           {history.map((h, i) => (
             <span

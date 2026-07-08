@@ -19,7 +19,7 @@ export const Bandit = () => {
         <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>{t.title}</h1>
         <p style={{ marginTop: '0.4rem', color: '#94a3b8', maxWidth: 760 }}>{t.subtitle}</p>
 
-        <div role="tablist" aria-label={t.title} style={{ display: 'flex', gap: '0.5rem', margin: '1.25rem 0' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', margin: '1.25rem 0' }}>
           <TabButton active={tab === 'play'} onClick={() => setTab('play')}>{t.tabPlay}</TabButton>
           <TabButton active={tab === 'sim'} onClick={() => setTab('sim')}>{t.tabSim}</TabButton>
         </div>
@@ -32,8 +32,7 @@ export const Bandit = () => {
 
 const TabButton = ({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) => (
   <button
-    role="tab"
-    aria-selected={active}
+    aria-pressed={active}
     onClick={onClick}
     style={{
       background: active ? '#f59e0b' : '#1e293b',

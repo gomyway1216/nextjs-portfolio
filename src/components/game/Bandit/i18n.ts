@@ -24,6 +24,7 @@ export interface BanditStrings {
   empMean: string;
   trueValue: string;
   notPulledYet: string;
+  historyLabel: string;
   suggestsPull: (strategy: string) => string;
 
   progress: string;
@@ -47,6 +48,7 @@ export interface BanditStrings {
   trialsPerStrategy: string;
   epsilon: string;
   runComparison: string;
+  stop: string;
   running: (label: string, done: string, total: string) => string;
   simCaption: string;
   cumRewardChart: (T: number, trials: string) => string;
@@ -83,6 +85,7 @@ const ja: BanditStrings = {
   empMean: '実測 p̂',
   trueValue: '真値',
   notPulledYet: '（まだ引いてない）',
+  historyLabel: '引いた履歴',
   suggestsPull: (s) => `${s} ならここ`,
 
   progress: '進捗',
@@ -106,6 +109,7 @@ const ja: BanditStrings = {
   trialsPerStrategy: '試行回数 (戦略あたり)',
   epsilon: 'ε (ε-greedy 用)',
   runComparison: '6 戦略を比較実行',
+  stop: '停止',
   running: (label, done, total) => `実行中 ${label}: ${done} / ${total}`,
   simCaption: '各戦略を独立にシミュレーション。同じ probs で 6 戦略の挙動を比較。',
   cumRewardChart: (T, trials) => `累積報酬 (T=${T}, 試行=${trials})`,
@@ -158,6 +162,7 @@ const en: BanditStrings = {
   empMean: 'observed p̂',
   trueValue: 'true',
   notPulledYet: '(no pulls yet)',
+  historyLabel: 'pull history',
   suggestsPull: (s) => `${s} picks this`,
 
   progress: 'Progress',
@@ -181,6 +186,7 @@ const en: BanditStrings = {
   trialsPerStrategy: 'Trials (per strategy)',
   epsilon: 'ε (for ε-greedy)',
   runComparison: 'Compare 6 strategies',
+  stop: 'Stop',
   running: (label, done, total) => `Running ${label}: ${done} / ${total}`,
   simCaption: 'Each strategy simulated independently on the same probs.',
   cumRewardChart: (T, trials) => `Cumulative reward (T=${T}, trials=${trials})`,

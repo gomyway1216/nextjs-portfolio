@@ -330,6 +330,13 @@ export const ChaosBreakout = () => {
 
   const onPointerDown = useCallback(
     (e: React.PointerEvent) => {
+      // Capture the pointer so the paddle keeps tracking even if a fast drag
+      // leaves the stage bounds.
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        /* setPointerCapture can throw for stale pointer ids; safe to ignore */
+      }
       const x = pointerToGameX(e.clientX);
       if (x !== null) inputRef.current.pointerX = x;
       if (phaseRef.current === 'ready') doLaunch();
@@ -401,12 +408,19 @@ export const ChaosBreakout = () => {
                   {GRAVITY_ARROW[hud.gravity]} {hud.gravity.toUpperCase()}
                 </span>
               </div>
-              {hud.combo > 1 && (
-                <div className={styles.stat}>
-                  <span className={styles.statLabel}>{t.combo}</span>
-                  <span className={styles.statValue}>x{hud.combo}</span>
-                </div>
-              )}
+              {/* Always mounted so the HUD grid doesn't reflow; just fade it. */}
+              <div
+                className={styles.stat}
+                aria-hidden={hud.combo <= 1}
+                style={{
+                  opacity: hud.combo > 1 ? 1 : 0,
+                  visibility: hud.combo > 1 ? 'visible' : 'hidden',
+                  transition: 'opacity 0.2s',
+                }}
+              >
+                <span className={styles.statLabel}>{t.combo}</span>
+                <span className={styles.statValue}>x{hud.combo}</span>
+              </div>
             </div>
 
             <div

@@ -350,17 +350,23 @@ export const applyChaos = (
     banner = { type: grow ? 'paddleGrow' : 'paddleShrink', timer: 150 };
   } else {
     // Multiball: clone the fastest existing ball, launched at a mirrored angle.
-    const source = state.balls.reduce((fastest, ball) =>
-      magnitude(ball.vx, ball.vy) > magnitude(fastest.vx, fastest.vy) ? ball : fastest,
-    );
-    const clone: Ball = {
-      x: source.x,
-      y: source.y,
-      vx: -source.vx,
-      vy: source.vy,
-      r: source.r,
-    };
-    state.balls.push(clone);
+    // canMultiball already guarantees a ball exists; the guard is purely
+    // defensive so an empty balls[] can never crash here.
+    const source =
+      state.balls.length > 0
+        ? state.balls.reduce((fastest, ball) =>
+            magnitude(ball.vx, ball.vy) > magnitude(fastest.vx, fastest.vy) ? ball : fastest,
+          )
+        : null;
+    if (source) {
+      state.balls.push({
+        x: source.x,
+        y: source.y,
+        vx: -source.vx,
+        vy: source.vy,
+        r: source.r,
+      });
+    }
     banner = { type: 'multiball', timer: 150 };
   }
 

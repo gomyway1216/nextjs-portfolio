@@ -121,13 +121,26 @@
   outline-offset: -3px;
 }
 
-.clearing {
-  animation: flash 260ms ease-out;
+/* Full-board flash overlay that replays each time a line clears. Keyed on a
+   counter so it re-mounts and re-runs; not tied to any board row index. */
+.boardFlash {
+  position: absolute;
+  inset: 0.7rem;
+  border-radius: 10px;
+  pointer-events: none;
+  background: color-mix(in srgb, #ffffff 55%, transparent);
+  animation: flash 300ms ease-out forwards;
 }
 
 @keyframes flash {
-  0% { filter: brightness(2.4); }
-  100% { filter: brightness(1); }
+  0% { opacity: 0.85; }
+  100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boardFlash {
+    animation-duration: 1ms;
+  }
 }
 
 .sidebar {
@@ -308,6 +321,11 @@
     width: 100%;
     max-width: 360px;
     margin: 0.25rem auto 0;
+  }
+  /* Hidden when not playing: the handlers are no-ops there, so don't show
+     non-functional controls. Attribute selector beats the display:grid above. */
+  .touchPad[aria-hidden='true'] {
+    display: none;
   }
 }
 

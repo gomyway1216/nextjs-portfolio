@@ -33,6 +33,17 @@ export const GhostTetris = () => {
   const [game, setGame] = useState<GameState>(createGame);
   const [now, setNow] = useState(() => Date.now());
   const [infoOpen, setInfoOpen] = useState(false);
+  // Bumped every time a line clears so a keyed flash overlay re-mounts and its
+  // animation replays. Keyed off the count (not stale row indices) so it fires
+  // correctly on the compacted board and on consecutive clears.
+  const [clearFlash, setClearFlash] = useState(0);
+  const prevLinesRef = useRef(0);
+  useEffect(() => {
+    if (game.lines > prevLinesRef.current) {
+      setClearFlash((n) => n + 1);
+    }
+    prevLinesRef.current = game.lines;
+  }, [game.lines]);
 
   // Keep a ref to the latest phase so the keyboard listener avoids stale
   // closures without re-subscribing on every state change.
@@ -174,7 +185,6 @@ export const GhostTetris = () => {
       const locked = game.board[y][x];
       const isActive = activeCells.has(idx);
       const isShadow = !isActive && !locked && shadowCells.has(idx);
-      const isClearing = game.clearing.includes(y);
 
       let cellId = 0;
       let opacity = 1;
@@ -189,7 +199,6 @@ export const GhostTetris = () => {
         styles.cell,
         cellId === 0 && !isShadow ? styles.empty : '',
         isShadow ? styles.ghostShadow : '',
-        isClearing ? styles.clearing : '',
       ]
         .filter(Boolean)
         .join(' ');
@@ -230,12 +239,13 @@ export const GhostTetris = () => {
         <div className={styles.layout}>
           <div
             className={styles.boardWrap}
-            role="grid"
-            aria-label={t.title}
-            aria-rowcount={BOARD_H}
-            aria-colcount={BOARD_W}
+            role="img"
+            aria-label={`${t.title} — ${t.score} ${game.score}, ${t.lines} ${game.lines}`}
           >
             <div className={styles.board}>{cells}</div>
+            {clearFlash > 0 && (
+              <div key={clearFlash} className={styles.boardFlash} aria-hidden />
+            )}
 
             {game.phase === 'gameover' && (
               <div className={styles.overlay} role="alertdialog" aria-label={t.gameOver}>

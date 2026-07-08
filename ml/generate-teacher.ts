@@ -29,7 +29,12 @@ import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenI
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '../src/components/game/ShogiImproved/InitialPositionImproved';
 import { ShogiAIImprovedV20 } from '../src/components/game/ShogiImproved/ShogiAIImprovedV20';
-import { wasmSearchBestMove } from '../src/components/game/ShogiImproved/wasmEngine';
+import {
+  wasmSearchBestMove,
+  loadNnueWeights,
+  setWasmNnueEnabled,
+  isNnueWeightsLoaded,
+} from '../src/components/game/ShogiImproved/wasmEngine';
 import { getOpeningMoveImproved } from '../src/components/game/ShogiImproved/OpeningBookImproved';
 import {
   SENTE,
@@ -59,6 +64,8 @@ interface Args {
   balanceCp: number; // |cp| がこの値を超える局面を間引き対象にする
   balanceRate: number; // 間引き対象局面の採択率 (0..1)
   wasm: boolean; // 自己対戦の指し手選択に WASM エンジンを使う (JS 比 ~15x)
+  nnueWeights: string; // NNUE 重み(.bin)を WASM エンジンに読み込み、NNUE leaf eval で指し継ぐ
+  nnueK: number; // NNUE の sigmoid スケール K (weights.meta.json の k_sigmoid)
 }
 
 function parseArgs(): Args {
@@ -86,6 +93,12 @@ function parseArgs(): Args {
     // 支配的コスト (実測 gen 102s vs label 1.5s / chunk) なので、ここが ~15x 速くなる。
     // 局面の性質は同一エンジンの同一探索 (JS版とビット一致) なので分布は変わらない。
     wasm: a.includes('--wasm'),
+    // --nnue-weights <path>: 自己対戦の WASM 探索の leaf eval を、指定した NNUE 重み
+    // (本番 public/shogi-nnue-weights.bin = runOp1 など) に切り替える。これにより
+    // 「その NNUE を積んだエンジンが実際に到達する局面」を採取できる (自己対戦データ)。
+    // 指定しなければ従来どおり V3 手作り eval。--wasm と併用する。
+    nnueWeights: get('nnue-weights', ''),
+    nnueK: parseFloat(get('nnue-k', '600')),
   };
 }
 
@@ -490,6 +503,36 @@ async function main(): Promise<void> {
   for (let i = 0; i < args.engines; i++) engines.push(new UsiEngine());
   await Promise.all(engines.map((e) => e.init()));
   console.log(`[gen] ${engines.length} engine workers ready`);
+
+  // --- NNUE leaf eval を WASM 探索に読み込む (自己対戦データ生成用) ---
+  // これを有効にすると、指定 NNUE を積んだエンジンが実際に到達する局面が採れる。
+  // --nnue-weights は WASM 探索の葉評価を差し替えるオプションなので --wasm 必須。
+  // --wasm 無しで指定されると黙って V3 評価の分布で生成してしまうため、明示的にエラーにする。
+  if (args.nnueWeights && !args.wasm) {
+    console.error('[gen] --nnue-weights requires --wasm (it swaps the WASM search leaf eval). Aborting.');
+    process.exit(1);
+  }
+  if (args.wasm && args.nnueWeights) {
+    if (!fs.existsSync(args.nnueWeights)) {
+      console.error(`[gen] nnue weights not found: ${args.nnueWeights}`);
+      process.exit(1);
+    }
+    // loadNnueWeights() が内部で getInstance() を呼んで WASM を遅延初期化するので、
+    // 明示的なウォームアップ探索は不要（探索起動のコスト・ログ・TT 副作用を避ける）。
+    const bytes = new Uint8Array(fs.readFileSync(args.nnueWeights));
+    const ok = loadNnueWeights(bytes, args.nnueK);
+    const enabled = ok ? setWasmNnueEnabled(true) : false;
+    if (!ok || !enabled || !isNnueWeightsLoaded()) {
+      console.error(
+        `[gen] failed to enable NNUE leaf eval (ok=${ok} enabled=${enabled}). ` +
+          `self-play would fall back to V3 — aborting to avoid mislabeled distribution.`
+      );
+      process.exit(1);
+    }
+    console.log(
+      `[gen] NNUE leaf eval ENABLED for self-play: ${args.nnueWeights} (K=${args.nnueK}, ${bytes.byteLength} bytes)`
+    );
+  }
 
   const ai = new ShogiAIImprovedV20();
   const rng = mulberry32((Date.now() ^ (process.pid << 8)) >>> 0);

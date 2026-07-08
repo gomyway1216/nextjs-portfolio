@@ -657,7 +657,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                   {isJa ? 'AIの強さ' : 'AI difficulty'}
                 </div>
                 <div
-                  role="radiogroup"
+                  role="group"
                   aria-label={isJa ? 'AIの強さ' : 'AI difficulty'}
                   style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}
                 >
@@ -667,8 +667,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
                       <button
                         key={opt.value}
                         type="button"
-                        role="radio"
-                        aria-checked={active}
+                        aria-pressed={active}
                         onClick={() => setDifficulty(opt.value)}
                         title={opt.desc}
                         style={{
@@ -1049,6 +1048,7 @@ export function DaifugoVsAI({ onBackToMenu }: DaifugoVsAIProps) {
 	                  )}
 
 	                  <div
+	                    role="group"
 	                    aria-label={d.yourHand}
 	                    style={{
 	                    marginTop: '0.75rem',

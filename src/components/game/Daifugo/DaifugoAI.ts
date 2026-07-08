@@ -68,10 +68,34 @@ function groupBySuit(hand: Card[]): Map<string, Card[]> {
   return map;
 }
 
+/** All size-k subsets of `items` (k small — groups are at most 4 cards). */
+function combinations<T>(items: T[], k: number): T[][] {
+  if (k <= 0) return [[]];
+  if (k > items.length) return [];
+  const result: T[][] = [];
+  const pick = (start: number, chosen: T[]) => {
+    if (chosen.length === k) {
+      result.push(chosen.slice());
+      return;
+    }
+    for (let i = start; i < items.length; i++) {
+      chosen.push(items[i]!);
+      pick(i + 1, chosen);
+      chosen.pop();
+    }
+  };
+  pick(0, []);
+  return result;
+}
+
 /**
  * All same-rank groupings, plus the joker as a lone single. (This engine only
  * treats the joker as a single — it does not act as a wild inside groups — so
  * we mirror that here to avoid generating illegal joker combos.)
+ *
+ * For a given rank we enumerate every suit combination for each size, not just
+ * the first `count` cards: under しばり / 激縛り the exact suits matter, so a
+ * legal beating play can require a specific suit subset (e.g. locked to ♠♥).
  */
 function generateGroupCandidates(hand: Card[]): string[][] {
   const sorted = sortHand(hand);
@@ -82,7 +106,9 @@ function generateGroupCandidates(hand: Card[]): string[][] {
   for (const [, cards] of Array.from(groups.entries()).sort((a, b) => a[0] - b[0])) {
     const maxCount = Math.min(4, cards.length);
     for (let count = 1; count <= maxCount; count++) {
-      candidates.push(cards.slice(0, count).map(c => c.id));
+      for (const combo of combinations(cards, count)) {
+        candidates.push(combo.map(c => c.id));
+      }
     }
   }
 

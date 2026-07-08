@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { applyAction, createInitialDaifugoState } from '@/components/game/Daifugo/gameLogic';
 import { decideDaifugoAction, type DaifugoDifficulty } from '@/components/game/Daifugo/DaifugoAI';
 import type { Card } from '@/components/game/Daifugo/types';
@@ -6,6 +6,18 @@ import type { DaifugoNetworkState, DaifugoPile } from '@/components/game/Daifugo
 
 function card(id: string, suit: Card['suit'], rank: number): Card {
   return { id, suit, rank };
+}
+
+/** Deterministic PRNG (mulberry32) so shuffle + AI noise are reproducible. */
+function seededRandom(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
 
 function baseState(overrides: Partial<DaifugoNetworkState> = {}): DaifugoNetworkState {
@@ -22,7 +34,14 @@ function baseState(overrides: Partial<DaifugoNetworkState> = {}): DaifugoNetwork
 }
 
 describe('DaifugoAI', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('never returns an illegal move across many random games', () => {
+    // Seed Math.random so the deck shuffle and tier blunders are deterministic:
+    // failures reproduce exactly and the suite never flakes.
+    vi.spyOn(Math, 'random').mockImplementation(seededRandom(0x9e3779b9));
     const diffs: DaifugoDifficulty[] = ['easy', 'medium', 'hard', 'expert', 'master'];
     for (let g = 0; g < 40; g++) {
       const order = ['a', 'b', 'c', 'd'];

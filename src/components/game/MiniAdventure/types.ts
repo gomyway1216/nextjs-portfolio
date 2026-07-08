@@ -10,8 +10,25 @@ export const MAX_FLOORS = 10;
 export const TORCH_MAX = 100;
 export const TORCH_DECAY_RATE = 1; // Per turn in dungeon
 export const HP_REGEN_INTERVAL = 3; // Turns to regen 1 HP
-export const EGG_HATCH_TURNS = 100;
+export const EGG_HATCH_TURNS = 60;
 export const INVENTORY_MAX = 10;
+
+// Difficulty tiers. Each affects enemy scaling, torch decay and starting supplies.
+export type MiniAdventureDifficulty = 'easy' | 'normal' | 'hard';
+
+export interface DifficultyConfig {
+  enemyStatMult: number;   // multiplier on enemy hp/attack
+  torchDecay: number;      // torch drain per dungeon turn
+  startPotions: number;    // health potions granted at start
+  startTorches: number;    // spare torches granted at start
+  darknessMult: number;    // extra damage multiplier when torch is out
+}
+
+export const DIFFICULTY_CONFIGS: Record<MiniAdventureDifficulty, DifficultyConfig> = {
+  easy: { enemyStatMult: 0.8, torchDecay: 1, startPotions: 3, startTorches: 2, darknessMult: 1.25 },
+  normal: { enemyStatMult: 1.0, torchDecay: 1, startPotions: 2, startTorches: 1, darknessMult: 1.5 },
+  hard: { enemyStatMult: 1.25, torchDecay: 2, startPotions: 1, startTorches: 0, darknessMult: 1.75 },
+};
 
 // Tile types
 export enum TileType {
@@ -238,6 +255,9 @@ export interface GameState {
   victory: boolean;
   messages: LogMessage[];
   isOnSurface: boolean; // On surface, torch doesn't decay
+  difficulty: MiniAdventureDifficulty;
+  bossDefeated: boolean; // Dragon boss on the final floor has been slain
+  enemiesDefeated: number; // Total kills, for end-of-run stats
 }
 
 // Input action

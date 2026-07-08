@@ -1,32 +1,138 @@
 /**
  * St. Petersburg Paradox.
  *
- * Flip a fair coin until tails appears. If the first tails is on flip n,
- * payoff = 2^(n-1):  T = $1, HT = $2, HHT = $4, HHHT = $8, …
+ * Flip a fair coin until tails appears. If the first tails is on flip n
+ * (n ≥ 1), the payoff is 2^(n-1):  T = $1, HT = $2, HHT = $4, HHHT = $8, …
  *
- *   E[X] = Σ (1/2)^n · 2^(n-1) = Σ 1/2 = ∞
+ *   P(first tails on flip n) = (1/2)^n
+ *   payoff(n)                = 2^(n-1)
+ *   E[X] = Σ_{n≥1} (1/2)^n · 2^(n-1) = Σ_{n≥1} 1/2 = ∞
  *
- * The mean is infinite — yet most people wouldn't pay more than $5–10 to
- * play. With N samples the empirical mean grows roughly like log₂(N)/2,
- * driven entirely by the rare-but-huge tail; the median stays around $1–2.
+ * Every term in the expected-value sum equals exactly 1/2, so the partial
+ * sum after n terms is n/2 — the mean is infinite. Yet most people won't
+ * pay more than a few dollars to play. With N samples the empirical mean
+ * grows only like log₂(N)/2, driven entirely by the rare-but-huge tail,
+ * while the median stays pinned at $1–2. That gap is the paradox.
+ *
+ * Two classic "why won't people pay ∞?" resolutions are computed here:
+ *  1. Truncated / finite-horizon fair price ≈ log₂(N)/2 (see fairPriceForN).
+ *  2. Bernoulli's expected-utility (log utility) certainty equivalent
+ *     (see logUtilityFairPrice) — a bounded willingness-to-pay for a player
+ *     with finite wealth.
  */
+
+/** Smallest coin count we cap at, past which 2^(n-1) leaves safe-integer range. */
+const MAX_SAFE_EXPONENT = 53;
+
+/**
+ * A tiny seedable PRNG (mulberry32). Deterministic given a seed, which lets
+ * tests assert exact sequences and lets the UI reproduce a run.
+ */
+export function makeRng(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 
 /** Returns the number of flips until (and including) the first tails. */
 export function flipsUntilTails(rng: () => number = Math.random): number {
   let n = 1;
-  // 0.5 probability heads, keep going.
+  // rng() < 0.5 => heads, keep going.
   while (rng() < 0.5) n++;
   return n;
 }
 
-/** Payoff in one game = 2^(n-1) where n is the position of the first tails. */
+/** Payoff for a game whose first tails is on flip n: 2^(n-1). */
+export function payoffForFlips(n: number): number {
+  // Cap the exponent to keep JS Numbers exact (2^53 ≈ 9e15). After ~53
+  // straight heads we return Number.MAX_SAFE_INTEGER; this happens with
+  // probability < 2^-53 so it never perturbs statistics visibly.
+  if (n - 1 >= MAX_SAFE_EXPONENT) return Number.MAX_SAFE_INTEGER;
+  return 2 ** (n - 1);
+}
+
+/** Play one game. Returns the first-tails flip index and the payoff 2^(n-1). */
 export function playGame(rng: () => number = Math.random): { n: number; payoff: number } {
   const n = flipsUntilTails(rng);
-  // Cap exponent to keep JS Number representable (2^53 ≈ 9e15). After ~50
-  // straight heads we just return Number.MAX_SAFE_INTEGER; this happens
-  // with probability 2^-50 ≈ 9e-16 so doesn't perturb statistics visibly.
-  if (n - 1 >= 53) return { n, payoff: Number.MAX_SAFE_INTEGER };
-  return { n, payoff: 2 ** (n - 1) };
+  return { n, payoff: payoffForFlips(n) };
+}
+
+/** Probability the first tails lands on flip n: (1/2)^n. */
+export function probOfFlips(n: number): number {
+  return Math.pow(0.5, n);
+}
+
+/**
+ * Partial expected value after summing the first `terms` outcomes.
+ * Each term contributes exactly 1/2, so this is terms/2 — the closed form
+ * that makes the divergence obvious.
+ */
+export function partialExpectedValue(terms: number): number {
+  if (terms <= 0) return 0;
+  return terms / 2;
+}
+
+/**
+ * The "truncated" fair price for a bank that can only pay out for the first
+ * N games' worth of outcomes ≈ log₂(N)/2. This is what the empirical mean of
+ * N plays hovers around.
+ */
+export function fairPriceForN(N: number): number {
+  if (N <= 1) return 0;
+  return Math.log2(N) / 2;
+}
+
+/**
+ * E[log₂(payoff)] = Σ (1/2)^n · (n-1) = 1. The "prize-only" log-utility
+ * certainty equivalent is therefore 2^1 = $2 (independent of wealth).
+ */
+export function expectedLog2Payoff(): number {
+  return 1;
+}
+
+/**
+ * Bernoulli's resolution: a player with wealth `w` and logarithmic utility
+ * pays the price c that leaves expected utility unchanged, i.e. solves
+ *
+ *   E[ ln(w − c + payoff) ] = ln(w)
+ *
+ * The left side is decreasing in c, so we bisect for the unique root in
+ * [0, w). Returns a finite, wealth-dependent willingness-to-pay — small even
+ * though the raw expected value is infinite.
+ */
+export function logUtilityFairPrice(wealth: number, maxTerms = 60): number {
+  if (!(wealth > 0)) return 0;
+
+  // Expected utility of paying price c, truncating the (convergent) series.
+  const expectedUtility = (c: number): number => {
+    let eu = 0;
+    for (let n = 1; n <= maxTerms; n++) {
+      const p = probOfFlips(n);
+      const payoff = payoffForFlips(n);
+      const finalWealth = wealth - c + payoff;
+      // finalWealth ≥ wealth - c + 1 > 0 for c < wealth, so ln is safe.
+      eu += p * Math.log(finalWealth);
+    }
+    return eu;
+  };
+
+  const target = Math.log(wealth);
+  let lo = 0;
+  // Willingness-to-pay never exceeds wealth (can't risk going broke with log
+  // utility); keep hi strictly below wealth to stay in the domain.
+  let hi = wealth * (1 - 1e-9);
+  // Monotone decreasing: EU(lo) ≥ target ≥ EU(hi). Bisection.
+  for (let i = 0; i < 80; i++) {
+    const mid = (lo + hi) / 2;
+    if (expectedUtility(mid) > target) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
 }
 
 // ----- Sweep simulation -----
@@ -51,6 +157,14 @@ export interface SweepSummary {
   log2Hist: number[];
   /** Total games played. */
   total: number;
+  /** Final running mean over all N games. */
+  finalMean: number;
+  /** Final running median over all N games. */
+  finalMedian: number;
+  /** Largest payoff observed. */
+  finalMax: number;
+  /** Longest head-streak observed (flips-until-tails). */
+  maxFlips: number;
 }
 
 export interface SweepOptions {
@@ -62,9 +176,9 @@ export interface SweepOptions {
 
 /**
  * Plays `maxN` games, recording running mean/median/max at log-spaced
- * anchor points. Median is approximated by quickselect (insertion sort
- * on the small running buffer is cheap when we only need it at sample
- * points).
+ * anchor points. Because every payoff is a power of two we bucket by
+ * log₂(payoff); that bucketed distribution gives both the histogram and an
+ * O(buckets) running median (no O(N log N) sort — avoids jank at N = 10⁶).
  */
 export async function runPetersburgSweepAsync(
   maxN: number,
@@ -86,15 +200,12 @@ export async function runPetersburgSweepAsync(
 
   let sum = 0;
   let max = 0;
-  // Payoffs are powers of 2, so the log₂(payoff) buckets capture the full
-  // distribution. We use this for both the histogram AND for an O(buckets)
-  // median lookup at each anchor — much faster than the O(N log N) sort we
-  // were doing before (jank at N=10⁶).
+  let maxFlips = 0;
   const log2Hist: number[] = [];
   const points: SweepPoint[] = [];
 
   const medianFromHist = (N: number): number => {
-    // The k-th order statistic in a bucketed power-of-2 distribution: walk the
+    // k-th order statistic in a bucketed power-of-2 distribution: walk the
     // cumulative count until we cross N/2. Bucket k holds the value 2^k.
     const targetLow = Math.floor((N - 1) / 2);
     const targetHigh = Math.floor(N / 2);
@@ -118,10 +229,14 @@ export async function runPetersburgSweepAsync(
   for (let i = 0; i < maxN; i += chunk) {
     const end = Math.min(i + chunk, maxN);
     for (let j = i; j < end; j++) {
-      const { payoff } = playGame(rng);
+      const { n, payoff } = playGame(rng);
       sum += payoff;
       if (payoff > max) max = payoff;
-      const bucket = payoff >= Number.MAX_SAFE_INTEGER ? 60 : Math.floor(Math.log2(payoff));
+      if (n > maxFlips) maxFlips = n;
+      // Capped payoffs (2^53 or larger, prob < 2^-53) go in the terminal
+      // MAX_SAFE_EXPONENT bucket so the histogram and median-from-histogram
+      // treat the value as 2^53, matching payoffForFlips's cap.
+      const bucket = payoff >= Number.MAX_SAFE_INTEGER ? MAX_SAFE_EXPONENT : Math.floor(Math.log2(payoff));
       log2Hist[bucket] = (log2Hist[bucket] ?? 0) + 1;
       const N = j + 1;
       if (anchors.has(N)) {
@@ -130,7 +245,7 @@ export async function runPetersburgSweepAsync(
           mean: sum / N,
           median: medianFromHist(N),
           max,
-          fairPrice: Math.log2(N) / 2,
+          fairPrice: fairPriceForN(N),
         });
       }
     }
@@ -142,5 +257,15 @@ export async function runPetersburgSweepAsync(
   // Fill missing buckets with 0 for clean plotting.
   for (let i = 0; i < log2Hist.length; i++) if (log2Hist[i] === undefined) log2Hist[i] = 0;
 
-  return { maxN, points, log2Hist, total: maxN };
+  const finalPoint = points[points.length - 1];
+  return {
+    maxN,
+    points,
+    log2Hist,
+    total: maxN,
+    finalMean: sum / maxN,
+    finalMedian: finalPoint?.median ?? medianFromHist(maxN),
+    finalMax: max,
+    maxFlips,
+  };
 }

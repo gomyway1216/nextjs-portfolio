@@ -110,7 +110,9 @@ describe('pickAIMove — hard never makes an illegal move', () => {
     // After 9 placements the board is full — sanity check captures sum to ≤8.
     const ev = evaluateBoard(board);
     expect(ev.p1Captures + ev.p2Captures).toBeLessThanOrEqual(8);
-  });
+    // 9 sequential hard-AI searches take ~5.4s on CI runners, just over
+    // Vitest's 5s default — give this whole-game test explicit headroom.
+  }, 30000);
 });
 
 describe('positionalScore', () => {

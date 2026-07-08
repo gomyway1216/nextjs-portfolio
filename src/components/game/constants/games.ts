@@ -169,8 +169,8 @@ export const games: Game[] = [
   {
     id: 'timed-button',
     title: 'Timed Button',
-    description: 'Pass the bomb at the right moment before the hidden timer expires.',
-    thumbnail: '💣',
+    description: 'Stop the sweeping marker inside the target zone — a precision timing challenge.',
+    thumbnail: '🎯',
     path: '/games/timed-button',
     difficulty: 'Easy',
     category: 'Arcade',

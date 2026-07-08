@@ -1,7 +1,16 @@
 'use client';
 
 import React from 'react';
-import { Card, CardSuit, isJoker, rankToLabel, SUIT_SYMBOL } from './types';
+import { Card, CardSuit, cardToShortLabel, isJoker, rankToLabel, SUIT_SYMBOL } from './types';
+
+const SUIT_NAME: Record<CardSuit, string> = {
+  S: 'Spades', H: 'Hearts', D: 'Diamonds', C: 'Clubs', J: 'Joker',
+};
+
+function cardAriaLabel(card: Card): string {
+  if (isJoker(card)) return 'Joker';
+  return `${rankToLabel(card.rank)} of ${SUIT_NAME[card.suit]}`;
+}
 
 interface PlayingCardProps {
   card: Card;
@@ -60,6 +69,8 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
       <button
         onClick={handleClick}
         disabled={disabled}
+        aria-label={cardAriaLabel(card)}
+        aria-pressed={variant === 'hand' ? isHighlighted : undefined}
         style={{
           width: config.width,
           height: config.height,
@@ -106,6 +117,9 @@ export const PlayingCard: React.FC<PlayingCardProps> = ({
     <button
       onClick={handleClick}
       disabled={disabled}
+      aria-label={cardAriaLabel(card)}
+      aria-pressed={variant === 'hand' ? isHighlighted : undefined}
+      title={cardToShortLabel(card)}
       style={{
         width: config.width,
         height: config.height,
@@ -280,6 +294,11 @@ export const PlayingCardStyles = () => (
       100% {
         transform: translateY(-8px);
       }
+    }
+
+    @keyframes daifugoPulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.7); }
     }
   `}</style>
 );

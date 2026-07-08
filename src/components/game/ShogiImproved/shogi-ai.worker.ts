@@ -104,19 +104,13 @@ const PONDER_MAX_TOTAL_MS = 30_000;
 /** Dev-only tracing; in production a ponder log line per move is just noise. */
 const PONDER_TRACE = process.env.NODE_ENV === 'development';
 
-/**
- * SMP FREEZE-REPRODUCTION INSTRUMENTATION (temporary; see PR).
- *
- * Kept ON in production builds (NOT gated on NODE_ENV) so the freeze can be
- * reproduced on the Vercel preview with full logs in the browser console. All
- * lines are prefixed `[SMP]` for easy filtering. Remove together with the
- * freeze-proofing follow-up.
- */
-const SMP_TRACE = true;
+/** Dev-only [SMP] tracing (search/generation lifecycle). Production stays quiet. */
+const SMP_TRACE = process.env.NODE_ENV === 'development';
 function smpLog(...args: unknown[]): void {
   if (SMP_TRACE) console.info('[SMP][main]', ...args);
 }
 function smpErr(...args: unknown[]): void {
+  // Real anomalies (search trapped, shared-TT unavailable) surface in prod too.
   console.error('[SMP][main]', ...args);
 }
 

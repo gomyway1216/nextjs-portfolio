@@ -40,12 +40,8 @@ import {
  */
 const HELPER_TIME_MARGIN_MS = 1000;
 
-/**
- * SMP FREEZE-REPRODUCTION INSTRUMENTATION (temporary; see PR). Kept ON in
- * production builds so the freeze is observable on the Vercel preview. Prefixed
- * `[SMP][helper<id>]`. Removed with the freeze-proofing follow-up.
- */
-const SMP_TRACE = true;
+/** Dev-only [SMP][helper<id>] tracing. Production stays quiet. */
+const SMP_TRACE = process.env.NODE_ENV === 'development';
 
 const ctx = self as unknown as {
   onmessage: ((event: MessageEvent<HelperInitMessage>) => void) | null;

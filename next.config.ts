@@ -118,8 +118,19 @@ const nextConfig: NextConfig = {
       {
         // Next build output + public assets must carry CORP so the isolated
         // /games/shogi document can embed them under require-corp.
+        //
+        // Worker script chunks (turbopack-worker-*.js) additionally need their
+        // OWN COEP:require-corp: a dedicated Worker created from a require-corp
+        // document is itself blocked (net::ERR_BLOCKED_BY_RESPONSE) unless its
+        // script response asserts a compatible embedder policy — CORP alone is
+        // not enough for the worker top-level script. Without it the AI worker
+        // never boots and every search hangs ("AI Thinking..." forever) — the
+        // historical freeze. (Mis-attributed to Lazy SMP; it is single-thread.)
         source: '/_next/:path*',
-        headers: [{ key: 'Cross-Origin-Resource-Policy', value: 'same-origin' }],
+        headers: [
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
       },
       {
         source: '/shogi-nnue-weights.bin',

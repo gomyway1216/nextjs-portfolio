@@ -335,6 +335,42 @@ const ShogiImproved = () => {
     void ensureExternalOpeningBookLoaded();
   }, []);
 
+  // SMP FREEZE-REPRODUCTION TEST HOOK (temporary; see instrumented PR).
+  //
+  // Only active when the page URL carries ?smpharness=1 — inert otherwise, so
+  // it is a no-op for real users even in the production bundle. It exposes the
+  // REAL production worker client (real Web Workers + MessageChannel + the
+  // COEP-isolated optimized bundle) plus the position helpers so a Playwright
+  // driver can hammer requestBestMove over hundreds of positions and watch for
+  // the historical Lazy SMP freeze. Removed with the freeze-proofing follow-up.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('smpharness') !== '1') return;
+    const w = window as unknown as {
+      __smpHarness?: {
+        createClient: typeof createShogiAiWorkerClient;
+        serialize: (k: KyokumenImproved) => SerializedKyokumenImproved;
+        newHirate: () => KyokumenImproved;
+        legalMoves: (k: KyokumenImproved) => Te[];
+        cloneK: (k: KyokumenImproved) => KyokumenImproved;
+      };
+    };
+    w.__smpHarness = {
+      createClient: createShogiAiWorkerClient,
+      serialize: serializeForWorker,
+      newHirate: () => {
+        const k = new KyokumenImproved();
+        k.initHirate();
+        return k;
+      },
+      legalMoves: (k: KyokumenImproved) => GenerateMovesImproved.generateLegalMoves(k),
+      cloneK: (k: KyokumenImproved) => k.clone(),
+    };
+    // Signal readiness to the Playwright driver.
+    (window as unknown as { __smpHarnessReady?: boolean }).__smpHarnessReady = true;
+  }, []);
+
 	  const [gameState, setGameState] = useState<GameState>({
 	    kyokumen: InitialPositionImproved.createInitialPosition(),
 	    selectedPosition: null,

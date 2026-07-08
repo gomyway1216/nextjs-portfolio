@@ -191,4 +191,11 @@ describe('generalized N-door variant', () => {
     expect(() => playRound(0, 2)).toThrow();
     expect(() => playRound(0, 2.5)).toThrow();
   });
+
+  it('rejects an out-of-range or non-integer picked door', () => {
+    expect(() => playRound(99, 3)).toThrow('pickedDoor');
+    expect(() => playRound(-1, 3)).toThrow('pickedDoor');
+    expect(() => playRound(1.5, 3)).toThrow('pickedDoor');
+    expect(() => pickHostDoors(99, 0, 3)).toThrow('prizeDoor');
+  });
 });

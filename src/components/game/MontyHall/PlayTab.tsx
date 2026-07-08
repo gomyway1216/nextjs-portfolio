@@ -117,7 +117,7 @@ export const PlayTab = ({ t }: { t: MontyHallStrings }) => {
     return round.pickedDoor === i;
   };
 
-  const choosingSwitch = switchTarget === -1;
+  const choosingSwitch = phase === 'reveal' && switchTarget === -1;
   const candidates = round ? switchCandidates(round) : [];
 
   const justWon = phase === 'final' && finalDoor !== null && round !== null && won(round, finalDoor);

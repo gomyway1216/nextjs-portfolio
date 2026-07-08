@@ -7,8 +7,8 @@
  * chooses to stay or switch to one of the remaining unopened doors.
  *
  * Classic result for N = 3:
- *   - stay  wins with probability 1/N       = 1/3
- *   - switch wins with probability (N-1)/(N*(N-1)) ... see below.
+ *   - stay   wins with probability 1/N              = 1/3
+ *   - switch wins with probability (N-1)/(N*(N-2))  = 2/3
  *
  * General closed forms (host opens exactly one goat door):
  *   - P(win | stay)   = 1/N
@@ -36,6 +36,13 @@ function assertDoorCount(doorCount: number): void {
   }
 }
 
+/** Validate a door index is an integer in [0, doorCount - 1]. */
+function assertDoor(door: number, doorCount: number, name: string): void {
+  if (!Number.isInteger(door) || door < 0 || door >= doorCount) {
+    throw new Error(`${name} must be an integer in [0, ${doorCount - 1}], got ${door}`);
+  }
+}
+
 /** Uniformly pick one element of a non-empty array. */
 function sample<T>(arr: readonly T[], rng: () => number): T {
   return arr[Math.floor(rng() * arr.length)];
@@ -59,6 +66,8 @@ export function pickHostDoors(
   rng: () => number = Math.random,
 ): Door[] {
   assertDoorCount(doorCount);
+  assertDoor(prizeDoor, doorCount, 'prizeDoor');
+  assertDoor(pickedDoor, doorCount, 'pickedDoor');
   const options: Door[] = [];
   for (let d = 0; d < doorCount; d++) {
     if (d !== prizeDoor && d !== pickedDoor) options.push(d);
@@ -98,6 +107,7 @@ export function playRound(
   rng: () => number = Math.random,
 ): Round {
   assertDoorCount(doorCount);
+  assertDoor(pickedDoor, doorCount, 'pickedDoor');
   const prizeDoor = randomDoor(doorCount, rng);
   const openedDoors = pickHostDoors(prizeDoor, pickedDoor, doorCount, rng);
   return { doorCount, prizeDoor, pickedDoor, openedDoors };

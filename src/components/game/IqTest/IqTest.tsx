@@ -1,10 +1,30 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Brain, Clock, Info, Target } from 'lucide-react';
 
 import { useFeatureLifecycle } from '@/hooks/useActivityTracker';
+import { useGameToolbar } from '@/contexts/GameToolbarContext';
 
-import { CellSpec, Question, generateQuestion } from './questions';
+import { InfoModal } from '../common';
+import { getDifficultyColor } from '../common/utils';
+import { useGameLanguage } from '../contexts/GameLanguageContext';
+
+import {
+  CellSpec,
+  Question,
+  QuizDifficulty,
+  generateQuestion,
+} from './questions';
+import { estimateIq, getIqStrings } from './i18n';
+import styles from './IqTest.module.css';
+
+const TOTAL_QUESTIONS = 10;
+const TIME_PER_QUESTION = 25; // seconds, when timer enabled
+
+// --------------------------------------------------------------------------
+// Shape renderer (matrix cells)
+// --------------------------------------------------------------------------
 
 const CellShapeSvg = ({ cell, size = 70 }: { cell: CellSpec; size?: number }) => {
   const cy = size / 2;
@@ -20,7 +40,9 @@ const CellShapeSvg = ({ cell, size = 70 }: { cell: CellSpec; size?: number }) =>
       return <circle key={i} cx={cx} cy={cy} r={r} fill={cell.color} />;
     }
     if (cell.shape === 'square') {
-      return <rect key={i} x={cx - r} y={cy - r} width={2 * r} height={2 * r} fill={cell.color} rx={r * 0.12} />;
+      return (
+        <rect key={i} x={cx - r} y={cy - r} width={2 * r} height={2 * r} fill={cell.color} rx={r * 0.12} />
+      );
     }
     if (cell.shape === 'triangle') {
       const pts = `${cx},${cy - r} ${cx - r},${cy + r * 0.85} ${cx + r},${cy + r * 0.85}`;
@@ -43,33 +65,14 @@ const CellShapeSvg = ({ cell, size = 70 }: { cell: CellSpec; size?: number }) =>
 };
 
 const MatrixGridView = ({ grid }: { grid: (CellSpec | null)[][] }) => (
-  <div
-    style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(3, 1fr)',
-      gap: '0.5rem',
-      maxWidth: '300px',
-      margin: '0.6rem auto 1.2rem',
-    }}
-  >
+  <div className={styles.matrixGrid} aria-label="3 by 3 pattern matrix">
     {grid.flatMap((row, r) =>
       row.map((cell, c) => (
-        <div
-          key={`${r}-${c}`}
-          style={{
-            background: '#0b1224',
-            border: '1px solid #1e293b',
-            borderRadius: '10px',
-            aspectRatio: '1 / 1',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
+        <div key={`${r}-${c}`} className={styles.matrixCell}>
           {cell ? (
             <CellShapeSvg cell={cell} size={80} />
           ) : (
-            <span style={{ fontSize: '1.8rem', color: '#facc15', fontWeight: 800 }}>?</span>
+            <span className={styles.matrixCellQ}>?</span>
           )}
         </div>
       )),
@@ -77,19 +80,21 @@ const MatrixGridView = ({ grid }: { grid: (CellSpec | null)[][] }) => (
   </div>
 );
 
-const TOTAL_QUESTIONS = 10;
+// --------------------------------------------------------------------------
+// State
+// --------------------------------------------------------------------------
 
 type Phase = 'menu' | 'question' | 'feedback' | 'gameover';
 
 interface HistoryEntry {
   correct: boolean;
   question: Question;
-  selected: number;
+  selected: number | null; // null = timed out
 }
 
 interface GameState {
   phase: Phase;
-  questionIndex: number;
+  questionIndex: number; // 1-based
   question: Question | null;
   score: number;
   selected: number | null;
@@ -105,25 +110,50 @@ const initialState: GameState = {
   history: [],
 };
 
+const DIFFICULTIES: QuizDifficulty[] = ['easy', 'medium', 'hard', 'mixed'];
+
+// --------------------------------------------------------------------------
+// Component
+// --------------------------------------------------------------------------
+
 export const IqTest = () => {
   useFeatureLifecycle('game.iq-test');
-  const [state, setState] = useState<GameState>(initialState);
+  const { language } = useGameLanguage();
+  const { setContent } = useGameToolbar();
+  const t = getIqStrings(language);
 
-  const start = () => {
+  const [state, setState] = useState<GameState>(initialState);
+  const [difficulty, setDifficulty] = useState<QuizDifficulty>('mixed');
+  const [timerEnabled, setTimerEnabled] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(TIME_PER_QUESTION);
+  const [showInfo, setShowInfo] = useState(false);
+
+  // Fingerprints used this session to prevent repeats.
+  const usedRef = useRef<Set<string>>(new Set());
+
+  const makeQuestion = useCallback(
+    (index: number): Question =>
+      generateQuestion(difficulty, index, TOTAL_QUESTIONS, usedRef.current),
+    [difficulty],
+  );
+
+  const start = useCallback(() => {
+    usedRef.current = new Set();
     setState({
       phase: 'question',
       questionIndex: 1,
-      question: generateQuestion(),
+      question: makeQuestion(0),
       score: 0,
       selected: null,
       history: [],
     });
-  };
+    setTimeLeft(TIME_PER_QUESTION);
+  }, [makeQuestion]);
 
-  const choose = (idx: number) => {
+  const choose = useCallback((idx: number | null) => {
     setState((prev) => {
       if (prev.phase !== 'question' || !prev.question) return prev;
-      const correct = idx === prev.question.answerIndex;
+      const correct = idx !== null && idx === prev.question.answerIndex;
       return {
         ...prev,
         phase: 'feedback',
@@ -132,9 +162,9 @@ export const IqTest = () => {
         history: [...prev.history, { correct, question: prev.question, selected: idx }],
       };
     });
-  };
+  }, []);
 
-  const next = () => {
+  const next = useCallback(() => {
     setState((prev) => {
       if (prev.questionIndex >= TOTAL_QUESTIONS) {
         return { ...prev, phase: 'gameover' };
@@ -143,14 +173,35 @@ export const IqTest = () => {
         ...prev,
         phase: 'question',
         questionIndex: prev.questionIndex + 1,
-        question: generateQuestion(),
+        question: makeQuestion(prev.questionIndex),
         selected: null,
       };
     });
-  };
+    setTimeLeft(TIME_PER_QUESTION);
+  }, [makeQuestion]);
 
-  const reset = () => setState(initialState);
+  const reset = useCallback(() => {
+    usedRef.current = new Set();
+    setState(initialState);
+    setTimeLeft(TIME_PER_QUESTION);
+  }, []);
 
+  // Countdown timer. The tick and the time-out both happen inside the timeout
+  // callback (never synchronously in the effect body) to avoid cascading renders.
+  // Paused while the "How to play" modal is open so reading doesn't cost time.
+  useEffect(() => {
+    if (!timerEnabled || state.phase !== 'question' || showInfo || timeLeft <= 0) return;
+    const id = window.setTimeout(() => {
+      if (timeLeft <= 1) {
+        choose(null); // time out -> incorrect
+      } else {
+        setTimeLeft((s) => s - 1);
+      }
+    }, 1000);
+    return () => window.clearTimeout(id);
+  }, [timerEnabled, state.phase, state.questionIndex, timeLeft, choose, showInfo]);
+
+  // Keyboard shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (state.phase === 'question') {
@@ -168,116 +219,197 @@ export const IqTest = () => {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [state.phase, state.questionIndex]);
+  }, [state.phase, choose, next]);
 
   const q = state.question;
   const correctCount = state.history.filter((h) => h.correct).length;
+  const answered = state.history.length;
+
+  // Register the Info button in the global toolbar.
+  useEffect(() => {
+    setContent({
+      right: (
+        <button
+          type="button"
+          onClick={() => setShowInfo(true)}
+          aria-label={t.howToPlay}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.4rem',
+            background: 'rgba(14, 165, 233, 0.12)',
+            border: '1px solid rgba(14, 165, 233, 0.35)',
+            borderRadius: '999px',
+            color: '#38bdf8',
+            padding: '0.4rem 0.85rem',
+            fontWeight: 600,
+            fontSize: '0.85rem',
+            cursor: 'pointer',
+          }}
+        >
+          <Info style={{ width: '1rem', height: '1rem' }} />
+          <span>{t.howToPlay}</span>
+        </button>
+      ),
+    });
+    return () => setContent(null);
+  }, [setContent, t.howToPlay]);
+
+  const progressPct = useMemo(() => {
+    if (state.phase === 'menu') return 0;
+    const done = state.phase === 'gameover' ? TOTAL_QUESTIONS : state.questionIndex - 1 + (state.phase === 'feedback' ? 1 : 0);
+    return Math.round((done / TOTAL_QUESTIONS) * 100);
+  }, [state.phase, state.questionIndex]);
+
+  const estimatedIq = estimateIq(correctCount, TOTAL_QUESTIONS);
+  const resultEmoji =
+    correctCount >= 9 ? '🏆' : correctCount >= 7 ? '🥇' : correctCount >= 5 ? '🥈' : correctCount >= 3 ? '🧠' : '🌱';
 
   return (
-    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #020617, #111827)', color: '#e2e8f0', padding: '2rem 1rem' }}>
-      <div style={{ maxWidth: '760px', margin: '0 auto' }}>
-        <h1 style={{ margin: 0, fontSize: '2rem', fontWeight: 800 }}>IQ Test</h1>
-        <p style={{ marginTop: '0.5rem', color: '#94a3b8' }}>
-          数列・仲間外れ・類比などの問題をランダムに生成。{TOTAL_QUESTIONS}問解いて高得点を狙おう。
+    <div className={styles.root} style={{ paddingTop: '5rem' }}>
+      <div className={styles.shell}>
+        <h1 style={{ margin: 0, fontSize: 'clamp(1.6rem, 6vw, 2rem)', fontWeight: 800 }}>{t.title}</h1>
+        <p style={{ marginTop: '0.5rem', color: 'var(--games-route-muted, #94a3b8)', lineHeight: 1.6 }}>
+          {t.subtitle}
         </p>
 
         {state.phase !== 'menu' && (
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-            <span style={{ borderRadius: '999px', border: '1px solid #334155', background: '#0f172a', padding: '0.35rem 0.8rem' }}>
-              Q {Math.min(state.questionIndex, TOTAL_QUESTIONS)} / {TOTAL_QUESTIONS}
+          <div className={styles.statusBar}>
+            <span className={styles.pill}>
+              {t.question} {Math.min(state.questionIndex, TOTAL_QUESTIONS)} / {TOTAL_QUESTIONS}
             </span>
-            <span style={{ borderRadius: '999px', border: '1px solid #334155', background: '#0f172a', padding: '0.35rem 0.8rem' }}>
-              Score: {state.score}
+            <span className={styles.pill}>
+              <Target style={{ width: '0.9rem', height: '0.9rem' }} aria-hidden /> {correctCount}
+              <span style={{ opacity: 0.6 }}>/ {answered}</span>
             </span>
-            <span style={{ borderRadius: '999px', border: '1px solid #334155', background: '#0f172a', padding: '0.35rem 0.8rem' }}>
-              ◯ {correctCount}
+            <span className={styles.pill}>{t.score}: {state.score}</span>
+            {timerEnabled && state.phase === 'question' && (
+              <span className={styles.pillTimer + ' ' + styles.pill} data-low={timeLeft <= 5 ? 'true' : 'false'}>
+                <Clock style={{ width: '0.9rem', height: '0.9rem' }} aria-hidden /> {timeLeft}s
+              </span>
+            )}
+            <span className={styles.progressTrack} role="progressbar" aria-valuenow={progressPct} aria-valuemin={0} aria-valuemax={100}>
+              <span className={styles.progressFill} style={{ width: `${progressPct}%` }} />
             </span>
           </div>
         )}
 
-        <div style={{ border: '1px solid #334155', borderRadius: '16px', background: '#020617', padding: '1.4rem' }}>
+        <div className={styles.card}>
+          {/* ---------------- MENU ---------------- */}
           {state.phase === 'menu' && (
-            <div style={{ textAlign: 'center', padding: '2rem 0' }}>
-              <div style={{ fontSize: '4rem', marginBottom: '1rem' }}>🧩</div>
-              <div style={{ color: '#cbd5e1', marginBottom: '1.2rem', lineHeight: 1.7 }}>
-                毎回ランダムな問題が出題されます。<br />
-                数列の続きを当てる、仲間外れを探す、類比を解くなど。<br />
-                全 {TOTAL_QUESTIONS} 問で正解1つにつき +10 点。
-              </div>
-              <button
-                onClick={start}
-                style={{ background: '#22c55e', color: '#022c1f', border: 'none', borderRadius: '12px', padding: '0.8rem 1.6rem', fontWeight: 800, fontSize: '1.05rem', cursor: 'pointer' }}
+            <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+              <div style={{ fontSize: '3.5rem', marginBottom: '0.75rem' }}>🧩</div>
+
+              <fieldset style={{ border: 'none', padding: 0, margin: '0 0 1.2rem' }}>
+                <legend style={{ fontWeight: 700, marginBottom: '0.6rem', color: 'var(--games-route-fg, #e2e8f0)' }}>
+                  {t.difficultyTitle}
+                </legend>
+                <div
+                  role="radiogroup"
+                  aria-label={t.difficultyTitle}
+                  style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}
+                >
+                  {DIFFICULTIES.map((d) => {
+                    const opt = t.difficultyOptions.find((o) => o.value === d)!;
+                    const isSel = difficulty === d;
+                    const colors = getDifficultyColor(d === 'mixed' ? 'expert' : d);
+                    return (
+                      <button
+                        key={d}
+                        type="button"
+                        role="radio"
+                        aria-checked={isSel}
+                        onClick={() => setDifficulty(d)}
+                        title={opt.description}
+                        style={{
+                          flex: '1 1 130px',
+                          minWidth: '120px',
+                          maxWidth: '180px',
+                          textAlign: 'left',
+                          borderRadius: '12px',
+                          border: isSel ? `2px solid ${colors.border}` : '2px solid var(--games-route-border, #334155)',
+                          background: isSel ? colors.bg : 'color-mix(in srgb, var(--games-route-surface-raised, #0f172a) 85%, transparent)',
+                          color: 'var(--games-route-fg, #e2e8f0)',
+                          padding: '0.7rem 0.85rem',
+                          cursor: 'pointer',
+                          transition: 'border-color 0.15s, background 0.15s',
+                        }}
+                      >
+                        <div style={{ fontWeight: 800, color: isSel ? colors.text : undefined }}>{opt.label}</div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--games-route-muted, #94a3b8)', marginTop: '0.15rem', lineHeight: 1.3 }}>
+                          {opt.description}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+
+              <label
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  marginBottom: '1.3rem',
+                  cursor: 'pointer',
+                  color: 'var(--games-route-muted, #cbd5e1)',
+                  fontWeight: 600,
+                }}
               >
-                Start
-              </button>
+                <input
+                  type="checkbox"
+                  checked={timerEnabled}
+                  onChange={(e) => setTimerEnabled(e.target.checked)}
+                  style={{ width: '1.1rem', height: '1.1rem', accentColor: '#0ea5e9' }}
+                />
+                <Clock style={{ width: '1rem', height: '1rem' }} aria-hidden />
+                {t.timerLabel}: {timerEnabled ? t.timerOn : t.timerOff} ({TIME_PER_QUESTION}s)
+              </label>
+
+              <div>
+                <button type="button" onClick={start} className={styles.primaryBtn}>
+                  {t.startLabel}
+                </button>
+              </div>
             </div>
           )}
 
+          {/* ---------------- QUESTION / FEEDBACK ---------------- */}
           {(state.phase === 'question' || state.phase === 'feedback') && q && (
             <>
-              <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '0.3rem' }}>{q.prompt}</div>
+              <p className={styles.prompt}>{q.prompt[language]}</p>
+
               {q.matrix ? (
                 <MatrixGridView grid={q.matrix.grid} />
               ) : (
-                <div
-                  style={{
-                    textAlign: 'center',
-                    fontSize: '1.8rem',
-                    fontWeight: 700,
-                    letterSpacing: '0.08em',
-                    background: '#0b1224',
-                    border: '1px solid #1e293b',
-                    borderRadius: '12px',
-                    padding: '1.2rem 1rem',
-                    margin: '0.6rem 0 1.2rem',
-                    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                    color: '#f1f5f9',
-                  }}
-                >
-                  {q.display}
-                </div>
+                <div className={styles.puzzleBox}>{q.display}</div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.6rem' }}>
+              <div className={styles.optionGrid} role="group" aria-label={q.prompt[language]}>
                 {q.options.map((opt, i) => {
                   const isAnswer = i === q.answerIndex;
                   const isPicked = i === state.selected;
                   const showFeedback = state.phase === 'feedback';
-                  const bg = showFeedback
-                    ? isAnswer
-                      ? 'linear-gradient(160deg, #16a34a, #22c55e)'
-                      : isPicked
-                        ? 'linear-gradient(160deg, #b91c1c, #ef4444)'
-                        : 'linear-gradient(160deg, #1e293b, #0f172a)'
-                    : 'linear-gradient(160deg, #1e3a8a, #3b82f6)';
-                  const border = showFeedback && isAnswer ? '2px solid #4ade80' : showFeedback && isPicked ? '2px solid #fca5a5' : '2px solid #334155';
+                  const cls = [styles.option];
+                  if (showFeedback && isAnswer) cls.push(styles.optionCorrect);
+                  else if (showFeedback && isPicked) cls.push(styles.optionWrong);
+                  else if (showFeedback) cls.push(styles.optionDim);
                   return (
                     <button
                       key={`${state.questionIndex}-${i}-${opt}`}
+                      type="button"
                       onClick={() => state.phase === 'question' && choose(i)}
                       disabled={showFeedback}
-                      style={{
-                        background: bg,
-                        border,
-                        borderRadius: '12px',
-                        color: '#fff',
-                        padding: '1rem 0.8rem',
-                        fontSize: '1.25rem',
-                        fontWeight: 800,
-                        cursor: showFeedback ? 'default' : 'pointer',
-                        textAlign: 'center',
-                        transition: 'transform 0.12s',
-                      }}
-                      onMouseEnter={(e) => { if (!showFeedback) e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                      onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+                      className={cls.join(' ')}
+                      aria-label={`${i + 1}. ${q.matrix ? (language === 'ja' ? `選択肢 ${opt}` : `Option ${opt}`) : opt}${showFeedback && isAnswer ? ` (${t.correctLabel})` : ''}`}
                     >
-                      <span style={{ color: '#cbd5e1', fontSize: '0.8rem', marginRight: '0.5rem' }}>{i + 1}.</span>
+                      <span className={styles.optionKey}>{i + 1}.</span>
                       {q.matrix ? (
-                        <span style={{ display: 'inline-flex', verticalAlign: 'middle' }}>
+                        <span style={{ display: 'inline-flex' }}>
                           <CellShapeSvg cell={q.matrix.cellOptions[i]} size={64} />
                         </span>
                       ) : (
-                        opt
+                        <span>{opt}</span>
                       )}
                     </button>
                   );
@@ -285,90 +417,101 @@ export const IqTest = () => {
               </div>
 
               {state.phase === 'feedback' && (
-                <div style={{ marginTop: '1.1rem' }}>
+                <div className={styles.feedback}>
                   <div
-                    style={{
-                      fontWeight: 800,
-                      fontSize: '1.05rem',
-                      color: state.selected === q.answerIndex ? '#4ade80' : '#fca5a5',
-                      marginBottom: '0.35rem',
-                    }}
+                    className={
+                      styles.feedbackHead +
+                      ' ' +
+                      (state.selected === q.answerIndex ? styles.feedbackCorrect : styles.feedbackWrong)
+                    }
                   >
-                    {state.selected === q.answerIndex ? '◯ 正解！ +10' : '✗ 不正解'}
+                    {state.selected === null
+                      ? `⏱ ${t.timeUp}`
+                      : state.selected === q.answerIndex
+                        ? `◯ ${t.correctFeedback} +10`
+                        : `✗ ${t.wrongFeedback}`}
                   </div>
-                  <div style={{ color: '#cbd5e1', lineHeight: 1.6, fontSize: '0.95rem' }}>{q.explanation}</div>
-                  <button
-                    onClick={next}
-                    style={{
-                      marginTop: '0.9rem',
-                      background: '#0ea5e9',
-                      color: '#022c4a',
-                      border: 'none',
-                      borderRadius: '10px',
-                      padding: '0.62rem 1.1rem',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {state.questionIndex >= TOTAL_QUESTIONS ? '結果を見る' : '次の問題 →'}
+                  <div className={styles.explanation}>{q.explanation[language]}</div>
+                  <button type="button" onClick={next} className={styles.nextBtn}>
+                    {state.questionIndex >= TOTAL_QUESTIONS ? t.seeResults : `${t.nextQuestion} →`}
                   </button>
                 </div>
               )}
 
-              <div style={{ marginTop: '0.9rem', color: '#64748b', fontSize: '0.8rem', textAlign: 'center' }}>
-                {state.phase === 'question' ? 'キー 1〜4 でも選べます' : 'Enter / Space で次へ'}
+              <div className={styles.hint}>
+                {state.phase === 'question' ? t.keyHint : t.nextHint}
               </div>
             </>
           )}
 
+          {/* ---------------- RESULT ---------------- */}
           {state.phase === 'gameover' && (
-            <div style={{ textAlign: 'center', padding: '1.5rem 0' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '0.6rem' }}>
-                {correctCount >= 9 ? '🏆' : correctCount >= 7 ? '🥇' : correctCount >= 5 ? '🥈' : '🧠'}
+            <div className={styles.result}>
+              <div className={styles.resultEmoji}>{resultEmoji}</div>
+              <div className={styles.resultTitle}>{t.resultTitle}</div>
+
+              <div className={styles.iqBadge}>
+                <span className={styles.iqValue}>{estimatedIq}</span>
+                <span className={styles.iqLabel}>{t.estimatedIq}</span>
               </div>
-              <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#facc15' }}>{state.score} / {TOTAL_QUESTIONS * 10}</div>
-              <div style={{ color: '#cbd5e1', marginTop: '0.3rem' }}>
-                正解 {correctCount} / {TOTAL_QUESTIONS}
+              <div className={styles.rating}>{t.ratingFor(correctCount, TOTAL_QUESTIONS)}</div>
+              <div className={styles.subScore}>
+                {t.outOf(correctCount, TOTAL_QUESTIONS)} · {t.score}: {state.score} / {TOTAL_QUESTIONS * 10}
               </div>
 
-              <div style={{ marginTop: '1rem', textAlign: 'left', maxHeight: '240px', overflowY: 'auto', border: '1px solid #1e293b', borderRadius: '10px', padding: '0.6rem 0.8rem', background: '#0b1224' }}>
+              <div className={styles.reviewSectionTitle}>{t.reviewTitle}</div>
+              <div className={styles.reviewList}>
                 {state.history.map((h, i) => (
-                  <div key={i} style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', padding: '0.25rem 0', borderBottom: '1px solid #1e293b' }}>
-                    <span style={{ color: h.correct ? '#4ade80' : '#fca5a5', fontWeight: 700, minWidth: '1.4rem' }}>{h.correct ? '◯' : '✗'}</span>
-                    <span style={{ color: '#cbd5e1', fontFamily: 'ui-monospace, monospace', fontSize: '0.85rem', flex: 1, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <div key={i} className={styles.reviewRow}>
+                    <span className={styles.reviewMark + ' ' + (h.correct ? styles.reviewMarkOk : styles.reviewMarkNo)}>
+                      {h.correct ? '◯' : '✗'}
+                    </span>
+                    <span className={styles.reviewBody}>
                       {h.question.matrix ? (
                         <>
-                          <span>マトリックス →</span>
-                          <CellShapeSvg cell={h.question.matrix.cellOptions[h.question.answerIndex]} size={32} />
+                          <span>{language === 'ja' ? 'マトリックス →' : 'Matrix →'}</span>
+                          <CellShapeSvg cell={h.question.matrix.cellOptions[h.question.answerIndex]} size={30} />
                         </>
                       ) : (
-                        h.question.display.replace('?', h.question.options[h.question.answerIndex])
+                        <span>{h.question.display.replace('?', h.question.options[h.question.answerIndex])}</span>
                       )}
                     </span>
-                    <span style={{ color: '#64748b', fontSize: '0.78rem' }}>{h.question.type}</span>
+                    <span className={styles.reviewType}>{h.question.type}</span>
                   </div>
                 ))}
               </div>
 
-              <button
-                onClick={reset}
-                style={{
-                  marginTop: '1rem',
-                  background: '#22c55e',
-                  color: '#022c1f',
-                  border: 'none',
-                  borderRadius: '12px',
-                  padding: '0.7rem 1.4rem',
-                  fontWeight: 800,
-                  cursor: 'pointer',
-                }}
-              >
-                もう一度
+              <button type="button" onClick={reset} className={styles.primaryBtn}>
+                {t.playAgain}
               </button>
             </div>
           )}
         </div>
       </div>
+
+      <InfoModal isOpen={showInfo} onClose={() => setShowInfo(false)} title={t.howToPlay}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', color: 'var(--games-route-fg, #e2e8f0)', lineHeight: 1.65 }}>
+          {(language === 'ja'
+            ? [
+                { icon: <Brain />, text: `全 ${TOTAL_QUESTIONS} 問。数列・仲間外れ・類比・アルファベット・図形マトリックスから出題されます。` },
+                { icon: <Target />, text: '各問4択のうち正解は1つ。正解ごとに +10 点。キー 1〜4 でも解答できます。' },
+                { icon: <Clock />, text: `タイマーをオンにすると1問 ${TIME_PER_QUESTION} 秒。時間切れは不正解になります。` },
+                { icon: <Info />, text: '「ミックス」は序盤やさしく、後半に向けて難しくなります。同じ問題は1セッション内で繰り返されません。' },
+              ]
+            : [
+                { icon: <Brain />, text: `${TOTAL_QUESTIONS} questions drawn from sequences, odd-one-out, analogies, letters and figure matrices.` },
+                { icon: <Target />, text: 'Each question has exactly one correct answer out of four. +10 per correct answer. Keys 1–4 also work.' },
+                { icon: <Clock />, text: `Enable the timer for ${TIME_PER_QUESTION}s per question. Running out counts as incorrect.` },
+                { icon: <Info />, text: '"Mixed" starts easy and ramps up. No question repeats within a session.' },
+              ]
+          ).map((row, i) => (
+            <div key={i} style={{ display: 'flex', gap: '0.7rem', alignItems: 'flex-start' }}>
+              <span style={{ color: '#38bdf8', flexShrink: 0, marginTop: '0.15rem' }}>{row.icon}</span>
+              <span>{row.text}</span>
+            </div>
+          ))}
+        </div>
+      </InfoModal>
     </div>
   );
 };

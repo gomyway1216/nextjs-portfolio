@@ -1,0 +1,370 @@
+.root {
+  min-height: 100vh;
+  padding: clamp(1rem, 4vw, 2rem) 1rem 3rem;
+  color: var(--games-route-fg, #e2e8f0);
+}
+
+.shell {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+/* ---------------- Progress / stat bar ---------------- */
+.statusBar {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.pill {
+  border-radius: 999px;
+  border: 1px solid var(--games-route-border, #334155);
+  background: color-mix(in srgb, var(--games-route-surface-raised, #0f172a) 90%, transparent);
+  color: var(--games-route-fg, #e2e8f0);
+  padding: 0.35rem 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pillTimer[data-low='true'] {
+  border-color: #ef4444;
+  color: #fca5a5;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.progressTrack {
+  flex: 1 1 120px;
+  height: 8px;
+  min-width: 120px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--games-route-border, #334155) 60%, transparent);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0ea5e9, #22c55e);
+  transition: width 0.4s ease;
+}
+
+/* ---------------- Card ---------------- */
+.card {
+  border: 1px solid var(--games-route-border, #334155);
+  border-radius: 18px;
+  background: var(--games-route-surface, rgba(2, 6, 23, 0.6));
+  box-shadow: var(--games-route-shadow, 0 20px 60px rgba(0, 0, 0, 0.3));
+  padding: clamp(1.1rem, 4vw, 1.6rem);
+}
+
+.prompt {
+  color: var(--games-route-muted, #94a3b8);
+  font-size: 0.95rem;
+  margin: 0 0 0.75rem;
+  font-weight: 600;
+}
+
+.puzzleBox {
+  text-align: center;
+  font-size: clamp(1.4rem, 6vw, 1.9rem);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  background: color-mix(in srgb, var(--games-route-surface-raised, #0b1224) 88%, transparent);
+  border: 1px solid var(--games-route-border, #1e293b);
+  border-radius: 14px;
+  padding: 1.3rem 1rem;
+  margin: 0.4rem 0 1.3rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--games-route-fg, #f1f5f9);
+  overflow-x: auto;
+}
+
+.matrixGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  max-width: 300px;
+  margin: 0.5rem auto 1.3rem;
+}
+
+.matrixCell {
+  background: color-mix(in srgb, var(--games-route-surface-raised, #0b1224) 88%, transparent);
+  border: 1px solid var(--games-route-border, #1e293b);
+  border-radius: 12px;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.matrixCellQ {
+  font-size: 1.9rem;
+  color: #facc15;
+  font-weight: 800;
+}
+
+/* ---------------- Options ---------------- */
+.optionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.65rem;
+}
+
+.option {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 58px;
+  border-radius: 14px;
+  border: 2px solid var(--games-route-border, #334155);
+  background: color-mix(in srgb, var(--games-route-surface-raised, #0f172a) 82%, #1d4ed8 18%);
+  color: var(--games-route-fg, #f8fafc);
+  padding: 0.9rem 0.8rem;
+  font-size: 1.2rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.option:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: #38bdf8;
+  box-shadow: 0 8px 22px rgba(14, 165, 233, 0.28);
+}
+
+.option:focus-visible {
+  outline: 3px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+.option:disabled {
+  cursor: default;
+}
+
+.optionCorrect {
+  border-color: #4ade80;
+  background: linear-gradient(160deg, #16a34a, #22c55e);
+  color: #04160c;
+}
+
+.optionWrong {
+  border-color: #fca5a5;
+  background: linear-gradient(160deg, #b91c1c, #ef4444);
+  color: #fff;
+}
+
+.optionDim {
+  opacity: 0.55;
+}
+
+.optionKey {
+  font-size: 0.78rem;
+  font-weight: 700;
+  opacity: 0.7;
+}
+
+/* ---------------- Feedback ---------------- */
+.feedback {
+  margin-top: 1.1rem;
+  border-top: 1px solid var(--games-route-border, #1e293b);
+  padding-top: 1rem;
+  animation: fadeIn 0.25s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.feedbackHead {
+  font-weight: 800;
+  font-size: 1.05rem;
+  margin-bottom: 0.4rem;
+}
+
+.feedbackCorrect { color: #4ade80; }
+.feedbackWrong { color: #fca5a5; }
+
+.explanation {
+  color: var(--games-route-muted, #cbd5e1);
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+.hint {
+  margin-top: 0.9rem;
+  color: var(--games-route-muted, #64748b);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+/* ---------------- Buttons ---------------- */
+.primaryBtn {
+  background: linear-gradient(135deg, #22c55e, #16a34a);
+  color: #04160c;
+  border: none;
+  border-radius: 12px;
+  padding: 0.8rem 1.6rem;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.primaryBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(34, 197, 94, 0.32);
+}
+
+.primaryBtn:focus-visible {
+  outline: 3px solid #4ade80;
+  outline-offset: 2px;
+}
+
+.nextBtn {
+  margin-top: 1rem;
+  background: linear-gradient(135deg, #0ea5e9, #0284c7);
+  color: #02243b;
+  border: none;
+  border-radius: 12px;
+  padding: 0.7rem 1.3rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.nextBtn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(14, 165, 233, 0.32);
+}
+
+.nextBtn:focus-visible {
+  outline: 3px solid #38bdf8;
+  outline-offset: 2px;
+}
+
+/* ---------------- Result screen ---------------- */
+.result {
+  text-align: center;
+  padding: 0.5rem 0 0.5rem;
+}
+
+.resultEmoji {
+  font-size: 3.2rem;
+  margin-bottom: 0.4rem;
+}
+
+.resultTitle {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--games-route-fg, #f8fafc);
+  margin-bottom: 0.5rem;
+}
+
+.iqBadge {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  padding: 0.9rem 2rem;
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--games-route-surface-raised, #0b1224) 80%, #0ea5e9 20%);
+  border: 1px solid color-mix(in srgb, #0ea5e9 45%, var(--games-route-border, #334155));
+  margin-bottom: 0.6rem;
+}
+
+.iqValue {
+  font-size: 2.6rem;
+  font-weight: 900;
+  color: #facc15;
+  line-height: 1;
+}
+
+.iqLabel {
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--games-route-muted, #94a3b8);
+}
+
+.rating {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--games-route-fg, #e2e8f0);
+  margin-bottom: 0.3rem;
+}
+
+.subScore {
+  color: var(--games-route-muted, #cbd5e1);
+  margin-bottom: 1rem;
+}
+
+.reviewList {
+  text-align: left;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--games-route-border, #1e293b);
+  border-radius: 12px;
+  padding: 0.4rem 0.7rem;
+  background: color-mix(in srgb, var(--games-route-surface-raised, #0b1224) 86%, transparent);
+  margin-bottom: 1rem;
+}
+
+.reviewSectionTitle {
+  text-align: left;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--games-route-muted, #94a3b8);
+  margin: 0.4rem 0 0.5rem;
+}
+
+.reviewRow {
+  display: flex;
+  gap: 0.55rem;
+  align-items: center;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--games-route-border, #1e293b);
+}
+
+.reviewRow:last-child { border-bottom: none; }
+
+.reviewMark {
+  font-weight: 800;
+  min-width: 1.4rem;
+  text-align: center;
+}
+.reviewMarkOk { color: #4ade80; }
+.reviewMarkNo { color: #fca5a5; }
+
+.reviewBody {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  color: var(--games-route-muted, #cbd5e1);
+}
+
+.reviewType {
+  color: var(--games-route-muted, #64748b);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+@media (max-width: 480px) {
+  .optionGrid { grid-template-columns: 1fr; }
+}

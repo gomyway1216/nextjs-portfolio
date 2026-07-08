@@ -2,6 +2,8 @@ export type CellShape = 'circle' | 'square' | 'triangle' | 'star';
 export type CellColor = '#ef4444' | '#3b82f6' | '#22c55e' | '#f59e0b' | '#a855f7';
 export type CellCount = 1 | 2 | 3;
 
+export type QuestionTier = 'easy' | 'medium' | 'hard';
+
 export interface CellSpec {
   shape: CellShape;
   color: CellColor;
@@ -13,17 +15,32 @@ export interface MatrixData {
   cellOptions: CellSpec[];
 }
 
+/** Bilingual text keyed by language code (`ja` / `en`). */
+export interface Bilingual {
+  ja: string;
+  en: string;
+}
+
 export interface Question {
+  /** Generator id (also used for session de-dup fingerprints). */
   type: string;
-  prompt: string;
+  tier: QuestionTier;
+  prompt: Bilingual;
+  /** Compact string representation of the puzzle (empty for matrix questions). */
   display: string;
   options: string[];
   answerIndex: number;
-  explanation: string;
+  explanation: Bilingual;
   matrix?: MatrixData;
+  /**
+   * Stable fingerprint of the *puzzle* (not the shuffled options) used to avoid
+   * repeating the same question within a single session.
+   */
+  fingerprint: string;
 }
 
-const randInt = (min: number, max: number) => Math.floor(Math.random() * (max - min + 1)) + min;
+const randInt = (min: number, max: number): number =>
+  Math.floor(Math.random() * (max - min + 1)) + min;
 
 const pick = <T,>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
@@ -42,201 +59,311 @@ const isPrime = (n: number): boolean => {
   return true;
 };
 
+/**
+ * Build exactly four unique options that include `correct` as the ONLY correct
+ * answer. Preferred distractors are tried first; if they collide with the
+ * correct answer or each other, deterministic-ish numeric/letter fillers top it
+ * up. Guarantees `options.length === 4` and exactly one entry equals `correct`.
+ */
 const makeOptions = (
   correct: string,
   distractors: string[],
 ): { options: string[]; answerIndex: number } => {
   const set = new Set<string>([correct]);
+
   for (const d of distractors) {
-    set.add(d);
     if (set.size >= 4) break;
+    if (d !== correct) set.add(d);
   }
-  let safety = 50;
+
+  const asNumber = Number(correct);
+  const isNumeric = correct.trim() !== '' && !Number.isNaN(asNumber);
+  const isLetter = correct.length === 1 && /[A-Z]/.test(correct);
+
+  let offset = 1;
+  let safety = 200;
   while (set.size < 4 && safety > 0) {
     safety -= 1;
-    const n = Number(correct);
-    if (!Number.isNaN(n)) {
-      set.add(String(n + randInt(-9, 9)));
-    } else if (correct.length === 1) {
-      const code = correct.charCodeAt(0) + randInt(-5, 5);
-      set.add(String.fromCharCode(Math.max(65, Math.min(90, code))));
+    let candidate: string;
+    if (isNumeric) {
+      // Alternate above/below the answer so distractors stay plausible.
+      const delta = Math.ceil(offset / 2) * (offset % 2 === 0 ? -1 : 1);
+      candidate = String(asNumber + delta);
+    } else if (isLetter) {
+      const base = correct.charCodeAt(0);
+      const delta = Math.ceil(offset / 2) * (offset % 2 === 0 ? -1 : 1);
+      const code = Math.max(65, Math.min(90, base + delta));
+      candidate = String.fromCharCode(code);
     } else {
-      set.add(`${correct}*`);
+      candidate = `${correct}${'*'.repeat(offset)}`;
     }
+    offset += 1;
+    if (candidate !== correct) set.add(candidate);
   }
+
   const shuffled = shuffle(Array.from(set).slice(0, 4));
   return { options: shuffled, answerIndex: shuffled.indexOf(correct) };
 };
 
-const generateArithmetic = (): Question => {
-  const start = randInt(1, 20);
-  const sign = Math.random() < 0.2 ? -1 : 1;
-  const d = randInt(2, 11) * sign;
+// --------------------------------------------------------------------------
+// Number-sequence generators
+// --------------------------------------------------------------------------
+
+const tierArithmetic: Record<QuestionTier, { startMax: number; dMin: number; dMax: number }> = {
+  easy: { startMax: 10, dMin: 2, dMax: 5 },
+  medium: { startMax: 20, dMin: 3, dMax: 9 },
+  hard: { startMax: 40, dMin: 6, dMax: 13 },
+};
+
+const generateArithmetic = (tier: QuestionTier): Question => {
+  const cfg = tierArithmetic[tier];
+  const start = randInt(1, cfg.startMax);
+  const sign = Math.random() < (tier === 'hard' ? 0.35 : 0.2) ? -1 : 1;
+  const d = randInt(cfg.dMin, cfg.dMax) * sign;
   const terms = [0, 1, 2, 3, 4].map((i) => start + i * d);
   const answer = start + 5 * d;
-  const distractors = [answer + 1, answer - 1, answer + d, terms[4] + 1].map(String);
+  const distractors = [answer + 1, answer - 1, answer + d, answer - d].map(String);
   const { options, answerIndex } = makeOptions(String(answer), distractors);
   return {
     type: 'arithmetic',
-    prompt: '? に当てはまる数字は？',
+    tier,
+    prompt: { ja: '? に当てはまる数字は？', en: 'Which number replaces the ??' },
     display: `${terms.join(', ')}, ?`,
     options,
     answerIndex,
-    explanation: `等差数列 (公差 ${d})。${terms[4]} + (${d}) = ${answer}。`,
+    explanation: {
+      ja: `等差数列（公差 ${d}）。${terms[4]} + (${d}) = ${answer}。`,
+      en: `Arithmetic sequence (common difference ${d}). ${terms[4]} + (${d}) = ${answer}.`,
+    },
+    fingerprint: `arithmetic:${start}:${d}`,
   };
 };
 
-const generateGeometric = (): Question => {
-  const start = randInt(1, 5);
-  const r = pick([2, 3]);
+const generateGeometric = (tier: QuestionTier): Question => {
+  const start = randInt(1, tier === 'hard' ? 6 : 4);
+  const r = tier === 'easy' ? 2 : pick([2, 3]);
   const t = [start, start * r, start * r * r, start * r * r * r];
   const answer = t[3] * r;
-  const distractors = [answer + r, answer - r, t[3] + r, answer + 1].map(String);
+  const distractors = [answer + r, answer - r, t[3] + answer, answer + 1].map(String);
   const { options, answerIndex } = makeOptions(String(answer), distractors);
   return {
     type: 'geometric',
-    prompt: '? に当てはまる数字は？',
+    tier,
+    prompt: { ja: '? に当てはまる数字は？', en: 'Which number replaces the ??' },
     display: `${t.join(', ')}, ?`,
     options,
     answerIndex,
-    explanation: `等比数列 (公比 ${r})。${t[3]} × ${r} = ${answer}。`,
+    explanation: {
+      ja: `等比数列（公比 ${r}）。${t[3]} × ${r} = ${answer}。`,
+      en: `Geometric sequence (ratio ${r}). ${t[3]} × ${r} = ${answer}.`,
+    },
+    fingerprint: `geometric:${start}:${r}`,
   };
 };
 
-const generateSquare = (): Question => {
-  const start = randInt(2, 5);
+const generateSquare = (tier: QuestionTier): Question => {
+  const start = randInt(2, tier === 'hard' ? 7 : 5);
   const terms = [0, 1, 2, 3].map((i) => (start + i) * (start + i));
-  const next = start + 4;
-  const answer = next * next;
-  const distractors = [answer + 1, answer - 2, answer + next, answer - next].map(String);
+  const nextBase = start + 4;
+  const answer = nextBase * nextBase;
+  const distractors = [answer + 1, answer - 1, answer + nextBase, answer - nextBase].map(String);
   const { options, answerIndex } = makeOptions(String(answer), distractors);
   return {
     type: 'square',
-    prompt: '? に当てはまる数字は？',
+    tier,
+    prompt: { ja: '? に当てはまる数字は？', en: 'Which number replaces the ??' },
     display: `${terms.join(', ')}, ?`,
     options,
     answerIndex,
-    explanation: `n² の数列。${next}² = ${answer}。`,
+    explanation: {
+      ja: `平方数の列（n²）。${nextBase}² = ${answer}。`,
+      en: `Squares (n²). ${nextBase}² = ${answer}.`,
+    },
+    fingerprint: `square:${start}`,
   };
 };
 
-const generateFibonacci = (): Question => {
-  const a = randInt(1, 4);
-  const b = randInt(1, 6);
+const generateFibonacci = (tier: QuestionTier): Question => {
+  const a = randInt(1, tier === 'hard' ? 6 : 4);
+  const b = randInt(a, tier === 'hard' ? 9 : 6);
   const c = a + b;
   const d = b + c;
   const e = c + d;
   const answer = d + e;
-  const distractors = [answer + 1, answer - 1, e + d + 1, e + c].map(String);
+  const distractors = [answer + 1, answer - 1, e + c, d + c].map(String);
   const { options, answerIndex } = makeOptions(String(answer), distractors);
   return {
     type: 'fibonacci',
-    prompt: '? に当てはまる数字は？',
+    tier,
+    prompt: { ja: '? に当てはまる数字は？', en: 'Which number replaces the ??' },
     display: `${a}, ${b}, ${c}, ${d}, ${e}, ?`,
     options,
     answerIndex,
-    explanation: `直前2項の和。${d} + ${e} = ${answer}。`,
+    explanation: {
+      ja: `直前2項の和。${d} + ${e} = ${answer}。`,
+      en: `Each term is the sum of the previous two. ${d} + ${e} = ${answer}.`,
+    },
+    fingerprint: `fibonacci:${a}:${b}`,
   };
 };
 
-const generateAlternating = (): Question => {
+const generateAlternating = (tier: QuestionTier): Question => {
   const a = randInt(1, 9);
   const b = randInt(10, 20);
-  const da = randInt(1, 5);
-  const db = randInt(1, 5);
+  const da = randInt(1, tier === 'hard' ? 6 : 4);
+  const db = randInt(1, tier === 'hard' ? 6 : 4);
+  // Two interleaved arithmetic progressions. Shown terms: a, b, a+da, b+db,
+  // a+2da, b+2db. The next (7th, odd-position) term continues the "a" track.
   const seq = [a, b, a + da, b + db, a + 2 * da, b + 2 * db];
   const answer = a + 3 * da;
   const distractors = [b + 3 * db, answer + 1, answer - 1, answer + da].map(String);
   const { options, answerIndex } = makeOptions(String(answer), distractors);
   return {
     type: 'alternating',
-    prompt: '? に当てはまる数字は？ (2つのパターンが交互)',
+    tier,
+    prompt: {
+      ja: '? に当てはまる数字は？（2つの数列が交互）',
+      en: 'Which number replaces the ?? (two interleaved sequences)',
+    },
     display: `${seq.join(', ')}, ?`,
     options,
     answerIndex,
-    explanation: `奇数番目は +${da}、偶数番目は +${db}。次は奇数番目で ${a + 2 * da} + ${da} = ${answer}。`,
+    explanation: {
+      ja: `奇数番目は +${da}、偶数番目は +${db}。次は奇数番目で ${a + 2 * da} + ${da} = ${answer}。`,
+      en: `Odd positions step by +${da}, even positions by +${db}. Next is an odd position: ${a + 2 * da} + ${da} = ${answer}.`,
+    },
+    fingerprint: `alternating:${a}:${b}:${da}:${db}`,
   };
 };
 
-const generateOddOneOut = (): Question => {
-  const variant = pick(['parity', 'square', 'multiple', 'prime'] as const);
+// --------------------------------------------------------------------------
+// Odd-one-out
+// --------------------------------------------------------------------------
+
+const generateOddOneOut = (tier: QuestionTier): Question => {
+  const variants =
+    tier === 'easy'
+      ? (['parity', 'multiple'] as const)
+      : (['parity', 'square', 'multiple', 'prime'] as const);
+  const variant = pick(variants);
   let items: number[];
   let oddItem: number;
-  let explanation: string;
+  let explanation: Bilingual;
 
   if (variant === 'parity') {
     const evenPool = [2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24];
-    const evens = shuffle(evenPool).slice(0, 4);
-    oddItem = pick([3, 5, 7, 9, 11, 13, 15, 17, 19, 21]);
+    const evens = shuffle(evenPool).slice(0, 3);
+    do {
+      oddItem = pick([3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23]);
+    } while (evens.includes(oddItem));
     items = [...evens, oddItem];
-    explanation = `${oddItem} だけが奇数。他は全て偶数。`;
+    explanation = {
+      ja: `${oddItem} だけが奇数。他は全て偶数。`,
+      en: `Only ${oddItem} is odd; the rest are even.`,
+    };
   } else if (variant === 'square') {
-    const squares = shuffle([4, 9, 16, 25, 36, 49, 64, 81, 100]).slice(0, 4);
+    const squares = shuffle([4, 9, 16, 25, 36, 49, 64, 81, 100]).slice(0, 3);
     const sqSet = new Set([1, 4, 9, 16, 25, 36, 49, 64, 81, 100, 121, 144]);
     do {
       oddItem = randInt(5, 99);
     } while (sqSet.has(oddItem) || squares.includes(oddItem));
     items = [...squares, oddItem];
-    explanation = `${oddItem} だけが平方数ではない。`;
+    explanation = {
+      ja: `${oddItem} だけが平方数ではない。`,
+      en: `Only ${oddItem} is not a perfect square.`,
+    };
   } else if (variant === 'multiple') {
     const base = pick([3, 4, 5, 6, 7]);
     const multPool = Array.from({ length: 10 }, (_, i) => base * (i + 2));
-    const mults = shuffle(multPool).slice(0, 4);
+    const mults = shuffle(multPool).slice(0, 3);
     do {
       oddItem = randInt(base * 2, base * 12);
     } while (oddItem % base === 0 || mults.includes(oddItem));
     items = [...mults, oddItem];
-    explanation = `${oddItem} だけが ${base} の倍数ではない。`;
+    explanation = {
+      ja: `${oddItem} だけが ${base} の倍数ではない。`,
+      en: `Only ${oddItem} is not a multiple of ${base}.`,
+    };
   } else {
     const primesPool = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31];
-    const primes = shuffle(primesPool).slice(0, 4);
+    const primes = shuffle(primesPool).slice(0, 3);
     do {
       oddItem = randInt(4, 35);
     } while (isPrime(oddItem) || primes.includes(oddItem));
     items = [...primes, oddItem];
-    explanation = `${oddItem} だけが素数ではない。`;
+    explanation = {
+      ja: `${oddItem} だけが素数ではない。`,
+      en: `Only ${oddItem} is not a prime number.`,
+    };
   }
 
   const shuffled = shuffle(items);
   return {
     type: 'odd-one-out',
-    prompt: '仲間外れはどれ？',
+    tier,
+    prompt: { ja: '仲間外れはどれ？', en: 'Which one does not belong?' },
     display: shuffled.join('   '),
     options: shuffled.map(String),
     answerIndex: shuffled.indexOf(oddItem),
     explanation,
+    fingerprint: `odd:${variant}:${[...items].sort((x, y) => x - y).join(',')}`,
   };
 };
 
-const generateAnalogy = (): Question => {
-  const op = pick(['add', 'sub', 'mul', 'square'] as const);
+// --------------------------------------------------------------------------
+// Analogy
+// --------------------------------------------------------------------------
+
+const generateAnalogy = (tier: QuestionTier): Question => {
+  const ops =
+    tier === 'easy'
+      ? (['add', 'sub'] as const)
+      : tier === 'medium'
+        ? (['add', 'sub', 'mul'] as const)
+        : (['add', 'sub', 'mul', 'square'] as const);
+  const op = pick(ops);
   let a: number;
   let b: number;
   let c: number;
   let answer: number;
-  let explanation: string;
+  let explanation: Bilingual;
 
   if (op === 'add') {
-    const k = randInt(2, 15);
+    const k = randInt(2, tier === 'hard' ? 20 : 12);
     a = randInt(1, 30);
     b = a + k;
-    c = randInt(1, 30);
+    do {
+      c = randInt(1, 30);
+    } while (c === a);
     answer = c + k;
-    explanation = `両方とも +${k} の関係。${c} + ${k} = ${answer}。`;
+    explanation = {
+      ja: `両方とも +${k} の関係。${c} + ${k} = ${answer}。`,
+      en: `Both pairs add ${k}. ${c} + ${k} = ${answer}.`,
+    };
   } else if (op === 'sub') {
     const k = randInt(2, 12);
     a = randInt(15, 40);
     b = a - k;
-    c = randInt(15, 40);
+    do {
+      c = randInt(15, 40);
+    } while (c === a);
     answer = c - k;
-    explanation = `両方とも -${k} の関係。${c} - ${k} = ${answer}。`;
+    explanation = {
+      ja: `両方とも -${k} の関係。${c} - ${k} = ${answer}。`,
+      en: `Both pairs subtract ${k}. ${c} - ${k} = ${answer}.`,
+    };
   } else if (op === 'mul') {
     const k = pick([2, 3, 4, 5]);
     a = randInt(2, 9);
     b = a * k;
-    c = randInt(2, 9);
+    do {
+      c = randInt(2, 9);
+    } while (c === a);
     answer = c * k;
-    explanation = `両方とも ×${k} の関係。${c} × ${k} = ${answer}。`;
+    explanation = {
+      ja: `両方とも ×${k} の関係。${c} × ${k} = ${answer}。`,
+      en: `Both pairs multiply by ${k}. ${c} × ${k} = ${answer}.`,
+    };
   } else {
     const bases = [3, 4, 5, 6, 7, 8, 9];
     a = pick(bases);
@@ -245,29 +372,41 @@ const generateAnalogy = (): Question => {
       c = pick(bases);
     } while (c === a);
     answer = c * c;
-    explanation = `両方とも n → n² の関係。${c}² = ${answer}。`;
+    explanation = {
+      ja: `両方とも n → n² の関係。${c}² = ${answer}。`,
+      en: `Both pairs are n → n². ${c}² = ${answer}.`,
+    };
   }
 
-  const distractors = [answer + 1, answer - 1, answer + 2, Math.max(1, answer - 3)].map(String);
+  const distractors = [answer + 1, answer - 1, answer + 2, Math.max(0, answer - 2)].map(String);
   const { options, answerIndex } = makeOptions(String(answer), distractors);
   return {
     type: 'analogy',
-    prompt: '同じ関係になる数字は？',
+    tier,
+    prompt: { ja: '同じ関係になる数字は？', en: 'Which number keeps the same relationship?' },
     display: `${a} : ${b}  =  ${c} : ?`,
     options,
     answerIndex,
     explanation,
+    fingerprint: `analogy:${op}:${a}:${b}:${c}`,
   };
 };
 
-const generateLetterSequence = (): Question => {
+// --------------------------------------------------------------------------
+// Letter sequence
+// --------------------------------------------------------------------------
+
+const generateLetterSequence = (tier: QuestionTier): Question => {
   const A = 'A'.charCodeAt(0);
-  const start = randInt(0, 10);
-  const step = randInt(1, 4);
+  const step = tier === 'easy' ? 1 : randInt(1, tier === 'hard' ? 5 : 3);
+  // Keep all five letters (four shown + answer) inside A..Z.
+  const maxStart = 25 - 4 * step;
+  const start = randInt(0, Math.max(0, maxStart));
   const terms = [0, 1, 2, 3].map((i) => String.fromCharCode(A + start + i * step));
   const answerCode = A + start + 4 * step;
   const answer = String.fromCharCode(answerCode);
-  const clamp = (code: number) => String.fromCharCode(Math.max(65, Math.min(90, code)));
+  const clamp = (code: number): string =>
+    String.fromCharCode(Math.max(65, Math.min(90, code)));
   const distractors = [
     clamp(answerCode + 1),
     clamp(answerCode - 1),
@@ -277,16 +416,31 @@ const generateLetterSequence = (): Question => {
   const { options, answerIndex } = makeOptions(answer, distractors);
   return {
     type: 'letter',
-    prompt: '? に当てはまるアルファベットは？',
+    tier,
+    prompt: {
+      ja: '? に当てはまるアルファベットは？',
+      en: 'Which letter replaces the ??',
+    },
     display: `${terms.join(', ')}, ?`,
     options,
     answerIndex,
     explanation:
       step === 1
-        ? `アルファベット順に1つずつ進む。次は ${answer}。`
-        : `アルファベットを ${step} つずつ進める。次は ${answer}。`,
+        ? {
+            ja: `アルファベット順に1つずつ進む。次は ${answer}。`,
+            en: `Letters advance by one. Next is ${answer}.`,
+          }
+        : {
+            ja: `アルファベットを ${step} つずつ進める。次は ${answer}。`,
+            en: `Letters advance by ${step}. Next is ${answer}.`,
+          },
+    fingerprint: `letter:${start}:${step}`,
   };
 };
+
+// --------------------------------------------------------------------------
+// Matrix (Raven-style)
+// --------------------------------------------------------------------------
 
 type MatrixAxis = 'shape' | 'color' | 'count';
 
@@ -294,25 +448,25 @@ const ALL_SHAPES: CellShape[] = ['circle', 'square', 'triangle', 'star'];
 const ALL_COLORS: CellColor[] = ['#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#a855f7'];
 const ALL_COUNTS: CellCount[] = [1, 2, 3];
 
-const axisLabel: Record<MatrixAxis, string> = {
-  shape: '形',
-  color: '色',
-  count: '個数',
+const axisLabel: Record<MatrixAxis, Bilingual> = {
+  shape: { ja: '形', en: 'shape' },
+  color: { ja: '色', en: 'color' },
+  count: { ja: '個数', en: 'count' },
 };
 
-const colorName: Record<CellColor, string> = {
-  '#ef4444': '赤',
-  '#3b82f6': '青',
-  '#22c55e': '緑',
-  '#f59e0b': '黄',
-  '#a855f7': '紫',
+const colorName: Record<CellColor, Bilingual> = {
+  '#ef4444': { ja: '赤', en: 'red' },
+  '#3b82f6': { ja: '青', en: 'blue' },
+  '#22c55e': { ja: '緑', en: 'green' },
+  '#f59e0b': { ja: '黄', en: 'yellow' },
+  '#a855f7': { ja: '紫', en: 'purple' },
 };
 
-const shapeName: Record<CellShape, string> = {
-  circle: '円',
-  square: '四角',
-  triangle: '三角',
-  star: '星',
+const shapeName: Record<CellShape, Bilingual> = {
+  circle: { ja: '円', en: 'circle' },
+  square: { ja: '四角', en: 'square' },
+  triangle: { ja: '三角', en: 'triangle' },
+  star: { ja: '星', en: 'star' },
 };
 
 const valuesForAxis = (axis: MatrixAxis): (CellShape | CellColor | CellCount)[] => {
@@ -335,7 +489,7 @@ const buildCell = (
 
 const cellKey = (c: CellSpec): string => `${c.shape}-${c.color}-${c.count}`;
 
-const generateMatrix = (): Question => {
+const generateMatrix = (tier: QuestionTier): Question => {
   const axes = shuffle(['shape', 'color', 'count'] as const).slice(0, 2);
   const rowAxis = axes[0] as MatrixAxis;
   const colAxis = axes[1] as MatrixAxis;
@@ -364,6 +518,7 @@ const generateMatrix = (): Question => {
 
   const correct = buildCell(base, rowAxis, colAxis, rowValues[2], colValues[2]);
 
+  // Distractor candidates share the fixed axis but violate the row/column rule.
   const candidates: CellSpec[] = [
     correct,
     buildCell(base, rowAxis, colAxis, rowValues[2], colValues[0]),
@@ -385,7 +540,10 @@ const generateMatrix = (): Question => {
     if (unique.length >= 4) break;
   }
 
-  while (unique.length < 4) {
+  // Top up with mutated variants if row/col values overlapped.
+  let safety = 100;
+  while (unique.length < 4 && safety > 0) {
+    safety -= 1;
     const variant: CellSpec = { ...correct };
     const ax = pick<MatrixAxis>(['shape', 'color', 'count']);
     if (ax === 'shape') variant.shape = pick(ALL_SHAPES);
@@ -401,47 +559,157 @@ const generateMatrix = (): Question => {
   const shuffledOpts = shuffle(unique);
   const answerIndex = shuffledOpts.findIndex((c) => cellKey(c) === cellKey(correct));
 
-  const explainValue = (axis: MatrixAxis, value: CellShape | CellColor | CellCount): string => {
-    if (axis === 'shape') return shapeName[value as CellShape];
-    if (axis === 'color') return colorName[value as CellColor];
+  const valJa = (axis: MatrixAxis, value: CellShape | CellColor | CellCount): string => {
+    if (axis === 'shape') return shapeName[value as CellShape].ja;
+    if (axis === 'color') return colorName[value as CellColor].ja;
     return `${value}個`;
   };
+  const valEn = (axis: MatrixAxis, value: CellShape | CellColor | CellCount): string => {
+    if (axis === 'shape') return shapeName[value as CellShape].en;
+    if (axis === 'color') return colorName[value as CellColor].en;
+    return `${value}`;
+  };
 
-  const explanation =
-    `行ごとに${axisLabel[rowAxis]}が変化し、列ごとに${axisLabel[colAxis]}が変化。` +
-    `?は3行目(${explainValue(rowAxis, rowValues[2])})×3列目(${explainValue(colAxis, colValues[2])})` +
-    (fixedAxis === 'shape'
-      ? `、形は${shapeName[base.shape]}固定。`
+  const fixedJa =
+    fixedAxis === 'shape'
+      ? `、形は${shapeName[base.shape].ja}固定。`
       : fixedAxis === 'color'
-        ? `、色は${colorName[base.color]}固定。`
-        : `、個数は${base.count}個固定。`);
+        ? `、色は${colorName[base.color].ja}固定。`
+        : `、個数は${base.count}個固定。`;
+  const fixedEn =
+    fixedAxis === 'shape'
+      ? ` The shape stays ${shapeName[base.shape].en}.`
+      : fixedAxis === 'color'
+        ? ` The color stays ${colorName[base.color].en}.`
+        : ` The count stays ${base.count}.`;
+
+  const explanation: Bilingual = {
+    ja:
+      `行ごとに${axisLabel[rowAxis].ja}が変化し、列ごとに${axisLabel[colAxis].ja}が変化。` +
+      `?は3行目(${valJa(rowAxis, rowValues[2])})×3列目(${valJa(colAxis, colValues[2])})` +
+      fixedJa,
+    en:
+      `The ${axisLabel[rowAxis].en} changes across rows and the ${axisLabel[colAxis].en} changes across columns. ` +
+      `The ? is row 3 (${valEn(rowAxis, rowValues[2])}) × column 3 (${valEn(colAxis, colValues[2])}).` +
+      fixedEn,
+  };
 
   return {
     type: 'matrix',
-    prompt: '? に当てはまる図形は？',
+    tier,
+    prompt: { ja: '? に当てはまる図形は？', en: 'Which figure completes the grid?' },
     display: '',
     options: ['A', 'B', 'C', 'D'],
     answerIndex,
     explanation,
     matrix: { grid, cellOptions: shuffledOpts },
+    fingerprint: `matrix:${rowAxis}:${colAxis}:${cellKey(correct)}:${rowValues.join('')}:${colValues.join('')}`,
   };
 };
 
-const generators: Array<() => Question> = [
-  generateArithmetic,
-  generateArithmetic,
-  generateGeometric,
-  generateSquare,
-  generateFibonacci,
-  generateAlternating,
-  generateOddOneOut,
-  generateOddOneOut,
-  generateAnalogy,
-  generateAnalogy,
-  generateLetterSequence,
-  generateMatrix,
-  generateMatrix,
-  generateMatrix,
-];
+// --------------------------------------------------------------------------
+// Generator registry + difficulty-aware selection
+// --------------------------------------------------------------------------
 
-export const generateQuestion = (): Question => pick(generators)();
+type Generator = (tier: QuestionTier) => Question;
+
+/** Which generators are available at each tier (harder types unlock later). */
+const generatorsByTier: Record<QuestionTier, Generator[]> = {
+  easy: [
+    generateArithmetic,
+    generateGeometric,
+    generateOddOneOut,
+    generateAnalogy,
+    generateLetterSequence,
+  ],
+  medium: [
+    generateArithmetic,
+    generateGeometric,
+    generateSquare,
+    generateFibonacci,
+    generateAlternating,
+    generateOddOneOut,
+    generateAnalogy,
+    generateLetterSequence,
+    generateMatrix,
+  ],
+  hard: [
+    generateGeometric,
+    generateSquare,
+    generateFibonacci,
+    generateAlternating,
+    generateOddOneOut,
+    generateAnalogy,
+    generateLetterSequence,
+    generateMatrix,
+    generateMatrix,
+  ],
+};
+
+/**
+ * Difficulty for the quiz. `mixed` ramps from easy → medium → hard across the
+ * quiz using the question position.
+ */
+export type QuizDifficulty = 'easy' | 'medium' | 'hard' | 'mixed';
+
+const tierForMixed = (index: number, total: number): QuestionTier => {
+  const frac = total <= 1 ? 0 : index / (total - 1);
+  if (frac < 0.34) return 'easy';
+  if (frac < 0.7) return 'medium';
+  return 'hard';
+};
+
+/**
+ * Generate a single question at the given tier. Exposed mainly for tests.
+ */
+export const generateQuestionForTier = (tier: QuestionTier): Question => {
+  const gen = pick(generatorsByTier[tier]);
+  return gen(tier);
+};
+
+/**
+ * Generate a question for the quiz, avoiding fingerprints already used this
+ * session. `index`/`total` drive the ramp for `mixed` difficulty.
+ */
+export const generateQuestion = (
+  difficulty: QuizDifficulty = 'mixed',
+  index = 0,
+  total = 10,
+  usedFingerprints?: Set<string>,
+): Question => {
+  const tier: QuestionTier =
+    difficulty === 'mixed' ? tierForMixed(index, total) : difficulty;
+
+  let question = generateQuestionForTier(tier);
+  if (usedFingerprints) {
+    let attempts = 30;
+    while (usedFingerprints.has(question.fingerprint) && attempts > 0) {
+      attempts -= 1;
+      question = generateQuestionForTier(tier);
+    }
+    usedFingerprints.add(question.fingerprint);
+  }
+  return question;
+};
+
+/**
+ * Validate that a generated question is well-formed: exactly 4 unique options,
+ * a valid answer index, and exactly one option equal to the correct answer.
+ * Used by tests; cheap enough to keep in the bundle.
+ */
+export const validateQuestion = (q: Question): boolean => {
+  if (q.options.length !== 4) return false;
+  if (new Set(q.options).size !== 4) return false;
+  if (q.answerIndex < 0 || q.answerIndex >= 4) return false;
+  // The correct answer must appear exactly once among the options.
+  const answer = q.options[q.answerIndex];
+  if (q.options.filter((o) => o === answer).length !== 1) return false;
+  if (q.matrix) {
+    if (q.matrix.cellOptions.length !== 4) return false;
+    const keys = q.matrix.cellOptions.map(cellKey);
+    if (new Set(keys).size !== 4) return false;
+  }
+  return true;
+};
+
+export { cellKey };

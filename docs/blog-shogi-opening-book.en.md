@@ -15,6 +15,7 @@
 7. **The pivot**: from dozens of lines to thousands of positions — a large-scale book pipeline
 8. **An honest measurement**: quantifying the book's effect with A/B — and why it looks small in self-play
 9. **Cycle 4**: deepen the book to 30 plies + cure the opening bias by retraining the NNUE (shipped to production)
+10. **Lab notebook: what didn't work**: the endgame-speedup dead end, how KP features and self-play data couldn't win, and the ceiling on "cheap" gains
 
 ---
 
@@ -214,6 +215,51 @@ In the problem position, △Rook-8d sank from **15th to 23rd** in the static ran
 > Added lesson: **"where it takes effect" decides significance.** A change that touches every position (the eval) turns significant in self-play naturally; a change that only helps when conditions line up (the book) shows its true value against humans. Even for the same word "stronger," the right way to measure depends on the nature of the improvement.
 
 (Both were shipped only after independent verification — re-tallying the A/B logs, re-running the holdouts, bit-exact parity, the full test suite passing. The proxy pair-accuracy was *not* used to decide adoption, keeping faith with the earlier "proxy metrics don't predict playing strength.")
+
+## 10. Lab notebook: what didn't work
+
+Writing only about the wins isn't fair. Real development is mostly **experiments that don't work**. After Cycle 4, I ran two more experiments in parallel to push the strength further. One was a complete dead end; the other is looking shaky too. Records of failure are the useful ones, so here they are, honestly.
+
+### 10.1 Make the endgame faster — an "it was already done" dead end
+
+A real-game endgame miss (a mate overlooked at move 72) made me suspect the endgame search was too slow and too shallow. Material-heavy endgames explode the number of drop moves (160–330 drops vs ~20 board moves). Speed up move generation there, the reasoning went, and it reads deeper.
+
+Profiling confirmed that most of an endgame node's cost was **move generation and legality checking** (~99% combined, evaluation only ~1%), driven by the drop-move explosion. A bitmask that computes empty squares and legal drop targets in one pass would speed it up.
+
+**Except: that optimization was already done.** An earlier cycle had shipped exactly that bit-op speedup into both the JS and WASM search (legality-check skipping, one-pass drop-gen precompute). With bit-exactness preserved, there was no remaining fat to trim.
+
+Worse, **the original "it's slow" diagnosis was itself off-target.** The 27–41µs/node figure was measured on the **JS engine**. Production runs the WASM engine (15–30× faster), and re-measuring there put an endgame node at ~2.76µs — with the dominant cost now the **NNUE leaf evaluation, not move generation.** I'd been looking at the "slow spot" through the wrong ruler.
+
+> Added lesson: **measure the exact path that runs in production.** A profile from a proxy engine (the easy-to-measure JS build) doesn't transfer to an optimized, differently-implemented production (the WASM build). "Where the time goes" reshuffles when the implementation changes — the path-level version of the earlier "doubt the measuring instrument."
+
+It wasn't a total zero: I left behind a **benchmark that correctly measures endgame throughput and depth on the production WASM path**, and learned, with numbers, that the next endgame hot path is NNUE evaluation, not move generation. In other words, the road to a stronger endgame also loops back to making the **evaluation (the brain) better/faster.**
+
+### 10.2 KP features — the "smarter input" couldn't win
+
+The second experiment changed **how the NNUE's input is built.** Today the brain feeds the board in directly as "which piece sits on which square." A staple of strong evaluations is **KP (King-Piece)**, which encodes piece placement **relative to your own king's position** — it captures king safety better and is generally said to be a big strength gain. I tried it (splitting the own-king position into 6 buckets, each with its own table: "factored KP").
+
+Training ran fine, and **wiring the KP model into the browser inference (WASM) worked too** (the "inference doesn't support it" wall I'd feared wasn't there — even the per-bucket table selection runs in WASM). So far so good.
+
+The problem is the actual strength. In self-play A/B against the current production (the board-feature runOp1), **the KP version scored 20 wins and 40 losses over 60 games — a 33.3% win rate (Wilson 95% CI 23–46%)**. Even the upper bound of the interval doesn't reach 50% — meaning it's **statistically, clearly weaker**. Its training pair-accuracy was also marginally lower (KP 0.911 vs board 0.916), and it plainly lost over the board. **Not adopted.**
+
+> Lesson: **a "theoretically smarter input" can lose to a plain one.** In Cycle 2, a fancy loss function helped only while data was scarce and got overtaken by plain regression once data was sufficient. KP smells the same: a clever structure may only pay off once there's enough data and training to exploit it (5.9M positions and this training budget couldn't). KP isn't "bad" — it just "didn't win in this configuration." A loss is logged as a loss, and the plain board-feature version stays in production.
+
+### 10.3 What was tried next, and how it turned out
+
+With KP lost and the endgame speedup a dead end, I tried two more levers. The endgame episode's finding — **the production hot path is NNUE evaluation** — pointed the way. The short version: **neither one moved production.**
+
+**(a) Make evaluation faster (SIMD) → already done.**
+Vectorize NNUE inference with WASM SIMD128, and deeper search follows in the same time budget, helping every move… except when I went to do it, **it was already implemented and merged in an earlier cycle** (the whole inference hot path is written in v128 instructions, ~6.2× faster on the fast path). I re-verified both bit-exactness (moves, scores, node counts all match) and the speedup independently, but **there was zero new headroom** — the same "dug in and the vein was already mined out" pattern as the endgame.
+
+**(b) Train on self-play data → proxy metrics improved, real games were a tie.**
+I redrew the teacher positions from **the positions the production engine actually reaches** (which needed a new generation tool that swaps the search's leaf eval to the production NNUE while playing on). Generated 239k positions, mixed into the existing 5.9M, retrained.
+
+- **Holdout (proxy) improved:** on the self-play distribution, MAE −8% and pair-accuracy +0.86pt. The "correct the distribution mismatch" mechanism did work.
+- **But the A/B was a tie:** candidate vs current production, **96 games at 52.1% (1000ms was exactly 50.0%), 95% CI [42.2, 61.8]** — straddling 50% widely. Below the adoption bar, **not adopted.**
+
+Why it didn't translate: the reached distribution wasn't as different from the base as expected (only 3% dropped in dedup), and self-play was just 3.7% of the data — **too weak a gradient to move a model already near-saturated on 5.9M positions**. Contrast the Cycle-4 opening retrain, which hit 61.7% with 650k positions at 11% share. Making self-play pay off would need one of: >1M positions, deeper-search generation, or several rounds of iterated distillation.
+
+> Chapter conclusion: **production has spent its cheap wins.** Two sound ideas — KP and self-play data — both showed proxy-metric gains yet produced no significant A/B edge, and every speedup lever turned out to be already implemented. The next step up now lives in "multi-day investment" territory: **re-distilling from deeper labels, a dedicated mate solver, or a bigger network.** The cheap gains are, honestly, picked clean. And that's not a failure — it's progress: we've pinned down, by measurement, **where the ceiling is.** A record of losses is what tells you where to bet next.
 
 ## Lessons from this chapter
 

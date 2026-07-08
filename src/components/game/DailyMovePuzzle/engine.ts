@@ -7,8 +7,9 @@
  * (par = 1). Every puzzle is generated procedurally and verified by a solver so
  * that it is always solvable and has a unique winning move.
  *
- * A daily seed derived from the local date guarantees everyone gets the same
- * puzzle on a given day, and the seed is deterministic so tests can reproduce it.
+ * A daily seed derived from the local date gives everyone the same puzzle for a
+ * given local calendar day (users in different timezones roll over at different
+ * moments). The seed is fully deterministic so tests can reproduce it.
  */
 
 export type Mark = 'X' | 'O' | null;
@@ -92,6 +93,19 @@ export const isValidPuzzle = (puzzle: Puzzle): boolean => {
   // Keep the tactic clean: the opponent must not also have a one-move win.
   const opponent: Side = side === 'X' ? 'O' : 'X';
   if (findWinningMoves(board, opponent).length > 0) return false;
+
+  // The declared winningLine must be the actual line completed by correctMove,
+  // so UI highlighting stays consistent with the real win.
+  const after = board.slice();
+  after[correctMove] = side;
+  const actualLine = getWinningLine(after, side);
+  if (
+    !actualLine ||
+    actualLine.length !== puzzle.winningLine.length ||
+    !puzzle.winningLine.every((i) => actualLine.includes(i))
+  ) {
+    return false;
+  }
 
   return true;
 };

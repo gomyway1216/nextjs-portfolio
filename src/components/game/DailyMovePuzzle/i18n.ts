@@ -19,6 +19,7 @@ export interface DailyMovePuzzleStrings {
   hintBtn: string;
   share: string;
   copied: string;
+  copyFailed: string;
   shareText: (dateKey: string, attempts: number) => string;
   howToPlay: string;
   infoTitle: string;
@@ -49,6 +50,7 @@ const en: DailyMovePuzzleStrings = {
   hintBtn: 'Hint',
   share: 'Share result',
   copied: 'Result copied to clipboard.',
+  copyFailed: 'Copy failed — select and copy the text manually.',
   shareText: (dateKey, attempts) =>
     `Daily Move Puzzle ${dateKey}\n${attempts === 1 ? '🎯 Solved in 1 (par!)' : `Solved in ${attempts} tries`}\nmeetyudai.com/games/daily-move-puzzle`,
   howToPlay: 'How to play',
@@ -87,6 +89,7 @@ const ja: DailyMovePuzzleStrings = {
   hintBtn: 'ヒント',
   share: '結果を共有',
   copied: '結果をコピーしました。',
+  copyFailed: 'コピーできませんでした。テキストを手動でコピーしてください。',
   shareText: (dateKey, attempts) =>
     `今日の一手パズル ${dateKey}\n${attempts === 1 ? '🎯 一発クリア（パー！）' : `${attempts}回でクリア`}\nmeetyudai.com/games/daily-move-puzzle`,
   howToPlay: '遊び方',

@@ -123,6 +123,54 @@ describe('isValidPuzzle - rejects malformed puzzles', () => {
       }),
     ).toBe(false);
   });
+
+  it('rejects impossible mark counts for O to move (needs X = O + 1)', () => {
+    // O wins uniquely at 5, but X and O counts are equal, which is illegal for
+    // an O-to-move position (X moves first).
+    expect(
+      isValidPuzzle({
+        board: ['X', null, null, 'O', 'O', null, null, null, 'X'],
+        side: 'O',
+        correctMove: 5,
+        winningLine: [3, 4, 5],
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects impossible mark counts for X to move (needs X == O)', () => {
+    // X to move but O already has more marks than X.
+    expect(
+      isValidPuzzle({
+        board: ['O', 'O', null, 'X', null, null, null, null, null],
+        side: 'X',
+        correctMove: 2,
+        winningLine: [0, 1, 2],
+      }),
+    ).toBe(false);
+  });
+
+  it('rejects when winningLine does not match the actual completed line', () => {
+    // correctMove 2 genuinely wins on line [0,1,2], but a wrong line is declared.
+    expect(
+      isValidPuzzle({
+        board: ['X', 'X', null, 'O', null, null, null, 'O', null],
+        side: 'X',
+        correctMove: 2,
+        winningLine: [0, 4, 8],
+      }),
+    ).toBe(false);
+  });
+
+  it('accepts a correct winningLine that matches the actual win', () => {
+    expect(
+      isValidPuzzle({
+        board: ['X', 'X', null, 'O', null, null, null, 'O', null],
+        side: 'X',
+        correctMove: 2,
+        winningLine: [0, 1, 2],
+      }),
+    ).toBe(true);
+  });
 });
 
 describe('daily determinism', () => {

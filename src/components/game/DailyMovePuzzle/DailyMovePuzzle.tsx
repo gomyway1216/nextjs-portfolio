@@ -36,7 +36,7 @@ export const DailyMovePuzzle = () => {
   const [lastWrong, setLastWrong] = useState<number | null>(null);
   const [showHint, setShowHint] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [shareStatus, setShareStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
   const [completedToday, setCompletedToday] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return window.localStorage.getItem(STORAGE_KEY) === dateKey;
@@ -56,7 +56,7 @@ export const DailyMovePuzzle = () => {
       if (puzzle.board[index] !== null) return;
       if (wrongPicks.includes(index)) return;
 
-      setCopied(false);
+      setShareStatus('idle');
       setShowHint(false);
       setAttempts((prev) => prev + 1);
 
@@ -83,7 +83,7 @@ export const DailyMovePuzzle = () => {
     setAttempts((prev) => Math.max(0, prev - 1));
     setLastWrong(null);
     setFeedback('idle');
-    setCopied(false);
+    setShareStatus('idle');
   }, [solved, wrongPicks.length]);
 
   const reset = useCallback(() => {
@@ -93,7 +93,7 @@ export const DailyMovePuzzle = () => {
     setFeedback('idle');
     setLastWrong(null);
     setShowHint(false);
-    setCopied(false);
+    setShareStatus('idle');
   }, []);
 
   const share = useCallback(async () => {
@@ -102,30 +102,35 @@ export const DailyMovePuzzle = () => {
       // navigator.clipboard is undefined on insecure origins / older browsers.
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
-        setCopied(true);
+        setShareStatus('copied');
       } else {
-        setCopied(false);
+        setShareStatus('failed');
       }
     } catch {
-      setCopied(false);
+      setShareStatus('failed');
     }
   }, [t, dateKey, attempts]);
 
   const statusText = solved
-    ? attempts === 1
-      ? t.solvedPerfect
-      : t.solvedIn(attempts)
-    : copied
+    ? shareStatus === 'copied'
       ? t.copied
-      : feedback === 'wrong'
-        ? t.wrong
-        : t.hint;
-
-  const statusClass = solved
-    ? styles.statusSuccess
+      : shareStatus === 'failed'
+        ? t.copyFailed
+        : attempts === 1
+          ? t.solvedPerfect
+          : t.solvedIn(attempts)
     : feedback === 'wrong'
+      ? t.wrong
+      : t.hint;
+
+  const statusClass =
+    shareStatus === 'failed'
       ? styles.statusError
-      : '';
+      : solved
+        ? styles.statusSuccess
+        : feedback === 'wrong'
+          ? styles.statusError
+          : '';
 
   const markClass = (mark: Mark) =>
     mark === 'X' ? styles.markX : mark === 'O' ? styles.markO : '';

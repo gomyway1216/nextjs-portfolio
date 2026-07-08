@@ -506,13 +506,19 @@ async function main(): Promise<void> {
 
   // --- NNUE leaf eval を WASM 探索に読み込む (自己対戦データ生成用) ---
   // これを有効にすると、指定 NNUE を積んだエンジンが実際に到達する局面が採れる。
+  // --nnue-weights は WASM 探索の葉評価を差し替えるオプションなので --wasm 必須。
+  // --wasm 無しで指定されると黙って V3 評価の分布で生成してしまうため、明示的にエラーにする。
+  if (args.nnueWeights && !args.wasm) {
+    console.error('[gen] --nnue-weights requires --wasm (it swaps the WASM search leaf eval). Aborting.');
+    process.exit(1);
+  }
   if (args.wasm && args.nnueWeights) {
     if (!fs.existsSync(args.nnueWeights)) {
       console.error(`[gen] nnue weights not found: ${args.nnueWeights}`);
       process.exit(1);
     }
-    // WASM を1度ウォームアップして getInstance() を初期化させてから重みを流し込む。
-    wasmSearchBestMove(InitialPositionImproved.createInitialPosition(), 0, 5, 2, 4);
+    // loadNnueWeights() が内部で getInstance() を呼んで WASM を遅延初期化するので、
+    // 明示的なウォームアップ探索は不要（探索起動のコスト・ログ・TT 副作用を避ける）。
     const bytes = new Uint8Array(fs.readFileSync(args.nnueWeights));
     const ok = loadNnueWeights(bytes, args.nnueK);
     const enabled = ok ? setWasmNnueEnabled(true) : false;

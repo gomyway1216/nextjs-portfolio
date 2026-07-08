@@ -77,10 +77,13 @@ const MemoryBattle = () => {
   // Refs break the resolveFlip <-> runAiTurn / finishGame declaration cycle.
   const finishGameRef = useRef<(winner: Winner) => void>(() => {});
   const runAiTurnRef = useRef<(b: Card[]) => void>(() => {});
+  // Guards the "two cards flipped" resolution effect from scheduling twice.
+  const resolvingRef = useRef(false);
 
   const clearTimers = useCallback(() => {
     timers.current.forEach((id) => window.clearTimeout(id));
     timers.current = [];
+    resolvingRef.current = false;
   }, []);
   const later = useCallback((fn: () => void, ms: number) => {
     const id = window.setTimeout(fn, ms);
@@ -125,8 +128,10 @@ const MemoryBattle = () => {
       observeReveal(aiMemory.current, cardB, cfg);
 
       if (isMatch(cardA, cardB)) {
-        const nextBoard = currentBoard.map((c) =>
-          c.id === a || c.id === b ? { ...c, matched: true, matchedBy: mover } : c,
+        // Update by position (map index) so we never conflate Card.id with the
+        // board index — keeps the code correct even if those diverge.
+        const nextBoard = currentBoard.map((c, i) =>
+          i === a || i === b ? { ...c, matched: true, matchedBy: mover } : c,
         );
         forgetMatched(aiMemory.current, nextBoard);
         setBoard(nextBoard);
@@ -174,15 +179,23 @@ const MemoryBattle = () => {
       setPhase('over');
       setLocked(true);
       setFlipped([]);
+      // Announce the result via the aria-live status line and clear any stale
+      // "your turn / no match" message left over from the final move.
       if (winner === 'player') {
         setStats((s) => ({ ...s, wins: s.wins + 1 }));
+        setTone('good');
+        setMessage(t.youWin);
       } else if (winner === 'ai') {
         setStats((s) => ({ ...s, losses: s.losses + 1 }));
+        setTone('bad');
+        setMessage(t.aiWins);
       } else {
         setStats((s) => ({ ...s, draws: s.draws + 1 }));
+        setTone('neutral');
+        setMessage(t.draw);
       }
     },
-    [],
+    [t],
   );
 
   // Drive a full AI turn (two flips) with visible pauses.
@@ -219,25 +232,40 @@ const MemoryBattle = () => {
     (index: number) => {
       if (phase !== 'playing' || turn !== 'player' || locked) return;
       if (board[index]?.matched) return;
-      if (flipped.includes(index)) return;
-      if (flipped.length >= 2) return;
-
-      const nextFlipped = [...flipped, index];
-      setFlipped(nextFlipped);
-
-      if (nextFlipped.length === 2) {
-        setLocked(true);
-        // brief pause so the player sees the second card before resolution
-        later(() => resolveFlip(board, nextFlipped, 'player'), 260);
-      }
+      // Functional updater so rapid clicks can't overwrite each other through a
+      // stale `flipped` closure; also guards against double-flipping one card or
+      // exceeding two face-up cards. Resolution is handled by the effect below.
+      setFlipped((prev) => {
+        if (prev.includes(index) || prev.length >= 2) return prev;
+        return [...prev, index];
+      });
     },
-    [board, flipped, later, locked, phase, resolveFlip, turn],
+    [board, locked, phase, turn],
   );
+
+  // Once two cards are face up, lock input and resolve the pair. Driven by an
+  // effect (rather than inside onCardClick) so it always reads the committed
+  // `flipped` state instead of a possibly stale closure. A ref guards against
+  // scheduling twice, and state is only updated inside the deferred timer
+  // callback (an external system) — never synchronously in the effect body.
+  useEffect(() => {
+    if (phase !== 'playing' || turn !== 'player' || locked) return;
+    if (flipped.length !== 2 || resolvingRef.current) return;
+    resolvingRef.current = true;
+    // brief pause so the player sees the second card before resolution
+    later(() => {
+      resolvingRef.current = false;
+      setLocked(true);
+      resolveFlip(board, flipped, 'player');
+    }, 260);
+  }, [flipped, turn, phase, locked, board, resolveFlip, later]);
 
   // Keyboard: number keys flip the corresponding card (1-indexed, in-play only).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (phase !== 'playing' || turn !== 'player' || locked) return;
+      // Don't hijack browser/OS shortcuts such as Cmd/Ctrl/Alt + number.
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
       const n = Number(e.key);
       if (!Number.isInteger(n) || n < 1) return;
       // map the nth in-play, face-down card
@@ -368,7 +396,7 @@ const MemoryBattle = () => {
           <div
             className={styles.grid}
             style={{ gridTemplateColumns: `repeat(${spec.cols}, minmax(0, 1fr))` }}
-            role="grid"
+            role="group"
             aria-label={t.title}
           >
             {board.map((card, index) => {
@@ -402,7 +430,6 @@ const MemoryBattle = () => {
                 <button
                   key={card.id}
                   type="button"
-                  role="gridcell"
                   className={cellClass}
                   disabled={!clickable}
                   onClick={() => onCardClick(index)}

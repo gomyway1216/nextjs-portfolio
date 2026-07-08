@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Wheel, WHEEL_SPIN_MS } from './Wheel';
-import { Bet, colorOf, payoutMultiplier, RED_NUMBERS, spin } from './engine';
+import { Bet, BET_ODDS, colorOf, payoutMultiplier, RED_NUMBERS, spin } from './engine';
 import { useGameLanguage } from '../contexts/GameLanguageContext';
 import { getStrings } from './i18n';
 import styles from './Roulette.module.css';
@@ -103,9 +103,12 @@ export const PlayTab = () => {
 
   // Refs guard against state-lag races: setSpinning(true) doesn't take effect
   // until the next render, so a fast second click would otherwise schedule a
-  // duplicate spin. Same for placeBet reading stale totalWagered.
+  // duplicate spin.
   const spinningRef = useRef(false);
   const settleTimer = useRef<number | null>(null);
+  // bankrollRef mirrors bankroll for the placement guard. It is written
+  // eagerly at every point that mutates bankroll (settle payout, reset) so the
+  // guard never reads a stale value, and the effect covers any other path.
   const bankrollRef = useRef(bankroll);
   useEffect(() => {
     bankrollRef.current = bankroll;
@@ -120,47 +123,47 @@ export const PlayTab = () => {
     [bets],
   );
 
-  // Delta-aware placement + undo: remember the chip amount used for each
-  // placement so undo is exact regardless of chip switching.
+  // Delta-aware placement + undo. betsRef mirrors the bets state synchronously
+  // so rapid consecutive clicks (before React commits) validate against the
+  // real running total, and the undo stack / placeOrder can never desync from
+  // bets. All ref/state mutation happens OUTSIDE the setBets updater (updaters
+  // must be pure and may run twice under Strict Mode).
   const undoStack = useRef<{ key: BetKey; amount: number }[]>([]);
+  const betsRef = useRef<Record<BetKey, PlacedBet>>({});
+
   const placeBetTracked = (bet: Bet) => {
     if (spinningRef.current) return;
     const k = keyOf(bet);
-    // Guard inside the functional updater so rapid consecutive clicks within a
-    // single render can't collectively exceed the bankroll (avoids stale-read
-    // race). Only record the undo/order entries when the chip actually landed.
-    let placed = false;
-    setBets((prev) => {
-      const currentTotal = Object.values(prev).reduce((sum, b) => sum + b.amount, 0);
-      if (chip > bankrollRef.current - currentTotal) return prev;
-      placed = true;
-      const existing = prev[k];
-      return { ...prev, [k]: { bet, amount: (existing?.amount ?? 0) + chip } };
-    });
-    if (placed) {
-      undoStack.current.push({ key: k, amount: chip });
-      setPlaceOrder((prev) => [...prev, k]);
-    }
+    const currentTotal = Object.values(betsRef.current).reduce((sum, b) => sum + b.amount, 0);
+    if (chip > bankrollRef.current - currentTotal) return;
+
+    const existing = betsRef.current[k];
+    const nextBets = { ...betsRef.current, [k]: { bet, amount: (existing?.amount ?? 0) + chip } };
+    betsRef.current = nextBets;
+    setBets(nextBets);
+    undoStack.current.push({ key: k, amount: chip });
+    setPlaceOrder((prev) => [...prev, k]);
   };
+
   const undoTracked = () => {
     if (spinningRef.current || undoStack.current.length === 0) return;
     const last = undoStack.current.pop()!;
     setPlaceOrder((prev) => prev.slice(0, -1));
-    setBets((prev) => {
-      const existing = prev[last.key];
-      if (!existing) return prev;
-      const remaining = existing.amount - last.amount;
-      const next = { ...prev };
-      if (remaining <= 0) delete next[last.key];
-      else next[last.key] = { ...existing, amount: remaining };
-      return next;
-    });
+    const existing = betsRef.current[last.key];
+    if (!existing) return;
+    const remaining = existing.amount - last.amount;
+    const nextBets = { ...betsRef.current };
+    if (remaining <= 0) delete nextBets[last.key];
+    else nextBets[last.key] = { ...existing, amount: remaining };
+    betsRef.current = nextBets;
+    setBets(nextBets);
   };
 
   const clearBets = () => {
     if (spinningRef.current) return;
     undoStack.current = [];
     setPlaceOrder([]);
+    betsRef.current = {};
     setBets({});
   };
 
@@ -182,6 +185,9 @@ export const PlayTab = () => {
         winnings += amount * payoutMultiplier(bet, r);
       }
       const net = winnings - wagered;
+      // Update the ref eagerly so a bet placed in the same tick as settlement
+      // validates against the post-payout bankroll, not the stale pre-spin one.
+      bankrollRef.current += net;
       setBankroll((b) => b + net);
       setLastNet(net);
       setRecent((h) => [r, ...h].slice(0, 14));
@@ -189,6 +195,7 @@ export const PlayTab = () => {
       setHistory((h) => [entry, ...h].slice(0, 40));
       undoStack.current = [];
       setPlaceOrder([]);
+      betsRef.current = {};
       setBets({});
       spinningRef.current = false;
       setSpinning(false);
@@ -196,9 +203,11 @@ export const PlayTab = () => {
   };
 
   const reset = () => {
+    bankrollRef.current = INITIAL_BANKROLL;
     setBankroll(INITIAL_BANKROLL);
     undoStack.current = [];
     setPlaceOrder([]);
+    betsRef.current = {};
     setBets({});
     setLastNet(null);
     setRecent([]);
@@ -220,12 +229,21 @@ export const PlayTab = () => {
   const resultColor = (n: number) =>
     colorOf(n) === 'red' ? 'var(--rl-red)' : colorOf(n) === 'green' ? 'var(--rl-green)' : 'var(--rl-black)';
 
+  // Localized aria-label for a multi-number bet: "<name> (<odds>:1) — n, n, …".
+  const numAria = (kind: string, odds: number, numbers: readonly number[]) =>
+    `${t.betAria(kind, odds)} — ${numbers.join(', ')}`;
+
   return (
     <div className={styles.playGrid}>
       {/* ---- Left column: wheel + recent + history ---- */}
       <div className={styles.panel}>
         <div className={styles.wheelWrap}>
-          <Wheel result={result} spinId={spinId} />
+          <Wheel
+            result={result}
+            spinId={spinId}
+            resultLabel={t.wheelResult}
+            idleLabel={t.wheelIdle}
+          />
 
           <div className={styles.resultBadge} aria-live="polite">
             {result !== null && !spinning && (
@@ -233,7 +251,7 @@ export const PlayTab = () => {
                 <span className={styles.resultChip} style={{ background: resultColor(result) }}>
                   {result}
                 </span>
-                <span style={{ color: resultColor(result) }}>{colorOf(result)}</span>
+                <span style={{ color: resultColor(result) }}>{t.colorName(result)}</span>
               </>
             )}
           </div>
@@ -340,7 +358,7 @@ export const PlayTab = () => {
               chips={bets['straight:0']?.amount}
               onClick={() => placeBetTracked({ kind: 'straight', number: 0 })}
               disabled={spinning}
-              ariaLabel="Straight up 0"
+              ariaLabel={`${t.betAria('straight', BET_ODDS.straight)} — 0`}
               className={styles.zeroCell}
               style={{ height: 'auto' }}
             />
@@ -354,7 +372,7 @@ export const PlayTab = () => {
                     chips={bets[`straight:${n}`]?.amount}
                     onClick={() => placeBetTracked({ kind: 'straight', number: n })}
                     disabled={spinning}
-                    ariaLabel={`Straight up ${n}`}
+                    ariaLabel={`${t.betAria('straight', BET_ODDS.straight)} — ${n}`}
                   />
                 ))}
               </div>
@@ -368,7 +386,7 @@ export const PlayTab = () => {
                       chips={bets[keyOf(bet)]?.amount}
                       disabled={spinning}
                       onClick={() => placeBetTracked(bet)}
-                      title={`Split ${numbers.join(', ')} (17:1)`}
+                      title={numAria('split', BET_ODDS.split, numbers)}
                       style={{ left: `${(k + 1) * CELL_W}%`, top: `${(r + 0.5) * CELL_H}%`, width: 14, height: `${CELL_H * 0.55}%`, transform: 'translate(-50%, -50%)', borderRadius: 4 }}
                     />
                   );
@@ -381,7 +399,7 @@ export const PlayTab = () => {
                       chips={bets[keyOf(bet)]?.amount}
                       disabled={spinning}
                       onClick={() => placeBetTracked(bet)}
-                      title={`Split ${numbers.join(', ')} (17:1)`}
+                      title={numAria('split', BET_ODDS.split, numbers)}
                       style={{ left: `${(k + 0.5) * CELL_W}%`, top: `${(r + 1) * CELL_H}%`, width: `${CELL_W * 0.55}%`, height: 14, transform: 'translate(-50%, -50%)', borderRadius: 4 }}
                     />
                   );
@@ -394,7 +412,7 @@ export const PlayTab = () => {
                       chips={bets[keyOf(bet)]?.amount}
                       disabled={spinning}
                       onClick={() => placeBetTracked(bet)}
-                      title={`Corner ${numbers.join(', ')} (8:1)`}
+                      title={numAria('corner', BET_ODDS.corner, numbers)}
                       style={{ left: `${(k + 1) * CELL_W}%`, top: `${(r + 1) * CELL_H}%`, width: 18, height: 18, borderRadius: '50%', transform: 'translate(-50%, -50%)' }}
                     />
                   );
@@ -418,7 +436,7 @@ export const PlayTab = () => {
                     chips={bets[keyOf(bet)]?.amount}
                     onClick={() => placeBetTracked(bet)}
                     disabled={spinning}
-                    ariaLabel={`Street ${numbers.join(', ')} (11:1)`}
+                    ariaLabel={numAria('street', BET_ODDS.street, numbers)}
                   />
                 );
               })}
@@ -440,7 +458,7 @@ export const PlayTab = () => {
                     chips={bets[keyOf(bet)]?.amount}
                     onClick={() => placeBetTracked(bet)}
                     disabled={spinning}
-                    ariaLabel={`Line ${numbers.join(', ')} (5:1)`}
+                    ariaLabel={numAria('line', BET_ODDS.line, numbers)}
                     style={{
                       position: 'absolute',
                       left: `${(k + 1) * CELL_W}%`,
@@ -466,7 +484,7 @@ export const PlayTab = () => {
                   chips={bets[`dozen:${w}`]?.amount}
                   onClick={() => placeBetTracked({ kind: 'dozen', which: w as 1 | 2 | 3 })}
                   disabled={spinning}
-                  ariaLabel={`Dozen ${(w - 1) * 12 + 1}-${w * 12} (2:1)`}
+                  ariaLabel={`${t.betAria('dozen', BET_ODDS.dozen)} — ${(w - 1) * 12 + 1}-${w * 12}`}
                 />
               ))}
             </div>
@@ -480,7 +498,7 @@ export const PlayTab = () => {
                   chips={bets[`column:${w}`]?.amount}
                   onClick={() => placeBetTracked({ kind: 'column', which: w as 1 | 2 | 3 })}
                   disabled={spinning}
-                  ariaLabel={`Column ${w} (2:1)`}
+                  ariaLabel={`${t.betAria('column', BET_ODDS.column)} ${w}`}
                 />
               ))}
             </div>
@@ -488,12 +506,12 @@ export const PlayTab = () => {
 
           {/* Outside even-money */}
           <div className={styles.outsideSix}>
-            <BetCell label={t.low} variant="outside" chips={bets['low']?.amount} onClick={() => placeBetTracked({ kind: 'low' })} disabled={spinning} ariaLabel="Low 1-18 (1:1)" />
-            <BetCell label={t.even} variant="outside" chips={bets['even']?.amount} onClick={() => placeBetTracked({ kind: 'even' })} disabled={spinning} ariaLabel="Even (1:1)" />
-            <BetCell label={t.red} variant="red" chips={bets['red']?.amount} onClick={() => placeBetTracked({ kind: 'red' })} disabled={spinning} ariaLabel="Red (1:1)" />
-            <BetCell label={t.black} variant="black" chips={bets['black']?.amount} onClick={() => placeBetTracked({ kind: 'black' })} disabled={spinning} ariaLabel="Black (1:1)" />
-            <BetCell label={t.odd} variant="outside" chips={bets['odd']?.amount} onClick={() => placeBetTracked({ kind: 'odd' })} disabled={spinning} ariaLabel="Odd (1:1)" />
-            <BetCell label={t.high} variant="outside" chips={bets['high']?.amount} onClick={() => placeBetTracked({ kind: 'high' })} disabled={spinning} ariaLabel="High 19-36 (1:1)" />
+            <BetCell label={t.low} variant="outside" chips={bets['low']?.amount} onClick={() => placeBetTracked({ kind: 'low' })} disabled={spinning} ariaLabel={t.betAria('low', BET_ODDS.even)} />
+            <BetCell label={t.even} variant="outside" chips={bets['even']?.amount} onClick={() => placeBetTracked({ kind: 'even' })} disabled={spinning} ariaLabel={t.betAria('even', BET_ODDS.even)} />
+            <BetCell label={t.red} variant="red" chips={bets['red']?.amount} onClick={() => placeBetTracked({ kind: 'red' })} disabled={spinning} ariaLabel={t.betAria('red', BET_ODDS.even)} />
+            <BetCell label={t.black} variant="black" chips={bets['black']?.amount} onClick={() => placeBetTracked({ kind: 'black' })} disabled={spinning} ariaLabel={t.betAria('black', BET_ODDS.even)} />
+            <BetCell label={t.odd} variant="outside" chips={bets['odd']?.amount} onClick={() => placeBetTracked({ kind: 'odd' })} disabled={spinning} ariaLabel={t.betAria('odd', BET_ODDS.even)} />
+            <BetCell label={t.high} variant="outside" chips={bets['high']?.amount} onClick={() => placeBetTracked({ kind: 'high' })} disabled={spinning} ariaLabel={t.betAria('high', BET_ODDS.even)} />
           </div>
         </div>
 

@@ -5,6 +5,12 @@
  */
 
 import type { GameLanguage } from '../constants/gameTranslations';
+import { colorOf } from './engine';
+
+const COLOR_NAMES: Record<GameLanguage, Record<'red' | 'black' | 'green', string>> = {
+  en: { red: 'red', black: 'black', green: 'green' },
+  ja: { red: '赤', black: '黒', green: '緑' },
+};
 
 export interface RouletteStrings {
   title: string;
@@ -32,6 +38,14 @@ export interface RouletteStrings {
   win: string;
   lose: string;
   push: string;
+  /** Localized color name for a pocket (red/black/green). */
+  colorName: (n: number) => string;
+  /** aria-label for the wheel when idle / spinning. */
+  wheelIdle: string;
+  /** aria-label for the wheel once a result has settled. */
+  wheelResult: (n: number) => string;
+  /** aria-label for a bet cell: "<bet name> (<odds>:1)". */
+  betAria: (kind: string, odds: number) => string;
   // labels
   low: string;
   high: string;
@@ -148,6 +162,10 @@ const EN: RouletteStrings = {
   win: 'Win',
   lose: 'Loss',
   push: 'Push',
+  colorName: (n) => COLOR_NAMES.en[colorOf(n)],
+  wheelIdle: 'Roulette wheel',
+  wheelResult: (n) => `Roulette wheel showing ${n} (${COLOR_NAMES.en[colorOf(n)]})`,
+  betAria: (kind, odds) => `${BET_NAMES_EN[kind] ?? kind} (${odds}:1)`,
   low: '1–18',
   high: '19–36',
   even: 'EVEN',
@@ -236,6 +254,10 @@ const JA: RouletteStrings = {
   win: '勝ち',
   lose: '負け',
   push: '引分',
+  colorName: (n) => COLOR_NAMES.ja[colorOf(n)],
+  wheelIdle: 'ルーレットホイール',
+  wheelResult: (n) => `ルーレットホイール 結果 ${n}（${COLOR_NAMES.ja[colorOf(n)]}）`,
+  betAria: (kind, odds) => `${BET_NAMES_JA[kind] ?? kind} (${odds}:1)`,
   low: '1–18',
   high: '19–36',
   even: '偶数',

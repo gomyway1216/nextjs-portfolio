@@ -14,6 +14,10 @@ interface WheelProps {
   /** Called once the spin animation settles. */
   onSettled?: () => void;
   size?: number;
+  /** Localized aria-label for the settled result (given the pocket number). */
+  resultLabel?: (n: number) => string;
+  /** Localized aria-label while idle / spinning. */
+  idleLabel?: string;
 }
 
 const SLICE_DEG = 360 / POCKET_COUNT;
@@ -27,15 +31,20 @@ const colorFill: Record<string, string> = {
   green: '#0f7a3d',
 };
 
-export const Wheel = ({ result, spinId, onSettled, size = 300 }: WheelProps) => {
+export const Wheel = ({ result, spinId, onSettled, size = 300, resultLabel, idleLabel }: WheelProps) => {
   const [rotation, setRotation] = useState(0);
   const [ballRotation, setBallRotation] = useState(0);
+  // Tracks whether the ball is still in motion, so the aria-label can announce
+  // the settled result. Distinct from `hasSpun` (used to enable CSS transitions
+  // after the first spin), which never turns back off.
+  const [isSpinning, setIsSpinning] = useState(false);
   const prevSpinId = useRef<number>(0);
   const settleTimer = useRef<number | null>(null);
 
   useEffect(() => {
     if (spinId === 0 || result === null || spinId === prevSpinId.current) return;
     prevSpinId.current = spinId;
+    setIsSpinning(true);
 
     const indexOnWheel = WHEEL_ORDER.indexOf(result);
     // We want the chosen slice to end up at the top (pointer at 12 o'clock).
@@ -61,6 +70,7 @@ export const Wheel = ({ result, spinId, onSettled, size = 300 }: WheelProps) => 
 
     if (settleTimer.current) window.clearTimeout(settleTimer.current);
     settleTimer.current = window.setTimeout(() => {
+      setIsSpinning(false);
       onSettled?.();
     }, SPIN_DURATION_MS);
 
@@ -73,7 +83,7 @@ export const Wheel = ({ result, spinId, onSettled, size = 300 }: WheelProps) => 
   const innerRadius = radius * 0.46;
   const labelRadius = radius * 0.79;
   const ballOrbit = radius * 0.9;
-  const spinning = spinId !== 0;
+  const hasSpun = spinId !== 0;
 
   const slices = WHEEL_ORDER.map((n, i) => {
     const startAngle = i * SLICE_DEG - 90; // -90 so index 0 is at top
@@ -108,9 +118,11 @@ export const Wheel = ({ result, spinId, onSettled, size = 300 }: WheelProps) => 
       style={{ position: 'relative', width: size, height: size + 24, margin: '0 auto' }}
       role="img"
       aria-label={
-        result !== null && !spinning
-          ? `Roulette wheel showing ${result}`
-          : 'Roulette wheel'
+        result !== null && !isSpinning
+          ? resultLabel
+            ? resultLabel(result)
+            : `Roulette wheel showing ${result}`
+          : idleLabel ?? 'Roulette wheel'
       }
     >
       {/* Pointer at top */}
@@ -138,7 +150,7 @@ export const Wheel = ({ result, spinId, onSettled, size = 300 }: WheelProps) => 
         style={{
           marginTop: 24,
           transform: `rotate(${rotation}deg)`,
-          transition: spinning ? spinTransition : 'none',
+          transition: hasSpun ? spinTransition : 'none',
           display: 'block',
         }}
       >
@@ -161,7 +173,7 @@ export const Wheel = ({ result, spinId, onSettled, size = 300 }: WheelProps) => 
           top: 24,
           pointerEvents: 'none',
           transform: `rotate(${ballRotation}deg)`,
-          transition: spinning ? spinTransition : 'none',
+          transition: hasSpun ? spinTransition : 'none',
         }}
       >
         <circle

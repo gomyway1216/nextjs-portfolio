@@ -30,13 +30,14 @@ export const EdgeTab = () => {
   const run = () => {
     setRunning(true);
     const option = BET_OPTIONS.find((o) => o.id === betId) ?? BET_OPTIONS[0];
-    // Defer to next frame so the button shows its running state before the
-    // (potentially ~1M spin) synchronous compute blocks the main thread.
-    requestAnimationFrame(() => {
+    // Yield to the event loop so the browser can paint the "running" state
+    // before the heavy synchronous compute (up to ~1M spins) blocks the main
+    // thread. requestAnimationFrame fires before paint, so it wouldn't help.
+    setTimeout(() => {
       const res = simulateHouseEdge(option.bet, spins);
       setResult(res);
       setRunning(false);
-    });
+    }, 10);
   };
 
   const fmtPct = (v: number) => `${(v * 100).toFixed(2)}%`;

@@ -252,8 +252,10 @@ function playOneGame(
 // ---------------------------------------------------------------------------
 
 const ML_DIR = __dirname;
-const ENGINE_BIN = path.join(ML_DIR, 'bin', 'yaneuraou');
-const EVAL_DIR = path.join(ML_DIR, 'eval', 'eval');
+// エンジン/評価関数の場所は既定で ml/bin, ml/eval/eval。別マシン(2台目)では
+// AirDrop した実体が別パスにあるため、環境変数 YANE_BIN / YANE_EVAL_DIR で上書きできる。
+const ENGINE_BIN = process.env.YANE_BIN || path.join(ML_DIR, 'bin', 'yaneuraou');
+const EVAL_DIR = process.env.YANE_EVAL_DIR || path.join(ML_DIR, 'eval', 'eval');
 
 export interface EvalResult {
   cp: number;

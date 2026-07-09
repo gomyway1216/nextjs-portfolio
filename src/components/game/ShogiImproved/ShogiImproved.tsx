@@ -1236,6 +1236,7 @@ const ShogiImproved = () => {
                 return (
                   <div
                     key={`${suji}-${actualDan}`}
+                    data-testid={`cell-${suji}-${actualDan}`}
                     onClick={() => handleCellClick(suji, actualDan)}
                     style={{
                       width: 'clamp(34px, 10vw, 50px)',

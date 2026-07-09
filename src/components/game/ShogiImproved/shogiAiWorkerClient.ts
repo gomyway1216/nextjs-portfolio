@@ -69,13 +69,33 @@ function computeSearchThreadCount(): number {
 }
 
 /**
+ * Per-difficulty hard wall-clock deadline for one best-move request. If the
+ * worker has not answered by then it is treated as wedged: we terminate it (and
+ * any SMP helpers), respawn a fresh SINGLE-THREAD worker, and reject the request
+ * so the caller falls back to the main-thread search for that move. This
+ * guarantees the UI can never stick on "AI Thinking..." — independent of the
+ * cause. Deadlines sit well above the real search budget (master ~5s) yet far
+ * below a hang a human would notice, so they never fire on legitimate play.
+ */
+const HARD_DEADLINE_MS: Record<Difficulty, number> = {
+  easy: 4_000,
+  medium: 6_000,
+  hard: 9_000,
+  expert: 12_000,
+  master: 14_000,
+};
+function hardDeadlineMs(difficulty: Difficulty): number {
+  return HARD_DEADLINE_MS[difficulty] ?? HARD_DEADLINE_MS.hard;
+}
+
+/**
  * Spawn the Lazy SMP helper workers and wire them to the main AI worker.
  *
  * Requirements (any missing → return [] and the game runs exactly as the
  * previous single-thread build):
  * - SharedArrayBuffer available == the page is cross-origin isolated (the
- *   /games/shogi-improved route sends COOP/COEP headers; anywhere else the
- *   constructor simply does not exist).
+ *   /games/shogi route sends COOP/COEP headers; anywhere else the constructor
+ *   simply does not exist).
  * - At least 2 usable threads on this machine.
  *
  * The client owns all `new Worker(new URL(...))` calls (bundler-statically
@@ -120,8 +140,11 @@ function trySpawnSmpHelpers(worker: Worker): Worker[] {
 }
 
 export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
-  const worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), { type: 'module' });
-  const helpers = trySpawnSmpHelpers(worker);
+  // The worker (and its SMP helpers) are mutable: the hard-deadline fallback
+  // tears a wedged set down and respawns a fresh single-thread worker.
+  let worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), { type: 'module' });
+  let helpers = trySpawnSmpHelpers(worker);
+  let disposed = false;
 
   let nextId = 1;
   const pending = new Map<
@@ -130,51 +153,86 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
   >();
 
   const rejectAll = (err: Error) => {
-    for (const [, p] of pending) p.reject(err);
+    const entries = [...pending.values()];
     pending.clear();
+    for (const p of entries) p.reject(err);
   };
 
-  worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
-    const msg = event.data;
-    if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
+  // Wire the message/error handlers onto whatever worker is current, so a
+  // respawned worker is handled identically.
+  const attachWorkerHandlers = (w: Worker): void => {
+    w.onmessage = (event: MessageEvent<WorkerResponse>) => {
+      const msg = event.data;
+      if (!msg || typeof msg !== 'object' || !('type' in msg)) return;
 
-    if (msg.type === 'bestMoveResult') {
-      const p = pending.get(msg.id);
-      if (!p) return;
-      pending.delete(msg.id);
-      p.resolve({ move: msg.move, scoreCp: msg.scoreCp, depth: msg.depth });
-      return;
-    }
+      if (msg.type === 'bestMoveResult') {
+        const p = pending.get(msg.id);
+        if (!p) return;
+        pending.delete(msg.id);
+        p.resolve({ move: msg.move, scoreCp: msg.scoreCp, depth: msg.depth });
+        return;
+      }
 
-    if (msg.type === 'error') {
-      const p = pending.get(msg.id);
-      if (!p) return;
-      pending.delete(msg.id);
-      p.reject(new Error(msg.message));
-    }
+      if (msg.type === 'error') {
+        const p = pending.get(msg.id);
+        if (!p) return;
+        pending.delete(msg.id);
+        p.reject(new Error(msg.message));
+      }
+    };
+    w.onerror = (event) => {
+      // Webpack/Turbopack wraps the real error; keep the message short.
+      rejectAll(new Error((event as ErrorEvent).message || 'Worker error'));
+    };
   };
-
-  worker.onerror = (event) => {
-    // Webpack/Turbopack wraps the real error; keep the message short.
-    rejectAll(new Error((event as ErrorEvent).message || 'Worker error'));
-  };
+  attachWorkerHandlers(worker);
 
   // Pause pondering while the tab is hidden (battery/CPU): the worker cannot
   // see page visibility, so relay it. Requests keep working while suspended —
   // only the opponent-time search is paused.
-  const onVisibilityChange = () => {
+  const syncVisibility = () => {
+    if (typeof document === 'undefined') return;
     const req: WorkerRequest = {
       type: 'ponderControl',
       action: document.visibilityState === 'hidden' ? 'suspend' : 'resume',
     };
-    worker.postMessage(req);
+    try {
+      worker.postMessage(req);
+    } catch {
+      /* worker may be mid-respawn */
+    }
   };
+  const onVisibilityChange = () => syncVisibility();
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', onVisibilityChange);
     // Sync the initial state: if the page is already hidden when the client is
     // created (e.g. a background tab), no event fires until the next toggle.
     onVisibilityChange();
   }
+
+  /**
+   * Guarantee the UI never sticks: terminate the current worker + helpers (they
+   * may be wedged and unresponsive), reject every pending request so the caller
+   * falls back to the main-thread search, and respawn a FRESH single-thread
+   * worker (no SMP — the safest possible mode) for future moves.
+   */
+  const respawnSingleThread = (): void => {
+    if (disposed) return;
+    console.warn('[shogiAiWorkerClient] AI worker unresponsive; terminating and respawning single-thread');
+    try {
+      worker.onmessage = null;
+      worker.onerror = null;
+      worker.terminate();
+      for (const h of helpers) h.terminate();
+    } catch {
+      /* terminate is best-effort */
+    }
+    rejectAll(new Error('AI worker timed out'));
+    worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), { type: 'module' });
+    helpers = []; // after a stall, favor the rock-solid single-thread path
+    attachWorkerHandlers(worker);
+    syncVisibility();
+  };
 
   const requestBestMoveWithInfo = (
     position: SerializedKyokumenImproved,
@@ -183,16 +241,16 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
   ): Promise<BestMoveInfo> => {
     const id = nextId++;
     return new Promise<BestMoveInfo>((resolve, reject) => {
-      // Watchdog: if the worker never answers (an internal search hang), reject
-      // after a generous timeout so the UI never sticks on "AI Thinking..."
-      // forever — the caller then falls back to the main-thread search. 20s is
-      // far above any real search budget (master ~5s), so it only fires on a
-      // genuine hang, never on legitimate play.
+      // Hard wall-clock deadline: if the worker has not answered by then it is
+      // treated as wedged — tear it down, respawn single-thread, and reject so
+      // the caller falls back to the main-thread search. The UI never sticks on
+      // "AI Thinking..." regardless of the failure cause.
       const timer = setTimeout(() => {
         if (pending.delete(id)) {
+          respawnSingleThread();
           reject(new Error('AI worker timed out'));
         }
-      }, 20000);
+      }, hardDeadlineMs(difficulty));
       pending.set(id, {
         resolve: (info) => { clearTimeout(timer); resolve(info); },
         reject: (err) => { clearTimeout(timer); reject(err); },
@@ -203,7 +261,7 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
       } catch (err) {
         // postMessage can throw (worker already terminated, DataCloneError,
         // …). Clean up so the request doesn't linger in `pending` with a live
-        // watchdog timer; the caller then falls back to the main-thread search.
+        // deadline timer; the caller then falls back to the main-thread search.
         clearTimeout(timer);
         pending.delete(id);
         reject(err instanceof Error ? err : new Error(String(err)));
@@ -217,10 +275,14 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
     },
     requestBestMoveWithInfo,
     clearTT() {
-      const req: WorkerRequest = { type: 'clearTT' };
-      worker.postMessage(req);
+      try {
+        worker.postMessage({ type: 'clearTT' } as WorkerRequest);
+      } catch {
+        /* worker may be mid-respawn */
+      }
     },
     terminate() {
+      disposed = true;
       if (typeof document !== 'undefined') {
         document.removeEventListener('visibilitychange', onVisibilityChange);
       }

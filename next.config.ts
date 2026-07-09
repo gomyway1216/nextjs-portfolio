@@ -94,14 +94,47 @@ const nextConfig: NextConfig = {
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
-      // NOTE: Cross-origin isolation (COOP/COEP) for /games/shogi-improved was
-      // intentionally REMOVED. It unlocked SharedArrayBuffer, which enabled the
-      // multi-thread (Lazy SMP) search — but that parallel search deadlocked in
-      // production (the page froze on "AI Thinking..." with no recovery), while
-      // its strength benefit was only a ~+58 Elo point estimate (n=24, not
-      // significant). Without these headers the page gets no SharedArrayBuffer
-      // and the AI stays single-thread — the same stable path /games/shogi uses.
-      // See shogiAiWorkerClient.ts (trySpawnSmpHelpers returns [] without SAB).
+      // Cross-origin isolation for the shogi engine's multi-thread (Lazy SMP)
+      // search. Isolation exposes SharedArrayBuffer, which the AI worker uses to
+      // share a transposition table across a main + N helper worker threads
+      // (see shogiAiWorkerClient.ts). Scoped to /games/shogi only so the rest of
+      // the site keeps embedding third-party resources normally.
+      //
+      // IMPORTANT — the whole-history freeze fix lives here. Under COEP
+      // require-corp, a dedicated Worker's OWN script response must assert a
+      // compatible embedder policy, or the browser blocks it
+      // (net::ERR_BLOCKED_BY_RESPONSE) — CORP:same-origin alone is not enough
+      // for the worker top-level script. Without COEP on the worker chunks the
+      // AI worker never boots and every search hangs ("AI Thinking..." forever).
+      // That was the real cause of the historical freeze (NOT a Lazy SMP
+      // deadlock — it reproduced even single-thread). Hence COEP:require-corp on
+      // /_next/* below, alongside CORP so the isolated document can embed them.
+      {
+        source: '/games/shogi',
+        headers: [
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+      {
+        // Next build output: CORP so the isolated document can embed it, and
+        // COEP so the AI worker's script chunks (turbopack-worker-*.js) load
+        // instead of being blocked (see note above).
+        source: '/_next/:path*',
+        headers: [
+          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+          { key: 'Cross-Origin-Embedder-Policy', value: 'require-corp' },
+        ],
+      },
+      {
+        // Static engine assets fetched by the worker under require-corp.
+        source: '/shogi-nnue-weights.bin',
+        headers: [{ key: 'Cross-Origin-Resource-Policy', value: 'same-origin' }],
+      },
+      {
+        source: '/shogi-opening-book.bin',
+        headers: [{ key: 'Cross-Origin-Resource-Policy', value: 'same-origin' }],
+      },
       {
         source: '/:path*',
         headers: [

@@ -333,7 +333,7 @@ game4 mid-game (ply 15-70, n=51):
 | runOp1 (current) | −607.0 | 25.5% | 23 |
 | **deep16 (candidate)** | **−520.3** | **43.1%** | 16 |
 
-**On game4, deep16 clearly improved.** Sign-agreement 25.5% → **43.1%**, mean signed −607 → −520, flips 23 → 16 (48.5% vs 30.3% across all positions). The exact opposite of game3's "unchanged."
+**On game4, deep16 clearly improved.** Sign-agreement 25.5% → **43.1%**, mean signed −607 → −520, flips 23 → 16 (30.3% → 48.5% across all positions). The exact opposite of game3's "unchanged."
 
 The reason is simple: **game3 is a game the author lost badly — an extreme outlier where the eval is hopelessly wrong**; game4 is a more typical mid-game. The re-distillation **did** improve calibration on ordinary positions — I just looked at the single worst game and declared it dead.
 

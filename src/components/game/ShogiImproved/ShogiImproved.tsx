@@ -514,10 +514,17 @@ const ShogiImproved = () => {
     setEvalInfo(null);
     setShowPromotionDialog(false);
     setPendingMove(null);
-    // Importing may happen mid-AI-think (the invalidated request above means its
-    // reply is discarded either way); clear the "thinking" flag so the status
-    // strip doesn't keep showing it throughout replay.
-    setGameState(prev => (prev.isAIThinking ? { ...prev, isAIThinking: false } : prev));
+    // Importing may happen mid-selection (a piece/captured-piece highlighted,
+    // possibly mid-AI-think too — the invalidated request above means any
+    // in-flight reply is discarded either way). Clear all of that so replay
+    // never shows stale green valid-move squares or a stuck "thinking" spinner.
+    setGameState(prev => ({
+      ...prev,
+      selectedPosition: null,
+      selectedCapturedIndex: -1,
+      validMoves: [],
+      isAIThinking: false,
+    }));
     setReplay({ positions, viewPly: positions.length - 1 });
   }, [gameState.kyokumen]);
 
@@ -1429,7 +1436,11 @@ const ShogiImproved = () => {
                               ? '#f8dfa2' // last move: origin (soft amber)
                               : '#ffe8b8',
                         border: '1px solid #8b7355',
-                        cursor: 'pointer',
+                        // Replay is a read-only playback state (clicks are
+                        // ignored — see handleCellClick's `replay ||` guard);
+                        // reflect that in the cursor instead of implying the
+                        // board is interactive.
+                        cursor: replay ? 'default' : 'pointer',
                         position: 'relative',
                         display: 'flex',
                         alignItems: 'center',
@@ -1643,21 +1654,46 @@ const ShogiImproved = () => {
             )}
 
             <div style={{ maxHeight: '170px', overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: '2px 14px', fontSize: '14px', lineHeight: 1.7 }}>
-              {moveList.map((m, i) => (
-                <span
-                  key={i}
-                  onClick={() => replay && setReplay((r) => (r ? { ...r, viewPly: i + 1 } : r))}
-                  style={{
-                    minWidth: '5.5em',
-                    color: replay && replay.viewPly === i + 1 ? '#ffd700' : '#e6e6e6',
-                    fontWeight: replay && replay.viewPly === i + 1 ? 700 : 400,
-                    fontVariantNumeric: 'tabular-nums',
-                    cursor: replay ? 'pointer' : 'default',
-                  }}
-                >
-                  {i + 1}. {moveToKifu(m, moveList[i - 1])}
-                </span>
-              ))}
+              {moveList.map((m, i) =>
+                replay ? (
+                  // During replay each move is a real, keyboard-operable button
+                  // (Tab/Enter/Space) that jumps the board to that ply — plain
+                  // <span onClick> is neither focusable nor announced as
+                  // interactive by assistive tech.
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setReplay((r) => (r ? { ...r, viewPly: i + 1 } : r))}
+                    style={{
+                      minWidth: '5.5em',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      padding: 0,
+                      color: replay.viewPly === i + 1 ? '#ffd700' : '#e6e6e6',
+                      fontWeight: replay.viewPly === i + 1 ? 700 : 400,
+                      fontVariantNumeric: 'tabular-nums',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {i + 1}. {moveToKifu(m, moveList[i - 1])}
+                  </button>
+                ) : (
+                  <span
+                    key={i}
+                    style={{
+                      minWidth: '5.5em',
+                      color: '#e6e6e6',
+                      fontVariantNumeric: 'tabular-nums',
+                      cursor: 'default',
+                    }}
+                  >
+                    {i + 1}. {moveToKifu(m, moveList[i - 1])}
+                  </span>
+                )
+              )}
             </div>
           </div>
         </div>

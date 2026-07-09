@@ -320,7 +320,26 @@ Result (truth = YaneuraOu depth-16, game3 mid-game ply 15-70, n=51):
 
 **What this taught us.** Overall accuracy (holdout) rose while the mid-game sign bias didn't budge a millimeter — strong evidence that **the mid-game bias is not a label-depth problem.** Make the labels deeper and more accurate, and the net still emits the same wrong sign on the same positions. The culprit is more likely the **training distribution** (the mid-games that arise in the author's real play are learned as "gote-favored" in the teacher set), or the fact that this **metric is a single game — game3, 51 positions — too narrow a window.** On the 4000-position holdout the net is well-calibrated (pair-acc 0.90), yet on game3 it's 7.8% — the shape of "the net systematically misjudges a specific kind of mid-game that the author's style produces."
 
-> The spine of this series held up again. **Improving a proxy metric (holdout) guarantees neither playing strength nor the removal of the bias you were aiming at.** "Deeper labels" was a plausible-looking move that, once measured, whiffed. What will move the needle next is probably not *depth* but *distribution* — oversampling the mid-games the author actually loses, with correct labels — and re-measuring the bias across several real games, not one. A whiff, recorded with the number that shows where you missed, becomes the next aim.
+> The spine of this series held up again. **Improving a proxy metric (holdout) guarantees neither playing strength nor the removal of the bias you were aiming at.** "Deeper labels" was a plausible-looking move that, on this one game, looked like a whiff. What will move the needle next is probably not *depth* but *distribution* — oversampling the mid-games the author actually loses, with correct labels — and re-measuring the bias across several real games, not one. A whiff, recorded with the number that shows where you missed, becomes the next aim.
+
+### 11.5 Correction: measured on a second game, it *did* help — the author of "don't conclude from one game" concluded from one game
+
+The "whiff" verdict in §11.4 was drawn from **one game — game3, 51 positions.** The exact mistake this series keeps preaching against — "don't let a proxy or a single sample decide adoption" — and the person writing it walked right into it. So I re-measured on a **different real game, game4 (78 plies)**, with the same yardstick (YaneuraOu depth-16 truth).
+
+game4 mid-game (ply 15-70, n=51):
+
+| model | mean signed | sign-agreement | flips |
+|---|---|---|---|
+| runOp1 (current) | −607.0 | 25.5% | 23 |
+| **deep16 (candidate)** | **−520.3** | **43.1%** | 16 |
+
+**On game4, deep16 clearly improved.** Sign-agreement 25.5% → **43.1%**, mean signed −607 → −520, flips 23 → 16 (30.3% → 48.5% across all positions). The exact opposite of game3's "unchanged."
+
+The reason is simple: **game3 is a game the author lost badly — an extreme outlier where the eval is hopelessly wrong**; game4 is a more typical mid-game. The re-distillation **did** improve calibration on ordinary positions — I just looked at the single worst game and declared it dead.
+
+**Honest revised verdict:** deep16 vs current is **better mid-game bias on game4, equal on game3, slightly better holdout, tied A/B (no regression).** Not a whiff — a **modest, non-regressing improvement to mid-game calibration on typical positions.** But the tied A/B means self-play can't separate them, so the final call goes to the author's over-the-board play (i.e. no automatic production swap — ship it via a preview and decide by feel).
+
+> The most painful lesson here: **the guy sermonizing "never conclude from one game" concluded from one game.** For a negative result especially, widen the sample before you decide adoption. On game3 alone: "deeper labels are useless." Add game4: "they help on typical positions." Same experiment — one extra window flips the story.
 
 ## Lessons from this chapter
 
@@ -336,4 +355,4 @@ Result (truth = YaneuraOu depth-16, game3 mid-game ply 15-70, n=51):
 - **Kill the symptom and you hide the cause.** A production-only freeze shouldn't be papered over by disabling the feature; reproduce it in a production-identical environment and expose the real cause (a missing COEP header). We'd falsely blamed innocent parallelism (Ch. 11).
 - **A deep search can't rescue a broken eval.** Multi-threaded depth only pays off when the eval is sound; strong engines parallelize well because their base eval is good. Order of operations: eval first, then depth (Ch. 11).
 - **The biggest flaw was found by the author's real games.** A mid-game eval bias (winner's sign backwards ~90% of the time) that self-play A/B and every proxy metric missed — surfaced in one shot by a 2-dan's actual play. The real games are the final judge, re-proven (Ch. 11).
-- **The more plausible the move, the more it needs measuring before you adopt it.** "Fix the mid-game with deeper labels" looked sound, but re-scoring 918k positions at depth-16 left sign-agreement at 7.8%→7.8% and the A/B a tie; only the proxy (holdout) nudged. The cause is distribution, not label depth — record the whiff and aim at distribution next (Ch. 11, not adopted).
+- **Don't conclude from one game — the guy preaching it did exactly that.** The deeper-label re-distillation looked like a whiff on game3 alone, but re-measured on game4 the mid-game sign-agreement improved 25.5→43.1%. For a negative result especially, widen the sample before deciding adoption. The real picture: a modest, non-regressing gain in typical-position calibration, with a tied A/B (Ch. 11).

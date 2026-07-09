@@ -16,6 +16,7 @@
 8. **An honest measurement**: quantifying the book's effect with A/B — and why it looks small in self-play
 9. **Cycle 4**: deepen the book to 30 plies + cure the opening bias by retraining the NNUE (shipped to production)
 10. **Lab notebook: what didn't work**: the endgame-speedup dead end, how KP features and self-play data couldn't win, and the ceiling on "cheap" gains
+11. **What the real games exposed**: the "freeze" bug we'd falsely accused, why multi-threading is only a modest gain, and the NNUE eval that calls the mid-game winner backwards ~90% of the time (in progress)
 
 ---
 
@@ -261,6 +262,47 @@ Why it didn't translate: the reached distribution wasn't as different from the b
 
 > Chapter conclusion: **production has spent its cheap wins.** Two sound ideas — KP and self-play data — both showed proxy-metric gains yet produced no significant A/B edge, and every speedup lever turned out to be already implemented. The next step up now lives in "multi-day investment" territory: **re-distilling from deeper labels, a dedicated mate solver, or a bigger network.** The cheap gains are, honestly, picked clean. And that's not a failure — it's progress: we've pinned down, by measurement, **where the ceiling is.** A record of losses is what tells you where to bet next.
 
+## 11. What the real games exposed: a mid-game eval bias (in progress)
+
+Chapter 10 ended with "the cheap wins are spent; next comes multi-day investment." Starting that investment cleared the name of a bug we'd blamed on the wrong thing for a year — and then the author's own games (he's a 2-dan) pinned the AI's single biggest flaw with a hard number.
+
+### 11.1 The "freeze" bug we'd falsely accused
+
+This AI once had **multi-threaded search (Lazy SMP — many cores reading together)**, but it was shelved because in production the page would **hang forever on "AI thinking…"**. The cause was assumed to be a parallel-search deadlock.
+
+Re-investigating in a faithful production build (headless Chrome), bisection showed the opposite:
+- **It froze even with parallelism fully off (single-thread)** → parallelism was not the cause.
+- **Turning off cross-origin isolation (COEP) fixed it** → the culprit was a header.
+- The smoking gun: `net::ERR_BLOCKED_BY_RESPONSE /_next/.../worker-*.js`.
+
+Root cause: **under COEP `require-corp`, the Web Worker's own script body must also carry a COEP header** (CORP alone is insufficient). Without it, the browser blocked the worker script, so the **AI worker never booted and every search hung forever**. It happens single-threaded too. The fix is one line: add COEP to `/_next/*`.
+
+> Lesson: **kill the symptom and you hide the cause.** The old "fix" stripped COOP/COEP wholesale — the freeze vanished, but the real cause stayed buried and an innocent feature (parallelism) took the blame. And a **production-only bug has to be reproduced in a production-identical environment**, not stared at in the source.
+
+### 11.2 Parallelism restored — a modest gain, and why
+
+With the real cause fixed, parallelism finally ran (main + helpers). A/B: **+59% at 2000ms** (the hard/master tiers the author actually plays), **roughly even at 1000ms**. "Reads a bit deeper," but not dramatic. Three reasons: touching the shared TT across the JS boundary costs, a browser gives you only a handful of threads, and — the key one — **depth is only worth anything if the eval is right**. Search a wrong eval more deeply and you just grow more confident in the wrong answer. That third reason feeds straight into the next finding.
+
+### 11.3 The real culprit, measured from the author's own games — the NNUE gets the winner wrong ~90% of the time in the mid-game
+
+Every time the author played, he reported "loose mid-game moves": pointless bishop repositioning, drops onto dead squares, pawns thrown at the *opponent's* king instead of defending his own, attacking when he should defend and losing. To check each one **with the engine**, we reconstructed his real games (ambiguous kifu — where several pieces can reach the same square — were resolved by a **backtracking parser that searches for a self-consistent interpretation**).
+
+Then we lined up **the browser NNUE's eval against YaneuraOu's ground truth, ply by ply**, and a decisive number fell out. In the mid-game (ply 15–70, excluding settled positions):
+
+- **Mean signed error −1525cp** (i.e. in the mid-game it rates its own side — gote — about 1500cp better than reality).
+- **Fraction where it even gets the sign of "who's winning" right: only 7.8%.**
+- **36 of 51 positions were sign-flipped** (shows gote-good when it's actually sente-good).
+
+In other words, **in the mid-game this NNUE calls the winner backwards about nine times out of ten**. The author's persistent complaint — "the eval bar shows gote crushing even when it's even or sente-better" — was not a misread or a one-game fluke; it was **this severe systematic bug**.
+
+This **explains every real-game loss**: the AI thinks it's winning, so it **picks loose attacks instead of defending, overpushes, walks off a cliff without noticing**. The loose bishops, the pawns at the king, the endgames it can't hold — one root. The same shape as §9 (the "queasy floating-rook" opening move traced to the brain, not the book), but **in the mid-game, and worse**.
+
+> This is the biggest finding of the whole effort. **The largest flaw — missed by self-play A/B and every proxy metric — was nailed in one shot by the author's real games.** The spine of this series ("proxy metrics don't predict playing strength; the author's real play is the final judge") proved itself again.
+
+**The fix (in progress):** re-distill the eval from deeper (depth-16) YaneuraOu labels, **concentrated in the mid-game**. The pass/fail gate is not just win-rate but "**did this mid-game bias (−1525cp, 7.8% sign-agreement) actually shrink**." Data is being gathered in parallel across the author's several Macs right now. Honestly: **deeper labels alone are not guaranteed to fix a systematic bias** — if the cause is data imbalance rather than shallow labels, a different lever is needed. When the result lands — pass or fail — it goes here.
+
+> Lesson (provisional): **a deep search cannot rescue a broken eval.** Before you spend threads reading deeper, fix the eval itself. Strong engines parallelize well because their underlying eval is sound; we're going after the eval first.
+
 ## Lessons from this chapter
 
 - **"A verified book" and "a sufficient book" are different things.** Every move can be correct and the coverage still leaks through the holes of a line-shaped book.
@@ -272,3 +314,6 @@ Why it didn't translate: the reached distribution wasn't as different from the b
 - **Design the fallback before the feature.** "Fetch fails → hand-written book, unchanged behavior" is what makes a big change safe to ship.
 - **"Where it takes effect" decides significance.** An eval change (every move) turns significant in self-play; a book change (only under the right conditions) shows its value against humans. Same goal, different correct measurement (Cycle 4).
 - **For a weird move, suspect the brain, not the book.** A blunder the instant you leave book is cured by an opening-heavy retrain. Don't let the proxy metric (pair-acc) decide adoption — settle it on 192 real games.
+- **Kill the symptom and you hide the cause.** A production-only freeze shouldn't be papered over by disabling the feature; reproduce it in a production-identical environment and expose the real cause (a missing COEP header). We'd falsely blamed innocent parallelism (Ch. 11).
+- **A deep search can't rescue a broken eval.** Multi-threaded depth only pays off when the eval is sound; strong engines parallelize well because their base eval is good. Order of operations: eval first, then depth (Ch. 11).
+- **The biggest flaw was found by the author's real games.** A mid-game eval bias (winner's sign backwards ~90% of the time) that self-play A/B and every proxy metric missed — surfaced in one shot by a 2-dan's actual play. The real games are the final judge, re-proven (Ch. 11).

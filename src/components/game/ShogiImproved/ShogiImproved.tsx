@@ -712,8 +712,11 @@ const ShogiImproved = () => {
       !gameState.isAIThinking
     ) {
       const requestId = ++aiRequestIdRef.current;
-      // Resolve the book move up-front (cheap hash lookup) so the UI can tell an
-      // instant book reply apart from a real search before the think even starts.
+      // Resolve the book move up-front so the UI can tell an instant book reply
+      // apart from a real search before the think even starts. This is the same
+      // lookup the book branch used to do inside the delay (it may generate and
+      // static-eval candidates to safety-filter them), just hoisted — not an
+      // extra call.
       const bookMove = handicap === 'none'
         ? getOpeningMoveImproved(gameState.kyokumen.clone(), difficulty)
         : null;
@@ -1324,7 +1327,7 @@ const ShogiImproved = () => {
                   : `評価値 ${evalInfo.scoreCp >= 0 ? '+' : ''}${evalInfo.scoreCp}${
                       evalInfo.depth ? `（深さ${evalInfo.depth}）` : ''
                     }`
-                : aiPlayingBook ? '定跡' : '評価値 —'}
+                : aiPlayingBook && gameState.isAIThinking ? '定跡' : '評価値 —'}
             </span>
           </div>
         </div>

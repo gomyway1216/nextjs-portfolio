@@ -303,6 +303,25 @@ This **explains every real-game loss**: the AI thinks it's winning, so it **pick
 
 > Lesson (provisional): **a deep search cannot rescue a broken eval.** Before you spend threads reading deeper, fix the eval itself. Strong engines parallelize well because their underlying eval is sound; we're going after the eval first.
 
+### 11.4 Result: deeper labels did NOT fix the mid-game bias (an honest miss)
+
+The re-distillation ran to completion. Starting from the 5.9M-position teacher set, we synthesized in **918,566 depth-16 labels** (599k existing positions re-scored + 319k freshly generated mid-game positions from a second machine, focused on ply 20-60). Train (board features, sigmoid, 20 epochs) → quantize → measure against the two gates.
+
+Result (truth = YaneuraOu depth-16, game3 mid-game ply 15-70, n=51):
+
+| | mean signed | sign-agreement | A/B (40 self-play games) | holdout MAE / pair |
+|---|---|---|---|---|
+| runOp1 (current) | −1524.9 | 7.8% | — | 476.1 / 0.9001 |
+| **deep16 (candidate)** | **−1331.3** | **7.8%** | **52.5% (a tie — 95% CI [37, 68])** | **443.2 / 0.9031** |
+
+- **Mid-game sign-agreement went 7.8% → 7.8% — it did not move at all.** The mean error shrank 13% (1525→1331), but "who's winning" is still called backwards ~90% of the time.
+- The A/B was 52.5% — **a statistical tie**. The only thing that improved was the proxy metric (holdout MAE 476→443, pair-acc 0.900→0.903).
+- It **misses the pre-registered adoption gate** (sign-agreement ≥35%, a significant A/B), so it was **not adopted** and never shipped to production.
+
+**What this taught us.** Overall accuracy (holdout) rose while the mid-game sign bias didn't budge a millimetre — strong evidence that **the mid-game bias is not a label-depth problem.** Make the labels deeper and more accurate, and the net still emits the same wrong sign on the same positions. The culprit is more likely the **training distribution** (the mid-games that arise in the author's real play are learned as "gote-favored" in the teacher set), or the fact that this **metric is a single game — game3, 51 positions — too narrow a window.** On the 4000-position holdout the net is well-calibrated (pair-acc 0.90), yet on game3 it's 7.8% — the shape of "the net systematically misjudges a specific kind of mid-game that the author's style produces."
+
+> The spine of this series held up again. **Improving a proxy metric (holdout) guarantees neither playing strength nor the removal of the bias you were aiming at.** "Deeper labels" was a plausible-looking move that, once measured, whiffed. What will move the needle next is probably not *depth* but *distribution* — oversampling the mid-games the author actually loses, with correct labels — and re-measuring the bias across several real games, not one. A whiff, recorded with the number that shows where you missed, becomes the next aim.
+
 ## Lessons from this chapter
 
 - **"A verified book" and "a sufficient book" are different things.** Every move can be correct and the coverage still leaks through the holes of a line-shaped book.
@@ -317,3 +336,4 @@ This **explains every real-game loss**: the AI thinks it's winning, so it **pick
 - **Kill the symptom and you hide the cause.** A production-only freeze shouldn't be papered over by disabling the feature; reproduce it in a production-identical environment and expose the real cause (a missing COEP header). We'd falsely blamed innocent parallelism (Ch. 11).
 - **A deep search can't rescue a broken eval.** Multi-threaded depth only pays off when the eval is sound; strong engines parallelize well because their base eval is good. Order of operations: eval first, then depth (Ch. 11).
 - **The biggest flaw was found by the author's real games.** A mid-game eval bias (winner's sign backwards ~90% of the time) that self-play A/B and every proxy metric missed — surfaced in one shot by a 2-dan's actual play. The real games are the final judge, re-proven (Ch. 11).
+- **The more plausible the move, the more it needs measuring before you adopt it.** "Fix the mid-game with deeper labels" looked sound, but re-scoring 918k positions at depth-16 left sign-agreement at 7.8%→7.8% and the A/B a tie; only the proxy (holdout) nudged. The cause is distribution, not label depth — record the whiff and aim at distribution next (Ch. 11, not adopted).

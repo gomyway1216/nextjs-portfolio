@@ -296,6 +296,10 @@ const ShogiImproved = () => {
   const [evalInfo, setEvalInfo] = useState<EvalInfo | null>(null);
   // Elapsed ms of the current AI think, ticking while isAIThinking.
   const [thinkElapsedMs, setThinkElapsedMs] = useState(0);
+  // True when the AI's move came (or is coming) straight from the opening book.
+  // Book moves are instant — showing "考えています… 0.4秒" for them looks like a
+  // frozen timer, so the status strip shows "定跡" and hides the seconds instead.
+  const [aiPlayingBook, setAiPlayingBook] = useState(false);
 
   // Hydrate persisted preferences after mount (not in useState initializers:
   // SSR markup must match the client's first render).
@@ -708,8 +712,17 @@ const ShogiImproved = () => {
       !gameState.isAIThinking
     ) {
       const requestId = ++aiRequestIdRef.current;
+      // Resolve the book move up-front (cheap hash lookup) so the UI can tell an
+      // instant book reply apart from a real search before the think even starts.
+      const bookMove = handicap === 'none'
+        ? getOpeningMoveImproved(gameState.kyokumen.clone(), difficulty)
+        : null;
+      setAiPlayingBook(!!bookMove);
       setGameState(prev => ({ ...prev, isAIThinking: true }));
 
+      // Book replies are instant — a short courtesy pause reads as "played from
+      // book" rather than a stuck 0.5s "thinking". Real searches keep the 500ms
+      // lead-in before the (much longer) engine search.
       setTimeout(() => {
         if (aiRequestIdRef.current !== requestId) return;
 
@@ -728,11 +741,8 @@ const ShogiImproved = () => {
 	          return;
 	        }
 
-	        // The opening book is keyed on hirate positions; skip it in handicap
-	        // games so the AI searches its own (out-of-book) moves instead.
-	        const bookMove = handicap === 'none'
-	          ? getOpeningMoveImproved(gameState.kyokumen.clone(), difficulty)
-	          : null;
+	        // `bookMove` was resolved up-front (see above); the opening book is
+	        // keyed on hirate positions and skipped in handicap games.
 	        if (bookMove) {
 	          const newKyokumen = gameState.kyokumen.clone();
 	          recordMove(bookMove, gameState.kyokumen); newKyokumen.move(bookMove);
@@ -864,7 +874,7 @@ const ShogiImproved = () => {
           });
         return;
 
-      }, 500);
+      }, bookMove ? 250 : 500);
     }
   }, [gameState.kyokumen.teban, gameState.gameOver, gameState.isAIThinking, difficulty, handicap, replay]);
 
@@ -1238,7 +1248,7 @@ const ShogiImproved = () => {
             }}
           >
             {gameState.isAIThinking
-              ? 'AIが考えています…'
+              ? (aiPlayingBook ? '定跡どおりに指しています' : 'AIが考えています…')
               : gameState.gameOver
                 ? '対局終了'
                 : 'あなたの番です'}
@@ -1250,7 +1260,9 @@ const ShogiImproved = () => {
               fontWeight: 600,
               fontVariantNumeric: 'tabular-nums',
               color: '#ffd700',
-              visibility: gameState.isAIThinking ? 'visible' : 'hidden',
+              // Hidden for book replies (instant — the seconds would read as a
+              // stuck 0.4s); only shown while the engine is actually searching.
+              visibility: gameState.isAIThinking && !aiPlayingBook ? 'visible' : 'hidden',
               minWidth: '3.4em',
               textAlign: 'left',
             }}
@@ -1312,7 +1324,7 @@ const ShogiImproved = () => {
                   : `評価値 ${evalInfo.scoreCp >= 0 ? '+' : ''}${evalInfo.scoreCp}${
                       evalInfo.depth ? `（深さ${evalInfo.depth}）` : ''
                     }`
-                : '評価値 —'}
+                : aiPlayingBook ? '定跡' : '評価値 —'}
             </span>
           </div>
         </div>

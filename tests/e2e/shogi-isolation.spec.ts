@@ -54,10 +54,13 @@ test('the AI answers a move under isolation (no freeze)', async ({ page }) => {
   await page.getByTestId('cell-7-7').click();
   await page.getByTestId('cell-7-6').click();
 
-  // The status strip shows 'AIが考えています…' while the engine (GOTE) thinks,
-  // then 'あなたの番です' once it has answered. If the AI worker were wedged
-  // (the historical freeze) it would stay on 'AIが考えています…' forever.
-  await expect(page.getByText('AIが考えています…')).toBeVisible({ timeout: 5_000 });
+  // While GOTE moves, the status strip shows either 'AIが考えています…' (a real
+  // search) or '定跡どおりに指しています' (an instant book reply — 7g7f is in
+  // book), then 'あなたの番です' once it has answered. If the AI worker were
+  // wedged (the historical freeze) it would never return to 'あなたの番です'.
+  await expect(
+    page.getByText('AIが考えています…').or(page.getByText('定跡どおりに指しています')),
+  ).toBeVisible({ timeout: 5_000 });
   await expect(page.getByText('あなたの番です')).toBeVisible({ timeout: 30_000 });
 });
 

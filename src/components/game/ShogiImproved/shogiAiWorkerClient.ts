@@ -140,11 +140,21 @@ function trySpawnSmpHelpers(worker: Worker): Worker[] {
 }
 
 export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
-  // The worker (and its SMP helpers) are mutable: the hard-deadline fallback
-  // tears a wedged set down and respawns a fresh single-thread worker.
+  // The worker (and its SMP helpers) are mutable: the self-heal paths (hard
+  // deadline, worker onerror) tear a wedged/broken set down and respawn a fresh
+  // single-thread worker.
   let worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), { type: 'module' });
   let helpers = trySpawnSmpHelpers(worker);
   let disposed = false;
+
+  // Error-storm guard: if the worker keeps failing to boot/run, cap how many
+  // times we respawn within a short window. After the cap we stop respawning
+  // and let requests reject so the caller falls back to the main-thread search
+  // permanently, instead of thrashing worker instances forever.
+  const RESPAWN_WINDOW_MS = 60_000;
+  const MAX_RESPAWNS_PER_WINDOW = 4;
+  let respawnTimestamps: number[] = [];
+  let respawnDisabled = false;
 
   let nextId = 1;
   const pending = new Map<
@@ -181,8 +191,13 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
       }
     };
     w.onerror = (event) => {
-      // Webpack/Turbopack wraps the real error; keep the message short.
-      rejectAll(new Error((event as ErrorEvent).message || 'Worker error'));
+      // A worker load/runtime error (bundler wraps the real one — keep it
+      // short). Left unhandled this would leave the broken instance cached and
+      // permanently demote every future move to the weaker main-thread JS
+      // engine; self-heal by tearing it down and respawning single-thread, the
+      // same recovery the hard deadline uses.
+      const message = (event as ErrorEvent).message || 'Worker error';
+      recoverWithSingleThread(`worker error: ${message}`);
     };
   };
   attachWorkerHandlers(worker);
@@ -211,14 +226,22 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
   }
 
   /**
-   * Guarantee the UI never sticks: terminate the current worker + helpers (they
-   * may be wedged and unresponsive), reject every pending request so the caller
-   * falls back to the main-thread search, and respawn a FRESH single-thread
+   * Self-heal a wedged or broken worker so the UI never sticks and never gets
+   * permanently demoted to the main-thread JS engine. Terminates the current
+   * worker + helpers, rejects every pending request (the caller falls back to
+   * the main-thread search for that move), and respawns a FRESH single-thread
    * worker (no SMP — the safest possible mode) for future moves.
+   *
+   * Guarded against error storms: if the worker keeps failing more than
+   * MAX_RESPAWNS_PER_WINDOW times inside RESPAWN_WINDOW_MS we stop respawning
+   * and leave `worker` torn down, so requests reject fast and the caller stays
+   * on the main-thread engine instead of thrashing worker instances.
    */
-  const respawnSingleThread = (): void => {
-    if (disposed) return;
-    console.warn('[shogiAiWorkerClient] AI worker unresponsive; terminating and respawning single-thread');
+  function recoverWithSingleThread(reason: string): void {
+    if (disposed || respawnDisabled) return;
+
+    // Tear down the current (broken/wedged) worker + helpers first so a fresh
+    // onerror from the dying instance cannot re-enter this path.
     try {
       worker.onmessage = null;
       worker.onerror = null;
@@ -227,12 +250,27 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
     } catch {
       /* terminate is best-effort */
     }
-    rejectAll(new Error('AI worker timed out'));
+    helpers = [];
+    rejectAll(new Error('AI worker failed'));
+
+    const now = Date.now();
+    respawnTimestamps = respawnTimestamps.filter((t) => now - t < RESPAWN_WINDOW_MS);
+    if (respawnTimestamps.length >= MAX_RESPAWNS_PER_WINDOW) {
+      respawnDisabled = true;
+      console.error(
+        `[shogiAiWorkerClient] AI worker keeps failing (${reason}); ` +
+          'giving up on the worker — moves will use the main-thread engine'
+      );
+      return;
+    }
+    respawnTimestamps.push(now);
+    console.warn(`[shogiAiWorkerClient] AI worker recovered (${reason}); respawning single-thread`);
+
     worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), { type: 'module' });
-    helpers = []; // after a stall, favor the rock-solid single-thread path
+    // After any failure, favor the rock-solid single-thread path (no SMP).
     attachWorkerHandlers(worker);
     syncVisibility();
-  };
+  }
 
   const requestBestMoveWithInfo = (
     position: SerializedKyokumenImproved,
@@ -241,13 +279,19 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
   ): Promise<BestMoveInfo> => {
     const id = nextId++;
     return new Promise<BestMoveInfo>((resolve, reject) => {
+      // If the worker was permanently given up on (error storm), fail fast so
+      // the caller uses the main-thread engine — do not touch a torn-down worker.
+      if (respawnDisabled) {
+        reject(new Error('AI worker unavailable'));
+        return;
+      }
       // Hard wall-clock deadline: if the worker has not answered by then it is
       // treated as wedged — tear it down, respawn single-thread, and reject so
       // the caller falls back to the main-thread search. The UI never sticks on
       // "AI Thinking..." regardless of the failure cause.
       const timer = setTimeout(() => {
         if (pending.delete(id)) {
-          respawnSingleThread();
+          recoverWithSingleThread(`no response for id=${id} within ${hardDeadlineMs(difficulty)}ms`);
           reject(new Error('AI worker timed out'));
         }
       }, hardDeadlineMs(difficulty));

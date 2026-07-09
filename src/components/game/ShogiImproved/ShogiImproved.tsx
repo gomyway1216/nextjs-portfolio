@@ -514,6 +514,10 @@ const ShogiImproved = () => {
     setEvalInfo(null);
     setShowPromotionDialog(false);
     setPendingMove(null);
+    // Importing may happen mid-AI-think (the invalidated request above means its
+    // reply is discarded either way); clear the "thinking" flag so the status
+    // strip doesn't keep showing it throughout replay.
+    setGameState(prev => (prev.isAIThinking ? { ...prev, isAIThinking: false } : prev));
     setReplay({ positions, viewPly: positions.length - 1 });
   }, [gameState.kyokumen]);
 

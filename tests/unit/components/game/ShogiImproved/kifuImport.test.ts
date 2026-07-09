@@ -86,6 +86,33 @@ describe('KifuImportImproved: parseKifuText', () => {
     expect(result.steps[0].notation).toBe('▲５五歩打');
   });
 
+  it('falls back to a drop when 打 is omitted and no board move matches (real kifu sometimes drops it)', () => {
+    const k = new KyokumenImproved();
+    const E = EMPTY;
+    const board: number[][] = [
+      [E, E, E, E, GOU, E, E, E, E],
+      [E, E, E, E, E, E, E, E, E],
+      [E, E, E, E, E, E, E, E, E],
+      [E, E, E, E, E, E, E, E, E],
+      [E, E, E, E, E, E, E, E, E],
+      [E, E, E, E, E, E, E, E, E],
+      [E, E, E, E, E, E, E, E, E],
+      [E, E, E, E, E, E, E, E, E],
+      [E, E, E, E, SOU, E, E, E, E],
+    ];
+    InitialPositionImproved.setupCustom(k, board);
+    k.hand[SFU] = 1;
+    k.initAll();
+    k.setTeban(SENTE);
+
+    // No trailing 打, and no Sente pawn on the board could reach 5五 either way —
+    // the only legal way to satisfy "５五歩" here is a drop.
+    const result = parseKifuText('1. ▲５五歩', k);
+    expect(result.error).toBeUndefined();
+    expect(result.steps).toHaveLength(1);
+    expect(result.steps[0].move.from).toBe(0);
+  });
+
   it('handles 成 (promote) and promoted-piece kanji (と/馬/龍/竜/全/圭/杏)', () => {
     // Sente silver at 1三, can move-promote into gote territory at 1二.
     const k = new KyokumenImproved();

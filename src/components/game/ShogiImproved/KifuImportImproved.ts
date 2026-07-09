@@ -313,14 +313,18 @@ function resolveMove(
   }
 
   const legal = GenerateMovesImproved.generateLegalMoves(k);
-  let candidates = legal.filter((m) => {
-    if (m.to !== to) return false;
-    if (m.promote !== spec.promote) return false;
-    if (getKomashu(m.koma) !== spec.pieceKomashu) return false;
+  const sameTypeAndSquare = (m: Te): boolean =>
+    m.to === to && m.promote === spec.promote && getKomashu(m.koma) === spec.pieceKomashu;
 
-    if (spec.drop) return m.from === 0;
-    return m.from !== 0;
-  });
+  let candidates = legal.filter((m) => sameTypeAndSquare(m) && (spec.drop ? m.from === 0 : m.from !== 0));
+
+  // Real-world kifu sometimes omits 打 even for a drop (it's only strictly
+  // required when ambiguous with a board move). If the notation didn't say 打
+  // and no board move matched, fall back to trying a drop of the same piece
+  // type before giving up.
+  if (candidates.length === 0 && !spec.drop) {
+    candidates = legal.filter((m) => sameTypeAndSquare(m) && m.from === 0);
+  }
 
   if (candidates.length === 0) {
     return { move: null, reason: '合法手の中に一致する手がありません（不正な手、または非合法手の可能性）' };

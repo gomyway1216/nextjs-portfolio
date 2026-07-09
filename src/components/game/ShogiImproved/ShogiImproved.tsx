@@ -15,8 +15,13 @@ import { ShogiPiece } from '../Shogi/ShogiPiece';
 import { ShogiTypefaceSelector } from '../Shogi/ShogiTypefaceSelector';
 import { GenerateMovesImproved } from './GenerateMovesImproved';
 import { InitialPositionImproved } from './InitialPositionImproved';
+import type { KifuImportStep } from './KifuImportImproved';
+import { KifuImportPanel } from './KifuImportPanel';
+import type { DisambiguationFlags } from './KifuNotationImproved';
+import { computeDisambiguation,disambiguationToText } from './KifuNotationImproved';
 import { KyokumenImproved } from './KyokumenImproved';
 import { ensureExternalOpeningBookLoaded,getOpeningMoveImproved } from './OpeningBookImproved';
+import { buildDeclinablePromotion } from './PromotionRulesImproved';
 import { getBestMoveV20 } from './ShogiAIImprovedV20';
 import type { SerializedKyokumenImproved,SerializedTeImproved,ShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
@@ -140,15 +145,51 @@ interface GameState {
   ply: number; // 0-based ply count from game start
 }
 
-interface RecordedMove { koma: number; from: number; to: number; promote: boolean; }
+// `disambiguation` is computed once, at record time, against the position the
+// move was actually played from (computeDisambiguation needs the *pre-move*
+// legal-move list, which is only cheaply available right when the move is
+// applied — recomputing it later from `moveList` alone is not possible without
+// replaying the whole game).
+interface RecordedMove {
+  koma: number;
+  from: number;
+  to: number;
+  promote: boolean;
+  disambiguation: DisambiguationFlags;
+}
 const KIFU_SUJI = '１２３４５６７８９';
 const KIFU_DAN = '一二三四五六七八九';
-// Japanese move notation, e.g. "▲２六歩", "△同飛成", "▲５五角打".
+// Japanese move notation, e.g. "▲２六歩", "△同飛成", "▲５五角打", "▲５八金右".
+// `打` is always written for drops (matching real-world kifu conventions, which
+// write it unconditionally rather than only when ambiguous with a board move —
+// `m.disambiguation.drop` still tracks the JSA-strict "is it actually ambiguous"
+// fact for callers that want it, but the printed notation always includes 打).
 function moveToKifu(m: RecordedMove, prev: RecordedMove | undefined): string {
   const side = isSente(m.koma) ? '▲' : '△';
   const square = prev && prev.to === m.to ? '同' : `${KIFU_SUJI[(m.to >> 4) - 1]}${KIFU_DAN[(m.to & 15) - 1]}`;
-  return `${side}${square}${toString(m.koma)}${m.promote ? '成' : ''}${m.from === 0 ? '打' : ''}`;
+  const disambigText = disambiguationToText(m.disambiguation);
+  const dropText = m.from === 0 ? '打' : '';
+  const promoteText = m.promote ? '成' : m.disambiguation.noPromote ? '不成' : '';
+  return `${side}${square}${toString(m.koma)}${disambigText}${promoteText}${dropText}`;
 }
+
+// --- Board coordinate labels (座標) ---
+// Standard shogi notation orientation: suji (筋, files) 1-9 run right-to-left
+// along the top edge; dan (段, ranks) 一-九 run top-to-bottom along the right
+// edge. Both are read from the same KIFU_SUJI/KIFU_DAN tables the kifu text
+// uses, so the on-board labels and the move list always agree.
+const CELL_SIZE = 'clamp(34px, 10vw, 50px)';
+const DAN_LABEL_SIZE = '1.1rem';
+const SUJI_LABEL_SIZE = '1.3rem';
+const coordLabelStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  color: 'rgba(255,255,255,0.65)',
+  userSelect: 'none',
+};
 
 // localStorage keys for display/sound preferences (best-effort; private
 // browsing may throw, so every access is wrapped in try/catch).
@@ -198,6 +239,20 @@ function togglePillStyle(active: boolean): React.CSSProperties {
   };
 }
 
+/** Style shared by the kifu-replay step buttons (⏮ ◀ 進む ▶ ⏭). */
+function replayButtonStyle(disabled: boolean): React.CSSProperties {
+  return {
+    padding: '5px 10px',
+    borderRadius: '6px',
+    border: '1px solid rgba(255,255,255,0.25)',
+    background: 'rgba(255,255,255,0.06)',
+    color: disabled ? 'rgba(255,255,255,0.3)' : 'rgba(255,255,255,0.85)',
+    fontSize: '13px',
+    fontWeight: 600,
+    cursor: disabled ? 'not-allowed' : 'pointer',
+  };
+}
+
 const ShogiImproved = () => {
   const _lifecycle = useFeatureLifecycle('game.shogi-improved');
   const { currentUser } = useAuth();
@@ -210,6 +265,13 @@ const ShogiImproved = () => {
   // Move list (kifu): every applied move, for on-screen display and copy.
   const [moveList, setMoveList] = useState<RecordedMove[]>([]);
   const [kifuCopied, setKifuCopied] = useState(false);
+  // Kifu import replay: set after a successful (possibly partial) "棋譜を読み込む".
+  // `positions[0]` is the starting position, `positions[i]` is the position after
+  // the i-th imported move; `viewPly` (0..positions.length-1) is which position is
+  // currently shown on the board. Board clicks/AI are disabled while this is set
+  // (pure playback) — "ここから指す" (play from here) exits replay mode and hands
+  // control back to normal play from the currently viewed position.
+  const [replay, setReplay] = useState<{ positions: KyokumenImproved[]; viewPly: number } | null>(null);
   // Mid-game save slot (signed-in users only).
   const [savedGame, setSavedGame] = useState<SavedShogiGame | null>(null);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -346,10 +408,16 @@ const ShogiImproved = () => {
 	    ply: 0,
 	  });
 
+  // While replaying an imported kifu, the board/hands show whichever position
+  // is currently being stepped through instead of the live game state. Click
+  // handling below still reads `gameState.kyokumen` for its guards, but those
+  // guards all additionally check `!replay` so clicks are inert during replay.
+  const displayKyokumen = replay ? replay.positions[replay.viewPly] : gameState.kyokumen;
+
   // Convert hand counts to arrays for UI compatibility
   const capturedPieces = React.useMemo(() => {
-    return gameState.kyokumen.toHandArrays();
-  }, [gameState.kyokumen]);
+    return displayKyokumen.toHandArrays();
+  }, [displayKyokumen]);
 
   // Initialize game
 	  const initGame = useCallback((selectedHandicap: Handicap) => {
@@ -372,6 +440,7 @@ const ShogiImproved = () => {
     setEvalInfo(null);
     setShowPromotionDialog(false);
     setPendingMove(null);
+    setReplay(null);
   }, []);
 
   // Check for game over
@@ -386,8 +455,12 @@ const ShogiImproved = () => {
 
   // Records the applied move in the kifu and plays the (opt-in) piece sound —
   // the single funnel every applied move goes through (human + all AI paths).
-  const recordMove = useCallback((te: Te) => {
-    setMoveList(prev => [...prev, { koma: te.koma, from: te.from, to: te.to, promote: te.promote }]);
+  // `beforeKyokumen` MUST be the position te is about to be played from (not yet
+  // mutated) — disambiguation (右/左/上/引/寄/直/打/不成) is computed against its
+  // legal-move list.
+  const recordMove = useCallback((te: Te, beforeKyokumen: KyokumenImproved) => {
+    const disambiguation = computeDisambiguation(beforeKyokumen, te);
+    setMoveList(prev => [...prev, { koma: te.koma, from: te.from, to: te.to, promote: te.promote, disambiguation }]);
     playMoveSound();
   }, [playMoveSound]);
 
@@ -417,6 +490,76 @@ const ShogiImproved = () => {
     return () => clearTimeout(t);
   }, [kifuCopied]);
 
+  // A pasted kifu parsed (possibly partially — see KifuImportPanel's status
+  // message for how far it got): rebuild the on-screen move list from it and
+  // enter replay/playback mode, starting at the final parsed position. Any
+  // in-flight AI search is invalidated since the current game is being replaced.
+  const handleKifuImported = useCallback((steps: KifuImportStep[]) => {
+    if (steps.length === 0) return;
+    aiRequestIdRef.current++;
+    workerRef.current?.clearTT();
+
+    const startPosition = gameState.kyokumen.clone();
+    const positions = [startPosition, ...steps.map((s) => s.kyokumen)];
+    const recorded: RecordedMove[] = steps.map((s, i) => ({
+      koma: s.move.koma,
+      from: s.move.from,
+      to: s.move.to,
+      promote: s.move.promote,
+      disambiguation: computeDisambiguation(positions[i], s.move),
+    }));
+
+    setMoveList(recorded);
+    setHistory([]);
+    setEvalInfo(null);
+    setShowPromotionDialog(false);
+    setPendingMove(null);
+    // Importing may happen mid-selection (a piece/captured-piece highlighted,
+    // possibly mid-AI-think too — the invalidated request above means any
+    // in-flight reply is discarded either way). Clear all of that so replay
+    // never shows stale green valid-move squares or a stuck "thinking" spinner.
+    setGameState(prev => ({
+      ...prev,
+      selectedPosition: null,
+      selectedCapturedIndex: -1,
+      validMoves: [],
+      isAIThinking: false,
+    }));
+    setReplay({ positions, viewPly: positions.length - 1 });
+  }, [gameState.kyokumen]);
+
+  const replayStep = useCallback((delta: number) => {
+    setReplay((r) => {
+      if (!r) return r;
+      const viewPly = Math.max(0, Math.min(r.positions.length - 1, r.viewPly + delta));
+      return { ...r, viewPly };
+    });
+  }, []);
+
+  // Exit replay mode and resume normal play from whichever position is
+  // currently being viewed. moveList is trimmed to match (kifu display stays
+  // consistent with the board), and the ply count is derived from viewPly.
+  const handlePlayFromReplay = useCallback(() => {
+    if (!replay) return;
+    const { positions, viewPly } = replay;
+    const kyokumen = positions[viewPly].clone();
+
+    setGameState({
+      kyokumen,
+      selectedPosition: null,
+      selectedCapturedIndex: -1,
+      validMoves: [],
+      gameOver: false,
+      winner: null,
+      isAIThinking: false,
+      ply: viewPly,
+    });
+    setMoveList((prev) => prev.slice(0, viewPly));
+    setHistory([]);
+    setEvalInfo(null);
+    setReplay(null);
+  }, [replay]);
+
   // Execute move
 	  const executeMove = (te: Te, promote: boolean) => {
 	    // Record the pre-move snapshot so 待った can return here. gameState.kyokumen
@@ -427,7 +570,7 @@ const ShogiImproved = () => {
 	    const prevMoveListLen = moveList.length;
 	    const newKyokumen = prevKyokumen.clone();
 	    te.promote = promote;
-	    recordMove(te); newKyokumen.move(te);
+	    recordMove(te, prevKyokumen); newKyokumen.move(te);
 	    newKyokumen.setTeban(GOTE);
 
     const { isOver, winner } = checkGameOver(newKyokumen);
@@ -455,7 +598,7 @@ const ShogiImproved = () => {
 
   // Handle board cell click
   const handleCellClick = (suji: number, dan: number) => {
-    if (gameState.gameOver || gameState.kyokumen.teban !== SENTE || gameState.isAIThinking) {
+    if (replay || gameState.gameOver || gameState.kyokumen.teban !== SENTE || gameState.isAIThinking) {
       return;
     }
 
@@ -492,16 +635,23 @@ const ShogiImproved = () => {
         const promoteMove = gameState.validMoves.find(
           m => m.to === clickedPosInt && m.from === selectedPosInt && m.promote
         );
-        const nonPromoteMove = gameState.validMoves.find(
-          m => m.to === clickedPosInt && m.from === selectedPosInt && !m.promote
-        );
+        // The engine's own move list only ever contains a non-promote variant
+        // when the search generator (GenerateMovesImproved) chose to keep both
+        // branches. For 角/飛 it deliberately prunes the non-promote branch as a
+        // search optimization (promoting is always at least as good for the
+        // engine) — that pruning is NOT a shogi rule, so a human player must
+        // still be offered the choice. `buildDeclinablePromotion` reconstructs
+        // that legal-but-pruned non-promote move when one isn't already present.
+        const nonPromoteMove =
+          gameState.validMoves.find(m => m.to === clickedPosInt && m.from === selectedPosInt && !m.promote) ??
+          (promoteMove ? buildDeclinablePromotion(promoteMove, SENTE) : null);
 
         // Show dialog only when the player actually has a choice.
         if (promoteMove && nonPromoteMove) {
           setPendingMove(nonPromoteMove);
           setShowPromotionDialog(true);
         } else if (promoteMove) {
-          // Forced promotion (e.g., pawn/lance/knight reaching last ranks) or always-promote heuristics.
+          // Forced promotion: pawn/lance to the last rank, or knight to the last two ranks.
           executeMove(promoteMove, true);
         } else if (nonPromoteMove) {
           executeMove(nonPromoteMove, false);
@@ -533,7 +683,7 @@ const ShogiImproved = () => {
 
   // Handle captured piece click
   const handleCapturedClick = (index: number) => {
-    if (gameState.gameOver || gameState.kyokumen.teban !== SENTE || gameState.isAIThinking) {
+    if (replay || gameState.gameOver || gameState.kyokumen.teban !== SENTE || gameState.isAIThinking) {
       return;
     }
 
@@ -552,6 +702,7 @@ const ShogiImproved = () => {
   // AI move
   useEffect(() => {
     if (
+      !replay &&
       gameState.kyokumen.teban === GOTE &&
       !gameState.gameOver &&
       !gameState.isAIThinking
@@ -584,7 +735,7 @@ const ShogiImproved = () => {
 	          : null;
 	        if (bookMove) {
 	          const newKyokumen = gameState.kyokumen.clone();
-	          recordMove(bookMove); newKyokumen.move(bookMove);
+	          recordMove(bookMove, gameState.kyokumen); newKyokumen.move(bookMove);
 	          newKyokumen.setTeban(SENTE);
 
 	          const { isOver, winner } = checkGameOver(newKyokumen);
@@ -608,7 +759,7 @@ const ShogiImproved = () => {
 		
 		          if (aiMove) {
 		            const newKyokumen = gameState.kyokumen.clone();
-		            recordMove(aiMove); newKyokumen.move(aiMove);
+		            recordMove(aiMove, gameState.kyokumen); newKyokumen.move(aiMove);
 	            newKyokumen.setTeban(SENTE);
 
             const { isOver, winner } = checkGameOver(newKyokumen);
@@ -664,7 +815,7 @@ const ShogiImproved = () => {
             }
 
 	            const newKyokumen = gameState.kyokumen.clone();
-	            recordMove(aiMove); newKyokumen.move(aiMove);
+	            recordMove(aiMove, gameState.kyokumen); newKyokumen.move(aiMove);
 	            newKyokumen.setTeban(SENTE);
 
             const { isOver, winner } = checkGameOver(newKyokumen);
@@ -693,7 +844,7 @@ const ShogiImproved = () => {
             }
 
             const newKyokumen = gameState.kyokumen.clone();
-            recordMove(aiMove); newKyokumen.move(aiMove);
+            recordMove(aiMove, gameState.kyokumen); newKyokumen.move(aiMove);
             newKyokumen.setTeban(SENTE);
 
             const { isOver, winner } = checkGameOver(newKyokumen);
@@ -715,7 +866,7 @@ const ShogiImproved = () => {
 
       }, 500);
     }
-  }, [gameState.kyokumen.teban, gameState.gameOver, gameState.isAIThinking, difficulty, handicap]);
+  }, [gameState.kyokumen.teban, gameState.gameOver, gameState.isAIThinking, difficulty, handicap, replay]);
 
   const startGame = () => {
     setShowDifficultySelect(false);
@@ -732,6 +883,7 @@ const ShogiImproved = () => {
   // moveList back to the snapshot's length so the kifu stays in sync with the
   // board (both the player move and the AI reply are removed).
   const canUndo =
+    !replay &&
     !showDifficultySelect &&
     !gameState.gameOver &&
     !gameState.isAIThinking &&
@@ -818,12 +970,14 @@ const ShogiImproved = () => {
     setEvalInfo(null);
     setShowPromotionDialog(false);
     setPendingMove(null);
+    setReplay(null);
     setShowDifficultySelect(false);
   }, [savedGame]);
 
   // Saving is only offered on the player's turn so a restore never lands
   // mid-AI-move; the saved teban is therefore always SENTE.
   const canSaveGame =
+    !replay &&
     !!currentUser &&
     !showDifficultySelect &&
     !gameState.gameOver &&
@@ -876,13 +1030,17 @@ const ShogiImproved = () => {
 
   // The most recently applied move (any side / any path), for the last-move
   // highlight. Derived from the kifu so undo / reset stay in sync for free.
-  const lastMove = moveList.length > 0 ? moveList[moveList.length - 1] : null;
+  // During replay, this instead reflects whichever ply is currently being
+  // viewed (`replay.viewPly`), so stepping back also moves the highlight back.
+  const lastMove = replay
+    ? (replay.viewPly > 0 ? moveList[replay.viewPly - 1] : null)
+    : (moveList.length > 0 ? moveList[moveList.length - 1] : null);
 
   // Render piece
   const renderPiece = (suji: number, dan: number) => {
     const pos = new Position(suji, dan);
     const posInt = pos.toInt();
-    const koma = gameState.kyokumen.get(posInt);
+    const koma = displayKyokumen.get(posInt);
     if (koma === EMPTY) return null;
 
     const isSelected =
@@ -1205,62 +1363,120 @@ const ShogiImproved = () => {
           </div>
         </div>
 
-        {/* Board */}
+        {/* Board (with coordinate labels: suji 1-9 above, right-to-left; dan 一-九
+            to the right, top-to-bottom — standard shogi notation orientation as
+            seen from Sente. `boardFlipped` mirrors both label strips in lockstep
+            with the board so labels always line up with their squares.
+            The original 9x9 board grid (sizing/border/background/gap) is kept
+            completely intact and nested unchanged inside a small label wrapper,
+            so the board's own layout/position contract is untouched. */}
         <div style={{ flex: '0 1 auto', maxWidth: '100%', overflowX: 'auto' }}>
           <div
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(9, clamp(34px, 10vw, 50px))',
-              gap: '1px',
-              background: '#333',
-              border: '2px solid #666',
-              padding: '1px',
+              gridTemplateColumns: `repeat(9, ${CELL_SIZE}) ${DAN_LABEL_SIZE}`,
+              gridTemplateRows: `${SUJI_LABEL_SIZE} auto`,
+              width: 'fit-content',
             }}
           >
-            {Array.from({ length: 9 }, (_, row) =>
-              Array.from({ length: 9 }, (_, col) => {
-                // Display-only flip: cells keep their real (suji, dan) identity
-                // (clicks, moves, highlights are untouched); only the order the
-                // grid renders them in changes.
-                const suji = boardFlipped ? col + 1 : 9 - col; // normal: right to left (9→1)
-                const actualDan = boardFlipped ? 9 - row : row + 1;
-                const pos = new Position(suji, actualDan);
-                const posInt = pos.toInt();
-                const isValidMove = gameState.validMoves.some(
-                  m => m.to === posInt
-                );
-                const isLastTo = lastMove !== null && lastMove.to === posInt;
-                // Drops (from === 0) have no origin square to mark.
-                const isLastFrom = lastMove !== null && lastMove.from !== 0 && lastMove.from === posInt;
-
+            {/* Top-left corner spacer */}
+            <div style={{ gridColumn: '1 / 10', gridRow: 1, display: 'grid', gridTemplateColumns: `repeat(9, ${CELL_SIZE})` }}>
+              {/* Suji labels (筋): 1-9, right to left; reversed with the board flip. */}
+              {Array.from({ length: 9 }, (_, col) => {
+                const suji = boardFlipped ? col + 1 : 9 - col;
                 return (
-                  <div
-                    key={`${suji}-${actualDan}`}
-                    data-testid={`cell-${suji}-${actualDan}`}
-                    onClick={() => handleCellClick(suji, actualDan)}
-                    style={{
-                      width: 'clamp(34px, 10vw, 50px)',
-                      height: 'clamp(34px, 10vw, 50px)',
-                      background: isValidMove
-                        ? 'rgba(0, 255, 0, 0.2)'
-                        : isLastTo
-                          ? '#f5c96b' // last move: destination (strong amber)
-                          : isLastFrom
-                            ? '#f8dfa2' // last move: origin (soft amber)
-                            : '#ffe8b8',
-                      border: '1px solid #8b7355',
-                      cursor: 'pointer',
-                      position: 'relative',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    {renderPiece(suji, actualDan)}
+                  <div key={`suji-${suji}`} style={coordLabelStyle}>
+                    {KIFU_SUJI[suji - 1]}
                   </div>
                 );
-              })
-            )}
+              })}
+            </div>
+
+            <div
+              style={{
+                gridColumn: '1 / 10',
+                gridRow: 2,
+                display: 'grid',
+                gridTemplateColumns: `repeat(9, ${CELL_SIZE})`,
+                gap: '1px',
+                background: '#333',
+                border: '2px solid #666',
+                padding: '1px',
+              }}
+            >
+              {Array.from({ length: 9 }, (_, row) =>
+                Array.from({ length: 9 }, (_, col) => {
+                  // Display-only flip: cells keep their real (suji, dan) identity
+                  // (clicks, moves, highlights are untouched); only the order the
+                  // grid renders them in changes.
+                  const suji = boardFlipped ? col + 1 : 9 - col; // normal: right to left (9→1)
+                  const actualDan = boardFlipped ? 9 - row : row + 1;
+                  const pos = new Position(suji, actualDan);
+                  const posInt = pos.toInt();
+                  const isValidMove = gameState.validMoves.some(
+                    m => m.to === posInt
+                  );
+                  const isLastTo = lastMove !== null && lastMove.to === posInt;
+                  // Drops (from === 0) have no origin square to mark.
+                  const isLastFrom = lastMove !== null && lastMove.from !== 0 && lastMove.from === posInt;
+
+                  return (
+                    <div
+                      key={`${suji}-${actualDan}`}
+                      data-testid={`cell-${suji}-${actualDan}`}
+                      onClick={() => handleCellClick(suji, actualDan)}
+                      style={{
+                        width: CELL_SIZE,
+                        height: CELL_SIZE,
+                        background: isValidMove
+                          ? 'rgba(0, 255, 0, 0.2)'
+                          : isLastTo
+                            ? '#f5c96b' // last move: destination (strong amber)
+                            : isLastFrom
+                              ? '#f8dfa2' // last move: origin (soft amber)
+                              : '#ffe8b8',
+                        border: '1px solid #8b7355',
+                        // Replay is a read-only playback state (clicks are
+                        // ignored — see handleCellClick's `replay ||` guard);
+                        // reflect that in the cursor instead of implying the
+                        // board is interactive.
+                        cursor: replay ? 'default' : 'pointer',
+                        position: 'relative',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      {renderPiece(suji, actualDan)}
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Dan labels (段): 一-九, top to bottom; reversed with the board flip.
+                A separate grid matched to the board's own row count/sizing so each
+                label lines up with its row despite the board's 2px border + 1px gaps. */}
+            <div
+              style={{
+                gridColumn: 10,
+                gridRow: 2,
+                display: 'grid',
+                gridTemplateRows: `repeat(9, ${CELL_SIZE})`,
+                gap: '1px',
+                padding: '1px',
+                marginLeft: '2px',
+              }}
+            >
+              {Array.from({ length: 9 }, (_, row) => {
+                const actualDan = boardFlipped ? 9 - row : row + 1;
+                return (
+                  <div key={`dan-${actualDan}`} style={coordLabelStyle}>
+                    {KIFU_DAN[actualDan - 1]}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -1352,11 +1568,11 @@ const ShogiImproved = () => {
         </button>
       </div>
 
-      {/* Kifu (move list) */}
+      {/* Kifu (move list) + replay controls when a pasted kifu is being stepped through. */}
       {moveList.length > 0 && (
         <div style={{ maxWidth: '1200px', margin: '28px auto 0', display: 'flex', justifyContent: 'center' }}>
           <div style={{ width: 'min(680px, 100%)', background: 'rgba(255,255,255,0.06)', borderRadius: '8px', padding: '12px 16px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
               <h3 style={{ margin: 0, fontSize: '1rem' }}>棋譜 ({moveList.length})</h3>
               <button
                 type="button"
@@ -1375,16 +1591,118 @@ const ShogiImproved = () => {
                 {kifuCopied ? 'コピーしました ✓' : '棋譜をコピー'}
               </button>
             </div>
-            <div style={{ maxHeight: '170px', overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: '2px 14px', fontSize: '14px', lineHeight: 1.7 }}>
-              {moveList.map((m, i) => (
-                <span key={i} style={{ minWidth: '5.5em', color: '#e6e6e6', fontVariantNumeric: 'tabular-nums' }}>
-                  {i + 1}. {moveToKifu(m, moveList[i - 1])}
+
+            {replay && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setReplay((r) => (r ? { ...r, viewPly: 0 } : r))}
+                  disabled={replay.viewPly === 0}
+                  style={replayButtonStyle(replay.viewPly === 0)}
+                  title="最初の局面へ"
+                >
+                  ⏮
+                </button>
+                <button
+                  type="button"
+                  onClick={() => replayStep(-1)}
+                  disabled={replay.viewPly === 0}
+                  style={replayButtonStyle(replay.viewPly === 0)}
+                  title="1手戻る"
+                >
+                  ◀ 戻る
+                </button>
+                <span style={{ fontSize: '13px', color: '#e6e6e6', fontVariantNumeric: 'tabular-nums', minWidth: '5em', textAlign: 'center' }}>
+                  {replay.viewPly} / {replay.positions.length - 1} 手
                 </span>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => replayStep(1)}
+                  disabled={replay.viewPly >= replay.positions.length - 1}
+                  style={replayButtonStyle(replay.viewPly >= replay.positions.length - 1)}
+                  title="1手進む"
+                >
+                  進む ▶
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setReplay((r) => (r ? { ...r, viewPly: r.positions.length - 1 } : r))}
+                  disabled={replay.viewPly >= replay.positions.length - 1}
+                  style={replayButtonStyle(replay.viewPly >= replay.positions.length - 1)}
+                  title="最後の局面へ"
+                >
+                  ⏭
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePlayFromReplay}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(74,222,128,0.6)',
+                    background: 'rgba(74,222,128,0.16)',
+                    color: '#4ade80',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                  title="この局面から対局を再開します"
+                >
+                  ここから指す
+                </button>
+              </div>
+            )}
+
+            <div style={{ maxHeight: '170px', overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: '2px 14px', fontSize: '14px', lineHeight: 1.7 }}>
+              {moveList.map((m, i) =>
+                replay ? (
+                  // During replay each move is a real, keyboard-operable button
+                  // (Tab/Enter/Space) that jumps the board to that ply — plain
+                  // <span onClick> is neither focusable nor announced as
+                  // interactive by assistive tech.
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setReplay((r) => (r ? { ...r, viewPly: i + 1 } : r))}
+                    style={{
+                      minWidth: '5.5em',
+                      textAlign: 'left',
+                      background: 'transparent',
+                      border: 'none',
+                      padding: 0,
+                      color: replay.viewPly === i + 1 ? '#ffd700' : '#e6e6e6',
+                      fontWeight: replay.viewPly === i + 1 ? 700 : 400,
+                      fontVariantNumeric: 'tabular-nums',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {i + 1}. {moveToKifu(m, moveList[i - 1])}
+                  </button>
+                ) : (
+                  <span
+                    key={i}
+                    style={{
+                      minWidth: '5.5em',
+                      color: '#e6e6e6',
+                      fontVariantNumeric: 'tabular-nums',
+                      cursor: 'default',
+                    }}
+                  >
+                    {i + 1}. {moveToKifu(m, moveList[i - 1])}
+                  </span>
+                )
+              )}
             </div>
           </div>
         </div>
       )}
+
+      {/* Kifu import ("棋譜を読み込む") */}
+      <div style={{ maxWidth: '1200px', margin: '18px auto 0', display: 'flex', justifyContent: 'center' }}>
+        <KifuImportPanel startingPosition={gameState.kyokumen} onImported={handleKifuImported} />
+      </div>
 
       {/* Game Over */}
       {gameState.gameOver && (

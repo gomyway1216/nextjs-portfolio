@@ -337,7 +337,9 @@ game4 mid-game (ply 15-70, n=51):
 
 The reason is simple: **game3 is a game the author lost badly — an extreme outlier where the eval is hopelessly wrong**; game4 is a more typical mid-game. The re-distillation **did** improve calibration on ordinary positions — I just looked at the single worst game and declared it dead.
 
-**Honest revised verdict:** deep16 vs current is **better mid-game bias on game4, equal on game3, slightly better holdout, tied A/B (no regression).** Not a whiff — a **modest, non-regressing improvement to mid-game calibration on typical positions.** But the tied A/B means self-play can't separate them, so the final call goes to the author's over-the-board play (i.e. no automatic production swap — ship it via a preview and decide by feel).
+**Honest revised verdict:** deep16 vs current is **better mid-game bias on game4, equal on game3, slightly better holdout, tied A/B (no regression).** Not a whiff — a **modest, non-regressing improvement to mid-game calibration on typical positions.** The tied A/B means self-play can't separate them, so the final call went to the author.
+
+**Adopted (shipped):** judging it a no-regression gain with better typical-position calibration, the author adopted deep16 as the production eval (swapped after confirming bit-exact parity 1200/1200 and mean quantization error 17cp). It's a small win; **the mid-game of a lost game (game3) that it still can't fix** is left as the next cycle's homework — to be attacked not with depth but with distribution (learning the author's losing mid-games in bulk).
 
 > The most painful lesson here: **the guy sermonizing "never conclude from one game" concluded from one game.** For a negative result especially, widen the sample before you decide adoption. On game3 alone: "deeper labels are useless." Add game4: "they help on typical positions." Same experiment — one extra window flips the story.
 

@@ -18,6 +18,7 @@ from sibling_selection_protocol import (  # noqa: E402
     SIX_RUN_SLOT_ORDER,
     WCSC36_SIX_RUN_PLAN_SHA256,
     WCSC36_STABLE_RUNOP1_SHA256,
+    _decode_candidate_selection_receipt_untrusted,
     select_sealed_candidate,
     validate_candidate_selection_receipt,
 )
@@ -128,6 +129,7 @@ def bind_candidate(receipt, winner):
 
 
 def valid_receipt():
+    """Build self-asserted claims; this fixture is not evidence or authority."""
     runs = []
     for index, (series, seed) in enumerate(SIX_RUN_SLOT_ORDER, start=1):
         runs.append(
@@ -200,26 +202,32 @@ def valid_receipt():
 class CandidateSelectionProtocolTest(unittest.TestCase):
     def test_exact_six_run_receipt_selects_metric_then_fallback_winner(self):
         receipt = valid_receipt()
-        winner = validate_candidate_selection_receipt(receipt)
+        winner = _decode_candidate_selection_receipt_untrusted(receipt).winner
         self.assertEqual(winner["slot_id"], "warm-seed-43")
 
         receipt["runs"][3]["int16_pair_accuracy"] = 0.76
         receipt["runs"][4]["int16_pair_accuracy"] = 0.77
         selected_run = receipt["runs"][3]
         bind_candidate(receipt, selected_run)
-        winner = validate_candidate_selection_receipt(receipt)
+        winner = _decode_candidate_selection_receipt_untrusted(receipt).winner
         self.assertEqual(winner["slot_id"], "scratch-seed-42")
+
+    def test_public_receipt_validator_never_unlocks_self_asserted_claims(self):
+        with self.assertRaisesRegex(
+            ValueError, "authorization is not implemented.*remains sealed"
+        ):
+            validate_candidate_selection_receipt(valid_receipt())
 
     def test_receipt_rejects_missing_run_and_extra_field(self):
         receipt = valid_receipt()
         receipt["runs"].pop()
         with self.assertRaisesRegex(ValueError, "exactly six runs"):
-            validate_candidate_selection_receipt(receipt)
+            _decode_candidate_selection_receipt_untrusted(receipt)
 
         receipt = valid_receipt()
         receipt["unexpected"] = True
         with self.assertRaisesRegex(ValueError, "fields are not exact"):
-            validate_candidate_selection_receipt(receipt)
+            _decode_candidate_selection_receipt_untrusted(receipt)
 
     def test_pure_selection_can_rank_runs_before_promotion_gates(self):
         receipt = valid_receipt()
@@ -237,64 +245,64 @@ class CandidateSelectionProtocolTest(unittest.TestCase):
         forged = copy.deepcopy(receipt)
         forged["selected"]["seed"] = 42
         with self.assertRaisesRegex(ValueError, "winner"):
-            validate_candidate_selection_receipt(forged)
+            _decode_candidate_selection_receipt_untrusted(forged)
 
         receipt["stable"]["checkpoint_sha256"] = receipt["candidate_checkpoint"][
             "sha256"
         ]
         with self.assertRaisesRegex(ValueError, "sealed runOp1"):
-            validate_candidate_selection_receipt(receipt)
+            _decode_candidate_selection_receipt_untrusted(receipt)
 
     def test_receipt_pins_plan_audit_schema_and_stable_report_identity(self):
         receipt = valid_receipt()
         receipt["run_plan"]["sha256"] = digest(400)
         with self.assertRaisesRegex(ValueError, "run-plan SHA-256"):
-            validate_candidate_selection_receipt(receipt)
+            _decode_candidate_selection_receipt_untrusted(receipt)
 
         receipt = valid_receipt()
         receipt["selection_audit"]["schema"] = "wrong-audit-schema"
         with self.assertRaisesRegex(ValueError, "audit schema"):
-            validate_candidate_selection_receipt(receipt)
+            _decode_candidate_selection_receipt_untrusted(receipt)
 
         receipt = valid_receipt()
         receipt["stable"]["int16_selection_report"]["sha256"] = receipt[
             "int16_selection_report"
         ]["sha256"]
         with self.assertRaisesRegex(ValueError, "report identities must differ"):
-            validate_candidate_selection_receipt(receipt)
+            _decode_candidate_selection_receipt_untrusted(receipt)
 
     def test_receipt_binds_every_run_export_and_int16_report_to_selected(self):
         receipt = valid_receipt()
         missing_run_export_field = copy.deepcopy(receipt)
         missing_run_export_field["runs"][0]["export"].pop("bucket_count")
         with self.assertRaisesRegex(ValueError, "fields are not exact"):
-            validate_candidate_selection_receipt(missing_run_export_field)
+            _decode_candidate_selection_receipt_untrusted(missing_run_export_field)
 
         forged_selected_export = copy.deepcopy(receipt)
         forged_selected_export["selected"]["export_sha256"] = digest(777)
         with self.assertRaisesRegex(ValueError, "winner"):
-            validate_candidate_selection_receipt(forged_selected_export)
+            _decode_candidate_selection_receipt_untrusted(forged_selected_export)
 
         mismatched_report = copy.deepcopy(receipt)
         mismatched_report["int16_selection_report"]["sha256"] = digest(778)
         with self.assertRaisesRegex(ValueError, "selection report"):
-            validate_candidate_selection_receipt(mismatched_report)
+            _decode_candidate_selection_receipt_untrusted(mismatched_report)
 
     def test_receipt_recomputes_exact_gate_checks_and_fixed_limits(self):
         receipt = valid_receipt()
         receipt["selection_gates"]["checks"][2]["absolute_limit"] = 0.003
         with self.assertRaisesRegex(ValueError, "not recomputable"):
-            validate_candidate_selection_receipt(receipt)
+            _decode_candidate_selection_receipt_untrusted(receipt)
 
         receipt = valid_receipt()
         receipt["selection_gates"]["checks"][0]["candidate"] += 0.001
         with self.assertRaisesRegex(ValueError, "not recomputable"):
-            validate_candidate_selection_receipt(receipt)
+            _decode_candidate_selection_receipt_untrusted(receipt)
 
         receipt = valid_receipt()
         receipt["selection_gates"]["passed"] = 1
         with self.assertRaisesRegex(ValueError, "passed must be true"):
-            validate_candidate_selection_receipt(receipt)
+            _decode_candidate_selection_receipt_untrusted(receipt)
 
     def test_selection_gates_fail_closed_on_actual_pair_and_top1_failures(self):
         gates = evaluate_selection_gates(
@@ -359,14 +367,14 @@ class CandidateSelectionProtocolTest(unittest.TestCase):
             candidate_float, candidate_int16, stable_int16
         )
         with self.assertRaisesRegex(ValueError, "passed must be true"):
-            validate_candidate_selection_receipt(receipt)
+            _decode_candidate_selection_receipt_untrusted(receipt)
 
         forged = copy.deepcopy(receipt)
         forged["selection_gates"]["passed"] = True
         for check in forged["selection_gates"]["checks"]:
             check["passed"] = True
         with self.assertRaisesRegex(ValueError, "not recomputable"):
-            validate_candidate_selection_receipt(forged)
+            _decode_candidate_selection_receipt_untrusted(forged)
 
     def test_selection_gates_accept_all_boundary_conditions(self):
         candidate_float = {

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 import math
 import re
 
@@ -12,6 +13,28 @@ TRAINING_RESULT_SCHEMA = "shogi-sibling-training-result-v1"
 WCSC36_SIX_RUN_PLAN_SHA256 = (
     "0e34262f77555897d92b01a3737c71057d8b90cc98cdcb2fe63ad24ec4dde070"
 )
+WCSC36_SIX_RUN_EXECUTION_REVISION = (
+    "d18d3c43677255c518dce83f4a53caf46057f878"
+)
+WCSC36_SIX_RUN_PLAN_BYTES = 3057
+WCSC36_SIX_RUN_TRAINING_RUNTIME = {
+    "platform": "macOS-15.1-arm64-arm-64bit-Mach-O",
+    "system": "Darwin",
+    "machine": "arm64",
+    "processor": "arm",
+    "cpu_model": "Apple M4 Pro",
+    "logical_cpu_count": 14,
+    "device": "cpu",
+    "python_version": "3.13.0",
+    "torch_version": "2.12.1",
+    "torch_threads": 2,
+    "torch_interop_threads": 1,
+    "deterministic_algorithms": True,
+    "deterministic_debug_mode": "error",
+    "mps_built": True,
+    "mps_available": True,
+    "cuda_available": False,
+}
 CANDIDATE_SELECTION_RECEIPT_SCHEMA = (
     "shogi-sibling-candidate-selection-receipt-v1"
 )
@@ -125,6 +148,13 @@ SELECTION_GATE_DELTA_FIELDS = frozenset(
 )
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+@dataclass(frozen=True)
+class _UntrustedCandidateSelectionClaims:
+    """Structurally decoded claims that are not evidence or unlock authority."""
+
+    winner: Mapping
 
 
 def _require_exact_mapping(value, fields, label: str) -> Mapping:
@@ -329,8 +359,15 @@ def _require_passed_selection_gates(
         raise ValueError("selection gate metrics do not pass the fixed thresholds")
 
 
-def validate_candidate_selection_receipt(receipt: Mapping) -> Mapping:
-    """Strict-decode the future six-run candidate-selection handoff."""
+def _decode_candidate_selection_receipt_untrusted(
+    receipt: Mapping,
+) -> _UntrustedCandidateSelectionClaims:
+    """Decode self-asserted receipt claims without granting holdout access.
+
+    This helper deliberately does not establish that any referenced file or
+    reported metric is genuine.  It exists only to exercise the tentative
+    receipt shape while the final holdout remains sealed.
+    """
     root = _require_exact_mapping(
         receipt, CANDIDATE_SELECTION_RECEIPT_FIELDS, "candidate selection receipt"
     )
@@ -503,4 +540,19 @@ def validate_candidate_selection_receipt(receipt: Mapping) -> Mapping:
         candidate_int16,
         stable_int16,
     )
-    return winner
+    return _UntrustedCandidateSelectionClaims(winner=winner)
+
+
+def validate_candidate_selection_receipt(_receipt: Mapping) -> Mapping:
+    """Fail closed until a full evidence-bound authorization verifier exists.
+
+    A successful implementation must rebuild all seven exports/evaluations
+    from pinned files and a fixed clean revision, then compare that in-memory
+    audit to the receipt.  Hashing a caller-supplied audit is insufficient
+    because an audit and receipt can otherwise be forged together.
+    """
+
+    raise ValueError(
+        "candidate-selection receipt authorization is not implemented; "
+        "final holdout remains sealed"
+    )

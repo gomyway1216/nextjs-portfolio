@@ -768,27 +768,10 @@ def attach_sealed_training_provenance(checkpoint_path, fixture, *, replay=False)
         }
 
     training_pipeline = {
-        "source_revision": "f" * 40,
+        "source_revision": EVAL.SEALED_SIX_RUN_EXECUTION_REVISION,
         "tracked_tree_clean": True,
     }
-    training_runtime = {
-        "platform": "macOS-15.5-arm64-arm-64bit",
-        "system": "Darwin",
-        "machine": "arm64",
-        "processor": "arm",
-        "cpu_model": "Apple M4 Max",
-        "logical_cpu_count": 16,
-        "python_version": "3.11.10",
-        "torch_version": "2.3.0",
-        "device": "cpu",
-        "torch_threads": 2,
-        "torch_interop_threads": 1,
-        "deterministic_algorithms": True,
-        "deterministic_debug_mode": "error",
-        "mps_built": True,
-        "mps_available": True,
-        "cuda_available": False,
-    }
+    training_runtime = dict(EVAL.SEALED_SIX_RUN_TRAINING_RUNTIME)
     replay_provenance = None
     if replay:
         selection_semantic = set()
@@ -895,8 +878,8 @@ def attach_sealed_training_provenance(checkpoint_path, fixture, *, replay=False)
     checkpoint["experiment_contract"] = experiment_contract
     experiment_plan = {
         "path": "ml/protocols/wcsc36-six-run-plan.json",
-        "bytes": 1,
-        "sha256": "9" * 64,
+        "bytes": EVAL.SEALED_SIX_RUN_PLAN_BYTES,
+        "sha256": EVAL.SEALED_SIX_RUN_PLAN_SHA256,
         "schema": "shogi-sibling-six-run-plan-v1",
         "slot_id": "scratch-seed-42",
         "slot_output": "ml/runs/wcsc36-six-run/scratch-seed-42",
@@ -1258,7 +1241,23 @@ class SiblingHoldoutEvaluationTest(unittest.TestCase):
 
             with mock.patch.object(
                 EVAL, "SEALED_REPLAY_SHA256", replay_sha256
-            ), mock.patch.object(EVAL, "SEALED_REPLAY_ROWS", 2):
+            ), mock.patch.object(EVAL, "SEALED_REPLAY_ROWS", 2), mock.patch.object(
+                EVAL,
+                "SEALED_SIX_RUN_PLAN_BYTES",
+                plan_provenance["bytes"],
+            ), mock.patch.object(
+                EVAL,
+                "SEALED_SIX_RUN_PLAN_SHA256",
+                plan_provenance["sha256"],
+            ), mock.patch.object(
+                EVAL,
+                "SEALED_SIX_RUN_EXECUTION_REVISION",
+                training_revision,
+            ), mock.patch.object(
+                EVAL,
+                "SEALED_SIX_RUN_TRAINING_RUNTIME",
+                checkpoint["training_runtime"],
+            ):
                 report = EVAL.evaluate_checkpoints(
                     fixture["selection"],
                     [("candidate", checkpoint_path)],
@@ -1340,6 +1339,27 @@ class SiblingHoldoutEvaluationTest(unittest.TestCase):
                         "dataset_role", "final_holdout"
                     ),
                     "selection role is not sealed",
+                ),
+                (
+                    "different sealed plan",
+                    lambda value: value["experiment_plan"].__setitem__(
+                        "sha256", "9" * 64
+                    ),
+                    "experiment plan provenance is invalid",
+                ),
+                (
+                    "different clean execution revision",
+                    lambda value: value["training_pipeline"].__setitem__(
+                        "source_revision", "e" * 40
+                    ),
+                    "revision differs from the sealed execution",
+                ),
+                (
+                    "different otherwise-valid runtime",
+                    lambda value: value["training_runtime"].__setitem__(
+                        "torch_version", "2.12.2"
+                    ),
+                    "runtime differs from the sealed execution",
                 ),
                 (
                     "runtime type changed",

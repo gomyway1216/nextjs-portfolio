@@ -15,6 +15,8 @@ from sibling_selection_protocol import (  # noqa: E402
     RESULT_ARTIFACT_NAMES,
     SELECTION_TIE_BREAK,
     SIX_RUN_PLAN_SCHEMA,
+    WCSC36_SIX_RUN_EXECUTION_REVISION,
+    WCSC36_SIX_RUN_TRAINING_RUNTIME,
 )
 
 
@@ -36,19 +38,9 @@ def valid_plan_and_result():
         "warm_initializer": digest(10),
     }
     runtime = {
-        "platform": "test-platform",
-        "system": "Darwin",
-        "machine": "arm64",
-        "processor": "arm",
-        "cpu_model": "test-cpu",
-        "logical_cpu_count": 14,
-        "device": "cpu",
-        "python_version": "3.13.0",
-        "torch_version": "2.12.1",
-        "torch_threads": 2,
-        "torch_interop_threads": 1,
-        "deterministic_algorithms": True,
-        "deterministic_debug_mode": "error",
+        field: WCSC36_SIX_RUN_TRAINING_RUNTIME[field]
+        for field in WCSC36_SIX_RUN_TRAINING_RUNTIME
+        if field not in {"mps_built", "mps_available", "cuda_available"}
     }
     plan = {
         "schema": SIX_RUN_PLAN_SCHEMA,
@@ -113,15 +105,10 @@ def valid_plan_and_result():
         },
         "experiment_contract": contract,
         "training_pipeline": {
-            "source_revision": "a" * 40,
+            "source_revision": WCSC36_SIX_RUN_EXECUTION_REVISION,
             "tracked_tree_clean": True,
         },
-        "training_runtime": {
-            **runtime,
-            "mps_built": True,
-            "mps_available": True,
-            "cuda_available": False,
-        },
+        "training_runtime": dict(WCSC36_SIX_RUN_TRAINING_RUNTIME),
         "completed_epochs": 20,
         "selection_metric": "sibling-pair",
         "best_value_loss": 0.03,
@@ -151,7 +138,9 @@ class SiblingSelectionAuditContractTest(unittest.TestCase):
     def test_accepts_exact_training_result_contract(self):
         _plan, _slot, _path, _receipt, result = valid_plan_and_result()
         pipeline, runtime = self.verify(result)
-        self.assertEqual(pipeline["source_revision"], "a" * 40)
+        self.assertEqual(
+            pipeline["source_revision"], WCSC36_SIX_RUN_EXECUTION_REVISION
+        )
         self.assertEqual(runtime["torch_threads"], 2)
 
     def test_rejects_schedule_runtime_and_revision_mutations(self):
@@ -173,7 +162,7 @@ class SiblingSelectionAuditContractTest(unittest.TestCase):
             (
                 "revision",
                 lambda value: value["training_pipeline"].__setitem__(
-                    "source_revision", "not-a-revision"
+                    "source_revision", "a" * 40
                 ),
             ),
         )

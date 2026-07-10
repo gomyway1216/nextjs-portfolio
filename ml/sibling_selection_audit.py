@@ -28,6 +28,8 @@ from sibling_selection_protocol import (
     SIX_RUN_SLOT_ORDER,
     TRAINING_RESULT_SCHEMA,
     TOP1_DEGRADATION_LIMIT,
+    WCSC36_SIX_RUN_EXECUTION_REVISION,
+    WCSC36_SIX_RUN_TRAINING_RUNTIME,
     WCSC36_SIX_RUN_PLAN_SHA256,
     sealed_run_selection_key,
     selection_gate_results,
@@ -579,6 +581,10 @@ def _verify_training_result_contract(
         or pipeline.get("tracked_tree_clean") is not True
     ):
         raise ValueError(f"{slot_id} training pipeline is not an exact clean revision")
+    if pipeline["source_revision"] != WCSC36_SIX_RUN_EXECUTION_REVISION:
+        raise ValueError(
+            f"{slot_id} training pipeline revision differs from the sealed execution"
+        )
 
     runtime = dict(
         _require_exact(
@@ -593,6 +599,8 @@ def _verify_training_result_contract(
     for field in ("mps_built", "mps_available", "cuda_available"):
         if type(runtime.get(field)) is not bool:
             raise ValueError(f"{slot_id} training runtime {field} must be boolean")
+    if runtime != WCSC36_SIX_RUN_TRAINING_RUNTIME:
+        raise ValueError(f"{slot_id} training runtime differs from the sealed execution")
 
     artifacts = _require_exact(
         result.get("artifacts"), set(RESULT_ARTIFACT_NAMES), f"{slot_id} artifacts"
@@ -1077,6 +1085,8 @@ def build_selection_audit(
     audit = {
         "schema": SELECTION_AUDIT_SCHEMA,
         "run_plan": plan_receipt,
+        "training_pipeline": dict(shared_training_pipeline),
+        "training_runtime": dict(shared_training_runtime),
         "runs": public_runs,
         "selection_data": selection_data_identity,
         "selection_strategy": CANDIDATE_SELECTION_STRATEGY,
@@ -1112,7 +1122,8 @@ def build_selection_audit(
         },
         "final_holdout": {
             "status": "sealed_not_opened",
-            "labels_read": False,
+            "post_seal_training_selection_or_evaluation_labels_read": False,
+            "partition_publication_parsed_labeled_source_validation": True,
         },
         "evidence_reproduction": {
             **common_evidence,

@@ -50,6 +50,10 @@ from sibling_manifest import (  # noqa: E402
 from sibling_selection_protocol import (  # noqa: E402
     SELECTION_TIE_BREAK as SEALED_SELECTION_TIE_BREAK,
     SIX_RUN_PLAN_SCHEMA as SEALED_SIX_RUN_PLAN_SCHEMA,
+    WCSC36_SIX_RUN_EXECUTION_REVISION as SEALED_SIX_RUN_EXECUTION_REVISION,
+    WCSC36_SIX_RUN_PLAN_BYTES as SEALED_SIX_RUN_PLAN_BYTES,
+    WCSC36_SIX_RUN_PLAN_SHA256 as SEALED_SIX_RUN_PLAN_SHA256,
+    WCSC36_SIX_RUN_TRAINING_RUNTIME as SEALED_SIX_RUN_TRAINING_RUNTIME,
 )
 from train import (  # noqa: E402
     INPUT_DIM,
@@ -480,13 +484,9 @@ def _verify_sealed_checkpoint_training_provenance(
         or not isinstance(experiment_plan.get("path"), str)
         or not experiment_plan["path"]
         or type(experiment_plan.get("bytes")) is not int
-        or experiment_plan["bytes"] <= 0
+        or experiment_plan["bytes"] != SEALED_SIX_RUN_PLAN_BYTES
         or not isinstance(experiment_plan.get("sha256"), str)
-        or len(experiment_plan["sha256"]) != 64
-        or any(
-            character not in "0123456789abcdef"
-            for character in experiment_plan["sha256"]
-        )
+        or experiment_plan["sha256"] != SEALED_SIX_RUN_PLAN_SHA256
         or experiment_plan.get("schema") != SEALED_SIX_RUN_PLAN_SCHEMA
         or experiment_plan.get("slot_id") != expected_slot_id
         or experiment_plan.get("slot_output") != expected_slot_output
@@ -689,6 +689,10 @@ def _verify_sealed_checkpoint_training_provenance(
         or training_pipeline.get("tracked_tree_clean") is not True
     ):
         raise ValueError(f"{checkpoint_path}: training pipeline provenance is invalid")
+    if revision != SEALED_SIX_RUN_EXECUTION_REVISION:
+        raise ValueError(
+            f"{checkpoint_path}: training pipeline revision differs from the sealed execution"
+        )
     if data_provenance.get("training_pipeline") != training_pipeline:
         raise ValueError(f"{checkpoint_path}: training pipeline provenance is inconsistent")
     training_runtime = checkpoint.get("training_runtime")
@@ -752,6 +756,10 @@ def _verify_sealed_checkpoint_training_provenance(
         )
     if data_provenance.get("training_runtime") != training_runtime:
         raise ValueError(f"{checkpoint_path}: training runtime provenance is inconsistent")
+    if training_runtime != SEALED_SIX_RUN_TRAINING_RUNTIME:
+        raise ValueError(
+            f"{checkpoint_path}: training runtime differs from the sealed execution"
+        )
     checkpoint_selection = checkpoint.get("checkpoint_selection")
     if (
         not isinstance(checkpoint_selection, Mapping)

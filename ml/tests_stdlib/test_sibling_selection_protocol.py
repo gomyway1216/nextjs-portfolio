@@ -16,6 +16,7 @@ from sibling_selection_protocol import (  # noqa: E402
     SELECTION_TIE_BREAK,
     SIX_RUN_PLAN_SCHEMA,
     SIX_RUN_SLOT_ORDER,
+    WCSC36_SIX_RUN_PLAN_BYTES,
     WCSC36_SIX_RUN_PLAN_SHA256,
     WCSC36_STABLE_RUNOP1_SHA256,
     _decode_candidate_selection_receipt_untrusted,
@@ -167,7 +168,7 @@ def valid_receipt():
         "schema": CANDIDATE_SELECTION_RECEIPT_SCHEMA,
         "run_plan": {
             "path": "ml/protocols/wcsc36-six-run-plan.json",
-            "bytes": 400,
+            "bytes": WCSC36_SIX_RUN_PLAN_BYTES,
             "sha256": WCSC36_SIX_RUN_PLAN_SHA256,
             "schema": SIX_RUN_PLAN_SCHEMA,
         },
@@ -254,6 +255,11 @@ class CandidateSelectionProtocolTest(unittest.TestCase):
             _decode_candidate_selection_receipt_untrusted(receipt)
 
     def test_receipt_pins_plan_audit_schema_and_stable_report_identity(self):
+        receipt = valid_receipt()
+        receipt["run_plan"]["bytes"] -= 1
+        with self.assertRaisesRegex(ValueError, "run-plan byte count"):
+            _decode_candidate_selection_receipt_untrusted(receipt)
+
         receipt = valid_receipt()
         receipt["run_plan"]["sha256"] = digest(400)
         with self.assertRaisesRegex(ValueError, "run-plan SHA-256"):

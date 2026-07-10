@@ -410,8 +410,16 @@ def _run_checked(
         stderr = getattr(error, "stderr", "") or ""
         detail = stderr[-2000:].strip()
         suffix = f": {detail}" if detail else ""
+        tool = next(
+            (
+                os.path.basename(argument)
+                for argument in command
+                if argument.endswith(".py")
+            ),
+            os.path.basename(command[0]),
+        )
         raise EvidenceReproductionError(
-            f"isolated command failed: {os.path.basename(command[-1])}{suffix}"
+            f"isolated command failed: {tool}{suffix}"
         ) from error
 
 

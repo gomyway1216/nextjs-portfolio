@@ -18,6 +18,7 @@ from sibling_evidence_reproduction import (  # noqa: E402
     PINNED_FILE_LABELS,
     TOOL_SOURCE_FILES,
     _decode_json,
+    _run_checked,
     collect_reproduction_pins,
     reproduce_selection_evidence,
 )
@@ -29,6 +30,25 @@ class EvidenceReproductionTests(unittest.TestCase):
             EvidenceReproductionError, "contains non-finite JSON number NaN"
         ):
             _decode_json(b'{"value": NaN}', "fixture")
+
+    def test_failed_command_reports_tool_instead_of_last_output_argument(self):
+        command = [
+            "/venv/bin/python",
+            "-I",
+            "/repo/ml/eval-sibling.py",
+            "--json-out",
+            "/tmp/selection-report.json",
+        ]
+        failure = subprocess.CalledProcessError(
+            1, command, stderr="evaluation failed"
+        )
+        with mock.patch(
+            "sibling_evidence_reproduction.subprocess.run", side_effect=failure
+        ), self.assertRaisesRegex(
+            EvidenceReproductionError,
+            "isolated command failed: eval-sibling.py: evaluation failed",
+        ):
+            _run_checked(command, cwd="/tmp", environment={}, timeout=1)
 
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()

@@ -379,6 +379,8 @@ def _decode_candidate_selection_receipt_untrusted(
     )
     if run_plan.get("schema") != SIX_RUN_PLAN_SCHEMA:
         raise ValueError("candidate selection run-plan schema mismatch")
+    if run_plan["bytes"] != WCSC36_SIX_RUN_PLAN_BYTES:
+        raise ValueError("candidate selection run-plan byte count mismatch")
     if run_plan["sha256"] != WCSC36_SIX_RUN_PLAN_SHA256:
         raise ValueError("candidate selection run-plan SHA-256 mismatch")
     if (

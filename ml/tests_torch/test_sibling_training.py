@@ -103,7 +103,7 @@ def write_rows(path, rows):
             target.write(json.dumps(persisted, sort_keys=True) + "\n")
 
 
-class SiblingTrainingLossTest(unittest.TestCase):
+class SiblingTrainingPipelineTest(unittest.TestCase):
     def test_production_six_run_plan_hash_matches_committed_plan_bytes(self):
         plan_path = os.path.join(
             ML_DIR, "protocols", "wcsc36-six-run-plan.json"

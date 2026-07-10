@@ -477,7 +477,7 @@ seed追加・epoch差替え・閾値緩和は行わず、次は新しい強豪�
 正常投了を、training 1,000局 / fresh selection 200局 / fresh final 200局へlabel生成前に
 分ける。モデル、exact-int16 STE、seed 42/43/44、20 epoch、selection gateは変更しない。
 計画は10,623 bytes、SHA-256
-`87d9d8927e8a8f645d5170d64b5d6b8fe17d54ca4bb32000f6454b0cf6291493`。
+`3360a1bf3798eb9462797958e8ff893f4e829f896cf90158d98bdbb622f52329`。
 詳細は[日本語plan](../docs/blog-shogi-floodgate-fresh-sibling-plan.md) /
 [English plan](../docs/blog-shogi-floodgate-fresh-sibling-plan.en.md)に記録した。
 

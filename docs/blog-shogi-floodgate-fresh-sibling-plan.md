@@ -175,7 +175,7 @@ WCSC36 depth 16実績を線形換算すると、training teacher 24,000親は約
 事前登録JSONは10,623 bytes、SHA-256は次である。
 
 ```text
-87d9d8927e8a8f645d5170d64b5d6b8fe17d54ca4bb32000f6454b0cf6291493
+3360a1bf3798eb9462797958e8ff893f4e829f896cf90158d98bdbb622f52329
 ```
 
 今回の判断は「今の評価関数へ強い棋譜を無条件に上書きする」ではない。現行productionを残し、独立candidateを作り、fresh selectionと2つのfinal holdoutと実戦A/Bを通った時だけ置き換える。これなら失敗しても今の強さを失わず、成功した時だけ検証可能な形で前へ進める。

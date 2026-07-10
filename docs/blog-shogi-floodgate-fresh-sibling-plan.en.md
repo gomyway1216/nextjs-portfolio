@@ -175,7 +175,7 @@ Account, connection, and match details require final user confirmation before ex
 The canonical plan is 10,623 bytes with SHA-256:
 
 ```text
-87d9d8927e8a8f645d5170d64b5d6b8fe17d54ca4bb32000f6454b0cf6291493
+3360a1bf3798eb9462797958e8ff893f4e829f896cf90158d98bdbb622f52329
 ```
 
 This is not an in-place overwrite of the current evaluator. Stable production remains available while an independent candidate passes fresh selection, two finals, retention, search/browser parity, and match evidence. A failed experiment costs compute, not existing playing strength.

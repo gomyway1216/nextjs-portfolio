@@ -7,7 +7,7 @@ import unittest
 ML_DIR = Path(__file__).resolve().parents[1]
 PLAN_PATH = ML_DIR / "protocols" / "floodgate-q1-2026-fresh-sibling-plan.json"
 PLAN_BYTES = 10_623
-PLAN_SHA256 = "87d9d8927e8a8f645d5170d64b5d6b8fe17d54ca4bb32000f6454b0cf6291493"
+PLAN_SHA256 = "3360a1bf3798eb9462797958e8ff893f4e829f896cf90158d98bdbb622f52329"
 
 
 class FloodgateFreshSiblingPlanTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class FloodgateFreshSiblingPlanTests(unittest.TestCase):
 
     def test_plan_identity_is_pinned_before_labels(self):
         self.assertNotIn(
-            b"\r\n",
+            b"\r",
             self.raw,
             "plan must be checked out with LF endings; verify .gitattributes",
         )
@@ -86,18 +86,18 @@ class FloodgateFreshSiblingPlanTests(unittest.TestCase):
         )
 
         selection = self.plan["static_selection"]
-        self.assertEqual(selection["evaluations_per-checkpoint"], 1)
-        self.assertFalse(selection["used_wcsc36-selection_reopened"])
+        self.assertEqual(selection["evaluations_per_checkpoint"], 1)
+        self.assertFalse(selection["used_wcsc36_selection_reopened"])
         self.assertEqual(len(selection["per_seed_gates"]), 4)
-        self.assertEqual(selection["family_gate"]["minimum-seeds-passing-all-four"], 2)
+        self.assertEqual(selection["family_gate"]["minimum_seeds_passing_all_four"], 2)
 
         failure = self.plan["failure_policy"]
-        self.assertFalse(failure["add-seeds"])
-        self.assertFalse(failure["relax-source-rating-or-game-count"])
-        self.assertFalse(failure["relax-role-caps-or-semantic-isolation"])
-        self.assertFalse(failure["tune-model-or-loss-on-fresh-selection"])
-        self.assertFalse(failure["open-any-final-holdout-after-static-failure"])
-        self.assertFalse(failure["change-production-after-any-gate-failure"])
+        self.assertFalse(failure["add_seeds"])
+        self.assertFalse(failure["relax_source_rating_or_game_count"])
+        self.assertFalse(failure["relax_role_caps_or_semantic_isolation"])
+        self.assertFalse(failure["tune_model_or_loss_on_fresh_selection"])
+        self.assertFalse(failure["open_any_final_holdout_after_static_failure"])
+        self.assertFalse(failure["change_production_after_any_gate_failure"])
 
 
 if __name__ == "__main__":

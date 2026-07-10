@@ -37,7 +37,7 @@
       "hash": "sha256-exact-response-bytes",
       "listing_and_rating_pages_locked": true,
       "csa_objects_content_addressed": true,
-      "online_discovery_then_offline-reproduction": true,
+      "online_discovery_then_offline_reproduction": true,
       "partial_publish": "forbidden",
       "final_manifest_written_last": true
     },
@@ -79,7 +79,7 @@
       }
     ],
     "phase_shortfall": "fill-by-domain-separated-parent-hash-from-remaining-ply-16-through-119",
-    "minimum_eligible_parents_before-semantic-isolation": 24,
+    "minimum_eligible_parents_before_semantic_isolation": 24,
     "game_rank_tie_break": "utf8-bytewise-game-id",
     "parent_rank_tie_break": "utf8-bytewise-parent-id",
     "per_role_identity_game_cap_ratio": 0.1,
@@ -214,7 +214,7 @@
   },
   "static_selection": {
     "precondition": "all-three-final-checkpoints-and-results-strict-load-before-first-selection-label-read",
-    "stable_recomputed_on_same-fresh-selection": true,
+    "stable_recomputed_on_same_fresh_selection": true,
     "metric_order": [
       "int16-pair-accuracy:max",
       "int16-teacher-top1:max",
@@ -230,12 +230,12 @@
       "absolute-float-to-int16-top1-delta-at-most-0.005"
     ],
     "family_gate": {
-      "representative_passes-all-four": true,
-      "minimum-seeds-passing-all-four": 2,
-      "all-seeds-pass-both-quantization-delta-gates": true
+      "representative_passes_all_four": true,
+      "minimum_seeds_passing_all_four": 2,
+      "all_seeds_pass_both_quantization_delta_gates": true
     },
-    "evaluations_per-checkpoint": 1,
-    "used_wcsc36-selection_reopened": false
+    "evaluations_per_checkpoint": 1,
+    "used_wcsc36_selection_reopened": false
   },
   "promotion_after_static_pass": {
     "fresh_final_holdout": "candidate-int16-pair-and-top1-both-at-least-stable-on-same-data",
@@ -255,7 +255,7 @@
       "safety_gate": "one-sided-95-percent-lower-bound-strictly-above-0.45",
       "stronger_claim_gate": "two-sided-95-percent-lower-bound-strictly-above-0.50"
     },
-    "production_weights_unchanged_until_every-gate-passes": true
+    "production_weights_unchanged_until_every_gate_passes": true
   },
   "external_high_dan_calibration": {
     "platform": "81Dojo",
@@ -264,15 +264,15 @@
     "rated_games": 200,
     "pairing": "non-selected",
     "stable_high_dan_gate": "post-game-rating-after-each-of-games-171-through-200-is-at-least-2050",
-    "requires-user-account-and-final-preflight": true,
-    "internal-ab-is-human-rank-proof": false
+    "requires_user_account_and_final_preflight": true,
+    "internal_ab_is_human_rank_proof": false
   },
   "failure_policy": {
-    "add-seeds": false,
-    "relax-source-rating-or-game-count": false,
-    "relax-role-caps-or-semantic-isolation": false,
-    "tune-model-or-loss-on-fresh-selection": false,
-    "open-any-final-holdout-after-static-failure": false,
-    "change-production-after-any-gate-failure": false
+    "add_seeds": false,
+    "relax_source_rating_or_game_count": false,
+    "relax_role_caps_or_semantic_isolation": false,
+    "tune_model_or_loss_on_fresh_selection": false,
+    "open_any_final_holdout_after_static_failure": false,
+    "change_production_after_any_gate_failure": false
   }
 }

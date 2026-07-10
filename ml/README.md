@@ -378,7 +378,68 @@ base train/val、semantic-isolated model training、model selectionのsizeとSHA
 使わないLane A exposure除外後のexact-row holdout、既知回帰局面、量子化後探索、本番時間のA/Bを用意する。
 pilotが全28局へ触れていたため、これはgame-level untouchedという意味ではない。
 
-### 3-2. 契約テスト
+### 3-2. int16-awareを選別ラベルなしで3 seed学習する
+
+前実験はfloatでは改善した一方、int16化でpair accuracyが`0.0027204`低下し、固定gate
+`abs(delta) <= 0.002`を越えた。次の仮説は、export後と同じ整数forwardを学習損失へ直接入れる
+STE（straight-through estimator）である。変更不能なplanは
+`ml/protocols/wcsc36-int16-aware-plan.json`（8,054 bytes / SHA-256
+`f922eec0909de0f077475caf9bc845065c759ca87248f2b36a6e05812d7f3dd2`）。これは強さの証明ではなく、
+既存model-selection上のdevelopment screeningを1 familyだけ行う事前登録である。
+
+学習processへ`--val-data`を渡さない。replay除外に必要なpolicy / selection / holdoutのsemantic IDは、
+既に使ったmodel-selectionとラベルを含まないholdout protected IDsから、学習前にID-only unionへ変換する。
+final-holdout JSONLはgeneratorの引数に存在しない。固定成果物は8,678 IDs / 624,816 bytes / SHA-256
+`1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a`である。
+
+```sh
+python3 ml/prepare_qat_replay_exclusion.py \
+  --selection-data ml/data/wcsc36/siblings.model-selection.jsonl \
+  --policy-exposed-ids ml/protocols/wcsc36-policy-exposed-semantic-position-ids.txt \
+  --holdout-protected-ids ml/data/wcsc36/final-holdout-position-ids.txt \
+  --out ml/data/wcsc36/int16-aware-replay-excluded-position-ids.txt
+```
+
+各batchは同じprimary rowsと同じreplay indicesに対して
+`0.5 * float full task + 0.5 * exact-int16 STE full task`を計算する。両full taskはvalue、親内rank、
+listwise policy、replay valueをすべて含む。量子化はexporterと共通の実装で、activation scale 127、
+後段weight scale 64、round-half-to-even、int32 accumulator、`>> 6`、output scale 8,128を再現する。
+epoch中の評価・early stop・best checkpoint選択はなく、epoch 20の`final.pt`だけを候補にする。
+
+```sh
+# seedは42, 43, 44。outputもplanでseedごとに固定されている。
+SEED=42
+ml/venv/bin/python ml/train.py \
+  --experiment-family int16-aware \
+  --experiment-plan ml/protocols/wcsc36-int16-aware-plan.json \
+  --data ml/data/wcsc36/siblings.model-training.jsonl \
+  --sibling-manifest /absolute/path/to/full-depth16-v6/manifest.json \
+  --validation-partition-manifest ml/data/wcsc36/sibling-eval-partition-manifest.json \
+  --holdout-protected-position-ids ml/data/wcsc36/final-holdout-position-ids.txt \
+  --policy-exposure-receipt ml/protocols/wcsc36-policy-exposure-receipt.json \
+  --policy-exposed-parent-ids ml/protocols/wcsc36-policy-exposed-parent-ids.txt \
+  --policy-exposed-semantic-position-ids ml/protocols/wcsc36-policy-exposed-semantic-position-ids.txt \
+  --replay-excluded-position-ids ml/data/wcsc36/int16-aware-replay-excluded-position-ids.txt \
+  --init-ckpt /absolute/path/to/runOp1-best.pt --allow-legacy-init \
+  --replay-data /absolute/path/to/runOp1-train.jsonl \
+  --pipeline-revision "$(git rev-parse HEAD)" \
+  --loss sibling-ranking --features board --device cpu --torch-threads 2 \
+  --batch 256 --k 600 --cp-clamp 3000 \
+  --rank-weight 1.0 --rank-pair-min 50 --rank-pair-max 600 --rank-margin-cp 50 \
+  --policy-weight 0.25 --policy-temp-cp 200 \
+  --replay-limit 500000 --replay-ratio 1.0 \
+  --lr 1e-4 --epochs 20 --seed "$SEED" \
+  --out "ml/runs/wcsc36-int16-aware/seed-$SEED"
+```
+
+3つのatomic `result.json`と`final.pt`が揃う前はmodel-selectionを開かない。揃った後に各finalを1回だけ
+float/int16評価し、int16 pair、top-1、MAE、seed、checkpoint SHAの固定順で中央seedを代表にする。
+代表が4 gateすべて、3 seed中2つ以上が4 gateすべて、かつ全3 seedが2つの量子化delta gateを通った
+場合だけ次へ進む。失敗後のseed追加、ratio/lr/epoch調整、よい非中央seedへの差替えは禁止する。
+通過してもproduction昇格ではなく、sealed final holdout、既知回帰、量子化後探索/browser、
+事前登録した384局paired A/B、外部高段ratingを順に要求する。
+
+### 3-3. 契約テスト
 
 ```sh
 # TypeScript: CSA、SFEN、USI MultiPV、生成checkpoint、split、比較report

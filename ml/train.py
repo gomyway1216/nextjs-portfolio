@@ -1151,6 +1151,13 @@ def int16_aware_dual_task_loss(
     return combined, float_task, ste_task
 
 
+def require_finite_model_parameters(model, context: str) -> None:
+    """Reject a checkpoint boundary containing NaN or infinite parameters."""
+    for name, parameter in model.named_parameters():
+        if not bool(torch.isfinite(parameter).all().item()):
+            raise ValueError(f"{context} model parameter {name} is non-finite")
+
+
 def dataset_provenance(
     path: str,
     usable_rows: int,
@@ -2375,6 +2382,10 @@ def run_int16_aware_training(args) -> None:
             f"lr={lr_used:.2e} ({time.time() - started:.1f}s; selection eval=0)"
         )
 
+    try:
+        require_finite_model_parameters(model, "int16-aware final")
+    except ValueError as error:
+        raise SystemExit(f"[train] invalid int16-aware final model: {error}") from error
     try:
         final_pipeline = verify_training_pipeline_revision(args.pipeline_revision)
     except ValueError as error:

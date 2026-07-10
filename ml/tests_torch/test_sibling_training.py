@@ -34,6 +34,7 @@ from train import (  # noqa: E402
     mix_replay_value_loss,
     position_id_from_sfen,
     raw_sibling_cp,
+    require_finite_model_parameters,
     run_int16_aware_training,
     sealed_experiment_contract,
     sealed_run_tie_break_key,
@@ -291,6 +292,14 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
         combined.backward()
         self.assertIsNotNone(model.weight.grad)
         self.assertTrue(torch.isfinite(model.weight.grad))
+
+    def test_int16_aware_final_boundary_rejects_nonfinite_parameters(self):
+        model = torch.nn.Linear(2, 1)
+        require_finite_model_parameters(model, "fixture")
+        with torch.no_grad():
+            model.weight[0, 0] = float("inf")
+        with self.assertRaisesRegex(ValueError, "weight.*non-finite"):
+            require_finite_model_parameters(model, "fixture")
 
     def test_int16_aware_run_emits_only_atomic_final_candidate_and_result_marker(self):
         with tempfile.TemporaryDirectory() as tmp:

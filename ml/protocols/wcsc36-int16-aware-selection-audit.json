@@ -1,0 +1,712 @@
+{
+  "audit_pipeline": {
+    "source_revision": "753f90a026dfd6ec837b4444f3220db5648dc212",
+    "tracked_tree_clean": true
+  },
+  "final_holdout": "not_opened_by_this_command",
+  "preflight": {
+    "all_three_complete_before_selection_read": true,
+    "plan": {
+      "bytes": 8152,
+      "path": "ml/protocols/wcsc36-int16-aware-plan.json",
+      "schema": "shogi-int16-aware-experiment-plan-v1",
+      "sha256": "bef7863a5f6c85d5d6c5b97cc21aef48d17dae137ffd679efeda764d352a6b6b"
+    },
+    "runs": [
+      {
+        "candidate": {
+          "bytes": 2383313,
+          "path": "ml/runs/wcsc36-int16-aware/seed-42/final.pt",
+          "sha256": "2a643831d1a00cb062150fce25d98aca7b773cc82169a903152a8f855c325ac9"
+        },
+        "checkpoint_metadata": {
+          "epoch": 20,
+          "schema": "shogi-int16-aware-final-checkpoint-v1"
+        },
+        "result_manifest": {
+          "bytes": 7939,
+          "path": "ml/runs/wcsc36-int16-aware/seed-42/result.json",
+          "sha256": "64a0c43727ba137462885f8e08e5753148327ea8432a51c0f23ff2b7a82398e3"
+        },
+        "seed": 42,
+        "slot_id": "int16-aware-seed-42"
+      },
+      {
+        "candidate": {
+          "bytes": 2383313,
+          "path": "ml/runs/wcsc36-int16-aware/seed-43/final.pt",
+          "sha256": "2160926e71eee03aaf6038e08699a4bbf907f88aeafe55e6ac7757a18b45924d"
+        },
+        "checkpoint_metadata": {
+          "epoch": 20,
+          "schema": "shogi-int16-aware-final-checkpoint-v1"
+        },
+        "result_manifest": {
+          "bytes": 7937,
+          "path": "ml/runs/wcsc36-int16-aware/seed-43/result.json",
+          "sha256": "6cd7f878fb514328911c54d88ebe967efca02a345e9b34fb05d9fa170f86f942"
+        },
+        "seed": 43,
+        "slot_id": "int16-aware-seed-43"
+      },
+      {
+        "candidate": {
+          "bytes": 2383313,
+          "path": "ml/runs/wcsc36-int16-aware/seed-44/final.pt",
+          "sha256": "6497c81309a5e1273d2d9c013a4cdfe97923e05762e150986309bd8b789c42fb"
+        },
+        "checkpoint_metadata": {
+          "epoch": 20,
+          "schema": "shogi-int16-aware-final-checkpoint-v1"
+        },
+        "result_manifest": {
+          "bytes": 7939,
+          "path": "ml/runs/wcsc36-int16-aware/seed-44/result.json",
+          "sha256": "e6cf4e89f027bcf3c454822baef6db615d9b3d1e18e8d2dc7a04ed50e8f39080"
+        },
+        "seed": 44,
+        "slot_id": "int16-aware-seed-44"
+      }
+    ],
+    "schema": "shogi-int16-aware-selection-preflight-v1",
+    "training_pipeline": {
+      "source_revision": "753f90a026dfd6ec837b4444f3220db5648dc212",
+      "tracked_tree_clean": true
+    },
+    "training_runtime": {
+      "cpu_model": "Apple M4 Pro",
+      "cuda_available": false,
+      "deterministic_algorithms": true,
+      "deterministic_debug_mode": "error",
+      "device": "cpu",
+      "logical_cpu_count": 14,
+      "machine": "arm64",
+      "mps_available": true,
+      "mps_built": true,
+      "platform": "macOS-15.1-arm64-arm-64bit-Mach-O",
+      "processor": "arm",
+      "python_version": "3.13.0",
+      "system": "Darwin",
+      "torch_interop_threads": 1,
+      "torch_threads": 2,
+      "torch_version": "2.12.1"
+    }
+  },
+  "production_promotion_authorized": false,
+  "run_plan": {
+    "bytes": 8152,
+    "path": "ml/protocols/wcsc36-int16-aware-plan.json",
+    "schema": "shogi-int16-aware-experiment-plan-v1",
+    "sha256": "bef7863a5f6c85d5d6c5b97cc21aef48d17dae137ffd679efeda764d352a6b6b"
+  },
+  "schema": "shogi-int16-aware-selection-audit-v1",
+  "selection": {
+    "family_gate": {
+      "all_seeds_passed_both_quantization_delta_gates": false,
+      "minimum_seed_count_passed": false,
+      "minimum_seeds_passing_all_four": 2,
+      "passed": false,
+      "representative_passed_all_four": false,
+      "seeds_passing_all_four": 0
+    },
+    "ranked_seed_order": [
+      43,
+      44,
+      42
+    ],
+    "representative_seed": 44,
+    "runs": [
+      {
+        "checkpoint": {
+          "bytes": 2383313,
+          "path": "ml/runs/wcsc36-int16-aware/seed-42/final.pt",
+          "sha256": "2a643831d1a00cb062150fce25d98aca7b773cc82169a903152a8f855c325ac9"
+        },
+        "float": {
+          "teacher_top1_accuracy": 0.2727272727272727,
+          "value_mae_cp": 484.83810045612796,
+          "value_mse_cp2": 607393.2464223021,
+          "within_parent_pair_accuracy": 0.609624975710862
+        },
+        "gates": {
+          "all_four_passed": false,
+          "both_quantization_delta_gates_passed": false,
+          "checks": [
+            {
+              "candidate": 0.6071636764039122,
+              "id": "int16_pair_strictly_above_stable",
+              "operator": ">",
+              "passed": true,
+              "reference": 0.6048966902001425
+            },
+            {
+              "candidate": 0.2727272727272727,
+              "id": "int16_top1_at_least_stable",
+              "operator": ">=",
+              "passed": true,
+              "reference": 0.2668621700879765
+            },
+            {
+              "absolute_limit": 0.002,
+              "id": "absolute_float_to_int16_pair_delta",
+              "observed": -0.002461299306949827,
+              "operator": "abs<=",
+              "passed": false
+            },
+            {
+              "absolute_limit": 0.005,
+              "id": "absolute_float_to_int16_top1_delta",
+              "observed": 0.0,
+              "operator": "abs<=",
+              "passed": true
+            }
+          ]
+        },
+        "int16": {
+          "teacher_top1_accuracy": 0.2727272727272727,
+          "value_mae_cp": 488.9023517382413,
+          "value_mse_cp2": 616174.013803681,
+          "within_parent_pair_accuracy": 0.6071636764039122
+        },
+        "seed": 42,
+        "slot_id": "int16-aware-seed-42"
+      },
+      {
+        "checkpoint": {
+          "bytes": 2383313,
+          "path": "ml/runs/wcsc36-int16-aware/seed-43/final.pt",
+          "sha256": "2160926e71eee03aaf6038e08699a4bbf907f88aeafe55e6ac7757a18b45924d"
+        },
+        "float": {
+          "teacher_top1_accuracy": 0.26099706744868034,
+          "value_mae_cp": 485.6389178060574,
+          "value_mse_cp2": 607224.0974395514,
+          "within_parent_pair_accuracy": 0.6105965412267634
+        },
+        "gates": {
+          "all_four_passed": false,
+          "both_quantization_delta_gates_passed": true,
+          "checks": [
+            {
+              "candidate": 0.6092363495045016,
+              "id": "int16_pair_strictly_above_stable",
+              "operator": ">",
+              "passed": true,
+              "reference": 0.6048966902001425
+            },
+            {
+              "candidate": 0.26392961876832843,
+              "id": "int16_top1_at_least_stable",
+              "operator": ">=",
+              "passed": false,
+              "reference": 0.2668621700879765
+            },
+            {
+              "absolute_limit": 0.002,
+              "id": "absolute_float_to_int16_pair_delta",
+              "observed": -0.001360191722261872,
+              "operator": "abs<=",
+              "passed": true
+            },
+            {
+              "absolute_limit": 0.005,
+              "id": "absolute_float_to_int16_top1_delta",
+              "observed": 0.0029325513196480912,
+              "operator": "abs<=",
+              "passed": true
+            }
+          ]
+        },
+        "int16": {
+          "teacher_top1_accuracy": 0.26392961876832843,
+          "value_mae_cp": 490.215490797546,
+          "value_mse_cp2": 615123.097392638,
+          "within_parent_pair_accuracy": 0.6092363495045016
+        },
+        "seed": 43,
+        "slot_id": "int16-aware-seed-43"
+      },
+      {
+        "checkpoint": {
+          "bytes": 2383313,
+          "path": "ml/runs/wcsc36-int16-aware/seed-44/final.pt",
+          "sha256": "6497c81309a5e1273d2d9c013a4cdfe97923e05762e150986309bd8b789c42fb"
+        },
+        "float": {
+          "teacher_top1_accuracy": 0.2668621700879765,
+          "value_mae_cp": 483.2278105244802,
+          "value_mse_cp2": 602528.862714852,
+          "within_parent_pair_accuracy": 0.6107260832955502
+        },
+        "gates": {
+          "all_four_passed": false,
+          "both_quantization_delta_gates_passed": false,
+          "checks": [
+            {
+              "candidate": 0.6073579895070924,
+              "id": "int16_pair_strictly_above_stable",
+              "operator": ">",
+              "passed": true,
+              "reference": 0.6048966902001425
+            },
+            {
+              "candidate": 0.2756598240469208,
+              "id": "int16_top1_at_least_stable",
+              "operator": ">=",
+              "passed": true,
+              "reference": 0.2668621700879765
+            },
+            {
+              "absolute_limit": 0.002,
+              "id": "absolute_float_to_int16_pair_delta",
+              "observed": -0.0033680937884578155,
+              "operator": "abs<=",
+              "passed": false
+            },
+            {
+              "absolute_limit": 0.005,
+              "id": "absolute_float_to_int16_top1_delta",
+              "observed": 0.008797653958944274,
+              "operator": "abs<=",
+              "passed": false
+            }
+          ]
+        },
+        "int16": {
+          "teacher_top1_accuracy": 0.2756598240469208,
+          "value_mae_cp": 485.3565950920245,
+          "value_mse_cp2": 605734.3632413088,
+          "within_parent_pair_accuracy": 0.6073579895070924
+        },
+        "seed": 44,
+        "slot_id": "int16-aware-seed-44"
+      }
+    ],
+    "stable": {
+      "checkpoint": {
+        "bytes": 2375274,
+        "path": "<external:runOp1-best.pt>",
+        "sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8"
+      },
+      "float": {
+        "teacher_top1_accuracy": 0.2697947214076246,
+        "value_mae_cp": 498.080117317766,
+        "value_mse_cp2": 635326.7369385229,
+        "within_parent_pair_accuracy": 0.6062568819224043
+      },
+      "int16": {
+        "teacher_top1_accuracy": 0.2668621700879765,
+        "value_mae_cp": 496.8903374233129,
+        "value_mse_cp2": 628043.8453476483,
+        "within_parent_pair_accuracy": 0.6048966902001425
+      }
+    }
+  },
+  "selection_report": {
+    "data": {
+      "bytes": 3319397,
+      "data_role": "selection",
+      "eligible_pairs": 15439,
+      "pair_min_cp": 50.0,
+      "parents": 341,
+      "path": "ml/data/wcsc36/siblings.model-selection.jsonl",
+      "pipeline_source_revision": "8e376e887fac19fb31c07f147e17e84b1d5fc4b2",
+      "ranking_target": "unclamped_parent_cp_equals_negative_child_cp",
+      "records": 3912,
+      "sha256": "97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba",
+      "sibling_manifest": {
+        "bytes": 4895,
+        "candidate_execution_order": "utf8-bytewise-ascending",
+        "exact_rescore_mode": "independent-single-move",
+        "label_policy": "initial-multipv-plus-played-independent-single-move-rescore-final-mate-v6",
+        "outputs": {
+          "train_bytes": 20286990,
+          "train_sha256": "909f12a503c240b5bf73bc3f7552d1df525531fc7b2b1b6e1dce2fdef70ad70a",
+          "val_bytes": 7422900,
+          "val_sha256": "5a2435df0c995a325ed3b4584355aa716dd1c91af7e3099413bb34f99e9ac401"
+        },
+        "path": "<external:manifest.json>",
+        "pipeline": {
+          "source_revision": "8e376e887fac19fb31c07f147e17e84b1d5fc4b2",
+          "tracked_tree_clean": true
+        },
+        "record_manifest_schema": "shogi-sibling-manifest-v1",
+        "schema": "shogi-sibling-teacher-manifest-v2",
+        "search_state_reset_before_each_candidate": "isready",
+        "search_state_reset_before_proposal": "isready",
+        "sha256": "3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc",
+        "synthesized_rank_order": "cp-descending-then-utf8-bytewise-move",
+        "teacher_runtime_snapshot": {
+          "engine_argument_file_count": 0,
+          "engine_argument_files": "snapshotted-and-substituted",
+          "engine_binary": true,
+          "eval_options_file": "rejected",
+          "eval_tree": "snapshotted",
+          "eval_tree_present": true,
+          "private_working_directory": true
+        },
+        "tt_reset_before_each_candidate": true,
+        "tt_reset_before_proposal": true,
+        "verified_splits": []
+      },
+      "sibling_manifest_bytes": 4895,
+      "sibling_manifest_sha256": "3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc",
+      "teacher_runtime_snapshot": {
+        "engine_argument_file_count": 0,
+        "engine_argument_files": "snapshotted-and-substituted",
+        "engine_binary": true,
+        "eval_options_file": "rejected",
+        "eval_tree": "snapshotted",
+        "eval_tree_present": true,
+        "private_working_directory": true
+      },
+      "validation_partition_manifest": {
+        "bytes": 5357,
+        "drops": {
+          "holdout_policy_exposed_parents": 49,
+          "holdout_policy_exposed_records": 588,
+          "parent_id_overlap_parents": 0,
+          "policy_exposed_unmatched_parent_ids": 7,
+          "selection_conflict_parents": 9,
+          "selection_conflict_records": 108,
+          "selection_policy_exposed_parents": 64,
+          "selection_policy_exposed_records": 762,
+          "semantic_position_overlap_parents": 9,
+          "training_policy_exposed_parents": 307,
+          "training_policy_exposed_records": 3642,
+          "training_semantic_conflict_parents": 4,
+          "training_semantic_conflict_records": 48
+        },
+        "isolation": {
+          "child_position_overlap": 0,
+          "game_overlap": 0,
+          "parent_overlap": 0,
+          "position_overlap": 0,
+          "selection_child_to_holdout_position_overlap": 0,
+          "selection_position_to_holdout_child_overlap": 0,
+          "semantic_position_union_overlap": 0,
+          "training_to_evaluation_semantic_position_union_overlap": 0,
+          "training_to_holdout_semantic_position_union_overlap": 0,
+          "training_to_selection_semantic_position_union_overlap": 0
+        },
+        "outputs": {
+          "final_holdout": {
+            "bytes": 2870874,
+            "format": "jsonl-original-lines-v1",
+            "game_ids_sha256": "8040f7164cff234b08f2f29b4369de0e9748aa42ebbc2b439ae265a9d8a99abe",
+            "games": 3,
+            "parents": 290,
+            "records": 3391,
+            "semantic_position_ids_count": 3372,
+            "semantic_position_ids_sha256": "bf4a4a1c66be0c0fa186bfc15432d55700d2a61d04010114e867a905cbaebc34",
+            "sha256": "89b3e2ca1e637a507b4b6559326ada420d205c3967ac33063a9084ee5290e8c8"
+          },
+          "model_selection": {
+            "bytes": 3319397,
+            "format": "jsonl-original-lines-v1",
+            "game_ids_sha256": "3f9828fb8db9c1cd2d123a5badd363eeb2917a24e755411633ba72c91e9a2ddb",
+            "games": 4,
+            "parents": 341,
+            "records": 3912,
+            "semantic_position_ids_count": 3914,
+            "semantic_position_ids_sha256": "75fc43dd3852cba21a91c3290fc134ceb1fcf073bf3d0fe280c8c0a7e72a0a6f",
+            "sha256": "97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba"
+          },
+          "model_training": {
+            "bytes": 17154270,
+            "format": "jsonl-original-lines-v1",
+            "game_ids_sha256": "a1f633e0937ed870b0d73cdf2496f124fb060239150e5c8567e6e20dd2cf6ff6",
+            "games": 21,
+            "parents": 1725,
+            "records": 20123,
+            "semantic_position_ids_count": 18181,
+            "semantic_position_ids_sha256": "8311fc6c4f318a05e189e4d4fadc5eab9840915cd3f01cd44e2e0aaaa9c47ea5",
+            "sha256": "f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26"
+          },
+          "protected_position_ids": {
+            "bytes": 242784,
+            "count": 3372,
+            "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+            "sha256": "762b95b52f50223fd484573d7d3823f3d2d7622ea3817f4300ae9fcc95935d26"
+          }
+        },
+        "path": "ml/data/wcsc36/sibling-eval-partition-manifest.json",
+        "pipeline": {
+          "source_revision": "6d541f1108a22f18751ee009417c3e57e27f8205",
+          "tracked_tree_clean": true
+        },
+        "policy": {
+          "algorithm": "sha256-fixed-game-quota-final-holdout-v1",
+          "conflict_resolution": "drop-conflicting-selection-and-training-parent-groups-with-holdout-then-evaluation-priority",
+          "domain": "shogi-sibling-eval-partition-v1",
+          "drop_unit": "parent-group",
+          "expected_source_games": 7,
+          "final_holdout_games": 3,
+          "policy_exposure_policy": "drop-parent-groups-touching-policy-parent-or-semantic-position-exposure-before-role-isolation",
+          "priority": "final-holdout-then-evaluation-wins",
+          "rank_order": "sha256-bytes-ascending-then-game-id-utf8-bytewise",
+          "seed": "wcsc36-d16-v6-eval-v1",
+          "semantic_position_set": "position_id-union-child_position_id",
+          "source_role": "val"
+        },
+        "record_schema": "shogi-sibling-v1",
+        "replay_exclusion": {
+          "semantic_position_ids_count": 8678,
+          "semantic_position_ids_sha256": "f9d9560452554b7e40ed0183c95f9d42cc8b8787f63200b453a511dd44fac5c5"
+        },
+        "schema": "shogi-sibling-eval-partition-manifest-v1",
+        "sha256": "d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1",
+        "source": {
+          "full_training": {
+            "bytes": 20286990,
+            "game_ids_sha256": "a1f633e0937ed870b0d73cdf2496f124fb060239150e5c8567e6e20dd2cf6ff6",
+            "games": 21,
+            "parents": 2036,
+            "records": 23813,
+            "sha256": "909f12a503c240b5bf73bc3f7552d1df525531fc7b2b1b6e1dce2fdef70ad70a"
+          },
+          "full_validation": {
+            "bytes": 7422900,
+            "game_ids_sha256": "778d7ffcd536367dcefbd1a93785c9a8c62b00504b9461a95fd1653b4fdd3b55",
+            "games": 7,
+            "parents": 753,
+            "records": 8761,
+            "sha256": "5a2435df0c995a325ed3b4584355aa716dd1c91af7e3099413bb34f99e9ac401"
+          },
+          "policy_exposed_parent_ids": {
+            "bytes": 7344,
+            "count": 102,
+            "format": "sorted-unique-sha256-parent-id-utf8-lf-v1",
+            "identifiers_sha256": "77ea294f0237ca089f5fd4df64242ab9cf9f62f5a134196ac98fc9114ceebdd3",
+            "sha256": "2e634e5968516f243998de98c5f80d2abb674e8b9841655a3b4735df892e2d10"
+          },
+          "policy_exposed_semantic_position_ids": {
+            "bytes": 100224,
+            "count": 1392,
+            "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+            "identifiers_sha256": "31d2b9f60421f540880037efed9571bd034a986163cd79d2e51f2336544cba70",
+            "sha256": "8c696e8d1d426d9efdffb112004f37a37359f22a903bc34d2c4e7621e02a6bdd"
+          },
+          "policy_exposure_receipt": {
+            "bytes": 4111,
+            "schema": "shogi-policy-exposure-receipt-v1",
+            "sha256": "083a86e48f1af134b854cdf0e505f0f39cc55ef75d5cbbc0df47c3e1c5013a6f"
+          },
+          "teacher_manifest": {
+            "bytes": 4895,
+            "schema": "shogi-sibling-teacher-manifest-v2",
+            "sha256": "3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc"
+          }
+        },
+        "teacher_manifest": {
+          "bytes": 4895,
+          "candidate_execution_order": "utf8-bytewise-ascending",
+          "exact_rescore_mode": "independent-single-move",
+          "label_policy": "initial-multipv-plus-played-independent-single-move-rescore-final-mate-v6",
+          "outputs": {
+            "train_bytes": 20286990,
+            "train_sha256": "909f12a503c240b5bf73bc3f7552d1df525531fc7b2b1b6e1dce2fdef70ad70a",
+            "val_bytes": 7422900,
+            "val_sha256": "5a2435df0c995a325ed3b4584355aa716dd1c91af7e3099413bb34f99e9ac401"
+          },
+          "path": "<external:manifest.json>",
+          "pipeline": {
+            "source_revision": "8e376e887fac19fb31c07f147e17e84b1d5fc4b2",
+            "tracked_tree_clean": true
+          },
+          "record_manifest_schema": "shogi-sibling-manifest-v1",
+          "schema": "shogi-sibling-teacher-manifest-v2",
+          "search_state_reset_before_each_candidate": "isready",
+          "search_state_reset_before_proposal": "isready",
+          "sha256": "3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc",
+          "synthesized_rank_order": "cp-descending-then-utf8-bytewise-move",
+          "teacher_runtime_snapshot": {
+            "engine_argument_file_count": 0,
+            "engine_argument_files": "snapshotted-and-substituted",
+            "engine_binary": true,
+            "eval_options_file": "rejected",
+            "eval_tree": "snapshotted",
+            "eval_tree_present": true,
+            "private_working_directory": true
+          },
+          "tt_reset_before_each_candidate": true,
+          "tt_reset_before_proposal": true,
+          "verified_splits": []
+        },
+        "verified_outputs": [
+          "model_selection",
+          "protected_position_ids"
+        ]
+      },
+      "value_cp_clamp": 3000,
+      "value_target": "clamped_child_cp"
+    },
+    "models": [
+      {
+        "checkpoint": "<external:runOp1-best.pt>",
+        "checkpoint_bytes": 2375274,
+        "checkpoint_epoch": 27,
+        "checkpoint_sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8",
+        "float": {
+          "teacher_top1_accuracy": 0.2697947214076246,
+          "value_mae_cp": 498.080117317766,
+          "value_mse_cp2": 635326.7369385229,
+          "within_parent_pair_accuracy": 0.6062568819224043
+        },
+        "k_sigmoid": 600.0,
+        "name": "stable",
+        "production_k_int": 600,
+        "quantized_int16": {
+          "delta_from_float": {
+            "teacher_top1_accuracy": -0.0029325513196480912,
+            "value_mae_cp": -1.1897798944531246,
+            "value_mse_cp2": -7282.891590874642,
+            "within_parent_pair_accuracy": -0.001360191722261872
+          },
+          "teacher_top1_accuracy": 0.2668621700879765,
+          "value_mae_cp": 496.8903374233129,
+          "value_mse_cp2": 628043.8453476483,
+          "within_parent_pair_accuracy": 0.6048966902001425
+        },
+        "training_provenance": {
+          "reason": "non-sibling base checkpoint has no sealed candidate provenance; reported for comparison only",
+          "status": "legacy_unverified"
+        }
+      },
+      {
+        "checkpoint": "ml/runs/wcsc36-int16-aware/seed-42/final.pt",
+        "checkpoint_bytes": 2383313,
+        "checkpoint_epoch": 20,
+        "checkpoint_sha256": "2a643831d1a00cb062150fce25d98aca7b773cc82169a903152a8f855c325ac9",
+        "float": {
+          "teacher_top1_accuracy": 0.2727272727272727,
+          "value_mae_cp": 484.83810045612796,
+          "value_mse_cp2": 607393.2464223021,
+          "within_parent_pair_accuracy": 0.609624975710862
+        },
+        "k_sigmoid": 600.0,
+        "name": "int16-aware-seed-42",
+        "production_k_int": 600,
+        "quantized_int16": {
+          "delta_from_float": {
+            "teacher_top1_accuracy": 0.0,
+            "value_mae_cp": 4.064251282113332,
+            "value_mse_cp2": 8780.767381378915,
+            "within_parent_pair_accuracy": -0.002461299306949827
+          },
+          "teacher_top1_accuracy": 0.2727272727272727,
+          "value_mae_cp": 488.9023517382413,
+          "value_mse_cp2": 616174.013803681,
+          "within_parent_pair_accuracy": 0.6071636764039122
+        },
+        "training_provenance": {
+          "experiment_plan_sha256": "bef7863a5f6c85d5d6c5b97cc21aef48d17dae137ffd679efeda764d352a6b6b",
+          "final_holdout_labels_read": false,
+          "final_holdout_sha256": "89b3e2ca1e637a507b4b6559326ada420d205c3967ac33063a9084ee5290e8c8",
+          "model_selection_sha256": "97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba",
+          "model_training_sha256": "f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26",
+          "replay_exclusion_sha256": "1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a",
+          "seed": 42,
+          "selection_evaluations_during_training": 0,
+          "selection_labels_read_during_training": false,
+          "slot_id": "int16-aware-seed-42",
+          "source_train_sha256": "909f12a503c240b5bf73bc3f7552d1df525531fc7b2b1b6e1dce2fdef70ad70a",
+          "status": "verified_int16_aware_final_only_selection",
+          "teacher_manifest_sha256": "3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc",
+          "training_pipeline_source_revision": "753f90a026dfd6ec837b4444f3220db5648dc212",
+          "validation_partition_sha256": "d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1"
+        }
+      },
+      {
+        "checkpoint": "ml/runs/wcsc36-int16-aware/seed-43/final.pt",
+        "checkpoint_bytes": 2383313,
+        "checkpoint_epoch": 20,
+        "checkpoint_sha256": "2160926e71eee03aaf6038e08699a4bbf907f88aeafe55e6ac7757a18b45924d",
+        "float": {
+          "teacher_top1_accuracy": 0.26099706744868034,
+          "value_mae_cp": 485.6389178060574,
+          "value_mse_cp2": 607224.0974395514,
+          "within_parent_pair_accuracy": 0.6105965412267634
+        },
+        "k_sigmoid": 600.0,
+        "name": "int16-aware-seed-43",
+        "production_k_int": 600,
+        "quantized_int16": {
+          "delta_from_float": {
+            "teacher_top1_accuracy": 0.0029325513196480912,
+            "value_mae_cp": 4.576572991488604,
+            "value_mse_cp2": 7898.999953086604,
+            "within_parent_pair_accuracy": -0.001360191722261872
+          },
+          "teacher_top1_accuracy": 0.26392961876832843,
+          "value_mae_cp": 490.215490797546,
+          "value_mse_cp2": 615123.097392638,
+          "within_parent_pair_accuracy": 0.6092363495045016
+        },
+        "training_provenance": {
+          "experiment_plan_sha256": "bef7863a5f6c85d5d6c5b97cc21aef48d17dae137ffd679efeda764d352a6b6b",
+          "final_holdout_labels_read": false,
+          "final_holdout_sha256": "89b3e2ca1e637a507b4b6559326ada420d205c3967ac33063a9084ee5290e8c8",
+          "model_selection_sha256": "97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba",
+          "model_training_sha256": "f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26",
+          "replay_exclusion_sha256": "1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a",
+          "seed": 43,
+          "selection_evaluations_during_training": 0,
+          "selection_labels_read_during_training": false,
+          "slot_id": "int16-aware-seed-43",
+          "source_train_sha256": "909f12a503c240b5bf73bc3f7552d1df525531fc7b2b1b6e1dce2fdef70ad70a",
+          "status": "verified_int16_aware_final_only_selection",
+          "teacher_manifest_sha256": "3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc",
+          "training_pipeline_source_revision": "753f90a026dfd6ec837b4444f3220db5648dc212",
+          "validation_partition_sha256": "d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1"
+        }
+      },
+      {
+        "checkpoint": "ml/runs/wcsc36-int16-aware/seed-44/final.pt",
+        "checkpoint_bytes": 2383313,
+        "checkpoint_epoch": 20,
+        "checkpoint_sha256": "6497c81309a5e1273d2d9c013a4cdfe97923e05762e150986309bd8b789c42fb",
+        "float": {
+          "teacher_top1_accuracy": 0.2668621700879765,
+          "value_mae_cp": 483.2278105244802,
+          "value_mse_cp2": 602528.862714852,
+          "within_parent_pair_accuracy": 0.6107260832955502
+        },
+        "k_sigmoid": 600.0,
+        "name": "int16-aware-seed-44",
+        "production_k_int": 600,
+        "quantized_int16": {
+          "delta_from_float": {
+            "teacher_top1_accuracy": 0.008797653958944274,
+            "value_mae_cp": 2.128784567544301,
+            "value_mse_cp2": 3205.500526456861,
+            "within_parent_pair_accuracy": -0.0033680937884578155
+          },
+          "teacher_top1_accuracy": 0.2756598240469208,
+          "value_mae_cp": 485.3565950920245,
+          "value_mse_cp2": 605734.3632413088,
+          "within_parent_pair_accuracy": 0.6073579895070924
+        },
+        "training_provenance": {
+          "experiment_plan_sha256": "bef7863a5f6c85d5d6c5b97cc21aef48d17dae137ffd679efeda764d352a6b6b",
+          "final_holdout_labels_read": false,
+          "final_holdout_sha256": "89b3e2ca1e637a507b4b6559326ada420d205c3967ac33063a9084ee5290e8c8",
+          "model_selection_sha256": "97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba",
+          "model_training_sha256": "f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26",
+          "replay_exclusion_sha256": "1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a",
+          "seed": 44,
+          "selection_evaluations_during_training": 0,
+          "selection_labels_read_during_training": false,
+          "slot_id": "int16-aware-seed-44",
+          "source_train_sha256": "909f12a503c240b5bf73bc3f7552d1df525531fc7b2b1b6e1dce2fdef70ad70a",
+          "status": "verified_int16_aware_final_only_selection",
+          "teacher_manifest_sha256": "3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc",
+          "training_pipeline_source_revision": "753f90a026dfd6ec837b4444f3220db5648dc212",
+          "validation_partition_sha256": "d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1"
+        }
+      }
+    ],
+    "schema": "shogi-sibling-eval-v2"
+  },
+  "status": "static_selection_fail"
+}

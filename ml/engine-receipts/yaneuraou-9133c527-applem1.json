@@ -1,0 +1,13 @@
+{
+  "schema": "shogi-teacher-engine-receipt-v1",
+  "source_repository": "https://github.com/yaneurao/YaneuraOu.git",
+  "source_commit": "9133c527791c8b2f5f378a32df29a5e3752bd41b",
+  "source_commit_date": "2026-07-02T13:41:06+09:00",
+  "build_directory": "source",
+  "build_command": "make -j normal YANEURAOU_EDITION=YANEURAOU_ENGINE_NNUE TARGET_CPU=APPLEM1 COMPILER=clang++",
+  "compiler": "Apple clang version 15.0.0 (clang-1500.3.9.3)",
+  "compiler_target": "arm64-apple-darwin24.1.0",
+  "engine_id": "YaneuraOu NNUE 9.60git 64APPLEM1",
+  "binary_bytes": 700048,
+  "binary_sha256": "1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1"
+}

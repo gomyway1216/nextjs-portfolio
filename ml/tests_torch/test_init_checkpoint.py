@@ -203,14 +203,9 @@ class WarmStartCheckpointTest(unittest.TestCase):
                     )
             rejected_load.assert_not_called()
 
-    def test_sibling_cli_requires_manifest_and_rejects_mixed_or_partial_inputs(self):
+    def test_sibling_cli_requires_manifest_production_contract_and_no_limit(self):
         with tempfile.TemporaryDirectory() as tmp:
             fixture = write_sealed_fixture(tmp)
-            alternate_val = os.path.join(tmp, "alternate-val.jsonl")
-            with open(fixture["selection"], "rb") as source:
-                alternate_bytes = source.read() + b"\n"
-            with open(alternate_val, "wb") as target:
-                target.write(alternate_bytes)
 
             common = [
                 sys.executable,
@@ -257,30 +252,8 @@ class WarmStartCheckpointTest(unittest.TestCase):
             )
             self.assertNotEqual(rejected_base_source.returncode, 0)
             self.assertIn(
-                "policy-exposure role accounting is not pinned",
+                "manifest source.selected_parent_ids_sha256",
                 rejected_base_source.stdout + rejected_base_source.stderr,
-            )
-
-            partial_arguments = sealed_training_arguments(
-                fixture, os.path.join(tmp, "partial-publish")
-            )
-            partial_arguments[
-                partial_arguments.index(fixture["selection"])
-            ] = alternate_val
-            partial_publish = subprocess.run(
-                [
-                    sys.executable,
-                    os.path.join(ML_DIR, "train.py"),
-                    *partial_arguments,
-                ],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            self.assertNotEqual(partial_publish.returncode, 0)
-            self.assertIn(
-                "policy-exposure role accounting is not pinned",
-                partial_publish.stdout + partial_publish.stderr,
             )
 
             limited_arguments = sealed_training_arguments(

@@ -129,7 +129,7 @@ node -r tsx/cjs ml/import-csa-games.ts \
   --report ml/data/wcsc36/import-report.json \
   --min-ply 8 --max-ply 120
 
-# clean revisionのdepth 16/18・100親gateを全通過したため18に事前固定。
+# PR3時点の履歴用command。現在のsealed full runには使わない。
 readonly LABEL_DEPTH=18
 
 node -r tsx/cjs ml/generate-sibling-teacher.ts \
@@ -145,6 +145,16 @@ node -r tsx/cjs ml/generate-sibling-teacher.ts \
   --manifest ml/data/wcsc36/sibling-manifest.json \
   --work ml/data/wcsc36/sibling-progress.jsonl
 ```
+
+> **Superseded（2026-07-10）**：上のdepth-18 commandはPR3時点の再現記録である。
+> 120秒枠のfull attemptは215親、600秒枠は393親で停止し、heavy parentの隔離診断では
+> 8 siblingsに1,693.48秒かかった。Lane A再比較ではfixed depth 16、MultiPV 12、12 engines、
+> Hash 64 MiB、1探索600秒を最終contractに選んだfresh full runはexit 0で完了した。
+> manifestは3,112 selected = 3,106 completed + 6 skipped、36,365 candidate recordsをaccountし、
+> train 23,813行（20,286,990 bytes / SHA `909f12a5…`）、val 8,761行（7,422,900 bytes /
+> SHA `5a2435df…`）、work SHA `f183d403…`、manifest SHA `3381e238…`を確定した。下のpartitionerは
+> 供給されたstrict manifestを継承するだけで、
+> depth / nodes / timeoutを選ばない。
 
 generatorは次をfail-closedで固定する。
 
@@ -163,6 +173,53 @@ validation優先でtrainから親単位に除く。depth 14/16の100親v6診断�
 clean-pipeline manifest導入前なので学習には使わない。実測値とjoint探索の順序依存例は
 WCSC36記事（[日本語](../docs/blog-shogi-wcsc36-sibling-training.md) /
 [English](../docs/blog-shogi-wcsc36-sibling-training.en.md)）を参照。
+
+### 2-2. model training / selection / PR4A以降exact-row holdoutを固定する
+
+full sibling manifest完成後、そのままのtrain/valを学習へ渡さない。depth選択pilotだけでなく
+hard-case、repeat、node-policy診断を含むLane A workは全28局に触れている。現行tracked receiptは
+102 parent IDsと`position_id ∪ child_position_id`の1,392 semantic IDsを別々のsorted/unique/LF fileへ
+固定する。parent IDまたは兄弟group内のsemantic IDが1つでも一致すれば、そのgroup全体をtraining /
+selection / holdoutすべてから先に除外する。role別parent/row/unmatched countsはfull teacherを同じpartition
+logicでauditするまで`role_accounting: null`であり、通常publishとPython consumerはfail-closedする。
+このためgame-level未見とは呼ばず、PR4A以降のexact-row sealだけを主張する。そのうえでvalidation 7局を固定
+domain `shogi-sibling-eval-partition-v1`、seed `wcsc36-d16-v6-eval-v1`でmodel selection
+4局 / final holdout 3局へ分ける。`position_id ∪ child_position_id`をsemantic identityとし、
+holdoutとselectionが重なればholdoutを優先する。さらにselection+holdoutのevaluation unionと
+重なるtraining親も親グループ単位で落とし、21 training gamesを保った`model_training`を作る。
+
+```sh
+# role_accountingがnullの間: 同じpartition logicでobserved JSONだけを出す。
+# artifactは公開せずexit 2になる。
+node -r tsx/cjs ml/partition-sibling-validation.ts \
+  --source-train ml/data/wcsc36/siblings.train.jsonl \
+  --source-val ml/data/wcsc36/siblings.val.jsonl \
+  --base-manifest ml/data/wcsc36/sibling-manifest.json \
+  --policy-exposure-receipt ml/protocols/wcsc36-policy-exposure-receipt.json \
+  --policy-exposed-parent-ids ml/protocols/wcsc36-policy-exposed-parent-ids.txt \
+  --policy-exposed-semantic-position-ids ml/protocols/wcsc36-policy-exposed-semantic-position-ids.txt \
+  --pipeline-revision "$(git rev-parse HEAD)" \
+  --out-train ml/data/wcsc36/siblings.model-training.jsonl \
+  --out-model-selection ml/data/wcsc36/siblings.model-selection.jsonl \
+  --out-final-holdout ml/data/wcsc36/siblings.final-holdout.jsonl \
+  --out-protected-position-ids ml/data/wcsc36/final-holdout-position-ids.txt \
+  --manifest ml/data/wcsc36/sibling-eval-partition-manifest.json \
+  --audit-policy-exposure
+
+# observed role valuesをreceipt/codeへ固定後、同じcommandをまず --preflight で通す。
+# その後 --preflight だけを外してatomic publishする。
+# --audit-policy-exposureはpin後も常に非publishで、Audited (no publish)と明示する。
+```
+
+出力JSONLは元行bytesのfilterで、partition manifestを最後にatomic writeする。full sourceは
+raw SHA、3,112 entryの3,106 completed + 6 skipped accounting、engine/eval receipt、fixed depth 16 / MultiPV 12 / engines 12 /
+FV scale 20 / Hash 64 MiB / timeout 600,000 msをexact検証する。partitioner自身はteacher policyを
+選ばない。学習processへfinal-holdout JSONL pathは渡さない。replayはpolicy semantic union ∪ selection
+semantic union ∪ protected holdout IDsを先に除外し、そのeligible集合からexact 500,000行をsampleする。
+不足時は停止する。candidate-selection
+receiptを実装する別PRまではfinal-holdout評価自体をrejectする。固定した6 training runs、判定gate、
+停止したdepth-18 attemptsと次のpolicy比較は続編（[日本語](../docs/blog-shogi-wcsc36-sibling-training-results.md) /
+[English](../docs/blog-shogi-wcsc36-sibling-training-results.en.md)）を参照。
 
 ---
 
@@ -193,39 +250,79 @@ ml/venv/bin/python ml/train.py --data ml/data/teacher.jsonl --out ml/runs/run1 -
 
 ### 3-1. sibling学習をrunOp1から安全にwarm-startする
 
-本番weightsへ上書きせず、監査済みrunOp1 checkpointからmodelだけを読み、optimizerは新規にする。
+本番weightsへ上書きせず、hash固定したlegacy runOp1 checkpointからmodelだけを読み、optimizerは
+新規にする。runOp1には現行sibling/partition provenanceがないため、同一実験のresumeとは扱わない。
 旧valueデータのreplayはvalidationへ混ぜず、既定では全ファイルからseed固定で50万行を
 一様抽出する。`best-value.pt`と`best-sibling.pt`を別々に残し、`best.pt`の選択規則も
 checkpoint metadataへ記録する。
 
 ```sh
 ml/venv/bin/python ml/train.py \
-  --data ml/data/wcsc36/siblings.train.jsonl \
-  --val-data ml/data/wcsc36/siblings.val.jsonl \
+  --data ml/data/wcsc36/siblings.model-training.jsonl \
+  --val-data ml/data/wcsc36/siblings.model-selection.jsonl \
   --sibling-manifest ml/data/wcsc36/sibling-manifest.json \
-  --loss sibling-ranking --features board \
+  --validation-partition-manifest ml/data/wcsc36/sibling-eval-partition-manifest.json \
+  --experiment-plan ml/protocols/wcsc36-six-run-plan.json \
+  --holdout-protected-position-ids ml/data/wcsc36/final-holdout-position-ids.txt \
+  --policy-exposure-receipt ml/protocols/wcsc36-policy-exposure-receipt.json \
+  --policy-exposed-parent-ids ml/protocols/wcsc36-policy-exposed-parent-ids.txt \
+  --policy-exposed-semantic-position-ids ml/protocols/wcsc36-policy-exposed-semantic-position-ids.txt \
+  --pipeline-revision "$(git rev-parse HEAD)" \
+  --experiment-series warm \
+  --loss sibling-ranking --features board --device cpu --torch-threads 2 --batch 256 \
+  --k 600 --cp-clamp 3000 --select-metric sibling-pair \
+  --rank-weight 1.0 --rank-pair-min 50 --rank-pair-max 600 --rank-margin-cp 50 \
+  --policy-weight 0.25 --policy-temp-cp 200 \
   --init-ckpt /absolute/path/to/runOp1/best.pt --allow-legacy-init \
   --replay-data /absolute/path/to/runOp1-train.jsonl \
   --replay-limit 500000 --replay-ratio 1.0 \
   --lr 1e-4 --epochs 20 --seed 42 \
-  --out ml/runs/wcsc36-warm-seed42
+  --out ml/runs/wcsc36-six-run/warm-seed-42
 
 ml/venv/bin/python ml/eval-sibling.py \
-  --data ml/data/wcsc36/siblings.val.jsonl \
+  --data ml/data/wcsc36/siblings.model-selection.jsonl \
   --sibling-manifest ml/data/wcsc36/sibling-manifest.json \
+  --validation-partition-manifest ml/data/wcsc36/sibling-eval-partition-manifest.json \
+  --policy-exposure-receipt ml/protocols/wcsc36-policy-exposure-receipt.json \
+  --policy-exposed-parent-ids ml/protocols/wcsc36-policy-exposed-parent-ids.txt \
+  --policy-exposed-semantic-position-ids ml/protocols/wcsc36-policy-exposed-semantic-position-ids.txt \
+  --holdout-protected-position-ids ml/data/wcsc36/final-holdout-position-ids.txt \
+  --data-role selection \
   --checkpoint stable=/absolute/path/to/runOp1/best.pt \
-  --checkpoint warm=ml/runs/wcsc36-warm-seed42/best-sibling.pt \
+  --checkpoint warm=ml/runs/wcsc36-six-run/warm-seed-42/best-sibling.pt \
   --json-out ml/data/wcsc36/sibling-eval.json
 ```
 
-`--sibling-manifest`はv6 policy、clean pipeline revision、runtime snapshot契約、train/valの
-sizeとSHA-256をJSONL parse前に検証し、そのprovenanceをcheckpointと評価reportへ保存する。
+事前登録した本番matrixはwarm / scratchの各seed 42, 43, 44。warmは
+`--experiment-series warm`、固定runOp1 SHA-256、`lr=1e-4, 20 epochs`。scratchは
+`--experiment-series scratch`、`--init-ckpt`/`--allow-legacy-init`なし、`lr=1e-3, 40 epochs`。
+両方とも固定SHA-256のreplayを500,000行・ratio 1.0で使う。全6 runは`--device cpu`へ固定する。
+同じ42行smokeを各2回測るとCPUは0.94/1.06秒（平均1.00秒）、native MPSは
+`aten::_embedding_bag`未実装で即失敗、MPS fallbackは1.65/1.19秒（平均1.42秒、+42%）かつ
+毎回warningだったため、fallback環境変数は使わない。tracked six-run planはplatform / system / machine /
+processor / CPU model / logical CPU数 / Python / PyTorch / `cpu`を完全一致で固定する。6 processは各々
+intra-op 2 threads、inter-op 1 thread、deterministic algorithms有効、debug mode `error`へ固定し、
+checkpointと完走時だけ最後にatomic writeする`result.json`へ同じruntime receiptを残す。
+six-run plan自身にはGit revisionを埋め込まない。plan commit後のbytes hashを次commitでコード定数へ
+固定する2段階sealにし、自己参照を避ける。実行時はplan hash・tracked/unmodified planとは別に、
+worktree全体がcleanかつ`HEAD == --pipeline-revision`を検証し、そのexecution HEADをcheckpointと
+`result.json`へ記録する。
+model-selectionのint16 pair accuracy、top-1、value MAEの順で各seriesのmedian seedを選ぶ。
+6 runそれぞれのresult marker/checkpoint/int16 export/int16 selection report identity、median-ranked seed strategy、
+selection metrics/tie-break、selected checkpoint、run-plan SHAをexact検証するcandidate-selection共通schema/decoderは事前登録済みだが、
+実receipt生成と評価/match gate接続が実装されるまでfinal holdoutは開かない。
+
+`--sibling-manifest`とpartition manifestはv6 policy、clean pipeline revision、runtime snapshot、
+base train/val、semantic-isolated model training、model selectionのsizeとSHA-256をJSONL parse前に
+検証し、そのprovenanceをcheckpointと評価reportへ保存する。base trainを直接`--data`へ渡すと
+拒否する。
 `eval-sibling.py`はfloatとint16量子化後のvalue MAE、親内pair accuracy、teacher top-1を
 同じvalidation行で比較し、量子化による順位変化も報告する。
 
 このvalidationをepoch・checkpoint・warm/scratch・hyperparameterの選択に使った場合、
 その値は**モデル選択指標**であって最終holdoutではない。昇格判定には、選択に一度も
-使わない別holdout、既知回帰局面、量子化後探索、本番時間のA/Bを用意する。
+使わないLane A exposure除外後のexact-row holdout、既知回帰局面、量子化後探索、本番時間のA/Bを用意する。
+pilotが全28局へ触れていたため、これはgame-level untouchedという意味ではない。
 
 ### 3-2. 契約テスト
 

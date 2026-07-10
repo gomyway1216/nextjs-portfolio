@@ -2,6 +2,13 @@
 
 > `deep16`で評価関数を弱くした反省から、「強い棋譜で学び直す」を安全な実験へ変えた。途中で、同じ候補集合を一度の`searchmoves`へ渡す方法そのものが、候補の入力順に依存することを実機で確認した。そこで旧ラベルを捨て、候補を1手ずつ独立探索するv6契約、再現可能なprovenance、上書きしない学習手順まで作り直した。本稿は棋力向上の発表ではなく、その判断と途中データの台帳である。
 
+> **2026-07-10更新**：本稿はPR3時点の履歴である。depth-18 full attemptsのheavy tailを受けた
+> Lane A再比較ではfixed depth 16を選び、fresh full runは3,112 selected entryをaccountして完了した。以下のdepth-18 full-run /
+> training commandsはsupersededである。
+> またLane A全workが全28局へ触れていたため、game-level untouchedの主張は撤回した。現行の
+> 102 parent / 1,392 semantic exposure契約とPR4A以降のexact-row sealは
+> [続編](./blog-shogi-wcsc36-sibling-training-results.md)を参照。
+
 ---
 
 ## TL;DR
@@ -14,7 +21,7 @@
 - 詰みは通常cpと衝突しない`±1,000,000`帯へ写像する。指定depth未満での完了を許すのは、単一候補探索の最後の更新がexact mateである場合だけである
 - engine receipt、評価ファイルhash、cleanなGit revision、read-only runtime snapshot、private working directory、train/valのhashを1つのmanifestへ結び付ける。manifestがないデータは学習器が受け付けない
 - depth 14/16の100親v6 pilotではrank-1一致62%、candidate Jaccard 83.013%だった。200 cpをtie閾値にした全5,342 common pairの関係一致は91.01%（両方tieの3,643 pairを含む）、両depthでdecisiveだった1,227 pairの向き一致は99.35%だった。ただしclean-pipeline manifest導入前の診断データであり、学習には使わない。学習、量子化、対局、棋力向上はまだ結果ではない
-- clean revisionから再生成したdepth 16/18の100親pilotも全事前ゲートを通過した。top-1集合overlap 68%、通常cp差median 29 cp / p90 125.3 cp、200 cp閾値の全pair反転0.146%、depth 18のnodeコスト2.471倍を確認し、full labelはdepth 18に事前固定した
+- clean revisionから再生成したdepth 16/18の100親pilotも全事前ゲートを通過した。top-1集合overlap 68%、通常cp差median 29 cp / p90 125.3 cp、200 cp閾値の全pair反転0.146%、depth 18のnodeコスト2.471倍だった。PR3ではdepth 18へ固定したが、後のheavy-tail診断とLane A再比較でdepth 16へsupersedeした
 
 ---
 
@@ -233,6 +240,13 @@ depth 16 → 18は20親だけの予備値で、top-1集合overlap 95%、通常cp
 
 full label depthは上のclean 100親gateで18に事前固定した。結果を見て都合よく変更しない。
 
+> **2026-07-10追記（この手順は履歴として残す）**：以下はPR3時点の旧CLIであり、現在の
+> sealed training手順としては使わない。100親pilotは28局すべての親を含み、後の固定holdout
+> 3局にも15親・180候補行が含まれていた。現行手順は全Lane A workの102 parent / 1,392 semantic
+> exposure unionを全model roleから除外し、full 3,112-entry teacher契約とpartition manifestを必須にする。特に本節後半の旧
+> `train.py` / `eval-sibling.py`コマンドは意図的にfailする。置き換え後のコマンドと限定された
+> 「PR4A以降のexact-row seal」は[続編](./blog-shogi-wcsc36-sibling-training-results.md)を参照。
+
 ```bash
 readonly LABEL_DEPTH=18
 
@@ -255,6 +269,10 @@ node -r tsx/cjs ml/generate-sibling-teacher.ts \
 ---
 
 ## 8. 上書きせず、stable / warm-start / scratchを比較する
+
+> **Superseded**：この節のコマンドは設計経緯の記録である。現行trainerへbase
+> `siblings.train/val.jsonl`を直接渡してはいけない。続編のpolicy-exposure receipt、filtered
+> model-training、model-selection、partition provenanceを使う。
 
 本番`public/shogi-nnue-weights.bin`へ直接書かない。
 

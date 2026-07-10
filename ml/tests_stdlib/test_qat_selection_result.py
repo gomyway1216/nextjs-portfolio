@@ -18,6 +18,11 @@ class QatSelectionResultTests(unittest.TestCase):
         cls.audit = json.loads(cls.raw)
 
     def test_result_artifact_identity_and_sealed_failure_status(self):
+        self.assertNotIn(
+            b"\r\n",
+            self.raw,
+            "audit artifact must be checked out with LF endings; verify .gitattributes",
+        )
         self.assertEqual(len(self.raw), AUDIT_BYTES)
         self.assertEqual(hashlib.sha256(self.raw).hexdigest(), AUDIT_SHA256)
         self.assertEqual(

@@ -225,8 +225,7 @@ scratchは初期重みを共有しない。一方、warmとscratchの両方で�
 fallback環境変数は使わない。
 
 plan runtimeを埋める前に実際のPython `3.13.0` / PyTorch `2.12.1`でも再監査した。この版ではnative MPSのEmbeddingBag forward/backwardは動作した。fixed seed・同一初期state・batch 256・40 sparse indices・AdamW・10 warmup + 200 measured stepsを各2回走らせると、CPU 2 threadsは`0.3476s` / `0.3619s`（575.4 / 552.6 steps/s）で最終lossとweight SHA-256が2回完全一致した。MPSは`0.1932s` / `0.1796s`（1,035.0 / 1,113.6 steps/s）と単processでは約1.9倍速かったが、`torch.use_deterministic_algorithms(True)`とdebug mode `error`でも最終lossが`0.0441174` / `0.0441200`、weight hashも別になった。これは棋力結果ではなくruntime選択のmicrobenchmarkである。6つの比較runを同時に2 CPU threadsずつ動かせ、seed差以外の再現性を維持できるため、sealed比較はCPUだけで行う。trackedな`shogi-sibling-six-run-plan-v1`は
-platform / system / machine / processor / CPU model / logical CPU数 / Python / PyTorch / `cpu`を6 run共通runtimeとして実行前に固定する。各processはintra-op 2 threads、inter-op 1 thread、deterministic algorithms有効、debug mode `error`へ固定する。現在のplanに残る`null/TBD`、
-plan SHA未固定、dirty/untracked planのどれか1つでもあれば学習は開始しない。
+platform / system / machine / processor / CPU model / logical CPU数 / Python / PyTorch / `cpu`を6 run共通runtimeとして固定した。各processはintra-op 2 threads、inter-op 1 thread、deterministic algorithms有効、debug mode `error`である。全input/runtime identityをcommitしたplanは3,057 bytes、SHA-256 `0e34262f77555897d92b01a3737c71057d8b90cc98cdcb2fe63ad24ec4dde070`で、次の別commitにあるコード定数がそのbytesを固定する。dirty/untracked planやhash不一致では学習を開始しない。
 
 plan自身には`training_pipeline_revision`を入れない。planをcommitした後でそのbytesのSHA-256を別commitの定数へ固定するため、plan内へ将来commitのhashを入れると自己参照になり実現不能だからである。実行時はplan hashとtracked/unmodified状態を検証したうえで、worktree全体がcleanかつ`HEAD == --pipeline-revision`であることを別に検査し、そのexecution HEADをcheckpointと完走時のresult markerへ記録する。plan sealと実行code receiptを分離しても、どちらも省略できない。
 
@@ -368,6 +367,7 @@ A/Bはcandidate対stableを384局、つまり192のcolor-swapped opening pairs�
 | sealed partition manifest / 5 artifacts hashes | **確認済み・公開** | training `f6dcfd6a…` / selection `97b15ba1…` / holdout `89b3e2ca…` / protected `762b95b5…` / manifest `d95e6623…`。Python再検証・overlap全0 |
 | policy exposure receipt | **audit・固定済み** | 102 parent / 1,392 semantic IDs。除外はtraining 307親/3,642行、selection 64/762、holdout 49/588、unmatched 7 |
 | model-training cross-semantic isolation | **実装・テスト済み** | Lane A exposure除外後にevaluation union優先、親単位drop、21局必須 |
+| six-run plan | **実値固定済み・未実行** | 3,057 bytes / `0e34262f…e070`。全10 input hashes、Python 3.13.0 / Torch 2.12.1 / Apple M4 Pro / CPU 2 threadsを固定 |
 | 外部高段校正 | **計画のみ・未許可** | 81DojoのCOM account / 公式app制約を確認。candidate/time control/pairing/min games/stability ruleは実施前に別途固定 |
 | warm seeds 42/43/44 | **未実施** | `TBD` checkpoint/report hashes |
 | scratch seeds 42/43/44 | **未実施** | `TBD` checkpoint/report hashes |

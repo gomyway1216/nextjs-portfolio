@@ -103,15 +103,15 @@ def write_rows(path, rows):
             target.write(json.dumps(persisted, sort_keys=True) + "\n")
 
 
-class SiblingTrainingLossTest(unittest.TestCase):
-    def test_production_six_run_plan_hash_blocks_training_until_finalized(self):
-        self.assertIsNone(train_module.SEALED_SIX_RUN_PLAN_SHA256)
-        with self.assertRaisesRegex(ValueError, "still draft/TBD"):
-            verify_sealed_experiment_plan(
-                SimpleNamespace(experiment_plan=""),
-                {},
-                tracking_verifier=lambda *_args: None,
-            )
+class SiblingTrainingPipelineTest(unittest.TestCase):
+    def test_production_six_run_plan_hash_matches_committed_plan_bytes(self):
+        plan_path = os.path.join(
+            ML_DIR, "protocols", "wcsc36-six-run-plan.json"
+        )
+        self.assertEqual(
+            train_module.SEALED_SIX_RUN_PLAN_SHA256,
+            train_module.sha256_file(plan_path),
+        )
 
     def test_final_tie_break_is_series_then_seed_then_checkpoint_sha(self):
         candidates = [

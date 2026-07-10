@@ -74,6 +74,7 @@ from sibling_selection_protocol import (
     SIX_RUN_PLAN_SCHEMA as SEALED_SIX_RUN_PLAN_SCHEMA,
     SIX_RUN_SLOT_ORDER as SEALED_SIX_RUN_SLOT_ORDER,
     TRAINING_RESULT_SCHEMA as SEALED_TRAINING_RESULT_SCHEMA,
+    WCSC36_SIX_RUN_PLAN_SHA256 as SEALED_SIX_RUN_PLAN_SHA256,
 )
 
 # ---------------------------------------------------------------------------
@@ -111,9 +112,6 @@ GIT_REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 SEALED_EXPERIMENT_SCHEMA = "shogi-sibling-training-experiment-v1"
 # The complete plan was committed first; this later constant seals those exact
 # bytes without putting a future Git revision inside the plan itself.
-SEALED_SIX_RUN_PLAN_SHA256 = (
-    "0e34262f77555897d92b01a3737c71057d8b90cc98cdcb2fe63ad24ec4dde070"
-)
 SEALED_WARM_INIT_SHA256 = (
     "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8"
 )

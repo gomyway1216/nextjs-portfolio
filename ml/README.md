@@ -226,13 +226,13 @@ receiptを実装する別PRまではfinal-holdout評価自体をrejectする。�
 clean revision `6d541f1108a22f18751ee009417c3e57e27f8205`でpreflight後に公開し、Python consumerでも再検証した
 partition成果物は次のとおり。全isolation fieldは0で、manifestを最後のcommit markerにした。
 
-| artifact | records / parents | bytes | SHA-256 |
-|---|---:|---:|---|
-| model training | 20,123 / 1,725 | 17,154,270 | `f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26` |
-| model selection | 3,912 / 341 | 3,319,397 | `97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba` |
-| final holdout | 3,391 / 290 | 2,870,874 | `89b3e2ca1e637a507b4b6559326ada420d205c3967ac33063a9084ee5290e8c8` |
-| protected IDs | 3,372 / — | 242,784 | `762b95b52f50223fd484573d7d3823f3d2d7622ea3817f4300ae9fcc95935d26` |
-| partition manifest | — | 5,357 | `d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1` |
+| artifact           | records / parents |      bytes | SHA-256                                                            |
+| ------------------ | ----------------: | ---------: | ------------------------------------------------------------------ |
+| model training     |    20,123 / 1,725 | 17,154,270 | `f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26` |
+| model selection    |       3,912 / 341 |  3,319,397 | `97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba` |
+| final holdout      |       3,391 / 290 |  2,870,874 | `89b3e2ca1e637a507b4b6559326ada420d205c3967ac33063a9084ee5290e8c8` |
+| protected IDs      |         3,372 / — |    242,784 | `762b95b52f50223fd484573d7d3823f3d2d7622ea3817f4300ae9fcc95935d26` |
+| partition manifest |                 — |      5,357 | `d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1` |
 
 ---
 
@@ -323,14 +323,48 @@ checkpointと完走時だけ最後にatomic writeする`result.json`へ同じrun
 six-run plan自身にはGit revisionを埋め込まない。plan commit後のbytes hashを次commitでコード定数へ
 固定する2段階sealにし、自己参照を避ける。実行時はplan hash・tracked/unmodified planとは別に、
 worktree全体がcleanかつ`HEAD == --pipeline-revision`を検証し、そのexecution HEADをcheckpointと
-`result.json`へ記録する。
+`result.json`へ記録する。完走後auditは6 resultと6 checkpointの両方について、実行revision
+`d18d3c43677255c518dce83f4a53caf46057f878`、plan bytes/SHA、完全runtime receiptを固定値と照合する。
 全input/runtimeを埋めたplanは3,057 bytes / SHA-256
 `0e34262f77555897d92b01a3737c71057d8b90cc98cdcb2fe63ad24ec4dde070`で、planを先にcommitした後の
 別commitにある`SEALED_SIX_RUN_PLAN_SHA256`がexact bytesを固定する。
 model-selectionのint16 pair accuracy、top-1、value MAEの順で各seriesのmedian seedを選ぶ。
 6 runそれぞれのresult marker/checkpoint/int16 export/int16 selection report identity、median-ranked seed strategy、
-selection metrics/tie-break、selected checkpoint、run-plan SHAをexact検証するcandidate-selection共通schema/decoderは事前登録済みだが、
-実receipt生成と評価/match gate接続が実装されるまでfinal holdoutは開かない。
+selection metrics/tie-break、selected checkpoint、run-plan SHAをauditでexact検証する。現時点のcandidate receipt decoderは
+自己申告された構造を検査するだけで、公開authorization APIは常にfail-closedである。将来holdoutを許可するには、固定入力と
+clean codeから6候補＋stableのexport/evaluationを再実行したin-memory auditとの完全一致を別途実装する。単にreceiptとauditの
+bytes/SHAを一緒に渡すだけでは許可しない。完走後は次のauditをclean revisionから生成する。audit commandはfinal-holdout JSONLを
+引数に取らず、開始時と書き込み直前の両方で同じclean HEADを検証する。
+
+```sh
+python3 ml/sibling_selection_audit.py \
+  --run-root ml/runs/wcsc36-six-run \
+  --run-plan ml/protocols/wcsc36-six-run-plan.json \
+  --stable-checkpoint /absolute/path/to/runOp1-best.pt \
+  --stable-selection-report ml/runs/wcsc36-six-run/stable-int16-selection.json \
+  --evidence-python /absolute/path/to/sealed/venv/bin/python \
+  --selection-data ml/data/wcsc36/siblings.model-selection.jsonl \
+  --sibling-manifest /absolute/path/to/full-depth16-v6/manifest.json \
+  --validation-partition-manifest ml/data/wcsc36/sibling-eval-partition-manifest.json \
+  --policy-exposure-receipt ml/protocols/wcsc36-policy-exposure-receipt.json \
+  --policy-exposed-parent-ids ml/protocols/wcsc36-policy-exposed-parent-ids.txt \
+  --policy-exposed-semantic-position-ids ml/protocols/wcsc36-policy-exposed-semantic-position-ids.txt \
+  --holdout-protected-position-ids ml/data/wcsc36/final-holdout-position-ids.txt \
+  --stable-weights ml/runs/wcsc36-six-run/stable-int16/weights.bin \
+  --stable-weights-meta ml/runs/wcsc36-six-run/stable-int16/weights.meta.json \
+  --pipeline-revision "$(git rev-parse HEAD)" \
+  --out ml/protocols/wcsc36-six-run-selection-audit.json
+```
+
+実行済み6 runのmedian代表はwarm seed 42 / scratch seed 42、暫定candidateはwarm seed 42となった。
+しかしint16 top-1がstable未満（`0.2639296 < 0.2668622`）で、float→int16 pair低下の絶対値も
+上限を超えた（`0.0027204 > 0.002`）。そのため27,692-byte audit
+`5a7c4b1041ad6c01109fd0f9575f1e40e9f2fc18abe0c9c9c222500dc32b8c19`は
+`not_emitted_selection_gate_failed`と`sealed_not_opened`を記録し、成功candidate receiptを生成しない。
+同auditは記録したローカルvenvと固定exporter/evaluatorから6候補＋stableを再生成し、全weights/metaのbyte一致と
+float/int16 metrics・core provenance一致も記録する。Python実行file/runtimeは記録しているが、venv全packageの
+再構築可能なlockまでは固定していないので、将来再現性の完全なenvironment sealとは呼ばない。
+結果のよい別seedへ差し替えず、次は別planとしてint16-aware学習を事前登録する。
 
 `--sibling-manifest`とpartition manifestはv6 policy、clean pipeline revision、runtime snapshot、
 base train/val、semantic-isolated model training、model selectionのsizeとSHA-256をJSONL parse前に

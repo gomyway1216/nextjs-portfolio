@@ -1,6 +1,6 @@
-# I Am Not Calling It “Stronger” Yet — Exact-Row Sealing and Preregistration for WCSC36 Sibling Training
+# Six Runs Completed, Still Not “Stronger” — The WCSC36 Sibling Selection Failure Record
 
-> The [previous report](./blog-shogi-wcsc36-sibling-training.en.md) stopped treating moves from strong games as answers and built a v6 teacher that searches each sibling candidate independently from the same parent. This is the next experiment log. The depth-18 full attempts stopped on a heavy runtime tail, so a separate Lane A comparison fixed the final policy at depth 16 and a fresh full run completed. Before seeing training results I am also fixing the boundary between model selection and the final holdout, the warm/scratch comparison, quantization checks, known-regression tests, a 384-game A/B, and the real-browser gate. Because Lane A work touched all 28 games, the guarantee here is not game-level novelty; it is an **exact-row seal since PR4A** after excluding 102 exposed parents and 1,392 semantic position IDs. **This is not an announcement of improved playing strength.** 日本語版: [blog-shogi-wcsc36-sibling-training-results.md](./blog-shogi-wcsc36-sibling-training-results.md)
+> The [previous report](./blog-shogi-wcsc36-sibling-training.en.md) stopped treating moves from strong games as answers and built a v6 teacher that searches each sibling candidate independently from the same parent. This experiment completed the fresh depth-16 teacher, sealed partition, and all six preregistered warm/scratch runs. The fixed rule selected warm seed 42 provisionally, but it failed top-1 and float-to-int16 pair-delta gates. I therefore emitted no candidate receipt, performed no post-seal final-holdout evaluation, and left production on runOp1. Because Lane A work touched all 28 games, the guarantee is not game-level novelty; it is an **exact-row seal since PR4A** after excluding 102 exposed parents and 1,392 semantic position IDs. **This is a rejection record, not an announcement of improved playing strength.** 日本語版: [blog-shogi-wcsc36-sibling-training-results.md](./blog-shogi-wcsc36-sibling-training-results.md)
 
 ---
 
@@ -11,8 +11,8 @@
 - A fixed depth-16 domain and seed rank the seven validation games into four selection and three holdout games. The same implementation's nonpublishing audit fixed Lane A exposure removals at 307 parents / 3,642 rows for training, 64 / 762 for selection, 49 / 588 for holdout, and seven unmatched parent IDs. The old 416 / 339-parent split is not reused
 - Semantic identity is `position_id ∪ child_position_id`. After Lane A exposure exclusion, holdout wins a holdout/selection conflict and the evaluation union wins a conflict with training. A complete **parent group** is dropped, never an individual candidate row
 - The sealed six-run series fixes `cpu` as the device. Native MPS failed at `aten::_embedding_bag` on the old PyTorch 2.3.0 environment. Under the planned PyTorch 2.12.1 runtime, native MPS worked and was about 1.9× faster for one process, but two identical runs did not reproduce the same loss or weight hash even in deterministic-error mode. CPU was byte-exact and supports six parallel processes
-- The training process receives no final-holdout JSONL path. Final-holdout evaluation is also rejected in code until a separate PR produces the preregistered candidate-selection receipt, connects it to the gates, and freezes the candidate hash. Its hashes and results remain `TBD` and unopened
-- Warm start and scratch each run seeds 42 / 43 / 44. Warm is fixed at `lr=1e-4, 20 epochs`; scratch at `lr=1e-3, 40 epochs`; both use 500,000 replay rows at ratio 1.0
+- All six preregistered CPU runs completed at clean revision `d18d3c43677255c518dce83f4a53caf46057f878`, each with an atomic `shogi-sibling-training-result-v1`. Median-seed selection chose warm 42 and scratch 42 as the series representatives, then warm 42 as the provisional candidate
+- The provisional candidate beat stable on int16 pair accuracy (`0.607228 > 0.604897`) but lost on top-1 (`0.263930 < 0.266862`), and its absolute float-to-int16 pair delta exceeded the fixed limit (`0.002720 > 0.002`). The selection audit therefore emitted no successful candidate receipt and kept the final holdout sealed
 - Adoption requires every selection, quantization, sealed-holdout, general/opening-retention, known-`P*8f`-regression, 384-game paired-A/B, and production-browser gate. Production still runs runOp1
 
 ---
@@ -24,9 +24,9 @@ To keep an expectation in progress from turning into a completed result, I use f
 - **Confirmed**: a fact backed by saved bytes, a hash, a checkpoint line, or a reproducing test
 - **In progress**: a process is running with fixed inputs and contract, but its commit-marker manifest does not exist yet
 - **Preregistered**: a selection rule or passing condition fixed before seeing the result
-- **Not run**: training, holdout opening, A/B, browser adoption, or another stage with no result yet
+- **Not run**: post-seal holdout evaluation, A/B, browser adoption, or another stage with no result yet
 
-Under this vocabulary, “the 600-second depth-18 run stopped after 393 parents,” “Lane A selected depth 16,” and “the fresh depth-16 full teacher accounted for all 3,112 entries” are confirmed. “We will run six series” is preregistered; “warm won” is not run.
+Under this vocabulary, the two stopped depth-18 attempts, the completed depth-16 teacher, all six training result markers, and the failed selection audit are confirmed. The final holdout, retention suites, 384-game match, and external calibration remain not run.
 
 ---
 
@@ -53,14 +53,14 @@ Moving thresholds after seeing numbers can manufacture a flattering story for al
 
 The first full attempts used depth 18, selected by the [clean depth-16/18 gate in the previous report](./blog-shogi-wcsc36-sibling-training.en.md). The heavy tail below made those attempts unusable, so a separate Lane A comparison included the difficult positions. It **fixed the final teacher search limit at depth 16**. These input identities remain pinned while the final search contract has a new fingerprint.
 
-| Item | Fixed value |
-|---|---|
-| teacher pipeline source revision | `8e376e887fac19fb31c07f147e17e84b1d5fc4b2` |
-| WCSC36 raw parent JSONL SHA-256 | `827e912032feac9fd539af58a0e35c1131a1228abedcb1bca9c5f51f214bdfaa` |
-| YaneuraOu engine SHA-256 | `1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1` |
-| eval-tree SHA-256 | `639397609565fc2f113242503483addaf812b39c43a4d813d51b9c68ca51d568` |
+| Item                             | Fixed value                                                        |
+| -------------------------------- | ------------------------------------------------------------------ |
+| teacher pipeline source revision | `8e376e887fac19fb31c07f147e17e84b1d5fc4b2`                         |
+| WCSC36 raw parent JSONL SHA-256  | `827e912032feac9fd539af58a0e35c1131a1228abedcb1bca9c5f51f214bdfaa` |
+| YaneuraOu engine SHA-256         | `1e4971493f049f1c7d72a7e12555c3c2a3c2233f65a506eecb8ed7136bcdc5d1` |
+| eval-tree SHA-256                | `639397609565fc2f113242503483addaf812b39c43a4d813d51b9c68ca51d568` |
 | stable runOp1 checkpoint SHA-256 | `571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8` |
-| legacy replay source SHA-256 | `2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb` |
+| legacy replay source SHA-256     | `2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb` |
 
 The stopped attempts used depth 18, proposal MultiPV 12, 12 engine processes, and 64 MiB of Hash per engine. Independent candidate searches, candidate order, `isready` resets, and engine/eval snapshots remain mandatory v6 safety properties. Only the final policy changed: fixed depth 16, MultiPV 12, 12 engine processes, 64 MiB Hash, and `timeout=600s` per search.
 
@@ -92,7 +92,7 @@ Depth 16 used 1,331,739,463 nodes versus 3,291,077,196 at depth 18, a 2.4713× c
 
 Fixed-node policies were not substitutes. One million nodes missed bestmove / PV1; two million nodes produced duplicate PVs over n=100 and completed only one of the two difficult parents. A node cap was therefore not mislabeled as a quality guarantee; fixed depth 16 won.
 
-The final contract is fixed depth 16, proposal MultiPV 12, 12 engines, 64 MiB Hash, and 600 seconds per search. At 2026-07-10 16:37:45 UTC, a fresh full run started from parent zero at clean revision `8e376e887fac19fb31c07f147e17e84b1d5fc4b2`, in `ml/data/wcsc36/full-depth16-v6-8e376e8/`, and exited 0 after 5,354.31 seconds. Its manifest completely accounts for 3,112 selected entries as 3,106 completed / 6 skipped, with 36,365 candidate records, 21 train games / 7 validation games, and zero overlap. Train has 23,813 rows, 20,286,990 bytes, SHA-256 `909f12a503c240b5bf73bc3f7552d1df525531fc7b2b1b6e1dce2fdef70ad70a`; validation has 8,761 rows, 7,422,900 bytes, SHA-256 `5a2435df0c995a325ed3b4584355aa716dd1c91af7e3099413bb34f99e9ac401`; work has 43,197,235 bytes, SHA-256 `f183d40326192813070b17a963b489776c62c3bad4c9223f840ecb371b21fec5`; and the 4,895-byte manifest SHA-256 is `3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc`. The role audit completed without publication; partition artifacts and training have not run, and production weights remain unchanged.
+The final contract is fixed depth 16, proposal MultiPV 12, 12 engines, 64 MiB Hash, and 600 seconds per search. At 2026-07-10 16:37:45 UTC, a fresh full run started from parent zero at clean revision `8e376e887fac19fb31c07f147e17e84b1d5fc4b2`, in `ml/data/wcsc36/full-depth16-v6-8e376e8/`, and exited 0 after 5,354.31 seconds. Its manifest completely accounts for 3,112 selected entries as 3,106 completed / 6 skipped, with 36,365 candidate records, 21 train games / 7 validation games, and zero overlap. Train has 23,813 rows, 20,286,990 bytes, SHA-256 `909f12a503c240b5bf73bc3f7552d1df525531fc7b2b1b6e1dce2fdef70ad70a`; validation has 8,761 rows, 7,422,900 bytes, SHA-256 `5a2435df0c995a325ed3b4584355aa716dd1c91af7e3099413bb34f99e9ac401`; work has 43,197,235 bytes, SHA-256 `f183d40326192813070b17a963b489776c62c3bad4c9223f840ecb371b21fec5`; and the 4,895-byte manifest SHA-256 is `3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc`. The role audit, sealed partition, and six-run training have now completed; production weights remain unchanged because model selection failed.
 
 ---
 
@@ -114,12 +114,12 @@ Ordering is by digest bytes ascending, then by `game_id` UTF-8 bytes if digests 
 
 After Lane A exposure and cross-role semantic conflicts are removed, the published partition is:
 
-| Role | Games | Parents / records | Use |
-|---|---:|---:|---|
-| model training | 21 | 1,725 / 20,123 | passed to warm/scratch |
-| model selection | 4 | 341 / 3,912 | used for epoch/checkpoint/series selection |
-| final holdout | 3 | 290 / 3,391 | evaluated only after a candidate receipt |
-| validation total | 7 | 631 / 7,303 | four + three games |
+| Role             | Games | Parents / records | Use                                        |
+| ---------------- | ----: | ----------------: | ------------------------------------------ |
+| model training   |    21 |    1,725 / 20,123 | passed to warm/scratch                     |
+| model selection  |     4 |       341 / 3,912 | used for epoch/checkpoint/series selection |
+| final holdout    |     3 |       290 / 3,391 | evaluated only after a candidate receipt   |
+| validation total |     7 |       631 / 7,303 | four + three games                         |
 
 Game assignment uses no cp or rank, only game ID and the fixed depth-16 hash. The old depth-18-seed 416 / 339-parent split and the table assigning only 100 pilot parents as 70 / 15 / 15 parents and 830 / 180 / 180 rows are diagnostic history, not current role accounting. Lane A includes the depth-selection pilot plus hard-case, repeat, and node-policy diagnostics spread across all 28 games, so the holdout cannot honestly be called “opened for the first time” or game-level untouched.
 
@@ -127,13 +127,13 @@ The current tracked receipt unions every committed Lane A artifact: 102 parent I
 
 At the same clean revision `6d541f1108a22f18751ee009417c3e57e27f8205`, preflight passed with every output still absent, after which publication wrote the manifest last as the commit marker. The Python consumer then reverified every source/output byte binding and every isolation field as zero.
 
-| Partition artifact | Records / parents | Bytes | SHA-256 |
-|---|---:|---:|---|
-| model training | 20,123 / 1,725 | 17,154,270 | `f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26` |
-| model selection | 3,912 / 341 | 3,319,397 | `97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba` |
-| final holdout | 3,391 / 290 | 2,870,874 | `89b3e2ca1e637a507b4b6559326ada420d205c3967ac33063a9084ee5290e8c8` |
-| protected semantic IDs | 3,372 / — | 242,784 | `762b95b52f50223fd484573d7d3823f3d2d7622ea3817f4300ae9fcc95935d26` |
-| partition manifest | — | 5,357 | `d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1` |
+| Partition artifact     | Records / parents |      Bytes | SHA-256                                                            |
+| ---------------------- | ----------------: | ---------: | ------------------------------------------------------------------ |
+| model training         |    20,123 / 1,725 | 17,154,270 | `f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26` |
+| model selection        |       3,912 / 341 |  3,319,397 | `97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba` |
+| final holdout          |       3,391 / 290 |  2,870,874 | `89b3e2ca1e637a507b4b6559326ada420d205c3967ac33063a9084ee5290e8c8` |
+| protected semantic IDs |         3,372 / — |    242,784 | `762b95b52f50223fd484573d7d3823f3d2d7622ea3817f4300ae9fcc95935d26` |
+| partition manifest     |                 — |      5,357 | `d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1` |
 
 ### 3.2 The audit found leakage that same-type comparisons missed
 
@@ -206,12 +206,12 @@ Scratch shares no initial weights. Warm and scratch do share the same legacy rep
 
 ## 5. Training matrix and representative-candidate rule
 
-There are exactly six planned runs.
+The sealed matrix contained exactly six runs.
 
-| Series | Initialization | Seeds | Learning rate | Epochs | Replay limit / ratio |
-|---|---|---|---:|---:|---:|
-| warm | runOp1 model only | 42, 43, 44 | `1e-4` | 20 | 500,000 / 1.0 |
-| scratch | fresh | 42, 43, 44 | `1e-3` | 40 | 500,000 / 1.0 |
+| Series  | Initialization    | Seeds      | Learning rate | Epochs | Replay limit / ratio |
+| ------- | ----------------- | ---------- | ------------: | -----: | -------------------: |
+| warm    | runOp1 model only | 42, 43, 44 |        `1e-4` |     20 |        500,000 / 1.0 |
+| scratch | fresh             | 42, 43, 44 |        `1e-3` |     40 |        500,000 / 1.0 |
 
 Every checkpoint carries a `shogi-sibling-training-experiment-v1` receipt, and the following values are checked exactly. `--select-metric sibling-pair` is explicit; `auto` is rejected for this experiment. The device is also fixed explicitly as `--device cpu`.
 
@@ -221,21 +221,21 @@ I re-audited the actual planned Python `3.13.0` / PyTorch `2.12.1` runtime befor
 
 The plan deliberately contains no `training_pipeline_revision`. The plan is committed first and its byte SHA-256 is pinned by a constant in a later commit; embedding that future commit hash inside the plan would create an impossible self-reference. At execution, the code separately verifies the sealed plan hash and tracked/unmodified file, then requires the whole worktree to be clean with `HEAD == --pipeline-revision`. That execution HEAD is recorded in every checkpoint and the completed result marker. Separating the plan seal from the execution-code receipt does not make either optional.
 
-| Common argument / identity | Fixed value |
-|---|---|
-| loss / features / batch | `sibling-ranking` / `board` / `256` |
-| sigmoid K / cp clamp | `600.0` / `3000` |
-| rank weight / pair min / pair max / margin | `1.0` / `50.0` / `600.0` / `50.0cp` |
-| policy weight / temperature | `0.25` / `200.0cp` |
-| selection | CLI and resolved value are both `"sibling-pair"` |
-| primary limit / device | `0` (all rows) / `cpu` |
-| common runtime | exact hardware/OS/Python/PyTorch/`cpu`; per process: two intra-op threads, one inter-op thread, deterministic debug `error` |
-| replay | required, limit `500000`, ratio `1.0` |
-| replay source SHA-256 | `2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb` |
-| warm initializer SHA-256 | `571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8` |
-| warm legacy flag | `true`; safely load model weights only, with fresh optimizer/scheduler |
-| scratch initializer / legacy flag | none / `false` |
-| teacher / partition / filtered-data hashes | teacher `3381e238…`, partition `d95e6623…`, training `f6dcfd6a…`, selection `97b15ba1…`, protected IDs `762b95b5…` |
+| Common argument / identity                 | Fixed value                                                                                                                 |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| loss / features / batch                    | `sibling-ranking` / `board` / `256`                                                                                         |
+| sigmoid K / cp clamp                       | `600.0` / `3000`                                                                                                            |
+| rank weight / pair min / pair max / margin | `1.0` / `50.0` / `600.0` / `50.0cp`                                                                                         |
+| policy weight / temperature                | `0.25` / `200.0cp`                                                                                                          |
+| selection                                  | CLI and resolved value are both `"sibling-pair"`                                                                            |
+| primary limit / device                     | `0` (all rows) / `cpu`                                                                                                      |
+| common runtime                             | exact hardware/OS/Python/PyTorch/`cpu`; per process: two intra-op threads, one inter-op thread, deterministic debug `error` |
+| replay                                     | required, limit `500000`, ratio `1.0`                                                                                       |
+| replay source SHA-256                      | `2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb`                                                          |
+| warm initializer SHA-256                   | `571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8`                                                          |
+| warm legacy flag                           | `true`; safely load model weights only, with fresh optimizer/scheduler                                                      |
+| scratch initializer / legacy flag          | none / `false`                                                                                                              |
+| teacher / partition / filtered-data hashes | teacher `3381e238…`, partition `d95e6623…`, training `f6dcfd6a…`, selection `97b15ba1…`, protected IDs `762b95b5…`          |
 
 Warm accepts only seeds 42/43/44, `lr=1e-4`, and 20 epochs. Scratch accepts the same three seeds, `lr=1e-3`, and 40 epochs. Six parallel processes therefore have exactly 12 intra-op slots and no hidden inter-op fan-out. The plan fixes six repository-relative output slots and refuses an existing directory. Only a completed run atomically writes `shogi-sibling-training-result-v1` last, binding every checkpoint, `curve.csv`, pipeline revision, and deterministic runtime receipt; a crashed directory has no selectable result marker.
 
@@ -250,6 +250,23 @@ Representative selection uses only int16 model-selection metrics. Within each se
 The warm and scratch representatives are compared by the same ordering to produce one candidate. This selects a real median-seed checkpoint rather than inventing an averaged checkpoint.
 If all three metrics tie exactly, the only fallback is **series (warm before scratch), seed (42 before 43 before 44), then checkpoint SHA-256 in bytewise ascending order**.
 
+### 5.1 The six sealed runs completed
+
+All six processes ran concurrently from clean revision `d18d3c43677255c518dce83f4a53caf46057f878`. Every slot finished its exact epoch count and wrote `shogi-sibling-training-result-v1` last. The following numbers come from independent int16 inference on the same 3,912 records / 341 parents / 15,439 eligible pairs in model selection.
+
+| Slot       | Selected epoch | int16 pair | int16 top-1 | int16 MAE (cp) | float→int16 pair delta | result / checkpoint / export / report SHA-256         |
+| ---------- | -------------: | ---------: | ----------: | -------------: | ---------------------: | ----------------------------------------------------- |
+| warm 42    |             20 |   0.607228 |    0.263930 |        491.990 |              −0.002720 | `374393b6…` / `96863352…` / `8b82fd1a…` / `031991dc…` |
+| warm 43    |             18 |   0.606322 |    0.263930 |        486.316 |              −0.003886 | `f04e440a…` / `d0175b68…` / `91a8206a…` / `db3fec24…` |
+| warm 44    |             20 |   0.607228 |    0.269795 |        484.685 |              −0.002720 | `b9aa88c7…` / `e5f08d6a…` / `4cbdbebd…` / `d70467d9…` |
+| scratch 42 |              8 |   0.601852 |    0.246334 |        581.531 |              −0.001943 | `8ea8531e…` / `c43b8c88…` / `9cdfe900…` / `8df7a3d5…` |
+| scratch 43 |              6 |   0.598873 |    0.208211 |        557.270 |              −0.002915 | `83d5ade4…` / `a3b6a8a1…` / `7a0e933b…` / `141561cd…` |
+| scratch 44 |              8 |   0.602435 |    0.255132 |        623.181 |              −0.000777 | `0bf6f448…` / `724e509f…` / `123f35bd…` / `942f53e0…` |
+
+The warm order is 44, 42, 43 and the scratch order is 44, 42, 43. The preregistered median rule therefore selects warm 42 and scratch 42 as the two representatives; comparing those representatives selects warm 42 provisionally. Its complete checkpoint SHA-256 is `968633526e0ebd4a9ef0044626ff3e824fc68fee9225850f2b13d01f655d4e51`, and its int16 export SHA-256 is `8b82fd1a46c2ff5511ff4f4401261f01406d48e87c07810c2211db3e8a9e0565`. Warm 44 has the best observed top-1, but replacing the median winner with it after seeing results would violate the experiment.
+
+Stable runOp1 measured `0.6048966902` pair accuracy, `0.2668621701` top-1, and `496.8903cp` MAE in the same int16 selection evaluation. Warm 42 passes the strict pair comparison but fails top-1. Its pair delta from float is also `−0.0027203834`, outside the absolute `0.002` limit; its `+0.0029325513` top-1 delta remains inside the `0.005` limit. Two of four gates therefore fail.
+
 ---
 
 ## 6. Freeze the candidate hash, then open the holdout once
@@ -263,9 +280,9 @@ At model-selection completion, at least these identities are saved:
 - Model-selection report bytes / SHA-256
 - Exact six result identities (three warm + three scratch) and run-plan SHA-256
 
-Only after that candidate identity is immutable are stable runOp1 and candidate evaluated together on the final-holdout JSONL, once. The common schema and strict decoder are preregistered here, but until a separate PR produces the actual receipt and connects it to evaluation and the match gate, the evaluator explicitly rejects the `final-holdout` role. This PR does not open it; receipt hashes and results remain `TBD`.
+Only after that candidate identity is immutable and every selection gate passes may stable runOp1 and the candidate be evaluated together on the final-holdout JSONL, once—and only after an evidence-bound authorization path is implemented. The completed `shogi-sibling-six-run-selection-audit-v1` strict-decodes all six result markers, artifact identities, int16 reports, ordering rules, and stable comparison. It also regenerates all six candidate exports/reports plus stable from the recorded local venv and clean exporter/evaluator, requiring byte-exact weights/metadata and exact float/int16 metrics and core provenance. The six training results and checkpoints are pinned to execution revision `d18d3c43677255c518dce83f4a53caf46057f878`, exact plan bytes/SHA, and the full runtime receipt. The audit pipeline was clean at both ends at `90f7659bbe0ab53bbc1cb553b094d61966dfa187`; the 27,692-byte audit has SHA-256 `5a7c4b1041ad6c01109fd0f9575f1e40e9f2fc18abe0c9c9c222500dc32b8c19`. It records the Python executable and runtime but not a reconstructible lock for every venv package, so this is exact reproduction in the recorded environment rather than a complete environment seal.
 
-The future `shogi-sibling-candidate-selection-receipt-v1` exactly lists each of six runs' result marker, checkpoint, int16 export bytes/SHA/bucket count, and int16 selection-report identity, plus the median-ranked-seed strategy, selection metrics and tie-break, selected series/seed/checkpoint, and run-plan SHA. The match gate verifies that the supplied candidate equals the selected export and differs from stable. A failed holdout still cannot move back one epoch, switch series, or tune learning rate.
+Because two selection gates failed, that audit records `not_emitted_selection_gate_failed`; no `shogi-sibling-candidate-selection-receipt-v1` was emitted. Partition publication had mechanically parsed the labeled source-validation JSONL to create the 3,391 holdout rows, so this report does not claim that no process ever read labels. The audit instead records `partition_publication_parsed_labeled_source_validation = true`, `post_seal_training_selection_or_evaluation_labels_read = false`, and `status = sealed_not_opened`: after sealing, training, selection audit, and evaluation received no holdout JSONL and computed no holdout metrics. This is protocol enforcement, not an OS access-control seal. The evaluator continues to reject the `final-holdout` role, so this is a selection failure rather than a holdout result.
 
 ---
 
@@ -273,18 +290,18 @@ The future `shogi-sibling-candidate-selection-receipt-v1` exactly lists each of 
 
 ### 7.1 Model selection and quantization
 
-| Gate | Required condition |
-|---|---|
-| selection int16 pair accuracy | **greater than stable** |
-| selection int16 top-1 | **at least stable** |
-| float → int16 pair degradation | at most 0.2 percentage points (absolute `0.002`) |
+| Gate                            | Required condition                               |
+| ------------------------------- | ------------------------------------------------ |
+| selection int16 pair accuracy   | **greater than stable**                          |
+| selection int16 top-1           | **at least stable**                              |
+| float → int16 pair degradation  | at most 0.2 percentage points (absolute `0.002`) |
 | float → int16 top-1 degradation | at most 0.5 percentage points (absolute `0.005`) |
 
 Value MAE breaks ties between representative candidates; it cannot compensate for a failed pair/top-1 gate.
 
 ### 7.2 Exact-row sealed since PR4A final holdout (evaluation currently disabled)
 
-Only after candidate-selection receipt support lands must the int16 candidate satisfy **both** conditions against stable:
+Only after an evidence-bound candidate authorization implementation lands must the int16 candidate satisfy **both** conditions against stable. The current public receipt validator always fails closed; a self-asserted audit/receipt hash cannot unlock the holdout:
 
 - Within-parent pair accuracy at least stable
 - Teacher top-1 accuracy at least stable
@@ -295,10 +312,10 @@ Failure on either is failure. Holdout metrics never flow backward into series or
 
 The existing general holdout and opening holdout are each measured under the same conditions as stable. Every condition must pass on each dataset.
 
-| Metric | Retention floor |
-|---|---|
-| value MAE | `candidate ≤ stable × 1.05` |
-| pair accuracy | `candidate ≥ stable - 0.005` |
+| Metric                 | Retention floor              |
+| ---------------------- | ---------------------------- |
+| value MAE              | `candidate ≤ stable × 1.05`  |
+| pair accuracy          | `candidate ≥ stable - 0.005` |
 | decisive-pair accuracy | `candidate ≥ stable - 0.005` |
 
 Better sibling metrics do not excuse damaging broad or opening behavior by more than the fixed tolerance.
@@ -346,32 +363,33 @@ The [81Dojo Terms of Use](https://81dojo.com/en/terms.html) require a `COM_*` sp
 
 ## 8. Current result ledger
 
-| Stage | State | Current evidence / unresolved output |
-|---|---|---|
-| full attempt 1, timeout 120s | **Confirmed, rejected** | stopped after 215 parents; never resumed as another condition |
-| difficult-parent runtime diagnostic 1 | **Confirmed** | 12 siblings, 188.52 seconds; label scores unused for selection |
-| full attempt 2, timeout 600s | **Confirmed, rejected** | stopped on another heavy parent after 393 parents |
-| isolated heavy-parent diagnostic | **Confirmed** | eight siblings took 1,693.48 seconds inside a 3,600s ceiling; not a full run |
-| training-device smoke | **Confirmed** | Torch 2.12.1 MPS is ~1.9× faster for one process but two identical runs diverged in loss/hash; CPU is exact and supports six-way parallelism; sealed device is `cpu` |
-| Lane A teacher-policy comparison | **Confirmed** | selected fixed depth 16; n=100 ordinary-cp median 29 / p90 125.3, all-pair reversal 0.1462%, depth-18 node ratio 2.4713× |
-| fresh final-policy full teacher | **Confirmed, complete** | exit 0 after 5,354.31s; 3,112 selected = 3,106 completed + 6 skipped, 36,365 candidates, 21/7 games, zero overlap |
-| full teacher manifest / train / val / work hashes | **Confirmed** | manifest `3381e238…` / train `909f12a5…` / val `5a2435df…` / work `f183d403…`; bytes and row counts recorded above |
-| sealed partition manifest / five artifact hashes | **Confirmed, published** | training `f6dcfd6a…` / selection `97b15ba1…` / holdout `89b3e2ca…` / protected `762b95b5…` / manifest `d95e6623…`; Python reverified, every overlap zero |
-| policy-exposure receipt | **Audited and pinned** | 102 parent / 1,392 semantic IDs; removals are training 307 parents/3,642 rows, selection 64/762, holdout 49/588, unmatched 7 |
-| model-training cross-semantic isolation | **Implemented and tested** | after Lane A exposure exclusion, evaluation union wins, whole-parent drop, 21 games required |
-| six-run plan | **Exact values sealed; not run** | 3,057 bytes / `0e34262f…e070`; pins all ten input hashes plus Python 3.13.0 / Torch 2.12.1 / Apple M4 Pro / two-thread CPU |
-| external high-dan calibration | **Plan only; not authorized** | confirmed 81Dojo COM-account / official-app constraints; candidate/time control/pairing/minimum games/stability rule must be frozen before play |
-| warm seeds 42/43/44 | **Not run** | `TBD` checkpoint/report hashes |
-| scratch seeds 42/43/44 | **Not run** | `TBD` checkpoint/report hashes |
-| frozen candidate | **Not selected** | `TBD` checkpoint/export SHA-256 |
-| exact-row final holdout | **Unopened; rejected in code** | disabled until candidate-selection receipt PR; hash/result `TBD` |
-| general / opening retention | **Not run** | compare three preregistered metrics with stable |
-| `P*8f` regression suite | **Not run** | static, depth 11/12, and nine timed runs |
-| paired A/B | **Not run** | 384 games / 192 color-swapped pairs |
-| production browser | **Not run** | exact hash, Worker/WASM, legal/error/time checks |
-| production promotion | **Not run** | keep runOp1; separate PR only if every gate passes |
+| Stage                                             | State                                | Current evidence / unresolved output                                                                                                                                 |
+| ------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| full attempt 1, timeout 120s                      | **Confirmed, rejected**              | stopped after 215 parents; never resumed as another condition                                                                                                        |
+| difficult-parent runtime diagnostic 1             | **Confirmed**                        | 12 siblings, 188.52 seconds; label scores unused for selection                                                                                                       |
+| full attempt 2, timeout 600s                      | **Confirmed, rejected**              | stopped on another heavy parent after 393 parents                                                                                                                    |
+| isolated heavy-parent diagnostic                  | **Confirmed**                        | eight siblings took 1,693.48 seconds inside a 3,600s ceiling; not a full run                                                                                         |
+| training-device smoke                             | **Confirmed**                        | Torch 2.12.1 MPS is ~1.9× faster for one process but two identical runs diverged in loss/hash; CPU is exact and supports six-way parallelism; sealed device is `cpu` |
+| Lane A teacher-policy comparison                  | **Confirmed**                        | selected fixed depth 16; n=100 ordinary-cp median 29 / p90 125.3, all-pair reversal 0.1462%, depth-18 node ratio 2.4713×                                             |
+| fresh final-policy full teacher                   | **Confirmed, complete**              | exit 0 after 5,354.31s; 3,112 selected = 3,106 completed + 6 skipped, 36,365 candidates, 21/7 games, zero overlap                                                    |
+| full teacher manifest / train / val / work hashes | **Confirmed**                        | manifest `3381e238…` / train `909f12a5…` / val `5a2435df…` / work `f183d403…`; bytes and row counts recorded above                                                   |
+| sealed partition manifest / five artifact hashes  | **Confirmed, published**             | training `f6dcfd6a…` / selection `97b15ba1…` / holdout `89b3e2ca…` / protected `762b95b5…` / manifest `d95e6623…`; Python reverified, every overlap zero             |
+| policy-exposure receipt                           | **Audited and pinned**               | 102 parent / 1,392 semantic IDs; removals are training 307 parents/3,642 rows, selection 64/762, holdout 49/588, unmatched 7                                         |
+| model-training cross-semantic isolation           | **Implemented and tested**           | after Lane A exposure exclusion, evaluation union wins, whole-parent drop, 21 games required                                                                         |
+| six-run plan                                      | **Sealed and completed**             | 3,057 bytes / `0e34262f…e070`; all six slots completed at clean revision `d18d3c4…` with deterministic two-thread CPU receipts                                       |
+| external high-dan calibration                     | **Plan only; not authorized**        | confirmed 81Dojo COM-account / official-app constraints; candidate/time control/pairing/minimum games/stability rule must be frozen before play                      |
+| warm seeds 42/43/44                               | **Complete**                         | int16 pair `0.607228 / 0.606322 / 0.607228`; median representative seed 42                                                                                           |
+| scratch seeds 42/43/44                            | **Complete**                         | int16 pair `0.601852 / 0.598873 / 0.602435`; median representative seed 42                                                                                           |
+| provisional candidate                             | **Selected, then rejected by gates** | warm 42 checkpoint `96863352…`, export `8b82fd1a…`; pair beats stable, top-1 and pair-quantization gates fail                                                        |
+| selection audit                                   | **Confirmed failure receipt**        | 27,692 bytes / `5a7c4b10…32b8c19`; seven-model export/report reproduction exact; no success candidate receipt emitted                                                |
+| exact-row final holdout                           | **Not evaluated after sealing**      | publication parsed labeled source validation; post-seal training/selection/evaluation read no holdout labels; no result exists                                       |
+| general / opening retention                       | **Not run**                          | compare three preregistered metrics with stable                                                                                                                      |
+| `P*8f` regression suite                           | **Not run**                          | static, depth 11/12, and nine timed runs                                                                                                                             |
+| paired A/B                                        | **Not run**                          | 384 games / 192 color-swapped pairs                                                                                                                                  |
+| production browser                                | **Not run**                          | exact hash, Worker/WASM, legal/error/time checks                                                                                                                     |
+| production promotion                              | **Not run**                          | keep runOp1; separate PR only if every gate passes                                                                                                                   |
 
-The remaining `TBD` entries mean neither zero nor secret. They mean the later stage has no manifest-committed result yet. Completion updates this table with bytes, hashes, denominators, and intervals.
+The blank downstream stages mean neither zero nor secret. They were not reached because selection failed before the holdout boundary.
 
 ---
 
@@ -386,9 +404,9 @@ The intermediate result is not a weight file. It is the removal of convenient es
 - A tracked receipt removes every group touching the 102-parent / 1,392-semantic Lane A exposure union, limiting the claim to an exact-row seal since PR4A
 - The nonpublishing audit pinned per-role exposure removals at 307 parents/3,642 rows, 64/762, 49/588, and seven unmatched IDs
 - Parent↔child cross-semantic leakage was found, so base train is no longer consumed directly
-- Holdout labels were removed from training, and final-holdout evaluation is disabled until candidate-selection receipt support exists
-- The number of warm/scratch trials, median candidate, and numeric gates were fixed first
+- All six sealed runs completed. Warm consistently exceeded scratch on pair/top-1, but the median warm seed still failed stable top-1 and the fixed quantization-delta limit
+- The 27,692-byte selection audit binds the provisional warm-42 identity, reproduces all seven exports/reports exactly in the recorded local environment, and records that no success candidate receipt was emitted; no holdout labels were read or evaluated after sealing
 
 None proves stronger play. They do make it harder to excuse a weaker model with an aggregate metric or a tiny match.
 
-The next update may report six training curves, candidate-selection receipt, frozen candidate, exact-row holdout, retention, known regression, the 384-game interval, and browser evidence. Until every item exists and every gate passes, production remains on runOp1.
+The next experiment will be separately preregistered around int16-aware or quantization-aware training, with its inputs, seeds, schedule, export regeneration, and selection thresholds fixed before it runs. It will not swap in warm 44 post hoc and it will not open the final holdout. Until a later candidate passes every static gate, production remains on runOp1.

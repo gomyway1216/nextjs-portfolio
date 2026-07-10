@@ -9,6 +9,7 @@ without installing Torch.
 from __future__ import annotations
 
 import hashlib
+import math
 from typing import Any, Mapping
 
 
@@ -51,17 +52,46 @@ def validate_arch(actual: Mapping[str, Any] | None, expected: Mapping[str, Any])
         raise CheckpointCompatibilityError("checkpoint arch metadata is missing")
 
     problems: list[str] = []
+    actual_fields = set(actual)
+    expected_fields = set(ARCH_FIELDS)
+    if actual_fields != expected_fields:
+        missing = sorted(expected_fields - actual_fields)
+        extra = sorted(actual_fields - expected_fields)
+        if missing:
+            problems.append(f"fields: missing {missing!r}")
+        if extra:
+            problems.append(f"fields: unexpected {extra!r}")
     for field in ARCH_FIELDS:
         if field not in actual:
-            problems.append(f"{field}: expected {expected.get(field)!r}, actual <missing>")
             continue
         wanted = expected.get(field)
         found = actual[field]
-        if field == "k":
-            try:
-                equal = float(found) == float(wanted)
-            except (TypeError, ValueError):
-                equal = False
+        if field in {"schema", "input", "h1", "h2", "kp_buckets"}:
+            equal = type(found) is int and type(wanted) is int and found == wanted
+            if type(found) is not int:
+                problems.append(f"{field}: expected exact integer, actual {found!r}")
+                continue
+        elif field == "features":
+            equal = type(found) is str and type(wanted) is str and found == wanted
+            if type(found) is not str:
+                problems.append(f"{field}: expected exact string, actual {found!r}")
+                continue
+        elif field == "k":
+            # JSON-like metadata may preserve an integral scale as ``600``
+            # instead of ``600.0``. They are the same architecture value;
+            # bool remains excluded because its exact type is neither member.
+            found_numeric = type(found) in (int, float)
+            wanted_numeric = type(wanted) in (int, float)
+            equal = (
+                found_numeric
+                and wanted_numeric
+                and math.isfinite(found)
+                and math.isfinite(wanted)
+                and float(found) == float(wanted)
+            )
+            if not found_numeric or not math.isfinite(found):
+                problems.append(f"{field}: expected finite number, actual {found!r}")
+                continue
         else:
             equal = found == wanted
         if not equal:

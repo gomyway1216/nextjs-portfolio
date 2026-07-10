@@ -15,10 +15,15 @@ ML_DIR = os.path.dirname(os.path.dirname(__file__))
 if ML_DIR not in sys.path:
     sys.path.insert(0, ML_DIR)
 
+import train as train_module  # noqa: E402
+
 from train import (  # noqa: E402
+    identifier_set_sha256,
     load_replay_dataset,
     load_dataset_with_metadata,
     cp_sigmoid_target,
+    configure_sealed_torch_runtime,
+    create_new_output_directory,
     contiguous_parent_slices,
     dataset_provenance,
     grouped_batches,
@@ -26,15 +31,22 @@ from train import (  # noqa: E402
     mix_replay_value_loss,
     position_id_from_sfen,
     raw_sibling_cp,
+    sealed_experiment_contract,
+    sealed_run_tie_break_key,
     require_same_file_fingerprint,
     sibling_selection_key,
     sibling_metrics,
     sibling_policy_loss,
     sibling_ranking_loss,
     teacher_policy_targets,
+    main as train_main,
     validate_disjoint_splits,
+    validate_partition_dataset_summary,
     validate_sibling_metadata,
     validate_training_hyperparameters,
+    validate_training_path_isolation,
+    verify_training_pipeline_revision,
+    verify_sealed_experiment_plan,
 )
 
 
@@ -92,6 +104,320 @@ def write_rows(path, rows):
 
 
 class SiblingTrainingLossTest(unittest.TestCase):
+    def test_production_six_run_plan_hash_blocks_training_until_finalized(self):
+        self.assertIsNone(train_module.SEALED_SIX_RUN_PLAN_SHA256)
+        with self.assertRaisesRegex(ValueError, "still draft/TBD"):
+            verify_sealed_experiment_plan(
+                SimpleNamespace(experiment_plan=""),
+                {},
+                tracking_verifier=lambda *_args: None,
+            )
+
+    def test_final_tie_break_is_series_then_seed_then_checkpoint_sha(self):
+        candidates = [
+            ("scratch", 42, "0" * 64),
+            ("warm", 43, "0" * 64),
+            ("warm", 42, "f" * 64),
+            ("warm", 42, "0" * 64),
+        ]
+        self.assertEqual(
+            sorted(candidates, key=lambda value: sealed_run_tie_break_key(*value)),
+            [
+                ("warm", 42, "0" * 64),
+                ("warm", 42, "f" * 64),
+                ("warm", 43, "0" * 64),
+                ("scratch", 42, "0" * 64),
+            ],
+        )
+
+    def test_six_run_plan_pins_exact_grid_inputs_runtime_and_output_slot(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            paths = {}
+            for index, field in enumerate(
+                (
+                    "sibling_manifest",
+                    "validation_partition_manifest",
+                    "data",
+                    "val_data",
+                    "replay_data",
+                    "policy_exposure_receipt",
+                    "policy_exposed_parent_ids",
+                    "policy_exposed_semantic_position_ids",
+                    "holdout_protected_position_ids",
+                )
+            ):
+                path = os.path.join(tmp, f"{field}.bin")
+                with open(path, "wb") as target:
+                    target.write(f"input-{index}\n".encode())
+                paths[field] = path
+            warm_init = os.path.join(tmp, "warm.pt")
+            with open(warm_init, "wb") as target:
+                target.write(b"warm-init\n")
+            input_fields = {
+                "sibling_teacher_manifest": "sibling_manifest",
+                "validation_partition_manifest": "validation_partition_manifest",
+                "model_training": "data",
+                "model_selection": "val_data",
+                "replay": "replay_data",
+                "policy_exposure_receipt": "policy_exposure_receipt",
+                "policy_exposed_parent_ids": "policy_exposed_parent_ids",
+                "policy_exposed_semantic_position_ids": (
+                    "policy_exposed_semantic_position_ids"
+                ),
+                "holdout_protected_position_ids": "holdout_protected_position_ids",
+            }
+            input_hashes = {
+                plan_field: train_module.sha256_file(paths[arg_field])
+                for plan_field, arg_field in input_fields.items()
+            }
+            input_hashes["warm_initializer"] = train_module.sha256_file(warm_init)
+            runtime = {
+                "platform": "test-platform",
+                "system": "test-system",
+                "machine": "test-machine",
+                "processor": "test-processor",
+                "cpu_model": "test-cpu",
+                "logical_cpu_count": 12,
+                "device": "cpu",
+                "python_version": "test-python",
+                "torch_version": "test-torch",
+                "torch_threads": 2,
+                "torch_interop_threads": 1,
+                "deterministic_algorithms": True,
+                "deterministic_debug_mode": "error",
+            }
+            slots = []
+            for series, seed in train_module.SEALED_SIX_RUN_SLOT_ORDER:
+                contract = train_module.SEALED_EXPERIMENT_CONTRACTS[series]
+                slots.append(
+                    {
+                        "id": f"{series}-seed-{seed}",
+                        "series": series,
+                        "seed": seed,
+                        "learning_rate": contract["learning_rate"],
+                        "epochs": contract["epochs"],
+                        "initializer_required": series == "warm",
+                        "output": f"ml/runs/wcsc36-six-run/{series}-seed-{seed}",
+                    }
+                )
+            revision = "a" * 40
+            plan = {
+                "schema": train_module.SEALED_SIX_RUN_PLAN_SCHEMA,
+                "common": {"input_sha256": input_hashes, "runtime": runtime},
+                "slots": slots,
+                "selection_tie_break": list(
+                    train_module.SEALED_SELECTION_TIE_BREAK
+                ),
+            }
+            plan_path = os.path.join(tmp, "plan.json")
+
+            def write_plan():
+                with open(plan_path, "w", encoding="utf-8", newline="\n") as target:
+                    json.dump(plan, target, indent=2, sort_keys=True)
+                    target.write("\n")
+
+            write_plan()
+            repo_root = os.path.realpath(os.path.join(ML_DIR, ".."))
+            args = SimpleNamespace(
+                **paths,
+                init_ckpt="",
+                experiment_plan=plan_path,
+                experiment_series="scratch",
+                seed=43,
+                pipeline_revision=revision,
+                out=os.path.join(
+                    repo_root, "ml/runs/wcsc36-six-run/scratch-seed-43"
+                ),
+            )
+            tracking_calls = []
+            with mock.patch.object(
+                train_module,
+                "SEALED_SIX_RUN_PLAN_SHA256",
+                train_module.sha256_file(plan_path),
+            ), mock.patch.object(
+                train_module,
+                "SEALED_REPLAY_SHA256",
+                input_hashes["replay"],
+            ), mock.patch.object(
+                train_module,
+                "SEALED_WARM_INIT_SHA256",
+                input_hashes["warm_initializer"],
+            ):
+                provenance = verify_sealed_experiment_plan(
+                    args,
+                    runtime,
+                    tracking_verifier=lambda path, rev: tracking_calls.append(
+                        (path, rev)
+                    ),
+                )
+            self.assertEqual(provenance["slot_id"], "scratch-seed-43")
+            self.assertEqual(tracking_calls, [(plan_path, revision)])
+
+            plan["training_pipeline_revision"] = revision
+            write_plan()
+            with mock.patch.object(
+                train_module,
+                "SEALED_SIX_RUN_PLAN_SHA256",
+                train_module.sha256_file(plan_path),
+            ), self.assertRaisesRegex(ValueError, "experiment plan must contain exactly"):
+                verify_sealed_experiment_plan(
+                    args,
+                    runtime,
+                    tracking_verifier=lambda *_args: None,
+                )
+            plan.pop("training_pipeline_revision")
+            plan["common"]["input_sha256"]["model_training"] = None
+            write_plan()
+            with mock.patch.object(
+                train_module,
+                "SEALED_SIX_RUN_PLAN_SHA256",
+                train_module.sha256_file(plan_path),
+            ), self.assertRaisesRegex(ValueError, "null/TBD"):
+                verify_sealed_experiment_plan(
+                    args,
+                    runtime,
+                    tracking_verifier=lambda *_args: None,
+                )
+
+    def test_new_output_slot_is_claimed_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = os.path.join(tmp, "runs", "slot")
+            create_new_output_directory(output)
+            self.assertTrue(os.path.isdir(output))
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                create_new_output_directory(output)
+
+    def test_sealed_experiment_grid_is_exact_and_seed_limited(self):
+        values = {
+            "experiment_series": "scratch",
+            "seed": 42,
+            "batch": 256,
+            "k": 600.0,
+            "cp_clamp": 3000,
+            "rank_weight": 1.0,
+            "rank_pair_min": 50.0,
+            "rank_pair_max": 600.0,
+            "rank_margin_cp": 50.0,
+            "policy_weight": 0.25,
+            "policy_temp_cp": 200.0,
+            "features": "board",
+            "device": "cpu",
+            "torch_threads": 2,
+            "replay_limit": 500_000,
+            "replay_ratio": 1.0,
+            "limit": 0,
+            "epochs": 40,
+            "lr": 1e-3,
+            "allow_legacy_init": False,
+            "loss": "sibling-ranking",
+            "select_metric": "sibling-pair",
+            "replay_data": "runOp1-train.jsonl",
+            "init_ckpt": "",
+        }
+        contract = sealed_experiment_contract(SimpleNamespace(**values))
+        self.assertEqual(contract["series"], "scratch")
+        self.assertEqual(contract["device"], "cpu")
+        self.assertEqual(contract["torch_threads"], 2)
+        for field, bad in (
+            ("seed", 45),
+            ("batch", 255),
+            ("device", "auto"),
+            ("torch_threads", 1),
+            ("select_metric", "auto"),
+            ("epochs", 39),
+        ):
+            with self.subTest(field=field):
+                candidate = {**values, field: bad}
+                with self.assertRaisesRegex(ValueError, field):
+                    sealed_experiment_contract(SimpleNamespace(**candidate))
+
+    def test_sealed_torch_runtime_sets_and_receipts_exact_determinism(self):
+        completed = SimpleNamespace(stdout="Apple M4 Max\n")
+        with mock.patch.object(
+            train_module.torch, "set_num_threads"
+        ) as set_threads, mock.patch.object(
+            train_module.torch, "set_num_interop_threads"
+        ) as set_interop, mock.patch.object(
+            train_module.torch, "get_num_threads", return_value=2
+        ), mock.patch.object(
+            train_module.torch, "get_num_interop_threads", return_value=1
+        ), mock.patch.object(
+            train_module.torch, "use_deterministic_algorithms"
+        ) as use_deterministic, mock.patch.object(
+            train_module.torch, "set_deterministic_debug_mode"
+        ) as set_debug, mock.patch.object(
+            train_module.torch,
+            "are_deterministic_algorithms_enabled",
+            return_value=True,
+        ), mock.patch.object(
+            train_module.torch, "get_deterministic_debug_mode", return_value=2
+        ), mock.patch.object(
+            train_module.subprocess, "run", return_value=completed
+        ), mock.patch.object(
+            train_module.platform, "platform", return_value="macOS-test"
+        ), mock.patch.object(
+            train_module.platform, "system", return_value="Darwin"
+        ), mock.patch.object(
+            train_module.platform, "machine", return_value="arm64"
+        ), mock.patch.object(
+            train_module.platform, "processor", return_value="arm"
+        ), mock.patch.object(
+            train_module.platform, "python_version", return_value="3.11.10"
+        ), mock.patch.object(
+            train_module.os, "cpu_count", return_value=16
+        ), mock.patch.object(
+            train_module.torch, "__version__", "2.3.0"
+        ):
+            receipt = configure_sealed_torch_runtime(2)
+
+        set_threads.assert_called_once_with(2)
+        set_interop.assert_called_once_with(1)
+        use_deterministic.assert_called_once_with(True)
+        set_debug.assert_called_once_with("error")
+        self.assertEqual(
+            receipt,
+            {
+                "platform": "macOS-test",
+                "system": "Darwin",
+                "machine": "arm64",
+                "processor": "arm",
+                "cpu_model": "Apple M4 Max",
+                "logical_cpu_count": 16,
+                "python_version": "3.11.10",
+                "torch_version": "2.3.0",
+                "device": "cpu",
+                "torch_threads": 2,
+                "torch_interop_threads": 1,
+                "deterministic_algorithms": True,
+                "deterministic_debug_mode": "error",
+            },
+        )
+
+    def test_training_outputs_cannot_alias_any_input_or_each_other(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = os.path.join(tmp, "run")
+            os.mkdir(out)
+            data = os.path.join(tmp, "data.jsonl")
+            with open(data, "wb") as target:
+                target.write(b"{}\n")
+            args = SimpleNamespace(
+                data=data,
+                val_data="",
+                sibling_manifest="",
+                validation_partition_manifest="",
+                experiment_plan="",
+                holdout_protected_position_ids="",
+                policy_exposure_receipt="",
+                policy_exposed_parent_ids="",
+                policy_exposed_semantic_position_ids="",
+                replay_data="",
+                init_ckpt="",
+                out=out,
+            )
+            validate_training_path_isolation(args)
+            os.symlink(data, os.path.join(out, "best.pt"))
+            with self.assertRaisesRegex(ValueError, "prospective output best.pt"):
+                validate_training_path_isolation(args)
     def test_training_hyperparameters_reject_nonfinite_or_ineffective_values(self):
         valid = {
             "k": 600.0,
@@ -204,10 +530,45 @@ class SiblingTrainingLossTest(unittest.TestCase):
                 target.write(json.dumps({"sfen": start, "cp": 0}) + "\n")
                 target.write("{broken-json\n")
 
-            permissive = load_dataset_with_metadata(path, 600.0, 3000)
-            self.assertEqual(permissive[2].shape[0], 1)
-            with self.assertRaisesRegex(ValueError, "strict dataset rejected 2"):
-                load_dataset_with_metadata(path, 600.0, 3000, strict=True)
+            for strict in (False, True):
+                with self.subTest(strict=strict):
+                    with self.assertRaisesRegex(ValueError, "line 2: invalid strict JSON"):
+                        load_dataset_with_metadata(
+                            path, 600.0, 3000, strict=strict
+                        )
+
+    def test_binary_jsonl_loader_rejects_duplicate_and_nonfinite_numbers(self):
+        start = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1"
+        cases = (
+            (
+                "duplicate",
+                ('{"sfen":' + json.dumps(start) + ',"cp":0,"cp":1}\n').encode(),
+                "duplicate JSON object key",
+            ),
+            (
+                "nan",
+                ('{"sfen":' + json.dumps(start) + ',"cp":NaN}\n').encode(),
+                "non-standard JSON numeric constant",
+            ),
+            (
+                "infinity",
+                ('{"sfen":' + json.dumps(start) + ',"cp":Infinity}\n').encode(),
+                "non-standard JSON numeric constant",
+            ),
+            (
+                "overflow",
+                ('{"sfen":' + json.dumps(start) + ',"cp":1e999}\n').encode(),
+                "non-finite number",
+            ),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "strict.jsonl")
+            for label, contents, expected in cases:
+                with self.subTest(label=label):
+                    with open(path, "wb") as target:
+                        target.write(contents)
+                    with self.assertRaisesRegex(ValueError, expected):
+                        load_replay_dataset(path, 600.0, 3000, 0, "board", 44)
 
     def test_strict_loader_accepts_formal_schema_and_forward_compatible_sources(self):
         rows = [
@@ -533,6 +894,43 @@ class SiblingTrainingLossTest(unittest.TestCase):
             self.assertTrue(torch.equal(first[3], second[3]))
             self.assertNotEqual(first[3].tolist(), [0.0, 1.0, 2.0, 3.0, 4.0])
 
+    def test_replay_samples_after_exclusion_and_rejects_an_underfilled_exact_sample(self):
+        base = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b"
+        sfens = [f"{base} {index + 1}P 1" for index in range(8)]
+        excluded = {position_id_from_sfen(sfen) for sfen in sfens[:3]}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "replay.jsonl")
+            with open(path, "w", encoding="utf-8", newline="\n") as target:
+                for cp, sfen in enumerate(sfens):
+                    target.write(json.dumps({"sfen": sfen, "cp": cp}) + "\n")
+            loaded = load_replay_dataset(
+                path,
+                600.0,
+                3000,
+                4,
+                "board",
+                44,
+                excluded,
+                include_fingerprint=True,
+            )
+            eligible_cps = list(range(3, 8))
+            expected = sorted(random.Random(44).sample(eligible_cps, 4))
+            self.assertEqual(loaded[3].tolist(), [float(value) for value in expected])
+            self.assertEqual(
+                loaded[5]["eligible_rows_after_semantic_exclusion"], 5
+            )
+            self.assertEqual(loaded[5]["excluded_rows_before_sampling"], 3)
+            with self.assertRaisesRegex(ValueError, "eligible replay rows"):
+                load_replay_dataset(
+                    path,
+                    600.0,
+                    3000,
+                    6,
+                    "board",
+                    44,
+                    excluded,
+                )
+
     def test_replay_fingerprint_detects_a_generation_change_during_load(self):
         start = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1"
         with tempfile.TemporaryDirectory() as tmp:
@@ -580,6 +978,137 @@ class SiblingTrainingLossTest(unittest.TestCase):
             )
             self.assertEqual(replay[3].tolist(), [200.0])
 
+    def test_replay_excludes_selection_semantic_union_and_holdout_protected_ids(self):
+        selection_parent = (
+            "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/"
+            "LNSGKGSNL b - 1"
+        )
+        selection_child = selection_parent.replace(" b - 1", " b P 1")
+        holdout_protected = selection_parent.replace(" b - 1", " b 2P 1")
+        allowed = selection_parent.replace(" b - 1", " b 3P 1")
+        excluded = {
+            position_id_from_sfen(selection_parent),
+            position_id_from_sfen(selection_child),
+        } | {position_id_from_sfen(holdout_protected)}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "replay.jsonl")
+            with open(path, "w", encoding="utf-8", newline="\n") as target:
+                for cp, sfen in enumerate(
+                    (
+                        selection_parent,
+                        selection_child,
+                        holdout_protected,
+                        allowed,
+                    ),
+                    start=1,
+                ):
+                    target.write(json.dumps({"sfen": sfen, "cp": cp * 100}) + "\n")
+            replay = load_replay_dataset(
+                path,
+                600.0,
+                3000,
+                0,
+                "board",
+                44,
+                excluded,
+            )
+            self.assertEqual(replay[3].tolist(), [400.0])
+
+    def test_training_pipeline_revision_requires_exact_clean_head(self):
+        revision = "0123456789abcdef0123456789abcdef01234567"
+        clean_results = [
+            SimpleNamespace(stdout=revision + "\n"),
+            SimpleNamespace(stdout=""),
+        ]
+        with mock.patch("train.subprocess.run", side_effect=clean_results) as run:
+            provenance = verify_training_pipeline_revision(revision)
+        self.assertEqual(
+            provenance,
+            {"source_revision": revision, "tracked_tree_clean": True},
+        )
+        self.assertEqual(run.call_count, 2)
+        self.assertIn("--untracked-files=normal", run.call_args_list[1].args[0])
+
+        with mock.patch(
+            "train.subprocess.run",
+            return_value=SimpleNamespace(stdout="f" * 40 + "\n"),
+        ):
+            with self.assertRaisesRegex(ValueError, "does not match HEAD"):
+                verify_training_pipeline_revision(revision)
+
+        dirty_results = [
+            SimpleNamespace(stdout=revision + "\n"),
+            SimpleNamespace(stdout=" M ml/train.py\n"),
+        ]
+        with mock.patch("train.subprocess.run", side_effect=dirty_results):
+            with self.assertRaisesRegex(ValueError, "clean Git worktree"):
+                verify_training_pipeline_revision(revision)
+
+        with self.assertRaisesRegex(ValueError, "lowercase 40-digit"):
+            verify_training_pipeline_revision(revision.upper())
+
+    def test_partition_dataset_summary_recomputes_counts_and_game_identity(self):
+        metadata = [
+            {"parent_id": "parent-a", "game_id": "game-b"},
+            {"parent_id": "parent-a", "game_id": "game-b"},
+            {"parent_id": "parent-b", "game_id": "game-a"},
+        ]
+        expected = {
+            "records": 3,
+            "parents": 2,
+            "games": 2,
+            "game_ids_sha256": identifier_set_sha256({"game-a", "game-b"}),
+        }
+        validate_partition_dataset_summary(metadata, expected, "fixture")
+        for field in expected:
+            with self.subTest(field=field):
+                wrong = dict(expected)
+                wrong[field] = "0" * 64 if field == "game_ids_sha256" else 99
+                with self.assertRaisesRegex(ValueError, field):
+                    validate_partition_dataset_summary(metadata, wrong, "fixture")
+
+    def test_sibling_training_has_no_unsealed_full_validation_fallback(self):
+        legacy_arguments = [
+            "train.py",
+            "--loss",
+            "sibling-ranking",
+            "--data",
+            "train.jsonl",
+            "--val-data",
+            "full-val.jsonl",
+            "--sibling-manifest",
+            "teacher-manifest.json",
+        ]
+        with mock.patch.object(sys, "argv", legacy_arguments):
+            with self.assertRaisesRegex(
+                SystemExit, "requires --validation-partition-manifest"
+            ):
+                train_main()
+
+        partial_arguments = legacy_arguments + [
+            "--validation-partition-manifest",
+            "partition.json",
+        ]
+        with mock.patch.object(sys, "argv", partial_arguments):
+            with self.assertRaisesRegex(
+                SystemExit, "holdout-protected-position-ids.*pipeline-revision"
+            ):
+                train_main()
+
+        with mock.patch.object(
+            sys,
+            "argv",
+            [
+                "train.py",
+                "--validation-partition-manifest",
+                "partition.json",
+            ],
+        ):
+            with self.assertRaisesRegex(
+                SystemExit, "only supported with --loss sibling-ranking"
+            ):
+                train_main()
+
     def test_child_position_identity_matches_schema_and_blocks_transposition_leakage(self):
         start = "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 99"
         child_id = position_id_from_sfen(start)
@@ -601,6 +1130,21 @@ class SiblingTrainingLossTest(unittest.TestCase):
         }]
         with self.assertRaisesRegex(SystemExit, "child_position_id"):
             validate_disjoint_splits(train, val)
+
+        cross_semantic_train = [{
+            "game_id": "train-game",
+            "parent_id": "train-parent",
+            "position_id": "position-a",
+            "child_position_id": "transposition-x",
+        }]
+        cross_semantic_val = [{
+            "game_id": "val-game",
+            "parent_id": "val-parent",
+            "position_id": "transposition-x",
+            "child_position_id": "position-b",
+        }]
+        with self.assertRaisesRegex(SystemExit, "semantic position union"):
+            validate_disjoint_splits(cross_semantic_train, cross_semantic_val)
 
 
 if __name__ == "__main__":

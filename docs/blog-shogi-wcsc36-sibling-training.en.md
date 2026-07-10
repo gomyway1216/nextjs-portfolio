@@ -2,6 +2,13 @@
 
 > After the `deep16` evaluation regression, we turned “learn again from strong games” into an experiment that cannot silently replace production. Along the way, real-engine tests showed that rescoring a candidate set in one `searchmoves` call was itself sensitive to the candidates' input order. We discarded those labels and rebuilt the pipeline around a v6 one-candidate-at-a-time contract, reproducible provenance, and non-destructive training. This is a ledger of that investigation and its intermediate data, not an announcement of improved playing strength.
 
+> **2026-07-10 update:** this article is the PR3 historical record. After the heavy tail in the
+> depth-18 full attempts, a Lane A comparison selected fixed depth 16 and a fresh full run completed,
+> accounting for all 3,112 selected entries. The depth-18 full-run and training commands below are superseded.
+> Lane A work touched all 28 games;
+> the game-level-untouched claim is withdrawn. See the [follow-up](./blog-shogi-wcsc36-sibling-training-results.en.md)
+> for the current 102-parent / 1,392-semantic exposure contract and the exact-row seal since PR4A.
+
 ---
 
 ## TL;DR
@@ -14,7 +21,7 @@
 - Mate scores occupy a `±1,000,000` band that cannot collide with ordinary cp. Finishing below the requested depth is allowed only when the final update of a single-candidate search is an exact mate
 - An engine receipt, eval hashes, a clean Git revision, a read-only runtime snapshot, a private working directory, and train/validation hashes are bound by one manifest. The trainer rejects data without that manifest
 - The depth-14 versus depth-16 100-parent v6 pilot measured 62% rank-1 agreement and 83.013% candidate Jaccard. With 200 cp as the tie threshold, relation agreement over all 5,342 common pairs was 91.01% (including 3,643 pairs tied at both depths), while orientation agreement among the 1,227 pairs decisive at both depths was 99.35%. It predates the clean-pipeline manifest and cannot be used for training. Training, quantization, match play, and any strength gain are not results yet
-- A fresh 100-parent depth-16/depth-18 pilot from a clean revision also passed every preregistered gate: 68% top-1-set overlap, 29 cp median and 125.3 cp p90 ordinary-cp difference, 0.146% all-pair reversal at the 200 cp threshold, and 2.471 times the nodes at depth 18. The full labeling depth is now preregistered as 18
+- A fresh 100-parent depth-16/depth-18 pilot from a clean revision also passed every preregistered gate: 68% top-1-set overlap, 29 cp median and 125.3 cp p90 ordinary-cp difference, 0.146% all-pair reversal at the 200 cp threshold, and 2.471 times the nodes at depth 18. PR3 fixed depth 18, but later heavy-tail diagnostics and Lane A comparison superseded it with depth 16
 
 ---
 
@@ -233,6 +240,15 @@ This prevents a parent's best move from entering train while its second-best mov
 
 The clean 100-parent gate above preregistered the full labeling depth as 18. It will not be changed after seeing later results.
 
+> **2026-07-10 update (historical command only):** the commands below describe the PR3
+> interface and must not be used as the current sealed-training procedure. The 100-parent
+> pilot touched all 28 games, including 15 parents and 180 candidate rows in the three games
+> later assigned to holdout. The current protocol excludes the complete 102-parent / 1,392-semantic
+> Lane A exposure union from every model role and requires the exact full-3,112-entry teacher and partition manifests.
+> In particular, the old `train.py` / `eval-sibling.py` commands later in this section now fail
+> intentionally. See the [follow-up](./blog-shogi-wcsc36-sibling-training-results.en.md) for the
+> replacement commands and the narrower “exact-row sealed since PR4A” claim.
+
 ```bash
 readonly LABEL_DEPTH=18
 
@@ -255,6 +271,11 @@ This command runs only from a clean worktree, writes to ignored `ml/data/`, and 
 ---
 
 ## 8. Compare stable, warm start, and scratch; overwrite none
+
+> **Superseded:** this command is retained as design history. Do not pass the base
+> `siblings.train/val.jsonl` files directly to the current trainer. Use the follow-up's
+> policy-exposure receipt, filtered model-training data, model-selection data, and partition
+> provenance.
 
 Training never writes directly to production `public/shogi-nnue-weights.bin`.
 

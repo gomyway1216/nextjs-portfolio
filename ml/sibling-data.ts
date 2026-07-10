@@ -8,7 +8,8 @@ export const SIBLING_MANIFEST_SCHEMA = 'shogi-sibling-manifest-v1' as const;
 
 export type DatasetSplit = 'train' | 'val';
 
-function compareBytewise(left: string, right: string): number {
+/** Locale-independent ordering used by every reproducible dataset artifact. */
+export function compareBytewise(left: string, right: string): number {
   return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
 }
 
@@ -472,7 +473,7 @@ function sortedRecords(records: readonly SiblingRecord[]): SiblingRecord[] {
 }
 
 function idDigest(ids: ReadonlySet<string>): string {
-  return sha256([...ids].sort().join('\n'));
+  return sha256([...ids].sort(compareBytewise).join('\n'));
 }
 
 export function assertSplitIsolation(

@@ -40,13 +40,19 @@ factorized KP (--features kp-factor): 同じ KP 特徴だが、第1層を
   毎 epoch curve.csv の val_pair_acc 列に記録される。
 """
 
+from __future__ import annotations
+
 import argparse
 from collections import defaultdict
 import hashlib
+import io
 import json
 import math
 import os
+import platform
 import random
+import re
+import subprocess
 import tempfile
 import time
 
@@ -55,7 +61,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from checkpoint_compat import expected_arch, sha256_file, validate_arch
-from sibling_manifest import SiblingManifestError, verify_sibling_manifest
+from sibling_manifest import (
+    SiblingManifestError,
+    load_policy_exposed_semantic_position_ids,
+    load_protected_position_ids,
+    verify_sibling_validation_partition,
+)
+from sibling_selection_protocol import (
+    EXPERIMENT_SEEDS as SEALED_EXPERIMENT_SEEDS,
+    RESULT_ARTIFACT_NAMES,
+    SELECTION_TIE_BREAK as SEALED_SELECTION_TIE_BREAK,
+    SIX_RUN_PLAN_SCHEMA as SEALED_SIX_RUN_PLAN_SCHEMA,
+    SIX_RUN_SLOT_ORDER as SEALED_SIX_RUN_SLOT_ORDER,
+    TRAINING_RESULT_SCHEMA as SEALED_TRAINING_RESULT_SCHEMA,
+)
 
 # ---------------------------------------------------------------------------
 # SFEN パーサ → 特徴量
@@ -87,6 +106,33 @@ MAX_MATE_DISTANCE = MATE_SCORE_CP - MAX_NON_MATE_CP - 1
 SIBLING_SCHEMA = "shogi-sibling-v1"
 SIBLING_SCHEMA_VERSION = 1
 SIBLING_SOURCE_PRIORITY = {"played": 0, "teacher": 1}
+GIT_REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
+
+SEALED_EXPERIMENT_SCHEMA = "shogi-sibling-training-experiment-v1"
+# Filled together with every formerly-null plan binding. None is an intentional
+# production stop: no six-run slot may start from a draft plan.
+SEALED_SIX_RUN_PLAN_SHA256 = None
+SEALED_WARM_INIT_SHA256 = (
+    "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8"
+)
+SEALED_REPLAY_SHA256 = (
+    "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb"
+)
+SEALED_REPLAY_ROWS = 500_000
+SEALED_EXPERIMENT_CONTRACTS = {
+    "warm": {
+        "init_sha256": SEALED_WARM_INIT_SHA256,
+        "allow_legacy_init": True,
+        "learning_rate": 1e-4,
+        "epochs": 20,
+    },
+    "scratch": {
+        "init_sha256": None,
+        "allow_legacy_init": False,
+        "learning_rate": 1e-3,
+        "epochs": 40,
+    },
+}
 
 
 def mate_to_cp(mate: int, mate_sign: int) -> int:
@@ -205,9 +251,72 @@ def identifier_set_sha256(values) -> str:
     return hashlib.sha256("\n".join(sorted(values)).encode()).hexdigest()
 
 
+def validate_partition_dataset_summary(metadata, expected, label: str) -> None:
+    """Recompute manifest counts and game identity from strictly loaded rows."""
+    parent_ids = {row["parent_id"] for row in metadata}
+    game_ids = {row["game_id"] for row in metadata}
+    actual = {
+        "records": len(metadata),
+        "parents": len(parent_ids),
+        "games": len(game_ids),
+        "game_ids_sha256": identifier_set_sha256(game_ids),
+    }
+    for field, value in actual.items():
+        wanted = expected.get(field)
+        if type(wanted) is not type(value) or wanted != value:
+            raise ValueError(
+                f"{label} {field} does not match validation partition: "
+                f"expected {wanted!r}, got {value!r}"
+            )
+
+
 def _is_strict_int(value) -> bool:
     """JSON integer contract: bool and integral-looking floats are not integers."""
     return type(value) is int
+
+
+def _reject_duplicate_json_keys(pairs):
+    """Build one JSON object while rejecting ambiguous duplicate member names."""
+    result = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate JSON object key: {key!r}")
+        result[key] = value
+    return result
+
+
+def _reject_json_constant(value: str):
+    raise ValueError(f"non-standard JSON numeric constant: {value}")
+
+
+def _reject_nonfinite_json_numbers(value, context: str = "JSON value") -> None:
+    """Reject finite-overflow spellings such as ``1e999`` recursively."""
+    if type(value) is float and not math.isfinite(value):
+        raise ValueError(f"{context} contains a non-finite number")
+    if isinstance(value, dict):
+        for key, child in value.items():
+            _reject_nonfinite_json_numbers(child, f"{context}.{key}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _reject_nonfinite_json_numbers(child, f"{context}[{index}]")
+
+
+def strict_json_loads(raw_line: bytes, context: str):
+    """Decode one exact UTF-8 JSON line with no duplicate/non-finite values."""
+    try:
+        text = raw_line.decode("utf-8", errors="strict")
+    except UnicodeDecodeError as error:
+        raise ValueError(f"{context}: invalid UTF-8: {error}") from error
+    try:
+        value = json.loads(
+            text,
+            object_pairs_hook=_reject_duplicate_json_keys,
+            parse_constant=_reject_json_constant,
+        )
+    except (json.JSONDecodeError, ValueError) as error:
+        raise ValueError(f"{context}: invalid strict JSON: {error}") from error
+    _reject_nonfinite_json_numbers(value, context)
+    return value
 
 
 def _required_text(value, field: str) -> str:
@@ -422,41 +531,6 @@ def _load_dataset(
     if uniform_sample_limit and limit:
         raise ValueError("prefix limit and uniform sample limit are mutually exclusive")
 
-    selected_ordinals = None
-    total_nonempty_lines = None
-    source_fingerprint = None
-    if uniform_sample_limit:
-        # runOp1-train is deliberately concatenated as 5.24M general positions
-        # followed by 652k opening positions. A prefix limit would therefore
-        # erase the opening component that distinguishes the production model.
-        # Select line ordinals uniformly over the whole file in a cheap first
-        # pass, then parse only those rows in source order.
-        source_digest = hashlib.sha256()
-        source_bytes = 0
-        total_nonempty_lines = 0
-        with open(path, "rb") as source:
-            for line in source:
-                source_bytes += len(line)
-                source_digest.update(line)
-                total_nonempty_lines += int(bool(line.strip()))
-        source_fingerprint = {
-            "bytes": source_bytes,
-            "sha256": source_digest.hexdigest(),
-        }
-        if uniform_sample_limit < total_nonempty_lines:
-            sample_rng = random.Random(sample_seed)
-            selected_ordinals = set(
-                sample_rng.sample(range(total_nonempty_lines), uniform_sample_limit)
-            )
-            print(
-                f"[data] deterministic uniform sample: {uniform_sample_limit}/"
-                f"{total_nonempty_lines} rows seed={sample_seed}"
-            )
-    elif capture_source_fingerprint:
-        with open(path, "rb") as source:
-            source_bytes, source_sha256 = _fingerprint_binary_stream(source)
-        source_fingerprint = {"bytes": source_bytes, "sha256": source_sha256}
-
     board_rows, hand_rows, targets, cps, buckets = [], [], [], [], []
     # A production replay file has nearly six million rows. Constructing a
     # Python dict for every row when the five-tensor compatibility API is used
@@ -466,27 +540,64 @@ def _load_dataset(
     n_skipped = 0
     n_excluded = 0
     strict_errors = []
-    nonempty_ordinal = -1
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
+    selected_ordinals = None
+    source_fingerprint = None
+
+    def scan_source(source, *, collect: bool, discover_eligible: bool = False):
+        """Hash and strict-parse the exact binary stream in the same pass."""
+        nonlocal n_skipped, n_excluded
+        digest = hashlib.sha256()
+        byte_count = 0
+        nonempty_ordinal = -1
+        eligible_ordinals = []
+        excluded_rows = 0
+        source.seek(0)
+        for physical_line, raw_line in enumerate(source, start=1):
+            digest.update(raw_line)
+            byte_count += len(raw_line)
+            stripped = raw_line.strip()
+            if not stripped:
+                raise ValueError(f"line {physical_line}: blank JSONL row is forbidden")
             nonempty_ordinal += 1
+            rec = strict_json_loads(stripped, f"line {physical_line}")
+            if discover_eligible:
+                if strict:
+                    try:
+                        _validate_strict_sibling_record(rec, f"line {physical_line}")
+                    except ValueError:
+                        continue
+                try:
+                    candidate_sfen = rec["sfen"]
+                    _, _, _, candidate_king_sq = parse_sfen(candidate_sfen)
+                    if strict:
+                        candidate_cp = rec["cp"]
+                        if type(candidate_cp) is not int:
+                            continue
+                    else:
+                        int(rec["cp"])
+                except (AttributeError, KeyError, IndexError, ValueError, TypeError):
+                    continue
+                if (
+                    exclude_position_ids
+                    and position_id_from_sfen(candidate_sfen) in exclude_position_ids
+                ):
+                    excluded_rows += 1
+                    continue
+                if kp and candidate_king_sq < 0:
+                    continue
+                eligible_ordinals.append(nonempty_ordinal)
+                continue
+            if not collect:
+                continue
             if selected_ordinals is not None and nonempty_ordinal not in selected_ordinals:
                 continue
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError as error:
-                n_skipped += 1
-                if strict:
-                    strict_errors.append(f"line {nonempty_ordinal + 1}: invalid JSON: {error.msg}")
+            if limit and len(targets) >= limit:
+                # The remaining rows are still hashed and strict-parsed so the
+                # recorded fingerprint describes the complete consumed input.
                 continue
             if strict:
                 try:
-                    _validate_strict_sibling_record(
-                        rec, f"line {nonempty_ordinal + 1}"
-                    )
+                    _validate_strict_sibling_record(rec, f"line {physical_line}")
                 except ValueError as error:
                     n_skipped += 1
                     strict_errors.append(str(error))
@@ -499,7 +610,7 @@ def _load_dataset(
                 n_skipped += 1
                 if strict:
                     strict_errors.append(
-                        f"line {nonempty_ordinal + 1}: unusable SFEN/cp: {error}"
+                        f"line {physical_line}: unusable SFEN/cp: {error}"
                     )
                 continue
             if exclude_position_ids and position_id_from_sfen(sfen) in exclude_position_ids:
@@ -509,9 +620,13 @@ def _load_dataset(
             if kp:
                 if king_sq < 0:
                     n_skipped += 1
+                    if strict:
+                        strict_errors.append(
+                            f"line {physical_line}: KP feature row has no side-to-move king"
+                        )
                     continue
                 bucket = kp_bucket(king_sq // 9 + 1, king_sq % 9 + 1)
-                idx = [bucket * BOARD_FEATS + f for f in idx]
+                idx = [bucket * BOARD_FEATS + feature for feature in idx]
             cp = max(-cp_clamp, min(cp_clamp, raw_cp))
             y = cp_sigmoid_target(cp, k_sigmoid)
             idx = idx[:MAX_PIECES] + [pad_idx] * (MAX_PIECES - len(idx))
@@ -531,8 +646,76 @@ def _load_dataset(
                     }
                 )
                 metadata.append(metadata_row)
-            if limit and len(targets) >= limit:
-                break
+        return {
+            "bytes": byte_count,
+            "sha256": digest.hexdigest(),
+            "nonempty_rows": nonempty_ordinal + 1,
+            "eligible_ordinals": eligible_ordinals,
+            "excluded_rows": excluded_rows,
+        }
+
+    # runOp1 replay is concatenated by source. A prefix would erase the later
+    # component, so derive deterministic ordinals from a full strict first pass.
+    # Both passes use the same open descriptor and independently bind the exact
+    # bytes; any in-place mutation is rejected before tensors leave this loader.
+    with open(path, "rb") as source:
+        if uniform_sample_limit:
+            first_fingerprint = scan_source(
+                source,
+                collect=False,
+                discover_eligible=True,
+            )
+            eligible_ordinals = first_fingerprint["eligible_ordinals"]
+            eligible_rows = len(eligible_ordinals)
+            if eligible_rows < uniform_sample_limit:
+                raise ValueError(
+                    "eligible replay rows after semantic exclusion are below the "
+                    f"required exact sample: {eligible_rows} < {uniform_sample_limit}"
+                )
+            sample_rng = random.Random(sample_seed)
+            selected_ordinals = set(
+                sample_rng.sample(eligible_ordinals, uniform_sample_limit)
+            )
+            print(
+                f"[data] deterministic uniform sample after semantic exclusion: "
+                f"{uniform_sample_limit}/{eligible_rows} eligible rows "
+                f"seed={sample_seed}"
+            )
+            source_fingerprint = scan_source(source, collect=True)
+            if (
+                source_fingerprint["bytes"] != first_fingerprint["bytes"]
+                or source_fingerprint["sha256"] != first_fingerprint["sha256"]
+                or source_fingerprint["nonempty_rows"]
+                != first_fingerprint["nonempty_rows"]
+            ):
+                raise ValueError(f"dataset changed between strict parse passes: {path}")
+            if len(targets) != uniform_sample_limit:
+                raise ValueError(
+                    "replay sample did not produce the exact sealed row count: "
+                    f"{len(targets)} != {uniform_sample_limit}"
+                )
+            source_fingerprint["eligible_rows_after_semantic_exclusion"] = eligible_rows
+            source_fingerprint["excluded_rows_before_sampling"] = first_fingerprint[
+                "excluded_rows"
+            ]
+        else:
+            source_fingerprint = scan_source(source, collect=True)
+    source_fingerprint = {
+        "bytes": source_fingerprint["bytes"],
+        "sha256": source_fingerprint["sha256"],
+        **(
+            {
+                "eligible_rows_after_semantic_exclusion": source_fingerprint[
+                    "eligible_rows_after_semantic_exclusion"
+                ],
+                "excluded_rows_before_sampling": source_fingerprint[
+                    "excluded_rows_before_sampling"
+                ],
+            }
+            if uniform_sample_limit
+            else {}
+        ),
+    }
     board = torch.tensor(board_rows, dtype=torch.long)
     hands = torch.tensor(hand_rows, dtype=torch.float32)
     y = torch.tensor(targets, dtype=torch.float32)
@@ -547,7 +730,7 @@ def _load_dataset(
                 f"{path}; first error: {detail}"
             )
     if n_excluded:
-        print(f"[data] excluded {n_excluded} rows overlapping validation child positions")
+        print(f"[data] excluded {n_excluded} rows overlapping protected evaluation positions")
     return board, hands, y, cp_t, bucket_t, metadata, source_fingerprint
 
 
@@ -564,9 +747,10 @@ def load_dataset_with_metadata(
     features: str = "board",
     *,
     strict: bool = False,
+    include_fingerprint: bool = False,
 ):
     """Load tensors plus provenance needed for leak-free sibling training."""
-    return _load_dataset(
+    loaded = _load_dataset(
         path,
         k_sigmoid,
         cp_clamp,
@@ -574,7 +758,9 @@ def load_dataset_with_metadata(
         features,
         include_metadata=True,
         strict=strict,
-    )[:6]
+        capture_source_fingerprint=True,
+    )
+    return loaded if include_fingerprint else loaded[:6]
 
 
 def load_replay_dataset(
@@ -681,6 +867,22 @@ def validate_disjoint_splits(train_meta, val_meta):
         if overlap:
             example = sorted(overlap)[0]
             raise SystemExit(f"[train] train/val leakage: {field} {example} occurs in both splits")
+    semantic_overlap = semantic_position_ids(train_meta) & semantic_position_ids(val_meta)
+    if semantic_overlap:
+        example = sorted(semantic_overlap)[0]
+        raise SystemExit(
+            "[train] train/val leakage: semantic position union "
+            f"{example} occurs in both splits"
+        )
+
+
+def semantic_position_ids(metadata) -> set[str]:
+    return {
+        identifier
+        for row in metadata
+        for identifier in (row.get("position_id"), row.get("child_position_id"))
+        if isinstance(identifier, str) and identifier
+    }
 
 
 def raw_sibling_cp(metadata):
@@ -792,14 +994,26 @@ def mix_replay_value_loss(sibling_loss, replay_loss, sibling_rows: int, replay_r
     return (sibling_loss + replay_weight * replay_loss) / (1.0 + replay_weight)
 
 
-def dataset_provenance(path: str, usable_rows: int, selection: str, **details):
+def dataset_provenance(
+    path: str,
+    usable_rows: int,
+    selection: str,
+    *,
+    source_fingerprint=None,
+    **details,
+):
     """Pin exact source bytes and selection semantics in sibling checkpoints."""
     real_path = os.path.realpath(path)
+    if source_fingerprint is None:
+        source_fingerprint = {
+            "sha256": sha256_file(real_path),
+            "bytes": os.path.getsize(real_path),
+        }
     return {
         "path": os.path.abspath(path),
         "real_path": real_path,
-        "sha256": sha256_file(real_path),
-        "bytes": os.path.getsize(real_path),
+        "sha256": source_fingerprint["sha256"],
+        "bytes": source_fingerprint["bytes"],
         "usable_rows": int(usable_rows),
         "selection": selection,
         **details,
@@ -812,6 +1026,96 @@ def require_same_file_fingerprint(before, after, label: str) -> None:
         or before.get("sha256") != after.get("sha256")
     ):
         raise ValueError(f"{label} changed while it was being loaded")
+
+
+def _same_file_or_realpath(left: str, right: str) -> bool:
+    if os.path.realpath(os.path.abspath(left)) == os.path.realpath(os.path.abspath(right)):
+        return True
+    try:
+        return os.path.exists(left) and os.path.exists(right) and os.path.samefile(left, right)
+    except OSError:
+        return False
+
+
+def validate_training_path_isolation(args) -> None:
+    """Reject every input/output or output/output alias before touching outputs."""
+    inputs = [
+        ("training data", args.data),
+        ("validation data", args.val_data),
+        ("teacher manifest", args.sibling_manifest),
+        ("validation partition manifest", args.validation_partition_manifest),
+        ("six-run experiment plan", args.experiment_plan),
+        ("holdout protected IDs", args.holdout_protected_position_ids),
+        ("policy exposure receipt", args.policy_exposure_receipt),
+        ("policy-exposed parent IDs", args.policy_exposed_parent_ids),
+        (
+            "policy-exposed semantic position IDs",
+            args.policy_exposed_semantic_position_ids,
+        ),
+        ("replay data", args.replay_data),
+        ("initializer checkpoint", args.init_ckpt),
+    ]
+    inputs = [(label, path) for label, path in inputs if path]
+    outputs = [
+        (name, os.path.join(args.out, name))
+        for name in (
+            "best.pt",
+            "best-value.pt",
+            "best-sibling.pt",
+            "last.pt",
+            "curve.csv",
+            "result.json",
+        )
+    ]
+    for output_index, (output_label, output_path) in enumerate(outputs):
+        for input_label, input_path in inputs:
+            if _same_file_or_realpath(output_path, input_path):
+                raise ValueError(
+                    f"prospective output {output_label} aliases {input_label}: {input_path}"
+                )
+        for other_label, other_path in outputs[:output_index]:
+            if _same_file_or_realpath(output_path, other_path):
+                raise ValueError(
+                    f"prospective outputs {output_label} and {other_label} alias"
+                )
+    for input_index, (input_label, input_path) in enumerate(inputs):
+        for other_label, other_path in inputs[:input_index]:
+            if _same_file_or_realpath(input_path, other_path):
+                raise ValueError(f"inputs {input_label} and {other_label} alias")
+
+
+def verify_training_pipeline_revision(expected_revision: str) -> dict[str, object]:
+    """Bind sibling checkpoints to one clean, exact training implementation."""
+    if not isinstance(expected_revision, str) or GIT_REVISION_RE.fullmatch(
+        expected_revision
+    ) is None:
+        raise ValueError("--pipeline-revision must be a lowercase 40-digit Git commit")
+    repo_root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+
+    def git(*arguments: str) -> str:
+        try:
+            completed = subprocess.run(
+                ["git", "-C", repo_root, *arguments],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as error:
+            raise ValueError(f"cannot verify training pipeline revision: {error}") from error
+        return completed.stdout
+
+    actual_revision = git("rev-parse", "HEAD").strip()
+    if actual_revision != expected_revision:
+        raise ValueError(
+            f"--pipeline-revision {expected_revision} does not match HEAD {actual_revision}"
+        )
+    status = git("status", "--porcelain=v1", "--untracked-files=normal")
+    if status:
+        raise ValueError("sibling training requires a clean Git worktree")
+    return {
+        "source_revision": actual_revision,
+        "tracked_tree_clean": True,
+    }
 
 
 def atomic_torch_save(value, path: str) -> None:
@@ -854,6 +1158,44 @@ def atomic_torch_save(value, path: str) -> None:
                 pass
 
 
+def atomic_write_text(path: str, text: str) -> None:
+    """Durably replace one UTF-8 text artifact from a same-directory temp."""
+    target = os.path.abspath(path)
+    directory = os.path.dirname(target)
+    if not os.path.isdir(directory):
+        raise ValueError(f"text output directory does not exist: {directory}")
+    descriptor, temporary = tempfile.mkstemp(
+        dir=directory,
+        prefix=f".{os.path.basename(target)}.",
+        suffix=".tmp",
+    )
+    descriptor_open = True
+    try:
+        with os.fdopen(descriptor, "wb") as target_file:
+            descriptor_open = False
+            target_file.write(text.encode("utf-8"))
+            target_file.flush()
+            os.fsync(target_file.fileno())
+        os.replace(temporary, target)
+        temporary = ""
+        try:
+            directory_fd = os.open(directory, os.O_RDONLY)
+            try:
+                os.fsync(directory_fd)
+            finally:
+                os.close(directory_fd)
+        except OSError:
+            pass
+    finally:
+        if descriptor_open:
+            os.close(descriptor)
+        if temporary:
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
+
+
 def _fingerprint_binary_stream(source) -> tuple[int, str]:
     source.seek(0)
     digest = hashlib.sha256()
@@ -868,23 +1210,30 @@ def _fingerprint_binary_stream(source) -> tuple[int, str]:
     return byte_count, digest.hexdigest()
 
 
-def load_stable_torch_checkpoint(path: str, *, weights_only: bool):
-    """Load and fingerprint one inode, rejecting a concurrently replaced path."""
+def load_stable_torch_checkpoint(
+    path: str,
+    *,
+    weights_only: bool,
+    expected_sha256: str | None = None,
+):
+    """Read one exact byte snapshot, fingerprint it, then deserialize that copy."""
     with open(path, "rb") as source:
-        loaded_bytes, loaded_sha256 = _fingerprint_binary_stream(source)
-        checkpoint = torch.load(
-            source,
-            map_location="cpu",
-            weights_only=weights_only,
+        raw = source.read()
+    fingerprint = {
+        "bytes": len(raw),
+        "sha256": hashlib.sha256(raw).hexdigest(),
+    }
+    if expected_sha256 is not None and fingerprint["sha256"] != expected_sha256:
+        raise ValueError(
+            "checkpoint SHA-256 does not match the sealed expected identity: "
+            f"expected {expected_sha256}, got {fingerprint['sha256']}"
         )
-    try:
-        with open(path, "rb") as current:
-            current_bytes, current_sha256 = _fingerprint_binary_stream(current)
-    except OSError as error:
-        raise ValueError(f"checkpoint changed while it was being loaded: {path}") from error
-    if (current_bytes, current_sha256) != (loaded_bytes, loaded_sha256):
-        raise ValueError(f"checkpoint changed while it was being loaded: {path}")
-    return checkpoint, {"bytes": loaded_bytes, "sha256": loaded_sha256}
+    checkpoint = torch.load(
+        io.BytesIO(raw),
+        map_location="cpu",
+        weights_only=weights_only,
+    )
+    return checkpoint, fingerprint
 
 
 def sibling_selection_key(pair_acc: float, top1: float, val_loss: float):
@@ -893,6 +1242,19 @@ def sibling_selection_key(pair_acc: float, top1: float, val_loss: float):
     top1_key = top1 if math.isfinite(top1) else float("-inf")
     loss_key = -val_loss if math.isfinite(val_loss) else float("-inf")
     return pair_key, top1_key, loss_key
+
+
+def sealed_run_tie_break_key(series: str, seed: int, checkpoint_sha256: str):
+    """Exact final fallback: series order, seed, then checkpoint bytes."""
+    if series not in ("warm", "scratch"):
+        raise ValueError("sealed run series must be warm or scratch")
+    if type(seed) is not int or seed not in SEALED_EXPERIMENT_SEEDS:
+        raise ValueError("sealed run seed must be 42, 43, or 44")
+    if not isinstance(checkpoint_sha256, str) or re.fullmatch(
+        r"[0-9a-f]{64}", checkpoint_sha256
+    ) is None:
+        raise ValueError("checkpoint SHA-256 must be lowercase hexadecimal")
+    return (0 if series == "warm" else 1, seed, checkpoint_sha256)
 
 
 def sibling_metrics(outputs, child_cp, metadata, pair_min):
@@ -1068,18 +1430,398 @@ def validate_training_hyperparameters(args) -> None:
             )
 
 
+def sealed_experiment_contract(args) -> dict[str, object]:
+    """Validate and serialize the only preregistered sibling experiment grid."""
+    if args.experiment_series not in SEALED_EXPERIMENT_CONTRACTS:
+        raise ValueError(
+            "sibling-ranking requires --experiment-series warm or scratch"
+        )
+    series = SEALED_EXPERIMENT_CONTRACTS[args.experiment_series]
+    exact_values = {
+        "seed": (args.seed, SEALED_EXPERIMENT_SEEDS),
+        "batch": (args.batch, 256),
+        "k": (args.k, 600.0),
+        "cp_clamp": (args.cp_clamp, 3000),
+        "rank_weight": (args.rank_weight, 1.0),
+        "rank_pair_min": (args.rank_pair_min, 50.0),
+        "rank_pair_max": (args.rank_pair_max, 600.0),
+        "rank_margin_cp": (args.rank_margin_cp, 50.0),
+        "policy_weight": (args.policy_weight, 0.25),
+        "policy_temp_cp": (args.policy_temp_cp, 200.0),
+        "features": (args.features, "board"),
+        "device": (args.device, "cpu"),
+        "torch_threads": (args.torch_threads, 2),
+        "replay_limit": (args.replay_limit, SEALED_REPLAY_ROWS),
+        "replay_ratio": (args.replay_ratio, 1.0),
+        "limit": (args.limit, 0),
+        "epochs": (args.epochs, series["epochs"]),
+        "lr": (args.lr, series["learning_rate"]),
+        "allow_legacy_init": (
+            args.allow_legacy_init,
+            series["allow_legacy_init"],
+        ),
+    }
+    problems = []
+    for field, (actual, expected) in exact_values.items():
+        if field == "seed":
+            matches = type(actual) is int and actual in expected
+        else:
+            matches = type(actual) is type(expected) and actual == expected
+        if not matches:
+            problems.append(f"{field}: expected {expected!r}, got {actual!r}")
+    if args.loss != "sibling-ranking":
+        problems.append(f"loss: expected 'sibling-ranking', got {args.loss!r}")
+    if args.select_metric != "sibling-pair":
+        problems.append(
+            f"select_metric: expected 'sibling-pair', got {args.select_metric!r}"
+        )
+    if not args.replay_data:
+        problems.append("replay_data: exact production replay is required")
+    if args.experiment_series == "warm" and not args.init_ckpt:
+        problems.append("init_ckpt: warm series requires the fixed initializer")
+    if args.experiment_series == "scratch" and args.init_ckpt:
+        problems.append("init_ckpt: scratch series forbids an initializer")
+    if problems:
+        raise ValueError("sealed experiment contract mismatch (" + "; ".join(problems) + ")")
+    return {
+        "schema": SEALED_EXPERIMENT_SCHEMA,
+        "series": args.experiment_series,
+        "seed": args.seed,
+        "loss": "sibling-ranking",
+        "init_checkpoint_sha256": series["init_sha256"],
+        "replay_sha256": SEALED_REPLAY_SHA256,
+        "learning_rate": series["learning_rate"],
+        "epochs": series["epochs"],
+        "batch": 256,
+        "k": 600.0,
+        "cp_clamp": 3000,
+        "rank_weight": 1.0,
+        "rank_pair_min": 50.0,
+        "rank_pair_max": 600.0,
+        "rank_margin_cp": 50.0,
+        "policy_weight": 0.25,
+        "policy_temp_cp": 200.0,
+        "select_metric": "sibling-pair",
+        "features": "board",
+        "device": "cpu",
+        "torch_threads": 2,
+        "replay_limit": SEALED_REPLAY_ROWS,
+        "replay_ratio": 1.0,
+        "primary_limit": 0,
+        "allow_legacy_init": series["allow_legacy_init"],
+    }
+
+
+def verify_tracked_experiment_plan(path: str, expected_revision: str) -> None:
+    """Require one tracked, unmodified plan inside the current repository."""
+    repo_root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+    plan_real = os.path.realpath(path)
+    try:
+        relative = os.path.relpath(plan_real, repo_root)
+    except ValueError as error:
+        raise ValueError("experiment plan is outside the repository") from error
+    if relative == ".." or relative.startswith(".." + os.sep):
+        raise ValueError("experiment plan must be inside the repository")
+
+    def git(*arguments: str) -> str:
+        try:
+            completed = subprocess.run(
+                ["git", "-C", repo_root, *arguments],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as error:
+            raise ValueError(f"cannot verify tracked experiment plan: {error}") from error
+        return completed.stdout
+
+    if git("rev-parse", "HEAD").strip() != expected_revision:
+        raise ValueError("experiment plan repository revision changed")
+    git("ls-files", "--error-unmatch", "--", relative)
+    if git("status", "--porcelain=v1", "--untracked-files=all", "--", relative):
+        raise ValueError("experiment plan is modified or untracked")
+
+
+def configure_sealed_torch_runtime(torch_threads: int) -> dict[str, object]:
+    """Set and verify the deterministic CPU runtime shared by six processes."""
+    if type(torch_threads) is not int or torch_threads != 2:
+        raise ValueError("sealed six-run training requires --torch-threads 2")
+    torch.set_num_threads(torch_threads)
+    try:
+        torch.set_num_interop_threads(1)
+    except RuntimeError:
+        if torch.get_num_interop_threads() != 1:
+            raise
+    torch.use_deterministic_algorithms(True)
+    if not hasattr(torch, "set_deterministic_debug_mode") or not hasattr(
+        torch, "get_deterministic_debug_mode"
+    ):
+        raise ValueError("PyTorch deterministic debug mode API is unavailable")
+    torch.set_deterministic_debug_mode("error")
+    if torch.get_num_threads() != 2 or torch.get_num_interop_threads() != 1:
+        raise ValueError("PyTorch thread configuration did not take effect")
+    if not torch.are_deterministic_algorithms_enabled():
+        raise ValueError("PyTorch deterministic algorithms could not be enabled")
+    debug_mode = torch.get_deterministic_debug_mode()
+    if debug_mode != 2:
+        raise ValueError("PyTorch deterministic debug mode is not error")
+    cpu_model = ""
+    try:
+        completed = subprocess.run(
+            ["sysctl", "-n", "machdep.cpu.brand_string"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        cpu_model = completed.stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        pass
+    processor = platform.processor()
+    if not cpu_model:
+        cpu_model = processor or platform.machine() or "unknown"
+    return {
+        "platform": platform.platform(),
+        "system": platform.system(),
+        "machine": platform.machine(),
+        "processor": processor,
+        "cpu_model": cpu_model,
+        "logical_cpu_count": os.cpu_count(),
+        "python_version": platform.python_version(),
+        "torch_version": str(torch.__version__),
+        "device": "cpu",
+        "torch_threads": torch.get_num_threads(),
+        "torch_interop_threads": torch.get_num_interop_threads(),
+        "deterministic_algorithms": True,
+        "deterministic_debug_mode": "error",
+    }
+
+
+def verify_sealed_experiment_plan(
+    args,
+    training_runtime: dict[str, object],
+    *,
+    tracking_verifier=verify_tracked_experiment_plan,
+) -> dict[str, object]:
+    """Bind this invocation to one immutable slot of the exact six-run grid."""
+    expected_plan_sha256 = SEALED_SIX_RUN_PLAN_SHA256
+    if expected_plan_sha256 is None:
+        raise ValueError(
+            "six-run plan is still draft/TBD; pin all input/runtime hashes and plan SHA-256"
+        )
+    if not isinstance(expected_plan_sha256, str) or re.fullmatch(
+        r"[0-9a-f]{64}", expected_plan_sha256
+    ) is None:
+        raise ValueError("sealed six-run plan SHA-256 contract is invalid")
+    if not args.experiment_plan:
+        raise ValueError("sibling-ranking requires --experiment-plan")
+    plan_path = os.path.abspath(args.experiment_plan)
+    try:
+        with open(plan_path, "rb") as source:
+            raw = source.read()
+    except OSError as error:
+        raise ValueError(f"cannot read experiment plan: {error}") from error
+    plan_sha256 = hashlib.sha256(raw).hexdigest()
+    if plan_sha256 != expected_plan_sha256:
+        raise ValueError(
+            "experiment plan SHA-256 mismatch: "
+            f"expected {expected_plan_sha256}, got {plan_sha256}"
+        )
+    plan = strict_json_loads(raw, "experiment plan")
+    if type(plan) is not dict:
+        raise ValueError("experiment plan root must be an object")
+
+    def exact_keys(value, expected, label):
+        if type(value) is not dict or set(value) != set(expected):
+            raise ValueError(f"{label} must contain exactly {'/'.join(sorted(expected))}")
+
+    exact_keys(
+        plan,
+        {"schema", "common", "slots", "selection_tie_break"},
+        "experiment plan",
+    )
+    if plan["schema"] != SEALED_SIX_RUN_PLAN_SCHEMA:
+        raise ValueError("experiment plan schema mismatch")
+    # The plan cannot contain the Git commit that later pins its own SHA-256:
+    # that would be a self-referential fixed-point requirement.  Seal plan
+    # bytes independently, then record and recheck the clean execution HEAD.
+    tracking_verifier(plan_path, args.pipeline_revision)
+
+    common = plan["common"]
+    exact_keys(common, {"input_sha256", "runtime"}, "experiment plan common")
+    input_sha256 = common["input_sha256"]
+    input_paths = {
+        "sibling_teacher_manifest": args.sibling_manifest,
+        "validation_partition_manifest": args.validation_partition_manifest,
+        "model_training": args.data,
+        "model_selection": args.val_data,
+        "replay": args.replay_data,
+        "policy_exposure_receipt": args.policy_exposure_receipt,
+        "policy_exposed_parent_ids": args.policy_exposed_parent_ids,
+        "policy_exposed_semantic_position_ids": args.policy_exposed_semantic_position_ids,
+        "holdout_protected_position_ids": args.holdout_protected_position_ids,
+    }
+    expected_input_fields = set(input_paths) | {"warm_initializer"}
+    exact_keys(input_sha256, expected_input_fields, "experiment plan common.input_sha256")
+    for field, file_path in input_paths.items():
+        expected = input_sha256[field]
+        if not isinstance(expected, str) or re.fullmatch(r"[0-9a-f]{64}", expected) is None:
+            raise ValueError(f"experiment plan input {field} is null/TBD or invalid")
+        if sha256_file(os.path.realpath(file_path)) != expected:
+            raise ValueError(f"experiment plan input {field} SHA-256 mismatch")
+    if input_sha256["replay"] != SEALED_REPLAY_SHA256:
+        raise ValueError("experiment plan replay identity differs from sealed contract")
+    warm_initializer = input_sha256["warm_initializer"]
+    if warm_initializer != SEALED_WARM_INIT_SHA256:
+        raise ValueError("experiment plan warm initializer identity mismatch/TBD")
+    if args.experiment_series == "warm" and sha256_file(
+        os.path.realpath(args.init_ckpt)
+    ) != warm_initializer:
+        raise ValueError("warm slot initializer does not match experiment plan")
+
+    runtime = common["runtime"]
+    runtime_fields = {
+        "platform",
+        "system",
+        "machine",
+        "processor",
+        "cpu_model",
+        "logical_cpu_count",
+        "python_version",
+        "torch_version",
+        "device",
+        "torch_threads",
+        "torch_interop_threads",
+        "deterministic_algorithms",
+        "deterministic_debug_mode",
+    }
+    exact_keys(runtime, runtime_fields, "experiment plan runtime")
+    for field in runtime_fields:
+        expected = runtime[field]
+        if expected is None:
+            raise ValueError(f"experiment plan runtime {field} is null/TBD")
+        actual = training_runtime.get(field)
+        if type(actual) is not type(expected) or actual != expected:
+            raise ValueError(f"experiment plan runtime {field} mismatch")
+
+    slots = plan["slots"]
+    if type(slots) is not list or len(slots) != 6:
+        raise ValueError("experiment plan must contain exactly six slots")
+    seen_ids = set()
+    seen_outputs = set()
+    actual_grid = []
+    selected_slot = None
+    repo_root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
+    for index, slot in enumerate(slots):
+        exact_keys(
+            slot,
+            {"id", "series", "seed", "learning_rate", "epochs", "initializer_required", "output"},
+            f"experiment plan slots[{index}]",
+        )
+        series, seed = SEALED_SIX_RUN_SLOT_ORDER[index]
+        series_contract = SEALED_EXPERIMENT_CONTRACTS[series]
+        expected_slot = {
+            "id": f"{series}-seed-{seed}",
+            "series": series,
+            "seed": seed,
+            "learning_rate": series_contract["learning_rate"],
+            "epochs": series_contract["epochs"],
+            "initializer_required": series == "warm",
+            "output": f"ml/runs/wcsc36-six-run/{series}-seed-{seed}",
+        }
+        for field, expected in expected_slot.items():
+            if type(slot[field]) is not type(expected) or slot[field] != expected:
+                raise ValueError(f"experiment plan slots[{index}].{field} mismatch")
+        if slot["id"] in seen_ids or slot["output"] in seen_outputs:
+            raise ValueError("experiment plan slot IDs and outputs must be unique")
+        seen_ids.add(slot["id"])
+        seen_outputs.add(slot["output"])
+        actual_grid.append((slot["series"], slot["seed"]))
+        if (slot["series"], slot["seed"]) == (args.experiment_series, args.seed):
+            selected_slot = slot
+    if tuple(actual_grid) != SEALED_SIX_RUN_SLOT_ORDER or selected_slot is None:
+        raise ValueError("experiment plan grid does not match the exact six unique slots")
+    selected_output = os.path.realpath(os.path.join(repo_root, selected_slot["output"]))
+    if os.path.realpath(args.out) != selected_output:
+        raise ValueError(
+            f"--out must be the fixed slot output {selected_slot['output']}"
+        )
+    if (
+        type(plan["selection_tie_break"]) is not list
+        or tuple(plan["selection_tie_break"]) != SEALED_SELECTION_TIE_BREAK
+    ):
+        raise ValueError(
+            "experiment plan tie-break must be series, then seed, then checkpoint SHA-256"
+        )
+    try:
+        with open(plan_path, "rb") as source:
+            if source.read() != raw:
+                raise ValueError("experiment plan changed during verification")
+    except OSError as error:
+        raise ValueError(f"experiment plan changed during verification: {error}") from error
+    return {
+        "path": plan_path,
+        "bytes": len(raw),
+        "sha256": plan_sha256,
+        "schema": SEALED_SIX_RUN_PLAN_SCHEMA,
+        "slot_id": selected_slot["id"],
+        "slot_output": selected_slot["output"],
+        "selection_tie_break": list(SEALED_SELECTION_TIE_BREAK),
+    }
+
+
+def create_new_output_directory(path: str) -> None:
+    """Atomically claim one immutable run slot; an existing directory is fatal."""
+    target = os.path.abspath(path)
+    os.makedirs(os.path.dirname(target), exist_ok=True)
+    try:
+        os.mkdir(target)
+    except FileExistsError as error:
+        raise ValueError(f"experiment output slot already exists: {target}") from error
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data", default=os.path.join(os.path.dirname(__file__), "data", "teacher.jsonl"))
+    ap.add_argument(
+        "--data",
+        default=os.path.join(os.path.dirname(__file__), "data", "teacher.jsonl"),
+        help="training JSONL; sibling-ranking requires partition outputs.model_training",
+    )
     ap.add_argument(
         "--val-data",
         default="",
-        help="pre-split validation JSONL; required for sibling-ranking to prevent game leakage",
+        help="manifest-bound model-selection JSONL; required for sibling-ranking",
     )
     ap.add_argument(
         "--sibling-manifest",
         default="",
-        help="v6-policy teacher manifest; required for sibling-ranking and bound to --data/--val-data",
+        help="v6-policy base teacher manifest bound by the sealed partition",
+    )
+    ap.add_argument(
+        "--validation-partition-manifest",
+        default="",
+        help="required sealed model-selection/final-holdout derivation for sibling-ranking",
+    )
+    ap.add_argument(
+        "--experiment-plan",
+        default="",
+        help="tracked immutable six-run registry; required for sibling-ranking",
+    )
+    ap.add_argument(
+        "--holdout-protected-position-ids",
+        default="",
+        help="manifest-bound semantic position IDs excluded from replay; never contains holdout labels",
+    )
+    ap.add_argument("--policy-exposure-receipt", default="")
+    ap.add_argument("--policy-exposed-parent-ids", default="")
+    ap.add_argument(
+        "--policy-exposed-semantic-position-ids",
+        default="",
+        help="receipt-bound Lane A position_id/child_position_id union",
+    )
+    ap.add_argument(
+        "--pipeline-revision",
+        default="",
+        help="clean Git HEAD that implements this sibling training run",
     )
     ap.add_argument(
         "--replay-data",
@@ -1089,7 +1831,7 @@ def main():
     ap.add_argument(
         "--replay-limit",
         type=int,
-        default=500_000,
+        default=SEALED_REPLAY_ROWS,
         help="deterministic whole-file replay sample size (default 500000; 0=all)",
     )
     ap.add_argument("--replay-ratio", type=float, default=1.0, help="replay rows per sibling row")
@@ -1102,7 +1844,18 @@ def main():
     ap.add_argument("--val-ratio", type=float, default=0.1)
     ap.add_argument("--limit", type=int, default=0, help="先頭 N 件のみ使用 (0=全件)")
     ap.add_argument("--device", default="auto", choices=["auto", "cuda", "mps", "cpu"])
+    ap.add_argument(
+        "--torch-threads",
+        type=int,
+        default=2,
+        help="sealed six-run intra-op threads per process (fixed at 2)",
+    )
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument(
+        "--experiment-series",
+        choices=["warm", "scratch"],
+        help="required preregistered sibling run family",
+    )
     ap.add_argument(
         "--features",
         default="board",
@@ -1139,6 +1892,30 @@ def main():
         raise SystemExit("[train] --loss sibling-ranking requires --sibling-manifest")
     if args.sibling_manifest and args.loss != "sibling-ranking":
         raise SystemExit("[train] --sibling-manifest is only supported with --loss sibling-ranking")
+    if args.loss != "sibling-ranking" and args.experiment_series is not None:
+        raise SystemExit(
+            "[train] --experiment-series is only supported with --loss sibling-ranking"
+        )
+    sealed_options = (
+        args.validation_partition_manifest,
+        args.experiment_plan,
+        args.holdout_protected_position_ids,
+        args.policy_exposure_receipt,
+        args.policy_exposed_parent_ids,
+        args.policy_exposed_semantic_position_ids,
+        args.pipeline_revision,
+    )
+    if args.loss == "sibling-ranking" and not all(sealed_options):
+        raise SystemExit(
+            "[train] --loss sibling-ranking requires "
+            "--validation-partition-manifest, --experiment-plan, "
+            "--holdout-protected-position-ids, "
+            "all three policy-exposure artifacts, and --pipeline-revision"
+        )
+    if args.loss != "sibling-ranking" and any(sealed_options):
+        raise SystemExit(
+            "[train] sealed validation options are only supported with --loss sibling-ranking"
+        )
     if args.loss == "sibling-ranking" and args.limit:
         raise SystemExit(
             "[train] --limit is not supported with sibling-ranking because it can split a parent group"
@@ -1157,20 +1934,65 @@ def main():
         )
     else:
         resolved_select_metric = args.select_metric
-
-    sibling_manifest_provenance = None
+    experiment_contract = None
     if args.loss == "sibling-ranking":
         try:
-            sibling_manifest_provenance = verify_sibling_manifest(
-                args.sibling_manifest,
-                train_path=args.data,
-                val_path=args.val_data,
-            )
-        except SiblingManifestError as error:
-            raise SystemExit(f"[train] sibling manifest rejected: {error}") from error
+            experiment_contract = sealed_experiment_contract(args)
+        except ValueError as error:
+            raise SystemExit(f"[train] {error}") from error
+    try:
+        validate_training_path_isolation(args)
+    except ValueError as error:
+        raise SystemExit(f"[train] {error}") from error
 
-    torch.manual_seed(args.seed)
-    random.seed(args.seed)
+    sibling_manifest_provenance = None
+    validation_partition_provenance = None
+    holdout_protected_position_ids: set[str] = set()
+    holdout_protected_fingerprint = None
+    policy_exposed_semantic_position_ids: set[str] = set()
+    policy_exposed_semantic_fingerprint = None
+    training_pipeline_provenance = None
+    if args.loss == "sibling-ranking":
+        try:
+            validation_partition_provenance = verify_sibling_validation_partition(
+                args.validation_partition_manifest,
+                sibling_manifest_path=args.sibling_manifest,
+                data_role="selection",
+                data_path=args.val_data,
+                protected_position_ids_path=args.holdout_protected_position_ids,
+                policy_exposure_receipt_path=args.policy_exposure_receipt,
+                policy_exposed_parent_ids_path=args.policy_exposed_parent_ids,
+                policy_exposed_semantic_position_ids_path=(
+                    args.policy_exposed_semantic_position_ids
+                ),
+                training_path=args.data,
+            )
+            sibling_manifest_provenance = validation_partition_provenance[
+                "teacher_manifest"
+            ]
+            (
+                holdout_protected_position_ids,
+                holdout_protected_fingerprint,
+            ) = load_protected_position_ids(
+                args.holdout_protected_position_ids,
+                expected=validation_partition_provenance["outputs"][
+                    "protected_position_ids"
+                ],
+            )
+            (
+                policy_exposed_semantic_position_ids,
+                policy_exposed_semantic_fingerprint,
+            ) = load_policy_exposed_semantic_position_ids(
+                args.policy_exposed_semantic_position_ids,
+                expected=validation_partition_provenance["source"][
+                    "policy_exposed_semantic_position_ids"
+                ],
+            )
+            training_pipeline_provenance = verify_training_pipeline_revision(
+                args.pipeline_revision
+            )
+        except (SiblingManifestError, ValueError) as error:
+            raise SystemExit(f"[train] sibling manifest rejected: {error}") from error
 
     if args.device == "auto":
         if torch.cuda.is_available():
@@ -1182,22 +2004,53 @@ def main():
     else:
         device = args.device
     print(f"[train] device={device}")
+    try:
+        sealed_runtime = (
+            configure_sealed_torch_runtime(args.torch_threads)
+            if args.loss == "sibling-ranking"
+            else {
+                "python_version": platform.python_version(),
+                "torch_version": str(torch.__version__),
+                "device": device,
+            }
+        )
+    except (RuntimeError, ValueError) as error:
+        raise SystemExit(f"[train] deterministic runtime rejected: {error}") from error
+    training_runtime = {
+        **sealed_runtime,
+        "mps_built": bool(torch.backends.mps.is_built()),
+        "mps_available": bool(torch.backends.mps.is_available()),
+        "cuda_available": bool(torch.cuda.is_available()),
+    }
+    torch.manual_seed(args.seed)
+    random.seed(args.seed)
+    experiment_plan_provenance = None
+    if args.loss == "sibling-ranking":
+        try:
+            experiment_plan_provenance = verify_sealed_experiment_plan(
+                args,
+                training_runtime,
+            )
+        except (OSError, ValueError) as error:
+            raise SystemExit(f"[train] experiment plan rejected: {error}") from error
 
     need_metadata = args.loss == "sibling-ranking" or bool(args.val_data)
     if need_metadata:
-        board, hands, y, cp, bucket, metadata = load_dataset_with_metadata(
+        board, hands, y, cp, bucket, metadata, train_source_fingerprint = load_dataset_with_metadata(
             args.data,
             args.k,
             args.cp_clamp,
             args.limit,
             args.features,
             strict=args.loss == "sibling-ranking",
+            include_fingerprint=True,
         )
     else:
         board, hands, y, cp, bucket = load_dataset(
             args.data, args.k, args.cp_clamp, args.limit, args.features
         )
         metadata = []
+        train_source_fingerprint = None
     n = y.shape[0]
     print(f"[train] dataset: {n} positions from {args.data} (features={args.features})")
 
@@ -1206,13 +2059,14 @@ def main():
     if args.val_data:
         if n < 1:
             raise SystemExit(f"[train] error: training dataset has only {n} usable positions")
-        vb, vh, vy, vcp, vbk, val_meta = load_dataset_with_metadata(
+        vb, vh, vy, vcp, vbk, val_meta, val_source_fingerprint = load_dataset_with_metadata(
             args.val_data,
             args.k,
             args.cp_clamp,
             args.limit,
             args.features,
             strict=args.loss == "sibling-ranking",
+            include_fingerprint=True,
         )
         if vy.shape[0] < 1:
             raise SystemExit("[train] error: validation dataset has no usable positions")
@@ -1240,6 +2094,7 @@ def main():
         )
         val_meta = metadata[:n_val_split]
         train_meta = metadata[n_val_split:]
+        val_source_fingerprint = train_source_fingerprint
 
     n_val = vy.shape[0]
     train_groups = val_groups = []
@@ -1247,6 +2102,19 @@ def main():
     if args.loss == "sibling-ranking":
         train_groups = validate_sibling_metadata(train_meta, "train")
         val_groups = validate_sibling_metadata(val_meta, "val")
+        try:
+            validate_partition_dataset_summary(
+                train_meta,
+                validation_partition_provenance["outputs"]["model_training"],
+                "model-training dataset",
+            )
+            validate_partition_dataset_summary(
+                val_meta,
+                validation_partition_provenance["outputs"]["model_selection"],
+                "model-selection dataset",
+            )
+        except ValueError as error:
+            raise SystemExit(f"[train] {error}") from error
         # The sigmoid value target remains clamped for compatibility with the
         # production network, but sibling ordering must not turn all mate/high
         # scores into an artificial ±3000 tie.
@@ -1257,12 +2125,59 @@ def main():
         (f" parents={len(train_groups)}/{len(val_groups)}" if train_groups else "")
     )
 
+    validation_child_ids = {
+        row["child_position_id"] for row in val_meta if row.get("child_position_id")
+    }
+    training_semantic_position_ids = semantic_position_ids(train_meta)
+    selection_semantic_position_ids = semantic_position_ids(val_meta)
+    for label, overlap in (
+        (
+            "model training/final holdout",
+            training_semantic_position_ids & holdout_protected_position_ids,
+        ),
+        (
+            "model selection/final holdout",
+            selection_semantic_position_ids & holdout_protected_position_ids,
+        ),
+        (
+            "model training/policy exposure",
+            training_semantic_position_ids & policy_exposed_semantic_position_ids,
+        ),
+        (
+            "model selection/policy exposure",
+            selection_semantic_position_ids & policy_exposed_semantic_position_ids,
+        ),
+    ):
+        if overlap:
+            raise SystemExit(
+                f"[train] sealed semantic leakage in {label}: {sorted(overlap)[0]}"
+            )
+    replay_excluded_position_ids = (
+        policy_exposed_semantic_position_ids
+        | selection_semantic_position_ids
+        | holdout_protected_position_ids
+        if validation_partition_provenance is not None
+        else validation_child_ids
+    )
+    if validation_partition_provenance is not None:
+        expected_replay_exclusion = validation_partition_provenance.get(
+            "replay_exclusion"
+        )
+        actual_replay_exclusion = {
+            "semantic_position_ids_count": len(replay_excluded_position_ids),
+            "semantic_position_ids_sha256": identifier_set_sha256(
+                replay_excluded_position_ids
+            ),
+        }
+        if expected_replay_exclusion != actual_replay_exclusion:
+            raise SystemExit(
+                "[train] replay semantic exclusion does not match the verified "
+                "partition/policy union"
+            )
+
     replay = None
     replay_source_fingerprint = None
     if args.replay_data:
-        validation_child_ids = {
-            row["child_position_id"] for row in val_meta if row.get("child_position_id")
-        }
         replay_loaded = load_replay_dataset(
             args.replay_data,
             args.k,
@@ -1270,11 +2185,21 @@ def main():
             args.replay_limit,
             args.features,
             args.seed + 2,
-            validation_child_ids,
+            replay_excluded_position_ids,
             include_fingerprint=True,
         )
         replay = replay_loaded[:5]
         replay_source_fingerprint = replay_loaded[5]
+        if (
+            experiment_contract is not None
+            and replay_source_fingerprint["sha256"]
+            != experiment_contract["replay_sha256"]
+        ):
+            raise SystemExit(
+                "[train] replay dataset SHA-256 does not match the sealed experiment: "
+                f"expected {experiment_contract['replay_sha256']}, "
+                f"got {replay_source_fingerprint['sha256']}"
+            )
         if replay[2].shape[0] < 1:
             raise SystemExit("[train] replay dataset has no usable positions")
         print(
@@ -1289,53 +2214,128 @@ def main():
             args.data,
             ty.shape[0],
             primary_selection,
+            source_fingerprint=train_source_fingerprint,
             requested_limit=args.limit,
         )
         validation_provenance = dataset_provenance(
             args.val_data,
             vy.shape[0],
             primary_selection,
+            source_fingerprint=val_source_fingerprint,
             requested_limit=args.limit,
         )
-        expected_outputs = sibling_manifest_provenance["outputs"]
-        for split, actual, expected_prefix in (
-            ("train", train_provenance, "train"),
-            ("validation", validation_provenance, "val"),
+        expected_training = validation_partition_provenance["outputs"][
+            "model_training"
+        ]
+        if (
+            train_provenance["bytes"] != expected_training["bytes"]
+            or train_provenance["sha256"] != expected_training["sha256"]
         ):
-            if (
-                actual["bytes"] != expected_outputs[f"{expected_prefix}_bytes"]
-                or actual["sha256"] != expected_outputs[f"{expected_prefix}_sha256"]
-            ):
-                raise SystemExit(
-                    f"[train] {split} dataset changed after sibling manifest verification"
-                )
+            raise SystemExit(
+                "[train] model-training dataset changed after partition verification"
+            )
+        train_provenance["role"] = "model_training"
+        expected_selection = validation_partition_provenance["outputs"][
+            "model_selection"
+        ]
+        if (
+            validation_provenance["bytes"] != expected_selection["bytes"]
+            or validation_provenance["sha256"] != expected_selection["sha256"]
+        ):
+            raise SystemExit(
+                "[train] model-selection dataset changed after partition verification"
+            )
+        validation_provenance["role"] = "model_selection"
         data_provenance = {
             "sibling_manifest": sibling_manifest_provenance,
             "train": train_provenance,
             "validation": validation_provenance,
             "replay": None,
+            "experiment_contract": experiment_contract,
+            "experiment_plan": experiment_plan_provenance,
         }
+        data_provenance.update(
+            {
+                "validation_partition": validation_partition_provenance,
+                "sealed_holdout": {
+                    "status": "sealed_not_opened",
+                    **validation_partition_provenance["outputs"]["final_holdout"],
+                },
+                "protected_position_ids": {
+                    **validation_partition_provenance["outputs"][
+                        "protected_position_ids"
+                    ],
+                    "path": holdout_protected_fingerprint["path"],
+                },
+                "training_pipeline": training_pipeline_provenance,
+                "training_runtime": training_runtime,
+            }
+        )
         if replay is not None:
+            replay_details = {
+                "requested_limit": args.replay_limit,
+                "sample_seed": args.seed + 2,
+                "replay_ratio": args.replay_ratio,
+                "excluded_validation_child_position_ids": len(validation_child_ids),
+                "validation_child_position_ids_sha256": identifier_set_sha256(
+                    validation_child_ids
+                ),
+            }
+            replay_details.update(
+                {
+                    "excluded_policy_exposed_semantic_position_ids": len(
+                        policy_exposed_semantic_position_ids
+                    ),
+                    "policy_exposed_semantic_position_ids_sha256": identifier_set_sha256(
+                        policy_exposed_semantic_position_ids
+                    ),
+                    "policy_exposed_semantic_position_ids_file_sha256": (
+                        policy_exposed_semantic_fingerprint["sha256"]
+                    ),
+                    "excluded_model_selection_semantic_position_ids": len(
+                        selection_semantic_position_ids
+                    ),
+                    "model_selection_semantic_position_ids_sha256": identifier_set_sha256(
+                        selection_semantic_position_ids
+                    ),
+                    "excluded_final_holdout_protected_position_ids": len(
+                        holdout_protected_position_ids
+                    ),
+                    "final_holdout_protected_position_ids_sha256": identifier_set_sha256(
+                        holdout_protected_position_ids
+                    ),
+                    "final_holdout_protected_position_ids_file_sha256": validation_partition_provenance[
+                        "outputs"
+                    ]["protected_position_ids"]["sha256"],
+                    "excluded_semantic_position_ids": len(
+                        replay_excluded_position_ids
+                    ),
+                    "excluded_semantic_position_ids_sha256": identifier_set_sha256(
+                        replay_excluded_position_ids
+                    ),
+                    **(
+                        {
+                            "eligible_rows_after_semantic_exclusion": replay_source_fingerprint[
+                                "eligible_rows_after_semantic_exclusion"
+                            ],
+                            "excluded_rows_before_sampling": replay_source_fingerprint[
+                                "excluded_rows_before_sampling"
+                            ],
+                        }
+                        if args.replay_limit
+                        else {}
+                    ),
+                }
+            )
             replay_provenance = dataset_provenance(
                 args.replay_data,
                 replay[2].shape[0],
-                "all" if args.replay_limit == 0 else "uniform_without_replacement_at_most",
-                requested_limit=args.replay_limit,
-                sample_seed=args.seed + 2,
-                replay_ratio=args.replay_ratio,
-                excluded_validation_child_position_ids=len(validation_child_ids),
-                validation_child_position_ids_sha256=identifier_set_sha256(
-                    validation_child_ids
-                ),
+                "all"
+                if args.replay_limit == 0
+                else "uniform_without_replacement_after_semantic_exclusion",
+                source_fingerprint=replay_source_fingerprint,
+                **replay_details,
             )
-            try:
-                require_same_file_fingerprint(
-                    replay_source_fingerprint,
-                    replay_provenance,
-                    "replay dataset",
-                )
-            except ValueError as error:
-                raise SystemExit(f"[train] {error}") from error
             data_provenance["replay"] = replay_provenance
 
     # --- 順位一致率 (pairwise ranking accuracy) 用の固定 val ペア ---
@@ -1368,10 +2368,25 @@ def main():
         try:
             initializer, initializer_fingerprint = load_stable_torch_checkpoint(
                 init_path,
-                weights_only=False,
+                weights_only=True,
+                expected_sha256=(
+                    experiment_contract["init_checkpoint_sha256"]
+                    if experiment_contract is not None
+                    else None
+                ),
             )
         except Exception as error:
             raise SystemExit(f"[train] failed to load warm-start checkpoint: {error}") from error
+        if (
+            experiment_contract is not None
+            and initializer_fingerprint["sha256"]
+            != experiment_contract["init_checkpoint_sha256"]
+        ):
+            raise SystemExit(
+                "[train] warm-start checkpoint SHA-256 does not match the sealed experiment: "
+                f"expected {experiment_contract['init_checkpoint_sha256']}, "
+                f"got {initializer_fingerprint['sha256']}"
+            )
         initializer_arch = initializer.get("arch") if isinstance(initializer, dict) else None
         inferred_legacy_fields = []
         if isinstance(initializer_arch, dict):
@@ -1422,13 +2437,23 @@ def main():
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=max(1, args.epochs))
 
-    os.makedirs(args.out, exist_ok=True)
+    if args.loss == "sibling-ranking":
+        try:
+            create_new_output_directory(args.out)
+        except ValueError as error:
+            raise SystemExit(f"[train] {error}") from error
+    else:
+        os.makedirs(args.out, exist_ok=True)
     curve_path = os.path.join(args.out, "curve.csv")
-    with open(curve_path, "w") as f:
-        f.write(
-            "epoch,train_loss,val_loss,val_mae_cp,val_pair_acc,lr,sec,"
-            "val_sibling_pair_acc,val_sibling_top1\n"
-        )
+    curve_rows = [
+        "epoch,train_loss,val_loss,val_mae_cp,val_pair_acc,lr,sec,"
+        "val_sibling_pair_acc,val_sibling_top1\n"
+    ]
+    atomic_write_text(curve_path, "".join(curve_rows))
+
+    def append_curve_row(row: str) -> None:
+        curve_rows.append(row)
+        atomic_write_text(curve_path, "".join(curve_rows))
 
     def evaluate():
         model.eval()
@@ -1469,6 +2494,12 @@ def main():
         return metrics
 
     def make_checkpoint(epoch, val_loss, val_mae_cp, val_pair_acc, sibling_pair_acc, sibling_top1):
+        if training_pipeline_provenance is not None:
+            current_pipeline = verify_training_pipeline_revision(
+                args.pipeline_revision
+            )
+            if current_pipeline != training_pipeline_provenance:
+                raise SystemExit("[train] training pipeline changed during the run")
         return {
             "model": model.state_dict(),
             "epoch": epoch,
@@ -1481,9 +2512,16 @@ def main():
             "arch": arch,
             "init_checkpoint": init_metadata,
             "data_provenance": data_provenance,
+            "training_pipeline": training_pipeline_provenance,
+            "training_runtime": training_runtime,
+            "experiment_contract": experiment_contract,
+            "experiment_plan": experiment_plan_provenance,
             "checkpoint_selection": {
                 "requested": args.select_metric,
                 "resolved": resolved_select_metric,
+                "dataset_role": (
+                    "model_selection" if args.loss == "sibling-ranking" else "validation"
+                ),
                 "best_value": ["val_loss:min"],
                 "best_sibling": [
                     "val_sibling_pair_acc:max",
@@ -1507,11 +2545,10 @@ def main():
             atomic_torch_save(initial_checkpoint, os.path.join(args.out, "best-sibling.pt"))
         atomic_torch_save(initial_checkpoint, os.path.join(args.out, "best.pt"))
         atomic_torch_save(initial_checkpoint, os.path.join(args.out, "last.pt"))
-        with open(curve_path, "a") as f:
-            f.write(
-                f"0,nan,{init_val:.6f},{init_mae:.1f},{init_pair:.4f},{args.lr:.6e},0.0,"
-                f"{init_sibling_pair:.4f},{init_top1:.4f}\n"
-            )
+        append_curve_row(
+            f"0,nan,{init_val:.6f},{init_mae:.1f},{init_pair:.4f},{args.lr:.6e},0.0,"
+            f"{init_sibling_pair:.4f},{init_top1:.4f}\n"
+        )
         print(
             f"[train] epoch   0/{args.epochs} initializer val={init_val:.6f} "
             f"val_mae≈{init_mae:.0f}cp pair_acc={init_pair:.4f} "
@@ -1619,12 +2656,11 @@ def main():
             f"sibling_pair={val_sibling_pair_acc:.4f} sibling_top1={val_sibling_top1:.4f} "
             f"lr={lr_now:.2e} ({sec:.1f}s)"
         )
-        with open(curve_path, "a") as f:
-            f.write(
-                f"{epoch},{train_loss:.6f},{val_loss:.6f},{val_mae_cp:.1f},"
-                f"{val_pair_acc:.4f},{lr_now:.6e},{sec:.1f},"
-                f"{val_sibling_pair_acc:.4f},{val_sibling_top1:.4f}\n"
-            )
+        append_curve_row(
+            f"{epoch},{train_loss:.6f},{val_loss:.6f},{val_mae_cp:.1f},"
+            f"{val_pair_acc:.4f},{lr_now:.6e},{sec:.1f},"
+            f"{val_sibling_pair_acc:.4f},{val_sibling_top1:.4f}\n"
+        )
 
         ckpt = make_checkpoint(
             epoch,
@@ -1652,6 +2688,43 @@ def main():
                 atomic_torch_save(ckpt, os.path.join(args.out, "best-sibling.pt"))
                 if resolved_select_metric == "sibling-pair":
                     atomic_torch_save(ckpt, os.path.join(args.out, "best.pt"))
+
+    if args.loss == "sibling-ranking":
+        artifacts = {}
+        for name in RESULT_ARTIFACT_NAMES:
+            artifact_path = os.path.join(args.out, name)
+            if not os.path.isfile(artifact_path):
+                raise SystemExit(
+                    f"[train] completed run is missing required result artifact {name}"
+                )
+            artifacts[name] = {
+                "bytes": os.path.getsize(artifact_path),
+                "sha256": sha256_file(artifact_path),
+            }
+        result_manifest = {
+            "schema": SEALED_TRAINING_RESULT_SCHEMA,
+            "status": "complete",
+            "experiment_plan": experiment_plan_provenance,
+            "experiment_contract": experiment_contract,
+            "training_pipeline": training_pipeline_provenance,
+            "training_runtime": training_runtime,
+            "completed_epochs": args.epochs,
+            "selection_metric": resolved_select_metric,
+            "best_value_loss": best_val,
+            "best_sibling_key": list(best_sibling_key),
+            "artifacts": artifacts,
+        }
+        atomic_write_text(
+            os.path.join(args.out, "result.json"),
+            json.dumps(
+                result_manifest,
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+                allow_nan=False,
+            )
+            + "\n",
+        )
 
     print(
         f"[train] done. best val={best_val:.6f} select={resolved_select_metric}. "

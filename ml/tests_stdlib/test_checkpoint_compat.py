@@ -30,6 +30,10 @@ class CheckpointCompatibilityTest(unittest.TestCase):
     def test_accepts_an_exact_architecture_match(self):
         validate_arch(dict(self.arch), self.arch)
 
+    def test_accepts_an_integral_representation_of_the_same_sigmoid_scale(self):
+        actual = {**self.arch, "k": 600}
+        validate_arch(actual, self.arch)
+
     def test_reports_every_mismatched_field(self):
         actual = dict(self.arch)
         actual.update(features="kp", input=13692, h1=128, k=400, kp_buckets=6)
@@ -48,6 +52,21 @@ class CheckpointCompatibilityTest(unittest.TestCase):
         del actual["schema"]
         with self.assertRaisesRegex(CheckpointCompatibilityError, "schema"):
             validate_arch(actual, self.arch)
+
+    def test_rejects_bool_nonfinite_and_extra_arch_fields(self):
+        mutations = (
+            ("boolean integer", {"input": True}, "exact integer"),
+            ("boolean scale", {"k": True}, "finite number"),
+            ("string scale", {"k": "600"}, "finite number"),
+            ("nan scale", {"k": float("nan")}, "finite number"),
+            ("infinite scale", {"k": float("inf")}, "finite number"),
+            ("extra field", {"unreviewed": 1}, "unexpected"),
+        )
+        for label, mutation, expected in mutations:
+            with self.subTest(label=label):
+                actual = {**self.arch, **mutation}
+                with self.assertRaisesRegex(CheckpointCompatibilityError, expected):
+                    validate_arch(actual, self.arch)
 
     def test_hashes_the_exact_checkpoint_bytes(self):
         with tempfile.TemporaryDirectory() as tmp:

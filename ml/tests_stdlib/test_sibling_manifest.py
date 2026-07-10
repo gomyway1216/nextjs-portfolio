@@ -5,6 +5,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 
 ML_DIR = os.path.dirname(os.path.dirname(__file__))
@@ -16,20 +17,94 @@ from sibling_manifest import (  # noqa: E402
     EXACT_RESCORE_MODE,
     LABEL_POLICY,
     RECORD_MANIFEST_SCHEMA,
+    PARTITION_ALGORITHM,
+    PARTITION_CONFLICT_RESOLUTION,
+    PARTITION_DOMAIN,
+    PARTITION_DROP_UNIT,
+    PARTITION_EXPECTED_SOURCE_TRAINING_GAMES,
+    PARTITION_EXPECTED_SOURCE_GAMES,
+    PARTITION_FINAL_HOLDOUT_GAMES,
+    PARTITION_OUTPUT_FORMAT,
+    PARTITION_PRIORITY,
+    PARTITION_RANK_ORDER,
+    PARTITION_SEED,
+    PARTITION_SEMANTIC_POSITION_SET,
+    PARTITION_POLICY_EXPOSURE_POLICY,
+    POLICY_EXPOSED_PARENT_IDS_FORMAT,
+    POLICY_EXPOSED_SEMANTIC_POSITION_IDS_FORMAT,
+    POLICY_EXPOSURE_RECEIPT_SCHEMA,
+    PROTECTED_POSITION_IDS_FORMAT,
     RUNTIME_SNAPSHOT_CONTRACT,
     SEARCH_STATE_RESET,
     SYNTHESIZED_RANK_ORDER,
     TEACHER_MANIFEST_SCHEMA,
+    VALIDATION_PARTITION_MANIFEST_SCHEMA,
     SiblingManifestError,
+    load_policy_exposure_receipt,
+    load_protected_position_ids,
     verify_sibling_manifest,
+    verify_sibling_validation_partition,
 )
+import sibling_manifest as sibling_manifest_module  # noqa: E402
 
 
 REVISION = "0123456789abcdef0123456789abcdef01234567"
+PRODUCTION_POLICY_EXPOSURE_CONTRACT = copy.deepcopy(
+    sibling_manifest_module.POLICY_EXPOSURE_CONTRACT
+)
+
+TEST_POLICY_EXPOSURE_CONTRACT = {
+    "receipt": {
+        "schema": POLICY_EXPOSURE_RECEIPT_SCHEMA,
+        "bytes": 1,
+        "sha256": "1" * 64,
+    },
+    "parent_ids": {
+        "format": POLICY_EXPOSED_PARENT_IDS_FORMAT,
+        "bytes": 1,
+        "sha256": "2" * 64,
+        "count": 1,
+        "identifiers_sha256": "3" * 64,
+    },
+    "semantic_position_ids": {
+        "format": POLICY_EXPOSED_SEMANTIC_POSITION_IDS_FORMAT,
+        "bytes": 1,
+        "sha256": "4" * 64,
+        "count": 1,
+        "identifiers_sha256": "5" * 64,
+    },
+    "role_accounting": {
+        "training_parents": 0,
+        "training_records": 0,
+        "selection_parents": 0,
+        "selection_records": 0,
+        "holdout_parents": 0,
+        "holdout_records": 0,
+        "unmatched_parent_ids": 0,
+    },
+}
 
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
+
+
+def partition_row(game_id, parent_number, child_number, split):
+    return {
+        "schema": "shogi-sibling-v1",
+        "schema_version": 1,
+        "game_id": game_id,
+        "parent_id": "sha256:" + f"{parent_number:064x}",
+        "position_id": "sha256:" + f"{parent_number + 10_000:064x}",
+        "child_position_id": "sha256:" + f"{child_number + 20_000:064x}",
+        "split": split,
+    }
+
+
+def rows_bytes(rows):
+    return b"".join(
+        (json.dumps(row, sort_keys=True) + "\n").encode("utf-8") for row in rows
+    )
 
 
 def eval_tree_digest(files):
@@ -46,7 +121,17 @@ def eval_tree_digest(files):
     return digest(("eval-tree-v1\0" + canonical).encode("utf-8"))
 
 
-def manifest_for(train_bytes, val_bytes):
+def manifest_for(
+    train_bytes,
+    val_bytes,
+    *,
+    train_records=42,
+    train_parents=21,
+    val_records=4,
+    val_parents=2,
+    train_game_ids_sha256="f" * 64,
+    val_game_ids_sha256="c" * 64,
+):
     return {
         "schema": TEACHER_MANIFEST_SCHEMA,
         "record_manifest_schema": RECORD_MANIFEST_SCHEMA,
@@ -89,6 +174,171 @@ def manifest_for(train_bytes, val_bytes):
             "train_bytes": len(train_bytes),
             "val_bytes": len(val_bytes),
         },
+        "split": {
+            "schema": RECORD_MANIFEST_SCHEMA,
+            "record_schema": "shogi-sibling-v1",
+            "schema_version": 1,
+            "train_game_ids_sha256": train_game_ids_sha256,
+            "val_game_ids_sha256": val_game_ids_sha256,
+            "stats": {
+                "train_records": train_records,
+                "train_parents": train_parents,
+                "train_games": PARTITION_EXPECTED_SOURCE_TRAINING_GAMES,
+                "val_records": val_records,
+                "val_parents": val_parents,
+                "val_games": 7,
+                "game_overlap": 0,
+                "position_overlap": 0,
+                "child_position_overlap": 0,
+            },
+        },
+    }
+
+
+def partition_manifest_for(
+    teacher_bytes,
+    full_train_bytes,
+    full_val_bytes,
+    model_train_bytes,
+    selection_bytes,
+    holdout_bytes,
+    protected_bytes,
+):
+    def summary(data):
+        rows = [json.loads(line) for line in data.decode().splitlines()]
+        games = {row["game_id"] for row in rows}
+        semantic_ids = {
+            identifier
+            for row in rows
+            for identifier in (row["position_id"], row["child_position_id"])
+        }
+        return {
+            "records": len(rows),
+            "parents": len({row["parent_id"] for row in rows}),
+            "games": len(games),
+            "game_ids_sha256": digest("\n".join(sorted(games)).encode()),
+            "semantic_position_ids_count": len(semantic_ids),
+            "semantic_position_ids_sha256": digest(
+                "\n".join(sorted(semantic_ids)).encode()
+            ),
+        }
+
+    train_summary = summary(model_train_bytes)
+    selection_summary = summary(selection_bytes)
+    holdout_summary = summary(holdout_bytes)
+    validation_games = {
+        row["game_id"]
+        for data in (selection_bytes, holdout_bytes)
+        for row in (json.loads(line) for line in data.decode().splitlines())
+    }
+    validation_game_ids_sha256 = digest(
+        "\n".join(sorted(validation_games)).encode()
+    )
+    return {
+        "schema": VALIDATION_PARTITION_MANIFEST_SCHEMA,
+        "record_schema": "shogi-sibling-v1",
+        "pipeline": {"source_revision": REVISION, "tracked_tree_clean": True},
+        "policy": {
+            "algorithm": PARTITION_ALGORITHM,
+            "domain": PARTITION_DOMAIN,
+            "seed": PARTITION_SEED,
+            "source_role": "val",
+            "expected_source_games": PARTITION_EXPECTED_SOURCE_GAMES,
+            "final_holdout_games": PARTITION_FINAL_HOLDOUT_GAMES,
+            "rank_order": PARTITION_RANK_ORDER,
+            "priority": PARTITION_PRIORITY,
+            "drop_unit": PARTITION_DROP_UNIT,
+            "conflict_resolution": PARTITION_CONFLICT_RESOLUTION,
+            "semantic_position_set": PARTITION_SEMANTIC_POSITION_SET,
+            "policy_exposure_policy": PARTITION_POLICY_EXPOSURE_POLICY,
+        },
+        "source": {
+            "teacher_manifest": {
+                "schema": TEACHER_MANIFEST_SCHEMA,
+                "bytes": len(teacher_bytes),
+                "sha256": digest(teacher_bytes),
+            },
+            "full_training": {
+                "bytes": len(full_train_bytes),
+                "sha256": digest(full_train_bytes),
+                **{
+                    field: train_summary[field]
+                    for field in ("records", "parents", "games", "game_ids_sha256")
+                },
+                "records": train_summary["records"],
+                "parents": train_summary["parents"],
+            },
+            "full_validation": {
+                "bytes": len(full_val_bytes),
+                "sha256": digest(full_val_bytes),
+                "records": selection_summary["records"] + holdout_summary["records"],
+                "parents": selection_summary["parents"] + holdout_summary["parents"],
+                "games": 7,
+                "game_ids_sha256": validation_game_ids_sha256,
+            },
+            "policy_exposure_receipt": dict(
+                TEST_POLICY_EXPOSURE_CONTRACT["receipt"]
+            ),
+            "policy_exposed_parent_ids": dict(
+                TEST_POLICY_EXPOSURE_CONTRACT["parent_ids"]
+            ),
+            "policy_exposed_semantic_position_ids": dict(
+                TEST_POLICY_EXPOSURE_CONTRACT["semantic_position_ids"]
+            ),
+        },
+        "outputs": {
+            "model_training": {
+                "format": PARTITION_OUTPUT_FORMAT,
+                "bytes": len(model_train_bytes),
+                "sha256": digest(model_train_bytes),
+                **train_summary,
+            },
+            "model_selection": {
+                "format": PARTITION_OUTPUT_FORMAT,
+                "bytes": len(selection_bytes),
+                "sha256": digest(selection_bytes),
+                **selection_summary,
+            },
+            "final_holdout": {
+                "format": PARTITION_OUTPUT_FORMAT,
+                "bytes": len(holdout_bytes),
+                "sha256": digest(holdout_bytes),
+                **holdout_summary,
+            },
+            "protected_position_ids": {
+                "format": PROTECTED_POSITION_IDS_FORMAT,
+                "bytes": len(protected_bytes),
+                "sha256": digest(protected_bytes),
+                "count": 1,
+            },
+        },
+        "drops": {
+            "training_policy_exposed_records": 0,
+            "training_policy_exposed_parents": 0,
+            "training_semantic_conflict_records": 0,
+            "training_semantic_conflict_parents": 0,
+            "selection_policy_exposed_records": 0,
+            "selection_policy_exposed_parents": 0,
+            "holdout_policy_exposed_records": 0,
+            "holdout_policy_exposed_parents": 0,
+            "selection_conflict_records": 0,
+            "selection_conflict_parents": 0,
+            "parent_id_overlap_parents": 0,
+            "semantic_position_overlap_parents": 0,
+            "policy_exposed_unmatched_parent_ids": 0,
+        },
+        "isolation": {
+            "game_overlap": 0,
+            "parent_overlap": 0,
+            "position_overlap": 0,
+            "child_position_overlap": 0,
+            "selection_position_to_holdout_child_overlap": 0,
+            "selection_child_to_holdout_position_overlap": 0,
+            "semantic_position_union_overlap": 0,
+            "training_to_selection_semantic_position_union_overlap": 0,
+            "training_to_holdout_semantic_position_union_overlap": 0,
+            "training_to_evaluation_semantic_position_union_overlap": 0,
+        },
     }
 
 
@@ -103,7 +353,64 @@ def write_manifest(path, manifest):
         target.write("\n")
 
 
+_production_partition_verifier = verify_sibling_validation_partition
+
+
+def verify_sibling_validation_partition(*args, **kwargs):
+    """Exercise partition structure with small fixtures; production pins have Torch E2E coverage."""
+    if any(
+        kwargs.get(field) is not None
+        for field in (
+            "training_path",
+            "data_path",
+            "model_selection_path",
+            "final_holdout_path",
+        )
+    ):
+        kwargs.setdefault("policy_exposure_receipt_path", __file__)
+        kwargs.setdefault("policy_exposed_parent_ids_path", __file__)
+        kwargs.setdefault("policy_exposed_semantic_position_ids_path", __file__)
+    with mock.patch.object(
+        sibling_manifest_module, "_validate_full_teacher_contract", return_value=None
+    ), mock.patch.object(
+        sibling_manifest_module,
+        "POLICY_EXPOSURE_CONTRACT",
+        TEST_POLICY_EXPOSURE_CONTRACT,
+    ), mock.patch.object(
+        sibling_manifest_module,
+        "load_policy_exposure_receipt",
+        return_value={},
+    ), mock.patch.object(
+        sibling_manifest_module,
+        "load_policy_exposed_parent_ids",
+        return_value=(set(), {}),
+    ), mock.patch.object(
+        sibling_manifest_module,
+        "load_policy_exposed_semantic_position_ids",
+        return_value=(set(), {}),
+    ):
+        return _production_partition_verifier(*args, **kwargs)
+
+
 class SiblingManifestTest(unittest.TestCase):
+    def test_production_policy_receipt_matches_pinned_role_audit(self):
+        receipt_path = os.path.join(
+            ML_DIR, "protocols", "wcsc36-policy-exposure-receipt.json"
+        )
+        with mock.patch.object(
+            sibling_manifest_module,
+            "POLICY_EXPOSURE_CONTRACT",
+            PRODUCTION_POLICY_EXPOSURE_CONTRACT,
+        ):
+            receipt = load_policy_exposure_receipt(
+                receipt_path,
+                expected=PRODUCTION_POLICY_EXPOSURE_CONTRACT["receipt"],
+            )
+        self.assertEqual(
+            receipt["role_accounting"],
+            PRODUCTION_POLICY_EXPOSURE_CONTRACT["role_accounting"],
+        )
+
     def test_accepts_v6_policy_contract_and_binds_requested_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             train_path = os.path.join(tmp, "train.jsonl")
@@ -408,6 +715,10 @@ class SiblingManifestTest(unittest.TestCase):
             with self.assertRaisesRegex(SiblingManifestError, "non-standard JSON number"):
                 verify_sibling_manifest(manifest_path, val_path=val_path)
 
+            write_bytes(manifest_path, b'{"unexpected":1e999}\n')
+            with self.assertRaisesRegex(SiblingManifestError, "non-finite JSON number"):
+                verify_sibling_manifest(manifest_path, val_path=val_path)
+
             with self.assertRaisesRegex(SiblingManifestError, "does not exist"):
                 verify_sibling_manifest(
                     os.path.join(tmp, "missing.json"), val_path=val_path
@@ -436,6 +747,317 @@ class SiblingManifestTest(unittest.TestCase):
                     manifest_path,
                     train_path=train_path,
                     val_path=val_path,
+                )
+
+    def test_accepts_sealed_validation_partition_and_binds_each_role(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            teacher_path = os.path.join(tmp, "teacher-manifest.json")
+            partition_path = os.path.join(tmp, "partition-manifest.json")
+            full_train_path = os.path.join(tmp, "full-train.jsonl")
+            model_train_path = os.path.join(tmp, "model-train.jsonl")
+            full_val_path = os.path.join(tmp, "full-val.jsonl")
+            selection_path = os.path.join(tmp, "selection.jsonl")
+            holdout_path = os.path.join(tmp, "holdout.jsonl")
+            protected_path = os.path.join(tmp, "protected.txt")
+            train_rows = [
+                partition_row(f"train-game-{index}", index + 1, index * 2 + child, "train")
+                for index in range(21)
+                for child in range(2)
+            ]
+            selection_rows = [
+                partition_row(f"val-game-{index}", 100 + index, 100 + index, "val")
+                for index in range(4)
+            ]
+            holdout_rows = [
+                partition_row(f"val-game-{index + 4}", 200 + index, 200 + index, "val")
+                for index in range(3)
+            ]
+            train_bytes = rows_bytes(train_rows)
+            selection_bytes = rows_bytes(selection_rows)
+            holdout_bytes = rows_bytes(holdout_rows)
+            full_val_bytes = selection_bytes + holdout_bytes
+            protected_bytes = ("sha256:" + "a" * 64 + "\n").encode()
+            write_bytes(full_train_path, train_bytes)
+            write_bytes(model_train_path, train_bytes)
+            write_bytes(full_val_path, full_val_bytes)
+            write_bytes(selection_path, selection_bytes)
+            write_bytes(holdout_path, holdout_bytes)
+            write_bytes(protected_path, protected_bytes)
+            train_game_digest = digest(
+                "\n".join(sorted({row["game_id"] for row in train_rows})).encode()
+            )
+            val_game_digest = digest(
+                "\n".join(
+                    sorted({row["game_id"] for row in selection_rows + holdout_rows})
+                ).encode()
+            )
+            write_manifest(
+                teacher_path,
+                manifest_for(
+                    train_bytes,
+                    full_val_bytes,
+                    train_records=len(train_rows),
+                    train_parents=len({row["parent_id"] for row in train_rows}),
+                    val_records=len(selection_rows) + len(holdout_rows),
+                    val_parents=len(selection_rows) + len(holdout_rows),
+                    train_game_ids_sha256=train_game_digest,
+                    val_game_ids_sha256=val_game_digest,
+                ),
+            )
+            with open(teacher_path, "rb") as source:
+                teacher_bytes = source.read()
+            write_manifest(
+                partition_path,
+                partition_manifest_for(
+                    teacher_bytes,
+                    train_bytes,
+                    full_val_bytes,
+                    train_bytes,
+                    selection_bytes,
+                    holdout_bytes,
+                    protected_bytes,
+                ),
+            )
+
+            selection = verify_sibling_validation_partition(
+                partition_path,
+                sibling_manifest_path=teacher_path,
+                data_role="selection",
+                data_path=selection_path,
+                protected_position_ids_path=protected_path,
+                training_path=model_train_path,
+            )
+            self.assertEqual(selection["schema"], VALIDATION_PARTITION_MANIFEST_SCHEMA)
+            self.assertEqual(
+                selection["verified_outputs"],
+                ["model_training", "model_selection", "protected_position_ids"],
+            )
+            self.assertEqual(
+                selection["teacher_manifest"]["verified_splits"], []
+            )
+            self.assertEqual(
+                selection["outputs"]["final_holdout"]["sha256"],
+                digest(holdout_bytes),
+            )
+
+            final_holdout = verify_sibling_validation_partition(
+                partition_path,
+                sibling_manifest_path=teacher_path,
+                data_role="final-holdout",
+                data_path=holdout_path,
+            )
+            self.assertEqual(final_holdout["verified_outputs"], ["final_holdout"])
+            protected, fingerprint = load_protected_position_ids(
+                protected_path,
+                expected=selection["outputs"]["protected_position_ids"],
+            )
+            self.assertEqual(protected, {"sha256:" + "a" * 64})
+            self.assertEqual(fingerprint["count"], 1)
+
+    def test_partition_rejects_tampering_wrong_base_and_nonzero_isolation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            teacher_path = os.path.join(tmp, "teacher-manifest.json")
+            other_teacher_path = os.path.join(tmp, "other-teacher.json")
+            partition_path = os.path.join(tmp, "partition-manifest.json")
+            model_train_path = os.path.join(tmp, "model-train.jsonl")
+            selection_path = os.path.join(tmp, "selection.jsonl")
+            holdout_path = os.path.join(tmp, "holdout.jsonl")
+            protected_path = os.path.join(tmp, "protected.txt")
+            train_rows = [
+                partition_row(f"train-game-{index}", index + 1, index * 2 + child, "train")
+                for index in range(21)
+                for child in range(2)
+            ]
+            selection_rows = [
+                partition_row(f"val-game-{index}", 100 + index, 100 + index, "val")
+                for index in range(4)
+            ]
+            holdout_rows = [
+                partition_row(f"val-game-{index + 4}", 200 + index, 200 + index, "val")
+                for index in range(3)
+            ]
+            train_bytes = rows_bytes(train_rows)
+            selection_bytes = rows_bytes(selection_rows)
+            holdout_bytes = rows_bytes(holdout_rows)
+            full_val_bytes = selection_bytes + holdout_bytes
+            protected_bytes = ("sha256:" + "a" * 64 + "\n").encode()
+            write_bytes(model_train_path, train_bytes)
+            write_bytes(selection_path, selection_bytes)
+            write_bytes(holdout_path, holdout_bytes)
+            write_bytes(protected_path, protected_bytes)
+            train_game_digest = digest(
+                "\n".join(sorted({row["game_id"] for row in train_rows})).encode()
+            )
+            val_game_digest = digest(
+                "\n".join(
+                    sorted({row["game_id"] for row in selection_rows + holdout_rows})
+                ).encode()
+            )
+            teacher_manifest = manifest_for(
+                train_bytes,
+                full_val_bytes,
+                train_records=len(train_rows),
+                train_parents=len({row["parent_id"] for row in train_rows}),
+                val_records=len(selection_rows) + len(holdout_rows),
+                val_parents=len(selection_rows) + len(holdout_rows),
+                train_game_ids_sha256=train_game_digest,
+                val_game_ids_sha256=val_game_digest,
+            )
+            write_manifest(teacher_path, teacher_manifest)
+            other_teacher = copy.deepcopy(teacher_manifest)
+            other_teacher["outputs"]["train_sha256"] = digest(b"other\n")
+            other_teacher["outputs"]["train_bytes"] = len(b"other\n")
+            write_manifest(other_teacher_path, other_teacher)
+            with open(teacher_path, "rb") as source:
+                teacher_bytes = source.read()
+            base_partition = partition_manifest_for(
+                teacher_bytes,
+                train_bytes,
+                full_val_bytes,
+                train_bytes,
+                selection_bytes,
+                holdout_bytes,
+                protected_bytes,
+            )
+            write_manifest(partition_path, base_partition)
+
+            for field in (
+                "training_policy_exposed_records",
+                "training_policy_exposed_parents",
+                "selection_policy_exposed_records",
+                "selection_policy_exposed_parents",
+                "holdout_policy_exposed_records",
+                "holdout_policy_exposed_parents",
+                "policy_exposed_unmatched_parent_ids",
+            ):
+                with self.subTest(pilot_audit_field=field):
+                    mismatched = copy.deepcopy(base_partition)
+                    mismatched["drops"][field] += 1
+                    write_manifest(partition_path, mismatched)
+                    with self.assertRaisesRegex(
+                        SiblingManifestError, "accounting|policy exposure audit"
+                    ):
+                        verify_sibling_validation_partition(
+                            partition_path,
+                            sibling_manifest_path=teacher_path,
+                        )
+            write_manifest(partition_path, base_partition)
+
+            tampered_train = train_bytes.replace(b"train-game-0", b"train-game-X", 1)
+            write_bytes(model_train_path, tampered_train)
+            with self.assertRaisesRegex(SiblingManifestError, "model_training sha256"):
+                verify_sibling_validation_partition(
+                    partition_path,
+                    sibling_manifest_path=teacher_path,
+                    training_path=model_train_path,
+                )
+            write_bytes(model_train_path, train_bytes)
+
+            tampered_selection = selection_bytes.replace(b"val-game-0", b"val-game-X", 1)
+            write_bytes(selection_path, tampered_selection)
+            self.assertEqual(os.path.getsize(selection_path), len(selection_bytes))
+            with self.assertRaisesRegex(SiblingManifestError, "model_selection sha256"):
+                verify_sibling_validation_partition(
+                    partition_path,
+                    sibling_manifest_path=teacher_path,
+                    data_role="selection",
+                    data_path=selection_path,
+                )
+            write_bytes(selection_path, selection_bytes)
+
+            with self.assertRaisesRegex(SiblingManifestError, "teacher manifest identity"):
+                verify_sibling_validation_partition(
+                    partition_path,
+                    sibling_manifest_path=other_teacher_path,
+                    data_role="selection",
+                    data_path=selection_path,
+                )
+
+            dirty = copy.deepcopy(base_partition)
+            dirty["isolation"][
+                "training_to_evaluation_semantic_position_union_overlap"
+            ] = 1
+            write_manifest(partition_path, dirty)
+            with self.assertRaisesRegex(SiblingManifestError, "isolation"):
+                verify_sibling_validation_partition(
+                    partition_path,
+                    sibling_manifest_path=teacher_path,
+                    data_role="final-holdout",
+                    data_path=holdout_path,
+                )
+
+            unbalanced_training = copy.deepcopy(base_partition)
+            unbalanced_training["drops"]["training_semantic_conflict_records"] = 1
+            write_manifest(partition_path, unbalanced_training)
+            with self.assertRaisesRegex(
+                SiblingManifestError, "training record accounting"
+            ):
+                verify_sibling_validation_partition(
+                    partition_path,
+                    sibling_manifest_path=teacher_path,
+                )
+
+            missing_training_game = copy.deepcopy(base_partition)
+            missing_training_game["outputs"]["model_training"]["games"] = 20
+            write_manifest(partition_path, missing_training_game)
+            with self.assertRaisesRegex(SiblingManifestError, "game count"):
+                verify_sibling_validation_partition(
+                    partition_path,
+                    sibling_manifest_path=teacher_path,
+                )
+
+            wrong_seed = copy.deepcopy(base_partition)
+            wrong_seed["policy"]["seed"] = "unreviewed-experiment"
+            write_manifest(partition_path, wrong_seed)
+            with self.assertRaisesRegex(SiblingManifestError, r"policy\.seed"):
+                verify_sibling_validation_partition(
+                    partition_path,
+                    sibling_manifest_path=teacher_path,
+                )
+
+            missing_selection_game = copy.deepcopy(base_partition)
+            missing_selection_game["outputs"]["model_selection"]["games"] = 3
+            write_manifest(partition_path, missing_selection_game)
+            with self.assertRaisesRegex(SiblingManifestError, "game count"):
+                verify_sibling_validation_partition(
+                    partition_path,
+                    sibling_manifest_path=teacher_path,
+                )
+
+            wrong_quota = copy.deepcopy(base_partition)
+            wrong_quota["policy"]["final_holdout_games"] = 2
+            wrong_quota["outputs"]["model_selection"]["games"] = 5
+            wrong_quota["outputs"]["final_holdout"]["games"] = 2
+            write_manifest(partition_path, wrong_quota)
+            with self.assertRaisesRegex(
+                SiblingManifestError, r"policy\.final_holdout_games"
+            ):
+                verify_sibling_validation_partition(
+                    partition_path,
+                    sibling_manifest_path=teacher_path,
+                )
+
+    def test_protected_position_ids_reject_unsorted_duplicates_and_manifest_mismatch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            protected_path = os.path.join(tmp, "protected.txt")
+            first = "sha256:" + "a" * 64
+            second = "sha256:" + "b" * 64
+            write_bytes(protected_path, f"{second}\n{first}\n".encode())
+            with self.assertRaisesRegex(SiblingManifestError, "sorted and unique"):
+                load_protected_position_ids(protected_path)
+            write_bytes(protected_path, f"{first}\n{first}\n".encode())
+            with self.assertRaisesRegex(SiblingManifestError, "sorted and unique"):
+                load_protected_position_ids(protected_path)
+            write_bytes(protected_path, f"{first}\n".encode())
+            with self.assertRaisesRegex(SiblingManifestError, "sha256"):
+                load_protected_position_ids(
+                    protected_path,
+                    expected={
+                        "format": PROTECTED_POSITION_IDS_FORMAT,
+                        "bytes": os.path.getsize(protected_path),
+                        "sha256": "f" * 64,
+                        "count": 1,
+                    },
                 )
 
 

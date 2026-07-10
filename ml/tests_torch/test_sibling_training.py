@@ -416,7 +416,13 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
                 "tracked_tree_clean": True,
             }
             plan_binding = {
-                "provenance": {"schema": "test-plan", "slot_id": "seed-42"},
+                "provenance": {
+                    "schema": "test-plan",
+                    "slot_id": "seed-42",
+                    "verified_input_sha256": {
+                        "replay_exclusion": exclusion_contract["sha256"]
+                    },
+                },
                 "contract": {
                     "init_checkpoint_sha256": initializer_sha256,
                     "replay_sha256": replay_sha256,
@@ -424,6 +430,7 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
                     "model_training_bytes": train_fingerprint["bytes"],
                     "model_training_records": 2,
                     "model_training_parents": 1,
+                    "replay_limit": 2,
                 },
                 "replay_exclusion": exclusion_contract,
             }

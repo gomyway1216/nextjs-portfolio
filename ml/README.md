@@ -439,6 +439,27 @@ float/int16評価し、int16 pair、top-1、MAE、seed、checkpoint SHAの固定
 通過してもproduction昇格ではなく、sealed final holdout、既知回帰、量子化後探索/browser、
 事前登録した384局paired A/B、外部高段ratingを順に要求する。
 
+公式のselection入口は次の集約commandだけである。最初に3つの`result.json`、`final.pt`のbytes/SHA、
+checkpoint metadata、共通runtime/revisionを検証し、全部揃った後で初めてmodel-selectionを1回読む。
+commandにはfinal-holdout JSONL optionがなく、auditがstatic passでもproduction昇格は許可しない。
+
+```sh
+ml/venv/bin/python ml/qat_selection_audit.py \
+  --run-root ml/runs/wcsc36-int16-aware \
+  --run-plan ml/protocols/wcsc36-int16-aware-plan.json \
+  --stable-checkpoint /absolute/path/to/runOp1-best.pt \
+  --selection-data ml/data/wcsc36/siblings.model-selection.jsonl \
+  --sibling-manifest /absolute/path/to/full-depth16-v6/manifest.json \
+  --validation-partition-manifest ml/data/wcsc36/sibling-eval-partition-manifest.json \
+  --policy-exposure-receipt ml/protocols/wcsc36-policy-exposure-receipt.json \
+  --policy-exposed-parent-ids ml/protocols/wcsc36-policy-exposed-parent-ids.txt \
+  --policy-exposed-semantic-position-ids ml/protocols/wcsc36-policy-exposed-semantic-position-ids.txt \
+  --holdout-protected-position-ids ml/data/wcsc36/final-holdout-position-ids.txt \
+  --training-revision "$(git rev-parse HEAD)" \
+  --audit-revision "$(git rev-parse HEAD)" \
+  --out ml/protocols/wcsc36-int16-aware-selection-audit.json
+```
+
 ### 3-3. 契約テスト
 
 ```sh

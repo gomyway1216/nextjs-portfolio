@@ -383,8 +383,8 @@ pilotが全28局へ触れていたため、これはgame-level untouchedとい�
 前実験はfloatでは改善した一方、int16化でpair accuracyが`0.0027204`低下し、固定gate
 `abs(delta) <= 0.002`を越えた。次の仮説は、export後と同じ整数forwardを学習損失へ直接入れる
 STE（straight-through estimator）である。変更不能なplanは
-`ml/protocols/wcsc36-int16-aware-plan.json`（8,054 bytes / SHA-256
-`f922eec0909de0f077475caf9bc845065c759ca87248f2b36a6e05812d7f3dd2`）。これは強さの証明ではなく、
+`ml/protocols/wcsc36-int16-aware-plan.json`（8,152 bytes / SHA-256
+`bef7863a5f6c85d5d6c5b97cc21aef48d17dae137ffd679efeda764d352a6b6b`）。これは強さの証明ではなく、
 既存model-selection上のdevelopment screeningを1 familyだけ行う事前登録である。
 
 学習processへ`--val-data`を渡さない。replay除外に必要なpolicy / selection / holdoutのsemantic IDは、

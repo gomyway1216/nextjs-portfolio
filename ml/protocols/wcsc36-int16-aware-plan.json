@@ -101,7 +101,7 @@
     "second_layer_division": "arithmetic-right-shift-6",
     "activation_clamp": [0, 127],
     "ste_forward": "exact-shared-production-integer-forward",
-    "ste_backward": "identity-through-quantization-scale-clamp-and-shift-surrogate"
+    "ste_backward": "identity-through-weight-and-bias-rounding-and-weight-int16-clamp;standard-clipped-relu-gradient-zero-outside-0-to-127;straight-through-arithmetic-right-shift-6"
   },
   "objective": {
     "formula": "0.5*float_full_task+0.5*int16_ste_full_task",

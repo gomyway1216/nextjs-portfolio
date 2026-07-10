@@ -15,8 +15,8 @@ QAT_TRAINING_CONTRACT_SCHEMA = "shogi-int16-aware-training-experiment-v1"
 QAT_TRAINING_RESULT_SCHEMA = "shogi-int16-aware-training-result-v1"
 QAT_FINAL_CHECKPOINT_SCHEMA = "shogi-int16-aware-final-checkpoint-v1"
 QAT_PLAN_RELATIVE_PATH = "ml/protocols/wcsc36-int16-aware-plan.json"
-QAT_PLAN_BYTES = 8054
-QAT_PLAN_SHA256 = "f922eec0909de0f077475caf9bc845065c759ca87248f2b36a6e05812d7f3dd2"
+QAT_PLAN_BYTES = 8152
+QAT_PLAN_SHA256 = "bef7863a5f6c85d5d6c5b97cc21aef48d17dae137ffd679efeda764d352a6b6b"
 QAT_SLOT_ORDER = (42, 43, 44)
 LOWER_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 

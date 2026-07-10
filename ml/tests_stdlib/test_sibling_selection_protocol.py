@@ -17,6 +17,11 @@ from sibling_selection_protocol import (  # noqa: E402
     SIX_RUN_SLOT_ORDER,
     validate_candidate_selection_receipt,
 )
+from sibling_selection_audit import (  # noqa: E402
+    PAIR_DEGRADATION_LIMIT,
+    TOP1_DEGRADATION_LIMIT,
+    evaluate_selection_gates,
+)
 
 
 def digest(number):
@@ -179,6 +184,62 @@ class CandidateSelectionProtocolTest(unittest.TestCase):
         mismatched_report["int16_selection_report"]["sha256"] = digest(778)
         with self.assertRaisesRegex(ValueError, "selection report"):
             validate_candidate_selection_receipt(mismatched_report)
+
+    def test_selection_gates_fail_closed_on_actual_pair_and_top1_failures(self):
+        gates = evaluate_selection_gates(
+            {
+                "within_parent_pair_accuracy": 0.6099488308828293,
+                "teacher_top1_accuracy": 0.26099706744868034,
+                "value_mae_cp": 486.6910572304545,
+            },
+            {
+                "within_parent_pair_accuracy": 0.6072284474383056,
+                "teacher_top1_accuracy": 0.26392961876832843,
+                "value_mae_cp": 491.98977505112475,
+            },
+            {
+                "within_parent_pair_accuracy": 0.6048966902001425,
+                "teacher_top1_accuracy": 0.2668621700879765,
+                "value_mae_cp": 496.8903374233129,
+            },
+        )
+        self.assertFalse(gates["passed"])
+        checks = {check["id"]: check for check in gates["checks"]}
+        self.assertTrue(checks["candidate_pair_strictly_above_stable"]["passed"])
+        self.assertFalse(checks["candidate_top1_at_least_stable"]["passed"])
+        self.assertFalse(checks["absolute_float_to_int16_pair_delta"]["passed"])
+        self.assertTrue(checks["absolute_float_to_int16_top1_delta"]["passed"])
+        self.assertGreater(
+            abs(checks["absolute_float_to_int16_pair_delta"]["observed"]),
+            PAIR_DEGRADATION_LIMIT,
+        )
+
+    def test_selection_gates_accept_all_boundary_conditions(self):
+        candidate_float = {
+            "within_parent_pair_accuracy": 0.612,
+            "teacher_top1_accuracy": 0.272,
+            "value_mae_cp": 490.0,
+        }
+        candidate_int16 = {
+            "within_parent_pair_accuracy": 0.610,
+            "teacher_top1_accuracy": 0.267,
+            "value_mae_cp": 492.0,
+        }
+        stable_int16 = {
+            "within_parent_pair_accuracy": 0.609,
+            "teacher_top1_accuracy": 0.267,
+            "value_mae_cp": 500.0,
+        }
+        gates = evaluate_selection_gates(
+            candidate_float, candidate_int16, stable_int16
+        )
+        self.assertTrue(gates["passed"])
+        self.assertAlmostEqual(
+            abs(gates["checks"][2]["observed"]), PAIR_DEGRADATION_LIMIT
+        )
+        self.assertAlmostEqual(
+            abs(gates["checks"][3]["observed"]), TOP1_DEGRADATION_LIMIT
+        )
 
 
 if __name__ == "__main__":

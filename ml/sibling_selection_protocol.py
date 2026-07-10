@@ -9,6 +9,9 @@ import re
 
 SIX_RUN_PLAN_SCHEMA = "shogi-sibling-six-run-plan-v1"
 TRAINING_RESULT_SCHEMA = "shogi-sibling-training-result-v1"
+WCSC36_SIX_RUN_PLAN_SHA256 = (
+    "0e34262f77555897d92b01a3737c71057d8b90cc98cdcb2fe63ad24ec4dde070"
+)
 CANDIDATE_SELECTION_RECEIPT_SCHEMA = (
     "shogi-sibling-candidate-selection-receipt-v1"
 )

@@ -130,6 +130,15 @@ def valid_plan_and_result():
 
 
 class SiblingSelectionAuditContractTest(unittest.TestCase):
+    def test_json_reader_rejects_nonfinite_constants(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "nonfinite.json"
+            path.write_text('{"value": Infinity}', encoding="utf-8")
+            with self.assertRaisesRegex(
+                ValueError, "contains non-finite JSON number Infinity"
+            ):
+                selection_audit._read_json(str(path), "fixture")
+
     def test_public_receipts_keep_repo_paths_and_redact_external_paths(self):
         repo = "/workspace/project"
         internal = _portable_file_receipt(

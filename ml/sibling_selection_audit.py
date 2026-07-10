@@ -202,15 +202,16 @@ def _reject_duplicate_keys(pairs):
 
 
 def _read_json(path: str, label: str) -> tuple[dict[str, Any], bytes]:
+    def fail_on_nonfinite_constant(token: str) -> None:
+        raise ValueError(f"{label} contains non-finite JSON number {token}")
+
     try:
         with open(path, "rb") as source:
             raw = source.read()
         value = json.loads(
             raw.decode("utf-8"),
             object_pairs_hook=_reject_duplicate_keys,
-            parse_constant=lambda token: (_ for _ in ()).throw(
-                ValueError(f"{label} contains non-finite JSON number {token}")
-            ),
+            parse_constant=fail_on_nonfinite_constant,
         )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
         raise ValueError(f"cannot read {label}: {error}") from error

@@ -154,16 +154,17 @@ def _reject_duplicate_keys(pairs):
 
 
 def _decode_json(raw: bytes | str, label: str) -> dict[str, Any]:
+    def fail_on_nonfinite_constant(token: str) -> None:
+        raise EvidenceReproductionError(
+            f"{label} contains non-finite JSON number {token}"
+        )
+
     try:
         text = raw.decode("utf-8") if isinstance(raw, bytes) else raw
         value = json.loads(
             text,
             object_pairs_hook=_reject_duplicate_keys,
-            parse_constant=lambda token: (_ for _ in ()).throw(
-                EvidenceReproductionError(
-                    f"{label} contains non-finite JSON number {token}"
-                )
-            ),
+            parse_constant=fail_on_nonfinite_constant,
         )
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
         raise EvidenceReproductionError(f"cannot decode {label}: {error}") from error
@@ -712,17 +713,15 @@ def reproduce_selection_evidence(
             os.path.join(export_dir, "weights.meta.json"),
             "reproduced_weights_meta",
         )
-        if not hmac.compare_digest(
-            _read_file_bytes(reproduced_weights_path, "reproduced weights"),
-            _read_file_bytes(paths["expected_weights"], "expected weights"),
-        ):
+        if _read_file_bytes(
+            reproduced_weights_path, "reproduced weights"
+        ) != _read_file_bytes(paths["expected_weights"], "expected weights"):
             raise EvidenceReproductionError(
                 "reproduced weights.bin differs byte-for-byte from existing export"
             )
-        if not hmac.compare_digest(
-            _read_file_bytes(reproduced_meta_path, "reproduced metadata"),
-            _read_file_bytes(paths["expected_weights_meta"], "expected metadata"),
-        ):
+        if _read_file_bytes(
+            reproduced_meta_path, "reproduced metadata"
+        ) != _read_file_bytes(paths["expected_weights_meta"], "expected metadata"):
             raise EvidenceReproductionError(
                 "reproduced weights.meta.json differs byte-for-byte from existing export"
             )

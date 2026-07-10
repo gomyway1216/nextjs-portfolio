@@ -17,12 +17,19 @@ from sibling_evidence_reproduction import (  # noqa: E402
     EvidenceReproductionError,
     PINNED_FILE_LABELS,
     TOOL_SOURCE_FILES,
+    _decode_json,
     collect_reproduction_pins,
     reproduce_selection_evidence,
 )
 
 
 class EvidenceReproductionTests(unittest.TestCase):
+    def test_json_decoder_rejects_nonfinite_constants(self):
+        with self.assertRaisesRegex(
+            EvidenceReproductionError, "contains non-finite JSON number NaN"
+        ):
+            _decode_json(b'{"value": NaN}', "fixture")
+
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name).resolve()

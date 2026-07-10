@@ -324,6 +324,9 @@ six-run plan自身にはGit revisionを埋め込まない。plan commit後のbyt
 固定する2段階sealにし、自己参照を避ける。実行時はplan hash・tracked/unmodified planとは別に、
 worktree全体がcleanかつ`HEAD == --pipeline-revision`を検証し、そのexecution HEADをcheckpointと
 `result.json`へ記録する。
+全input/runtimeを埋めたplanは3,057 bytes / SHA-256
+`0e34262f77555897d92b01a3737c71057d8b90cc98cdcb2fe63ad24ec4dde070`で、planを先にcommitした後の
+別commitにある`SEALED_SIX_RUN_PLAN_SHA256`がexact bytesを固定する。
 model-selectionのint16 pair accuracy、top-1、value MAEの順で各seriesのmedian seedを選ぶ。
 6 runそれぞれのresult marker/checkpoint/int16 export/int16 selection report identity、median-ranked seed strategy、
 selection metrics/tie-break、selected checkpoint、run-plan SHAをexact検証するcandidate-selection共通schema/decoderは事前登録済みだが、

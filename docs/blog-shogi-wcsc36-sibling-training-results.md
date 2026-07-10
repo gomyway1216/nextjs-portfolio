@@ -298,7 +298,7 @@ model selectionを通った時点で、少なくとも次を保存する規則�
 
 しかしprovisional warm 42は後述するselection gateを4つ中2つ失敗した。strict auditの状態は`passed: false`、candidate-selection receiptは`not_emitted_selection_gate_failed`である。したがって上のartifact hashは追跡可能なprovisional identityではあるが、`shogi-sibling-candidate-selection-receipt-v1`は発行していない。失敗後にwarm seed 44へ交換したり、別seedを追加したりもしなかった。
 
-selection auditは6 result marker、checkpoint、int16 export、selection report、stable比較を読み、provisional candidateとgate結果まで生成した。clean revision `9613d267c8f95879d7a2b6b701ecd8647f461d37`を記録した最終strict audit JSONは10,584 bytes、SHA-256 `8dd4c5e55fadb7f174716bcb2935f92c0ed3bc41127e89695ed6da560b3fc19d`である。状態は`not_emitted_selection_gate_failed`であり、成功candidate receiptではない。
+selection auditは6 result marker、checkpoint、int16 export、selection report、stable比較を読み、provisional candidateとgate結果まで生成した。さらに固定venv・cleanなexporter/evaluatorから6候補＋stableの7モデルを再生成し、`weights.bin`とmetadataのbyte一致、float/int16 metrics、core provenanceの一致を確認した。clean revision `5be55a23a581ff61a30d80fe8d59d9a5f7750df0`を記録した最終strict audit JSONは27,430 bytes、SHA-256 `f8a8dc8388e0937cbbfe430e015bc468bb2c127c2c783ddf0690f514e11a27ae`である。状態は`not_emitted_selection_gate_failed`であり、成功candidate receiptではない。
 
 final holdoutについてauditが記録したのは`labels_read: false`と`status: sealed_not_opened`だけである。3,391行のholdout labelを読んでいないので、selection失敗をholdoutの良し悪しで言い換えることも、次の設定選びへ流用することもできない。
 
@@ -385,31 +385,31 @@ A/Bはcandidate対stableを384局、つまり192のcolor-swapped opening pairs�
 
 ## 8. 現在の結果台帳
 
-| stage                                             | 状態                            | 現在の証拠 / 未確定出力                                                                                                                     |
-| ------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| full attempt 1、timeout 120s                      | **確認済み・不採用**            | 215親後に停止。別条件へresumeしない                                                                                                         |
-| 問題親runtime診断 1                               | **確認済み**                    | 12 siblings、188.52秒。label scoreは選択に未使用                                                                                            |
-| full attempt 2、timeout 600s                      | **確認済み・不採用**            | 393親後に別heavy parentで停止                                                                                                               |
-| heavy-parent隔離diagnostic                        | **確認済み**                    | timeout 3,600s枠で8 siblingsが1,693.48秒。full runではない                                                                                  |
-| training device smoke                             | **確認済み**                    | Torch 2.12.1でMPSは単process約1.9倍速いが同一2 runのloss/hashが不一致。CPUはexact再現・6並列。sealed deviceは`cpu`                          |
-| Lane A teacher-policy比較                         | **確認済み**                    | fixed depth 16を採用。n=100は通常cp差median 29 / p90 125.3、全pair反転0.1462%、depth-18 node比2.4713×                                       |
-| final-policy fresh full teacher                   | **確認済み・完了**              | exit 0、5,354.31秒。3,112 selected = 3,106 completed + 6 skipped、36,365 candidates、21/7 games、overlap 0                                  |
-| full teacher manifest / train / val / work hashes | **確認済み**                    | manifest `3381e238…` / train `909f12a5…` / val `5a2435df…` / work `f183d403…`。bytesと行数は本文に記録                                      |
-| sealed partition manifest / 5 artifacts hashes    | **確認済み・公開**              | training `f6dcfd6a…` / selection `97b15ba1…` / holdout `89b3e2ca…` / protected `762b95b5…` / manifest `d95e6623…`。Python再検証・overlap全0 |
-| policy exposure receipt                           | **audit・固定済み**             | 102 parent / 1,392 semantic IDs。除外はtraining 307親/3,642行、selection 64/762、holdout 49/588、unmatched 7                                |
-| model-training cross-semantic isolation           | **実装・テスト済み**            | Lane A exposure除外後にevaluation union優先、親単位drop、21局必須                                                                           |
-| six-run plan                                      | **固定・実行完了**              | 3,057 bytes / `0e34262f…e070`。全10 input hashes、Python 3.13.0 / Torch 2.12.1 / Apple M4 Pro / CPU 2 threadsを固定                         |
-| 外部高段校正                                      | **計画のみ・未許可**            | 81DojoのCOM account / 公式app制約を確認。candidate/time control/pairing/min games/stability ruleは実施前に別途固定                          |
-| warm seeds 42/43/44                               | **3/3完了・監査済み**           | int16 pair `0.60722845 / 0.60632165 / 0.60722845`。median代表seed 42                                                                        |
-| scratch seeds 42/43/44                            | **3/3完了・監査済み**           | int16 pair `0.60185245 / 0.59887298 / 0.60243539`。median代表seed 42                                                                        |
-| provisional candidate                             | **選択済み・gate不合格**        | warm 42。checkpoint `96863352…e51` / export `8b82fd1a…0565` / report `031991dc…88c`                                                         |
-| selection audit                                   | **fail・固定済み**              | 10,584 bytes / `8dd4c5e5…fc19d`。4 gate中pair対stableとtop-1量子化差だけpass。top-1対stableとpair量子化差がfail。candidate receiptは未発行  |
-| exact-row sealed final holdout                    | **未開封**                      | `labels_read: false` / `sealed_not_opened`。selection不合格後は読まない                                                                     |
-| general / opening retention                       | **selection不合格のため未実施** | 後段へ進めない                                                                                                                              |
-| `P*8f` regression suite                           | **selection不合格のため未実施** | 後段へ進めない                                                                                                                              |
-| paired A/B                                        | **selection不合格のため未実施** | 384局 / 192 color-swapped pairsは開始していない                                                                                             |
-| production browser                                | **selection不合格のため未実施** | candidateをproduction経路へ載せていない                                                                                                     |
-| production promotion                              | **不採用**                      | productionはrunOp1を継続                                                                                                                    |
+| stage                                             | 状態                            | 現在の証拠 / 未確定出力                                                                                                                                                      |
+| ------------------------------------------------- | ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| full attempt 1、timeout 120s                      | **確認済み・不採用**            | 215親後に停止。別条件へresumeしない                                                                                                                                          |
+| 問題親runtime診断 1                               | **確認済み**                    | 12 siblings、188.52秒。label scoreは選択に未使用                                                                                                                             |
+| full attempt 2、timeout 600s                      | **確認済み・不採用**            | 393親後に別heavy parentで停止                                                                                                                                                |
+| heavy-parent隔離diagnostic                        | **確認済み**                    | timeout 3,600s枠で8 siblingsが1,693.48秒。full runではない                                                                                                                   |
+| training device smoke                             | **確認済み**                    | Torch 2.12.1でMPSは単process約1.9倍速いが同一2 runのloss/hashが不一致。CPUはexact再現・6並列。sealed deviceは`cpu`                                                           |
+| Lane A teacher-policy比較                         | **確認済み**                    | fixed depth 16を採用。n=100は通常cp差median 29 / p90 125.3、全pair反転0.1462%、depth-18 node比2.4713×                                                                        |
+| final-policy fresh full teacher                   | **確認済み・完了**              | exit 0、5,354.31秒。3,112 selected = 3,106 completed + 6 skipped、36,365 candidates、21/7 games、overlap 0                                                                   |
+| full teacher manifest / train / val / work hashes | **確認済み**                    | manifest `3381e238…` / train `909f12a5…` / val `5a2435df…` / work `f183d403…`。bytesと行数は本文に記録                                                                       |
+| sealed partition manifest / 5 artifacts hashes    | **確認済み・公開**              | training `f6dcfd6a…` / selection `97b15ba1…` / holdout `89b3e2ca…` / protected `762b95b5…` / manifest `d95e6623…`。Python再検証・overlap全0                                  |
+| policy exposure receipt                           | **audit・固定済み**             | 102 parent / 1,392 semantic IDs。除外はtraining 307親/3,642行、selection 64/762、holdout 49/588、unmatched 7                                                                 |
+| model-training cross-semantic isolation           | **実装・テスト済み**            | Lane A exposure除外後にevaluation union優先、親単位drop、21局必須                                                                                                            |
+| six-run plan                                      | **固定・実行完了**              | 3,057 bytes / `0e34262f…e070`。全10 input hashes、Python 3.13.0 / Torch 2.12.1 / Apple M4 Pro / CPU 2 threadsを固定                                                          |
+| 外部高段校正                                      | **計画のみ・未許可**            | 81DojoのCOM account / 公式app制約を確認。candidate/time control/pairing/min games/stability ruleは実施前に別途固定                                                           |
+| warm seeds 42/43/44                               | **3/3完了・監査済み**           | int16 pair `0.60722845 / 0.60632165 / 0.60722845`。median代表seed 42                                                                                                         |
+| scratch seeds 42/43/44                            | **3/3完了・監査済み**           | int16 pair `0.60185245 / 0.59887298 / 0.60243539`。median代表seed 42                                                                                                         |
+| provisional candidate                             | **選択済み・gate不合格**        | warm 42。checkpoint `96863352…e51` / export `8b82fd1a…0565` / report `031991dc…88c`                                                                                          |
+| selection audit                                   | **fail・固定済み**              | 27,430 bytes / `f8a8dc83…a27ae`。7モデルのexport/report再生成一致。4 gate中pair対stableとtop-1量子化差だけpass。top-1対stableとpair量子化差がfail。candidate receiptは未発行 |
+| exact-row sealed final holdout                    | **未開封**                      | `labels_read: false` / `sealed_not_opened`。selection不合格後は読まない                                                                                                      |
+| general / opening retention                       | **selection不合格のため未実施** | 後段へ進めない                                                                                                                                                               |
+| `P*8f` regression suite                           | **selection不合格のため未実施** | 後段へ進めない                                                                                                                                                               |
+| paired A/B                                        | **selection不合格のため未実施** | 384局 / 192 color-swapped pairsは開始していない                                                                                                                              |
+| production browser                                | **selection不合格のため未実施** | candidateをproduction経路へ載せていない                                                                                                                                      |
+| production promotion                              | **不採用**                      | productionはrunOp1を継続                                                                                                                                                     |
 
 後段の空欄は0でも秘密でもない。selectionで止めたため測定自体を行っていないという意味である。失敗candidateのholdoutやA/Bだけを見て次の設定を選ぶことはしない。
 

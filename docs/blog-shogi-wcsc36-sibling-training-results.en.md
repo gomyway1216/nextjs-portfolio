@@ -280,7 +280,7 @@ At model-selection completion, at least these identities are saved:
 - Model-selection report bytes / SHA-256
 - Exact six result identities (three warm + three scratch) and run-plan SHA-256
 
-Only after that candidate identity is immutable and every selection gate passes may stable runOp1 and the candidate be evaluated together on the final-holdout JSONL, once. The completed `shogi-sibling-six-run-selection-audit-v1` strict-decodes all six result markers, artifact identities, int16 reports, ordering rules, and stable comparison. It is 10,584 bytes with SHA-256 `8dd4c5e55fadb7f174716bcb2935f92c0ed3bc41127e89695ed6da560b3fc19d`.
+Only after that candidate identity is immutable and every selection gate passes may stable runOp1 and the candidate be evaluated together on the final-holdout JSONL, once. The completed `shogi-sibling-six-run-selection-audit-v1` strict-decodes all six result markers, artifact identities, int16 reports, ordering rules, and stable comparison. It also regenerates all six candidate exports/reports plus stable from the fixed venv and clean exporter/evaluator, requiring byte-exact weights/metadata and exact float/int16 metrics and core provenance. The 27,430-byte audit has SHA-256 `f8a8dc8388e0937cbbfe430e015bc468bb2c127c2c783ddf0690f514e11a27ae`.
 
 Because two selection gates failed, that audit records `not_emitted_selection_gate_failed`; no `shogi-sibling-candidate-selection-receipt-v1` was emitted. It also records `final_holdout.status = sealed_not_opened` and `labels_read = false`. The evaluator continues to reject the `final-holdout` role. This is a selection failure, not a failed holdout, because the holdout was never read.
 
@@ -381,7 +381,7 @@ The [81Dojo Terms of Use](https://81dojo.com/en/terms.html) require a `COM_*` sp
 | warm seeds 42/43/44                               | **Complete**                         | int16 pair `0.607228 / 0.606322 / 0.607228`; median representative seed 42                                                                                           |
 | scratch seeds 42/43/44                            | **Complete**                         | int16 pair `0.601852 / 0.598873 / 0.602435`; median representative seed 42                                                                                           |
 | provisional candidate                             | **Selected, then rejected by gates** | warm 42 checkpoint `96863352…`, export `8b82fd1a…`; pair beats stable, top-1 and pair-quantization gates fail                                                        |
-| selection audit                                   | **Confirmed failure receipt**        | 10,584 bytes / `8dd4c5e5…fc19d`; no success candidate receipt emitted                                                                                                |
+| selection audit                                   | **Confirmed failure receipt**        | 27,430 bytes / `f8a8dc83…a27ae`; seven-model export/report reproduction exact; no success candidate receipt emitted                                                  |
 | exact-row final holdout                           | **Unopened; rejected in code**       | audit says `sealed_not_opened`, `labels_read=false`; no result exists                                                                                                |
 | general / opening retention                       | **Not run**                          | compare three preregistered metrics with stable                                                                                                                      |
 | `P*8f` regression suite                           | **Not run**                          | static, depth 11/12, and nine timed runs                                                                                                                             |
@@ -405,7 +405,7 @@ The intermediate result is not a weight file. It is the removal of convenient es
 - The nonpublishing audit pinned per-role exposure removals at 307 parents/3,642 rows, 64/762, 49/588, and seven unmatched IDs
 - Parent↔child cross-semantic leakage was found, so base train is no longer consumed directly
 - All six sealed runs completed. Warm consistently exceeded scratch on pair/top-1, but the median warm seed still failed stable top-1 and the fixed quantization-delta limit
-- The 10,584-byte selection audit binds the provisional warm-42 identity and records that no success candidate receipt was emitted; holdout labels remain unread
+- The 27,430-byte selection audit binds the provisional warm-42 identity, reproduces all seven exports/reports exactly, and records that no success candidate receipt was emitted; holdout labels remain unread
 
 None proves stronger play. They do make it harder to excuse a weaker model with an aggregate metric or a tiny match.
 

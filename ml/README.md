@@ -338,15 +338,27 @@ python3 ml/sibling_selection_audit.py \
   --run-plan ml/protocols/wcsc36-six-run-plan.json \
   --stable-checkpoint /absolute/path/to/runOp1-best.pt \
   --stable-selection-report ml/runs/wcsc36-six-run/stable-int16-selection.json \
+  --evidence-python /absolute/path/to/sealed/venv/bin/python \
+  --selection-data ml/data/wcsc36/siblings.model-selection.jsonl \
+  --sibling-manifest /absolute/path/to/full-depth16-v6/manifest.json \
+  --validation-partition-manifest ml/data/wcsc36/sibling-eval-partition-manifest.json \
+  --policy-exposure-receipt ml/protocols/wcsc36-policy-exposure-receipt.json \
+  --policy-exposed-parent-ids ml/protocols/wcsc36-policy-exposed-parent-ids.txt \
+  --policy-exposed-semantic-position-ids ml/protocols/wcsc36-policy-exposed-semantic-position-ids.txt \
+  --holdout-protected-position-ids ml/data/wcsc36/final-holdout-position-ids.txt \
+  --stable-weights ml/runs/wcsc36-six-run/stable-int16/weights.bin \
+  --stable-weights-meta ml/runs/wcsc36-six-run/stable-int16/weights.meta.json \
   --pipeline-revision "$(git rev-parse HEAD)" \
   --out ml/protocols/wcsc36-six-run-selection-audit.json
 ```
 
 実行済み6 runのmedian代表はwarm seed 42 / scratch seed 42、暫定candidateはwarm seed 42となった。
 しかしint16 top-1がstable未満（`0.2639296 < 0.2668622`）で、float→int16 pair低下の絶対値も
-上限を超えた（`0.0027204 > 0.002`）。そのため10,584-byte audit
-`8dd4c5e55fadb7f174716bcb2935f92c0ed3bc41127e89695ed6da560b3fc19d`は
+上限を超えた（`0.0027204 > 0.002`）。そのため27,430-byte audit
+`f8a8dc8388e0937cbbfe430e015bc468bb2c127c2c783ddf0690f514e11a27ae`は
 `not_emitted_selection_gate_failed`と`sealed_not_opened`を記録し、成功candidate receiptを生成しない。
+同auditは固定exporter/evaluatorから6候補＋stableを再生成し、全weights/metaのbyte一致と
+float/int16 metrics・core provenance一致も記録する。
 結果のよい別seedへ差し替えず、次は別planとしてint16-aware学習を事前登録する。
 
 `--sibling-manifest`とpartition manifestはv6 policy、clean pipeline revision、runtime snapshot、

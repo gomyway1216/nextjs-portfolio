@@ -133,8 +133,8 @@ export interface SiblingPolicyExposureContract {
 
 export const SIBLING_POLICY_EXPOSURE_CONTRACT: Readonly<SiblingPolicyExposureContract> =
   Object.freeze({
-    receiptBytes: 3_907,
-    receiptSha256: '000811b307284998d7de311954b15a618179a4d9318e1600031bd15991fe3e4b',
+    receiptBytes: 4_111,
+    receiptSha256: '083a86e48f1af134b854cdf0e505f0f39cc55ef75d5cbbc0df47c3e1c5013a6f',
     parentIdsFormat: SIBLING_POLICY_EXPOSED_PARENT_IDS_FORMAT,
     parentIdsBytes: 7_344,
     parentIdsSha256: '2e634e5968516f243998de98c5f80d2abb674e8b9841655a3b4735df892e2d10',
@@ -145,9 +145,15 @@ export const SIBLING_POLICY_EXPOSURE_CONTRACT: Readonly<SiblingPolicyExposureCon
     semanticIdsSha256: '8c696e8d1d426d9efdffb112004f37a37359f22a903bc34d2c4e7621e02a6bdd',
     semanticIdsCount: 1_392,
     semanticIdentifiersSha256: '31d2b9f60421f540880037efed9571bd034a986163cd79d2e51f2336544cba70',
-    // Filled only after the full depth-16 manifest has been partitioned and
-    // independently audited. Null deliberately makes publication fail closed.
-    roleAccounting: null,
+    roleAccounting: Object.freeze({
+      trainingParents: 307,
+      trainingRecords: 3_642,
+      selectionParents: 64,
+      selectionRecords: 762,
+      holdoutParents: 49,
+      holdoutRecords: 588,
+      unmatchedParentIds: 7,
+    }),
   });
 
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;

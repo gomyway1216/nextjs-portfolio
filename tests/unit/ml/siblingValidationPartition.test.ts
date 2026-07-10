@@ -569,16 +569,24 @@ describe('sealed sibling validation game ranking', () => {
         '778d7ffcd536367dcefbd1a93785c9a8c62b00504b9461a95fd1653b4fdd3b55',
     });
     expect(SIBLING_POLICY_EXPOSURE_CONTRACT).toMatchObject({
-      receiptBytes: 3_907,
+      receiptBytes: 4_111,
       receiptSha256:
-        '000811b307284998d7de311954b15a618179a4d9318e1600031bd15991fe3e4b',
+        '083a86e48f1af134b854cdf0e505f0f39cc55ef75d5cbbc0df47c3e1c5013a6f',
       parentIdsCount: 102,
       parentIdentifiersSha256:
         '77ea294f0237ca089f5fd4df64242ab9cf9f62f5a134196ac98fc9114ceebdd3',
       semanticIdsCount: 1_392,
       semanticIdentifiersSha256:
         '31d2b9f60421f540880037efed9571bd034a986163cd79d2e51f2336544cba70',
-      roleAccounting: null,
+      roleAccounting: {
+        trainingParents: 307,
+        trainingRecords: 3_642,
+        selectionParents: 64,
+        selectionRecords: 762,
+        holdoutParents: 49,
+        holdoutRecords: 588,
+        unmatchedParentIds: 7,
+      },
     });
     const receipt = await fs.promises.readFile(
       path.resolve('ml/protocols/wcsc36-policy-exposure-receipt.json')

@@ -393,7 +393,7 @@ def verify_sibling_validation_partition(*args, **kwargs):
 
 
 class SiblingManifestTest(unittest.TestCase):
-    def test_production_policy_receipt_blocks_python_while_role_audit_is_null(self):
+    def test_production_policy_receipt_matches_pinned_role_audit(self):
         receipt_path = os.path.join(
             ML_DIR, "protocols", "wcsc36-policy-exposure-receipt.json"
         )
@@ -401,13 +401,15 @@ class SiblingManifestTest(unittest.TestCase):
             sibling_manifest_module,
             "POLICY_EXPOSURE_CONTRACT",
             PRODUCTION_POLICY_EXPOSURE_CONTRACT,
-        ), self.assertRaisesRegex(
-            SiblingManifestError, "role accounting is not pinned"
         ):
-            load_policy_exposure_receipt(
+            receipt = load_policy_exposure_receipt(
                 receipt_path,
                 expected=PRODUCTION_POLICY_EXPOSURE_CONTRACT["receipt"],
             )
+        self.assertEqual(
+            receipt["role_accounting"],
+            PRODUCTION_POLICY_EXPOSURE_CONTRACT["role_accounting"],
+        )
 
     def test_accepts_v6_policy_contract_and_binds_requested_files(self):
         with tempfile.TemporaryDirectory() as tmp:

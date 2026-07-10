@@ -180,8 +180,10 @@ full sibling manifest完成後、そのままのtrain/valを学習へ渡さな�
 hard-case、repeat、node-policy診断を含むLane A workは全28局に触れている。現行tracked receiptは
 102 parent IDsと`position_id ∪ child_position_id`の1,392 semantic IDsを別々のsorted/unique/LF fileへ
 固定する。parent IDまたは兄弟group内のsemantic IDが1つでも一致すれば、そのgroup全体をtraining /
-selection / holdoutすべてから先に除外する。role別parent/row/unmatched countsはfull teacherを同じpartition
-logicでauditするまで`role_accounting: null`であり、通常publishとPython consumerはfail-closedする。
+selection / holdoutすべてから先に除外する。full teacherを同じpartition logicでauditした結果、除外対象は
+training 307親 / 3,642行、selection 64親 / 762行、holdout 49親 / 588行、full teacherに現れない
+exposed parent IDは7件だった。この値とreceipt 4,111 bytes / SHA-256
+`083a86e48f1af134b854cdf0e505f0f39cc55ef75d5cbbc0df47c3e1c5013a6f`を固定した。
 このためgame-level未見とは呼ばず、PR4A以降のexact-row sealだけを主張する。そのうえでvalidation 7局を固定
 domain `shogi-sibling-eval-partition-v1`、seed `wcsc36-d16-v6-eval-v1`でmodel selection
 4局 / final holdout 3局へ分ける。`position_id ∪ child_position_id`をsemantic identityとし、
@@ -189,8 +191,8 @@ holdoutとselectionが重なればholdoutを優先する。さらにselection+ho
 重なるtraining親も親グループ単位で落とし、21 training gamesを保った`model_training`を作る。
 
 ```sh
-# role_accountingがnullの間: 同じpartition logicでobserved JSONだけを出す。
-# artifactは公開せずexit 2になる。
+# role_accountingを固定する前のaudit履歴: observed JSONだけを出し、
+# artifactは公開せずexit 2になった。pin後の再auditも常に非publishである。
 node -r tsx/cjs ml/partition-sibling-validation.ts \
   --source-train ml/data/wcsc36/siblings.train.jsonl \
   --source-val ml/data/wcsc36/siblings.val.jsonl \

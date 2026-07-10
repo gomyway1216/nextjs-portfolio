@@ -9,7 +9,15 @@
     "sha256": "2e634e5968516f243998de98c5f80d2abb674e8b9841655a3b4735df892e2d10"
   },
   "policy_decision": "wcsc36-depth16-lane-a-v1",
-  "role_accounting": null,
+  "role_accounting": {
+    "holdout_parents": 49,
+    "holdout_records": 588,
+    "selection_parents": 64,
+    "selection_records": 762,
+    "training_parents": 307,
+    "training_records": 3642,
+    "unmatched_parent_ids": 7
+  },
   "schema": "shogi-policy-exposure-receipt-v1",
   "semantic_position_ids": {
     "bytes": 100224,

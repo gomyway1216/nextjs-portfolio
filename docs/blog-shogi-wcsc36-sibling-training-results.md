@@ -8,7 +8,7 @@
 
 - Lane Aはfixed depth 16、MultiPV 12、12 engines、Hash 64 MiB、1探索600秒を最終teacher policyに選んだ。fresh full runはclean revisionから完了し、3,112 selected = 3,106 completed + 6 skippedをmanifestで確定した。36,365 candidate records、train 23,813行、val 8,761行である。partitionerはraw SHA-256、全entry accounting、teacher revision、strict search map、engine/eval/completionとbase manifest SHA-256を検証し、n=100 pilotをfull teacherとして受理しない
 - clean n=100 pilotだけでなくLane Aのhard-case/repeat/node-policy workも含め、tracked receiptは102 parent IDs / 1,392 semantic IDsへ拡張した。parentまたはsemantic接触groupを全roleから先に除外する
-- 元のvalidation 7局はfixed depth-16 domain・seedによるSHA-256順位でmodel selection 4局とfinal holdout 3局へ分ける。depth-18由来seedの旧416 / 339親は現行値として使わず、102 parent / 1,392 semantic exposureを含む同じpartition auditがrole別件数を確定するまでは`TBD`である
+- 元のvalidation 7局はfixed depth-16 domain・seedによるSHA-256順位でmodel selection 4局とfinal holdout 3局へ分ける。同じ実装による非公開auditは、Lane A exposure除外をtraining 307親 / 3,642行、selection 64親 / 762行、holdout 49親 / 588行、unmatched parent IDs 7件と確定した。旧416 / 339親は現行値として使わない
 - semantic identityは`position_id ∪ child_position_id`。Lane A exposure除外後、holdoutとselectionが衝突すればholdoutが勝ち、evaluation全体とtrainingが衝突すればevaluationが勝つ。常に**親グループ全体**を落とす
 - sealed 6-run seriesのdeviceは`cpu`に固定した。native MPSは`aten::_embedding_bag`で即失敗し、MPS fallbackは同じsmoke metricsでもCPUより平均42%遅く毎回warningを出したため採用しない
 - 学習プロセスはfinal-holdout JSONLを引数に取らない。事前登録済みcandidate receipt schemaを実artifact生成・評価gateへ接続しcandidate hashを固定する別PRまで、final-holdout評価はコード上も禁止する。現在のhashと結果は`TBD`であり、未開封である
@@ -92,7 +92,7 @@ depth 16は1,331,739,463 nodes、depth 18は3,291,077,196 nodesで、後者は2.
 
 fixed nodesも代替にならなかった。1,000,000 nodesではbestmove / PV1不足、2,000,000 nodesではn=100のduplicate PVが発生し、問題親も2つのうち1つしか完了しなかった。したがってnode上限を品質保証と誤認せず、fixed depth 16を採用した。
 
-最終contractはfixed depth 16、proposal MultiPV 12、12 engines、Hash 64 MiB、1探索600秒である。2026-07-10 16:37:45 UTC、clean revision `8e376e887fac19fb31c07f147e17e84b1d5fc4b2`から、専用directory `ml/data/wcsc36/full-depth16-v6-8e376e8/`へ0親でfresh full runを開始し、5,354.31秒でexit 0になった。manifestは3,112 selected entryを3,106 completed / 6 skippedへ完全accountし、36,365 candidate records、21 train games / 7 val games、全overlap 0を記録した。trainは23,813行・20,286,990 bytes・SHA-256 `909f12a503c240b5bf73bc3f7552d1df525531fc7b2b1b6e1dce2fdef70ad70a`、valは8,761行・7,422,900 bytes・SHA-256 `5a2435df0c995a325ed3b4584355aa716dd1c91af7e3099413bb34f99e9ac401`、workは43,197,235 bytes・SHA-256 `f183d40326192813070b17a963b489776c62c3bad4c9223f840ecb371b21fec5`、manifestは4,895 bytes・SHA-256 `3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc`である。partition/role auditと学習はまだ未実施で、production weightも変更していない。
+最終contractはfixed depth 16、proposal MultiPV 12、12 engines、Hash 64 MiB、1探索600秒である。2026-07-10 16:37:45 UTC、clean revision `8e376e887fac19fb31c07f147e17e84b1d5fc4b2`から、専用directory `ml/data/wcsc36/full-depth16-v6-8e376e8/`へ0親でfresh full runを開始し、5,354.31秒でexit 0になった。manifestは3,112 selected entryを3,106 completed / 6 skippedへ完全accountし、36,365 candidate records、21 train games / 7 val games、全overlap 0を記録した。trainは23,813行・20,286,990 bytes・SHA-256 `909f12a503c240b5bf73bc3f7552d1df525531fc7b2b1b6e1dce2fdef70ad70a`、valは8,761行・7,422,900 bytes・SHA-256 `5a2435df0c995a325ed3b4584355aa716dd1c91af7e3099413bb34f99e9ac401`、workは43,197,235 bytes・SHA-256 `f183d40326192813070b17a963b489776c62c3bad4c9223f840ecb371b21fec5`、manifestは4,895 bytes・SHA-256 `3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc`である。role auditは非公開で完了したがpartition成果物と学習はまだ未実施で、production weightも変更していない。
 
 ---
 
@@ -116,14 +116,14 @@ digest bytesの昇順、同じdigestなら`game_id`のUTF-8 bytes昇順とし、
 
 | role | games | raw parents | 用途 |
 |---|---:|---:|---|
-| model training source | 21 | `TBD`（audit） | Lane A exposureとsemantic conflict除外後にwarm/scratchへ渡す |
-| model selection | 4 | `TBD`（audit） | epoch/checkpoint/series選択に使用 |
-| final holdout | 3 | `TBD`（audit） | candidate receipt後だけ評価 |
-| validation total | 7 | full manifestに固定、role内訳はaudit待ち | 4局 + 3局 |
+| model training source | 21 | `TBD`（partition publish） | Lane A exposureとsemantic conflict除外後にwarm/scratchへ渡す |
+| model selection | 4 | `TBD`（partition publish） | epoch/checkpoint/series選択に使用 |
+| final holdout | 3 | `TBD`（partition publish） | candidate receipt後だけ評価 |
+| validation total | 7 | full manifestに固定、role内訳はpublish待ち | 4局 + 3局 |
 
 game assignmentはcpやrankを見ず、game IDとdepth-16用の固定hashだけで決める。depth-18由来seedで得た旧416 / 339親や、以前の100親だけを70 / 15 / 15親、830 / 180 / 180行へ割り振った表は診断履歴であり、現行のrole accountingではない。depth選択pilotだけでなくhard-case、repeat、node-policy診断を含むLane A workが全28局へ触れているため、「3局を初めて開く」「game-level untouched」とも記載しない。
 
-現行tracked receiptは、Lane Aで実際にcommitされた全workから102 parent IDsと`position_id ∪ child_position_id`の1,392 semantic IDsを導出する。2つのsorted/unique/LF-terminated ID fileとreceipt自体をそれぞれSHA-256で固定する。partitionはparent IDが一致するか、兄弟group内のposition/childがsemantic receiptへ1つでも触れた場合、group全体をtraining、selection、holdoutの全roleから先に除外する。role別のparent/row/unmatched exact countsはfull depth-16 partitionの同じ実装を`--audit-policy-exposure`で走らせて得るまでは`role_accounting: null`であり、通常publishとPython consumerはfail-closedする。保証できるのは、この除外後のholdout行とcandidate選択の間に設ける**PR4A以降のexact-row seal**だけであり、teacher constructionから独立したholdoutではない。
+現行tracked receiptは、Lane Aで実際にcommitされた全workから102 parent IDsと`position_id ∪ child_position_id`の1,392 semantic IDsを導出する。2つのsorted/unique/LF-terminated ID fileとreceipt自体をそれぞれSHA-256で固定する。partitionはparent IDが一致するか、兄弟group内のposition/childがsemantic receiptへ1つでも触れた場合、group全体をtraining、selection、holdoutの全roleから先に除外する。clean HEADでの`--audit-policy-exposure`はartifactを公開せずexit 2となり、training 307親 / 3,642行、selection 64親 / 762行、holdout 49親 / 588行、unmatched parent IDs 7件を返した。この値をreceipt（4,111 bytes、SHA-256 `083a86e48f1af134b854cdf0e505f0f39cc55ef75d5cbbc0df47c3e1c5013a6f`）とTS/Python contractへ固定した。保証できるのは、この除外後のholdout行とcandidate選択の間に設ける**PR4A以降のexact-row seal**だけであり、teacher constructionから独立したholdoutではない。
 
 ### 3.2 auditで見つかった、同種比較だけでは足りない漏洩
 
@@ -354,7 +354,7 @@ A/Bはcandidate対stableを384局、つまり192のcolor-swapped opening pairs�
 | final-policy fresh full teacher | **確認済み・完了** | exit 0、5,354.31秒。3,112 selected = 3,106 completed + 6 skipped、36,365 candidates、21/7 games、overlap 0 |
 | full teacher manifest / train / val / work hashes | **確認済み** | manifest `3381e238…` / train `909f12a5…` / val `5a2435df…` / work `f183d403…`。bytesと行数は本文に記録 |
 | sealed partition manifest / 5 artifacts hashes | **未実施** | `TBD` — full manifest完成後に実行 |
-| policy exposure receipt | **集合実装済み・role audit待ち** | 102 parent IDs / 1,392 semantic IDs。role countsはfull partition完了まで`null`でpublish禁止 |
+| policy exposure receipt | **audit・固定済み** | 102 parent / 1,392 semantic IDs。除外はtraining 307親/3,642行、selection 64/762、holdout 49/588、unmatched 7 |
 | model-training cross-semantic isolation | **実装・テスト済み** | Lane A exposure除外後にevaluation union優先、親単位drop、21局必須 |
 | 外部高段校正 | **計画のみ・未許可** | 81DojoのCOM account / 公式app制約を確認。candidate/time control/pairing/min games/stability ruleは実施前に別途固定 |
 | warm seeds 42/43/44 | **未実施** | `TBD` checkpoint/report hashes |
@@ -380,10 +380,11 @@ A/Bはcandidate対stableを384局、つまり192のcolor-swapped opening pairs�
 - final-policy fresh full runはclean revisionからexit 0で完了し、3,112 selected entry、3,106 completed、6 skippedとtrain/val/work/manifest bytes・hashをcommit markerへ固定した
 - holdout 3局のassignmentは固定したが、pilotが全28局へ触れていた事実を発見し、game-level未見という主張を撤回した
 - Lane A全workの102 parent / 1,392 semantic ID exposureを全roleから除き、PR4A以降のexact-row sealへ限定した
+- 非公開auditでrole別の露出除外を307親/3,642行、64/762、49/588、unmatched 7件に固定した
 - parent↔childのcross-semantic漏洩を見つけ、base trainを直接使わないようにした
 - training processからholdout labelsを外し、candidate-selection receipt実装まではfinal-holdout評価も禁止した
 - warm/scratchの試行数、median candidate、数値gateを先に固定した
 
 これらは「強くなった」証拠ではない。しかし、弱くなったモデルを平均値や小さなA/Bで正当化しにくくする証拠ではある。
 
-次の更新で書けるのは、policy/semantic dropのrole accountingとpartition hashes、6 training curves、candidate-selection receipt、凍結candidate、exact-row holdout、retention、既知回帰、384局区間、browser結果である。すべて揃い、かつ全ゲートを通るまでproductionはrunOp1のままにする。
+次の更新で書けるのは、partition hashes、6 training curves、candidate-selection receipt、凍結candidate、exact-row holdout、retention、既知回帰、384局区間、browser結果である。すべて揃い、かつ全ゲートを通るまでproductionはrunOp1のままにする。

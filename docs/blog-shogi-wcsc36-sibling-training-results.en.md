@@ -8,7 +8,7 @@
 
 - Lane A selected fixed depth 16, MultiPV 12, 12 engines, 64 MiB Hash, and a 600-second per-search ceiling as the final teacher policy. A fresh full run completed from a clean revision and its manifest accounts for 3,112 selected = 3,106 completed + 6 skipped, with 36,365 candidate records, 23,813 train rows, and 8,761 validation rows. The partitioner pins raw SHA-256, complete entry accounting, generator revision, strict search map, engine/eval identities, completion accounting, and base-manifest SHA-256; it rejects n=100 as a full teacher
 - The tracked receipt covers every committed depth-selection, hard-case, repeat, and node-policy Lane A artifact: 102 parent IDs and 1,392 semantic IDs. A parent or semantic touch removes the whole sibling group from every role
-- A fixed depth-16 domain and seed rank the seven validation games into four selection and three holdout games. The old 416 / 339-parent split came from the depth-18-derived seed and is not reused as a current count; all role counts stay `TBD` until the same partition audit fills `role_accounting`
+- A fixed depth-16 domain and seed rank the seven validation games into four selection and three holdout games. The same implementation's nonpublishing audit fixed Lane A exposure removals at 307 parents / 3,642 rows for training, 64 / 762 for selection, 49 / 588 for holdout, and seven unmatched parent IDs. The old 416 / 339-parent split is not reused
 - Semantic identity is `position_id ∪ child_position_id`. After Lane A exposure exclusion, holdout wins a holdout/selection conflict and the evaluation union wins a conflict with training. A complete **parent group** is dropped, never an individual candidate row
 - The sealed six-run series fixes `cpu` as the device. Native MPS fails immediately at `aten::_embedding_bag`; MPS fallback produced the same smoke metrics but averaged 42% slower than CPU and warned on every run
 - The training process receives no final-holdout JSONL path. Final-holdout evaluation is also rejected in code until a separate PR produces the preregistered candidate-selection receipt, connects it to the gates, and freezes the candidate hash. Its hashes and results remain `TBD` and unopened
@@ -92,7 +92,7 @@ Depth 16 used 1,331,739,463 nodes versus 3,291,077,196 at depth 18, a 2.4713× c
 
 Fixed-node policies were not substitutes. One million nodes missed bestmove / PV1; two million nodes produced duplicate PVs over n=100 and completed only one of the two difficult parents. A node cap was therefore not mislabeled as a quality guarantee; fixed depth 16 won.
 
-The final contract is fixed depth 16, proposal MultiPV 12, 12 engines, 64 MiB Hash, and 600 seconds per search. At 2026-07-10 16:37:45 UTC, a fresh full run started from parent zero at clean revision `8e376e887fac19fb31c07f147e17e84b1d5fc4b2`, in `ml/data/wcsc36/full-depth16-v6-8e376e8/`, and exited 0 after 5,354.31 seconds. Its manifest completely accounts for 3,112 selected entries as 3,106 completed / 6 skipped, with 36,365 candidate records, 21 train games / 7 validation games, and zero overlap. Train has 23,813 rows, 20,286,990 bytes, SHA-256 `909f12a503c240b5bf73bc3f7552d1df525531fc7b2b1b6e1dce2fdef70ad70a`; validation has 8,761 rows, 7,422,900 bytes, SHA-256 `5a2435df0c995a325ed3b4584355aa716dd1c91af7e3099413bb34f99e9ac401`; work has 43,197,235 bytes, SHA-256 `f183d40326192813070b17a963b489776c62c3bad4c9223f840ecb371b21fec5`; and the 4,895-byte manifest SHA-256 is `3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc`. Partition/role audit and training have not run, and production weights remain unchanged.
+The final contract is fixed depth 16, proposal MultiPV 12, 12 engines, 64 MiB Hash, and 600 seconds per search. At 2026-07-10 16:37:45 UTC, a fresh full run started from parent zero at clean revision `8e376e887fac19fb31c07f147e17e84b1d5fc4b2`, in `ml/data/wcsc36/full-depth16-v6-8e376e8/`, and exited 0 after 5,354.31 seconds. Its manifest completely accounts for 3,112 selected entries as 3,106 completed / 6 skipped, with 36,365 candidate records, 21 train games / 7 validation games, and zero overlap. Train has 23,813 rows, 20,286,990 bytes, SHA-256 `909f12a503c240b5bf73bc3f7552d1df525531fc7b2b1b6e1dce2fdef70ad70a`; validation has 8,761 rows, 7,422,900 bytes, SHA-256 `5a2435df0c995a325ed3b4584355aa716dd1c91af7e3099413bb34f99e9ac401`; work has 43,197,235 bytes, SHA-256 `f183d40326192813070b17a963b489776c62c3bad4c9223f840ecb371b21fec5`; and the 4,895-byte manifest SHA-256 is `3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc`. The role audit completed without publication; partition artifacts and training have not run, and production weights remain unchanged.
 
 ---
 
@@ -116,14 +116,14 @@ Before labeling, raw parent occurrences are assigned as follows.
 
 | Role | Games | Raw parents | Use |
 |---|---:|---:|---|
-| model-training source | 21 | `TBD` (audit) | passed to warm/scratch after Lane A and semantic exclusion |
-| model selection | 4 | `TBD` (audit) | used for epoch/checkpoint/series selection |
-| final holdout | 3 | `TBD` (audit) | evaluated only after a candidate receipt |
-| validation total | 7 | fixed by the full manifest; role counts await audit | four + three games |
+| model-training source | 21 | `TBD` (partition publish) | passed to warm/scratch after Lane A and semantic exclusion |
+| model selection | 4 | `TBD` (partition publish) | used for epoch/checkpoint/series selection |
+| final holdout | 3 | `TBD` (partition publish) | evaluated only after a candidate receipt |
+| validation total | 7 | fixed by the full manifest; role counts await publish | four + three games |
 
 Game assignment uses no cp or rank, only game ID and the fixed depth-16 hash. The old depth-18-seed 416 / 339-parent split and the table assigning only 100 pilot parents as 70 / 15 / 15 parents and 830 / 180 / 180 rows are diagnostic history, not current role accounting. Lane A includes the depth-selection pilot plus hard-case, repeat, and node-policy diagnostics spread across all 28 games, so the holdout cannot honestly be called “opened for the first time” or game-level untouched.
 
-The current tracked receipt unions every committed Lane A artifact: 102 parent IDs and 1,392 semantic IDs from `position_id ∪ child_position_id`. Two sorted, unique, LF-terminated ID files and the receipt itself are separately SHA-256-bound. A whole sibling group is removed from training, selection, or holdout if either its parent ID or any position/child ID touches that receipt. Exact per-role parent/row/unmatched counts remain `role_accounting: null` until the completed full depth-16 partition runs the same implementation in audit mode; ordinary publication and Python consumption fail closed until then. The defensible guarantee is only an **exact-row seal since PR4A**—not a holdout independent of teacher construction.
+The current tracked receipt unions every committed Lane A artifact: 102 parent IDs and 1,392 semantic IDs from `position_id ∪ child_position_id`. Two sorted, unique, LF-terminated ID files and the receipt itself are separately SHA-256-bound. A whole sibling group is removed from training, selection, or holdout if either its parent ID or any position/child ID touches that receipt. At a clean HEAD, `--audit-policy-exposure` published no artifact and exited 2 with 307 parents / 3,642 rows for training, 64 / 762 for selection, 49 / 588 for holdout, and seven unmatched parent IDs. Those values are now pinned in the receipt (4,111 bytes; SHA-256 `083a86e48f1af134b854cdf0e505f0f39cc55ef75d5cbbc0df47c3e1c5013a6f`) and the TypeScript/Python contracts. The defensible guarantee is only an **exact-row seal since PR4A**—not a holdout independent of teacher construction.
 
 ### 3.2 The audit found leakage that same-type comparisons missed
 
@@ -345,7 +345,7 @@ The [81Dojo Terms of Use](https://81dojo.com/en/terms.html) require a `COM_*` sp
 | fresh final-policy full teacher | **Confirmed, complete** | exit 0 after 5,354.31s; 3,112 selected = 3,106 completed + 6 skipped, 36,365 candidates, 21/7 games, zero overlap |
 | full teacher manifest / train / val / work hashes | **Confirmed** | manifest `3381e238…` / train `909f12a5…` / val `5a2435df…` / work `f183d403…`; bytes and row counts recorded above |
 | sealed partition manifest / five artifact hashes | **Not run** | `TBD` — run after full-manifest completion |
-| policy-exposure receipt | **Sets implemented; role audit pending** | 102 parent / 1,392 semantic IDs; publication blocked while exact role counts are `null` |
+| policy-exposure receipt | **Audited and pinned** | 102 parent / 1,392 semantic IDs; removals are training 307 parents/3,642 rows, selection 64/762, holdout 49/588, unmatched 7 |
 | model-training cross-semantic isolation | **Implemented and tested** | after Lane A exposure exclusion, evaluation union wins, whole-parent drop, 21 games required |
 | external high-dan calibration | **Plan only; not authorized** | confirmed 81Dojo COM-account / official-app constraints; candidate/time control/pairing/minimum games/stability rule must be frozen before play |
 | warm seeds 42/43/44 | **Not run** | `TBD` checkpoint/report hashes |
@@ -371,10 +371,11 @@ The intermediate result is not a weight file. It is the removal of convenient es
 - The final-policy fresh full run completed with exit 0 from a clean revision and committed 3,112 selected entries, 3,106 completed, six skipped, and all train/validation/work/manifest byte identities
 - The three holdout games were assigned deterministically, but the pilot had touched all 28 games, so the game-level-unseen claim was withdrawn
 - A tracked receipt removes every group touching the 102-parent / 1,392-semantic Lane A exposure union, limiting the claim to an exact-row seal since PR4A
+- The nonpublishing audit pinned per-role exposure removals at 307 parents/3,642 rows, 64/762, 49/588, and seven unmatched IDs
 - Parent↔child cross-semantic leakage was found, so base train is no longer consumed directly
 - Holdout labels were removed from training, and final-holdout evaluation is disabled until candidate-selection receipt support exists
 - The number of warm/scratch trials, median candidate, and numeric gates were fixed first
 
 None proves stronger play. They do make it harder to excuse a weaker model with an aggregate metric or a tiny match.
 
-The next update may report policy/semantic-drop role accounting and partition hashes, six training curves, candidate-selection receipt, frozen candidate, exact-row holdout, retention, known regression, the 384-game interval, and browser evidence. Until every item exists and every gate passes, production remains on runOp1.
+The next update may report partition hashes, six training curves, candidate-selection receipt, frozen candidate, exact-row holdout, retention, known regression, the 384-game interval, and browser evidence. Until every item exists and every gate passes, production remains on runOp1.

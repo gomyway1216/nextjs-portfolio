@@ -79,8 +79,8 @@ FULL_TEACHER_CONTRACT = {
 POLICY_EXPOSURE_CONTRACT = {
     "receipt": {
         "schema": POLICY_EXPOSURE_RECEIPT_SCHEMA,
-        "bytes": 3_907,
-        "sha256": "000811b307284998d7de311954b15a618179a4d9318e1600031bd15991fe3e4b",
+        "bytes": 4_111,
+        "sha256": "083a86e48f1af134b854cdf0e505f0f39cc55ef75d5cbbc0df47c3e1c5013a6f",
     },
     "parent_ids": {
         "format": POLICY_EXPOSED_PARENT_IDS_FORMAT,
@@ -96,8 +96,15 @@ POLICY_EXPOSURE_CONTRACT = {
         "count": 1_392,
         "identifiers_sha256": "31d2b9f60421f540880037efed9571bd034a986163cd79d2e51f2336544cba70",
     },
-    # Populated only after the completed full-teacher partition is audited.
-    "role_accounting": None,
+    "role_accounting": {
+        "training_parents": 307,
+        "training_records": 3_642,
+        "selection_parents": 64,
+        "selection_records": 762,
+        "holdout_parents": 49,
+        "holdout_records": 588,
+        "unmatched_parent_ids": 7,
+    },
 }
 LABEL_POLICY = (
     "initial-multipv-plus-played-independent-single-move-rescore-"

@@ -1,6 +1,6 @@
 # 6 runを完走しても「強くなった」とは言わない — WCSC36 sibling学習のselection不合格記録
 
-> [前編](./blog-shogi-wcsc36-sibling-training.md)では、強豪棋譜の実戦手を正解としてコピーせず、同じ親局面の候補を1手ずつ独立探索するv6教師を作った。本稿はその次の実験日誌である。depth 18 full attemptsはheavy tailで停止したため、別のLane A比較で最終policyをdepth 16へ固定し、fresh full run、sealed partition、warm/scratch各3 seedのexact 6 runまで完了した。結果を見る前に固定した規則ではwarm seed 42がprovisional candidateになったが、selection top-1とfloat→int16 pair差の2 gateに落ちた。そのためcandidate receiptを発行せず、final holdoutも開かず、productionはrunOp1のままにした。policy選択は全28局へ触れていたため、ここで保証するのはgame-levelの未見性ではなく、Lane A全workの102 parent / 1,392 semantic ID exposureを除いた**PR4A以降のexact-row seal**である。**これは棋力向上の発表ではなく、不採用判断の記録である。** English version: [blog-shogi-wcsc36-sibling-training-results.en.md](./blog-shogi-wcsc36-sibling-training-results.en.md)
+> [前編](./blog-shogi-wcsc36-sibling-training.md)では、強豪棋譜の実戦手を正解としてコピーせず、同じ親局面の候補を1手ずつ独立探索するv6教師を作った。本稿はその次の実験日誌である。depth 18 full attemptsはheavy tailで停止したため、別のLane A比較で最終policyをdepth 16へ固定し、fresh full run、sealed partition、warm/scratch各3 seedのexact 6 runまで完了した。結果を見る前に固定した規則ではwarm seed 42がprovisional candidateになったが、selection top-1とfloat→int16 pair差の2 gateに落ちた。そのためcandidate receiptを発行せず、final holdoutをseal後に評価せず、productionはrunOp1のままにした。policy選択は全28局へ触れていたため、ここで保証するのはgame-levelの未見性ではなく、Lane A全workの102 parent / 1,392 semantic ID exposureを除いた**PR4A以降のexact-row seal**である。**これは棋力向上の発表ではなく、不採用判断の記録である。** English version: [blog-shogi-wcsc36-sibling-training-results.en.md](./blog-shogi-wcsc36-sibling-training-results.en.md)
 
 ---
 
@@ -14,7 +14,7 @@
 - 学習プロセスはfinal-holdout JSONLを引数に取らない。warm-startとscratchをseed 42 / 43 / 44でexact 6 run完走し、全result/checkpoint/int16 export/report hashを監査した。6 run以外のseedや設定は追加していない
 - series内median代表はwarm seed 42とscratch seed 42、両者の比較でprovisional candidateはwarm seed 42になった。checkpoint SHA-256は`96863352…e51`、int16 exportは`8b82fd1a…0565`、selection reportは`031991dc…88c`である
 - provisional candidateのint16 pair accuracyは`0.6072284474`でstableの`0.6048966902`を上回ったが、top-1は`0.2639296188`でstableの`0.2668621701`を下回った。さらにfloat→int16 pair差の絶対値`0.0027203834`が上限`0.002`を超えた。事前登録した4 gate中2 gate失敗である
-- selection auditは`passed: false`、candidate receiptは`not_emitted_selection_gate_failed`、final holdoutは`labels_read: false` / `sealed_not_opened`である。採用後段のretention、`P*8f`、384局A/B、browserへは進まず、productionはrunOp1のままにした
+- selection auditは`passed: false`、candidate receiptは`not_emitted_selection_gate_failed`である。partition公開時はlabelを含む元validationを機械的にparseしたが、seal後の学習・selection audit・評価はholdout labelを読まず、`sealed_not_opened`で停止した。採用後段のretention、`P*8f`、384局A/B、browserへは進まず、productionはrunOp1のままにした
 - 次の実験はpost-hocにseedを入れ替えず、int16で使う形を学習中に意識するint16-aware training / QATを別planとして事前登録する
 
 ---
@@ -26,7 +26,7 @@
 - **確認済み**：保存済みbytes、hash、checkpoint行、または再現テストで確認した事実
 - **進行中**：固定した入力と契約でprocessが動いているが、commit markerであるmanifestがまだない
 - **事前登録済み**：結果を見る前に固定した選択規則・合格条件
-- **未実施**：holdout開封、A/B、browser採用確認など、まだ数字がない工程
+- **未実施**：seal後のholdout評価、A/B、browser採用確認など、まだ数字がない工程
 
 この区別では、「600秒depth-18 runは393親で停止した」「Lane Aでdepth 16を選んだ」「fresh depth-16 full teacherが3,112 entryをaccountした」「sealed 6 runを完走した」「warm seed 42が規則上のprovisional candidateになった」「selection 4 gate中2 gateに落ちた」は確認済みである。final holdout、retention、`P*8f`、384局A/B、browser採用確認は、selection不合格のため未実施のままである。
 
@@ -42,7 +42,7 @@
 2. training / model selection / final holdoutを再現可能に分離する
 3. final holdoutのラベルを学習processから物理的に外す
 4. warm/scratchの試行数と代表選択を固定する
-5. selection全gate合格時だけcandidate receiptとhashを凍結し、final holdoutを1回だけ開く
+5. selection全gate合格後、証拠再実行に結合したauthorizationを実装できたcandidateだけhashを凍結し、final holdoutを1回だけ評価する
 6. 棋力を名乗る条件を、量子化・回帰・対局・browserまで先に書く
 
 数字を見たあとで閾値を動かせば、どんなモデルにも都合のよい物語を作れる。ここでは、その自由を先に捨てた。実際には手順4まで進み、selection不合格によって手順5のreceipt発行前で停止した。
@@ -285,7 +285,7 @@ scratch代表seed 42のcheckpoint SHA-256は`c43b8c88ff08b18ea2d40972774729699e4
 
 ---
 
-## 6. candidate receiptを発行せず、holdoutも開かなかった
+## 6. candidate receiptを発行せず、holdoutをseal後評価しなかった
 
 model selectionを通った時点で、少なくとも次を保存する規則を先に固定した。
 
@@ -298,11 +298,11 @@ model selectionを通った時点で、少なくとも次を保存する規則�
 
 しかしprovisional warm 42は後述するselection gateを4つ中2つ失敗した。strict auditの状態は`passed: false`、candidate-selection receiptは`not_emitted_selection_gate_failed`である。したがって上のartifact hashは追跡可能なprovisional identityではあるが、`shogi-sibling-candidate-selection-receipt-v1`は発行していない。失敗後にwarm seed 44へ交換したり、別seedを追加したりもしなかった。
 
-selection auditは6 result marker、checkpoint、int16 export、selection report、stable比較を読み、provisional candidateとgate結果まで生成した。さらに固定venv・cleanなexporter/evaluatorから6候補＋stableの7モデルを再生成し、`weights.bin`とmetadataのbyte一致、float/int16 metrics、core provenanceの一致を確認した。clean revision `5be55a23a581ff61a30d80fe8d59d9a5f7750df0`を記録した最終strict audit JSONは27,430 bytes、SHA-256 `f8a8dc8388e0937cbbfe430e015bc468bb2c127c2c783ddf0690f514e11a27ae`である。状態は`not_emitted_selection_gate_failed`であり、成功candidate receiptではない。
+selection auditは6 result marker、checkpoint、int16 export、selection report、stable比較を読み、provisional candidateとgate結果まで生成した。さらに記録したローカルvenvとcleanなexporter/evaluatorから6候補＋stableの7モデルを再生成し、`weights.bin`とmetadataのbyte一致、float/int16 metrics、core provenanceの一致を確認した。6本の学習revisionは`d18d3c43677255c518dce83f4a53caf46057f878`へ固定し、resultとcheckpointのplan bytes/SHA・完全runtimeも一致させた。開始時と終了直前にcleanであることを確認したaudit revisionは`ff64a7e58fcde11518e2ecbab3950c6eb5ca6091`で、最終strict audit JSONは27,692 bytes、SHA-256 `c9b526d3f6329bc0630c628c7dc32bc1d2510bde145b79992e891e94f8b2f8b8`である。状態は`not_emitted_selection_gate_failed`であり、成功candidate receiptではない。venv全packageを再構築するlockまでは固定していないため、ここで証明するのは当時の記録環境でのexact reproductionである。
 
-final holdoutについてauditが記録したのは`labels_read: false`と`status: sealed_not_opened`だけである。3,391行のholdout labelを読んでいないので、selection失敗をholdoutの良し悪しで言い換えることも、次の設定選びへ流用することもできない。
+final holdoutの分割を公開した工程は、labelを含む元validation JSONLを機械的にparseして3,391行を出力した。したがって全pipelineについて「labelを一度も読んでいない」とは主張しない。auditが記録するのは`partition_publication_parsed_labeled_source_validation: true`、`post_seal_training_selection_or_evaluation_labels_read: false`、`status: sealed_not_opened`である。つまりseal後の学習・selection audit・evaluatorはholdout JSONLを入力に取らず、その指標を計算していない。これはOS権限による物理封印ではなく、指定pipelineのprotocol enforcementである。selection失敗をholdoutの良し悪しで言い換えたり、次の設定選びへ流用したりはしていない。
 
-将来、別の事前登録実験がselectionを通った場合の`shogi-sibling-candidate-selection-receipt-v1`は、6 runそれぞれのresult marker、checkpoint、int16 export（bytes/SHA/bucket数）、int16 selection report identityに加え、median-ranked seed strategy、selection metric/tie-break、selected series/seed/checkpoint、run-plan SHAをexact列挙する。match gateはselected exportと渡されたcandidateが同一で、candidateとstableが別identityであることを検証する。今回の不合格artifactをreceipt発行可能なcandidateへ格上げはしない。
+将来、別の事前登録実験がselectionを通った場合の`shogi-sibling-candidate-selection-receipt-v1`は、6 runそれぞれのresult marker、checkpoint、int16 export（bytes/SHA/bucket数）、int16 selection report identityに加え、median-ranked seed strategy、selection metric/tie-break、selected series/seed/checkpoint、run-plan SHAをexact列挙する。ただし自己申告JSONの構造・hashだけではauthorizationにしない。現在の公開validatorは常にfail-closedであり、固定clean code/runtime/inputから7件のexport/evaluationを再実行して得たin-memory auditとの完全一致を実装するまでholdoutを許可しない。今回の不合格artifactをreceipt発行可能なcandidateへ格上げはしない。
 
 ---
 
@@ -321,7 +321,7 @@ provisional candidateのfloat metricsはpair `0.6099488308828293`、top-1 `0.260
 
 candidateはpairでstableを約0.233 percentage point上回り、MAEも約4.90 cp小さかったが、top-1で約0.293 percentage point下回った。またint16化でpairが約0.272 percentage point動き、許容した0.2 pointを超えた。value MAEは代表candidateのtie-breakに使うが、pair/top-1の失敗をMAE改善で帳消しにはしない。この2 failによりselection全体は不合格である。
 
-### 7.2 PR4A以降exact-row sealed final holdout（不合格のため未開封）
+### 7.2 PR4A以降exact-row sealed final holdout（不合格のため未評価）
 
 candidate-selection receiptを発行できたcandidateに限り、int16 candidateがstableに対して次を**両方**満たすことを要求していた。
 
@@ -403,8 +403,8 @@ A/Bはcandidate対stableを384局、つまり192のcolor-swapped opening pairs�
 | warm seeds 42/43/44                               | **3/3完了・監査済み**           | int16 pair `0.60722845 / 0.60632165 / 0.60722845`。median代表seed 42                                                                                                         |
 | scratch seeds 42/43/44                            | **3/3完了・監査済み**           | int16 pair `0.60185245 / 0.59887298 / 0.60243539`。median代表seed 42                                                                                                         |
 | provisional candidate                             | **選択済み・gate不合格**        | warm 42。checkpoint `96863352…e51` / export `8b82fd1a…0565` / report `031991dc…88c`                                                                                          |
-| selection audit                                   | **fail・固定済み**              | 27,430 bytes / `f8a8dc83…a27ae`。7モデルのexport/report再生成一致。4 gate中pair対stableとtop-1量子化差だけpass。top-1対stableとpair量子化差がfail。candidate receiptは未発行 |
-| exact-row sealed final holdout                    | **未開封**                      | `labels_read: false` / `sealed_not_opened`。selection不合格後は読まない                                                                                                      |
+| selection audit                                   | **fail・固定済み**              | 27,692 bytes / `c9b526d3…2f8b8`。7モデルのexport/report再生成一致。4 gate中pair対stableとtop-1量子化差だけpass。top-1対stableとpair量子化差がfail。candidate receiptは未発行 |
+| exact-row sealed final holdout                    | **seal後未評価**                | partition公開時はlabeled sourceをparse。seal後の学習/selection/評価はlabel未読、`sealed_not_opened`                                                                          |
 | general / opening retention                       | **selection不合格のため未実施** | 後段へ進めない                                                                                                                                                               |
 | `P*8f` regression suite                           | **selection不合格のため未実施** | 後段へ進めない                                                                                                                                                               |
 | paired A/B                                        | **selection不合格のため未実施** | 384局 / 192 color-swapped pairsは開始していない                                                                                                                              |
@@ -430,7 +430,7 @@ A/Bはcandidate対stableを384局、つまり192のcolor-swapped opening pairs�
 - warm/scratchの試行数、median candidate、数値gateを先に固定した
 - exact 6 runを完走し、warm 42 / scratch 42を各seriesのmedian代表、warm 42をprovisional candidateと機械的に選んだ
 - provisional candidateはint16 pairではstableを上回ったが、int16 top-1では下回り、float→int16 pair差も上限を超えた
-- selection 4 gate中2 failの時点でcandidate receiptを発行せず、final holdout、retention、既知回帰、384局A/B、browserを開かなかった
+- selection 4 gate中2 failの時点でcandidate receiptを発行せず、final holdoutをseal後評価せず、retention、既知回帰、384局A/B、browserへ進まなかった
 
 これらは「強くなった」証拠ではない。しかし、pairだけを取り出せば改善しているcandidateを、top-1と量子化の失敗を隠してproductionへ上書きしなかった証拠ではある。
 

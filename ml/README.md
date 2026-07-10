@@ -323,14 +323,18 @@ checkpointと完走時だけ最後にatomic writeする`result.json`へ同じrun
 six-run plan自身にはGit revisionを埋め込まない。plan commit後のbytes hashを次commitでコード定数へ
 固定する2段階sealにし、自己参照を避ける。実行時はplan hash・tracked/unmodified planとは別に、
 worktree全体がcleanかつ`HEAD == --pipeline-revision`を検証し、そのexecution HEADをcheckpointと
-`result.json`へ記録する。
+`result.json`へ記録する。完走後auditは6 resultと6 checkpointの両方について、実行revision
+`d18d3c43677255c518dce83f4a53caf46057f878`、plan bytes/SHA、完全runtime receiptを固定値と照合する。
 全input/runtimeを埋めたplanは3,057 bytes / SHA-256
 `0e34262f77555897d92b01a3737c71057d8b90cc98cdcb2fe63ad24ec4dde070`で、planを先にcommitした後の
 別commitにある`SEALED_SIX_RUN_PLAN_SHA256`がexact bytesを固定する。
 model-selectionのint16 pair accuracy、top-1、value MAEの順で各seriesのmedian seedを選ぶ。
 6 runそれぞれのresult marker/checkpoint/int16 export/int16 selection report identity、median-ranked seed strategy、
-selection metrics/tie-break、selected checkpoint、run-plan SHAをexact検証するcandidate-selection共通schema/decoderを使い、
-完走後は次のauditをclean revisionから生成する。audit commandはfinal-holdout JSONLを引数に取らない。
+selection metrics/tie-break、selected checkpoint、run-plan SHAをauditでexact検証する。現時点のcandidate receipt decoderは
+自己申告された構造を検査するだけで、公開authorization APIは常にfail-closedである。将来holdoutを許可するには、固定入力と
+clean codeから6候補＋stableのexport/evaluationを再実行したin-memory auditとの完全一致を別途実装する。単にreceiptとauditの
+bytes/SHAを一緒に渡すだけでは許可しない。完走後は次のauditをclean revisionから生成する。audit commandはfinal-holdout JSONLを
+引数に取らず、開始時と書き込み直前の両方で同じclean HEADを検証する。
 
 ```sh
 python3 ml/sibling_selection_audit.py \
@@ -354,11 +358,12 @@ python3 ml/sibling_selection_audit.py \
 
 実行済み6 runのmedian代表はwarm seed 42 / scratch seed 42、暫定candidateはwarm seed 42となった。
 しかしint16 top-1がstable未満（`0.2639296 < 0.2668622`）で、float→int16 pair低下の絶対値も
-上限を超えた（`0.0027204 > 0.002`）。そのため27,430-byte audit
-`f8a8dc8388e0937cbbfe430e015bc468bb2c127c2c783ddf0690f514e11a27ae`は
+上限を超えた（`0.0027204 > 0.002`）。そのため27,692-byte audit
+`c9b526d3f6329bc0630c628c7dc32bc1d2510bde145b79992e891e94f8b2f8b8`は
 `not_emitted_selection_gate_failed`と`sealed_not_opened`を記録し、成功candidate receiptを生成しない。
-同auditは固定exporter/evaluatorから6候補＋stableを再生成し、全weights/metaのbyte一致と
-float/int16 metrics・core provenance一致も記録する。
+同auditは記録したローカルvenvと固定exporter/evaluatorから6候補＋stableを再生成し、全weights/metaのbyte一致と
+float/int16 metrics・core provenance一致も記録する。Python実行file/runtimeは記録しているが、venv全packageの
+再構築可能なlockまでは固定していないので、将来再現性の完全なenvironment sealとは呼ばない。
 結果のよい別seedへ差し替えず、次は別planとしてint16-aware学習を事前登録する。
 
 `--sibling-manifest`とpartition manifestはv6 policy、clean pipeline revision、runtime snapshot、

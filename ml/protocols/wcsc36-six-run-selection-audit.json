@@ -1,6 +1,6 @@
 {
   "audit_pipeline": {
-    "source_revision": "5be55a23a581ff61a30d80fe8d59d9a5f7750df0",
+    "source_revision": "ff64a7e58fcde11518e2ecbab3950c6eb5ca6091",
     "tracked_tree_clean": true
   },
   "candidate_metrics": {
@@ -40,14 +40,15 @@
     "interpreter": {
       "file": {
         "bytes": 52640,
-        "path": "/opt/homebrew/Cellar/python@3.13/3.13.0_1/Frameworks/Python.framework/Versions/3.13/bin/python3.13",
+        "scope": "external_input",
         "sha256": "48774227bf4f97efed9fab43d8033e466ed24a6d4d6cbd7f4a8cf3a544d81904"
       },
-      "launcher": "/Users/yudaiyaguchi/Desktop/projects/nextjs-portfolio/.claude/worktrees/agent-afa1520de4b7a4280/ml/venv/bin/python",
+      "launcher": {
+        "scope": "provided_local_venv"
+      },
       "runtime": {
         "machine": "arm64",
         "platform": "macOS-15.1-arm64-arm-64bit-Mach-O",
-        "python_executable": "/Users/yudaiyaguchi/Desktop/projects/nextjs-portfolio/.claude/worktrees/agent-afa1520de4b7a4280/ml/venv/bin/python",
         "python_implementation": "CPython",
         "python_version": "3.13.0",
         "torch_interop_threads": 14,
@@ -329,7 +330,7 @@
       {
         "checkpoint": {
           "bytes": 2375274,
-          "path": "/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/data/wcsc36/sealed-training-inputs/runOp1-best.pt",
+          "scope": "external_input",
           "sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8"
         },
         "export": {
@@ -401,7 +402,7 @@
       },
       "sibling_manifest": {
         "bytes": 4895,
-        "path": "/Users/yudaiyaguchi/.codex/worktrees/541a/nextjs-portfolio/ml/data/wcsc36/full-depth16-v6-8e376e8/manifest.json",
+        "scope": "external_input",
         "sha256": "3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc"
       },
       "validation_partition_manifest": {
@@ -418,9 +419,9 @@
         "sha256": "411fc30e1ccc5b51335d48fd778fe161cb327a8482be6e9afc9a8abdbf97a7e3"
       },
       "eval_tool": {
-        "bytes": 49134,
+        "bytes": 49684,
         "path": "ml/eval-sibling.py",
-        "sha256": "be323f07aafff0cf575d507c5b496b99592a03efaa727391e08469d2b7366e77"
+        "sha256": "f3433afc8df815adb5e14154c026e853bc60edd20b25225579c98d23bca61e7d"
       },
       "export_tool": {
         "bytes": 9999,
@@ -433,9 +434,9 @@
         "sha256": "0e4c19f546ec51e15afeb798d238a7f4f8533162e9113670cc12ff19c42f6657"
       },
       "sibling_selection_protocol_source": {
-        "bytes": 18876,
+        "bytes": 20627,
         "path": "ml/sibling_selection_protocol.py",
-        "sha256": "475daeccd5c37babe875cc130859d683f827a69aa1f935ff10c1da59c1877cd5"
+        "sha256": "d8adcf31d26cf50a6da0fc9e54884fb7982719221944550c0619cc40c5d3ac68"
       },
       "train_source": {
         "bytes": 116843,
@@ -445,7 +446,8 @@
     }
   },
   "final_holdout": {
-    "labels_read": false,
+    "partition_publication_parsed_labeled_source_validation": true,
+    "post_seal_training_selection_or_evaluation_labels_read": false,
     "status": "sealed_not_opened"
   },
   "provisional_candidate": {
@@ -722,5 +724,27 @@
       "path": "ml/runs/wcsc36-six-run/stable-int16-selection.json",
       "sha256": "c33ec91ede4cc63fe25be388ab2d3f7e6b478f2579e1ee2fc5a675ced33165bf"
     }
+  },
+  "training_pipeline": {
+    "source_revision": "d18d3c43677255c518dce83f4a53caf46057f878",
+    "tracked_tree_clean": true
+  },
+  "training_runtime": {
+    "cpu_model": "Apple M4 Pro",
+    "cuda_available": false,
+    "deterministic_algorithms": true,
+    "deterministic_debug_mode": "error",
+    "device": "cpu",
+    "logical_cpu_count": 14,
+    "machine": "arm64",
+    "mps_available": true,
+    "mps_built": true,
+    "platform": "macOS-15.1-arm64-arm-64bit-Mach-O",
+    "processor": "arm",
+    "python_version": "3.13.0",
+    "system": "Darwin",
+    "torch_interop_threads": 1,
+    "torch_threads": 2,
+    "torch_version": "2.12.1"
   }
 }

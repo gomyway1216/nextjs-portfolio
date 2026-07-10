@@ -1,6 +1,6 @@
 # Six Runs Completed, Still Not “Stronger” — The WCSC36 Sibling Selection Failure Record
 
-> The [previous report](./blog-shogi-wcsc36-sibling-training.en.md) stopped treating moves from strong games as answers and built a v6 teacher that searches each sibling candidate independently from the same parent. This experiment completed the fresh depth-16 teacher, sealed partition, and all six preregistered warm/scratch runs. The fixed rule selected warm seed 42 provisionally, but it failed top-1 and float-to-int16 pair-delta gates. I therefore emitted no candidate receipt, kept the final holdout closed, and left production on runOp1. Because Lane A work touched all 28 games, the guarantee is not game-level novelty; it is an **exact-row seal since PR4A** after excluding 102 exposed parents and 1,392 semantic position IDs. **This is a rejection record, not an announcement of improved playing strength.** 日本語版: [blog-shogi-wcsc36-sibling-training-results.md](./blog-shogi-wcsc36-sibling-training-results.md)
+> The [previous report](./blog-shogi-wcsc36-sibling-training.en.md) stopped treating moves from strong games as answers and built a v6 teacher that searches each sibling candidate independently from the same parent. This experiment completed the fresh depth-16 teacher, sealed partition, and all six preregistered warm/scratch runs. The fixed rule selected warm seed 42 provisionally, but it failed top-1 and float-to-int16 pair-delta gates. I therefore emitted no candidate receipt, performed no post-seal final-holdout evaluation, and left production on runOp1. Because Lane A work touched all 28 games, the guarantee is not game-level novelty; it is an **exact-row seal since PR4A** after excluding 102 exposed parents and 1,392 semantic position IDs. **This is a rejection record, not an announcement of improved playing strength.** 日本語版: [blog-shogi-wcsc36-sibling-training-results.md](./blog-shogi-wcsc36-sibling-training-results.md)
 
 ---
 
@@ -24,7 +24,7 @@ To keep an expectation in progress from turning into a completed result, I use f
 - **Confirmed**: a fact backed by saved bytes, a hash, a checkpoint line, or a reproducing test
 - **In progress**: a process is running with fixed inputs and contract, but its commit-marker manifest does not exist yet
 - **Preregistered**: a selection rule or passing condition fixed before seeing the result
-- **Not run**: training, holdout opening, A/B, browser adoption, or another stage with no result yet
+- **Not run**: post-seal holdout evaluation, A/B, browser adoption, or another stage with no result yet
 
 Under this vocabulary, the two stopped depth-18 attempts, the completed depth-16 teacher, all six training result markers, and the failed selection audit are confirmed. The final holdout, retention suites, 384-game match, and external calibration remain not run.
 
@@ -280,9 +280,9 @@ At model-selection completion, at least these identities are saved:
 - Model-selection report bytes / SHA-256
 - Exact six result identities (three warm + three scratch) and run-plan SHA-256
 
-Only after that candidate identity is immutable and every selection gate passes may stable runOp1 and the candidate be evaluated together on the final-holdout JSONL, once. The completed `shogi-sibling-six-run-selection-audit-v1` strict-decodes all six result markers, artifact identities, int16 reports, ordering rules, and stable comparison. It also regenerates all six candidate exports/reports plus stable from the fixed venv and clean exporter/evaluator, requiring byte-exact weights/metadata and exact float/int16 metrics and core provenance. The 27,430-byte audit has SHA-256 `f8a8dc8388e0937cbbfe430e015bc468bb2c127c2c783ddf0690f514e11a27ae`.
+Only after that candidate identity is immutable and every selection gate passes may stable runOp1 and the candidate be evaluated together on the final-holdout JSONL, once—and only after an evidence-bound authorization path is implemented. The completed `shogi-sibling-six-run-selection-audit-v1` strict-decodes all six result markers, artifact identities, int16 reports, ordering rules, and stable comparison. It also regenerates all six candidate exports/reports plus stable from the recorded local venv and clean exporter/evaluator, requiring byte-exact weights/metadata and exact float/int16 metrics and core provenance. The six training results and checkpoints are pinned to execution revision `d18d3c43677255c518dce83f4a53caf46057f878`, exact plan bytes/SHA, and the full runtime receipt. The audit pipeline was clean at both ends at `ff64a7e58fcde11518e2ecbab3950c6eb5ca6091`; the 27,692-byte audit has SHA-256 `c9b526d3f6329bc0630c628c7dc32bc1d2510bde145b79992e891e94f8b2f8b8`. It records the Python executable and runtime but not a reconstructible lock for every venv package, so this is exact reproduction in the recorded environment rather than a complete environment seal.
 
-Because two selection gates failed, that audit records `not_emitted_selection_gate_failed`; no `shogi-sibling-candidate-selection-receipt-v1` was emitted. It also records `final_holdout.status = sealed_not_opened` and `labels_read = false`. The evaluator continues to reject the `final-holdout` role. This is a selection failure, not a failed holdout, because the holdout was never read.
+Because two selection gates failed, that audit records `not_emitted_selection_gate_failed`; no `shogi-sibling-candidate-selection-receipt-v1` was emitted. Partition publication had mechanically parsed the labeled source-validation JSONL to create the 3,391 holdout rows, so this report does not claim that no process ever read labels. The audit instead records `partition_publication_parsed_labeled_source_validation = true`, `post_seal_training_selection_or_evaluation_labels_read = false`, and `status = sealed_not_opened`: after sealing, training, selection audit, and evaluation received no holdout JSONL and computed no holdout metrics. This is protocol enforcement, not an OS access-control seal. The evaluator continues to reject the `final-holdout` role, so this is a selection failure rather than a holdout result.
 
 ---
 
@@ -301,7 +301,7 @@ Value MAE breaks ties between representative candidates; it cannot compensate fo
 
 ### 7.2 Exact-row sealed since PR4A final holdout (evaluation currently disabled)
 
-Only after candidate-selection receipt support lands must the int16 candidate satisfy **both** conditions against stable:
+Only after an evidence-bound candidate authorization implementation lands must the int16 candidate satisfy **both** conditions against stable. The current public receipt validator always fails closed; a self-asserted audit/receipt hash cannot unlock the holdout:
 
 - Within-parent pair accuracy at least stable
 - Teacher top-1 accuracy at least stable
@@ -381,8 +381,8 @@ The [81Dojo Terms of Use](https://81dojo.com/en/terms.html) require a `COM_*` sp
 | warm seeds 42/43/44                               | **Complete**                         | int16 pair `0.607228 / 0.606322 / 0.607228`; median representative seed 42                                                                                           |
 | scratch seeds 42/43/44                            | **Complete**                         | int16 pair `0.601852 / 0.598873 / 0.602435`; median representative seed 42                                                                                           |
 | provisional candidate                             | **Selected, then rejected by gates** | warm 42 checkpoint `96863352…`, export `8b82fd1a…`; pair beats stable, top-1 and pair-quantization gates fail                                                        |
-| selection audit                                   | **Confirmed failure receipt**        | 27,430 bytes / `f8a8dc83…a27ae`; seven-model export/report reproduction exact; no success candidate receipt emitted                                                  |
-| exact-row final holdout                           | **Unopened; rejected in code**       | audit says `sealed_not_opened`, `labels_read=false`; no result exists                                                                                                |
+| selection audit                                   | **Confirmed failure receipt**        | 27,692 bytes / `c9b526d3…2f8b8`; seven-model export/report reproduction exact; no success candidate receipt emitted                                                  |
+| exact-row final holdout                           | **Not evaluated after sealing**      | publication parsed labeled source validation; post-seal training/selection/evaluation read no holdout labels; no result exists                                       |
 | general / opening retention                       | **Not run**                          | compare three preregistered metrics with stable                                                                                                                      |
 | `P*8f` regression suite                           | **Not run**                          | static, depth 11/12, and nine timed runs                                                                                                                             |
 | paired A/B                                        | **Not run**                          | 384 games / 192 color-swapped pairs                                                                                                                                  |
@@ -405,7 +405,7 @@ The intermediate result is not a weight file. It is the removal of convenient es
 - The nonpublishing audit pinned per-role exposure removals at 307 parents/3,642 rows, 64/762, 49/588, and seven unmatched IDs
 - Parent↔child cross-semantic leakage was found, so base train is no longer consumed directly
 - All six sealed runs completed. Warm consistently exceeded scratch on pair/top-1, but the median warm seed still failed stable top-1 and the fixed quantization-delta limit
-- The 27,430-byte selection audit binds the provisional warm-42 identity, reproduces all seven exports/reports exactly, and records that no success candidate receipt was emitted; holdout labels remain unread
+- The 27,692-byte selection audit binds the provisional warm-42 identity, reproduces all seven exports/reports exactly in the recorded local environment, and records that no success candidate receipt was emitted; no holdout labels were read or evaluated after sealing
 
 None proves stronger play. They do make it harder to excuse a weaker model with an aggregate metric or a tiny match.
 

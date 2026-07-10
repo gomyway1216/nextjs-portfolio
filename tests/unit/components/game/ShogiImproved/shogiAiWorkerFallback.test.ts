@@ -6,7 +6,7 @@ import { GOTE, SENTE, SHI, SKI } from '@/components/game/ShogiImproved/types';
 const fallbackSearch = vi.hoisted(() =>
   vi.fn(() => ({
     move: { koma: 1, from: 0x77, to: 0x76, promote: false },
-    score: 321,
+    scoreCp: 321,
     depth: 5,
     kind: 'search' as const,
   }))

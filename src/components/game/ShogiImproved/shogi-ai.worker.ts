@@ -435,7 +435,7 @@ function computeBestMove(
   const fallback = ai.getNextTeWithInfo(k, tesu, { difficulty });
   return {
     move: fallback.move,
-    scoreCp: fallback.score === undefined ? undefined : toSenteCp(fallback.score, k.teban),
+    scoreCp: fallback.scoreCp === undefined ? undefined : toSenteCp(fallback.scoreCp, k.teban),
     depth: fallback.depth,
     searchPath: 'worker-js',
   };

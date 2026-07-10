@@ -58,10 +58,15 @@ export interface BestMoveInfo {
   searchPath: ShogiAiSearchPath;
 }
 
-const WORKER_SEARCH_PATHS: ReadonlySet<string> = new Set(['book', 'mate', 'wasm', 'worker-js']);
+const WORKER_SEARCH_PATHS: ReadonlySet<ShogiAiWorkerSearchPath> = new Set<ShogiAiWorkerSearchPath>([
+  'book',
+  'mate',
+  'wasm',
+  'worker-js',
+]);
 
 function normalizeSearchPath(value: unknown): ShogiAiSearchPath {
-  return typeof value === 'string' && WORKER_SEARCH_PATHS.has(value)
+  return typeof value === 'string' && WORKER_SEARCH_PATHS.has(value as ShogiAiWorkerSearchPath)
     ? (value as ShogiAiWorkerSearchPath)
     : 'unknown';
 }

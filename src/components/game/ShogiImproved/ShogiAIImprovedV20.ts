@@ -111,14 +111,14 @@ export type ShogiAIMoveKind = 'book' | 'mate' | 'search';
 /**
  * Best-move result with enough metadata to explain how the move was chosen.
  *
- * `score` returned by `getNextTeWithInfo()` is measured from the root
+ * `scoreCp` returned by `getNextTeWithInfo()` is measured from the root
  * side-to-move's perspective. The UI helper `getBestMoveV20WithInfo()`
  * converts it to SENTE's perspective so callers that pass `teban` explicitly
  * always receive one stable score convention.
  */
 export interface ShogiAIMoveInfo {
   move: Te | null;
-  score?: number;
+  scoreCp?: number;
   depth?: number;
   kind: ShogiAIMoveKind;
 }
@@ -1595,7 +1595,7 @@ export class ShogiAIImprovedV20 {
     // forced mate by consecutive checks?" probe (endgame-gated). A found mate is returned
     // immediately; otherwise the remaining time goes to the normal search (deducted inside).
     const mateMove = this.tryMateSolve(k, maxTimeMs);
-    if (mateMove) return { move: mateMove, score: 30_000, kind: 'mate' };
+    if (mateMove) return { move: mateMove, scoreCp: 30_000, kind: 'mate' };
 
     // Unified search features (V20): everything on, at every level.
     this.enableAspiration = true;
@@ -1731,7 +1731,7 @@ export class ShogiAIImprovedV20 {
       );
     }
 
-    return { move: bestMove, score: bestScore, depth: completedDepth, kind: 'search' };
+    return { move: bestMove, scoreCp: bestScore, depth: completedDepth, kind: 'search' };
   }
 
 	  /** Backward-compatible move-only API. */
@@ -1765,6 +1765,6 @@ export function getBestMoveV20WithInfo(
   // The UI passes `teban` explicitly; keep the position consistent.
   k.setTeban(teban);
   const result = sharedAIV20.getNextTeWithInfo(k, tesu, { difficulty });
-  if (result.score === undefined || teban === SENTE) return result;
-  return { ...result, score: -result.score };
+  if (result.scoreCp === undefined || teban === SENTE) return result;
+  return { ...result, scoreCp: -result.scoreCp };
 }

@@ -160,7 +160,7 @@ describe('ShogiImproved', () => {
 
       expect(result.kind).toBe('book');
       expect(result.move).not.toBeNull();
-      expect(result.score).toBeUndefined();
+      expect(result.scoreCp).toBeUndefined();
       expect(result.depth).toBeUndefined();
       expect(GenerateMovesImproved.generateLegalMoves(k).some((move) => move.equals(result.move as Te))).toBe(true);
     });
@@ -193,7 +193,7 @@ describe('ShogiImproved', () => {
 
       expect(result.kind).toBe('mate');
       expect(result.move).not.toBeNull();
-      expect(result.score).toBe(30_000);
+      expect(result.scoreCp).toBe(30_000);
       expect(result.depth).toBeUndefined();
 
       const after = k.clone();
@@ -222,8 +222,8 @@ describe('ShogiImproved', () => {
       expect(result.kind).toBe('search');
       expect(result.move).not.toBeNull();
       expect(result.depth).toBe(2);
-      expect(result.score).toEqual(expect.any(Number));
-      expect(Number.isFinite(result.score as number)).toBe(true);
+      expect(result.scoreCp).toEqual(expect.any(Number));
+      expect(Number.isFinite(result.scoreCp as number)).toBe(true);
     });
 
     it('keeps the legacy move-only API compatible', () => {

@@ -828,7 +828,7 @@ const ShogiImproved = () => {
 
             setEvalInfo({
               searchPath: 'main-thread-js',
-              scoreCp: info.score,
+              scoreCp: info.scoreCp,
               depth: info.depth,
               blockedMainThreadMs,
             });

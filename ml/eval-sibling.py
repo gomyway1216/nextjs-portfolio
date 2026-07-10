@@ -43,6 +43,14 @@ if ML_DIR not in sys.path:
     sys.path.insert(0, ML_DIR)
 
 from checkpoint_compat import expected_arch, validate_arch  # noqa: E402
+from qat_protocol import (  # noqa: E402
+    QAT_FINAL_CHECKPOINT_SCHEMA,
+    QAT_PLAN_BYTES,
+    QAT_PLAN_SCHEMA,
+    QAT_PLAN_SHA256,
+    QAT_SLOT_ORDER,
+    QAT_TRAINING_CONTRACT_SCHEMA,
+)
 from sibling_manifest import (  # noqa: E402
     verify_sibling_manifest,
     verify_sibling_validation_partition,
@@ -79,6 +87,44 @@ DEFAULT_CP_CLAMP = 3000
 DEFAULT_PAIR_MIN_CP = 50.0
 PRODUCTION_CP_LIMIT = 1_000_000
 PRODUCTION_CP_DENOMINATOR = 127 * 64
+QAT_REPLAY_BYTES = 800_451_089
+QAT_WARM_INITIALIZER_BYTES = 2_375_274
+QAT_WARM_INITIALIZER_EPOCH = 27
+QAT_REPLAY_EXCLUSION_CONTRACT = {
+    "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+    "bytes": 624_816,
+    "sha256": "1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a",
+    "count": 8_678,
+    "identifiers_sha256": (
+        "f9d9560452554b7e40ed0183c95f9d42cc8b8787f63200b453a511dd44fac5c5"
+    ),
+}
+QAT_VERIFIED_INPUT_SHA256 = {
+    "sibling_teacher_manifest": (
+        "3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc"
+    ),
+    "validation_partition_manifest": (
+        "d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1"
+    ),
+    "model_training": (
+        "f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26"
+    ),
+    "replay": SEALED_REPLAY_SHA256,
+    "warm_initializer": SEALED_WARM_INIT_SHA256,
+    "policy_exposure_receipt": (
+        "083a86e48f1af134b854cdf0e505f0f39cc55ef75d5cbbc0df47c3e1c5013a6f"
+    ),
+    "policy_exposed_parent_ids": (
+        "2e634e5968516f243998de98c5f80d2abb674e8b9841655a3b4735df892e2d10"
+    ),
+    "policy_exposed_semantic_position_ids": (
+        "8c696e8d1d426d9efdffb112004f37a37359f22a903bc34d2c4e7621e02a6bdd"
+    ),
+    "holdout_protected_position_ids": (
+        "762b95b52f50223fd484573d7d3823f3d2d7622ea3817f4300ae9fcc95935d26"
+    ),
+    "replay_exclusion": QAT_REPLAY_EXCLUSION_CONTRACT["sha256"],
+}
 
 
 def _load_export_module():
@@ -442,6 +488,469 @@ def _verify_experiment_contract(
     return contract
 
 
+def _require_exact_mapping(
+    value: Any,
+    expected: Mapping[str, Any],
+    label: str,
+    checkpoint_path: str,
+) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != set(expected):
+        raise ValueError(f"{checkpoint_path}: {label} fields are not exact")
+    for field, wanted in expected.items():
+        found = value.get(field)
+        if type(found) is not type(wanted) or found != wanted:
+            raise ValueError(f"{checkpoint_path}: {label} {field} mismatch")
+    return value
+
+
+def _require_nonempty_paths(
+    value: Mapping[str, Any],
+    fields: Sequence[str],
+    label: str,
+    checkpoint_path: str,
+) -> None:
+    if any(not isinstance(value.get(field), str) or not value[field] for field in fields):
+        raise ValueError(f"{checkpoint_path}: {label} path provenance is invalid")
+
+
+def _verify_int16_aware_checkpoint_training_provenance(
+    checkpoint: Mapping[str, Any],
+    manifest_provenance: Mapping[str, Any],
+    partition_provenance: Mapping[str, Any],
+    checkpoint_path: str,
+    evaluation_role: str,
+) -> dict[str, Any]:
+    """Verify one final-only QAT checkpoint before its sole selection read."""
+    root_fields = {
+        "schema",
+        "model",
+        "epoch",
+        "args",
+        "arch",
+        "init_checkpoint",
+        "data_provenance",
+        "training_pipeline",
+        "training_runtime",
+        "experiment_plan",
+        "experiment_contract",
+        "objective",
+        "checkpoint_selection",
+        "training_history",
+    }
+    if set(checkpoint) != root_fields:
+        raise ValueError(f"{checkpoint_path}: int16-aware checkpoint fields are not exact")
+    if checkpoint.get("schema") != QAT_FINAL_CHECKPOINT_SCHEMA:
+        raise ValueError(f"{checkpoint_path}: int16-aware checkpoint schema mismatch")
+    if evaluation_role != "selection":
+        raise ValueError(
+            f"{checkpoint_path}: int16-aware final-only checkpoint may be read "
+            "only by model selection"
+        )
+    if type(checkpoint.get("epoch")) is not int or checkpoint["epoch"] != 20:
+        raise ValueError(f"{checkpoint_path}: int16-aware checkpoint is not final epoch 20")
+
+    sealed_arch = expected_arch(
+        features="board",
+        input_dim=INPUT_DIM,
+        h1=DistillNet.H1,
+        h2=DistillNet.H2,
+        k=600.0,
+        kp_buckets=1,
+    )
+    try:
+        validate_arch(checkpoint.get("arch"), sealed_arch)
+    except ValueError as error:
+        raise ValueError(
+            f"{checkpoint_path}: int16-aware checkpoint architecture is invalid: {error}"
+    ) from error
+
+    expected_training = partition_provenance["outputs"]["model_training"]
+    contract_value = checkpoint.get("experiment_contract")
+    seed = contract_value.get("seed") if isinstance(contract_value, Mapping) else None
+    if type(seed) is not int or seed not in QAT_SLOT_ORDER:
+        raise ValueError(f"{checkpoint_path}: int16-aware seed is outside 42/43/44")
+    slot_id = f"int16-aware-seed-{seed}"
+    slot_output = f"ml/runs/wcsc36-int16-aware/seed-{seed}"
+    expected_contract = {
+        "schema": QAT_TRAINING_CONTRACT_SCHEMA,
+        "family": "int16-aware",
+        "slot_id": slot_id,
+        "seed": seed,
+        "loss": "sibling-ranking",
+        "model_training_sha256": expected_training["sha256"],
+        "model_training_bytes": expected_training["bytes"],
+        "model_training_records": expected_training["records"],
+        "model_training_parents": expected_training["parents"],
+        "init_checkpoint_sha256": SEALED_WARM_INIT_SHA256,
+        "replay_sha256": SEALED_REPLAY_SHA256,
+        "learning_rate": 0.0001,
+        "epochs": 20,
+        "batch": 256,
+        "k": 600.0,
+        "cp_clamp": 3000,
+        "rank_weight": 1.0,
+        "rank_pair_min": 50.0,
+        "rank_pair_max": 600.0,
+        "rank_margin_cp": 50.0,
+        "policy_weight": 0.25,
+        "policy_temp_cp": 200.0,
+        "features": "board",
+        "device": "cpu",
+        "torch_threads": 2,
+        "replay_limit": SEALED_REPLAY_ROWS,
+        "replay_ratio": 1.0,
+        "primary_limit": 0,
+        "allow_legacy_init": True,
+        "objective": "0.5*float_full_task+0.5*int16_ste_full_task",
+        "checkpoint_policy": "fixed-final-epoch-only",
+        "candidate_artifact": "final.pt",
+        "selection_evaluations": 0,
+        "early_stopping": False,
+    }
+    contract = _require_exact_mapping(
+        contract_value,
+        expected_contract,
+        "int16-aware experiment contract",
+        checkpoint_path,
+    )
+
+    args = checkpoint.get("args")
+    if not isinstance(args, Mapping):
+        raise ValueError(f"{checkpoint_path}: int16-aware checkpoint args are missing")
+    expected_args = {
+        "experiment_family": "int16-aware",
+        "experiment_series": None,
+        "seed": seed,
+        "loss": "sibling-ranking",
+        "lr": 0.0001,
+        "epochs": 20,
+        "batch": 256,
+        "k": 600.0,
+        "cp_clamp": 3000,
+        "rank_weight": 1.0,
+        "rank_pair_min": 50.0,
+        "rank_pair_max": 600.0,
+        "rank_margin_cp": 50.0,
+        "policy_weight": 0.25,
+        "policy_temp_cp": 200.0,
+        "features": "board",
+        "device": "cpu",
+        "torch_threads": 2,
+        "replay_limit": SEALED_REPLAY_ROWS,
+        "replay_ratio": 1.0,
+        "limit": 0,
+        "select_metric": "auto",
+        "allow_legacy_init": True,
+    }
+    for field, wanted in expected_args.items():
+        found = args.get(field)
+        if type(found) is not type(wanted) or found != wanted:
+            raise ValueError(f"{checkpoint_path}: int16-aware checkpoint arg {field} mismatch")
+    if args.get("val_data") not in (None, ""):
+        raise ValueError(
+            f"{checkpoint_path}: int16-aware training received a model-selection path"
+        )
+    _require_nonempty_paths(
+        args,
+        (
+            "data",
+            "sibling_manifest",
+            "validation_partition_manifest",
+            "experiment_plan",
+            "holdout_protected_position_ids",
+            "policy_exposure_receipt",
+            "policy_exposed_parent_ids",
+            "policy_exposed_semantic_position_ids",
+            "replay_data",
+            "replay_excluded_position_ids",
+            "init_ckpt",
+            "pipeline_revision",
+            "out",
+        ),
+        "int16-aware args",
+        checkpoint_path,
+    )
+
+    plan_value = checkpoint.get("experiment_plan")
+    expected_plan = {
+        "path": plan_value.get("path") if isinstance(plan_value, Mapping) else None,
+        "bytes": QAT_PLAN_BYTES,
+        "sha256": QAT_PLAN_SHA256,
+        "schema": QAT_PLAN_SCHEMA,
+        "slot_id": slot_id,
+        "slot_output": slot_output,
+        "verified_input_sha256": dict(QAT_VERIFIED_INPUT_SHA256),
+    }
+    plan = _require_exact_mapping(
+        plan_value,
+        expected_plan,
+        "int16-aware experiment plan",
+        checkpoint_path,
+    )
+    _require_nonempty_paths(plan, ("path",), "int16-aware plan", checkpoint_path)
+    normalized_output = os.path.normpath(args["out"])
+    normalized_slot_output = os.path.normpath(slot_output)
+    if normalized_output != normalized_slot_output and not normalized_output.endswith(
+        os.sep + normalized_slot_output
+    ):
+        raise ValueError(
+            f"{checkpoint_path}: int16-aware output path differs from its plan slot"
+        )
+
+    derived_input_sha256 = {
+        "sibling_teacher_manifest": manifest_provenance["sha256"],
+        "validation_partition_manifest": partition_provenance["sha256"],
+        "model_training": expected_training["sha256"],
+        "replay": SEALED_REPLAY_SHA256,
+        "warm_initializer": SEALED_WARM_INIT_SHA256,
+        "policy_exposure_receipt": partition_provenance["source"][
+            "policy_exposure_receipt"
+        ]["sha256"],
+        "policy_exposed_parent_ids": partition_provenance["source"][
+            "policy_exposed_parent_ids"
+        ]["sha256"],
+        "policy_exposed_semantic_position_ids": partition_provenance["source"][
+            "policy_exposed_semantic_position_ids"
+        ]["sha256"],
+        "holdout_protected_position_ids": partition_provenance["outputs"][
+            "protected_position_ids"
+        ]["sha256"],
+        "replay_exclusion": QAT_REPLAY_EXCLUSION_CONTRACT["sha256"],
+    }
+    if derived_input_sha256 != QAT_VERIFIED_INPUT_SHA256:
+        raise ValueError(
+            f"{checkpoint_path}: evaluation inputs differ from the exact int16-aware plan"
+        )
+
+    initializer = checkpoint.get("init_checkpoint")
+    expected_initializer = {
+        "path": initializer.get("path") if isinstance(initializer, Mapping) else None,
+        "sha256": SEALED_WARM_INIT_SHA256,
+        "bytes": QAT_WARM_INITIALIZER_BYTES,
+        "epoch": QAT_WARM_INITIALIZER_EPOCH,
+        "legacy_arch_inferred_fields": ["schema"],
+    }
+    initializer = _require_exact_mapping(
+        initializer,
+        expected_initializer,
+        "int16-aware initializer",
+        checkpoint_path,
+    )
+    _require_nonempty_paths(
+        initializer, ("path",), "int16-aware initializer", checkpoint_path
+    )
+
+    objective = {
+        "float_task_weight": 0.5,
+        "ste_task_weight": 0.5,
+        "float_task": ["value", "rank", "policy", "replay_value"],
+        "ste_task": ["value", "rank", "policy", "replay_value"],
+        "primary_batch_shared": True,
+        "replay_indices_shared": True,
+    }
+    _require_exact_mapping(
+        checkpoint.get("objective"), objective, "int16-aware objective", checkpoint_path
+    )
+    selection_contract = {
+        "mode": "final-only",
+        "selection_labels_read": False,
+        "selection_evaluations": 0,
+        "early_stopping": False,
+        "candidate_artifact": "final.pt",
+    }
+    _require_exact_mapping(
+        checkpoint.get("checkpoint_selection"),
+        selection_contract,
+        "int16-aware checkpoint selection",
+        checkpoint_path,
+    )
+
+    data = checkpoint.get("data_provenance")
+    if not isinstance(data, Mapping) or set(data) != {
+        "train",
+        "replay",
+        "replay_exclusion",
+        "model_selection",
+        "final_holdout",
+    }:
+        raise ValueError(f"{checkpoint_path}: int16-aware data provenance fields are not exact")
+    train = data.get("train")
+    expected_train = {
+        "path": train.get("path") if isinstance(train, Mapping) else None,
+        "real_path": train.get("real_path") if isinstance(train, Mapping) else None,
+        "sha256": expected_training["sha256"],
+        "bytes": expected_training["bytes"],
+        "usable_rows": expected_training["records"],
+        "selection": "all",
+        "requested_limit": 0,
+        "role": "model_training",
+    }
+    train = _require_exact_mapping(
+        train, expected_train, "int16-aware training data", checkpoint_path
+    )
+    _require_nonempty_paths(
+        train, ("path", "real_path"), "int16-aware training data", checkpoint_path
+    )
+
+    replay = data.get("replay")
+    replay_paths = {
+        "path": replay.get("path") if isinstance(replay, Mapping) else None,
+        "real_path": replay.get("real_path") if isinstance(replay, Mapping) else None,
+    }
+    expected_replay = {
+        **replay_paths,
+        "sha256": SEALED_REPLAY_SHA256,
+        "bytes": QAT_REPLAY_BYTES,
+        "usable_rows": SEALED_REPLAY_ROWS,
+        "selection": "uniform_without_replacement_after_semantic_exclusion",
+        "requested_limit": SEALED_REPLAY_ROWS,
+        "sample_seed": seed + 2,
+        "replay_ratio": 1.0,
+        "excluded_semantic_position_ids": QAT_REPLAY_EXCLUSION_CONTRACT["count"],
+        "excluded_semantic_position_ids_sha256": QAT_REPLAY_EXCLUSION_CONTRACT[
+            "identifiers_sha256"
+        ],
+        "eligible_rows_after_semantic_exclusion": (
+            replay.get("eligible_rows_after_semantic_exclusion")
+            if isinstance(replay, Mapping)
+            else None
+        ),
+        "excluded_rows_before_sampling": (
+            replay.get("excluded_rows_before_sampling")
+            if isinstance(replay, Mapping)
+            else None
+        ),
+    }
+    replay = _require_exact_mapping(
+        replay, expected_replay, "int16-aware replay", checkpoint_path
+    )
+    _require_nonempty_paths(
+        replay, ("path", "real_path"), "int16-aware replay", checkpoint_path
+    )
+    if (
+        type(replay["eligible_rows_after_semantic_exclusion"]) is not int
+        or replay["eligible_rows_after_semantic_exclusion"] < SEALED_REPLAY_ROWS
+        or type(replay["excluded_rows_before_sampling"]) is not int
+        or replay["excluded_rows_before_sampling"] < 0
+    ):
+        raise ValueError(f"{checkpoint_path}: int16-aware replay accounting is invalid")
+
+    replay_exclusion = data.get("replay_exclusion")
+    expected_replay_exclusion = {
+        "path": (
+            replay_exclusion.get("path")
+            if isinstance(replay_exclusion, Mapping)
+            else None
+        ),
+        **QAT_REPLAY_EXCLUSION_CONTRACT,
+    }
+    replay_exclusion = _require_exact_mapping(
+        replay_exclusion,
+        expected_replay_exclusion,
+        "int16-aware replay exclusion",
+        checkpoint_path,
+    )
+    _require_nonempty_paths(
+        replay_exclusion,
+        ("path",),
+        "int16-aware replay exclusion",
+        checkpoint_path,
+    )
+    _require_exact_mapping(
+        data.get("model_selection"),
+        {
+            "labels_read": False,
+            "path_received_by_training_cli": False,
+            "epoch_evaluations": 0,
+        },
+        "int16-aware model-selection isolation",
+        checkpoint_path,
+    )
+    _require_exact_mapping(
+        data.get("final_holdout"),
+        {"labels_read": False, "status": "sealed_not_opened"},
+        "int16-aware final-holdout isolation",
+        checkpoint_path,
+    )
+
+    pipeline = checkpoint.get("training_pipeline")
+    if (
+        not isinstance(pipeline, Mapping)
+        or set(pipeline) != {"source_revision", "tracked_tree_clean"}
+        or not isinstance(pipeline.get("source_revision"), str)
+        or len(pipeline["source_revision"]) != 40
+        or any(
+            character not in "0123456789abcdef"
+            for character in pipeline["source_revision"]
+        )
+        or pipeline.get("tracked_tree_clean") is not True
+    ):
+        raise ValueError(f"{checkpoint_path}: int16-aware training pipeline is not clean")
+    if args.get("pipeline_revision") != pipeline["source_revision"]:
+        raise ValueError(
+            f"{checkpoint_path}: int16-aware pipeline argument/provenance mismatch"
+        )
+    runtime = checkpoint.get("training_runtime")
+    runtime_fields = set(SEALED_SIX_RUN_TRAINING_RUNTIME) | {
+        "mps_built",
+        "mps_available",
+        "cuda_available",
+    }
+    if not isinstance(runtime, Mapping) or set(runtime) != runtime_fields:
+        raise ValueError(f"{checkpoint_path}: int16-aware training runtime fields are not exact")
+    for field, wanted in SEALED_SIX_RUN_TRAINING_RUNTIME.items():
+        found = runtime.get(field)
+        if type(found) is not type(wanted) or found != wanted:
+            raise ValueError(f"{checkpoint_path}: int16-aware training runtime {field} mismatch")
+    if any(
+        type(runtime.get(field)) is not bool
+        for field in ("mps_built", "mps_available", "cuda_available")
+    ):
+        raise ValueError(f"{checkpoint_path}: int16-aware runtime flags are invalid")
+
+    history = checkpoint.get("training_history")
+    history_fields = {
+        "epoch",
+        "combined_task_loss",
+        "float_task_loss",
+        "ste_task_loss",
+        "learning_rate",
+    }
+    if not isinstance(history, list) or len(history) != 20:
+        raise ValueError(f"{checkpoint_path}: int16-aware training history is incomplete")
+    for expected_epoch, receipt in enumerate(history, 1):
+        if not isinstance(receipt, Mapping) or set(receipt) != history_fields:
+            raise ValueError(f"{checkpoint_path}: int16-aware epoch receipt fields are not exact")
+        if type(receipt.get("epoch")) is not int or receipt["epoch"] != expected_epoch:
+            raise ValueError(f"{checkpoint_path}: int16-aware epoch sequence is invalid")
+        for field in history_fields - {"epoch"}:
+            value = receipt.get(field)
+            if type(value) is not float or not math.isfinite(value) or value < 0.0:
+                raise ValueError(
+                    f"{checkpoint_path}: int16-aware epoch {expected_epoch} {field} is invalid"
+                )
+
+    expected_selection = partition_provenance["outputs"]["model_selection"]
+    expected_holdout = partition_provenance["outputs"]["final_holdout"]
+    return {
+        "status": "verified_int16_aware_final_only_selection",
+        "teacher_manifest_sha256": manifest_provenance["sha256"],
+        "validation_partition_sha256": partition_provenance["sha256"],
+        "training_pipeline_source_revision": pipeline["source_revision"],
+        "experiment_plan_sha256": plan["sha256"],
+        "slot_id": contract["slot_id"],
+        "seed": seed,
+        "source_train_sha256": manifest_provenance["outputs"]["train_sha256"],
+        "model_training_sha256": expected_training["sha256"],
+        "model_selection_sha256": expected_selection["sha256"],
+        "final_holdout_sha256": expected_holdout["sha256"],
+        "replay_exclusion_sha256": replay_exclusion["sha256"],
+        "selection_labels_read_during_training": False,
+        "selection_evaluations_during_training": 0,
+        "final_holdout_labels_read": False,
+    }
+
+
 def _verify_sealed_checkpoint_training_provenance(
     checkpoint: Mapping[str, Any],
     manifest_provenance: Mapping[str, Any],
@@ -798,6 +1307,27 @@ def verify_checkpoint_training_provenance(
     """Require sealed provenance for candidates; label base models as legacy."""
     args = checkpoint.get("args")
     args = args if isinstance(args, Mapping) else {}
+    contract = checkpoint.get("experiment_contract")
+    contract_schema = (
+        contract.get("schema") if isinstance(contract, Mapping) else None
+    )
+    is_int16_aware = (
+        checkpoint.get("schema") == QAT_FINAL_CHECKPOINT_SCHEMA
+        or contract_schema == QAT_TRAINING_CONTRACT_SCHEMA
+    )
+    if is_int16_aware:
+        if partition_provenance is None or evaluation_role is None:
+            raise ValueError(
+                f"{checkpoint_path}: int16-aware candidate evaluation requires "
+                "the sealed selection partition"
+            )
+        return _verify_int16_aware_checkpoint_training_provenance(
+            checkpoint,
+            manifest_provenance,
+            partition_provenance,
+            checkpoint_path,
+            evaluation_role,
+        )
     loss = args.get("loss")
     if loss != "sibling-ranking":
         data_provenance = checkpoint.get("data_provenance")

@@ -15,6 +15,12 @@ WCSC36_SIX_RUN_PLAN_SHA256 = (
 CANDIDATE_SELECTION_RECEIPT_SCHEMA = (
     "shogi-sibling-candidate-selection-receipt-v1"
 )
+SELECTION_AUDIT_SCHEMA = "shogi-sibling-six-run-selection-audit-v1"
+WCSC36_STABLE_RUNOP1_SHA256 = (
+    "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8"
+)
+PAIR_DEGRADATION_LIMIT = 0.002
+TOP1_DEGRADATION_LIMIT = 0.005
 
 EXPERIMENT_SERIES = ("warm", "scratch")
 EXPERIMENT_SEEDS = (42, 43, 44)
@@ -57,7 +63,10 @@ CANDIDATE_SELECTION_RECEIPT_FIELDS = frozenset(
         "candidate_checkpoint",
         "candidate_export",
         "int16_selection_report",
-        "stable_checkpoint_sha256",
+        "selection_audit",
+        "candidate_metrics",
+        "stable",
+        "selection_gates",
     }
 )
 CANDIDATE_SELECTION_RUN_FIELDS = frozenset(
@@ -92,6 +101,27 @@ CANDIDATE_CHECKPOINT_FIELDS = frozenset({"path", "bytes", "sha256"})
 CANDIDATE_SELECTION_REPORT_FIELDS = frozenset({"path", "bytes", "sha256"})
 CANDIDATE_EXPORT_FIELDS = frozenset(
     {"path", "bytes", "sha256", "bucket_count"}
+)
+CANDIDATE_SELECTION_AUDIT_FIELDS = frozenset(
+    {"path", "bytes", "sha256", "schema"}
+)
+CANDIDATE_METRICS_FIELDS = frozenset({"float", "int16"})
+SELECTION_METRIC_FIELDS = frozenset(
+    {
+        "within_parent_pair_accuracy",
+        "teacher_top1_accuracy",
+        "value_mae_cp",
+    }
+)
+CANDIDATE_STABLE_FIELDS = frozenset(
+    {"checkpoint_sha256", "int16_selection_report", "int16_metrics"}
+)
+SELECTION_GATES_FIELDS = frozenset({"checks", "passed"})
+SELECTION_GATE_COMPARISON_FIELDS = frozenset(
+    {"id", "candidate", "reference", "operator", "passed"}
+)
+SELECTION_GATE_DELTA_FIELDS = frozenset(
+    {"id", "observed", "absolute_limit", "operator", "passed"}
 )
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -158,6 +188,147 @@ def sealed_run_selection_key(run: Mapping) -> tuple:
     )
 
 
+def select_sealed_candidate(runs: list[Mapping]) -> Mapping:
+    """Select the sealed representative without asserting promotion gates."""
+    if type(runs) is not list or len(runs) != len(SIX_RUN_SLOT_ORDER):
+        raise ValueError("candidate selection receipt requires exactly six runs")
+    for index, (run, (series, seed)) in enumerate(zip(runs, SIX_RUN_SLOT_ORDER)):
+        if not isinstance(run, Mapping):
+            raise ValueError(f"runs[{index}] is not an object")
+        if (
+            run.get("slot_id") != f"{series}-seed-{seed}"
+            or run.get("series") != series
+            or run.get("seed") != seed
+        ):
+            raise ValueError(f"runs[{index}] is outside the exact six-slot order")
+        sealed_run_selection_key(run)
+
+    representatives = []
+    for series in EXPERIMENT_SERIES:
+        series_runs = [run for run in runs if run["series"] == series]
+        representatives.append(sorted(series_runs, key=sealed_run_selection_key)[1])
+    return min(representatives, key=sealed_run_selection_key)
+
+
+def _require_selection_metrics(value, label: str) -> dict[str, float]:
+    metrics = _require_exact_mapping(value, SELECTION_METRIC_FIELDS, label)
+    normalized = {}
+    for field in SELECTION_METRIC_FIELDS:
+        metric = metrics.get(field)
+        if type(metric) not in (int, float) or not math.isfinite(metric):
+            raise ValueError(f"{label}.{field} is not finite")
+        normalized[field] = float(metric)
+    if (
+        not 0.0 <= normalized["within_parent_pair_accuracy"] <= 1.0
+        or not 0.0 <= normalized["teacher_top1_accuracy"] <= 1.0
+        or normalized["value_mae_cp"] < 0.0
+    ):
+        raise ValueError(f"{label} metric is outside its domain")
+    return normalized
+
+
+def selection_gate_results(
+    candidate_float: Mapping[str, float],
+    candidate_int16: Mapping[str, float],
+    stable_int16: Mapping[str, float],
+) -> dict[str, object]:
+    pair_delta = (
+        candidate_int16["within_parent_pair_accuracy"]
+        - candidate_float["within_parent_pair_accuracy"]
+    )
+    top1_delta = (
+        candidate_int16["teacher_top1_accuracy"]
+        - candidate_float["teacher_top1_accuracy"]
+    )
+    pair_within_limit = abs(pair_delta) <= PAIR_DEGRADATION_LIMIT or math.isclose(
+        abs(pair_delta), PAIR_DEGRADATION_LIMIT, rel_tol=0.0, abs_tol=1e-12
+    )
+    top1_within_limit = abs(top1_delta) <= TOP1_DEGRADATION_LIMIT or math.isclose(
+        abs(top1_delta), TOP1_DEGRADATION_LIMIT, rel_tol=0.0, abs_tol=1e-12
+    )
+    checks = [
+        {
+            "id": "candidate_pair_strictly_above_stable",
+            "candidate": candidate_int16["within_parent_pair_accuracy"],
+            "reference": stable_int16["within_parent_pair_accuracy"],
+            "operator": ">",
+            "passed": candidate_int16["within_parent_pair_accuracy"]
+            > stable_int16["within_parent_pair_accuracy"],
+        },
+        {
+            "id": "candidate_top1_at_least_stable",
+            "candidate": candidate_int16["teacher_top1_accuracy"],
+            "reference": stable_int16["teacher_top1_accuracy"],
+            "operator": ">=",
+            "passed": candidate_int16["teacher_top1_accuracy"]
+            >= stable_int16["teacher_top1_accuracy"],
+        },
+        {
+            "id": "absolute_float_to_int16_pair_delta",
+            "observed": pair_delta,
+            "absolute_limit": PAIR_DEGRADATION_LIMIT,
+            "operator": "abs<=",
+            "passed": pair_within_limit,
+        },
+        {
+            "id": "absolute_float_to_int16_top1_delta",
+            "observed": top1_delta,
+            "absolute_limit": TOP1_DEGRADATION_LIMIT,
+            "operator": "abs<=",
+            "passed": top1_within_limit,
+        },
+    ]
+    return {
+        "checks": checks,
+        "passed": all(check["passed"] for check in checks),
+    }
+
+
+def _require_passed_selection_gates(
+    value,
+    candidate_float: Mapping[str, float],
+    candidate_int16: Mapping[str, float],
+    stable_int16: Mapping[str, float],
+) -> None:
+    gates = _require_exact_mapping(value, SELECTION_GATES_FIELDS, "selection_gates")
+    checks = gates.get("checks")
+    expected_result = selection_gate_results(
+        candidate_float, candidate_int16, stable_int16
+    )
+    expected_checks = expected_result["checks"]
+    if type(checks) is not list or len(checks) != len(expected_checks):
+        raise ValueError("selection_gates requires exactly four checks")
+    for index, (check, expected) in enumerate(zip(checks, expected_checks)):
+        fields = (
+            SELECTION_GATE_COMPARISON_FIELDS
+            if index < 2
+            else SELECTION_GATE_DELTA_FIELDS
+        )
+        check = _require_exact_mapping(
+            check, fields, f"selection_gates.checks[{index}]"
+        )
+        for field, expected_value in expected.items():
+            actual = check.get(field)
+            if type(expected_value) is bool:
+                matches = type(actual) is bool and actual is expected_value
+            elif type(expected_value) is float:
+                matches = (
+                    type(actual) in (int, float)
+                    and math.isfinite(actual)
+                    and float(actual) == expected_value
+                )
+            else:
+                matches = actual == expected_value
+            if not matches:
+                raise ValueError(
+                    f"selection_gates.checks[{index}].{field} is not recomputable"
+                )
+    if type(gates.get("passed")) is not bool or gates["passed"] is not True:
+        raise ValueError("selection_gates.passed must be true")
+    if expected_result["passed"] is not True:
+        raise ValueError("selection gate metrics do not pass the fixed thresholds")
+
+
 def validate_candidate_selection_receipt(receipt: Mapping) -> Mapping:
     """Strict-decode the future six-run candidate-selection handoff."""
     root = _require_exact_mapping(
@@ -171,6 +342,8 @@ def validate_candidate_selection_receipt(receipt: Mapping) -> Mapping:
     )
     if run_plan.get("schema") != SIX_RUN_PLAN_SCHEMA:
         raise ValueError("candidate selection run-plan schema mismatch")
+    if run_plan["sha256"] != WCSC36_SIX_RUN_PLAN_SHA256:
+        raise ValueError("candidate selection run-plan SHA-256 mismatch")
     if (
         type(root.get("selection_metric_order")) is not list
         or tuple(root["selection_metric_order"]) != MODEL_SELECTION_METRIC_ORDER
@@ -222,11 +395,7 @@ def validate_candidate_selection_receipt(receipt: Mapping) -> Mapping:
 
     if root.get("selection_strategy") != CANDIDATE_SELECTION_STRATEGY:
         raise ValueError("candidate selection strategy mismatch")
-    representatives = []
-    for series in EXPERIMENT_SERIES:
-        series_runs = [run for run in runs if run["series"] == series]
-        representatives.append(sorted(series_runs, key=sealed_run_selection_key)[1])
-    winner = min(representatives, key=sealed_run_selection_key)
+    winner = select_sealed_candidate(runs)
     selected = _require_exact_mapping(
         root.get("selected"),
         CANDIDATE_SELECTION_SELECTED_FIELDS,
@@ -280,9 +449,58 @@ def validate_candidate_selection_receipt(receipt: Mapping) -> Mapping:
         != winner["int16_selection_report"]["sha256"]
     ):
         raise ValueError("int16 selection report does not match the selected run")
-    stable_sha256 = _require_sha256(
-        root.get("stable_checkpoint_sha256"), "stable_checkpoint_sha256"
+
+    selection_audit = _require_file_receipt(
+        root.get("selection_audit"),
+        CANDIDATE_SELECTION_AUDIT_FIELDS,
+        "selection_audit",
     )
+    if selection_audit.get("schema") != SELECTION_AUDIT_SCHEMA:
+        raise ValueError("selection audit schema mismatch")
+
+    candidate_metrics = _require_exact_mapping(
+        root.get("candidate_metrics"),
+        CANDIDATE_METRICS_FIELDS,
+        "candidate_metrics",
+    )
+    candidate_float = _require_selection_metrics(
+        candidate_metrics.get("float"), "candidate_metrics.float"
+    )
+    candidate_int16 = _require_selection_metrics(
+        candidate_metrics.get("int16"), "candidate_metrics.int16"
+    )
+    expected_candidate_int16 = {
+        "within_parent_pair_accuracy": float(winner["int16_pair_accuracy"]),
+        "teacher_top1_accuracy": float(winner["int16_teacher_top1"]),
+        "value_mae_cp": float(winner["int16_value_mae_cp"]),
+    }
+    if candidate_int16 != expected_candidate_int16:
+        raise ValueError("candidate int16 metrics do not match the selected run")
+
+    stable = _require_exact_mapping(
+        root.get("stable"), CANDIDATE_STABLE_FIELDS, "stable"
+    )
+    stable_sha256 = _require_sha256(
+        stable.get("checkpoint_sha256"), "stable.checkpoint_sha256"
+    )
+    if stable_sha256 != WCSC36_STABLE_RUNOP1_SHA256:
+        raise ValueError("stable checkpoint is not the sealed runOp1 checkpoint")
     if stable_sha256 == candidate_checkpoint["sha256"]:
         raise ValueError("candidate and stable checkpoint identities must differ")
+    stable_report = _require_file_receipt(
+        stable.get("int16_selection_report"),
+        CANDIDATE_SELECTION_REPORT_FIELDS,
+        "stable.int16_selection_report",
+    )
+    if stable_report["sha256"] == selection_report["sha256"]:
+        raise ValueError("candidate and stable selection report identities must differ")
+    stable_int16 = _require_selection_metrics(
+        stable.get("int16_metrics"), "stable.int16_metrics"
+    )
+    _require_passed_selection_gates(
+        root.get("selection_gates"),
+        candidate_float,
+        candidate_int16,
+        stable_int16,
+    )
     return winner

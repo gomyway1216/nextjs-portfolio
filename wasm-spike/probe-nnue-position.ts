@@ -10,7 +10,12 @@
  * 使い方:
  *   node -r tsx/cjs wasm-spike/probe-nnue-position.ts \
  *     --weights ml/runs/run5m-base/weights.bin --weights ml/runs/runOp1/weights.bin \
- *     [--moves "7g7f 8c8d 2g2f 8d8e 8h7g 3c3d 6g6f"] [--ms 2000] [--k 600] [--top 10]
+ *     [--moves "7g7f 8c8d 2g2f 8d8e 8h7g 3c3d 6g6f"] [--ms 2000] [--depth 32]
+ *     [--k 600] [--top 10]
+ *
+ * `--ms 0 --depth N` runs a deterministic fixed-depth probe. This is useful
+ * for regression tests because it removes machine-speed variance from the
+ * result while keeping the production NNUE/WASM search path.
  */
 
 import { readFileSync } from 'node:fs';
@@ -61,6 +66,7 @@ if (WEIGHTS.length === 0) {
 // 既定: ▲7六歩△8四歩▲2六歩△8五歩▲7七角△3四歩▲6六歩 (作者報告の浮き飛車バイアス局面, 後手番)
 const MOVES = argStr('--moves', '7g7f 8c8d 2g2f 8d8e 8h7g 3c3d 6g6f').trim().split(/\s+/);
 const MOVE_MS = argNum('--ms', 2000);
+const MAX_DEPTH = argNum('--depth', 32);
 const SCALE_K = argNum('--k', 600);
 const TOP_N = argNum('--top', 10);
 
@@ -138,9 +144,10 @@ function main(): void {
     // 1. 探索の最善手
     syncWasm(wasm, k);
     wasm.setRootTesu(tesu);
-    const key = wasm.searchBestMove(MOVE_MS, 32, 10);
+    const key = wasm.searchBestMove(MOVE_MS, MAX_DEPTH, 10);
     const best = key !== 0 ? teToUsi(teFromWasmKey(key, k)) : '(none)';
-    console.log(`search bestmove (${MOVE_MS}ms): ${best}`);
+    const searchLabel = MOVE_MS > 0 ? `${MOVE_MS}ms, maxDepth ${MAX_DEPTH}` : `fixed depth ${MAX_DEPTH}`;
+    console.log(`search bestmove (${searchLabel}): ${best}`);
 
     // 2. 全合法手の NNUE 静的評価 (手を指した後の局面は相手番 → 符号反転して現手番視点に)
     const scored: Array<{ usi: string; cp: number }> = [];

@@ -814,7 +814,7 @@ function assertSafeAbsoluteUrl(input: string): URL {
     CONTROL_RE.test(input) ||
     input.includes("\\")
   ) {
-    fail("URL is empty, normalized, or contains controls/backslashes");
+    fail("URL is empty, not trimmed, or contains controls/backslashes");
   }
   if (hasRawDotSegment(input)) fail("URL contains a raw dot path segment");
   if (ENCODED_STRUCTURAL_RE.test(input))
@@ -1201,7 +1201,7 @@ export function parseFloodgateGameSourceEvidence(
   const ratingBytes = copyEvidenceBytes(input.ratingBytes, "ratingBytes");
   const csaBytes = copyEvidenceBytes(input.csaBytes, "csaBytes");
   const ratingHtml = decodeSourceUtf8(ratingBytes, "rating snapshot");
-  const rows = parseFloodgateRatingSnapshot(ratingBytes);
+  const rows = parseFloodgateRatingSnapshot(ratingHtml);
   const eligibleIdentities = eligibleGroupZeroIdentities(rows);
   const lastModifiedAt = parseRatingLastModified(
     ratingHtml,

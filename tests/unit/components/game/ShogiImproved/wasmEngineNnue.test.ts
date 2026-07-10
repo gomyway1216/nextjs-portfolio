@@ -13,8 +13,18 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { GenerateMovesImproved } from '@/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '@/components/game/ShogiImproved/InitialPositionImproved';
-import { FU, getKomashu } from '@/components/game/ShogiImproved/types';
-import type { Te } from '@/components/game/ShogiImproved/types';
+import {
+  FU,
+  GI,
+  HI,
+  KA,
+  KE,
+  KI,
+  KY,
+  SENTE,
+  Te,
+  getKomashu,
+} from '@/components/game/ShogiImproved/types';
 import {
   clearWasmTT,
   isNnueEnabled,
@@ -27,6 +37,15 @@ import {
 
 const weightsPath = join(process.cwd(), 'public', 'shogi-nnue-weights.bin');
 const RUN_OP1_SHA256 = 'e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc';
+const DROP_LETTER: Readonly<Record<string, number>> = {
+  P: FU,
+  L: KY,
+  N: KE,
+  S: GI,
+  G: KI,
+  B: KA,
+  R: HI,
+};
 
 // Position immediately before move 32 in the reported rook-pawn loop game.
 // With the regressed deep16 weights, fixed-depth 11 chooses P*8f. The known-
@@ -53,7 +72,7 @@ function usiSquare(file: string, rank: string): number {
 function findUsiMove(usi: string, legal: Te[]): Te {
   if (usi[1] === '*') {
     const to = usiSquare(usi[2], usi[3]);
-    const piece = usi[0] === 'P' ? FU : -1;
+    const piece = DROP_LETTER[usi[0]] ?? -1;
     const match = legal.find((move) => move.from === 0 && move.to === to && getKomashu(move.koma) === piece);
     if (!match) throw new Error(`illegal test drop: ${usi}`);
     return match;
@@ -79,6 +98,20 @@ function rookPawnLoopPosition() {
 }
 
 describe('wasmEngine NNUE loading', () => {
+  it.each([
+    ['P', FU],
+    ['L', KY],
+    ['N', KE],
+    ['S', GI],
+    ['G', KI],
+    ['B', KA],
+    ['R', HI],
+  ] as const)('parses a %s drop in USI test positions', (letter, piece) => {
+    const move = new Te(SENTE + piece, 0, usiSquare('5', 'e'));
+
+    expect(findUsiMove(`${letter}*5e`, [move])).toBe(move);
+  });
+
   it('ships a weight asset of exactly the size the engine expects', () => {
     expect(readFileSync(weightsPath).byteLength).toBe(NNUE_WEIGHTS_BYTES);
   });

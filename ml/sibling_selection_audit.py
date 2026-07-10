@@ -624,6 +624,20 @@ def _receipt_identity(receipt: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _portable_file_receipt(
+    receipt: Mapping[str, Any], repo_root: str
+) -> dict[str, Any]:
+    """Publish identity without leaking a host-specific absolute path."""
+
+    result = _receipt_identity(receipt)
+    display_path = _display_path(receipt["path"], repo_root)
+    if os.path.isabs(display_path):
+        result["scope"] = "external_input"
+    else:
+        result["path"] = display_path
+    return result
+
+
 def _reproduce_one_evidence(
     *,
     slot_id: str,
@@ -728,22 +742,19 @@ def _evidence_summary(
         "slot_id": slot_id,
         "status": reproduced["status"],
         "checkpoint": {
-            **_receipt_identity(reproduced["sources"]["checkpoint"]),
-            "path": _display_path(
-                reproduced["sources"]["checkpoint"]["path"], repo_root
+            **_portable_file_receipt(
+                reproduced["sources"]["checkpoint"], repo_root
             ),
         },
         "export": {
             "weights_byte_exact": True,
             "metadata_byte_exact": True,
             "weights": {
-                **_receipt_identity(export["existing_weights"]),
-                "path": _display_path(export["existing_weights"]["path"], repo_root),
+                **_portable_file_receipt(export["existing_weights"], repo_root),
             },
             "weights_meta": {
-                **_receipt_identity(export["existing_weights_meta"]),
-                "path": _display_path(
-                    export["existing_weights_meta"]["path"], repo_root
+                **_portable_file_receipt(
+                    export["existing_weights_meta"], repo_root
                 ),
             },
             "reproduced_weights": _receipt_identity(
@@ -758,8 +769,7 @@ def _evidence_summary(
             "int16_metrics_exact": True,
             "core_data_provenance_exact": True,
             "existing": {
-                **_receipt_identity(report["existing"]),
-                "path": _display_path(report["existing"]["path"], repo_root),
+                **_portable_file_receipt(report["existing"], repo_root),
             },
             "reproduced": _receipt_identity(report["reproduced"]),
         },
@@ -771,29 +781,25 @@ def _common_evidence_summary(
 ) -> dict[str, Any]:
     interpreter = reproduced["interpreter"]
     tools = {
-        label: {
-            **_receipt_identity(receipt),
-            "path": _display_path(receipt["path"], repo_root),
-        }
+        label: _portable_file_receipt(receipt, repo_root)
         for label, receipt in reproduced["tools"].items()
     }
     sources = {
-        label: {
-            **_receipt_identity(receipt),
-            "path": _display_path(receipt["path"], repo_root),
-        }
+        label: _portable_file_receipt(receipt, repo_root)
         for label, receipt in reproduced["sources"].items()
         if label != "checkpoint"
+    }
+    runtime = {
+        key: value
+        for key, value in interpreter["runtime"].items()
+        if key != "python_executable"
     }
     return {
         "schema": EVIDENCE_REPRODUCTION_SCHEMA,
         "interpreter": {
-            "launcher": interpreter["launcher"],
-            "file": {
-                **_receipt_identity(interpreter["file"]),
-                "path": interpreter["file"]["path"],
-            },
-            "runtime": dict(interpreter["runtime"]),
+            "launcher": {"scope": "provided_local_venv"},
+            "file": _portable_file_receipt(interpreter["file"], repo_root),
+            "runtime": runtime,
         },
         "tools": tools,
         "shared_sources": sources,
@@ -1208,6 +1214,11 @@ def main(argv=None) -> int:
             },
             audit_pipeline=audit_pipeline,
         )
+        final_pipeline = verify_audit_pipeline_revision(
+            args.pipeline_revision, repo_root
+        )
+        if final_pipeline != audit_pipeline:
+            raise ValueError("audit pipeline changed during evidence reproduction")
         _write_new_json(args.out, audit)
     except (OSError, ValueError) as error:
         parser.error(str(error))

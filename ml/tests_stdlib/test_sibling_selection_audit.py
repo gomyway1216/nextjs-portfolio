@@ -9,6 +9,7 @@ if ML_DIR not in sys.path:
     sys.path.insert(0, ML_DIR)
 
 from sibling_selection_audit import (  # noqa: E402
+    _portable_file_receipt,
     _verify_training_result_contract,
 )
 from sibling_selection_protocol import (  # noqa: E402
@@ -122,6 +123,30 @@ def valid_plan_and_result():
 
 
 class SiblingSelectionAuditContractTest(unittest.TestCase):
+    def test_public_receipts_keep_repo_paths_and_redact_external_paths(self):
+        repo = "/workspace/project"
+        internal = _portable_file_receipt(
+            {
+                "path": "/workspace/project/ml/model.pt",
+                "bytes": 12,
+                "sha256": digest(1),
+            },
+            repo,
+        )
+        self.assertEqual(internal["path"], "ml/model.pt")
+        self.assertNotIn("scope", internal)
+
+        external = _portable_file_receipt(
+            {
+                "path": "/Users/private/other/model.pt",
+                "bytes": 12,
+                "sha256": digest(1),
+            },
+            repo,
+        )
+        self.assertEqual(external["scope"], "external_input")
+        self.assertNotIn("path", external)
+
     def verify(self, result):
         plan, slot, plan_path, plan_receipt, _unused = valid_plan_and_result()
         return _verify_training_result_contract(

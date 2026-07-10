@@ -1,0 +1,94 @@
+{
+  "derivation": "union-of-position-id-and-child-position-id-from-all-committed-parent-records",
+  "parent_ids": {
+    "bytes": 7344,
+    "count": 102,
+    "format": "sorted-unique-sha256-parent-id-utf8-lf-v1",
+    "identifiers_sha256": "77ea294f0237ca089f5fd4df64242ab9cf9f62f5a134196ac98fc9114ceebdd3",
+    "path": "ml/protocols/wcsc36-policy-exposed-parent-ids.txt",
+    "sha256": "2e634e5968516f243998de98c5f80d2abb674e8b9841655a3b4735df892e2d10"
+  },
+  "policy_decision": "wcsc36-depth16-lane-a-v1",
+  "role_accounting": null,
+  "schema": "shogi-policy-exposure-receipt-v1",
+  "semantic_position_ids": {
+    "bytes": 100224,
+    "count": 1392,
+    "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+    "identifiers_sha256": "31d2b9f60421f540880037efed9571bd034a986163cd79d2e51f2336544cba70",
+    "path": "ml/protocols/wcsc36-policy-exposed-semantic-position-ids.txt",
+    "sha256": "8c696e8d1d426d9efdffb112004f37a37359f22a903bc34d2c4e7621e02a6bdd"
+  },
+  "source_artifacts": [
+    {
+      "bytes": 14882,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/hard-0e8d5252-depth16-rerun/work.jsonl",
+      "sha256": "7c3fce800dcbadddc842275925b2c3a2162667068ebec18a318ccdf3574b316c"
+    },
+    {
+      "bytes": 14882,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/hard-0e8d5252-depth16/work.jsonl",
+      "sha256": "7c3fce800dcbadddc842275925b2c3a2162667068ebec18a318ccdf3574b316c"
+    },
+    {
+      "bytes": 14789,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/hard-0e8d5252-depth18/work.jsonl",
+      "sha256": "6a352466ac7349d41aff65ce38e7856401178df28eb20a64ca150768b3d137fa"
+    },
+    {
+      "bytes": 518,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/hard-0e8d5252-nodes1000000/work.jsonl",
+      "sha256": "a6b6805e6c21c7711c9ce9f05a1e2d68d228fa9342ba8dddfb1a2f21b052eb58"
+    },
+    {
+      "bytes": 518,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/hard-0e8d5252-nodes2000000/work.jsonl",
+      "sha256": "9c78456ce7be2a1896742ade4241db36589a53a3c56b38b3567266f0f4e562cc"
+    },
+    {
+      "bytes": 10304,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/hard-1279beb8-depth16-rerun/work.jsonl",
+      "sha256": "acda2d625e9efcdae1c88b18bbf9703361a07477a50fcfef3faa51a0db2246f7"
+    },
+    {
+      "bytes": 10304,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/hard-1279beb8-depth16/work.jsonl",
+      "sha256": "acda2d625e9efcdae1c88b18bbf9703361a07477a50fcfef3faa51a0db2246f7"
+    },
+    {
+      "bytes": 518,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/hard-1279beb8-depth18/work.jsonl",
+      "sha256": "9a61fd86b5a04e427d1ad5597b5f5169a021465f29db18bd67b286d0a0dda472"
+    },
+    {
+      "bytes": 518,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/hard-1279beb8-nodes1000000/work.jsonl",
+      "sha256": "f8bd99c17be426a68afe7b531285c290e4d8fbd442d07465bef7419377333b6c"
+    },
+    {
+      "bytes": 10353,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/hard-1279beb8-nodes2000000/work.jsonl",
+      "sha256": "4062ecf8b9cf3bfb0259b9893934828e849467818f28ee4ee840e069ee3237e1"
+    },
+    {
+      "bytes": 1410142,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/n100-depth16/work.jsonl",
+      "sha256": "a45e92187acebd2047cc738e7368cccf31c0e7f91b1399943d11f93ecc2538d5"
+    },
+    {
+      "bytes": 57199,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/n100-nodes1000000/work.jsonl",
+      "sha256": "96c1be5ad68d3fd1ce8627ec38267b90857fee5029dfae836439bdb0f077f81a"
+    },
+    {
+      "bytes": 114318,
+      "path": "ml/data/wcsc36/lane-a-policy-selection/n100-nodes2000000/work.jsonl",
+      "sha256": "e46d314de09c076f81f9204000dc90226215ac694ce0e72e7a5cfb69a35c53c5"
+    },
+    {
+      "bytes": 1410887,
+      "path": "ml/data/wcsc36/stability-depth18-n100-independent-v6-pipeline/work.jsonl",
+      "sha256": "1199a0d819c0bed11355a816d632b7c696755c103a128553166083033f6148dc"
+    }
+  ]
+}

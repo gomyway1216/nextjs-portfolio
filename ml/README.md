@@ -460,6 +460,17 @@ ml/venv/bin/python ml/qat_selection_audit.py \
   --out ml/protocols/wcsc36-int16-aware-selection-audit.json
 ```
 
+実行結果は`static_selection_fail`だった。3 seedすべてのint16 pair accuracyはstable
+`0.6048967`を上回った（42: `0.6071637`、43: `0.6092363`、44: `0.6073580`）が、
+seed 42はpair量子化delta、seed 43はstable top-1、代表seed 44はpair/top-1の両deltaを
+通らず、4 gate完走は`0/3`だった。29,616-byte auditのSHA-256は
+`aab9a6fdb49e4d393ca11132671d5aa433b9a208bfafeaa031f3e9554b148737`。
+`production_promotion_authorized=false`、final holdoutは未開封、本番runOp1は変更していない。
+詳細は[日本語結果](../docs/blog-shogi-wcsc36-int16-aware-results.md) /
+[English results](../docs/blog-shogi-wcsc36-int16-aware-results.en.md)に記録した。同じselectionでの
+seed追加・epoch差替え・閾値緩和は行わず、次は新しい強豪棋譜と新しいdevelopment splitを
+事前登録してから進める。
+
 ### 3-3. 契約テスト
 
 ```sh

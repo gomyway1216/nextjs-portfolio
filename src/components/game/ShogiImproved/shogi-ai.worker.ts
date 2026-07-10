@@ -67,6 +67,9 @@ import { Difficulty } from '../common/types';
 
 export type { SerializedKyokumenImproved, SerializedTeImproved };
 
+/** The engine route that produced a best-move response. */
+export type ShogiAiWorkerSearchPath = 'book' | 'mate' | 'wasm' | 'worker-js';
+
 type WorkerRequest =
   | { type: 'bestMove'; id: number; position: SerializedKyokumenImproved; difficulty: Difficulty; tesu: number }
   | { type: 'clearTT' }
@@ -88,6 +91,7 @@ type WorkerResponse =
        */
       scoreCp?: number;
       depth?: number;
+      searchPath: ShogiAiWorkerSearchPath;
     }
   | { type: 'error'; id: number; message: string };
 
@@ -318,10 +322,12 @@ function shouldTryMateSolve(k: KyokumenImproved): boolean {
 /** computeBestMove result: the move plus optional search diagnostics (see WorkerResponse). */
 interface BestMoveComputation {
   move: Te | null;
-  /** Root score in centipawns from SENTE's perspective; absent for book moves / JS fallback. */
+  /** Root score in centipawns from SENTE's perspective; absent for book moves. */
   scoreCp?: number;
-  /** Completed search depth; absent when no WASM search ran. */
+  /** Completed search depth; absent when the producing route did not search. */
   depth?: number;
+  /** The route that produced this result (including a null/no-legal-move result). */
+  searchPath: ShogiAiWorkerSearchPath;
 }
 
 /** Sente-perspective mate score used when the dedicated mate solver finds a forced mate. */
@@ -349,7 +355,7 @@ function computeBestMove(
 ): BestMoveComputation {
   // 1) Opening book.
   const book = getOpeningMoveImproved(k, difficulty);
-  if (book) return { move: book };
+  if (book) return { move: book, searchPath: 'book' };
 
   const budget = DIFFICULTY_BUDGETS[difficulty] ?? DIFFICULTY_BUDGETS.medium;
 
@@ -359,7 +365,7 @@ function computeBestMove(
     const mateStart = performance.now();
     const budgetMs = Math.max(30, Math.min(200, Math.floor(budget.maxTimeMs * 0.2)));
     const mate = mateSolver.solve(k, { maxPlies: 9, maxNodes: 150_000, maxTimeMs: budgetMs });
-    if (mate) return { move: mate, scoreCp: toSenteCp(MATE_SCORE_CP, k.teban) };
+    if (mate) return { move: mate, scoreCp: toSenteCp(MATE_SCORE_CP, k.teban), searchPath: 'mate' };
     const spent = performance.now() - mateStart;
     searchBudgetMs = Math.max(Math.floor(budget.maxTimeMs / 2), budget.maxTimeMs - Math.ceil(spent));
   }
@@ -414,15 +420,25 @@ function computeBestMove(
     // diagnostic: any failure to read stats must never lose the move itself.
     const stats = getLastWasmSearchStats();
     if (stats) {
-      return { move: wasmMove, scoreCp: toSenteCp(stats.score, k.teban), depth: stats.depth };
+      return {
+        move: wasmMove,
+        scoreCp: toSenteCp(stats.score, k.teban),
+        depth: stats.depth,
+        searchPath: 'wasm',
+      };
     }
-    return { move: wasmMove };
+    return { move: wasmMove, searchPath: 'wasm' };
   }
 
   // 4) JS V20 fallback (also the "no legal move" confirmation path: for a
   // genuinely mated position it returns null just like the WASM engine).
-  // No score is reported — its internal score is not exposed and the path is rare.
-  return { move: ai.getNextTe(k, tesu, { difficulty }) };
+  const fallback = ai.getNextTeWithInfo(k, tesu, { difficulty });
+  return {
+    move: fallback.move,
+    scoreCp: fallback.score === undefined ? undefined : toSenteCp(fallback.score, k.teban),
+    depth: fallback.depth,
+    searchPath: 'worker-js',
+  };
 }
 
 /**
@@ -510,7 +526,14 @@ ctx.onmessage = (event: MessageEvent<WorkerRequest>) => {
       ? { koma: best.koma, from: best.from, to: best.to, promote: best.promote }
       : null;
 
-    ctx.postMessage({ type: 'bestMoveResult', id: msg.id, move, scoreCp: result.scoreCp, depth: result.depth });
+    ctx.postMessage({
+      type: 'bestMoveResult',
+      id: msg.id,
+      move,
+      scoreCp: result.scoreCp,
+      depth: result.depth,
+      searchPath: result.searchPath,
+    });
 
     // Answer first, then start thinking on the opponent's time.
     if (best) startPonder(k, best, msg.difficulty, msg.tesu | 0);

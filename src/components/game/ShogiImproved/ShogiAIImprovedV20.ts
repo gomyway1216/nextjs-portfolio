@@ -106,6 +106,23 @@ export interface ShogiAISearchOptions {
   evaluationMode?: 'v1' | 'v2' | 'v3' | 'v3t';
 }
 
+export type ShogiAIMoveKind = 'book' | 'mate' | 'search';
+
+/**
+ * Best-move result with enough metadata to explain how the move was chosen.
+ *
+ * `score` returned by `getNextTeWithInfo()` is measured from the root
+ * side-to-move's perspective. The UI helper `getBestMoveV20WithInfo()`
+ * converts it to SENTE's perspective so callers that pass `teban` explicitly
+ * always receive one stable score convention.
+ */
+export interface ShogiAIMoveInfo {
+  move: Te | null;
+  score?: number;
+  depth?: number;
+  kind: ShogiAIMoveKind;
+}
+
 class TimeUpError extends Error {
   override name = 'TimeUpError';
 }
@@ -1528,7 +1545,11 @@ export class ShogiAIImprovedV20 {
     return null;
   }
 
-	  getNextTe(k: KyokumenImproved, tesu: number = 0, options: ShogiAISearchOptions = {}): Te | null {
+	  getNextTeWithInfo(
+	    k: KyokumenImproved,
+	    tesu: number = 0,
+	    options: ShogiAISearchOptions = {}
+	  ): ShogiAIMoveInfo {
 	    // Root move number (used only for opening-like ordering heuristics).
 	    this.rootTesu = tesu | 0;
 	    this.rootOrderBonusCache.clear();
@@ -1537,7 +1558,7 @@ export class ShogiAIImprovedV20 {
 
 	    // Opening book first: if a safe move exists, skip search entirely (stronger + faster in the opening).
 	    const book = getOpeningMoveImproved(k, difficulty);
-	    if (book) return book;
+	    if (book) return { move: book, kind: 'book' };
 
 	    // V20: one unified "brain" for every level.
 	    //
@@ -1574,7 +1595,7 @@ export class ShogiAIImprovedV20 {
     // forced mate by consecutive checks?" probe (endgame-gated). A found mate is returned
     // immediately; otherwise the remaining time goes to the normal search (deducted inside).
     const mateMove = this.tryMateSolve(k, maxTimeMs);
-    if (mateMove) return mateMove;
+    if (mateMove) return { move: mateMove, score: 30_000, kind: 'mate' };
 
     // Unified search features (V20): everything on, at every level.
     this.enableAspiration = true;
@@ -1631,7 +1652,7 @@ export class ShogiAIImprovedV20 {
     // Even if the time budget is extremely small, we must return *some* legal move.
     // This avoids "null move" timeouts in the UI and makes match scripts more stable.
     const rootMoves = GenerateMovesImproved.generateLegalMovesPooled(position, this.moveLists[0]);
-    if (rootMoves.length === 0) return null;
+    if (rootMoves.length === 0) return { move: null, depth: 0, kind: 'search' };
 
 	    const ttIndexAtRoot = this.tt.probe(position.HashVal);
 	    const ttMoveKeyAtRoot = ttIndexAtRoot >= 0 ? (this.tt.bestKey[ttIndexAtRoot] | 0) : 0;
@@ -1710,7 +1731,12 @@ export class ShogiAIImprovedV20 {
       );
     }
 
-    return bestMove;
+    return { move: bestMove, score: bestScore, depth: completedDepth, kind: 'search' };
+  }
+
+	  /** Backward-compatible move-only API. */
+	  getNextTe(k: KyokumenImproved, tesu: number = 0, options: ShogiAISearchOptions = {}): Te | null {
+	    return this.getNextTeWithInfo(k, tesu, options).move;
   }
 }
 
@@ -1723,7 +1749,22 @@ const sharedAIV20 = new ShogiAIImprovedV20();
  * Used by `/games/shogi-improved` and the fast-search path in `/games/shogi`.
  */
 export function getBestMoveV20(k: KyokumenImproved, teban: number, difficulty: Difficulty, tesu: number = 0): Te | null {
+  return getBestMoveV20WithInfo(k, teban, difficulty, tesu).move;
+}
+
+/**
+ * Metadata-preserving helper for UI/script callers.
+ * Unlike the class method, `score` is normalized to SENTE's perspective.
+ */
+export function getBestMoveV20WithInfo(
+  k: KyokumenImproved,
+  teban: number,
+  difficulty: Difficulty,
+  tesu: number = 0
+): ShogiAIMoveInfo {
   // The UI passes `teban` explicitly; keep the position consistent.
   k.setTeban(teban);
-  return sharedAIV20.getNextTe(k, tesu, { difficulty });
+  const result = sharedAIV20.getNextTeWithInfo(k, tesu, { difficulty });
+  if (result.score === undefined || teban === SENTE) return result;
+  return { ...result, score: -result.score };
 }

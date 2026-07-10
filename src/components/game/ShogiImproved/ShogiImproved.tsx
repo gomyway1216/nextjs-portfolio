@@ -22,8 +22,8 @@ import { computeDisambiguation,disambiguationToText } from './KifuNotationImprov
 import { KyokumenImproved } from './KyokumenImproved';
 import { ensureExternalOpeningBookLoaded,getOpeningMoveImproved } from './OpeningBookImproved';
 import { buildDeclinablePromotion } from './PromotionRulesImproved';
-import { getBestMoveV20 } from './ShogiAIImprovedV20';
-import type { SerializedKyokumenImproved,SerializedTeImproved,ShogiAiWorkerClient } from './shogiAiWorkerClient';
+import { getBestMoveV20WithInfo } from './ShogiAIImprovedV20';
+import type { SerializedKyokumenImproved,SerializedTeImproved,ShogiAiSearchPath,ShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { createShogiAiWorkerClient } from './shogiAiWorkerClient';
 import { EMPTY,GOTE,isSente,Position,SENTE,Te,toString } from './types';
 
@@ -212,8 +212,20 @@ function writeBoolPref(key: string, value: boolean): void {
   }
 }
 
-/** Search info shown by the eval bar / status strip. `scoreCp` is from SENTE's perspective. */
-interface EvalInfo { scoreCp: number; depth?: number; }
+type EvalSearchPath = ShogiAiSearchPath | 'worker-pending' | 'main-thread-js' | 'engine-error';
+
+/**
+ * One snapshot of the current/latest AI request. Keeping the route and its
+ * diagnostics together prevents an old WASM score from surviving a later
+ * scoreless book, mate, or compatibility-mode answer.
+ * `scoreCp` is always from SENTE's perspective.
+ */
+interface EvalInfo {
+  searchPath: EvalSearchPath;
+  scoreCp?: number;
+  depth?: number;
+  blockedMainThreadMs?: number;
+}
 
 /**
  * Map a sente-perspective centipawn score to Sente's win probability (0..1)
@@ -291,15 +303,12 @@ const ShogiImproved = () => {
   // 形勢バー (eval bar). Default hidden — seeing the engine's own evaluation is
   // a spoiler/aid, so the player must opt in. Persisted.
   const [showEvalBar, setShowEvalBar] = useState(false);
-  // Last AI search result (sente-perspective cp + reached depth); null until
-  // the first real search of a game (book moves report no score).
+  // Current/latest AI request: route, optional score/depth, and any main-thread
+  // blocking time. Replaced as a unit for every request to avoid stale values.
   const [evalInfo, setEvalInfo] = useState<EvalInfo | null>(null);
   // Elapsed ms of the current AI think, ticking while isAIThinking.
   const [thinkElapsedMs, setThinkElapsedMs] = useState(0);
-  // True when the AI's move came (or is coming) straight from the opening book.
-  // Book moves are instant — showing "考えています… 0.4秒" for them looks like a
-  // frozen timer, so the status strip shows "定跡" and hides the seconds instead.
-  const [aiPlayingBook, setAiPlayingBook] = useState(false);
+  const aiPlayingBook = evalInfo?.searchPath === 'book';
 
   // Hydrate persisted preferences after mount (not in useState initializers:
   // SSR markup must match the client's first render).
@@ -383,14 +392,20 @@ const ShogiImproved = () => {
 
   const workerRef = useRef<ShogiAiWorkerClient | null>(null);
   const aiRequestIdRef = useRef(0);
+  const [engineFailed, setEngineFailed] = useState(false);
   const getWorker = useCallback((): ShogiAiWorkerClient => {
     if (!workerRef.current) workerRef.current = createShogiAiWorkerClient();
     return workerRef.current;
   }, []);
   useEffect(() => {
+    const requestIds = aiRequestIdRef;
+    const workers = workerRef;
     return () => {
-      workerRef.current?.terminate();
-      workerRef.current = null;
+      // Invalidate both the 250/500ms courtesy timer and any Promise rejection
+      // caused by terminate() before either can start a fallback after unmount.
+      requestIds.current++;
+      workers.current?.terminate();
+      workers.current = null;
     };
   }, []);
 
@@ -427,6 +442,7 @@ const ShogiImproved = () => {
 	  const initGame = useCallback((selectedHandicap: Handicap) => {
     // Invalidate any in-flight worker request.
     aiRequestIdRef.current++;
+    setEngineFailed(false);
     workerRef.current?.clearTT();
 
 	    setGameState({
@@ -501,6 +517,7 @@ const ShogiImproved = () => {
   const handleKifuImported = useCallback((steps: KifuImportStep[]) => {
     if (steps.length === 0) return;
     aiRequestIdRef.current++;
+    setEngineFailed(false);
     workerRef.current?.clearTT();
 
     const startPosition = gameState.kyokumen.clone();
@@ -547,6 +564,7 @@ const ShogiImproved = () => {
     if (!replay) return;
     const { positions, viewPly } = replay;
     const kyokumen = positions[viewPly].clone();
+    setEngineFailed(false);
 
     setGameState({
       kyokumen,
@@ -709,7 +727,8 @@ const ShogiImproved = () => {
       !replay &&
       gameState.kyokumen.teban === GOTE &&
       !gameState.gameOver &&
-      !gameState.isAIThinking
+      !gameState.isAIThinking &&
+      !engineFailed
     ) {
       const requestId = ++aiRequestIdRef.current;
       // Resolve the book move up-front so the UI can tell an instant book reply
@@ -720,7 +739,10 @@ const ShogiImproved = () => {
       const bookMove = handicap === 'none'
         ? getOpeningMoveImproved(gameState.kyokumen.clone(), difficulty)
         : null;
-      setAiPlayingBook(!!bookMove);
+      // Start every request with a fresh diagnostics snapshot. In particular,
+      // do not leave the previous search's score/depth visible while a new
+      // scoreless route is in flight.
+      setEvalInfo({ searchPath: bookMove ? 'book' : 'worker-pending' });
       setGameState(prev => ({ ...prev, isAIThinking: true }));
 
       // Book replies are instant — a short courtesy pause reads as "played from
@@ -729,11 +751,21 @@ const ShogiImproved = () => {
       setTimeout(() => {
         if (aiRequestIdRef.current !== requestId) return;
 
+        const stopWithEngineError = (blockedMainThreadMs?: number) => {
+          if (aiRequestIdRef.current !== requestId) return;
+          // Do not retry the same broken position every 500ms. A new game or
+          // imported/replayed position explicitly clears this circuit breaker.
+          setEngineFailed(true);
+          setEvalInfo({ searchPath: 'engine-error', blockedMainThreadMs });
+          setGameState(prev => ({ ...prev, isAIThinking: false }));
+        };
+
         // Check if AI has any legal moves first
         const legalMoves = GenerateMovesImproved.generateLegalMoves(gameState.kyokumen);
 
 	        if (legalMoves.length === 0) {
 	          // AI is in checkmate
+          setEvalInfo({ searchPath: 'unknown' });
 	          setGameState(prev => ({
 	            ...prev,
             isAIThinking: false,
@@ -759,6 +791,7 @@ const ShogiImproved = () => {
 	            isAIThinking: false,
 	            gameOver: isOver,
 	            winner,
+	            ply: prev.ply + 1,
 	          }));
 
 	          if (isOver && winner === GOTE) {
@@ -767,100 +800,57 @@ const ShogiImproved = () => {
 	          return;
 	        }
 
-		        if (!isWorkerDifficulty(difficulty)) {
-		          const aiMove = getBestMoveV20(gameState.kyokumen, GOTE, difficulty, gameState.ply);
-		
-		          if (aiMove) {
-		            const newKyokumen = gameState.kyokumen.clone();
-		            recordMove(aiMove, gameState.kyokumen); newKyokumen.move(aiMove);
-	            newKyokumen.setTeban(SENTE);
-
-            const { isOver, winner } = checkGameOver(newKyokumen);
-
-	            setGameState(prev => ({
-	              ...prev,
-	              kyokumen: newKyokumen,
-	              isAIThinking: false,
-	              gameOver: isOver,
-	              winner,
-	              ply: prev.ply + 1,
-	            }));
-
-            if (isOver && winner === GOTE) {
-              setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-            }
-          } else {
-            // AI couldn't find a move (shouldn't happen if legalMoves > 0)
-            setGameState(prev => ({
-              ...prev,
-              isAIThinking: false,
-              gameOver: true,
-              winner: SENTE,
-            }));
-            setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
+        const runMainThreadFallback = () => {
+          // This is deliberately the only blocking path. Measure it and always
+          // leave isAIThinking, even if construction/search unexpectedly throws.
+          setEvalInfo({ searchPath: 'main-thread-js' });
+          const wallStartedAt = Date.now();
+          let preciseStartedAt: number | null = null;
+          try {
+            preciseStartedAt = performance.now();
+          } catch {
+            // Date.now remains a safe diagnostic fallback.
           }
-          return;
-        }
+          const blockedMs = () => {
+            if (preciseStartedAt !== null) {
+              try {
+                return performance.now() - preciseStartedAt;
+              } catch {
+                // Fall through to wall clock.
+              }
+            }
+            return Date.now() - wallStartedAt;
+          };
 
-		        const worker = getWorker();
-		        const position = serializeForWorker(gameState.kyokumen);
-		        worker
-		          .requestBestMoveWithInfo(position, difficulty, gameState.ply)
-		          .then((info) => {
+          try {
+            const info = getBestMoveV20WithInfo(
+              gameState.kyokumen,
+              GOTE,
+              difficulty,
+              gameState.ply,
+            );
+            const blockedMainThreadMs = blockedMs();
             if (aiRequestIdRef.current !== requestId) return;
 
-            // Search diagnostics for the eval bar / status strip (book moves
-            // report none — keep whatever the last real search said).
-            if (info.scoreCp !== undefined) {
-              setEvalInfo({ scoreCp: info.scoreCp, depth: info.depth });
-            }
+            setEvalInfo({
+              searchPath: 'main-thread-js',
+              scoreCp: info.score,
+              depth: info.depth,
+              blockedMainThreadMs,
+            });
 
-            const aiMove = info.move ? convertWorkerMoveToImprovedTe(info.move) : null;
+            const aiMove = info.move;
             if (!aiMove) {
-              setGameState(prev => ({
-                ...prev,
-                isAIThinking: false,
-                gameOver: true,
-                winner: SENTE,
-              }));
-              setStats(prev => ({ ...prev, wins: prev.wins + 1 }));
-              return;
-            }
-
-	            const newKyokumen = gameState.kyokumen.clone();
-	            recordMove(aiMove, gameState.kyokumen); newKyokumen.move(aiMove);
-	            newKyokumen.setTeban(SENTE);
-
-            const { isOver, winner } = checkGameOver(newKyokumen);
-
-	            setGameState(prev => ({
-	              ...prev,
-	              kyokumen: newKyokumen,
-	              isAIThinking: false,
-	              gameOver: isOver,
-	              winner,
-	              ply: prev.ply + 1,
-	            }));
-
-            if (isOver && winner === GOTE) {
-              setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
-            }
-          })
-          .catch(() => {
-            if (aiRequestIdRef.current !== requestId) return;
-
-            // Worker failed (e.g. it could not load): last-resort main-thread search.
-            const aiMove = getBestMoveV20(gameState.kyokumen, GOTE, difficulty, gameState.ply);
-            if (!aiMove) {
-              setGameState(prev => ({ ...prev, isAIThinking: false }));
+              stopWithEngineError(blockedMainThreadMs);
               return;
             }
 
             const newKyokumen = gameState.kyokumen.clone();
-            recordMove(aiMove, gameState.kyokumen); newKyokumen.move(aiMove);
+            newKyokumen.move(aiMove);
             newKyokumen.setTeban(SENTE);
 
             const { isOver, winner } = checkGameOver(newKyokumen);
+            recordMove(aiMove, gameState.kyokumen);
 
             setGameState(prev => ({
               ...prev,
@@ -874,12 +864,87 @@ const ShogiImproved = () => {
             if (isOver && winner === GOTE) {
               setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
             }
-          });
+          } catch {
+            stopWithEngineError(blockedMs());
+          }
+        };
+
+        if (!isWorkerDifficulty(difficulty)) {
+          runMainThreadFallback();
+          return;
+        }
+
+	        const position = serializeForWorker(gameState.kyokumen);
+        let worker: ShogiAiWorkerClient;
+        try {
+          // Worker construction itself may throw synchronously (blocked script,
+          // unsupported environment). Catch it before a Promise exists.
+          worker = getWorker();
+        } catch {
+          runMainThreadFallback();
+          return;
+        }
+
+        try {
+          void worker
+	          .requestBestMoveWithInfo(position, difficulty, gameState.ply)
+	          .then((info) => {
+            if (aiRequestIdRef.current !== requestId) return;
+
+            // Replace all diagnostics together, including scoreless answers.
+            setEvalInfo({
+              searchPath: info.searchPath,
+              scoreCp: info.scoreCp,
+              depth: info.depth,
+            });
+
+            const aiMove = info.move ? convertWorkerMoveToImprovedTe(info.move) : null;
+            if (!aiMove) {
+              stopWithEngineError();
+              return;
+            }
+
+	            const newKyokumen = gameState.kyokumen.clone();
+	            newKyokumen.move(aiMove);
+	            newKyokumen.setTeban(SENTE);
+
+            const { isOver, winner } = checkGameOver(newKyokumen);
+            recordMove(aiMove, gameState.kyokumen);
+
+	            setGameState(prev => ({
+	              ...prev,
+	              kyokumen: newKyokumen,
+	              isAIThinking: false,
+	              gameOver: isOver,
+	              winner,
+	              ply: prev.ply + 1,
+	            }));
+
+            if (isOver && winner === GOTE) {
+              setStats(prev => ({ ...prev, losses: prev.losses + 1 }));
+            }
+          }, () => {
+            // Only a rejected worker request takes the compatibility route.
+            // Exceptions while applying a successful move must never trigger a
+            // second search and a possible double move.
+            if (aiRequestIdRef.current !== requestId) return;
+            runMainThreadFallback();
+          })
+            .catch(() => {
+              // A failure while applying an already successful worker result is
+              // not a worker failure. Stop the spinner without replaying a move.
+              if (aiRequestIdRef.current !== requestId) return;
+              stopWithEngineError();
+            });
+        } catch {
+          // A client implementation can also throw before returning its Promise.
+          runMainThreadFallback();
+        }
         return;
 
       }, bookMove ? 250 : 500);
     }
-  }, [gameState.kyokumen.teban, gameState.gameOver, gameState.isAIThinking, difficulty, handicap, replay]);
+  }, [gameState.kyokumen.teban, gameState.gameOver, gameState.isAIThinking, difficulty, handicap, replay, engineFailed]);
 
   const startGame = () => {
     setShowDifficultySelect(false);
@@ -887,6 +952,18 @@ const ShogiImproved = () => {
   };
 
   const resetGame = () => {
+    if (engineFailed) {
+      // A terminal failure can leave the cached client permanently disabled
+      // (for example when a timeout is followed by a failed Worker respawn).
+      // Retry starts a genuinely fresh game/engine instead of reusing that
+      // poisoned client and falling straight back into the same failure.
+      try {
+        workerRef.current?.terminate();
+      } catch {
+        /* a broken Worker may also reject teardown; replacing the ref is enough */
+      }
+      workerRef.current = null;
+    }
     initGame(handicap);
   };
 
@@ -964,6 +1041,7 @@ const ShogiImproved = () => {
   const resumeSavedGame = useCallback(() => {
     if (!savedGame) return;
     aiRequestIdRef.current++;
+    setEngineFailed(false);
     workerRef.current?.clearTT();
 
     setDifficulty(savedGame.difficulty);
@@ -1218,6 +1296,13 @@ const ShogiImproved = () => {
       <div style={{ maxWidth: '1200px', margin: '3rem auto 0' }}>
         <style>{'@keyframes shogiAiSpin { to { transform: rotate(360deg); } }'}</style>
         <div
+          data-testid="shogi-engine-status"
+          data-ply={gameState.ply}
+          data-search-path={evalInfo?.searchPath ?? 'idle'}
+          data-score-cp={evalInfo?.scoreCp ?? ''}
+          data-search-depth={evalInfo?.depth ?? ''}
+          data-main-thread-blocked-ms={Math.round(evalInfo?.blockedMainThreadMs ?? 0)}
+          data-thinking={gameState.isAIThinking ? 'true' : 'false'}
           style={{
             height: '28px',
             display: 'flex',
@@ -1254,9 +1339,17 @@ const ShogiImproved = () => {
               ? (aiPlayingBook ? '定跡どおりに指しています' : 'AIが考えています…')
               : gameState.gameOver
                 ? '対局終了'
-                : 'あなたの番です'}
+                : evalInfo?.searchPath === 'main-thread-js'
+                  ? 'あなたの番です（低速互換モード）'
+                  : evalInfo?.searchPath === 'worker-js'
+                    ? 'あなたの番です（互換モード）'
+                    : evalInfo?.searchPath === 'engine-error'
+                      ? 'AIを起動できませんでした。再対局してください'
+                    : 'あなたの番です'}
           </span>
           <span
+            data-testid="shogi-engine-timer"
+            data-elapsed-ms={Math.round(thinkElapsedMs)}
             aria-hidden="true"
             style={{
               fontSize: '14px',
@@ -1295,14 +1388,14 @@ const ShogiImproved = () => {
               }}
               role="img"
               aria-label={
-                evalInfo
+                evalInfo?.scoreCp !== undefined
                   ? `形勢: 先手勝率 ${Math.round(cpToSenteWinRate(evalInfo.scoreCp) * 100)}%`
                   : '形勢: 不明'
               }
             >
               <div
                 style={{
-                  width: `${(evalInfo ? cpToSenteWinRate(evalInfo.scoreCp) : 0.5) * 100}%`,
+                  width: `${(evalInfo?.scoreCp !== undefined ? cpToSenteWinRate(evalInfo.scoreCp) : 0.5) * 100}%`,
                   height: '100%',
                   background: '#1f1f1f',
                   transition: 'width 0.4s ease',
@@ -1311,6 +1404,7 @@ const ShogiImproved = () => {
             </div>
             <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.85)', flex: '0 0 auto' }}>後手△</span>
             <span
+              data-testid="shogi-engine-eval"
               style={{
                 fontSize: '12px',
                 color: 'rgba(255,255,255,0.75)',
@@ -1319,7 +1413,7 @@ const ShogiImproved = () => {
                 flex: '0 0 auto',
               }}
             >
-              {evalInfo
+              {evalInfo?.scoreCp !== undefined
                 ? Math.abs(evalInfo.scoreCp) >= 29000
                   ? evalInfo.scoreCp > 0
                     ? '先手勝勢（詰み）'
@@ -1719,13 +1813,18 @@ const ShogiImproved = () => {
         <KifuImportPanel startingPosition={gameState.kyokumen} onImported={handleKifuImported} />
       </div>
 
-      {/* Game Over */}
-      {gameState.gameOver && (
+      {/* Game Over / terminal engine failure */}
+      {(gameState.gameOver || engineFailed) && (
         <div style={{ textAlign: 'center', marginTop: '30px' }}>
           <h2 style={{ fontSize: '2rem', marginBottom: '20px' }}>
-            {gameState.winner === SENTE ? '🎉 You Win!' : '😔 AI Wins!'}
+            {engineFailed
+              ? 'AI engine unavailable'
+              : gameState.winner === SENTE
+                ? '🎉 You Win!'
+                : '😔 AI Wins!'}
           </h2>
           <button
+            data-testid={engineFailed ? 'shogi-engine-retry' : undefined}
             onClick={resetGame}
             style={{
               padding: '12px 30px',
@@ -1741,7 +1840,7 @@ const ShogiImproved = () => {
             }}
           >
             <RotateCcw size={20} />
-            Play Again
+            {engineFailed ? 'Retry Game' : 'Play Again'}
           </button>
         </div>
       )}

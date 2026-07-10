@@ -15,7 +15,11 @@
 
 import { Difficulty } from '../common/types';
 import { createSharedTTBuffer } from './sharedTT';
-import type { SerializedKyokumenImproved, SerializedTeImproved } from './shogi-ai.worker';
+import type {
+  SerializedKyokumenImproved,
+  SerializedTeImproved,
+  ShogiAiWorkerSearchPath,
+} from './shogi-ai.worker';
 import type { HelperInitMessage, MainThreadsInitMessage } from './smpProtocol';
 
 type WorkerRequest =
@@ -25,21 +29,41 @@ type WorkerRequest =
   | MainThreadsInitMessage;
 
 type WorkerResponse =
-  | { type: 'bestMoveResult'; id: number; move: SerializedTeImproved | null; scoreCp?: number; depth?: number }
+  | {
+      type: 'bestMoveResult';
+      id: number;
+      move: SerializedTeImproved | null;
+      scoreCp?: number;
+      depth?: number;
+      /** Optional here so an older/corrupt worker response safely becomes `unknown`. */
+      searchPath?: ShogiAiWorkerSearchPath;
+    }
   | { type: 'error'; id: number; message: string };
 
 export type { SerializedKyokumenImproved, SerializedTeImproved };
 
+/** Worker route observed by the page; `unknown` is the backward-compatible fallback. */
+export type ShogiAiSearchPath = ShogiAiWorkerSearchPath | 'unknown';
+
 /**
  * Best-move answer with optional search diagnostics. `scoreCp` is the root
  * score in centipawns from SENTE's perspective (positive = Sente better);
- * absent for opening-book moves and the JS fallback path. `depth` is the
- * completed search depth when a WASM search ran.
+ * absent for opening-book moves. `depth` is the completed search depth when
+ * the producing route ran iterative deepening.
  */
 export interface BestMoveInfo {
   move: SerializedTeImproved | null;
   scoreCp?: number;
   depth?: number;
+  searchPath: ShogiAiSearchPath;
+}
+
+const WORKER_SEARCH_PATHS: ReadonlySet<string> = new Set(['book', 'mate', 'wasm', 'worker-js']);
+
+function normalizeSearchPath(value: unknown): ShogiAiSearchPath {
+  return typeof value === 'string' && WORKER_SEARCH_PATHS.has(value)
+    ? (value as ShogiAiWorkerSearchPath)
+    : 'unknown';
 }
 
 export interface ShogiAiWorkerClient {
@@ -179,7 +203,12 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
         const p = pending.get(msg.id);
         if (!p) return;
         pending.delete(msg.id);
-        p.resolve({ move: msg.move, scoreCp: msg.scoreCp, depth: msg.depth });
+        p.resolve({
+          move: msg.move,
+          scoreCp: msg.scoreCp,
+          depth: msg.depth,
+          searchPath: normalizeSearchPath(msg.searchPath),
+        });
         return;
       }
 
@@ -266,10 +295,21 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
     respawnTimestamps.push(now);
     console.warn(`[shogiAiWorkerClient] AI worker recovered (${reason}); respawning single-thread`);
 
-    worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), { type: 'module' });
-    // After any failure, favor the rock-solid single-thread path (no SMP).
-    attachWorkerHandlers(worker);
-    syncVisibility();
+    try {
+      worker = new Worker(new URL('./shogi-ai.worker.ts', import.meta.url), { type: 'module' });
+      // After any failure, favor the rock-solid single-thread path (no SMP).
+      attachWorkerHandlers(worker);
+      syncVisibility();
+    } catch (e) {
+      // Worker construction can itself be the unavailable operation. Do not
+      // let that throw escape an error/timeout callback and strand a Promise.
+      respawnDisabled = true;
+      console.error(
+        `[shogiAiWorkerClient] single-thread respawn failed (${reason}); ` +
+          'moves will use the main-thread engine',
+        e,
+      );
+    }
   }
 
   const requestBestMoveWithInfo = (
@@ -291,8 +331,10 @@ export function createShogiAiWorkerClient(): ShogiAiWorkerClient {
       // "AI Thinking..." regardless of the failure cause.
       const timer = setTimeout(() => {
         if (pending.delete(id)) {
-          recoverWithSingleThread(`no response for id=${id} within ${hardDeadlineMs(difficulty)}ms`);
+          // Settle the caller first. Recovery is best-effort and may itself be
+          // impossible when Worker construction is what the browser blocks.
           reject(new Error('AI worker timed out'));
+          recoverWithSingleThread(`no response for id=${id} within ${hardDeadlineMs(difficulty)}ms`);
         }
       }, hardDeadlineMs(difficulty));
       pending.set(id, {

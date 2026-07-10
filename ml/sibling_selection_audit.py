@@ -13,6 +13,8 @@ import hashlib
 import json
 import math
 import os
+import re
+import subprocess
 from collections.abc import Mapping
 from typing import Any
 
@@ -35,6 +37,7 @@ SELECTION_AUDIT_SCHEMA = "shogi-sibling-six-run-selection-audit-v1"
 SEALED_EVAL_REPORT_SCHEMA = "shogi-sibling-eval-v2"
 PAIR_DEGRADATION_LIMIT = 0.002
 TOP1_DEGRADATION_LIMIT = 0.005
+GIT_REVISION_RE = re.compile(r"^[0-9a-f]{40}$")
 METRIC_FIELDS = (
     "within_parent_pair_accuracy",
     "teacher_top1_accuracy",
@@ -260,6 +263,37 @@ def evaluate_selection_gates(
     }
 
 
+def verify_audit_pipeline_revision(
+    expected_revision: str, repo_root: str
+) -> dict[str, Any]:
+    if GIT_REVISION_RE.fullmatch(expected_revision or "") is None:
+        raise ValueError("--pipeline-revision must be a lowercase 40-digit Git commit")
+
+    def git(*arguments: str) -> str:
+        try:
+            completed = subprocess.run(
+                ["git", "-C", repo_root, *arguments],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as error:
+            raise ValueError(f"cannot verify audit pipeline revision: {error}") from error
+        return completed.stdout
+
+    actual_revision = git("rev-parse", "HEAD").strip()
+    if actual_revision != expected_revision:
+        raise ValueError(
+            f"--pipeline-revision {expected_revision} does not match HEAD {actual_revision}"
+        )
+    if git("status", "--porcelain=v1", "--untracked-files=normal"):
+        raise ValueError("selection audit requires a clean Git worktree")
+    return {
+        "source_revision": actual_revision,
+        "tracked_tree_clean": True,
+    }
+
+
 def build_selection_audit(
     *,
     run_root: str,
@@ -267,6 +301,7 @@ def build_selection_audit(
     stable_checkpoint_path: str,
     stable_selection_report_path: str,
     repo_root: str,
+    audit_pipeline: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     plan, plan_raw = _read_json(run_plan_path, "six-run plan")
     _require_exact(
@@ -436,7 +471,7 @@ def build_selection_audit(
         private_winner["_int16_metrics"],
         stable_int16,
     )
-    return {
+    audit = {
         "schema": SELECTION_AUDIT_SCHEMA,
         "run_plan": plan_receipt,
         "runs": public_runs,
@@ -477,6 +512,9 @@ def build_selection_audit(
             "labels_read": False,
         },
     }
+    if audit_pipeline is not None:
+        audit["audit_pipeline"] = dict(audit_pipeline)
+    return audit
 
 
 def _write_new_json(path: str, value: Mapping[str, Any]) -> None:
@@ -507,16 +545,21 @@ def main(argv=None) -> int:
     parser.add_argument("--run-plan", required=True)
     parser.add_argument("--stable-checkpoint", required=True)
     parser.add_argument("--stable-selection-report", required=True)
+    parser.add_argument("--pipeline-revision", required=True)
     parser.add_argument("--out", required=True)
     args = parser.parse_args(argv)
     repo_root = os.path.realpath(os.path.join(os.path.dirname(__file__), ".."))
     try:
+        audit_pipeline = verify_audit_pipeline_revision(
+            args.pipeline_revision, repo_root
+        )
         audit = build_selection_audit(
             run_root=args.run_root,
             run_plan_path=args.run_plan,
             stable_checkpoint_path=args.stable_checkpoint,
             stable_selection_report_path=args.stable_selection_report,
             repo_root=repo_root,
+            audit_pipeline=audit_pipeline,
         )
         _write_new_json(args.out, audit)
     except (OSError, ValueError) as error:

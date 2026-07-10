@@ -21,6 +21,7 @@ from sibling_selection_audit import (  # noqa: E402
     PAIR_DEGRADATION_LIMIT,
     TOP1_DEGRADATION_LIMIT,
     evaluate_selection_gates,
+    verify_audit_pipeline_revision,
 )
 
 
@@ -240,6 +241,10 @@ class CandidateSelectionProtocolTest(unittest.TestCase):
         self.assertAlmostEqual(
             abs(gates["checks"][3]["observed"]), TOP1_DEGRADATION_LIMIT
         )
+
+    def test_selection_audit_requires_an_exact_pipeline_revision(self):
+        with self.assertRaisesRegex(ValueError, "40-digit Git commit"):
+            verify_audit_pipeline_revision("not-a-revision", "/unused")
 
 
 if __name__ == "__main__":

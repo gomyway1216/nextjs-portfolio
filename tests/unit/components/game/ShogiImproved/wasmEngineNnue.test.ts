@@ -27,6 +27,7 @@ import {
 } from '@/components/game/ShogiImproved/types';
 import {
   clearWasmTT,
+  getLastWasmSearchStats,
   isNnueEnabled,
   isNnueWeightsLoaded,
   loadNnueWeights,
@@ -165,13 +166,16 @@ describe('wasmEngine NNUE loading', () => {
   it(
     'does not choose the third P*8f repetition at fixed depth 11',
     () => {
+      expect(loadNnueWeights(readWeights(), 600)).toBe(true);
       expect(setWasmNnueEnabled(true)).toBe(true);
       const position = rookPawnLoopPosition();
       clearWasmTT();
 
       const move = wasmSearchBestMove(position, ROOK_PAWN_LOOP_PREFIX.length, 0, 11, 10);
+      const stats = getLastWasmSearchStats();
 
       expect(move).not.toBeNull();
+      expect(stats?.depth).toBe(11);
       expect(move!.from).toBe((3 << 4) + 1); // 3a
       expect(move!.to).toBe((4 << 4) + 2); // 4b
     },

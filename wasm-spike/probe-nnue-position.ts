@@ -60,7 +60,9 @@ function argStr(flag: string, def: string): string {
 
 const WEIGHTS = argAll('--weights');
 if (WEIGHTS.length === 0) {
-  console.error('usage: node -r tsx/cjs wasm-spike/probe-nnue-position.ts --weights w.bin [--weights w2.bin] [--moves "..."] [--ms 2000]');
+  console.error(
+    'usage: node -r tsx/cjs wasm-spike/probe-nnue-position.ts --weights w.bin [--weights w2.bin] [--moves "..."] [--ms 2000] [--depth 32] [--k 600] [--top 10]',
+  );
   process.exit(2);
 }
 // 既定: ▲7六歩△8四歩▲2六歩△8五歩▲7七角△3四歩▲6六歩 (作者報告の浮き飛車バイアス局面, 後手番)
@@ -69,6 +71,10 @@ const MOVE_MS = argNum('--ms', 2000);
 const MAX_DEPTH = argNum('--depth', 32);
 const SCALE_K = argNum('--k', 600);
 const TOP_N = argNum('--top', 10);
+
+if (MAX_DEPTH < 1 || MAX_DEPTH > 32) {
+  throw new Error('--depth must be between 1 and 32');
+}
 
 // --- USI move <-> Te ----------------------------------------------------------
 

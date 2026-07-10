@@ -112,18 +112,28 @@ SHA256(
 
 Ordering is by digest bytes ascending, then by `game_id` UTF-8 bytes if digests tie. The first three games become final holdout; the other four become model selection. The exact 3 / 4 quota does not move after results arrive.
 
-Before labeling, raw parent occurrences are assigned as follows.
+After Lane A exposure and cross-role semantic conflicts are removed, the published partition is:
 
-| Role | Games | Raw parents | Use |
+| Role | Games | Parents / records | Use |
 |---|---:|---:|---|
-| model-training source | 21 | `TBD` (partition publish) | passed to warm/scratch after Lane A and semantic exclusion |
-| model selection | 4 | `TBD` (partition publish) | used for epoch/checkpoint/series selection |
-| final holdout | 3 | `TBD` (partition publish) | evaluated only after a candidate receipt |
-| validation total | 7 | fixed by the full manifest; role counts await publish | four + three games |
+| model training | 21 | 1,725 / 20,123 | passed to warm/scratch |
+| model selection | 4 | 341 / 3,912 | used for epoch/checkpoint/series selection |
+| final holdout | 3 | 290 / 3,391 | evaluated only after a candidate receipt |
+| validation total | 7 | 631 / 7,303 | four + three games |
 
 Game assignment uses no cp or rank, only game ID and the fixed depth-16 hash. The old depth-18-seed 416 / 339-parent split and the table assigning only 100 pilot parents as 70 / 15 / 15 parents and 830 / 180 / 180 rows are diagnostic history, not current role accounting. Lane A includes the depth-selection pilot plus hard-case, repeat, and node-policy diagnostics spread across all 28 games, so the holdout cannot honestly be called “opened for the first time” or game-level untouched.
 
 The current tracked receipt unions every committed Lane A artifact: 102 parent IDs and 1,392 semantic IDs from `position_id ∪ child_position_id`. Two sorted, unique, LF-terminated ID files and the receipt itself are separately SHA-256-bound. A whole sibling group is removed from training, selection, or holdout if either its parent ID or any position/child ID touches that receipt. At a clean HEAD, `--audit-policy-exposure` published no artifact and exited 2 with 307 parents / 3,642 rows for training, 64 / 762 for selection, 49 / 588 for holdout, and seven unmatched parent IDs. Those values are now pinned in the receipt (4,111 bytes; SHA-256 `083a86e48f1af134b854cdf0e505f0f39cc55ef75d5cbbc0df47c3e1c5013a6f`) and the TypeScript/Python contracts. The defensible guarantee is only an **exact-row seal since PR4A**—not a holdout independent of teacher construction.
+
+At the same clean revision `6d541f1108a22f18751ee009417c3e57e27f8205`, preflight passed with every output still absent, after which publication wrote the manifest last as the commit marker. The Python consumer then reverified every source/output byte binding and every isolation field as zero.
+
+| Partition artifact | Records / parents | Bytes | SHA-256 |
+|---|---:|---:|---|
+| model training | 20,123 / 1,725 | 17,154,270 | `f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26` |
+| model selection | 3,912 / 341 | 3,319,397 | `97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba` |
+| final holdout | 3,391 / 290 | 2,870,874 | `89b3e2ca1e637a507b4b6559326ada420d205c3967ac33063a9084ee5290e8c8` |
+| protected semantic IDs | 3,372 / — | 242,784 | `762b95b52f50223fd484573d7d3823f3d2d7622ea3817f4300ae9fcc95935d26` |
+| partition manifest | — | 5,357 | `d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1` |
 
 ### 3.2 The audit found leakage that same-type comparisons missed
 
@@ -223,7 +233,7 @@ The plan deliberately contains no `training_pipeline_revision`. The plan is comm
 | warm initializer SHA-256 | `571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8` |
 | warm legacy flag | `true`; safely load model weights only, with fresh optimizer/scheduler |
 | scratch initializer / legacy flag | none / `false` |
-| teacher / partition / filtered-data hashes | teacher manifest `3381e238…` confirmed; partition / filtered datasets remain `TBD` |
+| teacher / partition / filtered-data hashes | teacher `3381e238…`, partition `d95e6623…`, training `f6dcfd6a…`, selection `97b15ba1…`, protected IDs `762b95b5…` |
 
 Warm accepts only seeds 42/43/44, `lr=1e-4`, and 20 epochs. Scratch accepts the same three seeds, `lr=1e-3`, and 40 epochs. Six parallel processes therefore have exactly 12 intra-op slots and no hidden inter-op fan-out. The plan fixes six repository-relative output slots and refuses an existing directory. Only a completed run atomically writes `shogi-sibling-training-result-v1` last, binding every checkpoint, `curve.csv`, pipeline revision, and deterministic runtime receipt; a crashed directory has no selectable result marker.
 
@@ -344,7 +354,7 @@ The [81Dojo Terms of Use](https://81dojo.com/en/terms.html) require a `COM_*` sp
 | Lane A teacher-policy comparison | **Confirmed** | selected fixed depth 16; n=100 ordinary-cp median 29 / p90 125.3, all-pair reversal 0.1462%, depth-18 node ratio 2.4713× |
 | fresh final-policy full teacher | **Confirmed, complete** | exit 0 after 5,354.31s; 3,112 selected = 3,106 completed + 6 skipped, 36,365 candidates, 21/7 games, zero overlap |
 | full teacher manifest / train / val / work hashes | **Confirmed** | manifest `3381e238…` / train `909f12a5…` / val `5a2435df…` / work `f183d403…`; bytes and row counts recorded above |
-| sealed partition manifest / five artifact hashes | **Not run** | `TBD` — run after full-manifest completion |
+| sealed partition manifest / five artifact hashes | **Confirmed, published** | training `f6dcfd6a…` / selection `97b15ba1…` / holdout `89b3e2ca…` / protected `762b95b5…` / manifest `d95e6623…`; Python reverified, every overlap zero |
 | policy-exposure receipt | **Audited and pinned** | 102 parent / 1,392 semantic IDs; removals are training 307 parents/3,642 rows, selection 64/762, holdout 49/588, unmatched 7 |
 | model-training cross-semantic isolation | **Implemented and tested** | after Lane A exposure exclusion, evaluation union wins, whole-parent drop, 21 games required |
 | external high-dan calibration | **Plan only; not authorized** | confirmed 81Dojo COM-account / official-app constraints; candidate/time control/pairing/minimum games/stability rule must be frozen before play |
@@ -378,4 +388,4 @@ The intermediate result is not a weight file. It is the removal of convenient es
 
 None proves stronger play. They do make it harder to excuse a weaker model with an aggregate metric or a tiny match.
 
-The next update may report partition hashes, six training curves, candidate-selection receipt, frozen candidate, exact-row holdout, retention, known regression, the 384-game interval, and browser evidence. Until every item exists and every gate passes, production remains on runOp1.
+The next update may report six training curves, candidate-selection receipt, frozen candidate, exact-row holdout, retention, known regression, the 384-game interval, and browser evidence. Until every item exists and every gate passes, production remains on runOp1.

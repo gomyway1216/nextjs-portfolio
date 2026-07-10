@@ -112,18 +112,28 @@ SHA256(
 
 digest bytesの昇順、同じdigestなら`game_id`のUTF-8 bytes昇順とし、先頭3局をfinal holdout、残り4局をmodel selectionにする。quotaはexact 3 / 4であり、結果を見て比率を変えない。
 
-ラベル前のraw parent occurrencesでは次の割当になる。
+Lane A exposureとrole間semantic conflictを除いた公開partitionは次の割当になった。
 
-| role | games | raw parents | 用途 |
+| role | games | parents / records | 用途 |
 |---|---:|---:|---|
-| model training source | 21 | `TBD`（partition publish） | Lane A exposureとsemantic conflict除外後にwarm/scratchへ渡す |
-| model selection | 4 | `TBD`（partition publish） | epoch/checkpoint/series選択に使用 |
-| final holdout | 3 | `TBD`（partition publish） | candidate receipt後だけ評価 |
-| validation total | 7 | full manifestに固定、role内訳はpublish待ち | 4局 + 3局 |
+| model training | 21 | 1,725 / 20,123 | warm/scratchへ渡す |
+| model selection | 4 | 341 / 3,912 | epoch/checkpoint/series選択に使用 |
+| final holdout | 3 | 290 / 3,391 | candidate receipt後だけ評価 |
+| validation total | 7 | 631 / 7,303 | 4局 + 3局 |
 
 game assignmentはcpやrankを見ず、game IDとdepth-16用の固定hashだけで決める。depth-18由来seedで得た旧416 / 339親や、以前の100親だけを70 / 15 / 15親、830 / 180 / 180行へ割り振った表は診断履歴であり、現行のrole accountingではない。depth選択pilotだけでなくhard-case、repeat、node-policy診断を含むLane A workが全28局へ触れているため、「3局を初めて開く」「game-level untouched」とも記載しない。
 
 現行tracked receiptは、Lane Aで実際にcommitされた全workから102 parent IDsと`position_id ∪ child_position_id`の1,392 semantic IDsを導出する。2つのsorted/unique/LF-terminated ID fileとreceipt自体をそれぞれSHA-256で固定する。partitionはparent IDが一致するか、兄弟group内のposition/childがsemantic receiptへ1つでも触れた場合、group全体をtraining、selection、holdoutの全roleから先に除外する。clean HEADでの`--audit-policy-exposure`はartifactを公開せずexit 2となり、training 307親 / 3,642行、selection 64親 / 762行、holdout 49親 / 588行、unmatched parent IDs 7件を返した。この値をreceipt（4,111 bytes、SHA-256 `083a86e48f1af134b854cdf0e505f0f39cc55ef75d5cbbc0df47c3e1c5013a6f`）とTS/Python contractへ固定した。保証できるのは、この除外後のholdout行とcandidate選択の間に設ける**PR4A以降のexact-row seal**だけであり、teacher constructionから独立したholdoutではない。
+
+同じclean revision `6d541f1108a22f18751ee009417c3e57e27f8205`でpreflightを通し、出力不存在を再確認してから公開した。manifestを最後のcommit markerにし、Python consumerでも全source/output bytesと全isolation=0を再検証した。
+
+| partition artifact | records / parents | bytes | SHA-256 |
+|---|---:|---:|---|
+| model training | 20,123 / 1,725 | 17,154,270 | `f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26` |
+| model selection | 3,912 / 341 | 3,319,397 | `97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba` |
+| final holdout | 3,391 / 290 | 2,870,874 | `89b3e2ca1e637a507b4b6559326ada420d205c3967ac33063a9084ee5290e8c8` |
+| protected semantic IDs | 3,372 / — | 242,784 | `762b95b52f50223fd484573d7d3823f3d2d7622ea3817f4300ae9fcc95935d26` |
+| partition manifest | — | 5,357 | `d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1` |
 
 ### 3.2 auditで見つかった、同種比較だけでは足りない漏洩
 
@@ -232,7 +242,7 @@ plan自身には`training_pipeline_revision`を入れない。planをcommitし�
 | warm initializer SHA-256 | `571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8` |
 | warm legacy flag | `true`。model weightだけを安全loadし、optimizer/schedulerはfresh |
 | scratch initializer / legacy flag | なし / `false` |
-| teacher / partition / filtered dataset hashes | teacher manifest `3381e238…`は確定。partition / filtered datasetsは`TBD` |
+| teacher / partition / filtered dataset hashes | teacher `3381e238…`、partition `d95e6623…`、training `f6dcfd6a…`、selection `97b15ba1…`、protected IDs `762b95b5…` |
 
 warmはseed 42/43/44、`lr=1e-4`、20 epochs、scratchは同じ3 seeds、`lr=1e-3`、40 epochs以外を受理しない。6 processを並行実行しても各processのintra-opは2、inter-opは1なので、学習側のintra-op枠は合計12に固定する。planは6つのrepo-relative output slotも固定し、既存directoryへの再実行を拒否する。完走時だけ`shogi-sibling-training-result-v1`を最後にatomic writeし、全checkpointと`curve.csv`のbytes/hash、pipeline、deterministic runtime receiptを結ぶ。途中停止したdirectoryにはresult markerがないため選抜対象にならない。
 
@@ -353,7 +363,7 @@ A/Bはcandidate対stableを384局、つまり192のcolor-swapped opening pairs�
 | Lane A teacher-policy比較 | **確認済み** | fixed depth 16を採用。n=100は通常cp差median 29 / p90 125.3、全pair反転0.1462%、depth-18 node比2.4713× |
 | final-policy fresh full teacher | **確認済み・完了** | exit 0、5,354.31秒。3,112 selected = 3,106 completed + 6 skipped、36,365 candidates、21/7 games、overlap 0 |
 | full teacher manifest / train / val / work hashes | **確認済み** | manifest `3381e238…` / train `909f12a5…` / val `5a2435df…` / work `f183d403…`。bytesと行数は本文に記録 |
-| sealed partition manifest / 5 artifacts hashes | **未実施** | `TBD` — full manifest完成後に実行 |
+| sealed partition manifest / 5 artifacts hashes | **確認済み・公開** | training `f6dcfd6a…` / selection `97b15ba1…` / holdout `89b3e2ca…` / protected `762b95b5…` / manifest `d95e6623…`。Python再検証・overlap全0 |
 | policy exposure receipt | **audit・固定済み** | 102 parent / 1,392 semantic IDs。除外はtraining 307親/3,642行、selection 64/762、holdout 49/588、unmatched 7 |
 | model-training cross-semantic isolation | **実装・テスト済み** | Lane A exposure除外後にevaluation union優先、親単位drop、21局必須 |
 | 外部高段校正 | **計画のみ・未許可** | 81DojoのCOM account / 公式app制約を確認。candidate/time control/pairing/min games/stability ruleは実施前に別途固定 |
@@ -387,4 +397,4 @@ A/Bはcandidate対stableを384局、つまり192のcolor-swapped opening pairs�
 
 これらは「強くなった」証拠ではない。しかし、弱くなったモデルを平均値や小さなA/Bで正当化しにくくする証拠ではある。
 
-次の更新で書けるのは、partition hashes、6 training curves、candidate-selection receipt、凍結candidate、exact-row holdout、retention、既知回帰、384局区間、browser結果である。すべて揃い、かつ全ゲートを通るまでproductionはrunOp1のままにする。
+次の更新で書けるのは、6 training curves、candidate-selection receipt、凍結candidate、exact-row holdout、retention、既知回帰、384局区間、browser結果である。すべて揃い、かつ全ゲートを通るまでproductionはrunOp1のままにする。

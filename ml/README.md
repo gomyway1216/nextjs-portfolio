@@ -223,6 +223,17 @@ receiptを実装する別PRまではfinal-holdout評価自体をrejectする。�
 停止したdepth-18 attemptsと次のpolicy比較は続編（[日本語](../docs/blog-shogi-wcsc36-sibling-training-results.md) /
 [English](../docs/blog-shogi-wcsc36-sibling-training-results.en.md)）を参照。
 
+clean revision `6d541f1108a22f18751ee009417c3e57e27f8205`でpreflight後に公開し、Python consumerでも再検証した
+partition成果物は次のとおり。全isolation fieldは0で、manifestを最後のcommit markerにした。
+
+| artifact | records / parents | bytes | SHA-256 |
+|---|---:|---:|---|
+| model training | 20,123 / 1,725 | 17,154,270 | `f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26` |
+| model selection | 3,912 / 341 | 3,319,397 | `97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba` |
+| final holdout | 3,391 / 290 | 2,870,874 | `89b3e2ca1e637a507b4b6559326ada420d205c3967ac33063a9084ee5290e8c8` |
+| protected IDs | 3,372 / — | 242,784 | `762b95b52f50223fd484573d7d3823f3d2d7622ea3817f4300ae9fcc95935d26` |
+| partition manifest | — | 5,357 | `d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1` |
+
 ---
 
 ## 3. 学習

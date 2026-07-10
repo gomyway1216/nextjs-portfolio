@@ -60,6 +60,11 @@
     }
   },
   "eligibility_and_sampling": {
+    "allocation_seed": "floodgate-q1-2026-role-seed-v1",
+    "parent_rank_domains": {
+      "phase": "floodgate-q1-2026-parent-phase-v1",
+      "fill": "floodgate-q1-2026-parent-fill-v1"
+    },
     "parse_all_moves_with_legal_move_validation": true,
     "duplicate_exact_csa_bytes": "keep-lowest-utf8-bytewise-url-only",
     "parent_ply_inclusive": [16, 119],

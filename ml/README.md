@@ -476,8 +476,8 @@ seed追加・epoch差替え・閾値緩和は行わず、次は新しい強豪�
 に事前登録した。Floodgate 2026年Q1のgroup 0・対局時rating双方3600以上・累積30局以上・
 正常投了を、training 1,000局 / fresh selection 200局 / fresh final 200局へlabel生成前に
 分ける。モデル、exact-int16 STE、seed 42/43/44、20 epoch、selection gateは変更しない。
-計画は10,623 bytes、SHA-256
-`3360a1bf3798eb9462797958e8ff893f4e829f896cf90158d98bdbb622f52329`。
+計画は10,817 bytes、SHA-256
+`44925020c08b4270cd7553cac9d574e9b2b85a5f98fc2ee88bce23faed110d67`。
 詳細は[日本語plan](../docs/blog-shogi-floodgate-fresh-sibling-plan.md) /
 [English plan](../docs/blog-shogi-floodgate-fresh-sibling-plan.en.md)に記録した。
 

@@ -6,8 +6,8 @@ import unittest
 
 ML_DIR = Path(__file__).resolve().parents[1]
 PLAN_PATH = ML_DIR / "protocols" / "floodgate-q1-2026-fresh-sibling-plan.json"
-PLAN_BYTES = 10_623
-PLAN_SHA256 = "3360a1bf3798eb9462797958e8ff893f4e829f896cf90158d98bdbb622f52329"
+PLAN_BYTES = 10_817
+PLAN_SHA256 = "44925020c08b4270cd7553cac9d574e9b2b85a5f98fc2ee88bce23faed110d67"
 
 
 class FloodgateFreshSiblingPlanTests(unittest.TestCase):
@@ -47,6 +47,19 @@ class FloodgateFreshSiblingPlanTests(unittest.TestCase):
         self.assertEqual(identity["minimum_cumulative_games_before_game_date"], 30)
         self.assertEqual(identity["minimum_embedded_game_time_rating_both_players"], 3600.0)
         self.assertTrue(identity["distinct_full_identities"])
+
+        sampling = self.plan["eligibility_and_sampling"]
+        self.assertEqual(
+            sampling["allocation_seed"],
+            "floodgate-q1-2026-role-seed-v1",
+        )
+        self.assertEqual(
+            sampling["parent_rank_domains"],
+            {
+                "phase": "floodgate-q1-2026-parent-phase-v1",
+                "fill": "floodgate-q1-2026-parent-fill-v1",
+            },
+        )
 
         roles = self.plan["roles"]
         self.assertEqual(

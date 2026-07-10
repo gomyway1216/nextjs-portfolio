@@ -129,8 +129,8 @@ node -r tsx/cjs ml/import-csa-games.ts \
   --report ml/data/wcsc36/import-report.json \
   --min-ply 8 --max-ply 120
 
-# full runのdepthはpilot gate後に事前固定する。結果を見ながら変更しない。
-: "${LABEL_DEPTH:?set LABEL_DEPTH to the pre-registered fixed depth}"
+# clean revisionのdepth 16/18・100親gateを全通過したため18に事前固定。
+readonly LABEL_DEPTH=18
 
 node -r tsx/cjs ml/generate-sibling-teacher.ts \
   --raw ml/data/wcsc36/parents.raw.jsonl \

@@ -14,6 +14,7 @@
 - 詰みは通常cpと衝突しない`±1,000,000`帯へ写像する。指定depth未満での完了を許すのは、単一候補探索の最後の更新がexact mateである場合だけである
 - engine receipt、評価ファイルhash、cleanなGit revision、read-only runtime snapshot、private working directory、train/valのhashを1つのmanifestへ結び付ける。manifestがないデータは学習器が受け付けない
 - depth 14/16の100親v6 pilotではrank-1一致62%、candidate Jaccard 83.013%だった。200 cpをtie閾値にした全5,342 common pairの関係一致は91.01%（両方tieの3,643 pairを含む）、両depthでdecisiveだった1,227 pairの向き一致は99.35%だった。ただしclean-pipeline manifest導入前の診断データであり、学習には使わない。学習、量子化、対局、棋力向上はまだ結果ではない
+- clean revisionから再生成したdepth 16/18の100親pilotも全事前ゲートを通過した。top-1集合overlap 68%、通常cp差median 29 cp / p90 125.3 cp、200 cp閾値の全pair反転0.146%、depth 18のnodeコスト2.471倍を確認し、full labelはdepth 18に事前固定した
 
 ---
 
@@ -177,7 +178,29 @@ depth 14/16は同じ先頭100親で完走した。件数は次の通りである
 
 depth 16 → 18は20親だけの予備値で、top-1集合overlap 95%、通常cp差median 31 cp、p90 98.4 cp、5% trimmed mean 38.67 cpだった。200 cpをtie閾値にした関係一致は1,029 / 1,106 = 93.04%（両方tie 825を含む）。両depthでdecisiveだった206 pairでは向き一致204 / 206 = 99.03%、反転2 / 206 = 0.971%であり、全1,106 pairを分母にした反転率は0.181%となる。nodesは268,157,536 → 660,586,146（2.463×）。このrunではrequested depth 18に対しactual depth 16で完了したterminal exact mateが1探索あった。n=20なので、depth選択を確定する証拠ではなく参考値として扱う。
 
-これらは有用な実測だが、clean pipeline revisionとruntime snapshotをmanifest必須項目にする前の**pre-pipeline診断run**である。学習入力には使わず、採用するdepthでcleanなfull runを作り直す。
+ここまでのdepth 14/16と20親のdepth 16/18は有用な実測だが、clean pipeline revisionとruntime snapshotをmanifest必須項目にする前の**pre-pipeline診断run**である。学習入力には使わない。
+
+### clean pipelineでのdepth 16 → 18、100親
+
+実装と記事をcommitしたclean revision `debb8b6b02b8a4d2f76d3c19522fd5c00c2ce883`から、depth 16と18を100親ずつfresh生成した。両manifestはPython consumerでもtrain/val bytesまで検証した。depth 16 manifest SHA-256は`7dd47f21f8207a933670248ac4d2721962d570d0a08f8606fcf40429815f887f`、depth 18は`7214f4bc634348a36658d0bca2075cb4f6f44319791022f591403f7c60147030`である。
+
+| 指標（depth 16 → 18、n=100親） | clean-pipeline診断値 |
+|---|---:|
+| rank-1一致 / top-1集合overlap | 67% / 68% |
+| candidate set完全一致 / micro Jaccard | 31% / 84.926% |
+| 通常cp pair | 1,080 |
+| 通常cp差のmedian / p90 / p95 / 5% trimmed mean | 29 / 125.3 / 193.2 / 41.69 cp |
+| 200 cpをtie閾値にした全common pairの関係一致 | 5,050 / 5,473 = 92.27%（両方tie 3,762を含む） |
+| 両depthでdecisiveな200 cp pairの向き一致 / 反転 | 1,288 / 1,296 = 99.38% / 8 / 1,296 = 0.617% |
+| 全common pairを分母にした200 cp反転 | 8 / 5,473 = 0.146% |
+| baseline decisive retention | 1,296 / 1,474 = 87.92% |
+| 両depthでdecisiveな400 cp pairの反転 | 1 / 750 = 0.133%（全5,473 pair比では0.018%） |
+| 実戦手がtop-1 | 55% → 54% |
+| observed nodes | 1,331,739,463 → 3,291,077,196（2.471×） |
+
+通常cp差のmean absoluteは173.71 cpだが、これはply 118の同じ親で4候補が約2,900 cpから35,281 cpへ移った外れ群に引かれている。4手とも多くのmate候補より下のrank 9〜12であり、事前ゲートは外れ値に頑健なmedian、p90、trimmed meanを用いた。depth 18ではrequested depth 18に対しactual depth 16で完了したterminal exact mateが1探索あり、狭い早期完了契約も実データで作動した。
+
+全事前ゲートが合格したため、計算量は増えるが深い教師側を優先し、**full runの`LABEL_DEPTH`を18に固定した**。この100親pilotのartifact bytesは学習入力へ流用せず、merge後のclean revisionで3,112親を別出力へ再生成する。元の100親はfull corpusにも含まれるが、post-merge契約で改めて探索・検証する。
 
 ---
 
@@ -208,10 +231,10 @@ depth 16 → 18は20親だけの予備値で、top-1集合overlap 95%、通常cp
 
 ## 7. 再現コマンド
 
-full label depthはpilot比較の合否を見てから事前固定する。以下の`LABEL_DEPTH`は、結果を見ながら都合よく変更する変数ではない。
+full label depthは上のclean 100親gateで18に事前固定した。結果を見て都合よく変更しない。
 
 ```bash
-: "${LABEL_DEPTH:?set LABEL_DEPTH to the pre-registered fixed depth}"
+readonly LABEL_DEPTH=18
 
 node -r tsx/cjs ml/generate-sibling-teacher.ts \
   --raw ml/data/wcsc36/parents.raw.jsonl \
@@ -305,7 +328,8 @@ WCSC36 ZIP/CSA、親JSONL、教師JSONL、engine binary、評価ファイル、c
 | v1〜v3 joint labels | **診断専用・不採用** | searchmoves入力順で順位/cpが変化 |
 | v4 independent labels | **診断専用・不採用** | joint順序依存を除けることを確認したが契約未完成 |
 | v6 depth 14/16 100親 | **診断専用** | rank-1一致62%、Jaccard 83.013%、node比2.817× |
-| v6 depth 16/18 20親 | **予備診断** | top-1集合overlap 95%、node比2.463×。nが小さい |
+| v6 depth 16/18 20親 | **pre-pipeline予備診断** | top-1集合overlap 95%、node比2.463×。nが小さい |
+| v6 depth 16/18 100親 | **clean-pipeline確認済み** | 全事前gate合格、top-1 overlap 68%、node比2.471×、full depth 18に固定 |
 | v6 generator契約 | **実装済み** | independent、mate帯、receipt、clean revision、snapshot、atomic manifest |
 | clean revisionでのfull label | **未実施** | manifest、train/val件数・hash、比較reportを保存 |
 | warm-start / scratch | **未実施** | epoch 0、curve、checkpoint hash、同一validation比較 |

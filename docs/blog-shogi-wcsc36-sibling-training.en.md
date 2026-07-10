@@ -14,6 +14,7 @@
 - Mate scores occupy a `±1,000,000` band that cannot collide with ordinary cp. Finishing below the requested depth is allowed only when the final update of a single-candidate search is an exact mate
 - An engine receipt, eval hashes, a clean Git revision, a read-only runtime snapshot, a private working directory, and train/validation hashes are bound by one manifest. The trainer rejects data without that manifest
 - The depth-14 versus depth-16 100-parent v6 pilot measured 62% rank-1 agreement and 83.013% candidate Jaccard. With 200 cp as the tie threshold, relation agreement over all 5,342 common pairs was 91.01% (including 3,643 pairs tied at both depths), while orientation agreement among the 1,227 pairs decisive at both depths was 99.35%. It predates the clean-pipeline manifest and cannot be used for training. Training, quantization, match play, and any strength gain are not results yet
+- A fresh 100-parent depth-16/depth-18 pilot from a clean revision also passed every preregistered gate: 68% top-1-set overlap, 29 cp median and 125.3 cp p90 ordinary-cp difference, 0.146% all-pair reversal at the 200 cp threshold, and 2.471 times the nodes at depth 18. The full labeling depth is now preregistered as 18
 
 ---
 
@@ -177,7 +178,29 @@ The depth-stability gate was fixed before reading the result: top-1-set overlap 
 
 A preliminary depth-16 to depth-18 comparison covers only 20 parents. It measured 95% top-1-set overlap, a 31 cp median ordinary-cp difference, 98.4 cp p90, and a 38.67 cp 5% trimmed mean. With a 200 cp tie threshold, relation agreement was 1,029 / 1,106 = 93.04%, including 825 both-ties. Among the 206 pairs decisive at both depths, 204 / 206 = 99.03% kept their orientation and 2 / 206 = 0.971% reversed; using all 1,106 pairs as denominator gives the separate 0.181% reversal rate. Nodes rose from 268,157,536 to 660,586,146 (2.463×). One search requested depth 18 and correctly ended at actual depth 16 on a terminal exact mate. With n=20, these are reference values rather than sufficient evidence to select a depth.
 
-These measurements are useful, but the runs predate mandatory clean pipeline revision and runtime-snapshot fields. They are **pre-pipeline diagnostics**, not training data. The selected depth must be regenerated in a clean full run.
+The depth-14/depth-16 runs and the 20-parent depth-16/depth-18 run above are useful, but they predate mandatory clean pipeline revision and runtime-snapshot fields. They are **pre-pipeline diagnostics**, not training data.
+
+### Depth 16 to depth 18 over 100 parents from a clean pipeline
+
+After committing the implementation and article, we freshly generated 100 parents at each depth from clean revision `debb8b6b02b8a4d2f76d3c19522fd5c00c2ce883`. The Python consumer also verified each manifest through the train/validation bytes. The depth-16 manifest SHA-256 is `7dd47f21f8207a933670248ac4d2721962d570d0a08f8606fcf40429815f887f`; depth 18 is `7214f4bc634348a36658d0bca2075cb4f6f44319791022f591403f7c60147030`.
+
+| Metric (depth 16 → 18, n=100 parents) | Clean-pipeline diagnostic |
+|---|---:|
+| Rank-1 agreement / top-1-set overlap | 67% / 68% |
+| Exact candidate-set match / micro Jaccard | 31% / 84.926% |
+| Ordinary-cp pairs | 1,080 |
+| Ordinary-cp difference median / p90 / p95 / 5% trimmed mean | 29 / 125.3 / 193.2 / 41.69 cp |
+| Relation agreement across all common pairs with a 200 cp tie threshold | 5,050 / 5,473 = 92.27% (includes 3,762 both-ties) |
+| Orientation agreement / reversal among pairs decisive at both depths at 200 cp | 1,288 / 1,296 = 99.38% / 8 / 1,296 = 0.617% |
+| 200 cp reversal using all common pairs as denominator | 8 / 5,473 = 0.146% |
+| Baseline decisive retention | 1,296 / 1,474 = 87.92% |
+| Reversal among pairs decisive at both depths at 400 cp | 1 / 750 = 0.133% (0.018% of all 5,473 pairs) |
+| Played move was top-1 | 55% → 54% |
+| Observed nodes | 1,331,739,463 → 3,291,077,196 (2.471×) |
+
+The mean absolute ordinary-cp difference is 173.71 cp, but it is dominated by four candidates from the same parent at ply 118 that moved from roughly 2,900 cp to 35,281 cp. All four remained below numerous mate candidates at ranks 9–12. The preregistered gate therefore uses the robust median, p90, and trimmed mean. Depth 18 also exercised the narrow early-completion contract once: a terminal exact mate completed at actual depth 16 against requested depth 18.
+
+Every preregistered gate passed. We therefore accept the extra compute cost in favor of the deeper teacher and **fix full-run `LABEL_DEPTH` at 18**. The pilot artifact bytes will not be reused as training input; all 3,112 parents will be regenerated to separate outputs from the clean post-merge revision. The same source positions include those first 100, but they will be searched and verified again under the post-merge contract.
 
 ---
 
@@ -208,10 +231,10 @@ This prevents a parent's best move from entering train while its second-best mov
 
 ## 7. Reproduction command
 
-The full labeling depth must be pre-registered after the pilot gate. `LABEL_DEPTH` below is not permission to change depth after seeing convenient results.
+The clean 100-parent gate above preregistered the full labeling depth as 18. It will not be changed after seeing later results.
 
 ```bash
-: "${LABEL_DEPTH:?set LABEL_DEPTH to the pre-registered fixed depth}"
+readonly LABEL_DEPTH=18
 
 node -r tsx/cjs ml/generate-sibling-teacher.ts \
   --raw ml/data/wcsc36/parents.raw.jsonl \
@@ -305,7 +328,8 @@ This separation is not meant to hide data. It avoids turning the repository into
 | v1–v3 joint labels | **Diagnostic only, rejected** | `searchmoves` input order changed rank and cp |
 | v4 independent labels | **Diagnostic only, rejected** | removed the joint ordering effect, but the contract was incomplete |
 | v6 depth-14/16, 100 parents | **Diagnostic only** | 62% rank-1 agreement, 83.013% Jaccard, 2.817× node ratio |
-| v6 depth-16/18, 20 parents | **Preliminary diagnostic** | 95% top-1-set overlap, 2.463× node ratio; small n |
+| v6 depth-16/18, 20 parents | **Pre-pipeline preliminary diagnostic** | 95% top-1-set overlap, 2.463× node ratio; small n |
+| v6 depth-16/18, 100 parents | **Clean-pipeline confirmed** | all preregistered gates passed, 68% top-1 overlap, 2.471× node ratio, full depth fixed at 18 |
 | v6 generator contract | **Implemented** | independent search, mate band, receipt, clean revision, snapshot, atomic manifest |
 | Full labels from a clean revision | **Not run** | preserve manifest, train/validation counts and hashes, comparison report |
 | Warm start / scratch | **Not run** | preserve epoch 0, curves, checkpoint hashes, identical-validation comparison |

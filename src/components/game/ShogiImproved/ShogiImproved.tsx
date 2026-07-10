@@ -805,19 +805,13 @@ const ShogiImproved = () => {
           // leave isAIThinking, even if construction/search unexpectedly throws.
           setEvalInfo({ searchPath: 'main-thread-js' });
           const wallStartedAt = Date.now();
-          let preciseStartedAt: number | null = null;
-          try {
-            preciseStartedAt = performance.now();
-          } catch {
-            // Date.now remains a safe diagnostic fallback.
-          }
+          const preciseStartedAt =
+            typeof performance !== 'undefined' && typeof performance.now === 'function'
+              ? performance.now()
+              : null;
           const blockedMs = () => {
             if (preciseStartedAt !== null) {
-              try {
-                return performance.now() - preciseStartedAt;
-              } catch {
-                // Fall through to wall clock.
-              }
+              return performance.now() - preciseStartedAt;
             }
             return Date.now() - wallStartedAt;
           };

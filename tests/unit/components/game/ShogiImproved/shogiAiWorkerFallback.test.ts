@@ -83,12 +83,11 @@ function serialize(k: KyokumenImproved) {
 
 beforeAll(async () => {
   vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('offline test'))));
-  (globalThis as Record<string, unknown>).self = scope;
+  vi.stubGlobal('self', scope);
   await import('@/components/game/ShogiImproved/shogi-ai.worker');
 });
 
 afterAll(() => {
-  delete (globalThis as Record<string, unknown>).self;
   vi.unstubAllGlobals();
 });
 

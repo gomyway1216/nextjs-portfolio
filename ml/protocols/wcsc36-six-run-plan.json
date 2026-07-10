@@ -1,0 +1,93 @@
+{
+  "schema": "shogi-sibling-six-run-plan-v1",
+  "common": {
+    "input_sha256": {
+      "sibling_teacher_manifest": null,
+      "validation_partition_manifest": null,
+      "model_training": null,
+      "model_selection": null,
+      "replay": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb",
+      "policy_exposure_receipt": null,
+      "policy_exposed_parent_ids": "2e634e5968516f243998de98c5f80d2abb674e8b9841655a3b4735df892e2d10",
+      "policy_exposed_semantic_position_ids": "8c696e8d1d426d9efdffb112004f37a37359f22a903bc34d2c4e7621e02a6bdd",
+      "holdout_protected_position_ids": null,
+      "warm_initializer": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8"
+    },
+    "runtime": {
+      "platform": null,
+      "system": null,
+      "machine": null,
+      "processor": null,
+      "cpu_model": null,
+      "logical_cpu_count": null,
+      "device": "cpu",
+      "python_version": null,
+      "torch_version": null,
+      "torch_threads": 2,
+      "torch_interop_threads": 1,
+      "deterministic_algorithms": true,
+      "deterministic_debug_mode": "error"
+    }
+  },
+  "slots": [
+    {
+      "id": "warm-seed-42",
+      "series": "warm",
+      "seed": 42,
+      "learning_rate": 0.0001,
+      "epochs": 20,
+      "initializer_required": true,
+      "output": "ml/runs/wcsc36-six-run/warm-seed-42"
+    },
+    {
+      "id": "warm-seed-43",
+      "series": "warm",
+      "seed": 43,
+      "learning_rate": 0.0001,
+      "epochs": 20,
+      "initializer_required": true,
+      "output": "ml/runs/wcsc36-six-run/warm-seed-43"
+    },
+    {
+      "id": "warm-seed-44",
+      "series": "warm",
+      "seed": 44,
+      "learning_rate": 0.0001,
+      "epochs": 20,
+      "initializer_required": true,
+      "output": "ml/runs/wcsc36-six-run/warm-seed-44"
+    },
+    {
+      "id": "scratch-seed-42",
+      "series": "scratch",
+      "seed": 42,
+      "learning_rate": 0.001,
+      "epochs": 40,
+      "initializer_required": false,
+      "output": "ml/runs/wcsc36-six-run/scratch-seed-42"
+    },
+    {
+      "id": "scratch-seed-43",
+      "series": "scratch",
+      "seed": 43,
+      "learning_rate": 0.001,
+      "epochs": 40,
+      "initializer_required": false,
+      "output": "ml/runs/wcsc36-six-run/scratch-seed-43"
+    },
+    {
+      "id": "scratch-seed-44",
+      "series": "scratch",
+      "seed": 44,
+      "learning_rate": 0.001,
+      "epochs": 40,
+      "initializer_required": false,
+      "output": "ml/runs/wcsc36-six-run/scratch-seed-44"
+    }
+  ],
+  "selection_tie_break": [
+    "series:warm-before-scratch",
+    "seed:ascending",
+    "checkpoint_sha256:ascending"
+  ]
+}

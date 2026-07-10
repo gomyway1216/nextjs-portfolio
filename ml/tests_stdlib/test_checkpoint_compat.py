@@ -49,6 +49,19 @@ class CheckpointCompatibilityTest(unittest.TestCase):
         with self.assertRaisesRegex(CheckpointCompatibilityError, "schema"):
             validate_arch(actual, self.arch)
 
+    def test_rejects_bool_nonfinite_and_extra_arch_fields(self):
+        mutations = (
+            ("boolean integer", {"input": True}, "exact integer"),
+            ("nan scale", {"k": float("nan")}, "finite float"),
+            ("infinite scale", {"k": float("inf")}, "finite float"),
+            ("extra field", {"unreviewed": 1}, "unexpected"),
+        )
+        for label, mutation, expected in mutations:
+            with self.subTest(label=label):
+                actual = {**self.arch, **mutation}
+                with self.assertRaisesRegex(CheckpointCompatibilityError, expected):
+                    validate_arch(actual, self.arch)
+
     def test_hashes_the_exact_checkpoint_bytes(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "best.pt")

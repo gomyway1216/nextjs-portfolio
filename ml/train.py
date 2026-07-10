@@ -2355,6 +2355,9 @@ def run_int16_aware_training(args) -> None:
             row_count += batch_rows
         if row_count != n_train:
             raise SystemExit("[train] int16-aware epoch did not consume every training row")
+        # PyTorch 2.12 initializes this scheduler at last_epoch=0. Stepping at
+        # each epoch end makes the next epoch use cos(pi * epoch / T_max), so
+        # lr_used above follows the preregistered cos(pi * (epoch-1) / 20).
         scheduler.step()
         epoch_receipt = {
             "epoch": epoch,

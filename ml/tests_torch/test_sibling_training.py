@@ -301,6 +301,28 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "weight.*non-finite"):
             require_finite_model_parameters(model, "fixture")
 
+    def test_int16_aware_scheduler_matches_preregistered_epoch_receipts(self):
+        parameter = torch.nn.Parameter(torch.tensor(0.0))
+        optimizer = torch.optim.AdamW([parameter], lr=0.0001)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=20
+        )
+        observed = []
+        for _epoch in range(1, 21):
+            observed.append(optimizer.param_groups[0]["lr"])
+            parameter.grad = torch.zeros_like(parameter)
+            optimizer.step()
+            scheduler.step()
+        expected = [
+            0.0001 * (1.0 + math.cos(math.pi * (epoch - 1) / 20.0)) / 2.0
+            for epoch in range(1, 21)
+        ]
+        for epoch, (found, wanted) in enumerate(zip(observed, expected), 1):
+            self.assertTrue(
+                math.isclose(found, wanted, rel_tol=1e-12, abs_tol=1e-16),
+                f"epoch {epoch}: {found!r} != {wanted!r}",
+            )
+
     def test_int16_aware_run_emits_only_atomic_final_candidate_and_result_marker(self):
         with tempfile.TemporaryDirectory() as tmp:
             initializer_path = os.path.join(tmp, "runOp1.pt")

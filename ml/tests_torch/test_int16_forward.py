@@ -180,7 +180,9 @@ class Int16ForwardTests(unittest.TestCase):
 
     def test_int32_accumulator_overflow_is_rejected_before_wraparound(self):
         qweights = {
-            "w1_board": torch.tensor([[1]], dtype=torch.int16),
+            # The second term cancels the first. A final-only check would see
+            # INT32_MAX and miss the transient deployed-int32 overflow.
+            "w1_board": torch.tensor([[1], [-1]], dtype=torch.int16),
             "w1_hand": torch.tensor([[0]], dtype=torch.int16),
             "b1": torch.tensor([INT32_MAX], dtype=torch.int32),
             "w2": torch.tensor([[0]], dtype=torch.int16),
@@ -189,7 +191,7 @@ class Int16ForwardTests(unittest.TestCase):
             "b3": torch.tensor([0], dtype=torch.int32),
         }
         with self.assertRaisesRegex(OverflowError, "first-layer board accumulator"):
-            int16_forward(qweights, [0], [0], pad_idx=1)
+            int16_forward(qweights, [0, 1], [0], pad_idx=2)
 
     def test_effective_factored_tables_keep_shared_and_delta_gradients(self):
         model = TinyNet(factored=True)

@@ -18,9 +18,10 @@
 
 ## 0. Evidence labels used in this log
 
-The most important mistake here was presenting a hypothesis as though it were established fact. This article separates claims into three classes:
+The most important mistake here was presenting a hypothesis as though it were established fact. This article separates claims into four classes:
 
 - **Confirmed**: checked against the game, source code, saved logs, or a controlled reproduction
+- **Refuted**: a reproduction or saved record shows that the claim does not hold
 - **Hypothesis**: consistent with the confirmed evidence, but not isolated as the cause
 - **Unverified**: reserved for a future experiment; an expectation is not written as a result
 
@@ -362,7 +363,7 @@ Restoring runOp1 does not fix worker startup. Fixing the worker does not fix dee
 | `pair_acc≈0.90` measures move choice in one position | **Refuted** | Random pairs of unrelated validation positions |
 | Strong games plus sibling learning will improve play | **Unverified** | Compare warm-start and scratch next cycle |
 | Every position from our own engine should be discarded | **Refuted** | Needed for DAgger-like failure-state coverage |
-| The worker is broken in every live environment | **Refutable** | At least one browser completed normally |
+| The worker is broken in every live environment | **Refuted** | At least one browser completed normally |
 | Fallback caused the reported UI failure | **Hypothesis** | Needs execution-path logs from a failing session |
 
 ### Decisions still open

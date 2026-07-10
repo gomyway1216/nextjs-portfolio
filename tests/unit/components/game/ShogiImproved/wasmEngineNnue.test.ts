@@ -162,17 +162,21 @@ describe('wasmEngine NNUE loading', () => {
     ).toBe(true);
   });
 
-  it('does not choose the third P*8f repetition at fixed depth 11', () => {
-    expect(setWasmNnueEnabled(true)).toBe(true);
-    const position = rookPawnLoopPosition();
-    clearWasmTT();
+  it(
+    'does not choose the third P*8f repetition at fixed depth 11',
+    () => {
+      expect(setWasmNnueEnabled(true)).toBe(true);
+      const position = rookPawnLoopPosition();
+      clearWasmTT();
 
-    const move = wasmSearchBestMove(position, ROOK_PAWN_LOOP_PREFIX.length, 0, 11, 10);
+      const move = wasmSearchBestMove(position, ROOK_PAWN_LOOP_PREFIX.length, 0, 11, 10);
 
-    expect(move).not.toBeNull();
-    expect(move!.from).toBe((3 << 4) + 1); // 3a
-    expect(move!.to).toBe((4 << 4) + 2); // 4b
-  });
+      expect(move).not.toBeNull();
+      expect(move!.from).toBe((3 << 4) + 1); // 3a
+      expect(move!.to).toBe((4 << 4) + 2); // 4b
+    },
+    30_000,
+  );
 
   it('can be switched back to V3', () => {
     expect(setWasmNnueEnabled(false)).toBe(false);

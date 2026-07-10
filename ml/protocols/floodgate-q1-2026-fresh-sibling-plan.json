@@ -1,0 +1,278 @@
+{
+  "schema": "shogi-floodgate-fresh-sibling-plan-v1",
+  "status": "preregistered-before-corpus-lock-and-teacher-labels",
+  "objective": "test the frozen exact-int16-aware board model on a substantially larger, independent strong-game distribution",
+  "single_changed_factor": "replace the 28-game WCSC36 parent distribution with a fresh Floodgate strong-engine corpus",
+  "source": {
+    "origin": "https://wdoor.c.u-tokyo.ac.jp",
+    "archive_start_date": "2026-01-01",
+    "archive_end_date": "2026-03-31",
+    "archive_time_zone": "Asia/Tokyo",
+    "daily_listing_template": "/shogi/x/YYYY/MM/DD/",
+    "daily_cumulative_rating_template": "/shogi/x/rating/players-floodgate-YYYYMMDD.html",
+    "event": "floodgate-300-10F",
+    "initial_position": "hirate",
+    "initial_side": "sente",
+    "terminal_allowlist": ["TORYO"],
+    "identity_policy": {
+      "join_key": "full-player-plus-identity-hash-from-csa-rating-comments",
+      "rating_group": 0,
+      "minimum_cumulative_games_before_game_date": 30,
+      "minimum_embedded_game_time_rating_both_players": 3600.0,
+      "distinct_full_identities": true,
+      "group_cross_comparison_allowed": false,
+      "missing_or_ambiguous_identity": "reject-game",
+      "missing_or_nonfinite_embedded_rating": "reject-game"
+    },
+    "network_policy": {
+      "same_origin_only": true,
+      "https_only": true,
+      "redirects": "reject",
+      "query_fragment_userinfo_nondefault_port": "reject",
+      "maximum_parallel_requests": 4,
+      "minimum_request_start_interval_ms": 100,
+      "remote_change_after_lock": "reject-unless-a-new-plan-authorizes-a-new-lock"
+    },
+    "lock_policy": {
+      "hash": "sha256-exact-response-bytes",
+      "listing_and_rating_pages_locked": true,
+      "csa_objects_content_addressed": true,
+      "online_discovery_then_offline-reproduction": true,
+      "partial_publish": "forbidden",
+      "final_manifest_written_last": true
+    },
+    "label_blind_inventory_observed_before_plan": {
+      "daily_directories_http_200": 90,
+      "daily_directories_expected": 90,
+      "all_csa_links": 36419,
+      "target_event_csa_links": 36168,
+      "listing_bytes": 10098337,
+      "listing_identity_manifest_bytes": 10963,
+      "listing_identity_manifest_sha256": "05d353413f310087316e16cfc1ec29800967886db43f090aee59f713c4bfc822",
+      "period_end_inventory_snapshot": {
+        "url": "https://wdoor.c.u-tokyo.ac.jp/shogi/x/rating/players-floodgate-20260401.html",
+        "bytes": 332094,
+        "sha256": "17bd9969ba31a2b9a723be4b7defb7b3045816b19e325de19e8b65158fbac5b4",
+        "group_zero_identities": 316,
+        "identities_at_least_3600_and_30_games": 152
+      },
+      "teacher_scores_or_holdout_labels_read": false
+    }
+  },
+  "eligibility_and_sampling": {
+    "parse_all_moves_with_legal_move_validation": true,
+    "duplicate_exact_csa_bytes": "keep-lowest-utf8-bytewise-url-only",
+    "parent_ply_inclusive": [16, 119],
+    "parents_per_game": 24,
+    "preferred_phase_quotas": [
+      {
+        "ply_inclusive": [16, 31],
+        "parents": 6
+      },
+      {
+        "ply_inclusive": [32, 79],
+        "parents": 12
+      },
+      {
+        "ply_inclusive": [80, 119],
+        "parents": 6
+      }
+    ],
+    "phase_shortfall": "fill-by-domain-separated-parent-hash-from-remaining-ply-16-through-119",
+    "minimum_eligible_parents_before-semantic-isolation": 24,
+    "game_rank_tie_break": "utf8-bytewise-game-id",
+    "parent_rank_tie_break": "utf8-bytewise-parent-id",
+    "per_role_identity_game_cap_ratio": 0.1,
+    "per_role_unordered_pair_game_cap_ratio": 0.02,
+    "cap_rounding": "floor-with-minimum-one",
+    "filtering_forbidden": [
+      "winner",
+      "opening-name",
+      "played-move-quality",
+      "teacher-score",
+      "candidate-model-score",
+      "post-selection-result"
+    ]
+  },
+  "roles": {
+    "priority": ["fresh_final_holdout", "fresh_selection", "training"],
+    "allocation": [
+      {
+        "role": "fresh_final_holdout",
+        "games": 200,
+        "parents_per_game": 24,
+        "parents": 4800,
+        "game_rank_domain": "floodgate-q1-2026-final-game-v1"
+      },
+      {
+        "role": "fresh_selection",
+        "games": 200,
+        "parents_per_game": 24,
+        "parents": 4800,
+        "game_rank_domain": "floodgate-q1-2026-selection-game-v1"
+      },
+      {
+        "role": "training",
+        "games": 1000,
+        "parents_per_game": 24,
+        "parents": 24000,
+        "game_rank_domain": "floodgate-q1-2026-training-game-v1"
+      }
+    ],
+    "whole_game_exclusivity": true,
+    "semantic_identity": "sha256-of-canonical-sfen-without-move-number",
+    "protected_group": "parent-position-union-every-legal-child-position",
+    "semantic_priority": "fresh-final-holdout-before-fresh-selection-before-training",
+    "collision_action": "skip-lower-priority-parent-and-deterministically-fill-or-replace-game",
+    "within_role_semantic_duplicates": "forbidden",
+    "legacy_exclusion": {
+      "path": "ml/data/wcsc36/int16-aware-replay-excluded-position-ids.txt",
+      "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+      "bytes": 624816,
+      "sha256": "1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a",
+      "count": 8678,
+      "identifiers_sha256": "f9d9560452554b7e40ed0183c95f9d42cc8b8787f63200b453a511dd44fac5c5"
+    },
+    "quota_failure": "stop-without-relaxing-thresholds-caps-or-semantic-isolation"
+  },
+  "teacher": {
+    "engine": "YaneuraOu",
+    "engine_receipt": {
+      "path": "ml/engine-receipts/yaneuraou-9133c527-applem1.json",
+      "bytes": 654,
+      "sha256": "a448c6be4229216665a34dbc13edf89f486364a57958ba1adad76a7b206f9c4e"
+    },
+    "proposal": {
+      "multipv": 12,
+      "limit": {
+        "depth": 16
+      }
+    },
+    "candidate_union": [
+      "teacher-multipv-12",
+      "strong-game-played-move",
+      "frozen-runop1-production-int16-fixed-depth-11-move"
+    ],
+    "stable_candidate_asset": {
+      "path": "public/shogi-nnue-weights.bin",
+      "bytes": 1185988,
+      "sha256": "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc",
+      "k": 600,
+      "search_depth": 11,
+      "book": false,
+      "mate_solver": false,
+      "fallback": "forbidden"
+    },
+    "independent_rescore": {
+      "multipv": 1,
+      "searchmoves": "exactly-one-candidate",
+      "limit": {
+        "depth": 16
+      },
+      "isready_before_proposal_and_each_candidate": true,
+      "tt_reset_before_proposal_and_each_candidate": true,
+      "candidate_execution_order": "utf8-bytewise-ascending"
+    },
+    "runtime": {
+      "parallel_engines": 12,
+      "threads_per_engine": 1,
+      "hash_mb_per_engine": 64,
+      "timeout_ms_per_search": 600000
+    },
+    "incomplete_parent_timeout_or_manifest_mismatch": "fail-closed",
+    "label_schedule": {
+      "training": "after-role-lock-before-training",
+      "fresh_selection": "only-after-all-three-final-checkpoints-strict-load",
+      "fresh_final_holdout": "only-after-static-family-pass",
+      "existing_wcsc36_final_holdout": "remain-sealed-until-static-family-pass"
+    }
+  },
+  "training": {
+    "frozen_from": "ml/protocols/wcsc36-int16-aware-plan.json",
+    "architecture": "2282-256-32-1-clipped-relu",
+    "features": "board",
+    "initializer": {
+      "kind": "fixed-warm-model-only",
+      "bytes": 2375274,
+      "sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8"
+    },
+    "objective": "0.5*float_full_task+0.5*exact_int16_ste_full_task",
+    "optimizer": "AdamW",
+    "learning_rate": 0.0001,
+    "epochs": 20,
+    "batch": 256,
+    "replay_limit": 500000,
+    "replay_ratio": 1.0,
+    "replay_sha256": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb",
+    "seeds": [42, 43, 44],
+    "checkpoint_policy": "fixed-final-epoch-only",
+    "early_stopping": false,
+    "selection_path_received": false,
+    "selection_evaluations_during_training": 0,
+    "final_holdout_labels_received": false,
+    "architecture_loss_optimizer_seed_or_gate_changes": "forbidden"
+  },
+  "static_selection": {
+    "precondition": "all-three-final-checkpoints-and-results-strict-load-before-first-selection-label-read",
+    "stable_recomputed_on_same-fresh-selection": true,
+    "metric_order": [
+      "int16-pair-accuracy:max",
+      "int16-teacher-top1:max",
+      "int16-value-mae-cp:min",
+      "seed:ascending",
+      "checkpoint-sha256:ascending"
+    ],
+    "representative": "median-ranked-seed",
+    "per_seed_gates": [
+      "int16-pair-accuracy-strictly-above-stable",
+      "int16-top1-at-least-stable",
+      "absolute-float-to-int16-pair-delta-at-most-0.002",
+      "absolute-float-to-int16-top1-delta-at-most-0.005"
+    ],
+    "family_gate": {
+      "representative_passes-all-four": true,
+      "minimum-seeds-passing-all-four": 2,
+      "all-seeds-pass-both-quantization-delta-gates": true
+    },
+    "evaluations_per-checkpoint": 1,
+    "used_wcsc36-selection_reopened": false
+  },
+  "promotion_after_static_pass": {
+    "fresh_final_holdout": "candidate-int16-pair-and-top1-both-at-least-stable-on-same-data",
+    "existing_wcsc36_final_holdout": "candidate-int16-pair-and-top1-both-at-least-stable-on-same-data",
+    "general_and_opening_retention": {
+      "value_mae_cp": "at-most-1.05-times-stable",
+      "pair_and_decisive_pair_accuracy": "at-least-stable-minus-0.005"
+    },
+    "known_pawn_drop_regression": "all-P-star-8f-contract-checks-pass",
+    "production_parity_search_and_browser": "all-pass",
+    "paired_ab": {
+      "games": 384,
+      "color_swapped_opening_pairs": 192,
+      "bootstrap_seed": 20260710,
+      "bootstrap_replicates": 100000,
+      "resampling_unit": "two-game-opening-pair",
+      "safety_gate": "one-sided-95-percent-lower-bound-strictly-above-0.45",
+      "stronger_claim_gate": "two-sided-95-percent-lower-bound-strictly-above-0.50"
+    },
+    "production_weights_unchanged_until_every-gate-passes": true
+  },
+  "external_high_dan_calibration": {
+    "platform": "81Dojo",
+    "account_type": "official-COM-account",
+    "client": "official-client",
+    "rated_games": 200,
+    "pairing": "non-selected",
+    "stable_high_dan_gate": "post-game-rating-after-each-of-games-171-through-200-is-at-least-2050",
+    "requires-user-account-and-final-preflight": true,
+    "internal-ab-is-human-rank-proof": false
+  },
+  "failure_policy": {
+    "add-seeds": false,
+    "relax-source-rating-or-game-count": false,
+    "relax-role-caps-or-semantic-isolation": false,
+    "tune-model-or-loss-on-fresh-selection": false,
+    "open-any-final-holdout-after-static-failure": false,
+    "change-production-after-any-gate-failure": false
+  }
+}

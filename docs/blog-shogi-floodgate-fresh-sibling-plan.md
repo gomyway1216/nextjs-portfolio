@@ -172,10 +172,10 @@ WCSC36 depth 16実績を線形換算すると、training teacher 24,000親は約
 6. fresh selectionを一度だけ生成・評価する
 7. pass時だけholdout、回帰、384局A/B、外部校正へ進む
 
-事前登録JSONは10,817 bytes、SHA-256は次である。
+事前登録JSONは10,890 bytes、SHA-256は次である。
 
 ```text
-44925020c08b4270cd7553cac9d574e9b2b85a5f98fc2ee88bce23faed110d67
+ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af
 ```
 
 今回の判断は「今の評価関数へ強い棋譜を無条件に上書きする」ではない。現行productionを残し、独立candidateを作り、fresh selectionと2つのfinal holdoutと実戦A/Bを通った時だけ置き換える。これなら失敗しても今の強さを失わず、成功した時だけ検証可能な形で前へ進める。

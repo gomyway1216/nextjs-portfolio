@@ -6,8 +6,8 @@ import unittest
 
 ML_DIR = Path(__file__).resolve().parents[1]
 PLAN_PATH = ML_DIR / "protocols" / "floodgate-q1-2026-fresh-sibling-plan.json"
-PLAN_BYTES = 10_817
-PLAN_SHA256 = "44925020c08b4270cd7553cac9d574e9b2b85a5f98fc2ee88bce23faed110d67"
+PLAN_BYTES = 10_890
+PLAN_SHA256 = "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af"
 
 
 class FloodgateFreshSiblingPlanTests(unittest.TestCase):
@@ -52,6 +52,10 @@ class FloodgateFreshSiblingPlanTests(unittest.TestCase):
         self.assertEqual(
             sampling["allocation_seed"],
             "floodgate-q1-2026-role-seed-v1",
+        )
+        self.assertEqual(
+            sampling["rank_hash_encoding"],
+            "sha256-utf8-nul-framed-domain-seed-parts-v1",
         )
         self.assertEqual(
             sampling["parent_rank_domains"],

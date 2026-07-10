@@ -172,10 +172,10 @@ Account, connection, and match details require final user confirmation before ex
 6. Generate and evaluate fresh selection exactly once
 7. Only on pass, continue to finals, regressions, paired A/B, and external calibration
 
-The canonical plan is 10,817 bytes with SHA-256:
+The canonical plan is 10,890 bytes with SHA-256:
 
 ```text
-44925020c08b4270cd7553cac9d574e9b2b85a5f98fc2ee88bce23faed110d67
+ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af
 ```
 
 This is not an in-place overwrite of the current evaluator. Stable production remains available while an independent candidate passes fresh selection, two finals, retention, search/browser parity, and match evidence. A failed experiment costs compute, not existing playing strength.

@@ -61,6 +61,7 @@
   },
   "eligibility_and_sampling": {
     "allocation_seed": "floodgate-q1-2026-role-seed-v1",
+    "rank_hash_encoding": "sha256-utf8-nul-framed-domain-seed-parts-v1",
     "parent_rank_domains": {
       "phase": "floodgate-q1-2026-parent-phase-v1",
       "fill": "floodgate-q1-2026-parent-fill-v1"

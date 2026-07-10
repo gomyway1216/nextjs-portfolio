@@ -150,6 +150,99 @@ describe('ShogiImproved', () => {
     expect(move).toBeNull();
   });
 
+  describe('V20 move metadata', () => {
+    it('identifies opening-book moves without inventing a score or depth', () => {
+      const k = InitialPositionImproved.createInitialPosition();
+      k.setTeban(SENTE);
+
+      const ai = new ShogiAIImprovedV20();
+      const result = ai.getNextTeWithInfo(k, 0, { difficulty: 'master' });
+
+      expect(result.kind).toBe('book');
+      expect(result.move).not.toBeNull();
+      expect(result.scoreCp).toBeUndefined();
+      expect(result.depth).toBeUndefined();
+      expect(GenerateMovesImproved.generateLegalMoves(k).some((move) => move.equals(result.move as Te))).toBe(true);
+    });
+
+    it('identifies a dedicated mate-solver result', () => {
+      const E = EMPTY;
+      const board: number[][] = [
+        [E, E, E, E, GOU, E, E, E, E],
+        [E, E, E, E, E, E, E, E, E],
+        [E, E, E, E, E, SKI, E, E, E],
+        [E, E, E, E, E, E, E, E, E],
+        [E, E, E, E, SRY, E, E, E, E],
+        [E, E, E, E, E, E, E, E, E],
+        [E, E, E, E, E, E, E, E, E],
+        [E, E, E, E, E, E, E, E, E],
+        [E, E, E, E, SOU, E, E, E, E],
+      ];
+      const k = InitialPositionImproved.createInitialPosition();
+      InitialPositionImproved.setupCustom(k, board);
+      k.hand[SFU] = 3;
+      k.initAll();
+      k.setTeban(SENTE);
+
+      const ai = new ShogiAIImprovedV20();
+      const result = ai.getNextTeWithInfo(k, 60, {
+        difficulty: 'medium',
+        maxTimeMs: 0,
+        maxDepth: 1,
+      });
+
+      expect(result.kind).toBe('mate');
+      expect(result.move).not.toBeNull();
+      expect(result.scoreCp).toBe(30_000);
+      expect(result.depth).toBeUndefined();
+
+      const after = k.clone();
+      const move = (result.move as Te).clone();
+      move.capture = after.get(move.to);
+      after.move(move);
+      after.toggleTeban();
+      expect(GenerateMovesImproved.isKingInCheck(after, after.teban)).toBe(true);
+      expect(GenerateMovesImproved.generateLegalMoves(after)).toHaveLength(0);
+    });
+
+    it('reports the real score and completed depth for a fixed-depth search', () => {
+      const k = InitialPositionImproved.createInitialPosition();
+      k.setTeban(SENTE);
+      // Leave the opening book while keeping a quiet, deterministic search position.
+      k.hand[SFU] = 3;
+      k.initAll();
+
+      const ai = new ShogiAIImprovedV20();
+      const result = ai.getNextTeWithInfo(k, 60, {
+        difficulty: 'medium',
+        maxTimeMs: 0,
+        maxDepth: 2,
+      });
+
+      expect(result.kind).toBe('search');
+      expect(result.move).not.toBeNull();
+      expect(result.depth).toBe(2);
+      expect(result.scoreCp).toEqual(expect.any(Number));
+      expect(Number.isFinite(result.scoreCp as number)).toBe(true);
+    });
+
+    it('keeps the legacy move-only API compatible', () => {
+      const k = InitialPositionImproved.createInitialPosition();
+      k.setTeban(SENTE);
+      k.hand[SFU] = 3;
+      k.initAll();
+
+      const ai = new ShogiAIImprovedV20();
+      const options = { difficulty: 'medium' as const, maxTimeMs: 0, maxDepth: 1 };
+      const result = ai.getNextTeWithInfo(k, 60, options);
+      const legacyMove = ai.getNextTe(k, 60, options);
+
+      expect(result.move).not.toBeNull();
+      expect(legacyMove).not.toBeNull();
+      expect((legacyMove as Te).equals(result.move as Te)).toBe(true);
+    });
+  });
+
   it('V20 finds a mate in one', () => {
     const E = EMPTY;
     const board: number[][] = [

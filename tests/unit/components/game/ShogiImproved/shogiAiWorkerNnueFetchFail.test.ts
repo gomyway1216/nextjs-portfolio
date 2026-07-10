@@ -10,8 +10,17 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { GenerateMovesImproved } from '@/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '@/components/game/ShogiImproved/InitialPositionImproved';
 import type { KyokumenImproved } from '@/components/game/ShogiImproved/KyokumenImproved';
+import { SFU } from '@/components/game/ShogiImproved/types';
 
-type PostedMessage = { type: string; id?: number; move?: unknown; message?: string };
+type PostedMessage = {
+  type: string;
+  id?: number;
+  move?: unknown;
+  message?: string;
+  scoreCp?: number;
+  depth?: number;
+  searchPath?: string;
+};
 
 const posted: PostedMessage[] = [];
 const scope = {
@@ -68,7 +77,11 @@ describe('shogi-ai.worker NNUE fetch failure', () => {
 
   it('still answers a medium bestMove on the V3 path', () => {
     const k = InitialPositionImproved.createInitialPosition();
-    send({ type: 'bestMove', id: 201, position: serialize(k), difficulty: 'medium', tesu: 0 });
+    // A nonstandard hand makes the initial board hash definitively out of book
+    // while retaining a quiet, legal search position.
+    k.hand[SFU] = 3;
+    k.initAll();
+    send({ type: 'bestMove', id: 201, position: serialize(k), difficulty: 'medium', tesu: 60 });
 
     const res = posted.find((m) => m.type === 'bestMoveResult' && m.id === 201);
     expect(res).toBeDefined();
@@ -78,6 +91,9 @@ describe('shogi-ai.worker NNUE fetch failure', () => {
     expect(
       legal.some((m) => m.koma === move.koma && m.from === move.from && m.to === move.to && m.promote === move.promote)
     ).toBe(true);
+    expect(res!.searchPath).toBe('wasm');
+    expect(res!.scoreCp).toEqual(expect.any(Number));
+    expect(res!.depth).toBeGreaterThan(0);
 
     // NNUE must never have turned on.
     expect(nnue.isNnueWeightsLoaded()).toBe(false);

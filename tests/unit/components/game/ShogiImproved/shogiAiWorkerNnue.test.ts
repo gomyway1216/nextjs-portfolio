@@ -15,7 +15,15 @@ import { InitialPositionImproved } from '@/components/game/ShogiImproved/Initial
 import type { KyokumenImproved } from '@/components/game/ShogiImproved/KyokumenImproved';
 import { getOpeningMoveImproved } from '@/components/game/ShogiImproved/OpeningBookImproved';
 
-type PostedMessage = { type: string; id?: number; move?: unknown; message?: string };
+type PostedMessage = {
+  type: string;
+  id?: number;
+  move?: unknown;
+  message?: string;
+  scoreCp?: number;
+  depth?: number;
+  searchPath?: string;
+};
 
 const posted: PostedMessage[] = [];
 const scope = {
@@ -79,7 +87,7 @@ function outOfBookPosition(): { k: KyokumenImproved; tesu: number } {
   return { k, tesu: plies };
 }
 
-function expectLegalMove(id: number, k: KyokumenImproved): void {
+function expectLegalMove(id: number, k: KyokumenImproved): PostedMessage {
   const res = posted.find((m) => m.type === 'bestMoveResult' && m.id === id);
   expect(res).toBeDefined();
   const move = res!.move as { koma: number; from: number; to: number; promote: boolean };
@@ -88,6 +96,7 @@ function expectLegalMove(id: number, k: KyokumenImproved): void {
   expect(
     legal.some((m) => m.koma === move.koma && m.from === move.from && m.to === move.to && m.promote === move.promote)
   ).toBe(true);
+  return res!;
 }
 
 beforeAll(async () => {
@@ -126,14 +135,20 @@ describe('shogi-ai.worker NNUE difficulty gate', () => {
   it('uses NNUE for medium (>= 1000ms) searches', () => {
     const { k, tesu } = outOfBookPosition();
     send({ type: 'bestMove', id: 101, position: serialize(k), difficulty: 'medium', tesu });
-    expectLegalMove(101, k);
+    const res = expectLegalMove(101, k);
+    expect(res.searchPath).toBe('wasm');
+    expect(res.scoreCp).toEqual(expect.any(Number));
+    expect(res.depth).toBeGreaterThan(0);
     expect(nnue.isNnueEnabled()).toBe(true);
   }, 15_000);
 
   it('keeps easy on the V3 evaluation', () => {
     const { k, tesu } = outOfBookPosition();
     send({ type: 'bestMove', id: 102, position: serialize(k), difficulty: 'easy', tesu });
-    expectLegalMove(102, k);
+    const res = expectLegalMove(102, k);
+    expect(res.searchPath).toBe('wasm');
+    expect(res.scoreCp).toEqual(expect.any(Number));
+    expect(res.depth).toBeGreaterThan(0);
     expect(nnue.isNnueEnabled()).toBe(false);
   }, 15_000);
 
@@ -141,8 +156,12 @@ describe('shogi-ai.worker NNUE difficulty gate', () => {
     'uses NNUE for %s (re-enabled 2026-07-06 after the cycle-3 saturation fix)',
     (difficulty) => {
       const { k, tesu } = outOfBookPosition();
-      send({ type: 'bestMove', id: 105, position: serialize(k), difficulty, tesu });
-      expectLegalMove(105, k);
+      const id = { hard: 105, expert: 106, master: 107 }[difficulty];
+      send({ type: 'bestMove', id, position: serialize(k), difficulty, tesu });
+      const res = expectLegalMove(id, k);
+      expect(res.searchPath).toBe('wasm');
+      expect(res.scoreCp).toEqual(expect.any(Number));
+      expect(res.depth).toBeGreaterThan(0);
       expect(nnue.isNnueEnabled()).toBe(true);
     },
     15_000
@@ -151,14 +170,20 @@ describe('shogi-ai.worker NNUE difficulty gate', () => {
   it('keeps the NNUE setting across a new game (clearTT)', () => {
     const { k, tesu } = outOfBookPosition();
     send({ type: 'bestMove', id: 103, position: serialize(k), difficulty: 'medium', tesu });
-    expectLegalMove(103, k);
+    const first = expectLegalMove(103, k);
+    expect(first.searchPath).toBe('wasm');
+    expect(first.scoreCp).toEqual(expect.any(Number));
+    expect(first.depth).toBeGreaterThan(0);
     expect(nnue.isNnueEnabled()).toBe(true);
 
     send({ type: 'clearTT' });
     expect(nnue.isNnueWeightsLoaded()).toBe(true);
 
     send({ type: 'bestMove', id: 104, position: serialize(k), difficulty: 'medium', tesu });
-    expectLegalMove(104, k);
+    const second = expectLegalMove(104, k);
+    expect(second.searchPath).toBe('wasm');
+    expect(second.scoreCp).toEqual(expect.any(Number));
+    expect(second.depth).toBeGreaterThan(0);
     expect(nnue.isNnueEnabled()).toBe(true);
   }, 30_000);
 });

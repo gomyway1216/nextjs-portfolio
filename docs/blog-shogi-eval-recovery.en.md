@@ -397,3 +397,68 @@ The recovery order is now concrete:
 This is not as simple as “copy strong games and we are done.” But it connects the objective to actual move choice, unlike saving `bestmove`, discarding it, and hoping an unrelated-position `pair_acc` means move selection improved.
 
 The next adoption needs no story like “52.5%, therefore no regression.” It needs four records: where △P*8f ranks, how well sibling candidates from one parent are ordered, what the production-time interval actually excludes, and which execution path ran in a real browser. We will keep the intermediate data for all four.
+
+---
+
+## 11. Execution-path checkpoint: never hide which engine answered
+
+In a PR separate from the evaluation rollback, we reproduced the stopping symptom seen live and its major failure shapes, then made every move traceable to the route that produced it. This investigation and independent review found seven state-update and fallback problems, none of them caused by the NNUE weights.
+
+### 11.1 The seven operational bugs we found
+
+| Area | Behavior before the fix | Impact |
+|---|---|---|
+| Opening-book branch | Human moves and searched replies incremented `ply`, but the book reply alone did not | The board advanced while the internal move count remained one ply behind, skewing later diagnostics and the ply passed into search |
+| Worker construction | `getWorker()` ran outside the code that created the Promise, so a synchronous throw from the Worker constructor could not reach the later `.catch()` | No path cleared `isAIThinking`, allowing the UI to remain stuck on “thinking” |
+| Evaluation display | Evaluation state was updated only when a new response contained a `score` | A scoreless response such as a book move could retain the previous response's score and depth |
+| JS fallbacks | Worker-side JS and main-thread JS returned only a move, not the actual score and completed depth | The game could advance while evaluation remained `—`, with no way to distinguish WASM failure from JS execution |
+| Worker respawn | After a hard deadline, the client respawned the Worker before rejecting the request | If the replacement constructor also threw synchronously, the original Promise stayed pending forever |
+| Page exit | Unmount terminated the Worker but did not invalidate the 250/500ms delay and request ID | A new Worker or main-thread fallback could start after leaving the page |
+| Persistent failure | When both the Worker and main-thread JS failed, only `isAIThinking` was cleared while the position remained Gote to move | The same position could retry every 500ms and repeatedly block the UI thread |
+
+**Confirmed**: these failures are independent of deep16's candidate ordering. Fixing Worker construction, for example, does not change △P*8f's rank, while restoring runOp1 does not repair a synchronous Worker-constructor throw.
+
+After the fix, JS V20 search returns the score and depth actually completed by iterative deepening, not just its move. When search falls all the way back to synchronous main-thread JS, it also records the time for which it blocked the UI as `blockedMainThreadMs`. Evaluation state is no longer patched field by field: route, score, depth, and blocked time are replaced together as one snapshot for every request. A scoreless response therefore cannot inherit an old number.
+
+### 11.2 Route vocabulary after the fix
+
+| `searchPath` | Meaning |
+|---|---|
+| `idle` | DOM initial state before any answer and while no search is running |
+| `book` | Returned immediately from the opening book |
+| `worker-pending` | An out-of-book request has been sent to the Worker and is awaiting a reply |
+| `mate` | The dedicated mate solver returned the move |
+| `wasm` | Worker-side WASM search returned the move. NNUE versus V3 is separate configuration state and is not guaranteed by this route alone |
+| `worker-js` | The Worker ran, but WASM search did not return a move, so it fell back to JS inside the Worker |
+| `main-thread-js` | The Worker was unavailable and search fell back to JS on the UI thread |
+| `engine-error` | A terminal error prevented the move from being committed safely. Automatic retry stops and waits for a manual Retry |
+| `unknown` | An old or malformed Worker response did not identify its route |
+
+The same status element now exposes the route together with `ply`, whether the engine is thinking, score, depth, and main-thread blocked time. A successful normal `wasm` search looks unchanged to the player. Compatibility routes show “compatibility mode” or “slow compatibility mode,” while `engine-error` explicitly shows the terminal failure and a Retry action. The diagnostics add no warning or visual noise to the healthy route.
+
+### 11.3 A real-browser regression test that cannot escape into the book
+
+The earlier browser test could declare success after only the book reply to ▲P-7f. It could therefore pass without ever using the Worker or WASM. The new test uses **Hard + bishop handicap**. In handicap shogi the AI plays the first move and the opening-book branch is deliberately skipped, so the test reaches real search without relying on a brittle sequence of moves.
+
+| Scenario | Conditions pinned in the browser |
+|---|---|
+| Normal out-of-book search | Passes through `worker-pending`, advances the timer beyond 1000ms, completes through `wasm`, and returns a numeric score, positive depth, and `ply=1` |
+| Synchronous Worker failure | Forces the Worker constructor to throw synchronously, yet completes through `main-thread-js`, clears thinking, and returns a numeric score, positive depth, positive blocked time, and `ply=1` |
+| Opening-book reply | In a normal even game, records the reply to ▲P-7f as `book` and reports `ply=2` for the human first move plus the AI second move |
+| Page exit | Returning to Games during the 500ms pre-search delay does not construct a Worker after unmount |
+| Persistent failure | Forces both Worker and main-thread JS failure, stops at `engine-error`, and confirms the attempt count does not increase after another 1.2 seconds. After removing the fault, Retry Game (starts a new game with the same settings) recovers through `wasm` to `ply=1` |
+| Failed respawn after a Worker fault | Triggers a running Worker failure, then fails the replacement Worker construction so the client becomes disabled. After removing the fault, Retry Game starts a new game, discards the disabled client, and recovers through a fresh Worker's `wasm` path to `ply=1` |
+
+The E2E now establishes more than “the screen did not freeze”: one run verifies the route, thinking elapsed time (including the 500ms pre-search delay), evaluation, depth, and move count together.
+
+### 11.4 Verification ledger for this checkpoint
+
+| Check | Result |
+|---|---:|
+| Unit tests | **69 files / 972 tests passed** |
+| Targeted Shogi Playwright E2E (2 specs) | **11 / 11 passed** |
+| TypeScript type check | **passed** |
+| Full-repository ESLint | **passed (0 errors / 157 existing warnings)** |
+| Production build | **passed** |
+
+This checkpoint proves that a real browser can traverse the normal WASM route, that failures terminate instead of hanging, that a successful fallback preserves measurements while a terminal failure preserves its route, and that opening-book plies are counted correctly. **This PR improves observability and operational reliability; it does not prove stronger play.** Elo, sibling-candidate ordering, suppression of known bad moves, and production-time A/B remain separate gates for the trained candidates.

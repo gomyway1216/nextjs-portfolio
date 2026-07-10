@@ -359,7 +359,7 @@ python3 ml/sibling_selection_audit.py \
 実行済み6 runのmedian代表はwarm seed 42 / scratch seed 42、暫定candidateはwarm seed 42となった。
 しかしint16 top-1がstable未満（`0.2639296 < 0.2668622`）で、float→int16 pair低下の絶対値も
 上限を超えた（`0.0027204 > 0.002`）。そのため27,692-byte audit
-`bd62ff06d7c67f7601ea15795a9dca1386565e292ff5a08d8b90eb2fcc798634`は
+`5a7c4b1041ad6c01109fd0f9575f1e40e9f2fc18abe0c9c9c222500dc32b8c19`は
 `not_emitted_selection_gate_failed`と`sealed_not_opened`を記録し、成功candidate receiptを生成しない。
 同auditは記録したローカルvenvと固定exporter/evaluatorから6候補＋stableを再生成し、全weights/metaのbyte一致と
 float/int16 metrics・core provenance一致も記録する。Python実行file/runtimeは記録しているが、venv全packageの

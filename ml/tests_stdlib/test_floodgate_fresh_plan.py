@@ -94,6 +94,8 @@ class FloodgateFreshSiblingPlanTests(unittest.TestCase):
         failure = self.plan["failure_policy"]
         self.assertFalse(failure["add-seeds"])
         self.assertFalse(failure["relax-source-rating-or-game-count"])
+        self.assertFalse(failure["relax-role-caps-or-semantic-isolation"])
+        self.assertFalse(failure["tune-model-or-loss-on-fresh-selection"])
         self.assertFalse(failure["open-any-final-holdout-after-static-failure"])
         self.assertFalse(failure["change-production-after-any-gate-failure"])
 

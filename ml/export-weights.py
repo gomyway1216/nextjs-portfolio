@@ -41,6 +41,13 @@ import sys
 
 import torch
 
+from int16_forward import (
+    ACT_SCALE,
+    W_SCALE,
+    int16_forward as _shared_int16_forward,
+    quantize_model,
+)
+
 # train.py の定義を再利用
 import importlib.util
 
@@ -58,28 +65,12 @@ HAND_FEATS = _train.HAND_FEATS
 KP_BUCKETS = _train.KP_BUCKETS
 PAD_IDX = _train.PAD_IDX
 
-ACT_SCALE = 127  # 活性値 1.0 の固定小数点表現
-W_SCALE = 64  # 第2層以降の重みスケール
-
-
 def quantize(model: DistillNet, k_sigmoid: float):
     board_feats = model.board_feats  # 2268 (board) / 13608 (kp)
     hand_feats = model.hand_feats  # 14 (board) / 84 (kp)
-    with torch.no_grad():
-        # factored (kp-factor) は shared+delta を合成した実効テーブルを量子化する
-        w1_board, w1_hand, b1 = model.materialized_w1()  # (BF,256), (HF,256), (256,)
-        w2, b2 = model.l2.weight, model.l2.bias  # (32,256), (32,)
-        w3, b3 = model.l3.weight.squeeze(0), model.l3.bias  # (32,), (1,)
-
-        q = {
-            "w1_board": torch.round(w1_board * ACT_SCALE).clamp(-32768, 32767).to(torch.int16),
-            "w1_hand": torch.round(w1_hand * ACT_SCALE).clamp(-32768, 32767).to(torch.int16),
-            "b1": torch.round(b1 * ACT_SCALE).to(torch.int32),
-            "w2": torch.round(w2 * W_SCALE).clamp(-32768, 32767).to(torch.int16),
-            "b2": torch.round(b2 * ACT_SCALE * W_SCALE).to(torch.int32),
-            "w3": torch.round(w3 * W_SCALE).clamp(-32768, 32767).to(torch.int16),
-            "b3": torch.round(b3 * ACT_SCALE * W_SCALE).to(torch.int32),
-        }
+    # Export and QAT share this exact quantizer; this wrapper preserves the
+    # public exporter API and all historical bytes/metadata.
+    q = quantize_model(model)
     kp = getattr(model, "kp", False)
     meta = {
         "format": "shogi-distill-v2" if kp else "shogi-distill-v1",
@@ -109,21 +100,7 @@ def int_forward(q, board_idx, hands, pad_idx=PAD_IDX):
     KP モデルでは board_idx はバケットオフセット込み、hands は拡張済み (len=84,
     自玉バケットのセグメントのみ非ゼロ)、pad_idx=6*2268 を渡す。
     """
-    acc = q["b1"].clone()  # int32 (256,)
-    for f in board_idx:
-        if f == pad_idx:
-            continue
-        acc += q["w1_board"][f].to(torch.int32)
-    for i, c in enumerate(hands):
-        if c:
-            acc += q["w1_hand"][i].to(torch.int32) * int(c)
-    h1 = acc.clamp(0, ACT_SCALE)  # (256,)
-
-    a2 = (q["w2"].to(torch.int32) @ h1) + q["b2"]
-    h2 = (a2 >> 6).clamp(0, ACT_SCALE)  # (32,)
-
-    out_q = int((q["w3"].to(torch.int32) * h2).sum().item() + q["b3"].item())
-    return out_q
+    return _shared_int16_forward(q, board_idx, hands, pad_idx)
 
 
 def main():

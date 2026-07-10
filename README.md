@@ -38,3 +38,5 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
 ## Project Notes
 
 - Shogi AI implementation details: `SHOGI_AI_IMPROVEMENTS.md`
+- Shogi evaluation recovery log: [日本語](docs/blog-shogi-eval-recovery.md) / [English](docs/blog-shogi-eval-recovery.en.md)
+- WCSC36 sibling-teacher forensic and retraining log: [日本語](docs/blog-shogi-wcsc36-sibling-training.md) / [English](docs/blog-shogi-wcsc36-sibling-training.en.md)

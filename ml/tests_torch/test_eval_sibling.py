@@ -925,6 +925,232 @@ def attach_sealed_training_provenance(checkpoint_path, fixture, *, replay=False)
     torch.save(checkpoint, checkpoint_path)
 
 
+def attach_int16_aware_training_provenance(checkpoint_path, fixture, *, seed=42):
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    partition = EVAL.verify_sibling_validation_partition(
+        fixture["partition"],
+        sibling_manifest_path=fixture["teacher"],
+        data_role="selection",
+        data_path=fixture["selection"],
+        protected_position_ids_path=fixture["protected"],
+        policy_exposure_receipt_path=fixture["policy_receipt"],
+        policy_exposed_parent_ids_path=fixture["policy_parent_ids"],
+        policy_exposed_semantic_position_ids_path=fixture["policy_semantic_ids"],
+        training_path=fixture["train"],
+    )
+    teacher = partition["teacher_manifest"]
+    expected_training = partition["outputs"]["model_training"]
+    slot_id = f"int16-aware-seed-{seed}"
+    slot_output = f"ml/runs/wcsc36-int16-aware/seed-{seed}"
+    verified_inputs = {
+        "sibling_teacher_manifest": teacher["sha256"],
+        "validation_partition_manifest": partition["sha256"],
+        "model_training": expected_training["sha256"],
+        "replay": EVAL.SEALED_REPLAY_SHA256,
+        "warm_initializer": EVAL.SEALED_WARM_INIT_SHA256,
+        "policy_exposure_receipt": partition["source"][
+            "policy_exposure_receipt"
+        ]["sha256"],
+        "policy_exposed_parent_ids": partition["source"][
+            "policy_exposed_parent_ids"
+        ]["sha256"],
+        "policy_exposed_semantic_position_ids": partition["source"][
+            "policy_exposed_semantic_position_ids"
+        ]["sha256"],
+        "holdout_protected_position_ids": partition["outputs"][
+            "protected_position_ids"
+        ]["sha256"],
+        "replay_exclusion": EVAL.QAT_REPLAY_EXCLUSION_CONTRACT["sha256"],
+    }
+    experiment_contract = {
+        "schema": EVAL.QAT_TRAINING_CONTRACT_SCHEMA,
+        "family": "int16-aware",
+        "slot_id": slot_id,
+        "seed": seed,
+        "loss": "sibling-ranking",
+        "model_training_sha256": expected_training["sha256"],
+        "model_training_bytes": expected_training["bytes"],
+        "model_training_records": expected_training["records"],
+        "model_training_parents": expected_training["parents"],
+        "init_checkpoint_sha256": EVAL.SEALED_WARM_INIT_SHA256,
+        "replay_sha256": EVAL.SEALED_REPLAY_SHA256,
+        "learning_rate": 0.0001,
+        "epochs": 20,
+        "batch": 256,
+        "k": 600.0,
+        "cp_clamp": 3000,
+        "rank_weight": 1.0,
+        "rank_pair_min": 50.0,
+        "rank_pair_max": 600.0,
+        "rank_margin_cp": 50.0,
+        "policy_weight": 0.25,
+        "policy_temp_cp": 200.0,
+        "features": "board",
+        "device": "cpu",
+        "torch_threads": 2,
+        "replay_limit": EVAL.SEALED_REPLAY_ROWS,
+        "replay_ratio": 1.0,
+        "primary_limit": 0,
+        "allow_legacy_init": True,
+        "objective": "0.5*float_full_task+0.5*int16_ste_full_task",
+        "checkpoint_policy": "fixed-final-epoch-only",
+        "candidate_artifact": "final.pt",
+        "selection_evaluations": 0,
+        "early_stopping": False,
+    }
+    args = {
+        "experiment_family": "int16-aware",
+        "experiment_series": None,
+        "seed": seed,
+        "loss": "sibling-ranking",
+        "lr": 0.0001,
+        "epochs": 20,
+        "batch": 256,
+        "k": 600.0,
+        "cp_clamp": 3000,
+        "rank_weight": 1.0,
+        "rank_pair_min": 50.0,
+        "rank_pair_max": 600.0,
+        "rank_margin_cp": 50.0,
+        "policy_weight": 0.25,
+        "policy_temp_cp": 200.0,
+        "features": "board",
+        "device": "cpu",
+        "torch_threads": 2,
+        "replay_limit": EVAL.SEALED_REPLAY_ROWS,
+        "replay_ratio": 1.0,
+        "limit": 0,
+        "select_metric": "auto",
+        "allow_legacy_init": True,
+        "val_data": None,
+        "data": fixture["train"],
+        "sibling_manifest": fixture["teacher"],
+        "validation_partition_manifest": fixture["partition"],
+        "experiment_plan": os.path.join(
+            ML_DIR, "protocols", "wcsc36-int16-aware-plan.json"
+        ),
+        "holdout_protected_position_ids": fixture["protected"],
+        "policy_exposure_receipt": fixture["policy_receipt"],
+        "policy_exposed_parent_ids": fixture["policy_parent_ids"],
+        "policy_exposed_semantic_position_ids": fixture["policy_semantic_ids"],
+        "replay_data": fixture["replay"],
+        "replay_excluded_position_ids": fixture["protected"],
+        "init_ckpt": "/sealed/runOp1-best.pt",
+        "pipeline_revision": "f" * 40,
+        "out": os.path.join(
+            os.path.dirname(checkpoint_path),
+            "ml",
+            "runs",
+            "wcsc36-int16-aware",
+            f"seed-{seed}",
+        ),
+    }
+    training_runtime = dict(EVAL.SEALED_SIX_RUN_TRAINING_RUNTIME)
+    history = [
+        {
+            "epoch": epoch,
+            "combined_task_loss": 1.0 / epoch,
+            "float_task_loss": 1.1 / epoch,
+            "ste_task_loss": 0.9 / epoch,
+            "learning_rate": 0.0001 * (21 - epoch) / 20,
+        }
+        for epoch in range(1, 21)
+    ]
+    checkpoint = {
+        "schema": EVAL.QAT_FINAL_CHECKPOINT_SCHEMA,
+        "model": checkpoint["model"],
+        "epoch": 20,
+        "args": args,
+        "arch": checkpoint["arch"],
+        "init_checkpoint": {
+            "path": "/sealed/runOp1-best.pt",
+            "sha256": EVAL.SEALED_WARM_INIT_SHA256,
+            "bytes": EVAL.QAT_WARM_INITIALIZER_BYTES,
+            "epoch": EVAL.QAT_WARM_INITIALIZER_EPOCH,
+            "legacy_arch_inferred_fields": ["schema"],
+        },
+        "data_provenance": {
+            "train": {
+                "path": os.path.abspath(fixture["train"]),
+                "real_path": os.path.realpath(fixture["train"]),
+                "sha256": expected_training["sha256"],
+                "bytes": expected_training["bytes"],
+                "usable_rows": expected_training["records"],
+                "selection": "all",
+                "requested_limit": 0,
+                "role": "model_training",
+            },
+            "replay": {
+                "path": "/sealed/runOp1-train.jsonl",
+                "real_path": "/sealed/runOp1-train.jsonl",
+                "sha256": EVAL.SEALED_REPLAY_SHA256,
+                "bytes": EVAL.QAT_REPLAY_BYTES,
+                "usable_rows": EVAL.SEALED_REPLAY_ROWS,
+                "selection": "uniform_without_replacement_after_semantic_exclusion",
+                "requested_limit": EVAL.SEALED_REPLAY_ROWS,
+                "sample_seed": seed + 2,
+                "replay_ratio": 1.0,
+                "excluded_semantic_position_ids": EVAL.QAT_REPLAY_EXCLUSION_CONTRACT[
+                    "count"
+                ],
+                "excluded_semantic_position_ids_sha256": EVAL.QAT_REPLAY_EXCLUSION_CONTRACT[
+                    "identifiers_sha256"
+                ],
+                "eligible_rows_after_semantic_exclusion": EVAL.SEALED_REPLAY_ROWS + 1,
+                "excluded_rows_before_sampling": 1,
+            },
+            "replay_exclusion": {
+                "path": "/sealed/wcsc36-qat-replay-excluded-position-ids.txt",
+                **EVAL.QAT_REPLAY_EXCLUSION_CONTRACT,
+            },
+            "model_selection": {
+                "labels_read": False,
+                "path_received_by_training_cli": False,
+                "epoch_evaluations": 0,
+            },
+            "final_holdout": {
+                "labels_read": False,
+                "status": "sealed_not_opened",
+            },
+        },
+        "training_pipeline": {
+            "source_revision": "f" * 40,
+            "tracked_tree_clean": True,
+        },
+        "training_runtime": training_runtime,
+        "experiment_plan": {
+            "path": os.path.join(
+                ML_DIR, "protocols", "wcsc36-int16-aware-plan.json"
+            ),
+            "bytes": EVAL.QAT_PLAN_BYTES,
+            "sha256": EVAL.QAT_PLAN_SHA256,
+            "schema": EVAL.QAT_PLAN_SCHEMA,
+            "slot_id": slot_id,
+            "slot_output": slot_output,
+            "verified_input_sha256": verified_inputs,
+        },
+        "experiment_contract": experiment_contract,
+        "objective": {
+            "float_task_weight": 0.5,
+            "ste_task_weight": 0.5,
+            "float_task": ["value", "rank", "policy", "replay_value"],
+            "ste_task": ["value", "rank", "policy", "replay_value"],
+            "primary_batch_shared": True,
+            "replay_indices_shared": True,
+        },
+        "checkpoint_selection": {
+            "mode": "final-only",
+            "selection_labels_read": False,
+            "selection_evaluations": 0,
+            "early_stopping": False,
+            "candidate_artifact": "final.pt",
+        },
+        "training_history": history,
+    }
+    torch.save(checkpoint, checkpoint_path)
+    return verified_inputs
+
+
 class SiblingHoldoutEvaluationTest(unittest.TestCase):
     def test_checkpoint_arch_normalizes_integral_sigmoid_scale(self):
         arch = expected_arch(
@@ -1287,6 +1513,273 @@ class SiblingHoldoutEvaluationTest(unittest.TestCase):
                         data_role="final-holdout",
                         include_quantized=False,
                     )
+
+    def test_int16_aware_final_checkpoint_gets_one_selection_read_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = write_sealed_fixture(tmp)
+            checkpoint_path = os.path.join(tmp, "qat-final.pt")
+            write_hand_model(checkpoint_path, slope=0.003)
+            verified_inputs = attach_int16_aware_training_provenance(
+                checkpoint_path, fixture
+            )
+            with mock.patch.object(
+                EVAL, "QAT_VERIFIED_INPUT_SHA256", verified_inputs
+            ):
+                report = EVAL.evaluate_checkpoints(
+                    fixture["selection"],
+                    [("qat", checkpoint_path)],
+                    sibling_manifest_path=fixture["teacher"],
+                    validation_partition_manifest_path=fixture["partition"],
+                    policy_exposure_receipt_path=fixture["policy_receipt"],
+                    policy_exposed_parent_ids_path=fixture["policy_parent_ids"],
+                    policy_exposed_semantic_position_ids_path=fixture[
+                        "policy_semantic_ids"
+                    ],
+                    protected_position_ids_path=fixture["protected"],
+                    data_role="selection",
+                    include_quantized=False,
+                )
+                self.assertEqual(report["schema"], EVAL.SEALED_REPORT_SCHEMA)
+                self.assertEqual(report["data"]["data_role"], "selection")
+                self.assertEqual(report["models"][0]["checkpoint_epoch"], 20)
+                provenance = report["models"][0]["training_provenance"]
+                self.assertEqual(
+                    set(provenance),
+                    {
+                        "status",
+                        "teacher_manifest_sha256",
+                        "validation_partition_sha256",
+                        "training_pipeline_source_revision",
+                        "experiment_plan_sha256",
+                        "slot_id",
+                        "seed",
+                        "source_train_sha256",
+                        "model_training_sha256",
+                        "model_selection_sha256",
+                        "final_holdout_sha256",
+                        "replay_exclusion_sha256",
+                        "selection_labels_read_during_training",
+                        "selection_evaluations_during_training",
+                        "final_holdout_labels_read",
+                    },
+                )
+                self.assertEqual(
+                    provenance["status"],
+                    "verified_int16_aware_final_only_selection",
+                )
+                self.assertEqual(provenance["slot_id"], "int16-aware-seed-42")
+                self.assertEqual(provenance["seed"], 42)
+                self.assertFalse(provenance["selection_labels_read_during_training"])
+                self.assertEqual(
+                    provenance["selection_evaluations_during_training"], 0
+                )
+                self.assertFalse(provenance["final_holdout_labels_read"])
+
+                with mock.patch.object(
+                    EVAL,
+                    "load_validation_data",
+                    side_effect=AssertionError("holdout labels were read"),
+                ) as labels_reader:
+                    with self.assertRaisesRegex(
+                        ValueError, "candidate-selection receipt"
+                    ):
+                        EVAL.evaluate_checkpoints(
+                            fixture["holdout"],
+                            [("qat", checkpoint_path)],
+                            sibling_manifest_path=fixture["teacher"],
+                            validation_partition_manifest_path=fixture["partition"],
+                            policy_exposure_receipt_path=fixture["policy_receipt"],
+                            policy_exposed_parent_ids_path=fixture["policy_parent_ids"],
+                            policy_exposed_semantic_position_ids_path=fixture[
+                                "policy_semantic_ids"
+                            ],
+                            protected_position_ids_path=fixture["protected"],
+                            data_role="final-holdout",
+                            include_quantized=False,
+                        )
+                    labels_reader.assert_not_called()
+
+    def test_int16_aware_selection_rejects_final_only_provenance_mutations(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            fixture = write_sealed_fixture(tmp)
+            checkpoint_path = os.path.join(tmp, "qat-final.pt")
+            write_hand_model(checkpoint_path, slope=0.003)
+            verified_inputs = attach_int16_aware_training_provenance(
+                checkpoint_path, fixture
+            )
+            base = torch.load(
+                checkpoint_path, map_location="cpu", weights_only=False
+            )
+            cases = (
+                (
+                    "checkpoint schema",
+                    lambda value: value.__setitem__("schema", "wrong"),
+                    "checkpoint schema mismatch",
+                ),
+                (
+                    "not final epoch",
+                    lambda value: value.__setitem__("epoch", 19),
+                    "not final epoch 20",
+                ),
+                (
+                    "nonmapping contract",
+                    lambda value: value.__setitem__("experiment_contract", []),
+                    "seed is outside 42/43/44",
+                ),
+                (
+                    "contract schema",
+                    lambda value: value["experiment_contract"].__setitem__(
+                        "schema", "wrong"
+                    ),
+                    "experiment contract schema mismatch",
+                ),
+                (
+                    "contract selection read",
+                    lambda value: value["experiment_contract"].__setitem__(
+                        "selection_evaluations", 1
+                    ),
+                    "experiment contract selection_evaluations mismatch",
+                ),
+                (
+                    "selection path received",
+                    lambda value: value["args"].__setitem__(
+                        "val_data", fixture["selection"]
+                    ),
+                    "received a model-selection path",
+                ),
+                (
+                    "different QAT plan",
+                    lambda value: value["experiment_plan"].__setitem__(
+                        "sha256", "0" * 64
+                    ),
+                    "experiment plan sha256 mismatch",
+                ),
+                (
+                    "nonmapping plan",
+                    lambda value: value.__setitem__("experiment_plan", []),
+                    "experiment plan fields are not exact",
+                ),
+                (
+                    "unverified input map",
+                    lambda value: value["experiment_plan"][
+                        "verified_input_sha256"
+                    ].__setitem__("replay", "0" * 64),
+                    "experiment plan verified_input_sha256 mismatch",
+                ),
+                (
+                    "training labels read",
+                    lambda value: value["data_provenance"][
+                        "model_selection"
+                    ].__setitem__("labels_read", True),
+                    "model-selection isolation labels_read mismatch",
+                ),
+                (
+                    "training selection evaluation",
+                    lambda value: value["checkpoint_selection"].__setitem__(
+                        "selection_evaluations", 1
+                    ),
+                    "checkpoint selection selection_evaluations mismatch",
+                ),
+                (
+                    "early stopping",
+                    lambda value: value["checkpoint_selection"].__setitem__(
+                        "early_stopping", True
+                    ),
+                    "checkpoint selection early_stopping mismatch",
+                ),
+                (
+                    "holdout labels read",
+                    lambda value: value["data_provenance"][
+                        "final_holdout"
+                    ].__setitem__("labels_read", True),
+                    "final-holdout isolation labels_read mismatch",
+                ),
+                (
+                    "different training data",
+                    lambda value: value["data_provenance"]["train"].__setitem__(
+                        "sha256", "0" * 64
+                    ),
+                    "training data sha256 mismatch",
+                ),
+                (
+                    "different replay exclusion",
+                    lambda value: value["data_provenance"][
+                        "replay_exclusion"
+                    ].__setitem__("identifiers_sha256", "0" * 64),
+                    "replay exclusion identifiers_sha256 mismatch",
+                ),
+                (
+                    "dirty pipeline",
+                    lambda value: value["training_pipeline"].__setitem__(
+                        "tracked_tree_clean", False
+                    ),
+                    "training pipeline is not clean",
+                ),
+                (
+                    "pipeline argument mismatch",
+                    lambda value: value["args"].__setitem__(
+                        "pipeline_revision", "e" * 40
+                    ),
+                    "pipeline argument/provenance mismatch",
+                ),
+                (
+                    "output slot mismatch",
+                    lambda value: value["args"].__setitem__(
+                        "out", "/tmp/wrong-seed"
+                    ),
+                    "output path differs from its plan slot",
+                ),
+                (
+                    "different runtime",
+                    lambda value: value["training_runtime"].__setitem__(
+                        "torch_version", "2.12.2"
+                    ),
+                    "training runtime torch_version mismatch",
+                ),
+                (
+                    "incomplete history",
+                    lambda value: value["training_history"].pop(),
+                    "training history is incomplete",
+                ),
+                (
+                    "different objective",
+                    lambda value: value["objective"].__setitem__(
+                        "ste_task_weight", 0.6
+                    ),
+                    "objective ste_task_weight mismatch",
+                ),
+                (
+                    "unexpected root field",
+                    lambda value: value.__setitem__("best_epoch", 20),
+                    "checkpoint fields are not exact",
+                ),
+            )
+            with mock.patch.object(
+                EVAL, "QAT_VERIFIED_INPUT_SHA256", verified_inputs
+            ):
+                for index, (label, mutate, expected) in enumerate(cases):
+                    with self.subTest(label=label):
+                        candidate = copy.deepcopy(base)
+                        mutate(candidate)
+                        candidate_path = os.path.join(tmp, f"qat-bad-{index}.pt")
+                        torch.save(candidate, candidate_path)
+                        with self.assertRaisesRegex(ValueError, expected):
+                            EVAL.evaluate_checkpoints(
+                                fixture["selection"],
+                                [("qat", candidate_path)],
+                                sibling_manifest_path=fixture["teacher"],
+                                validation_partition_manifest_path=fixture["partition"],
+                                policy_exposure_receipt_path=fixture["policy_receipt"],
+                                policy_exposed_parent_ids_path=fixture[
+                                    "policy_parent_ids"
+                                ],
+                                policy_exposed_semantic_position_ids_path=fixture[
+                                    "policy_semantic_ids"
+                                ],
+                                protected_position_ids_path=fixture["protected"],
+                                data_role="selection",
+                                include_quantized=False,
+                            )
 
     def test_sealed_evaluation_rejects_tampered_checkpoint_provenance(self):
         with tempfile.TemporaryDirectory() as tmp:

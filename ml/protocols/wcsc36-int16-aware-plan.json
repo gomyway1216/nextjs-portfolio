@@ -1,0 +1,240 @@
+{
+  "schema": "shogi-int16-aware-experiment-plan-v1",
+  "hypothesis": {
+    "id": "wcsc36-warm-int16-aware-ste-v1",
+    "source_attempt": "wcsc36-six-run-selection-gate-failure",
+    "development_attempt_index": 1,
+    "family_cap": 1,
+    "claim_limit": "development-screening-only-not-strength-or-causality"
+  },
+  "inputs": {
+    "sibling_teacher_manifest": {
+      "bytes": 4895,
+      "sha256": "3381e238d722751a73f50e3e89c332ce7344e443e588ea061946cec4e2d4cecc"
+    },
+    "validation_partition_manifest": {
+      "bytes": 5357,
+      "sha256": "d95e66239dbf2dcf3979f4cf52a5ed666922f808f82b35aff4ccefc95c0d8ee1"
+    },
+    "model_training": {
+      "bytes": 17154270,
+      "sha256": "f6dcfd6a7ca0b42e730ba0aff46394bf61e772a9b01270c5bfe126daf81c6e26",
+      "records": 20123,
+      "parents": 1725,
+      "games": 21,
+      "semantic_position_ids_count": 18181,
+      "semantic_position_ids_sha256": "8311fc6c4f318a05e189e4d4fadc5eab9840915cd3f01cd44e2e0aaaa9c47ea5"
+    },
+    "replay": {
+      "bytes": 800451089,
+      "sha256": "2207eba555fc0109fe2842ff8f92cb08d42e47893d9aabd863b3f552371a56cb"
+    },
+    "warm_initializer": {
+      "bytes": 2375274,
+      "sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8"
+    },
+    "policy_exposure_receipt": {
+      "bytes": 4111,
+      "sha256": "083a86e48f1af134b854cdf0e505f0f39cc55ef75d5cbbc0df47c3e1c5013a6f"
+    },
+    "policy_exposed_parent_ids": {
+      "bytes": 7344,
+      "sha256": "2e634e5968516f243998de98c5f80d2abb674e8b9841655a3b4735df892e2d10",
+      "count": 102,
+      "identifiers_sha256": "77ea294f0237ca089f5fd4df64242ab9cf9f62f5a134196ac98fc9114ceebdd3"
+    },
+    "policy_exposed_semantic_position_ids": {
+      "bytes": 100224,
+      "sha256": "8c696e8d1d426d9efdffb112004f37a37359f22a903bc34d2c4e7621e02a6bdd",
+      "count": 1392,
+      "identifiers_sha256": "31d2b9f60421f540880037efed9571bd034a986163cd79d2e51f2336544cba70"
+    },
+    "holdout_protected_position_ids": {
+      "bytes": 242784,
+      "sha256": "762b95b52f50223fd484573d7d3823f3d2d7622ea3817f4300ae9fcc95935d26",
+      "count": 3372,
+      "identifiers_sha256": "bf4a4a1c66be0c0fa186bfc15432d55700d2a61d04010114e867a905cbaebc34"
+    },
+    "replay_exclusion": {
+      "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+      "bytes": 624816,
+      "sha256": "1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a",
+      "count": 8678,
+      "identifiers_sha256": "f9d9560452554b7e40ed0183c95f9d42cc8b8787f63200b453a511dd44fac5c5",
+      "components": [
+        "policy_exposed_semantic_position_ids",
+        "model_selection_semantic_position_ids",
+        "holdout_protected_position_ids"
+      ]
+    }
+  },
+  "runtime": {
+    "platform": "macOS-15.1-arm64-arm-64bit-Mach-O",
+    "system": "Darwin",
+    "machine": "arm64",
+    "processor": "arm",
+    "cpu_model": "Apple M4 Pro",
+    "logical_cpu_count": 14,
+    "device": "cpu",
+    "python_version": "3.13.0",
+    "torch_version": "2.12.1",
+    "torch_threads": 2,
+    "torch_interop_threads": 1,
+    "deterministic_algorithms": true,
+    "deterministic_debug_mode": "error"
+  },
+  "model": {
+    "features": "board",
+    "architecture": "2282-256-32-1-clipped-relu",
+    "k_sigmoid": 600.0,
+    "cp_clamp": 3000,
+    "initializer": "fixed-warm-model-only",
+    "optimizer_state": "fresh"
+  },
+  "fixed_point": {
+    "activation_scale": 127,
+    "later_weight_scale": 64,
+    "output_scale": 8128,
+    "rounding": "round-half-to-even",
+    "weight_storage": "signed-int16",
+    "bias_and_accumulator": "signed-int32-checked",
+    "second_layer_division": "arithmetic-right-shift-6",
+    "activation_clamp": [0, 127],
+    "ste_forward": "exact-shared-production-integer-forward",
+    "ste_backward": "identity-through-weight-and-bias-rounding-and-weight-int16-clamp;standard-clipped-relu-gradient-zero-outside-0-to-127;straight-through-arithmetic-right-shift-6"
+  },
+  "objective": {
+    "formula": "0.5*float_full_task+0.5*int16_ste_full_task",
+    "float_full_task_weight": 0.5,
+    "int16_ste_full_task_weight": 0.5,
+    "full_task": {
+      "value": "mse-sigmoid-clamped-child-cp",
+      "rank": "within-parent-margin-ranking",
+      "rank_weight": 1.0,
+      "rank_pair_min_cp": 50.0,
+      "rank_pair_max_cp": 600.0,
+      "rank_margin_cp": 50.0,
+      "policy": "within-parent-listwise-cross-entropy",
+      "policy_weight": 0.25,
+      "policy_temperature_cp": 200.0,
+      "replay": "row-weighted-value-mse"
+    },
+    "primary_batch_shared_between_branches": true,
+    "replay_indices_shared_between_branches": true
+  },
+  "optimizer": {
+    "name": "AdamW",
+    "learning_rate": 0.0001,
+    "betas": [0.9, 0.999],
+    "eps": 1e-8,
+    "weight_decay": 0.01,
+    "scheduler": "CosineAnnealingLR",
+    "scheduler_t_max": 20,
+    "scheduler_eta_min": 0.0
+  },
+  "training": {
+    "epochs": 20,
+    "batch": 256,
+    "primary_limit": 0,
+    "replay_limit": 500000,
+    "replay_ratio": 1.0,
+    "torch_seed": "seed",
+    "python_random_seed": "seed",
+    "replay_sample_seed": "seed+2",
+    "epoch_batch_and_replay_generator_seed": "seed+epoch",
+    "selection_path_received": false,
+    "selection_evaluations_during_training": 0,
+    "final_holdout_labels_received": false,
+    "checkpoint_policy": "fixed-final-epoch-only",
+    "candidate_artifact": "final.pt",
+    "early_stopping": false
+  },
+  "slots": [
+    {
+      "id": "int16-aware-seed-42",
+      "seed": 42,
+      "output": "ml/runs/wcsc36-int16-aware/seed-42"
+    },
+    {
+      "id": "int16-aware-seed-43",
+      "seed": 43,
+      "output": "ml/runs/wcsc36-int16-aware/seed-43"
+    },
+    {
+      "id": "int16-aware-seed-44",
+      "seed": 44,
+      "output": "ml/runs/wcsc36-int16-aware/seed-44"
+    }
+  ],
+  "post_training_selection": {
+    "precondition": "all-three-complete-result-markers-validated-before-first-selection-read",
+    "evaluations_per_checkpoint": 1,
+    "model_selection": {
+      "bytes": 3319397,
+      "sha256": "97b15ba1ee780009986b5e8210cbfdbfc181f93555b7c1a87f4a6a585b7bb5ba",
+      "records": 3912,
+      "parents": 341,
+      "games": 4,
+      "semantic_position_ids_count": 3914,
+      "semantic_position_ids_sha256": "75fc43dd3852cba21a91c3290fc134ceb1fcf073bf3d0fe280c8c0a7e72a0a6f"
+    },
+    "stable": {
+      "checkpoint_sha256": "571ca3090cd0f41772514547ea5ac1d5bcd32f3f79820511645e298dbaa65ff8",
+      "int16_within_parent_pair_accuracy": 0.6048966902001425,
+      "int16_teacher_top1_accuracy": 0.2668621700879765
+    },
+    "metric_order": [
+      "int16_pair_accuracy:max",
+      "int16_teacher_top1:max",
+      "int16_value_mae_cp:min",
+      "seed:ascending",
+      "checkpoint_sha256:ascending"
+    ],
+    "representative": "median-ranked-seed",
+    "per_seed_gates": [
+      {
+        "id": "int16_pair_strictly_above_stable",
+        "operator": ">",
+        "reference": 0.6048966902001425
+      },
+      {
+        "id": "int16_top1_at_least_stable",
+        "operator": ">=",
+        "reference": 0.2668621700879765
+      },
+      {
+        "id": "absolute_float_to_int16_pair_delta",
+        "operator": "abs<=",
+        "absolute_limit": 0.002
+      },
+      {
+        "id": "absolute_float_to_int16_top1_delta",
+        "operator": "abs<=",
+        "absolute_limit": 0.005
+      }
+    ],
+    "family_gate": {
+      "representative_must_pass_all_four": true,
+      "minimum_seeds_passing_all_four": 2,
+      "all_seeds_must_pass_both_quantization_delta_gates": true
+    }
+  },
+  "failure_policy": {
+    "add_seeds_after_failure": false,
+    "tune_ratio_learning_rate_or_epochs_after_failure": false,
+    "choose_nonmedian_seed_after_failure": false,
+    "open_final_holdout_after_failure": false,
+    "next_action": "new-plan-with-fresh-development-data"
+  },
+  "promotion": {
+    "static_selection_pass_is_strength_proof": false,
+    "production_weights_unchanged_until_all_promotion_checks_pass": true,
+    "required_after_static_pass": [
+      "sealed-final-holdout-evaluation",
+      "known-regression-and-opening-retention-suite",
+      "production-int16-search-and-browser-verification",
+      "preregistered-384-game-paired-ab-test",
+      "external-high-dan-rating-evidence"
+    ]
+  }
+}

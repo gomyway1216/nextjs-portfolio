@@ -18,7 +18,10 @@ if ML_DIR not in sys.path:
 import train as train_module  # noqa: E402
 
 from train import (  # noqa: E402
+    INT16_AWARE_CANDIDATE_ARTIFACT,
+    INT16_AWARE_EPOCHS,
     identifier_set_sha256,
+    int16_aware_dual_task_loss,
     load_replay_dataset,
     load_dataset_with_metadata,
     cp_sigmoid_target,
@@ -31,6 +34,8 @@ from train import (  # noqa: E402
     mix_replay_value_loss,
     position_id_from_sfen,
     raw_sibling_cp,
+    require_finite_model_parameters,
+    run_int16_aware_training,
     sealed_experiment_contract,
     sealed_run_tie_break_key,
     require_same_file_fingerprint,
@@ -41,6 +46,7 @@ from train import (  # noqa: E402
     teacher_policy_targets,
     main as train_main,
     validate_disjoint_splits,
+    validate_int16_aware_training_contract,
     validate_partition_dataset_summary,
     validate_sibling_metadata,
     validate_training_hyperparameters,
@@ -129,6 +135,399 @@ class SiblingTrainingPipelineTest(unittest.TestCase):
                 ("scratch", 42, "0" * 64),
             ],
         )
+
+    def test_int16_aware_contract_is_warm_final_only_and_never_receives_val_data(self):
+        values = {
+            "experiment_family": "int16-aware",
+            "experiment_series": None,
+            "val_data": "",
+            "loss": "sibling-ranking",
+            "seed": 42,
+            "epochs": 20,
+            "batch": 256,
+            "lr": 1e-4,
+            "k": 600.0,
+            "cp_clamp": 3000,
+            "rank_weight": 1.0,
+            "rank_pair_min": 50.0,
+            "rank_pair_max": 600.0,
+            "rank_margin_cp": 50.0,
+            "policy_weight": 0.25,
+            "policy_temp_cp": 200.0,
+            "features": "board",
+            "device": "cpu",
+            "torch_threads": 2,
+            "replay_limit": 500_000,
+            "replay_ratio": 1.0,
+            "limit": 0,
+            "select_metric": "auto",
+            "allow_legacy_init": True,
+            "data": "training.jsonl",
+            "sibling_manifest": "teacher-manifest.json",
+            "validation_partition_manifest": "partition-manifest.json",
+            "experiment_plan": "int16-aware-plan.json",
+            "holdout_protected_position_ids": "holdout-ids.txt",
+            "policy_exposure_receipt": "policy-receipt.json",
+            "policy_exposed_parent_ids": "policy-parent-ids.txt",
+            "policy_exposed_semantic_position_ids": "policy-position-ids.txt",
+            "replay_data": "replay.jsonl",
+            "replay_excluded_position_ids": "replay-excluded-ids.txt",
+            "init_ckpt": "runOp1.pt",
+            "pipeline_revision": "a" * 40,
+        }
+        validate_int16_aware_training_contract(SimpleNamespace(**values))
+        self.assertEqual(INT16_AWARE_EPOCHS, 20)
+        self.assertEqual(INT16_AWARE_CANDIDATE_ARTIFACT, "final.pt")
+
+        for field, bad in (
+            ("val_data", "selection.jsonl"),
+            ("seed", 45),
+            ("epochs", 19),
+            ("init_ckpt", ""),
+            ("experiment_series", "warm"),
+            ("select_metric", "sibling-pair"),
+            ("replay_excluded_position_ids", ""),
+        ):
+            with self.subTest(field=field):
+                with self.assertRaises(ValueError):
+                    validate_int16_aware_training_contract(
+                        SimpleNamespace(**{**values, field: bad})
+                    )
+
+    def test_int16_aware_loss_shares_primary_and_replay_rows_across_full_tasks(self):
+        class RecordingModel(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.weight = torch.nn.Parameter(torch.tensor(0.2))
+                self.calls = []
+
+            def forward(self, board, hands, bucket=None):
+                self.calls.append(
+                    (board.data_ptr(), hands.data_ptr(), bucket.data_ptr())
+                )
+                return board[:, 0].to(torch.float32) * self.weight
+
+        model = RecordingModel()
+        primary_board = torch.tensor([[1], [2]], dtype=torch.long)
+        primary_hands = torch.zeros(2, 14)
+        primary_bucket = torch.zeros(2, dtype=torch.long)
+        primary_targets = torch.tensor([0.6, 0.4])
+        primary_cp = torch.tensor([-300.0, -100.0])
+        replay_board = torch.tensor([[3], [4]], dtype=torch.long)
+        replay_hands = torch.zeros(2, 14)
+        replay_bucket = torch.zeros(2, dtype=torch.long)
+        replay_targets = torch.tensor([0.7, 0.3])
+        ste_calls = []
+
+        def fake_ste(_model, board, hands, bucket):
+            ste_calls.append(
+                (board.data_ptr(), hands.data_ptr(), bucket.data_ptr())
+            )
+            raw = board[:, 0].to(torch.float64) * _model.weight.to(torch.float64)
+            out_q = torch.round(raw.detach() * 8128.0).to(torch.int64)
+            exact = out_q.to(torch.float64) / 8128.0
+            logits = raw + (exact - raw).detach()
+            return logits, out_q
+
+        combined, float_task, ste_task = int16_aware_dual_task_loss(
+            model,
+            primary_board,
+            primary_hands,
+            primary_bucket,
+            primary_targets,
+            primary_cp,
+            (2,),
+            k_sigmoid=600.0,
+            rank_weight=1.0,
+            rank_pair_min=50.0,
+            rank_pair_max=600.0,
+            rank_margin_cp=50.0,
+            policy_weight=0.25,
+            policy_temp_cp=200.0,
+            replay_batch=(
+                replay_board,
+                replay_hands,
+                replay_bucket,
+                replay_targets,
+            ),
+            ste_forward=fake_ste,
+        )
+        self.assertTrue(
+            torch.allclose(combined, 0.5 * float_task + 0.5 * ste_task)
+        )
+        float_outputs = primary_board[:, 0].to(torch.float32) * model.weight
+        float_replay_outputs = replay_board[:, 0].to(torch.float32) * model.weight
+        expected_float_value = mix_replay_value_loss(
+            torch.nn.functional.mse_loss(
+                torch.sigmoid(float_outputs), primary_targets
+            ),
+            torch.nn.functional.mse_loss(
+                torch.sigmoid(float_replay_outputs), replay_targets
+            ),
+            sibling_rows=2,
+            replay_rows=2,
+        )
+        expected_float = (
+            expected_float_value
+            + sibling_ranking_loss(
+                float_outputs,
+                primary_cp,
+                (2,),
+                margin_logit=50.0 / 600.0,
+                pair_min=50.0,
+                pair_max=600.0,
+            )
+            + 0.25
+            * sibling_policy_loss(
+                float_outputs,
+                primary_cp,
+                (2,),
+                k_sigmoid=600.0,
+                temperature_cp=200.0,
+            )
+        )
+        self.assertTrue(torch.allclose(float_task, expected_float))
+        self.assertEqual(model.calls[0], ste_calls[0])
+        self.assertEqual(model.calls[1], ste_calls[1])
+        combined.backward()
+        self.assertIsNotNone(model.weight.grad)
+        self.assertTrue(torch.isfinite(model.weight.grad))
+
+    def test_int16_aware_final_boundary_rejects_nonfinite_parameters(self):
+        model = torch.nn.Linear(2, 1)
+        require_finite_model_parameters(model, "fixture")
+        with torch.no_grad():
+            model.weight[0, 0] = float("inf")
+        with self.assertRaisesRegex(ValueError, "weight.*non-finite"):
+            require_finite_model_parameters(model, "fixture")
+
+    def test_int16_aware_scheduler_matches_preregistered_epoch_receipts(self):
+        parameter = torch.nn.Parameter(torch.tensor(0.0))
+        optimizer = torch.optim.AdamW([parameter], lr=0.0001)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+            optimizer, T_max=20
+        )
+        observed = []
+        for _epoch in range(1, 21):
+            observed.append(optimizer.param_groups[0]["lr"])
+            parameter.grad = torch.zeros_like(parameter)
+            optimizer.step()
+            scheduler.step()
+        expected = [
+            0.0001 * (1.0 + math.cos(math.pi * (epoch - 1) / 20.0)) / 2.0
+            for epoch in range(1, 21)
+        ]
+        for epoch, (found, wanted) in enumerate(zip(observed, expected), 1):
+            self.assertTrue(
+                math.isclose(found, wanted, rel_tol=1e-12, abs_tol=1e-16),
+                f"epoch {epoch}: {found!r} != {wanted!r}",
+            )
+
+    def test_int16_aware_run_emits_only_atomic_final_candidate_and_result_marker(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            initializer_path = os.path.join(tmp, "runOp1.pt")
+            initializer_model = train_module.DistillNet("board")
+            initializer_arch = train_module.expected_arch(
+                features="board",
+                input_dim=(
+                    initializer_model.board_feats + initializer_model.hand_feats
+                ),
+                h1=train_module.DistillNet.H1,
+                h2=train_module.DistillNet.H2,
+                k=600.0,
+                kp_buckets=1,
+            )
+            torch.save(
+                {
+                    "model": initializer_model.state_dict(),
+                    "arch": initializer_arch,
+                    "epoch": 20,
+                },
+                initializer_path,
+            )
+            initializer_sha256 = train_module.sha256_file(initializer_path)
+
+            exclusion_path = os.path.join(tmp, "replay-excluded.txt")
+            exclusion_id = "sha256:" + "0" * 64
+            exclusion_raw = (exclusion_id + "\n").encode()
+            with open(exclusion_path, "wb") as target:
+                target.write(exclusion_raw)
+            exclusion_contract = {
+                "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+                "bytes": len(exclusion_raw),
+                "sha256": train_module.hashlib.sha256(exclusion_raw).hexdigest(),
+                "count": 1,
+                "identifiers_sha256": train_module.identifier_set_sha256(
+                    {exclusion_id}
+                ),
+            }
+            replay_sha256 = "1" * 64
+            args = SimpleNamespace(
+                experiment_family="int16-aware",
+                experiment_series=None,
+                data=os.path.join(tmp, "model-training.jsonl"),
+                val_data="",
+                sibling_manifest=os.path.join(tmp, "teacher-manifest.json"),
+                validation_partition_manifest=os.path.join(
+                    tmp, "partition-manifest.json"
+                ),
+                experiment_plan=os.path.join(tmp, "int16-aware-plan.json"),
+                holdout_protected_position_ids=os.path.join(
+                    tmp, "holdout-ids.txt"
+                ),
+                policy_exposure_receipt=os.path.join(tmp, "policy-receipt.json"),
+                policy_exposed_parent_ids=os.path.join(
+                    tmp, "policy-parent-ids.txt"
+                ),
+                policy_exposed_semantic_position_ids=os.path.join(
+                    tmp, "policy-position-ids.txt"
+                ),
+                pipeline_revision="a" * 40,
+                replay_data=os.path.join(tmp, "replay.jsonl"),
+                replay_excluded_position_ids=exclusion_path,
+                replay_limit=2,
+                replay_ratio=1.0,
+                out=os.path.join(tmp, "qat-run"),
+                epochs=1,
+                batch=256,
+                lr=1e-4,
+                k=600.0,
+                cp_clamp=3000,
+                val_ratio=0.1,
+                limit=0,
+                device="cpu",
+                torch_threads=2,
+                seed=42,
+                features="board",
+                loss="sibling-ranking",
+                rank_weight=1.0,
+                rank_pair_min=50.0,
+                rank_pair_max=600.0,
+                rank_margin_cp=50.0,
+                policy_weight=0.25,
+                policy_temp_cp=200.0,
+                select_metric="auto",
+                init_ckpt=initializer_path,
+                allow_legacy_init=True,
+            )
+            board = torch.full((2, 40), train_module.PAD_IDX, dtype=torch.long)
+            board[0, 0] = 0
+            board[1, 0] = 1
+            hands = torch.zeros(2, 14)
+            targets = torch.tensor([0.6, 0.4])
+            cp = torch.tensor([-300.0, -100.0])
+            bucket = torch.zeros(2, dtype=torch.long)
+            metadata = [
+                sibling_row("7g7f", 1, 300),
+                sibling_row("2g2f", 2, 100),
+            ]
+            train_fingerprint = {"bytes": 123, "sha256": "2" * 64}
+            replay_fingerprint = {
+                "bytes": 456,
+                "sha256": replay_sha256,
+                "eligible_rows_after_semantic_exclusion": 2,
+                "excluded_rows_before_sampling": 0,
+            }
+            runtime = {
+                "device": "cpu",
+                "torch_threads": 2,
+                "torch_interop_threads": 1,
+            }
+            pipeline = {
+                "source_revision": args.pipeline_revision,
+                "tracked_tree_clean": True,
+            }
+            plan_binding = {
+                "provenance": {
+                    "schema": "test-plan",
+                    "slot_id": "seed-42",
+                    "verified_input_sha256": {
+                        "replay_exclusion": exclusion_contract["sha256"]
+                    },
+                },
+                "contract": {
+                    "init_checkpoint_sha256": initializer_sha256,
+                    "replay_sha256": replay_sha256,
+                    "model_training_sha256": train_fingerprint["sha256"],
+                    "model_training_bytes": train_fingerprint["bytes"],
+                    "model_training_records": 2,
+                    "model_training_parents": 1,
+                    "replay_limit": 2,
+                },
+                "replay_exclusion": exclusion_contract,
+            }
+
+            with mock.patch.object(
+                train_module, "SEALED_REPLAY_ROWS", 2
+            ), mock.patch.object(
+                train_module, "INT16_AWARE_EPOCHS", 1
+            ), mock.patch.object(
+                train_module,
+                "configure_sealed_torch_runtime",
+                return_value=runtime,
+            ), mock.patch.object(
+                train_module,
+                "verify_training_pipeline_revision",
+                return_value=pipeline,
+            ) as verify_pipeline, mock.patch.object(
+                train_module,
+                "load_dataset_with_metadata",
+                return_value=(
+                    board,
+                    hands,
+                    targets,
+                    cp,
+                    bucket,
+                    metadata,
+                    train_fingerprint,
+                ),
+            ), mock.patch.object(
+                train_module,
+                "load_replay_dataset",
+                return_value=(
+                    board.clone(),
+                    hands.clone(),
+                    targets.clone(),
+                    cp.clone(),
+                    bucket.clone(),
+                    replay_fingerprint,
+                ),
+            ), mock.patch.object(
+                train_module,
+                "validate_sibling_metadata",
+                return_value=[[0, 1]],
+            ), mock.patch.object(
+                train_module, "semantic_position_ids", return_value=set()
+            ), mock.patch.object(
+                train_module,
+                "verify_qat_experiment_plan",
+                return_value=plan_binding,
+            ):
+                run_int16_aware_training(args)
+
+            self.assertEqual(
+                sorted(os.listdir(args.out)),
+                ["final.pt", "result.json"],
+            )
+            with open(os.path.join(args.out, "result.json"), encoding="utf-8") as source:
+                result = json.load(source)
+            self.assertEqual(result["status"], "complete")
+            self.assertEqual(result["completed_epochs"], 1)
+            self.assertEqual(result["selection_evaluations"], 0)
+            self.assertFalse(result["selection_labels_read"])
+            self.assertFalse(result["early_stopping"])
+            self.assertEqual(result["candidate_artifact"]["name"], "final.pt")
+            checkpoint = torch.load(
+                os.path.join(args.out, "final.pt"),
+                map_location="cpu",
+                weights_only=True,
+            )
+            self.assertEqual(checkpoint["checkpoint_selection"]["mode"], "final-only")
+            self.assertEqual(
+                checkpoint["checkpoint_selection"]["selection_evaluations"], 0
+            )
+            self.assertEqual(len(checkpoint["training_history"]), 1)
+            self.assertEqual(verify_pipeline.call_count, 2)
 
     def test_six_run_plan_pins_exact_grid_inputs_runtime_and_output_slot(self):
         with tempfile.TemporaryDirectory() as tmp:

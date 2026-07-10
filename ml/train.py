@@ -61,6 +61,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from checkpoint_compat import expected_arch, sha256_file, validate_arch
+from int16_forward import int16_forward_ste
+from qat_protocol import (
+    QAT_FINAL_CHECKPOINT_SCHEMA,
+    QAT_TRAINING_RESULT_SCHEMA,
+    verify_qat_experiment_plan,
+)
 from sibling_manifest import (
     SiblingManifestError,
     load_policy_exposed_semantic_position_ids,
@@ -133,6 +139,16 @@ SEALED_EXPERIMENT_CONTRACTS = {
         "epochs": 40,
     },
 }
+
+# The int16-aware experiment is deliberately a separate final-only family.
+# Unlike the historical six-run experiment it never receives a model-selection
+# JSONL path, never evaluates between epochs, and emits no "best" checkpoint.
+INT16_AWARE_EXPERIMENT_FAMILY = "int16-aware"
+INT16_AWARE_EXPERIMENT_SEEDS = (42, 43, 44)
+INT16_AWARE_EPOCHS = 20
+INT16_AWARE_FLOAT_TASK_WEIGHT = 0.5
+INT16_AWARE_STE_TASK_WEIGHT = 0.5
+INT16_AWARE_CANDIDATE_ARTIFACT = "final.pt"
 
 
 def mate_to_cp(mate: int, mate_sign: int) -> int:
@@ -994,6 +1010,154 @@ def mix_replay_value_loss(sibling_loss, replay_loss, sibling_rows: int, replay_r
     return (sibling_loss + replay_weight * replay_loss) / (1.0 + replay_weight)
 
 
+def sibling_full_task_loss(
+    outputs,
+    targets,
+    child_cp,
+    group_sizes,
+    *,
+    k_sigmoid: float,
+    rank_weight: float,
+    rank_pair_min: float,
+    rank_pair_max: float,
+    rank_margin_cp: float,
+    policy_weight: float,
+    policy_temp_cp: float,
+    replay_outputs=None,
+    replay_targets=None,
+):
+    """One complete sibling task, including its row-weighted replay value loss."""
+    value_loss = F.mse_loss(torch.sigmoid(outputs), targets)
+    if (replay_outputs is None) != (replay_targets is None):
+        raise ValueError("replay outputs and targets must be supplied together")
+    if replay_outputs is not None:
+        replay_loss = F.mse_loss(torch.sigmoid(replay_outputs), replay_targets)
+        value_loss = mix_replay_value_loss(
+            value_loss,
+            replay_loss,
+            targets.shape[0],
+            replay_targets.shape[0],
+        )
+    rank_loss = sibling_ranking_loss(
+        outputs,
+        child_cp,
+        group_sizes,
+        rank_margin_cp / k_sigmoid,
+        rank_pair_min,
+        rank_pair_max,
+    )
+    policy_loss = sibling_policy_loss(
+        outputs,
+        child_cp,
+        group_sizes,
+        k_sigmoid,
+        policy_temp_cp,
+    )
+    return value_loss + rank_weight * rank_loss + policy_weight * policy_loss
+
+
+def int16_aware_dual_task_loss(
+    model,
+    board,
+    hands,
+    bucket,
+    targets,
+    child_cp,
+    group_sizes,
+    *,
+    k_sigmoid: float,
+    rank_weight: float,
+    rank_pair_min: float,
+    rank_pair_max: float,
+    rank_margin_cp: float,
+    policy_weight: float,
+    policy_temp_cp: float,
+    replay_batch=None,
+    ste_forward=None,
+):
+    """Run the exact same primary/replay rows through float and int16 STE tasks.
+
+    ``replay_batch`` is sliced once by the caller and then shared by both
+    branches.  Keeping the forward callable injectable makes the equality
+    contract directly testable without weakening the production import.
+    """
+    if ste_forward is None:
+        ste_forward = int16_forward_ste
+
+    float_outputs = model(board, hands, bucket)
+    ste_outputs, out_q = ste_forward(model, board, hands, bucket)
+    if float_outputs.shape != ste_outputs.shape or out_q.shape != ste_outputs.shape:
+        raise ValueError("float/STE/out_q outputs must have identical shapes")
+    if out_q.dtype != torch.int64 or out_q.requires_grad:
+        raise ValueError("int16 STE out_q must be detached int64")
+    if not torch.isfinite(float_outputs).all() or not torch.isfinite(ste_outputs).all():
+        raise ValueError("float/STE forward produced non-finite output")
+
+    float_replay_outputs = None
+    ste_replay_outputs = None
+    replay_targets = None
+    replay_out_q = None
+    if replay_batch is not None:
+        replay_board, replay_hands, replay_bucket, replay_targets = replay_batch
+        float_replay_outputs = model(replay_board, replay_hands, replay_bucket)
+        ste_replay_outputs, replay_out_q = ste_forward(
+            model,
+            replay_board,
+            replay_hands,
+            replay_bucket,
+        )
+        if (
+            float_replay_outputs.shape != ste_replay_outputs.shape
+            or replay_out_q.shape != ste_replay_outputs.shape
+        ):
+            raise ValueError("float/STE replay outputs must have identical shapes")
+        if replay_out_q.dtype != torch.int64 or replay_out_q.requires_grad:
+            raise ValueError("int16 STE replay out_q must be detached int64")
+        if not torch.isfinite(float_replay_outputs).all() or not torch.isfinite(
+            ste_replay_outputs
+        ).all():
+            raise ValueError("float/STE replay forward produced non-finite output")
+
+    task_kwargs = {
+        "k_sigmoid": k_sigmoid,
+        "rank_weight": rank_weight,
+        "rank_pair_min": rank_pair_min,
+        "rank_pair_max": rank_pair_max,
+        "rank_margin_cp": rank_margin_cp,
+        "policy_weight": policy_weight,
+        "policy_temp_cp": policy_temp_cp,
+        "replay_targets": replay_targets,
+    }
+    float_task = sibling_full_task_loss(
+        float_outputs,
+        targets,
+        child_cp,
+        group_sizes,
+        replay_outputs=float_replay_outputs,
+        **task_kwargs,
+    )
+    ste_task = sibling_full_task_loss(
+        ste_outputs,
+        targets,
+        child_cp,
+        group_sizes,
+        replay_outputs=ste_replay_outputs,
+        **task_kwargs,
+    )
+    combined = (
+        INT16_AWARE_FLOAT_TASK_WEIGHT * float_task
+        + INT16_AWARE_STE_TASK_WEIGHT * ste_task
+    )
+    return combined, float_task, ste_task
+
+
+def require_finite_model_parameters(model, context: str) -> None:
+    """Reject a checkpoint boundary containing NaN or infinite parameters."""
+    for name, parameter in model.named_parameters():
+        if not bool(torch.isfinite(parameter).all().item()):
+            raise ValueError(f"{context} model parameter {name} is non-finite")
+
+
 def dataset_provenance(
     path: str,
     usable_rows: int,
@@ -1037,7 +1201,7 @@ def _same_file_or_realpath(left: str, right: str) -> bool:
         return False
 
 
-def validate_training_path_isolation(args) -> None:
+def validate_training_path_isolation(args, *, output_names=None) -> None:
     """Reject every input/output or output/output alias before touching outputs."""
     inputs = [
         ("training data", args.data),
@@ -1053,12 +1217,15 @@ def validate_training_path_isolation(args) -> None:
             args.policy_exposed_semantic_position_ids,
         ),
         ("replay data", args.replay_data),
+        (
+            "replay-excluded position IDs",
+            getattr(args, "replay_excluded_position_ids", ""),
+        ),
         ("initializer checkpoint", args.init_ckpt),
     ]
     inputs = [(label, path) for label, path in inputs if path]
-    outputs = [
-        (name, os.path.join(args.out, name))
-        for name in (
+    if output_names is None:
+        output_names = (
             "best.pt",
             "best-value.pt",
             "best-sibling.pt",
@@ -1066,6 +1233,9 @@ def validate_training_path_isolation(args) -> None:
             "curve.csv",
             "result.json",
         )
+    outputs = [
+        (name, os.path.join(args.out, name))
+        for name in output_names
     ]
     for output_index, (output_label, output_path) in enumerate(outputs):
         for input_label, input_path in inputs:
@@ -1430,6 +1600,73 @@ def validate_training_hyperparameters(args) -> None:
             )
 
 
+def validate_int16_aware_training_contract(args) -> None:
+    """Reject every non-preregistered QAT invocation before any data is read."""
+    if args.experiment_family != INT16_AWARE_EXPERIMENT_FAMILY:
+        raise ValueError(
+            f"--experiment-family must be {INT16_AWARE_EXPERIMENT_FAMILY!r}"
+        )
+    if args.val_data:
+        raise ValueError(
+            "int16-aware training forbids --val-data; model selection is a separate final-only step"
+        )
+    exact_values = {
+        "loss": (args.loss, "sibling-ranking"),
+        "experiment_series": (args.experiment_series, None),
+        "seed": (args.seed, INT16_AWARE_EXPERIMENT_SEEDS),
+        "epochs": (args.epochs, INT16_AWARE_EPOCHS),
+        "batch": (args.batch, 256),
+        "lr": (args.lr, 1e-4),
+        "k": (args.k, 600.0),
+        "cp_clamp": (args.cp_clamp, 3000),
+        "rank_weight": (args.rank_weight, 1.0),
+        "rank_pair_min": (args.rank_pair_min, 50.0),
+        "rank_pair_max": (args.rank_pair_max, 600.0),
+        "rank_margin_cp": (args.rank_margin_cp, 50.0),
+        "policy_weight": (args.policy_weight, 0.25),
+        "policy_temp_cp": (args.policy_temp_cp, 200.0),
+        "features": (args.features, "board"),
+        "device": (args.device, "cpu"),
+        "torch_threads": (args.torch_threads, 2),
+        "replay_limit": (args.replay_limit, SEALED_REPLAY_ROWS),
+        "replay_ratio": (args.replay_ratio, 1.0),
+        "limit": (args.limit, 0),
+        "select_metric": (args.select_metric, "auto"),
+        "allow_legacy_init": (args.allow_legacy_init, True),
+    }
+    problems = []
+    for field, (actual, expected) in exact_values.items():
+        if field == "seed":
+            matches = type(actual) is int and actual in expected
+        else:
+            matches = type(actual) is type(expected) and actual == expected
+        if not matches:
+            problems.append(f"{field}: expected {expected!r}, got {actual!r}")
+    required_paths = {
+        "data": args.data,
+        "sibling_manifest": args.sibling_manifest,
+        "validation_partition_manifest": args.validation_partition_manifest,
+        "experiment_plan": args.experiment_plan,
+        "holdout_protected_position_ids": args.holdout_protected_position_ids,
+        "policy_exposure_receipt": args.policy_exposure_receipt,
+        "policy_exposed_parent_ids": args.policy_exposed_parent_ids,
+        "policy_exposed_semantic_position_ids": (
+            args.policy_exposed_semantic_position_ids
+        ),
+        "replay_data": args.replay_data,
+        "replay_excluded_position_ids": args.replay_excluded_position_ids,
+        "init_ckpt": args.init_ckpt,
+        "pipeline_revision": args.pipeline_revision,
+    }
+    for field, value in required_paths.items():
+        if not isinstance(value, str) or not value:
+            problems.append(f"{field}: required")
+    if problems:
+        raise ValueError(
+            "int16-aware experiment contract mismatch (" + "; ".join(problems) + ")"
+        )
+
+
 def sealed_experiment_contract(args) -> dict[str, object]:
     """Validate and serialize the only preregistered sibling experiment grid."""
     if args.experiment_series not in SEALED_EXPERIMENT_CONTRACTS:
@@ -1779,6 +2016,454 @@ def create_new_output_directory(path: str) -> None:
         raise ValueError(f"experiment output slot already exists: {target}") from error
 
 
+def run_int16_aware_training(args) -> None:
+    """Execute one preregistered final-only int16-aware training slot."""
+    try:
+        validate_training_hyperparameters(args)
+        validate_int16_aware_training_contract(args)
+        validate_training_path_isolation(
+            args,
+            output_names=(INT16_AWARE_CANDIDATE_ARTIFACT, "result.json"),
+        )
+    except ValueError as error:
+        raise SystemExit(f"[train] {error}") from error
+
+    try:
+        training_runtime = {
+            **configure_sealed_torch_runtime(args.torch_threads),
+            "mps_built": bool(torch.backends.mps.is_built()),
+            "mps_available": bool(torch.backends.mps.is_available()),
+            "cuda_available": bool(torch.cuda.is_available()),
+        }
+        training_pipeline = verify_training_pipeline_revision(args.pipeline_revision)
+        binding = verify_qat_experiment_plan(
+            args,
+            training_runtime,
+            tracking_verifier=verify_tracked_experiment_plan,
+        )
+    except (OSError, RuntimeError, ValueError) as error:
+        raise SystemExit(f"[train] int16-aware plan rejected: {error}") from error
+    if type(binding) is not dict or not {
+        "provenance",
+        "contract",
+        "replay_exclusion",
+    }.issubset(binding):
+        raise SystemExit("[train] int16-aware plan returned an incomplete binding")
+    experiment_plan = binding["provenance"]
+    experiment_contract = binding["contract"]
+    replay_exclusion_contract = binding["replay_exclusion"]
+    if type(experiment_plan) is not dict or type(experiment_contract) is not dict:
+        raise SystemExit("[train] int16-aware plan binding must contain objects")
+
+    expected_init_sha256 = experiment_contract.get("init_checkpoint_sha256")
+    expected_replay_sha256 = experiment_contract.get("replay_sha256")
+    for label, value in (
+        ("initializer", expected_init_sha256),
+        ("replay", expected_replay_sha256),
+    ):
+        if not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None:
+            raise SystemExit(
+                f"[train] int16-aware {label} SHA-256 contract is invalid"
+            )
+
+    try:
+        (
+            board,
+            hands,
+            targets,
+            _clamped_cp,
+            bucket,
+            metadata,
+            train_source_fingerprint,
+        ) = load_dataset_with_metadata(
+            args.data,
+            args.k,
+            args.cp_clamp,
+            args.limit,
+            args.features,
+            strict=True,
+            include_fingerprint=True,
+        )
+        train_groups = validate_sibling_metadata(metadata, "train")
+        train_sibling_cp = raw_sibling_cp(metadata)
+        replay_excluded_position_ids, replay_exclusion_fingerprint = (
+            load_protected_position_ids(
+                args.replay_excluded_position_ids,
+                expected=replay_exclusion_contract,
+            )
+        )
+    except (OSError, SiblingManifestError, ValueError) as error:
+        raise SystemExit(f"[train] int16-aware input rejected: {error}") from error
+    expected_training_identity = {
+        "sha256": experiment_contract.get("model_training_sha256"),
+        "bytes": experiment_contract.get("model_training_bytes"),
+        "records": experiment_contract.get("model_training_records"),
+        "parents": experiment_contract.get("model_training_parents"),
+    }
+    actual_training_identity = {
+        "sha256": train_source_fingerprint.get("sha256"),
+        "bytes": train_source_fingerprint.get("bytes"),
+        "records": len(metadata),
+        "parents": len(train_groups),
+    }
+    if any(
+        type(actual_training_identity[field])
+        is not type(expected_training_identity[field])
+        or actual_training_identity[field] != expected_training_identity[field]
+        for field in expected_training_identity
+    ):
+        raise SystemExit(
+            "[train] model-training dataset identity changed after plan verification: "
+            f"expected {expected_training_identity}, got {actual_training_identity}"
+        )
+    if targets.shape[0] < 1:
+        raise SystemExit("[train] int16-aware training dataset has no usable positions")
+    replay_exclusion_identifiers_sha256 = identifier_set_sha256(
+        replay_excluded_position_ids
+    )
+    if (
+        type(replay_exclusion_contract) is not dict
+        or replay_exclusion_contract.get("identifiers_sha256")
+        != replay_exclusion_identifiers_sha256
+    ):
+        raise SystemExit(
+            "[train] replay-excluded position ID set identity does not match the plan"
+        )
+    replay_exclusion_fingerprint["identifiers_sha256"] = (
+        replay_exclusion_identifiers_sha256
+    )
+    training_semantic_position_ids = semantic_position_ids(metadata)
+    overlap = training_semantic_position_ids & replay_excluded_position_ids
+    if overlap:
+        raise SystemExit(
+            "[train] int16-aware training intersects a protected replay-exclusion "
+            f"position: {sorted(overlap)[0]}"
+        )
+
+    try:
+        replay_loaded = load_replay_dataset(
+            args.replay_data,
+            args.k,
+            args.cp_clamp,
+            args.replay_limit,
+            args.features,
+            args.seed + 2,
+            replay_excluded_position_ids,
+            include_fingerprint=True,
+        )
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"[train] int16-aware replay rejected: {error}") from error
+    replay = replay_loaded[:5]
+    replay_source_fingerprint = replay_loaded[5]
+    if replay_source_fingerprint["sha256"] != expected_replay_sha256:
+        raise SystemExit(
+            "[train] replay dataset SHA-256 does not match the int16-aware plan"
+        )
+    if replay[2].shape[0] != SEALED_REPLAY_ROWS:
+        raise SystemExit(
+            "[train] int16-aware replay sample must contain exactly "
+            f"{SEALED_REPLAY_ROWS} rows"
+        )
+
+    torch.manual_seed(args.seed)
+    random.seed(args.seed)
+    model = DistillNet(args.features)
+    arch = expected_arch(
+        features=args.features,
+        input_dim=model.board_feats + model.hand_feats,
+        h1=DistillNet.H1,
+        h2=DistillNet.H2,
+        k=args.k,
+        kp_buckets=KP_BUCKETS if model.kp else 1,
+    )
+    try:
+        initializer, initializer_fingerprint = load_stable_torch_checkpoint(
+            os.path.realpath(args.init_ckpt),
+            weights_only=True,
+            expected_sha256=expected_init_sha256,
+        )
+    except Exception as error:
+        raise SystemExit(
+            f"[train] failed to load int16-aware initializer: {error}"
+        ) from error
+    initializer_arch = (
+        dict(initializer.get("arch"))
+        if isinstance(initializer, dict) and isinstance(initializer.get("arch"), dict)
+        else initializer.get("arch") if isinstance(initializer, dict) else None
+    )
+    inferred_legacy_fields = []
+    if isinstance(initializer_arch, dict):
+        legacy_args = (
+            initializer.get("args")
+            if isinstance(initializer.get("args"), dict)
+            else {}
+        )
+        if "features" not in initializer_arch:
+            inferred_features = legacy_args.get("features")
+            if inferred_features is None and initializer_arch.get("input") == INPUT_DIM:
+                inferred_features = "board"
+            if inferred_features is not None:
+                initializer_arch["features"] = inferred_features
+                inferred_legacy_fields.append("features")
+        if "kp_buckets" not in initializer_arch and "features" in initializer_arch:
+            initializer_arch["kp_buckets"] = (
+                KP_BUCKETS
+                if initializer_arch["features"] in ("kp", "kp-factor")
+                else 1
+            )
+            inferred_legacy_fields.append("kp_buckets")
+        if "schema" not in initializer_arch:
+            initializer_arch["schema"] = 1
+            inferred_legacy_fields.append("schema")
+    try:
+        validate_arch(initializer_arch, arch)
+        model.load_state_dict(initializer["model"], strict=True)
+    except (KeyError, RuntimeError, ValueError) as error:
+        raise SystemExit(
+            f"[train] incompatible int16-aware initializer: {error}"
+        ) from error
+    init_metadata = {
+        "path": os.path.abspath(args.init_ckpt),
+        "sha256": initializer_fingerprint["sha256"],
+        "bytes": initializer_fingerprint["bytes"],
+        "epoch": initializer.get("epoch"),
+        "legacy_arch_inferred_fields": inferred_legacy_fields,
+    }
+
+    data_provenance = {
+        "train": dataset_provenance(
+            args.data,
+            targets.shape[0],
+            "all",
+            source_fingerprint=train_source_fingerprint,
+            requested_limit=0,
+            role="model_training",
+        ),
+        "replay": dataset_provenance(
+            args.replay_data,
+            replay[2].shape[0],
+            "uniform_without_replacement_after_semantic_exclusion",
+            source_fingerprint=replay_source_fingerprint,
+            requested_limit=args.replay_limit,
+            sample_seed=args.seed + 2,
+            replay_ratio=args.replay_ratio,
+            excluded_semantic_position_ids=len(replay_excluded_position_ids),
+            excluded_semantic_position_ids_sha256=(
+                replay_exclusion_identifiers_sha256
+            ),
+            eligible_rows_after_semantic_exclusion=replay_source_fingerprint[
+                "eligible_rows_after_semantic_exclusion"
+            ],
+            excluded_rows_before_sampling=replay_source_fingerprint[
+                "excluded_rows_before_sampling"
+            ],
+        ),
+        "replay_exclusion": replay_exclusion_fingerprint,
+        "model_selection": {
+            "labels_read": False,
+            "path_received_by_training_cli": False,
+            "epoch_evaluations": 0,
+        },
+        "final_holdout": {
+            "labels_read": False,
+            "status": "sealed_not_opened",
+        },
+    }
+
+    try:
+        create_new_output_directory(args.out)
+    except ValueError as error:
+        raise SystemExit(f"[train] {error}") from error
+    model = model.to("cpu")
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+        optimizer,
+        T_max=INT16_AWARE_EPOCHS,
+    )
+    history = []
+    n_train = targets.shape[0]
+    rb, rh, ry, _rcp, rbk = replay
+    for epoch in range(1, INT16_AWARE_EPOCHS + 1):
+        started = time.time()
+        model.train()
+        epoch_generator = torch.Generator().manual_seed(args.seed + epoch)
+        epoch_batches = grouped_batches(
+            train_groups,
+            args.batch,
+            epoch_generator,
+        )
+        combined_total = 0.0
+        float_total = 0.0
+        ste_total = 0.0
+        row_count = 0
+        lr_used = optimizer.param_groups[0]["lr"]
+        for selection, parent_group_sizes in epoch_batches:
+            primary_board = board[selection].to("cpu")
+            primary_hands = hands[selection].to("cpu")
+            primary_targets = targets[selection].to("cpu")
+            primary_bucket = bucket[selection].to("cpu")
+            primary_cp = train_sibling_cp[selection].to("cpu")
+            replay_count = max(
+                1,
+                round(primary_targets.shape[0] * args.replay_ratio),
+            )
+            # Sample once.  These exact tensors are shared by float and STE.
+            replay_selection = torch.randint(
+                0,
+                ry.shape[0],
+                (replay_count,),
+                generator=epoch_generator,
+            )
+            replay_batch = (
+                rb[replay_selection].to("cpu"),
+                rh[replay_selection].to("cpu"),
+                rbk[replay_selection].to("cpu"),
+                ry[replay_selection].to("cpu"),
+            )
+            try:
+                loss, float_task, ste_task = int16_aware_dual_task_loss(
+                    model,
+                    primary_board,
+                    primary_hands,
+                    primary_bucket,
+                    primary_targets,
+                    primary_cp,
+                    parent_group_sizes,
+                    k_sigmoid=args.k,
+                    rank_weight=args.rank_weight,
+                    rank_pair_min=args.rank_pair_min,
+                    rank_pair_max=args.rank_pair_max,
+                    rank_margin_cp=args.rank_margin_cp,
+                    policy_weight=args.policy_weight,
+                    policy_temp_cp=args.policy_temp_cp,
+                    replay_batch=replay_batch,
+                )
+            except ValueError as error:
+                raise SystemExit(f"[train] int16-aware forward rejected: {error}") from error
+            if not all(
+                torch.isfinite(value).item()
+                for value in (loss, float_task, ste_task)
+            ):
+                raise SystemExit("[train] int16-aware training produced a non-finite loss")
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            batch_rows = primary_targets.shape[0]
+            combined_total += float(loss.detach()) * batch_rows
+            float_total += float(float_task.detach()) * batch_rows
+            ste_total += float(ste_task.detach()) * batch_rows
+            row_count += batch_rows
+        if row_count != n_train:
+            raise SystemExit("[train] int16-aware epoch did not consume every training row")
+        # PyTorch 2.12 initializes this scheduler at last_epoch=0. Stepping at
+        # each epoch end makes the next epoch use cos(pi * epoch / T_max), so
+        # lr_used above follows the preregistered cos(pi * (epoch-1) / 20).
+        scheduler.step()
+        epoch_receipt = {
+            "epoch": epoch,
+            "combined_task_loss": combined_total / row_count,
+            "float_task_loss": float_total / row_count,
+            "ste_task_loss": ste_total / row_count,
+            "learning_rate": lr_used,
+        }
+        if not all(
+            math.isfinite(epoch_receipt[field])
+            for field in (
+                "combined_task_loss",
+                "float_task_loss",
+                "ste_task_loss",
+                "learning_rate",
+            )
+        ):
+            raise SystemExit("[train] int16-aware epoch receipt is non-finite")
+        history.append(epoch_receipt)
+        print(
+            f"[train] int16-aware epoch {epoch:2d}/{INT16_AWARE_EPOCHS} "
+            f"task={epoch_receipt['combined_task_loss']:.6f} "
+            f"float={epoch_receipt['float_task_loss']:.6f} "
+            f"ste={epoch_receipt['ste_task_loss']:.6f} "
+            f"lr={lr_used:.2e} ({time.time() - started:.1f}s; selection eval=0)"
+        )
+
+    try:
+        require_finite_model_parameters(model, "int16-aware final")
+    except ValueError as error:
+        raise SystemExit(f"[train] invalid int16-aware final model: {error}") from error
+    try:
+        final_pipeline = verify_training_pipeline_revision(args.pipeline_revision)
+    except ValueError as error:
+        raise SystemExit(
+            f"[train] training pipeline changed during the int16-aware run: {error}"
+        ) from error
+    if final_pipeline != training_pipeline:
+        raise SystemExit("[train] training pipeline changed during the int16-aware run")
+    checkpoint = {
+        "schema": QAT_FINAL_CHECKPOINT_SCHEMA,
+        "model": model.state_dict(),
+        "epoch": INT16_AWARE_EPOCHS,
+        "args": vars(args),
+        "arch": arch,
+        "init_checkpoint": init_metadata,
+        "data_provenance": data_provenance,
+        "training_pipeline": training_pipeline,
+        "training_runtime": training_runtime,
+        "experiment_plan": experiment_plan,
+        "experiment_contract": experiment_contract,
+        "objective": {
+            "float_task_weight": INT16_AWARE_FLOAT_TASK_WEIGHT,
+            "ste_task_weight": INT16_AWARE_STE_TASK_WEIGHT,
+            "float_task": ["value", "rank", "policy", "replay_value"],
+            "ste_task": ["value", "rank", "policy", "replay_value"],
+            "primary_batch_shared": True,
+            "replay_indices_shared": True,
+        },
+        "checkpoint_selection": {
+            "mode": "final-only",
+            "selection_labels_read": False,
+            "selection_evaluations": 0,
+            "early_stopping": False,
+            "candidate_artifact": INT16_AWARE_CANDIDATE_ARTIFACT,
+        },
+        "training_history": history,
+    }
+    candidate_path = os.path.join(args.out, INT16_AWARE_CANDIDATE_ARTIFACT)
+    atomic_torch_save(checkpoint, candidate_path)
+    candidate_artifact = {
+        "name": INT16_AWARE_CANDIDATE_ARTIFACT,
+        "bytes": os.path.getsize(candidate_path),
+        "sha256": sha256_file(candidate_path),
+    }
+    result = {
+        "schema": QAT_TRAINING_RESULT_SCHEMA,
+        "status": "complete",
+        "experiment_plan": experiment_plan,
+        "experiment_contract": experiment_contract,
+        "training_pipeline": training_pipeline,
+        "training_runtime": training_runtime,
+        "completed_epochs": INT16_AWARE_EPOCHS,
+        "selection_labels_read": False,
+        "selection_evaluations": 0,
+        "early_stopping": False,
+        "candidate_artifact": candidate_artifact,
+        "training_history": history,
+    }
+    atomic_write_text(
+        os.path.join(args.out, "result.json"),
+        json.dumps(
+            result,
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n",
+    )
+    print(
+        "[train] int16-aware complete: final-only candidate "
+        f"{candidate_artifact['sha256']} (selection eval=0, holdout labels read=false)"
+    )
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument(
@@ -1829,6 +2514,11 @@ def main():
         help="legacy value-only train data interleaved during sibling fine-tuning (never validation)",
     )
     ap.add_argument(
+        "--replay-excluded-position-ids",
+        default="",
+        help="int16-aware-only sorted ID union (policy + selection + holdout; labels absent)",
+    )
+    ap.add_argument(
         "--replay-limit",
         type=int,
         default=SEALED_REPLAY_ROWS,
@@ -1855,6 +2545,12 @@ def main():
         "--experiment-series",
         choices=["warm", "scratch"],
         help="required preregistered sibling run family",
+    )
+    ap.add_argument(
+        "--experiment-family",
+        choices=[INT16_AWARE_EXPERIMENT_FAMILY],
+        default=None,
+        help="separate final-only training family; omitted for the historical six-run path",
     )
     ap.add_argument(
         "--features",
@@ -1885,6 +2581,10 @@ def main():
         help="allow an audited pre-schema checkpoint and only unambiguous legacy-field inference",
     )
     args = ap.parse_args()
+
+    if args.experiment_family == INT16_AWARE_EXPERIMENT_FAMILY:
+        run_int16_aware_training(args)
+        return
 
     if args.loss == "sibling-ranking" and not args.val_data:
         raise SystemExit("[train] --loss sibling-ranking requires an explicit --val-data split")
@@ -1922,6 +2622,11 @@ def main():
         )
     if args.replay_data and args.loss != "sibling-ranking":
         raise SystemExit("[train] --replay-data is only supported with --loss sibling-ranking")
+    if args.replay_excluded_position_ids:
+        raise SystemExit(
+            "[train] --replay-excluded-position-ids is only supported with "
+            "--experiment-family int16-aware"
+        )
     if args.select_metric == "sibling-pair" and args.loss != "sibling-ranking":
         raise SystemExit("[train] --select-metric sibling-pair requires --loss sibling-ranking")
     try:

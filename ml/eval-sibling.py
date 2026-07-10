@@ -267,6 +267,7 @@ def _checkpoint_arch(checkpoint: Mapping[str, Any], path: str) -> tuple[str, flo
     if type(raw_k) not in (int, float) or not math.isfinite(raw_k) or raw_k <= 0:
         raise ValueError(f"{path}: sigmoid scale K must be finite and positive")
     k_sigmoid = float(raw_k)
+    normalized_arch["k"] = k_sigmoid
     expected = expected_arch(
         features="board",
         input_dim=INPUT_DIM,

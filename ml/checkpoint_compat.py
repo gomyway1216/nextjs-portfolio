@@ -77,8 +77,11 @@ def validate_arch(actual: Mapping[str, Any] | None, expected: Mapping[str, Any])
                 problems.append(f"{field}: expected exact string, actual {found!r}")
                 continue
         elif field == "k":
-            found_numeric = type(found) is float
-            wanted_numeric = type(wanted) is float
+            # JSON-like metadata may preserve an integral scale as ``600``
+            # instead of ``600.0``. They are the same architecture value;
+            # bool remains excluded because its exact type is neither member.
+            found_numeric = type(found) in (int, float)
+            wanted_numeric = type(wanted) in (int, float)
             equal = (
                 found_numeric
                 and wanted_numeric
@@ -87,7 +90,7 @@ def validate_arch(actual: Mapping[str, Any] | None, expected: Mapping[str, Any])
                 and float(found) == float(wanted)
             )
             if not found_numeric or not math.isfinite(found):
-                problems.append(f"{field}: expected exact finite float, actual {found!r}")
+                problems.append(f"{field}: expected finite number, actual {found!r}")
                 continue
         else:
             equal = found == wanted

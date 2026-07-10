@@ -943,6 +943,25 @@ def attach_sealed_training_provenance(checkpoint_path, fixture, *, replay=False)
 
 
 class SiblingHoldoutEvaluationTest(unittest.TestCase):
+    def test_checkpoint_arch_normalizes_integral_sigmoid_scale(self):
+        arch = expected_arch(
+            features="board",
+            input_dim=EVAL.INPUT_DIM,
+            h1=DistillNet.H1,
+            h2=DistillNet.H2,
+            k=600.0,
+            kp_buckets=1,
+        )
+        arch["k"] = 600
+        features, k_sigmoid = EVAL._checkpoint_arch({"arch": arch}, "integer-k.pt")
+        self.assertEqual(features, "board")
+        self.assertEqual(k_sigmoid, 600.0)
+        self.assertIs(type(k_sigmoid), float)
+
+        arch["k"] = True
+        with self.assertRaisesRegex(ValueError, "finite and positive"):
+            EVAL._checkpoint_arch({"arch": arch}, "boolean-k.pt")
+
     def test_partition_rejects_unpinned_search_limit_and_n100_teacher_input(self):
         with tempfile.TemporaryDirectory() as tmp:
             fixture = write_sealed_fixture(tmp)

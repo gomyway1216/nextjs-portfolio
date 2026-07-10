@@ -244,7 +244,10 @@ export class UsiMultiPvAccumulator {
           const previousNodes = this.latestNodes.get(key);
           if (nodes === null || nodes < 0 || previousNodes === undefined || nodes >= previousNodes) {
             if (nodes !== null && nodes >= 0) this.latestNodes.set(key, nodes);
-            else this.latestNodes.delete(key);
+            // A bound line without a usable nodes field still supersedes the
+            // snapshot, but it must not erase a known monotonic watermark.
+            // Otherwise a later, lower-node exact line could resurrect stale
+            // output from an older iteration.
             this.boundTombstones.add(key);
             this.snapshots.get(depth)?.delete(multipv);
           }

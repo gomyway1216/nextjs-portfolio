@@ -450,7 +450,7 @@ function parseRawParents(text: string): RawParentOccurrence[] {
     ids.add(parent.parent_id);
     parents.push(parent);
   }
-  parents.sort((a, b) => a.parent_id.localeCompare(b.parent_id));
+  parents.sort((a, b) => compareBytewise(a.parent_id, b.parent_id));
   if (parents.length === 0) throw new Error('raw parent dataset is empty');
   return parents;
 }
@@ -461,7 +461,7 @@ async function collectDirectoryDigests(root: string): Promise<FileDigest[]> {
   const files: FileDigest[] = [];
   const visit = async (directory: string, prefix: string): Promise<void> => {
     const entries = await fs.promises.readdir(directory, { withFileTypes: true });
-    entries.sort((a, b) => a.name.localeCompare(b.name));
+    entries.sort((a, b) => compareBytewise(a.name, b.name));
     for (const entry of entries) {
       const absolute = path.join(directory, entry.name);
       const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
@@ -1065,7 +1065,7 @@ function validateWorkEntry(
 }
 
 function serializeWork(header: WorkHeader, entries: Iterable<WorkEntry>): string {
-  const sorted = [...entries].sort((a, b) => a.parent_id.localeCompare(b.parent_id));
+  const sorted = [...entries].sort((a, b) => compareBytewise(a.parent_id, b.parent_id));
   return `${[header, ...sorted].map((row) => JSON.stringify(row)).join('\n')}\n`;
 }
 
@@ -1343,7 +1343,7 @@ export async function generateSiblingTeacherDataset(
   await atomicWrite(options.work, canonicalWork);
   const completed = [...workEntries.values()]
     .filter((entry): entry is CompletedWorkEntry => entry.kind === 'parent')
-    .sort((a, b) => a.parent_id.localeCompare(b.parent_id));
+    .sort((a, b) => compareBytewise(a.parent_id, b.parent_id));
   const skipped = [...workEntries.values()].filter((entry) => entry.kind === 'skip');
   if (completed.length === 0) throw new Error('no parent produced a sibling group');
   if (workEntries.size !== selected.length) {

@@ -165,6 +165,17 @@ describe('USI MultiPV parsing', () => {
     expect(() => accumulator.finish()).toThrow(/incomplete MultiPV/);
   });
 
+  it('preserves the node watermark when a newer bound omits nodes', () => {
+    const accumulator = new UsiMultiPvAccumulator({ multipv: 1, requiredDepth: 8 });
+    accumulator.push([
+      'info depth 8 multipv 1 score cp 10 nodes 220 pv 7g7f',
+      'info depth 8 multipv 1 score cp 12 lowerbound pv 7g7f',
+      'info depth 8 multipv 1 score cp 9 nodes 200 pv 7g7f',
+      'bestmove 7g7f',
+    ].join('\n'));
+    expect(() => accumulator.finish()).toThrow(/incomplete MultiPV/);
+  });
+
   it('accepts only a final exact mate when a forced fixed-depth search terminates early', () => {
     const terminalMate = new UsiMultiPvAccumulator({
       multipv: 1,

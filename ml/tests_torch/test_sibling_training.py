@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from types import SimpleNamespace
+from unittest import mock
 
 import torch
 
@@ -18,7 +19,9 @@ from train import (  # noqa: E402
     load_replay_dataset,
     load_dataset_with_metadata,
     cp_sigmoid_target,
+    contiguous_parent_slices,
     dataset_provenance,
+    grouped_batches,
     mate_to_cp,
     mix_replay_value_loss,
     position_id_from_sfen,
@@ -335,21 +338,48 @@ class SiblingTrainingLossTest(unittest.TestCase):
         with self.assertRaisesRegex(SystemExit, "inconsistent group metadata"):
             validate_sibling_metadata(inconsistent, "train")
 
+    def test_grouped_batches_emit_complete_contiguous_parent_partitions(self):
+        groups = [[0, 2], [1, 3, 5], [4, 6, 7, 8]]
+        batches = grouped_batches(
+            groups,
+            batch_size=3,
+            generator=torch.Generator().manual_seed(17),
+        )
+        observed_groups = []
+        for selection, group_sizes in batches:
+            self.assertEqual(sum(group_sizes), selection.shape[0])
+            if selection.shape[0] > 3:
+                self.assertEqual(len(group_sizes), 1)
+            for parent_slice in contiguous_parent_slices(
+                group_sizes,
+                selection.shape[0],
+            ):
+                observed_groups.append(selection[parent_slice].tolist())
+        self.assertCountEqual(observed_groups, groups)
+
+        with self.assertRaisesRegex(ValueError, "batch_size"):
+            grouped_batches(groups, 0, torch.Generator())
+        with self.assertRaisesRegex(ValueError, "positive integers"):
+            list(contiguous_parent_slices((2, 0), 2))
+        with self.assertRaisesRegex(ValueError, "partition every batch row"):
+            list(contiguous_parent_slices((2, 2), 5))
+
     def test_ranking_loss_is_parent_local_and_equal_parent_weighted(self):
         # Values are expressed from the parent side here; train.py receives
         # their negatives because every model row is the child position.
         teacher_parent = torch.tensor([300.0, 100.0, -200.0, 400.0, -50.0])
         student_parent = torch.tensor([0.0, 0.2, -0.1, 1.0, 0.0], requires_grad=True)
-        parent_ids = ["A", "A", "A", "B", "B"]
+        group_sizes = (3, 2)
 
-        loss = sibling_ranking_loss(
-            -student_parent,
-            -teacher_parent,
-            parent_ids,
-            margin_logit=0.1,
-            pair_min=0.0,
-            pair_max=10_000.0,
-        )
+        with mock.patch("train.torch.tensor", side_effect=AssertionError("index allocation")):
+            loss = sibling_ranking_loss(
+                -student_parent,
+                -teacher_parent,
+                group_sizes,
+                margin_logit=0.1,
+                pair_min=0.0,
+                pair_max=10_000.0,
+            )
         self.assertAlmostEqual(float(loss.detach()), 0.05, places=6)
         loss.backward()
         self.assertTrue(torch.isfinite(student_parent.grad).all())
@@ -359,7 +389,7 @@ class SiblingTrainingLossTest(unittest.TestCase):
         shifted_loss = sibling_ranking_loss(
             -shifted,
             -teacher_parent,
-            parent_ids,
+            group_sizes,
             margin_logit=0.1,
             pair_min=0.0,
             pair_max=10_000.0,
@@ -425,21 +455,22 @@ class SiblingTrainingLossTest(unittest.TestCase):
 
         child_cp = torch.tensor([-teacher[0], -teacher[1], -teacher[2], -400.0, 50.0])
         child_outputs = torch.tensor([0.0, 0.1, -0.2, -1.0, 0.0], requires_grad=True)
-        parent_ids = ["A", "A", "A", "B", "B"]
-        loss = sibling_policy_loss(
-            child_outputs,
-            child_cp,
-            parent_ids,
-            k_sigmoid=600.0,
-            temperature_cp=100.0,
-        )
+        group_sizes = (3, 2)
+        with mock.patch("train.torch.tensor", side_effect=AssertionError("index allocation")):
+            loss = sibling_policy_loss(
+                child_outputs,
+                child_cp,
+                group_sizes,
+                k_sigmoid=600.0,
+                temperature_cp=100.0,
+            )
         shifted = child_outputs.detach().clone()
         # A constant shift within one parent cannot change its policy.
         shifted[3:] += 50.0
         shifted_loss = sibling_policy_loss(
             shifted,
             child_cp,
-            parent_ids,
+            group_sizes,
             k_sigmoid=600.0,
             temperature_cp=100.0,
         )
@@ -458,7 +489,7 @@ class SiblingTrainingLossTest(unittest.TestCase):
         loss = sibling_ranking_loss(
             -student_parent,
             child_cp,
-            ["A", "A"],
+            (2,),
             margin_logit=0.1,
             pair_min=50.0,
             pair_max=600.0,

@@ -458,11 +458,18 @@ def production_cp_from_out_q(out_q: int, k_sigmoid: float) -> int:
 def _eligible_pair_count(raw_child_cp: torch.Tensor, groups: Iterable[Sequence[int]], min_cp: float) -> int:
     total = 0
     for indices in groups:
-        parent_cp = -raw_child_cp[torch.tensor(indices, dtype=torch.long)]
-        for left in range(len(indices)):
-            for right in range(left + 1, len(indices)):
-                delta = abs(float(parent_cp[left] - parent_cp[right]))
-                total += int(delta >= min_cp and delta != 0.0)
+        index = torch.as_tensor(indices, dtype=torch.long, device=raw_child_cp.device)
+        parent_cp = -raw_child_cp[index]
+        difference = parent_cp.unsqueeze(1) - parent_cp.unsqueeze(0)
+        upper_triangle = torch.triu(
+            torch.ones_like(difference, dtype=torch.bool), diagonal=1
+        )
+        eligible = (
+            upper_triangle
+            & (difference != 0.0)
+            & (difference.abs() >= min_cp)
+        )
+        total += int(eligible.sum().item())
     return total
 
 

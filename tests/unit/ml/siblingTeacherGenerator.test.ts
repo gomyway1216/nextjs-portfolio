@@ -576,6 +576,8 @@ rl.on('line', (line) => {
     await fs.promises.mkdir(evalDir);
     await fs.promises.writeFile(scoreFile, '100\n');
     await fs.promises.writeFile(evalFile, '1\n');
+    await fs.promises.writeFile(path.join(evalDir, 'z.bin'), 'z');
+    await fs.promises.writeFile(path.join(evalDir, 'é.bin'), 'accent');
     await fs.promises.writeFile(
       engineScript,
       `import fs from 'node:fs';
@@ -678,6 +680,11 @@ rl.on('line', (line) => {
       engine_argument_file_count: 2,
       eval_tree_present: true,
     });
+    expect(manifest.teacher.eval_files.map((file) => file.path)).toEqual([
+      'weights.txt',
+      'z.bin',
+      'é.bin',
+    ]);
   });
 
   it('rejects eval_options.txt instead of allowing mutable option overrides', async () => {

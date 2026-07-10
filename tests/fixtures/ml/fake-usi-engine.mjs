@@ -4,6 +4,12 @@ import readline from 'node:readline';
 let multipv = 1;
 const traceIndex = process.argv.indexOf('--trace');
 const tracePath = traceIndex >= 0 ? process.argv[traceIndex + 1] : null;
+const stderrBytesIndex = process.argv.indexOf('--stderr-bytes');
+if (stderrBytesIndex >= 0) {
+  const stderrBytes = Number.parseInt(process.argv[stderrBytesIndex + 1] ?? '0', 10);
+  if (stderrBytes > 0) process.stderr.write(`${'x'.repeat(stderrBytes)}\n`);
+}
+const exitBeforeUsi = process.argv.includes('--exit-before-usi');
 const MOVE_SCORES = new Map([
   ['7g7f', 260],
   ['2g2f', 220],
@@ -33,6 +39,10 @@ const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity 
 
 rl.on('line', (line) => {
   if (line === 'usi') {
+    if (exitBeforeUsi) {
+      process.stderr.write('intentional startup failure\n', () => process.exit(7));
+      return;
+    }
     console.log('id name deterministic-fake-usi');
     console.log('usiok');
     return;

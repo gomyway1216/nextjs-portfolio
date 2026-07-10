@@ -8,6 +8,10 @@ export const SIBLING_MANIFEST_SCHEMA = 'shogi-sibling-manifest-v1' as const;
 
 export type DatasetSplit = 'train' | 'val';
 
+function compareBytewise(left: string, right: string): number {
+  return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
+}
+
 export interface SiblingParent {
   game_id: string;
   parent_id: string;
@@ -295,7 +299,7 @@ export function buildSiblingGroup(
     };
   });
 
-  records.sort((a, b) => a.teacher_rank - b.teacher_rank || a.move.localeCompare(b.move));
+  records.sort((a, b) => a.teacher_rank - b.teacher_rank || compareBytewise(a.move, b.move));
   if (records.length < 2) throw new Error(`parent ${parentId} has fewer than two siblings`);
   validateParentGroups(records);
   return records;
@@ -439,7 +443,7 @@ export function validateParentGroups(records: readonly SiblingRecord[]): ParentG
     });
   }
 
-  return summaries.sort((a, b) => a.parent_id.localeCompare(b.parent_id));
+  return summaries.sort((a, b) => compareBytewise(a.parent_id, b.parent_id));
 }
 
 /** Stable append-safe game assignment based only on seed and game_id. */
@@ -461,9 +465,9 @@ export function assignGameSplit(
 
 function sortedRecords(records: readonly SiblingRecord[]): SiblingRecord[] {
   return [...records].sort((a, b) =>
-    a.parent_id.localeCompare(b.parent_id) ||
+    compareBytewise(a.parent_id, b.parent_id) ||
     a.teacher_rank - b.teacher_rank ||
-    a.move.localeCompare(b.move)
+    compareBytewise(a.move, b.move)
   );
 }
 

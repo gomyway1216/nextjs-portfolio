@@ -215,6 +215,12 @@ def read_text(path):
 
 
 class SiblingHoldoutEvaluationTest(unittest.TestCase):
+    def test_eligible_pair_count_vectorizes_each_parent_without_cross_parent_pairs(self):
+        raw_child_cp = torch.tensor([-300.0, -100.0, -400.0, 50.0, 0.0])
+        groups = [[0, 1], [2, 3, 4]]
+        self.assertEqual(EVAL._eligible_pair_count(raw_child_cp, groups, 50.0), 4)
+        self.assertEqual(EVAL._eligible_pair_count(raw_child_cp, groups, 401.0), 1)
+
     def test_validation_loader_requires_val_split(self):
         with tempfile.TemporaryDirectory() as tmp:
             data = os.path.join(tmp, "train-labelled.jsonl")

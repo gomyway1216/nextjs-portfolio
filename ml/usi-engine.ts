@@ -41,9 +41,11 @@ export function fixedUsiOptionCommands(): string[] {
 
 /** One-process, one-search-at-a-time USI wrapper for deterministic labels. */
 export class UsiTeacherEngine {
+  private static readonly STDERR_TAIL_LIMIT = 8_192;
   private readonly options: UsiTeacherEngineOptions;
   private process: ChildProcessWithoutNullStreams | null = null;
   private buffer = '';
+  private stderrTail = '';
   private lineHandler: ((line: string) => void) | null = null;
   private abortPending: ((error: Error) => void) | null = null;
 
@@ -59,6 +61,15 @@ export class UsiTeacherEngine {
     });
     this.process = child;
     this.buffer = '';
+    this.stderrTail = '';
+    // Always consume stderr so a verbose engine cannot fill the pipe and block.
+    // Retain only a bounded tail for actionable initialization/search failures.
+    child.stderr.on('data', (chunk: Buffer) => {
+      if (this.process !== child) return;
+      this.stderrTail = `${this.stderrTail}${chunk.toString('utf8')}`.slice(
+        -UsiTeacherEngine.STDERR_TAIL_LIMIT
+      );
+    });
     child.stdout.on('data', (chunk: Buffer) => {
       if (this.process !== child) return;
       this.buffer += chunk.toString('utf8');
@@ -69,16 +80,49 @@ export class UsiTeacherEngine {
         this.lineHandler?.(line);
       }
     });
-    const fail = (message: string) => {
-      if (this.process !== child) return;
+    let failurePending = false;
+    const fail = (message: string, terminateChild = false) => {
+      if (this.process !== child || failurePending) return;
+      failurePending = true;
       const reject = this.abortPending;
       this.abortPending = null;
       this.lineHandler = null;
-      reject?.(new Error(message));
+      let finalized = false;
+      const finalize = () => {
+        if (finalized) return;
+        finalized = true;
+        const stderr = this.stderrTail.trim();
+        if (this.process === child) this.process = null;
+        this.buffer = '';
+        reject?.(new Error(stderr ? `${message}; stderr tail: ${stderr}` : message));
+      };
+
+      // A stdin/process error does not prove that the OS process exited. Kill
+      // a still-live child and wait for close so retries cannot orphan an
+      // engine and the complete bounded stderr tail remains available.
+      if (
+        terminateChild &&
+        child.pid !== undefined &&
+        child.exitCode === null &&
+        child.signalCode === null
+      ) {
+        child.once('close', finalize);
+        try {
+          if (!child.kill('SIGKILL')) finalize();
+        } catch {
+          finalize();
+        }
+        return;
+      }
+      finalize();
     };
-    child.on('error', (error) => fail(`USI process error: ${error.message}`));
-    child.on('exit', (code, signal) => fail(`USI process exited (code=${code}, signal=${signal})`));
-    child.stdin.on('error', (error) => fail(`USI stdin error: ${error.message}`));
+    child.on('error', (error) => fail(`USI process error: ${error.message}`, true));
+    // `close` follows `exit` only after stdio closes, so diagnostics include
+    // all stderr bytes emitted before process termination.
+    child.on('close', (code, signal) =>
+      fail(`USI process exited (code=${code}, signal=${signal})`)
+    );
+    child.stdin.on('error', (error) => fail(`USI stdin error: ${error.message}`, true));
   }
 
   private send(command: string): void {

@@ -689,38 +689,72 @@ def raw_sibling_cp(metadata):
 
 
 def grouped_batches(groups, batch_size: int, generator: torch.Generator):
-    """Shuffle parents while keeping every sibling group in one batch."""
+    """Return row indices plus contiguous parent sizes without splitting groups."""
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
     order = torch.randperm(len(groups), generator=generator).tolist()
-    batches, current = [], []
+    batches, current, current_group_sizes = [], [], []
+
+    def flush_current():
+        nonlocal current, current_group_sizes
+        if current:
+            batches.append(
+                (
+                    torch.tensor(current, dtype=torch.long),
+                    tuple(current_group_sizes),
+                )
+            )
+            current = []
+            current_group_sizes = []
+
     for group_index in order:
         group = groups[group_index]
+        if not group:
+            raise ValueError("sibling groups must not be empty")
         if current and len(current) + len(group) > batch_size:
-            batches.append(torch.tensor(current, dtype=torch.long))
-            current = []
+            flush_current()
         if len(group) > batch_size:
-            batches.append(torch.tensor(group, dtype=torch.long))
+            batches.append(
+                (torch.tensor(group, dtype=torch.long), (len(group),))
+            )
         else:
             current.extend(group)
-    if current:
-        batches.append(torch.tensor(current, dtype=torch.long))
+            current_group_sizes.append(len(group))
+    flush_current()
     return batches
 
 
-def sibling_ranking_loss(outputs, child_cp, parent_ids, margin_logit, pair_min, pair_max):
+def contiguous_parent_slices(group_sizes, row_count: int):
+    """Validate a complete contiguous partition and yield zero-copy slices."""
+    sizes = tuple(group_sizes)
+    if any(type(size) is not int or size <= 0 for size in sizes):
+        raise ValueError("parent group sizes must be positive integers")
+    if sum(sizes) != row_count:
+        raise ValueError("parent group sizes must partition every batch row")
+    start = 0
+    for size in sizes:
+        end = start + size
+        yield slice(start, end)
+        start = end
+
+
+def sibling_ranking_loss(outputs, child_cp, group_sizes, margin_logit, pair_min, pair_max):
     """Equal-parent-weight ranking loss; predictions/labels are flipped to parent view once."""
-    local_groups = defaultdict(list)
-    for index, parent_id in enumerate(parent_ids):
-        local_groups[parent_id].append(index)
+    if outputs.shape[0] != child_cp.shape[0]:
+        raise ValueError("sibling outputs and teacher rows must have equal length")
     losses = []
-    for indices in local_groups.values():
-        idx = torch.tensor(indices, dtype=torch.long, device=outputs.device)
-        teacher_parent = -child_cp[idx]
-        predicted_parent = -outputs[idx]
+    # Segment reductions cannot express the variable-size per-parent pair
+    # matrix (or the policy softmax below). Contiguous slices are direct views,
+    # avoid padding, and avoid constructing host-derived device index tensors.
+    for parent_slice in contiguous_parent_slices(group_sizes, outputs.shape[0]):
+        teacher_parent = -child_cp[parent_slice]
+        predicted_parent = -outputs[parent_slice]
         diff = teacher_parent.unsqueeze(1) - teacher_parent.unsqueeze(0)
         mask = (diff > 0) & (diff >= pair_min) & (diff <= pair_max)
-        ia, ib = mask.nonzero(as_tuple=True)
-        if ia.numel() > 0:
-            losses.append(F.relu(margin_logit - (predicted_parent[ia] - predicted_parent[ib])).mean())
+        predicted_diff = predicted_parent.unsqueeze(1) - predicted_parent.unsqueeze(0)
+        eligible_losses = F.relu(margin_logit - predicted_diff).masked_select(mask)
+        if eligible_losses.numel() > 0:
+            losses.append(eligible_losses.mean())
     if not losses:
         return outputs.sum() * 0.0
     return torch.stack(losses).mean()
@@ -732,16 +766,14 @@ def teacher_policy_targets(teacher_parent_cp, temperature_cp):
     return torch.softmax(teacher_parent_cp / temperature_cp, dim=0)
 
 
-def sibling_policy_loss(outputs, child_cp, parent_ids, k_sigmoid, temperature_cp):
+def sibling_policy_loss(outputs, child_cp, group_sizes, k_sigmoid, temperature_cp):
     """Listwise teacher policy distillation, normalized independently per parent."""
-    local_groups = defaultdict(list)
-    for index, parent_id in enumerate(parent_ids):
-        local_groups[parent_id].append(index)
+    if outputs.shape[0] != child_cp.shape[0]:
+        raise ValueError("sibling outputs and teacher rows must have equal length")
     losses = []
-    for indices in local_groups.values():
-        idx = torch.tensor(indices, dtype=torch.long, device=outputs.device)
-        teacher_parent_cp = -child_cp[idx]
-        predicted_parent_cp = -outputs[idx] * k_sigmoid
+    for parent_slice in contiguous_parent_slices(group_sizes, outputs.shape[0]):
+        teacher_parent_cp = -child_cp[parent_slice]
+        predicted_parent_cp = -outputs[parent_slice] * k_sigmoid
         target = teacher_policy_targets(teacher_parent_cp, temperature_cp)
         log_policy = F.log_softmax(predicted_parent_cp / temperature_cp, dim=0)
         losses.append(-(target * log_policy).sum())
@@ -1496,9 +1528,12 @@ def main():
             epoch_batches = grouped_batches(train_groups, args.batch, epoch_generator)
         else:
             ep_perm = torch.randperm(n_train)
-            epoch_batches = [ep_perm[i : i + args.batch] for i in range(0, n_train, args.batch)]
+            epoch_batches = [
+                (ep_perm[i : i + args.batch], None)
+                for i in range(0, n_train, args.batch)
+            ]
         total, cnt = 0.0, 0
-        for sel in epoch_batches:
+        for sel, parent_group_sizes in epoch_batches:
             b = tb[sel].to(device)
             h = th[sel].to(device)
             t = ty[sel].to(device)
@@ -1519,11 +1554,10 @@ def main():
                     regularization_loss = args.rank_weight * rank_loss
             elif args.loss == "sibling-ranking":
                 c = train_sibling_cp[sel].to(device)
-                parent_ids = [train_meta[int(index)]["parent_id"] for index in sel.tolist()]
                 rank_loss = sibling_ranking_loss(
                     out,
                     c,
-                    parent_ids,
+                    parent_group_sizes,
                     rank_margin_logit,
                     args.rank_pair_min,
                     args.rank_pair_max,
@@ -1531,7 +1565,7 @@ def main():
                 policy_loss = sibling_policy_loss(
                     out,
                     c,
-                    parent_ids,
+                    parent_group_sizes,
                     args.k,
                     args.policy_temp_cp,
                 )

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -43,6 +44,67 @@ describe('USI teacher engine subprocess contract', () => {
         [1, '7g7f', 260],
         [2, '2g2f', 220],
       ]);
+    } finally {
+      await engine.quit();
+    }
+  });
+
+  it('drains large engine stderr output instead of allowing the child pipe to block', async () => {
+    const engine = new UsiTeacherEngine({
+      engineBin: process.execPath,
+      engineArgs: [FAKE_ENGINE, '--stderr-bytes', String(2 * 1024 * 1024)],
+      timeoutMs: 5_000,
+    });
+    try {
+      await engine.init();
+      const result = await engine.search(
+        'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1',
+        1,
+        { depth: 8 },
+        ['7g7f']
+      );
+      expect(result.bestmove).toBe('7g7f');
+    } finally {
+      await engine.quit();
+    }
+  });
+
+  it('clears failed child state, reports stderr, and permits initialization retry', async () => {
+    const engine = new UsiTeacherEngine({
+      engineBin: process.execPath,
+      engineArgs: [FAKE_ENGINE, '--exit-before-usi'],
+      timeoutMs: 5_000,
+    });
+    try {
+      await expect(engine.init()).rejects.toThrow(
+        /USI process exited \(code=7, signal=null\); stderr tail: intentional startup failure/
+      );
+      await expect(engine.init()).rejects.toThrow(
+        /USI process exited \(code=7, signal=null\); stderr tail: intentional startup failure/
+      );
+    } finally {
+      await engine.quit();
+    }
+  });
+
+  it('kills and closes a live child whose stdin pipe fails', async () => {
+    const engine = new UsiTeacherEngine({
+      engineBin: process.execPath,
+      engineArgs: [FAKE_ENGINE],
+      timeoutMs: 5_000,
+    });
+    const initialization = engine.init();
+    const child = (
+      engine as unknown as {
+        process: ChildProcessWithoutNullStreams | null;
+      }
+    ).process;
+    try {
+      expect(child).not.toBeNull();
+      child?.stdin.emit('error', new Error('synthetic EPIPE'));
+      await expect(initialization).rejects.toThrow(/USI stdin error: synthetic EPIPE/);
+      expect(child?.exitCode).toBeNull();
+      expect(child?.signalCode).toBe('SIGKILL');
     } finally {
       await engine.quit();
     }

@@ -24,7 +24,8 @@ PyTorch で蒸留学習するためのパイプライン。
 
 ```sh
 cd ml
-git clone --depth 1 https://github.com/yaneurao/YaneuraOu.git engine/YaneuraOu
+git clone https://github.com/yaneurao/YaneuraOu.git engine/YaneuraOu
+git -C engine/YaneuraOu checkout 9133c527791c8b2f5f378a32df29a5e3752bd41b
 cd engine/YaneuraOu/source
 make -j normal YANEURAOU_EDITION=YANEURAOU_ENGINE_NNUE TARGET_CPU=APPLEM1 COMPILER=clang++
 cd ../../..
@@ -34,6 +35,8 @@ mkdir -p bin && cp engine/YaneuraOu/source/YaneuraOu-by-gcc bin/yaneuraou
 - 標準 NNUE (halfkp_256x2-32-32) エディション。Intel Mac は `TARGET_CPU=APPLEAVX2` / `APPLESSE42`。
 - 注意: macOS はファイルシステムが大文字小文字を区別しないため、
   クローン先 `engine/YaneuraOu` と同名になる `engine/yaneuraou` にバイナリを置かないこと (`bin/` を使う)。
+- この教師buildのsource/toolchain/binary hashは
+  `ml/engine-receipts/yaneuraou-9133c527-applem1.json` に固定する。
 
 ### 1-2. 評価関数『Háo』の配置
 
@@ -94,6 +97,73 @@ node -r tsx/cjs ml/generate-teacher.ts --target 100000 --engines 8    # 本番 (
   ラベリング ≈ 1,300〜1,400 局面/s (depth 8, エンジン 4〜6 並列)。
   10万局面 ≈ 約 90 分。
 
+### 2-1. WCSC強豪棋譜からsibling教師を作る
+
+棋譜の実戦手を正解として直接コピーせず、実戦手と教師MultiPVを候補集合にし、
+同じ親局面から生じる兄弟候補を比較する。**全候補を1回のjoint `searchmoves`へ渡した
+v1〜v3は、候補の入力順だけで順位とcpが変わったため学習利用禁止。** v4も独立探索への
+移行を検証した診断版であり、v1〜v4の生成物はすべて診断専用とする。
+
+現行v6はproposal MultiPVで候補集合だけを作り、実戦手を追加したあと、各候補の前に
+`isready`で探索状態をresetする。UTF-8 bytes昇順で1手ずつ、`MultiPV=1`かつ
+`searchmoves <1手>`で独立探索し、cp降順・手のUTF-8 bytes昇順で順位を合成する。
+通常cpは`|cp| ≤ 900,000`、mateは`±1,000,000`帯へ分離する。指定depth未満の完了は、
+単一候補探索の最後の受理更新がterminal exact mateの場合だけ許可する。
+
+```sh
+# WCSC36決勝28局を取得・固定（SHA-256は必ず照合する）
+mkdir -p ml/data/wcsc36/extracted
+curl --fail --location https://www.computer-shogi.org/kifu/wcsc36_kifu.zip \
+  --output ml/data/wcsc36/wcsc36_kifu.zip
+openssl dgst -sha256 ml/data/wcsc36/wcsc36_kifu.zip
+unzip -q ml/data/wcsc36/wcsc36_kifu.zip 'wcsc36_kifu/WCSC36-F*.csa' \
+  -d ml/data/wcsc36/extracted
+
+node -r tsx/cjs ml/import-csa-games.ts \
+  --csa-dir ml/data/wcsc36/extracted/wcsc36_kifu \
+  --source wcsc \
+  --source-url https://www.computer-shogi.org/kifu/wcsc36_kifu.zip \
+  --archive-sha256 48ece58b091dbb4df41e6fb55b73600767f77f4c9ee9ff8360474d5b75bb2631 \
+  --archive-file ml/data/wcsc36/wcsc36_kifu.zip \
+  --out ml/data/wcsc36/parents.raw.jsonl \
+  --report ml/data/wcsc36/import-report.json \
+  --min-ply 8 --max-ply 120
+
+# clean revisionのdepth 16/18・100親gateを全通過したため18に事前固定。
+readonly LABEL_DEPTH=18
+
+node -r tsx/cjs ml/generate-sibling-teacher.ts \
+  --raw ml/data/wcsc36/parents.raw.jsonl \
+  --engine-bin ml/bin/yaneuraou \
+  --engine-receipt ml/engine-receipts/yaneuraou-9133c527-applem1.json \
+  --eval-dir ml/eval/eval \
+  --pipeline-revision "$(git rev-parse HEAD)" \
+  --depth "$LABEL_DEPTH" --multipv 12 --engines 12 \
+  --seed 42 --val-ratio 0.2 --hash-mb 64 \
+  --out-train ml/data/wcsc36/siblings.train.jsonl \
+  --out-val ml/data/wcsc36/siblings.val.jsonl \
+  --manifest ml/data/wcsc36/sibling-manifest.json \
+  --work ml/data/wcsc36/sibling-progress.jsonl
+```
+
+generatorは次をfail-closedで固定する。
+
+- `--pipeline-revision`と40桁Git HEADの一致、clean worktreeを開始時と公開直前に検査する
+- source/build/compiler/binary hashを含むengine receiptを実binaryと照合する
+- engine、file引数、評価treeをprivate temp directoryへsnapshotし、copy後のhashを検査して
+  write bitを落とす。workerはこのread-only copyとprivate working directoryだけを使う
+- `eval_options.txt`、bound score、mixed/incomplete depth、不正rank、古いnodesを拒否する
+- 親ごとにwork checkpointを`datasync`し、raw、policy、pipeline、engine/eval、探索条件の
+  fingerprintが同じ場合だけ再開する
+- 全行とsplitを検証後、train/valをatomic writeし、両方のbytes/hashを結ぶmanifestを
+  最後にatomic writeする。manifestがない、またはhashが違うデータは未公開扱いにする
+
+train/validationは対局単位で分け、親局面と実際のmodel入力である子局面のtranspositionも
+validation優先でtrainから親単位に除く。depth 14/16の100親v6診断は完走しているが、
+clean-pipeline manifest導入前なので学習には使わない。実測値とjoint探索の順序依存例は
+WCSC36記事（[日本語](../docs/blog-shogi-wcsc36-sibling-training.md) /
+[English](../docs/blog-shogi-wcsc36-sibling-training.en.md)）を参照。
+
 ---
 
 ## 3. 学習
@@ -120,6 +190,58 @@ ml/venv/bin/python ml/train.py --data ml/data/teacher.jsonl --out ml/runs/run1 -
   バケット定義は `kp_bucket()` (WASM/TS 側と厳密一致必須)。
   第3サイクルの結果 (教師1Mでは base を上回れず、本番不採用) は
   `ml/data/training-report-3.md` 参照。
+
+### 3-1. sibling学習をrunOp1から安全にwarm-startする
+
+本番weightsへ上書きせず、監査済みrunOp1 checkpointからmodelだけを読み、optimizerは新規にする。
+旧valueデータのreplayはvalidationへ混ぜず、既定では全ファイルからseed固定で50万行を
+一様抽出する。`best-value.pt`と`best-sibling.pt`を別々に残し、`best.pt`の選択規則も
+checkpoint metadataへ記録する。
+
+```sh
+ml/venv/bin/python ml/train.py \
+  --data ml/data/wcsc36/siblings.train.jsonl \
+  --val-data ml/data/wcsc36/siblings.val.jsonl \
+  --sibling-manifest ml/data/wcsc36/sibling-manifest.json \
+  --loss sibling-ranking --features board \
+  --init-ckpt /absolute/path/to/runOp1/best.pt --allow-legacy-init \
+  --replay-data /absolute/path/to/runOp1-train.jsonl \
+  --replay-limit 500000 --replay-ratio 1.0 \
+  --lr 1e-4 --epochs 20 --seed 42 \
+  --out ml/runs/wcsc36-warm-seed42
+
+ml/venv/bin/python ml/eval-sibling.py \
+  --data ml/data/wcsc36/siblings.val.jsonl \
+  --sibling-manifest ml/data/wcsc36/sibling-manifest.json \
+  --checkpoint stable=/absolute/path/to/runOp1/best.pt \
+  --checkpoint warm=ml/runs/wcsc36-warm-seed42/best-sibling.pt \
+  --json-out ml/data/wcsc36/sibling-eval.json
+```
+
+`--sibling-manifest`はv6 policy、clean pipeline revision、runtime snapshot契約、train/valの
+sizeとSHA-256をJSONL parse前に検証し、そのprovenanceをcheckpointと評価reportへ保存する。
+`eval-sibling.py`はfloatとint16量子化後のvalue MAE、親内pair accuracy、teacher top-1を
+同じvalidation行で比較し、量子化による順位変化も報告する。
+
+このvalidationをepoch・checkpoint・warm/scratch・hyperparameterの選択に使った場合、
+その値は**モデル選択指標**であって最終holdoutではない。昇格判定には、選択に一度も
+使わない別holdout、既知回帰局面、量子化後探索、本番時間のA/Bを用意する。
+
+### 3-2. 契約テスト
+
+```sh
+# TypeScript: CSA、SFEN、USI MultiPV、生成checkpoint、split、比較report
+npm test -- tests/unit/ml
+
+# PyTorch不要: checkpoint互換性とPython構文（CIでも実行）
+npm run test:ml:stdlib
+
+# PyTorch必要: strict dataset、warm-start/replay、損失、評価・量子化
+ml/venv/bin/python -m unittest discover -s ml/tests_torch -v
+```
+
+CIにはPyTorchを追加せず、標準ライブラリsuiteと`py_compile`を実行する。Torch suiteは
+上記venvで本番実験前に必ず実行する。
 
 ### ホールドアウト比較 (eval-holdout.py)
 

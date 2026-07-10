@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:ml:stdlib": "python3 -m py_compile ml/train.py ml/eval-sibling.py ml/checkpoint_compat.py && python3 -m unittest discover -s ml/tests_stdlib -v",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage --testTimeout=20000",
     "test:e2e": "playwright test",

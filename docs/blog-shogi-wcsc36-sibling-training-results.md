@@ -10,7 +10,7 @@
 - clean n=100 pilotだけでなくLane Aのhard-case/repeat/node-policy workも含め、tracked receiptは102 parent IDs / 1,392 semantic IDsへ拡張した。parentまたはsemantic接触groupを全roleから先に除外する
 - 元のvalidation 7局はfixed depth-16 domain・seedによるSHA-256順位でmodel selection 4局とfinal holdout 3局へ分ける。同じ実装による非公開auditは、Lane A exposure除外をtraining 307親 / 3,642行、selection 64親 / 762行、holdout 49親 / 588行、unmatched parent IDs 7件と確定した。旧416 / 339親は現行値として使わない
 - semantic identityは`position_id ∪ child_position_id`。Lane A exposure除外後、holdoutとselectionが衝突すればholdoutが勝ち、evaluation全体とtrainingが衝突すればevaluationが勝つ。常に**親グループ全体**を落とす
-- sealed 6-run seriesのdeviceは`cpu`に固定した。native MPSは`aten::_embedding_bag`で即失敗し、MPS fallbackは同じsmoke metricsでもCPUより平均42%遅く毎回warningを出したため採用しない
+- sealed 6-run seriesのdeviceは`cpu`に固定した。旧PyTorch 2.3.0のnative MPSは`aten::_embedding_bag`で即失敗した。予定runtimeのPyTorch 2.12.1ではnative MPSが動き単processは約1.9倍速かったが、決定論modeでも同一2 runのloss/weight hashが再現しなかった。CPUはbyte-exactで、6 process並列も使える
 - 学習プロセスはfinal-holdout JSONLを引数に取らない。事前登録済みcandidate receipt schemaを実artifact生成・評価gateへ接続しcandidate hashを固定する別PRまで、final-holdout評価はコード上も禁止する。現在のhashと結果は`TBD`であり、未開封である
 - warm-startとscratchをそれぞれseed 42 / 43 / 44で走らせる。warmは`lr=1e-4, 20 epochs`、scratchは`lr=1e-3, 40 epochs`、両方ともreplay 500,000行・ratio 1.0に固定する
 - 採用にはselection、量子化、exact-row holdout、general/opening retention、既知の`P*8f`回帰、384局paired A/B、production browserの全ゲートが必要。productionは現在もrunOp1のままである
@@ -222,7 +222,9 @@ scratchは初期重みを共有しない。一方、warmとscratchの両方で�
 `aten::_embedding_bag`がPyTorch `2.3.0`で未実装のため即`NotImplementedError`になった。
 `PYTORCH_ENABLE_MPS_FALLBACK=1`では完走し、表示metricsはCPUと一致したが、real
 `1.65s` / `1.19s`（平均`1.42s`、CPU比`+42%`）で毎回fallback warningが出た。したがって
-fallback環境変数は使わず、sealed比較はCPUだけで行う。trackedな`shogi-sibling-six-run-plan-v1`は
+fallback環境変数は使わない。
+
+plan runtimeを埋める前に実際のPython `3.13.0` / PyTorch `2.12.1`でも再監査した。この版ではnative MPSのEmbeddingBag forward/backwardは動作した。fixed seed・同一初期state・batch 256・40 sparse indices・AdamW・10 warmup + 200 measured stepsを各2回走らせると、CPU 2 threadsは`0.3476s` / `0.3619s`（575.4 / 552.6 steps/s）で最終lossとweight SHA-256が2回完全一致した。MPSは`0.1932s` / `0.1796s`（1,035.0 / 1,113.6 steps/s）と単processでは約1.9倍速かったが、`torch.use_deterministic_algorithms(True)`とdebug mode `error`でも最終lossが`0.0441174` / `0.0441200`、weight hashも別になった。これは棋力結果ではなくruntime選択のmicrobenchmarkである。6つの比較runを同時に2 CPU threadsずつ動かせ、seed差以外の再現性を維持できるため、sealed比較はCPUだけで行う。trackedな`shogi-sibling-six-run-plan-v1`は
 platform / system / machine / processor / CPU model / logical CPU数 / Python / PyTorch / `cpu`を6 run共通runtimeとして実行前に固定する。各processはintra-op 2 threads、inter-op 1 thread、deterministic algorithms有効、debug mode `error`へ固定する。現在のplanに残る`null/TBD`、
 plan SHA未固定、dirty/untracked planのどれか1つでもあれば学習は開始しない。
 
@@ -359,7 +361,7 @@ A/Bはcandidate対stableを384局、つまり192のcolor-swapped opening pairs�
 | 問題親runtime診断 1 | **確認済み** | 12 siblings、188.52秒。label scoreは選択に未使用 |
 | full attempt 2、timeout 600s | **確認済み・不採用** | 393親後に別heavy parentで停止 |
 | heavy-parent隔離diagnostic | **確認済み** | timeout 3,600s枠で8 siblingsが1,693.48秒。full runではない |
-| training device smoke | **確認済み** | CPU平均1.00s。native MPSは即失敗、fallback平均1.42s（+42%）かつ毎回warning。sealed deviceは`cpu` |
+| training device smoke | **確認済み** | Torch 2.12.1でMPSは単process約1.9倍速いが同一2 runのloss/hashが不一致。CPUはexact再現・6並列。sealed deviceは`cpu` |
 | Lane A teacher-policy比較 | **確認済み** | fixed depth 16を採用。n=100は通常cp差median 29 / p90 125.3、全pair反転0.1462%、depth-18 node比2.4713× |
 | final-policy fresh full teacher | **確認済み・完了** | exit 0、5,354.31秒。3,112 selected = 3,106 completed + 6 skipped、36,365 candidates、21/7 games、overlap 0 |
 | full teacher manifest / train / val / work hashes | **確認済み** | manifest `3381e238…` / train `909f12a5…` / val `5a2435df…` / work `f183d403…`。bytesと行数は本文に記録 |

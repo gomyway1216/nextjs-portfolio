@@ -312,7 +312,11 @@ ml/venv/bin/python ml/eval-sibling.py \
 両方とも固定SHA-256のreplayを500,000行・ratio 1.0で使う。全6 runは`--device cpu`へ固定する。
 同じ42行smokeを各2回測るとCPUは0.94/1.06秒（平均1.00秒）、native MPSは
 `aten::_embedding_bag`未実装で即失敗、MPS fallbackは1.65/1.19秒（平均1.42秒、+42%）かつ
-毎回warningだったため、fallback環境変数は使わない。tracked six-run planはplatform / system / machine /
+毎回warningだったため、fallback環境変数は使わない。予定runtimeのPython 3.13.0 / Torch 2.12.1では
+native MPSが動作し、batch 256の200-step microbenchmarkはCPU 0.3476/0.3619秒、MPS
+0.1932/0.1796秒だった。しかしCPUは同一2 runのloss/weight hashがexact一致し、MPSはdeterministic
+error modeでも両方が不一致だった。6 runを2 CPU threadsずつ並列化できる点も含めCPUを維持する。
+tracked six-run planはplatform / system / machine /
 processor / CPU model / logical CPU数 / Python / PyTorch / `cpu`を完全一致で固定する。6 processは各々
 intra-op 2 threads、inter-op 1 thread、deterministic algorithms有効、debug mode `error`へ固定し、
 checkpointと完走時だけ最後にatomic writeする`result.json`へ同じruntime receiptを残す。

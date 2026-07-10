@@ -8,7 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { InitialPositionImproved } from '@/components/game/ShogiImproved/InitialPositionImproved';
 import type { KyokumenImproved } from '@/components/game/ShogiImproved/KyokumenImproved';
 
-type PostedMessage = { type: string; id?: number; move?: unknown; message?: string };
+type PostedMessage = { type: string; id?: number; move?: unknown; message?: string; searchPath?: string };
 
 type WorkerScopeStub = {
   postMessage: (msg: PostedMessage) => void;
@@ -61,6 +61,7 @@ describe('shogi-ai.worker pondering', () => {
     const res = posted.find((m) => m.type === 'bestMoveResult' && m.id === 1);
     expect(res).toBeDefined();
     expect(res!.move).not.toBeNull();
+    expect(res!.searchPath).toBe('book');
     expect(ponder.isPondering()).toBe(false);
   });
 
@@ -72,6 +73,7 @@ describe('shogi-ai.worker pondering', () => {
     const res = posted.find((m) => m.type === 'bestMoveResult' && m.id === 2);
     expect(res).toBeDefined();
     expect(res!.move).not.toBeNull();
+    expect(res!.searchPath).toBe('book');
     expect(ponder.isPondering()).toBe(true);
 
     // Let a couple of 200ms slices run on the real (wasm) engine; the loop

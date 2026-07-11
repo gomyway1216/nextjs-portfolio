@@ -106,6 +106,51 @@ function auditFile(
 }
 
 describe("Floodgate acquisition summary", () => {
+  it("pins the canonical completed Q1 acquisition receipt", async () => {
+    const bytes = await fs.promises.readFile(
+      path.join(
+        process.cwd(),
+        "ml/protocols/floodgate-q1-2026-acquisition-result.json",
+      ),
+    );
+    expect(bytes.byteLength).toBe(1_534);
+    expect(sha256Hex(bytes)).toBe(
+      "f48155a5371411f7ea3b27abdf035c86c9df059b5e924620432449c45f650301",
+    );
+    const text = new TextDecoder("utf-8", {
+      fatal: true,
+      ignoreBOM: true,
+    }).decode(bytes);
+    const receipt = JSON.parse(text) as Record<string, unknown>;
+    expect(`${JSON.stringify(receipt)}\n`).toBe(text);
+    expect(receipt).toMatchObject({
+      schema: FLOODGATE_ACQUISITION_RESULT_SCHEMA,
+      source_revision: "649423d455b5762a697864610d9e8f606cc327c3",
+      timing: { attempts: 1, resume_count: 0, elapsed_ms: 4_717_610 },
+      audit: {
+        fetched: 36_349,
+        authoritative_receipt_delta: 0,
+        gaps: {
+          empty_files: 0,
+          trailing_partial_files: 0,
+          trailing_partial_bytes: 0,
+          files_without_source_revision: 0,
+        },
+      },
+      authoritative: {
+        status_200: 36_347,
+        status_404: 2,
+        response_bytes: 541_445_115,
+        canonical_games: 36_168,
+      },
+      manifest: {
+        bytes: 23_698_679,
+        sha256:
+          "1479a3a207458c9d3afe6cf9ba88abc6c44fb7b8b0e621aca9d6558637314619",
+      },
+    });
+  });
+
   it("summarizes ordered attempts and keeps audit observations distinct from authority", () => {
     const first = jsonl(
       record({ fetched: 2, status_200: 2, response_bytes: 40 }),

@@ -18,6 +18,8 @@ As of 2026-07-11, this work has **not** demonstrated high-dan strength. The labe
 | lease / resume / offline verifier | complete    | PR #417, merge commit `649423d`                         |
 | live raw acquisition              | complete    | 36,349 / 36,349, result SHA `f48155a5…0301`             |
 | 1,000 / 200 / 200 role lock       | complete    | 1,400 games / 33,600 parents / manifest `e6a54ed0…084e` |
+| independent full replay           | complete    | `b086243`, exact replay / 0 anomalies / unchanged FS     |
+| label-free role bundle            | unpublished | full-replay PASS binding implemented and verified        |
 | teacher / three-seed training     | not started | model, objective, and seeds remain frozen               |
 | fresh selection                   | sealed      | only after all three final checkpoints                  |
 | finals / 384-game A/B / 81Dojo    | sealed      | only after earlier gates pass                           |
@@ -224,9 +226,27 @@ The metadata-only first stage divided 36,168 canonical games into 11,491 eligibl
 
 The three roles total 33,600 parents and 2,959,639 protected IDs. Aggregate game, parent, and protected-ID digests are `36aaba89…e43bf6`, `d90a4774…2267d1`, and `87c7117c…aca6b`. Cross-role game-ID and parent-ID overlaps are zero, protected IDs are duplicate-free within each role, and every game has exactly two identities and 24 parents. Identity counts include both players exactly once per game, unordered-pair counts include each game exactly once, and observed maxima are at or below the role caps of 20 / 4, 20 / 4, and 100 / 20.
 
-A key-only audit plus checks of the known booleans found `teacher_or_candidate_scores_consumed/read`, `winner_opening_quality_or_score_filtering`, and `existing_final_holdout_opened` all false. This is therefore a label-blind set lock, not a selection or final evaluation. The concise tracked result is [`floodgate-q1-2026-role-lock-result.json`](../ml/protocols/floodgate-q1-2026-role-lock-result.json), 5,764 bytes with SHA-256 `14a7365bc484e0876a36196fab5a66f73e00ad3c39b1bfd7877e7931b5fd4f00`.
+A key-only audit plus checks of the known booleans found `teacher_or_candidate_scores_consumed/read`, `winner_opening_quality_or_score_filtering`, and `existing_final_holdout_opened` all false. This is therefore a label-blind set lock, not a selection or final evaluation. The tracked result has schema `shogi-floodgate-role-lock-result-v2`: [`floodgate-q1-2026-role-lock-result.json`](../ml/protocols/floodgate-q1-2026-role-lock-result.json), 9,463 bytes with SHA-256 `f4a78b4208516c71ea7e21d81af2cb6661cc9ea41aca0e16fa70e22928f05a26`.
 
-This fast audit checks artifact identities, arithmetic, and caps; it is not a clean-revision independent replay of the entire allocation. That long-running verification is pending, so this report does not yet call the allocation independently reproduced.
+## Only the second independent full replay passed
+
+The first independent full replay started from clean verifier revision `b086243` at `2026-07-11T11:45:56.673Z` and stopped at `2026-07-11T15:35:11.239Z`. It used 13,754.89 seconds of wall time, 13,556.40 user CPU seconds, and 698.73 system CPU seconds. Exact reconstruction and deep equality, final raw-input closure (not evaluation-final labels), the legacy-exclusion reread, and Git closure all matched, but the final filesystem closure detected a change to the role-lock root's parent directory. This attempt is therefore **not a pass**.
+
+The failure was not a role-lock content mismatch. It was our operational mistake: parallel audit notes and teacher-preparation artifacts were written under `/Users/yudaiyaguchi/.codex/shogi-data`. The role-lock root retained the same inode and ctime; its three artifacts—`manifest.json`, `materialized-input.json`, and `allocation.json`—retained the same inode, ctime, bytes, and SHA-256 before and after the run. Only their parent directory's ctime changed. The failure was preserved rather than rewritten as success: [`attempt-1 failed status`](../ml/protocols/floodgate-q1-2026-role-lock-full-replay-attempt-1-failed-status.json) is 590 bytes with SHA-256 `caf4df1bd52939a499e03eaf58df593f0714cfd24194be731453dfb1426644c0`, and the [`attempt-1 failed log`](../ml/protocols/floodgate-q1-2026-role-lock-full-replay-attempt-1-failed.log) is 1,386 bytes with SHA-256 `38197d0a4d6f8178eea8e5e0a6b620ee158778c763fa59b0edc7454bd721d741`.
+
+The second attempt reused the same `b086243`, inputs, and role-lock artifacts. Its evidence root was created outside the watched parent before the run, and writes below `shogi-data` were frozen. It ran from `2026-07-11T15:49:52.852Z` to `2026-07-11T19:44:12.426Z` for 14,059.521 seconds; OS timing recorded 14,059.87 wall seconds, 13,834.21 user CPU seconds, and 744.08 system CPU seconds. It exited 0 after exact full reconstruction, byte/parsed deep equality, raw-final, legacy-exclusion, Git-provenance, and final-filesystem checks all passed. Git and the role-lock filesystem were unchanged, with zero anomalies. The [`PASS status`](../ml/protocols/floodgate-q1-2026-role-lock-full-replay-status.json) is 7,749 bytes with SHA-256 `c7db624051214555d6bc22b3a6497cda83d661298e4d0bf42b3182ba0ac99053`; the [`full log`](../ml/protocols/floodgate-q1-2026-role-lock-full-replay.log) is 9,010 bytes with SHA-256 `b3954d9593ae52d3928906fea7f921d571daa7664beabb61044b44590cc2d1b8`.
+
+This pass closes only the set-and-provenance integrity gate. It did not open teacher values, candidate scores, or sealed fresh-selection, fresh-final, or legacy-final labels, and it is not evidence of improved playing strength.
+
+## Verification-boundary gaps found before closing the role bundle
+
+The next label-free role-bundle stage was implemented in parallel with the independent full replay and then subjected to adversarial sub-agent review. The review reproduced why ordinary `git status` is not provenance evidence. Git grafts bypassed `--no-replace-objects`; `assume-unchanged` and `skip-worktree` hid tracked edits; and a repository-local fake fsmonitor reported a same-length edit with restored mtime as clean. A fake `git` placed first on `PATH` could forge revision, status, and ancestry together.
+
+The hardened boundary pins `/usr/bin/git`, removes inherited Git and dynamic-loader controls, and disables grafts and fsmonitor. It still does not trust Git's display: it reads the HEAD tree and index, then independently recomputes Git blob IDs from the actual bytes and modes of every tracked regular file and symlink. Historical bundles must close every ancestry edge in `raw producer → role-lock producer → full-replay verifier b086243 → bundle producer → current verifier`, and the bundle producer's own tree must contain the exact tracked role-lock result, status, and log blobs.
+
+To reject a different but internally self-consistent run, the bundle cross-checks the tracked result identity against the raw manifest, legacy exclusion, accounting, every role, aggregate digests, and the actual manifest, materialized-input, and allocation bytes. The bundle manifest also records the result-receipt identity. The production verifier accepts only exact bindings to the independent full replay's PASS status and log; neither the failed first attempt nor a self-reported pass can publish a complete bundle. The second attempt closes that prepublication integrity gate, but the role bundle itself has not yet been published.
+
+The output root now uses synchronous `mkdir` followed immediately by an `O_NOFOLLOW | O_DIRECTORY | O_NONBLOCK` descriptor capture, then tracks the inode and directory ctime for the rest of publication. Failure handling no longer removes a directory merely by pathname. Node's `mkdir` does not return a descriptor, however, so the tiny two-syscall window cannot be made fully atomic against a hostile same-user process that substitutes another empty mode-0700 directory. This does not let incorrect bundle bytes pass as complete, but it remains an explicit operational requirement to place the output parent on trusted private storage.
 
 ## Stop conditions that remain after the role lock
 
@@ -236,8 +256,8 @@ This fast audit checks artifact identities, arithmetic, and caps; it is not a cl
 
 ## What remains before a high-dan claim
 
-A valid role lock is not playing-strength evidence. The next steps close the independent full replay and role bundle. Only then may the training teacher be generated and the unchanged model/objective be trained with seeds 42, 43, and 44.
+A valid role lock and independent replay are not playing-strength evidence. The next step publishes the label-free role bundle. Only then may the training teacher be generated and the unchanged model/objective be trained with seeds 42, 43, and 44.
 
 Only a fresh-selection family pass opens the fresh final, the existing unopened WCSC36 final, regressions, and the paired 384-game A/B. The final 200-game 81Dojo calibration requires an official COM account and client; explicit user confirmation will be requested before any external games are started.
 
-The conclusion is not yet “the evaluator is stronger.” The narrower, auditable conclusion is that 1,400 label-blind games are fixed without mixing training, selection, and final roles, while the current evaluator remains untouched.
+The conclusion is not yet “the evaluator is stronger.” The narrower, auditable conclusion is that 1,400 label-blind games are fixed without mixing training, selection, and final roles and independently reproduced from a clean revision, while the current evaluator remains untouched.

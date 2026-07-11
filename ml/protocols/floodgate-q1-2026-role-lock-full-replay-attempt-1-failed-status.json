@@ -1,0 +1,12 @@
+{
+  "schema": "shogi-floodgate-role-lock-full-verification-status-v1",
+  "event": "role_lock_full_verifier_failed",
+  "state": "failed",
+  "started_at": "2026-07-11T11:45:56.673Z",
+  "finished_at": "2026-07-11T15:35:11.239Z",
+  "producer_revision": "fc18554e1ff61e2bd7a0f7a24f277ce4e418a175",
+  "verifier_revision": "b086243781396e2c197cc9e1cfab1fc6b773ae2a",
+  "node": "v22.13.0",
+  "error": "invalid Floodgate role lock: existing role-lock changed during production verification",
+  "log_path": "/Users/yudaiyaguchi/.codex/shogi-data/role-lock-full-verify-b086243-20260711T114441Z.log"
+}

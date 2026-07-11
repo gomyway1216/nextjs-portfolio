@@ -18,6 +18,8 @@
 | lease / resume / offline verifier | 完了   | PR #417、通常merge `649423d`                          |
 | live raw取得                      | 完了   | 36,349 / 36,349、result SHA `f48155a5…0301`           |
 | 1,000 / 200 / 200 role lock       | 完了   | 1,400局 / 33,600 parents / manifest `e6a54ed0…084e`   |
+| 独立full replay                   | 完了   | `b086243`、再計算一致 / anomaly 0 / filesystem不変    |
+| label-free role bundle            | 未公開 | full-replay PASS bindingまで実装・検証済み            |
 | teacher / 3 seed学習              | 未開始 | model・loss・seedは変更しない                         |
 | fresh selection                   | 封印   | 3 final checkpoint完成後だけ                          |
 | final / 384局A/B / 81Dojo         | 封印   | 前段合格時だけ                                        |
@@ -224,9 +226,27 @@ codec不合格をwhole-object除外する修正を通常mergeしたsource revisi
 
 3 roleの合計は33,600 parents、2,959,639 protected IDsである。全game、parent、protected ID集合のdigestはそれぞれ`36aaba89…e43bf6`、`d90a4774…2267d1`、`87c7117c…aca6b`になった。game IDとparent IDのcross-role重複は0、role内protected IDは重複なしで、全gameがexact 2 identities / 24 parentsだった。identity countは各gameの両対局者をちょうど1回ずつ数え、unordered pair countは各gameをちょうど1回数え、各roleの最大値は20 / 4、20 / 4、100 / 20でcap以下だった。
 
-key-only auditと既知のboolean値の確認では、`teacher_or_candidate_scores_consumed/read`、`winner_opening_quality_or_score_filtering`、`existing_final_holdout_opened`はすべて`false`だった。つまりこれはlabel-blindな集合固定であり、selection / finalの評価結果ではない。小さなtracked resultは[`floodgate-q1-2026-role-lock-result.json`](../ml/protocols/floodgate-q1-2026-role-lock-result.json)へ保存した（5,764 bytes / SHA-256 `14a7365bc484e0876a36196fab5a66f73e00ad3c39b1bfd7877e7931b5fd4f00`）。
+key-only auditと既知のboolean値の確認では、`teacher_or_candidate_scores_consumed/read`、`winner_opening_quality_or_score_filtering`、`existing_final_holdout_opened`はすべて`false`だった。つまりこれはlabel-blindな集合固定であり、selection / finalの評価結果ではない。schema `shogi-floodgate-role-lock-result-v2`のtracked resultは[`floodgate-q1-2026-role-lock-result.json`](../ml/protocols/floodgate-q1-2026-role-lock-result.json)へ保存した（9,463 bytes / SHA-256 `f4a78b4208516c71ea7e21d81af2cb6661cc9ea41aca0e16fa70e22928f05a26`）。
 
-なお、ここまでのfast auditはartifact identity、算術、capを確認したもので、cleanな別revisionから全割当を再計算する独立full replayではない。その長時間検証は現在pendingであり、完了するまで「独立再現済み」とは書かない。
+## 独立full replayは2回目だけがPASSした
+
+最初の独立full replayはcleanなverifier revision `b086243`から`2026-07-11T11:45:56.673Z`に始まり、`2026-07-11T15:35:11.239Z`に停止した。実測はwall 13,754.89秒、user CPU 13,556.40秒、system CPU 698.73秒だった。exact reconstructionとdeep equality、raw inputの最終closure（評価用final labelの読込ではない）、legacy exclusionの再読込、Git closureまでは一致したが、最後のfilesystem closureがrole-lock rootの親directory変更を検出したため、この試行は**PASSではない**。
+
+原因はrole-lockの内容不一致ではなく、同時進行していた私たちのaudit memoとteacher準備物を`/Users/yudaiyaguchi/.codex/shogi-data`へ書いた運用ミスだった。role-lock rootのinode / ctimeは不変で、`manifest.json`、`materialized-input.json`、`allocation.json`の3 artifactもinode / ctime / bytes / SHA-256が実行前後で変わっていない一方、その親directoryのctimeだけが変わった。失敗を成功へ書き換えず、[`attempt-1 failed status`](../ml/protocols/floodgate-q1-2026-role-lock-full-replay-attempt-1-failed-status.json)（590 bytes / SHA-256 `caf4df1bd52939a499e03eaf58df593f0714cfd24194be731453dfb1426644c0`）と[`attempt-1 failed log`](../ml/protocols/floodgate-q1-2026-role-lock-full-replay-attempt-1-failed.log)（1,386 bytes / SHA-256 `38197d0a4d6f8178eea8e5e0a6b620ee158778c763fa59b0edc7454bd721d741`）をexactに保存した。
+
+2回目は同じ`b086243`、同じ入力、同じrole-lock artifactを使い、実行証拠だけを監視対象外のrootへ先に作成して、`shogi-data`以下へのwriteを凍結した。`2026-07-11T15:49:52.852Z`から`2026-07-11T19:44:12.426Z`まで14,059.521秒、OS計測でwall 14,059.87秒、user CPU 13,834.21秒、system CPU 744.08秒を使い、exit 0で完了した。exact full reconstruction、byte / parsed deep equality、raw final、legacy exclusion、Git provenance、最終filesystem closureがすべて通り、Git / role-lock filesystemは不変、anomalyは0だった。[`PASS status`](../ml/protocols/floodgate-q1-2026-role-lock-full-replay-status.json)は7,749 bytes / SHA-256 `c7db624051214555d6bc22b3a6497cda83d661298e4d0bf42b3182ba0ac99053`、[`full log`](../ml/protocols/floodgate-q1-2026-role-lock-full-replay.log)は9,010 bytes / SHA-256 `b3954d9593ae52d3928906fea7f921d571daa7664beabb61044b44590cc2d1b8`である。
+
+このPASSは集合とprovenanceのintegrity gateだけを閉じる。teacher値、candidate score、封印したfresh selection / fresh final / legacy finalのlabelは開いておらず、棋力向上を示す証拠ではない。
+
+## role bundleを閉じる前に見つかった検証境界の穴
+
+独立full replayと並行して、次のlabel-free role bundleを実装し、別sub-agentに敵対的レビューを依頼した。レビューでは、通常の`git status`だけでは証拠にならないことが実際に再現された。Git graftは`--no-replace-objects`を迂回し、`assume-unchanged` / `skip-worktree`は変更を隠し、repo-localの偽fsmonitorは同じbytes数・復元mtimeの改変をcleanと報告できた。さらに`PATH`先頭の偽`git`ならrevision、status、ancestryをまとめて偽装できる。
+
+対策後の境界は`/usr/bin/git`を固定し、継承したGit・dynamic-loader環境を除去し、graftとfsmonitorを無効化する。それでもGitの表示だけは信用せず、HEAD treeとindexを読み、全tracked regular file / symlinkの実bytesとmodeからGit blob IDを独立再計算する。role bundleの履歴は`raw producer → role-lock producer → full-replay verifier b086243 → bundle producer → current verifier`をすべて祖先関係として要求し、bundle producer自身のtreeにtracked role-lock result / status / logのexact 3 blobsがあることも確認する。
+
+また、自己整合する別runを誤って渡せないように、bundleはtracked role-lock resultのidentityと、raw manifest、legacy exclusion、accounting、各role、aggregate digest、manifest / materialized input / allocationの実bytesを相互照合する。bundle manifestにもresult receipt identityを残す。production verifierは独立full replayのexact PASS status / log bindingだけを受理し、失敗した1回目や自己申告だけではcomplete bundleを公開できない。今回の2回目でこの公開前integrity gateを閉じたが、role bundle自体はまだ公開していない。
+
+出力rootは同期`mkdir`直後に`O_NOFOLLOW | O_DIRECTORY | O_NONBLOCK`でFDを捕捉し、以後はinodeとdirectory ctimeを追跡する。取得失敗時にpathnameだけを見てdirectoryを削除する処理も廃止した。ただしNodeの`mkdir`はFDを返さないため、同一ユーザーの敵対processが2 syscall間のごく短い窓で空のmode 0700 directoryへ差し替える競合自体は完全には原子化できない。これは誤ったbundle bytesをcompleteとして通す穴ではないが、出力parentを信頼されたprivate storageに置くという運用条件として残す。
 
 ## role lock後に残った次段の停止条件
 
@@ -236,8 +256,8 @@ key-only auditと既知のboolean値の確認では、`teacher_or_candidate_scor
 
 ## 高段判定までの残り
 
-role lockが成功しても、まだ棋力証明ではない。次に独立full replayとrole bundleを閉じ、その後だけtraining teacherを作り、同じmodel・loss・seed 42/43/44を学習する。
+role lockと独立full replayが成功しても、まだ棋力証明ではない。次はlabel-free role bundleを公開し、その後だけtraining teacherを作り、同じmodel・loss・seed 42/43/44を学習する。
 
 fresh selection family gateを通った候補だけが、fresh final、未開封WCSC36 final、回帰、384局paired A/Bへ進む。最後の81Dojo 200局は公式COM accountとclientを使う必要があり、外部対局を始める前にユーザーの明示確認を取る。
 
-このログの結論はまだ「強くなった」ではない。現時点の結論は、現在の評価関数を壊さず、training / selection / finalが混ざらない1,400局をlabelなしで固定できた、である。
+このログの結論はまだ「強くなった」ではない。現時点の結論は、現在の評価関数を壊さず、training / selection / finalが混ざらない1,400局をlabelなしで固定し、clean revisionから独立再現できた、である。

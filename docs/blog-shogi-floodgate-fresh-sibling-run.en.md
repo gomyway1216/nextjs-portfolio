@@ -6,7 +6,7 @@
 
 ## Current status
 
-As of 2026-07-11, this work has **not** demonstrated high-dan strength. The label-blind public inventory is fixed, all 36,349 raw responses have been acquired by one process, and the roles are now locked at 1,000 training, 200 fresh-selection, and 200 fresh-final games.
+As of 2026-07-11, this work has **not** demonstrated high-dan strength. The label-blind public inventory is fixed, all 36,349 raw responses have been acquired by one process, and the roles are now locked at 1,000 training, 200 fresh-selection, and 200 fresh-final-holdout games.
 
 | Stage                             | Status      | Evidence                                                |
 | --------------------------------- | ----------- | ------------------------------------------------------- |
@@ -206,7 +206,7 @@ Truncating the padding would “repair” the response into bytes that were neve
 
 The fourth attempt ran from source revision `fc18554e1ff61e2bd7a0f7a24f277ce4e418a175`, after the whole-object codec exclusion had merged normally, and produced the first complete role-lock output. The successful run took 03:33:50.79 wall time, 12,580.21 user CPU seconds, and 610.56 system CPU seconds. It made zero network requests and consumed only the verified raw-manifest index rather than scanning the raw storage tree.
 
-An independent sub-agent's post-run fast audit confirmed that the output root contains exactly three regular, non-symlink files: `allocation.json`, `manifest.json`, and `materialized-input.json`. A separate process rehashed the files and matched both artifact byte counts and SHA-256 identities recorded by the manifest.
+An independent sub-agent's post-run fast audit confirmed that the output root contains exactly three regular, non-symlink files: `allocation.json`, `manifest.json`, and `materialized-input.json`. A separate process rehashed all three files. The materialized-input and allocation identities matched the byte counts and SHA-256 values recorded inside the manifest; the manifest's independently measured identity was fixed separately in the tracked result.
 
 | Artifact           |       Bytes | SHA-256                                                            |
 | ------------------ | ----------: | ------------------------------------------------------------------ |

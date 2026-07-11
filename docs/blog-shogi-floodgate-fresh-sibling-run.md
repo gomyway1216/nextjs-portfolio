@@ -6,7 +6,7 @@
 
 ## 現在地
 
-2026-07-11時点で、まだ「高段レベルになった」とは判定していない。labelを見ずに公開在庫を固定し、36,349件のraw responseを単一processで取得したうえで、training 1,000局、fresh selection 200局、fresh final 200局のrole lockまで完了した。
+2026-07-11時点で、まだ「高段レベルになった」とは判定していない。labelを見ずに公開在庫を固定し、36,349件のraw responseを単一processで取得したうえで、training 1,000局、fresh selection 200局、fresh final holdout 200局のrole lockまで完了した。
 
 | 段階                              | 状態   | 証拠                                                  |
 | --------------------------------- | ------ | ----------------------------------------------------- |
@@ -206,7 +206,7 @@ result summarizerの独立監査では、読んだmanifest Aではなく別読�
 
 codec不合格をwhole-object除外する修正を通常mergeしたsource revision `fc18554e1ff61e2bd7a0f7a24f277ce4e418a175`から4回目を実行し、初めてrole-lock outputを完成させた。成功runの実測はwall 03:33:50.79、user CPU 12,580.21秒、system CPU 610.56秒だった。network requestは0で、raw storage treeを走査せず、検証済みraw manifest indexだけを入力にした。
 
-独立sub-agentのpost-run fast auditでは、output rootの直下が`allocation.json`、`manifest.json`、`materialized-input.json`のregular non-symlink file 3件だけであることを再確認した。実ファイルを別processでhashし直し、manifestが記録した2 artifactのbytes / SHA-256と一致した。
+独立sub-agentのpost-run fast auditでは、output rootの直下が`allocation.json`、`manifest.json`、`materialized-input.json`のregular non-symlink file 3件だけであることを再確認した。別processで3ファイルすべてをhashし直し、materialized inputとallocationはmanifest内のbytes / SHA-256と一致した。manifest自身の実測identityはtracked resultへ別途固定した。
 
 | artifact           |       bytes | SHA-256                                                            |
 | ------------------ | ----------: | ------------------------------------------------------------------ |

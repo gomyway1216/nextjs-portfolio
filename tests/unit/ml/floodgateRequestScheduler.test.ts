@@ -290,6 +290,119 @@ describe("Floodgate request scheduler", () => {
     expect(fetchedUrl).toBe(LISTING_A);
   });
 
+  it("uses captured structural validation instead of poisoned Set dispatch", async () => {
+    const clock = fakeClock();
+    const starts: string[] = [];
+    const scheduler = createNonProductionFloodgateRequestSchedulerForTests(
+      { maximumInflightRequests: 1, minimumRequestStartIntervalMs: 1 },
+      {
+        fetchImpl: async (url) => {
+          starts.push(url);
+          return response(url);
+        },
+        now: clock.now,
+        sleep: clock.sleep,
+      },
+    );
+    const originalSetHas = Set.prototype.has;
+    let duplicateRejection: unknown;
+    let kindRejection: unknown;
+    try {
+      Set.prototype.has = function (
+        this: Set<unknown>,
+        value: unknown,
+      ): boolean {
+        if (typeof value === "string" && value.startsWith("https://")) {
+          return false;
+        }
+        return Reflect.apply(originalSetHas, this, [value]) as boolean;
+      } as typeof Set.prototype.has;
+      try {
+        await scheduler.run([
+          { kind: "daily_listing", url: LISTING_A },
+          { kind: "daily_listing", url: LISTING_A },
+        ]);
+      } catch (error) {
+        duplicateRejection = error;
+      }
+
+      Set.prototype.has = function (
+        this: Set<unknown>,
+        value: unknown,
+      ): boolean {
+        if (value === "evil") return true;
+        return Reflect.apply(originalSetHas, this, [value]) as boolean;
+      } as typeof Set.prototype.has;
+      try {
+        await scheduler.run([
+          { kind: "evil", url: CSA_A } as unknown as FloodgateRequest,
+        ]);
+      } catch (error) {
+        kindRejection = error;
+      }
+    } finally {
+      Set.prototype.has = originalSetHas;
+    }
+
+    expect(duplicateRejection).toBeInstanceOf(Error);
+    expect((duplicateRejection as Error).message).toMatch(/repeat URL/);
+    expect(kindRejection).toBeInstanceOf(Error);
+    expect((kindRejection as Error).message).toMatch(/kind is unsupported/);
+    expect(starts).toEqual([]);
+  });
+
+  it("rejects real accessors despite a poisoned descriptor lookup", async () => {
+    const clock = fakeClock();
+    const scheduler = createNonProductionFloodgateRequestSchedulerForTests(
+      { maximumInflightRequests: 1, minimumRequestStartIntervalMs: 1 },
+      {
+        fetchImpl: async (url) => response(url),
+        now: clock.now,
+        sleep: clock.sleep,
+      },
+    );
+    let getterReads = 0;
+    const hostile = {} as FloodgateRequest;
+    Object.defineProperties(hostile, {
+      kind: {
+        enumerable: true,
+        get() {
+          getterReads += 1;
+          return "daily_listing";
+        },
+      },
+      url: {
+        enumerable: true,
+        get() {
+          getterReads += 1;
+          return LISTING_A;
+        },
+      },
+    });
+    const originalDescriptor = Object.getOwnPropertyDescriptor;
+    let rejection: unknown;
+    Object.getOwnPropertyDescriptor = ((target: object, key: PropertyKey) => {
+      if (target === hostile && key === "kind") {
+        return { configurable: true, enumerable: true, value: "daily_listing" };
+      }
+      if (target === hostile && key === "url") {
+        return { configurable: true, enumerable: true, value: LISTING_A };
+      }
+      return originalDescriptor(target, key);
+    }) as typeof Object.getOwnPropertyDescriptor;
+    try {
+      await scheduler.run([hostile]);
+    } catch (error) {
+      rejection = error;
+    } finally {
+      Object.getOwnPropertyDescriptor = originalDescriptor;
+    }
+
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toMatch(/data property/);
+    expect(getterReads).toBe(0);
+  });
+
   it("enforces redirect, status, encoding, and exact Content-Length contracts", async () => {
     async function runWith(
       request: FloodgateRequest,

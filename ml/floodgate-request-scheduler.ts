@@ -20,6 +20,10 @@ const IntrinsicObject = Object;
 const IntrinsicError = Error;
 const IntrinsicPromise = Promise;
 const IntrinsicNumber = Number;
+const IntrinsicString = String;
+const IntrinsicArray = Array;
+const IntrinsicArrayPrototype = Array.prototype;
+const IntrinsicObjectPrototype = Object.prototype;
 const INTRINSIC_PROMISE_THEN = Promise.prototype.then;
 const INTRINSIC_NODE_IS_PROXY = nodeUtilTypes.isProxy;
 const INTRINSIC_NODE_IS_ARRAY_BUFFER = nodeUtilTypes.isArrayBuffer;
@@ -33,11 +37,17 @@ const INTRINSIC_ARRAY_SHIFT = Array.prototype.shift;
 const INTRINSIC_ARRAY_SORT = Array.prototype.sort;
 const INTRINSIC_ARRAY_INDEX_OF = Array.prototype.indexOf;
 const INTRINSIC_ARRAY_SPLICE = Array.prototype.splice;
+const INTRINSIC_ARRAY_IS_ARRAY = Array.isArray;
 const INTRINSIC_REGEXP_TEST = RegExp.prototype.test;
 const INTRINSIC_NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const INTRINSIC_NUMBER_IS_FINITE = Number.isFinite;
 const INTRINSIC_OBJECT_FREEZE = Object.freeze;
 const INTRINSIC_OBJECT_DEFINE_PROPERTY = Object.defineProperty;
+const INTRINSIC_OBJECT_GET_OWN_PROPERTY_DESCRIPTOR =
+  Object.getOwnPropertyDescriptor;
+const INTRINSIC_OBJECT_GET_OWN_PROPERTY_NAMES = Object.getOwnPropertyNames;
+const INTRINSIC_OBJECT_GET_OWN_PROPERTY_SYMBOLS = Object.getOwnPropertySymbols;
+const INTRINSIC_OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
 const TYPED_ARRAY_PROTOTYPE = Object.getPrototypeOf(
   IntrinsicUint8Array.prototype,
 ) as object;
@@ -65,6 +75,47 @@ function intrinsicIsProxy(value: unknown): boolean {
   return INTRINSIC_REFLECT_APPLY(INTRINSIC_NODE_IS_PROXY, nodeUtilTypes, [
     value,
   ]) as boolean;
+}
+
+function intrinsicIsArray(value: unknown): value is unknown[] {
+  return INTRINSIC_REFLECT_APPLY(INTRINSIC_ARRAY_IS_ARRAY, IntrinsicArray, [
+    value,
+  ]) as boolean;
+}
+
+function intrinsicOwnPropertyNames(value: object): string[] {
+  return INTRINSIC_REFLECT_APPLY(
+    INTRINSIC_OBJECT_GET_OWN_PROPERTY_NAMES,
+    IntrinsicObject,
+    [value],
+  ) as string[];
+}
+
+function intrinsicOwnPropertySymbols(value: object): symbol[] {
+  return INTRINSIC_REFLECT_APPLY(
+    INTRINSIC_OBJECT_GET_OWN_PROPERTY_SYMBOLS,
+    IntrinsicObject,
+    [value],
+  ) as symbol[];
+}
+
+function intrinsicOwnPropertyDescriptor(
+  value: object,
+  key: PropertyKey,
+): PropertyDescriptor | undefined {
+  return INTRINSIC_REFLECT_APPLY(
+    INTRINSIC_OBJECT_GET_OWN_PROPERTY_DESCRIPTOR,
+    IntrinsicObject,
+    [value, key],
+  ) as PropertyDescriptor | undefined;
+}
+
+function intrinsicPrototypeOf(value: object): object | null {
+  return INTRINSIC_REFLECT_APPLY(
+    INTRINSIC_OBJECT_GET_PROTOTYPE_OF,
+    IntrinsicObject,
+    [value],
+  ) as object | null;
 }
 
 function intrinsicIsArrayBuffer(value: unknown): boolean {
@@ -332,13 +383,6 @@ export interface NonProductionFloodgateSchedulerPolicyForTests {
   readonly minimumRequestStartIntervalMs: number;
 }
 
-const REQUEST_KINDS = new Set<FloodgateRequestKind>([
-  "daily_listing",
-  "daily_rating",
-  "period_end_inventory",
-  "csa",
-]);
-
 const PRODUCTION_POLICY = freezeValue({
   maximumInflightRequests: FLOODGATE_MAXIMUM_INFLIGHT_REQUESTS,
   minimumRequestStartIntervalMs: FLOODGATE_MINIMUM_REQUEST_START_INTERVAL_MS,
@@ -346,6 +390,15 @@ const PRODUCTION_POLICY = freezeValue({
 
 function fail(message: string): never {
   throw new IntrinsicError(`invalid Floodgate request schedule: ${message}`);
+}
+
+function isFloodgateRequestKind(value: unknown): value is FloodgateRequestKind {
+  return (
+    value === "daily_listing" ||
+    value === "daily_rating" ||
+    value === "period_end_inventory" ||
+    value === "csa"
+  );
 }
 
 function validatePolicy(
@@ -419,28 +472,28 @@ function validateFloodgateUrl(
 function validateRequests(
   input: readonly FloodgateRequest[],
 ): readonly Readonly<FloodgateRequest>[] {
-  if (intrinsicIsProxy(input) || !Array.isArray(input)) {
+  if (intrinsicIsProxy(input) || !intrinsicIsArray(input)) {
     fail("requests must be a plain array");
   }
-  const inputNames = Object.getOwnPropertyNames(input);
-  const expectedInputNames = new Set<string>(["length"]);
+  const inputNames = intrinsicOwnPropertyNames(input);
+  let namesMatch = inputNames.length === input.length + 1;
   for (let index = 0; index < input.length; index += 1) {
-    expectedInputNames.add(String(index));
+    if (inputNames[index] !== IntrinsicString(index)) namesMatch = false;
   }
   if (
-    Object.getPrototypeOf(input) !== Array.prototype ||
-    Object.getOwnPropertySymbols(input).length !== 0 ||
-    inputNames.length !== input.length + 1 ||
-    inputNames.some((name) => !expectedInputNames.has(name))
+    intrinsicPrototypeOf(input) !== IntrinsicArrayPrototype ||
+    intrinsicOwnPropertySymbols(input).length !== 0 ||
+    inputNames[input.length] !== "length" ||
+    !namesMatch
   ) {
     fail("requests must be a dense plain array with no hidden fields");
   }
-  const urls = new Set<string>();
+  const urls: string[] = [];
   const requests: Readonly<FloodgateRequest>[] = [];
   for (let index = 0; index < input.length; index += 1) {
-    const slotDescriptor = Object.getOwnPropertyDescriptor(
+    const slotDescriptor = intrinsicOwnPropertyDescriptor(
       input,
-      String(index),
+      IntrinsicString(index),
     );
     if (
       !slotDescriptor ||
@@ -454,36 +507,39 @@ function validateRequests(
       intrinsicIsProxy(rawRequest) ||
       rawRequest === null ||
       typeof rawRequest !== "object" ||
-      Array.isArray(rawRequest) ||
-      Object.getPrototypeOf(rawRequest) !== Object.prototype
+      intrinsicIsArray(rawRequest) ||
+      intrinsicPrototypeOf(rawRequest) !== IntrinsicObjectPrototype
     ) {
       fail(`requests[${index}] must be a plain object`);
     }
-    if (Object.getOwnPropertySymbols(rawRequest).length !== 0) {
+    if (intrinsicOwnPropertySymbols(rawRequest).length !== 0) {
       fail(`requests[${index}] must not contain symbol keys`);
     }
-    const keys = Object.getOwnPropertyNames(rawRequest);
+    const keys = intrinsicOwnPropertyNames(rawRequest);
     sortArrayValues(keys, compareUtf8Bytes);
     if (keys.length !== 2 || keys[0] !== "kind" || keys[1] !== "url") {
       fail(`requests[${index}] must contain exactly kind and url`);
     }
-    for (const key of keys) {
-      const descriptor = Object.getOwnPropertyDescriptor(rawRequest, key);
+    let rawKind: unknown;
+    let rawUrl: unknown;
+    for (let keyIndex = 0; keyIndex < keys.length; keyIndex += 1) {
+      const key = keys[keyIndex];
+      const descriptor = intrinsicOwnPropertyDescriptor(rawRequest, key);
       if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
         fail(`requests[${index}].${key} must be an enumerable data property`);
       }
+      if (key === "kind") rawKind = descriptor.value;
+      if (key === "url") rawUrl = descriptor.value;
     }
-    if (!REQUEST_KINDS.has(rawRequest.kind)) {
+    if (!isFloodgateRequestKind(rawKind)) {
       fail(`requests[${index}].kind is unsupported`);
     }
-    const url = validateFloodgateUrl(
-      rawRequest.url,
-      rawRequest.kind,
-      `requests[${index}].url`,
-    );
-    if (urls.has(url)) fail(`requests repeat URL ${url}`);
-    urls.add(url);
-    pushArrayValue(requests, freezeValue({ kind: rawRequest.kind, url }));
+    const url = validateFloodgateUrl(rawUrl, rawKind, `requests[${index}].url`);
+    for (let urlIndex = 0; urlIndex < urls.length; urlIndex += 1) {
+      if (urls[urlIndex] === url) fail(`requests repeat URL ${url}`);
+    }
+    pushArrayValue(urls, url);
+    pushArrayValue(requests, freezeValue({ kind: rawKind, url }));
   }
   sortArrayValues(requests, (left, right) =>
     compareUtf8Bytes(left.url, right.url),
@@ -1032,20 +1088,28 @@ export function createFloodgateRequestScheduler(
   }
   const dependencyNames =
     dependencies !== null && typeof dependencies === "object"
-      ? Object.getOwnPropertyNames(dependencies)
+      ? intrinsicOwnPropertyNames(dependencies)
       : [];
+  let dependencyNamesSupported = true;
+  for (let index = 0; index < dependencyNames.length; index += 1) {
+    const key = dependencyNames[index];
+    if (key !== "fetchImpl" && key !== "onProgress") {
+      dependencyNamesSupported = false;
+    }
+  }
   if (
     dependencies === null ||
     typeof dependencies !== "object" ||
-    Array.isArray(dependencies) ||
-    Object.getPrototypeOf(dependencies) !== Object.prototype ||
-    Object.getOwnPropertySymbols(dependencies).length !== 0 ||
-    dependencyNames.some((key) => key !== "fetchImpl" && key !== "onProgress")
+    intrinsicIsArray(dependencies) ||
+    intrinsicPrototypeOf(dependencies) !== IntrinsicObjectPrototype ||
+    intrinsicOwnPropertySymbols(dependencies).length !== 0 ||
+    !dependencyNamesSupported
   ) {
     fail("production dependencies may only provide fetchImpl and onProgress");
   }
-  for (const name of dependencyNames) {
-    const descriptor = Object.getOwnPropertyDescriptor(dependencies, name);
+  for (let index = 0; index < dependencyNames.length; index += 1) {
+    const name = dependencyNames[index];
+    const descriptor = intrinsicOwnPropertyDescriptor(dependencies, name);
     if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
       fail(`production dependency ${name} must be an enumerable data property`);
     }

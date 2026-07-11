@@ -134,6 +134,11 @@ export interface NonProductionFloodgateAcquisitionCleanupForTests {
   readonly primaryFailure?: unknown;
 }
 
+export interface NonProductionFloodgateAuditWriterForTests {
+  append(record: FloodgateAcquisitionAuditRecord): Promise<void>;
+  close(): Promise<void>;
+}
+
 export type FloodgateAcquisitionPhaseName =
   "daily_listings" | "daily_ratings" | "period_inventory" | "csa";
 
@@ -673,16 +678,19 @@ class FloodgateAuditWriter {
   readonly #handle: fs.promises.FileHandle;
   readonly #runToken: string;
   readonly #sourceRevision: string;
+  readonly #runStartedAt: string;
   #sequence = 0;
 
   private constructor(
     handle: fs.promises.FileHandle,
     runToken: string,
     sourceRevision: string,
+    runStartedAt: string,
   ) {
     this.#handle = handle;
     this.#runToken = runToken;
     this.#sourceRevision = sourceRevision;
+    this.#runStartedAt = runStartedAt;
   }
 
   static async open(
@@ -708,15 +716,19 @@ class FloodgateAuditWriter {
       handle,
       lease.owner.run_token,
       lease.owner.source_revision,
+      lease.owner.started_at,
     );
   }
 
   async append(record: FloodgateAcquisitionAuditRecord): Promise<void> {
     this.#sequence += 1;
+    const recordedAt = validateIsoInstant(new Date().toISOString());
     const line = `${JSON.stringify({
       schema: FLOODGATE_ACQUISITION_AUDIT_SCHEMA,
       run_token: this.#runToken,
       source_revision: this.#sourceRevision,
+      run_started_at: this.#runStartedAt,
+      recorded_at: recordedAt,
       sequence: this.#sequence,
       ...record,
     })}\n`;
@@ -740,6 +752,13 @@ class FloodgateAuditWriter {
   async close(): Promise<void> {
     await this.#handle.close();
   }
+}
+
+/** Explicit filesystem fixture seam for durable audit-envelope tests. */
+export async function openNonProductionFloodgateAuditWriterForTests(
+  lease: FloodgateAcquisitionLease,
+): Promise<NonProductionFloodgateAuditWriterForTests> {
+  return FloodgateAuditWriter.open(lease);
 }
 
 function validateRequest(

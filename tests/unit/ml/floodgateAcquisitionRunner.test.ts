@@ -9,6 +9,7 @@ import {
   acquireNonProductionFloodgateLeaseForTests,
   cleanupNonProductionFloodgateAcquisitionForTests,
   getFloodgateAcquisitionLeaseStatus,
+  openNonProductionFloodgateAuditWriterForTests,
   runFloodgateQ1Acquisition,
   runNonProductionFloodgateAcquisitionCoreForTests,
   type FloodgateAcquisitionCoreDependencies,
@@ -286,6 +287,57 @@ describe("Floodgate acquisition runner", () => {
       secondCloseFailure,
       releaseFailure,
     ]);
+  });
+
+  it("durably records run start and per-record timestamps in the audit envelope", async () => {
+    const root = await temporaryRoot();
+    const lockRoot = path.join(root, "raw-lock");
+    const lease = await acquireNonProductionFloodgateLeaseForTests(
+      lockRoot,
+      REVISION,
+      {
+        pid: 1,
+        hostname: "host",
+        now: () => new Date("2026-01-01T00:00:00.000Z"),
+        token: () => TOKEN,
+      },
+    );
+    const before = Date.now();
+    const writer = await openNonProductionFloodgateAuditWriterForTests(lease);
+    await writer.append({
+      phase: "fixture",
+      fetched: 1,
+      reused: 0,
+      status_200: 1,
+      status_404: 0,
+      response_bytes: 3,
+      first_url: "https://wdoor.c.u-tokyo.ac.jp/fixture",
+      last_url: "https://wdoor.c.u-tokyo.ac.jp/fixture",
+    });
+    await writer.close();
+    const after = Date.now();
+
+    const auditPath = path.join(
+      `${lockRoot}.audit`,
+      `${lease.owner.run_token}.jsonl`,
+    );
+    const text = await fs.promises.readFile(auditPath, "utf8");
+    expect(text.endsWith("\n")).toBe(true);
+    expect(text.endsWith("\n\n")).toBe(false);
+    const record = JSON.parse(text);
+    expect(record).toMatchObject({
+      schema: "shogi-floodgate-acquisition-audit-v1",
+      run_token: TOKEN,
+      source_revision: REVISION,
+      run_started_at: "2026-01-01T00:00:00.000Z",
+      sequence: 1,
+      phase: "fixture",
+      fetched: 1,
+      response_bytes: 3,
+    });
+    expect(Date.parse(record.recorded_at)).toBeGreaterThanOrEqual(before);
+    expect(Date.parse(record.recorded_at)).toBeLessThanOrEqual(after);
+    await lease.release();
   });
 
   it("returns an existing verified manifest without scheduler or audit writes", async () => {

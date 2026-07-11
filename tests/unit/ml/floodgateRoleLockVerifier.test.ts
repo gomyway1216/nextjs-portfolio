@@ -19,8 +19,10 @@ async function fixture(): Promise<string> {
   const created = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "floodgate-role-lock-verifier-"),
   );
-  const root = await fs.promises.realpath(created);
-  roots.push(root);
+  const container = await fs.promises.realpath(created);
+  roots.push(container);
+  const root = path.join(container, "role-lock");
+  await fs.promises.mkdir(root);
   await Promise.all([
     fs.promises.writeFile(
       path.join(root, "manifest.json"),
@@ -94,6 +96,53 @@ describe("existing Floodgate role-lock artifact verification", () => {
             path.join(root, "allocation.json"),
             '{"roles":[],"schema":"fixture-allocation"}',
           );
+        },
+      ),
+    ).rejects.toThrow(/changed during non-production verification/);
+  });
+
+  it("rechecks an early-read file before one closure snapshot returns", async () => {
+    const root = await fixture();
+    await expect(
+      verifyExistingFloodgateRoleLockArtifactsCoreForTests(
+        root,
+        SNAPSHOT,
+        async () => undefined,
+        async () => {
+          await fs.promises.writeFile(
+            path.join(root, "manifest.json"),
+            SNAPSHOT.manifestText,
+          );
+        },
+      ),
+    ).rejects.toThrow(/manifest changed during its closure snapshot/);
+  });
+
+  it("rejects an identical-byte allocation inode replacement", async () => {
+    const root = await fixture();
+    await expect(
+      verifyExistingFloodgateRoleLockArtifactsCoreForTests(
+        root,
+        SNAPSHOT,
+        async () => {
+          const allocationPath = path.join(root, "allocation.json");
+          await fs.promises.unlink(allocationPath);
+          await fs.promises.writeFile(allocationPath, SNAPSHOT.allocationText);
+        },
+      ),
+    ).rejects.toThrow(/changed during non-production verification/);
+  });
+
+  it("rejects output-root rename and restore through the pinned parent closure", async () => {
+    const root = await fixture();
+    const moved = `${root}.moved`;
+    await expect(
+      verifyExistingFloodgateRoleLockArtifactsCoreForTests(
+        root,
+        SNAPSHOT,
+        async () => {
+          await fs.promises.rename(root, moved);
+          await fs.promises.rename(moved, root);
         },
       ),
     ).rejects.toThrow(/changed during non-production verification/);

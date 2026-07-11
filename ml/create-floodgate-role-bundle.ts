@@ -25,7 +25,7 @@ import {
 const execFile = promisify(execFileCallback);
 
 export const FLOODGATE_ROLE_BUNDLE_CLI_OUTPUT_SCHEMA =
-  "shogi-floodgate-role-bundle-cli-output-v1" as const;
+  "shogi-floodgate-role-bundle-cli-output-v2" as const;
 export const FLOODGATE_ROLE_BUNDLE_LEGACY_REPLAY_PATH =
   "ml/data/wcsc36/int16-aware-replay-excluded-position-ids.txt" as const;
 
@@ -296,16 +296,38 @@ async function executeCli(
     outputRoot: arguments_.outputRoot,
   };
 
-  const manifest =
-    arguments_.mode === "publish"
-      ? await dependencies.publishBundle(options)
-      : (await dependencies.verifyBundle(options)).manifest;
+  let manifest: Readonly<FloodgateRoleBundleManifest>;
+  let producerRevision: string;
+  if (arguments_.mode === "publish") {
+    manifest = await dependencies.publishBundle(options);
+    producerRevision = manifest.pipeline.source_revision;
+  } else {
+    const verified = await dependencies.verifyBundle(options);
+    manifest = verified.manifest;
+    producerRevision = verified.producerRevision;
+    if (verified.verifierRevision !== context.verifierRevision) {
+      fail("bundle verifier metadata does not match the CLI revision");
+    }
+  }
+  if (!REVISION_RE.test(producerRevision)) {
+    fail("bundle producer revision must be a full lowercase 40-hex commit");
+  }
+  if (manifest.pipeline.source_revision !== producerRevision) {
+    fail("bundle producer metadata does not match its manifest");
+  }
+  if (
+    arguments_.mode === "publish" &&
+    producerRevision !== context.verifierRevision
+  ) {
+    fail("new bundle producer revision must equal the CLI revision");
+  }
   dependencies.writeStdout(
     `${JSON.stringify(
       {
         schema: FLOODGATE_ROLE_BUNDLE_CLI_OUTPUT_SCHEMA,
         mode: arguments_.mode,
         repository_root: repositoryRoot,
+        producer_revision: producerRevision,
         verifier_revision: context.verifierRevision,
         raw_lock_root: arguments_.rawLockRoot,
         role_lock_root: arguments_.roleLockRoot,

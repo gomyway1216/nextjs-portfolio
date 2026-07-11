@@ -8,9 +8,14 @@
  */
 
 import { createHash } from "node:crypto";
+import { execFile as execFileCallback } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { isDeepStrictEqual, types as nodeUtilTypes } from "node:util";
+import {
+  isDeepStrictEqual,
+  promisify,
+  types as nodeUtilTypes,
+} from "node:util";
 
 import {
   durableCreateNoClobber,
@@ -19,6 +24,8 @@ import {
   serializeFloodgateRawLockManifest,
   verifyExistingFloodgateRawObject,
   FLOODGATE_RAW_LOCK_GAME_ID_DOMAIN,
+  type FloodgateDurableCreatePhase,
+  type FloodgateDurableLinkedFileIdentity,
   type FloodgateRawCsaIndexEntry,
 } from "./floodgate-raw-lock";
 import {
@@ -28,7 +35,9 @@ import {
   type FloodgateReplayExclusionUnionReceipt,
 } from "./floodgate-replay-exclusion";
 import {
+  assertExistingFloodgateRoleLockFilesystemClosure,
   verifyExistingFloodgateRoleLock,
+  type FloodgateRoleLockFilesystemClosure,
   type VerifiedFloodgateRoleLock,
   type VerifyExistingFloodgateRoleLockOptions,
 } from "./floodgate-role-lock";
@@ -45,6 +54,9 @@ import { compareBytewise, positionKeyFromSfen } from "./sibling-data";
 
 export const FLOODGATE_ROLE_BUNDLE_SCHEMA =
   "shogi-floodgate-label-free-role-bundle-v1" as const;
+export const FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION =
+  "2a4e94697c2a673c217348b9a9d79d9ce54d0c97" as const;
+export const FLOODGATE_ROLE_BUNDLE_INVALID_MANIFEST_SENTINEL = "!" as const;
 export const FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT =
   "shogi-floodgate-label-free-raw-parent-jsonl-v1" as const;
 export const FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME = "manifest.json" as const;
@@ -56,6 +68,7 @@ export const FLOODGATE_ROLE_BUNDLE_CAS_READ_CONCURRENCY = 16 as const;
 
 const REVISION_RE = /^[0-9a-f]{40}$/;
 const POSITION_ID_RE = /^sha256:[0-9a-f]{64}$/;
+const execFile = promisify(execFileCallback);
 const ROLE_FILENAMES: Readonly<
   Record<FloodgateRole, Readonly<{ raw: string; protected: string }>>
 > = Object.freeze({
@@ -198,6 +211,8 @@ export interface VerifiedFloodgateRoleBundle {
   readonly manifest: Readonly<FloodgateRoleBundleManifest>;
   readonly manifestText: string;
   readonly roleLock: Readonly<VerifiedFloodgateRoleLock>;
+  readonly producerRevision: string;
+  readonly verifierRevision: string;
 }
 
 interface RoleBundleBuild {
@@ -336,7 +351,14 @@ function assertDisjointTrees(left: string, right: string, label: string): void {
   }
 }
 
-async function readRegularFileNoFollow(filePath: string): Promise<Uint8Array> {
+interface RegularFileReadSnapshot {
+  readonly bytes: Uint8Array;
+  readonly identity: Readonly<RegularFileSnapshot>;
+}
+
+async function readRegularFileSnapshotNoFollow(
+  filePath: string,
+): Promise<Readonly<RegularFileReadSnapshot>> {
   const noFollow = fs.constants.O_NOFOLLOW;
   if (typeof noFollow !== "number") fail("production requires O_NOFOLLOW");
   if ((await fs.promises.realpath(filePath)) !== filePath) {
@@ -351,12 +373,10 @@ async function readRegularFileNoFollow(filePath: string): Promise<Uint8Array> {
     if (!before.isFile()) fail(`${filePath} must be a regular file`);
     const bytes = await handle.readFile();
     const after = await handle.stat({ bigint: true });
+    const beforeSnapshot = regularFileSnapshot(before);
+    const afterSnapshot = regularFileSnapshot(after);
     if (
-      before.dev !== after.dev ||
-      before.ino !== after.ino ||
-      before.size !== after.size ||
-      before.ctimeNs !== after.ctimeNs ||
-      before.mtimeNs !== after.mtimeNs ||
+      !sameRegularFileSnapshot(beforeSnapshot, afterSnapshot) ||
       BigInt(bytes.byteLength) !== after.size
     ) {
       fail(`${filePath} changed while it was being read`);
@@ -365,16 +385,21 @@ async function readRegularFileNoFollow(filePath: string): Promise<Uint8Array> {
     if (
       !pathStat.isFile() ||
       pathStat.isSymbolicLink() ||
-      pathStat.dev !== after.dev ||
-      pathStat.ino !== after.ino ||
-      pathStat.size !== after.size
+      !sameRegularFileSnapshot(regularFileSnapshot(pathStat), afterSnapshot)
     ) {
       fail(`${filePath} path changed while it was being read`);
     }
-    return new Uint8Array(bytes);
+    return Object.freeze({
+      bytes: new Uint8Array(bytes),
+      identity: afterSnapshot,
+    });
   } finally {
     await handle.close();
   }
+}
+
+async function readRegularFileNoFollow(filePath: string): Promise<Uint8Array> {
+  return (await readRegularFileSnapshotNoFollow(filePath)).bytes;
 }
 
 function fatalUtf8(bytes: Uint8Array, label: string): string {
@@ -406,7 +431,243 @@ function parseCanonicalManifest(bytes: Uint8Array): unknown {
   if (`${canonicalJson(parsed)}\n` !== text) {
     fail("role-bundle manifest is not canonical JSON");
   }
-  return parsed;
+  return deepFreeze(parsed);
+}
+
+interface HistoricalRoleBundleRevisionBinding {
+  readonly bundleProducerRevision: string;
+  readonly roleLockProducerRevision: string;
+}
+
+function manifestRevision(value: unknown, label: string): string {
+  if (typeof value !== "string" || !REVISION_RE.test(value)) {
+    fail(`${label} must be a full lowercase Git revision`);
+  }
+  return value;
+}
+
+function historicalRoleBundleRevisionBinding(
+  candidate: unknown,
+): Readonly<HistoricalRoleBundleRevisionBinding> {
+  const manifest = strictObject(candidate, "existing role-bundle manifest");
+  exactKeys(
+    manifest,
+    [
+      "contract",
+      "isolation",
+      "pipeline",
+      "provenance",
+      "replay_exclusion",
+      "roles",
+      "schema",
+      "sources",
+      "status",
+    ],
+    "existing role-bundle manifest",
+  );
+  if (
+    manifest.schema !== FLOODGATE_ROLE_BUNDLE_SCHEMA ||
+    manifest.status !== "complete-label-free-role-bundle"
+  ) {
+    fail("existing role-bundle manifest schema/status is unsupported");
+  }
+  const pipeline = strictObject(
+    manifest.pipeline,
+    "existing role-bundle manifest.pipeline",
+  );
+  exactKeys(
+    pipeline,
+    ["source_revision", "tracked_tree_clean"],
+    "existing role-bundle manifest.pipeline",
+  );
+  if (pipeline.tracked_tree_clean !== true) {
+    fail("existing role-bundle producer did not record a clean tree");
+  }
+  const bundleProducerRevision = manifestRevision(
+    pipeline.source_revision,
+    "existing role-bundle producer revision",
+  );
+  const sources = strictObject(
+    manifest.sources,
+    "existing role-bundle manifest.sources",
+  );
+  exactKeys(
+    sources,
+    ["legacy_replay_exclusion", "raw_lock", "role_lock"],
+    "existing role-bundle manifest.sources",
+  );
+  const rawLock = strictObject(
+    sources.raw_lock,
+    "existing role-bundle manifest.sources.raw_lock",
+  );
+  exactKeys(
+    rawLock,
+    ["manifest", "source_revision"],
+    "existing role-bundle manifest.sources.raw_lock",
+  );
+  manifestRevision(
+    rawLock.source_revision,
+    "existing role-bundle raw-lock source revision",
+  );
+  const roleLock = strictObject(
+    sources.role_lock,
+    "existing role-bundle manifest.sources.role_lock",
+  );
+  exactKeys(
+    roleLock,
+    ["allocation", "manifest", "producer_revision", "verifier_revision"],
+    "existing role-bundle manifest.sources.role_lock",
+  );
+  const roleLockProducerRevision = manifestRevision(
+    roleLock.producer_revision,
+    "existing role-bundle role-lock producer revision",
+  );
+  const recordedRoleLockVerifier = manifestRevision(
+    roleLock.verifier_revision,
+    "existing role-bundle recorded role-lock verifier revision",
+  );
+  if (recordedRoleLockVerifier !== bundleProducerRevision) {
+    fail(
+      "existing role-bundle role-lock verifier revision must equal the bundle producer revision",
+    );
+  }
+  return Object.freeze({
+    bundleProducerRevision,
+    roleLockProducerRevision,
+  });
+}
+
+type RevisionAncestryCheck = (
+  ancestor: string,
+  descendant: string,
+) => Promise<boolean>;
+
+async function assertRoleBundleRevisionAncestry(
+  binding: Readonly<HistoricalRoleBundleRevisionBinding>,
+  verifierRevision: string,
+  isAncestor: RevisionAncestryCheck,
+): Promise<void> {
+  manifestRevision(verifierRevision, "role-bundle verifier revision");
+  const edges = [
+    [
+      FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION,
+      binding.bundleProducerRevision,
+    ],
+    [binding.bundleProducerRevision, verifierRevision],
+    [binding.roleLockProducerRevision, binding.bundleProducerRevision],
+  ] as const;
+  for (const [ancestor, descendant] of edges) {
+    if (!(await isAncestor(ancestor, descendant))) {
+      fail(
+        "role-bundle revisions are outside the audited producer/verifier ancestry",
+      );
+    }
+  }
+}
+
+async function gitOutput(
+  repositoryRoot: string,
+  arguments_: readonly string[],
+): Promise<string> {
+  const { stdout } = await execFile(
+    "git",
+    ["--no-replace-objects", "--no-optional-locks", ...arguments_],
+    { cwd: repositoryRoot, encoding: "utf8" },
+  );
+  return stdout;
+}
+
+async function assertRoleBundleGitClosure(
+  repositoryRoot: string,
+  verifierRevision: string,
+  binding: Readonly<HistoricalRoleBundleRevisionBinding>,
+): Promise<void> {
+  const assertCurrent = async (): Promise<void> => {
+    const rootStat = await fs.promises.lstat(repositoryRoot);
+    if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
+      fail("role-bundle repository root must be a real directory");
+    }
+    if ((await fs.promises.realpath(repositoryRoot)) !== repositoryRoot) {
+      fail("role-bundle repository root must not traverse symbolic links");
+    }
+    const topLevel = (
+      await gitOutput(repositoryRoot, ["rev-parse", "--show-toplevel"])
+    ).trim();
+    const head = (
+      await gitOutput(repositoryRoot, [
+        "rev-parse",
+        "--verify",
+        "HEAD^{commit}",
+      ])
+    ).trim();
+    const status = await gitOutput(repositoryRoot, [
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+    ]);
+    if (
+      topLevel !== repositoryRoot ||
+      head !== verifierRevision ||
+      status !== ""
+    ) {
+      fail(
+        "role-bundle verification requires the exact clean verifier revision",
+      );
+    }
+  };
+  await assertCurrent();
+  await assertRoleBundleRevisionAncestry(
+    binding,
+    verifierRevision,
+    async (ancestor, descendant) => {
+      try {
+        await gitOutput(repositoryRoot, [
+          "merge-base",
+          "--is-ancestor",
+          ancestor,
+          descendant,
+        ]);
+        return true;
+      } catch {
+        return false;
+      }
+    },
+  );
+  await assertCurrent();
+}
+
+/** Explicit non-production seam for historical v1 revision-binding tests. */
+export function historicalFloodgateRoleBundleRevisionBindingCoreForTests(
+  manifestText: string,
+): Readonly<HistoricalRoleBundleRevisionBinding> {
+  return historicalRoleBundleRevisionBinding(
+    parseCanonicalManifest(new TextEncoder().encode(manifestText)),
+  );
+}
+
+/** Explicit non-production seam for mocked Git ancestry graphs. */
+export async function assertFloodgateRoleBundleRevisionAncestryCoreForTests(
+  binding: Readonly<HistoricalRoleBundleRevisionBinding>,
+  verifierRevision: string,
+  isAncestor: RevisionAncestryCheck,
+): Promise<void> {
+  if (typeof isAncestor !== "function") {
+    fail("non-production ancestry checker must be a function");
+  }
+  await assertRoleBundleRevisionAncestry(
+    Object.freeze({
+      bundleProducerRevision: manifestRevision(
+        binding.bundleProducerRevision,
+        "non-production bundle producer revision",
+      ),
+      roleLockProducerRevision: manifestRevision(
+        binding.roleLockProducerRevision,
+        "non-production role-lock producer revision",
+      ),
+    }),
+    verifierRevision,
+    isAncestor,
+  );
 }
 
 function fileIdentity(
@@ -720,6 +981,10 @@ function assertVerifiedRoleLockStable(
     actual.allocationText !== expected.allocationText ||
     actual.producerRevision !== expected.producerRevision ||
     actual.verifierRevision !== expected.verifierRevision ||
+    !sameRoleLockClosureAcrossBundleOperation(
+      actual.filesystemClosure,
+      expected.filesystemClosure,
+    ) ||
     serializeFloodgateRawLockManifest(actual.rawManifest) !==
       serializeFloodgateRawLockManifest(expected.rawManifest)
   ) {
@@ -727,10 +992,35 @@ function assertVerifiedRoleLockStable(
   }
 }
 
+function sameRoleLockClosureAcrossBundleOperation(
+  actual: Readonly<FloodgateRoleLockFilesystemClosure>,
+  expected: Readonly<FloodgateRoleLockFilesystemClosure>,
+): boolean {
+  return (
+    actual.parent.dev === expected.parent.dev &&
+    actual.parent.ino === expected.parent.ino &&
+    isDeepStrictEqual(actual.root, expected.root) &&
+    isDeepStrictEqual(actual.files, expected.files)
+  );
+}
+
+/** Explicit seam for the one known sibling-root mkdir during publication. */
+export function assertFloodgateRoleBundleRoleLockClosureCoreForTests(
+  actual: Readonly<FloodgateRoleLockFilesystemClosure>,
+  expected: Readonly<FloodgateRoleLockFilesystemClosure>,
+): void {
+  if (!sameRoleLockClosureAcrossBundleOperation(actual, expected)) {
+    fail(
+      "verified role-lock filesystem closure changed during bundle operation",
+    );
+  }
+}
+
 async function buildRoleBundle(
   roleLock: Readonly<VerifiedFloodgateRoleLock>,
   rawLockRoot: string,
   legacyPath: string,
+  bundleProducerRevision: string,
 ): Promise<Readonly<RoleBundleBuild>> {
   const roles = await materializeRoleArtifacts({
     allocation: roleLock.allocation,
@@ -829,7 +1119,7 @@ async function buildRoleBundle(
       role_allocation_changed: false,
     },
     pipeline: {
-      source_revision: roleLock.verifierRevision,
+      source_revision: bundleProducerRevision,
       tracked_tree_clean: true,
     },
     sources: {
@@ -841,7 +1131,7 @@ async function buildRoleBundle(
         manifest: roleManifestIdentity,
         allocation: allocationIdentity,
         producer_revision: roleLock.producerRevision,
-        verifier_revision: roleLock.verifierRevision,
+        verifier_revision: bundleProducerRevision,
       },
       legacy_replay_exclusion: legacy.identity,
     },
@@ -1109,6 +1399,84 @@ class RoleBundleOutputRootGuard {
     }
   }
 
+  static async acquireExisting(
+    rootInput: string,
+    expectedEntries: readonly string[],
+  ): Promise<RoleBundleOutputRootGuard> {
+    const root = canonicalAbsolutePath(rootInput, "existing role-bundle root");
+    const parent = path.dirname(root);
+    const openedParent = await openDirectoryNoFollow(
+      parent,
+      "existing role-bundle parent",
+    );
+    let rootHandle: fs.promises.FileHandle | null = null;
+    try {
+      const openedRoot = await openDirectoryNoFollow(
+        root,
+        "existing role-bundle root",
+      );
+      rootHandle = openedRoot.handle;
+      const guard = new RoleBundleOutputRootGuard(
+        root,
+        openedParent.handle,
+        openedParent.snapshot,
+        openedRoot.handle,
+        openedRoot.snapshot,
+      );
+      await guard.#seedExistingEntries(expectedEntries);
+      await guard.assertState(
+        expectedEntries,
+        false,
+        "existing bundle acquisition",
+      );
+      return guard;
+    } catch (error) {
+      if (rootHandle) await rootHandle.close().catch(() => undefined);
+      await openedParent.handle.close().catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async #seedExistingEntries(
+    expectedEntries: readonly string[],
+  ): Promise<void> {
+    if (this.#entrySnapshots.size !== 0) {
+      fail("existing role-bundle entries were already seeded");
+    }
+    const wanted = [...expectedEntries].sort(compareBytewise);
+    if (
+      new Set(wanted).size !== wanted.length ||
+      wanted.some(
+        (entry) =>
+          entry.length === 0 ||
+          path.basename(entry) !== entry ||
+          entry.includes("\0"),
+      )
+    ) {
+      fail("existing role-bundle entry names are not exact direct children");
+    }
+    const entries = (await fs.promises.readdir(this.#root)).sort(
+      compareBytewise,
+    );
+    if (
+      entries.length !== wanted.length ||
+      entries.some((entry, index) => entry !== wanted[index])
+    ) {
+      fail("existing role-bundle root entries are not exact");
+    }
+    const snapshots = new Map<string, Readonly<RegularFileSnapshot>>();
+    for (const entry of wanted) {
+      const stat = await fs.promises.lstat(path.join(this.#root, entry), {
+        bigint: true,
+      });
+      if (!stat.isFile() || stat.isSymbolicLink()) {
+        fail(`existing role-bundle entry ${entry} is not a regular file`);
+      }
+      snapshots.set(entry, regularFileSnapshot(stat));
+    }
+    this.#entrySnapshots = snapshots;
+  }
+
   async assertState(
     expectedEntries: readonly string[],
     adoptKnownWrite: boolean,
@@ -1224,26 +1592,47 @@ class RoleBundleOutputRootGuard {
     }
   }
 
-  async rollbackManifest(
-    identity: Readonly<{ dev: bigint; ino: bigint }>,
-    dataEntries: readonly string[],
+  async invalidateOwnedPublishedChild(
+    filename: string,
+    handle: fs.promises.FileHandle,
+    expectedIdentity: Readonly<FloodgateDurableLinkedFileIdentity>,
   ): Promise<void> {
-    const manifestPath = path.join(
-      this.#root,
-      FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME,
-    );
-    const stat = await fs.promises.lstat(manifestPath, { bigint: true });
+    if (filename.length === 0 || path.basename(filename) !== filename) {
+      fail("role-bundle invalidation filename must be one direct child");
+    }
+    const stat = await handle.stat({ bigint: true });
     if (
       !stat.isFile() ||
-      stat.isSymbolicLink() ||
-      stat.dev !== identity.dev ||
-      stat.ino !== identity.ino
+      stat.dev !== expectedIdentity.dev ||
+      stat.ino !== expectedIdentity.ino
     ) {
-      fail("refusing to roll back a replaced role-bundle manifest");
+      fail(`refusing to invalidate an unowned ${filename} handle`);
     }
-    await fs.promises.unlink(manifestPath);
-    await this.#rootHandle.sync();
-    await this.assertState(dataEntries, true, "manifest rollback");
+    const sentinel = Buffer.from(
+      FLOODGATE_ROLE_BUNDLE_INVALID_MANIFEST_SENTINEL,
+      "ascii",
+    );
+    const written = await handle.write(sentinel, 0, sentinel.byteLength, 0);
+    if (written.bytesWritten !== sentinel.byteLength) {
+      fail(`failed to invalidate the complete owned ${filename}`);
+    }
+    await handle.sync();
+    await handle.truncate(sentinel.byteLength);
+    await handle.sync();
+    const after = await handle.stat({ bigint: true });
+    if (
+      !after.isFile() ||
+      after.dev !== expectedIdentity.dev ||
+      after.ino !== expectedIdentity.ino ||
+      after.size !== BigInt(sentinel.byteLength)
+    ) {
+      fail(`${filename} invalidation changed the held inode unexpectedly`);
+    }
+    const observed = Buffer.alloc(sentinel.byteLength);
+    const read = await handle.read(observed, 0, observed.byteLength, 0);
+    if (read.bytesRead !== sentinel.byteLength || !observed.equals(sentinel)) {
+      fail(`${filename} invalidation did not persist its tombstone`);
+    }
   }
 
   async close(): Promise<void> {
@@ -1262,6 +1651,138 @@ class RoleBundleOutputRootGuard {
     }
     if (failure !== undefined) throw failure;
   }
+}
+
+interface RoleBundleTrackedManifestPublicationState {
+  ownedIdentity: Readonly<FloodgateDurableLinkedFileIdentity> | null;
+  ownedHandle: fs.promises.FileHandle | null;
+  stableIdentity: Readonly<RegularFileSnapshot> | null;
+}
+
+async function statRegularFileSnapshotNoFollow(
+  filePath: string,
+): Promise<Readonly<RegularFileSnapshot>> {
+  if ((await fs.promises.realpath(filePath)) !== filePath) {
+    fail(`${filePath} must not traverse symbolic links`);
+  }
+  const stat = await fs.promises.lstat(filePath, { bigint: true });
+  if (!stat.isFile() || stat.isSymbolicLink()) {
+    fail(`${filePath} must be a regular file`);
+  }
+  return regularFileSnapshot(stat);
+}
+
+async function durablePublishTrackedRoleBundleManifest(
+  manifestPath: string,
+  manifestText: string,
+  state: RoleBundleTrackedManifestPublicationState,
+  injectedFailpoint?: (
+    phase: FloodgateDurableCreatePhase,
+    linkedIdentity?: Readonly<FloodgateDurableLinkedFileIdentity>,
+  ) => void | Promise<void>,
+): Promise<void> {
+  await durableCreateNoClobber(manifestPath, manifestText, {
+    transferLinkedFileHandle: (handle, linkedIdentity) => {
+      if (state.ownedHandle || state.ownedIdentity) {
+        fail("role-bundle manifest publisher transferred ownership twice");
+      }
+      state.ownedHandle = handle;
+      state.ownedIdentity = Object.freeze({ ...linkedIdentity });
+    },
+    failpoint: async (phase, linkedIdentity) => {
+      if (phase === "after-link") {
+        if (
+          !linkedIdentity ||
+          !state.ownedIdentity ||
+          !state.ownedHandle ||
+          state.ownedIdentity.dev !== linkedIdentity.dev ||
+          state.ownedIdentity.ino !== linkedIdentity.ino
+        ) {
+          fail("role-bundle manifest linked-handle transfer was incomplete");
+        }
+        const observed = await statRegularFileSnapshotNoFollow(manifestPath);
+        if (
+          observed.dev !== linkedIdentity.dev ||
+          observed.ino !== linkedIdentity.ino
+        ) {
+          fail("role-bundle manifest path no longer names its owned inode");
+        }
+        state.stableIdentity = observed;
+      }
+      await injectedFailpoint?.(phase, linkedIdentity);
+    },
+  });
+  if (!state.ownedHandle || !state.ownedIdentity || !state.stableIdentity) {
+    fail("role-bundle manifest publication lost its owned inode capability");
+  }
+  const stableIdentity = await statRegularFileSnapshotNoFollow(manifestPath);
+  if (
+    stableIdentity.dev !== state.ownedIdentity.dev ||
+    stableIdentity.ino !== state.ownedIdentity.ino
+  ) {
+    fail("role-bundle manifest path displaced its publisher-owned inode");
+  }
+  state.stableIdentity = stableIdentity;
+}
+
+function roleBundlePublicationAndInvalidationFailure(
+  primary: unknown,
+  invalidation: unknown,
+): AggregateError {
+  const primaryMessage =
+    primary instanceof Error ? primary.message : String(primary);
+  const invalidationMessage =
+    invalidation instanceof Error ? invalidation.message : String(invalidation);
+  return new AggregateError(
+    [primary, invalidation],
+    `${primaryMessage}; role-bundle manifest invalidation also failed: ${invalidationMessage}`,
+  );
+}
+
+async function invalidateTrackedRoleBundleManifestAfterFailure(
+  guard: RoleBundleOutputRootGuard,
+  state: RoleBundleTrackedManifestPublicationState,
+  primary: unknown,
+): Promise<never> {
+  if (state.ownedIdentity || state.ownedHandle) {
+    try {
+      if (!state.ownedIdentity || !state.ownedHandle) {
+        fail("role-bundle manifest ownership-transfer state is incomplete");
+      }
+      await guard.invalidateOwnedPublishedChild(
+        FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME,
+        state.ownedHandle,
+        state.ownedIdentity,
+      );
+    } catch (invalidationError) {
+      throw roleBundlePublicationAndInvalidationFailure(
+        primary,
+        invalidationError,
+      );
+    }
+  }
+  throw primary;
+}
+
+async function closeRoleBundlePublicationResources(
+  guard: RoleBundleOutputRootGuard,
+  state: RoleBundleTrackedManifestPublicationState,
+  primaryFailed: boolean,
+): Promise<void> {
+  let closeFailure: unknown;
+  const handle = state.ownedHandle;
+  state.ownedHandle = null;
+  try {
+    if (handle) await handle.close();
+  } catch (error) {
+    closeFailure = error;
+  }
+  try {
+    await guard.close();
+  } catch (error) {
+    if (closeFailure === undefined) closeFailure = error;
+  }
+  if (closeFailure !== undefined && !primaryFailed) throw closeFailure;
 }
 
 /** Explicit non-production seam for CLI-check-to-core-mkdir race tests. */
@@ -1297,6 +1818,65 @@ export async function runFreshFloodgateRoleBundleRootGuardCoreForTests(
   }
 }
 
+/** Explicit non-production seam for existing-bundle identity-closure tests. */
+export async function verifyExistingFloodgateRoleBundleArtifactsCoreForTests(
+  outputRoot: string,
+  expectedInput: Readonly<Record<string, string>>,
+  beforeFinalRead: () => Promise<void> = async () => undefined,
+): Promise<void> {
+  if (typeof beforeFinalRead !== "function") {
+    fail("non-production existing-bundle verifier hook must be a function");
+  }
+  const expectedObject = strictObject(
+    expectedInput,
+    "non-production existing-bundle artifacts",
+  );
+  const expected = new Map<string, string>();
+  for (const filename of Object.getOwnPropertyNames(expectedObject)) {
+    if (
+      filename.length === 0 ||
+      path.basename(filename) !== filename ||
+      typeof expectedObject[filename] !== "string"
+    ) {
+      fail("non-production existing-bundle artifacts are invalid");
+    }
+    expected.set(filename, expectedObject[filename] as string);
+  }
+  const entries = [...expected.keys()];
+  const guard = await RoleBundleOutputRootGuard.acquireExisting(
+    outputRoot,
+    entries,
+  );
+  let primaryFailed = false;
+  const verify = async (stage: string): Promise<void> => {
+    await guard.assertState(entries, false, `before ${stage}`);
+    for (const [filename, contents] of expected) {
+      const snapshot = await readRegularFileSnapshotNoFollow(
+        path.join(outputRoot, filename),
+      );
+      if (!Buffer.from(snapshot.bytes).equals(Buffer.from(contents, "utf8"))) {
+        fail(`non-production existing-bundle bytes changed: ${filename}`);
+      }
+    }
+    await guard.assertState(entries, false, `after ${stage}`);
+  };
+  try {
+    await verify("initial existing-bundle read");
+    await beforeFinalRead();
+    await verify("final existing-bundle read");
+    await guard.assertState(entries, false, "final existing-bundle closure");
+  } catch (error) {
+    primaryFailed = true;
+    throw error;
+  } finally {
+    try {
+      await guard.close();
+    } catch (closeError) {
+      if (!primaryFailed) throw closeError;
+    }
+  }
+}
+
 /**
  * Exercise the real manifest-last filesystem transaction with tiny unlabeled
  * bytes. The callback runs after the final data read and before the manifest.
@@ -1304,9 +1884,19 @@ export async function runFreshFloodgateRoleBundleRootGuardCoreForTests(
 export async function runFreshFloodgateRoleBundleOutputLifecycleCoreForTests(
   outputRoot: string,
   beforeManifestCheck: (root: string) => Promise<void>,
+  manifestFailpoint?: (
+    phase: FloodgateDurableCreatePhase,
+    linkedIdentity?: Readonly<FloodgateDurableLinkedFileIdentity>,
+  ) => void | Promise<void>,
 ): Promise<void> {
   if (typeof beforeManifestCheck !== "function") {
     fail("non-production pre-manifest mutation must be a function");
+  }
+  if (
+    manifestFailpoint !== undefined &&
+    typeof manifestFailpoint !== "function"
+  ) {
+    fail("non-production manifest failpoint must be a function");
   }
   const guard = await RoleBundleOutputRootGuard.acquireFresh(outputRoot);
   const fixtureFiles = new Map<string, string>([
@@ -1339,8 +1929,12 @@ export async function runFreshFloodgateRoleBundleOutputLifecycleCoreForTests(
     );
   };
   const manifestText = '{"fixture":"manifest"}\n';
-  let manifestIdentity: Readonly<{ dev: bigint; ino: bigint }> | null = null;
-  let primaryFailure: unknown;
+  const manifestPublication: RoleBundleTrackedManifestPublicationState = {
+    ownedIdentity: null,
+    ownedHandle: null,
+    stableIdentity: null,
+  };
+  let primaryFailed = false;
   try {
     await runRoleBundlePublishSequence({
       validateCandidate: () => undefined,
@@ -1376,12 +1970,12 @@ export async function runFreshFloodgateRoleBundleOutputLifecycleCoreForTests(
           outputRoot,
           FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME,
         );
-        await durableCreateNoClobber(manifestPath, manifestText);
-        const stat = await fs.promises.lstat(manifestPath, { bigint: true });
-        if (!stat.isFile() || stat.isSymbolicLink()) {
-          fail("non-production fixture manifest is not a regular file");
-        }
-        manifestIdentity = Object.freeze({ dev: stat.dev, ino: stat.ino });
+        await durablePublishTrackedRoleBundleManifest(
+          manifestPath,
+          manifestText,
+          manifestPublication,
+          manifestFailpoint,
+        );
         await guard.assertState(
           [...dataEntries, FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME],
           true,
@@ -1390,11 +1984,18 @@ export async function runFreshFloodgateRoleBundleOutputLifecycleCoreForTests(
       },
       verifyCompleteBundle: async () => {
         await verifyData(true);
-        const manifestBytes = await readRegularFileNoFollow(
+        const manifestSnapshot = await readRegularFileSnapshotNoFollow(
           path.join(outputRoot, FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME),
         );
         if (
-          !Buffer.from(manifestBytes).equals(Buffer.from(manifestText, "utf8"))
+          !Buffer.from(manifestSnapshot.bytes).equals(
+            Buffer.from(manifestText, "utf8"),
+          ) ||
+          !manifestPublication.stableIdentity ||
+          !sameRegularFileSnapshot(
+            manifestSnapshot.identity,
+            manifestPublication.stableIdentity,
+          )
         ) {
           fail("non-production fixture manifest changed");
         }
@@ -1406,24 +2007,18 @@ export async function runFreshFloodgateRoleBundleOutputLifecycleCoreForTests(
       },
     });
   } catch (error) {
-    primaryFailure = error;
-    if (manifestIdentity) {
-      try {
-        await guard.rollbackManifest(manifestIdentity, dataEntries);
-      } catch (rollbackError) {
-        throw new AggregateError(
-          [error, rollbackError],
-          "fixture role-bundle publication failed and rollback was not clean",
-        );
-      }
-    }
-    throw error;
+    primaryFailed = true;
+    await invalidateTrackedRoleBundleManifestAfterFailure(
+      guard,
+      manifestPublication,
+      error,
+    );
   } finally {
-    try {
-      await guard.close();
-    } catch (closeError) {
-      if (primaryFailure === undefined) throw closeError;
-    }
+    await closeRoleBundlePublicationResources(
+      guard,
+      manifestPublication,
+      primaryFailed,
+    );
   }
 }
 
@@ -1482,10 +2077,10 @@ async function verifyBundleFiles(
   }
 }
 
-function normalizedOptions<T extends CreateFloodgateRoleBundleOptions>(
-  optionsInput: T,
+function normalizedOptions(
+  optionsInput: CreateFloodgateRoleBundleOptions,
   label: string,
-): T {
+): Readonly<CreateFloodgateRoleBundleOptions> {
   const options = strictObject(optionsInput, label);
   exactKeys(
     options,
@@ -1499,26 +2094,46 @@ function normalizedOptions<T extends CreateFloodgateRoleBundleOptions>(
     ],
     label,
   );
-  for (const field of [
-    "legacyProtectedPositionIdsPath",
-    "outputRoot",
-    "rawLockRoot",
-    "repositoryRoot",
-    "roleLockRoot",
-  ] as const) {
-    canonicalAbsolutePath(options[field], `${label}.${field}`);
-  }
+  const repositoryRoot = canonicalAbsolutePath(
+    options.repositoryRoot,
+    `${label}.repositoryRoot`,
+  );
+  const rawLockRoot = canonicalAbsolutePath(
+    options.rawLockRoot,
+    `${label}.rawLockRoot`,
+  );
+  const roleLockRoot = canonicalAbsolutePath(
+    options.roleLockRoot,
+    `${label}.roleLockRoot`,
+  );
+  const legacyProtectedPositionIdsPath = canonicalAbsolutePath(
+    options.legacyProtectedPositionIdsPath,
+    `${label}.legacyProtectedPositionIdsPath`,
+  );
+  const outputRoot = canonicalAbsolutePath(
+    options.outputRoot,
+    `${label}.outputRoot`,
+  );
+  const verifierRevision = options.verifierRevision;
   if (
-    typeof options.verifierRevision !== "string" ||
-    !REVISION_RE.test(options.verifierRevision)
+    typeof verifierRevision !== "string" ||
+    !REVISION_RE.test(verifierRevision)
   ) {
     fail(`${label}.verifierRevision is invalid`);
   }
+  const captured = Object.freeze({
+    repositoryRoot,
+    verifierRevision,
+    rawLockRoot,
+    roleLockRoot,
+    legacyProtectedPositionIdsPath,
+    outputRoot,
+  });
   const roots: string[] = [
-    optionsInput.repositoryRoot,
-    optionsInput.rawLockRoot,
-    optionsInput.roleLockRoot,
-    optionsInput.outputRoot,
+    captured.repositoryRoot,
+    captured.rawLockRoot,
+    captured.roleLockRoot,
+    captured.outputRoot,
   ];
   for (let left = 0; left < roots.length; left += 1) {
     for (let right = left + 1; right < roots.length; right += 1) {
@@ -1529,7 +2144,14 @@ function normalizedOptions<T extends CreateFloodgateRoleBundleOptions>(
       );
     }
   }
-  return optionsInput;
+  return captured;
+}
+
+/** Explicit seam proving caller-owned option records cannot redirect later I/O. */
+export function captureFloodgateRoleBundleOptionsCoreForTests(
+  optionsInput: CreateFloodgateRoleBundleOptions,
+): Readonly<CreateFloodgateRoleBundleOptions> {
+  return normalizedOptions(optionsInput, "non-production role-bundle options");
 }
 
 function roleLockOptions(
@@ -1608,8 +2230,12 @@ async function publishRoleBundle(
     options.outputRoot,
   );
   const dataEntries: string[] = [];
-  let manifestIdentity: Readonly<{ dev: bigint; ino: bigint }> | null = null;
-  let primaryFailure: unknown;
+  const manifestPublication: RoleBundleTrackedManifestPublicationState = {
+    ownedIdentity: null,
+    ownedHandle: null,
+    stableIdentity: null,
+  };
+  let primaryFailed = false;
   try {
     await runRoleBundlePublishSequence({
       validateCandidate: () => validateBuild(build),
@@ -1650,6 +2276,14 @@ async function publishRoleBundle(
           roleLockOptions(options),
         );
         assertVerifiedRoleLockStable(reverified, roleLock);
+        await assertRoleBundleGitClosure(
+          options.repositoryRoot,
+          options.verifierRevision,
+          Object.freeze({
+            bundleProducerRevision: options.verifierRevision,
+            roleLockProducerRevision: roleLock.producerRevision,
+          }),
+        );
       },
       publishManifest: async () => {
         await guard.assertState(
@@ -1661,12 +2295,11 @@ async function publishRoleBundle(
           options.outputRoot,
           FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME,
         );
-        await durableCreateNoClobber(manifestPath, build.manifestText);
-        const stat = await fs.promises.lstat(manifestPath, { bigint: true });
-        if (!stat.isFile() || stat.isSymbolicLink()) {
-          fail("published role-bundle manifest is not a regular file");
-        }
-        manifestIdentity = Object.freeze({ dev: stat.dev, ino: stat.ino });
+        await durablePublishTrackedRoleBundleManifest(
+          manifestPath,
+          build.manifestText,
+          manifestPublication,
+        );
         await guard.assertState(
           [...dataEntries, FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME],
           true,
@@ -1680,6 +2313,21 @@ async function publishRoleBundle(
           "complete bundle verification",
         );
         await verifyBundleFiles(options.outputRoot, build, true);
+        const manifestSnapshot = await readRegularFileSnapshotNoFollow(
+          path.join(
+            options.outputRoot,
+            FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME,
+          ),
+        );
+        if (
+          !manifestPublication.stableIdentity ||
+          !sameRegularFileSnapshot(
+            manifestSnapshot.identity,
+            manifestPublication.stableIdentity,
+          )
+        ) {
+          fail("published role-bundle manifest inode changed");
+        }
         await guard.assertState(
           [...dataEntries, FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME],
           false,
@@ -1688,24 +2336,18 @@ async function publishRoleBundle(
       },
     });
   } catch (error) {
-    primaryFailure = error;
-    if (manifestIdentity) {
-      try {
-        await guard.rollbackManifest(manifestIdentity, dataEntries);
-      } catch (rollbackError) {
-        throw new AggregateError(
-          [error, rollbackError],
-          "role-bundle publication failed and manifest rollback was not clean",
-        );
-      }
-    }
-    throw error;
+    primaryFailed = true;
+    await invalidateTrackedRoleBundleManifestAfterFailure(
+      guard,
+      manifestPublication,
+      error,
+    );
   } finally {
-    try {
-      await guard.close();
-    } catch (closeError) {
-      if (primaryFailure === undefined) throw closeError;
-    }
+    await closeRoleBundlePublicationResources(
+      guard,
+      manifestPublication,
+      primaryFailed,
+    );
   }
 }
 
@@ -1720,10 +2362,19 @@ export async function createFloodgateRoleBundle(
   const roleLock = await verifyExistingFloodgateRoleLock(
     roleLockOptions(options),
   );
+  await assertRoleBundleGitClosure(
+    options.repositoryRoot,
+    options.verifierRevision,
+    Object.freeze({
+      bundleProducerRevision: options.verifierRevision,
+      roleLockProducerRevision: roleLock.producerRevision,
+    }),
+  );
   const build = await buildRoleBundle(
     roleLock,
     options.rawLockRoot,
     options.legacyProtectedPositionIdsPath,
+    options.verifierRevision,
   );
   validateBuild(build);
   await publishRoleBundle(options, roleLock, build);
@@ -1738,24 +2389,116 @@ export async function verifyExistingFloodgateRoleBundle(
     optionsInput,
     "verify existing role-bundle options",
   );
-  const roleLock = await verifyExistingFloodgateRoleLock(
-    roleLockOptions(options),
+  const expectedEntries = [
+    ...Object.values(ROLE_FILENAMES).flatMap(
+      ({ raw, protected: protected_ }) => [raw, protected_],
+    ),
+    FLOODGATE_ROLE_BUNDLE_REPLAY_FILENAME,
+    FLOODGATE_ROLE_BUNDLE_REPLAY_RECEIPT_FILENAME,
+    FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME,
+  ];
+  const guard = await RoleBundleOutputRootGuard.acquireExisting(
+    options.outputRoot,
+    expectedEntries,
   );
-  const build = await buildRoleBundle(
-    roleLock,
-    options.rawLockRoot,
-    options.legacyProtectedPositionIdsPath,
-  );
-  validateBuild(build);
-  await verifyBundleFiles(options.outputRoot, build, true);
-  const reverified = await verifyExistingFloodgateRoleLock(
-    roleLockOptions(options),
-  );
-  assertVerifiedRoleLockStable(reverified, roleLock);
-  await verifyBundleFiles(options.outputRoot, build, true);
-  return deepFreeze({
-    manifest: build.manifest,
-    manifestText: build.manifestText,
-    roleLock,
-  });
+  let primaryFailed = false;
+  try {
+    await guard.assertState(
+      expectedEntries,
+      false,
+      "before historical manifest read",
+    );
+    const historicalManifestSnapshot = await readRegularFileSnapshotNoFollow(
+      path.join(options.outputRoot, FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME),
+    );
+    const historicalManifestCandidate = parseCanonicalManifest(
+      historicalManifestSnapshot.bytes,
+    );
+    const binding = historicalRoleBundleRevisionBinding(
+      historicalManifestCandidate,
+    );
+    await guard.assertState(
+      expectedEntries,
+      false,
+      "after historical manifest read",
+    );
+    await assertRoleBundleGitClosure(
+      options.repositoryRoot,
+      options.verifierRevision,
+      binding,
+    );
+
+    const roleLock = await verifyExistingFloodgateRoleLock(
+      roleLockOptions(options),
+    );
+    if (roleLock.producerRevision !== binding.roleLockProducerRevision) {
+      fail("historical bundle cites a different role-lock producer revision");
+    }
+    const build = await buildRoleBundle(
+      roleLock,
+      options.rawLockRoot,
+      options.legacyProtectedPositionIdsPath,
+      binding.bundleProducerRevision,
+    );
+    validateBuild(build);
+    await guard.assertState(
+      expectedEntries,
+      false,
+      "before first complete bundle verification",
+    );
+    await verifyBundleFiles(options.outputRoot, build, true);
+    await assertExistingFloodgateRoleLockFilesystemClosure(
+      options.roleLockRoot,
+      roleLock.filesystemClosure,
+    );
+    await guard.assertState(
+      expectedEntries,
+      false,
+      "after first complete bundle verification",
+    );
+
+    const reverified = await verifyExistingFloodgateRoleLock(
+      roleLockOptions(options),
+    );
+    assertVerifiedRoleLockStable(reverified, roleLock);
+    if (reverified.producerRevision !== binding.roleLockProducerRevision) {
+      fail("role-lock producer changed during bundle verification");
+    }
+    await assertRoleBundleGitClosure(
+      options.repositoryRoot,
+      options.verifierRevision,
+      binding,
+    );
+    await guard.assertState(
+      expectedEntries,
+      false,
+      "before final complete bundle verification",
+    );
+    await verifyBundleFiles(options.outputRoot, build, true);
+    await assertExistingFloodgateRoleLockFilesystemClosure(
+      options.roleLockRoot,
+      roleLock.filesystemClosure,
+    );
+    await guard.assertState(
+      expectedEntries,
+      false,
+      "final bundle filesystem closure",
+    );
+    return deepFreeze({
+      manifest: build.manifest,
+      manifestText: build.manifestText,
+      roleLock,
+      producerRevision: binding.bundleProducerRevision,
+      verifierRevision: options.verifierRevision,
+    });
+  } catch (error) {
+    primaryFailed = true;
+    throw error;
+  } finally {
+    try {
+      await guard.close();
+    } catch (closeError) {
+      if (!primaryFailed) throw closeError;
+    }
+  }
 }

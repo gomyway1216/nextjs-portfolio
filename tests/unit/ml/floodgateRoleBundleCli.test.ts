@@ -18,15 +18,29 @@ import {
 } from "../../../ml/floodgate-role-bundle";
 
 const REVISION = "0123456789abcdef0123456789abcdef01234567";
+const PRODUCER_REVISION = "89abcdef0123456789abcdef0123456789abcdef";
 const roots: string[] = [];
 const MANIFEST = {
   schema: "shogi-floodgate-label-free-role-bundle-v1",
   status: "complete-label-free-role-bundle",
+  pipeline: {
+    source_revision: REVISION,
+    tracked_tree_clean: true,
+  },
+} as unknown as Readonly<FloodgateRoleBundleManifest>;
+const HISTORICAL_MANIFEST = {
+  ...MANIFEST,
+  pipeline: {
+    source_revision: PRODUCER_REVISION,
+    tracked_tree_clean: true,
+  },
 } as unknown as Readonly<FloodgateRoleBundleManifest>;
 const VERIFIED = {
-  manifest: MANIFEST,
+  manifest: HISTORICAL_MANIFEST,
   manifestText: "fixture\n",
   roleLock: {},
+  producerRevision: PRODUCER_REVISION,
+  verifierRevision: REVISION,
 } as unknown as Readonly<VerifiedFloodgateRoleBundle>;
 
 interface Fixture {
@@ -143,6 +157,7 @@ describe("Floodgate role-bundle CLI", () => {
       schema: FLOODGATE_ROLE_BUNDLE_CLI_OUTPUT_SCHEMA,
       mode: "publish",
       repository_root: repositoryRoot,
+      producer_revision: REVISION,
       verifier_revision: REVISION,
       raw_lock_root: rawLockRoot,
       role_lock_root: roleLockRoot,
@@ -182,7 +197,9 @@ describe("Floodgate role-bundle CLI", () => {
     expect(JSON.parse(stdout[0])).toMatchObject({
       schema: FLOODGATE_ROLE_BUNDLE_CLI_OUTPUT_SCHEMA,
       mode: "verify",
-      manifest: MANIFEST,
+      producer_revision: PRODUCER_REVISION,
+      verifier_revision: REVISION,
+      manifest: HISTORICAL_MANIFEST,
     });
   });
 

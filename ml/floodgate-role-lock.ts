@@ -274,6 +274,30 @@ export interface VerifyExistingFloodgateRoleLockOptions {
   readonly legacyProtectedPositionIdsPath: string;
 }
 
+export interface FloodgateRoleLockDirectoryClosureIdentity {
+  readonly dev: bigint;
+  readonly ino: bigint;
+  readonly ctimeNs: bigint;
+}
+
+export interface FloodgateRoleLockFileClosureIdentity {
+  readonly dev: bigint;
+  readonly ino: bigint;
+  readonly size: bigint;
+  readonly ctimeNs: bigint;
+  readonly mtimeNs: bigint;
+}
+
+export interface FloodgateRoleLockFilesystemClosure {
+  readonly parent: FloodgateRoleLockDirectoryClosureIdentity;
+  readonly root: FloodgateRoleLockDirectoryClosureIdentity;
+  readonly files: {
+    readonly manifest: FloodgateRoleLockFileClosureIdentity;
+    readonly materializedInput: FloodgateRoleLockFileClosureIdentity;
+    readonly allocation: FloodgateRoleLockFileClosureIdentity;
+  };
+}
+
 export interface VerifiedFloodgateRoleLock {
   readonly manifest: Readonly<FloodgateRoleLockManifest>;
   readonly manifestText: string;
@@ -283,6 +307,7 @@ export interface VerifiedFloodgateRoleLock {
   readonly rawManifest: Readonly<FloodgateRawLockManifest>;
   readonly producerRevision: string;
   readonly verifierRevision: string;
+  readonly filesystemClosure: Readonly<FloodgateRoleLockFilesystemClosure>;
 }
 
 function fail(message: string): never {
@@ -1016,13 +1041,7 @@ export async function runFloodgateRoleLockPublishSequenceCoreForTests(
   await runRoleLockPublishSequence(input);
 }
 
-interface FloodgateRegularFileIdentity {
-  readonly dev: bigint;
-  readonly ino: bigint;
-  readonly size: bigint;
-  readonly ctimeNs: bigint;
-  readonly mtimeNs: bigint;
-}
+type FloodgateRegularFileIdentity = FloodgateRoleLockFileClosureIdentity;
 
 interface FloodgateRegularFileSnapshot {
   readonly bytes: Uint8Array;
@@ -1536,6 +1555,7 @@ async function assertVerifierGitClosure(
     await execFile(
       "git",
       [
+        "--no-replace-objects",
         "--no-optional-locks",
         "merge-base",
         "--is-ancestor",
@@ -1547,6 +1567,7 @@ async function assertVerifierGitClosure(
     await execFile(
       "git",
       [
+        "--no-replace-objects",
         "--no-optional-locks",
         "merge-base",
         "--is-ancestor",
@@ -1852,18 +1873,25 @@ interface ExistingFloodgateRoleLockSnapshot {
   readonly materializedInputText: string;
   readonly allocationCandidate: unknown;
   readonly allocationText: string;
+  readonly filesystemClosure: Readonly<FloodgateRoleLockFilesystemClosure>;
 }
 
 async function readExistingFloodgateRoleLockSnapshot(
   roleLockRoot: string,
+  beforeClosurePass: () => Promise<void> = async () => undefined,
 ): Promise<Readonly<ExistingFloodgateRoleLockSnapshot>> {
-  const stat = await fs.promises.lstat(roleLockRoot);
-  if (!stat.isDirectory() || stat.isSymbolicLink()) {
-    fail("existing role-lock root must be a real directory");
+  if (typeof beforeClosurePass !== "function") {
+    fail("existing role-lock closure hook must be a function");
   }
-  if ((await fs.promises.realpath(roleLockRoot)) !== roleLockRoot) {
-    fail("existing role-lock root must not traverse symbolic links");
-  }
+  const parent = path.dirname(roleLockRoot);
+  const parentBefore = await directoryPathSnapshot(
+    parent,
+    "existing role-lock parent",
+  );
+  const rootBefore = await directoryPathSnapshot(
+    roleLockRoot,
+    "existing role-lock root",
+  );
   const entries = (await fs.promises.readdir(roleLockRoot)).sort(
     compareUtf8Bytes,
   );
@@ -1879,24 +1907,74 @@ async function readExistingFloodgateRoleLockSnapshot(
     fail("existing role-lock root entries are not exact");
   }
 
-  const manifestCandidate = parseCanonicalRoleLockJson(
-    await readRegularFileNoFollow(
+  const manifestSnapshot = await readRegularFileSnapshotNoFollow(
+    path.join(roleLockRoot, FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME),
+  );
+  const materializedInputSnapshot = await readRegularFileSnapshotNoFollow(
+    path.join(roleLockRoot, FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME),
+  );
+  const allocationSnapshot = await readRegularFileSnapshotNoFollow(
+    path.join(roleLockRoot, FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME),
+  );
+  await beforeClosurePass();
+  const [
+    finalManifestSnapshot,
+    finalMaterializedInputSnapshot,
+    finalAllocationSnapshot,
+  ] = await Promise.all([
+    readRegularFileSnapshotNoFollow(
       path.join(roleLockRoot, FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME),
     ),
+    readRegularFileSnapshotNoFollow(
+      path.join(roleLockRoot, FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME),
+    ),
+    readRegularFileSnapshotNoFollow(
+      path.join(roleLockRoot, FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME),
+    ),
+  ]);
+  for (const [label, first, final] of [
+    ["manifest", manifestSnapshot, finalManifestSnapshot],
+    [
+      "materialized input",
+      materializedInputSnapshot,
+      finalMaterializedInputSnapshot,
+    ],
+    ["allocation", allocationSnapshot, finalAllocationSnapshot],
+  ] as const) {
+    if (
+      !isDeepStrictEqual(first.identity, final.identity) ||
+      !Buffer.from(first.bytes).equals(Buffer.from(final.bytes))
+    ) {
+      fail(`existing role-lock ${label} changed during its closure snapshot`);
+    }
+  }
+  const rootAfter = await directoryPathSnapshot(
+    roleLockRoot,
+    "existing role-lock root after artifact reads",
+  );
+  const parentAfter = await directoryPathSnapshot(
+    parent,
+    "existing role-lock parent after artifact reads",
+  );
+  if (
+    !isDeepStrictEqual(rootAfter, rootBefore) ||
+    !isDeepStrictEqual(parentAfter, parentBefore)
+  ) {
+    fail("existing role-lock directory closure changed during artifact reads");
+  }
+
+  const manifestCandidate = parseCanonicalRoleLockJson(
+    manifestSnapshot.bytes,
     "existing role-lock manifest",
     true,
   );
   const materializedInputCandidate = parseCanonicalRoleLockJson(
-    await readRegularFileNoFollow(
-      path.join(roleLockRoot, FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME),
-    ),
+    materializedInputSnapshot.bytes,
     "existing role-lock materialized input",
     false,
   );
   const allocationCandidate = parseCanonicalRoleLockJson(
-    await readRegularFileNoFollow(
-      path.join(roleLockRoot, FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME),
-    ),
+    allocationSnapshot.bytes,
     "existing role-lock allocation",
     false,
   );
@@ -1907,7 +1985,35 @@ async function readExistingFloodgateRoleLockSnapshot(
     materializedInputText: canonicalJson(materializedInputCandidate),
     allocationCandidate,
     allocationText: canonicalJson(allocationCandidate),
+    filesystemClosure: Object.freeze({
+      parent: parentBefore,
+      root: rootBefore,
+      files: Object.freeze({
+        manifest: manifestSnapshot.identity,
+        materializedInput: materializedInputSnapshot.identity,
+        allocation: allocationSnapshot.identity,
+      }),
+    }),
   });
+}
+
+/** Re-snapshot the exact role-lock tree at a downstream closure boundary. */
+export async function assertExistingFloodgateRoleLockFilesystemClosure(
+  roleLockRoot: string,
+  expected: Readonly<FloodgateRoleLockFilesystemClosure>,
+): Promise<void> {
+  const snapshot = await readExistingFloodgateRoleLockSnapshot(roleLockRoot);
+  if (!isDeepStrictEqual(snapshot.filesystemClosure, expected)) {
+    fail("existing role-lock filesystem closure changed downstream");
+  }
+}
+
+/** Explicit non-production seam for downstream sibling-root regressions. */
+export async function snapshotExistingFloodgateRoleLockFilesystemClosureCoreForTests(
+  roleLockRoot: string,
+): Promise<Readonly<FloodgateRoleLockFilesystemClosure>> {
+  return (await readExistingFloodgateRoleLockSnapshot(roleLockRoot))
+    .filesystemClosure;
 }
 
 function producerRevisionFromRoleLockManifest(candidate: unknown): string {
@@ -1938,7 +2044,8 @@ function assertSameRoleLockSnapshot(
   if (
     actual.manifestText !== expected.manifestText ||
     actual.materializedInputText !== expected.materializedInputText ||
-    actual.allocationText !== expected.allocationText
+    actual.allocationText !== expected.allocationText ||
+    !isDeepStrictEqual(actual.filesystemClosure, expected.filesystemClosure)
   ) {
     fail(`existing role-lock changed during ${label}`);
   }
@@ -1956,11 +2063,18 @@ export async function verifyExistingFloodgateRoleLockArtifactsCoreForTests(
     allocationText: string;
   }>,
   beforeFinalRead: () => Promise<void> = async () => undefined,
+  duringInitialClosurePass: () => Promise<void> = async () => undefined,
 ): Promise<void> {
   if (typeof beforeFinalRead !== "function") {
     fail("non-production role-lock verifier hook must be a function");
   }
-  const first = await readExistingFloodgateRoleLockSnapshot(roleLockRoot);
+  if (typeof duringInitialClosurePass !== "function") {
+    fail("non-production role-lock closure hook must be a function");
+  }
+  const first = await readExistingFloodgateRoleLockSnapshot(
+    roleLockRoot,
+    duringInitialClosurePass,
+  );
   if (
     first.manifestText !== expected.manifestText ||
     first.materializedInputText !== expected.materializedInputText ||
@@ -2819,5 +2933,6 @@ export async function verifyExistingFloodgateRoleLock(
     rawManifest,
     producerRevision,
     verifierRevision,
+    filesystemClosure: initialRoleLock.filesystemClosure,
   });
 }

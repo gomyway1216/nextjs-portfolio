@@ -67,6 +67,14 @@ function fixtureSfen(tag: number, ply: number): string {
   return `4k4/9/9/9/9/9/9/9/K8 b ${fixtureHand(tag)} ${ply + 1}`;
 }
 
+function singleReplySfen(ply: number): string {
+  return `4k4/2B6/3GRG3/9/9/9/9/9/K8 w - ${ply + 1}`;
+}
+
+function checkmatedSfen(ply: number): string {
+  return `4k4/4+R4/5G3/9/9/9/9/9/4K4 w - ${ply + 1}`;
+}
+
 function range(first: number, last: number): number[] {
   return Array.from({ length: last - first + 1 }, (_, index) => first + index);
 }
@@ -662,6 +670,74 @@ describe("whole-game Floodgate role isolation", () => {
     expect(selected.parents).toHaveLength(24);
     expect(allProtectedIds(selected)).not.toContain(legacyParentId);
     expect(result.output.legacy_protected_position_ids_count).toBe(1);
+  });
+
+  it("skips zero/one-legal-child parents before hashing and deterministically fills 24 eligible parents", () => {
+    const base = makeGame(31, { plies: range(16, 41) });
+    const ineligibleIds = base.parents
+      .slice(0, 2)
+      .map((parent) => parent.parent_id);
+    const withSingleton: FloodgatePureGameInput = {
+      ...base,
+      parents: base.parents.map((parent, index) =>
+        index === 0
+          ? { ...parent, parent_sfen: checkmatedSfen(parent.ply) }
+          : index === 1
+            ? { ...parent, parent_sfen: singleReplySfen(parent.ply) }
+            : parent,
+      ),
+    };
+    const forward = allocateFloodgateRolesPure(
+      [withSingleton],
+      options({ fresh_final_holdout: 1 }),
+    );
+    const reversed = allocateFloodgateRolesPure(
+      [{ ...withSingleton, parents: [...withSingleton.parents].reverse() }],
+      options({ fresh_final_holdout: 1 }),
+    );
+
+    const selected = forward.output.roles.fresh_final_holdout[0];
+    expect(selected.parents).toHaveLength(24);
+    expect(
+      selected.parents.filter((parent) =>
+        ineligibleIds.includes(parent.parent_id),
+      ),
+    ).toHaveLength(0);
+    expect(forward.canonical_json_sha256).toBe(reversed.canonical_json_sha256);
+  });
+
+  it("uses the next ranked game when one legal child leaves only 23 eligible parents", () => {
+    const candidates = [makeGame(42), makeGame(43)];
+    const seed = "fixture-seed-v1";
+    const domain = DEFAULT_FLOODGATE_GAME_RANK_DOMAINS.fresh_final_holdout;
+    const ordered = [...candidates].sort((left, right) => {
+      const leftRank = createHash("sha256")
+        .update(`${domain}\0${seed}\0${left.game_id}`, "utf8")
+        .digest();
+      const rightRank = createHash("sha256")
+        .update(`${domain}\0${seed}\0${right.game_id}`, "utf8")
+        .digest();
+      return (
+        Buffer.compare(leftRank, rightRank) ||
+        Buffer.compare(Buffer.from(left.game_id), Buffer.from(right.game_id))
+      );
+    });
+    const rejected: FloodgatePureGameInput = {
+      ...ordered[0],
+      parents: ordered[0].parents.map((parent, index) =>
+        index === 0
+          ? { ...parent, parent_sfen: singleReplySfen(parent.ply) }
+          : parent,
+      ),
+    };
+
+    const result = allocateFloodgateRolesPure(
+      [rejected, ordered[1]],
+      options({ fresh_final_holdout: 1 }),
+    );
+    expect(
+      result.output.roles.fresh_final_holdout.map((game) => game.game_id),
+    ).toEqual([ordered[1].game_id]);
   });
 
   it("uses a replacement game when semantic exclusion leaves only 23 parents", () => {

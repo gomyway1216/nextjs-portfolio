@@ -544,6 +544,71 @@ rl.on('line', (line) => {
     });
   });
 
+  it('treats optional bishop non-promotion as a rules-complete legal sibling candidate', async () => {
+    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-decline-'));
+    const engine = path.join(root, 'decline-fake-engine.mjs');
+    await fs.promises.writeFile(
+      engine,
+      `import readline from 'node:readline';
+let multipv = 1;
+const moves = ['5e3c+', '5e3c'];
+const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+rl.on('line', (line) => {
+  if (line === 'usi') { console.log('usiok'); return; }
+  if (line === 'isready') { console.log('readyok'); return; }
+  const multi = line.match(/^setoption name MultiPV value (\\d+)$/);
+  if (multi) { multipv = Number(multi[1]); return; }
+  if (line === 'quit') process.exit(0);
+  if (!line.startsWith('go ')) return;
+  const requested = line.match(/\\bsearchmoves (.+)$/)?.[1].trim().split(/\\s+/) ?? moves;
+  requested.slice(0, multipv).forEach((move, index) => console.log(
+    \`info depth 4 multipv \${index + 1} score cp \${80 - index * 10} nodes 10 pv \${move}\`
+  ));
+  console.log(\`bestmove \${requested[0]}\`);
+});
+`
+    );
+    const parentSfen = '4k4/9/9/9/4B4/9/9/9/K8 b - 1';
+    const raw = path.join(root, 'raw.jsonl');
+    await fs.promises.writeFile(
+      raw,
+      `${JSON.stringify({
+        ...rawParent('parent-decline'),
+        position_id: positionKeyFromSfen(parentSfen),
+        parent_sfen: parentSfen,
+        played_move: '5e3c',
+      })}\n`
+    );
+    const work = path.join(root, 'work.jsonl');
+    const result = await generateForTest({
+      raw,
+      engineBin: process.execPath,
+      engineArgs: [engine],
+      engineReceipt: await writeEngineReceipt(root),
+      multipv: 2,
+      depth: 4,
+      engines: 1,
+      outTrain: path.join(root, 'train.jsonl'),
+      outVal: path.join(root, 'val.jsonl'),
+      manifest: path.join(root, 'manifest.json'),
+      work,
+      timeoutMs: 5_000,
+    });
+
+    expect(result.candidate_sets).toMatchObject({
+      parents: 1,
+      candidates: 2,
+      min_candidates: 2,
+      max_candidates: 2,
+      skipped_parents: 0,
+    });
+    const workRows = parseJsonl<Record<string, unknown>>(await fs.promises.readFile(work, 'utf8'));
+    expect(workRows[1]).toMatchObject({
+      candidate_moves: ['5e3c', '5e3c+'],
+      records: [{ move: '5e3c' }, { move: '5e3c+' }],
+    });
+  });
+
   it('requires a schema-valid receipt tied to the exact engine binary', async () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-receipt-'));
     const raw = path.join(root, 'raw.jsonl');

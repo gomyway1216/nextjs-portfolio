@@ -1,5 +1,6 @@
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
+import { buildDeclinablePromotion } from '../src/components/game/ShogiImproved/PromotionRulesImproved';
 import { toSfen } from './generate-teacher';
 import {
   EMPTY,
@@ -139,9 +140,40 @@ export function teToUsi(move: Te): string {
   return `${fromFile}${fromRank}${toFile}${toRank}${move.promote ? '+' : ''}`;
 }
 
+export interface RulesCompleteLegalMove {
+  readonly usi: string;
+  readonly move: Te;
+}
+
+/**
+ * Enumerate the rules-complete legal move set in deterministic USI byte order.
+ *
+ * `GenerateMovesImproved` intentionally prunes optional bishop/rook
+ * non-promotion branches as a search optimization. Dataset eligibility,
+ * sibling candidates, USI resolution, and semantic child isolation are rules
+ * contracts instead, so every legally declinable promotion is restored here.
+ */
+export function rulesCompleteLegalMoves(
+  position: KyokumenImproved
+): readonly Readonly<RulesCompleteLegalMove>[] {
+  const byUsi = new Map<string, Te>();
+  for (const move of GenerateMovesImproved.generateLegalMoves(position)) {
+    byUsi.set(teToUsi(move), move);
+    const declined = buildDeclinablePromotion(move, position.teban);
+    if (declined) byUsi.set(teToUsi(declined), declined);
+  }
+  return Object.freeze(
+    [...byUsi]
+      .sort(([left], [right]) =>
+        Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'))
+      )
+      .map(([usi, move]) => Object.freeze({ usi, move }))
+  );
+}
+
 /** Resolve USI against the legal list so illegal drops/promotions fail closed. */
 export function resolveUsiMove(position: KyokumenImproved, usi: string): Te {
-  const legal = GenerateMovesImproved.generateLegalMoves(position);
+  const legal = rulesCompleteLegalMoves(position).map((entry) => entry.move);
   let matches: Te[];
   const drop = usi.match(/^([PLNSGBR])\*([1-9])([a-i])$/i);
   if (drop) {

@@ -12,7 +12,6 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
-import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import {
   SIBLING_MANIFEST_SCHEMA,
   buildSiblingGroup,
@@ -21,7 +20,7 @@ import {
   validateParentGroups,
   type SiblingRecord,
 } from './sibling-data';
-import { childSfenAfterUsi, positionFromSfen, teToUsi } from './shogi-sfen';
+import { childSfenAfterUsi, positionFromSfen, rulesCompleteLegalMoves } from './shogi-sfen';
 import {
   verifyPipelineOutputPaths,
   verifyPipelineRevision,
@@ -832,7 +831,7 @@ function validateIndependentExactSearch(
 
 function legalMovesForParent(parent: RawParentOccurrence): string[] {
   const { position } = positionFromSfen(parent.parent_sfen);
-  const moves = GenerateMovesImproved.generateLegalMoves(position).map(teToUsi);
+  const moves = rulesCompleteLegalMoves(position).map((entry) => entry.usi);
   if (new Set(moves).size !== moves.length) {
     throw new Error(`legal move generator returned duplicates for parent ${parent.parent_id}`);
   }

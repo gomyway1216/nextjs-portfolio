@@ -177,6 +177,20 @@ One fewer unique object than receipts is not a missing artifact. The two daily-r
 
 Independent review of the result summarizer reproduced five pre-PR defects: verifying a separately read manifest B while reporting A, rejecting empty or torn crash audits, an audit-root ABA substitution, hashing BOM-decoded text instead of raw bytes, and an indefinite block on a token-named FIFO. The fixed path uses descriptor-relative reads, lease checks, double raw-byte snapshots, complete-line prefixes, BigInt inode identities, and a timeout. Final review found zero P1/P2 issues; all 279 ML tests pass.
 
+## The `$START_TIME` contract corrected during the live role-lock attempt
+
+The label-blind role lock was started from `main` at `10bf4c3f`. The first attempt stopped before creating output because the Git-ignored legacy replay-exclusion file was absent from the fresh worktree. The preregistered 624,816-byte / SHA-256 `1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a` / 8,678-ID artifact was restored from stable storage.
+
+The second attempt also stopped before creating output. The parser bound CSA `$START_TIME` to the URL event minute but additionally required `START_TIME second <= URL second`. That seconds-order rule was not preregistered. A complete header-only audit of all 36,168 canonical games, using only the raw-manifest index and CAS `$EVENT` / `$START_TIME` headers, produced this distribution.
+
+| `$START_TIME - URL timestamp` |  Games |
+| ----------------------------- | -----: |
+| negative                      | 31,927 |
+| zero                          |  4,231 |
+| positive                      |     10 |
+
+The minimum was -12 seconds and the maximum was +1 second; all ten positive cases were legitimate same-minute headers at exactly +1 second. There were zero malformed headers, URL-date mismatches, or minute mismatches. The strict `$EVENT` binding, valid `$START_TIME`, exact URL date, and shared `YYYYMMDDHHMM` therefore remain enforced; only within-minute second ordering was removed from eligibility. Neither attempt created role-lock output or a manifest, so there was no role-lock manifest to read. No winner, teacher/model score, selection label, or final label was read either.
+
 ## Next-stage stop conditions found while acquisition ran
 
 - A parent with only one legal move cannot satisfy the two-sibling contract. Before role lock, rules-complete legal moves >= 2 becomes a label-blind condition, with deterministic replacement under the same hash/fill order

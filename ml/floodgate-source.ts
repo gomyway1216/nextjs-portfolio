@@ -302,7 +302,8 @@ export interface FloodgateIneligibleCsaRatingDecision extends FloodgateCsaRating
 }
 
 export type FloodgateCsaRatingEligibilityDecision =
-  FloodgateEligibleCsaRatingDecision | FloodgateIneligibleCsaRatingDecision;
+  | FloodgateEligibleCsaRatingDecision
+  | FloodgateIneligibleCsaRatingDecision;
 
 function fail(message: string): never {
   throw new Error(`invalid Floodgate source: ${message}`);
@@ -423,7 +424,8 @@ function assertNoHiddenStructuralHtml(html: string, label: string): void {
 
   const tokenPattern = /<\/?(?:script|style)\b[^>]*>/gi;
   let active:
-    { readonly kind: "script" | "style"; readonly start: number } | undefined;
+    | { readonly kind: "script" | "style"; readonly start: number }
+    | undefined;
 
   for (const match of visible.matchAll(tokenPattern)) {
     const token = match[0];
@@ -1617,15 +1619,8 @@ function parseFloodgateCsaSourceHeader(
     fail("CSA $START_TIME is invalid or does not match its URL date");
   }
   const compactStartMinute = `${startMatch[1]}${startMatch[2]}${startMatch[3]}${startMatch[4]}${startMatch[5]}`;
-  const startToEventSeconds =
-    Number(location.timestamp.slice(12, 14)) - Number(startMatch[6]);
-  if (
-    compactStartMinute !== location.timestamp.slice(0, 12) ||
-    startToEventSeconds < 0
-  ) {
-    fail(
-      "CSA $START_TIME must share the URL event minute and must not follow it",
-    );
+  if (compactStartMinute !== location.timestamp.slice(0, 12)) {
+    fail("CSA $START_TIME must share the URL event minute");
   }
   return Object.freeze({ event, startTime });
 }

@@ -718,6 +718,17 @@ describe("canonical Floodgate game source evidence", () => {
       parseFloodgateGameSourceEvidence({
         ...input,
         csaBytes: new TextEncoder().encode(
+          liveShapedCsa().replace(
+            "$START_TIME:2026/03/31 23:30:00",
+            "$START_TIME:2026-03-31 23:30:00",
+          ),
+        ),
+      }),
+    ).toThrow(/\$START_TIME is malformed/);
+    expect(() =>
+      parseFloodgateGameSourceEvidence({
+        ...input,
+        csaBytes: new TextEncoder().encode(
           `${liveShapedCsa()}\r\n$EVENT:wdoor+floodgate-300-10F+Alpha+Beta+20260331233001`,
         ),
       }),
@@ -731,6 +742,15 @@ describe("canonical Floodgate game source evidence", () => {
         ),
       }).csa.header.startTime,
     ).toBe("2026/03/31 23:30:01");
+
+    for (const startTime of ["2026/03/31 23:30:02", "2026/03/31 23:30:59"]) {
+      expect(
+        parseFloodgateGameSourceEvidence({
+          ...input,
+          csaBytes: new TextEncoder().encode(liveShapedCsa({ startTime })),
+        }).csa.header.startTime,
+      ).toBe(startTime);
+    }
 
     const timestampAtSecond59 = "20260331233059";
     expect(
@@ -746,17 +766,13 @@ describe("canonical Floodgate game source evidence", () => {
       }).csa.header.startTime,
     ).toBe("2026/03/31 23:30:00");
 
-    for (const startTime of [
-      "2026/03/31 23:29:59",
-      "2026/03/31 23:30:02",
-      "2026/03/31 23:31:00",
-    ]) {
+    for (const startTime of ["2026/03/31 23:29:59", "2026/03/31 23:31:00"]) {
       expect(() =>
         parseFloodgateGameSourceEvidence({
           ...input,
           csaBytes: new TextEncoder().encode(liveShapedCsa({ startTime })),
         }),
-      ).toThrow(/share the URL event minute|must not follow/);
+      ).toThrow(/share the URL event minute/);
     }
   });
 

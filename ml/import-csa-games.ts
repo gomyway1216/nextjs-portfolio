@@ -253,17 +253,24 @@ export function resolveCsaMove(position: KyokumenImproved, token: string): Te {
   const from = isDrop ? 0 : (fromFile << 4) + fromRank;
   const to = (toFile << 4) + toRank;
   const expectedKind = CSA_KIND[pieceCode];
-  const legalMovesByUsi = new Map<string, Te>();
+  const matches: Te[] = [];
+  let seenPromoted = false;
+  let seenUnpromoted = false;
+  const addExpected = (move: Te): void => {
+    if (resultKind(move) !== expectedKind) return;
+    if (move.promote ? seenPromoted : seenUnpromoted) return;
+    if (move.promote) seenPromoted = true;
+    else seenUnpromoted = true;
+    matches.push(move);
+  };
   for (const move of GenerateMovesImproved.generateLegalMoves(position)) {
-    legalMovesByUsi.set(teToUsi(move), move);
+    if (move.from !== from || move.to !== to) continue;
+    addExpected(move);
     // The search generator prunes optional non-promotion for bishop and rook.
     // CSA parsing must follow shogi rules rather than that search optimization.
     const declined = buildDeclinablePromotion(move, position.teban);
-    if (declined) legalMovesByUsi.set(teToUsi(declined), declined);
+    if (declined) addExpected(declined);
   }
-  const matches = [...legalMovesByUsi.values()].filter(
-    (move) => move.from === from && move.to === to && resultKind(move) === expectedKind
-  );
 
   if (matches.length === 0) {
     throw new Error(`illegal or piece-mismatched CSA move: ${token}`);

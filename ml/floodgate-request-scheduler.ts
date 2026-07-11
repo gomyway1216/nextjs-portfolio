@@ -16,11 +16,21 @@ import {
 } from "./floodgate-source";
 
 const INTRINSIC_REFLECT_APPLY = Reflect.apply;
+const IntrinsicPromise = Promise;
+const IntrinsicNumber = Number;
 const INTRINSIC_NODE_IS_PROXY = nodeUtilTypes.isProxy;
 const INTRINSIC_NODE_IS_ARRAY_BUFFER = nodeUtilTypes.isArrayBuffer;
 const INTRINSIC_NODE_IS_SHARED_ARRAY_BUFFER = nodeUtilTypes.isSharedArrayBuffer;
 const IntrinsicUint8Array = Uint8Array;
 const INTRINSIC_UINT8_ARRAY_SET = IntrinsicUint8Array.prototype.set;
+const INTRINSIC_ARRAY_PUSH = Array.prototype.push;
+const INTRINSIC_ARRAY_SHIFT = Array.prototype.shift;
+const INTRINSIC_ARRAY_SORT = Array.prototype.sort;
+const INTRINSIC_ARRAY_INDEX_OF = Array.prototype.indexOf;
+const INTRINSIC_ARRAY_SPLICE = Array.prototype.splice;
+const INTRINSIC_REGEXP_TEST = RegExp.prototype.test;
+const INTRINSIC_NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
+const INTRINSIC_NUMBER_IS_FINITE = Number.isFinite;
 const TYPED_ARRAY_PROTOTYPE = Object.getPrototypeOf(
   IntrinsicUint8Array.prototype,
 ) as object;
@@ -35,6 +45,7 @@ const INTRINSIC_TYPED_ARRAY_BYTE_LENGTH_GETTER = (() => {
 const INTRINSIC_STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
 const INTRINSIC_PERFORMANCE_NOW = nodePerformance.now;
 const INTRINSIC_SET_TIMEOUT = setTimeout;
+const CONTENT_LENGTH_RE = /^(0|[1-9]\d*)$/;
 
 function intrinsicIsProxy(value: unknown): boolean {
   return INTRINSIC_REFLECT_APPLY(INTRINSIC_NODE_IS_PROXY, nodeUtilTypes, [
@@ -56,6 +67,58 @@ function intrinsicIsSharedArrayBuffer(value: unknown): boolean {
     nodeUtilTypes,
     [value],
   ) as boolean;
+}
+
+function intrinsicIsSafeInteger(value: unknown): boolean {
+  return INTRINSIC_REFLECT_APPLY(
+    INTRINSIC_NUMBER_IS_SAFE_INTEGER,
+    IntrinsicNumber,
+    [value],
+  ) as boolean;
+}
+
+function intrinsicIsFiniteNumber(value: unknown): boolean {
+  return INTRINSIC_REFLECT_APPLY(INTRINSIC_NUMBER_IS_FINITE, IntrinsicNumber, [
+    value,
+  ]) as boolean;
+}
+
+function pushArrayValue<T>(target: T[], value: T): void {
+  INTRINSIC_REFLECT_APPLY(INTRINSIC_ARRAY_PUSH, target, [value]);
+}
+
+function shiftArrayValue<T>(target: T[]): T | undefined {
+  return INTRINSIC_REFLECT_APPLY(INTRINSIC_ARRAY_SHIFT, target, []) as
+    T | undefined;
+}
+
+function sortArrayValues<T>(
+  target: T[],
+  compare: (left: T, right: T) => number,
+): void {
+  INTRINSIC_REFLECT_APPLY(INTRINSIC_ARRAY_SORT, target, [compare]);
+}
+
+function removeArrayValue<T>(target: T[], value: T): void {
+  const index = INTRINSIC_REFLECT_APPLY(INTRINSIC_ARRAY_INDEX_OF, target, [
+    value,
+  ]) as number;
+  if (index >= 0) {
+    INTRINSIC_REFLECT_APPLY(INTRINSIC_ARRAY_SPLICE, target, [index, 1]);
+  }
+}
+
+interface SettlementSignal {
+  readonly promise: Promise<void>;
+  resolve(): void;
+}
+
+function createSettlementSignal(): SettlementSignal {
+  let resolve!: () => void;
+  const promise = new IntrinsicPromise<void>((resolvePromise) => {
+    resolve = resolvePromise;
+  });
+  return { promise, resolve };
 }
 
 export const FLOODGATE_MAXIMUM_INFLIGHT_REQUESTS = 4 as const;
@@ -179,13 +242,13 @@ function validatePolicy(
   policy: NonProductionFloodgateSchedulerPolicyForTests,
 ): Readonly<NonProductionFloodgateSchedulerPolicyForTests> {
   if (
-    !Number.isSafeInteger(policy.maximumInflightRequests) ||
+    !intrinsicIsSafeInteger(policy.maximumInflightRequests) ||
     policy.maximumInflightRequests <= 0
   ) {
     fail("maximumInflightRequests must be a positive safe integer");
   }
   if (
-    !Number.isSafeInteger(policy.minimumRequestStartIntervalMs) ||
+    !intrinsicIsSafeInteger(policy.minimumRequestStartIntervalMs) ||
     policy.minimumRequestStartIntervalMs < 0
   ) {
     fail("minimumRequestStartIntervalMs must be a nonnegative safe integer");
@@ -262,14 +325,21 @@ function validateRequests(
   ) {
     fail("requests must be a dense plain array with no hidden fields");
   }
+  const urls = new Set<string>();
+  const requests: Readonly<FloodgateRequest>[] = [];
   for (let index = 0; index < input.length; index += 1) {
-    const descriptor = Object.getOwnPropertyDescriptor(input, String(index));
-    if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
+    const slotDescriptor = Object.getOwnPropertyDescriptor(
+      input,
+      String(index),
+    );
+    if (
+      !slotDescriptor ||
+      !("value" in slotDescriptor) ||
+      !slotDescriptor.enumerable
+    ) {
       fail(`requests[${index}] must be an enumerable data property`);
     }
-  }
-  const urls = new Set<string>();
-  const requests = input.map((rawRequest, index) => {
+    const rawRequest = slotDescriptor.value as FloodgateRequest;
     if (
       intrinsicIsProxy(rawRequest) ||
       rawRequest === null ||
@@ -282,7 +352,8 @@ function validateRequests(
     if (Object.getOwnPropertySymbols(rawRequest).length !== 0) {
       fail(`requests[${index}] must not contain symbol keys`);
     }
-    const keys = Object.getOwnPropertyNames(rawRequest).sort(compareUtf8Bytes);
+    const keys = Object.getOwnPropertyNames(rawRequest);
+    sortArrayValues(keys, compareUtf8Bytes);
     if (keys.length !== 2 || keys[0] !== "kind" || keys[1] !== "url") {
       fail(`requests[${index}] must contain exactly kind and url`);
     }
@@ -302,14 +373,17 @@ function validateRequests(
     );
     if (urls.has(url)) fail(`requests repeat URL ${url}`);
     urls.add(url);
-    return Object.freeze({ kind: rawRequest.kind, url });
-  });
-  requests.sort((left, right) => compareUtf8Bytes(left.url, right.url));
+    pushArrayValue(requests, Object.freeze({ kind: rawRequest.kind, url }));
+  }
+  sortArrayValues(requests, (left, right) =>
+    compareUtf8Bytes(left.url, right.url),
+  );
   return Object.freeze(requests);
 }
 
 function assertAllowedStatus(kind: FloodgateRequestKind, status: number): void {
-  if (!Number.isSafeInteger(status)) fail("response status must be an integer");
+  if (!intrinsicIsSafeInteger(status))
+    fail("response status must be an integer");
   const allowed =
     kind === "daily_rating" ? status === 200 || status === 404 : status === 200;
   if (!allowed) fail(`HTTP ${status} is forbidden for ${kind}`);
@@ -323,11 +397,15 @@ function contentLength(
   if (typeof value !== "string") {
     fail("response Content-Length must be a primitive string or absent");
   }
-  if (!/^(0|[1-9]\d*)$/.test(value)) {
+  if (
+    !(INTRINSIC_REFLECT_APPLY(INTRINSIC_REGEXP_TEST, CONTENT_LENGTH_RE, [
+      value,
+    ]) as boolean)
+  ) {
     fail("response Content-Length must be a canonical nonnegative integer");
   }
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed)) {
+  const parsed = IntrinsicNumber(value);
+  if (!intrinsicIsSafeInteger(parsed)) {
     fail("response Content-Length exceeds the safe integer range");
   }
   return parsed;
@@ -393,7 +471,7 @@ async function exactResponseBytes(
 }
 
 function defaultSleep(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+  return new IntrinsicPromise((resolve) => setTimeout(resolve, milliseconds));
 }
 
 function productionNow(): number {
@@ -424,7 +502,7 @@ function createProductionStartGate(): FloodgateSharedStartGate {
 
   const drain = (): void => {
     if (timer !== null || startGrantOutstanding) return;
-    while (queue[0]?.state === "cancelled") queue.shift();
+    while (queue[0]?.state === "cancelled") shiftArrayValue(queue);
     if (
       queue.length === 0 ||
       inFlightRequests >= FLOODGATE_MAXIMUM_INFLIGHT_REQUESTS
@@ -446,7 +524,7 @@ function createProductionStartGate(): FloodgateSharedStartGate {
       return;
     }
 
-    const waiter = queue.shift();
+    const waiter = shiftArrayValue(queue);
     if (!waiter || waiter.state !== "queued") {
       drain();
       return;
@@ -481,13 +559,13 @@ function createProductionStartGate(): FloodgateSharedStartGate {
 
   const reserve = (): FloodgateSharedStartReservation => {
     let resolve!: (permit: FloodgateSharedStartPermit | null) => void;
-    const promise = new Promise<FloodgateSharedStartPermit | null>(
+    const promise = new IntrinsicPromise<FloodgateSharedStartPermit | null>(
       (resolvePromise) => {
         resolve = resolvePromise;
       },
     );
     const waiter: Waiter = { state: "queued", resolve };
-    queue.push(waiter);
+    pushArrayValue(queue, waiter);
     drain();
     return Object.freeze({
       promise,
@@ -554,7 +632,7 @@ function createScheduler(
 
   const now = (): number => {
     const value = clock();
-    if (!Number.isFinite(value))
+    if (!intrinsicIsFiniteNumber(value))
       fail("monotonic clock returned a nonfinite value");
     if (lastObservedTime !== null && value < lastObservedTime) {
       fail("monotonic clock moved backwards");
@@ -596,12 +674,16 @@ function createScheduler(
     let settledRequests = 0;
     let failed = false;
     let firstError: unknown;
-    let resolveFailure!: () => void;
-    const failure = new Promise<void>((resolve) => {
-      resolveFailure = resolve;
-    });
     const results: FloodgateFetchedResponse[] = [];
-    const active = new Set<Promise<void>>();
+    const active: Promise<void>[] = [];
+    let settlementSignal = createSettlementSignal();
+    let pendingReservation: FloodgateSharedStartReservation | null = null;
+
+    const notifySettlement = (): void => {
+      const signal = settlementSignal;
+      settlementSignal = createSettlementSignal();
+      signal.resolve();
+    };
 
     const recordFailure = (error: unknown): void => {
       if (!failed) {
@@ -609,7 +691,9 @@ function createScheduler(
         firstError = error;
         poisoned = true;
         poisonedError = error;
-        resolveFailure();
+        const reservation = pendingReservation;
+        pendingReservation = null;
+        reservation?.cancel();
       }
     };
 
@@ -732,70 +816,62 @@ function createScheduler(
       if (!sharedStartGate && nextAllowedStartAt === null) {
         nextAllowedStartAt = now() + policy.minimumRequestStartIntervalMs;
       }
-      for (const request of requests) {
+      for (
+        let requestIndex = 0;
+        requestIndex < requests.length;
+        requestIndex += 1
+      ) {
+        const request = requests[requestIndex];
         if (failed) break;
-        while (active.size >= policy.maximumInflightRequests && !failed) {
-          await Promise.race(active);
+        while (active.length >= policy.maximumInflightRequests && !failed) {
+          await settlementSignal.promise;
         }
         if (failed) break;
 
         let sharedPermit: FloodgateSharedStartPermit | null = null;
         if (sharedStartGate) {
           const reservation = sharedStartGate.reserve();
-          const gate = reservation.promise.then((permit) =>
-            Object.freeze({ type: "ready" as const, permit }),
-          );
-          const gateResult =
-            active.size === 0
-              ? await gate
-              : await Promise.race([
-                  gate,
-                  failure.then(() =>
-                    Object.freeze({ type: "failed" as const }),
-                  ),
-                ]);
-          if (gateResult.type === "failed") {
-            reservation.cancel();
+          pendingReservation = reservation;
+          const permit = await reservation.promise;
+          if (pendingReservation === reservation) pendingReservation = null;
+          if (permit === null || failed) {
+            permit?.release();
             break;
           }
-          if (gateResult.permit === null || failed) {
-            gateResult.permit?.release();
-            break;
-          }
-          sharedPermit = gateResult.permit;
+          sharedPermit = permit;
         } else {
-          const gate = waitUntil(nextAllowedStartAt!).then(
-            () => "ready" as const,
-          );
-          const gateResult =
-            active.size === 0
-              ? await gate
-              : await Promise.race([
-                  gate,
-                  failure.then(() => "failed" as const),
-                ]);
-          if (gateResult === "failed" || failed) break;
+          await waitUntil(nextAllowedStartAt!);
+          if (failed) break;
         }
 
-        const tracked: Promise<void> = acquire(request, sharedPermit)
-          .then((result) => {
-            results.push(result);
-          })
-          .catch(recordFailure)
-          .finally(() => {
-            active.delete(tracked);
-          });
-        active.add(tracked);
+        const holder: { promise?: Promise<void> } = {};
+        const tracked = (async () => {
+          try {
+            const result = await acquire(request, sharedPermit);
+            pushArrayValue(results, result);
+          } catch (error) {
+            recordFailure(error);
+          } finally {
+            if (holder.promise) removeArrayValue(active, holder.promise);
+            notifySettlement();
+          }
+        })();
+        holder.promise = tracked;
+        pushArrayValue(active, tracked);
       }
-      await Promise.all(active);
+      while (active.length > 0) await settlementSignal.promise;
       if (failed) throw firstError;
-      results.sort((left, right) => compareUtf8Bytes(left.url, right.url));
+      sortArrayValues(results, (left, right) =>
+        compareUtf8Bytes(left.url, right.url),
+      );
       return Object.freeze(results);
     } catch (error) {
       recordFailure(error);
-      await Promise.all(active);
+      while (active.length > 0) await settlementSignal.promise;
       throw firstError;
     } finally {
+      pendingReservation?.cancel();
+      pendingReservation = null;
       running = false;
     }
   };

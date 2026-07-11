@@ -218,6 +218,43 @@ describe("Floodgate request scheduler", () => {
     ).rejects.toThrow(/plain array/);
   });
 
+  it("never lets a poisoned Array.map replace validated requests", async () => {
+    const clock = fakeClock();
+    const originalMap = Array.prototype.map;
+    const requests: FloodgateRequest[] = [
+      { kind: "daily_listing", url: LISTING_A },
+    ];
+    let fetchedUrl: string | undefined;
+    const scheduler = createNonProductionFloodgateRequestSchedulerForTests(
+      { maximumInflightRequests: 1, minimumRequestStartIntervalMs: 1 },
+      {
+        fetchImpl: async (url) => {
+          Array.prototype.map = originalMap;
+          fetchedUrl = url;
+          return response(url);
+        },
+        now: clock.now,
+        sleep: clock.sleep,
+      },
+    );
+    Array.prototype.map = function (
+      this: unknown[],
+      callback: (value: unknown, index: number, array: unknown[]) => unknown,
+      thisArg?: unknown,
+    ): unknown[] {
+      if (this === requests) {
+        return [{ kind: "daily_listing", url: "https://evil.invalid/" }];
+      }
+      return Reflect.apply(originalMap, this, [callback, thisArg]) as unknown[];
+    } as typeof Array.prototype.map;
+    try {
+      await scheduler.run(requests);
+    } finally {
+      Array.prototype.map = originalMap;
+    }
+    expect(fetchedUrl).toBe(LISTING_A);
+  });
+
   it("enforces redirect, status, encoding, and exact Content-Length contracts", async () => {
     async function runWith(
       request: FloodgateRequest,
@@ -391,6 +428,47 @@ describe("Floodgate request scheduler", () => {
     expect((rejection as Error).message).toMatch(/Content-Encoding/);
   });
 
+  it("uses captured Content-Length parsing primitives", async () => {
+    const clock = fakeClock();
+    const originalRegExpTest = RegExp.prototype.test;
+    const originalNumber = globalThis.Number;
+    let primitivesPoisoned = false;
+    const fetched = {
+      ...response(LISTING_A),
+      headers: {
+        get(name: string): string | null {
+          if (name !== "content-length") return null;
+          RegExp.prototype.test = () => true;
+          const fakeNumber = (() => 4) as unknown as NumberConstructor;
+          fakeNumber.isSafeInteger = () => true;
+          globalThis.Number = fakeNumber;
+          primitivesPoisoned = true;
+          return "not-a-canonical-length";
+        },
+      },
+    };
+    const scheduler = createNonProductionFloodgateRequestSchedulerForTests(
+      { maximumInflightRequests: 1, minimumRequestStartIntervalMs: 1 },
+      {
+        fetchImpl: async () => fetched,
+        now: clock.now,
+        sleep: clock.sleep,
+      },
+    );
+    let rejection: unknown;
+    try {
+      await scheduler.run([{ kind: "daily_listing", url: LISTING_A }]);
+    } catch (error) {
+      rejection = error;
+    } finally {
+      RegExp.prototype.test = originalRegExpTest;
+      globalThis.Number = originalNumber;
+    }
+    expect(primitivesPoisoned).toBe(true);
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toMatch(/canonical nonnegative/);
+  });
+
   it("uses captured Node body guards instead of coercing a fake ArrayBuffer", async () => {
     const clock = fakeClock();
     const scheduler = createNonProductionFloodgateRequestSchedulerForTests(
@@ -527,11 +605,17 @@ describe("Floodgate request scheduler", () => {
       let active = 0;
       let maximumActive = 0;
       const originalReflectApply = Reflect.apply;
+      const originalPromiseRace = Promise.race;
       let reflectApplyPoisoned = false;
+      let promiseRacePoisoned = false;
       const fetchImpl: FloodgateFetch = async (url) => {
         if (reflectApplyPoisoned) {
           Reflect.apply = originalReflectApply;
           reflectApplyPoisoned = false;
+        }
+        if (promiseRacePoisoned && starts.length > 0) {
+          Promise.race = originalPromiseRace;
+          promiseRacePoisoned = false;
         }
         starts.push(performance.now());
         active += 1;
@@ -554,6 +638,11 @@ describe("Floodgate request scheduler", () => {
             Reflect.apply = (() =>
               poisonedCalls++ === 0 ? 0 : 1_000) as typeof Reflect.apply;
             reflectApplyPoisoned = true;
+            Promise.race = (async () => ({
+              type: "ready",
+              permit: { markStarted() {}, release() {} },
+            })) as typeof Promise.race;
+            promiseRacePoisoned = true;
           }
         },
       });
@@ -575,7 +664,9 @@ describe("Floodgate request scheduler", () => {
         ]);
       } finally {
         Reflect.apply = originalReflectApply;
+        Promise.race = originalPromiseRace;
         reflectApplyPoisoned = false;
+        promiseRacePoisoned = false;
       }
 
       const gaps = starts
@@ -615,4 +706,60 @@ describe("Floodgate request scheduler", () => {
     expect(healthyResult.status).toBe("fulfilled");
     expect(starts).toEqual([failedFirst, healthyPeer]);
   });
+
+  it(
+    "rejects a failed run even when four earlier peer permits stay occupied",
+    { timeout: 10_000 },
+    async () => {
+      const failedFirst = "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/16/";
+      const mustNotStart = "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/17/";
+      const healthyUrls = [
+        "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/18/",
+        "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/19/",
+        "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/20/",
+        "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/21/",
+      ];
+      let releaseHealthy!: () => void;
+      const healthyBarrier = new Promise<void>((resolve) => {
+        releaseHealthy = resolve;
+      });
+      const starts: string[] = [];
+      const fetchImpl: FloodgateFetch = async (url) => {
+        starts.push(url);
+        if (url === failedFirst) throw new Error("first request failed");
+        if (healthyUrls.includes(url)) await healthyBarrier;
+        return response(url);
+      };
+      const failing = createFloodgateRequestScheduler({ fetchImpl });
+      const peers = healthyUrls.map(() =>
+        createFloodgateRequestScheduler({ fetchImpl }),
+      );
+      const failingRun = failing.run([
+        { kind: "daily_listing", url: failedFirst },
+        { kind: "daily_listing", url: mustNotStart },
+      ]);
+      const healthyRuns = peers.map((peer, index) =>
+        peer.run([{ kind: "daily_listing", url: healthyUrls[index] }]),
+      );
+
+      let outcome: "fulfilled" | "rejected" | "timeout";
+      try {
+        outcome = await Promise.race([
+          failingRun.then(
+            () => "fulfilled" as const,
+            () => "rejected" as const,
+          ),
+          new Promise<"timeout">((resolve) =>
+            setTimeout(() => resolve("timeout"), 1_500),
+          ),
+        ]);
+      } finally {
+        releaseHealthy();
+        await Promise.allSettled([failingRun, ...healthyRuns]);
+      }
+
+      expect(outcome).toBe("rejected");
+      expect(starts).not.toContain(mustNotStart);
+    },
+  );
 });

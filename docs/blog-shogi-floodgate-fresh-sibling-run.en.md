@@ -6,21 +6,21 @@
 
 ## Current status
 
-As of 2026-07-10, this work has **not** demonstrated high-dan strength. The label-blind public inventory is fixed, all 36,349 raw responses have been acquired by one process, and every reference has been reproduced offline.
+As of 2026-07-11, this work has **not** demonstrated high-dan strength. The label-blind public inventory is fixed, all 36,349 raw responses have been acquired by one process, and the roles are now locked at 1,000 training, 200 fresh-selection, and 200 fresh-final games.
 
-| Stage                             | Status      | Evidence                                              |
-| --------------------------------- | ----------- | ----------------------------------------------------- |
-| preregistration                   | complete    | 10,890 bytes / SHA-256 `ad9e6d7f…b7a0af`              |
-| label-blind inventory             | complete    | 90 listings / 36,419 official CSA / 36,168 target CSA |
-| source and legal-CSA parsers      | complete    | strict codecs, identity joins, full legal moves       |
-| raw CAS lock                      | complete    | PR #415, merge commit `2c272f37`                      |
-| process-wide scheduler            | complete    | PR #416, merge commit `b5832cea`                      |
-| lease / resume / offline verifier | complete    | PR #417, merge commit `649423d`                       |
-| live raw acquisition              | complete    | 36,349 / 36,349, result SHA `f48155a5…0301`           |
-| 1,000 / 200 / 200 role lock       | not started | fixed before labels after the next PR merges          |
-| teacher / three-seed training     | not started | model, objective, and seeds remain frozen             |
-| fresh selection                   | sealed      | only after all three final checkpoints                |
-| finals / 384-game A/B / 81Dojo    | sealed      | only after earlier gates pass                         |
+| Stage                             | Status      | Evidence                                                |
+| --------------------------------- | ----------- | ------------------------------------------------------- |
+| preregistration                   | complete    | 10,890 bytes / SHA-256 `ad9e6d7f…b7a0af`                |
+| label-blind inventory             | complete    | 90 listings / 36,419 official CSA / 36,168 target CSA   |
+| source and legal-CSA parsers      | complete    | strict codecs, identity joins, full legal moves         |
+| raw CAS lock                      | complete    | PR #415, merge commit `2c272f37`                        |
+| process-wide scheduler            | complete    | PR #416, merge commit `b5832cea`                        |
+| lease / resume / offline verifier | complete    | PR #417, merge commit `649423d`                         |
+| live raw acquisition              | complete    | 36,349 / 36,349, result SHA `f48155a5…0301`             |
+| 1,000 / 200 / 200 role lock       | complete    | 1,400 games / 33,600 parents / manifest `e6a54ed0…084e` |
+| teacher / three-seed training     | not started | model, objective, and seeds remain frozen               |
+| fresh selection                   | sealed      | only after all three final checkpoints                  |
+| finals / 384-game A/B / 81Dojo    | sealed      | only after earlier gates pass                           |
 
 ## Why the current evaluator is not overwritten
 
@@ -202,17 +202,42 @@ The third attempt started from regular merge `669e54d` and stopped after 40.417 
 
 Truncating the padding would “repair” the response into bytes that were never acquired, so the pipeline does not do that. The strict parser continues to reject empty, BOM, NUL, invalid UTF-8, and bare-CR input. Instead, the role-lock inspection entry point applies only this byte-codec gate label-blindly and excludes the whole failing object as source-ineligible. The codec gate does not inspect metadata, moves, terminal markers, or outcomes. The third attempt created no role-lock output or manifest and read no label or sealed holdout.
 
-## Next-stage stop conditions found while acquisition ran
+## The fourth attempt completed the label-blind role lock
 
-- A parent with only one legal move cannot satisfy the two-sibling contract. Before role lock, rules-complete legal moves >= 2 becomes a label-blind condition, with deterministic replacement under the same hash/fill order
-- The search-oriented move generator omits optional rook and bishop non-promotions, so role protected-child IDs and the teacher must share one rules-complete helper
-- Allocation does not contain `played_move`. A consumer must reverify raw CAS into role-specific parent bundles and fix the union of the legacy 8,678 IDs plus fresh final/selection IDs before replay sampling
+The fourth attempt ran from source revision `fc18554e1ff61e2bd7a0f7a24f277ce4e418a175`, after the whole-object codec exclusion had merged normally, and produced the first complete role-lock output. The successful run took 03:33:50.79 wall time, 12,580.21 user CPU seconds, and 610.56 system CPU seconds. It made zero network requests and consumed only the verified raw-manifest index rather than scanning the raw storage tree.
+
+An independent sub-agent's post-run fast audit confirmed that the output root contains exactly three regular, non-symlink files: `allocation.json`, `manifest.json`, and `materialized-input.json`. A separate process rehashed the files and matched both artifact byte counts and SHA-256 identities recorded by the manifest.
+
+| Artifact           |       Bytes | SHA-256                                                            |
+| ------------------ | ----------: | ------------------------------------------------------------------ |
+| manifest           |   5,516,989 | `e6a54ed004e961f7924acabb174d1da4ef6c9f6e398e23afd3da3532445b084e` |
+| materialized input |  31,265,897 | `ed43d7a2f3918178472aea03f897d13d4bd526a6c82f79b1427d3e4f1e666719` |
+| allocation         | 236,504,991 | `e252d2237a7ba50b959f6bbe9ebc11157623185ec7d5d949727855de4c0159b4` |
+
+The metadata-only first stage divided 36,168 canonical games into 11,491 eligible and 24,677 ineligible games. Lazy materialization tried 1,825 games in hash/cap order; 1,619 passed complete source and legality checks and 206 failed. A further 219 were rejected by semantic isolation or parent quotas, leaving the preregistered 1,400 games.
+
+| Role                | Games | Parents | Protected position IDs | Identity / pair cap | Game digest       | Parent digest      |
+| ------------------- | ----: | ------: | ---------------------: | ------------------: | ----------------- | ------------------ |
+| fresh final holdout |   200 |   4,800 |                413,221 |              20 / 4 | `29704e5c…cc502`  | `bd7e6ab2…e8d65`   |
+| fresh selection     |   200 |   4,800 |                425,344 |              20 / 4 | `417e2e10…7e0cb`  | `db24301a…111a3f`  |
+| training            | 1,000 |  24,000 |              2,121,074 |            100 / 20 | `97609ce5…07e3d7` | `6681bd08…cc3f08f` |
+
+The three roles total 33,600 parents and 2,959,639 protected IDs. Aggregate game, parent, and protected-ID digests are `36aaba89…e43bf6`, `d90a4774…2267d1`, and `87c7117c…aca6b`. Cross-role game-ID and parent-ID overlaps are zero, protected IDs are duplicate-free within each role, and every game has exactly two identities and 24 parents. Identity counts include both players exactly once per game, unordered-pair counts include each game exactly once, and observed maxima are at or below the role caps of 20 / 4, 20 / 4, and 100 / 20.
+
+A key-only audit plus checks of the known booleans found `teacher_or_candidate_scores_consumed/read`, `winner_opening_quality_or_score_filtering`, and `existing_final_holdout_opened` all false. This is therefore a label-blind set lock, not a selection or final evaluation. The concise tracked result is [`floodgate-q1-2026-role-lock-result.json`](../ml/protocols/floodgate-q1-2026-role-lock-result.json), 5,764 bytes with SHA-256 `14a7365bc484e0876a36196fab5a66f73e00ad3c39b1bfd7877e7931b5fd4f00`.
+
+This fast audit checks artifact identities, arithmetic, and caps; it is not a clean-revision independent replay of the entire allocation. That long-running verification is pending, so this report does not yet call the allocation independently reproduced.
+
+## Stop conditions that remain after the role lock
+
+- The role lock applied rules-complete legal moves >= 2 label-blindly and fixed protected-child IDs with the common helper, including optional rook and bishop non-promotions. The teacher must use the same helper
+- Allocation does not contain `played_move`. The next read-only bundle stage must reverify raw CAS into role-specific parent bundles and fix the union of the legacy 8,678 IDs plus fresh final/selection IDs before replay sampling
 - The preregistered warm initializer `571ca309…65ff8`, replay `2207eba5…a56cb`, and Python 3.13.0 / PyTorch 2.12.1 environment were recovered with exact identities and copied into stable storage
 
 ## What remains before a high-dan claim
 
-A valid raw lock is not playing-strength evidence. The next label-blind stage applies rating, embedded game-time rating, legality, `%TORYO`, diversity caps, and semantic isolation before fixing 1,000 / 200 / 200 games. Only then may the training teacher be generated and the unchanged model/objective be trained with seeds 42, 43, and 44.
+A valid role lock is not playing-strength evidence. The next steps close the independent full replay and role bundle. Only then may the training teacher be generated and the unchanged model/objective be trained with seeds 42, 43, and 44.
 
 Only a fresh-selection family pass opens the fresh final, the existing unopened WCSC36 final, regressions, and the paired 384-game A/B. The final 200-game 81Dojo calibration requires an official COM account and client; explicit user confirmation will be requested before any external games are started.
 
-The conclusion is not yet “the evaluator is stronger.” The narrower, auditable conclusion is that the raw acquisition path is complete, allowing a separate candidate to be tested without overwriting the stable evaluator.
+The conclusion is not yet “the evaluator is stronger.” The narrower, auditable conclusion is that 1,400 label-blind games are fixed without mixing training, selection, and final roles, while the current evaluator remains untouched.

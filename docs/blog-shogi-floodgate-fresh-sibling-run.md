@@ -6,7 +6,7 @@
 
 ## 現在地
 
-2026-07-10時点で、まだ「高段レベルになった」とは判定していない。labelを見ずに公開在庫を固定し、36,349件のraw responseを単一processで取得して、全参照をofflineで再現するところまでは完了した。
+2026-07-11時点で、まだ「高段レベルになった」とは判定していない。labelを見ずに公開在庫を固定し、36,349件のraw responseを単一processで取得したうえで、training 1,000局、fresh selection 200局、fresh final 200局のrole lockまで完了した。
 
 | 段階                              | 状態   | 証拠                                                  |
 | --------------------------------- | ------ | ----------------------------------------------------- |
@@ -17,7 +17,7 @@
 | process-wide scheduler            | 完了   | PR #416、通常merge `b5832cea`                         |
 | lease / resume / offline verifier | 完了   | PR #417、通常merge `649423d`                          |
 | live raw取得                      | 完了   | 36,349 / 36,349、result SHA `f48155a5…0301`           |
-| 1,000 / 200 / 200 role lock       | 未開始 | 次PRをmerge後、label生成前に固定                      |
+| 1,000 / 200 / 200 role lock       | 完了   | 1,400局 / 33,600 parents / manifest `e6a54ed0…084e`   |
 | teacher / 3 seed学習              | 未開始 | model・loss・seedは変更しない                         |
 | fresh selection                   | 封印   | 3 final checkpoint完成後だけ                          |
 | final / 384局A/B / 81Dojo         | 封印   | 前段合格時だけ                                        |
@@ -202,17 +202,42 @@ result summarizerの独立監査では、読んだmanifest Aではなく別読�
 
 末尾paddingを切って「修復」すると取得したexact bytesと別の棋譜を作るため、採用しない。strict parserのempty / BOM / NUL / invalid UTF-8 / bare CR拒否は維持し、role lockのinspect入口でこのbyte codecだけをlabel-blindに判定して、不合格object全体をsource-ineligibleとして除外する。metadata、指し手、終局、勝敗はcodec判定に使わない。3回目もrole-lock output / manifestは作成されず、labelも封印holdoutも読んでいない。
 
-## raw取得中に先回りして見つけた次段の停止条件
+## 4回目でlabel-blind role lockが完走した
 
-- 合法手が1つしかない親はsibling 2候補契約を満たさない。role lock前にrules-complete合法手2つ以上をlabel-blind条件にし、同じhash/fill順で補う
-- search用合法手generatorは飛車角の任意不成を省くため、roleのprotected child IDsとteacherで同じrules-complete helperを使う
-- role allocationだけでは`played_move`がない。raw CASを再検証してrole別parent bundleを作り、legacy 8,678 IDとfresh final/selection IDのunionをreplay抽出前に固定する
+codec不合格をwhole-object除外する修正を通常mergeしたsource revision `fc18554e1ff61e2bd7a0f7a24f277ce4e418a175`から4回目を実行し、初めてrole-lock outputを完成させた。成功runの実測はwall 03:33:50.79、user CPU 12,580.21秒、system CPU 610.56秒だった。network requestは0で、raw storage treeを走査せず、検証済みraw manifest indexだけを入力にした。
+
+独立sub-agentのpost-run fast auditでは、output rootの直下が`allocation.json`、`manifest.json`、`materialized-input.json`のregular non-symlink file 3件だけであることを再確認した。実ファイルを別processでhashし直し、manifestが記録した2 artifactのbytes / SHA-256と一致した。
+
+| artifact           |       bytes | SHA-256                                                            |
+| ------------------ | ----------: | ------------------------------------------------------------------ |
+| manifest           |   5,516,989 | `e6a54ed004e961f7924acabb174d1da4ef6c9f6e398e23afd3da3532445b084e` |
+| materialized input |  31,265,897 | `ed43d7a2f3918178472aea03f897d13d4bd526a6c82f79b1427d3e4f1e666719` |
+| allocation         | 236,504,991 | `e252d2237a7ba50b959f6bbe9ebc11157623185ec7d5d949727855de4c0159b4` |
+
+36,168 canonical局はmetadataだけの第1段で11,491 eligible / 24,677 ineligibleへ分かれた。hash / cap順にlazy materializeを試みた1,825局のうち1,619局がfull source・legalityを通り、206局が落ちた。その後219局がsemantic isolationまたはparent quotaで不採用となり、事前登録どおり1,400局を満たした。
+
+| role                | games | parents | protected position IDs | identity / pair cap | game digest       | parent digest      |
+| ------------------- | ----: | ------: | ---------------------: | ------------------: | ----------------- | ------------------ |
+| fresh final holdout |   200 |   4,800 |                413,221 |              20 / 4 | `29704e5c…cc502`  | `bd7e6ab2…e8d65`   |
+| fresh selection     |   200 |   4,800 |                425,344 |              20 / 4 | `417e2e10…7e0cb`  | `db24301a…111a3f`  |
+| training            | 1,000 |  24,000 |              2,121,074 |            100 / 20 | `97609ce5…07e3d7` | `6681bd08…cc3f08f` |
+
+3 roleの合計は33,600 parents、2,959,639 protected IDsである。全game、parent、protected ID集合のdigestはそれぞれ`36aaba89…e43bf6`、`d90a4774…2267d1`、`87c7117c…aca6b`になった。game IDとparent IDのcross-role重複は0、role内protected IDは重複なしで、全gameがexact 2 identities / 24 parentsだった。identity countは各gameの両対局者をちょうど1回ずつ数え、unordered pair countは各gameをちょうど1回数え、各roleの最大値は20 / 4、20 / 4、100 / 20でcap以下だった。
+
+key-only auditと既知のboolean値の確認では、`teacher_or_candidate_scores_consumed/read`、`winner_opening_quality_or_score_filtering`、`existing_final_holdout_opened`はすべて`false`だった。つまりこれはlabel-blindな集合固定であり、selection / finalの評価結果ではない。小さなtracked resultは[`floodgate-q1-2026-role-lock-result.json`](../ml/protocols/floodgate-q1-2026-role-lock-result.json)へ保存した（5,764 bytes / SHA-256 `14a7365bc484e0876a36196fab5a66f73e00ad3c39b1bfd7877e7931b5fd4f00`）。
+
+なお、ここまでのfast auditはartifact identity、算術、capを確認したもので、cleanな別revisionから全割当を再計算する独立full replayではない。その長時間検証は現在pendingであり、完了するまで「独立再現済み」とは書かない。
+
+## role lock後に残った次段の停止条件
+
+- role lockではrules-complete合法手2つ以上をlabel-blind条件にし、飛車角の任意不成を含む共通helperでprotected child IDsを固定した。teacherも同じhelperを使わなければならない
+- role allocationだけでは`played_move`がない。次のread-only bundle stageでraw CASを再検証してrole別parent bundleを作り、legacy 8,678 IDとfresh final/selection IDのunionをreplay抽出前に固定する
 - 事前登録したwarm initializer `571ca309…65ff8`、replay `2207eba5…a56cb`、Python 3.13.0 / PyTorch 2.12.1環境はexact一致で回収し、安定領域へ複製した
 
 ## 高段判定までの残り
 
-raw取得が成功しても、まだ棋力証明ではない。次にrating、対局時rating、合法性、`%TORYO`、diversity cap、semantic isolationをlabelなしで適用し、1,000 / 200 / 200局を固定する。その後だけtraining teacherを作り、同じmodel・loss・seed 42/43/44を学習する。
+role lockが成功しても、まだ棋力証明ではない。次に独立full replayとrole bundleを閉じ、その後だけtraining teacherを作り、同じmodel・loss・seed 42/43/44を学習する。
 
 fresh selection family gateを通った候補だけが、fresh final、未開封WCSC36 final、回帰、384局paired A/Bへ進む。最後の81Dojo 200局は公式COM accountとclientを使う必要があり、外部対局を始める前にユーザーの明示確認を取る。
 
-このログの結論はまだ「強くなった」ではない。現時点の結論は、現在の評価関数を壊さずに、次のcandidateを検証できるraw取得経路が完成した、である。
+このログの結論はまだ「強くなった」ではない。現時点の結論は、現在の評価関数を壊さず、training / selection / finalが混ざらない1,400局をlabelなしで固定できた、である。

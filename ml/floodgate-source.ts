@@ -540,10 +540,7 @@ export function compareUtf8Bytes(left: string, right: string): number {
 }
 
 export function sha256Hex(input: string | Uint8Array): string {
-  return crypto
-    .createHash("sha256")
-    .update(typeof input === "string" ? Buffer.from(input, "utf8") : input)
-    .digest("hex");
+  return crypto.createHash("sha256").update(input).digest("hex");
 }
 
 /**
@@ -1158,7 +1155,10 @@ function copyEvidenceBytes(value: unknown, label: string): Uint8Array {
   if (!(value instanceof Uint8Array)) {
     fail(`${label} must be an exact Uint8Array body`);
   }
-  return Uint8Array.from(value);
+  // `Buffer.slice()` aliases its source in Node, so construct a plain typed
+  // array to guarantee an independent native copy for both Buffer and
+  // Uint8Array callers.
+  return new Uint8Array(value);
 }
 
 /**

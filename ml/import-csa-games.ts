@@ -23,10 +23,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { types as nodeUtilTypes } from 'node:util';
 
-import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '../src/components/game/ShogiImproved/InitialPositionImproved';
 import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
-import { buildDeclinablePromotion } from '../src/components/game/ShogiImproved/PromotionRulesImproved';
 import {
   FU,
   GI,
@@ -51,6 +49,7 @@ import {
   getSuji,
 } from '../src/components/game/ShogiImproved/types';
 import { toSfen } from './generate-teacher';
+import { rulesCompleteLegalMoves } from './shogi-sfen';
 
 export type CsaSource = 'wcsc' | 'floodgate';
 export type DatasetSplit = 'train' | 'val';
@@ -263,13 +262,9 @@ export function resolveCsaMove(position: KyokumenImproved, token: string): Te {
     else seenUnpromoted = true;
     matches.push(move);
   };
-  for (const move of GenerateMovesImproved.generateLegalMoves(position)) {
+  for (const { move } of rulesCompleteLegalMoves(position)) {
     if (move.from !== from || move.to !== to) continue;
     addExpected(move);
-    // The search generator prunes optional non-promotion for bishop and rook.
-    // CSA parsing must follow shogi rules rather than that search optimization.
-    const declined = buildDeclinablePromotion(move, position.teban);
-    if (declined) addExpected(declined);
   }
 
   if (matches.length === 0) {

@@ -12,11 +12,9 @@
 import { createHash } from "node:crypto";
 import { types as nodeUtilTypes } from "node:util";
 
-import { GenerateMovesImproved } from "../src/components/game/ShogiImproved/GenerateMovesImproved";
-import { buildDeclinablePromotion } from "../src/components/game/ShogiImproved/PromotionRulesImproved";
 import { toSfen } from "./generate-teacher";
 import { compareBytewise, positionKeyFromSfen } from "./sibling-data";
-import { positionFromSfen, teToUsi } from "./shogi-sfen";
+import { positionFromSfen, rulesCompleteLegalMoves } from "./shogi-sfen";
 
 export const FLOODGATE_PURE_INPUT_SCHEMA =
   "shogi-floodgate-role-pure-input-v1" as const;
@@ -508,35 +506,20 @@ function addAll(target: Set<string>, values: readonly string[]): void {
   for (const value of values) target.add(value);
 }
 
-/**
- * Compute the protected semantic group without asking any teacher: the parent
- * position plus every position reachable by one legal move.
- */
-export function protectedSemanticPositionIds(parentSfen: string): string[] {
+interface FloodgateLabelBlindParentSemantics {
+  readonly legalChildCount: number;
+  readonly protectedPositionIds: readonly string[];
+}
+
+function labelBlindParentSemantics(
+  parentSfen: string,
+): FloodgateLabelBlindParentSemantics {
   const normalized = requiredText(parentSfen, "parent_sfen");
   const { position, moveNumber } = positionFromSfen(normalized);
   if (toSfen(position, moveNumber) !== normalized) {
     throw new Error("parent_sfen must use the canonical SFEN serialization");
   }
-  const legalMovesByUsi = new Map<
-    string,
-    ReturnType<typeof GenerateMovesImproved.generateLegalMoves>[number]
-  >();
-  for (const move of GenerateMovesImproved.generateLegalMoves(position)) {
-    legalMovesByUsi.set(teToUsi(move), move);
-    // The search generator intentionally prunes optional non-promotion for
-    // bishops and rooks. Protected groups represent the rules of shogi, so
-    // reconstruct every legal decline (and harmlessly de-duplicate the
-    // variants already emitted for pawn/lance/knight/silver).
-    const declined = buildDeclinablePromotion(move, position.teban);
-    if (declined) legalMovesByUsi.set(teToUsi(declined), declined);
-  }
-  const legalMoves = [...legalMovesByUsi]
-    .sort(([left], [right]) => compareBytewise(left, right))
-    .map(([usi, move]) => ({ move, usi }));
-  if (legalMoves.length === 0) {
-    throw new Error("parsed parent has no legal child position");
-  }
+  const legalMoves = rulesCompleteLegalMoves(position);
 
   const protectedIds = new Set<string>([positionKeyFromSfen(normalized)]);
   for (const { move } of legalMoves) {
@@ -545,7 +528,20 @@ export function protectedSemanticPositionIds(parentSfen: string): string[] {
     child.toggleTeban();
     protectedIds.add(positionKeyFromSfen(toSfen(child, moveNumber + 1)));
   }
-  return [...protectedIds].sort(compareBytewise);
+  return Object.freeze({
+    legalChildCount: legalMoves.length,
+    protectedPositionIds: Object.freeze(
+      [...protectedIds].sort(compareBytewise),
+    ),
+  });
+}
+
+/**
+ * Compute the protected semantic group without asking any teacher: the parent
+ * position plus every rules-complete legal child position.
+ */
+export function protectedSemanticPositionIds(parentSfen: string): string[] {
+  return [...labelBlindParentSemantics(parentSfen).protectedPositionIds];
 }
 
 function decodePureGames(input: unknown): FloodgatePureGameInput[] {
@@ -648,12 +644,23 @@ function prepareParents(game: FloodgatePureGameInput): PreparedParent[] {
         parent.ply >= FLOODGATE_PARENT_PLY_MIN &&
         parent.ply <= FLOODGATE_PARENT_PLY_MAX,
     )
-    .map((parent) => ({
-      ...parent,
-      position_id: positionKeyFromSfen(parent.parent_sfen),
-      phase: phaseForPly(parent.ply),
-      protected_position_ids: protectedSemanticPositionIds(parent.parent_sfen),
-    }));
+    .flatMap((parent) => {
+      const semantics = labelBlindParentSemantics(parent.parent_sfen);
+      // This fail-closed structural condition is not a new/tunable plan
+      // threshold. The sibling candidate-union schema requires at least two
+      // alternatives per parent; a 0/1-child parent cannot produce one
+      // comparison pair. Reject it label-blind before parent hashing and fill
+      // under the frozen domains.
+      if (semantics.legalChildCount < 2) return [];
+      return [
+        {
+          ...parent,
+          position_id: positionKeyFromSfen(parent.parent_sfen),
+          phase: phaseForPly(parent.ply),
+          protected_position_ids: [...semantics.protectedPositionIds],
+        },
+      ];
+    });
 }
 
 function sampleGameParents(

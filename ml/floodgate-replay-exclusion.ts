@@ -462,6 +462,31 @@ export function validateFloodgateReplayExclusionUnionReceipt(
   ) {
     fail("replay exclusion receipt overlap accounting is impossible");
   }
+  const legacyOnly =
+    components.legacy.count -
+    overlaps.legacy_and_fresh_final -
+    overlaps.legacy_and_fresh_selection +
+    overlaps.all_three;
+  const freshFinalOnly =
+    components.fresh_final.count -
+    overlaps.legacy_and_fresh_final -
+    overlaps.fresh_final_and_fresh_selection +
+    overlaps.all_three;
+  const freshSelectionOnly =
+    components.fresh_selection.count -
+    overlaps.legacy_and_fresh_selection -
+    overlaps.fresh_final_and_fresh_selection +
+    overlaps.all_three;
+  if (
+    !Number.isSafeInteger(legacyOnly) ||
+    !Number.isSafeInteger(freshFinalOnly) ||
+    !Number.isSafeInteger(freshSelectionOnly) ||
+    legacyOnly < 0 ||
+    freshFinalOnly < 0 ||
+    freshSelectionOnly < 0
+  ) {
+    fail("replay exclusion receipt Venn regions are impossible");
+  }
   const summaryValue = strictReceiptObject(
     root.summary,
     "replay exclusion receipt.summary",
@@ -515,6 +540,11 @@ export function validateFloodgateReplayExclusionUnionReceipt(
     components.fresh_selection.count -
     overlaps.fresh_final_and_fresh_selection;
   if (
+    !Number.isSafeInteger(memberships) ||
+    !Number.isSafeInteger(unique) ||
+    !Number.isSafeInteger(freshUnique) ||
+    unique < 0 ||
+    freshUnique < 0 ||
     summary.component_memberships !== memberships ||
     summary.unique_identifiers !== unique ||
     summary.unique_identifiers !== output.count ||

@@ -116,6 +116,40 @@ describe("Floodgate replay exclusion union", () => {
     ).toThrow(/summary arithmetic does not close/);
   });
 
+  it("rejects pairwise counts whose three-set Venn regions are impossible", () => {
+    const artifact = buildFloodgateReplayExclusionUnionCoreForTests({
+      legacy: text(id("1")),
+      fresh_final: text(id("2")),
+      fresh_selection: text(id("3")),
+    });
+    const impossible = JSON.parse(artifact.receipt_json) as {
+      overlaps: {
+        legacy_and_fresh_final: number;
+        legacy_and_fresh_selection: number;
+      };
+      summary: {
+        unique_identifiers: number;
+        duplicate_memberships: number;
+        fresh_evaluation_unique_identifiers: number;
+        added_to_legacy: number;
+      };
+      output: { count: number };
+    };
+    impossible.overlaps.legacy_and_fresh_final = 1;
+    impossible.overlaps.legacy_and_fresh_selection = 1;
+    impossible.summary.unique_identifiers = 1;
+    impossible.summary.duplicate_memberships = 2;
+    impossible.summary.fresh_evaluation_unique_identifiers = 2;
+    impossible.summary.added_to_legacy = 0;
+    impossible.output.count = 1;
+
+    expect(() =>
+      parseFloodgateReplayExclusionUnionReceipt(
+        `${JSON.stringify(impossible)}\n`,
+      ),
+    ).toThrow(/Venn regions are impossible/);
+  });
+
   it.each([
     ["missing final LF", (receipt: string) => receipt.slice(0, -1)],
     ["double final LF", (receipt: string) => `${receipt}\n`],

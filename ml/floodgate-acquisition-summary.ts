@@ -2,6 +2,7 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { spawn, type ChildProcess } from "node:child_process";
 
 import { FLOODGATE_ACQUISITION_AUDIT_SCHEMA } from "./floodgate-acquisition-runner";
 import {
@@ -11,10 +12,18 @@ import {
 } from "./floodgate-raw-lock";
 import {
   FLOODGATE_RAW_OFFLINE_VERIFICATION_SCHEMA,
-  verifyExistingFloodgateRawLock,
+  verifyFloodgateRawLockCandidate,
   type FloodgateRawOfflineVerificationReport,
 } from "./floodgate-raw-lock-verifier";
-import { sha256Hex } from "./floodgate-source";
+import {
+  FLOODGATE_PERIOD_END_INVENTORY_URL,
+  FLOODGATE_Q1_DAILY_LISTING_COUNT,
+  FLOODGATE_Q1_LISTING_IDENTITY_MANIFEST_EXPECTED,
+  parseFloodgateCsaUrl,
+  parseFloodgateDailyListingUrl,
+  parseFloodgateDailyRatingUrl,
+  sha256Hex,
+} from "./floodgate-source";
 import { compareBytewise } from "./sibling-data";
 
 export const FLOODGATE_ACQUISITION_RESULT_SCHEMA =
@@ -31,6 +40,78 @@ const AUDIT_PHASES = new Set([
   "csa",
   "manifest_published",
 ]);
+const AUDIT_PHASE_ORDER = new Map(
+  [
+    "daily_listings",
+    "listing_barrier",
+    "daily_ratings",
+    "period_inventory",
+    "csa",
+    "manifest_published",
+  ].map((phase, index) => [phase, index]),
+);
+const PINNED_AUDIT_READER_MAX_STDOUT_BYTES = 32 * 1024 * 1024;
+const PINNED_AUDIT_READER_MAX_STDERR_BYTES = 64 * 1024;
+const PINNED_AUDIT_READER_TIMEOUT_MS = 10_000;
+const PINNED_AUDIT_READER = String.raw`import base64,json,os,stat,sys
+ROOT_FD=3
+MAX_FILES=4096
+MAX_FILE_BYTES=8*1024*1024
+MAX_TOTAL_BYTES=20*1024*1024
+root=os.fstat(ROOT_FD)
+if not stat.S_ISDIR(root.st_mode):
+    raise RuntimeError("inherited audit descriptor is not a directory")
+names=os.listdir(ROOT_FD)
+if len(names)>MAX_FILES:
+    raise RuntimeError("too many audit entries")
+rows=[]
+total=0
+for name in sorted(names,key=lambda value:os.fsencode(value)):
+    if not isinstance(name,str) or name in (".","..") or "/" in name:
+        raise RuntimeError("invalid audit entry name")
+    before_path=os.stat(name,dir_fd=ROOT_FD,follow_symlinks=False)
+    if not stat.S_ISREG(before_path.st_mode):
+        raise RuntimeError("audit entry path is not a regular file")
+    flags=os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK
+    if hasattr(os,"O_CLOEXEC"):
+        flags|=os.O_CLOEXEC
+    file_fd=os.open(name,flags,dir_fd=ROOT_FD)
+    try:
+        opened=os.fstat(file_fd)
+        if not stat.S_ISREG(opened.st_mode):
+            raise RuntimeError("audit entry is not a regular file")
+        if (before_path.st_dev,before_path.st_ino)!=(opened.st_dev,opened.st_ino):
+            raise RuntimeError("audit entry changed while opened")
+        if opened.st_size<0 or opened.st_size>MAX_FILE_BYTES:
+            raise RuntimeError("audit entry size is outside the fixed bound")
+        chunks=[]
+        size=0
+        while True:
+            chunk=os.read(file_fd,65536)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            size+=len(chunk)
+            if size>MAX_FILE_BYTES:
+                raise RuntimeError("audit entry grew outside the fixed bound")
+        data=b"".join(chunks)
+        after=os.fstat(file_fd)
+        after_path=os.stat(name,dir_fd=ROOT_FD,follow_symlinks=False)
+    finally:
+        os.close(file_fd)
+    identity=(opened.st_dev,opened.st_ino,opened.st_size)
+    if identity!=(after.st_dev,after.st_ino,after.st_size):
+        raise RuntimeError("audit entry changed while read")
+    if identity!=(after_path.st_dev,after_path.st_ino,after_path.st_size):
+        raise RuntimeError("audit entry path changed while read")
+    if len(data)!=opened.st_size:
+        raise RuntimeError("audit entry byte count changed while read")
+    total+=len(data)
+    if total>MAX_TOTAL_BYTES:
+        raise RuntimeError("audit set exceeds the fixed byte bound")
+    rows.append([name,base64.b64encode(data).decode("ascii"),len(data)])
+sys.stdout.write(json.dumps({"root":[str(root.st_dev),str(root.st_ino)],"files":rows},separators=(",",":"),ensure_ascii=True)+"\n")
+`;
 
 export interface FloodgateAcquisitionAuthoritativeFacts {
   readonly source_revision: string;
@@ -53,6 +134,12 @@ export interface FloodgateAcquisitionAuthoritativeFacts {
   readonly offline_verification_schema: typeof FLOODGATE_RAW_OFFLINE_VERIFICATION_SCHEMA;
 }
 
+/** Raw audit identity. Parsing is limited to the durable newline prefix. */
+export interface FloodgateAcquisitionAuditFileInput {
+  readonly filename: string;
+  readonly bytes: Uint8Array;
+}
+
 interface ParsedAuditRecord {
   readonly schema: typeof FLOODGATE_ACQUISITION_AUDIT_SCHEMA;
   readonly run_token: string;
@@ -73,9 +160,9 @@ interface ParsedAuditRecord {
 
 export interface FloodgateAcquisitionAttemptSummary {
   readonly run_token: string;
-  readonly run_started_at: string;
-  readonly last_recorded_at: string;
-  readonly last_phase: string;
+  readonly run_started_at: string | null;
+  readonly last_recorded_at: string | null;
+  readonly last_phase: string | null;
   readonly records: number;
   readonly fetched: number;
   readonly reused_observations: number;
@@ -84,18 +171,21 @@ export interface FloodgateAcquisitionAttemptSummary {
   readonly response_bytes: number;
   readonly audit_bytes: number;
   readonly audit_sha256: string;
+  readonly complete_jsonl_bytes: number;
+  readonly trailing_partial_bytes: number;
 }
 
 export interface FloodgateAcquisitionResultReceipt {
   readonly schema: typeof FLOODGATE_ACQUISITION_RESULT_SCHEMA;
   readonly source_revision: string;
   readonly timing: {
-    readonly started_at: string;
+    readonly started_at: string | null;
     readonly finished_at: string | null;
     readonly elapsed_ms: number | null;
     readonly attempts: number;
     readonly resume_count: number;
     readonly manifest_publish_audit_present: boolean;
+    readonly start_observation_complete: boolean;
   };
   readonly audit: {
     readonly records: number;
@@ -105,6 +195,12 @@ export interface FloodgateAcquisitionResultReceipt {
     readonly status_404: number;
     readonly response_bytes: number;
     readonly authoritative_receipt_delta: number;
+    readonly gaps: {
+      readonly empty_files: number;
+      readonly trailing_partial_files: number;
+      readonly trailing_partial_bytes: number;
+      readonly files_without_source_revision: number;
+    };
     readonly attempts: readonly FloodgateAcquisitionAttemptSummary[];
   };
   readonly authoritative: Omit<
@@ -203,6 +299,59 @@ function parseDetail(
   return Object.freeze(result);
 }
 
+function validateAuditUrlForPhase(
+  phase: string,
+  url: string,
+  label: string,
+): void {
+  try {
+    let canonical: string;
+    if (phase === "daily_listings" || phase === "listing_barrier") {
+      canonical = parseFloodgateDailyListingUrl(url).url;
+    } else if (phase === "daily_ratings") {
+      canonical = parseFloodgateDailyRatingUrl(url).url;
+    } else if (phase === "period_inventory") {
+      canonical = FLOODGATE_PERIOD_END_INVENTORY_URL;
+    } else if (phase === "csa") {
+      canonical = parseFloodgateCsaUrl(url).url;
+    } else return;
+    if (canonical !== url) throw new Error();
+  } catch {
+    fail(`${label} is not canonical for phase ${phase}`);
+  }
+}
+
+function validateListingBarrierDetail(
+  input: Readonly<Record<string, string | number | boolean>>,
+  label: string,
+): void {
+  const detail = exactRecord(
+    input,
+    [
+      "all_official_csa_urls",
+      "listing_bytes",
+      "listing_identity_bytes",
+      "listing_identity_sha256",
+      "listing_responses",
+      "target_csa_urls",
+    ],
+    label,
+  );
+  const expected: Readonly<Record<string, string | number>> = {
+    listing_responses: FLOODGATE_Q1_DAILY_LISTING_COUNT,
+    listing_bytes: 10_098_337,
+    all_official_csa_urls: 36_419,
+    target_csa_urls: 36_168,
+    listing_identity_bytes:
+      FLOODGATE_Q1_LISTING_IDENTITY_MANIFEST_EXPECTED.bytes,
+    listing_identity_sha256:
+      FLOODGATE_Q1_LISTING_IDENTITY_MANIFEST_EXPECTED.sha256,
+  };
+  for (const [key, value] of Object.entries(expected)) {
+    if (detail[key] !== value) fail(`${label}.${key} is not preregistered`);
+  }
+}
+
 function parseAuditRecord(input: unknown, label: string): ParsedAuditRecord {
   const raw = input as Record<string, unknown>;
   const hasDetail =
@@ -279,6 +428,34 @@ function parseAuditRecord(input: unknown, label: string): ParsedAuditRecord {
   if (parsed.fetched === 0 && parsed.response_bytes !== 0) {
     fail(`${label} records bytes without fetched responses`);
   }
+  if (hasDetail !== (parsed.phase === "listing_barrier")) {
+    fail(`${label} detail presence does not match its phase`);
+  }
+  if (parsed.phase === "listing_barrier") {
+    validateListingBarrierDetail(parsed.detail!, `${label}.detail`);
+  }
+  if (parsed.phase === "manifest_published") {
+    if (parsed.first_url !== null || parsed.last_url !== null) {
+      fail(`${label} manifest publication must not name URLs`);
+    }
+  } else {
+    if (parsed.first_url === null || parsed.last_url === null) {
+      fail(`${label} phase must name its first and last URL`);
+    }
+    validateAuditUrlForPhase(
+      parsed.phase,
+      parsed.first_url,
+      `${label}.first_url`,
+    );
+    validateAuditUrlForPhase(
+      parsed.phase,
+      parsed.last_url,
+      `${label}.last_url`,
+    );
+    if (compareBytewise(parsed.first_url, parsed.last_url) > 0) {
+      fail(`${label} URL range is reversed`);
+    }
+  }
   return parsed;
 }
 
@@ -291,24 +468,62 @@ function sum(
   return total;
 }
 
-function parseAuditText(
-  text: string,
+function parseAuditFile(
+  input: FloodgateAcquisitionAuditFileInput,
   expectedRevision: string,
   index: number,
 ): FloodgateAcquisitionAttemptSummary & {
   readonly publish_recorded_at: string | null;
+  readonly source_revision_observed: boolean;
+  readonly empty_file: boolean;
 } {
   if (
-    typeof text !== "string" ||
-    text.length === 0 ||
-    !text.endsWith("\n") ||
-    text.endsWith("\n\n") ||
-    text.includes("\r")
+    input === null ||
+    typeof input !== "object" ||
+    typeof input.filename !== "string" ||
+    !(input.bytes instanceof Uint8Array)
   ) {
-    fail(`audit[${index}] must use exact nonempty JSONL framing`);
+    fail(`audit[${index}] raw identity is malformed`);
   }
-  const lines = text.slice(0, -1).split("\n");
+  const filenameMatch = AUDIT_FILE_RE.exec(input.filename);
+  if (filenameMatch === null) {
+    fail(`audit[${index}] filename is not a run-token JSONL name`);
+  }
+  const token = filenameMatch[1];
+  const bytes = input.bytes;
+  if (
+    bytes.byteLength >= 3 &&
+    bytes[0] === 0xef &&
+    bytes[1] === 0xbb &&
+    bytes[2] === 0xbf
+  ) {
+    fail(`audit[${index}] must not start with a UTF-8 BOM`);
+  }
+  let lastNewline = -1;
+  for (let offset = bytes.byteLength - 1; offset >= 0; offset -= 1) {
+    if (bytes[offset] === 0x0a) {
+      lastNewline = offset;
+      break;
+    }
+  }
+  const completeBytes = lastNewline + 1;
+  const trailingPartialBytes = bytes.byteLength - completeBytes;
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      bytes.subarray(0, completeBytes),
+    );
+  } catch {
+    return fail(`audit[${index}] complete JSONL prefix is not UTF-8`);
+  }
+  if (text.includes("\r")) {
+    fail(`audit[${index}] complete JSONL prefix contains CR bytes`);
+  }
+  const lines = text.length === 0 ? [] : text.slice(0, -1).split("\n");
   const records = lines.map((line, lineIndex) => {
+    if (line.length === 0) {
+      return fail(`audit[${index}][${lineIndex}] is an empty JSONL record`);
+    }
     let decoded: unknown;
     try {
       decoded = JSON.parse(line);
@@ -320,42 +535,71 @@ function parseAuditText(
     }
     return parseAuditRecord(decoded, `audit[${index}][${lineIndex}]`);
   });
-  const token = records[0].run_token;
-  const startedAt = records[0].run_started_at;
+  const startedAt = records[0]?.run_started_at ?? null;
+  let previousPhase = -1;
+  let previousRecordedAt = startedAt === null ? 0 : Date.parse(startedAt);
   for (let recordIndex = 0; recordIndex < records.length; recordIndex += 1) {
     const record = records[recordIndex];
+    const phaseOrder = AUDIT_PHASE_ORDER.get(record.phase);
     if (
       record.sequence !== recordIndex + 1 ||
       record.run_token !== token ||
       record.run_started_at !== startedAt ||
       record.source_revision !== expectedRevision ||
-      Date.parse(record.recorded_at) < Date.parse(startedAt)
+      Date.parse(record.recorded_at) < previousRecordedAt ||
+      phaseOrder === undefined ||
+      phaseOrder < previousPhase
     ) {
       fail(`audit[${index}] envelope continuity is invalid`);
     }
+    if (record.fetched > 0 && record.reused > 0) {
+      fail(`audit[${index}][${recordIndex}] mixes fetched and reused counts`);
+    }
+    if (
+      (record.phase === "listing_barrier" ||
+        record.phase === "manifest_published") &&
+      (record.fetched !== 0 ||
+        record.reused !== 0 ||
+        record.status_200 !== 0 ||
+        record.status_404 !== 0 ||
+        record.response_bytes !== 0)
+    ) {
+      fail(`audit[${index}][${recordIndex}] barrier counters are not zero`);
+    }
+    previousPhase = phaseOrder;
+    previousRecordedAt = Date.parse(record.recorded_at);
   }
   const publish = records.filter(
     (record) => record.phase === "manifest_published",
   );
+  if (
+    records.filter((record) => record.phase === "listing_barrier").length > 1
+  ) {
+    fail(`audit[${index}] repeats listing_barrier`);
+  }
   if (publish.length > 1) fail(`audit[${index}] repeats manifest_published`);
   if (publish.length === 1 && publish[0] !== records.at(-1)) {
     fail(`audit[${index}] manifest_published must be its final record`);
   }
-  const last = records.at(-1)!;
+  const last = records.at(-1) ?? null;
   return Object.freeze({
     run_token: token,
     run_started_at: startedAt,
-    last_recorded_at: last.recorded_at,
-    last_phase: last.phase,
+    last_recorded_at: last?.recorded_at ?? null,
+    last_phase: last?.phase ?? null,
     records: records.length,
     fetched: sum(records, "fetched"),
     reused_observations: sum(records, "reused"),
     status_200: sum(records, "status_200"),
     status_404: sum(records, "status_404"),
     response_bytes: sum(records, "response_bytes"),
-    audit_bytes: Buffer.byteLength(text, "utf8"),
-    audit_sha256: sha256Hex(text),
+    audit_bytes: bytes.byteLength,
+    audit_sha256: sha256Hex(bytes),
+    complete_jsonl_bytes: completeBytes,
+    trailing_partial_bytes: trailingPartialBytes,
     publish_recorded_at: publish[0]?.recorded_at ?? null,
+    source_revision_observed: records.length > 0,
+    empty_file: bytes.byteLength === 0,
   });
 }
 
@@ -369,47 +613,108 @@ function deepFreeze<T>(value: T): T {
   return value;
 }
 
+function sumAttempts(
+  attempts: readonly FloodgateAcquisitionAttemptSummary[],
+  key:
+    | "records"
+    | "fetched"
+    | "reused_observations"
+    | "status_200"
+    | "status_404"
+    | "response_bytes",
+): number {
+  const total = attempts.reduce((value, attempt) => value + attempt[key], 0);
+  if (!Number.isSafeInteger(total)) fail(`audit ${key} total is unsafe`);
+  return total;
+}
+
 function buildSummary(
   facts: FloodgateAcquisitionAuthoritativeFacts,
-  auditTexts: readonly string[],
+  auditFiles: readonly FloodgateAcquisitionAuditFileInput[],
 ): FloodgateAcquisitionResultArtifact {
   if (!REVISION_RE.test(facts.source_revision))
     fail("source revision is invalid");
-  if (auditTexts.length === 0) fail("at least one audit file is required");
-  const attemptsWithPublish = auditTexts.map((text, index) =>
-    parseAuditText(text, facts.source_revision, index),
+  if (auditFiles.length === 0) fail("at least one audit file is required");
+  const attemptsWithMetadata = auditFiles.map((file, index) =>
+    parseAuditFile(file, facts.source_revision, index),
   );
-  attemptsWithPublish.sort(
+  attemptsWithMetadata.sort(
     (left, right) =>
-      compareBytewise(left.run_started_at, right.run_started_at) ||
+      compareBytewise(left.run_started_at ?? "", right.run_started_at ?? "") ||
       compareBytewise(left.run_token, right.run_token),
   );
   const tokens = new Set(
-    attemptsWithPublish.map((attempt) => attempt.run_token),
+    attemptsWithMetadata.map((attempt) => attempt.run_token),
   );
-  if (tokens.size !== attemptsWithPublish.length)
+  if (tokens.size !== attemptsWithMetadata.length)
     fail("audit run tokens repeat");
-  const publishes = attemptsWithPublish.filter(
+  const publishes = attemptsWithMetadata.filter(
     (attempt) => attempt.publish_recorded_at !== null,
   );
   if (publishes.length > 1) fail("audit set repeats manifest publication");
-  if (publishes.length === 1 && publishes[0] !== attemptsWithPublish.at(-1)) {
+  if (publishes.length === 1 && publishes[0] !== attemptsWithMetadata.at(-1)) {
     fail("manifest publication is not in the final audit attempt");
   }
-  const startedAt = attemptsWithPublish[0].run_started_at;
+  const knownStarts = attemptsWithMetadata
+    .map((attempt) => attempt.run_started_at)
+    .filter((value): value is string => value !== null);
+  const startedAt = knownStarts[0] ?? null;
   const finishedAt = publishes[0]?.publish_recorded_at ?? null;
-  if (finishedAt !== null && Date.parse(finishedAt) < Date.parse(startedAt)) {
+  if (
+    finishedAt !== null &&
+    startedAt !== null &&
+    Date.parse(finishedAt) < Date.parse(startedAt)
+  ) {
     fail("manifest publication predates acquisition start");
   }
-  const attempts = attemptsWithPublish.map(
-    ({ publish_recorded_at: _publish, ...attempt }) => attempt,
+  const startObservationComplete = attemptsWithMetadata.every(
+    (attempt) => attempt.run_started_at !== null,
   );
-  const auditFetched = attempts.reduce(
-    (value, attempt) => value + attempt.fetched,
+  const emptyFiles = attemptsWithMetadata.filter(
+    (attempt) => attempt.empty_file,
+  ).length;
+  const trailingPartialFiles = attemptsWithMetadata.filter(
+    (attempt) => attempt.trailing_partial_bytes > 0,
+  ).length;
+  const trailingPartialBytes = attemptsWithMetadata.reduce(
+    (value, attempt) => value + attempt.trailing_partial_bytes,
     0,
   );
+  const filesWithoutSourceRevision = attemptsWithMetadata.filter(
+    (attempt) => !attempt.source_revision_observed,
+  ).length;
+  const attempts = attemptsWithMetadata.map(
+    ({
+      publish_recorded_at: _publish,
+      source_revision_observed: _sourceRevision,
+      empty_file: _empty,
+      ...attempt
+    }) => attempt,
+  );
+  const auditRecords = sumAttempts(attempts, "records");
+  const auditFetched = sumAttempts(attempts, "fetched");
+  const auditReused = sumAttempts(attempts, "reused_observations");
+  const auditStatus200 = sumAttempts(attempts, "status_200");
+  const auditStatus404 = sumAttempts(attempts, "status_404");
+  const auditResponseBytes = sumAttempts(attempts, "response_bytes");
   if (auditFetched > facts.receipts.total) {
     fail("audit fetched count exceeds authoritative receipts");
+  }
+  if (
+    auditStatus200 > facts.status_200 ||
+    auditStatus404 > facts.status_404 ||
+    auditResponseBytes > facts.response_bytes
+  ) {
+    fail("audit observations exceed authoritative response accounting");
+  }
+  const authoritativeReceiptDelta = facts.receipts.total - auditFetched;
+  if (
+    authoritativeReceiptDelta === 0 &&
+    (auditStatus200 !== facts.status_200 ||
+      auditStatus404 !== facts.status_404 ||
+      auditResponseBytes !== facts.response_bytes)
+  ) {
+    fail("complete audit observations disagree with authoritative responses");
   }
   const receipt: FloodgateAcquisitionResultReceipt = {
     schema: FLOODGATE_ACQUISITION_RESULT_SCHEMA,
@@ -418,33 +723,28 @@ function buildSummary(
       started_at: startedAt,
       finished_at: finishedAt,
       elapsed_ms:
-        finishedAt === null
+        finishedAt === null || startedAt === null || !startObservationComplete
           ? null
           : Date.parse(finishedAt) - Date.parse(startedAt),
       attempts: attempts.length,
       resume_count: attempts.length - 1,
       manifest_publish_audit_present: finishedAt !== null,
+      start_observation_complete: startObservationComplete,
     },
     audit: {
-      records: attempts.reduce((value, attempt) => value + attempt.records, 0),
+      records: auditRecords,
       fetched: auditFetched,
-      reused_observations: attempts.reduce(
-        (value, attempt) => value + attempt.reused_observations,
-        0,
-      ),
-      status_200: attempts.reduce(
-        (value, attempt) => value + attempt.status_200,
-        0,
-      ),
-      status_404: attempts.reduce(
-        (value, attempt) => value + attempt.status_404,
-        0,
-      ),
-      response_bytes: attempts.reduce(
-        (value, attempt) => value + attempt.response_bytes,
-        0,
-      ),
-      authoritative_receipt_delta: facts.receipts.total - auditFetched,
+      reused_observations: auditReused,
+      status_200: auditStatus200,
+      status_404: auditStatus404,
+      response_bytes: auditResponseBytes,
+      authoritative_receipt_delta: authoritativeReceiptDelta,
+      gaps: {
+        empty_files: emptyFiles,
+        trailing_partial_files: trailingPartialFiles,
+        trailing_partial_bytes: trailingPartialBytes,
+        files_without_source_revision: filesWithoutSourceRevision,
+      },
       attempts,
     },
     authoritative: {
@@ -535,69 +835,269 @@ function factsFromProduction(
   });
 }
 
-async function readAuditFiles(lockRoot: string): Promise<readonly string[]> {
+function sameFileIdentity(
+  left: fs.BigIntStats,
+  right: fs.BigIntStats,
+): boolean {
+  return left.dev === right.dev && left.ino === right.ino;
+}
+
+function parsePinnedAuditReaderOutput(
+  rawOutput: Uint8Array,
+  heldRoot: fs.BigIntStats,
+): readonly FloodgateAcquisitionAuditFileInput[] {
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      rawOutput,
+    );
+  } catch {
+    return fail("descriptor-relative audit reader emitted invalid UTF-8");
+  }
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(text);
+  } catch {
+    return fail("descriptor-relative audit reader emitted invalid JSON");
+  }
+  if (`${JSON.stringify(decoded)}\n` !== text) {
+    fail("descriptor-relative audit reader output is not canonical JSON");
+  }
+  const record = exactRecord(decoded, ["files", "root"], "audit reader");
+  if (
+    !Array.isArray(record.root) ||
+    record.root.length !== 2 ||
+    record.root.some((value) => typeof value !== "string") ||
+    record.root[0] !== String(heldRoot.dev) ||
+    record.root[1] !== String(heldRoot.ino)
+  ) {
+    fail("descriptor-relative audit reader inherited the wrong directory");
+  }
+  if (!Array.isArray(record.files)) {
+    fail("descriptor-relative audit reader file set is malformed");
+  }
+  const files = record.files.map((entry, index) => {
+    if (
+      !Array.isArray(entry) ||
+      entry.length !== 3 ||
+      typeof entry[0] !== "string" ||
+      typeof entry[1] !== "string"
+    ) {
+      return fail(
+        `descriptor-relative audit reader file[${index}] is malformed`,
+      );
+    }
+    const size = nonnegativeInteger(
+      entry[2],
+      `audit reader file[${index}].size`,
+    );
+    const buffer = Buffer.from(entry[1], "base64");
+    if (buffer.toString("base64") !== entry[1] || buffer.byteLength !== size) {
+      fail(`descriptor-relative audit reader file[${index}] bytes are invalid`);
+    }
+    return {
+      filename: entry[0],
+      bytes: new Uint8Array(buffer),
+    };
+  });
+  files.sort((left, right) => compareBytewise(left.filename, right.filename));
+  return Object.freeze(files);
+}
+
+async function readPinnedAuditDirectory(
+  rootHandle: fs.promises.FileHandle,
+  heldRoot: fs.BigIntStats,
+): Promise<readonly FloodgateAcquisitionAuditFileInput[]> {
+  return new Promise((resolve, reject) => {
+    let child: ChildProcess;
+    try {
+      child = spawn(
+        "/usr/bin/python3",
+        ["-I", "-S", "-c", PINNED_AUDIT_READER],
+        {
+          cwd: "/",
+          env: { LC_ALL: "C", NODE_ENV: "production" },
+          stdio: ["ignore", "pipe", "pipe", rootHandle.fd],
+        },
+      );
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    if (child.stdout === null || child.stderr === null) {
+      child.kill("SIGKILL");
+      reject(new Error("descriptor-relative audit reader pipes are missing"));
+      return;
+    }
+    const stdout: Buffer[] = [];
+    const stderr: Buffer[] = [];
+    let stdoutBytes = 0;
+    let stderrBytes = 0;
+    let outputExceeded = false;
+    let timedOut = false;
+    let settled = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGKILL");
+    }, PINNED_AUDIT_READER_TIMEOUT_MS);
+    timeout.unref();
+    child.stdout.on("data", (chunk: Buffer) => {
+      stdoutBytes += chunk.byteLength;
+      if (stdoutBytes > PINNED_AUDIT_READER_MAX_STDOUT_BYTES) {
+        outputExceeded = true;
+        child.kill("SIGKILL");
+        return;
+      }
+      stdout.push(Buffer.from(chunk));
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      stderrBytes += chunk.byteLength;
+      if (stderrBytes > PINNED_AUDIT_READER_MAX_STDERR_BYTES) {
+        outputExceeded = true;
+        child.kill("SIGKILL");
+        return;
+      }
+      stderr.push(Buffer.from(chunk));
+    });
+    child.once("error", (error: Error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.once(
+      "close",
+      (code: number | null, signal: NodeJS.Signals | null) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        try {
+          if (timedOut) {
+            fail("descriptor-relative audit reader timed out");
+          }
+          if (outputExceeded) {
+            fail("descriptor-relative audit reader exceeded its output bound");
+          }
+          if (code !== 0 || signal !== null) {
+            const detail = Buffer.concat(stderr).toString("utf8").trim();
+            fail(
+              `descriptor-relative audit reader failed${
+                detail.length === 0 ? "" : `: ${detail}`
+              }`,
+            );
+          }
+          resolve(
+            parsePinnedAuditReaderOutput(
+              Buffer.concat(stdout, stdoutBytes),
+              heldRoot,
+            ),
+          );
+        } catch (error) {
+          reject(error);
+        }
+      },
+    );
+  });
+}
+
+async function assertAuditRootIdentity(
+  auditRoot: string,
+  held: fs.BigIntStats,
+  stage: string,
+): Promise<void> {
+  let current: fs.BigIntStats;
+  try {
+    current = await fs.promises.lstat(auditRoot, { bigint: true });
+  } catch {
+    return fail(`audit root disappeared during ${stage}`);
+  }
+  if (
+    !current.isDirectory() ||
+    current.isSymbolicLink() ||
+    !sameFileIdentity(current, held)
+  ) {
+    fail(`audit root identity changed during ${stage}`);
+  }
+}
+
+async function readAuditFiles(
+  lockRoot: string,
+): Promise<readonly FloodgateAcquisitionAuditFileInput[]> {
   const auditRoot = `${lockRoot}.audit`;
-  const stat = await fs.promises.lstat(auditRoot);
-  if (!stat.isDirectory() || stat.isSymbolicLink())
+  const pathStat = await fs.promises.lstat(auditRoot, { bigint: true });
+  if (!pathStat.isDirectory() || pathStat.isSymbolicLink())
     fail("audit root is not real");
   if ((await fs.promises.realpath(auditRoot)) !== auditRoot) {
     fail("audit root traverses a symbolic link");
   }
-  const entries = await fs.promises.readdir(auditRoot, { withFileTypes: true });
-  entries.sort((left, right) => compareBytewise(left.name, right.name));
-  const texts: string[] = [];
   const noFollow = fs.constants.O_NOFOLLOW;
   if (typeof noFollow !== "number" || noFollow === 0) {
     fail("secure audit reading requires O_NOFOLLOW support");
   }
-  for (const entry of entries) {
-    if (
-      !entry.isFile() ||
-      entry.isSymbolicLink() ||
-      !AUDIT_FILE_RE.test(entry.name)
-    ) {
-      fail(`unexpected audit entry ${entry.name}`);
+  const rootHandle = await fs.promises.open(
+    auditRoot,
+    fs.constants.O_RDONLY | noFollow,
+  );
+  try {
+    const heldRoot = await rootHandle.stat({ bigint: true });
+    if (!heldRoot.isDirectory() || !sameFileIdentity(pathStat, heldRoot)) {
+      fail("audit root changed while its directory handle was opened");
     }
-    const filePath = path.join(auditRoot, entry.name);
-    const handle = await fs.promises.open(
-      filePath,
-      fs.constants.O_RDONLY | noFollow,
-    );
-    try {
-      const before = await handle.stat();
-      const bytes = await handle.readFile();
-      const after = await handle.stat();
-      if (
-        !before.isFile() ||
-        before.dev !== after.dev ||
-        before.ino !== after.ino ||
-        before.size !== after.size ||
-        bytes.byteLength !== after.size
-      ) {
-        fail(`audit file changed while read: ${entry.name}`);
+    await assertAuditRootIdentity(auditRoot, heldRoot, "pre-snapshot");
+    const files = await readPinnedAuditDirectory(rootHandle, heldRoot);
+    await assertAuditRootIdentity(auditRoot, heldRoot, "post-snapshot");
+    for (const file of files) {
+      if (!AUDIT_FILE_RE.test(file.filename)) {
+        fail(`unexpected audit entry ${file.filename}`);
       }
-      const text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
-      const token = AUDIT_FILE_RE.exec(entry.name)![1];
-      const firstLine = text.split("\n", 1)[0];
-      let first: unknown;
-      try {
-        first = JSON.parse(firstLine);
-      } catch {
-        return fail(`audit file ${entry.name} does not start with JSON`);
-      }
-      if (
-        first === null ||
-        typeof first !== "object" ||
-        (first as Record<string, unknown>).run_token !== token
-      ) {
-        fail(`audit filename token does not match ${entry.name}`);
-      }
-      texts.push(text);
-    } finally {
-      await handle.close();
+    }
+    await assertAuditRootIdentity(auditRoot, heldRoot, "final check");
+    if ((await fs.promises.realpath(auditRoot)) !== auditRoot) {
+      fail("audit root path changed before the final check");
+    }
+    return Object.freeze(files);
+  } finally {
+    await rootHandle.close();
+  }
+}
+
+async function assertAcquisitionLeaseAbsent(
+  lockRoot: string,
+  stage: string,
+): Promise<void> {
+  try {
+    await fs.promises.lstat(`${lockRoot}.lease`);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+    throw error;
+  }
+  fail(`acquisition lease is present during ${stage}`);
+}
+
+function auditSnapshotsEqual(
+  left: readonly FloodgateAcquisitionAuditFileInput[],
+  right: readonly FloodgateAcquisitionAuditFileInput[],
+): boolean {
+  if (left.length !== right.length) return false;
+  for (let fileIndex = 0; fileIndex < left.length; fileIndex += 1) {
+    const leftFile = left[fileIndex];
+    const rightFile = right[fileIndex];
+    if (
+      leftFile.filename !== rightFile.filename ||
+      leftFile.bytes.byteLength !== rightFile.bytes.byteLength
+    ) {
+      return false;
+    }
+    for (
+      let byteIndex = 0;
+      byteIndex < leftFile.bytes.byteLength;
+      byteIndex += 1
+    ) {
+      if (leftFile.bytes[byteIndex] !== rightFile.bytes[byteIndex])
+        return false;
     }
   }
-  return Object.freeze(texts);
+  return true;
 }
 
 /** Verify the completed lock again, then summarize its immutable evidence. */
@@ -611,16 +1111,42 @@ export async function summarizeExistingFloodgateAcquisition(
   ) {
     fail("lock root must be a canonical absolute path");
   }
+  await assertAcquisitionLeaseAbsent(lockRoot, "summary preflight");
   const manifest = await readExistingFloodgateRawLockManifestFile(lockRoot);
-  const verification = await verifyExistingFloodgateRawLock(lockRoot);
-  const auditTexts = await readAuditFiles(lockRoot);
-  return buildSummary(factsFromProduction(manifest, verification), auditTexts);
+  const manifestIdentity = serializeFloodgateRawLockManifest(manifest);
+  const auditFiles = await readAuditFiles(lockRoot);
+  const verification = await verifyFloodgateRawLockCandidate(
+    lockRoot,
+    manifest,
+  );
+  await assertAcquisitionLeaseAbsent(lockRoot, "post-verification snapshot");
+  const auditFilesAfterVerification = await readAuditFiles(lockRoot);
+  if (!auditSnapshotsEqual(auditFiles, auditFilesAfterVerification)) {
+    fail("audit identity changed while acquisition evidence was summarized");
+  }
+  const manifestAfterVerification =
+    await readExistingFloodgateRawLockManifestFile(lockRoot);
+  if (
+    serializeFloodgateRawLockManifest(manifestAfterVerification) !==
+    manifestIdentity
+  ) {
+    fail("manifest identity changed while acquisition evidence was summarized");
+  }
+  await assertAcquisitionLeaseAbsent(lockRoot, "summary final check");
+  return buildSummary(factsFromProduction(manifest, verification), auditFiles);
 }
 
 /** Explicit small-fixture seam; it does not validate production manifest facts. */
 export function summarizeFloodgateAcquisitionCoreForTests(
   facts: FloodgateAcquisitionAuthoritativeFacts,
-  auditTexts: readonly string[],
+  auditFiles: readonly FloodgateAcquisitionAuditFileInput[],
 ): FloodgateAcquisitionResultArtifact {
-  return buildSummary(facts, auditTexts);
+  return buildSummary(facts, auditFiles);
+}
+
+/** Test-only seam for the descriptor-relative production audit snapshotter. */
+export async function readFloodgateAcquisitionAuditFilesCoreForTests(
+  lockRoot: string,
+): Promise<readonly FloodgateAcquisitionAuditFileInput[]> {
+  return readAuditFiles(lockRoot);
 }

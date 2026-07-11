@@ -255,6 +255,41 @@ describe("Floodgate request scheduler", () => {
     expect(fetchedUrl).toBe(LISTING_A);
   });
 
+  it("never lets a poisoned Object.freeze replace validated requests", async () => {
+    const clock = fakeClock();
+    const originalFreeze = Object.freeze;
+    let fetchedUrl: string | undefined;
+    const scheduler = createNonProductionFloodgateRequestSchedulerForTests(
+      { maximumInflightRequests: 1, minimumRequestStartIntervalMs: 1 },
+      {
+        fetchImpl: async (url) => {
+          Object.freeze = originalFreeze;
+          fetchedUrl = url;
+          return response(url);
+        },
+        now: clock.now,
+        sleep: clock.sleep,
+      },
+    );
+    Object.freeze = ((value: object) => {
+      if (
+        "kind" in value &&
+        "url" in value &&
+        value.kind === "daily_listing" &&
+        value.url === LISTING_A
+      ) {
+        return { kind: "daily_listing", url: "https://evil.invalid/" };
+      }
+      return originalFreeze(value);
+    }) as typeof Object.freeze;
+    try {
+      await scheduler.run([{ kind: "daily_listing", url: LISTING_A }]);
+    } finally {
+      Object.freeze = originalFreeze;
+    }
+    expect(fetchedUrl).toBe(LISTING_A);
+  });
+
   it("enforces redirect, status, encoding, and exact Content-Length contracts", async () => {
     async function runWith(
       request: FloodgateRequest,
@@ -570,16 +605,18 @@ describe("Floodgate request scheduler", () => {
         sleep: clock.sleep,
       },
     );
-    let rejected = false;
+    let rejection: unknown;
     try {
       await scheduler.run([
         { kind: "daily_listing", url: LISTING_A },
         { kind: "daily_listing", url: LISTING_B },
       ]);
-    } catch {
-      rejected = true;
+    } catch (error) {
+      rejection = error;
     }
-    expect(rejected).toBe(true);
+    expect(rejection).toBeInstanceOf(Error);
+    expect((rejection as Error).message).toMatch(/non-Error rejection/);
+    expect((rejection as Error).cause).toBeUndefined();
     expect(starts).toEqual([LISTING_A]);
   });
 
@@ -678,6 +715,47 @@ describe("Floodgate request scheduler", () => {
       expect(maximumActive).toBeLessThanOrEqual(
         FLOODGATE_MAXIMUM_INFLIGHT_REQUESTS,
       );
+    },
+  );
+
+  it(
+    "observes native fetch promises without consulting hostile own then hooks",
+    { timeout: 10_000 },
+    async () => {
+      const url = "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/24/";
+      const OriginalPromise = Promise;
+      const OriginalSetTimeout = setTimeout;
+      let maliciousThenInvoked = false;
+      const scheduler = createFloodgateRequestScheduler({
+        fetchImpl: (requestedUrl) => {
+          const fakeResponse = response(requestedUrl);
+          const fetched = new OriginalPromise<FloodgateFetchResponse>(
+            (resolve) => {
+              OriginalSetTimeout(() => resolve(response(requestedUrl)), 200);
+            },
+          );
+          Object.defineProperty(fetched, "constructor", {
+            configurable: true,
+            writable: true,
+            value: function FakePromise() {},
+          });
+          Object.defineProperty(fetched, "then", {
+            configurable: true,
+            writable: true,
+            value: function (resolve: (value: unknown) => void) {
+              maliciousThenInvoked = true;
+              resolve(fakeResponse);
+              return new OriginalPromise(() => undefined);
+            },
+          });
+          return fetched;
+        },
+      });
+      const startedAt = performance.now();
+      await scheduler.run([{ kind: "daily_listing", url }]);
+
+      expect(maliciousThenInvoked).toBe(false);
+      expect(performance.now() - startedAt).toBeGreaterThanOrEqual(180);
     },
   );
 

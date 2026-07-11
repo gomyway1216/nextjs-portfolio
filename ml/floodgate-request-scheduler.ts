@@ -16,11 +16,16 @@ import {
 } from "./floodgate-source";
 
 const INTRINSIC_REFLECT_APPLY = Reflect.apply;
+const IntrinsicObject = Object;
+const IntrinsicError = Error;
 const IntrinsicPromise = Promise;
 const IntrinsicNumber = Number;
+const INTRINSIC_PROMISE_THEN = Promise.prototype.then;
 const INTRINSIC_NODE_IS_PROXY = nodeUtilTypes.isProxy;
 const INTRINSIC_NODE_IS_ARRAY_BUFFER = nodeUtilTypes.isArrayBuffer;
 const INTRINSIC_NODE_IS_SHARED_ARRAY_BUFFER = nodeUtilTypes.isSharedArrayBuffer;
+const INTRINSIC_NODE_IS_NATIVE_ERROR = nodeUtilTypes.isNativeError;
+const INTRINSIC_NODE_IS_PROMISE = nodeUtilTypes.isPromise;
 const IntrinsicUint8Array = Uint8Array;
 const INTRINSIC_UINT8_ARRAY_SET = IntrinsicUint8Array.prototype.set;
 const INTRINSIC_ARRAY_PUSH = Array.prototype.push;
@@ -31,6 +36,8 @@ const INTRINSIC_ARRAY_SPLICE = Array.prototype.splice;
 const INTRINSIC_REGEXP_TEST = RegExp.prototype.test;
 const INTRINSIC_NUMBER_IS_SAFE_INTEGER = Number.isSafeInteger;
 const INTRINSIC_NUMBER_IS_FINITE = Number.isFinite;
+const INTRINSIC_OBJECT_FREEZE = Object.freeze;
+const INTRINSIC_OBJECT_DEFINE_PROPERTY = Object.defineProperty;
 const TYPED_ARRAY_PROTOTYPE = Object.getPrototypeOf(
   IntrinsicUint8Array.prototype,
 ) as object;
@@ -39,13 +46,20 @@ const INTRINSIC_TYPED_ARRAY_BYTE_LENGTH_GETTER = (() => {
     TYPED_ARRAY_PROTOTYPE,
     "byteLength",
   )?.get;
-  if (!getter) throw new Error("Uint8Array byteLength getter is unavailable");
+  if (!getter)
+    throw new IntrinsicError("Uint8Array byteLength getter is unavailable");
   return getter;
 })();
 const INTRINSIC_STRING_TO_LOWER_CASE = String.prototype.toLowerCase;
 const INTRINSIC_PERFORMANCE_NOW = nodePerformance.now;
 const INTRINSIC_SET_TIMEOUT = setTimeout;
+const INTRINSIC_CLEAR_TIMEOUT = clearTimeout;
 const CONTENT_LENGTH_RE = /^(0|[1-9]\d*)$/;
+const SAFE_PROMISE_SPECIES = INTRINSIC_REFLECT_APPLY(
+  INTRINSIC_OBJECT_FREEZE,
+  IntrinsicObject,
+  [{ [Symbol.species]: null }],
+) as Readonly<{ readonly [Symbol.species]: null }>;
 
 function intrinsicIsProxy(value: unknown): boolean {
   return INTRINSIC_REFLECT_APPLY(INTRINSIC_NODE_IS_PROXY, nodeUtilTypes, [
@@ -67,6 +81,100 @@ function intrinsicIsSharedArrayBuffer(value: unknown): boolean {
     nodeUtilTypes,
     [value],
   ) as boolean;
+}
+
+function intrinsicIsNativeError(value: unknown): value is Error {
+  return INTRINSIC_REFLECT_APPLY(
+    INTRINSIC_NODE_IS_NATIVE_ERROR,
+    nodeUtilTypes,
+    [value],
+  ) as boolean;
+}
+
+function intrinsicIsPromise(value: unknown): value is Promise<unknown> {
+  return INTRINSIC_REFLECT_APPLY(INTRINSIC_NODE_IS_PROMISE, nodeUtilTypes, [
+    value,
+  ]) as boolean;
+}
+
+function freezeValue<T extends object>(value: T): Readonly<T> {
+  return INTRINSIC_REFLECT_APPLY(INTRINSIC_OBJECT_FREEZE, IntrinsicObject, [
+    value,
+  ]) as Readonly<T>;
+}
+
+function sealInternalPromise<T>(promise: Promise<T>): Promise<T> {
+  INTRINSIC_REFLECT_APPLY(INTRINSIC_OBJECT_DEFINE_PROPERTY, IntrinsicObject, [
+    promise,
+    "constructor",
+    {
+      value: IntrinsicPromise,
+      writable: false,
+      enumerable: false,
+      configurable: false,
+    },
+  ]);
+  return promise;
+}
+
+function definePromiseConstructor(
+  promise: Promise<unknown>,
+  value: unknown,
+  configurable: boolean,
+): void {
+  INTRINSIC_REFLECT_APPLY(INTRINSIC_OBJECT_DEFINE_PROPERTY, IntrinsicObject, [
+    promise,
+    "constructor",
+    {
+      value,
+      writable: false,
+      enumerable: false,
+      configurable,
+    },
+  ]);
+}
+
+/** Observe a real Promise without consulting its mutable prototype methods. */
+function observeNativePromise<T>(input: unknown, label: string): Promise<T> {
+  if (!intrinsicIsPromise(input)) {
+    fail(`${label} must return a native Promise`);
+  }
+  const source = input as Promise<T>;
+  let resolveObserved!: (value: T | PromiseLike<T>) => void;
+  let rejectObserved!: (reason?: unknown) => void;
+  const observed = sealInternalPromise(
+    new IntrinsicPromise<T>((resolve, reject) => {
+      resolveObserved = resolve;
+      rejectObserved = reject;
+    }),
+  );
+  try {
+    // Promise.prototype.then performs SpeciesConstructor even when its return
+    // value is ignored. A private null species forces the realm intrinsic and
+    // prevents a poisoned global Promise species from running.
+    definePromiseConstructor(source, SAFE_PROMISE_SPECIES, true);
+    INTRINSIC_REFLECT_APPLY(INTRINSIC_PROMISE_THEN, source, [
+      resolveObserved,
+      rejectObserved,
+    ]);
+    definePromiseConstructor(source, IntrinsicPromise, false);
+  } catch (error) {
+    try {
+      definePromiseConstructor(source, IntrinsicPromise, false);
+    } catch {
+      // The observation still rejects; no unsealed source is ever awaited.
+    }
+    rejectObserved(error);
+  }
+  return observed;
+}
+
+function normalizeFailure(error: unknown): Error {
+  if (intrinsicIsNativeError(error)) return error;
+  return new IntrinsicError(
+    "Floodgate request failed with a non-Error rejection",
+    { cause: error },
+  );
 }
 
 function intrinsicIsSafeInteger(value: unknown): boolean {
@@ -115,9 +223,11 @@ interface SettlementSignal {
 
 function createSettlementSignal(): SettlementSignal {
   let resolve!: () => void;
-  const promise = new IntrinsicPromise<void>((resolvePromise) => {
-    resolve = resolvePromise;
-  });
+  const promise = sealInternalPromise(
+    new IntrinsicPromise<void>((resolvePromise) => {
+      resolve = resolvePromise;
+    }),
+  );
   return { promise, resolve };
 }
 
@@ -229,13 +339,13 @@ const REQUEST_KINDS = new Set<FloodgateRequestKind>([
   "csa",
 ]);
 
-const PRODUCTION_POLICY = Object.freeze({
+const PRODUCTION_POLICY = freezeValue({
   maximumInflightRequests: FLOODGATE_MAXIMUM_INFLIGHT_REQUESTS,
   minimumRequestStartIntervalMs: FLOODGATE_MINIMUM_REQUEST_START_INTERVAL_MS,
 });
 
 function fail(message: string): never {
-  throw new Error(`invalid Floodgate request schedule: ${message}`);
+  throw new IntrinsicError(`invalid Floodgate request schedule: ${message}`);
 }
 
 function validatePolicy(
@@ -253,7 +363,7 @@ function validatePolicy(
   ) {
     fail("minimumRequestStartIntervalMs must be a nonnegative safe integer");
   }
-  return Object.freeze({ ...policy });
+  return freezeValue({ ...policy });
 }
 
 function validateFloodgateUrl(
@@ -373,12 +483,12 @@ function validateRequests(
     );
     if (urls.has(url)) fail(`requests repeat URL ${url}`);
     urls.add(url);
-    pushArrayValue(requests, Object.freeze({ kind: rawRequest.kind, url }));
+    pushArrayValue(requests, freezeValue({ kind: rawRequest.kind, url }));
   }
   sortArrayValues(requests, (left, right) =>
     compareUtf8Bytes(left.url, right.url),
   );
-  return Object.freeze(requests);
+  return freezeValue(requests);
 }
 
 function assertAllowedStatus(kind: FloodgateRequestKind, status: number): void {
@@ -433,7 +543,10 @@ async function exactResponseBytes(
     fail("response Content-Encoding must be absent or identity");
   }
   const expectedLength = contentLength(getHeader);
-  const rawBuffer = await readArrayBuffer();
+  const rawBuffer = await observeNativePromise<ArrayBuffer>(
+    readArrayBuffer(),
+    "response arrayBuffer",
+  );
   if (
     intrinsicIsProxy(rawBuffer) ||
     !intrinsicIsArrayBuffer(rawBuffer) ||
@@ -467,11 +580,15 @@ async function exactResponseBytes(
       `response Content-Length ${expectedLength} does not match ${copiedByteLength} body bytes`,
     );
   }
-  return Object.freeze({ bytes, contentEncoding: normalizedEncoding });
+  return freezeValue({ bytes, contentEncoding: normalizedEncoding });
 }
 
 function defaultSleep(milliseconds: number): Promise<void> {
-  return new IntrinsicPromise((resolve) => setTimeout(resolve, milliseconds));
+  return sealInternalPromise(
+    new IntrinsicPromise((resolve) =>
+      INTRINSIC_SET_TIMEOUT(resolve, milliseconds),
+    ),
+  );
 }
 
 function productionNow(): number {
@@ -501,12 +618,16 @@ function createProductionStartGate(): FloodgateSharedStartGate {
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   const drain = (): void => {
-    if (timer !== null || startGrantOutstanding) return;
     while (queue[0]?.state === "cancelled") shiftArrayValue(queue);
-    if (
-      queue.length === 0 ||
-      inFlightRequests >= FLOODGATE_MAXIMUM_INFLIGHT_REQUESTS
-    ) {
+    if (queue.length === 0) {
+      if (timer !== null) {
+        INTRINSIC_CLEAR_TIMEOUT(timer);
+        timer = null;
+      }
+      return;
+    }
+    if (timer !== null || startGrantOutstanding) return;
+    if (inFlightRequests >= FLOODGATE_MAXIMUM_INFLIGHT_REQUESTS) {
       return;
     }
 
@@ -533,7 +654,7 @@ function createProductionStartGate(): FloodgateSharedStartGate {
     startGrantOutstanding = true;
     let released = false;
     let started = false;
-    const permit: FloodgateSharedStartPermit = Object.freeze({
+    const permit: FloodgateSharedStartPermit = freezeValue({
       markStarted(): void {
         if (released || started) {
           fail("production start permit was used more than once");
@@ -559,15 +680,17 @@ function createProductionStartGate(): FloodgateSharedStartGate {
 
   const reserve = (): FloodgateSharedStartReservation => {
     let resolve!: (permit: FloodgateSharedStartPermit | null) => void;
-    const promise = new IntrinsicPromise<FloodgateSharedStartPermit | null>(
-      (resolvePromise) => {
-        resolve = resolvePromise;
-      },
+    const promise = sealInternalPromise(
+      new IntrinsicPromise<FloodgateSharedStartPermit | null>(
+        (resolvePromise) => {
+          resolve = resolvePromise;
+        },
+      ),
     );
     const waiter: Waiter = { state: "queued", resolve };
     pushArrayValue(queue, waiter);
     drain();
-    return Object.freeze({
+    return freezeValue({
       promise,
       cancel(): void {
         if (waiter.state === "cancelled") return;
@@ -582,7 +705,7 @@ function createProductionStartGate(): FloodgateSharedStartGate {
     });
   };
 
-  return Object.freeze({ reserve });
+  return freezeValue({ reserve });
 }
 
 const PRODUCTION_START_GATE = createProductionStartGate();
@@ -620,7 +743,7 @@ function createScheduler(
   const fetchImpl: FloodgateFetch =
     dependencies.fetchImpl ??
     ((url, init) => fetch(url, init) as Promise<FloodgateFetchResponse>);
-  const clock = dependencies.now ?? (() => performance.now());
+  const clock = dependencies.now ?? productionNow;
   const sleep = dependencies.sleep ?? defaultSleep;
   const onProgress = dependencies.onProgress;
 
@@ -646,7 +769,7 @@ function createScheduler(
       const before = now();
       const remaining = target - before;
       if (remaining <= 0) return;
-      await sleep(remaining);
+      await observeNativePromise<void>(sleep(remaining), "scheduler sleep");
       const after = now();
       if (after <= before) {
         fail("sleep returned before the monotonic clock advanced");
@@ -654,12 +777,12 @@ function createScheduler(
     }
   };
 
-  const run = async (
+  const runInternal = async (
     requestInput: readonly FloodgateRequest[],
   ): Promise<readonly FloodgateFetchedResponse[]> => {
     const requests = validateRequests(requestInput);
     if (poisoned) {
-      throw new Error(
+      throw new IntrinsicError(
         "Floodgate request scheduler is aborted after a prior failure",
         {
           cause: poisonedError,
@@ -667,13 +790,13 @@ function createScheduler(
       );
     }
     if (running) fail("concurrent run calls are forbidden");
-    if (requests.length === 0) return Object.freeze([]);
+    if (requests.length === 0) return freezeValue([]);
     running = true;
 
     let inFlightRequests = 0;
     let settledRequests = 0;
     let failed = false;
-    let firstError: unknown;
+    let firstError: Error | null = null;
     const results: FloodgateFetchedResponse[] = [];
     const active: Promise<void>[] = [];
     let settlementSignal = createSettlementSignal();
@@ -687,10 +810,11 @@ function createScheduler(
 
     const recordFailure = (error: unknown): void => {
       if (!failed) {
+        const normalized = normalizeFailure(error);
         failed = true;
-        firstError = error;
+        firstError = normalized;
         poisoned = true;
-        poisonedError = error;
+        poisonedError = normalized;
         const reservation = pendingReservation;
         pendingReservation = null;
         reservation?.cancel();
@@ -698,7 +822,7 @@ function createScheduler(
     };
 
     const progress = (event: FloodgateRequestProgress): void => {
-      onProgress?.(Object.freeze(event));
+      onProgress?.(freezeValue(event));
     };
 
     const acquire = async (
@@ -723,14 +847,17 @@ function createScheduler(
           const startedAt = now();
           nextAllowedStartAt = startedAt + policy.minimumRequestStartIntervalMs;
         }
-        const response = await fetchImpl(request.url, {
-          method: "GET",
-          redirect: "manual",
-          headers: {
-            "accept-encoding": "identity",
-            "user-agent": FLOODGATE_REQUEST_USER_AGENT,
-          },
-        });
+        const response = await observeNativePromise<FloodgateFetchResponse>(
+          fetchImpl(request.url, {
+            method: "GET",
+            redirect: "manual",
+            headers: {
+              "accept-encoding": "identity",
+              "user-agent": FLOODGATE_REQUEST_USER_AGENT,
+            },
+          }),
+          "fetchImpl",
+        );
         if (intrinsicIsProxy(response)) {
           fail("response must not be a Proxy");
         }
@@ -760,18 +887,20 @@ function createScheduler(
         if (typeof arrayBufferMethod !== "function") {
           fail("response arrayBuffer method is unavailable");
         }
-        const { bytes, contentEncoding } = await exactResponseBytes(
-          (name) =>
-            INTRINSIC_REFLECT_APPLY(headerGet, headers, [name]) as
-              string | null,
-          () =>
-            INTRINSIC_REFLECT_APPLY(
-              arrayBufferMethod,
-              response,
-              [],
-            ) as Promise<ArrayBuffer>,
+        const { bytes, contentEncoding } = await sealInternalPromise(
+          exactResponseBytes(
+            (name) =>
+              INTRINSIC_REFLECT_APPLY(headerGet, headers, [name]) as
+                string | null,
+            () =>
+              INTRINSIC_REFLECT_APPLY(
+                arrayBufferMethod,
+                response,
+                [],
+              ) as Promise<ArrayBuffer>,
+          ),
         );
-        const result = Object.freeze({
+        const result = freezeValue({
           ...request,
           status,
           contentEncoding,
@@ -840,14 +969,16 @@ function createScheduler(
           }
           sharedPermit = permit;
         } else {
-          await waitUntil(nextAllowedStartAt!);
+          await sealInternalPromise(waitUntil(nextAllowedStartAt!));
           if (failed) break;
         }
 
         const holder: { promise?: Promise<void> } = {};
         const tracked = (async () => {
           try {
-            const result = await acquire(request, sharedPermit);
+            const result = await sealInternalPromise(
+              acquire(request, sharedPermit),
+            );
             pushArrayValue(results, result);
           } catch (error) {
             recordFailure(error);
@@ -860,15 +991,23 @@ function createScheduler(
         pushArrayValue(active, tracked);
       }
       while (active.length > 0) await settlementSignal.promise;
-      if (failed) throw firstError;
+      if (failed) {
+        throw (
+          firstError ??
+          new IntrinsicError("Floodgate scheduler lost its first failure")
+        );
+      }
       sortArrayValues(results, (left, right) =>
         compareUtf8Bytes(left.url, right.url),
       );
-      return Object.freeze(results);
+      return freezeValue(results);
     } catch (error) {
       recordFailure(error);
       while (active.length > 0) await settlementSignal.promise;
-      throw firstError;
+      throw (
+        firstError ??
+        new IntrinsicError("Floodgate scheduler lost its first failure")
+      );
     } finally {
       pendingReservation?.cancel();
       pendingReservation = null;
@@ -876,7 +1015,12 @@ function createScheduler(
     }
   };
 
-  return Object.freeze({ run });
+  const run = (
+    requests: readonly FloodgateRequest[],
+  ): Promise<readonly FloodgateFetchedResponse[]> =>
+    sealInternalPromise(runInternal(requests));
+
+  return freezeValue({ run });
 }
 
 /** Production factory. Its concurrency and pacing policy cannot be overridden. */

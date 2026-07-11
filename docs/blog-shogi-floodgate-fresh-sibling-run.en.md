@@ -190,4 +190,4 @@ A valid raw lock is not playing-strength evidence. The next label-blind stage ap
 
 Only a fresh-selection family pass opens the fresh final, the existing unopened WCSC36 final, regressions, and the paired 384-game A/B. The final 200-game 81Dojo calibration requires an official COM account and client; explicit user confirmation will be requested before any external games are started.
 
-The conclusion is not yet “the evaluator is stronger.” The narrower, auditable conclusion is that the raw acquisition path needed to test a separate candidate without destroying stable is complete.
+The conclusion is not yet “the evaluator is stronger.” The narrower, auditable conclusion is that the raw acquisition path is complete, allowing a separate candidate to be tested without overwriting the stable evaluator.

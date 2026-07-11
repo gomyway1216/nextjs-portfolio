@@ -942,6 +942,7 @@ async function readPinnedAuditDirectory(
     }, PINNED_AUDIT_READER_TIMEOUT_MS);
     timeout.unref();
     child.stdout.on("data", (chunk: Buffer) => {
+      if (outputExceeded) return;
       stdoutBytes += chunk.byteLength;
       if (stdoutBytes > PINNED_AUDIT_READER_MAX_STDOUT_BYTES) {
         outputExceeded = true;
@@ -951,6 +952,7 @@ async function readPinnedAuditDirectory(
       stdout.push(Buffer.from(chunk));
     });
     child.stderr.on("data", (chunk: Buffer) => {
+      if (outputExceeded) return;
       stderrBytes += chunk.byteLength;
       if (stderrBytes > PINNED_AUDIT_READER_MAX_STDERR_BYTES) {
         outputExceeded = true;

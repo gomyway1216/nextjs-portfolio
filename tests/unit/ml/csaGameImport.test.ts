@@ -256,6 +256,19 @@ describe('CSA parsing and parent occurrences', () => {
     const game = parseCsaGame(valid, { source: 'floodgate' });
     expect(game.gameSha256).toBe(expectedSha);
 
+    const stringWithUnpairedSurrogate = [
+      'V3.0',
+      `$EVENT:\ud800`,
+      'PI',
+      '+',
+      '+7776FU',
+      '%TORYO',
+    ].join('\n');
+    const normalizedBytes = Buffer.from(stringWithUnpairedSurrogate, 'utf8');
+    const normalized = parseCsaGame(stringWithUnpairedSurrogate, { source: 'floodgate' });
+    expect(normalized.event).toBe('\ufffd');
+    expect(normalized.gameSha256).toBe(sha256(normalizedBytes));
+
     const malformed = Buffer.concat([valid, Buffer.from([0xff])]);
     expect(() => parseCsaGame(malformed, { source: 'floodgate' })).toThrow(/fatal-valid utf-8/);
   });

@@ -370,7 +370,12 @@ function metadataKey(key: string): string {
 export function parseCsaGame(input: string | Uint8Array, options: ParseCsaOptions): ParsedCsaGame {
   const encoding = options.encoding ?? (options.source === 'wcsc' ? 'shift_jis' : 'utf-8');
   const bytes = rawBytes(input);
-  const decoded = decodeCsa(typeof input === 'string' ? input : bytes, encoding);
+  // Floodgate provenance is byte-oriented even for compatibility callers that
+  // pass a string: parse the same UTF-8 snapshot that is hashed below.
+  const decoded = decodeCsa(
+    options.source === 'floodgate' ? bytes : typeof input === 'string' ? input : bytes,
+    encoding
+  );
   let text: string;
   if (options.source === 'floodgate') {
     if (decoded.startsWith('\uFEFF')) throw new Error('Floodgate CSA must not contain a UTF-8 BOM');

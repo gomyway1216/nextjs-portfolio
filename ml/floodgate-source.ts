@@ -41,6 +41,11 @@ export const FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY = Object.freeze({
   bytes: 332_094,
   sha256: "17bd9969ba31a2b9a723be4b7defb7b3045816b19e325de19e8b65158fbac5b4",
 });
+export const FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_COUNTS = Object.freeze({
+  ratingRows: 316,
+  groupZeroIdentities: 316,
+  identitiesAtLeast3600And30Games: 152,
+});
 export const FLOODGATE_Q1_START = "2026-01-01";
 export const FLOODGATE_Q1_END = "2026-03-31";
 export const FLOODGATE_Q1_DAILY_LISTING_COUNT = 90;
@@ -162,18 +167,24 @@ export interface FloodgatePeriodEndInventoryEvidenceInput {
   readonly ratingBytes: Uint8Array;
 }
 
+export interface FloodgatePeriodEndInventoryCounts {
+  readonly ratingRows: number;
+  readonly groupZeroIdentities: number;
+  readonly identitiesAtLeast3600And30Games: number;
+}
+
 export interface FloodgatePeriodEndInventoryEvidence {
   readonly schema: "shogi-floodgate-period-end-inventory-evidence-v1";
-  readonly purpose: "period-end-inventory-only-not-daily-eligibility";
+  readonly purpose: "period-end-aggregate-inventory-only-not-daily-eligibility";
   readonly dailyEligibilityAllowed: false;
+  readonly identityListsExposed: false;
   readonly snapshot: {
     readonly url: typeof FLOODGATE_PERIOD_END_INVENTORY_URL;
     readonly filename: typeof FLOODGATE_PERIOD_END_INVENTORY_SNAPSHOT;
     readonly snapshotDate: "2026-04-01";
     readonly body: FloodgateBodyIdentity;
     readonly lastModifiedAt: string;
-    readonly rows: readonly FloodgateRatingRow[];
-    readonly groupZeroIdentities: readonly string[];
+    readonly counts: FloodgatePeriodEndInventoryCounts;
   };
 }
 
@@ -1383,38 +1394,37 @@ function parseRatingLastModified(html: string, snapshotDate: string): string {
   return `${footerDate} ${hourRaw}:${minuteRaw}:${secondRaw} +0900`;
 }
 
-/** Fail closed unless a parser-produced body identity is the pinned snapshot. */
-export function assertFloodgatePeriodEndInventoryExpectedBody(
-  input: FloodgateBodyIdentity,
-): Readonly<FloodgateBodyIdentity> {
-  const value = assertStrictPlainDataObject(
-    input,
-    "period-end inventory body identity",
-  );
-  assertExactOwnKeys(
-    value,
-    ["bytes", "sha256"],
-    "period-end inventory body identity",
-  );
-  if (!Number.isSafeInteger(value.bytes) || (value.bytes as number) <= 0) {
-    fail("period-end inventory body bytes must be a positive safe integer");
-  }
+/** Return aggregate inventory facts without exposing period-end identities. */
+export function summarizeFloodgatePeriodEndInventoryRows(
+  rows: readonly FloodgateRatingRow[],
+): Readonly<FloodgatePeriodEndInventoryCounts> {
+  const minimumGameIdentities = new Set(eligibleGroupZeroIdentities(rows));
+  const groupZeroIdentities = rows.filter(
+    (row) => row.groupNumber === 0,
+  ).length;
+  const identitiesAtLeast3600And30Games = rows.filter(
+    (row) =>
+      row.groupNumber === 0 &&
+      minimumGameIdentities.has(row.identity) &&
+      row.rating >= FLOODGATE_MINIMUM_EMBEDDED_GAME_RATING,
+  ).length;
+  return Object.freeze({
+    ratingRows: rows.length,
+    groupZeroIdentities,
+    identitiesAtLeast3600And30Games,
+  });
+}
+
+/** Fail closed unless the internally computed body is the pinned snapshot. */
+function assertFloodgatePeriodEndInventoryExpectedBody(
+  body: Readonly<FloodgateBodyIdentity>,
+): void {
   if (
-    typeof value.sha256 !== "string" ||
-    !/^[0-9a-f]{64}$/.test(value.sha256)
-  ) {
-    fail("period-end inventory body sha256 must be a lowercase SHA-256 digest");
-  }
-  if (
-    value.bytes !== FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY.bytes ||
-    value.sha256 !== FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY.sha256
+    body.bytes !== FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY.bytes ||
+    body.sha256 !== FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY.sha256
   ) {
     fail("period-end inventory body does not match the expected identity");
   }
-  return Object.freeze({
-    bytes: value.bytes as number,
-    sha256: value.sha256,
-  });
 }
 
 /**
@@ -1441,32 +1451,39 @@ export function parseFloodgatePeriodEndInventoryEvidence(
   }
   const ratingBytes = copyEvidenceBytes(value.ratingBytes, "ratingBytes");
   const html = decodeSourceUtf8(ratingBytes, "period-end rating snapshot");
-  // Parse the already fatal-decoded text; do not decode the same byte body a
-  // second time before deriving rows and footer evidence.
-  const rows = parseFloodgateRatingSnapshot(html);
-  const lastModifiedAt = parseRatingLastModified(html, "2026-04-01");
-  const groupZeroIdentities = Object.freeze(
-    rows
-      .filter((row) => row.groupNumber === 0)
-      .map((row) => row.identity)
-      .sort(compareUtf8Bytes),
-  );
   const body = Object.freeze({
     bytes: ratingBytes.byteLength,
     sha256: sha256Hex(ratingBytes),
   });
+  assertFloodgatePeriodEndInventoryExpectedBody(body);
+  // Parse the already fatal-decoded text; do not decode the same byte body a
+  // second time before deriving rows and footer evidence.
+  const rows = parseFloodgateRatingSnapshot(html);
+  const lastModifiedAt = parseRatingLastModified(html, "2026-04-01");
+  const counts = summarizeFloodgatePeriodEndInventoryRows(rows);
+  if (
+    counts.ratingRows !==
+      FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_COUNTS.ratingRows ||
+    counts.groupZeroIdentities !==
+      FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_COUNTS.groupZeroIdentities ||
+    counts.identitiesAtLeast3600And30Games !==
+      FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_COUNTS.identitiesAtLeast3600And30Games
+  ) {
+    fail("period-end inventory aggregate counts do not match preregistration");
+  }
   return Object.freeze({
     schema: "shogi-floodgate-period-end-inventory-evidence-v1" as const,
-    purpose: "period-end-inventory-only-not-daily-eligibility" as const,
+    purpose:
+      "period-end-aggregate-inventory-only-not-daily-eligibility" as const,
     dailyEligibilityAllowed: false as const,
+    identityListsExposed: false as const,
     snapshot: Object.freeze({
       url: FLOODGATE_PERIOD_END_INVENTORY_URL,
       filename: FLOODGATE_PERIOD_END_INVENTORY_SNAPSHOT,
       snapshotDate: "2026-04-01" as const,
       body,
       lastModifiedAt,
-      rows,
-      groupZeroIdentities,
+      counts,
     }),
   });
 }

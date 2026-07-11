@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY,
+  FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_COUNTS,
   FLOODGATE_PERIOD_END_INVENTORY_URL,
   FLOODGATE_Q1_DAILY_LISTING_COUNT,
   FLOODGATE_Q1_LISTING_IDENTITY_MANIFEST_EXPECTED,
-  assertFloodgatePeriodEndInventoryExpectedBody,
   assertPreregisteredFloodgateQ1ListingIdentityManifest,
   assertDistinctFloodgatePlayerIdentities,
   compareUtf8Bytes,
@@ -22,6 +22,7 @@ import {
   parseFloodgateRatingSnapshot,
   serializeFloodgateQ1ListingIdentityManifest,
   sha256Hex,
+  summarizeFloodgatePeriodEndInventoryRows,
 } from "../../../ml/floodgate-source";
 
 const DIGEST_A = "11111111111111111111111111111111";
@@ -1322,48 +1323,62 @@ describe("period-end inventory-only evidence", () => {
     ].join("\n");
   }
 
-  it("binds exact bytes and exposes frozen inventory without daily eligibility", () => {
+  it("summarizes period inventory without exposing identity lists", () => {
+    const rows = parseFloodgateRatingSnapshot(
+      [
+        "<html><body>",
+        ratingTable(0, [
+          ratingRow("Zulu", DIGEST_C, {
+            rating: "4100",
+            wins: "20",
+            losses: "10",
+          }),
+          ratingRow("Alpha", DIGEST_A, {
+            rating: "3599",
+            wins: "30",
+            losses: "0",
+          }),
+        ]),
+        ratingTable(1, [
+          ratingRow("Beta", DIGEST_B, {
+            rating: "4200",
+            wins: "30",
+            losses: "0",
+          }),
+        ]),
+        "</body></html>",
+      ].join("\n"),
+    );
+    const counts = summarizeFloodgatePeriodEndInventoryRows(rows);
+
+    expect(counts).toEqual({
+      ratingRows: 3,
+      groupZeroIdentities: 2,
+      identitiesAtLeast3600And30Games: 1,
+    });
+    expect(Object.keys(counts)).toEqual([
+      "ratingRows",
+      "groupZeroIdentities",
+      "identitiesAtLeast3600And30Games",
+    ]);
+    expect(
+      Object.values(counts).every((value) => typeof value === "number"),
+    ).toBe(true);
+    expect(Symbol.iterator in counts).toBe(false);
+    expect(Object.isFrozen(counts)).toBe(true);
+    expect(JSON.stringify(counts)).not.toMatch(
+      /Alpha|Beta|Zulu|1111|2222|3333/,
+    );
+  });
+
+  it("rejects a well-formed but unpinned period body inside the parser", () => {
     const ratingBytes = new TextEncoder().encode(inventoryHtml());
-    const expectedSha = sha256Hex(ratingBytes);
-    const evidence = parseFloodgatePeriodEndInventoryEvidence({
-      ratingUrl: FLOODGATE_PERIOD_END_INVENTORY_URL,
-      ratingBytes,
-    });
-
-    expect(evidence).toMatchObject({
-      schema: "shogi-floodgate-period-end-inventory-evidence-v1",
-      purpose: "period-end-inventory-only-not-daily-eligibility",
-      dailyEligibilityAllowed: false,
-      snapshot: {
-        url: FLOODGATE_PERIOD_END_INVENTORY_URL,
-        filename: "players-floodgate-20260401.html",
-        snapshotDate: "2026-04-01",
-        body: { bytes: ratingBytes.byteLength, sha256: expectedSha },
-        lastModifiedAt: "2026-03-31 23:54:26 +0900",
-        groupZeroIdentities: [`Alpha+${DIGEST_A}`, `Zulu+${DIGEST_C}`],
-      },
-    });
-    expect(evidence.snapshot.rows).toHaveLength(3);
-    expect(evidence.snapshot.rows.map((row) => row.identity)).toContain(
-      `Beta+${DIGEST_B}`,
-    );
-    expect(evidence.snapshot.groupZeroIdentities).not.toContain(
-      `Beta+${DIGEST_B}`,
-    );
-    expect(Object.isFrozen(evidence)).toBe(true);
-    expect(Object.isFrozen(evidence.snapshot)).toBe(true);
-    expect(Object.isFrozen(evidence.snapshot.body)).toBe(true);
-    expect(Object.isFrozen(evidence.snapshot.rows)).toBe(true);
-    expect(Object.isFrozen(evidence.snapshot.rows[0])).toBe(true);
-    expect(Object.isFrozen(evidence.snapshot.groupZeroIdentities)).toBe(true);
-
-    ratingBytes.fill(0);
-    expect(evidence.snapshot.body.sha256).toBe(expectedSha);
     expect(() =>
-      (evidence.snapshot.groupZeroIdentities as unknown as string[]).push(
-        "mutate",
-      ),
-    ).toThrow();
+      parseFloodgatePeriodEndInventoryEvidence({
+        ratingUrl: FLOODGATE_PERIOD_END_INVENTORY_URL,
+        ratingBytes,
+      }),
+    ).toThrow(/body does not match the expected identity/);
   });
 
   it("keeps the 2026-04-01 period inventory separate from same-date eligibility", () => {
@@ -1395,7 +1410,7 @@ describe("period-end inventory-only evidence", () => {
     ).toThrow(/exact 2026-04-01 snapshot/);
   });
 
-  it("requires the exact previous-day +0900 footer and fatal UTF-8", () => {
+  it("fatal-decodes before rejecting every unpinned period body", () => {
     for (const [footerDate, offset] of [
       ["2026-03-30", "+0900"],
       ["2026-03-31", "+0000"],
@@ -1407,7 +1422,7 @@ describe("period-end inventory-only evidence", () => {
             inventoryHtml(footerDate, offset),
           ),
         }),
-      ).toThrow(/previous calendar date|exactly one Last modified/);
+      ).toThrow(/body does not match the expected identity/);
     }
     expect(() =>
       parseFloodgatePeriodEndInventoryEvidence({
@@ -1455,33 +1470,23 @@ describe("period-end inventory-only evidence", () => {
     ).toThrow(/must not be a Proxy/);
   });
 
-  it("exposes the exact live period-end body identity for comparison", () => {
+  it("pins the exact live period-end body and aggregate counts", () => {
     expect(FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY).toEqual({
       bytes: 332_094,
       sha256:
         "17bd9969ba31a2b9a723be4b7defb7b3045816b19e325de19e8b65158fbac5b4",
     });
+    expect(FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_COUNTS).toEqual({
+      ratingRows: 316,
+      groupZeroIdentities: 316,
+      identitiesAtLeast3600And30Games: 152,
+    });
     expect(Object.isFrozen(FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY)).toBe(
       true,
     );
-    const verified = assertFloodgatePeriodEndInventoryExpectedBody({
-      ...FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY,
-    });
-    expect(verified).toEqual(FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY);
-    expect(Object.isFrozen(verified)).toBe(true);
-    expect(() =>
-      assertFloodgatePeriodEndInventoryExpectedBody({
-        ...FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY,
-        bytes: FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY.bytes - 1,
-      }),
-    ).toThrow(/does not match the expected identity/);
-    expect(() =>
-      assertFloodgatePeriodEndInventoryExpectedBody({
-        ...FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY,
-        sha256:
-          FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY.sha256.toUpperCase(),
-      }),
-    ).toThrow(/lowercase SHA-256/);
+    expect(
+      Object.isFrozen(FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_COUNTS),
+    ).toBe(true);
   });
 });
 

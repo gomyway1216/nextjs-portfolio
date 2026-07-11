@@ -24,7 +24,7 @@ const REVISION = "0123456789abcdef0123456789abcdef01234567";
 const PRODUCER_REVISION = "89abcdef0123456789abcdef0123456789abcdef";
 const roots: string[] = [];
 const MANIFEST = {
-  schema: "shogi-floodgate-label-free-role-bundle-v1",
+  schema: "shogi-floodgate-label-free-role-bundle-v2",
   status: "complete-label-free-role-bundle",
   pipeline: {
     source_revision: REVISION,

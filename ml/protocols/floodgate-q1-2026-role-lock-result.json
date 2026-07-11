@@ -1,5 +1,5 @@
 {
-  "schema": "shogi-floodgate-role-lock-result-v1",
+  "schema": "shogi-floodgate-role-lock-result-v2",
   "status": "complete-label-blind-role-lock",
   "pipeline": {
     "source_revision": "fc18554e1ff61e2bd7a0f7a24f277ce4e418a175",
@@ -10,14 +10,75 @@
     "prior_attempts_stopped_before_output": 3,
     "wall_seconds": 12830.79,
     "user_cpu_seconds": 12580.21,
-    "system_cpu_seconds": 610.56
+    "system_cpu_seconds": 610.56,
+    "independent_full_replay": {
+      "gate_attempt": 2,
+      "prior_failed_attempt": {
+        "attempt": 1,
+        "status": "failed",
+        "producer_revision": "fc18554e1ff61e2bd7a0f7a24f277ce4e418a175",
+        "verifier_revision": "b086243781396e2c197cc9e1cfab1fc6b773ae2a",
+        "node": "v22.13.0",
+        "started_at": "2026-07-11T11:45:56.673Z",
+        "finished_at": "2026-07-11T15:35:11.239Z",
+        "wall_seconds": 13754.89,
+        "process_exit_code": 1,
+        "error": "invalid Floodgate role lock: existing role-lock changed during production verification",
+        "status_receipt": {
+          "path": "ml/protocols/floodgate-q1-2026-role-lock-full-replay-attempt-1-failed-status.json",
+          "bytes": 590,
+          "sha256": "caf4df1bd52939a499e03eaf58df593f0714cfd24194be731453dfb1426644c0"
+        },
+        "log_receipt": {
+          "path": "ml/protocols/floodgate-q1-2026-role-lock-full-replay-attempt-1-failed.log",
+          "bytes": 1386,
+          "sha256": "38197d0a4d6f8178eea8e5e0a6b620ee158778c763fa59b0edc7454bd721d741"
+        },
+        "failure_stage": "final-filesystem-closure",
+        "checks_completed_before_failure": [
+          "exact-reconstruction",
+          "deep-equality",
+          "raw-final-verification",
+          "legacy-reread",
+          "git-closure"
+        ],
+        "role_artifacts_changed": false,
+        "cause": "parallel-audit-writes-changed-parent-metadata"
+      },
+      "successful_attempt": {
+        "status": "pass",
+        "attempt": 2,
+        "contract": "verifyExistingFloodgateRoleLock",
+        "producer_revision": "fc18554e1ff61e2bd7a0f7a24f277ce4e418a175",
+        "verifier_revision": "b086243781396e2c197cc9e1cfab1fc6b773ae2a",
+        "node": "v22.13.0",
+        "started_at": "2026-07-11T15:49:52.852Z",
+        "finished_at": "2026-07-11T19:44:12.426Z",
+        "elapsed_ms": 14059521,
+        "process_exit_code": 0,
+        "git_closure_unchanged": true,
+        "watched_closure_unchanged": true,
+        "verified_manifest_schema": "shogi-floodgate-role-lock-v1",
+        "verified_manifest_status": "complete-label-blind-role-lock",
+        "status_receipt": {
+          "path": "ml/protocols/floodgate-q1-2026-role-lock-full-replay-status.json",
+          "bytes": 7749,
+          "sha256": "c7db624051214555d6bc22b3a6497cda83d661298e4d0bf42b3182ba0ac99053"
+        },
+        "log_receipt": {
+          "path": "ml/protocols/floodgate-q1-2026-role-lock-full-replay.log",
+          "bytes": 9010,
+          "sha256": "b3954d9593ae52d3928906fea7f921d571daa7664beabb61044b44590cc2d1b8"
+        }
+      }
+    }
   },
   "provenance": {
+    "existing_final_holdout_opened": false,
     "network_requests": 0,
     "raw_referential_closure_verified": true,
     "raw_storage_tree_scanned": false,
-    "teacher_or_candidate_scores_read": false,
-    "existing_final_holdout_opened": false
+    "teacher_or_candidate_scores_read": false
   },
   "inputs": {
     "raw_manifest": {
@@ -153,6 +214,31 @@
       "winner_opening_quality_or_score_filtering": false,
       "existing_final_holdout_opened": false
     },
-    "independent_full_replay_verification": "pending"
+    "independent_full_replay_verification": {
+      "status": "pass",
+      "attempt": 2,
+      "contract": "verifyExistingFloodgateRoleLock",
+      "producer_revision": "fc18554e1ff61e2bd7a0f7a24f277ce4e418a175",
+      "verifier_revision": "b086243781396e2c197cc9e1cfab1fc6b773ae2a",
+      "node": "v22.13.0",
+      "started_at": "2026-07-11T15:49:52.852Z",
+      "finished_at": "2026-07-11T19:44:12.426Z",
+      "elapsed_ms": 14059521,
+      "process_exit_code": 0,
+      "git_closure_unchanged": true,
+      "watched_closure_unchanged": true,
+      "verified_manifest_schema": "shogi-floodgate-role-lock-v1",
+      "verified_manifest_status": "complete-label-blind-role-lock",
+      "status_receipt": {
+        "path": "ml/protocols/floodgate-q1-2026-role-lock-full-replay-status.json",
+        "bytes": 7749,
+        "sha256": "c7db624051214555d6bc22b3a6497cda83d661298e4d0bf42b3182ba0ac99053"
+      },
+      "log_receipt": {
+        "path": "ml/protocols/floodgate-q1-2026-role-lock-full-replay.log",
+        "bytes": 9010,
+        "sha256": "b3954d9593ae52d3928906fea7f921d571daa7664beabb61044b44590cc2d1b8"
+      }
+    }
   }
 }

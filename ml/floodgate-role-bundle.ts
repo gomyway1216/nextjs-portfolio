@@ -43,9 +43,17 @@ import {
 } from "./floodgate-git";
 import {
   assertExistingFloodgateRoleLockFilesystemClosure,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_BYTES,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_PATH,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_SHA256,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_BYTES,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_PATH,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_SHA256,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION,
   FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES,
   FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
   FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256,
+  parseFloodgateRoleLockFullReplayEvidence,
   verifyExistingFloodgateRoleLock,
   type FloodgateRoleLockFilesystemClosure,
   type VerifiedFloodgateRoleLock,
@@ -63,7 +71,7 @@ import { parseFloodgateCsa } from "./import-csa-games";
 import { compareBytewise, positionKeyFromSfen } from "./sibling-data";
 
 export const FLOODGATE_ROLE_BUNDLE_SCHEMA =
-  "shogi-floodgate-label-free-role-bundle-v1" as const;
+  "shogi-floodgate-label-free-role-bundle-v2" as const;
 export const FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION =
   "2a4e94697c2a673c217348b9a9d79d9ce54d0c97" as const;
 export const FLOODGATE_ROLE_BUNDLE_INVALID_MANIFEST_SENTINEL = "!" as const;
@@ -75,8 +83,10 @@ export const FLOODGATE_ROLE_BUNDLE_REPLAY_FILENAME =
 export const FLOODGATE_ROLE_BUNDLE_REPLAY_RECEIPT_FILENAME =
   "replay-exclusion-receipt.json" as const;
 export const FLOODGATE_ROLE_BUNDLE_CAS_READ_CONCURRENCY = 16 as const;
+export const FLOODGATE_ROLE_BUNDLE_GIT_BLOB_MAX_BYTES = 1_048_576 as const;
 
 const REVISION_RE = /^[0-9a-f]{40}$/;
+const SHA256_RE = /^[0-9a-f]{64}$/;
 const POSITION_ID_RE = /^sha256:[0-9a-f]{64}$/;
 const execFile = promisify(execFileCallback);
 const ROLE_FILENAMES: Readonly<
@@ -164,7 +174,11 @@ export interface FloodgateRoleBundleManifest {
     readonly role_lock: {
       readonly manifest: FloodgateRoleBundleFileIdentity;
       readonly allocation: FloodgateRoleBundleFileIdentity;
-      readonly result_receipt: FloodgateRoleBundleFileIdentity;
+      readonly verification: {
+        readonly result: FloodgateRoleBundleFileIdentity;
+        readonly status: FloodgateRoleBundleFileIdentity;
+        readonly log: FloodgateRoleBundleFileIdentity;
+      };
       readonly producer_revision: string;
       readonly verifier_revision: string;
     };
@@ -453,6 +467,13 @@ interface HistoricalRoleBundleRevisionBinding {
   readonly bundleProducerRevision: string;
   readonly roleLockProducerRevision: string;
   readonly rawLockSourceRevision: string;
+  readonly roleLockVerification: Readonly<RoleLockVerificationIdentities>;
+}
+
+interface RoleLockVerificationIdentities {
+  readonly result: Readonly<FloodgateRoleBundleFileIdentity>;
+  readonly status: Readonly<FloodgateRoleBundleFileIdentity>;
+  readonly log: Readonly<FloodgateRoleBundleFileIdentity>;
 }
 
 function manifestRevision(value: unknown, label: string): string {
@@ -460,6 +481,96 @@ function manifestRevision(value: unknown, label: string): string {
     fail(`${label} must be a full lowercase Git revision`);
   }
   return value;
+}
+
+function manifestFileIdentity(
+  value: unknown,
+  label: string,
+): Readonly<FloodgateRoleBundleFileIdentity> {
+  const identity = strictObject(value, label);
+  exactKeys(identity, ["bytes", "path", "sha256"], label);
+  if (
+    typeof identity.path !== "string" ||
+    identity.path.length === 0 ||
+    identity.path.includes("\0") ||
+    path.posix.isAbsolute(identity.path) ||
+    path.posix.normalize(identity.path) !== identity.path ||
+    identity.path === "." ||
+    identity.path.startsWith("../")
+  ) {
+    fail(`${label}.path is not a canonical repository-relative path`);
+  }
+  if (
+    typeof identity.bytes !== "number" ||
+    !Number.isSafeInteger(identity.bytes) ||
+    identity.bytes < 0
+  ) {
+    fail(`${label}.bytes is not a nonnegative safe integer`);
+  }
+  if (
+    typeof identity.sha256 !== "string" ||
+    !SHA256_RE.test(identity.sha256)
+  ) {
+    fail(`${label}.sha256 is not a lowercase SHA-256 digest`);
+  }
+  return Object.freeze({
+    path: identity.path,
+    bytes: identity.bytes,
+    sha256: identity.sha256,
+  });
+}
+
+function roleLockVerificationIdentities(
+  value: unknown,
+  label: string,
+): Readonly<RoleLockVerificationIdentities> {
+  const verification = strictObject(value, label);
+  exactKeys(verification, ["log", "result", "status"], label);
+  return Object.freeze({
+    result: manifestFileIdentity(verification.result, `${label}.result`),
+    status: manifestFileIdentity(verification.status, `${label}.status`),
+    log: manifestFileIdentity(verification.log, `${label}.log`),
+  });
+}
+
+function assertPinnedRoleLockVerificationIdentities(
+  identities: Readonly<RoleLockVerificationIdentities>,
+): void {
+  const pinnedBytes = (value: number, label: string): number => {
+    if (!Number.isSafeInteger(value)) {
+      fail(`${label} is not pinned after the full replay`);
+    }
+    return value;
+  };
+  const expected: RoleLockVerificationIdentities = {
+    result: {
+      path: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+      bytes: pinnedBytes(
+        FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES,
+        "role-lock result receipt byte count",
+      ),
+      sha256: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256,
+    },
+    status: {
+      path: FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_PATH,
+      bytes: pinnedBytes(
+        FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_BYTES,
+        "role-lock full-replay status byte count",
+      ),
+      sha256: FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_SHA256,
+    },
+    log: {
+      path: FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_PATH,
+      bytes: pinnedBytes(
+        FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_BYTES,
+        "role-lock full-replay log byte count",
+      ),
+      sha256: FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_SHA256,
+    },
+  };
+  if (!isDeepStrictEqual(identities, expected)) {
+    fail("existing role-bundle cites unpinned role-lock verification evidence");
+  }
 }
 
 function historicalRoleBundleRevisionBinding(
@@ -535,7 +646,7 @@ function historicalRoleBundleRevisionBinding(
       "allocation",
       "manifest",
       "producer_revision",
-      "result_receipt",
+      "verification",
       "verifier_revision",
     ],
     "existing role-bundle manifest.sources.role_lock",
@@ -553,26 +664,16 @@ function historicalRoleBundleRevisionBinding(
       "existing role-bundle role-lock verifier revision must equal the bundle producer revision",
     );
   }
-  const resultReceipt = strictObject(
-    roleLock.result_receipt,
-    "existing role-bundle manifest.sources.role_lock.result_receipt",
+  const verification = roleLockVerificationIdentities(
+    roleLock.verification,
+    "existing role-bundle manifest.sources.role_lock.verification",
   );
-  exactKeys(
-    resultReceipt,
-    ["bytes", "path", "sha256"],
-    "existing role-bundle manifest.sources.role_lock.result_receipt",
-  );
-  if (
-    resultReceipt.path !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH ||
-    resultReceipt.bytes !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES ||
-    resultReceipt.sha256 !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256
-  ) {
-    fail("existing role-bundle cites an unpinned role-lock result receipt");
-  }
+  assertPinnedRoleLockVerificationIdentities(verification);
   return Object.freeze({
     bundleProducerRevision,
     roleLockProducerRevision,
     rawLockSourceRevision,
+    roleLockVerification: verification,
   });
 }
 
@@ -588,13 +689,16 @@ async function assertRoleBundleRevisionAncestry(
 ): Promise<void> {
   manifestRevision(verifierRevision, "role-bundle verifier revision");
   const edges = [
+    [binding.rawLockSourceRevision, binding.roleLockProducerRevision],
     [
-      FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION,
+      binding.roleLockProducerRevision,
+      FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION,
+    ],
+    [
+      FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION,
       binding.bundleProducerRevision,
     ],
     [binding.bundleProducerRevision, verifierRevision],
-    [binding.roleLockProducerRevision, binding.bundleProducerRevision],
-    [binding.rawLockSourceRevision, binding.roleLockProducerRevision],
   ] as const;
   for (const [ancestor, descendant] of edges) {
     if (!(await isAncestor(ancestor, descendant))) {
@@ -621,11 +725,122 @@ async function gitOutput(
   return stdout;
 }
 
+type RevisionBlobReader = (
+  revision: string,
+  artifactPath: string,
+) => Promise<Uint8Array>;
+
+interface RoleLockVerificationBlobs {
+  readonly result: Uint8Array;
+  readonly status: Uint8Array;
+  readonly log: Uint8Array;
+}
+
+async function readGitBlobBytes(
+  repositoryRoot: string,
+  revision: string,
+  artifactPath: string,
+): Promise<Uint8Array> {
+  return await new Promise<Uint8Array>((resolve, reject) => {
+    execFileCallback(
+      FLOODGATE_GIT_EXECUTABLE,
+      [
+        ...FLOODGATE_GIT_COMMAND_PREFIX,
+        "cat-file",
+        "blob",
+        `${revision}:${artifactPath}`,
+      ],
+      {
+        cwd: repositoryRoot,
+        encoding: null,
+        env: floodgateGitEnvironment(),
+        maxBuffer: FLOODGATE_ROLE_BUNDLE_GIT_BLOB_MAX_BYTES,
+      },
+      (error, stdout) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        if (typeof stdout === "string") {
+          reject(new Error("Git blob reader unexpectedly decoded stdout"));
+          return;
+        }
+        resolve(new Uint8Array(stdout));
+      },
+    );
+  });
+}
+
+async function readRoleLockVerificationBlobs(
+  producerRevision: string,
+  verification: Readonly<RoleLockVerificationIdentities>,
+  readBlob: RevisionBlobReader,
+): Promise<Readonly<RoleLockVerificationBlobs>> {
+  manifestRevision(producerRevision, "role-bundle producer revision");
+  const output = {} as Record<keyof RoleLockVerificationBlobs, Uint8Array>;
+  const fixedPaths = {
+    result: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+    status: FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_PATH,
+    log: FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_PATH,
+  } as const;
+  for (const key of ["result", "status", "log"] as const) {
+    const identity = verification[key];
+    if (identity.path !== fixedPaths[key]) {
+      fail(`role-lock verification blob ${key} does not use its fixed path`);
+    }
+    let candidate: Uint8Array;
+    try {
+      candidate = await readBlob(producerRevision, fixedPaths[key]);
+    } catch {
+      fail(
+        `role-bundle producer tree does not contain verification blob ${key}`,
+      );
+    }
+    if (
+      nodeUtilTypes.isProxy(candidate) ||
+      !(candidate instanceof Uint8Array)
+    ) {
+      fail(`role-bundle producer verification blob ${key} is not bytes`);
+    }
+    const bytes = new Uint8Array(candidate);
+    if (
+      bytes.byteLength !== identity.bytes ||
+      sha256Hex(bytes) !== identity.sha256
+    ) {
+      fail(`role-bundle producer verification blob ${key} differs`);
+    }
+    output[key] = bytes;
+  }
+  return Object.freeze(output);
+}
+
+/** Explicit non-production seam for exact binary historical-blob tests. */
+export async function readFloodgateRoleBundleVerificationBlobsCoreForTests(
+  producerRevision: string,
+  verificationInput: unknown,
+  readBlob: RevisionBlobReader,
+): Promise<Readonly<RoleLockVerificationBlobs>> {
+  if (typeof readBlob !== "function") {
+    fail("non-production historical blob reader must be a function");
+  }
+  const verification = roleLockVerificationIdentities(
+    verificationInput,
+    "non-production role-lock verification identities",
+  );
+  return readRoleLockVerificationBlobs(
+    producerRevision,
+    verification,
+    readBlob,
+  );
+}
+
 async function assertRoleBundleGitClosure(
   repositoryRoot: string,
   verifierRevision: string,
   binding: Readonly<HistoricalRoleBundleRevisionBinding>,
-): Promise<void> {
+): Promise<
+  VerifiedFloodgateRoleLock["fullReplayEvidence"]["semanticReceipt"]
+> {
   const assertCurrent = async (): Promise<void> => {
     const rootStat = await fs.promises.lstat(repositoryRoot);
     if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) {
@@ -686,26 +901,26 @@ async function assertRoleBundleGitClosure(
       }
     },
   );
-  const producerReceipt = await gitOutput(repositoryRoot, [
-    "cat-file",
-    "blob",
-    `${binding.bundleProducerRevision}:${FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH}`,
-  ]).catch(() =>
-    fail(
-      "role-bundle producer tree does not contain the pinned result receipt",
-    ),
+  const blobs = await readRoleLockVerificationBlobs(
+    binding.bundleProducerRevision,
+    binding.roleLockVerification,
+    (revision, artifactPath) =>
+      readGitBlobBytes(repositoryRoot, revision, artifactPath),
   );
-  if (
-    Buffer.byteLength(producerReceipt, "utf8") !==
-      FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES ||
-    sha256Hex(producerReceipt) !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256
-  ) {
-    fail("role-bundle producer tree contains a different result receipt");
-  }
+  const parsedEvidence = parseFloodgateRoleLockFullReplayEvidence(
+    blobs.status,
+    blobs.log,
+    Object.freeze({
+      status: binding.roleLockVerification.status,
+      log: binding.roleLockVerification.log,
+    }),
+    binding.roleLockProducerRevision,
+  );
   await assertCurrent();
+  return parsedEvidence.semanticReceipt;
 }
 
-/** Explicit non-production seam for historical v1 revision-binding tests. */
+/** Explicit non-production seam for historical v2 revision-binding tests. */
 export function historicalFloodgateRoleBundleRevisionBindingCoreForTests(
   manifestText: string,
 ): Readonly<HistoricalRoleBundleRevisionBinding> {
@@ -736,6 +951,10 @@ export async function assertFloodgateRoleBundleRevisionAncestryCoreForTests(
       rawLockSourceRevision: manifestRevision(
         binding.rawLockSourceRevision,
         "non-production raw-lock source revision",
+      ),
+      roleLockVerification: roleLockVerificationIdentities(
+        binding.roleLockVerification,
+        "non-production role-lock verification identities",
       ),
     }),
     verifierRevision,
@@ -1068,6 +1287,10 @@ function assertVerifiedRoleLockStable(
     actual.producerRevision !== expected.producerRevision ||
     actual.verifierRevision !== expected.verifierRevision ||
     !isDeepStrictEqual(actual.resultReceipt, expected.resultReceipt) ||
+    !isDeepStrictEqual(
+      actual.fullReplayEvidence,
+      expected.fullReplayEvidence,
+    ) ||
     !sameRoleLockClosureAcrossBundleOperation(
       actual.filesystemClosure,
       expected.filesystemClosure,
@@ -1076,6 +1299,73 @@ function assertVerifiedRoleLockStable(
       serializeFloodgateRawLockManifest(expected.rawManifest)
   ) {
     fail("verified role-lock source closure changed during bundle operation");
+  }
+}
+
+function verifiedRoleLockVerificationIdentities(
+  roleLock: Readonly<VerifiedFloodgateRoleLock>,
+): Readonly<RoleLockVerificationIdentities> {
+  const identities = deepFreeze({
+    result: roleLock.resultReceipt,
+    status: roleLock.fullReplayEvidence.status,
+    log: roleLock.fullReplayEvidence.log,
+  });
+  assertPinnedRoleLockVerificationIdentities(identities);
+  if (
+    roleLock.fullReplayEvidence.semanticReceipt.verifierRevision !==
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION
+  ) {
+    fail("verified role-lock does not carry the code-pinned replay verifier");
+  }
+  return identities;
+}
+
+function assertRoleLockSemanticReceipt(
+  actual: VerifiedFloodgateRoleLock["fullReplayEvidence"]["semanticReceipt"],
+  expected: VerifiedFloodgateRoleLock["fullReplayEvidence"]["semanticReceipt"],
+): void {
+  if (!isDeepStrictEqual(actual, expected)) {
+    fail("role-lock full-replay semantic receipt changed across Git closure");
+  }
+}
+
+function assertRoleLockReceiptTargetsMatchArtifacts(
+  semanticReceipt: VerifiedFloodgateRoleLock["fullReplayEvidence"]["semanticReceipt"],
+  roleLock: Readonly<VerifiedFloodgateRoleLock>,
+): void {
+  const expected = {
+    "allocation.json": fileIdentity(
+      roleLock.manifest.artifacts.allocation.path,
+      roleLock.allocationText,
+    ),
+    "manifest.json": fileIdentity("manifest.json", roleLock.manifestText),
+    "materialized-input.json": fileIdentity(
+      roleLock.manifest.artifacts.materialized_input.path,
+      roleLock.materializedInputText,
+    ),
+  } as const;
+  if (
+    !isDeepStrictEqual(expected["allocation.json"], roleLock.manifest.artifacts.allocation) ||
+    !isDeepStrictEqual(
+      expected["materialized-input.json"],
+      roleLock.manifest.artifacts.materialized_input,
+    )
+  ) {
+    fail("verified role-lock artifact texts do not close over its manifest");
+  }
+  for (const filename of [
+    "allocation.json",
+    "manifest.json",
+    "materialized-input.json",
+  ] as const) {
+    const target = semanticReceipt.watchedBefore.targets[filename];
+    const artifact = expected[filename];
+    if (
+      target.sha256 !== artifact.sha256 ||
+      target.identity.size !== String(artifact.bytes)
+    ) {
+      fail(`full-replay target ${filename} does not bind verified artifacts`);
+    }
   }
 }
 
@@ -1109,6 +1399,8 @@ async function buildRoleBundle(
   legacyPath: string,
   bundleProducerRevision: string,
 ): Promise<Readonly<RoleBundleBuild>> {
+  const roleLockVerification =
+    verifiedRoleLockVerificationIdentities(roleLock);
   const roles = await materializeRoleArtifacts({
     allocation: roleLock.allocation,
     csaIndex: roleLock.rawManifest.csa_index,
@@ -1217,7 +1509,11 @@ async function buildRoleBundle(
       role_lock: {
         manifest: roleManifestIdentity,
         allocation: allocationIdentity,
-        result_receipt: roleLock.resultReceipt,
+        verification: {
+          result: roleLockVerification.result,
+          status: roleLockVerification.status,
+          log: roleLockVerification.log,
+        },
         producer_revision: roleLock.producerRevision,
         verifier_revision: bundleProducerRevision,
       },
@@ -2414,14 +2710,24 @@ async function publishRoleBundle(
           roleLockOptions(options),
         );
         assertVerifiedRoleLockStable(reverified, roleLock);
-        await assertRoleBundleGitClosure(
+        const semanticReceipt = await assertRoleBundleGitClosure(
           options.repositoryRoot,
           options.verifierRevision,
           Object.freeze({
             bundleProducerRevision: options.verifierRevision,
             roleLockProducerRevision: roleLock.producerRevision,
             rawLockSourceRevision: roleLock.rawManifest.source.revision,
+            roleLockVerification:
+              verifiedRoleLockVerificationIdentities(roleLock),
           }),
+        );
+        assertRoleLockSemanticReceipt(
+          semanticReceipt,
+          reverified.fullReplayEvidence.semanticReceipt,
+        );
+        assertRoleLockReceiptTargetsMatchArtifacts(
+          semanticReceipt,
+          reverified,
         );
       },
       publishManifest: async () => {
@@ -2501,15 +2807,21 @@ export async function createFloodgateRoleBundle(
   const roleLock = await verifyExistingFloodgateRoleLock(
     roleLockOptions(options),
   );
-  await assertRoleBundleGitClosure(
+  const semanticReceipt = await assertRoleBundleGitClosure(
     options.repositoryRoot,
     options.verifierRevision,
     Object.freeze({
       bundleProducerRevision: options.verifierRevision,
       roleLockProducerRevision: roleLock.producerRevision,
       rawLockSourceRevision: roleLock.rawManifest.source.revision,
+      roleLockVerification: verifiedRoleLockVerificationIdentities(roleLock),
     }),
   );
+  assertRoleLockSemanticReceipt(
+    semanticReceipt,
+    roleLock.fullReplayEvidence.semanticReceipt,
+  );
+  assertRoleLockReceiptTargetsMatchArtifacts(semanticReceipt, roleLock);
   const build = await buildRoleBundle(
     roleLock,
     options.rawLockRoot,
@@ -2562,7 +2874,7 @@ export async function verifyExistingFloodgateRoleBundle(
       false,
       "after historical manifest read",
     );
-    await assertRoleBundleGitClosure(
+    const historicalSemanticReceipt = await assertRoleBundleGitClosure(
       options.repositoryRoot,
       options.verifierRevision,
       binding,
@@ -2579,6 +2891,22 @@ export async function verifyExistingFloodgateRoleBundle(
     ) {
       fail("historical bundle cites a different raw-lock source revision");
     }
+    if (
+      !isDeepStrictEqual(
+        verifiedRoleLockVerificationIdentities(roleLock),
+        binding.roleLockVerification,
+      )
+    ) {
+      fail("historical bundle cites different role-lock verification blobs");
+    }
+    assertRoleLockSemanticReceipt(
+      historicalSemanticReceipt,
+      roleLock.fullReplayEvidence.semanticReceipt,
+    );
+    assertRoleLockReceiptTargetsMatchArtifacts(
+      historicalSemanticReceipt,
+      roleLock,
+    );
     const build = await buildRoleBundle(
       roleLock,
       options.rawLockRoot,
@@ -2614,10 +2942,22 @@ export async function verifyExistingFloodgateRoleBundle(
     ) {
       fail("raw-lock source revision changed during bundle verification");
     }
-    await assertRoleBundleGitClosure(
+    const finalHistoricalSemanticReceipt = await assertRoleBundleGitClosure(
       options.repositoryRoot,
       options.verifierRevision,
       binding,
+    );
+    assertRoleLockSemanticReceipt(
+      finalHistoricalSemanticReceipt,
+      historicalSemanticReceipt,
+    );
+    assertRoleLockSemanticReceipt(
+      finalHistoricalSemanticReceipt,
+      reverified.fullReplayEvidence.semanticReceipt,
+    );
+    assertRoleLockReceiptTargetsMatchArtifacts(
+      finalHistoricalSemanticReceipt,
+      reverified,
     );
     await guard.assertState(
       expectedEntries,

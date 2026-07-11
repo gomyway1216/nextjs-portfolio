@@ -82,9 +82,33 @@ export const FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME = "manifest.json" as const;
 export const FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL = "!" as const;
 export const FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH =
   "ml/protocols/floodgate-q1-2026-role-lock-result.json" as const;
-export const FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES = 5764 as const;
+export const FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES = 9463 as const;
 export const FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256 =
-  "14a7365bc484e0876a36196fab5a66f73e00ad3c39b1bfd7877e7931b5fd4f00" as const;
+  "f4a78b4208516c71ea7e21d81af2cb6661cc9ea41aca0e16fa70e22928f05a26" as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION =
+  "b086243781396e2c197cc9e1cfab1fc6b773ae2a" as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_PATH =
+  "ml/protocols/floodgate-q1-2026-role-lock-full-replay-status.json" as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_BYTES = 7749 as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_SHA256 =
+  "c7db624051214555d6bc22b3a6497cda83d661298e4d0bf42b3182ba0ac99053" as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_PATH =
+  "ml/protocols/floodgate-q1-2026-role-lock-full-replay.log" as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_BYTES = 9010 as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_SHA256 =
+  "b3954d9593ae52d3928906fea7f921d571daa7664beabb61044b44590cc2d1b8" as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_STATUS_PATH =
+  "ml/protocols/floodgate-q1-2026-role-lock-full-replay-attempt-1-failed-status.json" as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_STATUS_BYTES =
+  590 as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_STATUS_SHA256 =
+  "caf4df1bd52939a499e03eaf58df593f0714cfd24194be731453dfb1426644c0" as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_LOG_PATH =
+  "ml/protocols/floodgate-q1-2026-role-lock-full-replay-attempt-1-failed.log" as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_LOG_BYTES =
+  1386 as const;
+export const FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_LOG_SHA256 =
+  "38197d0a4d6f8178eea8e5e0a6b620ee158778c763fa59b0edc7454bd721d741" as const;
 export const FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME =
   "materialized-input.json" as const;
 export const FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME =
@@ -312,6 +336,92 @@ export interface FloodgateRoleLockFilesystemClosure {
   };
 }
 
+export interface FloodgateRoleLockFullReplayGitReceipt {
+  readonly head: typeof FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION;
+  readonly trackedTreeClean: true;
+  readonly untrackedTreeClean: true;
+  readonly replaceRefsAbsent: true;
+  readonly producerIsAncestor: true;
+}
+
+export interface FloodgateRoleLockFullReplayStatReceipt {
+  readonly dev: string;
+  readonly ino: string;
+  readonly mode: string;
+  readonly permissionsOctal: string;
+  readonly nlink: string;
+  readonly uid: string;
+  readonly gid: string;
+  readonly rdev: string;
+  readonly size: string;
+  readonly blksize: string;
+  readonly blocks: string;
+  readonly mtimeNs: string;
+  readonly ctimeNs: string;
+  readonly birthtimeNs: string;
+}
+
+export interface FloodgateRoleLockFullReplayTargetReceipt {
+  readonly identity: Readonly<FloodgateRoleLockFullReplayStatReceipt>;
+  readonly sha256: string;
+}
+
+export interface FloodgateRoleLockFullReplayWatchedReceipt {
+  readonly parent: Readonly<FloodgateRoleLockFullReplayStatReceipt>;
+  readonly roleRoot: Readonly<FloodgateRoleLockFullReplayStatReceipt>;
+  readonly entries: readonly [
+    typeof FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME,
+    typeof FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
+    typeof FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
+  ];
+  readonly targets: Readonly<{
+    readonly "allocation.json": Readonly<FloodgateRoleLockFullReplayTargetReceipt>;
+    readonly "manifest.json": Readonly<FloodgateRoleLockFullReplayTargetReceipt>;
+    readonly "materialized-input.json": Readonly<FloodgateRoleLockFullReplayTargetReceipt>;
+  }>;
+}
+
+export interface FloodgateRoleLockFullReplaySemanticReceipt {
+  readonly attempt: 2;
+  readonly contract: "verifyExistingFloodgateRoleLock";
+  readonly producerRevision: string;
+  readonly verifierRevision: typeof FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION;
+  readonly node: "v22.13.0";
+  readonly startedAt: string;
+  readonly finishedAt: string;
+  readonly elapsedMs: number;
+  readonly processExitCode: 0;
+  readonly gitBefore: Readonly<FloodgateRoleLockFullReplayGitReceipt>;
+  readonly gitAfter: Readonly<FloodgateRoleLockFullReplayGitReceipt>;
+  readonly watchedBefore: Readonly<FloodgateRoleLockFullReplayWatchedReceipt>;
+  readonly watchedAfter: Readonly<FloodgateRoleLockFullReplayWatchedReceipt>;
+  readonly verifiedManifestSchema: typeof FLOODGATE_ROLE_LOCK_SCHEMA;
+  readonly verifiedManifestStatus: "complete-label-blind-role-lock";
+  readonly statusReceipt: Readonly<FloodgateRoleLockArtifactIdentity>;
+  readonly logReceipt: Readonly<FloodgateRoleLockArtifactIdentity>;
+}
+
+export interface FloodgateRoleLockFailedFullReplaySemanticReceipt {
+  readonly attempt: 1;
+  readonly status: "failed";
+  readonly producerRevision: string;
+  readonly verifierRevision: typeof FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION;
+  readonly node: "v22.13.0";
+  readonly startedAt: "2026-07-11T11:45:56.673Z";
+  readonly finishedAt: "2026-07-11T15:35:11.239Z";
+  readonly processExitCode: 1;
+  readonly error: "invalid Floodgate role lock: existing role-lock changed during production verification";
+  readonly statusReceipt: Readonly<FloodgateRoleLockArtifactIdentity>;
+  readonly logReceipt: Readonly<FloodgateRoleLockArtifactIdentity>;
+}
+
+export interface FloodgateRoleLockFullReplayEvidence {
+  readonly semanticReceipt: Readonly<FloodgateRoleLockFullReplaySemanticReceipt>;
+  readonly status: Readonly<FloodgateRoleLockArtifactIdentity>;
+  readonly log: Readonly<FloodgateRoleLockArtifactIdentity>;
+  readonly priorFailedAttempt?: Readonly<FloodgateRoleLockFailedFullReplaySemanticReceipt>;
+}
+
 export interface VerifiedFloodgateRoleLock {
   readonly manifest: Readonly<FloodgateRoleLockManifest>;
   readonly manifestText: string;
@@ -322,12 +432,14 @@ export interface VerifiedFloodgateRoleLock {
   readonly producerRevision: string;
   readonly verifierRevision: string;
   readonly resultReceipt: FloodgateRoleLockArtifactIdentity;
+  readonly fullReplayEvidence: Readonly<FloodgateRoleLockFullReplayEvidence>;
   readonly filesystemClosure: Readonly<FloodgateRoleLockFilesystemClosure>;
 }
 
 export type FloodgateRoleLockResultBindingEvidence = Pick<
   VerifiedFloodgateRoleLock,
   | "allocationText"
+  | "fullReplayEvidence"
   | "manifest"
   | "manifestText"
   | "materializedInputText"
@@ -1643,6 +1755,36 @@ async function assertVerifierGitClosure(
         env: floodgateGitEnvironment(),
       },
     );
+    await execFile(
+      FLOODGATE_GIT_EXECUTABLE,
+      [
+        ...FLOODGATE_GIT_COMMAND_PREFIX,
+        "merge-base",
+        "--is-ancestor",
+        producerRevision,
+        FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION,
+      ],
+      {
+        cwd: repositoryRoot,
+        encoding: "utf8",
+        env: floodgateGitEnvironment(),
+      },
+    );
+    await execFile(
+      FLOODGATE_GIT_EXECUTABLE,
+      [
+        ...FLOODGATE_GIT_COMMAND_PREFIX,
+        "merge-base",
+        "--is-ancestor",
+        FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION,
+        verifierRevision,
+      ],
+      {
+        cwd: repositoryRoot,
+        encoding: "utf8",
+        env: floodgateGitEnvironment(),
+      },
+    );
     if (rawProducerRevision !== undefined) {
       await execFile(
         FLOODGATE_GIT_EXECUTABLE,
@@ -1782,9 +1924,834 @@ function artifactIdentity(
   });
 }
 
+const FLOODGATE_ROLE_LOCK_FULL_REPLAY_EVENT_SCHEMA =
+  "shogi-floodgate-role-lock-full-verification-event-v2" as const;
+const FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_SCHEMA =
+  "shogi-floodgate-role-lock-full-verification-status-v2" as const;
+const FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT = 2 as const;
+const FLOODGATE_ROLE_LOCK_FULL_REPLAY_CONTRACT =
+  "verifyExistingFloodgateRoleLock" as const;
+const FLOODGATE_ROLE_LOCK_FULL_REPLAY_NODE = "v22.13.0" as const;
+const FLOODGATE_ROLE_LOCK_FULL_REPLAY_REPOSITORY_ROOT =
+  "/Users/yudaiyaguchi/.codex/worktrees/shogi-floodgate-role-bundle" as const;
+const FLOODGATE_ROLE_LOCK_FULL_REPLAY_RAW_LOCK_ROOT =
+  "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-raw-lock" as const;
+const FLOODGATE_ROLE_LOCK_FULL_REPLAY_ROLE_LOCK_ROOT =
+  "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1" as const;
+const FLOODGATE_ROLE_LOCK_FULL_REPLAY_LEGACY_PATH =
+  "/Users/yudaiyaguchi/.codex/worktrees/shogi-floodgate-role-bundle/ml/data/wcsc36/int16-aware-replay-excluded-position-ids.txt" as const;
+const FLOODGATE_ROLE_LOCK_FULL_REPLAY_EVIDENCE_ROOT =
+  "/Users/yudaiyaguchi/.codex/full-replay-evidence" as const;
+const FLOODGATE_ROLE_LOCK_FULL_REPLAY_EXTERNAL_STATUS_PATH =
+  "/Users/yudaiyaguchi/.codex/full-replay-evidence/role-lock-full-verify-b086243-attempt-2.status.json" as const;
+const FLOODGATE_ROLE_LOCK_FULL_REPLAY_EXTERNAL_LOG_PATH =
+  "/Users/yudaiyaguchi/.codex/full-replay-evidence/role-lock-full-verify-b086243-attempt-2.log" as const;
+
+export interface FloodgateRoleLockFullReplayPinnedIdentities {
+  readonly status: Readonly<FloodgateRoleLockArtifactIdentity>;
+  readonly log: Readonly<FloodgateRoleLockArtifactIdentity>;
+}
+
+export interface FloodgateRoleLockFullReplayLiveArtifacts {
+  readonly allocation: Readonly<{ readonly bytes: number; readonly sha256: string }>;
+  readonly manifest: Readonly<{ readonly bytes: number; readonly sha256: string }>;
+  readonly materializedInput: Readonly<{
+    readonly bytes: number;
+    readonly sha256: string;
+  }>;
+}
+
+function fullReplayStrictObject(
+  value: unknown,
+  label: string,
+): Record<string, unknown> {
+  return assertStrictRoleLockResultObject(value, label);
+}
+
+function fullReplayString(value: unknown, label: string): string {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value !== value.trim() ||
+    /[\u0000-\u001f\u007f]/.test(value)
+  ) {
+    fail(`${label} must be a non-empty canonical string`);
+  }
+  return value;
+}
+
+function fullReplayPositiveInteger(value: unknown, label: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) <= 0) {
+    fail(`${label} must be a positive safe integer`);
+  }
+  return value as number;
+}
+
+function fullReplayIsoTimestamp(value: unknown, label: string): string {
+  const timestamp = fullReplayString(value, label);
+  let normalized: string;
+  try {
+    normalized = new Date(timestamp).toISOString();
+  } catch {
+    return fail(`${label} must be a canonical ISO timestamp`);
+  }
+  if (normalized !== timestamp) {
+    fail(`${label} must be a canonical ISO timestamp`);
+  }
+  return timestamp;
+}
+
+function fullReplayDecimal(value: unknown, label: string): string {
+  const text = fullReplayString(value, label);
+  if (!/^(?:0|[1-9][0-9]*)$/.test(text)) {
+    fail(`${label} must be a canonical unsigned decimal string`);
+  }
+  return text;
+}
+
+function fullReplayEvidenceText(
+  bytes: Uint8Array,
+  label: string,
+): string {
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      bytes,
+    );
+  } catch {
+    return fail(`${label} is not fatal-valid UTF-8`);
+  }
+  if (
+    text.length === 0 ||
+    text.startsWith("\ufeff") ||
+    text.includes("\0") ||
+    text.includes("\r") ||
+    !text.endsWith("\n") ||
+    text.endsWith("\n\n")
+  ) {
+    fail(`${label} framing is invalid`);
+  }
+  return text;
+}
+
+function fullReplayEvidenceIdentity(
+  bytes: Uint8Array,
+  candidate: unknown,
+  expectedPath: string,
+  label: string,
+): Readonly<FloodgateRoleLockArtifactIdentity> {
+  const identity = fullReplayStrictObject(candidate, `${label} identity`);
+  assertExactKeys(identity, ["bytes", "path", "sha256"], `${label} identity`);
+  if (
+    identity.path !== expectedPath ||
+    identity.bytes !== bytes.byteLength ||
+    identity.sha256 !== sha256Hex(bytes) ||
+    !SHA256_RE.test(identity.sha256 as string)
+  ) {
+    fail(`${label} identity does not bind the supplied bytes`);
+  }
+  return Object.freeze({
+    path: identity.path,
+    bytes: identity.bytes,
+    sha256: identity.sha256,
+  }) as Readonly<FloodgateRoleLockArtifactIdentity>;
+}
+
+function parseFullReplayStatReceipt(
+  value: unknown,
+  label: string,
+): Readonly<FloodgateRoleLockFullReplayStatReceipt> {
+  const stat = fullReplayStrictObject(value, label);
+  assertExactKeys(
+    stat,
+    [
+      "birthtime_ns",
+      "blksize",
+      "blocks",
+      "ctime_ns",
+      "dev",
+      "gid",
+      "ino",
+      "mode",
+      "mtime_ns",
+      "nlink",
+      "permissions_octal",
+      "rdev",
+      "size",
+      "uid",
+    ],
+    label,
+  );
+  const permissionsOctal = fullReplayString(
+    stat.permissions_octal,
+    `${label}.permissions_octal`,
+  );
+  const mode = fullReplayDecimal(stat.mode, `${label}.mode`);
+  let modeBits: bigint;
+  try {
+    modeBits = BigInt(mode);
+  } catch {
+    return fail(`${label}.mode must fit the POSIX mode-bit range`);
+  }
+  const derivedPermissions = (modeBits & BigInt(0o777))
+    .toString(8)
+    .padStart(4, "0");
+  if (
+    modeBits > BigInt(0o177777) ||
+    !/^[0-7]{4}$/.test(permissionsOctal) ||
+    permissionsOctal !== derivedPermissions
+  ) {
+    fail(`${label}.mode and permissions_octal are not one POSIX mode`);
+  }
+  return Object.freeze({
+    dev: fullReplayDecimal(stat.dev, `${label}.dev`),
+    ino: fullReplayDecimal(stat.ino, `${label}.ino`),
+    mode,
+    permissionsOctal,
+    nlink: fullReplayDecimal(stat.nlink, `${label}.nlink`),
+    uid: fullReplayDecimal(stat.uid, `${label}.uid`),
+    gid: fullReplayDecimal(stat.gid, `${label}.gid`),
+    rdev: fullReplayDecimal(stat.rdev, `${label}.rdev`),
+    size: fullReplayDecimal(stat.size, `${label}.size`),
+    blksize: fullReplayDecimal(stat.blksize, `${label}.blksize`),
+    blocks: fullReplayDecimal(stat.blocks, `${label}.blocks`),
+    mtimeNs: fullReplayDecimal(stat.mtime_ns, `${label}.mtime_ns`),
+    ctimeNs: fullReplayDecimal(stat.ctime_ns, `${label}.ctime_ns`),
+    birthtimeNs: fullReplayDecimal(
+      stat.birthtime_ns,
+      `${label}.birthtime_ns`,
+    ),
+  });
+}
+
+function assertFullReplayStatKind(
+  stat: Readonly<FloodgateRoleLockFullReplayStatReceipt>,
+  expected: "directory" | "file",
+  label: string,
+): void {
+  const mode = BigInt(stat.mode);
+  const expectedBits = BigInt(
+    expected === "directory" ? 0o040000 : 0o100000,
+  );
+  if ((mode & BigInt(0o170000)) !== expectedBits) {
+    fail(`${label} mode is not a regular ${expected}`);
+  }
+}
+
+function parseFullReplayGitReceipt(
+  value: unknown,
+  label: string,
+): Readonly<FloodgateRoleLockFullReplayGitReceipt> {
+  const git = fullReplayStrictObject(value, label);
+  assertExactKeys(
+    git,
+    [
+      "head",
+      "producer_is_ancestor",
+      "replace_refs_absent",
+      "tracked_tree_clean",
+      "untracked_tree_clean",
+    ],
+    label,
+  );
+  if (
+    git.head !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION ||
+    git.tracked_tree_clean !== true ||
+    git.untracked_tree_clean !== true ||
+    git.replace_refs_absent !== true ||
+    git.producer_is_ancestor !== true
+  ) {
+    fail(`${label} is not a clean, ancestor-closed verifier checkout`);
+  }
+  return Object.freeze({
+    head: FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION,
+    trackedTreeClean: true,
+    untrackedTreeClean: true,
+    replaceRefsAbsent: true,
+    producerIsAncestor: true,
+  });
+}
+
+function parseFullReplayWatchedReceipt(
+  value: unknown,
+  label: string,
+): Readonly<FloodgateRoleLockFullReplayWatchedReceipt> {
+  const watched = fullReplayStrictObject(value, label);
+  assertExactKeys(
+    watched,
+    ["entries", "parent", "role_root", "targets"],
+    label,
+  );
+  const parent = parseFullReplayStatReceipt(watched.parent, `${label}.parent`);
+  const roleRoot = parseFullReplayStatReceipt(
+    watched.role_root,
+    `${label}.role_root`,
+  );
+  if (
+    parent.permissionsOctal !== "0700" ||
+    roleRoot.permissionsOctal !== "0700"
+  ) {
+    fail(`${label} directories must remain private mode 0700`);
+  }
+  assertFullReplayStatKind(parent, "directory", `${label}.parent`);
+  assertFullReplayStatKind(roleRoot, "directory", `${label}.role_root`);
+  const entries = assertStrictArray(watched.entries, `${label}.entries`);
+  const expectedEntries = [
+    FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME,
+    FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
+    FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
+  ] as const;
+  if (!isDeepStrictEqual(entries, expectedEntries)) {
+    fail(`${label}.entries is not the exact three-file role-lock closure`);
+  }
+  const targets = fullReplayStrictObject(watched.targets, `${label}.targets`);
+  assertExactKeys(targets, expectedEntries, `${label}.targets`);
+  const parsedTargets = Object.create(null) as Record<
+    (typeof expectedEntries)[number],
+    Readonly<FloodgateRoleLockFullReplayTargetReceipt>
+  >;
+  for (const name of expectedEntries) {
+    const target = fullReplayStrictObject(
+      targets[name],
+      `${label}.targets.${name}`,
+    );
+    assertExactKeys(
+      target,
+      ["identity", "sha256"],
+      `${label}.targets.${name}`,
+    );
+    const identity = parseFullReplayStatReceipt(
+      target.identity,
+      `${label}.targets.${name}.identity`,
+    );
+    if (
+      identity.permissionsOctal !== "0600" ||
+      identity.size === "0" ||
+      typeof target.sha256 !== "string" ||
+      !SHA256_RE.test(target.sha256)
+    ) {
+      fail(`${label}.targets.${name} is not a private hashed regular file`);
+    }
+    assertFullReplayStatKind(
+      identity,
+      "file",
+      `${label}.targets.${name}.identity`,
+    );
+    parsedTargets[name] = Object.freeze({
+      identity,
+      sha256: target.sha256 as string,
+    });
+  }
+  return Object.freeze({
+    parent,
+    roleRoot,
+    entries: Object.freeze([...expectedEntries]) as unknown as readonly [
+      typeof FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME,
+      typeof FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
+      typeof FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
+    ],
+    targets: Object.freeze({
+      "allocation.json": parsedTargets["allocation.json"],
+      "manifest.json": parsedTargets["manifest.json"],
+      "materialized-input.json": parsedTargets["materialized-input.json"],
+    }),
+  });
+}
+
+const FULL_REPLAY_COMMON_EVENT_KEYS = Object.freeze([
+  "attempt",
+  "contract",
+  "legacy_protected_position_ids_path",
+  "log_path",
+  "node",
+  "pid",
+  "producer_revision",
+  "raw_lock_root",
+  "repository_root",
+  "role_lock_root",
+  "started_at",
+  "status_path",
+  "verifier_revision",
+] as const);
+
+function assertFullReplayCommonEvent(
+  event: Record<string, unknown>,
+  producerRevision: string,
+  label: string,
+): void {
+  if (
+    event.attempt !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT ||
+    event.contract !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_CONTRACT ||
+    event.repository_root !==
+      FLOODGATE_ROLE_LOCK_FULL_REPLAY_REPOSITORY_ROOT ||
+    event.producer_revision !== producerRevision ||
+    event.verifier_revision !==
+      FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION ||
+    event.node !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_NODE ||
+    event.raw_lock_root !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_RAW_LOCK_ROOT ||
+    event.role_lock_root !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_ROLE_LOCK_ROOT ||
+    event.legacy_protected_position_ids_path !==
+      FLOODGATE_ROLE_LOCK_FULL_REPLAY_LEGACY_PATH ||
+    event.status_path !==
+      FLOODGATE_ROLE_LOCK_FULL_REPLAY_EXTERNAL_STATUS_PATH ||
+    event.log_path !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_EXTERNAL_LOG_PATH
+  ) {
+    fail(`${label} does not bind the pinned attempt-2 environment`);
+  }
+  fullReplayPositiveInteger(event.pid, `${label}.pid`);
+  fullReplayIsoTimestamp(event.started_at, `${label}.started_at`);
+}
+
+function fullReplayCommonEventProjection(
+  event: Record<string, unknown>,
+): Readonly<Record<string, unknown>> {
+  return Object.freeze(
+    Object.fromEntries(
+      FULL_REPLAY_COMMON_EVENT_KEYS.map((key) => [key, event[key]]),
+    ),
+  );
+}
+
+/** Parse the pinned attempt-2 status and JSONL into one semantic PASS receipt. */
+export function parseFloodgateRoleLockFullReplayEvidence(
+  statusBytes: Uint8Array,
+  logBytes: Uint8Array,
+  identitiesInput: Readonly<FloodgateRoleLockFullReplayPinnedIdentities>,
+  producerRevisionInput: string,
+): Readonly<FloodgateRoleLockFullReplayEvidence> {
+  const producerRevision = assertRevision(producerRevisionInput);
+  const identities = fullReplayStrictObject(
+    identitiesInput,
+    "full-replay pinned identities",
+  );
+  assertExactKeys(
+    identities,
+    ["log", "status"],
+    "full-replay pinned identities",
+  );
+  const statusReceipt = fullReplayEvidenceIdentity(
+    statusBytes,
+    identities.status,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_PATH,
+    "full-replay status",
+  );
+  const logReceipt = fullReplayEvidenceIdentity(
+    logBytes,
+    identities.log,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_PATH,
+    "full-replay log",
+  );
+  const statusText = fullReplayEvidenceText(
+    statusBytes,
+    "full-replay status",
+  );
+  let statusCandidate: unknown;
+  try {
+    statusCandidate = JSON.parse(statusText) as unknown;
+  } catch {
+    return fail("full-replay status is not valid JSON");
+  }
+  if (`${JSON.stringify(statusCandidate, null, 2)}\n` !== statusText) {
+    fail("full-replay status is not canonical pretty JSON plus one LF");
+  }
+  const status = fullReplayStrictObject(
+    statusCandidate,
+    "full-replay final status",
+  );
+
+  const logText = fullReplayEvidenceText(logBytes, "full-replay log");
+  const logLines = logText.slice(0, -1).split("\n");
+  if (logLines.length !== 2 || logLines.some((line) => line.length === 0)) {
+    fail("full-replay log must contain exactly two non-empty JSONL records");
+  }
+  const logEvents = logLines.map((line, index) => {
+    let candidate: unknown;
+    try {
+      candidate = JSON.parse(line) as unknown;
+    } catch {
+      return fail(`full-replay log[${index}] is not valid JSON`);
+    }
+    if (JSON.stringify(candidate) !== line) {
+      fail(`full-replay log[${index}] is not canonical compact JSON`);
+    }
+    return fullReplayStrictObject(candidate, `full-replay log[${index}]`);
+  });
+  const [started, succeeded] = logEvents;
+  const startedKeys = [
+    ...FULL_REPLAY_COMMON_EVENT_KEYS,
+    "evidence_root",
+    "evidence_root_identity",
+    "event",
+    "git_before",
+    "schema",
+    "state",
+    "watched_before",
+  ] as const;
+  const succeededKeys = [
+    ...FULL_REPLAY_COMMON_EVENT_KEYS,
+    "elapsed_ms",
+    "evidence_root",
+    "evidence_root_identity",
+    "event",
+    "finished_at",
+    "git_after",
+    "git_before",
+    "process_exit_code",
+    "schema",
+    "state",
+    "verified_manifest_schema",
+    "verified_manifest_status",
+    "watched_after",
+    "watched_before",
+    "watched_closure_unchanged",
+  ] as const;
+  assertExactKeys(started, startedKeys, "full-replay started event");
+  assertExactKeys(succeeded, succeededKeys, "full-replay succeeded event");
+  assertExactKeys(status, succeededKeys, "full-replay final status");
+  if (
+    started.schema !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_EVENT_SCHEMA ||
+    started.event !== "role_lock_full_verifier_started" ||
+    started.state !== "running" ||
+    succeeded.schema !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_EVENT_SCHEMA ||
+    succeeded.event !== "role_lock_full_verifier_succeeded" ||
+    succeeded.state !== "succeeded" ||
+    status.schema !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_SCHEMA ||
+    status.event !== "role_lock_full_verifier_succeeded" ||
+    status.state !== "succeeded"
+  ) {
+    fail("full-replay evidence is not the exact started-to-succeeded v2 flow");
+  }
+  assertFullReplayCommonEvent(started, producerRevision, "full-replay started");
+  assertFullReplayCommonEvent(
+    succeeded,
+    producerRevision,
+    "full-replay succeeded",
+  );
+  assertFullReplayCommonEvent(status, producerRevision, "full-replay status");
+  if (
+    !isDeepStrictEqual(
+      fullReplayCommonEventProjection(started),
+      fullReplayCommonEventProjection(succeeded),
+    ) ||
+    !isDeepStrictEqual(
+      fullReplayCommonEventProjection(succeeded),
+      fullReplayCommonEventProjection(status),
+    )
+  ) {
+    fail("full-replay log events do not share one exact run identity");
+  }
+  if (
+    !isDeepStrictEqual(status, {
+      ...succeeded,
+      schema: FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_SCHEMA,
+    })
+  ) {
+    fail("full-replay status does not exactly normalize from the success log");
+  }
+  if (
+    started.evidence_root !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_EVIDENCE_ROOT ||
+    succeeded.evidence_root !==
+      FLOODGATE_ROLE_LOCK_FULL_REPLAY_EVIDENCE_ROOT
+  ) {
+    fail("full-replay events cite an unexpected evidence root");
+  }
+  const startedEvidenceRoot = parseFullReplayStatReceipt(
+    started.evidence_root_identity,
+    "full-replay started.evidence_root_identity",
+  );
+  const succeededEvidenceRoot = parseFullReplayStatReceipt(
+    succeeded.evidence_root_identity,
+    "full-replay succeeded.evidence_root_identity",
+  );
+  if (
+    startedEvidenceRoot.permissionsOctal !== "0700" ||
+    !isDeepStrictEqual(startedEvidenceRoot, succeededEvidenceRoot)
+  ) {
+    fail("full-replay evidence root identity is not stable private storage");
+  }
+  assertFullReplayStatKind(
+    startedEvidenceRoot,
+    "directory",
+    "full-replay evidence root identity",
+  );
+  const gitAtStart = parseFullReplayGitReceipt(
+    started.git_before,
+    "full-replay started.git_before",
+  );
+  const gitBefore = parseFullReplayGitReceipt(
+    succeeded.git_before,
+    "full-replay succeeded.git_before",
+  );
+  const gitAfter = parseFullReplayGitReceipt(
+    succeeded.git_after,
+    "full-replay succeeded.git_after",
+  );
+  if (
+    !isDeepStrictEqual(gitAtStart, gitBefore) ||
+    !isDeepStrictEqual(gitBefore, gitAfter)
+  ) {
+    fail("full-replay Git closure changed between start and success");
+  }
+  const watchedAtStart = parseFullReplayWatchedReceipt(
+    started.watched_before,
+    "full-replay started.watched_before",
+  );
+  const watchedBefore = parseFullReplayWatchedReceipt(
+    succeeded.watched_before,
+    "full-replay succeeded.watched_before",
+  );
+  const watchedAfter = parseFullReplayWatchedReceipt(
+    succeeded.watched_after,
+    "full-replay succeeded.watched_after",
+  );
+  if (
+    succeeded.watched_closure_unchanged !== true ||
+    !isDeepStrictEqual(watchedAtStart, watchedBefore) ||
+    !isDeepStrictEqual(watchedBefore, watchedAfter)
+  ) {
+    fail("full-replay watched closure changed between start and success");
+  }
+  const startedAt = fullReplayIsoTimestamp(
+    succeeded.started_at,
+    "full-replay succeeded.started_at",
+  );
+  const finishedAt = fullReplayIsoTimestamp(
+    succeeded.finished_at,
+    "full-replay succeeded.finished_at",
+  );
+  const elapsedMs = fullReplayPositiveInteger(
+    succeeded.elapsed_ms,
+    "full-replay succeeded.elapsed_ms",
+  );
+  const wallMs = Date.parse(finishedAt) - Date.parse(startedAt);
+  if (
+    wallMs <= 0 ||
+    Math.abs(wallMs - elapsedMs) > 5_000 ||
+    succeeded.process_exit_code !== 0 ||
+    succeeded.verified_manifest_schema !== FLOODGATE_ROLE_LOCK_SCHEMA ||
+    succeeded.verified_manifest_status !== "complete-label-blind-role-lock"
+  ) {
+    fail("full-replay success timing or terminal semantics are invalid");
+  }
+  const semanticReceipt = Object.freeze({
+    attempt: FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT,
+    contract: FLOODGATE_ROLE_LOCK_FULL_REPLAY_CONTRACT,
+    producerRevision,
+    verifierRevision: FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION,
+    node: FLOODGATE_ROLE_LOCK_FULL_REPLAY_NODE,
+    startedAt,
+    finishedAt,
+    elapsedMs,
+    processExitCode: 0 as const,
+    gitBefore,
+    gitAfter,
+    watchedBefore,
+    watchedAfter,
+    verifiedManifestSchema: FLOODGATE_ROLE_LOCK_SCHEMA,
+    verifiedManifestStatus: "complete-label-blind-role-lock" as const,
+    statusReceipt,
+    logReceipt,
+  });
+  return Object.freeze({
+    semanticReceipt,
+    status: statusReceipt,
+    log: logReceipt,
+  });
+}
+
+/** Explicit non-production alias for synthetic framing and tamper fixtures. */
+export const parseFloodgateRoleLockFullReplayEvidenceCoreForTests =
+  parseFloodgateRoleLockFullReplayEvidence;
+
+const FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_STATUS_SCHEMA =
+  "shogi-floodgate-role-lock-full-verification-status-v1" as const;
+const FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_STARTED_AT =
+  "2026-07-11T11:45:56.673Z" as const;
+const FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_FINISHED_AT =
+  "2026-07-11T15:35:11.239Z" as const;
+const FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_ERROR =
+  "invalid Floodgate role lock: existing role-lock changed during production verification" as const;
+const FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_EXTERNAL_LOG_PATH =
+  "/Users/yudaiyaguchi/.codex/shogi-data/role-lock-full-verify-b086243-20260711T114441Z.log" as const;
+
+export function parseFloodgateRoleLockFailedFullReplayEvidence(
+  statusBytes: Uint8Array,
+  logBytes: Uint8Array,
+  identitiesInput: Readonly<FloodgateRoleLockFullReplayPinnedIdentities>,
+  producerRevisionInput: string,
+): Readonly<FloodgateRoleLockFailedFullReplaySemanticReceipt> {
+  const producerRevision = assertRevision(producerRevisionInput);
+  const identities = fullReplayStrictObject(
+    identitiesInput,
+    "failed full-replay pinned identities",
+  );
+  assertExactKeys(
+    identities,
+    ["log", "status"],
+    "failed full-replay pinned identities",
+  );
+  const statusReceipt = fullReplayEvidenceIdentity(
+    statusBytes,
+    identities.status,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_STATUS_PATH,
+    "failed full-replay status",
+  );
+  const logReceipt = fullReplayEvidenceIdentity(
+    logBytes,
+    identities.log,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_LOG_PATH,
+    "failed full-replay log",
+  );
+  const statusText = fullReplayEvidenceText(
+    statusBytes,
+    "failed full-replay status",
+  );
+  let statusCandidate: unknown;
+  try {
+    statusCandidate = JSON.parse(statusText) as unknown;
+  } catch {
+    return fail("failed full-replay status is not valid JSON");
+  }
+  if (`${JSON.stringify(statusCandidate, null, 2)}\n` !== statusText) {
+    fail("failed full-replay status is not canonical pretty JSON plus one LF");
+  }
+  const status = fullReplayStrictObject(
+    statusCandidate,
+    "failed full-replay final status",
+  );
+  const failedKeys = [
+    "error",
+    "event",
+    "finished_at",
+    "log_path",
+    "node",
+    "producer_revision",
+    "started_at",
+    "state",
+    "verifier_revision",
+  ] as const;
+  assertExactKeys(
+    status,
+    ["schema", ...failedKeys],
+    "failed full-replay final status",
+  );
+
+  const logText = fullReplayEvidenceText(logBytes, "failed full-replay log");
+  const lines = logText.slice(0, -1).split("\n");
+  if (lines.length !== 2 || lines.some((line) => line.length === 0)) {
+    fail("failed full-replay log must contain exactly two JSONL records");
+  }
+  const events = lines.map((line, index) => {
+    let candidate: unknown;
+    try {
+      candidate = JSON.parse(line) as unknown;
+    } catch {
+      return fail(`failed full-replay log[${index}] is not valid JSON`);
+    }
+    if (JSON.stringify(candidate) !== line) {
+      fail(`failed full-replay log[${index}] is not canonical compact JSON`);
+    }
+    return fullReplayStrictObject(
+      candidate,
+      `failed full-replay log[${index}]`,
+    );
+  });
+  const [started, failed] = events;
+  assertExactKeys(
+    started,
+    [
+      "event",
+      "log_path",
+      "node",
+      "pid",
+      "producer_revision",
+      "raw_lock_root",
+      "repository_root",
+      "role_lock_root",
+      "started_at",
+      "state",
+      "target_before_sha256",
+      "verifier_revision",
+    ],
+    "failed full-replay started event",
+  );
+  assertExactKeys(failed, failedKeys, "failed full-replay failed event");
+  const normalizedStatus = Object.freeze({
+    schema: FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_STATUS_SCHEMA,
+    ...failed,
+  });
+  if (!isDeepStrictEqual(status, normalizedStatus)) {
+    fail("failed full-replay status does not normalize from log line two");
+  }
+  if (
+    started.event !== "role_lock_full_verifier_started" ||
+    started.state !== "running" ||
+    failed.event !== "role_lock_full_verifier_failed" ||
+    failed.state !== "failed" ||
+    started.started_at !== FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_STARTED_AT ||
+    failed.started_at !== FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_STARTED_AT ||
+    failed.finished_at !==
+      FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_FINISHED_AT ||
+    started.producer_revision !== producerRevision ||
+    failed.producer_revision !== producerRevision ||
+    started.verifier_revision !==
+      FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION ||
+    failed.verifier_revision !==
+      FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION ||
+    started.node !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_NODE ||
+    failed.node !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_NODE ||
+    started.log_path !==
+      FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_EXTERNAL_LOG_PATH ||
+    failed.log_path !==
+      FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_EXTERNAL_LOG_PATH ||
+    failed.error !== FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_ERROR ||
+    started.repository_root !==
+      FLOODGATE_ROLE_LOCK_FULL_REPLAY_REPOSITORY_ROOT ||
+    started.raw_lock_root !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_RAW_LOCK_ROOT ||
+    started.role_lock_root !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_ROLE_LOCK_ROOT
+  ) {
+    fail("failed full-replay evidence is not the pinned attempt-1 flow");
+  }
+  fullReplayPositiveInteger(started.pid, "failed full-replay started.pid");
+  const targetHashes = fullReplayStrictObject(
+    started.target_before_sha256,
+    "failed full-replay target hashes",
+  );
+  assertExactKeys(
+    targetHashes,
+    ["allocation.json", "manifest.json", "materialized-input.json"],
+    "failed full-replay target hashes",
+  );
+  if (
+    targetHashes["manifest.json"] !==
+      "e6a54ed004e961f7924acabb174d1da4ef6c9f6e398e23afd3da3532445b084e" ||
+    targetHashes["materialized-input.json"] !==
+      "ed43d7a2f3918178472aea03f897d13d4bd526a6c82f79b1427d3e4f1e666719" ||
+    targetHashes["allocation.json"] !==
+      "e252d2237a7ba50b959f6bbe9ebc11157623185ec7d5d949727855de4c0159b4"
+  ) {
+    fail("failed full-replay target hashes do not bind the role artifacts");
+  }
+  return Object.freeze({
+    attempt: 1,
+    status: "failed",
+    producerRevision,
+    verifierRevision: FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION,
+    node: FLOODGATE_ROLE_LOCK_FULL_REPLAY_NODE,
+    startedAt: FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_STARTED_AT,
+    finishedAt: FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_FINISHED_AT,
+    processExitCode: 1,
+    error: FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_ERROR,
+    statusReceipt,
+    logReceipt,
+  });
+}
+
+export const parseFloodgateRoleLockFailedFullReplayEvidenceCoreForTests =
+  parseFloodgateRoleLockFailedFullReplayEvidence;
+
 const FLOODGATE_ROLE_LOCK_RESULT_SCHEMA =
-  "shogi-floodgate-role-lock-result-v1" as const;
-const FLOODGATE_ROLE_LOCK_RESULT_FULL_REPLAY_STATUS = "pass" as const;
+  "shogi-floodgate-role-lock-result-v2" as const;
 
 function roleLockResultArtifactIdentity(contents: string): Readonly<{
   bytes: number;
@@ -1819,6 +2786,104 @@ function roleLockResultCapReconstruction(
     unordered_pair_entries: pairGames.length,
     unordered_pair_game_sum: pairGames.reduce((sum, count) => sum + count, 0),
     unordered_pair_game_max: Math.max(0, ...pairGames),
+  });
+}
+
+function roleLockFullReplayResultProjection(
+  evidence: Readonly<FloodgateRoleLockFullReplayEvidence>,
+): Readonly<Record<string, unknown>> {
+  const receipt = evidence.semanticReceipt;
+  if (
+    receipt.attempt !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT ||
+    receipt.contract !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_CONTRACT ||
+    receipt.verifierRevision !==
+      FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION ||
+    receipt.node !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_NODE ||
+    receipt.processExitCode !== 0 ||
+    !isDeepStrictEqual(receipt.gitBefore, receipt.gitAfter) ||
+    !isDeepStrictEqual(receipt.watchedBefore, receipt.watchedAfter) ||
+    !isDeepStrictEqual(receipt.statusReceipt, evidence.status) ||
+    !isDeepStrictEqual(receipt.logReceipt, evidence.log)
+  ) {
+    fail("full-replay semantic receipt is not an internally closed PASS");
+  }
+  return Object.freeze({
+    status: "pass",
+    attempt: receipt.attempt,
+    contract: receipt.contract,
+    producer_revision: receipt.producerRevision,
+    verifier_revision: receipt.verifierRevision,
+    node: receipt.node,
+    started_at: receipt.startedAt,
+    finished_at: receipt.finishedAt,
+    elapsed_ms: receipt.elapsedMs,
+    process_exit_code: receipt.processExitCode,
+    git_closure_unchanged: true,
+    watched_closure_unchanged: true,
+    verified_manifest_schema: receipt.verifiedManifestSchema,
+    verified_manifest_status: receipt.verifiedManifestStatus,
+    status_receipt: receipt.statusReceipt,
+    log_receipt: receipt.logReceipt,
+  });
+}
+
+function roleLockRuntimeObservation(
+  fullReplay: Readonly<FloodgateRoleLockFullReplayEvidence>,
+): Readonly<Record<string, unknown>> {
+  const successfulAttempt = roleLockFullReplayResultProjection(fullReplay);
+  const failedAttempt = fullReplay.priorFailedAttempt;
+  if (
+    failedAttempt === undefined ||
+    failedAttempt.attempt !== 1 ||
+    failedAttempt.status !== "failed" ||
+    failedAttempt.producerRevision !==
+      fullReplay.semanticReceipt.producerRevision ||
+    failedAttempt.verifierRevision !==
+      FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION ||
+    failedAttempt.node !== FLOODGATE_ROLE_LOCK_FULL_REPLAY_NODE ||
+    failedAttempt.startedAt !==
+      FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_STARTED_AT ||
+    failedAttempt.finishedAt !==
+      FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_FINISHED_AT ||
+    failedAttempt.processExitCode !== 1 ||
+    failedAttempt.error !== FLOODGATE_ROLE_LOCK_FAILED_FULL_REPLAY_ERROR
+  ) {
+    fail("failed full-replay semantic receipt is not an authenticated failure");
+  }
+  return Object.freeze({
+    successful_attempt_sequence: 4,
+    prior_attempts_stopped_before_output: 3,
+    wall_seconds: 12830.79,
+    user_cpu_seconds: 12580.21,
+    system_cpu_seconds: 610.56,
+    independent_full_replay: Object.freeze({
+      gate_attempt: 2,
+      prior_failed_attempt: Object.freeze({
+        attempt: failedAttempt.attempt,
+        status: failedAttempt.status,
+        producer_revision: failedAttempt.producerRevision,
+        verifier_revision: failedAttempt.verifierRevision,
+        node: failedAttempt.node,
+        started_at: failedAttempt.startedAt,
+        finished_at: failedAttempt.finishedAt,
+        wall_seconds: 13754.89,
+        process_exit_code: failedAttempt.processExitCode,
+        error: failedAttempt.error,
+        status_receipt: failedAttempt.statusReceipt,
+        log_receipt: failedAttempt.logReceipt,
+        failure_stage: "final-filesystem-closure",
+        checks_completed_before_failure: Object.freeze([
+          "exact-reconstruction",
+          "deep-equality",
+          "raw-final-verification",
+          "legacy-reread",
+          "git-closure",
+        ]),
+        role_artifacts_changed: false,
+        cause: "parallel-audit-writes-changed-parent-metadata",
+      }),
+      successful_attempt: successfulAttempt,
+    }),
   });
 }
 
@@ -1885,6 +2950,9 @@ function expectedRoleLockResultBinding(
       source_revision: evidence.producerRevision,
       tracked_tree_clean: manifest.pipeline.tracked_tree_clean,
     }),
+    runtime_observation: roleLockRuntimeObservation(
+      evidence.fullReplayEvidence,
+    ),
     provenance: manifest.provenance,
     inputs: Object.freeze({
       raw_manifest: Object.freeze({
@@ -1961,7 +3029,7 @@ function expectedRoleLockResultBinding(
           manifest.provenance.existing_final_holdout_opened,
       }),
       independent_full_replay_verification:
-        FLOODGATE_ROLE_LOCK_RESULT_FULL_REPLAY_STATUS,
+        roleLockFullReplayResultProjection(evidence.fullReplayEvidence),
     }),
   });
 }
@@ -1989,9 +3057,39 @@ function assertStrictRoleLockResultObject(
   return value as Record<string, unknown>;
 }
 
+function assertStrictRoleLockResultJsonTree(
+  value: unknown,
+  label: string,
+): void {
+  if (Array.isArray(value)) {
+    const array = assertStrictArray(value, label);
+    for (let index = 0; index < array.length; index += 1) {
+      assertStrictRoleLockResultJsonTree(array[index], `${label}[${index}]`);
+    }
+    return;
+  }
+  if (value !== null && typeof value === "object") {
+    const object = assertStrictRoleLockResultObject(value, label);
+    for (const key of Object.keys(object)) {
+      assertStrictRoleLockResultJsonTree(object[key], `${label}.${key}`);
+    }
+    return;
+  }
+  if (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "boolean" ||
+    (typeof value === "number" && Number.isFinite(value))
+  ) {
+    return;
+  }
+  fail(`${label} must contain only strict JSON values`);
+}
+
 function roleLockResultBindingProjection(
   candidate: unknown,
 ): Readonly<Record<string, unknown>> {
+  assertStrictRoleLockResultJsonTree(candidate, "role-lock result receipt");
   const result = assertStrictRoleLockResultObject(
     candidate,
     "role-lock result receipt",
@@ -2060,6 +3158,10 @@ function roleLockResultBindingProjection(
       "role-lock result artifacts",
     ),
     post_run_audit: postRun,
+    runtime_observation: assertStrictRoleLockResultObject(
+      result.runtime_observation,
+      "role-lock result runtime observation",
+    ),
   });
 }
 
@@ -2078,9 +3180,15 @@ function assertRoleLockResultBinding(
 }
 
 function parsePinnedRoleLockResultReceipt(bytes: Uint8Array): unknown {
+  const pinned = finalizedPinnedRoleLockEvidenceIdentity(
+    FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+    FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES,
+    FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256,
+    "tracked role-lock result receipt",
+  );
   if (
-    bytes.byteLength !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES ||
-    sha256Hex(bytes) !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256
+    bytes.byteLength !== pinned.bytes ||
+    sha256Hex(bytes) !== pinned.sha256
   ) {
     fail("tracked role-lock result receipt identity is not pinned");
   }
@@ -2101,36 +3209,249 @@ function parsePinnedRoleLockResultReceipt(bytes: Uint8Array): unknown {
   ) {
     fail("tracked role-lock result receipt framing is invalid");
   }
+  let candidate: unknown;
   try {
-    return JSON.parse(text) as unknown;
+    candidate = JSON.parse(text) as unknown;
   } catch {
     return fail("tracked role-lock result receipt is not valid JSON");
   }
+  if (`${JSON.stringify(candidate, null, 2)}\n` !== text) {
+    fail("tracked role-lock result receipt is not canonical pretty JSON");
+  }
+  return candidate;
 }
 
-interface VerifiedTrackedRoleLockResultReceipt {
-  readonly identity: Readonly<FloodgateRoleLockArtifactIdentity>;
-  readonly filesystemIdentity: Readonly<FloodgateRegularFileIdentity>;
+function finalizedPinnedRoleLockEvidenceIdentity(
+  artifactPath: string,
+  artifactBytes: number,
+  artifactSha256: string,
+  label: string,
+): Readonly<FloodgateRoleLockArtifactIdentity> {
+  if (
+    typeof artifactBytes !== "number" ||
+    !Number.isSafeInteger(artifactBytes) ||
+    artifactBytes <= 0 ||
+    !SHA256_RE.test(artifactSha256)
+  ) {
+    fail(`${label} pinned identity is invalid`);
+  }
+  return Object.freeze({
+    path: artifactPath,
+    bytes: artifactBytes,
+    sha256: artifactSha256,
+  });
 }
 
-async function verifyTrackedRoleLockResultReceipt(
+type FloodgateRoleLockResultBindingEvidenceWithoutFullReplay = Omit<
+  FloodgateRoleLockResultBindingEvidence,
+  "fullReplayEvidence"
+>;
+
+interface VerifiedTrackedRoleLockVerificationSet {
+  readonly result: Readonly<FloodgateRoleLockArtifactIdentity>;
+  readonly fullReplayEvidence: Readonly<FloodgateRoleLockFullReplayEvidence>;
+  readonly filesystemIdentities: Readonly<{
+    readonly result: Readonly<FloodgateRegularFileIdentity>;
+    readonly status: Readonly<FloodgateRegularFileIdentity>;
+    readonly log: Readonly<FloodgateRegularFileIdentity>;
+    readonly failedStatus: Readonly<FloodgateRegularFileIdentity>;
+    readonly failedLog: Readonly<FloodgateRegularFileIdentity>;
+  }>;
+}
+
+function assertFullReplayTargetsBindRoleArtifacts(
+  fullReplay: Readonly<FloodgateRoleLockFullReplayEvidence>,
+  expected: Readonly<FloodgateRoleLockFullReplayLiveArtifacts>,
+  filesystemClosure: Readonly<FloodgateRoleLockFilesystemClosure>,
+): void {
+  const watched = fullReplay.semanticReceipt.watchedBefore;
+  const targets = watched.targets;
+  const expectedByName = Object.freeze({
+    "allocation.json": expected.allocation,
+    "manifest.json": expected.manifest,
+    "materialized-input.json": expected.materializedInput,
+  });
+  const closureByName = Object.freeze({
+    "allocation.json": filesystemClosure.files.allocation,
+    "manifest.json": filesystemClosure.files.manifest,
+    "materialized-input.json": filesystemClosure.files.materializedInput,
+  });
+  if (
+    watched.parent.dev !== filesystemClosure.parent.dev.toString() ||
+    watched.parent.ino !== filesystemClosure.parent.ino.toString() ||
+    watched.roleRoot.dev !== filesystemClosure.root.dev.toString() ||
+    watched.roleRoot.ino !== filesystemClosure.root.ino.toString() ||
+    watched.roleRoot.ctimeNs !== filesystemClosure.root.ctimeNs.toString()
+  ) {
+    fail(
+      "full-replay watched directories do not bind the live role-lock closure",
+    );
+  }
+  for (const name of [
+    "allocation.json",
+    "manifest.json",
+    "materialized-input.json",
+  ] as const) {
+    const expectedIdentity = expectedByName[name];
+    const historicalIdentity = targets[name].identity;
+    const liveIdentity = closureByName[name];
+    if (
+      historicalIdentity.size !== String(expectedIdentity.bytes) ||
+      targets[name].sha256 !== expectedIdentity.sha256 ||
+      historicalIdentity.dev !== liveIdentity.dev.toString() ||
+      historicalIdentity.ino !== liveIdentity.ino.toString() ||
+      historicalIdentity.size !== liveIdentity.size.toString() ||
+      historicalIdentity.ctimeNs !== liveIdentity.ctimeNs.toString() ||
+      historicalIdentity.mtimeNs !== liveIdentity.mtimeNs.toString()
+    ) {
+      fail(`full-replay watched target ${name} does not bind the role lock`);
+    }
+  }
+}
+
+/** Explicit non-production seam for substituted-inode closure tests. */
+export function assertFloodgateRoleLockFullReplayTargetsBindArtifactsCoreForTests(
+  fullReplay: Readonly<FloodgateRoleLockFullReplayEvidence>,
+  expected: Readonly<FloodgateRoleLockFullReplayLiveArtifacts>,
+  filesystemClosure: Readonly<FloodgateRoleLockFilesystemClosure>,
+): void {
+  assertFullReplayTargetsBindRoleArtifacts(
+    fullReplay,
+    expected,
+    filesystemClosure,
+  );
+}
+
+async function verifyTrackedRoleLockVerificationSet(
   repositoryRoot: string,
-  evidence: Readonly<FloodgateRoleLockResultBindingEvidence>,
-): Promise<Readonly<VerifiedTrackedRoleLockResultReceipt>> {
-  const receiptPath = path.join(
+  evidenceWithoutFullReplay: Readonly<FloodgateRoleLockResultBindingEvidenceWithoutFullReplay>,
+  filesystemClosure: Readonly<FloodgateRoleLockFilesystemClosure>,
+): Promise<Readonly<VerifiedTrackedRoleLockVerificationSet>> {
+  const resultPath = path.join(
     repositoryRoot,
     FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
   );
-  const snapshot = await readRegularFileSnapshotNoFollow(receiptPath);
-  const candidate = parsePinnedRoleLockResultReceipt(snapshot.bytes);
-  assertRoleLockResultBinding(candidate, evidence);
-  return Object.freeze({
-    identity: Object.freeze({
-      path: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
-      bytes: snapshot.bytes.byteLength,
-      sha256: sha256Hex(snapshot.bytes),
+  const statusPath = path.join(
+    repositoryRoot,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_PATH,
+  );
+  const logPath = path.join(
+    repositoryRoot,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_PATH,
+  );
+  const failedStatusPath = path.join(
+    repositoryRoot,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_STATUS_PATH,
+  );
+  const failedLogPath = path.join(
+    repositoryRoot,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_LOG_PATH,
+  );
+  const resultSnapshot = await readRegularFileSnapshotNoFollow(resultPath);
+  const statusSnapshot = await readRegularFileSnapshotNoFollow(statusPath);
+  const logSnapshot = await readRegularFileSnapshotNoFollow(logPath);
+  const failedStatusSnapshot =
+    await readRegularFileSnapshotNoFollow(failedStatusPath);
+  const failedLogSnapshot =
+    await readRegularFileSnapshotNoFollow(failedLogPath);
+  const pinnedStatus = finalizedPinnedRoleLockEvidenceIdentity(
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_PATH,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_BYTES,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_SHA256,
+    "tracked full-replay status",
+  );
+  const pinnedLog = finalizedPinnedRoleLockEvidenceIdentity(
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_PATH,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_BYTES,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_SHA256,
+    "tracked full-replay log",
+  );
+  const pinnedFailedStatus = finalizedPinnedRoleLockEvidenceIdentity(
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_STATUS_PATH,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_STATUS_BYTES,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_STATUS_SHA256,
+    "tracked failed full-replay status",
+  );
+  const pinnedFailedLog = finalizedPinnedRoleLockEvidenceIdentity(
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_LOG_PATH,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_LOG_BYTES,
+    FLOODGATE_ROLE_LOCK_FULL_REPLAY_ATTEMPT_1_FAILED_LOG_SHA256,
+    "tracked failed full-replay log",
+  );
+  if (
+    statusSnapshot.bytes.byteLength !== pinnedStatus.bytes ||
+    sha256Hex(statusSnapshot.bytes) !== pinnedStatus.sha256 ||
+    logSnapshot.bytes.byteLength !== pinnedLog.bytes ||
+    sha256Hex(logSnapshot.bytes) !== pinnedLog.sha256 ||
+    failedStatusSnapshot.bytes.byteLength !== pinnedFailedStatus.bytes ||
+    sha256Hex(failedStatusSnapshot.bytes) !== pinnedFailedStatus.sha256 ||
+    failedLogSnapshot.bytes.byteLength !== pinnedFailedLog.bytes ||
+    sha256Hex(failedLogSnapshot.bytes) !== pinnedFailedLog.sha256
+  ) {
+    fail(
+      "tracked full-replay success/failure evidence identities are not pinned",
+    );
+  }
+  const successfulFullReplayEvidence =
+    parseFloodgateRoleLockFullReplayEvidence(
+      statusSnapshot.bytes,
+      logSnapshot.bytes,
+      Object.freeze({ status: pinnedStatus, log: pinnedLog }),
+      evidenceWithoutFullReplay.producerRevision,
+    );
+  const priorFailedAttempt = parseFloodgateRoleLockFailedFullReplayEvidence(
+    failedStatusSnapshot.bytes,
+    failedLogSnapshot.bytes,
+    Object.freeze({
+      status: pinnedFailedStatus,
+      log: pinnedFailedLog,
     }),
-    filesystemIdentity: snapshot.identity,
+    evidenceWithoutFullReplay.producerRevision,
+  );
+  const fullReplayEvidence: Readonly<FloodgateRoleLockFullReplayEvidence> =
+    Object.freeze({
+      ...successfulFullReplayEvidence,
+      priorFailedAttempt,
+    });
+  assertFullReplayTargetsBindRoleArtifacts(
+    fullReplayEvidence,
+    Object.freeze({
+      allocation: roleLockResultArtifactIdentity(
+        evidenceWithoutFullReplay.allocationText,
+      ),
+      manifest: roleLockResultArtifactIdentity(
+        evidenceWithoutFullReplay.manifestText,
+      ),
+      materializedInput: roleLockResultArtifactIdentity(
+        evidenceWithoutFullReplay.materializedInputText,
+      ),
+    }),
+    filesystemClosure,
+  );
+  const bindingEvidence: FloodgateRoleLockResultBindingEvidence =
+    Object.freeze({
+      ...evidenceWithoutFullReplay,
+      fullReplayEvidence,
+    });
+  const resultCandidate = parsePinnedRoleLockResultReceipt(
+    resultSnapshot.bytes,
+  );
+  assertRoleLockResultBinding(resultCandidate, bindingEvidence);
+  const result = Object.freeze({
+    path: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+    bytes: resultSnapshot.bytes.byteLength,
+    sha256: sha256Hex(resultSnapshot.bytes),
+  });
+  return Object.freeze({
+    result,
+    fullReplayEvidence,
+    filesystemIdentities: Object.freeze({
+      result: resultSnapshot.identity,
+      status: statusSnapshot.identity,
+      log: logSnapshot.identity,
+      failedStatus: failedStatusSnapshot.identity,
+      failedLog: failedLogSnapshot.identity,
+    }),
   });
 }
 
@@ -3409,17 +4730,19 @@ export async function verifyExistingFloodgateRoleLock(
     fail("existing role-lock artifacts changed before verification completed");
   }
 
-  const resultEvidence: FloodgateRoleLockResultBindingEvidence = Object.freeze({
-    manifest,
-    manifestText: initialRoleLock.manifestText,
-    materializedInputText: initialRoleLock.materializedInputText,
-    allocationText: initialRoleLock.allocationText,
-    rawManifest,
-    producerRevision,
-  });
-  const resultReceipt = await verifyTrackedRoleLockResultReceipt(
+  const resultEvidence: FloodgateRoleLockResultBindingEvidenceWithoutFullReplay =
+    Object.freeze({
+      manifest,
+      manifestText: initialRoleLock.manifestText,
+      materializedInputText: initialRoleLock.materializedInputText,
+      allocationText: initialRoleLock.allocationText,
+      rawManifest,
+      producerRevision,
+    });
+  const verificationSet = await verifyTrackedRoleLockVerificationSet(
     repositoryRoot,
     resultEvidence,
+    initialRoleLock.filesystemClosure,
   );
   await assertVerifierGitClosure(
     repositoryRoot,
@@ -3427,19 +4750,32 @@ export async function verifyExistingFloodgateRoleLock(
     producerRevision,
     rawManifest.source.revision,
   );
-  const finalResultReceipt = await verifyTrackedRoleLockResultReceipt(
+  const finalVerificationSet = await verifyTrackedRoleLockVerificationSet(
     repositoryRoot,
     resultEvidence,
+    initialRoleLock.filesystemClosure,
   );
-  assertSameRegularFileIdentity(
-    finalResultReceipt.filesystemIdentity,
-    resultReceipt.filesystemIdentity,
-    "tracked role-lock result receipt during verification",
-  );
-  if (!isDeepStrictEqual(finalResultReceipt.identity, resultReceipt.identity)) {
-    fail(
-      "tracked role-lock result receipt identity changed during verification",
+  for (const name of [
+    "result",
+    "status",
+    "log",
+    "failedStatus",
+    "failedLog",
+  ] as const) {
+    assertSameRegularFileIdentity(
+      finalVerificationSet.filesystemIdentities[name],
+      verificationSet.filesystemIdentities[name],
+      `tracked role-lock ${name} evidence during verification`,
     );
+  }
+  if (
+    !isDeepStrictEqual(finalVerificationSet.result, verificationSet.result) ||
+    !isDeepStrictEqual(
+      finalVerificationSet.fullReplayEvidence,
+      verificationSet.fullReplayEvidence,
+    )
+  ) {
+    fail("tracked role-lock result/status/log evidence changed during verification");
   }
 
   return Object.freeze({
@@ -3451,7 +4787,8 @@ export async function verifyExistingFloodgateRoleLock(
     rawManifest,
     producerRevision,
     verifierRevision,
-    resultReceipt: resultReceipt.identity,
+    resultReceipt: verificationSet.result,
+    fullReplayEvidence: verificationSet.fullReplayEvidence,
     filesystemClosure: initialRoleLock.filesystemClosure,
   });
 }

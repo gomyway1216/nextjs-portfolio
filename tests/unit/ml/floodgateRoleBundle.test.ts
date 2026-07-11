@@ -9,7 +9,6 @@ import {
   FLOODGATE_ROLE_BUNDLE_CAS_READ_CONCURRENCY,
   FLOODGATE_ROLE_BUNDLE_INVALID_MANIFEST_SENTINEL,
   FLOODGATE_ROLE_BUNDLE_MANIFEST_FILENAME,
-  FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION,
   acquireAndReleaseFreshFloodgateRoleBundleRootForTests,
   assertFloodgateRoleBundleRevisionAncestryCoreForTests,
   assertFloodgateRoleBundleRoleLockClosureCoreForTests,
@@ -17,6 +16,7 @@ import {
   historicalFloodgateRoleBundleRevisionBindingCoreForTests,
   mapFloodgateRoleBundleWithLimitCoreForTests,
   materializeFloodgateRoleBundleRolesCoreForTests,
+  readFloodgateRoleBundleVerificationBlobsCoreForTests,
   runFreshFloodgateRoleBundleOutputLifecycleCoreForTests,
   runFreshFloodgateRoleBundleRootGuardCoreForTests,
   runFloodgateRoleBundlePublishSequenceCoreForTests,
@@ -39,6 +39,13 @@ import {
 import { parseFloodgateCsa, sha256 } from "../../../ml/import-csa-games";
 import { positionKeyFromSfen } from "../../../ml/sibling-data";
 import {
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_BYTES,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_PATH,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_SHA256,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_BYTES,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_PATH,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_SHA256,
+  FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION,
   FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES,
   FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
   FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256,
@@ -200,13 +207,64 @@ const SIBLING_ROLE_PRODUCER_REVISION =
 const BUNDLE_PRODUCER_REVISION = "c34cb3806bd1ee5a444b5f20b1b1ac014d507f0f";
 const BUNDLE_VERIFIER_REVISION = "d75ba874b9441ec7d94c5201f84baac3160513fe";
 
+function canonicalFixtureJson(value: unknown): string {
+  if (value === null || typeof value !== "object") {
+    const encoded = JSON.stringify(value);
+    if (encoded === undefined) throw new Error("fixture is not JSON data");
+    return encoded;
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map((entry) => canonicalFixtureJson(entry)).join(",")}]`;
+  }
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map(
+      (key) =>
+        `${JSON.stringify(key)}:${canonicalFixtureJson(record[key])}`,
+    )
+    .join(",")}}`;
+}
+
+function canonicalHistoricalManifestText(value: unknown): string {
+  return `${canonicalFixtureJson(value)}\n`;
+}
+
+function verificationBlobFixture() {
+  const blobs = {
+    result: new Uint8Array([0, 255, 114, 101, 115, 117, 108, 116]),
+    status: new Uint8Array([123, 34, 115, 116, 97, 116, 117, 115, 34, 125]),
+    log: new Uint8Array([108, 111, 103, 0, 255, 10]),
+  };
+  return {
+    blobs,
+    identities: {
+      result: {
+        path: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+        bytes: blobs.result.byteLength,
+        sha256: sha256(blobs.result),
+      },
+      status: {
+        path: FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_PATH,
+        bytes: blobs.status.byteLength,
+        sha256: sha256(blobs.status),
+      },
+      log: {
+        path: FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_PATH,
+        bytes: blobs.log.byteLength,
+        sha256: sha256(blobs.log),
+      },
+    },
+  };
+}
+
 function historicalManifestText(
   bundleProducer = BUNDLE_PRODUCER_REVISION,
   roleProducer = ROLE_PRODUCER_REVISION,
   recordedRoleVerifier = bundleProducer,
   rawProducer = RAW_PRODUCER_REVISION,
 ): string {
-  return `${JSON.stringify({
+  return canonicalHistoricalManifestText({
     contract: {},
     isolation: {},
     pipeline: {
@@ -216,7 +274,7 @@ function historicalManifestText(
     provenance: {},
     replay_exclusion: {},
     roles: {},
-    schema: "shogi-floodgate-label-free-role-bundle-v1",
+    schema: "shogi-floodgate-label-free-role-bundle-v2",
     sources: {
       legacy_replay_exclusion: {},
       raw_lock: {
@@ -227,16 +285,28 @@ function historicalManifestText(
         allocation: {},
         manifest: {},
         producer_revision: roleProducer,
-        result_receipt: {
-          bytes: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES,
-          path: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
-          sha256: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256,
+        verification: {
+          log: {
+            bytes: FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_BYTES,
+            path: FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_PATH,
+            sha256: FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_SHA256,
+          },
+          result: {
+            bytes: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES,
+            path: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+            sha256: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256,
+          },
+          status: {
+            bytes: FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_BYTES,
+            path: FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_PATH,
+            sha256: FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_SHA256,
+          },
         },
         verifier_revision: recordedRoleVerifier,
       },
     },
     status: "complete-label-free-role-bundle",
-  })}\n`;
+  });
 }
 
 describe("Floodgate label-free role bundle", () => {
@@ -296,45 +366,31 @@ describe("Floodgate label-free role bundle", () => {
       historicalManifestText(),
     );
     const accepted = new Set([
-      `${FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION}\0${BUNDLE_PRODUCER_REVISION}`,
-      `${BUNDLE_PRODUCER_REVISION}\0${BUNDLE_VERIFIER_REVISION}`,
-      `${ROLE_PRODUCER_REVISION}\0${BUNDLE_PRODUCER_REVISION}`,
       `${RAW_PRODUCER_REVISION}\0${ROLE_PRODUCER_REVISION}`,
+      `${ROLE_PRODUCER_REVISION}\0${FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION}`,
+      `${FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION}\0${BUNDLE_PRODUCER_REVISION}`,
+      `${BUNDLE_PRODUCER_REVISION}\0${BUNDLE_VERIFIER_REVISION}`,
     ]);
+    const observed: string[] = [];
     await expect(
       assertFloodgateRoleBundleRevisionAncestryCoreForTests(
         binding,
         BUNDLE_VERIFIER_REVISION,
-        async (ancestor, descendant) =>
-          ancestor === descendant || accepted.has(`${ancestor}\0${descendant}`),
+        async (ancestor, descendant) => {
+          const edge = `${ancestor}\0${descendant}`;
+          observed.push(edge);
+          return accepted.has(edge);
+        },
       ),
     ).resolves.toBeUndefined();
-
-    const minimumBinding =
-      historicalFloodgateRoleBundleRevisionBindingCoreForTests(
-        historicalManifestText(
-          FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION,
-          ROLE_PRODUCER_REVISION,
-        ),
-      );
-    await expect(
-      assertFloodgateRoleBundleRevisionAncestryCoreForTests(
-        minimumBinding,
-        FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION,
-        async (ancestor, descendant) =>
-          ancestor === descendant ||
-          ancestor === ROLE_PRODUCER_REVISION ||
-          (ancestor === RAW_PRODUCER_REVISION &&
-            descendant === ROLE_PRODUCER_REVISION),
-      ),
-    ).resolves.toBeUndefined();
+    expect(observed).toEqual([...accepted]);
   });
 
   it.each([
-    ["producer below the floor", 0],
-    ["producer not ancestral to verifier", 1],
-    ["role-lock producer not ancestral to bundle producer", 2],
-    ["raw-lock producer not ancestral to role-lock producer", 3],
+    ["raw-lock to role-lock edge", 0],
+    ["role-lock to pinned full-replay verifier edge", 1],
+    ["pinned full-replay verifier to bundle producer edge", 2],
+    ["bundle producer to current verifier edge", 3],
   ] as const)("rejects a %s", async (_label, rejectedEdge) => {
     const binding = historicalFloodgateRoleBundleRevisionBindingCoreForTests(
       historicalManifestText(),
@@ -361,20 +417,72 @@ describe("Floodgate label-free role bundle", () => {
     ).toThrow(/verifier revision must equal the bundle producer revision/);
   });
 
-  it("rejects a historical manifest that does not cite the pinned result receipt", () => {
-    const manifest = JSON.parse(historicalManifestText()) as {
-      sources: {
-        role_lock: {
-          result_receipt: { sha256: string };
+  it.each(["result", "status", "log"] as const)(
+    "rejects wrong, missing, and extra %s identity fields",
+    (key) => {
+      type Fixture = {
+        sources: {
+          role_lock: {
+            verification: Record<
+              "result" | "status" | "log",
+              Record<string, unknown>
+            >;
+          };
         };
       };
+      const wrong = JSON.parse(historicalManifestText()) as Fixture;
+      wrong.sources.role_lock.verification[key].sha256 = "0".repeat(64);
+      expect(() =>
+        historicalFloodgateRoleBundleRevisionBindingCoreForTests(
+          canonicalHistoricalManifestText(wrong),
+        ),
+      ).toThrow(/unpinned role-lock verification evidence/);
+
+      const missing = JSON.parse(historicalManifestText()) as Fixture;
+      delete missing.sources.role_lock.verification[key].bytes;
+      expect(() =>
+        historicalFloodgateRoleBundleRevisionBindingCoreForTests(
+          canonicalHistoricalManifestText(missing),
+        ),
+      ).toThrow(/keys are not exact/);
+
+      const extra = JSON.parse(historicalManifestText()) as Fixture;
+      extra.sources.role_lock.verification[key].unexpected = true;
+      expect(() =>
+        historicalFloodgateRoleBundleRevisionBindingCoreForTests(
+          canonicalHistoricalManifestText(extra),
+        ),
+      ).toThrow(/keys are not exact/);
+    },
+  );
+
+  it("rejects v1 and the old top-level result_receipt shape", () => {
+    type Fixture = {
+      schema: string;
+      sources: {
+        role_lock: Record<string, unknown> & { verification?: unknown };
+      };
     };
-    manifest.sources.role_lock.result_receipt.sha256 = "0".repeat(64);
+    const v1 = JSON.parse(historicalManifestText()) as Fixture;
+    v1.schema = "shogi-floodgate-label-free-role-bundle-v1";
     expect(() =>
       historicalFloodgateRoleBundleRevisionBindingCoreForTests(
-        `${JSON.stringify(manifest)}\n`,
+        canonicalHistoricalManifestText(v1),
       ),
-    ).toThrow(/unpinned role-lock result receipt/);
+    ).toThrow(/schema\/status is unsupported/);
+
+    const oldShape = JSON.parse(historicalManifestText()) as Fixture;
+    oldShape.sources.role_lock.result_receipt = (
+      oldShape.sources.role_lock.verification as {
+        result: unknown;
+      }
+    ).result;
+    delete oldShape.sources.role_lock.verification;
+    expect(() =>
+      historicalFloodgateRoleBundleRevisionBindingCoreForTests(
+        canonicalHistoricalManifestText(oldShape),
+      ),
+    ).toThrow(/keys are not exact/);
   });
 
   it("requires the cited role-lock producer to precede the historical bundle", async () => {
@@ -386,9 +494,9 @@ describe("Floodgate label-free role bundle", () => {
         ),
       );
     const premergeEdges = new Set([
-      `${FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION}\0${BUNDLE_PRODUCER_REVISION}`,
-      `${BUNDLE_PRODUCER_REVISION}\0${BUNDLE_VERIFIER_REVISION}`,
       `${RAW_PRODUCER_REVISION}\0${SIBLING_ROLE_PRODUCER_REVISION}`,
+      `${FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION}\0${BUNDLE_PRODUCER_REVISION}`,
+      `${BUNDLE_PRODUCER_REVISION}\0${BUNDLE_VERIFIER_REVISION}`,
     ]);
     await expect(
       assertFloodgateRoleBundleRevisionAncestryCoreForTests(
@@ -403,7 +511,7 @@ describe("Floodgate label-free role bundle", () => {
     const mergedBinding =
       historicalFloodgateRoleBundleRevisionBindingCoreForTests(
         historicalManifestText(
-          BUNDLE_VERIFIER_REVISION,
+          BUNDLE_PRODUCER_REVISION,
           SIBLING_ROLE_PRODUCER_REVISION,
         ),
       );
@@ -412,16 +520,107 @@ describe("Floodgate label-free role bundle", () => {
         mergedBinding,
         BUNDLE_VERIFIER_REVISION,
         async (ancestor, descendant) =>
-          ancestor === descendant ||
-          (ancestor === FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION &&
-            descendant === BUNDLE_VERIFIER_REVISION) ||
-          (ancestor === SIBLING_ROLE_PRODUCER_REVISION &&
-            descendant === BUNDLE_VERIFIER_REVISION) ||
           (ancestor === RAW_PRODUCER_REVISION &&
-            descendant === SIBLING_ROLE_PRODUCER_REVISION),
+            descendant === SIBLING_ROLE_PRODUCER_REVISION) ||
+          (ancestor === SIBLING_ROLE_PRODUCER_REVISION &&
+            descendant ===
+              FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION) ||
+          (ancestor === FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION &&
+            descendant === BUNDLE_PRODUCER_REVISION) ||
+          (ancestor === BUNDLE_PRODUCER_REVISION &&
+            descendant === BUNDLE_VERIFIER_REVISION),
       ),
     ).resolves.toBeUndefined();
   });
+
+  it("rejects ancestry shortcuts that omit any code-pinned edge", async () => {
+    const binding = historicalFloodgateRoleBundleRevisionBindingCoreForTests(
+      historicalManifestText(),
+    );
+    const shortcuts = new Set([
+      `${RAW_PRODUCER_REVISION}\0${FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION}`,
+      `${ROLE_PRODUCER_REVISION}\0${BUNDLE_PRODUCER_REVISION}`,
+      `${FLOODGATE_ROLE_LOCK_FULL_REPLAY_VERIFIER_REVISION}\0${BUNDLE_VERIFIER_REVISION}`,
+      `${RAW_PRODUCER_REVISION}\0${BUNDLE_VERIFIER_REVISION}`,
+    ]);
+    await expect(
+      assertFloodgateRoleBundleRevisionAncestryCoreForTests(
+        binding,
+        BUNDLE_VERIFIER_REVISION,
+        async (ancestor, descendant) =>
+          shortcuts.has(`${ancestor}\0${descendant}`),
+      ),
+    ).rejects.toThrow(/outside the audited producer\/verifier ancestry/);
+  });
+
+  it("reads all three producer blobs at the exact revision without decoding bytes", async () => {
+    const fixture = verificationBlobFixture();
+    const reads: Array<readonly [string, string]> = [];
+    const verified = await readFloodgateRoleBundleVerificationBlobsCoreForTests(
+      BUNDLE_PRODUCER_REVISION,
+      fixture.identities,
+      async (revision, artifactPath) => {
+        reads.push([revision, artifactPath]);
+        const entry = Object.entries(fixture.identities).find(
+          ([, identity]) => identity.path === artifactPath,
+        );
+        if (!entry) throw new Error("missing fixture blob");
+        return fixture.blobs[entry[0] as keyof typeof fixture.blobs];
+      },
+    );
+
+    expect(reads).toEqual([
+      [BUNDLE_PRODUCER_REVISION, FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH],
+      [BUNDLE_PRODUCER_REVISION, FLOODGATE_ROLE_LOCK_FULL_REPLAY_STATUS_PATH],
+      [BUNDLE_PRODUCER_REVISION, FLOODGATE_ROLE_LOCK_FULL_REPLAY_LOG_PATH],
+    ]);
+    expect(Array.from(verified.result)).toEqual(
+      Array.from(fixture.blobs.result),
+    );
+    expect(Array.from(verified.log)).toEqual(Array.from(fixture.blobs.log));
+    expect(verified.result).toContain(0);
+    expect(verified.result).toContain(255);
+    expect(verified.log).toContain(0);
+    expect(verified.log).toContain(255);
+  });
+
+  it.each(["result", "status", "log"] as const)(
+    "rejects missing, same-length corrupted, and truncated %s producer blobs",
+    async (rejected) => {
+      const fixture = verificationBlobFixture();
+      const readWith = async (
+        replacement: "missing" | "corrupt" | "truncate",
+      ) =>
+        readFloodgateRoleBundleVerificationBlobsCoreForTests(
+          BUNDLE_PRODUCER_REVISION,
+          fixture.identities,
+          async (_revision, artifactPath) => {
+            const entry = Object.entries(fixture.identities).find(
+              ([, identity]) => identity.path === artifactPath,
+            );
+            if (!entry) throw new Error("missing fixture mapping");
+            const key = entry[0] as keyof typeof fixture.blobs;
+            const original = fixture.blobs[key];
+            if (key !== rejected) return original;
+            if (replacement === "missing") throw new Error("missing blob");
+            if (replacement === "truncate") return original.slice(0, -1);
+            const corrupt = original.slice();
+            corrupt[0] ^= 0xff;
+            return corrupt;
+          },
+        );
+
+      await expect(readWith("missing")).rejects.toThrow(
+        new RegExp(`does not contain verification blob ${rejected}`),
+      );
+      await expect(readWith("corrupt")).rejects.toThrow(
+        new RegExp(`verification blob ${rejected} differs`),
+      );
+      await expect(readWith("truncate")).rejects.toThrow(
+        new RegExp(`verification blob ${rejected} differs`),
+      );
+    },
+  );
 
   it("captures and freezes caller paths before any awaited I/O", async () => {
     const outputRoot = await freshOutputRoot();

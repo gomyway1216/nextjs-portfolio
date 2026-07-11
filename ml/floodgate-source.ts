@@ -5,6 +5,7 @@
  */
 
 import * as crypto from "crypto";
+import { isUtf8 } from "node:buffer";
 import { types as nodeUtilTypes } from "node:util";
 
 const IntrinsicUint8Array = Uint8Array;
@@ -900,14 +901,11 @@ function decodeSourceUtf8(input: string | Uint8Array, label: string): string {
     assertScalarUnicode(input, label);
     text = input;
   } else if (input instanceof Uint8Array) {
-    try {
-      text = new TextDecoder("utf-8", {
-        fatal: true,
-        ignoreBOM: true,
-      }).decode(input);
-    } catch {
-      return fail(`${label} bytes are not fatal-valid UTF-8`);
-    }
+    if (!isUtf8(input)) fail(`${label} bytes are not fatal-valid UTF-8`);
+    text = new TextDecoder("utf-8", {
+      fatal: true,
+      ignoreBOM: true,
+    }).decode(input);
   } else {
     return fail(`${label} input must be a string or Uint8Array`);
   }
@@ -917,11 +915,64 @@ function decodeSourceUtf8(input: string | Uint8Array, label: string): string {
   return text;
 }
 
+type FloodgateCsaByteCodecRejection =
+  | "invalid-utf8"
+  | "empty-bom-or-nul"
+  | "bare-cr"
+  | null;
+
+function classifyFloodgateCsaByteCodecRejection(
+  input: Uint8Array,
+): FloodgateCsaByteCodecRejection {
+  if (!isUtf8(input)) return "invalid-utf8";
+  if (
+    input.byteLength === 0 ||
+    (input.byteLength >= 3 &&
+      input[0] === 0xef &&
+      input[1] === 0xbb &&
+      input[2] === 0xbf)
+  ) {
+    return "empty-bom-or-nul";
+  }
+  const length = input.byteLength;
+  let hasBareCr = false;
+  for (let index = 0; index < length; index += 1) {
+    const byte = input[index];
+    if (byte === 0) return "empty-bom-or-nul";
+    if (byte === 0x0d && (index + 1 === length || input[index + 1] !== 0x0a)) {
+      hasBareCr = true;
+    }
+  }
+  return hasBareCr ? "bare-cr" : null;
+}
+
 function decodeCsaUtf8(input: string | Uint8Array): string {
+  if (input instanceof Uint8Array) {
+    const rejection = classifyFloodgateCsaByteCodecRejection(input);
+    if (rejection === "invalid-utf8") {
+      fail("CSA bytes are not fatal-valid UTF-8");
+    }
+    if (rejection === "empty-bom-or-nul") {
+      fail("CSA text is empty or contains a BOM/NUL");
+    }
+    if (rejection === "bare-cr") fail("CSA text contains a bare CR");
+  }
   const text = decodeSourceUtf8(input, "CSA");
   const normalized = text.replace(/\r\n/g, "\n");
   if (normalized.includes("\r")) fail("CSA text contains a bare CR");
   return normalized;
+}
+
+/**
+ * Label-blind byte-only eligibility gate for the strict CSA text codec.
+ *
+ * This deliberately does not repair or truncate malformed source bytes and
+ * does not inspect metadata, moves, terminal markers, or outcomes. Callers may
+ * exclude a whole raw game when this returns false; the strict parsers keep
+ * rejecting the same bytes if they are called directly.
+ */
+export function isFloodgateCsaByteCodecEligible(input: Uint8Array): boolean {
+  return classifyFloodgateCsaByteCodecRejection(input) === null;
 }
 
 function exactlyOneCsaLine(lines: readonly string[], prefix: string): string {

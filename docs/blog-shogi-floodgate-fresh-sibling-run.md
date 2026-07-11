@@ -191,6 +191,17 @@ result summarizerの独立監査では、読んだmanifest Aではなく別読�
 
 最小は-12秒、最大は+1秒で、正の10件はすべて正当な同一minute内の+1秒headerだった。malformed header、URL日付不一致、minute不一致はいずれも0である。したがってexact `$EVENT`、有効な`$START_TIME`、URL日付、同じ`YYYYMMDDHHMM`は維持し、同一minute内の秒順序だけをeligibility条件から外した。どちらの試行もrole-lock output / manifestを作成しておらず、読むrole-lock manifestもなかった。勝敗、teacher / model score、selection / final labelも読んでいない。
 
+秒順序修正を通常mergeした`669e54d`から3回目を実行すると、40.417秒でstrict CSA codecがNULを検出して再びoutput作成前に停止した。raw manifestが参照する36,168 objectを、勝敗や指し手を解釈せずbyteだけで全数確認した結果は、empty 0、UTF-8 BOM 0、invalid UTF-8 0、bare CR 0、NUL 4、codec不合格のunion 4だった。4件はいずれもLFの直後からEOFまでが連続NULで、途中に非NUL byteはなかった。
+
+| event timestamp  | object SHA-256                                                     | 全bytes | 末尾NUL bytes |
+| ---------------- | ------------------------------------------------------------------ | ------: | ------------: |
+| `20260326160004` | `bb7f0f69388505da8379ac2e08280eec951ca9f13cbe83e6e36ac53f56c298f0` |   6,940 |            39 |
+| `20260326160005` | `00cc0514b6adabda2ad031414cf9e0ef34b9890d8c010bbab5b0dc5ff215235d` |   8,943 |           561 |
+| `20260326160006` | `069ec3ab319bf38d12afde8eb9db0df02f44aa4d772ac55d598e73e342145b0e` |   3,629 |           228 |
+| `20260326160008` | `367e46410a94b2225a1c1849402a4965be5dbd5bb73d15b695c044c756f7b5af` |  10,773 |         1,424 |
+
+末尾paddingを切って「修復」すると取得したexact bytesと別の棋譜を作るため、採用しない。strict parserのempty / BOM / NUL / invalid UTF-8 / bare CR拒否は維持し、role lockのinspect入口でこのbyte codecだけをlabel-blindに判定して、不合格object全体をsource-ineligibleとして除外する。metadata、指し手、終局、勝敗はcodec判定に使わない。3回目もrole-lock output / manifestは作成されず、labelも封印holdoutも読んでいない。
+
 ## raw取得中に先回りして見つけた次段の停止条件
 
 - 合法手が1つしかない親はsibling 2候補契約を満たさない。role lock前にrules-complete合法手2つ以上をlabel-blind条件にし、同じhash/fill順で補う

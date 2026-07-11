@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY,
@@ -14,6 +14,7 @@ import {
   createFloodgateDailyRatingContextCache,
   decideFloodgateCsaRatingEligibility,
   eligibleGroupZeroIdentities,
+  isFloodgateCsaByteCodecEligible,
   parseEligibleFloodgateCsaMetadata,
   parseFloodgateCsaMetadata,
   parseFloodgateCsaUrl,
@@ -514,6 +515,65 @@ describe("Floodgate raw CSA identity and rating metadata", () => {
     expect(() => parseFloodgateCsaMetadata(invalid)).toThrow(
       /fatal-valid UTF-8/,
     );
+  });
+
+  it("classifies strict CSA byte-codec failures without normalizing them", () => {
+    const valid = new TextEncoder().encode(liveShapedCsa());
+    const trailingNulPadding = new Uint8Array(valid.length + 4);
+    trailingNulPadding.set(valid);
+    const trailingNulPaddingBefore = trailingNulPadding.slice();
+    const bom = new Uint8Array(valid.length + 3);
+    bom.set([0xef, 0xbb, 0xbf]);
+    bom.set(valid, 3);
+    const invalidUtf8 = new Uint8Array(valid.length + 1);
+    invalidUtf8.set(valid);
+    invalidUtf8[valid.length] = 0xff;
+    const bareCr = new TextEncoder().encode(
+      liveShapedCsa().replace("V2\r\n", "V2\r"),
+    );
+    const terminalBareCr = new TextEncoder().encode("V2\r");
+
+    expect(isFloodgateCsaByteCodecEligible(valid)).toBe(true);
+    for (const bytes of [
+      new Uint8Array(),
+      trailingNulPadding,
+      bom,
+      invalidUtf8,
+      bareCr,
+      terminalBareCr,
+    ]) {
+      expect(isFloodgateCsaByteCodecEligible(bytes)).toBe(false);
+    }
+    expect(() => parseFloodgateCsaMetadata(trailingNulPadding)).toThrow(
+      /BOM\/NUL/,
+    );
+    expect(() => parseFloodgateCsaMetadata(new Uint8Array())).toThrow(
+      /BOM\/NUL/,
+    );
+    expect(() => parseFloodgateCsaMetadata(bom)).toThrow(/BOM\/NUL/);
+    expect(() => parseFloodgateCsaMetadata(invalidUtf8)).toThrow(
+      /fatal-valid UTF-8/,
+    );
+    expect(() => parseFloodgateCsaMetadata(bareCr)).toThrow(/bare CR/);
+    expect(() => parseFloodgateCsaMetadata(terminalBareCr)).toThrow(/bare CR/);
+    expect(trailingNulPadding).toEqual(trailingNulPaddingBefore);
+
+    vi.stubGlobal(
+      "TextDecoder",
+      class {
+        constructor() {
+          throw new Error("injected TextDecoder failure");
+        }
+      },
+    );
+    try {
+      expect(isFloodgateCsaByteCodecEligible(valid)).toBe(true);
+      expect(() => parseFloodgateCsaMetadata(valid)).toThrow(
+        /injected TextDecoder failure/,
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("enforces daily membership, distinct identities, and the inclusive 3600 game-time boundary", () => {

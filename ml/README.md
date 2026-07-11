@@ -479,7 +479,18 @@ seed追加・epoch差替え・閾値緩和は行わず、次は新しい強豪�
 計画は10,890 bytes、SHA-256
 `ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af`。
 詳細は[日本語plan](../docs/blog-shogi-floodgate-fresh-sibling-plan.md) /
-[English plan](../docs/blog-shogi-floodgate-fresh-sibling-plan.en.md)に記録した。
+[English plan](../docs/blog-shogi-floodgate-fresh-sibling-plan.en.md)に記録した。raw lock、
+process-wide scheduler、live取得以降の進捗と途中監査値は
+[日本語run log](../docs/blog-shogi-floodgate-fresh-sibling-run.md) /
+[English run log](../docs/blog-shogi-floodgate-fresh-sibling-run.en.md)へ逐次追記する。
+
+取得先はGit worktreeと交差しないcanonical absolute pathに限定する。PR #417以降の
+status確認と単一process取得は次のCLIを使う。
+
+```bash
+npm run shogi:floodgate-acquire -- status --output /absolute/path/to/raw-lock
+npm run shogi:floodgate-acquire -- run --output /absolute/path/to/raw-lock
+```
 
 ### 3-3. 契約テスト
 

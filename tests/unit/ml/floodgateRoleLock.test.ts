@@ -11,6 +11,7 @@ import {
 import {
   allocateFloodgateRoleLockCoreForTests,
   runFloodgateRoleLockPublishSequenceCoreForTests,
+  type NonProductionFloodgateRoleLockPublishSequenceFixture,
   type FloodgateRoleLockIndexedGame,
   type FloodgateRoleLockInspectedGame,
 } from "../../../ml/floodgate-role-lock";
@@ -113,6 +114,23 @@ function finalRank(gameId: string): Buffer {
       "utf8",
     )
     .digest();
+}
+
+function publishSequenceFixture(
+  overrides: Partial<NonProductionFloodgateRoleLockPublishSequenceFixture> = {},
+): NonProductionFloodgateRoleLockPublishSequenceFixture {
+  return {
+    validateCandidate: () => undefined,
+    assertOutputRoot: async () => undefined,
+    publishMaterializedInput: async () => undefined,
+    publishAllocation: async () => undefined,
+    verifyMaterializedInput: async () => undefined,
+    verifyAllocation: async () => undefined,
+    revalidateSourceClosure: async () => undefined,
+    publishManifest: async () => undefined,
+    verifyManifest: async () => undefined,
+    ...overrides,
+  };
 }
 
 describe("Floodgate production role-lock core", () => {
@@ -277,73 +295,113 @@ describe("Floodgate production role-lock core", () => {
   it("leaves the final manifest absent when source closure changes after artifact writes", async () => {
     const events: string[] = [];
     await expect(
-      runFloodgateRoleLockPublishSequenceCoreForTests({
-        validateCandidate: () => {
-          events.push("validate");
-        },
-        publishMaterializedInput: async () => {
-          events.push("materialized-input");
-        },
-        publishAllocation: async () => {
-          events.push("allocation");
-        },
-        verifyPublishedArtifacts: async () => {
-          events.push("verify-artifacts");
-        },
-        revalidateSourceClosure: async () => {
-          events.push("revalidate-source");
-          throw new Error("raw manifest changed during role locking");
-        },
-        publishManifest: async () => {
-          events.push("manifest");
-        },
-      }),
+      runFloodgateRoleLockPublishSequenceCoreForTests(
+        publishSequenceFixture({
+          validateCandidate: () => {
+            events.push("validate");
+          },
+          publishMaterializedInput: async () => {
+            events.push("materialized-input");
+          },
+          publishAllocation: async () => {
+            events.push("allocation");
+          },
+          verifyMaterializedInput: async () => {
+            events.push("verify-input");
+          },
+          verifyAllocation: async () => {
+            events.push("verify-allocation");
+          },
+          revalidateSourceClosure: async () => {
+            events.push("revalidate-source");
+            throw new Error("raw manifest changed during role locking");
+          },
+          publishManifest: async () => {
+            events.push("manifest");
+          },
+        }),
+      ),
     ).rejects.toThrow(/raw manifest changed/);
     expect(events).toEqual([
       "validate",
       "materialized-input",
       "allocation",
-      "verify-artifacts",
+      "verify-input",
+      "verify-allocation",
       "revalidate-source",
     ]);
   });
 
   it("re-reads published artifacts after the final source-closure verification", async () => {
     const events: string[] = [];
-    let artifactVerifications = 0;
+    let inputVerifications = 0;
     await expect(
-      runFloodgateRoleLockPublishSequenceCoreForTests({
-        validateCandidate: () => {
-          events.push("validate");
-        },
-        publishMaterializedInput: async () => {
-          events.push("materialized-input");
-        },
-        publishAllocation: async () => {
-          events.push("allocation");
-        },
-        verifyPublishedArtifacts: async () => {
-          artifactVerifications += 1;
-          events.push(`verify-artifacts-${artifactVerifications}`);
-          if (artifactVerifications === 2) {
-            throw new Error("published allocation changed");
-          }
-        },
-        revalidateSourceClosure: async () => {
-          events.push("revalidate-source");
-        },
-        publishManifest: async () => {
-          events.push("manifest");
-        },
-      }),
+      runFloodgateRoleLockPublishSequenceCoreForTests(
+        publishSequenceFixture({
+          validateCandidate: () => {
+            events.push("validate");
+          },
+          publishMaterializedInput: async () => {
+            events.push("materialized-input");
+          },
+          publishAllocation: async () => {
+            events.push("allocation");
+          },
+          verifyMaterializedInput: async () => {
+            inputVerifications += 1;
+            events.push(`verify-input-${inputVerifications}`);
+            if (inputVerifications === 2) {
+              throw new Error("published allocation changed");
+            }
+          },
+          verifyAllocation: async () => {
+            events.push("verify-allocation");
+          },
+          revalidateSourceClosure: async () => {
+            events.push("revalidate-source");
+          },
+          publishManifest: async () => {
+            events.push("manifest");
+          },
+        }),
+      ),
     ).rejects.toThrow(/published allocation changed/);
     expect(events).toEqual([
       "validate",
       "materialized-input",
       "allocation",
-      "verify-artifacts-1",
+      "verify-input-1",
+      "verify-allocation",
       "revalidate-source",
-      "verify-artifacts-2",
+      "verify-input-2",
     ]);
+  });
+
+  it("checks the held output-root identity after final artifact verification and before manifest publish", async () => {
+    const events: string[] = [];
+    let allocationReads = 0;
+    let swapped = false;
+    await expect(
+      runFloodgateRoleLockPublishSequenceCoreForTests(
+        publishSequenceFixture({
+          assertOutputRoot: async (checkpoint) => {
+            events.push(checkpoint);
+            if (checkpoint === "before-manifest-write" && swapped) {
+              throw new Error("output root directory identity changed");
+            }
+          },
+          verifyAllocation: async () => {
+            allocationReads += 1;
+            if (allocationReads === 2) swapped = true;
+          },
+          publishManifest: async () => {
+            events.push("manifest-published");
+          },
+        }),
+      ),
+    ).rejects.toThrow(/output root directory identity changed/);
+    expect(allocationReads).toBe(2);
+    expect(events).toContain("before-manifest-write");
+    expect(events).not.toContain("manifest-published");
   });
 });

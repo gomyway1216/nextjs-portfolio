@@ -10,7 +10,12 @@ import {
   runNonProductionFloodgateRoleLockCliForTests,
   type NonProductionFloodgateRoleLockCliDependenciesForTests,
 } from "../../../ml/create-floodgate-role-lock";
-import type { FloodgateRoleLockManifest } from "../../../ml/floodgate-role-lock";
+import {
+  acquireAndReleaseFreshFloodgateRoleLockRootForTests,
+  runFreshFloodgateRoleLockOutputLifecycleCoreForTests,
+  runFreshFloodgateRoleLockRootGuardCoreForTests,
+  type FloodgateRoleLockManifest,
+} from "../../../ml/floodgate-role-lock";
 
 const REVISION = "0123456789abcdef0123456789abcdef01234567";
 const roots: string[] = [];
@@ -102,6 +107,97 @@ describe("Floodgate role-lock CLI", () => {
       role_lock_root: roleLockRoot,
       manifest: MANIFEST,
     });
+  });
+
+  it("fails when another creator wins the CLI-check-to-core-mkdir race", async () => {
+    const { repositoryRoot, rawLockRoot, roleLockRoot } = await fixture();
+    const deps = {
+      ...dependencies(repositoryRoot),
+      createRoleLock: vi.fn(async (options) => {
+        await fs.promises.mkdir(options.roleLockRoot);
+        await fs.promises.writeFile(
+          path.join(options.roleLockRoot, "racing-extra-entry"),
+          "must never be accepted",
+        );
+        await acquireAndReleaseFreshFloodgateRoleLockRootForTests(
+          options.roleLockRoot,
+        );
+        return MANIFEST;
+      }),
+    } satisfies NonProductionFloodgateRoleLockCliDependenciesForTests;
+
+    await expect(
+      runNonProductionFloodgateRoleLockCliForTests(
+        ["--input", rawLockRoot, "--output", roleLockRoot],
+        deps,
+      ),
+    ).rejects.toThrow(/freshly and exclusively created/);
+    expect(deps.createRoleLock).toHaveBeenCalledTimes(1);
+  });
+
+  it("detects output-root rename-and-restore ABA while the original directory handle remains open", async () => {
+    const { roleLockRoot } = await fixture();
+    const movedRoot = `${roleLockRoot}.moved`;
+    await expect(
+      runFreshFloodgateRoleLockRootGuardCoreForTests(
+        roleLockRoot,
+        async (root) => {
+          await fs.promises.rename(root, movedRoot);
+          await fs.promises.mkdir(root);
+          await fs.promises.rmdir(root);
+          await fs.promises.rename(movedRoot, root);
+        },
+      ),
+    ).rejects.toThrow(/possible output-root ABA/);
+    await expect(fs.promises.realpath(roleLockRoot)).resolves.toBe(
+      roleLockRoot,
+    );
+  });
+
+  it("keeps manifest unpublished when the output root is swapped after final artifact verification", async () => {
+    const { roleLockRoot } = await fixture();
+    const movedRoot = `${roleLockRoot}.between-artifacts-and-manifest`;
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async (root) => {
+          await fs.promises.rename(root, movedRoot);
+          await fs.promises.mkdir(root);
+          await fs.promises.rmdir(root);
+          await fs.promises.rename(movedRoot, root);
+        },
+      ),
+    ).rejects.toThrow(/possible output-root ABA/);
+    await expect(
+      fs.promises.lstat(path.join(roleLockRoot, "manifest.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    const inputStat = await fs.promises.lstat(
+      path.join(roleLockRoot, "materialized-input.json"),
+    );
+    const allocationStat = await fs.promises.lstat(
+      path.join(roleLockRoot, "allocation.json"),
+    );
+    expect(inputStat.isFile()).toBe(true);
+    expect(allocationStat.isFile()).toBe(true);
+  });
+
+  it("holds one output-root identity through the complete manifest-last lifecycle", async () => {
+    const { roleLockRoot } = await fixture();
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async () => undefined,
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      fs.promises.readFile(path.join(roleLockRoot, "manifest.json"), "utf8"),
+    ).resolves.toBe('{"fixture":"manifest"}\n');
+    const entries = await fs.promises.readdir(roleLockRoot);
+    expect(entries.sort()).toEqual([
+      "allocation.json",
+      "manifest.json",
+      "materialized-input.json",
+    ]);
   });
 
   it("rejects every malformed or reordered argv before production dispatch", async () => {

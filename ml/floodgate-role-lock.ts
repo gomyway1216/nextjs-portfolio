@@ -143,13 +143,38 @@ export interface NonProductionFloodgateRoleLockFixtureInput {
   readonly materialize: FloodgateRoleLockCoreInput["materialize"];
 }
 
+export type FloodgateRoleLockOutputCheckpoint =
+  | "before-materialized-input-write"
+  | "after-materialized-input-write"
+  | "before-allocation-write"
+  | "after-allocation-write"
+  | "before-materialized-input-read"
+  | "after-materialized-input-read"
+  | "before-allocation-read"
+  | "after-allocation-read"
+  | "before-source-closure"
+  | "after-source-closure"
+  | "before-final-materialized-input-read"
+  | "after-final-materialized-input-read"
+  | "before-final-allocation-read"
+  | "after-final-allocation-read"
+  | "before-manifest-write"
+  | "after-manifest-write"
+  | "before-manifest-read"
+  | "after-manifest-read";
+
 export interface NonProductionFloodgateRoleLockPublishSequenceFixture {
   readonly validateCandidate: () => void;
+  readonly assertOutputRoot: (
+    checkpoint: FloodgateRoleLockOutputCheckpoint,
+  ) => Promise<void>;
   readonly publishMaterializedInput: () => Promise<void>;
   readonly publishAllocation: () => Promise<void>;
-  readonly verifyPublishedArtifacts: () => Promise<void>;
+  readonly verifyMaterializedInput: () => Promise<void>;
+  readonly verifyAllocation: () => Promise<void>;
   readonly revalidateSourceClosure: () => Promise<void>;
   readonly publishManifest: () => Promise<void>;
+  readonly verifyManifest: () => Promise<void>;
 }
 
 export interface FloodgateRoleLockArtifactIdentity {
@@ -821,13 +846,34 @@ async function runRoleLockPublishSequence(
   fixture: NonProductionFloodgateRoleLockPublishSequenceFixture,
 ): Promise<void> {
   fixture.validateCandidate();
+  await fixture.assertOutputRoot("before-materialized-input-write");
   await fixture.publishMaterializedInput();
+  await fixture.assertOutputRoot("after-materialized-input-write");
+  await fixture.assertOutputRoot("before-allocation-write");
   await fixture.publishAllocation();
-  await fixture.verifyPublishedArtifacts();
+  await fixture.assertOutputRoot("after-allocation-write");
+  await fixture.assertOutputRoot("before-materialized-input-read");
+  await fixture.verifyMaterializedInput();
+  await fixture.assertOutputRoot("after-materialized-input-read");
+  await fixture.assertOutputRoot("before-allocation-read");
+  await fixture.verifyAllocation();
+  await fixture.assertOutputRoot("after-allocation-read");
+  await fixture.assertOutputRoot("before-source-closure");
   await fixture.revalidateSourceClosure();
-  await fixture.verifyPublishedArtifacts();
+  await fixture.assertOutputRoot("after-source-closure");
+  await fixture.assertOutputRoot("before-final-materialized-input-read");
+  await fixture.verifyMaterializedInput();
+  await fixture.assertOutputRoot("after-final-materialized-input-read");
+  await fixture.assertOutputRoot("before-final-allocation-read");
+  await fixture.verifyAllocation();
+  await fixture.assertOutputRoot("after-final-allocation-read");
   fixture.validateCandidate();
+  await fixture.assertOutputRoot("before-manifest-write");
   await fixture.publishManifest();
+  await fixture.assertOutputRoot("after-manifest-write");
+  await fixture.assertOutputRoot("before-manifest-read");
+  await fixture.verifyManifest();
+  await fixture.assertOutputRoot("after-manifest-read");
 }
 
 /** Explicit non-production seam for crash/TOCTOU publication-order tests. */
@@ -841,12 +887,15 @@ export async function runFloodgateRoleLockPublishSequenceCoreForTests(
   assertExactKeys(
     value,
     [
+      "assertOutputRoot",
       "publishAllocation",
       "publishManifest",
       "publishMaterializedInput",
       "revalidateSourceClosure",
       "validateCandidate",
-      "verifyPublishedArtifacts",
+      "verifyAllocation",
+      "verifyManifest",
+      "verifyMaterializedInput",
     ],
     "non-production role-lock publication fixture",
   );
@@ -891,12 +940,287 @@ async function readRegularFileNoFollow(filePath: string): Promise<Uint8Array> {
   }
 }
 
-async function syncDirectory(directory: string): Promise<void> {
-  const handle = await fs.promises.open(directory, fs.constants.O_RDONLY);
+interface FloodgateDirectoryIdentity {
+  readonly dev: bigint;
+  readonly ino: bigint;
+}
+
+interface FloodgateDirectorySnapshot extends FloodgateDirectoryIdentity {
+  readonly ctimeNs: bigint;
+}
+
+async function directoryPathSnapshot(
+  directory: string,
+  label: string,
+): Promise<Readonly<FloodgateDirectorySnapshot>> {
+  const stat = await fs.promises.lstat(directory, { bigint: true });
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    fail(`${label} must remain a real directory`);
+  }
+  if ((await fs.promises.realpath(directory)) !== directory) {
+    fail(`${label} must not traverse symbolic links`);
+  }
+  return Object.freeze({ dev: stat.dev, ino: stat.ino, ctimeNs: stat.ctimeNs });
+}
+
+function assertSameDirectoryIdentity(
+  actual: Readonly<FloodgateDirectoryIdentity>,
+  expected: Readonly<FloodgateDirectoryIdentity>,
+  label: string,
+): void {
+  if (actual.dev !== expected.dev || actual.ino !== expected.ino) {
+    fail(`${label} directory identity changed`);
+  }
+}
+
+async function openDirectoryNoFollow(
+  directory: string,
+  label: string,
+): Promise<{
+  readonly handle: fs.promises.FileHandle;
+  readonly snapshot: Readonly<FloodgateDirectorySnapshot>;
+}> {
+  const noFollow = fs.constants.O_NOFOLLOW;
+  if (typeof noFollow !== "number") {
+    fail("this production platform must provide O_NOFOLLOW");
+  }
+  const before = await directoryPathSnapshot(directory, label);
+  const handle = await fs.promises.open(
+    directory,
+    fs.constants.O_RDONLY | noFollow,
+  );
   try {
-    await handle.sync();
-  } finally {
-    await handle.close();
+    const stat = await handle.stat({ bigint: true });
+    if (!stat.isDirectory()) fail(`${label} handle is not a directory`);
+    const snapshot = Object.freeze({
+      dev: stat.dev,
+      ino: stat.ino,
+      ctimeNs: stat.ctimeNs,
+    });
+    assertSameDirectoryIdentity(snapshot, before, label);
+    const after = await directoryPathSnapshot(directory, label);
+    assertSameDirectoryIdentity(after, snapshot, label);
+    return { handle, snapshot };
+  } catch (error) {
+    await handle.close().catch(() => undefined);
+    throw error;
+  }
+}
+
+type FloodgateRootMutationPolicy = "stable" | "adopt-known-write";
+
+class FloodgateRoleLockOutputRootGuard {
+  readonly #root: string;
+  readonly #parent: string;
+  readonly #rootHandle: fs.promises.FileHandle;
+  readonly #parentHandle: fs.promises.FileHandle;
+  readonly #rootIdentity: Readonly<FloodgateDirectoryIdentity>;
+  readonly #parentIdentity: Readonly<FloodgateDirectoryIdentity>;
+  readonly #parentCtimeNs: bigint;
+  #rootCtimeNs: bigint;
+  #closed = false;
+
+  private constructor(
+    root: string,
+    parentHandle: fs.promises.FileHandle,
+    parentSnapshot: Readonly<FloodgateDirectorySnapshot>,
+    rootHandle: fs.promises.FileHandle,
+    rootSnapshot: Readonly<FloodgateDirectorySnapshot>,
+  ) {
+    this.#root = root;
+    this.#parent = path.dirname(root);
+    this.#rootHandle = rootHandle;
+    this.#parentHandle = parentHandle;
+    this.#rootIdentity = Object.freeze({
+      dev: rootSnapshot.dev,
+      ino: rootSnapshot.ino,
+    });
+    this.#parentIdentity = Object.freeze({
+      dev: parentSnapshot.dev,
+      ino: parentSnapshot.ino,
+    });
+    this.#parentCtimeNs = parentSnapshot.ctimeNs;
+    this.#rootCtimeNs = rootSnapshot.ctimeNs;
+  }
+
+  static async acquireFresh(
+    roleLockRoot: string,
+  ): Promise<FloodgateRoleLockOutputRootGuard> {
+    const parent = path.dirname(roleLockRoot);
+    const openedParent = await openDirectoryNoFollow(
+      parent,
+      "role lock parent",
+    );
+    let rootHandle: fs.promises.FileHandle | null = null;
+    try {
+      let createdRootSnapshot: Readonly<FloodgateDirectorySnapshot>;
+      try {
+        await fs.promises.mkdir(roleLockRoot, { mode: 0o700 });
+        createdRootSnapshot = await directoryPathSnapshot(
+          roleLockRoot,
+          "freshly created role lock root",
+        );
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "EEXIST") {
+          fail("role lock root must be freshly and exclusively created");
+        }
+        throw error;
+      }
+      await openedParent.handle.sync();
+      const parentAfterCreate = await directoryPathSnapshot(
+        parent,
+        "role lock parent",
+      );
+      const parentHandleAfterCreate = await openedParent.handle.stat({
+        bigint: true,
+      });
+      if (!parentHandleAfterCreate.isDirectory()) {
+        fail("role lock parent handle stopped being a directory");
+      }
+      const durableParentSnapshot = Object.freeze({
+        dev: parentHandleAfterCreate.dev,
+        ino: parentHandleAfterCreate.ino,
+        ctimeNs: parentHandleAfterCreate.ctimeNs,
+      });
+      assertSameDirectoryIdentity(
+        durableParentSnapshot,
+        openedParent.snapshot,
+        "role lock parent handle",
+      );
+      assertSameDirectoryIdentity(
+        parentAfterCreate,
+        durableParentSnapshot,
+        "role lock parent path",
+      );
+
+      const openedRoot = await openDirectoryNoFollow(
+        roleLockRoot,
+        "role lock root",
+      );
+      assertSameDirectoryIdentity(
+        openedRoot.snapshot,
+        createdRootSnapshot,
+        "freshly created role lock root",
+      );
+      if (openedRoot.snapshot.ctimeNs !== createdRootSnapshot.ctimeNs) {
+        fail("freshly created role lock root changed before handle pinning");
+      }
+      rootHandle = openedRoot.handle;
+      const guard = new FloodgateRoleLockOutputRootGuard(
+        roleLockRoot,
+        openedParent.handle,
+        durableParentSnapshot,
+        openedRoot.handle,
+        openedRoot.snapshot,
+      );
+      await guard.assertState("fresh root acquisition", [], "stable");
+      return guard;
+    } catch (error) {
+      if (rootHandle) await rootHandle.close().catch(() => undefined);
+      await openedParent.handle.close().catch(() => undefined);
+      throw error;
+    }
+  }
+
+  async #snapshot(stage: string): Promise<{
+    readonly rootCtimeNs: bigint;
+  }> {
+    if (this.#closed) fail(`role lock root guard is closed at ${stage}`);
+    const parentPath = await directoryPathSnapshot(
+      this.#parent,
+      `role lock parent at ${stage}`,
+    );
+    const parentHandle = await this.#parentHandle.stat({ bigint: true });
+    if (!parentHandle.isDirectory()) {
+      fail(`role lock parent handle stopped being a directory at ${stage}`);
+    }
+    assertSameDirectoryIdentity(
+      parentPath,
+      this.#parentIdentity,
+      `role lock parent path at ${stage}`,
+    );
+    assertSameDirectoryIdentity(
+      { dev: parentHandle.dev, ino: parentHandle.ino },
+      this.#parentIdentity,
+      `role lock parent handle at ${stage}`,
+    );
+    if (
+      parentPath.ctimeNs !== this.#parentCtimeNs ||
+      parentHandle.ctimeNs !== this.#parentCtimeNs
+    ) {
+      fail(`role lock parent changed; possible output-root ABA at ${stage}`);
+    }
+
+    const rootPath = await directoryPathSnapshot(
+      this.#root,
+      `role lock root at ${stage}`,
+    );
+    const rootHandle = await this.#rootHandle.stat({ bigint: true });
+    if (!rootHandle.isDirectory()) {
+      fail(`role lock root handle stopped being a directory at ${stage}`);
+    }
+    assertSameDirectoryIdentity(
+      rootPath,
+      this.#rootIdentity,
+      `role lock root path at ${stage}`,
+    );
+    assertSameDirectoryIdentity(
+      { dev: rootHandle.dev, ino: rootHandle.ino },
+      this.#rootIdentity,
+      `role lock root handle at ${stage}`,
+    );
+    if (rootPath.ctimeNs !== rootHandle.ctimeNs) {
+      fail(`role lock root changed while observed at ${stage}`);
+    }
+    return { rootCtimeNs: rootHandle.ctimeNs };
+  }
+
+  async assertState(
+    stage: string,
+    expectedEntries: readonly string[],
+    mutationPolicy: FloodgateRootMutationPolicy,
+  ): Promise<void> {
+    const before = await this.#snapshot(stage);
+    if (
+      mutationPolicy === "stable" &&
+      before.rootCtimeNs !== this.#rootCtimeNs
+    ) {
+      fail(`role lock root changed unexpectedly before ${stage}`);
+    }
+    const entries = (await fs.promises.readdir(this.#root)).sort(
+      compareUtf8Bytes,
+    );
+    const after = await this.#snapshot(stage);
+    if (after.rootCtimeNs !== before.rootCtimeNs) {
+      fail(`role lock root changed during ${stage}`);
+    }
+    const wanted = [...expectedEntries].sort(compareUtf8Bytes);
+    if (
+      entries.length !== wanted.length ||
+      entries.some((entry, index) => entry !== wanted[index])
+    ) {
+      fail(`role lock root entries do not match publication stage ${stage}`);
+    }
+    if (mutationPolicy === "adopt-known-write") {
+      this.#rootCtimeNs = after.rootCtimeNs;
+    }
+  }
+
+  async close(): Promise<void> {
+    if (this.#closed) return;
+    this.#closed = true;
+    let rootFailure: unknown;
+    try {
+      await this.#rootHandle.close();
+    } catch (error) {
+      rootFailure = error;
+    }
+    try {
+      await this.#parentHandle.close();
+    } catch (error) {
+      if (!rootFailure) rootFailure = error;
+    }
+    if (rootFailure) throw rootFailure;
   }
 }
 
@@ -935,34 +1259,37 @@ async function assertGitRevision(
   if (status !== "") fail("tracked Git tree must be clean during role locking");
 }
 
-async function ensureRoleLockRoot(roleLockRoot: string): Promise<void> {
-  const parent = path.dirname(roleLockRoot);
-  if ((await fs.promises.realpath(parent)) !== parent) {
-    fail("role lock parent must not traverse symbolic links");
+/** Explicit non-production seam for CLI-check-to-core-mkdir race tests. */
+export async function acquireAndReleaseFreshFloodgateRoleLockRootForTests(
+  roleLockRoot: string,
+): Promise<void> {
+  const root = assertCanonicalAbsolutePath(roleLockRoot, "role lock root");
+  const guard = await FloodgateRoleLockOutputRootGuard.acquireFresh(root);
+  await guard.close();
+}
+
+/** Explicit non-production seam for held-handle rename/ABA tests. */
+export async function runFreshFloodgateRoleLockRootGuardCoreForTests(
+  roleLockRoot: string,
+  mutate: (root: string) => Promise<void>,
+): Promise<void> {
+  if (typeof mutate !== "function") {
+    fail("non-production root-guard mutation must be a function");
   }
+  const root = assertCanonicalAbsolutePath(roleLockRoot, "role lock root");
+  const guard = await FloodgateRoleLockOutputRootGuard.acquireFresh(root);
+  let primaryFailed = false;
   try {
-    await fs.promises.mkdir(roleLockRoot, { mode: 0o700 });
-    await syncDirectory(parent);
+    await mutate(root);
+    await guard.assertState("non-production ABA check", [], "stable");
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-  }
-  const stat = await fs.promises.lstat(roleLockRoot);
-  if (!stat.isDirectory() || stat.isSymbolicLink()) {
-    fail("role lock root must be a real directory");
-  }
-  if ((await fs.promises.realpath(roleLockRoot)) !== roleLockRoot) {
-    fail("role lock root must not traverse symbolic links");
-  }
-  for (const filename of [
-    FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
-    FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME,
-    FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
-  ]) {
+    primaryFailed = true;
+    throw error;
+  } finally {
     try {
-      await fs.promises.lstat(path.join(roleLockRoot, filename));
-      fail(`role lock publication target already exists: ${filename}`);
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      await guard.close();
+    } catch (closeError) {
+      if (!primaryFailed) throw closeError;
     }
   }
 }
@@ -1255,13 +1582,113 @@ async function revalidateProductionSourceClosure(
   await assertGitRevision(repositoryRoot, pipelineRevision);
 }
 
+function assertRoleLockOutputCheckpoint(
+  guard: FloodgateRoleLockOutputRootGuard,
+  checkpoint: FloodgateRoleLockOutputCheckpoint,
+): Promise<void> {
+  const input = FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME;
+  const allocation = FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME;
+  const manifest = FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME;
+  if (checkpoint === "before-materialized-input-write") {
+    return guard.assertState(checkpoint, [], "stable");
+  }
+  if (checkpoint === "after-materialized-input-write") {
+    return guard.assertState(checkpoint, [input], "adopt-known-write");
+  }
+  if (checkpoint === "before-allocation-write") {
+    return guard.assertState(checkpoint, [input], "stable");
+  }
+  if (checkpoint === "after-allocation-write") {
+    return guard.assertState(
+      checkpoint,
+      [input, allocation],
+      "adopt-known-write",
+    );
+  }
+  if (checkpoint === "after-manifest-write") {
+    return guard.assertState(
+      checkpoint,
+      [input, allocation, manifest],
+      "adopt-known-write",
+    );
+  }
+  if (
+    checkpoint === "before-manifest-read" ||
+    checkpoint === "after-manifest-read"
+  ) {
+    return guard.assertState(
+      checkpoint,
+      [input, allocation, manifest],
+      "stable",
+    );
+  }
+  return guard.assertState(checkpoint, [input, allocation], "stable");
+}
+
+/**
+ * Explicit non-production seam that exercises the real held-handle publisher
+ * while allowing one mutation exactly after final artifact verification.
+ */
+export async function runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+  roleLockRoot: string,
+  beforeManifestCheck: (root: string) => Promise<void>,
+): Promise<void> {
+  if (typeof beforeManifestCheck !== "function") {
+    fail("non-production pre-manifest mutation must be a function");
+  }
+  const root = assertCanonicalAbsolutePath(roleLockRoot, "role lock root");
+  const guard = await FloodgateRoleLockOutputRootGuard.acquireFresh(root);
+  const inputPath = path.join(
+    root,
+    FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
+  );
+  const allocationPath = path.join(
+    root,
+    FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME,
+  );
+  const manifestPath = path.join(root, FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME);
+  const input = '{"fixture":"materialized-input"}';
+  const allocation = '{"fixture":"allocation"}';
+  const manifest = '{"fixture":"manifest"}\n';
+  let primaryFailed = false;
+  try {
+    await runRoleLockPublishSequence({
+      validateCandidate: () => undefined,
+      assertOutputRoot: async (checkpoint) => {
+        if (checkpoint === "before-manifest-write") {
+          await beforeManifestCheck(root);
+        }
+        await assertRoleLockOutputCheckpoint(guard, checkpoint);
+      },
+      publishMaterializedInput: () => durableCreateNoClobber(inputPath, input),
+      publishAllocation: () =>
+        durableCreateNoClobber(allocationPath, allocation),
+      verifyMaterializedInput: () => verifyPublishedText(inputPath, input),
+      verifyAllocation: () => verifyPublishedText(allocationPath, allocation),
+      revalidateSourceClosure: async () => undefined,
+      publishManifest: () => durableCreateNoClobber(manifestPath, manifest),
+      verifyManifest: () => verifyPublishedText(manifestPath, manifest),
+    });
+  } catch (error) {
+    primaryFailed = true;
+    throw error;
+  } finally {
+    try {
+      await guard.close();
+    } catch (closeError) {
+      if (!primaryFailed) throw closeError;
+    }
+  }
+}
+
 async function publishRoleLock(
   roleLockRoot: string,
   candidate: Readonly<FloodgateRoleLockManifest>,
   evidence: ManifestEvidence,
   assertPrepublish: () => Promise<void>,
 ): Promise<void> {
-  await ensureRoleLockRoot(roleLockRoot);
+  const rootGuard =
+    await FloodgateRoleLockOutputRootGuard.acquireFresh(roleLockRoot);
   const inputPath = path.join(
     roleLockRoot,
     FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
@@ -1274,35 +1701,49 @@ async function publishRoleLock(
     roleLockRoot,
     FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
   );
-
-  await runRoleLockPublishSequence({
-    validateCandidate: () => {
-      validateRoleLockManifestCandidate(candidate, evidence);
-    },
-    publishMaterializedInput: () =>
-      durableCreateNoClobber(
-        inputPath,
-        evidence.core.artifact.input_canonical_json,
-      ),
-    publishAllocation: () =>
-      durableCreateNoClobber(
-        allocationPath,
-        evidence.core.artifact.canonical_json,
-      ),
-    verifyPublishedArtifacts: async () => {
-      await verifyPublishedText(
-        inputPath,
-        evidence.core.artifact.input_canonical_json,
-      );
-      await verifyPublishedText(
-        allocationPath,
-        evidence.core.artifact.canonical_json,
-      );
-    },
-    revalidateSourceClosure: assertPrepublish,
-    publishManifest: () =>
-      durableCreateNoClobber(manifestPath, `${canonicalJson(candidate)}\n`),
-  });
+  const manifestText = `${canonicalJson(candidate)}\n`;
+  let primaryFailed = false;
+  try {
+    await runRoleLockPublishSequence({
+      validateCandidate: () => {
+        validateRoleLockManifestCandidate(candidate, evidence);
+      },
+      assertOutputRoot: (checkpoint) =>
+        assertRoleLockOutputCheckpoint(rootGuard, checkpoint),
+      publishMaterializedInput: () =>
+        durableCreateNoClobber(
+          inputPath,
+          evidence.core.artifact.input_canonical_json,
+        ),
+      publishAllocation: () =>
+        durableCreateNoClobber(
+          allocationPath,
+          evidence.core.artifact.canonical_json,
+        ),
+      verifyMaterializedInput: () =>
+        verifyPublishedText(
+          inputPath,
+          evidence.core.artifact.input_canonical_json,
+        ),
+      verifyAllocation: () =>
+        verifyPublishedText(
+          allocationPath,
+          evidence.core.artifact.canonical_json,
+        ),
+      revalidateSourceClosure: assertPrepublish,
+      publishManifest: () => durableCreateNoClobber(manifestPath, manifestText),
+      verifyManifest: () => verifyPublishedText(manifestPath, manifestText),
+    });
+  } catch (error) {
+    primaryFailed = true;
+    throw error;
+  } finally {
+    try {
+      await rootGuard.close();
+    } catch (closeError) {
+      if (!primaryFailed) throw closeError;
+    }
+  }
 }
 
 function indexedGameFromManifestEntry(

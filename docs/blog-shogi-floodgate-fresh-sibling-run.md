@@ -175,7 +175,7 @@ process自身のclosure、lease解放後のread-only status、別branchのresult
 
 unique objectがreceiptより1少ないのは欠落ではない。2件のdaily-rating 404が同じexact bodyを持ち、CASで1 objectになったためである。36,168 CSAはすべて別bodyで、canonical gameも36,168、duplicate groupは0だった。
 
-result summarizerの独立監査では、読んだmanifest Aではなく別読込Bを検証できる競合、crash後の空・途中auditを拒否する問題、audit rootのABA差替え、BOMでraw SHAを誤る問題、token名FIFOで停止する問題をPR前に再現した。修正後はdirectory FD相対read、lease前後確認、raw-byte二重snapshot、完全行prefix、BigInt inode、timeoutを使い、最終P1/P2は0、ML testは278/278だった。
+result summarizerの独立監査では、読んだmanifest Aではなく別読込Bを検証できる競合、crash後の空・途中auditを拒否する問題、audit rootのABA差替え、BOMでraw SHAを誤る問題、token名FIFOで停止する問題をPR前に再現した。修正後はdirectory FD相対read、lease前後確認、raw-byte二重snapshot、完全行prefix、BigInt inode、timeoutを使い、最終P1/P2は0、ML testは279/279だった。
 
 ## raw取得中に先回りして見つけた次段の停止条件
 

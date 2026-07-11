@@ -175,7 +175,7 @@ Three paths reproduced the same manifest and aggregates: the acquisition process
 
 One fewer unique object than receipts is not a missing artifact. The two daily-rating 404 responses have the same exact body and therefore share one CAS object. All 36,168 CSA bodies are distinct, yielding 36,168 canonical games and zero duplicate groups.
 
-Independent review of the result summarizer reproduced five pre-PR defects: verifying a separately read manifest B while reporting A, rejecting empty or torn crash audits, an audit-root ABA substitution, hashing BOM-decoded text instead of raw bytes, and an indefinite block on a token-named FIFO. The fixed path uses descriptor-relative reads, lease checks, double raw-byte snapshots, complete-line prefixes, BigInt inode identities, and a timeout. Final review found zero P1/P2 issues; all 278 ML tests pass.
+Independent review of the result summarizer reproduced five pre-PR defects: verifying a separately read manifest B while reporting A, rejecting empty or torn crash audits, an audit-root ABA substitution, hashing BOM-decoded text instead of raw bytes, and an indefinite block on a token-named FIFO. The fixed path uses descriptor-relative reads, lease checks, double raw-byte snapshots, complete-line prefixes, BigInt inode identities, and a timeout. Final review found zero P1/P2 issues; all 279 ML tests pass.
 
 ## Next-stage stop conditions found while acquisition ran
 

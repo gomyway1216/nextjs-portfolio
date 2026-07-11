@@ -3,7 +3,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   FLOODGATE_RAW_LOCK_GAME_ID_DOMAIN,
@@ -754,6 +754,28 @@ describe("durable no-clobber publication", () => {
           entry.endsWith(".tmp"),
         ),
       ).toBe(false);
+    }
+  });
+
+  it("preserves a primary publication failure when cleanup also fails", async () => {
+    const root = await temporaryRoot();
+    const target = path.join(root, "store", "primary-error");
+    await fs.promises.mkdir(path.dirname(target), { recursive: true });
+    const unlink = vi
+      .spyOn(fs.promises, "unlink")
+      .mockRejectedValueOnce(new Error("secondary cleanup failure"));
+    try {
+      await expect(
+        durableCreateNoClobber(target, "durable", {
+          failpoint: (phase) => {
+            if (phase === "after-temp-write") {
+              throw new Error("primary publication failure");
+            }
+          },
+        }),
+      ).rejects.toThrow("primary publication failure");
+    } finally {
+      unlink.mockRestore();
     }
   });
 });

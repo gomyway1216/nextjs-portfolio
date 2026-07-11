@@ -1413,6 +1413,9 @@ async function assertParentChainIsRealDirectories(
 }
 
 async function syncDirectory(directory: string): Promise<void> {
+  // Durability requires the directory entry itself to be synced. Platforms
+  // that cannot open/fsync directories must fail closed rather than silently
+  // claim a durable publication.
   const handle = await fs.promises.open(directory, fs.constants.O_RDONLY);
   try {
     const stat = await handle.stat();
@@ -1426,7 +1429,11 @@ async function syncDirectory(directory: string): Promise<void> {
 
 async function readRegularFileNoFollow(filePath: string): Promise<Uint8Array> {
   await assertParentChainIsRealDirectories(filePath);
-  const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0);
+  const noFollow = fs.constants.O_NOFOLLOW;
+  if (typeof noFollow !== "number" || noFollow === 0) {
+    fail("secure regular-file verification requires O_NOFOLLOW support");
+  }
+  const flags = fs.constants.O_RDONLY | noFollow;
   let handle: fs.promises.FileHandle;
   try {
     handle = await fs.promises.open(filePath, flags);
@@ -1530,6 +1537,7 @@ export async function durableCreateNoClobber(
   );
   let handle: fs.promises.FileHandle | null = null;
   let temporaryCreated = false;
+  let primaryFailure = false;
   try {
     handle = await fs.promises.open(
       temporary,
@@ -1573,17 +1581,24 @@ export async function durableCreateNoClobber(
     temporaryCreated = false;
     await failpoint?.("after-temp-unlink");
     await syncDirectory(directory);
+  } catch (error) {
+    primaryFailure = true;
+    throw error;
   } finally {
-    if (handle) await handle.close().catch(() => undefined);
-    if (temporaryCreated) {
-      const temporaryStat = await lstatMaybe(temporary);
-      if (temporaryStat) {
-        if (!temporaryStat.isFile() || temporaryStat.isSymbolicLink()) {
-          fail("refusing to clean a replaced durable temporary path");
+    try {
+      if (handle) await handle.close();
+      if (temporaryCreated) {
+        const temporaryStat = await lstatMaybe(temporary);
+        if (temporaryStat) {
+          if (!temporaryStat.isFile() || temporaryStat.isSymbolicLink()) {
+            fail("refusing to clean a replaced durable temporary path");
+          }
+          await fs.promises.unlink(temporary);
+          await syncDirectory(directory);
         }
-        await fs.promises.unlink(temporary);
-        await syncDirectory(directory);
       }
+    } catch (cleanupError) {
+      if (!primaryFailure) throw cleanupError;
     }
   }
 }

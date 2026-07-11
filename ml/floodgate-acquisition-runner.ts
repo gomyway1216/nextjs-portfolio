@@ -1228,7 +1228,7 @@ export async function runFloodgateQ1Acquisition(
       deriveListingBarrier: async () => {
         const rating: string[] = [];
         const csa: string[] = [];
-        let listingBytes = 0;
+        let totalListingBytes = 0;
         let allOfficial = 0;
         for (const row of listingRows) {
           const verified = await readExistingFloodgateRawReceiptIfPresent(
@@ -1248,7 +1248,7 @@ export async function runFloodgateQ1Acquisition(
             listingUrl: row.url,
             listingBytes: verified.bytes,
           });
-          listingBytes += evidence.listing.body.bytes;
+          totalListingBytes += evidence.listing.body.bytes;
           allOfficial += evidence.allOfficialCsaLocations.length;
           rating.push(ratingUrlForListing(row.url));
           for (const location of evidence.targetCsaLocations)
@@ -1257,7 +1257,7 @@ export async function runFloodgateQ1Acquisition(
         csa.sort(compareUtf8Bytes);
         rating.sort(compareUtf8Bytes);
         if (
-          listingBytes !== 10_098_337 ||
+          totalListingBytes !== 10_098_337 ||
           allOfficial !== 36_419 ||
           csa.length !== 36_168
         ) {
@@ -1292,7 +1292,7 @@ export async function runFloodgateQ1Acquisition(
           ]),
           audit: Object.freeze({
             listing_responses: listingRows.length,
-            listing_bytes: listingBytes,
+            listing_bytes: totalListingBytes,
             all_official_csa_urls: allOfficial,
             target_csa_urls: csa.length,
             listing_identity_bytes:

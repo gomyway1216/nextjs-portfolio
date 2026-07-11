@@ -1452,6 +1452,13 @@ async function syncDirectory(directory: string): Promise<void> {
 
 async function readRegularFileNoFollow(filePath: string): Promise<Uint8Array> {
   await assertParentChainIsRealDirectories(filePath);
+  return readRegularFileNoFollowWithVerifiedParents(filePath);
+}
+
+async function readRegularFileNoFollowWithVerifiedParents(
+  filePath: string,
+): Promise<Uint8Array> {
+  assertCanonicalAbsoluteFilePath(filePath);
   const noFollow = fs.constants.O_NOFOLLOW;
   if (typeof noFollow !== "number" || noFollow === 0) {
     fail("secure regular-file verification requires O_NOFOLLOW support");
@@ -1765,7 +1772,7 @@ async function readExistingFloodgateRawReceiptFileIfPresent(
   const receiptPath = lockStoragePath(lockRoot, relativeReceipt);
   if (!(await parentChainExistsAndIsRealDirectories(receiptPath))) return null;
   try {
-    return await readRegularFileNoFollow(receiptPath);
+    return await readRegularFileNoFollowWithVerifiedParents(receiptPath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
@@ -1791,7 +1798,7 @@ export async function verifyExistingFloodgateRawReceipt(
 }
 
 /**
- * Resume probe. Only absence of the URL-keyed receipt itself returns `null`.
+ * Resume probe. Absence of the URL-keyed receipt storage returns `null`.
  * Once a receipt exists, malformed receipt bytes and missing/corrupt CAS
  * objects remain terminal failures and are never repaired by re-acquisition.
  */

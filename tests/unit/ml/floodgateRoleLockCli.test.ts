@@ -12,6 +12,7 @@ import {
 } from "../../../ml/create-floodgate-role-lock";
 import {
   acquireAndReleaseFreshFloodgateRoleLockRootForTests,
+  FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL,
   runFreshFloodgateRoleLockOutputLifecycleCoreForTests,
   runFreshFloodgateRoleLockRootGuardCoreForTests,
   type FloodgateRoleLockManifest,
@@ -49,6 +50,15 @@ async function fixture(): Promise<Fixture> {
     rawLockRoot,
     roleLockRoot: path.join(container, "role-lock"),
   };
+}
+
+async function expectInvalidatedManifest(roleLockRoot: string): Promise<void> {
+  const manifest = await fs.promises.readFile(
+    path.join(roleLockRoot, "manifest.json"),
+    "utf8",
+  );
+  expect(manifest).toBe(FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL);
+  expect(() => JSON.parse(manifest)).toThrow();
 }
 
 function dependencies(
@@ -181,7 +191,7 @@ describe("Floodgate role-lock CLI", () => {
     expect(allocationStat.isFile()).toBe(true);
   });
 
-  it("rolls back the manifest when an artifact is overwritten after final prepublish verification", async () => {
+  it("invalidates the manifest when an artifact is overwritten after final prepublish verification", async () => {
     const { roleLockRoot } = await fixture();
     const tamperedAllocation = '{"tampered":true}';
     await expect(
@@ -198,9 +208,7 @@ describe("Floodgate role-lock CLI", () => {
         },
       ),
     ).rejects.toThrow(/published artifact does not match candidate/);
-    await expect(
-      fs.promises.lstat(path.join(roleLockRoot, "manifest.json")),
-    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expectInvalidatedManifest(roleLockRoot);
     await expect(
       fs.promises.readFile(path.join(roleLockRoot, "allocation.json"), "utf8"),
     ).resolves.toBe(tamperedAllocation);
@@ -219,12 +227,10 @@ describe("Floodgate role-lock CLI", () => {
         },
       ),
     ).rejects.toThrow(/regular-file identity changed/);
-    await expect(
-      fs.promises.lstat(path.join(roleLockRoot, "manifest.json")),
-    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expectInvalidatedManifest(roleLockRoot);
   });
 
-  it("durably rolls back a manifest when publication fails after its final link exists", async () => {
+  it("durably invalidates a manifest when publication fails after its final link exists", async () => {
     const { roleLockRoot } = await fixture();
     await expect(
       runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
@@ -237,16 +243,15 @@ describe("Floodgate role-lock CLI", () => {
         },
       ),
     ).rejects.toThrow(/injected manifest directory fsync failure/);
-    await expect(
-      fs.promises.lstat(path.join(roleLockRoot, "manifest.json")),
-    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expectInvalidatedManifest(roleLockRoot);
     expect((await fs.promises.readdir(roleLockRoot)).sort()).toEqual([
       "allocation.json",
+      "manifest.json",
       "materialized-input.json",
     ]);
   });
 
-  it("recovers its owned manifest even when another role-lock artifact disappears first", async () => {
+  it("invalidates its owned manifest even when another role-lock artifact disappears first", async () => {
     const { roleLockRoot } = await fixture();
     await expect(
       runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
@@ -262,9 +267,7 @@ describe("Floodgate role-lock CLI", () => {
         },
       ),
     ).rejects.toThrow(/injected artifact loss after manifest link/);
-    await expect(
-      fs.promises.lstat(path.join(roleLockRoot, "manifest.json")),
-    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expectInvalidatedManifest(roleLockRoot);
     await expect(
       fs.promises.lstat(path.join(roleLockRoot, "allocation.json")),
     ).rejects.toMatchObject({ code: "ENOENT" });
@@ -295,6 +298,54 @@ describe("Floodgate role-lock CLI", () => {
     await expect(
       fs.promises.readFile(path.join(roleLockRoot, "manifest.json"), "utf8"),
     ).resolves.toBe(foreignManifest);
+  });
+
+  it("invalidates only the held owned inode when its path is replaced after open", async () => {
+    const { container, roleLockRoot } = await fixture();
+    const manifestPath = path.join(roleLockRoot, "manifest.json");
+    const foreignPath = path.join(container, "foreign-manifest.json");
+    const foreignManifest = "FOREIGN-MANIFEST-MUST-STAY-BYTE-EXACT\n";
+    await fs.promises.writeFile(foreignPath, foreignManifest, { flag: "wx" });
+
+    const originalOpen = fs.promises.open;
+    const originalRename = fs.promises.rename;
+    let raced = false;
+    const open = vi
+      .spyOn(fs.promises, "open")
+      .mockImplementation(async (filePath, flags, mode) => {
+        const handle = await originalOpen(filePath, flags, mode);
+        if (
+          !raced &&
+          filePath === manifestPath &&
+          flags === (fs.constants.O_RDWR | fs.constants.O_NOFOLLOW)
+        ) {
+          raced = true;
+          // The invalidation descriptor now pins the owned inode. Move a
+          // foreign inode onto the canonical path before fstat/write.
+          await originalRename(foreignPath, manifestPath);
+        }
+        return handle;
+      });
+    try {
+      await expect(
+        runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+          roleLockRoot,
+          async () => undefined,
+          (phase) => {
+            if (phase === "after-directory-sync") {
+              throw new Error("injected post-link publication failure");
+            }
+          },
+        ),
+      ).rejects.toThrow(/injected post-link publication failure/);
+    } finally {
+      open.mockRestore();
+    }
+
+    expect(raced).toBe(true);
+    await expect(fs.promises.readFile(manifestPath, "utf8")).resolves.toBe(
+      foreignManifest,
+    );
   });
 
   it("holds one output-root identity through the complete manifest-last lifecycle", async () => {

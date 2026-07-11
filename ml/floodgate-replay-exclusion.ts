@@ -294,3 +294,275 @@ export function buildFloodgateReplayExclusionUnionCoreForTests(
 ): FloodgateReplayExclusionUnionArtifact {
   return buildCore(input);
 }
+
+function strictReceiptObject(
+  input: unknown,
+  label: string,
+): Record<string, unknown> {
+  if (
+    nodeUtilTypes.isProxy(input) ||
+    input === null ||
+    typeof input !== "object" ||
+    Array.isArray(input) ||
+    Object.getPrototypeOf(input) !== Object.prototype ||
+    Object.getOwnPropertySymbols(input).length !== 0
+  ) {
+    fail(`${label} must be a non-Proxy plain object without symbol keys`);
+  }
+  for (const key of Object.getOwnPropertyNames(input)) {
+    const descriptor = Object.getOwnPropertyDescriptor(input, key);
+    if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
+      fail(`${label}.${key} must be an enumerable data property`);
+    }
+  }
+  return input as Record<string, unknown>;
+}
+
+function exactReceiptKeys(
+  input: Record<string, unknown>,
+  expected: readonly string[],
+  label: string,
+): void {
+  const actual = Object.getOwnPropertyNames(input).sort(compareBytewise);
+  const wanted = [...expected].sort(compareBytewise);
+  if (
+    actual.length !== wanted.length ||
+    actual.some((key, index) => key !== wanted[index])
+  ) {
+    fail(`${label} keys are not exact`);
+  }
+}
+
+function safeReceiptInteger(input: unknown, label: string): number {
+  if (!Number.isSafeInteger(input) || (input as number) < 0) {
+    fail(`${label} must be a nonnegative safe integer`);
+  }
+  return input as number;
+}
+
+function receiptSha256(input: unknown, label: string): string {
+  if (typeof input !== "string" || !/^[0-9a-f]{64}$/.test(input)) {
+    fail(`${label} must be a lowercase SHA-256`);
+  }
+  return input;
+}
+
+function decodeReceiptIdentity(
+  input: unknown,
+  label: string,
+): FloodgateProtectedPositionIdIdentity {
+  const value = strictReceiptObject(input, label);
+  exactReceiptKeys(
+    value,
+    ["bytes", "count", "format", "identifiers_sha256", "sha256"],
+    label,
+  );
+  if (value.format !== FLOODGATE_PROTECTED_POSITION_ID_FORMAT) {
+    fail(`${label}.format is unsupported`);
+  }
+  const bytes = safeReceiptInteger(value.bytes, `${label}.bytes`);
+  const count = safeReceiptInteger(value.count, `${label}.count`);
+  if (bytes === 0 || count === 0) fail(`${label} must be nonempty`);
+  return Object.freeze({
+    format: FLOODGATE_PROTECTED_POSITION_ID_FORMAT,
+    bytes,
+    sha256: receiptSha256(value.sha256, `${label}.sha256`),
+    count,
+    identifiers_sha256: receiptSha256(
+      value.identifiers_sha256,
+      `${label}.identifiers_sha256`,
+    ),
+  });
+}
+
+/** Strict-decode the arithmetic receipt without trusting copied summaries. */
+export function validateFloodgateReplayExclusionUnionReceipt(
+  input: unknown,
+): Readonly<FloodgateReplayExclusionUnionReceipt> {
+  const root = strictReceiptObject(input, "replay exclusion receipt");
+  exactReceiptKeys(
+    root,
+    ["components", "format", "output", "overlaps", "schema", "summary"],
+    "replay exclusion receipt",
+  );
+  if (
+    root.schema !== FLOODGATE_REPLAY_EXCLUSION_UNION_SCHEMA ||
+    root.format !== FLOODGATE_PROTECTED_POSITION_ID_FORMAT
+  ) {
+    fail("replay exclusion receipt schema/format is unsupported");
+  }
+  const componentsValue = strictReceiptObject(
+    root.components,
+    "replay exclusion receipt.components",
+  );
+  exactReceiptKeys(
+    componentsValue,
+    ["fresh_final", "fresh_selection", "legacy"],
+    "replay exclusion receipt.components",
+  );
+  const components = {
+    legacy: decodeReceiptIdentity(componentsValue.legacy, "components.legacy"),
+    fresh_final: decodeReceiptIdentity(
+      componentsValue.fresh_final,
+      "components.fresh_final",
+    ),
+    fresh_selection: decodeReceiptIdentity(
+      componentsValue.fresh_selection,
+      "components.fresh_selection",
+    ),
+  };
+  const overlapsValue = strictReceiptObject(
+    root.overlaps,
+    "replay exclusion receipt.overlaps",
+  );
+  exactReceiptKeys(
+    overlapsValue,
+    [
+      "all_three",
+      "fresh_final_and_fresh_selection",
+      "legacy_and_fresh_final",
+      "legacy_and_fresh_selection",
+    ],
+    "replay exclusion receipt.overlaps",
+  );
+  const overlaps = {
+    legacy_and_fresh_final: safeReceiptInteger(
+      overlapsValue.legacy_and_fresh_final,
+      "overlaps.legacy_and_fresh_final",
+    ),
+    legacy_and_fresh_selection: safeReceiptInteger(
+      overlapsValue.legacy_and_fresh_selection,
+      "overlaps.legacy_and_fresh_selection",
+    ),
+    fresh_final_and_fresh_selection: safeReceiptInteger(
+      overlapsValue.fresh_final_and_fresh_selection,
+      "overlaps.fresh_final_and_fresh_selection",
+    ),
+    all_three: safeReceiptInteger(
+      overlapsValue.all_three,
+      "overlaps.all_three",
+    ),
+  };
+  if (
+    overlaps.legacy_and_fresh_final >
+      Math.min(components.legacy.count, components.fresh_final.count) ||
+    overlaps.legacy_and_fresh_selection >
+      Math.min(components.legacy.count, components.fresh_selection.count) ||
+    overlaps.fresh_final_and_fresh_selection >
+      Math.min(
+        components.fresh_final.count,
+        components.fresh_selection.count,
+      ) ||
+    overlaps.all_three >
+      Math.min(
+        overlaps.legacy_and_fresh_final,
+        overlaps.legacy_and_fresh_selection,
+        overlaps.fresh_final_and_fresh_selection,
+      )
+  ) {
+    fail("replay exclusion receipt overlap accounting is impossible");
+  }
+  const summaryValue = strictReceiptObject(
+    root.summary,
+    "replay exclusion receipt.summary",
+  );
+  exactReceiptKeys(
+    summaryValue,
+    [
+      "added_to_legacy",
+      "component_memberships",
+      "duplicate_memberships",
+      "fresh_evaluation_unique_identifiers",
+      "unique_identifiers",
+    ],
+    "replay exclusion receipt.summary",
+  );
+  const summary = {
+    component_memberships: safeReceiptInteger(
+      summaryValue.component_memberships,
+      "summary.component_memberships",
+    ),
+    unique_identifiers: safeReceiptInteger(
+      summaryValue.unique_identifiers,
+      "summary.unique_identifiers",
+    ),
+    duplicate_memberships: safeReceiptInteger(
+      summaryValue.duplicate_memberships,
+      "summary.duplicate_memberships",
+    ),
+    fresh_evaluation_unique_identifiers: safeReceiptInteger(
+      summaryValue.fresh_evaluation_unique_identifiers,
+      "summary.fresh_evaluation_unique_identifiers",
+    ),
+    added_to_legacy: safeReceiptInteger(
+      summaryValue.added_to_legacy,
+      "summary.added_to_legacy",
+    ),
+  };
+  const output = decodeReceiptIdentity(root.output, "replay exclusion output");
+  const memberships =
+    components.legacy.count +
+    components.fresh_final.count +
+    components.fresh_selection.count;
+  const unique =
+    memberships -
+    overlaps.legacy_and_fresh_final -
+    overlaps.legacy_and_fresh_selection -
+    overlaps.fresh_final_and_fresh_selection +
+    overlaps.all_three;
+  const freshUnique =
+    components.fresh_final.count +
+    components.fresh_selection.count -
+    overlaps.fresh_final_and_fresh_selection;
+  if (
+    summary.component_memberships !== memberships ||
+    summary.unique_identifiers !== unique ||
+    summary.unique_identifiers !== output.count ||
+    summary.duplicate_memberships !== memberships - unique ||
+    summary.fresh_evaluation_unique_identifiers !== freshUnique ||
+    summary.added_to_legacy !== unique - components.legacy.count
+  ) {
+    fail("replay exclusion receipt summary arithmetic does not close");
+  }
+  return deepFreeze({
+    schema: FLOODGATE_REPLAY_EXCLUSION_UNION_SCHEMA,
+    format: FLOODGATE_PROTECTED_POSITION_ID_FORMAT,
+    components,
+    overlaps,
+    summary,
+    output,
+  });
+}
+
+export function serializeFloodgateReplayExclusionUnionReceipt(
+  input: unknown,
+): string {
+  return `${JSON.stringify(validateFloodgateReplayExclusionUnionReceipt(input))}\n`;
+}
+
+export function parseFloodgateReplayExclusionUnionReceipt(
+  text: string,
+): Readonly<FloodgateReplayExclusionUnionReceipt> {
+  if (
+    typeof text !== "string" ||
+    text.length === 0 ||
+    text.startsWith("\ufeff") ||
+    text.includes("\0") ||
+    text.includes("\r") ||
+    !text.endsWith("\n") ||
+    text.endsWith("\n\n")
+  ) {
+    fail("replay exclusion receipt framing is invalid");
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text.slice(0, -1)) as unknown;
+  } catch {
+    return fail("replay exclusion receipt is not valid JSON");
+  }
+  const receipt = validateFloodgateReplayExclusionUnionReceipt(parsed);
+  if (serializeFloodgateReplayExclusionUnionReceipt(receipt) !== text) {
+    fail("replay exclusion receipt is not in exact serialized form");
+  }
+  return receipt;
+}

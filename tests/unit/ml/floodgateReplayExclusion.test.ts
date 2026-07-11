@@ -7,6 +7,8 @@ import {
   FLOODGATE_REPLAY_EXCLUSION_UNION_SCHEMA,
   buildFloodgateReplayExclusionUnion,
   buildFloodgateReplayExclusionUnionCoreForTests,
+  parseFloodgateReplayExclusionUnionReceipt,
+  serializeFloodgateReplayExclusionUnionReceipt,
 } from "../../../ml/floodgate-replay-exclusion";
 import { floodgateIdentifierDigest } from "../../../ml/floodgate-roles";
 
@@ -85,6 +87,65 @@ describe("Floodgate replay exclusion union", () => {
       duplicate_memberships: 2,
       added_to_legacy: 0,
     });
+  });
+
+  it("strictly round-trips the canonical receipt and rejects copied arithmetic", () => {
+    const artifact = buildFloodgateReplayExclusionUnionCoreForTests({
+      legacy: text(id("1"), id("2")),
+      fresh_final: text(id("2"), id("3")),
+      fresh_selection: text(id("4")),
+    });
+
+    const parsed = parseFloodgateReplayExclusionUnionReceipt(
+      artifact.receipt_json,
+    );
+    expect(parsed).toEqual(artifact.receipt);
+    expect(serializeFloodgateReplayExclusionUnionReceipt(parsed)).toBe(
+      artifact.receipt_json,
+    );
+    expect(Object.isFrozen(parsed)).toBe(true);
+
+    const tampered = JSON.parse(artifact.receipt_json) as {
+      summary: { unique_identifiers: number };
+    };
+    tampered.summary.unique_identifiers += 1;
+    expect(() =>
+      parseFloodgateReplayExclusionUnionReceipt(
+        `${JSON.stringify(tampered)}\n`,
+      ),
+    ).toThrow(/summary arithmetic does not close/);
+  });
+
+  it.each([
+    ["missing final LF", (receipt: string) => receipt.slice(0, -1)],
+    ["double final LF", (receipt: string) => `${receipt}\n`],
+    ["CRLF", (receipt: string) => receipt.replace(/\n$/, "\r\n")],
+    ["BOM", (receipt: string) => `\ufeff${receipt}`],
+    ["NUL", (receipt: string) => `${receipt.slice(0, -1)}\0\n`],
+    [
+      "noncanonical key order",
+      (receipt: string) => {
+        const value = JSON.parse(receipt) as Record<string, unknown>;
+        return `${JSON.stringify({ format: value.format, ...value })}\n`;
+      },
+    ],
+    [
+      "duplicate field",
+      (receipt: string) =>
+        receipt.replace(
+          /^{/,
+          `{"schema":"${FLOODGATE_REPLAY_EXCLUSION_UNION_SCHEMA}",`,
+        ),
+    ],
+  ])("rejects a %s receipt", (_label, mutate) => {
+    const artifact = buildFloodgateReplayExclusionUnionCoreForTests({
+      legacy: text(id("1")),
+      fresh_final: text(id("2")),
+      fresh_selection: text(id("3")),
+    });
+    expect(() =>
+      parseFloodgateReplayExclusionUnionReceipt(mutate(artifact.receipt_json)),
+    ).toThrow(/invalid Floodgate replay exclusion union/);
   });
 
   it.each([

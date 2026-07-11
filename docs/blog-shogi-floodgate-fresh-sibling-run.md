@@ -6,7 +6,7 @@
 
 ## 現在地
 
-2026-07-10時点で、まだ「高段レベルになった」とは判定していない。完了したのは、labelを見ずに公開在庫を固定し、raw responseを壊さず取得するための土台までである。
+2026-07-10時点で、まだ「高段レベルになった」とは判定していない。labelを見ずに公開在庫を固定し、36,349件のraw responseを単一processで取得して、全参照をofflineで再現するところまでは完了した。
 
 | 段階                              | 状態   | 証拠                                                  |
 | --------------------------------- | ------ | ----------------------------------------------------- |
@@ -15,9 +15,9 @@
 | source・合法CSA parser            | 完了   | strict codec、identity join、全合法手                 |
 | raw CAS lock                      | 完了   | PR #415、通常merge `2c272f37`                         |
 | process-wide scheduler            | 完了   | PR #416、通常merge `b5832cea`                         |
-| lease / resume / offline verifier | 実装中 | PR #417予定                                           |
-| live raw取得                      | 未開始 | 単一process、36,349 requests予定                      |
-| 1,000 / 200 / 200 role lock       | 未開始 | label生成前に固定                                     |
+| lease / resume / offline verifier | 完了   | PR #417、通常merge `649423d`                          |
+| live raw取得                      | 完了   | 36,349 / 36,349、result SHA `f48155a5…0301`           |
+| 1,000 / 200 / 200 role lock       | 未開始 | 次PRをmerge後、label生成前に固定                      |
 | teacher / 3 seed学習              | 未開始 | model・loss・seedは変更しない                         |
 | fresh selection                   | 封印   | 3 final checkpoint完成後だけ                          |
 | final / 384局A/B / 81Dojo         | 封印   | 前段合格時だけ                                        |
@@ -95,9 +95,9 @@ network schedulerは次を固定した。
 
 20個のscheduler adversarial testと、合計120個の関連Floodgate testを通した。独立sub-agentの最終再監査はP1/P2 finding 0だった。
 
-## PR #417で固定する取得順
+## PR #417で固定した取得順
 
-取得runnerは次の順を変えられないようにする。
+取得runnerは次の順を変えられないようにした。
 
 1. 最初のwriteより前にclean Git revisionを確認する
 2. 既存manifestがあれば、leaseやauditも作らずnetworkなしで全参照を検証して終了する
@@ -137,23 +137,66 @@ npm run shogi:floodgate-acquire -- status --output /absolute/path/to/raw-lock
 npm run shogi:floodgate-acquire -- run --output /absolute/path/to/raw-lock
 ```
 
-## live runで追記する監査欄
+## live runの途中監査
 
-以下は取得完了後まで空欄のままにする。推測値では埋めない。
+runは`2026-07-11T03:57:40.891Z`にsource revision `649423d455b5762a697864610d9e8f606cc327c3`から開始した。次の値は、filesystemにreceiptが見えた数ではなく、LFまでdurableに完結したaudit JSONLだけを合算したものだ。batch保存後・audit追記前の短い区間ではreceiptが最大64件先行し得るため、その未確定値を進捗記録へ混ぜていない。
 
-| 項目                           | live result |
-| ------------------------------ | ----------: |
-| source revision                |      未実行 |
-| 開始 / 終了 / 所要時間         |      未実行 |
-| resume回数                     |      未実行 |
-| fetched / reused receipts      |      未実行 |
-| daily rating HTTP 200 / 404    |      未実行 |
-| total response bytes           |      未実行 |
-| unique objects                 |      未実行 |
-| canonical games                |      未実行 |
-| duplicate groups / aliases     |      未実行 |
-| final manifest bytes / SHA-256 |      未実行 |
-| offline referential closure    |      未実行 |
+| UTC時刻                  | fetched |   進捗 | response bytes | unexpected failure / resume |
+| ------------------------ | ------: | -----: | -------------: | --------------------------: |
+| 2026-07-11T04:21:31Z付近 |  10,997 | 30.25% |    190,944,202 |                       0 / 0 |
+| 2026-07-11T04:31:52Z     |  15,797 | 43.46% |    258,797,090 |                       0 / 0 |
+| 2026-07-11T04:43:37Z     |  21,365 | 58.78% |    333,234,256 |                       0 / 0 |
+| 2026-07-11T04:51:03Z     |  24,885 | 68.46% |    385,067,521 |                       0 / 0 |
+| 2026-07-11T04:55:39Z     |  27,061 | 74.44% |    415,839,970 |                       0 / 0 |
+| 2026-07-11T05:16:18Z     |  36,349 |   100% |    541,445,115 |                       0 / 0 |
+
+daily ratingのHTTP 404は事前に許可した2件だけで、表のfailureには数えていない。自動retryは発生せず、run tokenも1個のまま完了した。取得と同時に動かしたsub-agentは、network processを増やさず、結果summarizerと次段のlabel-blind role lockだけを監査した。
+
+## live runの最終監査
+
+process自身のclosure、lease解放後のread-only status、別branchのresult summarizerという3経路が同じmanifestと集計を再現した。
+
+| 項目                           |                                                                     live result |
+| ------------------------------ | ------------------------------------------------------------------------------: |
+| source revision                |                                      `649423d455b5762a697864610d9e8f606cc327c3` |
+| 開始 / 終了                    |                         `2026-07-11T03:57:40.891Z` / `2026-07-11T05:16:18.501Z` |
+| 所要時間                       |                                                     01:18:37.610 / 4,717,610 ms |
+| attempt / resume               |                                                                           1 / 0 |
+| fetched / reused receipts      |                                                                      36,349 / 0 |
+| daily rating HTTP 200 / 404    |                                                                          88 / 2 |
+| total response bytes           |                                                                     541,445,115 |
+| unique objects                 |                                                                          36,348 |
+| canonical games                |                                                                          36,168 |
+| duplicate groups / aliases     |                                                                           0 / 0 |
+| audit JSONL                    |                                 573 records / 373,700 bytes / `9412a6d6…44ce52` |
+| final manifest bytes / SHA-256 | 23,698,679 / `1479a3a207458c9d3afe6cf9ba88abc6c44fb7b8b0e621aca9d6558637314619` |
+| result receipt bytes / SHA-256 |      1,534 / `f48155a5371411f7ea3b27abdf035c86c9df059b5e924620432449c45f650301` |
+| offline referential closure    |                            pass / `shogi-floodgate-raw-offline-verification-v1` |
+
+unique objectがreceiptより1少ないのは欠落ではない。2件のdaily-rating 404が同じexact bodyを持ち、CASで1 objectになったためである。36,168 CSAはすべて別bodyで、canonical gameも36,168、duplicate groupは0だった。
+
+result summarizerの独立監査では、読んだmanifest Aではなく別読込Bを検証できる競合、crash後の空・途中auditを拒否する問題、audit rootのABA差替え、BOMでraw SHAを誤る問題、token名FIFOで停止する問題をPR前に再現した。修正後はdirectory FD相対read、lease前後確認、raw-byte二重snapshot、完全行prefix、BigInt inode、timeoutを使い、最終P1/P2は0、ML testは279/279だった。
+
+## role lock live試行で修正した`$START_TIME`契約
+
+`main`の`10bf4c3f`からlabel-blind role lockを開始した。1回目は、Git ignore対象のlegacy replay-exclusion fileがfresh worktreeになく、output作成前に停止した。stable storageから事前登録どおりの624,816 bytes / SHA-256 `1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a` / 8,678 IDsを復元した。
+
+2回目もoutput作成前に停止した。原因は、CSA `$START_TIME`をURL event timestampと同じminuteへ束縛したうえで、さらに「START_TIME秒 <= URL秒」を要求していたことだった。事前登録にはこの秒順序条件はなく、live raw lockのcanonical 36,168局をraw manifest indexとCASの`$EVENT` / `$START_TIME` headerだけで全数確認すると、次の分布だった。
+
+| `$START_TIME - URL timestamp` |   局数 |
+| ----------------------------- | -----: |
+| 負                            | 31,927 |
+| 0秒                           |  4,231 |
+| 正                            |     10 |
+
+最小は-12秒、最大は+1秒で、正の10件はすべて正当な同一minute内の+1秒headerだった。malformed header、URL日付不一致、minute不一致はいずれも0である。したがってexact `$EVENT`、有効な`$START_TIME`、URL日付、同じ`YYYYMMDDHHMM`は維持し、同一minute内の秒順序だけをeligibility条件から外した。どちらの試行もrole-lock output / manifestを作成しておらず、読むrole-lock manifestもなかった。勝敗、teacher / model score、selection / final labelも読んでいない。
+
+## raw取得中に先回りして見つけた次段の停止条件
+
+- 合法手が1つしかない親はsibling 2候補契約を満たさない。role lock前にrules-complete合法手2つ以上をlabel-blind条件にし、同じhash/fill順で補う
+- search用合法手generatorは飛車角の任意不成を省くため、roleのprotected child IDsとteacherで同じrules-complete helperを使う
+- role allocationだけでは`played_move`がない。raw CASを再検証してrole別parent bundleを作り、legacy 8,678 IDとfresh final/selection IDのunionをreplay抽出前に固定する
+- 事前登録したwarm initializer `571ca309…65ff8`、replay `2207eba5…a56cb`、Python 3.13.0 / PyTorch 2.12.1環境はexact一致で回収し、安定領域へ複製した
 
 ## 高段判定までの残り
 
@@ -161,4 +204,4 @@ raw取得が成功しても、まだ棋力証明ではない。次にrating、�
 
 fresh selection family gateを通った候補だけが、fresh final、未開封WCSC36 final、回帰、384局paired A/Bへ進む。最後の81Dojo 200局は公式COM accountとclientを使う必要があり、外部対局を始める前にユーザーの明示確認を取る。
 
-このログの結論はまだ「強くなった」ではない。現時点の結論は、現在の評価関数を壊さずに、次のcandidateを検証できる取得経路ができつつある、である。
+このログの結論はまだ「強くなった」ではない。現時点の結論は、現在の評価関数を壊さずに、次のcandidateを検証できるraw取得経路が完成した、である。

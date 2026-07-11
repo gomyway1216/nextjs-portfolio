@@ -6,7 +6,7 @@
 
 ## Current status
 
-As of 2026-07-10, this work has **not** demonstrated high-dan strength. It has completed the label-blind public inventory and the transport foundations needed to acquire exact responses without silently repairing or reinterpreting them.
+As of 2026-07-10, this work has **not** demonstrated high-dan strength. The label-blind public inventory is fixed, all 36,349 raw responses have been acquired by one process, and every reference has been reproduced offline.
 
 | Stage                             | Status      | Evidence                                              |
 | --------------------------------- | ----------- | ----------------------------------------------------- |
@@ -15,9 +15,9 @@ As of 2026-07-10, this work has **not** demonstrated high-dan strength. It has c
 | source and legal-CSA parsers      | complete    | strict codecs, identity joins, full legal moves       |
 | raw CAS lock                      | complete    | PR #415, merge commit `2c272f37`                      |
 | process-wide scheduler            | complete    | PR #416, merge commit `b5832cea`                      |
-| lease / resume / offline verifier | in progress | planned PR #417                                       |
-| live raw acquisition              | not started | one process, 36,349 planned requests                  |
-| 1,000 / 200 / 200 role lock       | not started | fixed before labels                                   |
+| lease / resume / offline verifier | complete    | PR #417, merge commit `649423d`                       |
+| live raw acquisition              | complete    | 36,349 / 36,349, result SHA `f48155a5…0301`           |
+| 1,000 / 200 / 200 role lock       | not started | fixed before labels after the next PR merges          |
 | teacher / three-seed training     | not started | model, objective, and seeds remain frozen             |
 | fresh selection                   | sealed      | only after all three final checkpoints                |
 | finals / 384-game A/B / 81Dojo    | sealed      | only after earlier gates pass                         |
@@ -95,9 +95,9 @@ The final implementation shares one process-wide production gate, synchronously 
 
 Twenty scheduler adversarial tests and 120 related Floodgate tests pass. The final independent sub-agent audit reported no remaining P1/P2 findings.
 
-## Acquisition order fixed by PR #417
+## Acquisition order fixed in PR #417
 
-The runner will make this sequence non-configurable.
+The runner makes this sequence non-configurable.
 
 1. Verify a clean Git revision before the first write
 2. If a manifest already exists, verify every reference without creating a lease or audit file and without using the network
@@ -137,23 +137,66 @@ npm run shogi:floodgate-acquire -- status --output /absolute/path/to/raw-lock
 npm run shogi:floodgate-acquire -- run --output /absolute/path/to/raw-lock
 ```
 
-## Fields reserved for the live run
+## Intermediate live-run audit
 
-These fields remain explicitly unfilled until acquisition completes. Estimated values will not be substituted.
+The run started at `2026-07-11T03:57:40.891Z` from source revision `649423d455b5762a697864610d9e8f606cc327c3`. The milestones below sum only audit JSONL records that are durable through their terminating LF. They do not count receipts merely visible in the filesystem: between batch publication and audit append, those can lead the durable observation by as many as 64 responses.
 
-| Item                           | Live result |
-| ------------------------------ | ----------: |
-| source revision                |     not run |
-| start / finish / elapsed       |     not run |
-| resume count                   |     not run |
-| fetched / reused receipts      |     not run |
-| daily rating HTTP 200 / 404    |     not run |
-| total response bytes           |     not run |
-| unique objects                 |     not run |
-| canonical games                |     not run |
-| duplicate groups / aliases     |     not run |
-| final manifest bytes / SHA-256 |     not run |
-| offline referential closure    |     not run |
+| UTC time                   | fetched | progress | response bytes | unexpected failure / resume |
+| -------------------------- | ------: | -------: | -------------: | --------------------------: |
+| around 2026-07-11T04:21:31 |  10,997 |   30.25% |    190,944,202 |                       0 / 0 |
+| 2026-07-11T04:31:52        |  15,797 |   43.46% |    258,797,090 |                       0 / 0 |
+| 2026-07-11T04:43:37        |  21,365 |   58.78% |    333,234,256 |                       0 / 0 |
+| 2026-07-11T04:51:03        |  24,885 |   68.46% |    385,067,521 |                       0 / 0 |
+| 2026-07-11T04:55:39        |  27,061 |   74.44% |    415,839,970 |                       0 / 0 |
+| 2026-07-11T05:16:18        |  36,349 |     100% |    541,445,115 |                       0 / 0 |
+
+The only HTTP 404s are the two daily-rating responses permitted in advance, so they are not counted as failures in the table. No automatic retry occurred and the run completed with one token. Sub-agents running alongside acquisition did not add network processes; they audited the result summarizer and the next label-blind role-lock stage.
+
+## Final live-run audit
+
+Three paths reproduced the same manifest and aggregates: the acquisition process's own closure, the read-only status command after lease removal, and a result summarizer on a separate branch.
+
+| Item                           |                                                                     Live result |
+| ------------------------------ | ------------------------------------------------------------------------------: |
+| source revision                |                                      `649423d455b5762a697864610d9e8f606cc327c3` |
+| start / finish                 |                         `2026-07-11T03:57:40.891Z` / `2026-07-11T05:16:18.501Z` |
+| elapsed                        |                                                     01:18:37.610 / 4,717,610 ms |
+| attempts / resumes             |                                                                           1 / 0 |
+| fetched / reused receipts      |                                                                      36,349 / 0 |
+| daily rating HTTP 200 / 404    |                                                                          88 / 2 |
+| total response bytes           |                                                                     541,445,115 |
+| unique objects                 |                                                                          36,348 |
+| canonical games                |                                                                          36,168 |
+| duplicate groups / aliases     |                                                                           0 / 0 |
+| audit JSONL                    |                                 573 records / 373,700 bytes / `9412a6d6…44ce52` |
+| final manifest bytes / SHA-256 | 23,698,679 / `1479a3a207458c9d3afe6cf9ba88abc6c44fb7b8b0e621aca9d6558637314619` |
+| result receipt bytes / SHA-256 |      1,534 / `f48155a5371411f7ea3b27abdf035c86c9df059b5e924620432449c45f650301` |
+| offline referential closure    |                            pass / `shogi-floodgate-raw-offline-verification-v1` |
+
+One fewer unique object than receipts is not a missing artifact. The two daily-rating 404 responses have the same exact body and therefore share one CAS object. All 36,168 CSA bodies are distinct, yielding 36,168 canonical games and zero duplicate groups.
+
+Independent review of the result summarizer reproduced five pre-PR defects: verifying a separately read manifest B while reporting A, rejecting empty or torn crash audits, an audit-root ABA substitution, hashing BOM-decoded text instead of raw bytes, and an indefinite block on a token-named FIFO. The fixed path uses descriptor-relative reads, lease checks, double raw-byte snapshots, complete-line prefixes, BigInt inode identities, and a timeout. Final review found zero P1/P2 issues; all 279 ML tests pass.
+
+## The `$START_TIME` contract corrected during the live role-lock attempt
+
+The label-blind role lock was started from `main` at `10bf4c3f`. The first attempt stopped before creating output because the Git-ignored legacy replay-exclusion file was absent from the fresh worktree. The preregistered 624,816-byte / SHA-256 `1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a` / 8,678-ID artifact was restored from stable storage.
+
+The second attempt also stopped before creating output. The parser bound CSA `$START_TIME` to the URL event minute but additionally required `START_TIME second <= URL second`. That seconds-order rule was not preregistered. A complete header-only audit of all 36,168 canonical games, using only the raw-manifest index and CAS `$EVENT` / `$START_TIME` headers, produced this distribution.
+
+| `$START_TIME - URL timestamp` |  Games |
+| ----------------------------- | -----: |
+| negative                      | 31,927 |
+| zero                          |  4,231 |
+| positive                      |     10 |
+
+The minimum was -12 seconds and the maximum was +1 second; all ten positive cases were legitimate same-minute headers at exactly +1 second. There were zero malformed headers, URL-date mismatches, or minute mismatches. The strict `$EVENT` binding, valid `$START_TIME`, exact URL date, and shared `YYYYMMDDHHMM` therefore remain enforced; only within-minute second ordering was removed from eligibility. Neither attempt created role-lock output or a manifest, so there was no role-lock manifest to read. No winner, teacher/model score, selection label, or final label was read either.
+
+## Next-stage stop conditions found while acquisition ran
+
+- A parent with only one legal move cannot satisfy the two-sibling contract. Before role lock, rules-complete legal moves >= 2 becomes a label-blind condition, with deterministic replacement under the same hash/fill order
+- The search-oriented move generator omits optional rook and bishop non-promotions, so role protected-child IDs and the teacher must share one rules-complete helper
+- Allocation does not contain `played_move`. A consumer must reverify raw CAS into role-specific parent bundles and fix the union of the legacy 8,678 IDs plus fresh final/selection IDs before replay sampling
+- The preregistered warm initializer `571ca309…65ff8`, replay `2207eba5…a56cb`, and Python 3.13.0 / PyTorch 2.12.1 environment were recovered with exact identities and copied into stable storage
 
 ## What remains before a high-dan claim
 
@@ -161,4 +204,4 @@ A valid raw lock is not playing-strength evidence. The next label-blind stage ap
 
 Only a fresh-selection family pass opens the fresh final, the existing unopened WCSC36 final, regressions, and the paired 384-game A/B. The final 200-game 81Dojo calibration requires an official COM account and client; explicit user confirmation will be requested before any external games are started.
 
-The conclusion is not yet “the evaluator is stronger.” The current conclusion is narrower and auditable: the project is building a path to test a new candidate without destroying the stable evaluator it must beat.
+The conclusion is not yet “the evaluator is stronger.” The narrower, auditable conclusion is that the raw acquisition path is complete, allowing a separate candidate to be tested without overwriting the stable evaluator.

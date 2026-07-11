@@ -12,6 +12,7 @@ import {
 } from "../../../ml/create-floodgate-role-lock";
 import {
   acquireAndReleaseFreshFloodgateRoleLockRootForTests,
+  FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL,
   runFreshFloodgateRoleLockOutputLifecycleCoreForTests,
   runFreshFloodgateRoleLockRootGuardCoreForTests,
   type FloodgateRoleLockManifest,
@@ -49,6 +50,15 @@ async function fixture(): Promise<Fixture> {
     rawLockRoot,
     roleLockRoot: path.join(container, "role-lock"),
   };
+}
+
+async function expectInvalidatedManifest(roleLockRoot: string): Promise<void> {
+  const manifest = await fs.promises.readFile(
+    path.join(roleLockRoot, "manifest.json"),
+    "utf8",
+  );
+  expect(manifest).toBe(FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL);
+  expect(() => JSON.parse(manifest)).toThrow();
 }
 
 function dependencies(
@@ -179,6 +189,168 @@ describe("Floodgate role-lock CLI", () => {
     );
     expect(inputStat.isFile()).toBe(true);
     expect(allocationStat.isFile()).toBe(true);
+  });
+
+  it("invalidates the manifest when an artifact is overwritten after final prepublish verification", async () => {
+    const { roleLockRoot } = await fixture();
+    const tamperedAllocation = '{"tampered":true}';
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async (root) => {
+          // This hook runs after the immediate prepublish byte verification.
+          // Updating an existing inode does not change the directory ctime or
+          // entry names, so postpublish closure must catch and roll it back.
+          await fs.promises.writeFile(
+            path.join(root, "allocation.json"),
+            tamperedAllocation,
+          );
+        },
+      ),
+    ).rejects.toThrow(/published artifact does not match candidate/);
+    await expectInvalidatedManifest(roleLockRoot);
+    await expect(
+      fs.promises.readFile(path.join(roleLockRoot, "allocation.json"), "utf8"),
+    ).resolves.toBe(tamperedAllocation);
+  });
+
+  it("rejects an in-place rewrite even when it restores the expected artifact bytes", async () => {
+    const { roleLockRoot } = await fixture();
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async (root) => {
+          await fs.promises.writeFile(
+            path.join(root, "allocation.json"),
+            '{"fixture":"allocation"}',
+          );
+        },
+      ),
+    ).rejects.toThrow(/regular-file identity changed/);
+    await expectInvalidatedManifest(roleLockRoot);
+  });
+
+  it("invalidates an owned final when failure occurs before its first final-path stat", async () => {
+    const { roleLockRoot } = await fixture();
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async () => undefined,
+        (phase) => {
+          if (phase === "after-link-before-final-stat") {
+            throw new Error("injected pre-final-stat failure");
+          }
+        },
+      ),
+    ).rejects.toThrow(/injected pre-final-stat failure/);
+    await expectInvalidatedManifest(roleLockRoot);
+    const entries = (await fs.promises.readdir(roleLockRoot)).sort();
+    expect(entries.filter((entry) => !entry.endsWith(".tmp"))).toEqual([
+      "allocation.json",
+      "manifest.json",
+      "materialized-input.json",
+    ]);
+    const temporary = entries.filter((entry) => entry.endsWith(".tmp"));
+    expect(temporary).toHaveLength(1);
+    await expect(
+      fs.promises.readFile(path.join(roleLockRoot, temporary[0]), "utf8"),
+    ).resolves.toBe(FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL);
+  });
+
+  it("invalidates its owned manifest despite simultaneous artifact loss and parent mutation", async () => {
+    const { container, roleLockRoot } = await fixture();
+    const externalParentEntry = path.join(container, "external-parent-entry");
+    const externalBytes = "PARENT-ENTRY-MUST-STAY-BYTE-EXACT\n";
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async () => undefined,
+        async (phase) => {
+          if (phase === "after-temp-unlink") {
+            await fs.promises.unlink(
+              path.join(roleLockRoot, "allocation.json"),
+            );
+            await fs.promises.writeFile(externalParentEntry, externalBytes, {
+              flag: "wx",
+            });
+            throw new Error("injected artifact loss plus parent mutation");
+          }
+        },
+      ),
+    ).rejects.toThrow(/injected artifact loss plus parent mutation/);
+    await expectInvalidatedManifest(roleLockRoot);
+    await expect(
+      fs.promises.lstat(path.join(roleLockRoot, "allocation.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    const materializedStat = await fs.promises.lstat(
+      path.join(roleLockRoot, "materialized-input.json"),
+    );
+    expect(materializedStat.isFile()).toBe(true);
+    await expect(
+      fs.promises.readFile(externalParentEntry, "utf8"),
+    ).resolves.toBe(externalBytes);
+  });
+
+  it("never removes a foreign manifest created before its own final link", async () => {
+    const { roleLockRoot } = await fixture();
+    const foreignManifest = "ATTACKER-OWNED-MANIFEST\n";
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async () => undefined,
+        async (phase) => {
+          if (phase === "after-temp-sync") {
+            await fs.promises.writeFile(
+              path.join(roleLockRoot, "manifest.json"),
+              foreignManifest,
+              { flag: "wx" },
+            );
+          }
+        },
+      ),
+    ).rejects.toThrow(/conflicting bytes/);
+    await expect(
+      fs.promises.readFile(path.join(roleLockRoot, "manifest.json"), "utf8"),
+    ).resolves.toBe(foreignManifest);
+  });
+
+  it("invalidates the retained publisher inode after its canonical path is displaced", async () => {
+    const { container, roleLockRoot } = await fixture();
+    const manifestPath = path.join(roleLockRoot, "manifest.json");
+    const displacedPath = path.join(
+      roleLockRoot,
+      "publisher-owned-displaced.json",
+    );
+    const foreignPath = path.join(container, "foreign-manifest.json");
+    const foreignManifest = "FOREIGN-MANIFEST-MUST-STAY-BYTE-EXACT\n";
+    await fs.promises.writeFile(foreignPath, foreignManifest, { flag: "wx" });
+
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async () => undefined,
+        async (phase) => {
+          if (phase === "after-link-before-final-stat") {
+            await fs.promises.rename(manifestPath, displacedPath);
+            await fs.promises.rename(foreignPath, manifestPath);
+          }
+        },
+      ),
+    ).rejects.toThrow(/publish did not create the expected regular hard link/);
+
+    await expect(fs.promises.readFile(manifestPath, "utf8")).resolves.toBe(
+      foreignManifest,
+    );
+    await expect(fs.promises.readFile(displacedPath, "utf8")).resolves.toBe(
+      FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL,
+    );
+    const temporary = (await fs.promises.readdir(roleLockRoot)).filter(
+      (entry) => entry.endsWith(".tmp"),
+    );
+    expect(temporary).toHaveLength(1);
+    await expect(
+      fs.promises.readFile(path.join(roleLockRoot, temporary[0]), "utf8"),
+    ).resolves.toBe(FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL);
   });
 
   it("holds one output-root identity through the complete manifest-last lifecycle", async () => {

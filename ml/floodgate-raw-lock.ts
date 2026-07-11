@@ -69,7 +69,10 @@ const TYPED_ARRAY_BYTE_OFFSET_GETTER = Object.getOwnPropertyDescriptor(
 const INTRINSIC_UINT8_ARRAY_SET = IntrinsicUint8Array.prototype.set;
 
 export type FloodgateRawReceiptKind =
-  "daily_listing" | "daily_rating" | "period_end_inventory" | "csa";
+  | "daily_listing"
+  | "daily_rating"
+  | "period_end_inventory"
+  | "csa";
 
 export interface FloodgateRawObjectIdentity {
   readonly bytes: number;
@@ -198,14 +201,30 @@ export type FloodgateDurableCreatePhase =
   | "after-temp-open"
   | "after-temp-write"
   | "after-temp-sync"
+  | "after-link-before-final-stat"
   | "after-link"
   | "after-directory-sync"
   | "after-temp-unlink";
 
+export interface FloodgateDurableLinkedFileIdentity {
+  readonly dev: bigint;
+  readonly ino: bigint;
+}
+
 export interface FloodgateDurableCreateOptions {
   readonly failpoint?: (
     phase: FloodgateDurableCreatePhase,
+    linkedIdentity?: Readonly<FloodgateDurableLinkedFileIdentity>,
   ) => void | Promise<void>;
+  /**
+   * Transfers the still-open O_RDWR handle created with the temporary inode.
+   * Ownership changes only when this synchronous callback returns normally.
+   * The receiver must close a successfully transferred handle.
+   */
+  readonly transferLinkedFileHandle?: (
+    handle: fs.promises.FileHandle,
+    linkedIdentity: Readonly<FloodgateDurableLinkedFileIdentity>,
+  ) => void;
 }
 
 function fail(message: string): never {
@@ -1543,9 +1562,13 @@ export async function durableCreateNoClobber(
     "durable create options",
   );
   if (
-    Object.getOwnPropertyNames(optionValue).some((key) => key !== "failpoint")
+    Object.getOwnPropertyNames(optionValue).some(
+      (key) => key !== "failpoint" && key !== "transferLinkedFileHandle",
+    )
   ) {
-    fail("durable create options only supports failpoint");
+    fail(
+      "durable create options only supports failpoint and transferLinkedFileHandle",
+    );
   }
   if (
     optionValue.failpoint !== undefined &&
@@ -1554,7 +1577,17 @@ export async function durableCreateNoClobber(
     fail("durable create failpoint must be a function");
   }
   const failpoint = optionValue.failpoint as
-    FloodgateDurableCreateOptions["failpoint"] | undefined;
+    | FloodgateDurableCreateOptions["failpoint"]
+    | undefined;
+  if (
+    optionValue.transferLinkedFileHandle !== undefined &&
+    typeof optionValue.transferLinkedFileHandle !== "function"
+  ) {
+    fail("durable create linked handle transfer must be a function");
+  }
+  const transferLinkedFileHandle = optionValue.transferLinkedFileHandle as
+    | FloodgateDurableCreateOptions["transferLinkedFileHandle"]
+    | undefined;
   const bytes = copyDurableInput(data);
   await assertParentChainIsRealDirectories(filePath);
   const directory = path.dirname(filePath);
@@ -1566,27 +1599,35 @@ export async function durableCreateNoClobber(
     `.${path.basename(filePath)}.${process.pid}.${randomBytes(16).toString("hex")}.tmp`,
   );
   let handle: fs.promises.FileHandle | null = null;
-  let temporaryCreated = false;
   let primaryFailure = false;
   try {
     handle = await fs.promises.open(
       temporary,
-      fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY,
+      fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_RDWR,
       0o600,
     );
-    temporaryCreated = true;
     await failpoint?.("after-temp-open");
     await handle.writeFile(bytes);
     await failpoint?.("after-temp-write");
     await handle.sync();
     await failpoint?.("after-temp-sync");
-    await handle.close();
-    handle = null;
-
-    const temporaryStat = await fs.promises.lstat(temporary);
+    const temporaryStat = await fs.promises.lstat(temporary, { bigint: true });
     if (!temporaryStat.isFile() || temporaryStat.isSymbolicLink()) {
       fail("durable temporary path stopped being a regular file");
     }
+    const temporaryHandleStat = await handle.stat({ bigint: true });
+    if (
+      !temporaryHandleStat.isFile() ||
+      temporaryHandleStat.dev !== temporaryStat.dev ||
+      temporaryHandleStat.ino !== temporaryStat.ino ||
+      temporaryHandleStat.size !== BigInt(bytes.byteLength)
+    ) {
+      fail("durable temporary handle stopped matching its pathname and bytes");
+    }
+    const linkedIdentity = Object.freeze({
+      dev: temporaryHandleStat.dev,
+      ino: temporaryHandleStat.ino,
+    });
     try {
       await fs.promises.link(temporary, filePath);
     } catch (error) {
@@ -1595,20 +1636,43 @@ export async function durableCreateNoClobber(
       }
       throw error;
     }
-    const publishedStat = await fs.promises.lstat(filePath);
+    // Transfer the exclusive-create capability immediately after link(2)
+    // succeeds. No fallible pathname observation may reopen a gap in which a
+    // caller loses the only unambiguous reference to its own published inode.
+    if (transferLinkedFileHandle) {
+      const transferResult = transferLinkedFileHandle(handle, linkedIdentity);
+      if (transferResult !== undefined) {
+        fail("durable linked handle receiver must return synchronously");
+      }
+      handle = null;
+    }
+    await failpoint?.("after-link-before-final-stat", linkedIdentity);
+    const publishedStat = await fs.promises.lstat(filePath, { bigint: true });
     if (
       !publishedStat.isFile() ||
       publishedStat.isSymbolicLink() ||
       publishedStat.dev !== temporaryStat.dev ||
-      publishedStat.ino !== temporaryStat.ino
+      publishedStat.ino !== temporaryStat.ino ||
+      publishedStat.size !== temporaryHandleStat.size
     ) {
       fail("durable publish did not create the expected regular hard link");
     }
-    await failpoint?.("after-link");
+    await failpoint?.("after-link", linkedIdentity);
     await syncDirectory(directory);
     await failpoint?.("after-directory-sync");
+    const beforeTempUnlink = await fs.promises.lstat(temporary, {
+      bigint: true,
+    });
+    if (
+      !beforeTempUnlink.isFile() ||
+      beforeTempUnlink.isSymbolicLink() ||
+      beforeTempUnlink.dev !== linkedIdentity.dev ||
+      beforeTempUnlink.ino !== linkedIdentity.ino ||
+      beforeTempUnlink.size !== temporaryHandleStat.size
+    ) {
+      fail("refusing to unlink a replaced durable temporary pathname");
+    }
     await fs.promises.unlink(temporary);
-    temporaryCreated = false;
     await failpoint?.("after-temp-unlink");
     await syncDirectory(directory);
   } catch (error) {
@@ -1617,16 +1681,10 @@ export async function durableCreateNoClobber(
   } finally {
     try {
       if (handle) await handle.close();
-      if (temporaryCreated) {
-        const temporaryStat = await lstatMaybe(temporary);
-        if (temporaryStat) {
-          if (!temporaryStat.isFile() || temporaryStat.isSymbolicLink()) {
-            fail("refusing to clean a replaced durable temporary path");
-          }
-          await fs.promises.unlink(temporary);
-          await syncDirectory(directory);
-        }
-      }
+      // No pathname cleanup is attempted from finally. A primary failure
+      // deliberately leaves the random temp entry in the partial root because
+      // cleanup cannot atomically prove inode ownership and could delete a
+      // foreign replacement.
     } catch (cleanupError) {
       if (!primaryFailure) throw cleanupError;
     }

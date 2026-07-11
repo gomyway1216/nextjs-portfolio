@@ -723,6 +723,7 @@ describe("durable no-clobber publication", () => {
       "after-temp-sync",
     ];
     const afterLink: FloodgateDurableCreatePhase[] = [
+      "after-link-before-final-stat",
       "after-link",
       "after-directory-sync",
       "after-temp-unlink",
@@ -750,15 +751,129 @@ describe("durable no-clobber publication", () => {
       if (exists) {
         expect(await fs.promises.readFile(target, "utf8")).toBe("durable");
       }
-      expect(
-        (await fs.promises.readdir(path.dirname(target))).some((entry) =>
-          entry.endsWith(".tmp"),
-        ),
-      ).toBe(false);
+      const temporaryEntries = (
+        await fs.promises.readdir(path.dirname(target))
+      ).filter((entry) => entry.endsWith(".tmp"));
+      expect(temporaryEntries).toHaveLength(
+        phase === "after-temp-unlink" ? 0 : 1,
+      );
     }
   });
 
-  it("preserves a primary publication failure when cleanup also fails", async () => {
+  it("reports the held inode only at checkpoints after link succeeds", async () => {
+    const root = await temporaryRoot();
+    const target = path.join(root, "store", "linked-identity");
+    await fs.promises.mkdir(path.dirname(target), { recursive: true });
+    const observed: Readonly<{ dev: bigint; ino: bigint }>[] = [];
+    await durableCreateNoClobber(target, "durable", {
+      failpoint: (phase, linkedIdentity) => {
+        if (
+          phase === "after-link-before-final-stat" ||
+          phase === "after-link"
+        ) {
+          if (!linkedIdentity) throw new Error("linked identity was omitted");
+          observed.push(linkedIdentity);
+        } else {
+          expect(linkedIdentity).toBeUndefined();
+        }
+      },
+    });
+    const stat = await fs.promises.lstat(target, { bigint: true });
+    expect(observed).toEqual([
+      { dev: stat.dev, ino: stat.ino },
+      { dev: stat.dev, ino: stat.ino },
+    ]);
+  });
+
+  it("transfers the original linked O_RDWR handle and leaves it caller-owned", async () => {
+    const root = await temporaryRoot();
+    const target = path.join(root, "store", "transferred-handle");
+    await fs.promises.mkdir(path.dirname(target), { recursive: true });
+    let transferred: fs.promises.FileHandle | null = null;
+    let identity: Readonly<{ dev: bigint; ino: bigint }> | null = null;
+    await durableCreateNoClobber(target, "durable", {
+      transferLinkedFileHandle: (handle, linkedIdentity) => {
+        transferred = handle;
+        identity = linkedIdentity;
+      },
+    });
+
+    const handle = transferred as fs.promises.FileHandle | null;
+    if (!handle || !identity)
+      throw new Error("linked handle was not transferred");
+    try {
+      const handleStat = await handle.stat({ bigint: true });
+      const pathStat = await fs.promises.lstat(target, { bigint: true });
+      expect({ dev: handleStat.dev, ino: handleStat.ino }).toEqual(identity);
+      expect({ dev: pathStat.dev, ino: pathStat.ino }).toEqual(identity);
+      expect(handleStat.size).toBe(BigInt(Buffer.byteLength("durable")));
+    } finally {
+      await handle.close();
+    }
+  });
+
+  it("rejects an asynchronous handle receiver and closes its untransferred handle", async () => {
+    const root = await temporaryRoot();
+    const target = path.join(root, "store", "async-handle-receiver");
+    await fs.promises.mkdir(path.dirname(target), { recursive: true });
+    let received: fs.promises.FileHandle | null = null;
+    await expect(
+      durableCreateNoClobber(target, "durable", {
+        transferLinkedFileHandle: async (handle) => {
+          received = handle;
+        },
+      }),
+    ).rejects.toThrow(/receiver must return synchronously/);
+
+    const handle = received as fs.promises.FileHandle | null;
+    if (!handle) throw new Error("async receiver did not observe the handle");
+    await expect(handle.stat()).rejects.toMatchObject({ code: "EBADF" });
+  });
+
+  it("refuses transfer when the temp pathname no longer names the open inode", async () => {
+    const root = await temporaryRoot();
+    const directory = path.join(root, "store");
+    const target = path.join(directory, "replaced-temp");
+    await fs.promises.mkdir(directory);
+    let transferCount = 0;
+    let replacementTemporaryPath: string | null = null;
+    const replacementBytes = "foreign";
+    await expect(
+      durableCreateNoClobber(target, "durable", {
+        failpoint: async (phase) => {
+          if (phase !== "after-temp-sync") return;
+          const temporary = (await fs.promises.readdir(directory)).find(
+            (entry) => entry.endsWith(".tmp"),
+          );
+          if (!temporary) throw new Error("durable temp was not found");
+          const temporaryPath = path.join(directory, temporary);
+          replacementTemporaryPath = temporaryPath;
+          await fs.promises.rename(
+            temporaryPath,
+            `${temporaryPath}.publisher-owned-displaced`,
+          );
+          await fs.promises.writeFile(temporaryPath, replacementBytes, {
+            flag: "wx",
+          });
+        },
+        transferLinkedFileHandle: () => {
+          transferCount += 1;
+        },
+      }),
+    ).rejects.toThrow(/handle stopped matching its pathname/);
+    expect(transferCount).toBe(0);
+    await expect(fs.promises.lstat(target)).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+    if (!replacementTemporaryPath) {
+      throw new Error("replacement temp path was not captured");
+    }
+    await expect(
+      fs.promises.readFile(replacementTemporaryPath, "utf8"),
+    ).resolves.toBe(replacementBytes);
+  });
+
+  it("never unlinks a temporary pathname after a primary failure", async () => {
     const root = await temporaryRoot();
     const target = path.join(root, "store", "primary-error");
     await fs.promises.mkdir(path.dirname(target), { recursive: true });
@@ -775,9 +890,15 @@ describe("durable no-clobber publication", () => {
           },
         }),
       ).rejects.toThrow("primary publication failure");
+      expect(unlink).not.toHaveBeenCalled();
     } finally {
       unlink.mockRestore();
     }
+    expect(
+      (await fs.promises.readdir(path.dirname(target))).filter((entry) =>
+        entry.endsWith(".tmp"),
+      ),
+    ).toHaveLength(1);
   });
 });
 
@@ -908,6 +1029,7 @@ describe("strict existing object and receipt verification", () => {
 
   it("never mistakes post-link durability failures for an idempotent CAS race", async () => {
     const phases: FloodgateDurableCreatePhase[] = [
+      "after-link-before-final-stat",
       "after-link",
       "after-directory-sync",
     ];

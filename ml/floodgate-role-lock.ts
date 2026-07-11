@@ -65,6 +65,13 @@ import {
   parseFloodgateDailyRatingUrl,
   type FloodgateEligibleCsaRatingDecision,
 } from "./floodgate-source";
+import {
+  FLOODGATE_GIT_COMMAND_PREFIX,
+  FLOODGATE_GIT_EXECUTABLE,
+  assertFloodgateGitTrackedTreeMatchesHead,
+  floodgateGitEnvironment,
+  floodgateGitTrackedEntriesAreOrdinary,
+} from "./floodgate-git";
 import { parseFloodgateCsa } from "./import-csa-games";
 
 export const FLOODGATE_ROLE_LOCK_SCHEMA =
@@ -73,6 +80,11 @@ export const FLOODGATE_ROLE_LOCK_MINIMUM_PRODUCER_REVISION =
   "3da276f56378a2bb973e43f0e3d63f84ae1b4be0" as const;
 export const FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME = "manifest.json" as const;
 export const FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL = "!" as const;
+export const FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH =
+  "ml/protocols/floodgate-q1-2026-role-lock-result.json" as const;
+export const FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES = 5764 as const;
+export const FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256 =
+  "14a7365bc484e0876a36196fab5a66f73e00ad3c39b1bfd7877e7931b5fd4f00" as const;
 export const FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME =
   "materialized-input.json" as const;
 export const FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME =
@@ -105,7 +117,8 @@ export interface FloodgateRoleLockIndexedGame {
   readonly object: string;
 }
 
-export interface FloodgateRoleLockInspectedGame extends FloodgateRoleLockIndexedGame {
+export interface FloodgateRoleLockInspectedGame
+  extends FloodgateRoleLockIndexedGame {
   readonly player_identities: readonly [string, string];
 }
 
@@ -308,8 +321,19 @@ export interface VerifiedFloodgateRoleLock {
   readonly rawManifest: Readonly<FloodgateRawLockManifest>;
   readonly producerRevision: string;
   readonly verifierRevision: string;
+  readonly resultReceipt: FloodgateRoleLockArtifactIdentity;
   readonly filesystemClosure: Readonly<FloodgateRoleLockFilesystemClosure>;
 }
+
+export type FloodgateRoleLockResultBindingEvidence = Pick<
+  VerifiedFloodgateRoleLock,
+  | "allocationText"
+  | "manifest"
+  | "manifestText"
+  | "materializedInputText"
+  | "producerRevision"
+  | "rawManifest"
+>;
 
 function fail(message: string): never {
   throw new Error(`invalid Floodgate role lock: ${message}`);
@@ -1510,73 +1534,132 @@ async function assertGitRevision(
     fail("repository root must not traverse symbolic links");
   }
   const { stdout: topLevel } = await execFile(
-    "git",
-    ["--no-optional-locks", "rev-parse", "--show-toplevel"],
-    { cwd: repositoryRoot, encoding: "utf8" },
+    FLOODGATE_GIT_EXECUTABLE,
+    [...FLOODGATE_GIT_COMMAND_PREFIX, "rev-parse", "--show-toplevel"],
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      env: floodgateGitEnvironment(),
+    },
   );
   if (topLevel.trim() !== repositoryRoot) {
     fail("repository root must be the exact Git worktree root");
   }
   const { stdout: revision } = await execFile(
-    "git",
-    ["--no-optional-locks", "rev-parse", "HEAD"],
-    { cwd: repositoryRoot, encoding: "utf8" },
+    FLOODGATE_GIT_EXECUTABLE,
+    [...FLOODGATE_GIT_COMMAND_PREFIX, "rev-parse", "HEAD"],
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      env: floodgateGitEnvironment(),
+    },
   );
   if (revision.trim() !== expectedRevision) {
     fail("Git revision changed during role locking");
   }
   const { stdout: status } = await execFile(
-    "git",
-    ["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=no"],
-    { cwd: repositoryRoot, encoding: "utf8" },
+    FLOODGATE_GIT_EXECUTABLE,
+    [
+      ...FLOODGATE_GIT_COMMAND_PREFIX,
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=no",
+    ],
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      env: floodgateGitEnvironment(),
+    },
   );
-  if (status !== "") fail("tracked Git tree must be clean during role locking");
+  const { stdout: trackedFlags } = await execFile(
+    FLOODGATE_GIT_EXECUTABLE,
+    [...FLOODGATE_GIT_COMMAND_PREFIX, "ls-files", "-v", "-z"],
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      env: floodgateGitEnvironment(),
+    },
+  );
+  if (status !== "" || !floodgateGitTrackedEntriesAreOrdinary(trackedFlags)) {
+    fail("tracked Git tree must be clean during role locking");
+  }
+  await assertFloodgateGitTrackedTreeMatchesHead(repositoryRoot).catch(() =>
+    fail("tracked Git bytes must match HEAD during role locking"),
+  );
 }
 
 async function assertVerifierGitClosure(
   repositoryRoot: string,
   verifierRevision: string,
   producerRevision: string,
+  rawProducerRevision?: string,
 ): Promise<void> {
   await assertGitRevision(repositoryRoot, verifierRevision);
   const { stdout: fullStatus } = await execFile(
-    "git",
+    FLOODGATE_GIT_EXECUTABLE,
     [
-      "--no-optional-locks",
+      ...FLOODGATE_GIT_COMMAND_PREFIX,
       "status",
       "--porcelain=v1",
       "--untracked-files=all",
     ],
-    { cwd: repositoryRoot, encoding: "utf8" },
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      env: floodgateGitEnvironment(),
+    },
   );
   if (fullStatus !== "") {
     fail("role-lock verification requires a fully clean Git worktree");
   }
   try {
     await execFile(
-      "git",
+      FLOODGATE_GIT_EXECUTABLE,
       [
-        "--no-replace-objects",
-        "--no-optional-locks",
+        ...FLOODGATE_GIT_COMMAND_PREFIX,
         "merge-base",
         "--is-ancestor",
         FLOODGATE_ROLE_LOCK_MINIMUM_PRODUCER_REVISION,
         producerRevision,
       ],
-      { cwd: repositoryRoot, encoding: "utf8" },
+      {
+        cwd: repositoryRoot,
+        encoding: "utf8",
+        env: floodgateGitEnvironment(),
+      },
     );
     await execFile(
-      "git",
+      FLOODGATE_GIT_EXECUTABLE,
       [
-        "--no-replace-objects",
-        "--no-optional-locks",
+        ...FLOODGATE_GIT_COMMAND_PREFIX,
         "merge-base",
         "--is-ancestor",
         producerRevision,
         verifierRevision,
       ],
-      { cwd: repositoryRoot, encoding: "utf8" },
+      {
+        cwd: repositoryRoot,
+        encoding: "utf8",
+        env: floodgateGitEnvironment(),
+      },
     );
+    if (rawProducerRevision !== undefined) {
+      await execFile(
+        FLOODGATE_GIT_EXECUTABLE,
+        [
+          ...FLOODGATE_GIT_COMMAND_PREFIX,
+          "merge-base",
+          "--is-ancestor",
+          assertRevision(rawProducerRevision),
+          producerRevision,
+        ],
+        {
+          cwd: repositoryRoot,
+          encoding: "utf8",
+          env: floodgateGitEnvironment(),
+        },
+      );
+    }
   } catch {
     fail(
       "role-lock producer revision is outside the audited producer/verifier ancestry",
@@ -1697,6 +1780,405 @@ function artifactIdentity(
     bytes: Buffer.byteLength(contents, "utf8"),
     sha256: sha256Hex(contents),
   });
+}
+
+const FLOODGATE_ROLE_LOCK_RESULT_SCHEMA =
+  "shogi-floodgate-role-lock-result-v1" as const;
+const FLOODGATE_ROLE_LOCK_RESULT_FULL_REPLAY_STATUS = "pass" as const;
+
+function roleLockResultArtifactIdentity(contents: string): Readonly<{
+  bytes: number;
+  sha256: string;
+}> {
+  return Object.freeze({
+    bytes: Buffer.byteLength(contents, "utf8"),
+    sha256: sha256Hex(contents),
+  });
+}
+
+function roleLockResultCapReconstruction(
+  summary: FloodgatePureAllocationArtifact["output"]["role_summaries"][FloodgateRole],
+): Readonly<{
+  identity_entries: number;
+  identity_game_sum: number;
+  identity_game_max: number;
+  unordered_pair_entries: number;
+  unordered_pair_game_sum: number;
+  unordered_pair_game_max: number;
+}> {
+  const identityGames = summary.identity_game_counts.map(
+    (entry) => entry.games,
+  );
+  const pairGames = summary.unordered_identity_pair_game_counts.map(
+    (entry) => entry.games,
+  );
+  return Object.freeze({
+    identity_entries: identityGames.length,
+    identity_game_sum: identityGames.reduce((sum, count) => sum + count, 0),
+    identity_game_max: Math.max(0, ...identityGames),
+    unordered_pair_entries: pairGames.length,
+    unordered_pair_game_sum: pairGames.reduce((sum, count) => sum + count, 0),
+    unordered_pair_game_max: Math.max(0, ...pairGames),
+  });
+}
+
+function expectedRoleLockResultBinding(
+  evidence: Readonly<FloodgateRoleLockResultBindingEvidence>,
+): Readonly<Record<string, unknown>> {
+  const { manifest } = evidence;
+  if (
+    evidence.producerRevision !== manifest.pipeline.source_revision ||
+    !isDeepStrictEqual(
+      artifactIdentity(
+        "manifest.json",
+        serializeFloodgateRawLockManifest(evidence.rawManifest),
+      ),
+      manifest.raw_lock.manifest,
+    ) ||
+    !isDeepStrictEqual(
+      artifactIdentity(
+        FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
+        evidence.materializedInputText,
+      ),
+      manifest.artifacts.materialized_input,
+    ) ||
+    !isDeepStrictEqual(
+      artifactIdentity(
+        FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME,
+        evidence.allocationText,
+      ),
+      manifest.artifacts.allocation,
+    )
+  ) {
+    fail("role-lock result evidence artifact bytes do not close");
+  }
+  const accounting = manifest.accounting;
+  const roles = Object.fromEntries(
+    FLOODGATE_ROLE_PRIORITY.map((role) => {
+      const summary = manifest.role_summaries[role];
+      return [
+        role,
+        Object.freeze({
+          games: summary.selected_games,
+          parents: summary.selected_parents,
+          identity_game_cap: summary.identity_game_cap,
+          unordered_identity_pair_game_cap:
+            summary.unordered_identity_pair_game_cap,
+          game_ids_sha256: summary.game_ids_sha256,
+          parent_ids_sha256: summary.parent_ids_sha256,
+          protected_position_ids_count: summary.protected_position_ids_count,
+          protected_position_ids_sha256: summary.protected_position_ids_sha256,
+        }),
+      ];
+    }),
+  );
+  const capReconstruction = Object.fromEntries(
+    FLOODGATE_ROLE_PRIORITY.map((role) => [
+      role,
+      roleLockResultCapReconstruction(manifest.role_summaries[role]),
+    ]),
+  );
+  return Object.freeze({
+    schema: FLOODGATE_ROLE_LOCK_RESULT_SCHEMA,
+    status: manifest.status,
+    pipeline: Object.freeze({
+      source_revision: evidence.producerRevision,
+      tracked_tree_clean: manifest.pipeline.tracked_tree_clean,
+    }),
+    provenance: manifest.provenance,
+    inputs: Object.freeze({
+      raw_manifest: Object.freeze({
+        bytes: manifest.raw_lock.manifest.bytes,
+        sha256: manifest.raw_lock.manifest.sha256,
+        canonical_games: manifest.raw_lock.canonical_games,
+        duplicate_groups: manifest.raw_lock.duplicate_groups,
+        duplicate_aliases: manifest.raw_lock.duplicate_aliases,
+      }),
+      legacy_protected_position_ids: Object.freeze({
+        bytes: manifest.legacy_protected_position_ids.bytes,
+        sha256: manifest.legacy_protected_position_ids.sha256,
+        count: manifest.legacy_protected_position_ids.count,
+        identifiers_sha256:
+          manifest.legacy_protected_position_ids.identifiers_sha256,
+      }),
+    }),
+    accounting: Object.freeze({
+      indexed_csa_rows: accounting.indexed_csa_rows,
+      source_metadata_eligible_games: accounting.source_metadata_eligible_games,
+      source_metadata_ineligible_games:
+        accounting.source_metadata_ineligible_games,
+      lazy_materialization_attempts: accounting.lazy_materialization_attempts,
+      fully_materialized_games: accounting.fully_materialized_games,
+      full_source_or_legality_rejections:
+        accounting.full_source_or_legality_rejections,
+      semantic_or_parent_quota_rejections:
+        accounting.semantic_or_parent_quota_rejections,
+      identity_cap_role_checks_skipped_before_materialization:
+        accounting.identity_cap_role_checks_skipped_before_materialization,
+      unordered_pair_cap_role_checks_skipped_before_materialization:
+        accounting.unordered_pair_cap_role_checks_skipped_before_materialization,
+    }),
+    roles: Object.freeze(roles),
+    aggregate_identities: Object.freeze({
+      selected_games_sha256: manifest.all_selected_game_ids_sha256,
+      selected_parents_sha256: manifest.all_selected_parent_ids_sha256,
+      protected_position_ids_count: manifest.all_protected_position_ids_count,
+      protected_position_ids_sha256: manifest.all_protected_position_ids_sha256,
+    }),
+    artifacts: Object.freeze({
+      manifest: roleLockResultArtifactIdentity(evidence.manifestText),
+      materialized_input: roleLockResultArtifactIdentity(
+        evidence.materializedInputText,
+      ),
+      allocation: roleLockResultArtifactIdentity(evidence.allocationText),
+    }),
+    post_run_audit: Object.freeze({
+      exact_root_entries: Object.freeze([
+        FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME,
+        FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
+        FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
+      ]),
+      all_entries_regular_non_symlink_files: true,
+      artifact_identities_match_manifest: true,
+      accounting_and_cap_arithmetic: "pass",
+      independent_fast_audit: "pass",
+      cross_role_overlap: Object.freeze({ game_ids: 0, parent_ids: 0 }),
+      shape_and_uniqueness: Object.freeze({
+        each_game_has_two_distinct_identities: true,
+        each_game_has_24_parents: true,
+        protected_position_ids_duplicate_free_within_roles: true,
+        protected_position_ids_role_sum_matches_aggregate: true,
+      }),
+      cap_reconstruction: Object.freeze(capReconstruction),
+      key_name_audit: Object.freeze({ allowed_hits: 4, unexpected_hits: 0 }),
+      label_blind_flags: Object.freeze({
+        teacher_or_candidate_scores_consumed: false,
+        teacher_or_candidate_scores_read:
+          manifest.provenance.teacher_or_candidate_scores_read,
+        winner_opening_quality_or_score_filtering:
+          manifest.source_filter.winner_opening_quality_or_score_filtering,
+        existing_final_holdout_opened:
+          manifest.provenance.existing_final_holdout_opened,
+      }),
+      independent_full_replay_verification:
+        FLOODGATE_ROLE_LOCK_RESULT_FULL_REPLAY_STATUS,
+    }),
+  });
+}
+
+function assertStrictRoleLockResultObject(
+  value: unknown,
+  label: string,
+): Record<string, unknown> {
+  if (
+    nodeUtilTypes.isProxy(value) ||
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Object.prototype ||
+    Object.getOwnPropertySymbols(value).length !== 0
+  ) {
+    fail(`${label} must be a non-Proxy plain object without symbol keys`);
+  }
+  for (const key of Object.getOwnPropertyNames(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
+      fail(`${label}.${key} must be an enumerable data property`);
+    }
+  }
+  return value as Record<string, unknown>;
+}
+
+function roleLockResultBindingProjection(
+  candidate: unknown,
+): Readonly<Record<string, unknown>> {
+  const result = assertStrictRoleLockResultObject(
+    candidate,
+    "role-lock result receipt",
+  );
+  assertExactKeys(
+    result,
+    [
+      "accounting",
+      "aggregate_identities",
+      "artifacts",
+      "inputs",
+      "pipeline",
+      "post_run_audit",
+      "provenance",
+      "roles",
+      "runtime_observation",
+      "schema",
+      "status",
+    ],
+    "role-lock result receipt",
+  );
+  const roles = assertStrictRoleLockResultObject(
+    result.roles,
+    "role-lock result roles",
+  );
+  assertExactKeys(roles, FLOODGATE_ROLE_PRIORITY, "role-lock result roles");
+  const projectedRoles = Object.fromEntries(
+    FLOODGATE_ROLE_PRIORITY.map((role) => [
+      role,
+      assertStrictRoleLockResultObject(
+        roles[role],
+        `role-lock result role ${role}`,
+      ),
+    ]),
+  );
+  const postRun = assertStrictRoleLockResultObject(
+    result.post_run_audit,
+    "role-lock result post-run audit",
+  );
+  return Object.freeze({
+    schema: result.schema,
+    status: result.status,
+    pipeline: assertStrictRoleLockResultObject(
+      result.pipeline,
+      "role-lock result pipeline",
+    ),
+    provenance: assertStrictRoleLockResultObject(
+      result.provenance,
+      "role-lock result provenance",
+    ),
+    inputs: assertStrictRoleLockResultObject(
+      result.inputs,
+      "role-lock result inputs",
+    ),
+    accounting: assertStrictRoleLockResultObject(
+      result.accounting,
+      "role-lock result accounting",
+    ),
+    roles: Object.freeze(projectedRoles),
+    aggregate_identities: assertStrictRoleLockResultObject(
+      result.aggregate_identities,
+      "role-lock result aggregate identities",
+    ),
+    artifacts: assertStrictRoleLockResultObject(
+      result.artifacts,
+      "role-lock result artifacts",
+    ),
+    post_run_audit: postRun,
+  });
+}
+
+function assertRoleLockResultBinding(
+  candidate: unknown,
+  evidence: Readonly<FloodgateRoleLockResultBindingEvidence>,
+): void {
+  if (
+    !isDeepStrictEqual(
+      roleLockResultBindingProjection(candidate),
+      expectedRoleLockResultBinding(evidence),
+    )
+  ) {
+    fail("tracked role-lock result receipt does not bind the verified run");
+  }
+}
+
+function parsePinnedRoleLockResultReceipt(bytes: Uint8Array): unknown {
+  if (
+    bytes.byteLength !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES ||
+    sha256Hex(bytes) !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256
+  ) {
+    fail("tracked role-lock result receipt identity is not pinned");
+  }
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      bytes,
+    );
+  } catch {
+    return fail("tracked role-lock result receipt is not fatal-valid UTF-8");
+  }
+  if (
+    text.startsWith("\ufeff") ||
+    text.includes("\0") ||
+    text.includes("\r") ||
+    !text.endsWith("\n") ||
+    text.endsWith("\n\n")
+  ) {
+    fail("tracked role-lock result receipt framing is invalid");
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return fail("tracked role-lock result receipt is not valid JSON");
+  }
+}
+
+interface VerifiedTrackedRoleLockResultReceipt {
+  readonly identity: Readonly<FloodgateRoleLockArtifactIdentity>;
+  readonly filesystemIdentity: Readonly<FloodgateRegularFileIdentity>;
+}
+
+async function verifyTrackedRoleLockResultReceipt(
+  repositoryRoot: string,
+  evidence: Readonly<FloodgateRoleLockResultBindingEvidence>,
+): Promise<Readonly<VerifiedTrackedRoleLockResultReceipt>> {
+  const receiptPath = path.join(
+    repositoryRoot,
+    FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+  );
+  const snapshot = await readRegularFileSnapshotNoFollow(receiptPath);
+  const candidate = parsePinnedRoleLockResultReceipt(snapshot.bytes);
+  assertRoleLockResultBinding(candidate, evidence);
+  return Object.freeze({
+    identity: Object.freeze({
+      path: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+      bytes: snapshot.bytes.byteLength,
+      sha256: sha256Hex(snapshot.bytes),
+    }),
+    filesystemIdentity: snapshot.identity,
+  });
+}
+
+/** Explicit non-production seam for fixed receipt identity tests. */
+export function parsePinnedFloodgateRoleLockResultReceiptCoreForTests(
+  bytes: Uint8Array,
+): unknown {
+  return parsePinnedRoleLockResultReceipt(bytes);
+}
+
+/** Explicit non-production seam for result-to-artifact binding tests. */
+export function expectedFloodgateRoleLockResultBindingCoreForTests(
+  evidence: Readonly<FloodgateRoleLockResultBindingEvidence>,
+): Readonly<Record<string, unknown>> {
+  return expectedRoleLockResultBinding(evidence);
+}
+
+/** Explicit non-production seam for result-to-artifact tamper tests. */
+export function assertFloodgateRoleLockResultBindingCoreForTests(
+  candidate: unknown,
+  evidence: Readonly<FloodgateRoleLockResultBindingEvidence>,
+): void {
+  assertRoleLockResultBinding(candidate, evidence);
+}
+
+/** Explicit non-production seam for receipt projection tamper tests. */
+export function projectFloodgateRoleLockResultBindingCoreForTests(
+  candidate: unknown,
+): Readonly<Record<string, unknown>> {
+  return roleLockResultBindingProjection(candidate);
+}
+
+/** Explicit non-production seam for receipt projection equality tests. */
+export function assertFloodgateRoleLockResultProjectionCoreForTests(
+  candidate: unknown,
+  expectedProjection: unknown,
+): void {
+  if (
+    !isDeepStrictEqual(
+      roleLockResultBindingProjection(candidate),
+      assertStrictRoleLockResultObject(
+        expectedProjection,
+        "non-production expected role-lock result projection",
+      ),
+    )
+  ) {
+    fail("role-lock result projection does not match expected evidence");
+  }
 }
 
 interface ManifestEvidence {
@@ -2909,6 +3391,7 @@ export async function verifyExistingFloodgateRoleLock(
     repositoryRoot,
     verifierRevision,
     producerRevision,
+    rawManifest.source.revision,
   );
   const finalRoleLock =
     await readExistingFloodgateRoleLockSnapshot(roleLockRoot);
@@ -2926,6 +3409,39 @@ export async function verifyExistingFloodgateRoleLock(
     fail("existing role-lock artifacts changed before verification completed");
   }
 
+  const resultEvidence: FloodgateRoleLockResultBindingEvidence = Object.freeze({
+    manifest,
+    manifestText: initialRoleLock.manifestText,
+    materializedInputText: initialRoleLock.materializedInputText,
+    allocationText: initialRoleLock.allocationText,
+    rawManifest,
+    producerRevision,
+  });
+  const resultReceipt = await verifyTrackedRoleLockResultReceipt(
+    repositoryRoot,
+    resultEvidence,
+  );
+  await assertVerifierGitClosure(
+    repositoryRoot,
+    verifierRevision,
+    producerRevision,
+    rawManifest.source.revision,
+  );
+  const finalResultReceipt = await verifyTrackedRoleLockResultReceipt(
+    repositoryRoot,
+    resultEvidence,
+  );
+  assertSameRegularFileIdentity(
+    finalResultReceipt.filesystemIdentity,
+    resultReceipt.filesystemIdentity,
+    "tracked role-lock result receipt during verification",
+  );
+  if (!isDeepStrictEqual(finalResultReceipt.identity, resultReceipt.identity)) {
+    fail(
+      "tracked role-lock result receipt identity changed during verification",
+    );
+  }
+
   return Object.freeze({
     manifest,
     manifestText: initialRoleLock.manifestText,
@@ -2935,6 +3451,7 @@ export async function verifyExistingFloodgateRoleLock(
     rawManifest,
     producerRevision,
     verifierRevision,
+    resultReceipt: resultReceipt.identity,
     filesystemClosure: initialRoleLock.filesystemClosure,
   });
 }

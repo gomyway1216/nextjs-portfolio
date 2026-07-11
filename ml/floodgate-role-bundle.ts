@@ -35,7 +35,17 @@ import {
   type FloodgateReplayExclusionUnionReceipt,
 } from "./floodgate-replay-exclusion";
 import {
+  FLOODGATE_GIT_COMMAND_PREFIX,
+  FLOODGATE_GIT_EXECUTABLE,
+  assertFloodgateGitTrackedTreeMatchesHead,
+  floodgateGitEnvironment,
+  floodgateGitTrackedEntriesAreOrdinary,
+} from "./floodgate-git";
+import {
   assertExistingFloodgateRoleLockFilesystemClosure,
+  FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES,
+  FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+  FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256,
   verifyExistingFloodgateRoleLock,
   type FloodgateRoleLockFilesystemClosure,
   type VerifiedFloodgateRoleLock,
@@ -105,7 +115,8 @@ export interface FloodgateRoleBundleRawParent {
   readonly played_move: string;
 }
 
-export interface FloodgateRoleBundleRawIdentity extends FloodgateRoleBundleFileIdentity {
+export interface FloodgateRoleBundleRawIdentity
+  extends FloodgateRoleBundleFileIdentity {
   readonly format: typeof FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT;
   readonly records: number;
   readonly games: number;
@@ -115,7 +126,8 @@ export interface FloodgateRoleBundleRawIdentity extends FloodgateRoleBundleFileI
   readonly position_ids_sha256: string;
 }
 
-export interface FloodgateRoleBundleProtectedIdentity extends FloodgateRoleBundleFileIdentity {
+export interface FloodgateRoleBundleProtectedIdentity
+  extends FloodgateRoleBundleFileIdentity {
   readonly format: typeof FLOODGATE_PROTECTED_POSITION_ID_FORMAT;
   readonly count: number;
   readonly identifiers_sha256: string;
@@ -152,6 +164,7 @@ export interface FloodgateRoleBundleManifest {
     readonly role_lock: {
       readonly manifest: FloodgateRoleBundleFileIdentity;
       readonly allocation: FloodgateRoleBundleFileIdentity;
+      readonly result_receipt: FloodgateRoleBundleFileIdentity;
       readonly producer_revision: string;
       readonly verifier_revision: string;
     };
@@ -199,11 +212,13 @@ export interface FloodgateRoleBundleManifest {
   };
 }
 
-export interface CreateFloodgateRoleBundleOptions extends VerifyExistingFloodgateRoleLockOptions {
+export interface CreateFloodgateRoleBundleOptions
+  extends VerifyExistingFloodgateRoleLockOptions {
   readonly outputRoot: string;
 }
 
-export interface VerifyExistingFloodgateRoleBundleOptions extends VerifyExistingFloodgateRoleLockOptions {
+export interface VerifyExistingFloodgateRoleBundleOptions
+  extends VerifyExistingFloodgateRoleLockOptions {
   readonly outputRoot: string;
 }
 
@@ -437,6 +452,7 @@ function parseCanonicalManifest(bytes: Uint8Array): unknown {
 interface HistoricalRoleBundleRevisionBinding {
   readonly bundleProducerRevision: string;
   readonly roleLockProducerRevision: string;
+  readonly rawLockSourceRevision: string;
 }
 
 function manifestRevision(value: unknown, label: string): string {
@@ -505,7 +521,7 @@ function historicalRoleBundleRevisionBinding(
     ["manifest", "source_revision"],
     "existing role-bundle manifest.sources.raw_lock",
   );
-  manifestRevision(
+  const rawLockSourceRevision = manifestRevision(
     rawLock.source_revision,
     "existing role-bundle raw-lock source revision",
   );
@@ -515,7 +531,13 @@ function historicalRoleBundleRevisionBinding(
   );
   exactKeys(
     roleLock,
-    ["allocation", "manifest", "producer_revision", "verifier_revision"],
+    [
+      "allocation",
+      "manifest",
+      "producer_revision",
+      "result_receipt",
+      "verifier_revision",
+    ],
     "existing role-bundle manifest.sources.role_lock",
   );
   const roleLockProducerRevision = manifestRevision(
@@ -531,9 +553,26 @@ function historicalRoleBundleRevisionBinding(
       "existing role-bundle role-lock verifier revision must equal the bundle producer revision",
     );
   }
+  const resultReceipt = strictObject(
+    roleLock.result_receipt,
+    "existing role-bundle manifest.sources.role_lock.result_receipt",
+  );
+  exactKeys(
+    resultReceipt,
+    ["bytes", "path", "sha256"],
+    "existing role-bundle manifest.sources.role_lock.result_receipt",
+  );
+  if (
+    resultReceipt.path !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH ||
+    resultReceipt.bytes !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES ||
+    resultReceipt.sha256 !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256
+  ) {
+    fail("existing role-bundle cites an unpinned role-lock result receipt");
+  }
   return Object.freeze({
     bundleProducerRevision,
     roleLockProducerRevision,
+    rawLockSourceRevision,
   });
 }
 
@@ -555,6 +594,7 @@ async function assertRoleBundleRevisionAncestry(
     ],
     [binding.bundleProducerRevision, verifierRevision],
     [binding.roleLockProducerRevision, binding.bundleProducerRevision],
+    [binding.rawLockSourceRevision, binding.roleLockProducerRevision],
   ] as const;
   for (const [ancestor, descendant] of edges) {
     if (!(await isAncestor(ancestor, descendant))) {
@@ -570,9 +610,13 @@ async function gitOutput(
   arguments_: readonly string[],
 ): Promise<string> {
   const { stdout } = await execFile(
-    "git",
-    ["--no-replace-objects", "--no-optional-locks", ...arguments_],
-    { cwd: repositoryRoot, encoding: "utf8" },
+    FLOODGATE_GIT_EXECUTABLE,
+    [...FLOODGATE_GIT_COMMAND_PREFIX, ...arguments_],
+    {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      env: floodgateGitEnvironment(),
+    },
   );
   return stdout;
 }
@@ -605,15 +649,24 @@ async function assertRoleBundleGitClosure(
       "--porcelain=v1",
       "--untracked-files=all",
     ]);
+    const trackedFlags = await gitOutput(repositoryRoot, [
+      "ls-files",
+      "-v",
+      "-z",
+    ]);
     if (
       topLevel !== repositoryRoot ||
       head !== verifierRevision ||
-      status !== ""
+      status !== "" ||
+      !floodgateGitTrackedEntriesAreOrdinary(trackedFlags)
     ) {
       fail(
         "role-bundle verification requires the exact clean verifier revision",
       );
     }
+    await assertFloodgateGitTrackedTreeMatchesHead(repositoryRoot).catch(() =>
+      fail("role-bundle verification requires exact tracked HEAD bytes"),
+    );
   };
   await assertCurrent();
   await assertRoleBundleRevisionAncestry(
@@ -633,6 +686,22 @@ async function assertRoleBundleGitClosure(
       }
     },
   );
+  const producerReceipt = await gitOutput(repositoryRoot, [
+    "cat-file",
+    "blob",
+    `${binding.bundleProducerRevision}:${FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH}`,
+  ]).catch(() =>
+    fail(
+      "role-bundle producer tree does not contain the pinned result receipt",
+    ),
+  );
+  if (
+    Buffer.byteLength(producerReceipt, "utf8") !==
+      FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES ||
+    sha256Hex(producerReceipt) !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256
+  ) {
+    fail("role-bundle producer tree contains a different result receipt");
+  }
   await assertCurrent();
 }
 
@@ -663,6 +732,10 @@ export async function assertFloodgateRoleBundleRevisionAncestryCoreForTests(
       roleLockProducerRevision: manifestRevision(
         binding.roleLockProducerRevision,
         "non-production role-lock producer revision",
+      ),
+      rawLockSourceRevision: manifestRevision(
+        binding.rawLockSourceRevision,
+        "non-production raw-lock source revision",
       ),
     }),
     verifierRevision,
@@ -705,8 +778,10 @@ async function mapWithLimit<T, R>(
         try {
           output[index] = await operation(values[index], index);
         } catch (error) {
-          failed = true;
-          failure = error;
+          if (!failed) {
+            failure = error;
+            failed = true;
+          }
           return;
         }
       }
@@ -715,6 +790,15 @@ async function mapWithLimit<T, R>(
   await Promise.all(workers);
   if (failed) throw failure;
   return output;
+}
+
+/** Explicit non-production seam for bounded-concurrency failure tests. */
+export async function mapFloodgateRoleBundleWithLimitCoreForTests<T, R>(
+  values: readonly T[],
+  limit: number,
+  operation: (value: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  return mapWithLimit(values, limit, operation);
 }
 
 function canonicalEntriesByGameId(
@@ -983,6 +1067,7 @@ function assertVerifiedRoleLockStable(
     actual.allocationText !== expected.allocationText ||
     actual.producerRevision !== expected.producerRevision ||
     actual.verifierRevision !== expected.verifierRevision ||
+    !isDeepStrictEqual(actual.resultReceipt, expected.resultReceipt) ||
     !sameRoleLockClosureAcrossBundleOperation(
       actual.filesystemClosure,
       expected.filesystemClosure,
@@ -1132,6 +1217,7 @@ async function buildRoleBundle(
       role_lock: {
         manifest: roleManifestIdentity,
         allocation: allocationIdentity,
+        result_receipt: roleLock.resultReceipt,
         producer_revision: roleLock.producerRevision,
         verifier_revision: bundleProducerRevision,
       },
@@ -1283,38 +1369,56 @@ function sameRegularFileSnapshot(
   );
 }
 
-async function openDirectoryNoFollow(
+function openDirectoryNoFollow(
   directory: string,
   label: string,
-): Promise<{
-  handle: fs.promises.FileHandle;
+): {
+  fd: number;
   snapshot: DirectorySnapshot;
-}> {
+} {
   const noFollow = fs.constants.O_NOFOLLOW;
-  if (typeof noFollow !== "number") fail("production requires O_NOFOLLOW");
-  if ((await fs.promises.realpath(directory)) !== directory) {
+  const directoryOnly = fs.constants.O_DIRECTORY;
+  const nonblock = fs.constants.O_NONBLOCK;
+  if (
+    typeof noFollow !== "number" ||
+    typeof directoryOnly !== "number" ||
+    typeof nonblock !== "number"
+  ) {
+    fail("production requires O_NOFOLLOW, O_DIRECTORY, and O_NONBLOCK");
+  }
+  if (fs.realpathSync.native(directory) !== directory) {
     fail(`${label} must not traverse symbolic links`);
   }
-  const pathStat = await fs.promises.lstat(directory, { bigint: true });
+  const pathStat = fs.lstatSync(directory, { bigint: true });
   if (!pathStat.isDirectory() || pathStat.isSymbolicLink()) {
     fail(`${label} must be a real directory`);
   }
-  const handle = await fs.promises.open(
+  const fd = fs.openSync(
     directory,
-    fs.constants.O_RDONLY | noFollow,
+    fs.constants.O_RDONLY | noFollow | directoryOnly | nonblock,
   );
   try {
-    const handleStat = await handle.stat({ bigint: true });
+    const handleStat = fs.fstatSync(fd, { bigint: true });
+    const pathAfter = fs.lstatSync(directory, { bigint: true });
     if (
       !handleStat.isDirectory() ||
       handleStat.dev !== pathStat.dev ||
-      handleStat.ino !== pathStat.ino
+      handleStat.ino !== pathStat.ino ||
+      !pathAfter.isDirectory() ||
+      pathAfter.isSymbolicLink() ||
+      pathAfter.dev !== handleStat.dev ||
+      pathAfter.ino !== handleStat.ino ||
+      fs.realpathSync.native(directory) !== directory
     ) {
       fail(`${label} directory identity changed while opening`);
     }
-    return { handle, snapshot: directorySnapshot(handleStat) };
+    return { fd, snapshot: directorySnapshot(handleStat) };
   } catch (error) {
-    await handle.close().catch(() => undefined);
+    try {
+      fs.closeSync(fd);
+    } catch {
+      // Preserve the identity/opening failure.
+    }
     throw error;
   }
 }
@@ -1322,8 +1426,8 @@ async function openDirectoryNoFollow(
 class RoleBundleOutputRootGuard {
   readonly #root: string;
   readonly #parent: string;
-  readonly #rootHandle: fs.promises.FileHandle;
-  readonly #parentHandle: fs.promises.FileHandle;
+  readonly #rootFd: number;
+  readonly #parentFd: number;
   readonly #rootIdentity: DirectoryIdentity;
   readonly #parentIdentity: DirectoryIdentity;
   readonly #parentCtimeNs: bigint;
@@ -1333,15 +1437,15 @@ class RoleBundleOutputRootGuard {
 
   private constructor(
     root: string,
-    parentHandle: fs.promises.FileHandle,
+    parentFd: number,
     parentSnapshot: DirectorySnapshot,
-    rootHandle: fs.promises.FileHandle,
+    rootFd: number,
     rootSnapshot: DirectorySnapshot,
   ) {
     this.#root = root;
     this.#parent = path.dirname(root);
-    this.#parentHandle = parentHandle;
-    this.#rootHandle = rootHandle;
+    this.#parentFd = parentFd;
+    this.#rootFd = rootFd;
     this.#rootIdentity = Object.freeze({
       dev: rootSnapshot.dev,
       ino: rootSnapshot.ino,
@@ -1359,44 +1463,66 @@ class RoleBundleOutputRootGuard {
   ): Promise<RoleBundleOutputRootGuard> {
     const root = canonicalAbsolutePath(rootInput, "role-bundle output root");
     const parent = path.dirname(root);
-    const openedParent = await openDirectoryNoFollow(
+    const openedParent = openDirectoryNoFollow(
       parent,
       "role-bundle output parent",
     );
-    let rootCreated = false;
-    let rootHandle: fs.promises.FileHandle | null = null;
+    let rootFd: number | null = null;
     try {
       try {
-        await fs.promises.mkdir(root, { mode: 0o700 });
-        rootCreated = true;
+        fs.mkdirSync(root, { mode: 0o700 });
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "EEXIST") {
           fail("role-bundle output root must be freshly created");
         }
         throw error;
       }
-      await openedParent.handle.sync();
-      const parentAfter = await openedParent.handle.stat({ bigint: true });
-      const rootOpened = await openDirectoryNoFollow(
+      fs.fsyncSync(openedParent.fd);
+      const parentAfter = fs.fstatSync(openedParent.fd, { bigint: true });
+      const createdStat = fs.lstatSync(root, { bigint: true });
+      if (
+        !createdStat.isDirectory() ||
+        createdStat.isSymbolicLink() ||
+        (createdStat.mode & BigInt(0o777)) !== BigInt(0o700)
+      ) {
+        fail(
+          "fresh role-bundle output root is not the private directory just created",
+        );
+      }
+      const rootOpened = openDirectoryNoFollow(
         root,
         "fresh role-bundle output root",
       );
-      rootHandle = rootOpened.handle;
+      rootFd = rootOpened.fd;
+      if (
+        rootOpened.snapshot.dev !== createdStat.dev ||
+        rootOpened.snapshot.ino !== createdStat.ino
+      ) {
+        fail("fresh role-bundle output root changed before capability capture");
+      }
       const guard = new RoleBundleOutputRootGuard(
         root,
-        openedParent.handle,
+        openedParent.fd,
         directorySnapshot(parentAfter),
-        rootOpened.handle,
+        rootOpened.fd,
         rootOpened.snapshot,
       );
       await guard.assertState([], false, "fresh output acquisition");
       return guard;
     } catch (error) {
-      if (rootHandle) await rootHandle.close().catch(() => undefined);
-      await openedParent.handle.close().catch(() => undefined);
-      if (rootCreated) {
-        await fs.promises.rmdir(root).catch(() => undefined);
+      if (rootFd !== null) {
+        try {
+          fs.closeSync(rootFd);
+        } catch {
+          // Preserve the acquisition failure.
+        }
       }
+      try {
+        fs.closeSync(openedParent.fd);
+      } catch {
+        // Preserve the acquisition failure.
+      }
+      // Never delete by pathname here: it may now name a foreign directory.
       throw error;
     }
   }
@@ -1407,22 +1533,22 @@ class RoleBundleOutputRootGuard {
   ): Promise<RoleBundleOutputRootGuard> {
     const root = canonicalAbsolutePath(rootInput, "existing role-bundle root");
     const parent = path.dirname(root);
-    const openedParent = await openDirectoryNoFollow(
+    const openedParent = openDirectoryNoFollow(
       parent,
       "existing role-bundle parent",
     );
-    let rootHandle: fs.promises.FileHandle | null = null;
+    let rootFd: number | null = null;
     try {
-      const openedRoot = await openDirectoryNoFollow(
+      const openedRoot = openDirectoryNoFollow(
         root,
         "existing role-bundle root",
       );
-      rootHandle = openedRoot.handle;
+      rootFd = openedRoot.fd;
       const guard = new RoleBundleOutputRootGuard(
         root,
-        openedParent.handle,
+        openedParent.fd,
         openedParent.snapshot,
-        openedRoot.handle,
+        openedRoot.fd,
         openedRoot.snapshot,
       );
       await guard.#seedExistingEntries(expectedEntries);
@@ -1433,8 +1559,18 @@ class RoleBundleOutputRootGuard {
       );
       return guard;
     } catch (error) {
-      if (rootHandle) await rootHandle.close().catch(() => undefined);
-      await openedParent.handle.close().catch(() => undefined);
+      if (rootFd !== null) {
+        try {
+          fs.closeSync(rootFd);
+        } catch {
+          // Preserve the acquisition failure.
+        }
+      }
+      try {
+        fs.closeSync(openedParent.fd);
+      } catch {
+        // Preserve the acquisition failure.
+      }
       throw error;
     }
   }
@@ -1485,7 +1621,7 @@ class RoleBundleOutputRootGuard {
     stage: string,
   ): Promise<void> {
     if (this.#closed) fail(`role-bundle output guard is closed at ${stage}`);
-    const parentHandleBefore = await this.#parentHandle.stat({ bigint: true });
+    const parentHandleBefore = fs.fstatSync(this.#parentFd, { bigint: true });
     const parentPathBefore = await fs.promises.lstat(this.#parent, {
       bigint: true,
     });
@@ -1503,7 +1639,7 @@ class RoleBundleOutputRootGuard {
     ) {
       fail(`role-bundle output parent changed at ${stage}`);
     }
-    const rootHandleBefore = await this.#rootHandle.stat({ bigint: true });
+    const rootHandleBefore = fs.fstatSync(this.#rootFd, { bigint: true });
     const rootPathBefore = await fs.promises.lstat(this.#root, {
       bigint: true,
     });
@@ -1566,9 +1702,9 @@ class RoleBundleOutputRootGuard {
     } else if (additions !== 0 || removals !== 0) {
       fail(`role-bundle output entry identity set changed at ${stage}`);
     }
-    const rootHandleAfter = await this.#rootHandle.stat({ bigint: true });
+    const rootHandleAfter = fs.fstatSync(this.#rootFd, { bigint: true });
     const rootPathAfter = await fs.promises.lstat(this.#root, { bigint: true });
-    const parentHandleAfter = await this.#parentHandle.stat({ bigint: true });
+    const parentHandleAfter = fs.fstatSync(this.#parentFd, { bigint: true });
     const parentPathAfter = await fs.promises.lstat(this.#parent, {
       bigint: true,
     });
@@ -1642,12 +1778,12 @@ class RoleBundleOutputRootGuard {
     this.#closed = true;
     let failure: unknown;
     try {
-      await this.#rootHandle.close();
+      fs.closeSync(this.#rootFd);
     } catch (error) {
       failure = error;
     }
     try {
-      await this.#parentHandle.close();
+      fs.closeSync(this.#parentFd);
     } catch (error) {
       if (failure === undefined) failure = error;
     }
@@ -2284,6 +2420,7 @@ async function publishRoleBundle(
           Object.freeze({
             bundleProducerRevision: options.verifierRevision,
             roleLockProducerRevision: roleLock.producerRevision,
+            rawLockSourceRevision: roleLock.rawManifest.source.revision,
           }),
         );
       },
@@ -2370,6 +2507,7 @@ export async function createFloodgateRoleBundle(
     Object.freeze({
       bundleProducerRevision: options.verifierRevision,
       roleLockProducerRevision: roleLock.producerRevision,
+      rawLockSourceRevision: roleLock.rawManifest.source.revision,
     }),
   );
   const build = await buildRoleBundle(
@@ -2436,6 +2574,11 @@ export async function verifyExistingFloodgateRoleBundle(
     if (roleLock.producerRevision !== binding.roleLockProducerRevision) {
       fail("historical bundle cites a different role-lock producer revision");
     }
+    if (
+      roleLock.rawManifest.source.revision !== binding.rawLockSourceRevision
+    ) {
+      fail("historical bundle cites a different raw-lock source revision");
+    }
     const build = await buildRoleBundle(
       roleLock,
       options.rawLockRoot,
@@ -2465,6 +2608,11 @@ export async function verifyExistingFloodgateRoleBundle(
     assertVerifiedRoleLockStable(reverified, roleLock);
     if (reverified.producerRevision !== binding.roleLockProducerRevision) {
       fail("role-lock producer changed during bundle verification");
+    }
+    if (
+      reverified.rawManifest.source.revision !== binding.rawLockSourceRevision
+    ) {
+      fail("raw-lock source revision changed during bundle verification");
     }
     await assertRoleBundleGitClosure(
       options.repositoryRoot,

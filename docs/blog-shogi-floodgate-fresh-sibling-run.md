@@ -228,6 +228,16 @@ key-only auditと既知のboolean値の確認では、`teacher_or_candidate_scor
 
 なお、ここまでのfast auditはartifact identity、算術、capを確認したもので、cleanな別revisionから全割当を再計算する独立full replayではない。その長時間検証は現在pendingであり、完了するまで「独立再現済み」とは書かない。
 
+## role bundleを閉じる前に見つかった検証境界の穴
+
+独立full replayと並行して、次のlabel-free role bundleを実装し、別sub-agentに敵対的レビューを依頼した。レビューでは、通常の`git status`だけでは証拠にならないことが実際に再現された。Git graftは`--no-replace-objects`を迂回し、`assume-unchanged` / `skip-worktree`は変更を隠し、repo-localの偽fsmonitorは同じbytes数・復元mtimeの改変をcleanと報告できた。さらに`PATH`先頭の偽`git`ならrevision、status、ancestryをまとめて偽装できる。
+
+対策後の境界は`/usr/bin/git`を固定し、継承したGit・dynamic-loader環境を除去し、graftとfsmonitorを無効化する。それでもGitの表示だけは信用せず、HEAD treeとindexを読み、全tracked regular file / symlinkの実bytesとmodeからGit blob IDを独立再計算する。role bundleの履歴は`raw producer → role-lock producer → bundle producer → current verifier`をすべて祖先関係として要求し、bundle producer自身のtreeにtracked role-lock resultのexact blobがあることも確認する。
+
+また、自己整合する別runを誤って渡せないように、bundleはtracked role-lock resultのidentityと、raw manifest、legacy exclusion、accounting、各role、aggregate digest、manifest / materialized input / allocationの実bytesを相互照合する。bundle manifestにもresult receipt identityを残す。独立full replayが`pass`になるまではproduction verifierがreceipt bindingを拒否するため、complete bundleを公開できない。
+
+出力rootは同期`mkdir`直後に`O_NOFOLLOW | O_DIRECTORY | O_NONBLOCK`でFDを捕捉し、以後はinodeとdirectory ctimeを追跡する。取得失敗時にpathnameだけを見てdirectoryを削除する処理も廃止した。ただしNodeの`mkdir`はFDを返さないため、同一ユーザーの敵対processが2 syscall間のごく短い窓で空のmode 0700 directoryへ差し替える競合自体は完全には原子化できない。これは誤ったbundle bytesをcompleteとして通す穴ではないが、出力parentを信頼されたprivate storageに置くという運用条件として残す。
+
 ## role lock後に残った次段の停止条件
 
 - role lockではrules-complete合法手2つ以上をlabel-blind条件にし、飛車角の任意不成を含む共通helperでprotected child IDsを固定した。teacherも同じhelperを使わなければならない

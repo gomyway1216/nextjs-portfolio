@@ -228,6 +228,16 @@ A key-only audit plus checks of the known booleans found `teacher_or_candidate_s
 
 This fast audit checks artifact identities, arithmetic, and caps; it is not a clean-revision independent replay of the entire allocation. That long-running verification is pending, so this report does not yet call the allocation independently reproduced.
 
+## Verification-boundary gaps found before closing the role bundle
+
+The next label-free role-bundle stage was implemented in parallel with the independent full replay and then subjected to adversarial sub-agent review. The review reproduced why ordinary `git status` is not provenance evidence. Git grafts bypassed `--no-replace-objects`; `assume-unchanged` and `skip-worktree` hid tracked edits; and a repository-local fake fsmonitor reported a same-length edit with restored mtime as clean. A fake `git` placed first on `PATH` could forge revision, status, and ancestry together.
+
+The hardened boundary pins `/usr/bin/git`, removes inherited Git and dynamic-loader controls, and disables grafts and fsmonitor. It still does not trust Git's display: it reads the HEAD tree and index, then independently recomputes Git blob IDs from the actual bytes and modes of every tracked regular file and symlink. Historical bundles must close every ancestry edge in `raw producer → role-lock producer → bundle producer → current verifier`, and the bundle producer's own tree must contain the exact tracked role-lock result blob.
+
+To reject a different but internally self-consistent run, the bundle cross-checks the tracked result identity against the raw manifest, legacy exclusion, accounting, every role, aggregate digests, and the actual manifest, materialized-input, and allocation bytes. The bundle manifest also records the result-receipt identity. The production verifier expects the independent full replay status to be `pass`; while the tracked receipt is still pending, it cannot publish a complete bundle.
+
+The output root now uses synchronous `mkdir` followed immediately by an `O_NOFOLLOW | O_DIRECTORY | O_NONBLOCK` descriptor capture, then tracks the inode and directory ctime for the rest of publication. Failure handling no longer removes a directory merely by pathname. Node's `mkdir` does not return a descriptor, however, so the tiny two-syscall window cannot be made fully atomic against a hostile same-user process that substitutes another empty mode-0700 directory. This does not let incorrect bundle bytes pass as complete, but it remains an explicit operational requirement to place the output parent on trusted private storage.
+
 ## Stop conditions that remain after the role lock
 
 - The role lock applied rules-complete legal moves >= 2 label-blindly and fixed protected-child IDs with the common helper, including optional rook and bishop non-promotions. The teacher must use the same helper

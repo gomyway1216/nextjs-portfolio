@@ -15,6 +15,7 @@ import {
   assertFloodgateRoleBundleRoleLockClosureCoreForTests,
   captureFloodgateRoleBundleOptionsCoreForTests,
   historicalFloodgateRoleBundleRevisionBindingCoreForTests,
+  mapFloodgateRoleBundleWithLimitCoreForTests,
   materializeFloodgateRoleBundleRolesCoreForTests,
   runFreshFloodgateRoleBundleOutputLifecycleCoreForTests,
   runFreshFloodgateRoleBundleRootGuardCoreForTests,
@@ -37,7 +38,12 @@ import {
 } from "../../../ml/floodgate-roles";
 import { parseFloodgateCsa, sha256 } from "../../../ml/import-csa-games";
 import { positionKeyFromSfen } from "../../../ml/sibling-data";
-import { snapshotExistingFloodgateRoleLockFilesystemClosureCoreForTests } from "../../../ml/floodgate-role-lock";
+import {
+  FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES,
+  FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+  FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256,
+  snapshotExistingFloodgateRoleLockFilesystemClosureCoreForTests,
+} from "../../../ml/floodgate-role-lock";
 
 const temporaryRoots: string[] = [];
 
@@ -188,6 +194,7 @@ function publishFixture(
 }
 
 const ROLE_PRODUCER_REVISION = "3da276f56378a2bb973e43f0e3d63f84ae1b4be0";
+const RAW_PRODUCER_REVISION = "649423d455b5762a697864610d9e8f606cc327c3";
 const SIBLING_ROLE_PRODUCER_REVISION =
   "8c89c72d29a5d64bd942762362661b48dcd2849f";
 const BUNDLE_PRODUCER_REVISION = "c34cb3806bd1ee5a444b5f20b1b1ac014d507f0f";
@@ -197,6 +204,7 @@ function historicalManifestText(
   bundleProducer = BUNDLE_PRODUCER_REVISION,
   roleProducer = ROLE_PRODUCER_REVISION,
   recordedRoleVerifier = bundleProducer,
+  rawProducer = RAW_PRODUCER_REVISION,
 ): string {
   return `${JSON.stringify({
     contract: {},
@@ -213,12 +221,17 @@ function historicalManifestText(
       legacy_replay_exclusion: {},
       raw_lock: {
         manifest: {},
-        source_revision: "649423d455b5762a697864610d9e8f606cc327c3",
+        source_revision: rawProducer,
       },
       role_lock: {
         allocation: {},
         manifest: {},
         producer_revision: roleProducer,
+        result_receipt: {
+          bytes: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES,
+          path: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+          sha256: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256,
+        },
         verifier_revision: recordedRoleVerifier,
       },
     },
@@ -227,6 +240,57 @@ function historicalManifestText(
 }
 
 describe("Floodgate label-free role bundle", () => {
+  it("drains active CAS workers while preserving the first failure", async () => {
+    let releaseFirst!: () => void;
+    let releaseSecond!: () => void;
+    const firstGate = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    const secondGate = new Promise<void>((resolve) => {
+      releaseSecond = resolve;
+    });
+    const firstFailure = new Error("first role-bundle CAS failure");
+    const secondFailure = new Error("second role-bundle CAS failure");
+    const started: number[] = [];
+    let settled = false;
+    const operation = mapFloodgateRoleBundleWithLimitCoreForTests(
+      [0, 1, 2, 3],
+      2,
+      async (_value, index) => {
+        started.push(index);
+        if (index === 0) {
+          await firstGate;
+          throw firstFailure;
+        }
+        if (index === 1) {
+          await secondGate;
+          throw secondFailure;
+        }
+        throw new Error(`unexpectedly scheduled index ${index}`);
+      },
+    );
+    void operation.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+
+    await vi.waitFor(() => expect(started).toEqual([0, 1]));
+    releaseFirst();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(started).toEqual([0, 1]);
+
+    releaseSecond();
+    await expect(operation).rejects.toBe(firstFailure);
+    expect(settled).toBe(true);
+    expect(started).toEqual([0, 1]);
+  });
+
   it("accepts an ancestor producer and descendant verifier revision", async () => {
     const binding = historicalFloodgateRoleBundleRevisionBindingCoreForTests(
       historicalManifestText(),
@@ -235,6 +299,7 @@ describe("Floodgate label-free role bundle", () => {
       `${FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION}\0${BUNDLE_PRODUCER_REVISION}`,
       `${BUNDLE_PRODUCER_REVISION}\0${BUNDLE_VERIFIER_REVISION}`,
       `${ROLE_PRODUCER_REVISION}\0${BUNDLE_PRODUCER_REVISION}`,
+      `${RAW_PRODUCER_REVISION}\0${ROLE_PRODUCER_REVISION}`,
     ]);
     await expect(
       assertFloodgateRoleBundleRevisionAncestryCoreForTests(
@@ -257,7 +322,10 @@ describe("Floodgate label-free role bundle", () => {
         minimumBinding,
         FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION,
         async (ancestor, descendant) =>
-          ancestor === descendant || ancestor === ROLE_PRODUCER_REVISION,
+          ancestor === descendant ||
+          ancestor === ROLE_PRODUCER_REVISION ||
+          (ancestor === RAW_PRODUCER_REVISION &&
+            descendant === ROLE_PRODUCER_REVISION),
       ),
     ).resolves.toBeUndefined();
   });
@@ -266,6 +334,7 @@ describe("Floodgate label-free role bundle", () => {
     ["producer below the floor", 0],
     ["producer not ancestral to verifier", 1],
     ["role-lock producer not ancestral to bundle producer", 2],
+    ["raw-lock producer not ancestral to role-lock producer", 3],
   ] as const)("rejects a %s", async (_label, rejectedEdge) => {
     const binding = historicalFloodgateRoleBundleRevisionBindingCoreForTests(
       historicalManifestText(),
@@ -292,6 +361,22 @@ describe("Floodgate label-free role bundle", () => {
     ).toThrow(/verifier revision must equal the bundle producer revision/);
   });
 
+  it("rejects a historical manifest that does not cite the pinned result receipt", () => {
+    const manifest = JSON.parse(historicalManifestText()) as {
+      sources: {
+        role_lock: {
+          result_receipt: { sha256: string };
+        };
+      };
+    };
+    manifest.sources.role_lock.result_receipt.sha256 = "0".repeat(64);
+    expect(() =>
+      historicalFloodgateRoleBundleRevisionBindingCoreForTests(
+        `${JSON.stringify(manifest)}\n`,
+      ),
+    ).toThrow(/unpinned role-lock result receipt/);
+  });
+
   it("requires the cited role-lock producer to precede the historical bundle", async () => {
     const premergeBinding =
       historicalFloodgateRoleBundleRevisionBindingCoreForTests(
@@ -303,6 +388,7 @@ describe("Floodgate label-free role bundle", () => {
     const premergeEdges = new Set([
       `${FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION}\0${BUNDLE_PRODUCER_REVISION}`,
       `${BUNDLE_PRODUCER_REVISION}\0${BUNDLE_VERIFIER_REVISION}`,
+      `${RAW_PRODUCER_REVISION}\0${SIBLING_ROLE_PRODUCER_REVISION}`,
     ]);
     await expect(
       assertFloodgateRoleBundleRevisionAncestryCoreForTests(
@@ -330,7 +416,9 @@ describe("Floodgate label-free role bundle", () => {
           (ancestor === FLOODGATE_ROLE_BUNDLE_MINIMUM_PRODUCER_REVISION &&
             descendant === BUNDLE_VERIFIER_REVISION) ||
           (ancestor === SIBLING_ROLE_PRODUCER_REVISION &&
-            descendant === BUNDLE_VERIFIER_REVISION),
+            descendant === BUNDLE_VERIFIER_REVISION) ||
+          (ancestor === RAW_PRODUCER_REVISION &&
+            descendant === SIBLING_ROLE_PRODUCER_REVISION),
       ),
     ).resolves.toBeUndefined();
   });

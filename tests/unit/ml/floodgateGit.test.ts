@@ -1,0 +1,208 @@
+import { execFile as execFileCallback } from "node:child_process";
+import * as fs from "node:fs";
+import * as os from "node:os";
+import * as path from "node:path";
+import { promisify } from "node:util";
+
+import { afterEach, describe, expect, it } from "vitest";
+
+import {
+  FLOODGATE_GIT_COMMAND_PREFIX,
+  FLOODGATE_GIT_EXECUTABLE,
+  FLOODGATE_GIT_FIXED_ENVIRONMENT,
+  assertFloodgateGitTrackedTreeMatchesHead,
+  floodgateGitEnvironment,
+  floodgateGitTrackedEntriesAreOrdinary,
+} from "../../../ml/floodgate-git";
+
+const execFile = promisify(execFileCallback);
+const roots: string[] = [];
+
+async function git(
+  root: string,
+  arguments_: readonly string[],
+): Promise<string> {
+  const { stdout } = await execFile("git", [...arguments_], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  return stdout;
+}
+
+afterEach(async () => {
+  await Promise.all(
+    roots
+      .splice(0)
+      .map((root) => fs.promises.rm(root, { recursive: true, force: true })),
+  );
+});
+
+describe("Floodgate Git provenance environment", () => {
+  it("removes inherited Git and locale controls while preserving ordinary env", () => {
+    const environment = floodgateGitEnvironment({
+      PATH: "/usr/bin:/bin",
+      SAFE_VALUE: "kept",
+      GIT_DIR: "/attacker/repository",
+      Git_Graft_File: "/attacker/grafts",
+      GIT_CONFIG_COUNT: "1",
+      DYLD_INSERT_LIBRARIES: "/attacker/dylib",
+      LD_PRELOAD: "/attacker/library",
+      LC_ALL: "ja_JP.UTF-8",
+      LANG: "ja_JP.UTF-8",
+      LANGUAGE: "ja",
+    });
+    expect(environment).toMatchObject({
+      PATH: "/usr/bin:/bin",
+      SAFE_VALUE: "kept",
+      ...FLOODGATE_GIT_FIXED_ENVIRONMENT,
+    });
+    expect(Object.keys(environment).some((key) => key === "GIT_DIR")).toBe(
+      false,
+    );
+    expect(
+      Object.keys(environment).some((key) => key === "Git_Graft_File"),
+    ).toBe(false);
+    expect(environment.GIT_CONFIG_COUNT).toBeUndefined();
+    expect(environment.DYLD_INSERT_LIBRARIES).toBeUndefined();
+    expect(environment.LD_PRELOAD).toBeUndefined();
+    expect(FLOODGATE_GIT_EXECUTABLE).toBe("/usr/bin/git");
+  });
+
+  it("defeats both repository and inherited graft ancestry spoofing", async () => {
+    const created = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "floodgate-git-graft-"),
+    );
+    const root = await fs.promises.realpath(created);
+    roots.push(root);
+    await git(root, ["init", "-q"]);
+    await git(root, ["config", "user.name", "Floodgate Test"]);
+    await git(root, ["config", "user.email", "floodgate@example.invalid"]);
+    await fs.promises.writeFile(path.join(root, "first.txt"), "first\n");
+    await git(root, ["add", "first.txt"]);
+    await git(root, ["commit", "-q", "-m", "first"]);
+    const first = (await git(root, ["rev-parse", "HEAD"])).trim();
+    await git(root, ["checkout", "-q", "--orphan", "unrelated"]);
+    await git(root, ["rm", "-q", "--cached", "first.txt"]);
+    await fs.promises.rm(path.join(root, "first.txt"));
+    await fs.promises.writeFile(path.join(root, "second.txt"), "second\n");
+    await git(root, ["add", "second.txt"]);
+    await git(root, ["commit", "-q", "-m", "second"]);
+    const second = (await git(root, ["rev-parse", "HEAD"])).trim();
+    expect(
+      floodgateGitTrackedEntriesAreOrdinary(
+        await git(root, ["ls-files", "-v", "-z"]),
+      ),
+    ).toBe(true);
+    await git(root, ["update-index", "--assume-unchanged", "second.txt"]);
+    expect(
+      floodgateGitTrackedEntriesAreOrdinary(
+        await git(root, ["ls-files", "-v", "-z"]),
+      ),
+    ).toBe(false);
+    await git(root, ["update-index", "--no-assume-unchanged", "second.txt"]);
+    await git(root, ["update-index", "--skip-worktree", "second.txt"]);
+    expect(
+      floodgateGitTrackedEntriesAreOrdinary(
+        await git(root, ["ls-files", "-v", "-z"]),
+      ),
+    ).toBe(false);
+    await git(root, ["update-index", "--no-skip-worktree", "second.txt"]);
+    const graft = `${second} ${first}\n`;
+    const repositoryGrafts = path.join(root, ".git", "info", "grafts");
+    await fs.promises.writeFile(repositoryGrafts, graft);
+
+    await expect(
+      execFile(
+        "git",
+        ["--no-replace-objects", "merge-base", "--is-ancestor", first, second],
+        { cwd: root, encoding: "utf8" },
+      ),
+    ).resolves.toBeDefined();
+    await expect(
+      execFile(
+        "git",
+        ["--no-replace-objects", "merge-base", "--is-ancestor", first, second],
+        { cwd: root, encoding: "utf8", env: floodgateGitEnvironment() },
+      ),
+    ).rejects.toMatchObject({ code: 1 });
+
+    await fs.promises.rm(repositoryGrafts);
+    const inheritedGrafts = path.join(root, "inherited-grafts");
+    await fs.promises.writeFile(inheritedGrafts, graft);
+    await expect(
+      execFile(
+        "git",
+        ["--no-replace-objects", "merge-base", "--is-ancestor", first, second],
+        {
+          cwd: root,
+          encoding: "utf8",
+          env: { ...process.env, GIT_GRAFT_FILE: inheritedGrafts },
+        },
+      ),
+    ).resolves.toBeDefined();
+    await expect(
+      execFile(
+        "git",
+        ["--no-replace-objects", "merge-base", "--is-ancestor", first, second],
+        {
+          cwd: root,
+          encoding: "utf8",
+          env: floodgateGitEnvironment({
+            ...process.env,
+            GIT_GRAFT_FILE: inheritedGrafts,
+          }),
+        },
+      ),
+    ).rejects.toMatchObject({ code: 1 });
+  });
+
+  it("disables a repository-local fsmonitor that hides tracked changes", async () => {
+    const created = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "floodgate-git-fsmonitor-"),
+    );
+    const root = await fs.promises.realpath(created);
+    roots.push(root);
+    await git(root, ["init", "-q"]);
+    await git(root, ["config", "user.name", "Floodgate Test"]);
+    await git(root, ["config", "user.email", "floodgate@example.invalid"]);
+    const trackedPath = path.join(root, "tracked.txt");
+    await fs.promises.writeFile(trackedPath, "good\n");
+    await git(root, ["add", "tracked.txt"]);
+    await git(root, ["commit", "-q", "-m", "tracked"]);
+    await expect(
+      assertFloodgateGitTrackedTreeMatchesHead(root),
+    ).resolves.toBeUndefined();
+
+    const hookPath = path.join(root, ".git", "hooks", "fake-fsmonitor");
+    await fs.promises.writeFile(
+      hookPath,
+      "#!/bin/sh\nprintf 'fake-token\\0'\n",
+      { mode: 0o755 },
+    );
+    await git(root, ["config", "core.fsmonitor", hookPath]);
+    await git(root, ["config", "core.fsmonitorHookVersion", "2"]);
+    await git(root, ["status", "--porcelain=v1", "--untracked-files=all"]);
+    const before = await fs.promises.stat(trackedPath);
+    await fs.promises.writeFile(trackedPath, "evil\n");
+    await fs.promises.utimes(trackedPath, before.atime, before.mtime);
+
+    const { stdout: hardenedStatus } = await execFile(
+      FLOODGATE_GIT_EXECUTABLE,
+      [
+        ...FLOODGATE_GIT_COMMAND_PREFIX,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+      ],
+      {
+        cwd: root,
+        encoding: "utf8",
+        env: floodgateGitEnvironment(),
+      },
+    );
+    expect(hardenedStatus).toBe(" M tracked.txt\n");
+    await expect(
+      assertFloodgateGitTrackedTreeMatchesHead(root),
+    ).rejects.toThrow(/tracked bytes differ from HEAD/);
+  });
+});

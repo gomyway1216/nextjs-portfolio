@@ -13,6 +13,7 @@ import {
   runNonProductionFloodgateRoleBundleCliForTests,
   type NonProductionFloodgateRoleBundleCliDependenciesForTests,
 } from "../../../ml/create-floodgate-role-bundle";
+import { FLOODGATE_GIT_COMMAND_PREFIX } from "../../../ml/floodgate-git";
 import {
   acquireAndReleaseFreshFloodgateRoleBundleRootForTests,
   type FloodgateRoleBundleManifest,
@@ -125,11 +126,13 @@ afterEach(async () => {
 });
 
 describe("Floodgate role-bundle CLI", () => {
-  it("disables Git object replacements and preserves failure stacks", () => {
-    expect(FLOODGATE_ROLE_BUNDLE_PRODUCTION_GIT_PREFIX).toEqual([
-      "--no-replace-objects",
-      "--no-optional-locks",
-    ]);
+  it("disables Git provenance overrides and preserves failure stacks", () => {
+    expect(FLOODGATE_ROLE_BUNDLE_PRODUCTION_GIT_PREFIX).toEqual(
+      FLOODGATE_GIT_COMMAND_PREFIX,
+    );
+    expect(FLOODGATE_ROLE_BUNDLE_PRODUCTION_GIT_PREFIX).toContain(
+      "core.fsmonitor=false",
+    );
 
     const withStack = new Error("outer message");
     withStack.stack = "pinned stack";

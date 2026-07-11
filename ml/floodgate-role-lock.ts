@@ -1336,7 +1336,6 @@ class FloodgateRoleLockOutputRootGuard {
     if (path.basename(filename) !== filename || filename.length === 0) {
       fail("role lock invalidation filename must be one direct child");
     }
-    await this.#snapshot(`before owned ${filename} invalidation`);
     const filePath = path.join(this.#root, filename);
     const noFollow = fs.constants.O_NOFOLLOW;
     if (typeof noFollow !== "number") {

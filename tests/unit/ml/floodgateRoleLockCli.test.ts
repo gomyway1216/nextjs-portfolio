@@ -251,8 +251,10 @@ describe("Floodgate role-lock CLI", () => {
     ]);
   });
 
-  it("invalidates its owned manifest even when another role-lock artifact disappears first", async () => {
-    const { roleLockRoot } = await fixture();
+  it("invalidates its owned manifest despite simultaneous artifact loss and parent mutation", async () => {
+    const { container, roleLockRoot } = await fixture();
+    const externalParentEntry = path.join(container, "external-parent-entry");
+    const externalBytes = "PARENT-ENTRY-MUST-STAY-BYTE-EXACT\n";
     await expect(
       runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
         roleLockRoot,
@@ -262,11 +264,14 @@ describe("Floodgate role-lock CLI", () => {
             await fs.promises.unlink(
               path.join(roleLockRoot, "allocation.json"),
             );
-            throw new Error("injected artifact loss after manifest link");
+            await fs.promises.writeFile(externalParentEntry, externalBytes, {
+              flag: "wx",
+            });
+            throw new Error("injected artifact loss plus parent mutation");
           }
         },
       ),
-    ).rejects.toThrow(/injected artifact loss after manifest link/);
+    ).rejects.toThrow(/injected artifact loss plus parent mutation/);
     await expectInvalidatedManifest(roleLockRoot);
     await expect(
       fs.promises.lstat(path.join(roleLockRoot, "allocation.json")),
@@ -275,6 +280,9 @@ describe("Floodgate role-lock CLI", () => {
       path.join(roleLockRoot, "materialized-input.json"),
     );
     expect(materializedStat.isFile()).toBe(true);
+    await expect(
+      fs.promises.readFile(externalParentEntry, "utf8"),
+    ).resolves.toBe(externalBytes);
   });
 
   it("never removes a foreign manifest created before its own final link", async () => {

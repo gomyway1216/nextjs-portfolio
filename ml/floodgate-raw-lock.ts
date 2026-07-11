@@ -69,7 +69,10 @@ const TYPED_ARRAY_BYTE_OFFSET_GETTER = Object.getOwnPropertyDescriptor(
 const INTRINSIC_UINT8_ARRAY_SET = IntrinsicUint8Array.prototype.set;
 
 export type FloodgateRawReceiptKind =
-  "daily_listing" | "daily_rating" | "period_end_inventory" | "csa";
+  | "daily_listing"
+  | "daily_rating"
+  | "period_end_inventory"
+  | "csa";
 
 export interface FloodgateRawObjectIdentity {
   readonly bytes: number;
@@ -212,6 +215,15 @@ export interface FloodgateDurableCreateOptions {
     phase: FloodgateDurableCreatePhase,
     linkedIdentity?: Readonly<FloodgateDurableLinkedFileIdentity>,
   ) => void | Promise<void>;
+  /**
+   * Transfers the still-open O_RDWR handle created with the temporary inode.
+   * Ownership changes only when this synchronous callback returns normally.
+   * The receiver must close a successfully transferred handle.
+   */
+  readonly transferLinkedFileHandle?: (
+    handle: fs.promises.FileHandle,
+    linkedIdentity: Readonly<FloodgateDurableLinkedFileIdentity>,
+  ) => void;
 }
 
 function fail(message: string): never {
@@ -1549,9 +1561,13 @@ export async function durableCreateNoClobber(
     "durable create options",
   );
   if (
-    Object.getOwnPropertyNames(optionValue).some((key) => key !== "failpoint")
+    Object.getOwnPropertyNames(optionValue).some(
+      (key) => key !== "failpoint" && key !== "transferLinkedFileHandle",
+    )
   ) {
-    fail("durable create options only supports failpoint");
+    fail(
+      "durable create options only supports failpoint and transferLinkedFileHandle",
+    );
   }
   if (
     optionValue.failpoint !== undefined &&
@@ -1560,7 +1576,17 @@ export async function durableCreateNoClobber(
     fail("durable create failpoint must be a function");
   }
   const failpoint = optionValue.failpoint as
-    FloodgateDurableCreateOptions["failpoint"] | undefined;
+    | FloodgateDurableCreateOptions["failpoint"]
+    | undefined;
+  if (
+    optionValue.transferLinkedFileHandle !== undefined &&
+    typeof optionValue.transferLinkedFileHandle !== "function"
+  ) {
+    fail("durable create linked handle transfer must be a function");
+  }
+  const transferLinkedFileHandle = optionValue.transferLinkedFileHandle as
+    | FloodgateDurableCreateOptions["transferLinkedFileHandle"]
+    | undefined;
   const bytes = copyDurableInput(data);
   await assertParentChainIsRealDirectories(filePath);
   const directory = path.dirname(filePath);
@@ -1577,7 +1603,7 @@ export async function durableCreateNoClobber(
   try {
     handle = await fs.promises.open(
       temporary,
-      fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_WRONLY,
+      fs.constants.O_CREAT | fs.constants.O_EXCL | fs.constants.O_RDWR,
       0o600,
     );
     temporaryCreated = true;
@@ -1586,12 +1612,18 @@ export async function durableCreateNoClobber(
     await failpoint?.("after-temp-write");
     await handle.sync();
     await failpoint?.("after-temp-sync");
-    await handle.close();
-    handle = null;
-
     const temporaryStat = await fs.promises.lstat(temporary, { bigint: true });
     if (!temporaryStat.isFile() || temporaryStat.isSymbolicLink()) {
       fail("durable temporary path stopped being a regular file");
+    }
+    const temporaryHandleStat = await handle.stat({ bigint: true });
+    if (
+      !temporaryHandleStat.isFile() ||
+      temporaryHandleStat.dev !== temporaryStat.dev ||
+      temporaryHandleStat.ino !== temporaryStat.ino ||
+      temporaryHandleStat.size !== BigInt(bytes.byteLength)
+    ) {
+      fail("durable temporary handle stopped matching its pathname and bytes");
     }
     try {
       await fs.promises.link(temporary, filePath);
@@ -1606,14 +1638,23 @@ export async function durableCreateNoClobber(
       !publishedStat.isFile() ||
       publishedStat.isSymbolicLink() ||
       publishedStat.dev !== temporaryStat.dev ||
-      publishedStat.ino !== temporaryStat.ino
+      publishedStat.ino !== temporaryStat.ino ||
+      publishedStat.size !== temporaryHandleStat.size
     ) {
       fail("durable publish did not create the expected regular hard link");
     }
-    await failpoint?.(
-      "after-link",
-      Object.freeze({ dev: publishedStat.dev, ino: publishedStat.ino }),
-    );
+    const linkedIdentity = Object.freeze({
+      dev: publishedStat.dev,
+      ino: publishedStat.ino,
+    });
+    if (transferLinkedFileHandle) {
+      const transferResult = transferLinkedFileHandle(handle, linkedIdentity);
+      if (transferResult !== undefined) {
+        fail("durable linked handle receiver must return synchronously");
+      }
+      handle = null;
+    }
+    await failpoint?.("after-link", linkedIdentity);
     await syncDirectory(directory);
     await failpoint?.("after-directory-sync");
     await fs.promises.unlink(temporary);

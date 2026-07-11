@@ -1331,67 +1331,51 @@ class FloodgateRoleLockOutputRootGuard {
 
   async invalidateOwnedPublishedChild(
     filename: string,
+    handle: fs.promises.FileHandle,
     expectedIdentity: Readonly<FloodgateDurableLinkedFileIdentity>,
   ): Promise<void> {
     if (path.basename(filename) !== filename || filename.length === 0) {
       fail("role lock invalidation filename must be one direct child");
     }
-    const filePath = path.join(this.#root, filename);
-    const noFollow = fs.constants.O_NOFOLLOW;
-    if (typeof noFollow !== "number") {
-      fail("this production platform must provide O_NOFOLLOW");
+    const handleStat = await handle.stat({ bigint: true });
+    if (
+      !handleStat.isFile() ||
+      handleStat.dev !== expectedIdentity.dev ||
+      handleStat.ino !== expectedIdentity.ino
+    ) {
+      fail(`refusing to invalidate an unowned ${filename} handle`);
     }
-    const handle = await fs.promises.open(
-      filePath,
-      fs.constants.O_RDWR | noFollow,
+
+    // This capability was opened on the exclusive temporary inode before its
+    // final hard link existed. It remains bound to that publisher-owned inode
+    // even if every pathname is displaced or replaced before failure cleanup.
+    const sentinel = Buffer.from(
+      FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL,
+      "ascii",
     );
-    try {
-      const handleStat = await handle.stat({ bigint: true });
-      if (
-        !handleStat.isFile() ||
-        handleStat.dev !== expectedIdentity.dev ||
-        handleStat.ino !== expectedIdentity.ino
-      ) {
-        fail(`refusing to invalidate a replaced ${filename}`);
-      }
+    const write = await handle.write(sentinel, 0, sentinel.byteLength, 0);
+    if (write.bytesWritten !== sentinel.byteLength) {
+      fail(`failed to invalidate the complete owned ${filename}`);
+    }
+    // Make the invalid first byte durable before shrinking the tombstone. A
+    // crash at any later point cannot leave the original valid JSON bytes.
+    await handle.sync();
+    await handle.truncate(sentinel.byteLength);
+    await handle.sync();
 
-      // Never unlink or rename a pathname during failure invalidation. A path
-      // can be replaced immediately after any identity check, which would let
-      // cleanup delete a foreign inode. This held descriptor stays bound to the
-      // publisher-owned inode even if the canonical name is replaced.
-      const sentinel = Buffer.from(
-        FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL,
-        "ascii",
-      );
-      const write = await handle.write(sentinel, 0, sentinel.byteLength, 0);
-      if (write.bytesWritten !== sentinel.byteLength) {
-        fail(`failed to invalidate the complete owned ${filename}`);
-      }
-      // Make the invalid first byte durable before shrinking the tombstone. A
-      // crash at any later point cannot leave the original valid JSON bytes.
-      await handle.sync();
-      await handle.truncate(sentinel.byteLength);
-      await handle.sync();
-
-      const afterInvalidation = await handle.stat({ bigint: true });
-      if (
-        !afterInvalidation.isFile() ||
-        afterInvalidation.dev !== expectedIdentity.dev ||
-        afterInvalidation.ino !== expectedIdentity.ino ||
-        afterInvalidation.size !== BigInt(sentinel.byteLength)
-      ) {
-        fail(`${filename} invalidation changed the held inode unexpectedly`);
-      }
-      const observed = Buffer.alloc(sentinel.byteLength);
-      const read = await handle.read(observed, 0, observed.byteLength, 0);
-      if (
-        read.bytesRead !== sentinel.byteLength ||
-        !observed.equals(sentinel)
-      ) {
-        fail(`${filename} invalidation did not persist its tombstone`);
-      }
-    } finally {
-      await handle.close();
+    const afterInvalidation = await handle.stat({ bigint: true });
+    if (
+      !afterInvalidation.isFile() ||
+      afterInvalidation.dev !== expectedIdentity.dev ||
+      afterInvalidation.ino !== expectedIdentity.ino ||
+      afterInvalidation.size !== BigInt(sentinel.byteLength)
+    ) {
+      fail(`${filename} invalidation changed the held inode unexpectedly`);
+    }
+    const observed = Buffer.alloc(sentinel.byteLength);
+    const read = await handle.read(observed, 0, observed.byteLength, 0);
+    if (read.bytesRead !== sentinel.byteLength || !observed.equals(sentinel)) {
+      fail(`${filename} invalidation did not persist its tombstone`);
     }
   }
 
@@ -1780,6 +1764,7 @@ function publicationAndInvalidationFailure(
 
 interface FloodgateTrackedManifestPublicationState {
   ownedIdentity: Readonly<FloodgateDurableLinkedFileIdentity> | null;
+  ownedHandle: fs.promises.FileHandle | null;
   stableIdentity: Readonly<FloodgateRegularFileIdentity> | null;
 }
 
@@ -1793,15 +1778,29 @@ async function durablePublishTrackedManifest(
   ) => void | Promise<void>,
 ): Promise<void> {
   await durableCreateNoClobber(manifestPath, manifestText, {
+    transferLinkedFileHandle: (handle, linkedIdentity) => {
+      if (state.ownedHandle || state.ownedIdentity) {
+        fail("manifest publisher attempted to transfer ownership twice");
+      }
+      state.ownedIdentity = Object.freeze({ ...linkedIdentity });
+      state.ownedHandle = handle;
+    },
     failpoint: async (phase, linkedIdentity) => {
       // `after-link` is the first durable-create checkpoint at which the final
-      // name exists. Record its held path identity before a later directory
-      // fsync/temp-cleanup failure can reject the durable-create promise.
+      // name exists. Its handle was transferred before this checkpoint so a
+      // later path displacement cannot take away the owned capability.
       if (phase === "after-link") {
         if (!linkedIdentity) {
           fail("manifest after-link observation omitted its owned inode");
         }
-        state.ownedIdentity = Object.freeze({ ...linkedIdentity });
+        if (
+          !state.ownedHandle ||
+          !state.ownedIdentity ||
+          state.ownedIdentity.dev !== linkedIdentity.dev ||
+          state.ownedIdentity.ino !== linkedIdentity.ino
+        ) {
+          fail("manifest handle transfer omitted the linked owned inode");
+        }
         const observed = await statRegularFileIdentityNoFollow(manifestPath);
         if (
           observed.dev !== linkedIdentity.dev ||
@@ -1814,7 +1813,7 @@ async function durablePublishTrackedManifest(
       await injectedFailpoint?.(phase, linkedIdentity);
     },
   });
-  if (!state.ownedIdentity || !state.stableIdentity) {
+  if (!state.ownedIdentity || !state.ownedHandle || !state.stableIdentity) {
     fail("manifest publication returned without observing its final hard link");
   }
   // Removing the temporary hard link changes the final inode's link count and
@@ -1828,10 +1827,14 @@ async function invalidateTrackedManifestAfterFailure(
   state: FloodgateTrackedManifestPublicationState,
   primary: unknown,
 ): Promise<never> {
-  if (state.ownedIdentity) {
+  if (state.ownedIdentity || state.ownedHandle) {
     try {
+      if (!state.ownedIdentity || !state.ownedHandle) {
+        fail("manifest ownership transfer state is incomplete");
+      }
       await guard.invalidateOwnedPublishedChild(
         FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
+        state.ownedHandle,
         state.ownedIdentity,
       );
     } catch (invalidationError) {
@@ -1839,6 +1842,33 @@ async function invalidateTrackedManifestAfterFailure(
     }
   }
   throw primary;
+}
+
+async function closeTrackedManifestHandle(
+  state: FloodgateTrackedManifestPublicationState,
+): Promise<void> {
+  const handle = state.ownedHandle;
+  state.ownedHandle = null;
+  if (handle) await handle.close();
+}
+
+async function closeRoleLockPublicationResources(
+  guard: FloodgateRoleLockOutputRootGuard,
+  state: FloodgateTrackedManifestPublicationState,
+  primaryFailed: boolean,
+): Promise<void> {
+  let closeFailure: unknown;
+  try {
+    await closeTrackedManifestHandle(state);
+  } catch (error) {
+    closeFailure = error;
+  }
+  try {
+    await guard.close();
+  } catch (error) {
+    if (!closeFailure) closeFailure = error;
+  }
+  if (closeFailure && !primaryFailed) throw closeFailure;
 }
 
 async function revalidateProductionSourceClosure(
@@ -1965,6 +1995,7 @@ export async function runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
   );
   const manifestPublication: FloodgateTrackedManifestPublicationState = {
     ownedIdentity: null,
+    ownedHandle: null,
     stableIdentity: null,
   };
   const verifyManifest = async (): Promise<void> => {
@@ -2012,11 +2043,11 @@ export async function runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
       error,
     );
   } finally {
-    try {
-      await guard.close();
-    } catch (closeError) {
-      if (!primaryFailed) throw closeError;
-    }
+    await closeRoleLockPublicationResources(
+      guard,
+      manifestPublication,
+      primaryFailed,
+    );
   }
 }
 
@@ -2051,6 +2082,7 @@ async function publishRoleLock(
   );
   const manifestPublication: FloodgateTrackedManifestPublicationState = {
     ownedIdentity: null,
+    ownedHandle: null,
     stableIdentity: null,
   };
   const verifyManifest = async (): Promise<void> => {
@@ -2102,11 +2134,11 @@ async function publishRoleLock(
       error,
     );
   } finally {
-    try {
-      await rootGuard.close();
-    } catch (closeError) {
-      if (!primaryFailed) throw closeError;
-    }
+    await closeRoleLockPublicationResources(
+      rootGuard,
+      manifestPublication,
+      primaryFailed,
+    );
   }
 }
 

@@ -308,51 +308,36 @@ describe("Floodgate role-lock CLI", () => {
     ).resolves.toBe(foreignManifest);
   });
 
-  it("invalidates only the held owned inode when its path is replaced after open", async () => {
+  it("invalidates the retained publisher inode after its canonical path is displaced", async () => {
     const { container, roleLockRoot } = await fixture();
     const manifestPath = path.join(roleLockRoot, "manifest.json");
+    const displacedPath = path.join(
+      roleLockRoot,
+      "publisher-owned-displaced.json",
+    );
     const foreignPath = path.join(container, "foreign-manifest.json");
     const foreignManifest = "FOREIGN-MANIFEST-MUST-STAY-BYTE-EXACT\n";
     await fs.promises.writeFile(foreignPath, foreignManifest, { flag: "wx" });
 
-    const originalOpen = fs.promises.open;
-    const originalRename = fs.promises.rename;
-    let raced = false;
-    const open = vi
-      .spyOn(fs.promises, "open")
-      .mockImplementation(async (filePath, flags, mode) => {
-        const handle = await originalOpen(filePath, flags, mode);
-        if (
-          !raced &&
-          filePath === manifestPath &&
-          flags === (fs.constants.O_RDWR | fs.constants.O_NOFOLLOW)
-        ) {
-          raced = true;
-          // The invalidation descriptor now pins the owned inode. Move a
-          // foreign inode onto the canonical path before fstat/write.
-          await originalRename(foreignPath, manifestPath);
-        }
-        return handle;
-      });
-    try {
-      await expect(
-        runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
-          roleLockRoot,
-          async () => undefined,
-          (phase) => {
-            if (phase === "after-directory-sync") {
-              throw new Error("injected post-link publication failure");
-            }
-          },
-        ),
-      ).rejects.toThrow(/injected post-link publication failure/);
-    } finally {
-      open.mockRestore();
-    }
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async () => undefined,
+        async (phase) => {
+          if (phase === "after-directory-sync") {
+            await fs.promises.rename(manifestPath, displacedPath);
+            await fs.promises.rename(foreignPath, manifestPath);
+            throw new Error("injected owned-manifest displacement");
+          }
+        },
+      ),
+    ).rejects.toThrow(/injected owned-manifest displacement/);
 
-    expect(raced).toBe(true);
     await expect(fs.promises.readFile(manifestPath, "utf8")).resolves.toBe(
       foreignManifest,
+    );
+    await expect(fs.promises.readFile(displacedPath, "utf8")).resolves.toBe(
+      FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL,
     );
   });
 

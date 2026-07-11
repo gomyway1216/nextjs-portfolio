@@ -202,9 +202,15 @@ export type FloodgateDurableCreatePhase =
   | "after-directory-sync"
   | "after-temp-unlink";
 
+export interface FloodgateDurableLinkedFileIdentity {
+  readonly dev: bigint;
+  readonly ino: bigint;
+}
+
 export interface FloodgateDurableCreateOptions {
   readonly failpoint?: (
     phase: FloodgateDurableCreatePhase,
+    linkedIdentity?: Readonly<FloodgateDurableLinkedFileIdentity>,
   ) => void | Promise<void>;
 }
 
@@ -1583,7 +1589,7 @@ export async function durableCreateNoClobber(
     await handle.close();
     handle = null;
 
-    const temporaryStat = await fs.promises.lstat(temporary);
+    const temporaryStat = await fs.promises.lstat(temporary, { bigint: true });
     if (!temporaryStat.isFile() || temporaryStat.isSymbolicLink()) {
       fail("durable temporary path stopped being a regular file");
     }
@@ -1595,7 +1601,7 @@ export async function durableCreateNoClobber(
       }
       throw error;
     }
-    const publishedStat = await fs.promises.lstat(filePath);
+    const publishedStat = await fs.promises.lstat(filePath, { bigint: true });
     if (
       !publishedStat.isFile() ||
       publishedStat.isSymbolicLink() ||
@@ -1604,7 +1610,10 @@ export async function durableCreateNoClobber(
     ) {
       fail("durable publish did not create the expected regular hard link");
     }
-    await failpoint?.("after-link");
+    await failpoint?.(
+      "after-link",
+      Object.freeze({ dev: publishedStat.dev, ino: publishedStat.ino }),
+    );
     await syncDirectory(directory);
     await failpoint?.("after-directory-sync");
     await fs.promises.unlink(temporary);

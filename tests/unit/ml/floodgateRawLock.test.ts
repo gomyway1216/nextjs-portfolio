@@ -758,6 +758,21 @@ describe("durable no-clobber publication", () => {
     }
   });
 
+  it("reports the verified temp/final inode only at the after-link checkpoint", async () => {
+    const root = await temporaryRoot();
+    const target = path.join(root, "store", "linked-identity");
+    await fs.promises.mkdir(path.dirname(target), { recursive: true });
+    let observed: Readonly<{ dev: bigint; ino: bigint }> | undefined;
+    await durableCreateNoClobber(target, "durable", {
+      failpoint: (phase, linkedIdentity) => {
+        if (phase === "after-link") observed = linkedIdentity;
+        else expect(linkedIdentity).toBeUndefined();
+      },
+    });
+    const stat = await fs.promises.lstat(target, { bigint: true });
+    expect(observed).toEqual({ dev: stat.dev, ino: stat.ino });
+  });
+
   it("preserves a primary publication failure when cleanup also fails", async () => {
     const root = await temporaryRoot();
     const target = path.join(root, "store", "primary-error");

@@ -28,6 +28,7 @@ import {
   serializeFloodgateRawLockManifest,
   verifyExistingFloodgateRawObject,
   type FloodgateDurableCreatePhase,
+  type FloodgateDurableLinkedFileIdentity,
   type FloodgateRawCsaIndexEntry,
   type FloodgateRawLockManifest,
   type FloodgateRawReceiptIndexEntry,
@@ -1061,17 +1062,6 @@ async function statRegularFileIdentityNoFollow(
   }
 }
 
-async function statRegularFileIdentityNoFollowIfPresent(
-  filePath: string,
-): Promise<Readonly<FloodgateRegularFileIdentity> | null> {
-  try {
-    return await statRegularFileIdentityNoFollow(filePath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
-    throw error;
-  }
-}
-
 interface FloodgateDirectoryIdentity {
   readonly dev: bigint;
   readonly ino: bigint;
@@ -1254,7 +1244,10 @@ class FloodgateRoleLockOutputRootGuard {
     }
   }
 
-  async #snapshot(stage: string): Promise<{
+  async #snapshot(
+    stage: string,
+    enforceParentCtime = true,
+  ): Promise<{
     readonly rootCtimeNs: bigint;
   }> {
     if (this.#closed) fail(`role lock root guard is closed at ${stage}`);
@@ -1277,8 +1270,9 @@ class FloodgateRoleLockOutputRootGuard {
       `role lock parent handle at ${stage}`,
     );
     if (
-      parentPath.ctimeNs !== this.#parentCtimeNs ||
-      parentHandle.ctimeNs !== this.#parentCtimeNs
+      enforceParentCtime &&
+      (parentPath.ctimeNs !== this.#parentCtimeNs ||
+        parentHandle.ctimeNs !== this.#parentCtimeNs)
     ) {
       fail(`role lock parent changed; possible output-root ABA at ${stage}`);
     }
@@ -1338,19 +1332,16 @@ class FloodgateRoleLockOutputRootGuard {
     }
   }
 
-  async rollbackPublishedChild(
+  async rollbackOwnedPublishedChild(
     filename: string,
-    expectedIdentity: Readonly<FloodgateRegularFileIdentity>,
-    beforeEntries: readonly string[],
-    afterEntries: readonly string[],
+    expectedIdentity: Readonly<FloodgateDurableLinkedFileIdentity>,
   ): Promise<void> {
     if (path.basename(filename) !== filename || filename.length === 0) {
       fail("role lock rollback filename must be one direct child");
     }
-    await this.assertState(
-      `before ${filename} rollback`,
-      beforeEntries,
-      "adopt-known-write",
+    const initialRoot = await this.#snapshot(
+      `before owned ${filename} rollback`,
+      false,
     );
     const filePath = path.join(this.#root, filename);
     const noFollow = fs.constants.O_NOFOLLOW;
@@ -1379,6 +1370,29 @@ class FloodgateRoleLockOutputRootGuard {
       ) {
         fail(`refusing to unlink a replaced ${filename}`);
       }
+      const beforeUnlink = await this.#snapshot(
+        `before owned ${filename} unlink`,
+        false,
+      );
+      if (beforeUnlink.rootCtimeNs !== initialRoot.rootCtimeNs) {
+        fail(`role lock root changed before owned ${filename} unlink`);
+      }
+      const finalPathStat = await fs.promises.lstat(filePath, { bigint: true });
+      if (
+        !finalPathStat.isFile() ||
+        finalPathStat.isSymbolicLink() ||
+        finalPathStat.dev !== expectedIdentity.dev ||
+        finalPathStat.ino !== expectedIdentity.ino
+      ) {
+        fail(`refusing to unlink a late replacement of ${filename}`);
+      }
+      const immediatelyBeforeUnlink = await this.#snapshot(
+        `immediately before owned ${filename} unlink`,
+        false,
+      );
+      if (immediatelyBeforeUnlink.rootCtimeNs !== beforeUnlink.rootCtimeNs) {
+        fail(`role lock root changed immediately before ${filename} unlink`);
+      }
       await fs.promises.unlink(filePath);
       await this.#rootHandle.sync();
       const afterUnlink = await handle.stat({ bigint: true });
@@ -1392,11 +1406,11 @@ class FloodgateRoleLockOutputRootGuard {
     } finally {
       await handle.close();
     }
-    await this.assertState(
-      `after ${filename} rollback`,
-      afterEntries,
-      "adopt-known-write",
+    const afterRollback = await this.#snapshot(
+      `after owned ${filename} rollback`,
+      false,
     );
+    this.#rootCtimeNs = afterRollback.rootCtimeNs;
     try {
       await fs.promises.lstat(filePath);
       fail(`${filename} still exists after rollback`);
@@ -1789,9 +1803,8 @@ function publicationAndRollbackFailure(
 }
 
 interface FloodgateTrackedManifestPublicationState {
-  attempted: boolean;
-  linked: boolean;
-  identity: Readonly<FloodgateRegularFileIdentity> | null;
+  ownedIdentity: Readonly<FloodgateDurableLinkedFileIdentity> | null;
+  stableIdentity: Readonly<FloodgateRegularFileIdentity> | null;
 }
 
 async function durablePublishTrackedManifest(
@@ -1800,28 +1813,38 @@ async function durablePublishTrackedManifest(
   state: FloodgateTrackedManifestPublicationState,
   injectedFailpoint?: (
     phase: FloodgateDurableCreatePhase,
+    linkedIdentity?: Readonly<FloodgateDurableLinkedFileIdentity>,
   ) => void | Promise<void>,
 ): Promise<void> {
-  state.attempted = true;
   await durableCreateNoClobber(manifestPath, manifestText, {
-    failpoint: async (phase) => {
+    failpoint: async (phase, linkedIdentity) => {
       // `after-link` is the first durable-create checkpoint at which the final
       // name exists. Record its held path identity before a later directory
       // fsync/temp-cleanup failure can reject the durable-create promise.
       if (phase === "after-link") {
-        state.linked = true;
-        state.identity = await statRegularFileIdentityNoFollow(manifestPath);
+        if (!linkedIdentity) {
+          fail("manifest after-link observation omitted its owned inode");
+        }
+        state.ownedIdentity = Object.freeze({ ...linkedIdentity });
+        const observed = await statRegularFileIdentityNoFollow(manifestPath);
+        if (
+          observed.dev !== linkedIdentity.dev ||
+          observed.ino !== linkedIdentity.ino
+        ) {
+          fail("manifest path no longer names the publisher-owned inode");
+        }
+        state.stableIdentity = observed;
       }
-      await injectedFailpoint?.(phase);
+      await injectedFailpoint?.(phase, linkedIdentity);
     },
   });
-  if (!state.linked || !state.identity) {
+  if (!state.ownedIdentity || !state.stableIdentity) {
     fail("manifest publication returned without observing its final hard link");
   }
   // Removing the temporary hard link changes the final inode's link count and
   // ctime. Refresh the stable baseline only after durableCreate has completed
   // that cleanup and its final directory fsync.
-  state.identity = await statRegularFileIdentityNoFollow(manifestPath);
+  state.stableIdentity = await statRegularFileIdentityNoFollow(manifestPath);
 }
 
 async function rollbackTrackedManifestAfterFailure(
@@ -1830,26 +1853,12 @@ async function rollbackTrackedManifestAfterFailure(
   state: FloodgateTrackedManifestPublicationState,
   primary: unknown,
 ): Promise<never> {
-  if (state.attempted) {
+  if (state.ownedIdentity) {
     try {
-      const identity =
-        state.identity ??
-        (await statRegularFileIdentityNoFollowIfPresent(manifestPath));
-      if (identity) {
-        await guard.rollbackPublishedChild(
-          FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
-          identity,
-          [
-            FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
-            FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME,
-            FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
-          ],
-          [
-            FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
-            FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME,
-          ],
-        );
-      }
+      await guard.rollbackOwnedPublishedChild(
+        FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
+        state.ownedIdentity,
+      );
     } catch (cleanupError) {
       throw publicationAndRollbackFailure(primary, cleanupError);
     }
@@ -1948,6 +1957,7 @@ export async function runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
   beforeManifestCheck: (root: string) => Promise<void>,
   manifestFailpoint?: (
     phase: FloodgateDurableCreatePhase,
+    linkedIdentity?: Readonly<FloodgateDurableLinkedFileIdentity>,
   ) => void | Promise<void>,
 ): Promise<void> {
   if (typeof beforeManifestCheck !== "function") {
@@ -1979,18 +1989,17 @@ export async function runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
     allocation,
   );
   const manifestPublication: FloodgateTrackedManifestPublicationState = {
-    attempted: false,
-    linked: false,
-    identity: null,
+    ownedIdentity: null,
+    stableIdentity: null,
   };
   const verifyManifest = async (): Promise<void> => {
     const observed = await verifyPublishedText(manifestPath, manifest);
-    if (!manifestPublication.identity) {
-      manifestPublication.identity = observed;
+    if (!manifestPublication.stableIdentity) {
+      manifestPublication.stableIdentity = observed;
     } else {
       assertSameRegularFileIdentity(
         observed,
-        manifestPublication.identity,
+        manifestPublication.stableIdentity,
         "immutable published test manifest",
       );
     }
@@ -2067,18 +2076,17 @@ async function publishRoleLock(
     evidence.core.artifact.canonical_json,
   );
   const manifestPublication: FloodgateTrackedManifestPublicationState = {
-    attempted: false,
-    linked: false,
-    identity: null,
+    ownedIdentity: null,
+    stableIdentity: null,
   };
   const verifyManifest = async (): Promise<void> => {
     const observed = await verifyPublishedText(manifestPath, manifestText);
-    if (!manifestPublication.identity) {
-      manifestPublication.identity = observed;
+    if (!manifestPublication.stableIdentity) {
+      manifestPublication.stableIdentity = observed;
     } else {
       assertSameRegularFileIdentity(
         observed,
-        manifestPublication.identity,
+        manifestPublication.stableIdentity,
         "immutable published role-lock manifest",
       );
     }

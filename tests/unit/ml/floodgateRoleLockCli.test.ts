@@ -246,6 +246,57 @@ describe("Floodgate role-lock CLI", () => {
     ]);
   });
 
+  it("recovers its owned manifest even when another role-lock artifact disappears first", async () => {
+    const { roleLockRoot } = await fixture();
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async () => undefined,
+        async (phase) => {
+          if (phase === "after-temp-unlink") {
+            await fs.promises.unlink(
+              path.join(roleLockRoot, "allocation.json"),
+            );
+            throw new Error("injected artifact loss after manifest link");
+          }
+        },
+      ),
+    ).rejects.toThrow(/injected artifact loss after manifest link/);
+    await expect(
+      fs.promises.lstat(path.join(roleLockRoot, "manifest.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      fs.promises.lstat(path.join(roleLockRoot, "allocation.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    const materializedStat = await fs.promises.lstat(
+      path.join(roleLockRoot, "materialized-input.json"),
+    );
+    expect(materializedStat.isFile()).toBe(true);
+  });
+
+  it("never removes a foreign manifest created before its own final link", async () => {
+    const { roleLockRoot } = await fixture();
+    const foreignManifest = "ATTACKER-OWNED-MANIFEST\n";
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async () => undefined,
+        async (phase) => {
+          if (phase === "after-temp-sync") {
+            await fs.promises.writeFile(
+              path.join(roleLockRoot, "manifest.json"),
+              foreignManifest,
+              { flag: "wx" },
+            );
+          }
+        },
+      ),
+    ).rejects.toThrow(/conflicting bytes/);
+    await expect(
+      fs.promises.readFile(path.join(roleLockRoot, "manifest.json"), "utf8"),
+    ).resolves.toBe(foreignManifest);
+  });
+
   it("holds one output-root identity through the complete manifest-last lifecycle", async () => {
     const { roleLockRoot } = await fixture();
     await expect(

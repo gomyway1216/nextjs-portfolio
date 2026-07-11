@@ -214,6 +214,29 @@ describe("provenance-neutral Floodgate parent sampling", () => {
     expect(JSON.parse(forward.canonical_json)).toEqual(forward.output);
   });
 
+  it("materializes semantic groups only for ranked candidate games", () => {
+    const games = Array.from({ length: 50 }, (_, index) =>
+      makeGame(600 + index),
+    );
+    const zeroQuota = allocateFloodgateRolesPure(games, options({}));
+    expect(zeroQuota.output.materialization_accounting).toEqual({
+      candidate_games_materialized: 0,
+      semantic_parent_groups_materialized: 0,
+      selected_parent_groups_retained: 0,
+    });
+
+    const result = allocateFloodgateRolesPure(
+      games,
+      options({ fresh_final_holdout: 1 }),
+    );
+    expect(result.output.materialization_accounting).toEqual({
+      candidate_games_materialized: 1,
+      semantic_parent_groups_materialized: 24,
+      selected_parent_groups_retained: 24,
+    });
+    expect(result.output.roles.fresh_final_holdout).toHaveLength(1);
+  });
+
   it("takes 6/12/6 when available, then hash-fills phase shortfalls to exactly 24", () => {
     const balanced = makeGame(10, { plies: range(16, 119) });
     const balancedResult = allocateFloodgateRolesPure(
@@ -450,6 +473,13 @@ describe("whole-game Floodgate role isolation", () => {
         [makeGame(164, { identities: [unpaired, identity("opponent-2")] })],
         options({}),
       ),
+    ).toThrow(/well-formed Unicode/);
+
+    expect(() =>
+      allocateFloodgateRolesPure([], {
+        ...options({}),
+        seed: `trailing-high-surrogate\ud800`,
+      }),
     ).toThrow(/well-formed Unicode/);
   });
 

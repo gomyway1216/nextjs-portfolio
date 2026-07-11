@@ -208,6 +208,11 @@ export interface FloodgatePureAllocationOutput {
   all_selected_parent_ids_sha256: string;
   all_protected_position_ids_count: number;
   all_protected_position_ids_sha256: string;
+  materialization_accounting: {
+    candidate_games_materialized: number;
+    semantic_parent_groups_materialized: number;
+    selected_parent_groups_retained: number;
+  };
 }
 
 export type DeepReadonly<T> = T extends (...args: never[]) => unknown
@@ -259,6 +264,7 @@ function hasUnpairedSurrogate(value: string): boolean {
   for (let index = 0; index < value.length; index += 1) {
     const code = value.charCodeAt(index);
     if (code >= 0xd800 && code <= 0xdbff) {
+      if (index + 1 >= value.length) return true;
       const next = value.charCodeAt(index + 1);
       if (next < 0xdc00 || next > 0xdfff) return true;
       index += 1;
@@ -532,13 +538,9 @@ export function protectedSemanticPositionIds(parentSfen: string): string[] {
   return [...protectedIds].sort(compareBytewise);
 }
 
-function decodePureGames(input: unknown): {
-  games: FloodgatePureGameInput[];
-  preparedByGame: Map<string, PreparedParent[]>;
-} {
+function decodePureGames(input: unknown): FloodgatePureGameInput[] {
   const rawGames = assertStrictArray(input, "pure core games");
-  const preparedByGame = new Map<string, PreparedParent[]>();
-  const games = rawGames.map((rawGame, gameIndex) => {
+  return rawGames.map((rawGame, gameIndex) => {
     const label = `pure core games[${gameIndex}]`;
     const game = assertStrictPlainObject(rawGame, label);
     assertExactKeys(game, PURE_GAME_KEYS, label);
@@ -574,7 +576,6 @@ function decodePureGames(input: unknown): {
     const rawParents = assertStrictArray(game.parents, `${label}.parents`);
     const parentIds = new Set<string>();
     const plies = new Set<number>();
-    const prepared: PreparedParent[] = [];
     const parents = rawParents.map((rawParent, parentIndex) => {
       const parentLabel = `${label}.parents[${parentIndex}]`;
       const parent = assertStrictPlainObject(rawParent, parentLabel);
@@ -603,46 +604,46 @@ function decodePureGames(input: unknown): {
         parent.parent_sfen as string,
         `${parentLabel}.parent_sfen`,
       );
-      const { moveNumber } = positionFromSfen(parentSfen);
+      const { position, moveNumber } = positionFromSfen(parentSfen);
+      if (toSfen(position, moveNumber) !== parentSfen) {
+        throw new Error(`${parentLabel}.parent_sfen is not canonical SFEN`);
+      }
       if (moveNumber !== (ply as number) + 1) {
         throw new Error(
           `${parentLabel}.parent_sfen move number does not match ply`,
         );
       }
-      // Validate and materialize the complete semantic group now, even for a
-      // zero-quota or never-ranked game. Unparsed text can never enter the
-      // canonical input artifact or support the score-free provenance flag.
-      const protectedIds = protectedSemanticPositionIds(parentSfen);
-      const decodedParent = {
+      // Syntax, canonical serialization, and move-number binding are checked
+      // for every input before hashing. Full legal-child groups are much
+      // heavier and are materialized one ranked candidate game at a time.
+      return {
         parent_id: parentId,
         parent_sfen: parentSfen,
         ply: ply as number,
       };
-      if (
-        decodedParent.ply >= FLOODGATE_PARENT_PLY_MIN &&
-        decodedParent.ply <= FLOODGATE_PARENT_PLY_MAX
-      ) {
-        prepared.push({
-          ...decodedParent,
-          position_id: positionKeyFromSfen(parentSfen),
-          phase: phaseForPly(decodedParent.ply),
-          protected_position_ids: protectedIds,
-        });
-      }
-      return decodedParent;
     });
 
-    if (preparedByGame.has(gameId)) {
-      throw new Error(`pure core games repeat game_id ${gameId}`);
-    }
-    preparedByGame.set(gameId, prepared);
     return {
       game_id: gameId,
       player_identities: [firstIdentity, secondIdentity] as const,
       parents,
     };
   });
-  return { games, preparedByGame };
+}
+
+function prepareParents(game: FloodgatePureGameInput): PreparedParent[] {
+  return game.parents
+    .filter(
+      (parent) =>
+        parent.ply >= FLOODGATE_PARENT_PLY_MIN &&
+        parent.ply <= FLOODGATE_PARENT_PLY_MAX,
+    )
+    .map((parent) => ({
+      ...parent,
+      position_id: positionKeyFromSfen(parent.parent_sfen),
+      phase: phaseForPly(parent.ply),
+      protected_position_ids: protectedSemanticPositionIds(parent.parent_sfen),
+    }));
 }
 
 function sampleGameParents(
@@ -888,7 +889,7 @@ export function allocateFloodgateRolesPure(
   inputGames: unknown,
   inputOptions: unknown,
 ): FloodgatePureAllocationArtifact {
-  const { games, preparedByGame } = decodePureGames(inputGames);
+  const games = decodePureGames(inputGames);
   const { seed, legacy, counts, gameDomains, parentDomains } =
     validatedOptions(inputOptions);
 
@@ -912,6 +913,8 @@ export function allocateFloodgateRolesPure(
 
   const selectedGameIds = new Set<string>();
   const reservedProtectedIds = new Set(legacy);
+  let candidateGamesMaterialized = 0;
+  let semanticParentGroupsMaterialized = 0;
   const roles: Record<FloodgateRole, FloodgateAllocatedGame[]> = {
     fresh_final_holdout: [],
     fresh_selection: [],
@@ -954,12 +957,9 @@ export function allocateFloodgateRolesPure(
       const key = pairKey(identities);
       if ((pairCounts.get(key)?.games ?? 0) >= pairCap) continue;
 
-      const prepared = preparedByGame.get(game.game_id);
-      if (!prepared) {
-        throw new Error(
-          `internal prepared-parent cache miss for ${game.game_id}`,
-        );
-      }
+      const prepared = prepareParents(game);
+      candidateGamesMaterialized += 1;
+      semanticParentGroupsMaterialized += prepared.length;
       const parents = sampleGameParents(
         game,
         prepared,
@@ -1096,6 +1096,11 @@ export function allocateFloodgateRolesPure(
     all_protected_position_ids_count: allProtectedIds.size,
     all_protected_position_ids_sha256:
       floodgateIdentifierDigest(allProtectedIds),
+    materialization_accounting: {
+      candidate_games_materialized: candidateGamesMaterialized,
+      semantic_parent_groups_materialized: semanticParentGroupsMaterialized,
+      selected_parent_groups_retained: allParents.length,
+    },
   };
   const frozenOutput = deepFreeze(output);
   const outputCanonicalJson = canonicalJson(frozenOutput);

@@ -1786,9 +1786,9 @@ async function durablePublishTrackedManifest(
       state.ownedHandle = handle;
     },
     failpoint: async (phase, linkedIdentity) => {
-      // `after-link` is the first durable-create checkpoint at which the final
-      // name exists. Its handle was transferred before this checkpoint so a
-      // later path displacement cannot take away the owned capability.
+      // `after-link` is the first checkpoint after final-path identity
+      // verification. The handle was transferred at the earlier post-link
+      // checkpoint so a failing observation cannot lose the owned capability.
       if (phase === "after-link") {
         if (!linkedIdentity) {
           fail("manifest after-link observation omitted its owned inode");

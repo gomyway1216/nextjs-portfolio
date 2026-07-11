@@ -230,25 +230,31 @@ describe("Floodgate role-lock CLI", () => {
     await expectInvalidatedManifest(roleLockRoot);
   });
 
-  it("durably invalidates a manifest when publication fails after its final link exists", async () => {
+  it("invalidates an owned final when failure occurs before its first final-path stat", async () => {
     const { roleLockRoot } = await fixture();
     await expect(
       runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
         roleLockRoot,
         async () => undefined,
         (phase) => {
-          if (phase === "after-directory-sync") {
-            throw new Error("injected manifest directory fsync failure");
+          if (phase === "after-link-before-final-stat") {
+            throw new Error("injected pre-final-stat failure");
           }
         },
       ),
-    ).rejects.toThrow(/injected manifest directory fsync failure/);
+    ).rejects.toThrow(/injected pre-final-stat failure/);
     await expectInvalidatedManifest(roleLockRoot);
-    expect((await fs.promises.readdir(roleLockRoot)).sort()).toEqual([
+    const entries = (await fs.promises.readdir(roleLockRoot)).sort();
+    expect(entries.filter((entry) => !entry.endsWith(".tmp"))).toEqual([
       "allocation.json",
       "manifest.json",
       "materialized-input.json",
     ]);
+    const temporary = entries.filter((entry) => entry.endsWith(".tmp"));
+    expect(temporary).toHaveLength(1);
+    await expect(
+      fs.promises.readFile(path.join(roleLockRoot, temporary[0]), "utf8"),
+    ).resolves.toBe(FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL);
   });
 
   it("invalidates its owned manifest despite simultaneous artifact loss and parent mutation", async () => {
@@ -324,14 +330,13 @@ describe("Floodgate role-lock CLI", () => {
         roleLockRoot,
         async () => undefined,
         async (phase) => {
-          if (phase === "after-directory-sync") {
+          if (phase === "after-link-before-final-stat") {
             await fs.promises.rename(manifestPath, displacedPath);
             await fs.promises.rename(foreignPath, manifestPath);
-            throw new Error("injected owned-manifest displacement");
           }
         },
       ),
-    ).rejects.toThrow(/injected owned-manifest displacement/);
+    ).rejects.toThrow(/publish did not create the expected regular hard link/);
 
     await expect(fs.promises.readFile(manifestPath, "utf8")).resolves.toBe(
       foreignManifest,
@@ -339,6 +344,13 @@ describe("Floodgate role-lock CLI", () => {
     await expect(fs.promises.readFile(displacedPath, "utf8")).resolves.toBe(
       FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL,
     );
+    const temporary = (await fs.promises.readdir(roleLockRoot)).filter(
+      (entry) => entry.endsWith(".tmp"),
+    );
+    expect(temporary).toHaveLength(1);
+    await expect(
+      fs.promises.readFile(path.join(roleLockRoot, temporary[0]), "utf8"),
+    ).resolves.toBe(FLOODGATE_ROLE_LOCK_INVALID_MANIFEST_SENTINEL);
   });
 
   it("holds one output-root identity through the complete manifest-last lifecycle", async () => {

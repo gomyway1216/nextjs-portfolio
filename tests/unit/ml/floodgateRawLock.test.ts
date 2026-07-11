@@ -723,6 +723,7 @@ describe("durable no-clobber publication", () => {
       "after-temp-sync",
     ];
     const afterLink: FloodgateDurableCreatePhase[] = [
+      "after-link-before-final-stat",
       "after-link",
       "after-directory-sync",
       "after-temp-unlink",
@@ -750,27 +751,38 @@ describe("durable no-clobber publication", () => {
       if (exists) {
         expect(await fs.promises.readFile(target, "utf8")).toBe("durable");
       }
-      expect(
-        (await fs.promises.readdir(path.dirname(target))).some((entry) =>
-          entry.endsWith(".tmp"),
-        ),
-      ).toBe(false);
+      const temporaryEntries = (
+        await fs.promises.readdir(path.dirname(target))
+      ).filter((entry) => entry.endsWith(".tmp"));
+      expect(temporaryEntries).toHaveLength(
+        phase === "after-temp-unlink" ? 0 : 1,
+      );
     }
   });
 
-  it("reports the verified temp/final inode only at the after-link checkpoint", async () => {
+  it("reports the held inode only at checkpoints after link succeeds", async () => {
     const root = await temporaryRoot();
     const target = path.join(root, "store", "linked-identity");
     await fs.promises.mkdir(path.dirname(target), { recursive: true });
-    let observed: Readonly<{ dev: bigint; ino: bigint }> | undefined;
+    const observed: Readonly<{ dev: bigint; ino: bigint }>[] = [];
     await durableCreateNoClobber(target, "durable", {
       failpoint: (phase, linkedIdentity) => {
-        if (phase === "after-link") observed = linkedIdentity;
-        else expect(linkedIdentity).toBeUndefined();
+        if (
+          phase === "after-link-before-final-stat" ||
+          phase === "after-link"
+        ) {
+          if (!linkedIdentity) throw new Error("linked identity was omitted");
+          observed.push(linkedIdentity);
+        } else {
+          expect(linkedIdentity).toBeUndefined();
+        }
       },
     });
     const stat = await fs.promises.lstat(target, { bigint: true });
-    expect(observed).toEqual({ dev: stat.dev, ino: stat.ino });
+    expect(observed).toEqual([
+      { dev: stat.dev, ino: stat.ino },
+      { dev: stat.dev, ino: stat.ino },
+    ]);
   });
 
   it("transfers the original linked O_RDWR handle and leaves it caller-owned", async () => {
@@ -824,6 +836,8 @@ describe("durable no-clobber publication", () => {
     const target = path.join(directory, "replaced-temp");
     await fs.promises.mkdir(directory);
     let transferCount = 0;
+    let replacementTemporaryPath: string | null = null;
+    const replacementBytes = "foreign";
     await expect(
       durableCreateNoClobber(target, "durable", {
         failpoint: async (phase) => {
@@ -833,11 +847,14 @@ describe("durable no-clobber publication", () => {
           );
           if (!temporary) throw new Error("durable temp was not found");
           const temporaryPath = path.join(directory, temporary);
+          replacementTemporaryPath = temporaryPath;
           await fs.promises.rename(
             temporaryPath,
             `${temporaryPath}.publisher-owned-displaced`,
           );
-          await fs.promises.writeFile(temporaryPath, "durable", { flag: "wx" });
+          await fs.promises.writeFile(temporaryPath, replacementBytes, {
+            flag: "wx",
+          });
         },
         transferLinkedFileHandle: () => {
           transferCount += 1;
@@ -848,9 +865,15 @@ describe("durable no-clobber publication", () => {
     await expect(fs.promises.lstat(target)).rejects.toMatchObject({
       code: "ENOENT",
     });
+    if (!replacementTemporaryPath) {
+      throw new Error("replacement temp path was not captured");
+    }
+    await expect(
+      fs.promises.readFile(replacementTemporaryPath, "utf8"),
+    ).resolves.toBe(replacementBytes);
   });
 
-  it("preserves a primary publication failure when cleanup also fails", async () => {
+  it("never unlinks a temporary pathname after a primary failure", async () => {
     const root = await temporaryRoot();
     const target = path.join(root, "store", "primary-error");
     await fs.promises.mkdir(path.dirname(target), { recursive: true });
@@ -867,9 +890,15 @@ describe("durable no-clobber publication", () => {
           },
         }),
       ).rejects.toThrow("primary publication failure");
+      expect(unlink).not.toHaveBeenCalled();
     } finally {
       unlink.mockRestore();
     }
+    expect(
+      (await fs.promises.readdir(path.dirname(target))).filter((entry) =>
+        entry.endsWith(".tmp"),
+      ),
+    ).toHaveLength(1);
   });
 });
 
@@ -1000,6 +1029,7 @@ describe("strict existing object and receipt verification", () => {
 
   it("never mistakes post-link durability failures for an idempotent CAS race", async () => {
     const phases: FloodgateDurableCreatePhase[] = [
+      "after-link-before-final-stat",
       "after-link",
       "after-directory-sync",
     ];

@@ -759,13 +759,7 @@ export async function assertFloodgateRoleBundleRevisionAncestryCoreForTests(
         binding.rawLockSourceRevision,
         "non-production raw-lock source revision",
       ),
-      roleLockResultReceipt:
-        binding.roleLockResultReceipt === undefined
-          ? undefined
-          : manifestFileIdentity(
-              binding.roleLockResultReceipt,
-              "non-production role-lock result receipt identity",
-            ),
+      roleLockResultReceipt: binding.roleLockResultReceipt,
     }),
     verifierRevision,
     isAncestor,

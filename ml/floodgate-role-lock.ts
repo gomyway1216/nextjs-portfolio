@@ -66,6 +66,8 @@ import { parseFloodgateCsa } from "./import-csa-games";
 
 export const FLOODGATE_ROLE_LOCK_SCHEMA =
   "shogi-floodgate-role-lock-v1" as const;
+export const FLOODGATE_ROLE_LOCK_MINIMUM_PRODUCER_REVISION =
+  "3da276f56378a2bb973e43f0e3d63f84ae1b4be0" as const;
 export const FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME = "manifest.json" as const;
 export const FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME =
   "materialized-input.json" as const;
@@ -254,6 +256,25 @@ export interface CreateFloodgateRoleLockOptions {
   readonly legacyProtectedPositionIdsPath: string;
 }
 
+export interface VerifyExistingFloodgateRoleLockOptions {
+  readonly repositoryRoot: string;
+  readonly verifierRevision: string;
+  readonly rawLockRoot: string;
+  readonly roleLockRoot: string;
+  readonly legacyProtectedPositionIdsPath: string;
+}
+
+export interface VerifiedFloodgateRoleLock {
+  readonly manifest: Readonly<FloodgateRoleLockManifest>;
+  readonly manifestText: string;
+  readonly materializedInputText: string;
+  readonly allocationText: string;
+  readonly allocation: FloodgatePureAllocationArtifact["output"];
+  readonly rawManifest: Readonly<FloodgateRawLockManifest>;
+  readonly producerRevision: string;
+  readonly verifierRevision: string;
+}
+
 function fail(message: string): never {
   throw new Error(`invalid Floodgate role lock: ${message}`);
 }
@@ -410,6 +431,43 @@ function canonicalJson(value: unknown): string {
       .join(",")}}`;
   }
   return fail(`canonical JSON does not support ${typeof value}`);
+}
+
+function parseCanonicalRoleLockJson(
+  bytes: Uint8Array,
+  label: string,
+  finalLf: boolean,
+): unknown {
+  let text: string;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
+      bytes,
+    );
+  } catch {
+    return fail(`${label} is not fatal-valid UTF-8`);
+  }
+  if (
+    text.length === 0 ||
+    text.startsWith("\ufeff") ||
+    text.includes("\0") ||
+    text.includes("\r") ||
+    (finalLf
+      ? !text.endsWith("\n") || text.endsWith("\n\n")
+      : text.endsWith("\n"))
+  ) {
+    fail(`${label} does not use the required canonical JSON framing`);
+  }
+  const payload = finalLf ? text.slice(0, -1) : text;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(payload) as unknown;
+  } catch {
+    return fail(`${label} is not valid JSON`);
+  }
+  if (`${canonicalJson(parsed)}${finalLf ? "\n" : ""}` !== text) {
+    fail(`${label} is not in canonical key order or exact framing`);
+  }
+  return parsed;
 }
 
 function validateRoleCounts(
@@ -1259,6 +1317,56 @@ async function assertGitRevision(
   if (status !== "") fail("tracked Git tree must be clean during role locking");
 }
 
+async function assertVerifierGitClosure(
+  repositoryRoot: string,
+  verifierRevision: string,
+  producerRevision: string,
+): Promise<void> {
+  await assertGitRevision(repositoryRoot, verifierRevision);
+  const { stdout: fullStatus } = await execFile(
+    "git",
+    [
+      "--no-optional-locks",
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+    ],
+    { cwd: repositoryRoot, encoding: "utf8" },
+  );
+  if (fullStatus !== "") {
+    fail("role-lock verification requires a fully clean Git worktree");
+  }
+  try {
+    await execFile(
+      "git",
+      [
+        "--no-optional-locks",
+        "merge-base",
+        "--is-ancestor",
+        FLOODGATE_ROLE_LOCK_MINIMUM_PRODUCER_REVISION,
+        producerRevision,
+      ],
+      { cwd: repositoryRoot, encoding: "utf8" },
+    );
+    await execFile(
+      "git",
+      [
+        "--no-optional-locks",
+        "merge-base",
+        "--is-ancestor",
+        producerRevision,
+        verifierRevision,
+      ],
+      { cwd: repositoryRoot, encoding: "utf8" },
+    );
+  } catch {
+    fail(
+      "role-lock producer revision is outside the audited producer/verifier ancestry",
+    );
+  }
+  await assertGitRevision(repositoryRoot, verifierRevision);
+}
+
 /** Explicit non-production seam for CLI-check-to-core-mkdir race tests. */
 export async function acquireAndReleaseFreshFloodgateRoleLockRootForTests(
   roleLockRoot: string,
@@ -1539,6 +1647,136 @@ function validateRoleLockManifestCandidate(
     fail("pure allocation artifact identity does not close");
   }
   return expected;
+}
+
+interface ExistingFloodgateRoleLockSnapshot {
+  readonly manifestCandidate: unknown;
+  readonly manifestText: string;
+  readonly materializedInputCandidate: unknown;
+  readonly materializedInputText: string;
+  readonly allocationCandidate: unknown;
+  readonly allocationText: string;
+}
+
+async function readExistingFloodgateRoleLockSnapshot(
+  roleLockRoot: string,
+): Promise<Readonly<ExistingFloodgateRoleLockSnapshot>> {
+  const stat = await fs.promises.lstat(roleLockRoot);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) {
+    fail("existing role-lock root must be a real directory");
+  }
+  if ((await fs.promises.realpath(roleLockRoot)) !== roleLockRoot) {
+    fail("existing role-lock root must not traverse symbolic links");
+  }
+  const entries = (await fs.promises.readdir(roleLockRoot)).sort(
+    compareUtf8Bytes,
+  );
+  const expectedEntries = [
+    FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME,
+    FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
+    FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
+  ].sort(compareUtf8Bytes);
+  if (
+    entries.length !== expectedEntries.length ||
+    entries.some((entry, index) => entry !== expectedEntries[index])
+  ) {
+    fail("existing role-lock root entries are not exact");
+  }
+
+  const manifestCandidate = parseCanonicalRoleLockJson(
+    await readRegularFileNoFollow(
+      path.join(roleLockRoot, FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME),
+    ),
+    "existing role-lock manifest",
+    true,
+  );
+  const materializedInputCandidate = parseCanonicalRoleLockJson(
+    await readRegularFileNoFollow(
+      path.join(roleLockRoot, FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME),
+    ),
+    "existing role-lock materialized input",
+    false,
+  );
+  const allocationCandidate = parseCanonicalRoleLockJson(
+    await readRegularFileNoFollow(
+      path.join(roleLockRoot, FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME),
+    ),
+    "existing role-lock allocation",
+    false,
+  );
+  return Object.freeze({
+    manifestCandidate,
+    manifestText: `${canonicalJson(manifestCandidate)}\n`,
+    materializedInputCandidate,
+    materializedInputText: canonicalJson(materializedInputCandidate),
+    allocationCandidate,
+    allocationText: canonicalJson(allocationCandidate),
+  });
+}
+
+function producerRevisionFromRoleLockManifest(candidate: unknown): string {
+  const manifest = assertStrictPlainObject(
+    candidate,
+    "existing role-lock manifest",
+  );
+  const pipeline = assertStrictPlainObject(
+    manifest.pipeline,
+    "existing role-lock manifest pipeline",
+  );
+  assertExactKeys(
+    pipeline,
+    ["source_revision", "tracked_tree_clean"],
+    "existing role-lock manifest pipeline",
+  );
+  if (pipeline.tracked_tree_clean !== true) {
+    fail("existing role-lock producer did not record a clean tree");
+  }
+  return assertRevision(pipeline.source_revision);
+}
+
+function assertSameRoleLockSnapshot(
+  actual: Readonly<ExistingFloodgateRoleLockSnapshot>,
+  expected: Readonly<ExistingFloodgateRoleLockSnapshot>,
+  label: string,
+): void {
+  if (
+    actual.manifestText !== expected.manifestText ||
+    actual.materializedInputText !== expected.materializedInputText ||
+    actual.allocationText !== expected.allocationText
+  ) {
+    fail(`existing role-lock changed during ${label}`);
+  }
+}
+
+/**
+ * Explicit non-production seam for canonical framing and verifier TOCTOU
+ * tests. Production callers must use verifyExistingFloodgateRoleLock.
+ */
+export async function verifyExistingFloodgateRoleLockArtifactsCoreForTests(
+  roleLockRoot: string,
+  expected: Readonly<{
+    manifestText: string;
+    materializedInputText: string;
+    allocationText: string;
+  }>,
+  beforeFinalRead: () => Promise<void> = async () => undefined,
+): Promise<void> {
+  if (typeof beforeFinalRead !== "function") {
+    fail("non-production role-lock verifier hook must be a function");
+  }
+  const first = await readExistingFloodgateRoleLockSnapshot(roleLockRoot);
+  if (
+    first.manifestText !== expected.manifestText ||
+    first.materializedInputText !== expected.materializedInputText ||
+    first.allocationText !== expected.allocationText
+  ) {
+    fail(
+      "existing role-lock artifacts do not match the expected test snapshot",
+    );
+  }
+  await beforeFinalRead();
+  const final = await readExistingFloodgateRoleLockSnapshot(roleLockRoot);
+  assertSameRoleLockSnapshot(final, first, "non-production verification");
 }
 
 async function verifyPublishedText(
@@ -1995,4 +2233,172 @@ export async function createFloodgateRoleLock(
     ),
   );
   return candidate;
+}
+
+/**
+ * Reproduce an already-published production role lock from its complete raw
+ * referential closure. The producer revision is historical evidence; the
+ * verifier runs from a later clean descendant and independently recomputes the
+ * exact materialized input, allocation, and manifest bytes.
+ */
+export async function verifyExistingFloodgateRoleLock(
+  optionsInput: VerifyExistingFloodgateRoleLockOptions,
+): Promise<Readonly<VerifiedFloodgateRoleLock>> {
+  const options = assertStrictPlainObject(
+    optionsInput,
+    "verify existing role-lock options",
+  );
+  assertExactKeys(
+    options,
+    [
+      "legacyProtectedPositionIdsPath",
+      "rawLockRoot",
+      "repositoryRoot",
+      "roleLockRoot",
+      "verifierRevision",
+    ],
+    "verify existing role-lock options",
+  );
+  const repositoryRoot = assertCanonicalAbsolutePath(
+    options.repositoryRoot,
+    "repository root",
+  );
+  const verifierRevision = assertRevision(options.verifierRevision);
+  const rawLockRoot = assertCanonicalAbsolutePath(
+    options.rawLockRoot,
+    "raw lock root",
+  );
+  const roleLockRoot = assertCanonicalAbsolutePath(
+    options.roleLockRoot,
+    "role lock root",
+  );
+  const legacyPath = assertCanonicalAbsolutePath(
+    options.legacyProtectedPositionIdsPath,
+    "legacy protected position IDs path",
+  );
+  assertDisjointRoots(rawLockRoot, roleLockRoot);
+  for (const externalRoot of [rawLockRoot, roleLockRoot]) {
+    if (
+      pathIsInsideOrEqual(repositoryRoot, externalRoot) ||
+      pathIsInsideOrEqual(externalRoot, repositoryRoot)
+    ) {
+      fail(
+        "raw-lock and role-lock roots must be disjoint from the Git worktree",
+      );
+    }
+  }
+  const expectedLegacyPath = path.join(
+    repositoryRoot,
+    "ml/data/wcsc36/int16-aware-replay-excluded-position-ids.txt",
+  );
+  if (legacyPath !== expectedLegacyPath) {
+    fail("legacy protected IDs path must be the preregistered repository file");
+  }
+
+  const initialRoleLock =
+    await readExistingFloodgateRoleLockSnapshot(roleLockRoot);
+  const producerRevision = producerRevisionFromRoleLockManifest(
+    initialRoleLock.manifestCandidate,
+  );
+  await assertVerifierGitClosure(
+    repositoryRoot,
+    verifierRevision,
+    producerRevision,
+  );
+
+  const rawManifest =
+    await readExistingFloodgateRawLockManifestFile(rawLockRoot);
+  const rawManifestText = serializeFloodgateRawLockManifest(rawManifest);
+  await verifyFloodgateRawLockCandidate(rawLockRoot, rawManifest);
+  const legacy = await readPinnedLegacyPositionIds(legacyPath);
+  const core = await buildProductionRoleLockCore(
+    rawLockRoot,
+    rawManifest,
+    legacy.identifiers,
+  );
+  const evidence: ManifestEvidence = Object.freeze({
+    pipelineRevision: producerRevision,
+    rawManifest,
+    rawManifestText,
+    legacy,
+    core,
+  });
+  const manifest = validateRoleLockManifestCandidate(
+    initialRoleLock.manifestCandidate,
+    evidence,
+  );
+  if (
+    initialRoleLock.materializedInputText !==
+      core.artifact.input_canonical_json ||
+    initialRoleLock.allocationText !== core.artifact.canonical_json ||
+    !isDeepStrictEqual(
+      initialRoleLock.materializedInputCandidate,
+      JSON.parse(core.artifact.input_canonical_json),
+    ) ||
+    !isDeepStrictEqual(
+      initialRoleLock.allocationCandidate,
+      core.artifact.output,
+    )
+  ) {
+    fail("existing role-lock artifacts do not reproduce verified evidence");
+  }
+
+  const rawBeforeFinalVerification =
+    await readExistingFloodgateRawLockManifestFile(rawLockRoot);
+  if (
+    serializeFloodgateRawLockManifest(rawBeforeFinalVerification) !==
+    rawManifestText
+  ) {
+    fail("raw manifest changed during role-lock verification");
+  }
+  await verifyFloodgateRawLockCandidate(
+    rawLockRoot,
+    rawBeforeFinalVerification,
+  );
+  const rawAfterFinalVerification =
+    await readExistingFloodgateRawLockManifestFile(rawLockRoot);
+  if (
+    serializeFloodgateRawLockManifest(rawAfterFinalVerification) !==
+    rawManifestText
+  ) {
+    fail("raw manifest changed during final role-lock verification");
+  }
+  const finalLegacy = await readPinnedLegacyPositionIds(legacyPath);
+  if (
+    finalLegacy.text !== legacy.text ||
+    !isDeepStrictEqual(finalLegacy.identity, legacy.identity)
+  ) {
+    fail("legacy protected IDs changed during role-lock verification");
+  }
+  await assertVerifierGitClosure(
+    repositoryRoot,
+    verifierRevision,
+    producerRevision,
+  );
+  const finalRoleLock =
+    await readExistingFloodgateRoleLockSnapshot(roleLockRoot);
+  assertSameRoleLockSnapshot(
+    finalRoleLock,
+    initialRoleLock,
+    "production verification",
+  );
+  validateRoleLockManifestCandidate(finalRoleLock.manifestCandidate, evidence);
+  if (
+    finalRoleLock.materializedInputText !==
+      core.artifact.input_canonical_json ||
+    finalRoleLock.allocationText !== core.artifact.canonical_json
+  ) {
+    fail("existing role-lock artifacts changed before verification completed");
+  }
+
+  return Object.freeze({
+    manifest,
+    manifestText: initialRoleLock.manifestText,
+    materializedInputText: initialRoleLock.materializedInputText,
+    allocationText: initialRoleLock.allocationText,
+    allocation: core.artifact.output,
+    rawManifest,
+    producerRevision,
+    verifierRevision,
+  });
 }

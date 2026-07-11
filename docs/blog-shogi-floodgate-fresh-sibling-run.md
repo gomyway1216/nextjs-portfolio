@@ -177,6 +177,20 @@ unique objectがreceiptより1少ないのは欠落ではない。2件のdaily-r
 
 result summarizerの独立監査では、読んだmanifest Aではなく別読込Bを検証できる競合、crash後の空・途中auditを拒否する問題、audit rootのABA差替え、BOMでraw SHAを誤る問題、token名FIFOで停止する問題をPR前に再現した。修正後はdirectory FD相対read、lease前後確認、raw-byte二重snapshot、完全行prefix、BigInt inode、timeoutを使い、最終P1/P2は0、ML testは279/279だった。
 
+## role lock live試行で修正した`$START_TIME`契約
+
+`main`の`10bf4c3f`からlabel-blind role lockを開始した。1回目は、Git ignore対象のlegacy replay-exclusion fileがfresh worktreeになく、output作成前に停止した。stable storageから事前登録どおりの624,816 bytes / SHA-256 `1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a` / 8,678 IDsを復元した。
+
+2回目もoutput作成前に停止した。原因は、CSA `$START_TIME`をURL event timestampと同じminuteへ束縛したうえで、さらに「START_TIME秒 <= URL秒」を要求していたことだった。事前登録にはこの秒順序条件はなく、live raw lockのcanonical 36,168局をraw manifest indexとCASの`$EVENT` / `$START_TIME` headerだけで全数確認すると、次の分布だった。
+
+| `$START_TIME - URL timestamp` |   局数 |
+| ----------------------------- | -----: |
+| 負                            | 31,927 |
+| 0秒                           |  4,231 |
+| 正                            |     10 |
+
+最小は-12秒、最大は+1秒で、正の10件はすべて正当な同一minute内の+1秒headerだった。malformed header、URL日付不一致、minute不一致はいずれも0である。したがってexact `$EVENT`、有効な`$START_TIME`、URL日付、同じ`YYYYMMDDHHMM`は維持し、同一minute内の秒順序だけをeligibility条件から外した。どちらの試行もrole-lock output / manifestを作成しておらず、読むrole-lock manifestもなかった。勝敗、teacher / model score、selection / final labelも読んでいない。
+
 ## raw取得中に先回りして見つけた次段の停止条件
 
 - 合法手が1つしかない親はsibling 2候補契約を満たさない。role lock前にrules-complete合法手2つ以上をlabel-blind条件にし、同じhash/fill順で補う

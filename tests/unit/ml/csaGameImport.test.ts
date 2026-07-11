@@ -11,17 +11,32 @@ import {
   loadOrFetchObject,
   parseCacheManifest,
   parseCsaGame,
+  resolveCsaMove,
   serializeCacheManifest,
   sha256,
   stableGameSplit,
+  teToUsi,
   verifyManifestCache,
   main as importCsaMain,
   type CacheManifestEntry,
   type FetchLike,
 } from '../../../ml/import-csa-games';
+import { positionFromSfen } from '../../../ml/shogi-sfen';
 
 const ARCHIVE_SHA = 'a'.repeat(64);
 const temporaryDirectories: string[] = [];
+
+const EXPLICIT_HIRATE_ROWS = [
+  'P1-KY-KE-GI-KI-OU-KI-GI-KE-KY',
+  'P2 * -HI *  *  *  *  * -KA * ',
+  'P3-FU-FU-FU-FU-FU-FU-FU-FU-FU',
+  'P4 *  *  *  *  *  *  *  *  * ',
+  'P5 *  *  *  *  *  *  *  *  * ',
+  'P6 *  *  *  *  *  *  *  *  * ',
+  'P7+FU+FU+FU+FU+FU+FU+FU+FU+FU',
+  'P8 * +KA *  *  *  *  * +HI * ',
+  'P9+KY+KE+GI+KI+OU+KI+GI+KE+KY',
+] as const;
 
 async function temporaryDirectory(): Promise<string> {
   const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'csa-import-test-'));
@@ -145,6 +160,210 @@ describe('CSA parsing and parent occurrences', () => {
     expect(() =>
       parseCsaGame(['V3.0', 'PI82HI', '+', '+7776FU,T0', '%TORYO'].join('\n'), { source: 'wcsc' })
     ).toThrow(/handicap/);
+  });
+
+  it.each([
+    {
+      label: 'Sente bishop',
+      sfen: '4k4/9/9/9/4B4/9/9/9/K8 b - 1',
+      token: '+5533KA',
+      usi: '5e3c',
+    },
+    {
+      label: 'Sente rook',
+      sfen: 'k8/9/9/9/4R4/9/9/9/K8 b - 1',
+      token: '+5553HI',
+      usi: '5e5c',
+    },
+    {
+      label: 'Gote bishop',
+      sfen: '1K7/9/9/9/4b4/9/9/9/4k4 w - 1',
+      token: '-5577KA',
+      usi: '5e7g',
+    },
+    {
+      label: 'Gote rook',
+      sfen: 'K8/9/9/9/4r4/9/9/9/4k4 w - 1',
+      token: '-5557HI',
+      usi: '5e5g',
+    },
+  ])('resolves legal optional non-promotion for $label', ({ sfen, token, usi }) => {
+    const { position } = positionFromSfen(sfen);
+    expect(teToUsi(resolveCsaMove(position, token))).toBe(usi);
+  });
+
+  it.each([
+    {
+      label: 'Sente bishop',
+      sfen: '4k4/9/9/9/4B4/9/9/9/K8 b - 1',
+      token: '+5533UM',
+      usi: '5e3c+',
+    },
+    {
+      label: 'Sente rook',
+      sfen: 'k8/9/9/9/4R4/9/9/9/K8 b - 1',
+      token: '+5553RY',
+      usi: '5e5c+',
+    },
+    {
+      label: 'Gote bishop',
+      sfen: '1K7/9/9/9/4b4/9/9/9/4k4 w - 1',
+      token: '-5577UM',
+      usi: '5e7g+',
+    },
+    {
+      label: 'Gote rook',
+      sfen: 'K8/9/9/9/4r4/9/9/9/4k4 w - 1',
+      token: '-5557RY',
+      usi: '5e5g+',
+    },
+  ])('keeps legal promotion for $label', ({ sfen, token, usi }) => {
+    const { position } = positionFromSfen(sfen);
+    expect(teToUsi(resolveCsaMove(position, token))).toBe(usi);
+  });
+
+  it.each([
+    {
+      label: 'pawn',
+      sfen: 'k8/4P4/9/9/9/9/9/9/8K b - 1',
+      declined: '+5251FU',
+      promoted: '+5251TO',
+      usi: '5b5a+',
+    },
+    {
+      label: 'lance',
+      sfen: 'k8/4L4/9/9/9/9/9/9/8K b - 1',
+      declined: '+5251KY',
+      promoted: '+5251NY',
+      usi: '5b5a+',
+    },
+    {
+      label: 'knight',
+      sfen: 'k8/9/4N4/9/9/9/9/9/8K b - 1',
+      declined: '+5341KE',
+      promoted: '+5341NK',
+      usi: '5c4a+',
+    },
+  ])('does not synthesize a forced $label promotion decline', ({ sfen, declined, promoted, usi }) => {
+    const { position } = positionFromSfen(sfen);
+    expect(() => resolveCsaMove(position, declined)).toThrow(/illegal or piece-mismatched/);
+    expect(teToUsi(resolveCsaMove(position, promoted))).toBe(usi);
+  });
+
+  it('fatal-decodes the exact copied Floodgate bytes used for the game hash', () => {
+    const valid = Buffer.from(['V3.0', 'PI', '+', '+7776FU', '%TORYO'].join('\n'), 'utf8');
+    const expectedSha = sha256(valid);
+    const game = parseCsaGame(valid, { source: 'floodgate' });
+    expect(game.gameSha256).toBe(expectedSha);
+
+    const stringWithUnpairedSurrogate = [
+      'V3.0',
+      `$EVENT:\ud800`,
+      'PI',
+      '+',
+      '+7776FU',
+      '%TORYO',
+    ].join('\n');
+    const normalizedBytes = Buffer.from(stringWithUnpairedSurrogate, 'utf8');
+    const normalized = parseCsaGame(stringWithUnpairedSurrogate, { source: 'floodgate' });
+    expect(normalized.event).toBe('\ufffd');
+    expect(normalized.gameSha256).toBe(sha256(normalizedBytes));
+
+    const malformed = Buffer.concat([valid, Buffer.from([0xff])]);
+    expect(() => parseCsaGame(malformed, { source: 'floodgate' })).toThrow(/fatal-valid utf-8/);
+  });
+
+  it('copies typed-array subclasses without iterator/species hooks and rejects Proxy or shared bytes', () => {
+    const valid = Buffer.from(['V3.0', 'PI', '+', '+7776FU', '%TORYO'].join('\n'), 'utf8');
+    class HostileBytes extends Uint8Array {
+      static get [Symbol.species](): never {
+        throw new Error('species must not run');
+      }
+    }
+    const hostile = new HostileBytes(valid);
+    Object.defineProperty(hostile, Symbol.iterator, {
+      value: () => {
+        throw new Error('iterator must not run');
+      },
+    });
+    Object.defineProperty(hostile, 'buffer', {
+      get: () => {
+        throw new Error('own buffer getter must not run');
+      },
+    });
+    expect(parseCsaGame(hostile, { source: 'floodgate' }).gameSha256).toBe(sha256(valid));
+
+    const proxy = new Proxy(new Uint8Array(valid), {});
+    expect(() => parseCsaGame(proxy, { source: 'floodgate' })).toThrow(/Proxy/);
+
+    const shared = new Uint8Array(new SharedArrayBuffer(valid.byteLength));
+    shared.set(valid);
+    Object.defineProperty(shared, 'buffer', {
+      get: () => new ArrayBuffer(valid.byteLength),
+    });
+    expect(() => parseCsaGame(shared, { source: 'floodgate' })).toThrow(/SharedArrayBuffer/);
+  });
+
+  it('rejects Floodgate BOM, NUL, and bare CR before statement parsing', () => {
+    const lf = Buffer.from(['V3.0', 'PI', '+', '+7776FU', '%TORYO'].join('\n'), 'utf8');
+    const fixtures = [
+      {
+        bytes: Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), lf]),
+        error: /BOM/,
+      },
+      { bytes: Buffer.concat([lf, Buffer.from([0])]), error: /NUL/ },
+      {
+        bytes: Buffer.from(lf.toString('utf8').replace(/\n/g, '\r'), 'utf8'),
+        error: /bare CR/,
+      },
+    ];
+    for (const fixture of fixtures) {
+      expect(() => parseCsaGame(fixture.bytes, { source: 'floodgate' })).toThrow(fixture.error);
+    }
+  });
+
+  it('accepts exactly nine explicit hirate rows', () => {
+    const game = parseCsaGame(['V3.0', ...EXPLICIT_HIRATE_ROWS, '+', '+7776FU', '%TORYO'].join('\n'), {
+      source: 'floodgate',
+    });
+    expect(game.moves).toHaveLength(1);
+    expect(game.moves[0].parentSfen).toBe('lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1');
+  });
+
+  it('rejects missing, duplicate, modified, and PI-mixed explicit hirate rows', () => {
+    const fixtures = [
+      {
+        lines: EXPLICIT_HIRATE_ROWS.filter((_, index) => index !== 4),
+        error: /expected PI or all nine hirate board rows/,
+      },
+      {
+        lines: [...EXPLICIT_HIRATE_ROWS, EXPLICIT_HIRATE_ROWS[0]],
+        error: /duplicate explicit board row P1/,
+      },
+      {
+        lines: EXPLICIT_HIRATE_ROWS.map((row, index) => (index === 1 ? row.replace('-HI', '-KA') : row)),
+        error: /unsupported non-hirate initial position in P2/,
+      },
+      {
+        lines: [...EXPLICIT_HIRATE_ROWS, 'PI'],
+        error: /duplicate or misplaced PI line/,
+      },
+    ];
+    for (const fixture of fixtures) {
+      expect(() =>
+        parseCsaGame(['V3.0', ...fixture.lines, '+', '+7776FU', '%TORYO'].join('\n'), {
+          source: 'floodgate',
+        })
+      ).toThrow(fixture.error);
+    }
+  });
+
+  it.each(['P+00FU', 'P-00FU', 'P+'])('rejects a late hand declaration %s', (hand) => {
+    expect(() =>
+      parseCsaGame(['V3.0', 'PI', '+', '+7776FU', hand, '%TORYO'].join('\n'), {
+        source: 'floodgate',
+      })
+    ).toThrow(/misplaced CSA hand declaration/);
   });
 
   it('produces a stable game-group split', () => {

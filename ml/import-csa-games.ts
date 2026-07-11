@@ -21,10 +21,12 @@
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
+import { types as nodeUtilTypes } from 'node:util';
 
 import { GenerateMovesImproved } from '../src/components/game/ShogiImproved/GenerateMovesImproved';
 import { InitialPositionImproved } from '../src/components/game/ShogiImproved/InitialPositionImproved';
 import { KyokumenImproved } from '../src/components/game/ShogiImproved/KyokumenImproved';
+import { buildDeclinablePromotion } from '../src/components/game/ShogiImproved/PromotionRulesImproved';
 import {
   FU,
   GI,
@@ -56,6 +58,10 @@ export type CsaEncoding = 'shift_jis' | 'utf-8';
 
 const MOVE_RE = /^([+-])([0-9])([0-9])([0-9])([0-9])(FU|KY|KE|GI|KI|KA|HI|OU|TO|NY|NK|NG|UM|RY)$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
+const TYPED_ARRAY_BUFFER_GETTER = Object.getOwnPropertyDescriptor(
+  Object.getPrototypeOf(Uint8Array.prototype) as object,
+  'buffer'
+)?.get;
 
 const CSA_KIND: Readonly<Record<string, number>> = {
   FU,
@@ -188,14 +194,30 @@ function assertSha256(value: string, label: string): string {
 }
 
 function decodeCsa(input: string | Uint8Array, encoding: CsaEncoding): string {
+  // Already-decoded strings remain for generic callers and tests only. The
+  // production Floodgate path must retain and pass the exact response bytes.
   if (typeof input === 'string') return input;
   // WCSC records are distributed as SHIFT_JIS. TextDecoder keeps the parser
   // dependency-free while all protocol tokens remain byte-exact ASCII.
-  return new TextDecoder(encoding).decode(input);
+  try {
+    return new TextDecoder(encoding, { fatal: true, ignoreBOM: true }).decode(input);
+  } catch {
+    throw new Error(`CSA bytes are not fatal-valid ${encoding}`);
+  }
 }
 
 function rawBytes(input: string | Uint8Array): Uint8Array {
-  return typeof input === 'string' ? Buffer.from(input, 'utf8') : input;
+  if (typeof input === 'string') return Buffer.from(input, 'utf8');
+  if (nodeUtilTypes.isProxy(input)) throw new Error('CSA bytes must not be a Proxy');
+  if (!(input instanceof Uint8Array)) throw new Error('CSA input must be a string or Uint8Array');
+  if (!TYPED_ARRAY_BUFFER_GETTER) throw new Error('TypedArray buffer getter is unavailable');
+  const backingBuffer = Reflect.apply(TYPED_ARRAY_BUFFER_GETTER, input, []) as ArrayBufferLike;
+  if (nodeUtilTypes.isSharedArrayBuffer(backingBuffer)) {
+    throw new Error('CSA bytes must not use SharedArrayBuffer storage');
+  }
+  // TypedArray construction ignores an overridden iterator and Symbol.species,
+  // yielding an independent plain snapshot for both Uint8Array and Buffer.
+  return new Uint8Array(input);
 }
 
 function resultKind(te: Te): number {
@@ -231,9 +253,24 @@ export function resolveCsaMove(position: KyokumenImproved, token: string): Te {
   const from = isDrop ? 0 : (fromFile << 4) + fromRank;
   const to = (toFile << 4) + toRank;
   const expectedKind = CSA_KIND[pieceCode];
-  const matches = GenerateMovesImproved.generateLegalMoves(position).filter(
-    (move) => move.from === from && move.to === to && resultKind(move) === expectedKind
-  );
+  const matches: Te[] = [];
+  let seenPromoted = false;
+  let seenUnpromoted = false;
+  const addExpected = (move: Te): void => {
+    if (resultKind(move) !== expectedKind) return;
+    if (move.promote ? seenPromoted : seenUnpromoted) return;
+    if (move.promote) seenPromoted = true;
+    else seenUnpromoted = true;
+    matches.push(move);
+  };
+  for (const move of GenerateMovesImproved.generateLegalMoves(position)) {
+    if (move.from !== from || move.to !== to) continue;
+    addExpected(move);
+    // The search generator prunes optional non-promotion for bishop and rook.
+    // CSA parsing must follow shogi rules rather than that search optimization.
+    const declined = buildDeclinablePromotion(move, position.teban);
+    if (declined) addExpected(declined);
+  }
 
   if (matches.length === 0) {
     throw new Error(`illegal or piece-mismatched CSA move: ${token}`);
@@ -333,7 +370,21 @@ function metadataKey(key: string): string {
 export function parseCsaGame(input: string | Uint8Array, options: ParseCsaOptions): ParsedCsaGame {
   const encoding = options.encoding ?? (options.source === 'wcsc' ? 'shift_jis' : 'utf-8');
   const bytes = rawBytes(input);
-  const text = decodeCsa(input, encoding).replace(/\r\n?/g, '\n');
+  // Floodgate provenance is byte-oriented even for compatibility callers that
+  // pass a string: parse the same UTF-8 snapshot that is hashed below.
+  const decoded = decodeCsa(
+    options.source === 'floodgate' ? bytes : typeof input === 'string' ? input : bytes,
+    encoding
+  );
+  let text: string;
+  if (options.source === 'floodgate') {
+    if (decoded.startsWith('\uFEFF')) throw new Error('Floodgate CSA must not contain a UTF-8 BOM');
+    if (decoded.includes('\0')) throw new Error('Floodgate CSA must not contain NUL');
+    text = decoded.replace(/\r\n/g, '\n');
+    if (text.includes('\r')) throw new Error('Floodgate CSA must not contain a bare CR');
+  } else {
+    text = decoded.replace(/\r\n?/g, '\n');
+  }
   const lines = text.split('\n');
 
   let event: string | null = null;
@@ -461,6 +512,9 @@ export function parseCsaGame(input: string | Uint8Array, options: ParseCsaOption
         continue;
       }
       if (/^P[+-]/.test(line)) {
+        if (moves.length > 0 || positionValidated) {
+          throw new Error('duplicate or misplaced CSA hand declaration');
+        }
         // Even an empty explicit P+/P- hand declaration is unnecessary for PI;
         // reject it so a future parser change cannot accidentally admit handicaps.
         handsWereDeclared = true;

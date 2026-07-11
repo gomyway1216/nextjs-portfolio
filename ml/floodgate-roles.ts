@@ -381,9 +381,14 @@ function assertAllowedKeys(
   const unknown = actual.filter((key) => !allowedSet.has(key));
   const missing = required.filter((key) => !actual.includes(key));
   if (unknown.length > 0 || missing.length > 0) {
-    throw new Error(
-      `${label} has unknown keys ${unknown.sort(compareBytewise).join(",")} or missing keys ${missing.sort(compareBytewise).join(",")}`,
-    );
+    const problems: string[] = [];
+    if (unknown.length > 0) {
+      problems.push(`unknown keys ${unknown.sort(compareBytewise).join(",")}`);
+    }
+    if (missing.length > 0) {
+      problems.push(`missing keys ${missing.sort(compareBytewise).join(",")}`);
+    }
+    throw new Error(`${label} has ${problems.join(" and ")}`);
   }
 }
 
@@ -405,6 +410,11 @@ function canonicalJson(value: unknown): string {
     return JSON.stringify(value);
   }
   if (Array.isArray(value)) {
+    for (let index = 0; index < value.length; index += 1) {
+      if (!Object.hasOwn(value, index)) {
+        throw new Error("canonical JSON does not support sparse arrays");
+      }
+    }
     return `[${value.map((entry) => canonicalJson(entry)).join(",")}]`;
   }
   if (value && typeof value === "object") {

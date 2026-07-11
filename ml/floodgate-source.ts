@@ -260,10 +260,10 @@ function assertStrictPlainDataArray(
     fail(`${label} must not contain symbol keys`);
   }
   const names = Object.getOwnPropertyNames(value);
-  const expected = new Set([
-    "length",
-    ...Array.from({ length: value.length }, (_, index) => String(index)),
-  ]);
+  const expected = new Set<string>(["length"]);
+  for (let index = 0; index < value.length; index += 1) {
+    expected.add(String(index));
+  }
   if (
     names.length !== value.length + 1 ||
     names.some((name) => !expected.has(name))
@@ -1053,9 +1053,8 @@ function expectedFloodgateQ1DailyListingUrls(): readonly string[] {
     instant += 24 * 60 * 60 * 1000
   ) {
     const date = new Date(instant).toISOString().slice(0, 10);
-    urls.push(
-      `${FLOODGATE_ORIGIN}/shogi/x/${date.slice(0, 4)}/${date.slice(5, 7)}/${date.slice(8, 10)}/`,
-    );
+    const [year, month, day] = date.split("-");
+    urls.push(`${FLOODGATE_ORIGIN}/shogi/x/${year}/${month}/${day}/`);
   }
   if (urls.length !== FLOODGATE_Q1_DAILY_LISTING_COUNT) {
     fail("internal Q1 daily listing calendar count is not 90");

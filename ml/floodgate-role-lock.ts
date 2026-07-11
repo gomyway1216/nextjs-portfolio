@@ -2131,13 +2131,14 @@ async function readRoleLockResultReceiptBlob(
   repositoryRoot: string,
   producerRevision: string,
 ): Promise<Uint8Array> {
+  const receiptObject = `${assertRevision(producerRevision)}:${FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH}`;
   const { stdout } = await execFile(
     FLOODGATE_GIT_EXECUTABLE,
     [
       ...FLOODGATE_GIT_COMMAND_PREFIX,
       "cat-file",
       "blob",
-      `${assertRevision(producerRevision)}:${FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH}`,
+      receiptObject,
     ],
     {
       cwd: repositoryRoot,
@@ -2145,7 +2146,7 @@ async function readRoleLockResultReceiptBlob(
       encoding: "buffer",
     },
   ).catch(() =>
-    fail("role-lock producer tree does not contain the required result receipt"),
+    fail(`role-lock producer tree does not contain ${receiptObject}`),
   );
   return new Uint8Array(stdout);
 }

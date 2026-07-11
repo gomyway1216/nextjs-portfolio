@@ -706,13 +706,14 @@ async function assertRoleBundleGitClosure(
     },
   );
   if (binding.roleLockResultReceipt !== undefined) {
+    const receiptObject = `${binding.roleLockProducerRevision}:${FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH}`;
     const producerReceipt = await gitOutput(repositoryRoot, [
       "cat-file",
       "blob",
-      `${binding.roleLockProducerRevision}:${FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH}`,
+      receiptObject,
     ]).catch(() =>
       fail(
-        "role-lock producer tree does not contain the cited result receipt",
+        `role-lock producer tree does not contain ${receiptObject}`,
       ),
     );
     if (

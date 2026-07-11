@@ -531,6 +531,7 @@ describe("Floodgate raw CSA identity and rating metadata", () => {
     const bareCr = new TextEncoder().encode(
       liveShapedCsa().replace("V2\r\n", "V2\r"),
     );
+    const terminalBareCr = new TextEncoder().encode("V2\r");
 
     expect(isFloodgateCsaByteCodecEligible(valid)).toBe(true);
     for (const bytes of [
@@ -539,6 +540,7 @@ describe("Floodgate raw CSA identity and rating metadata", () => {
       bom,
       invalidUtf8,
       bareCr,
+      terminalBareCr,
     ]) {
       expect(isFloodgateCsaByteCodecEligible(bytes)).toBe(false);
     }
@@ -553,6 +555,7 @@ describe("Floodgate raw CSA identity and rating metadata", () => {
       /fatal-valid UTF-8/,
     );
     expect(() => parseFloodgateCsaMetadata(bareCr)).toThrow(/bare CR/);
+    expect(() => parseFloodgateCsaMetadata(terminalBareCr)).toThrow(/bare CR/);
     expect(trailingNulPadding).toEqual(trailingNulPaddingBefore);
 
     vi.stubGlobal(

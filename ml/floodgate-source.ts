@@ -934,10 +934,12 @@ function classifyFloodgateCsaByteCodecRejection(
   ) {
     return "empty-bom-or-nul";
   }
+  const length = input.byteLength;
   let hasBareCr = false;
-  for (let index = 0; index < input.byteLength; index += 1) {
-    if (input[index] === 0) return "empty-bom-or-nul";
-    if (input[index] === 0x0d && input[index + 1] !== 0x0a) {
+  for (let index = 0; index < length; index += 1) {
+    const byte = input[index];
+    if (byte === 0) return "empty-bom-or-nul";
+    if (byte === 0x0d && (index + 1 === length || input[index + 1] !== 0x0a)) {
       hasBareCr = true;
     }
   }

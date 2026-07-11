@@ -60,6 +60,7 @@ import {
   compareUtf8Bytes,
   createFloodgateDailyRatingContextCache,
   decideFloodgateCsaRatingEligibility,
+  isFloodgateCsaByteCodecEligible,
   parseFloodgateCsaUrl,
   parseFloodgateDailyRatingUrl,
   type FloodgateEligibleCsaRatingDecision,
@@ -2618,6 +2619,7 @@ async function buildProductionRoleLockCore(
         rawLockRoot,
         rawObjectIdentity(entry),
       );
+      if (!isFloodgateCsaByteCodecEligible(bytes)) return null;
       const decision = decideFloodgateCsaRatingEligibility(ratingContext, {
         url: entry.url,
         body: Object.freeze({ bytes: entry.bytes, sha256: entry.sha256 }),

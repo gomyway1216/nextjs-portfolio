@@ -191,6 +191,17 @@ The second attempt also stopped before creating output. The parser bound CSA `$S
 
 The minimum was -12 seconds and the maximum was +1 second; all ten positive cases were legitimate same-minute headers at exactly +1 second. There were zero malformed headers, URL-date mismatches, or minute mismatches. The strict `$EVENT` binding, valid `$START_TIME`, exact URL date, and shared `YYYYMMDDHHMM` therefore remain enforced; only within-minute second ordering was removed from eligibility. Neither attempt created role-lock output or a manifest, so there was no role-lock manifest to read. No winner, teacher/model score, selection label, or final label was read either.
 
+The third attempt started from regular merge `669e54d` and stopped after 40.417 seconds, again before output creation, when the strict CSA codec found a NUL. A byte-only scan of all 36,168 objects referenced by the raw manifest, without interpreting moves or outcomes, found zero empty bodies, zero UTF-8 BOMs, zero invalid UTF-8 bodies, zero bare CRs, four objects containing NUL, and a four-object codec-ineligible union. In all four, one contiguous NUL run began immediately after an LF and continued to EOF with no later non-NUL byte.
+
+| Event timestamp  | Object SHA-256                                                     | Total bytes | Trailing NUL bytes |
+| ---------------- | ------------------------------------------------------------------ | ----------: | -----------------: |
+| `20260326160004` | `bb7f0f69388505da8379ac2e08280eec951ca9f13cbe83e6e36ac53f56c298f0` |       6,940 |                 39 |
+| `20260326160005` | `00cc0514b6adabda2ad031414cf9e0ef34b9890d8c010bbab5b0dc5ff215235d` |       8,943 |                561 |
+| `20260326160006` | `069ec3ab319bf38d12afde8eb9db0df02f44aa4d772ac55d598e73e342145b0e` |       3,629 |                228 |
+| `20260326160008` | `367e46410a94b2225a1c1849402a4965be5dbd5bb73d15b695c044c756f7b5af` |      10,773 |              1,424 |
+
+Truncating the padding would “repair” the response into bytes that were never acquired, so the pipeline does not do that. The strict parser continues to reject empty, BOM, NUL, invalid UTF-8, and bare-CR input. Instead, the role-lock inspection entry point applies only this byte-codec gate label-blindly and excludes the whole failing object as source-ineligible. The codec gate does not inspect metadata, moves, terminal markers, or outcomes. The third attempt created no role-lock output or manifest and read no label or sealed holdout.
+
 ## Next-stage stop conditions found while acquisition ran
 
 - A parent with only one legal move cannot satisfy the two-sibling contract. Before role lock, rules-complete legal moves >= 2 becomes a label-blind condition, with deterministic replacement under the same hash/fill order

@@ -21,6 +21,7 @@ import {
   floodgateRawUrlSha256,
   parseFloodgateRawReceipt,
   parseFloodgateRawLockManifest,
+  readExistingFloodgateRawReceiptIfPresent,
   serializeFloodgateRawLockManifest,
   serializeFloodgateRawReceipt,
   storeFloodgateRawObject,
@@ -826,6 +827,59 @@ describe("strict existing object and receipt verification", () => {
         "daily_rating" as FloodgateRawReceiptKind,
       ),
     ).rejects.toThrow();
+  });
+
+  it("returns null only when the URL-keyed receipt itself is absent", async () => {
+    const absentRoot = await temporaryRoot();
+    await expect(
+      readExistingFloodgateRawReceiptIfPresent(
+        absentRoot,
+        LISTING_URL,
+        "daily_listing",
+      ),
+    ).resolves.toBeNull();
+
+    const missingObjectRoot = await temporaryRoot();
+    const receipt = validReceipt();
+    const receiptPath = await mkdirFor(
+      missingObjectRoot,
+      floodgateRawReceiptPath(receipt.url),
+    );
+    await durableCreateNoClobber(
+      receiptPath,
+      serializeFloodgateRawReceipt(receipt),
+    );
+    await expect(
+      readExistingFloodgateRawReceiptIfPresent(
+        missingObjectRoot,
+        LISTING_URL,
+        "daily_listing",
+      ),
+    ).rejects.toThrow(/parent directory does not exist|ENOENT/);
+
+    const malformedReceiptRoot = await temporaryRoot();
+    const malformedReceiptPath = await mkdirFor(
+      malformedReceiptRoot,
+      floodgateRawReceiptPath(receipt.url),
+    );
+    await durableCreateNoClobber(malformedReceiptPath, "{}\n");
+    await expect(
+      readExistingFloodgateRawReceiptIfPresent(
+        malformedReceiptRoot,
+        LISTING_URL,
+        "daily_listing",
+      ),
+    ).rejects.toThrow(/exactly keys|schema/);
+
+    const completeRoot = await temporaryRoot();
+    await materializeReceipt(completeRoot, receipt);
+    await expect(
+      readExistingFloodgateRawReceiptIfPresent(
+        completeRoot,
+        LISTING_URL,
+        "daily_listing",
+      ),
+    ).resolves.toMatchObject({ receipt });
   });
 
   it("reuses an exact CAS object after verification but rejects corruption", async () => {

@@ -1412,6 +1412,29 @@ async function assertParentChainIsRealDirectories(
   }
 }
 
+async function parentChainExistsAndIsRealDirectories(
+  filePath: string,
+): Promise<boolean> {
+  const absolute = assertCanonicalAbsoluteFilePath(filePath);
+  const parent = path.dirname(absolute);
+  const parsed = path.parse(parent);
+  let current = parsed.root;
+  const relative = path.relative(parsed.root, parent);
+  const segments = relative === "" ? [] : relative.split(path.sep);
+  for (const segment of segments) {
+    current = path.join(current, segment);
+    const stat = await lstatMaybe(current);
+    if (!stat) return false;
+    if (stat.isSymbolicLink()) {
+      fail(`parent path component must not be a symbolic link: ${current}`);
+    }
+    if (!stat.isDirectory()) {
+      fail(`parent path component is not a directory: ${current}`);
+    }
+  }
+  return true;
+}
+
 async function syncDirectory(directory: string): Promise<void> {
   // Durability requires the directory entry itself to be synced. Platforms
   // that cannot open/fsync directories must fail closed rather than silently
@@ -1429,6 +1452,13 @@ async function syncDirectory(directory: string): Promise<void> {
 
 async function readRegularFileNoFollow(filePath: string): Promise<Uint8Array> {
   await assertParentChainIsRealDirectories(filePath);
+  return readRegularFileNoFollowWithVerifiedParents(filePath);
+}
+
+async function readRegularFileNoFollowWithVerifiedParents(
+  filePath: string,
+): Promise<Uint8Array> {
+  assertCanonicalAbsoluteFilePath(filePath);
   const noFollow = fs.constants.O_NOFOLLOW;
   if (typeof noFollow !== "number" || noFollow === 0) {
     fail("secure regular-file verification requires O_NOFOLLOW support");
@@ -1702,16 +1732,9 @@ export interface VerifiedFloodgateRawReceipt {
   readonly bytes: Uint8Array;
 }
 
-/** Revalidate both a URL-keyed receipt and its exact CAS object for resume. */
-export async function verifyExistingFloodgateRawReceipt(
-  lockRoot: string,
-  rawUrl: string,
-  kind: FloodgateRawReceiptKind,
-): Promise<VerifiedFloodgateRawReceipt> {
-  const url = canonicalUrlForKind(rawUrl, kind, "expected receipt URL");
-  const relativeReceipt = floodgateRawReceiptPath(url);
-  const receiptPath = lockStoragePath(lockRoot, relativeReceipt);
-  const receiptBytes = await readRegularFileNoFollow(receiptPath);
+function decodeExistingFloodgateRawReceipt(
+  receiptBytes: Uint8Array,
+): Readonly<FloodgateRawReceipt> {
   let text: string;
   try {
     text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
@@ -1720,7 +1743,16 @@ export async function verifyExistingFloodgateRawReceipt(
   } catch {
     return fail("raw response receipt is not fatal-valid UTF-8");
   }
-  const receipt = parseFloodgateRawReceipt(text);
+  return parseFloodgateRawReceipt(text);
+}
+
+async function verifyExistingFloodgateRawReceiptFromFile(
+  lockRoot: string,
+  url: string,
+  kind: FloodgateRawReceiptKind,
+  receiptBytes: Uint8Array,
+): Promise<VerifiedFloodgateRawReceipt> {
+  const receipt = decodeExistingFloodgateRawReceipt(receiptBytes);
   if (receipt.url !== url || receipt.kind !== kind) {
     fail("URL-keyed receipt does not match the expected URL and kind");
   }
@@ -1730,6 +1762,63 @@ export async function verifyExistingFloodgateRawReceipt(
     object: receipt.object,
   });
   return Object.freeze({ receipt, bytes });
+}
+
+async function readExistingFloodgateRawReceiptFileIfPresent(
+  lockRoot: string,
+  url: string,
+): Promise<Uint8Array | null> {
+  const relativeReceipt = floodgateRawReceiptPath(url);
+  const receiptPath = lockStoragePath(lockRoot, relativeReceipt);
+  if (!(await parentChainExistsAndIsRealDirectories(receiptPath))) return null;
+  try {
+    return await readRegularFileNoFollowWithVerifiedParents(receiptPath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+/** Revalidate both a URL-keyed receipt and its exact CAS object for resume. */
+export async function verifyExistingFloodgateRawReceipt(
+  lockRoot: string,
+  rawUrl: string,
+  kind: FloodgateRawReceiptKind,
+): Promise<VerifiedFloodgateRawReceipt> {
+  const url = canonicalUrlForKind(rawUrl, kind, "expected receipt URL");
+  const receiptBytes = await readRegularFileNoFollow(
+    lockStoragePath(lockRoot, floodgateRawReceiptPath(url)),
+  );
+  return verifyExistingFloodgateRawReceiptFromFile(
+    lockRoot,
+    url,
+    kind,
+    receiptBytes,
+  );
+}
+
+/**
+ * Resume probe. Absence of the URL-keyed receipt storage returns `null`.
+ * Once a receipt exists, malformed receipt bytes and missing/corrupt CAS
+ * objects remain terminal failures and are never repaired by re-acquisition.
+ */
+export async function readExistingFloodgateRawReceiptIfPresent(
+  lockRoot: string,
+  rawUrl: string,
+  kind: FloodgateRawReceiptKind,
+): Promise<VerifiedFloodgateRawReceipt | null> {
+  const url = canonicalUrlForKind(rawUrl, kind, "expected receipt URL");
+  const receiptBytes = await readExistingFloodgateRawReceiptFileIfPresent(
+    lockRoot,
+    url,
+  );
+  if (!receiptBytes) return null;
+  return verifyExistingFloodgateRawReceiptFromFile(
+    lockRoot,
+    url,
+    kind,
+    receiptBytes,
+  );
 }
 
 /**

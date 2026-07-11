@@ -4,11 +4,15 @@ import {
   FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY,
   FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_COUNTS,
   FLOODGATE_PERIOD_END_INVENTORY_URL,
+  FLOODGATE_CSA_RATING_ELIGIBILITY_DECISION_SCHEMA,
+  FLOODGATE_DAILY_RATING_CONTEXT_CACHE_SCHEMA,
   FLOODGATE_Q1_DAILY_LISTING_COUNT,
   FLOODGATE_Q1_LISTING_IDENTITY_MANIFEST_EXPECTED,
   assertPreregisteredFloodgateQ1ListingIdentityManifest,
   assertDistinctFloodgatePlayerIdentities,
   compareUtf8Bytes,
+  createFloodgateDailyRatingContextCache,
+  decideFloodgateCsaRatingEligibility,
   eligibleGroupZeroIdentities,
   parseEligibleFloodgateCsaMetadata,
   parseFloodgateCsaMetadata,
@@ -23,6 +27,7 @@ import {
   serializeFloodgateQ1ListingIdentityManifest,
   sha256Hex,
   summarizeFloodgatePeriodEndInventoryRows,
+  type FloodgateAuthenticatedDailyRatingResponseInput,
 } from "../../../ml/floodgate-source";
 
 const DIGEST_A = "11111111111111111111111111111111";
@@ -144,6 +149,55 @@ function evidenceRatingHtml(
     `<div id="ft"><p>Last modified at ${footerDate} 23:54:25 ${offset}  <p>$Revision$</div>`,
     "</body></html>",
   ].join("\n");
+}
+
+function previousUtcDate(date: string): string {
+  const instant = new Date(`${date}T00:00:00Z`);
+  instant.setUTCDate(instant.getUTCDate() - 1);
+  return instant.toISOString().slice(0, 10);
+}
+
+function authenticatedDailyRatingResponses(
+  options: {
+    readonly missingDates?: ReadonlySet<string>;
+    readonly htmlForDate?: (date: string) => string;
+  } = {},
+): FloodgateAuthenticatedDailyRatingResponseInput[] {
+  const responses: FloodgateAuthenticatedDailyRatingResponseInput[] = [];
+  const end = Date.parse("2026-03-31T00:00:00Z");
+  for (
+    let instant = Date.parse("2026-01-01T00:00:00Z");
+    instant <= end;
+    instant += 24 * 60 * 60 * 1000
+  ) {
+    const date = new Date(instant).toISOString().slice(0, 10);
+    const compactDate = date.replaceAll("-", "");
+    const missing = options.missingDates?.has(date) ?? false;
+    const text = missing
+      ? `not found: ${date}\n`
+      : (options.htmlForDate?.(date) ??
+        evidenceRatingHtml(previousUtcDate(date)));
+    const bytes = new TextEncoder().encode(text);
+    responses.push({
+      url: `https://wdoor.c.u-tokyo.ac.jp/shogi/x/rating/players-floodgate-${compactDate}.html`,
+      status: missing ? 404 : 200,
+      body: { bytes: bytes.byteLength, sha256: sha256Hex(bytes) },
+      bytes,
+    });
+  }
+  return responses;
+}
+
+function authenticatedCsaInput(
+  csa = liveShapedCsa(),
+  url = "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/03/31/wdoor+floodgate-300-10F+Alpha+Beta+20260331233001.csa",
+) {
+  const bytes = new TextEncoder().encode(csa);
+  return {
+    url,
+    body: { bytes: bytes.byteLength, sha256: sha256Hex(bytes) },
+    bytes,
+  };
 }
 
 describe("Floodgate rating snapshot", () => {
@@ -728,6 +782,267 @@ describe("canonical Floodgate game source evidence", () => {
         } as unknown as Uint8Array,
       }),
     ).toThrow(/exact Uint8Array body/);
+  });
+});
+
+describe("cached authenticated daily-rating context", () => {
+  it("authenticates all 90 responses, parses each HTTP 200 day once, and reuses immutable rating facts", () => {
+    const responses = authenticatedDailyRatingResponses({
+      missingDates: new Set(["2026-03-27", "2026-03-28"]),
+    });
+    const cache = createFloodgateDailyRatingContextCache({
+      dailyRatings: responses,
+    });
+
+    expect(cache).toMatchObject({
+      schema: FLOODGATE_DAILY_RATING_CONTEXT_CACHE_SCHEMA,
+      scope: "same-date-group-zero-and-cumulative-games-only",
+      adjacentSnapshotFallback: false,
+      outcomeDataRead: false,
+      teacherOrCandidateScoresRead: false,
+      http200: 88,
+      http404: 2,
+    });
+    expect(cache.responses).toHaveLength(90);
+    expect(cache.responses.at(-1)).toMatchObject({
+      date: "2026-03-31",
+      status: 200,
+      lastModifiedAt: "2026-03-30 23:54:25 +0900",
+      eligibleGroupZeroIdentities: 2,
+    });
+    expect(Object.isFrozen(cache)).toBe(true);
+    expect(Object.isFrozen(cache.responses)).toBe(true);
+    expect(Object.isFrozen(cache.responses[0])).toBe(true);
+    expect(Object.isFrozen(cache.responses[0].body)).toBe(true);
+
+    // The source arrays are no longer consulted after the one factory pass.
+    for (const response of responses) response.bytes.fill(0);
+    const decision = decideFloodgateCsaRatingEligibility(
+      cache,
+      authenticatedCsaInput(),
+    );
+    expect(decision).toMatchObject({
+      schema: FLOODGATE_CSA_RATING_ELIGIBILITY_DECISION_SCHEMA,
+      scope: "source-rating-only-not-legality-or-termination",
+      labelBlind: true,
+      outcomeDataRead: false,
+      teacherOrCandidateScoresRead: false,
+      date: "2026-03-31",
+      eligible: true,
+      reason: null,
+      metadata: {
+        identities: [`Alpha+${DIGEST_A}`, `Beta+${DIGEST_B}`],
+      },
+    });
+    expect(Object.isFrozen(decision)).toBe(true);
+    expect(Object.isFrozen(decision.dailyRating)).toBe(true);
+    expect(Object.isFrozen(decision.csa)).toBe(true);
+  });
+
+  it("uses the exact same-date 404 and never falls back to eligible adjacent snapshots", () => {
+    const cache = createFloodgateDailyRatingContextCache({
+      dailyRatings: authenticatedDailyRatingResponses({
+        missingDates: new Set(["2026-03-27"]),
+      }),
+    });
+    const csa = liveShapedCsa({
+      eventTimestamp: "20260327233001",
+      startTime: "2026/03/27 23:30:00",
+    });
+    const input = authenticatedCsaInput(
+      csa,
+      "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/03/27/wdoor+floodgate-300-10F+Alpha+Beta+20260327233001.csa",
+    );
+
+    expect(decideFloodgateCsaRatingEligibility(cache, input)).toMatchObject({
+      date: "2026-03-27",
+      eligible: false,
+      reason: "daily-rating-http-404",
+      metadata: null,
+      dailyRating: { status: 404, lastModifiedAt: null },
+    });
+  });
+
+  it("enforces daily group-0/30-game membership but never adds a daily or period-end rating threshold", () => {
+    const cache = createFloodgateDailyRatingContextCache({
+      dailyRatings: authenticatedDailyRatingResponses({
+        htmlForDate: (date) => {
+          const betaGames = date === "2026-03-31" ? "9" : "10";
+          return [
+            "<html><body>",
+            ratingTable(0, [
+              ratingRow("Alpha", DIGEST_A, {
+                rating: "1",
+                wins: "30",
+                losses: "0",
+              }),
+              ratingRow("Beta", DIGEST_B, {
+                rating: "9999",
+                wins: "20",
+                losses: betaGames,
+              }),
+            ]),
+            `<div id="ft"><p>Last modified at ${previousUtcDate(date)} 23:54:25 +0900  <p>$Revision$</div>`,
+            "</body></html>",
+          ].join("\n");
+        },
+      }),
+    });
+
+    expect(
+      decideFloodgateCsaRatingEligibility(cache, authenticatedCsaInput()),
+    ).toMatchObject({
+      eligible: false,
+      reason: "not-daily-group-zero-with-minimum-games",
+    });
+
+    const exactBoundaryCache = createFloodgateDailyRatingContextCache({
+      dailyRatings: authenticatedDailyRatingResponses(),
+    });
+    expect(
+      decideFloodgateCsaRatingEligibility(
+        exactBoundaryCache,
+        authenticatedCsaInput(
+          liveShapedCsa({ blackRating: "3600", whiteRating: "3600.0" }),
+        ),
+      ),
+    ).toMatchObject({ eligible: true, reason: null });
+  });
+
+  it("returns typed label-blind rejection reasons for CSA rating gates", () => {
+    const cache = createFloodgateDailyRatingContextCache({
+      dailyRatings: authenticatedDailyRatingResponses(),
+    });
+
+    expect(
+      decideFloodgateCsaRatingEligibility(
+        cache,
+        authenticatedCsaInput(liveShapedCsa({ blackRating: "3599.999" })),
+      ),
+    ).toMatchObject({
+      eligible: false,
+      reason: "embedded-game-time-rating-below-minimum",
+    });
+
+    expect(
+      decideFloodgateCsaRatingEligibility(
+        cache,
+        authenticatedCsaInput(
+          liveShapedCsa({
+            goteName: "Alpha",
+            goteIdentity: `Alpha+${DIGEST_A}`,
+            whiteIdentity: `Alpha+${DIGEST_A}`,
+          }).replace(
+            "$EVENT:wdoor+floodgate-300-10F+Alpha+Beta+20260331233001",
+            "$EVENT:wdoor+floodgate-300-10F+Alpha+Alpha+20260331233001",
+          ),
+          "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/03/31/wdoor+floodgate-300-10F+Alpha+Alpha+20260331233001.csa",
+        ),
+      ),
+    ).toMatchObject({ eligible: false, reason: "same-full-identity" });
+
+    expect(
+      decideFloodgateCsaRatingEligibility(
+        cache,
+        authenticatedCsaInput(
+          liveShapedCsa().replace(/^'white_rate:.*\r\n/m, ""),
+        ),
+      ),
+    ).toMatchObject({
+      eligible: false,
+      reason: "invalid-csa-rating-metadata",
+      metadata: null,
+    });
+  });
+
+  it("authenticates body identities and canonical URL/header/name joins before deciding", () => {
+    const cache = createFloodgateDailyRatingContextCache({
+      dailyRatings: authenticatedDailyRatingResponses(),
+    });
+    const badBody = authenticatedCsaInput();
+    badBody.body.sha256 = "0".repeat(64);
+    expect(() => decideFloodgateCsaRatingEligibility(cache, badBody)).toThrow(
+      /authenticated body identity/,
+    );
+
+    expect(() =>
+      decideFloodgateCsaRatingEligibility(
+        cache,
+        authenticatedCsaInput(
+          liveShapedCsa().replace(
+            "$EVENT:wdoor+floodgate-300-10F+Alpha+Beta+20260331233001",
+            "$EVENT:wdoor+floodgate-300-10F+Beta+Alpha+20260331233001",
+          ),
+        ),
+      ),
+    ).toThrow(/\$EVENT does not match/);
+
+    expect(() =>
+      decideFloodgateCsaRatingEligibility(
+        cache,
+        authenticatedCsaInput(
+          liveShapedCsa().replace(
+            "$EVENT:wdoor+floodgate-300-10F+Alpha+Beta+20260331233001",
+            "$EVENT:wdoor+floodgate-300-10F+Alpha+Gamma+20260331233001",
+          ),
+          "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/03/31/wdoor+floodgate-300-10F+Alpha+Gamma+20260331233001.csa",
+        ),
+      ),
+    ).toThrow(/player names do not match/);
+  });
+
+  it("rejects incomplete, reordered, mutated, coercive, and forged context evidence", () => {
+    const tooShort = authenticatedDailyRatingResponses().slice(1);
+    expect(() =>
+      createFloodgateDailyRatingContextCache({ dailyRatings: tooShort }),
+    ).toThrow(/exactly 90/);
+
+    const reordered = authenticatedDailyRatingResponses();
+    [reordered[0], reordered[1]] = [reordered[1], reordered[0]];
+    expect(() =>
+      createFloodgateDailyRatingContextCache({ dailyRatings: reordered }),
+    ).toThrow(/UTF-8-bytewise index/);
+
+    const mutated = authenticatedDailyRatingResponses();
+    mutated[0].bytes[0] ^= 1;
+    expect(() =>
+      createFloodgateDailyRatingContextCache({ dailyRatings: mutated }),
+    ).toThrow(/authenticated body identity/);
+
+    const extended = authenticatedDailyRatingResponses();
+    (extended[0] as unknown as Record<string, unknown>).winner = "Alpha";
+    expect(() =>
+      createFloodgateDailyRatingContextCache({ dailyRatings: extended }),
+    ).toThrow(/exactly keys/);
+
+    expect(() =>
+      decideFloodgateCsaRatingEligibility(
+        {
+          schema: FLOODGATE_DAILY_RATING_CONTEXT_CACHE_SCHEMA,
+        } as unknown as Parameters<
+          typeof decideFloodgateCsaRatingEligibility
+        >[0],
+        authenticatedCsaInput(),
+      ),
+    ).toThrow(/authenticated factory/);
+  });
+
+  it("does not inspect terminal/result/teacher-like lines in this rating-only layer", () => {
+    const cache = createFloodgateDailyRatingContextCache({
+      dailyRatings: authenticatedDailyRatingResponses(),
+    });
+    const changedOutcomeMetadata = `${liveShapedCsa().replace("%TORYO", "%KACHI")}\r\n'summary:winner:Beta\r\n'teacher_score:9999`;
+    const decision = decideFloodgateCsaRatingEligibility(
+      cache,
+      authenticatedCsaInput(changedOutcomeMetadata),
+    );
+
+    expect(decision).toMatchObject({
+      scope: "source-rating-only-not-legality-or-termination",
+      outcomeDataRead: false,
+      teacherOrCandidateScoresRead: false,
+      eligible: true,
+    });
   });
 });
 

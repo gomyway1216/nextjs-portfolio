@@ -56,6 +56,10 @@ export const FLOODGATE_Q1_LISTING_IDENTITY_MANIFEST_EXPECTED = Object.freeze({
 });
 export const FLOODGATE_MINIMUM_CUMULATIVE_GAMES = 30;
 export const FLOODGATE_MINIMUM_EMBEDDED_GAME_RATING = 3600;
+export const FLOODGATE_DAILY_RATING_CONTEXT_CACHE_SCHEMA =
+  "shogi-floodgate-daily-rating-context-cache-v1" as const;
+export const FLOODGATE_CSA_RATING_ELIGIBILITY_DECISION_SCHEMA =
+  "shogi-floodgate-csa-rating-eligibility-decision-v1" as const;
 
 const PLAYER_PATH = "/shogi/view/show-player.cgi";
 const INTEGERISH_RE = /^[+-]?\d+(?:\.0+)?$/;
@@ -212,6 +216,93 @@ export interface FloodgateGameSourceEvidence {
     readonly metadata: FloodgateCsaMetadata;
   };
 }
+
+/**
+ * One response already bound by the verified raw-lock manifest. The body
+ * identity is still rechecked here before any cached source context is made.
+ */
+export interface FloodgateAuthenticatedDailyRatingResponseInput {
+  readonly url: string;
+  readonly status: 200 | 404;
+  readonly body: FloodgateBodyIdentity;
+  readonly bytes: Uint8Array;
+}
+
+export interface FloodgateDailyRatingContextCacheInput {
+  readonly dailyRatings: readonly FloodgateAuthenticatedDailyRatingResponseInput[];
+}
+
+export interface FloodgateDailyRatingContextSummary {
+  readonly url: string;
+  readonly date: string;
+  readonly status: 200 | 404;
+  readonly body: FloodgateBodyIdentity;
+  readonly lastModifiedAt: string | null;
+  readonly eligibleGroupZeroIdentities: number;
+}
+
+/**
+ * Opaque runtime-authenticated cache. Only the factory below can attach the
+ * private identity sets used by the decision function.
+ */
+export interface FloodgateDailyRatingContextCache {
+  readonly schema: typeof FLOODGATE_DAILY_RATING_CONTEXT_CACHE_SCHEMA;
+  readonly scope: "same-date-group-zero-and-cumulative-games-only";
+  readonly adjacentSnapshotFallback: false;
+  readonly outcomeDataRead: false;
+  readonly teacherOrCandidateScoresRead: false;
+  readonly responses: readonly FloodgateDailyRatingContextSummary[];
+  readonly http200: number;
+  readonly http404: number;
+}
+
+export interface FloodgateAuthenticatedCsaInput {
+  readonly url: string;
+  readonly body: FloodgateBodyIdentity;
+  readonly bytes: Uint8Array;
+}
+
+export type FloodgateCsaRatingIneligibilityReason =
+  | "daily-rating-http-404"
+  | "invalid-csa-rating-metadata"
+  | "same-full-identity"
+  | "not-daily-group-zero-with-minimum-games"
+  | "embedded-game-time-rating-below-minimum";
+
+interface FloodgateCsaRatingEligibilityDecisionBase {
+  readonly schema: typeof FLOODGATE_CSA_RATING_ELIGIBILITY_DECISION_SCHEMA;
+  readonly scope: "source-rating-only-not-legality-or-termination";
+  readonly labelBlind: true;
+  readonly outcomeDataRead: false;
+  readonly teacherOrCandidateScoresRead: false;
+  readonly date: string;
+  readonly dailyRating: {
+    readonly location: FloodgateDailyRatingSnapshot;
+    readonly status: 200 | 404;
+    readonly body: FloodgateBodyIdentity;
+    readonly lastModifiedAt: string | null;
+  };
+  readonly csa: {
+    readonly location: FloodgateCsaLocation;
+    readonly body: FloodgateBodyIdentity;
+    readonly header: FloodgateCsaSourceHeader;
+  };
+}
+
+export interface FloodgateEligibleCsaRatingDecision extends FloodgateCsaRatingEligibilityDecisionBase {
+  readonly eligible: true;
+  readonly reason: null;
+  readonly metadata: FloodgateCsaMetadata;
+}
+
+export interface FloodgateIneligibleCsaRatingDecision extends FloodgateCsaRatingEligibilityDecisionBase {
+  readonly eligible: false;
+  readonly reason: FloodgateCsaRatingIneligibilityReason;
+  readonly metadata: FloodgateCsaMetadata | null;
+}
+
+export type FloodgateCsaRatingEligibilityDecision =
+  FloodgateEligibleCsaRatingDecision | FloodgateIneligibleCsaRatingDecision;
 
 function fail(message: string): never {
   throw new Error(`invalid Floodgate source: ${message}`);
@@ -1585,6 +1676,303 @@ function copyEvidenceBytes(value: unknown, label: string): Uint8Array {
   } catch {
     return fail(`${label} has detached or invalid typed-array storage`);
   }
+}
+
+interface CachedFloodgateDailyRatingState {
+  readonly location: FloodgateDailyRatingSnapshot;
+  readonly summary: FloodgateDailyRatingContextSummary;
+  readonly eligibleIdentities: ReadonlySet<string> | null;
+}
+
+interface FloodgateDailyRatingContextPrivateState {
+  readonly byDate: ReadonlyMap<string, CachedFloodgateDailyRatingState>;
+}
+
+const FLOODGATE_DAILY_RATING_CONTEXT_PRIVATE = new WeakMap<
+  FloodgateDailyRatingContextCache,
+  FloodgateDailyRatingContextPrivateState
+>();
+
+function authenticatedBodyIdentity(
+  rawBody: unknown,
+  rawBytes: unknown,
+  label: string,
+): {
+  readonly body: Readonly<FloodgateBodyIdentity>;
+  readonly bytes: Uint8Array;
+} {
+  const value = assertStrictPlainDataObject(rawBody, `${label}.body`);
+  assertExactOwnKeys(value, ["bytes", "sha256"], `${label}.body`);
+  if (!Number.isSafeInteger(value.bytes) || (value.bytes as number) < 0) {
+    fail(`${label}.body.bytes must be a nonnegative safe integer`);
+  }
+  if (
+    typeof value.sha256 !== "string" ||
+    !/^[0-9a-f]{64}$/.test(value.sha256)
+  ) {
+    fail(`${label}.body.sha256 must be a lowercase SHA-256 digest`);
+  }
+  const bytes = copyEvidenceBytes(rawBytes, `${label}.bytes`);
+  const actual = Object.freeze({
+    bytes: bytes.byteLength,
+    sha256: sha256Hex(bytes),
+  });
+  if (actual.bytes !== value.bytes || actual.sha256 !== value.sha256) {
+    fail(`${label} bytes do not match the authenticated body identity`);
+  }
+  return { body: actual, bytes };
+}
+
+function expectedFloodgateQ1DailyRatingUrls(): readonly string[] {
+  return Object.freeze(
+    expectedFloodgateQ1DailyListingUrls().map((listingUrl) => {
+      const location = parseFloodgateDailyListingUrl(listingUrl);
+      const compactDate = location.date.replaceAll("-", "");
+      return `${FLOODGATE_ORIGIN}/shogi/x/rating/players-floodgate-${compactDate}.html`;
+    }),
+  );
+}
+
+/**
+ * Authenticate and parse the complete locked Q1 daily-rating index exactly
+ * once. HTTP 404 is a first-class same-day fact and is never repaired from an
+ * adjacent date. The returned object is opaque: a structurally similar caller
+ * object cannot be used by the per-CSA decision function.
+ */
+export function createFloodgateDailyRatingContextCache(
+  input: FloodgateDailyRatingContextCacheInput,
+): FloodgateDailyRatingContextCache {
+  const value = assertStrictPlainDataObject(
+    input,
+    "daily rating context cache input",
+  );
+  assertExactOwnKeys(
+    value,
+    ["dailyRatings"],
+    "daily rating context cache input",
+  );
+  const rawResponses = assertStrictPlainDataArray(
+    value.dailyRatings,
+    "daily rating context cache input.dailyRatings",
+  );
+  const expectedUrls = expectedFloodgateQ1DailyRatingUrls();
+  if (rawResponses.length !== expectedUrls.length) {
+    fail(
+      `daily rating context must contain exactly ${expectedUrls.length} Q1 responses`,
+    );
+  }
+
+  const byDate = new Map<string, CachedFloodgateDailyRatingState>();
+  const summaries: FloodgateDailyRatingContextSummary[] = [];
+  for (let index = 0; index < rawResponses.length; index += 1) {
+    const label = `daily rating context cache input.dailyRatings[${index}]`;
+    const rawResponse = assertStrictPlainDataObject(rawResponses[index], label);
+    assertExactOwnKeys(rawResponse, ["body", "bytes", "status", "url"], label);
+    if (typeof rawResponse.url !== "string") {
+      fail(`${label}.url must be a primitive string`);
+    }
+    const location = parseFloodgateDailyRatingUrl(rawResponse.url);
+    if (
+      location.url !== rawResponse.url ||
+      location.url !== expectedUrls[index]
+    ) {
+      fail(
+        `${label}.url must be the canonical Q1 daily rating URL at its UTF-8-bytewise index`,
+      );
+    }
+    if (rawResponse.status !== 200 && rawResponse.status !== 404) {
+      fail(`${label}.status must be exactly 200 or 404`);
+    }
+    const { body, bytes } = authenticatedBodyIdentity(
+      rawResponse.body,
+      rawResponse.bytes,
+      label,
+    );
+
+    let lastModifiedAt: string | null = null;
+    let eligibleIdentities: ReadonlySet<string> | null = null;
+    if (rawResponse.status === 200) {
+      const html = decodeSourceUtf8(bytes, `${label} rating snapshot`);
+      // Parse this response body once here. Per-CSA decisions only consult the
+      // private Set and never retain or reparse caller-owned response bytes.
+      const rows = parseFloodgateRatingSnapshot(html);
+      lastModifiedAt = parseRatingLastModified(html, location.date);
+      eligibleIdentities = new Set(eligibleGroupZeroIdentities(rows));
+    }
+    const summary = Object.freeze({
+      url: location.url,
+      date: location.date,
+      status: rawResponse.status,
+      body,
+      lastModifiedAt,
+      eligibleGroupZeroIdentities: eligibleIdentities?.size ?? 0,
+    });
+    summaries.push(summary);
+    byDate.set(location.date, { location, summary, eligibleIdentities });
+  }
+  if (byDate.size !== FLOODGATE_Q1_DAILY_LISTING_COUNT) {
+    fail("daily rating context does not cover every Q1 calendar date once");
+  }
+
+  const responses = Object.freeze(summaries.slice());
+  const cache = Object.freeze({
+    schema: FLOODGATE_DAILY_RATING_CONTEXT_CACHE_SCHEMA,
+    scope: "same-date-group-zero-and-cumulative-games-only" as const,
+    adjacentSnapshotFallback: false as const,
+    outcomeDataRead: false as const,
+    teacherOrCandidateScoresRead: false as const,
+    responses,
+    http200: responses.filter((response) => response.status === 200).length,
+    http404: responses.filter((response) => response.status === 404).length,
+  });
+  FLOODGATE_DAILY_RATING_CONTEXT_PRIVATE.set(cache, { byDate });
+  return cache;
+}
+
+function csaRatingDecisionBase(
+  date: string,
+  daily: CachedFloodgateDailyRatingState,
+  csaLocation: FloodgateCsaLocation,
+  csaBody: Readonly<FloodgateBodyIdentity>,
+  header: FloodgateCsaSourceHeader,
+): FloodgateCsaRatingEligibilityDecisionBase {
+  return {
+    schema: FLOODGATE_CSA_RATING_ELIGIBILITY_DECISION_SCHEMA,
+    scope: "source-rating-only-not-legality-or-termination",
+    labelBlind: true,
+    outcomeDataRead: false,
+    teacherOrCandidateScoresRead: false,
+    date,
+    dailyRating: Object.freeze({
+      location: daily.location,
+      status: daily.summary.status,
+      body: daily.summary.body,
+      lastModifiedAt: daily.summary.lastModifiedAt,
+    }),
+    csa: Object.freeze({
+      location: csaLocation,
+      body: csaBody,
+      header,
+    }),
+  };
+}
+
+function ineligibleCsaRatingDecision(
+  base: FloodgateCsaRatingEligibilityDecisionBase,
+  reason: FloodgateCsaRatingIneligibilityReason,
+  metadata: FloodgateCsaMetadata | null,
+): FloodgateIneligibleCsaRatingDecision {
+  return Object.freeze({
+    ...base,
+    eligible: false as const,
+    reason,
+    metadata,
+  });
+}
+
+/**
+ * Revalidate one locked CSA's exact body, canonical URL/header joins, and
+ * source-rating gates against only its same-date cached rating response.
+ *
+ * This is intentionally not a complete game-eligibility verdict: legality,
+ * hirate/sente start, and the `%TORYO` terminal gate belong to the legal CSA
+ * parser. No outcome, teacher label, or candidate-model value is inspected.
+ */
+export function decideFloodgateCsaRatingEligibility(
+  cache: FloodgateDailyRatingContextCache,
+  input: FloodgateAuthenticatedCsaInput,
+): FloodgateCsaRatingEligibilityDecision {
+  const privateState = FLOODGATE_DAILY_RATING_CONTEXT_PRIVATE.get(cache);
+  if (!privateState) {
+    fail(
+      "daily rating context cache was not created by the authenticated factory",
+    );
+  }
+  const value = assertStrictPlainDataObject(input, "CSA eligibility input");
+  assertExactOwnKeys(value, ["body", "bytes", "url"], "CSA eligibility input");
+  if (typeof value.url !== "string") {
+    fail("CSA eligibility input.url must be a primitive string");
+  }
+  const csaLocation = parseFloodgateCsaUrl(value.url);
+  if (csaLocation.url !== value.url) {
+    fail("CSA eligibility input.url must use its canonical spelling");
+  }
+  const daily = privateState.byDate.get(csaLocation.date);
+  if (!daily) {
+    fail("CSA date is absent from the complete authenticated daily cache");
+  }
+  const { body: csaBody, bytes: csaBytes } = authenticatedBodyIdentity(
+    value.body,
+    value.bytes,
+    "CSA eligibility input",
+  );
+  const header = parseFloodgateCsaSourceHeader(csaBytes, csaLocation);
+  const base = csaRatingDecisionBase(
+    csaLocation.date,
+    daily,
+    csaLocation,
+    csaBody,
+    header,
+  );
+  if (daily.summary.status === 404) {
+    return ineligibleCsaRatingDecision(base, "daily-rating-http-404", null);
+  }
+  const eligibleIdentities = daily.eligibleIdentities;
+  if (!eligibleIdentities) {
+    fail("HTTP 200 daily context lost its parsed identity set");
+  }
+
+  let metadata: FloodgateCsaMetadata;
+  try {
+    metadata = parseFloodgateCsaMetadata(csaBytes);
+  } catch (error) {
+    if (
+      !(error instanceof Error) ||
+      !error.message.startsWith("invalid Floodgate source:")
+    ) {
+      throw error;
+    }
+    return ineligibleCsaRatingDecision(
+      base,
+      "invalid-csa-rating-metadata",
+      null,
+    );
+  }
+  if (
+    metadata.sente.visibleName !== csaLocation.visiblePlayers[0] ||
+    metadata.gote.visibleName !== csaLocation.visiblePlayers[1]
+  ) {
+    fail("CSA rating metadata player names do not match its canonical URL");
+  }
+  if (metadata.identities[0] === metadata.identities[1]) {
+    return ineligibleCsaRatingDecision(base, "same-full-identity", metadata);
+  }
+  if (
+    !metadata.identities.every((identity) => eligibleIdentities.has(identity))
+  ) {
+    return ineligibleCsaRatingDecision(
+      base,
+      "not-daily-group-zero-with-minimum-games",
+      metadata,
+    );
+  }
+  if (
+    !metadata.embeddedGameTimeRatings.every(
+      (rating) => rating >= FLOODGATE_MINIMUM_EMBEDDED_GAME_RATING,
+    )
+  ) {
+    return ineligibleCsaRatingDecision(
+      base,
+      "embedded-game-time-rating-below-minimum",
+      metadata,
+    );
+  }
+  return Object.freeze({
+    ...base,
+    eligible: true as const,
+    reason: null,
+    metadata,
+  });
 }
 
 /**

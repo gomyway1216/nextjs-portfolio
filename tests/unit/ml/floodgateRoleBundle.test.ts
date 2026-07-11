@@ -548,6 +548,29 @@ describe("Floodgate label-free role bundle", () => {
     expect(maximum).toBeGreaterThan(1);
   });
 
+  it.each([undefined, null])(
+    "propagates a non-Error CAS reader rejection (%s)",
+    async (reason) => {
+      const fixture = game(141);
+      let rejected = false;
+      let observed: unknown = Symbol("not rejected");
+      try {
+        await materializeFloodgateRoleBundleRolesCoreForTests({
+          allocation: allocation([fixture.allocated]),
+          csaIndex: [fixture.entry],
+          readObject: async () => {
+            throw reason;
+          },
+        });
+      } catch (error) {
+        rejected = true;
+        observed = error;
+      }
+      expect(rejected).toBe(true);
+      expect(observed).toBe(reason);
+    },
+  );
+
   it("does not publish the manifest after source-closure failure", async () => {
     const events: string[] = [];
     const publishManifest = vi.fn(async () => {

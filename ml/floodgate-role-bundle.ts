@@ -693,17 +693,19 @@ async function mapWithLimit<T, R>(
   if (!Number.isSafeInteger(limit) || limit <= 0) fail("map limit is invalid");
   const output = new Array<R>(values.length);
   let next = 0;
+  let failed = false;
   let failure: unknown;
   const workers = Array.from(
     { length: Math.min(limit, values.length) },
     async () => {
-      while (failure === undefined) {
+      while (!failed) {
         const index = next;
         next += 1;
         if (index >= values.length) return;
         try {
           output[index] = await operation(values[index], index);
         } catch (error) {
+          failed = true;
           failure = error;
           return;
         }
@@ -711,7 +713,7 @@ async function mapWithLimit<T, R>(
     },
   );
   await Promise.all(workers);
-  if (failure !== undefined) throw failure;
+  if (failed) throw failure;
   return output;
 }
 

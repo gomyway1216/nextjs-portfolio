@@ -7,6 +7,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   FLOODGATE_ROLE_BUNDLE_CLI_OUTPUT_SCHEMA,
   FLOODGATE_ROLE_BUNDLE_LEGACY_REPLAY_PATH,
+  FLOODGATE_ROLE_BUNDLE_PRODUCTION_GIT_PREFIX,
+  floodgateRoleBundleCliErrorDiagnosticForTests,
   resolveNonProductionFloodgateRoleBundleRepositoryContextForTests,
   runNonProductionFloodgateRoleBundleCliForTests,
   type NonProductionFloodgateRoleBundleCliDependenciesForTests,
@@ -123,6 +125,27 @@ afterEach(async () => {
 });
 
 describe("Floodgate role-bundle CLI", () => {
+  it("disables Git object replacements and preserves failure stacks", () => {
+    expect(FLOODGATE_ROLE_BUNDLE_PRODUCTION_GIT_PREFIX).toEqual([
+      "--no-replace-objects",
+      "--no-optional-locks",
+    ]);
+
+    const withStack = new Error("outer message");
+    withStack.stack = "pinned stack";
+    expect(floodgateRoleBundleCliErrorDiagnosticForTests(withStack)).toBe(
+      "pinned stack",
+    );
+    const withoutStack = new Error("message fallback");
+    withoutStack.stack = undefined;
+    expect(floodgateRoleBundleCliErrorDiagnosticForTests(withoutStack)).toBe(
+      "message fallback",
+    );
+    expect(floodgateRoleBundleCliErrorDiagnosticForTests("raw failure")).toBe(
+      "raw failure",
+    );
+  });
+
   it("publishes with exact pinned options and writes one JSON document", async () => {
     const {
       repositoryRoot,

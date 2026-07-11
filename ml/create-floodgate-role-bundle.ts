@@ -28,6 +28,10 @@ export const FLOODGATE_ROLE_BUNDLE_CLI_OUTPUT_SCHEMA =
   "shogi-floodgate-role-bundle-cli-output-v2" as const;
 export const FLOODGATE_ROLE_BUNDLE_LEGACY_REPLAY_PATH =
   "ml/data/wcsc36/int16-aware-replay-excluded-position-ids.txt" as const;
+export const FLOODGATE_ROLE_BUNDLE_PRODUCTION_GIT_PREFIX = Object.freeze([
+  "--no-replace-objects",
+  "--no-optional-locks",
+] as const);
 
 const REVISION_RE = /^[0-9a-f]{40}$/;
 
@@ -224,10 +228,21 @@ async function productionGit(
 ): Promise<string> {
   const { stdout } = await execFile(
     "git",
-    ["--no-optional-locks", ...arguments_],
+    [...FLOODGATE_ROLE_BUNDLE_PRODUCTION_GIT_PREFIX, ...arguments_],
     { cwd, encoding: "utf8" },
   );
   return stdout;
+}
+
+function cliErrorDiagnostic(error: unknown): unknown {
+  return error instanceof Error ? (error.stack ?? error.message) : error;
+}
+
+/** Explicit non-production seam for the executable entry-point diagnostic. */
+export function floodgateRoleBundleCliErrorDiagnosticForTests(
+  error: unknown,
+): unknown {
+  return cliErrorDiagnostic(error);
 }
 
 async function resolveRepositoryContext(
@@ -365,7 +380,7 @@ export async function main(
 
 if (require.main === module) {
   main().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
+    console.error(cliErrorDiagnostic(error));
     process.exitCode = 1;
   });
 }

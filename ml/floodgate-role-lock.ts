@@ -2077,20 +2077,24 @@ function assertRoleLockResultBinding(
   }
 }
 
-function parsePinnedRoleLockResultReceipt(bytes: Uint8Array): unknown {
-  if (
-    bytes.byteLength !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES ||
-    sha256Hex(bytes) !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256
-  ) {
-    fail("tracked role-lock result receipt identity is not pinned");
-  }
+function roleLockResultReceiptIdentity(
+  bytes: Uint8Array,
+): Readonly<FloodgateRoleLockArtifactIdentity> {
+  return Object.freeze({
+    path: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+    bytes: bytes.byteLength,
+    sha256: sha256Hex(bytes),
+  });
+}
+
+function parseRoleLockResultReceipt(bytes: Uint8Array, label: string): unknown {
   let text: string;
   try {
     text = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(
       bytes,
     );
   } catch {
-    return fail("tracked role-lock result receipt is not fatal-valid UTF-8");
+    return fail(`${label} is not fatal-valid UTF-8`);
   }
   if (
     text.startsWith("\ufeff") ||
@@ -2099,38 +2103,68 @@ function parsePinnedRoleLockResultReceipt(bytes: Uint8Array): unknown {
     !text.endsWith("\n") ||
     text.endsWith("\n\n")
   ) {
-    fail("tracked role-lock result receipt framing is invalid");
+    fail(`${label} framing is invalid`);
   }
   try {
     return JSON.parse(text) as unknown;
   } catch {
-    return fail("tracked role-lock result receipt is not valid JSON");
+    return fail(`${label} is not valid JSON`);
   }
+}
+
+function parsePinnedRoleLockResultReceipt(bytes: Uint8Array): unknown {
+  const identity = roleLockResultReceiptIdentity(bytes);
+  if (
+    identity.bytes !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES ||
+    identity.sha256 !== FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256
+  ) {
+    fail("tracked role-lock result receipt identity is not pinned");
+  }
+  return parseRoleLockResultReceipt(bytes, "tracked role-lock result receipt");
 }
 
 interface VerifiedTrackedRoleLockResultReceipt {
   readonly identity: Readonly<FloodgateRoleLockArtifactIdentity>;
-  readonly filesystemIdentity: Readonly<FloodgateRegularFileIdentity>;
+}
+
+async function readRoleLockResultReceiptBlob(
+  repositoryRoot: string,
+  producerRevision: string,
+): Promise<Uint8Array> {
+  const { stdout } = await execFile(
+    FLOODGATE_GIT_EXECUTABLE,
+    [
+      ...FLOODGATE_GIT_COMMAND_PREFIX,
+      "cat-file",
+      "blob",
+      `${assertRevision(producerRevision)}:${FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH}`,
+    ],
+    {
+      cwd: repositoryRoot,
+      env: floodgateGitEnvironment(),
+      encoding: "buffer",
+    },
+  ).catch(() =>
+    fail("role-lock producer tree does not contain the required result receipt"),
+  );
+  return new Uint8Array(stdout);
 }
 
 async function verifyTrackedRoleLockResultReceipt(
   repositoryRoot: string,
   evidence: Readonly<FloodgateRoleLockResultBindingEvidence>,
 ): Promise<Readonly<VerifiedTrackedRoleLockResultReceipt>> {
-  const receiptPath = path.join(
+  const bytes = await readRoleLockResultReceiptBlob(
     repositoryRoot,
-    FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+    evidence.producerRevision,
   );
-  const snapshot = await readRegularFileSnapshotNoFollow(receiptPath);
-  const candidate = parsePinnedRoleLockResultReceipt(snapshot.bytes);
+  const candidate = parseRoleLockResultReceipt(
+    bytes,
+    "role-lock producer result receipt",
+  );
   assertRoleLockResultBinding(candidate, evidence);
   return Object.freeze({
-    identity: Object.freeze({
-      path: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
-      bytes: snapshot.bytes.byteLength,
-      sha256: sha256Hex(snapshot.bytes),
-    }),
-    filesystemIdentity: snapshot.identity,
+    identity: roleLockResultReceiptIdentity(bytes),
   });
 }
 
@@ -3431,14 +3465,9 @@ export async function verifyExistingFloodgateRoleLock(
     repositoryRoot,
     resultEvidence,
   );
-  assertSameRegularFileIdentity(
-    finalResultReceipt.filesystemIdentity,
-    resultReceipt.filesystemIdentity,
-    "tracked role-lock result receipt during verification",
-  );
   if (!isDeepStrictEqual(finalResultReceipt.identity, resultReceipt.identity)) {
     fail(
-      "tracked role-lock result receipt identity changed during verification",
+      "role-lock producer result receipt identity changed during verification",
     );
   }
 

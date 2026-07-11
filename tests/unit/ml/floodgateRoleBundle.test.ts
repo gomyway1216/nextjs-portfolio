@@ -205,7 +205,21 @@ function historicalManifestText(
   roleProducer = ROLE_PRODUCER_REVISION,
   recordedRoleVerifier = bundleProducer,
   rawProducer = RAW_PRODUCER_REVISION,
+  includeResultReceipt = true,
 ): string {
+  const roleLock: Record<string, unknown> = {
+    allocation: {},
+    manifest: {},
+    producer_revision: roleProducer,
+  };
+  if (includeResultReceipt) {
+    roleLock.result_receipt = {
+      bytes: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES,
+      path: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
+      sha256: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256,
+    };
+  }
+  roleLock.verifier_revision = recordedRoleVerifier;
   return `${JSON.stringify({
     contract: {},
     isolation: {},
@@ -223,17 +237,7 @@ function historicalManifestText(
         manifest: {},
         source_revision: rawProducer,
       },
-      role_lock: {
-        allocation: {},
-        manifest: {},
-        producer_revision: roleProducer,
-        result_receipt: {
-          bytes: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_BYTES,
-          path: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_PATH,
-          sha256: FLOODGATE_ROLE_LOCK_RESULT_RECEIPT_SHA256,
-        },
-        verifier_revision: recordedRoleVerifier,
-      },
+      role_lock: roleLock,
     },
     status: "complete-label-free-role-bundle",
   })}\n`;
@@ -361,20 +365,34 @@ describe("Floodgate label-free role bundle", () => {
     ).toThrow(/verifier revision must equal the bundle producer revision/);
   });
 
-  it("rejects a historical manifest that does not cite the pinned result receipt", () => {
+  it("accepts a historical v1 manifest that predates result-receipt tracking", () => {
+    expect(() =>
+      historicalFloodgateRoleBundleRevisionBindingCoreForTests(
+        historicalManifestText(
+          BUNDLE_PRODUCER_REVISION,
+          ROLE_PRODUCER_REVISION,
+          BUNDLE_PRODUCER_REVISION,
+          RAW_PRODUCER_REVISION,
+          false,
+        ),
+      ),
+    ).not.toThrow();
+  });
+
+  it("rejects a historical manifest with an invalid cited result receipt identity", () => {
     const manifest = JSON.parse(historicalManifestText()) as {
       sources: {
         role_lock: {
-          result_receipt: { sha256: string };
+          result_receipt: { path: string };
         };
       };
     };
-    manifest.sources.role_lock.result_receipt.sha256 = "0".repeat(64);
+    manifest.sources.role_lock.result_receipt.path = "ml/protocols/other.json";
     expect(() =>
       historicalFloodgateRoleBundleRevisionBindingCoreForTests(
         `${JSON.stringify(manifest)}\n`,
       ),
-    ).toThrow(/unpinned role-lock result receipt/);
+    ).toThrow(/fixed-path artifact identity/);
   });
 
   it("requires the cited role-lock producer to precede the historical bundle", async () => {

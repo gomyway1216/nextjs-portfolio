@@ -5,13 +5,55 @@
  */
 
 import * as crypto from "crypto";
+import { types as nodeUtilTypes } from "node:util";
+
+const IntrinsicUint8Array = Uint8Array;
+const TYPED_ARRAY_PROTOTYPE = Object.getPrototypeOf(
+  IntrinsicUint8Array.prototype,
+) as object;
+
+function requireTypedArrayIntrinsicGetter(
+  name: "buffer" | "byteLength" | "byteOffset",
+): (this: Uint8Array) => unknown {
+  const getter = Object.getOwnPropertyDescriptor(
+    TYPED_ARRAY_PROTOTYPE,
+    name,
+  )?.get;
+  if (typeof getter !== "function") {
+    throw new Error(`missing intrinsic %TypedArray%.prototype.${name} getter`);
+  }
+  return getter;
+}
+
+const TYPED_ARRAY_BUFFER_GETTER = requireTypedArrayIntrinsicGetter("buffer");
+const TYPED_ARRAY_BYTE_LENGTH_GETTER =
+  requireTypedArrayIntrinsicGetter("byteLength");
+const TYPED_ARRAY_BYTE_OFFSET_GETTER =
+  requireTypedArrayIntrinsicGetter("byteOffset");
+const INTRINSIC_UINT8_ARRAY_SET = IntrinsicUint8Array.prototype.set;
 
 export const FLOODGATE_ORIGIN = "https://wdoor.c.u-tokyo.ac.jp";
 export const FLOODGATE_EVENT = "floodgate-300-10F";
 export const FLOODGATE_PERIOD_END_INVENTORY_SNAPSHOT =
   "players-floodgate-20260401.html";
+export const FLOODGATE_PERIOD_END_INVENTORY_URL = `${FLOODGATE_ORIGIN}/shogi/x/rating/${FLOODGATE_PERIOD_END_INVENTORY_SNAPSHOT}`;
+export const FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY = Object.freeze({
+  bytes: 332_094,
+  sha256: "17bd9969ba31a2b9a723be4b7defb7b3045816b19e325de19e8b65158fbac5b4",
+});
+export const FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_COUNTS = Object.freeze({
+  ratingRows: 316,
+  groupZeroIdentities: 316,
+  identitiesAtLeast3600And30Games: 152,
+});
 export const FLOODGATE_Q1_START = "2026-01-01";
 export const FLOODGATE_Q1_END = "2026-03-31";
+export const FLOODGATE_Q1_DAILY_LISTING_COUNT = 90;
+export const FLOODGATE_Q1_LISTING_IDENTITY_MANIFEST_EXPECTED = Object.freeze({
+  rows: FLOODGATE_Q1_DAILY_LISTING_COUNT,
+  bytes: 10_963,
+  sha256: "05d353413f310087316e16cfc1ec29800967886db43f090aee59f713c4bfc822",
+});
 export const FLOODGATE_MINIMUM_CUMULATIVE_GAMES = 30;
 export const FLOODGATE_MINIMUM_EMBEDDED_GAME_RATING = 3600;
 
@@ -48,12 +90,16 @@ export interface FloodgateDailyRatingSnapshot extends FloodgateDailyListing {
   readonly filename: string;
 }
 
-export interface FloodgateCsaLocation extends FloodgateDailyListing {
+export interface FloodgateOfficialCsaLocation extends FloodgateDailyListing {
   readonly filename: string;
-  readonly event: typeof FLOODGATE_EVENT;
+  readonly event: string;
   /** Filename hints only. Authoritative identities must be read from CSA. */
   readonly visiblePlayers: readonly [string, string];
   readonly timestamp: string;
+}
+
+export interface FloodgateCsaLocation extends FloodgateOfficialCsaLocation {
+  readonly event: typeof FLOODGATE_EVENT;
 }
 
 export interface FloodgateCsaPlayerMetadata {
@@ -94,6 +140,54 @@ export interface FloodgateDailyListingEvidence {
   readonly csaLocations: readonly FloodgateCsaLocation[];
 }
 
+export interface FloodgateDailyArchiveEvidenceInput {
+  readonly listingUrl: string;
+  readonly listingBytes: Uint8Array;
+}
+
+export interface FloodgateDailyArchiveEvidence {
+  readonly schema: "shogi-floodgate-daily-archive-evidence-v1";
+  readonly date: string;
+  readonly listing: {
+    readonly location: FloodgateDailyListing;
+    readonly body: FloodgateBodyIdentity;
+  };
+  readonly allOfficialCsaLocations: readonly FloodgateOfficialCsaLocation[];
+  readonly targetCsaLocations: readonly FloodgateCsaLocation[];
+}
+
+export interface FloodgateQ1ListingIdentityRow {
+  readonly url: string;
+  readonly bytes: number;
+  readonly sha256: string;
+}
+
+export interface FloodgatePeriodEndInventoryEvidenceInput {
+  readonly ratingUrl: string;
+  readonly ratingBytes: Uint8Array;
+}
+
+export interface FloodgatePeriodEndInventoryCounts {
+  readonly ratingRows: number;
+  readonly groupZeroIdentities: number;
+  readonly identitiesAtLeast3600And30Games: number;
+}
+
+export interface FloodgatePeriodEndInventoryEvidence {
+  readonly schema: "shogi-floodgate-period-end-inventory-evidence-v1";
+  readonly purpose: "period-end-aggregate-inventory-only-not-daily-eligibility";
+  readonly dailyEligibilityAllowed: false;
+  readonly identityListsExposed: false;
+  readonly snapshot: {
+    readonly url: typeof FLOODGATE_PERIOD_END_INVENTORY_URL;
+    readonly filename: typeof FLOODGATE_PERIOD_END_INVENTORY_SNAPSHOT;
+    readonly snapshotDate: "2026-04-01";
+    readonly body: FloodgateBodyIdentity;
+    readonly lastModifiedAt: string;
+    readonly counts: FloodgatePeriodEndInventoryCounts;
+  };
+}
+
 export interface FloodgateGameSourceEvidenceInput {
   readonly ratingUrl: string;
   readonly ratingBytes: Uint8Array;
@@ -121,6 +215,83 @@ export interface FloodgateGameSourceEvidence {
 
 function fail(message: string): never {
   throw new Error(`invalid Floodgate source: ${message}`);
+}
+
+function assertStrictPlainDataObject(
+  value: unknown,
+  label: string,
+): Record<string, unknown> {
+  if (nodeUtilTypes.isProxy(value)) fail(`${label} must not be a Proxy`);
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Object.prototype
+  ) {
+    fail(`${label} must be a plain object with Object.prototype`);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail(`${label} must not contain symbol keys`);
+  }
+  for (const key of Object.getOwnPropertyNames(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor || !("value" in descriptor)) {
+      fail(`${label}.${key} must be a data property, not an accessor`);
+    }
+    if (!descriptor.enumerable) {
+      fail(`${label}.${key} must not be non-enumerable`);
+    }
+  }
+  return value as Record<string, unknown>;
+}
+
+function assertStrictPlainDataArray(
+  value: unknown,
+  label: string,
+): readonly unknown[] {
+  if (nodeUtilTypes.isProxy(value)) fail(`${label} must not be a Proxy`);
+  if (
+    !Array.isArray(value) ||
+    Object.getPrototypeOf(value) !== Array.prototype
+  ) {
+    fail(`${label} must be a plain array`);
+  }
+  if (Object.getOwnPropertySymbols(value).length !== 0) {
+    fail(`${label} must not contain symbol keys`);
+  }
+  const names = Object.getOwnPropertyNames(value);
+  const expected = new Set<string>(["length"]);
+  for (let index = 0; index < value.length; index += 1) {
+    expected.add(String(index));
+  }
+  if (
+    names.length !== value.length + 1 ||
+    names.some((name) => !expected.has(name))
+  ) {
+    fail(`${label} must be dense and contain no hidden properties`);
+  }
+  for (let index = 0; index < value.length; index += 1) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, String(index));
+    if (!descriptor || !("value" in descriptor) || !descriptor.enumerable) {
+      fail(`${label}[${index}] must be an enumerable data property`);
+    }
+  }
+  return value;
+}
+
+function assertExactOwnKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  label: string,
+): void {
+  const actual = Object.getOwnPropertyNames(value).sort(compareUtf8Bytes);
+  const wanted = [...expected].sort(compareUtf8Bytes);
+  if (
+    actual.length !== wanted.length ||
+    actual.some((key, index) => key !== wanted[index])
+  ) {
+    fail(`${label} must contain exactly keys ${wanted.join(",")}`);
+  }
 }
 
 /**
@@ -873,6 +1044,87 @@ export function parseFloodgateDailyListingUrl(
   });
 }
 
+function expectedFloodgateQ1DailyListingUrls(): readonly string[] {
+  const urls: string[] = [];
+  const end = Date.parse(`${FLOODGATE_Q1_END}T00:00:00Z`);
+  for (
+    let instant = Date.parse(`${FLOODGATE_Q1_START}T00:00:00Z`);
+    instant <= end;
+    instant += 24 * 60 * 60 * 1000
+  ) {
+    const date = new Date(instant).toISOString().slice(0, 10);
+    const [year, month, day] = date.split("-");
+    urls.push(`${FLOODGATE_ORIGIN}/shogi/x/${year}/${month}/${day}/`);
+  }
+  if (urls.length !== FLOODGATE_Q1_DAILY_LISTING_COUNT) {
+    fail("internal Q1 daily listing calendar count is not 90");
+  }
+  return Object.freeze(urls);
+}
+
+/**
+ * Serialize the complete Q1 listing lock identity without accepting caller
+ * hashes, missing days, aliases, accessors, sparse arrays, or extra fields.
+ */
+export function serializeFloodgateQ1ListingIdentityManifest(
+  input: unknown,
+): string {
+  const rawRows = assertStrictPlainDataArray(input, "Q1 listing identity rows");
+  if (rawRows.length !== FLOODGATE_Q1_DAILY_LISTING_COUNT) {
+    fail(
+      `Q1 listing identity rows must contain exactly ${FLOODGATE_Q1_DAILY_LISTING_COUNT} entries`,
+    );
+  }
+
+  const rows = rawRows.map((rawRow, index) => {
+    const label = `Q1 listing identity rows[${index}]`;
+    const row = assertStrictPlainDataObject(rawRow, label);
+    assertExactOwnKeys(row, ["bytes", "sha256", "url"], label);
+    if (typeof row.url !== "string") fail(`${label}.url must be a string`);
+    const location = parseFloodgateDailyListingUrl(row.url);
+    if (location.url !== row.url) {
+      fail(`${label}.url must use the canonical daily listing spelling`);
+    }
+    if (!Number.isSafeInteger(row.bytes) || (row.bytes as number) <= 0) {
+      fail(`${label}.bytes must be a positive safe integer`);
+    }
+    if (typeof row.sha256 !== "string" || !/^[0-9a-f]{64}$/.test(row.sha256)) {
+      fail(`${label}.sha256 must be a lowercase SHA-256 digest`);
+    }
+    return {
+      url: location.url,
+      bytes: row.bytes as number,
+      sha256: row.sha256,
+    };
+  });
+  rows.sort((left, right) => compareUtf8Bytes(left.url, right.url));
+  const expectedUrls = expectedFloodgateQ1DailyListingUrls();
+  if (rows.some((row, index) => row.url !== expectedUrls[index])) {
+    fail("Q1 listing identities must contain every canonical day exactly once");
+  }
+  return `${rows
+    .map((row) => `${row.url}\t${row.bytes}\t${row.sha256}`)
+    .join("\n")}\n`;
+}
+
+/** Verify that a serialized live Q1 identity manifest matches preregistration. */
+export function assertPreregisteredFloodgateQ1ListingIdentityManifest(
+  manifest: string,
+): Readonly<FloodgateBodyIdentity> {
+  if (typeof manifest !== "string") {
+    fail("Q1 listing identity manifest must be a primitive string");
+  }
+  const bytes = new TextEncoder().encode(manifest).byteLength;
+  const sha256 = sha256Hex(manifest);
+  if (
+    bytes !== FLOODGATE_Q1_LISTING_IDENTITY_MANIFEST_EXPECTED.bytes ||
+    sha256 !== FLOODGATE_Q1_LISTING_IDENTITY_MANIFEST_EXPECTED.sha256
+  ) {
+    fail("Q1 listing identity manifest does not match preregistered identity");
+  }
+  return Object.freeze({ bytes, sha256 });
+}
+
 export function parseFloodgateDailyRatingUrl(
   input: string,
 ): FloodgateDailyRatingSnapshot {
@@ -914,14 +1166,7 @@ function decodeFilenamePart(value: string, label: string): string {
   return decoded;
 }
 
-interface OfficialCsaLocation extends FloodgateDailyListing {
-  readonly filename: string;
-  readonly event: string;
-  readonly visiblePlayers: readonly [string, string];
-  readonly timestamp: string;
-}
-
-function parseOfficialCsaUrl(input: string): OfficialCsaLocation {
+function parseOfficialCsaUrl(input: string): FloodgateOfficialCsaLocation {
   const url = assertSafeAbsoluteUrl(input);
   const pathMatch = /^\/shogi\/x\/(2026)\/(\d{2})\/(\d{2})\/([^/]+\.csa)$/.exec(
     url.pathname,
@@ -972,9 +1217,13 @@ export function parseFloodgateCsaUrl(input: string): FloodgateCsaLocation {
 function discoverFloodgateCsaUrlsFromHtml(
   html: string,
   listing: FloodgateDailyListing,
-): readonly FloodgateCsaLocation[] {
+): Readonly<{
+  allOfficialCsaLocations: readonly FloodgateOfficialCsaLocation[];
+  targetCsaLocations: readonly FloodgateCsaLocation[];
+}> {
   assertNoHiddenStructuralHtml(html, "daily listing");
-  const discovered = new Map<string, FloodgateCsaLocation>();
+  const allOfficial = new Map<string, FloodgateOfficialCsaLocation>();
+  const target = new Map<string, FloodgateCsaLocation>();
   for (const anchor of html.matchAll(/<a\b([^>]*)>/gi)) {
     const attributes = parseQuotedAttributes(anchor[1], "daily listing anchor");
     const href = attributes.get("href");
@@ -998,17 +1247,25 @@ function discoverFloodgateCsaUrlsFromHtml(
     const location = parseOfficialCsaUrl(absolute);
     if (location.date !== listing.date)
       fail("daily listing links to CSA from another date");
-    if (location.event !== FLOODGATE_EVENT) continue;
-    discovered.set(
-      location.url,
-      Object.freeze({ ...location, event: FLOODGATE_EVENT }),
-    );
+    allOfficial.set(location.url, location);
+    if (location.event === FLOODGATE_EVENT) {
+      target.set(
+        location.url,
+        Object.freeze({ ...location, event: FLOODGATE_EVENT }),
+      );
+    }
   }
-  return Object.freeze(
-    [...discovered.values()].sort((left, right) =>
+  const allOfficialCsaLocations = Object.freeze(
+    [...allOfficial.values()].sort((left, right) =>
       compareUtf8Bytes(left.url, right.url),
     ),
   );
+  const targetCsaLocations = Object.freeze(
+    [...target.values()].sort((left, right) =>
+      compareUtf8Bytes(left.url, right.url),
+    ),
+  );
+  return Object.freeze({ allOfficialCsaLocations, targetCsaLocations });
 }
 
 /**
@@ -1042,7 +1299,10 @@ export function parseFloodgateDailyListingEvidence(
   const location = parseFloodgateDailyListingUrl(input.listingUrl);
   const listingBytes = copyEvidenceBytes(input.listingBytes, "listingBytes");
   const html = decodeSourceUtf8(listingBytes, "daily listing");
-  const csaLocations = discoverFloodgateCsaUrlsFromHtml(html, location);
+  const { targetCsaLocations: csaLocations } = discoverFloodgateCsaUrlsFromHtml(
+    html,
+    location,
+  );
   const body = Object.freeze({
     bytes: listingBytes.byteLength,
     sha256: sha256Hex(listingBytes),
@@ -1052,6 +1312,40 @@ export function parseFloodgateDailyListingEvidence(
     date: location.date,
     listing: Object.freeze({ location, body }),
     csaLocations,
+  });
+}
+
+/**
+ * Bind one daily listing to all well-formed official CSA links and the pinned
+ * target-event subset derived from exactly the same copied response bytes.
+ */
+export function parseFloodgateDailyArchiveEvidence(
+  input: FloodgateDailyArchiveEvidenceInput,
+): FloodgateDailyArchiveEvidence {
+  const value = assertStrictPlainDataObject(input, "archive evidence input");
+  assertExactOwnKeys(
+    value,
+    ["listingBytes", "listingUrl"],
+    "archive evidence input",
+  );
+  if (typeof value.listingUrl !== "string") {
+    fail("archive evidence URL must be a primitive string");
+  }
+  const location = parseFloodgateDailyListingUrl(value.listingUrl);
+  const listingBytes = copyEvidenceBytes(value.listingBytes, "listingBytes");
+  const html = decodeSourceUtf8(listingBytes, "daily listing");
+  const { allOfficialCsaLocations, targetCsaLocations } =
+    discoverFloodgateCsaUrlsFromHtml(html, location);
+  const body = Object.freeze({
+    bytes: listingBytes.byteLength,
+    sha256: sha256Hex(listingBytes),
+  });
+  return Object.freeze({
+    schema: "shogi-floodgate-daily-archive-evidence-v1" as const,
+    date: location.date,
+    listing: Object.freeze({ location, body }),
+    allOfficialCsaLocations,
+    targetCsaLocations,
   });
 }
 
@@ -1097,6 +1391,100 @@ function parseRatingLastModified(html: string, snapshotDate: string): string {
     fail("rating footer date must be the previous calendar date");
   }
   return `${footerDate} ${hourRaw}:${minuteRaw}:${secondRaw} +0900`;
+}
+
+/** Return aggregate inventory facts without exposing period-end identities. */
+export function summarizeFloodgatePeriodEndInventoryRows(
+  rows: readonly FloodgateRatingRow[],
+): Readonly<FloodgatePeriodEndInventoryCounts> {
+  const minimumGameIdentities = new Set(eligibleGroupZeroIdentities(rows));
+  const groupZeroIdentities = rows.filter(
+    (row) => row.groupNumber === 0,
+  ).length;
+  const identitiesAtLeast3600And30Games = rows.filter(
+    (row) =>
+      row.groupNumber === 0 &&
+      minimumGameIdentities.has(row.identity) &&
+      row.rating >= FLOODGATE_MINIMUM_EMBEDDED_GAME_RATING,
+  ).length;
+  return Object.freeze({
+    ratingRows: rows.length,
+    groupZeroIdentities,
+    identitiesAtLeast3600And30Games,
+  });
+}
+
+/** Fail closed unless the internally computed body is the pinned snapshot. */
+function assertFloodgatePeriodEndInventoryExpectedBody(
+  body: Readonly<FloodgateBodyIdentity>,
+): void {
+  if (
+    body.bytes !== FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY.bytes ||
+    body.sha256 !== FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_BODY.sha256
+  ) {
+    fail("period-end inventory body does not match the expected identity");
+  }
+}
+
+/**
+ * Parse the pinned period-end snapshot for inventory only. This deliberately
+ * does not expose the daily-eligibility location or derived eligibility set.
+ */
+export function parseFloodgatePeriodEndInventoryEvidence(
+  input: FloodgatePeriodEndInventoryEvidenceInput,
+): FloodgatePeriodEndInventoryEvidence {
+  const value = assertStrictPlainDataObject(
+    input,
+    "period-end inventory evidence input",
+  );
+  assertExactOwnKeys(
+    value,
+    ["ratingBytes", "ratingUrl"],
+    "period-end inventory evidence input",
+  );
+  if (typeof value.ratingUrl !== "string") {
+    fail("period-end inventory URL must be a primitive string");
+  }
+  if (value.ratingUrl !== FLOODGATE_PERIOD_END_INVENTORY_URL) {
+    fail("period-end inventory URL must be the exact 2026-04-01 snapshot");
+  }
+  const ratingBytes = copyEvidenceBytes(value.ratingBytes, "ratingBytes");
+  const html = decodeSourceUtf8(ratingBytes, "period-end rating snapshot");
+  const body = Object.freeze({
+    bytes: ratingBytes.byteLength,
+    sha256: sha256Hex(ratingBytes),
+  });
+  assertFloodgatePeriodEndInventoryExpectedBody(body);
+  // Parse the already fatal-decoded text; do not decode the same byte body a
+  // second time before deriving rows and footer evidence.
+  const rows = parseFloodgateRatingSnapshot(html);
+  const lastModifiedAt = parseRatingLastModified(html, "2026-04-01");
+  const counts = summarizeFloodgatePeriodEndInventoryRows(rows);
+  if (
+    counts.ratingRows !==
+      FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_COUNTS.ratingRows ||
+    counts.groupZeroIdentities !==
+      FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_COUNTS.groupZeroIdentities ||
+    counts.identitiesAtLeast3600And30Games !==
+      FLOODGATE_PERIOD_END_INVENTORY_EXPECTED_COUNTS.identitiesAtLeast3600And30Games
+  ) {
+    fail("period-end inventory aggregate counts do not match preregistration");
+  }
+  return Object.freeze({
+    schema: "shogi-floodgate-period-end-inventory-evidence-v1" as const,
+    purpose:
+      "period-end-aggregate-inventory-only-not-daily-eligibility" as const,
+    dailyEligibilityAllowed: false as const,
+    identityListsExposed: false as const,
+    snapshot: Object.freeze({
+      url: FLOODGATE_PERIOD_END_INVENTORY_URL,
+      filename: FLOODGATE_PERIOD_END_INVENTORY_SNAPSHOT,
+      snapshotDate: "2026-04-01" as const,
+      body,
+      lastModifiedAt,
+      counts,
+    }),
+  });
 }
 
 function parseFloodgateCsaSourceHeader(
@@ -1152,13 +1540,51 @@ function parseFloodgateCsaSourceHeader(
 }
 
 function copyEvidenceBytes(value: unknown, label: string): Uint8Array {
-  if (!(value instanceof Uint8Array)) {
+  if (nodeUtilTypes.isProxy(value)) {
+    fail(`${label} must not be a Proxy`);
+  }
+  if (!nodeUtilTypes.isUint8Array(value)) {
     fail(`${label} must be an exact Uint8Array body`);
   }
-  // `Buffer.slice()` aliases its source in Node, so construct a plain typed
-  // array to guarantee an independent native copy for both Buffer and
-  // Uint8Array callers.
-  return new Uint8Array(value);
+
+  let buffer: unknown;
+  let byteLength: unknown;
+  let byteOffset: unknown;
+  try {
+    buffer = Reflect.apply(TYPED_ARRAY_BUFFER_GETTER, value, []);
+    byteLength = Reflect.apply(TYPED_ARRAY_BYTE_LENGTH_GETTER, value, []);
+    byteOffset = Reflect.apply(TYPED_ARRAY_BYTE_OFFSET_GETTER, value, []);
+  } catch {
+    return fail(`${label} has inaccessible typed-array storage`);
+  }
+  if (nodeUtilTypes.isSharedArrayBuffer(buffer)) {
+    fail(`${label} must not be backed by SharedArrayBuffer`);
+  }
+  if (
+    !nodeUtilTypes.isArrayBuffer(buffer) ||
+    !Number.isSafeInteger(byteLength) ||
+    (byteLength as number) < 0 ||
+    !Number.isSafeInteger(byteOffset) ||
+    (byteOffset as number) < 0
+  ) {
+    fail(`${label} has invalid typed-array storage`);
+  }
+
+  // Build a plain view from intrinsic slot values, then invoke the captured
+  // native setter. This avoids caller-defined buffer/offset/length getters,
+  // iterators, Symbol.species, and Buffer/subclass copy hooks.
+  try {
+    const source = new IntrinsicUint8Array(
+      buffer as ArrayBuffer,
+      byteOffset as number,
+      byteLength as number,
+    );
+    const copy = new IntrinsicUint8Array(byteLength as number);
+    Reflect.apply(INTRINSIC_UINT8_ARRAY_SET, copy, [source]);
+    return copy;
+  } catch {
+    return fail(`${label} has detached or invalid typed-array storage`);
+  }
 }
 
 /**

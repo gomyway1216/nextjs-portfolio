@@ -10,6 +10,7 @@ import {
 } from "../../../ml/floodgate-roles";
 import {
   allocateFloodgateRoleLockCoreForTests,
+  mapFloodgateRoleLockWithLimitCoreForTests,
   runFloodgateRoleLockPublishSequenceCoreForTests,
   type NonProductionFloodgateRoleLockPublishSequenceFixture,
   type FloodgateRoleLockIndexedGame,
@@ -26,6 +27,17 @@ const EMPTY_COUNTS: Readonly<Record<FloodgateRole, number>> = {
   fresh_selection: 0,
   training: 0,
 };
+
+function deferred(): Readonly<{
+  promise: Promise<void>;
+  resolve: () => void;
+}> {
+  let resolve!: () => void;
+  const promise = new Promise<void>((complete) => {
+    resolve = complete;
+  });
+  return Object.freeze({ promise, resolve });
+}
 
 function sha256(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
@@ -134,6 +146,51 @@ function publishSequenceFixture(
 }
 
 describe("Floodgate production role-lock core", () => {
+  it("stops scheduling after the first failure and drains every active worker", async () => {
+    const firstGate = deferred();
+    const secondGate = deferred();
+    const firstFailure = new Error("first concurrent failure");
+    const secondFailure = new Error("second concurrent failure");
+    const started: number[] = [];
+    let settled = false;
+
+    const operation = mapFloodgateRoleLockWithLimitCoreForTests(
+      [0, 1, 2, 3],
+      2,
+      async (_value, index) => {
+        started.push(index);
+        if (index === 0) {
+          await firstGate.promise;
+          throw firstFailure;
+        }
+        if (index === 1) {
+          await secondGate.promise;
+          throw secondFailure;
+        }
+        throw new Error(`unexpectedly scheduled index ${index}`);
+      },
+    );
+    void operation.then(
+      () => {
+        settled = true;
+      },
+      () => {
+        settled = true;
+      },
+    );
+
+    await vi.waitFor(() => expect(started).toEqual([0, 1]));
+    firstGate.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(started).toEqual([0, 1]);
+
+    secondGate.resolve();
+    await expect(operation).rejects.toBe(firstFailure);
+    expect(started).toEqual([0, 1]);
+  });
+
   it("keeps only one canonical URL per exact-body group and materializes lazily by role priority", async () => {
     const firstUrl = csaUrl(1);
     const aliasUrl = csaUrl(2);

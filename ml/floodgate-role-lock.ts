@@ -578,21 +578,44 @@ async function mapWithLimit<T, R>(
   concurrency: number,
   operation: (value: T, index: number) => Promise<R>,
 ): Promise<R[]> {
+  if (!Number.isSafeInteger(concurrency) || concurrency <= 0) {
+    fail("map concurrency must be a positive safe integer");
+  }
   const results = new Array<R>(values.length);
   let next = 0;
+  let failed = false;
+  let firstFailure: unknown;
   const workers = Array.from(
     { length: Math.min(concurrency, Math.max(1, values.length)) },
     async () => {
-      while (true) {
+      while (!failed) {
         const index = next;
         next += 1;
         if (index >= values.length) return;
-        results[index] = await operation(values[index], index);
+        try {
+          results[index] = await operation(values[index], index);
+        } catch (error) {
+          if (!failed) {
+            failed = true;
+            firstFailure = error;
+          }
+          return;
+        }
       }
     },
   );
   await Promise.all(workers);
+  if (failed) throw firstFailure;
   return results;
+}
+
+/** Explicit non-production seam for worker-drain and scheduling tests. */
+export async function mapFloodgateRoleLockWithLimitCoreForTests<T, R>(
+  values: readonly T[],
+  concurrency: number,
+  operation: (value: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  return mapWithLimit(values, concurrency, operation);
 }
 
 function domainRank(

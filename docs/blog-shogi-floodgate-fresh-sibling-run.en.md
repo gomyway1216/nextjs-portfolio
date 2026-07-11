@@ -6,7 +6,7 @@
 
 ## Current status
 
-As of 2026-07-10, this work has **not** demonstrated high-dan strength. It has completed the label-blind public inventory and the transport foundations needed to acquire exact responses without silently repairing or reinterpreting them.
+As of 2026-07-10, this work has **not** demonstrated high-dan strength. The label-blind public inventory and transport foundations are merged, and one live acquisition process is now collecting the exact responses without silently repairing or reinterpreting them.
 
 | Stage                             | Status      | Evidence                                              |
 | --------------------------------- | ----------- | ----------------------------------------------------- |
@@ -15,8 +15,8 @@ As of 2026-07-10, this work has **not** demonstrated high-dan strength. It has c
 | source and legal-CSA parsers      | complete    | strict codecs, identity joins, full legal moves       |
 | raw CAS lock                      | complete    | PR #415, merge commit `2c272f37`                      |
 | process-wide scheduler            | complete    | PR #416, merge commit `b5832cea`                      |
-| lease / resume / offline verifier | in progress | planned PR #417                                       |
-| live raw acquisition              | not started | one process, 36,349 planned requests                  |
+| lease / resume / offline verifier | complete    | PR #417, merge commit `649423d`                       |
+| live raw acquisition              | running     | 27,061 / 36,349, 74.44% by durable audit records      |
 | 1,000 / 200 / 200 role lock       | not started | fixed before labels                                   |
 | teacher / three-seed training     | not started | model, objective, and seeds remain frozen             |
 | fresh selection                   | sealed      | only after all three final checkpoints                |
@@ -95,7 +95,7 @@ The final implementation shares one process-wide production gate, synchronously 
 
 Twenty scheduler adversarial tests and 120 related Floodgate tests pass. The final independent sub-agent audit reported no remaining P1/P2 findings.
 
-## Acquisition order fixed by PR #417
+## Acquisition order fixed in PR #417
 
 The runner will make this sequence non-configurable.
 
@@ -136,6 +136,20 @@ The same strict CLI provides acquisition and read-only status. Its output must b
 npm run shogi:floodgate-acquire -- status --output /absolute/path/to/raw-lock
 npm run shogi:floodgate-acquire -- run --output /absolute/path/to/raw-lock
 ```
+
+## Intermediate live-run audit
+
+The run started at `2026-07-11T03:57:40.891Z` from source revision `649423d455b5762a697864610d9e8f606cc327c3`. The milestones below sum only audit JSONL records that are durable through their terminating LF. They do not count receipts merely visible in the filesystem: between batch publication and audit append, those can lead the durable observation by as many as 64 responses.
+
+| UTC time                   | fetched | progress | response bytes | unexpected failure / resume |
+| -------------------------- | ------: | -------: | -------------: | --------------------------: |
+| around 2026-07-11T04:21:31 |  10,997 |   30.25% |    190,944,202 |                       0 / 0 |
+| 2026-07-11T04:31:52        |  15,797 |   43.46% |    258,797,090 |                       0 / 0 |
+| 2026-07-11T04:43:37        |  21,365 |   58.78% |    333,234,256 |                       0 / 0 |
+| 2026-07-11T04:51:03        |  24,885 |   68.46% |    385,067,521 |                       0 / 0 |
+| 2026-07-11T04:55:39        |  27,061 |   74.44% |    415,839,970 |                       0 / 0 |
+
+The only HTTP 404s are the two daily-rating responses permitted in advance, so they are not counted as failures in the table. No automatic retry occurred and the run still has one token. Sub-agents running alongside acquisition did not add network processes; they audited the result summarizer and the next label-blind role-lock stage.
 
 ## Fields reserved for the live run
 

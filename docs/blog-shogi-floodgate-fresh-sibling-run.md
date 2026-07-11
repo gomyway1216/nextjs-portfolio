@@ -6,7 +6,7 @@
 
 ## 現在地
 
-2026-07-10時点で、まだ「高段レベルになった」とは判定していない。完了したのは、labelを見ずに公開在庫を固定し、raw responseを壊さず取得するための土台までである。
+2026-07-10時点で、まだ「高段レベルになった」とは判定していない。labelを見ずに公開在庫を固定し、raw responseを壊さず取得する土台をmergeしたうえで、単一processのlive取得を実行している。
 
 | 段階                              | 状態   | 証拠                                                  |
 | --------------------------------- | ------ | ----------------------------------------------------- |
@@ -15,8 +15,8 @@
 | source・合法CSA parser            | 完了   | strict codec、identity join、全合法手                 |
 | raw CAS lock                      | 完了   | PR #415、通常merge `2c272f37`                         |
 | process-wide scheduler            | 完了   | PR #416、通常merge `b5832cea`                         |
-| lease / resume / offline verifier | 実装中 | PR #417予定                                           |
-| live raw取得                      | 未開始 | 単一process、36,349 requests予定                      |
+| lease / resume / offline verifier | 完了   | PR #417、通常merge `649423d`                          |
+| live raw取得                      | 進行中 | 27,061 / 36,349、確定監査行で74.44%                   |
 | 1,000 / 200 / 200 role lock       | 未開始 | label生成前に固定                                     |
 | teacher / 3 seed学習              | 未開始 | model・loss・seedは変更しない                         |
 | fresh selection                   | 封印   | 3 final checkpoint完成後だけ                          |
@@ -95,7 +95,7 @@ network schedulerは次を固定した。
 
 20個のscheduler adversarial testと、合計120個の関連Floodgate testを通した。独立sub-agentの最終再監査はP1/P2 finding 0だった。
 
-## PR #417で固定する取得順
+## PR #417で固定した取得順
 
 取得runnerは次の順を変えられないようにする。
 
@@ -136,6 +136,20 @@ network schedulerは次を固定した。
 npm run shogi:floodgate-acquire -- status --output /absolute/path/to/raw-lock
 npm run shogi:floodgate-acquire -- run --output /absolute/path/to/raw-lock
 ```
+
+## live runの途中監査
+
+runは`2026-07-11T03:57:40.891Z`にsource revision `649423d455b5762a697864610d9e8f606cc327c3`から開始した。次の値は、filesystemにreceiptが見えた数ではなく、LFまでdurableに完結したaudit JSONLだけを合算したものだ。batch保存後・audit追記前の短い区間ではreceiptが最大64件先行し得るため、その未確定値を進捗記録へ混ぜていない。
+
+| UTC時刻                  | fetched |   進捗 | response bytes | unexpected failure / resume |
+| ------------------------ | ------: | -----: | -------------: | --------------------------: |
+| 2026-07-11T04:21:31Z付近 |  10,997 | 30.25% |    190,944,202 |                       0 / 0 |
+| 2026-07-11T04:31:52Z     |  15,797 | 43.46% |    258,797,090 |                       0 / 0 |
+| 2026-07-11T04:43:37Z     |  21,365 | 58.78% |    333,234,256 |                       0 / 0 |
+| 2026-07-11T04:51:03Z     |  24,885 | 68.46% |    385,067,521 |                       0 / 0 |
+| 2026-07-11T04:55:39Z     |  27,061 | 74.44% |    415,839,970 |                       0 / 0 |
+
+daily ratingのHTTP 404は事前に許可した2件だけで、表のfailureには数えていない。自動retryは発生しておらず、run tokenも1個のままである。取得と同時に動かしたsub-agentは、network processを増やさず、結果summarizerと次段のlabel-blind role lockだけを監査した。
 
 ## live runで追記する監査欄
 

@@ -6,6 +6,10 @@ import {
   type FloodgateAcquisitionAuthoritativeFacts,
 } from "../../../ml/floodgate-acquisition-summary";
 import { FLOODGATE_RAW_OFFLINE_VERIFICATION_SCHEMA } from "../../../ml/floodgate-raw-lock-verifier";
+import {
+  runNonProductionFloodgateSummaryCliForTests,
+  type NonProductionFloodgateSummaryCliDependenciesForTests,
+} from "../../../ml/summarize-floodgate-acquisition";
 
 const REVISION = "a".repeat(40);
 const TOKEN_A = "1".repeat(64);
@@ -184,5 +188,45 @@ describe("Floodgate acquisition summary", () => {
         jsonl(record({ status_200: 0, status_404: 1 })),
       ]),
     ).toThrow(/outside daily_ratings/);
+  });
+});
+
+describe("Floodgate acquisition summary CLI", () => {
+  it("accepts one canonical input and writes only canonical result JSON", async () => {
+    const stdout: string[] = [];
+    const artifact = summarizeFloodgateAcquisitionCoreForTests(FACTS, [
+      jsonl(record({ fetched: 5, status_200: 5 })),
+    ]);
+    const dependencies: NonProductionFloodgateSummaryCliDependenciesForTests = {
+      summarize: async () => artifact,
+      writeStdout: (value) => stdout.push(value),
+    };
+
+    await expect(
+      runNonProductionFloodgateSummaryCliForTests(
+        ["--input", "/tmp/floodgate-lock"],
+        dependencies,
+      ),
+    ).resolves.toBe(0);
+    expect(stdout).toEqual([artifact.canonical_json]);
+  });
+
+  it.each([
+    [],
+    ["--input"],
+    ["--input", "relative"],
+    ["--input", "/"],
+    ["--output", "/tmp/floodgate-lock"],
+    ["--input", "/tmp/floodgate-lock", "extra"],
+  ])("rejects malformed argv %j", async (...argv) => {
+    const dependencies: NonProductionFloodgateSummaryCliDependenciesForTests = {
+      summarize: async () => {
+        throw new Error("must not run");
+      },
+      writeStdout: () => undefined,
+    };
+    await expect(
+      runNonProductionFloodgateSummaryCliForTests(argv, dependencies),
+    ).rejects.toThrow(/invalid Floodgate summary CLI/);
   });
 });

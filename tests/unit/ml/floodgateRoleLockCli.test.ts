@@ -181,6 +181,71 @@ describe("Floodgate role-lock CLI", () => {
     expect(allocationStat.isFile()).toBe(true);
   });
 
+  it("rolls back the manifest when an artifact is overwritten after final prepublish verification", async () => {
+    const { roleLockRoot } = await fixture();
+    const tamperedAllocation = '{"tampered":true}';
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async (root) => {
+          // This hook runs after the immediate prepublish byte verification.
+          // Updating an existing inode does not change the directory ctime or
+          // entry names, so postpublish closure must catch and roll it back.
+          await fs.promises.writeFile(
+            path.join(root, "allocation.json"),
+            tamperedAllocation,
+          );
+        },
+      ),
+    ).rejects.toThrow(/published artifact does not match candidate/);
+    await expect(
+      fs.promises.lstat(path.join(roleLockRoot, "manifest.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    await expect(
+      fs.promises.readFile(path.join(roleLockRoot, "allocation.json"), "utf8"),
+    ).resolves.toBe(tamperedAllocation);
+  });
+
+  it("rejects an in-place rewrite even when it restores the expected artifact bytes", async () => {
+    const { roleLockRoot } = await fixture();
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async (root) => {
+          await fs.promises.writeFile(
+            path.join(root, "allocation.json"),
+            '{"fixture":"allocation"}',
+          );
+        },
+      ),
+    ).rejects.toThrow(/regular-file identity changed/);
+    await expect(
+      fs.promises.lstat(path.join(roleLockRoot, "manifest.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("durably rolls back a manifest when publication fails after its final link exists", async () => {
+    const { roleLockRoot } = await fixture();
+    await expect(
+      runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
+        roleLockRoot,
+        async () => undefined,
+        (phase) => {
+          if (phase === "after-directory-sync") {
+            throw new Error("injected manifest directory fsync failure");
+          }
+        },
+      ),
+    ).rejects.toThrow(/injected manifest directory fsync failure/);
+    await expect(
+      fs.promises.lstat(path.join(roleLockRoot, "manifest.json")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+    expect((await fs.promises.readdir(roleLockRoot)).sort()).toEqual([
+      "allocation.json",
+      "materialized-input.json",
+    ]);
+  });
+
   it("holds one output-root identity through the complete manifest-last lifecycle", async () => {
     const { roleLockRoot } = await fixture();
     await expect(

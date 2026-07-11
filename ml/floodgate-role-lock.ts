@@ -27,6 +27,7 @@ import {
   readExistingFloodgateRawLockManifestFile,
   serializeFloodgateRawLockManifest,
   verifyExistingFloodgateRawObject,
+  type FloodgateDurableCreatePhase,
   type FloodgateRawCsaIndexEntry,
   type FloodgateRawLockManifest,
   type FloodgateRawReceiptIndexEntry,
@@ -158,10 +159,17 @@ export type FloodgateRoleLockOutputCheckpoint =
   | "after-final-materialized-input-read"
   | "before-final-allocation-read"
   | "after-final-allocation-read"
+  | "before-prepublish-artifact-revalidation"
+  | "after-prepublish-materialized-input-read"
+  | "after-prepublish-allocation-read"
   | "before-manifest-write"
   | "after-manifest-write"
   | "before-manifest-read"
-  | "after-manifest-read";
+  | "after-manifest-read"
+  | "before-postpublish-materialized-input-read"
+  | "after-postpublish-materialized-input-read"
+  | "before-postpublish-allocation-read"
+  | "after-postpublish-allocation-read";
 
 export interface NonProductionFloodgateRoleLockPublishSequenceFixture {
   readonly validateCandidate: () => void;
@@ -868,12 +876,28 @@ async function runRoleLockPublishSequence(
   await fixture.verifyAllocation();
   await fixture.assertOutputRoot("after-final-allocation-read");
   fixture.validateCandidate();
+  // A directory guard cannot observe an in-place write to an existing child:
+  // that changes the file inode's metadata, not the directory entry set or the
+  // directory ctime. Re-open and byte-verify both immutable artifacts at the
+  // final prepublish boundary, after all potentially long-running source and
+  // artifact checks, so an in-place race cannot be blessed by manifest.json.
+  await fixture.assertOutputRoot("before-prepublish-artifact-revalidation");
+  await fixture.verifyMaterializedInput();
+  await fixture.assertOutputRoot("after-prepublish-materialized-input-read");
+  await fixture.verifyAllocation();
+  await fixture.assertOutputRoot("after-prepublish-allocation-read");
   await fixture.assertOutputRoot("before-manifest-write");
   await fixture.publishManifest();
   await fixture.assertOutputRoot("after-manifest-write");
   await fixture.assertOutputRoot("before-manifest-read");
   await fixture.verifyManifest();
   await fixture.assertOutputRoot("after-manifest-read");
+  await fixture.assertOutputRoot("before-postpublish-materialized-input-read");
+  await fixture.verifyMaterializedInput();
+  await fixture.assertOutputRoot("after-postpublish-materialized-input-read");
+  await fixture.assertOutputRoot("before-postpublish-allocation-read");
+  await fixture.verifyAllocation();
+  await fixture.assertOutputRoot("after-postpublish-allocation-read");
 }
 
 /** Explicit non-production seam for crash/TOCTOU publication-order tests. */
@@ -909,7 +933,50 @@ export async function runFloodgateRoleLockPublishSequenceCoreForTests(
   await runRoleLockPublishSequence(input);
 }
 
-async function readRegularFileNoFollow(filePath: string): Promise<Uint8Array> {
+interface FloodgateRegularFileIdentity {
+  readonly dev: bigint;
+  readonly ino: bigint;
+  readonly size: bigint;
+  readonly ctimeNs: bigint;
+  readonly mtimeNs: bigint;
+}
+
+interface FloodgateRegularFileSnapshot {
+  readonly bytes: Uint8Array;
+  readonly identity: Readonly<FloodgateRegularFileIdentity>;
+}
+
+function regularFileIdentity(
+  stat: fs.BigIntStats,
+): Readonly<FloodgateRegularFileIdentity> {
+  return Object.freeze({
+    dev: stat.dev,
+    ino: stat.ino,
+    size: stat.size,
+    ctimeNs: stat.ctimeNs,
+    mtimeNs: stat.mtimeNs,
+  });
+}
+
+function assertSameRegularFileIdentity(
+  actual: Readonly<FloodgateRegularFileIdentity>,
+  expected: Readonly<FloodgateRegularFileIdentity>,
+  label: string,
+): void {
+  if (
+    actual.dev !== expected.dev ||
+    actual.ino !== expected.ino ||
+    actual.size !== expected.size ||
+    actual.ctimeNs !== expected.ctimeNs ||
+    actual.mtimeNs !== expected.mtimeNs
+  ) {
+    fail(`${label} regular-file identity changed`);
+  }
+}
+
+async function readRegularFileSnapshotNoFollow(
+  filePath: string,
+): Promise<Readonly<FloodgateRegularFileSnapshot>> {
   const noFollow = fs.constants.O_NOFOLLOW;
   if (typeof noFollow !== "number") {
     fail("this production platform must provide O_NOFOLLOW");
@@ -922,21 +989,86 @@ async function readRegularFileNoFollow(filePath: string): Promise<Uint8Array> {
     fs.constants.O_RDONLY | noFollow,
   );
   try {
-    const before = await handle.stat();
+    const before = await handle.stat({ bigint: true });
     if (!before.isFile()) fail(`${filePath} must be a regular file`);
     const bytes = await handle.readFile();
-    const after = await handle.stat();
-    if (
-      before.dev !== after.dev ||
-      before.ino !== after.ino ||
-      before.size !== after.size ||
-      bytes.byteLength !== after.size
-    ) {
+    const after = await handle.stat({ bigint: true });
+    const beforeIdentity = regularFileIdentity(before);
+    const afterIdentity = regularFileIdentity(after);
+    if (BigInt(bytes.byteLength) !== after.size) {
       fail(`${filePath} changed while it was being read`);
     }
-    return new Uint8Array(bytes);
+    assertSameRegularFileIdentity(
+      afterIdentity,
+      beforeIdentity,
+      `${filePath} during read`,
+    );
+    const pathStat = await fs.promises.lstat(filePath, { bigint: true });
+    if (!pathStat.isFile() || pathStat.isSymbolicLink()) {
+      fail(`${filePath} stopped being a regular file after read`);
+    }
+    assertSameRegularFileIdentity(
+      regularFileIdentity(pathStat),
+      afterIdentity,
+      `${filePath} path after read`,
+    );
+    if ((await fs.promises.realpath(filePath)) !== filePath) {
+      fail(`${filePath} traversed symbolic links after read`);
+    }
+    return Object.freeze({
+      bytes: new Uint8Array(bytes),
+      identity: afterIdentity,
+    });
   } finally {
     await handle.close();
+  }
+}
+
+async function readRegularFileNoFollow(filePath: string): Promise<Uint8Array> {
+  return (await readRegularFileSnapshotNoFollow(filePath)).bytes;
+}
+
+async function statRegularFileIdentityNoFollow(
+  filePath: string,
+): Promise<Readonly<FloodgateRegularFileIdentity>> {
+  const noFollow = fs.constants.O_NOFOLLOW;
+  if (typeof noFollow !== "number") {
+    fail("this production platform must provide O_NOFOLLOW");
+  }
+  if ((await fs.promises.realpath(filePath)) !== filePath) {
+    fail(`${filePath} must not traverse symbolic links`);
+  }
+  const handle = await fs.promises.open(
+    filePath,
+    fs.constants.O_RDONLY | noFollow,
+  );
+  try {
+    const handleStat = await handle.stat({ bigint: true });
+    if (!handleStat.isFile()) fail(`${filePath} must be a regular file`);
+    const pathStat = await fs.promises.lstat(filePath, { bigint: true });
+    if (!pathStat.isFile() || pathStat.isSymbolicLink()) {
+      fail(`${filePath} must remain a regular file`);
+    }
+    const identity = regularFileIdentity(handleStat);
+    assertSameRegularFileIdentity(
+      regularFileIdentity(pathStat),
+      identity,
+      `${filePath} path`,
+    );
+    return identity;
+  } finally {
+    await handle.close();
+  }
+}
+
+async function statRegularFileIdentityNoFollowIfPresent(
+  filePath: string,
+): Promise<Readonly<FloodgateRegularFileIdentity> | null> {
+  try {
+    return await statRegularFileIdentityNoFollow(filePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
   }
 }
 
@@ -1203,6 +1335,73 @@ class FloodgateRoleLockOutputRootGuard {
     }
     if (mutationPolicy === "adopt-known-write") {
       this.#rootCtimeNs = after.rootCtimeNs;
+    }
+  }
+
+  async rollbackPublishedChild(
+    filename: string,
+    expectedIdentity: Readonly<FloodgateRegularFileIdentity>,
+    beforeEntries: readonly string[],
+    afterEntries: readonly string[],
+  ): Promise<void> {
+    if (path.basename(filename) !== filename || filename.length === 0) {
+      fail("role lock rollback filename must be one direct child");
+    }
+    await this.assertState(
+      `before ${filename} rollback`,
+      beforeEntries,
+      "adopt-known-write",
+    );
+    const filePath = path.join(this.#root, filename);
+    const noFollow = fs.constants.O_NOFOLLOW;
+    if (typeof noFollow !== "number") {
+      fail("this production platform must provide O_NOFOLLOW");
+    }
+    const handle = await fs.promises.open(
+      filePath,
+      fs.constants.O_RDONLY | noFollow,
+    );
+    try {
+      const handleStat = await handle.stat({ bigint: true });
+      if (
+        !handleStat.isFile() ||
+        handleStat.dev !== expectedIdentity.dev ||
+        handleStat.ino !== expectedIdentity.ino
+      ) {
+        fail(`refusing to remove a replaced ${filename}`);
+      }
+      const pathStat = await fs.promises.lstat(filePath, { bigint: true });
+      if (
+        !pathStat.isFile() ||
+        pathStat.isSymbolicLink() ||
+        pathStat.dev !== expectedIdentity.dev ||
+        pathStat.ino !== expectedIdentity.ino
+      ) {
+        fail(`refusing to unlink a replaced ${filename}`);
+      }
+      await fs.promises.unlink(filePath);
+      await this.#rootHandle.sync();
+      const afterUnlink = await handle.stat({ bigint: true });
+      if (
+        afterUnlink.dev !== expectedIdentity.dev ||
+        afterUnlink.ino !== expectedIdentity.ino ||
+        afterUnlink.nlink !== BigInt(0)
+      ) {
+        fail(`${filename} rollback did not unlink the held inode`);
+      }
+    } finally {
+      await handle.close();
+    }
+    await this.assertState(
+      `after ${filename} rollback`,
+      afterEntries,
+      "adopt-known-write",
+    );
+    try {
+      await fs.promises.lstat(filePath);
+      fail(`${filename} still exists after rollback`);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
   }
 
@@ -1544,14 +1743,118 @@ function validateRoleLockManifestCandidate(
 async function verifyPublishedText(
   filePath: string,
   expected: string,
-): Promise<void> {
-  const bytes = await readRegularFileNoFollow(filePath);
+): Promise<Readonly<FloodgateRegularFileIdentity>> {
+  const snapshot = await readRegularFileSnapshotNoFollow(filePath);
+  const { bytes } = snapshot;
   if (
     bytes.byteLength !== Buffer.byteLength(expected, "utf8") ||
     sha256Hex(bytes) !== sha256Hex(expected)
   ) {
     fail(`published artifact does not match candidate: ${filePath}`);
   }
+  return snapshot.identity;
+}
+
+function stablePublishedTextVerifier(
+  filePath: string,
+  expected: string,
+): () => Promise<void> {
+  let baseline: Readonly<FloodgateRegularFileIdentity> | null = null;
+  return async () => {
+    const observed = await verifyPublishedText(filePath, expected);
+    if (baseline) {
+      assertSameRegularFileIdentity(
+        observed,
+        baseline,
+        `immutable published artifact ${filePath}`,
+      );
+    } else {
+      baseline = observed;
+    }
+  };
+}
+
+function publicationAndRollbackFailure(
+  primary: unknown,
+  cleanup: unknown,
+): AggregateError {
+  const primaryMessage =
+    primary instanceof Error ? primary.message : String(primary);
+  const cleanupMessage =
+    cleanup instanceof Error ? cleanup.message : String(cleanup);
+  return new AggregateError(
+    [primary, cleanup],
+    `${primaryMessage}; manifest rollback also failed: ${cleanupMessage}`,
+  );
+}
+
+interface FloodgateTrackedManifestPublicationState {
+  attempted: boolean;
+  linked: boolean;
+  identity: Readonly<FloodgateRegularFileIdentity> | null;
+}
+
+async function durablePublishTrackedManifest(
+  manifestPath: string,
+  manifestText: string,
+  state: FloodgateTrackedManifestPublicationState,
+  injectedFailpoint?: (
+    phase: FloodgateDurableCreatePhase,
+  ) => void | Promise<void>,
+): Promise<void> {
+  state.attempted = true;
+  await durableCreateNoClobber(manifestPath, manifestText, {
+    failpoint: async (phase) => {
+      // `after-link` is the first durable-create checkpoint at which the final
+      // name exists. Record its held path identity before a later directory
+      // fsync/temp-cleanup failure can reject the durable-create promise.
+      if (phase === "after-link") {
+        state.linked = true;
+        state.identity = await statRegularFileIdentityNoFollow(manifestPath);
+      }
+      await injectedFailpoint?.(phase);
+    },
+  });
+  if (!state.linked || !state.identity) {
+    fail("manifest publication returned without observing its final hard link");
+  }
+  // Removing the temporary hard link changes the final inode's link count and
+  // ctime. Refresh the stable baseline only after durableCreate has completed
+  // that cleanup and its final directory fsync.
+  state.identity = await statRegularFileIdentityNoFollow(manifestPath);
+}
+
+async function rollbackTrackedManifestAfterFailure(
+  guard: FloodgateRoleLockOutputRootGuard,
+  manifestPath: string,
+  state: FloodgateTrackedManifestPublicationState,
+  primary: unknown,
+): Promise<never> {
+  if (state.attempted) {
+    try {
+      const identity =
+        state.identity ??
+        (await statRegularFileIdentityNoFollowIfPresent(manifestPath));
+      if (identity) {
+        await guard.rollbackPublishedChild(
+          FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
+          identity,
+          [
+            FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
+            FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME,
+            FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
+          ],
+          [
+            FLOODGATE_ROLE_LOCK_MATERIALIZED_INPUT_FILENAME,
+            FLOODGATE_ROLE_LOCK_ALLOCATION_FILENAME,
+          ],
+        );
+      }
+    } catch (cleanupError) {
+      throw publicationAndRollbackFailure(primary, cleanupError);
+    }
+  }
+  throw primary;
 }
 
 async function revalidateProductionSourceClosure(
@@ -1613,8 +1916,19 @@ function assertRoleLockOutputCheckpoint(
     );
   }
   if (
+    checkpoint === "before-prepublish-artifact-revalidation" ||
+    checkpoint === "after-prepublish-materialized-input-read" ||
+    checkpoint === "after-prepublish-allocation-read"
+  ) {
+    return guard.assertState(checkpoint, [input, allocation], "stable");
+  }
+  if (
     checkpoint === "before-manifest-read" ||
-    checkpoint === "after-manifest-read"
+    checkpoint === "after-manifest-read" ||
+    checkpoint === "before-postpublish-materialized-input-read" ||
+    checkpoint === "after-postpublish-materialized-input-read" ||
+    checkpoint === "before-postpublish-allocation-read" ||
+    checkpoint === "after-postpublish-allocation-read"
   ) {
     return guard.assertState(
       checkpoint,
@@ -1632,9 +1946,18 @@ function assertRoleLockOutputCheckpoint(
 export async function runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
   roleLockRoot: string,
   beforeManifestCheck: (root: string) => Promise<void>,
+  manifestFailpoint?: (
+    phase: FloodgateDurableCreatePhase,
+  ) => void | Promise<void>,
 ): Promise<void> {
   if (typeof beforeManifestCheck !== "function") {
     fail("non-production pre-manifest mutation must be a function");
+  }
+  if (
+    manifestFailpoint !== undefined &&
+    typeof manifestFailpoint !== "function"
+  ) {
+    fail("non-production manifest failpoint must be a function");
   }
   const root = assertCanonicalAbsolutePath(roleLockRoot, "role lock root");
   const guard = await FloodgateRoleLockOutputRootGuard.acquireFresh(root);
@@ -1650,6 +1973,28 @@ export async function runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
   const input = '{"fixture":"materialized-input"}';
   const allocation = '{"fixture":"allocation"}';
   const manifest = '{"fixture":"manifest"}\n';
+  const verifyInput = stablePublishedTextVerifier(inputPath, input);
+  const verifyAllocation = stablePublishedTextVerifier(
+    allocationPath,
+    allocation,
+  );
+  const manifestPublication: FloodgateTrackedManifestPublicationState = {
+    attempted: false,
+    linked: false,
+    identity: null,
+  };
+  const verifyManifest = async (): Promise<void> => {
+    const observed = await verifyPublishedText(manifestPath, manifest);
+    if (!manifestPublication.identity) {
+      manifestPublication.identity = observed;
+    } else {
+      assertSameRegularFileIdentity(
+        observed,
+        manifestPublication.identity,
+        "immutable published test manifest",
+      );
+    }
+  };
   let primaryFailed = false;
   try {
     await runRoleLockPublishSequence({
@@ -1663,15 +2008,26 @@ export async function runFreshFloodgateRoleLockOutputLifecycleCoreForTests(
       publishMaterializedInput: () => durableCreateNoClobber(inputPath, input),
       publishAllocation: () =>
         durableCreateNoClobber(allocationPath, allocation),
-      verifyMaterializedInput: () => verifyPublishedText(inputPath, input),
-      verifyAllocation: () => verifyPublishedText(allocationPath, allocation),
+      verifyMaterializedInput: verifyInput,
+      verifyAllocation,
       revalidateSourceClosure: async () => undefined,
-      publishManifest: () => durableCreateNoClobber(manifestPath, manifest),
-      verifyManifest: () => verifyPublishedText(manifestPath, manifest),
+      publishManifest: () =>
+        durablePublishTrackedManifest(
+          manifestPath,
+          manifest,
+          manifestPublication,
+          manifestFailpoint,
+        ),
+      verifyManifest,
     });
   } catch (error) {
     primaryFailed = true;
-    throw error;
+    await rollbackTrackedManifestAfterFailure(
+      guard,
+      manifestPath,
+      manifestPublication,
+      error,
+    );
   } finally {
     try {
       await guard.close();
@@ -1702,6 +2058,31 @@ async function publishRoleLock(
     FLOODGATE_ROLE_LOCK_MANIFEST_FILENAME,
   );
   const manifestText = `${canonicalJson(candidate)}\n`;
+  const verifyInput = stablePublishedTextVerifier(
+    inputPath,
+    evidence.core.artifact.input_canonical_json,
+  );
+  const verifyAllocation = stablePublishedTextVerifier(
+    allocationPath,
+    evidence.core.artifact.canonical_json,
+  );
+  const manifestPublication: FloodgateTrackedManifestPublicationState = {
+    attempted: false,
+    linked: false,
+    identity: null,
+  };
+  const verifyManifest = async (): Promise<void> => {
+    const observed = await verifyPublishedText(manifestPath, manifestText);
+    if (!manifestPublication.identity) {
+      manifestPublication.identity = observed;
+    } else {
+      assertSameRegularFileIdentity(
+        observed,
+        manifestPublication.identity,
+        "immutable published role-lock manifest",
+      );
+    }
+  };
   let primaryFailed = false;
   try {
     await runRoleLockPublishSequence({
@@ -1720,23 +2101,25 @@ async function publishRoleLock(
           allocationPath,
           evidence.core.artifact.canonical_json,
         ),
-      verifyMaterializedInput: () =>
-        verifyPublishedText(
-          inputPath,
-          evidence.core.artifact.input_canonical_json,
-        ),
-      verifyAllocation: () =>
-        verifyPublishedText(
-          allocationPath,
-          evidence.core.artifact.canonical_json,
-        ),
+      verifyMaterializedInput: verifyInput,
+      verifyAllocation,
       revalidateSourceClosure: assertPrepublish,
-      publishManifest: () => durableCreateNoClobber(manifestPath, manifestText),
-      verifyManifest: () => verifyPublishedText(manifestPath, manifestText),
+      publishManifest: () =>
+        durablePublishTrackedManifest(
+          manifestPath,
+          manifestText,
+          manifestPublication,
+        ),
+      verifyManifest,
     });
   } catch (error) {
     primaryFailed = true;
-    throw error;
+    await rollbackTrackedManifestAfterFailure(
+      rootGuard,
+      manifestPath,
+      manifestPublication,
+      error,
+    );
   } finally {
     try {
       await rootGuard.close();

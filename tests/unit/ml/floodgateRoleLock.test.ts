@@ -392,7 +392,7 @@ describe("Floodgate production role-lock core", () => {
           },
           verifyAllocation: async () => {
             allocationReads += 1;
-            if (allocationReads === 2) swapped = true;
+            if (allocationReads === 3) swapped = true;
           },
           publishManifest: async () => {
             events.push("manifest-published");
@@ -400,8 +400,32 @@ describe("Floodgate production role-lock core", () => {
         }),
       ),
     ).rejects.toThrow(/output root directory identity changed/);
-    expect(allocationReads).toBe(2);
+    expect(allocationReads).toBe(3);
     expect(events).toContain("before-manifest-write");
     expect(events).not.toContain("manifest-published");
+  });
+
+  it("revalidates the manifest and both artifacts after manifest publication", async () => {
+    let inputReads = 0;
+    let allocationReads = 0;
+    let manifestReads = 0;
+    await expect(
+      runFloodgateRoleLockPublishSequenceCoreForTests(
+        publishSequenceFixture({
+          verifyMaterializedInput: async () => {
+            inputReads += 1;
+          },
+          verifyAllocation: async () => {
+            allocationReads += 1;
+          },
+          verifyManifest: async () => {
+            manifestReads += 1;
+          },
+        }),
+      ),
+    ).resolves.toBeUndefined();
+    expect(inputReads).toBe(4);
+    expect(allocationReads).toBe(4);
+    expect(manifestReads).toBe(1);
   });
 });

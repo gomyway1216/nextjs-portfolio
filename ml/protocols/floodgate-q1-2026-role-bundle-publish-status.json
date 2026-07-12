@@ -1,0 +1,11 @@
+{
+  "schema": "shogi-role-bundle-operation-status-v1",
+  "operation": "publish",
+  "started_at": "2026-07-11T20:08:35Z",
+  "finished_at": "2026-07-12T04:18:39Z",
+  "process_exit_code": 0,
+  "verifier_revision": "313c7699e206332f9d380858d90d0326a0a1fd12",
+  "output_root": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2",
+  "stdout_path": "/Users/yudaiyaguchi/.codex/role-bundle-evidence/floodgate-q1-2026-role-bundle-publish-313c769-attempt-1.stdout.json",
+  "stderr_path": "/Users/yudaiyaguchi/.codex/role-bundle-evidence/floodgate-q1-2026-role-bundle-publish-313c769-attempt-1.stderr.log"
+}

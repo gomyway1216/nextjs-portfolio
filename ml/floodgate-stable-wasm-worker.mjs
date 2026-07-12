@@ -1,4 +1,12 @@
 import { createHash } from "node:crypto";
+import { types as nodeUtilTypes } from "node:util";
+
+const isNativeError = nodeUtilTypes.isNativeError.bind(nodeUtilTypes);
+const objectGetOwnPropertyDescriptor = Object.getOwnPropertyDescriptor;
+const objectHasOwnProperty = Object.prototype.hasOwnProperty;
+const reflectApply = Reflect.apply;
+const nativeStringCharCodeAt = String.prototype.charCodeAt;
+const nativeStringSlice = String.prototype.slice;
 
 const SCHEMA = "shogi-floodgate-stable-wasm-worker-v1";
 const WASM_BYTES = 35_597;
@@ -609,14 +617,28 @@ async function main() {
 }
 
 function boundedAsciiError(error) {
-  const raw = error instanceof Error ? error.message : "unknown failure";
+  let raw = "unknown failure";
+  if (isNativeError(error)) {
+    try {
+      const descriptor = objectGetOwnPropertyDescriptor(error, "message");
+      if (
+        descriptor !== undefined &&
+        reflectApply(objectHasOwnProperty, descriptor, ["value"]) &&
+        typeof descriptor.value === "string"
+      ) {
+        raw = descriptor.value;
+      }
+    } catch {
+      raw = "unknown failure";
+    }
+  }
   let safe = "";
   for (let index = 0; index < raw.length && safe.length < 900; index += 1) {
-    const code = raw.charCodeAt(index);
+    const code = reflectApply(nativeStringCharCodeAt, raw, [index]);
     safe += code >= 0x20 && code <= 0x7e ? raw[index] : "?";
   }
   const output = `stable WASM worker error: ${safe || "unknown failure"}\n`;
-  return output.slice(0, MAX_STDERR_BYTES);
+  return reflectApply(nativeStringSlice, output, [0, MAX_STDERR_BYTES]);
 }
 
 try {

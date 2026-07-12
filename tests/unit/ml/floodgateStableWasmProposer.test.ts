@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify, types as nodeUtilTypes } from "node:util";
 
+import { build as esbuildBuild } from "esbuild";
 import { describe, expect, it, vi } from "vitest";
 
 import { GenerateMovesImproved } from "../../../src/components/game/ShogiImproved/GenerateMovesImproved";
@@ -29,6 +30,7 @@ import {
   FLOODGATE_STABLE_WASM_SHA256,
   FLOODGATE_STABLE_WEIGHTS_SHA256,
   FLOODGATE_STABLE_WORKER_SOURCE_SHA256,
+  captureFloodgateStableWasmChildRuntimeCoreForTests,
   generateFloodgateStableWasmProposalsCoreForTests,
   runFloodgateStableWasmWorkerPoolCoreForTests,
   runFloodgateStableWasmWorkerPoolWithSourceCoreForTests,
@@ -62,9 +64,15 @@ const MATE_VARIANT_SFEN = "4k4/9/5G3/9/4+R4/9/9/P8/4K4 b 2P 1";
 const MATE_MOVE = "4c5b";
 const OPTIONS: FloodgateStableWasmProposerOptions = {
   workers: 1,
-  startupTimeoutMilliseconds: 20_000,
+  startupTimeoutMilliseconds: 30_000,
   searchTimeoutMilliseconds: 30_000,
 };
+const TEST_CHILD_RUNTIME = captureFloodgateStableWasmChildRuntimeCoreForTests(
+  process.platform,
+  process.execPath,
+  process.env.SystemRoot,
+  process.env.SystemDrive,
+);
 const DROP_LETTER: Readonly<Record<string, number>> = {
   P: FU,
   L: KY,
@@ -287,6 +295,12 @@ function fakeWorkerSource(
     | "duplicate-search"
     | "wrong-digest"
     | "stderr-search"
+    | "stdout-flood"
+    | "stderr-flood"
+    | "control-tab"
+    | "control-escape"
+    | "control-del"
+    | "large-source"
     | "bye-hang"
     | "partial-by-index",
   packed: number,
@@ -311,6 +325,7 @@ process.stdin.on("data",chunk=>{
     if(message.type==="init"){
       if(MODE==="hang-startup")continue;
       if(MODE==="crash-startup")process.exit(7);
+      if(MODE==="large-source"&&process.execArgv.some(argument=>argument.includes("FD3_UNIQUE_MARKER")))process.exit(9);
       ready();continue;
     }
     if(message.type==="search"){
@@ -318,6 +333,11 @@ process.stdin.on("data",chunk=>{
       if(MODE==="crash-search"||(MODE==="partial-by-index"&&message.index===1))process.exit(8);
       if(MODE==="malformed-search"){process.stdout.write("{\\\"bad\\\":\\n");continue;}
       if(MODE==="stderr-search")process.stderr.write("synthetic stderr\\n");
+      if(MODE==="stdout-flood"){process.stdout.write("A".repeat(1024*1024));continue;}
+      if(MODE==="stderr-flood"){process.stderr.write("B".repeat(1024*1024));continue;}
+      if(MODE==="control-tab"){process.stdout.write(Buffer.from([0x09]));continue;}
+      if(MODE==="control-escape"){process.stdout.write(Buffer.from([0x1b]));continue;}
+      if(MODE==="control-del"){process.stdout.write(Buffer.from([0x7f]));continue;}
       send(result(message));
       if(MODE==="duplicate-search")send(result(message));
       continue;
@@ -328,8 +348,25 @@ process.stdin.on("data",chunk=>{
     }
   }
 });
+${mode === "large-source" ? `/*${"FD3_UNIQUE_MARKER".repeat(2_500)}*/` : ""}
 `;
   return new TextEncoder().encode(source);
+}
+
+function workerSourceWithTopLevelThrow(
+  setup: string,
+  throwStatement: string,
+): Uint8Array {
+  const original = readFileSync(
+    join(REPOSITORY_ROOT, "ml", "floodgate-stable-wasm-worker.mjs"),
+    "utf8",
+  );
+  const marker = "try {\n  await main();\n} catch (error) {";
+  if (!original.includes(marker)) {
+    throw new Error("worker top-level catch marker is missing");
+  }
+  const replacement = `${setup}\ntry {\n  ${throwStatement}\n} catch (error) {`;
+  return new TextEncoder().encode(original.replace(marker, replacement));
 }
 
 function workerSearchAssets(sourceBytes: Uint8Array) {
@@ -390,6 +427,69 @@ function expectNullFrozen(value: object): void {
   expect(Object.getPrototypeOf(value)).toBeNull();
   expect(Object.isFrozen(value)).toBe(true);
 }
+
+describe("Floodgate stable-WASM child runtime capture", () => {
+  it("uses a filesystem-root cwd and the minimum platform environment", () => {
+    const posix = captureFloodgateStableWasmChildRuntimeCoreForTests(
+      "darwin",
+      "/opt/node/bin/node",
+      "ignored",
+      "ignored",
+    );
+    expect(posix.cwd).toBe("/");
+    expect(Object.getPrototypeOf(posix.env)).toBeNull();
+    expect(Object.keys(posix.env)).toEqual([]);
+    expect(Object.isFrozen(posix.env)).toBe(true);
+
+    const windows = captureFloodgateStableWasmChildRuntimeCoreForTests(
+      "win32",
+      "C:\\Program Files\\nodejs\\node.exe",
+      "C:\\Windows",
+      "C:",
+    );
+    expect(windows.cwd).toBe("C:\\");
+    expect(Object.getPrototypeOf(windows.env)).toBeNull();
+    expect(windows.env).toEqual({
+      SystemDrive: "C:",
+      SystemRoot: "C:\\Windows",
+    });
+    expect(Object.isFrozen(windows.env)).toBe(true);
+
+    const crossDriveNode = captureFloodgateStableWasmChildRuntimeCoreForTests(
+      "win32",
+      "D:\\nodejs\\node.exe",
+      "C:\\Windows",
+      "C:",
+    );
+    expect(crossDriveNode.cwd).toBe("D:\\");
+    expect(crossDriveNode.env).toEqual({
+      SystemDrive: "C:",
+      SystemRoot: "C:\\Windows",
+    });
+  });
+
+  it("rejects malformed or cross-drive Windows bootstrap metadata", () => {
+    const cases = [
+      ["C:\\node.exe", undefined, "C:"],
+      ["C:\\node.exe", "C:\\Windows", undefined],
+      ["C:\\node.exe", "Windows", "C:"],
+      ["C:\\node.exe", "C:/Windows", "C:"],
+      ["C:\\node.exe", "C:\\Windows", "relative"],
+      ["D:\\node.exe", "D:\\Windows", "C:"],
+      ["C:\\node.exe", "C:\\Windows\0bad", "C:"],
+    ] as const;
+    for (const [executablePath, systemRoot, systemDrive] of cases) {
+      expect(() =>
+        captureFloodgateStableWasmChildRuntimeCoreForTests(
+          "win32",
+          executablePath,
+          systemRoot,
+          systemDrive,
+        ),
+      ).toThrow(/child runtime|Windows/);
+    }
+  });
+});
 
 describe("Floodgate stable-WASM proposer synthetic core", () => {
   it("pins plan, tracked/embedded WASM, weights, and worker source bytes", () => {
@@ -1041,29 +1141,28 @@ describe("Floodgate stable-WASM real child pool", () => {
     );
     const bundlePath = join(temporaryRoot, "then-poison.cjs");
     try {
-      await execFile(
-        join(REPOSITORY_ROOT, "node_modules", ".bin", "esbuild"),
-        [
+      await esbuildBuild({
+        entryPoints: [
           join(
             REPOSITORY_ROOT,
             "tests",
             "fixtures",
             "floodgate-stable-wasm-then-poison.ts",
           ),
-          "--bundle",
-          "--platform=node",
-          "--format=cjs",
-          "--define:require.main=null",
-          `--outfile=${bundlePath}`,
         ],
-        { cwd: REPOSITORY_ROOT, timeout: 20_000, maxBuffer: 1_048_576 },
-      );
+        bundle: true,
+        platform: "node",
+        format: "cjs",
+        define: { "require.main": "null" },
+        outfile: bundlePath,
+        logLevel: "silent",
+      });
       const result = await execFile(
         process.execPath,
         [bundlePath, REPOSITORY_ROOT],
         {
-          cwd: "/",
-          env: Object.create(null) as NodeJS.ProcessEnv,
+          cwd: TEST_CHILD_RUNTIME.cwd,
+          env: TEST_CHILD_RUNTIME.env,
           timeout: 30_000,
           maxBuffer: 1_048_576,
         },
@@ -1084,14 +1183,20 @@ describe("Floodgate stable-WASM real child pool", () => {
     ["duplicate-search", /unsolicited|closed|keys are not exact/],
     ["wrong-digest", /digest/],
     ["stderr-search", /stderr/],
+    ["stdout-flood", /stdout line bound/],
+    ["stderr-flood", /stderr bound/],
+    ["control-tab", /non-canonical stdout bytes/],
+    ["control-escape", /non-canonical stdout bytes/],
+    ["control-del", /non-canonical stdout bytes/],
     ["bye-hang", /shutdown close timed out/],
   ] as const)(
     "kills and rejects the synthetic %s worker without returning a partial box",
     async (mode, expected) => {
       const row = parent(`transport-${mode}`, MATE_SFEN, 0, MATE_MOVE);
       const source = fakeWorkerSource(mode, packedMove(MATE_SFEN, MATE_MOVE));
-      await expect(
-        runFloodgateStableWasmWorkerPoolWithSourceCoreForTests(
+      let rejection: unknown;
+      try {
+        await runFloodgateStableWasmWorkerPoolWithSourceCoreForTests(
           [searchRequest(row, 0)],
           workerSearchAssets(source),
           {
@@ -1100,10 +1205,157 @@ describe("Floodgate stable-WASM real child pool", () => {
             searchTimeoutMilliseconds: mode === "hang-search" ? 250 : 3_000,
           },
           { bytes: source.byteLength, sha256: sha256(source) },
-        ),
-      ).rejects.toThrow(expected);
+        );
+      } catch (error) {
+        rejection = error;
+      }
+      expect(rejection).toBeInstanceOf(Error);
+      expect((rejection as Error).message).toMatch(expected);
+      if (mode === "stdout-flood" || mode === "stderr-flood") {
+        expect(
+          Buffer.byteLength((rejection as Error).message, "utf8"),
+        ).toBeLessThan(9_000);
+      }
     },
     10_000,
+  );
+
+  it("transports a worker source larger than the Windows argv limit over fd 3", async () => {
+    const row = parent("large-source", MATE_SFEN, 0, MATE_MOVE);
+    const source = fakeWorkerSource(
+      "large-source",
+      packedMove(MATE_SFEN, MATE_MOVE),
+    );
+    expect(source.byteLength).toBeGreaterThan(32_767);
+    const box = await runFloodgateStableWasmWorkerPoolWithSourceCoreForTests(
+      [searchRequest(row, 0)],
+      workerSearchAssets(source),
+      {
+        workers: 1,
+        startupTimeoutMilliseconds: 3_000,
+        searchTimeoutMilliseconds: 3_000,
+      },
+      { bytes: source.byteLength, sha256: sha256(source) },
+    );
+    expect(box.results).toHaveLength(1);
+    expect(box.results[0].index).toBe(0);
+  });
+
+  it("does not let an inherited numeric setter create sparse pool coverage", async () => {
+    const rows = [
+      parent("coverage-zero", MATE_SFEN, 0, MATE_MOVE),
+      parent("coverage-one", MATE_SFEN, 1, MATE_MOVE),
+      parent("coverage-two", MATE_SFEN, 2, MATE_MOVE),
+    ];
+    const source = fakeWorkerSource(
+      "success",
+      packedMove(MATE_SFEN, MATE_MOVE),
+    );
+    const inherited = Object.getOwnPropertyDescriptor(Array.prototype, "1");
+    let interceptedResults = 0;
+    Object.defineProperty(Array.prototype, "1", {
+      configurable: true,
+      set(value: unknown) {
+        if (
+          value !== null &&
+          typeof value === "object" &&
+          Object.hasOwn(value, "raw_search_score")
+        ) {
+          interceptedResults += 1;
+          return;
+        }
+        Object.defineProperty(this, "1", {
+          configurable: true,
+          enumerable: true,
+          writable: true,
+          value,
+        });
+      },
+    });
+    try {
+      const box = await runFloodgateStableWasmWorkerPoolWithSourceCoreForTests(
+        rows.map((row, index) => searchRequest(row, index)),
+        workerSearchAssets(source),
+        {
+          workers: 1,
+          startupTimeoutMilliseconds: 3_000,
+          searchTimeoutMilliseconds: 3_000,
+        },
+        { bytes: source.byteLength, sha256: sha256(source) },
+      );
+      expect(box.results).toHaveLength(3);
+      expect(box.results[1].index).toBe(1);
+      expect(interceptedResults).toBe(0);
+    } finally {
+      if (inherited === undefined) delete Array.prototype[1];
+      else Object.defineProperty(Array.prototype, "1", inherited);
+    }
+  });
+
+  it.each([
+    {
+      name: "primitive string",
+      setup: "",
+      statement: 'throw "SENSITIVE_STRING_SENTINEL";',
+      expected: /unknown failure/,
+    },
+    {
+      name: "hostile coercion object",
+      setup:
+        'const hostile={};Object.defineProperty(hostile,"message",{get(){process.stderr.write("GETTER_SENTINEL");return "SENSITIVE_MESSAGE";}});hostile[Symbol.toPrimitive]=()=>{process.stderr.write("COERCION_SENTINEL");return "SENSITIVE_COERCION";};hostile.toString=()=>{process.stderr.write("TOSTRING_SENTINEL");return "SENSITIVE_TOSTRING";};',
+      statement: "throw hostile;",
+      expected: /unknown failure/,
+    },
+    {
+      name: "native Error with inherited descriptor value getter",
+      setup:
+        'const accessorError=new Error("discarded");Object.defineProperty(accessorError,"message",{configurable:true,get(){process.stderr.write("MESSAGE_GETTER_SENTINEL");return "SENSITIVE_MESSAGE_GETTER";}});Object.defineProperty(Object.prototype,"value",{configurable:true,get(){process.stderr.write("VALUE_GETTER_SENTINEL");return "SENSITIVE_INHERITED_VALUE";}});',
+      statement: "throw accessorError;",
+      expected: /unknown failure/,
+    },
+    {
+      name: "native Error with poisoned instanceof",
+      setup:
+        "Object.defineProperty(Error,Symbol.hasInstance,{configurable:true,value:()=>false});",
+      statement: 'throw new Error("native-error-detail");',
+      expected: /native-error-detail/,
+    },
+  ])(
+    "bounds $name without invoking unknown coercion hooks",
+    async (testCase) => {
+      const row = parent(
+        `bounded-error-${testCase.name}`,
+        MATE_SFEN,
+        0,
+        MATE_MOVE,
+      );
+      const source = workerSourceWithTopLevelThrow(
+        testCase.setup,
+        testCase.statement,
+      );
+      let rejection: unknown;
+      try {
+        await runFloodgateStableWasmWorkerPoolWithSourceCoreForTests(
+          [searchRequest(row, 0)],
+          workerSearchAssets(source),
+          {
+            workers: 1,
+            startupTimeoutMilliseconds: 3_000,
+            searchTimeoutMilliseconds: 3_000,
+          },
+          { bytes: source.byteLength, sha256: sha256(source) },
+        );
+      } catch (error) {
+        rejection = error;
+      }
+      expect(rejection).toBeInstanceOf(Error);
+      const message = (rejection as Error).message;
+      expect(message).toMatch(testCase.expected);
+      expect(message).not.toMatch(
+        /SENSITIVE_|GETTER_SENTINEL|COERCION_SENTINEL|TOSTRING_SENTINEL/,
+      );
+      expect(Buffer.byteLength(message, "utf8")).toBeLessThan(1_500);
+    },
   );
 
   it("discards an already completed sibling result when another worker crashes", async () => {

@@ -42,7 +42,7 @@ status内の「complete」は、構造的にforge可能なtest coreの1回のmem
 | tracked `shogi.wasm`                                     |    35,597 | `e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c` |
 | decode済みembedded WASM                                  |    35,597 | `e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c` |
 | `public/shogi-nnue-weights.bin`                          | 1,185,988 | `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc` |
-| `ml/floodgate-stable-wasm-worker.mjs`                    |    18,416 | `db15628cceb34c8ef98ce60cb1d167566ff3ae4d2ed90da74699e9b03bb03986` |
+| `ml/floodgate-stable-wasm-worker.mjs`                    |    19,216 | `d21e347268fa0830882a7f8fb40893aeeed0425f8d92519b26a13444efc467e3` |
 
 tracked WASMとdecode済みembedded WASM snapshotは、さらにbyte-for-byteで一致しなければならない。長さだけの一致では足りない。各childの内部でもWASM/weightsをcanonical base64からdecodeし、再hashして再確認する。exported WASM memoryへcopyしたweight領域もcopy後に再hashする。
 
@@ -52,7 +52,7 @@ input shapeは、role-bundle result receiptの固定identity（14,735 bytes、SH
 
 ## 3. pathless child byte snapshot
 
-child launcherは、既にcaptureしたworker-source stringを現在のNode executableでevaluateする。environmentは空、working directoryはroot、`shell: false`、stdioはpipeだけである。worker path、WASM path、weights path、role-bundle path、output pathは渡さない。初期化ではexact WASM/weight snapshotをcanonical base64として、1行のcanonical-JSON messageで送る。
+child launcherがcommand lineへ置くのは小さな固定bootstrapだけである。capture済みworker-source bytesは専用のanonymous fd 3 pipeへ書いて直ちにcloseし、bootstrapがそのbytesをreadしてdata-URL moduleとしてevaluateする。32 KiBを超えるsynthetic sourceでもsource本文は`execArgv`へ現れず、temporary fileも作らない。fd 0はcanonical runtime protocol専用である。application environmentはPOSIXでは空、Windowsでは検証済みの`SystemRoot` / `SystemDrive`だけをOS bootstrap metadataとして渡す。working directoryは現在のNode executableが置かれたfilesystemのroot、`shell: false`、stdioはanonymous pipeだけである。worker path、WASM path、weights path、role-bundle path、output pathは渡さない。初期化ではexact WASM/weight snapshotをcanonical base64として、1行のcanonical-JSON messageで送る。
 
 protocolのphase順は次で固定する。
 
@@ -107,6 +107,8 @@ inputはexact plain dataへ再captureされ、training schema/role、canonical S
 
 final adversarial auditでは、injected searchが`await`中にprocess-wide built-inを変更できることから、4つのgapを発見した。liveな`Object.is`は`-0`とcanonical JSONの`0`を衝突させ、expected-keyのspreadはmutableなarray iteratorを呼び、liveな`node:util.types` guardはProxy / SharedArrayBuffer拒否を迂回でき、liveな`Hash.update` / `Hash.digest`はoutput digestを壊せた。修正後はこれらをmodule initialization時にcaptureし、expected keyをindexでcopyし、parent/child position IDもcapture済みHash methodだけで計算する。search callback自身が各built-inをpoisonする回帰testを置き、`-0` / Proxy / shared backingは拒否され、iterator / Hash prototype poison下でも同じartifactが得られることを確認した。これは同一process内のdependency-injection境界を固める証拠であり、OS sandboxの証拠ではない。
 
+PR reviewではさらに、kill完了前のoversized stdout/stderr append、TAB / ESC / DELのtransport受理、sparse-array coverage check、Windowsのempty-env / command-line / esbuild shim依存、unknown exceptionのcoercionが指摘された。parentは残byte budgetをdecode前に検査し、failure後のchunkを捨て、stdoutをLFまたはprintable ASCIIだけに限定する。result arrayはown data descriptorで構築・再captureする。launcherは上記fd 3 bootstrapと最小platform environmentへ移し、test bundleはesbuild JS APIで作る。unknown thrown valueへ`String(...)`を呼ぶことはcoercion hookと情報漏えいを生むため行わず、capture済みnative-error判定とown data `message`だけをbounded ASCIIへ落とす。1 MiB flood、3種のcontrol byte、32 KiB超source、numeric setter、Windows metadata、hostile coercionを回帰testへ追加した。
+
 各output rowは次を含む。
 
 - game ID、parent ID、semantic parent ID
@@ -157,10 +159,10 @@ step 1から4までを完了しても、証明できるのはplanへ適合する
 
 | Check                       | 現在のresult     | Scope                                                                                                 |
 | --------------------------- | ---------------- | ----------------------------------------------------------------------------------------------------- |
-| targeted Vitest             | 30/30 PASS       | strict capture、receipt boundary、worker protocol、failure cleanup、real WASM、deterministic assembly |
-| targeted 3-way repeat       | 3 × 30/30 PASS   | 同じtargeted suiteを3 processで同時実行                                                               |
-| 関連4 suite                 | 128/128 PASS     | proposerに加え、upstreamのrole-bundle / authenticated-row contractとの回帰を検査                      |
-| full Vitest                 | 1,628/1,628 PASS | repository全体、99 files                                                                              |
+| targeted Vitest             | 43/43 PASS       | strict capture、receipt boundary、worker protocol、failure cleanup、real WASM、deterministic assembly |
+| targeted 3-way repeat       | 3 × 43/43 PASS   | 同じtargeted suiteを3 processで同時実行                                                               |
+| 関連4 suite                 | 141/141 PASS     | proposerに加え、upstreamのrole-bundle / authenticated-row contractとの回帰を検査                      |
+| full Vitest                 | 1,641/1,641 PASS | repository全体、99 files                                                                              |
 | Python ML unit tests        | 58/58 PASS       | stdlib test suite                                                                                     |
 | TypeScript                  | PASS             | `tsc --noEmit`                                                                                        |
 | scoped ESLint               | PASS             | proposer source、proposer test、then-poison fixture                                                   |
@@ -170,7 +172,7 @@ step 1から4までを完了しても、証明できるのはplanへ適合する
 | known depth-11 sentinel     | PASS             | move `3a4b`、raw score -114、644,923 nodes、1,533,244 leaves                                          |
 | real pool invariance        | PASS             | 1、2、3 workersでrows / JSONL / output digest / semantic fingerprintが同一                            |
 | loader-free then isolation  | PASS             | bundleしたplain-Node childで`Object.prototype.then`をpoisonし、`real-pool-then-isolation-pass`を出力  |
-| final independent review    | 2/2 CLEAN        | adversarial auditとclaim/count auditの両方でP0/P1/P2なし                                              |
+| final independent review    | 3/3 CLEAN        | transport/coverage、portability、bounded-error監査のすべてでP0/P1/P2なし                              |
 
 上のexact mate/sentinel値はpinned synthetic positionでの観測であり、corpus resultでも棋力測定でもない。targeted suiteはstartup/searchのhang/crash、malformed/duplicate response、誤ったrequest-digest echo、別worker failure後のcompleted sibling result破棄、no-partial-artifact behaviorも検査する。
 

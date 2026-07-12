@@ -10,6 +10,8 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { createHash } from "node:crypto";
+import { posix as pathPosix, win32 as pathWin32 } from "node:path";
+import type { Writable } from "node:stream";
 import { types as nodeUtilTypes } from "node:util";
 
 import {
@@ -57,9 +59,9 @@ export const FLOODGATE_STABLE_WASM_SHA256 =
 export const FLOODGATE_STABLE_WEIGHTS_BYTES = 1_185_988;
 export const FLOODGATE_STABLE_WEIGHTS_SHA256 =
   "e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc";
-export const FLOODGATE_STABLE_WORKER_SOURCE_BYTES = 18_416;
+export const FLOODGATE_STABLE_WORKER_SOURCE_BYTES = 19_216;
 export const FLOODGATE_STABLE_WORKER_SOURCE_SHA256 =
-  "db15628cceb34c8ef98ce60cb1d167566ff3ae4d2ed90da74699e9b03bb03986";
+  "d21e347268fa0830882a7f8fb40893aeeed0425f8d92519b26a13444efc467e3";
 
 export const FLOODGATE_STABLE_REQUESTED_DEPTH = 11;
 export const FLOODGATE_STABLE_QUIESCENCE_DEPTH = 10;
@@ -126,7 +128,13 @@ const nativeStringIncludes = String.prototype.includes;
 const nativeStringIndexOf = String.prototype.indexOf;
 const nativeStringSlice = String.prototype.slice;
 const nativeStringTrim = String.prototype.trim;
+const nativeStringToUpperCase = String.prototype.toUpperCase;
 const nativeStringFromCharCode = String.fromCharCode.bind(String);
+const pathPosixIsAbsolute = pathPosix.isAbsolute.bind(pathPosix);
+const pathPosixParse = pathPosix.parse.bind(pathPosix);
+const pathWin32IsAbsolute = pathWin32.isAbsolute.bind(pathWin32);
+const pathWin32Normalize = pathWin32.normalize.bind(pathWin32);
+const pathWin32Parse = pathWin32.parse.bind(pathWin32);
 const typedArrayPrototype = objectGetPrototypeOf(Uint8Array.prototype);
 const nativeTypedArrayBuffer = Object.getOwnPropertyDescriptor(
   typedArrayPrototype,
@@ -147,6 +155,12 @@ const SEMANTIC_ID_RE = /^sha256:[0-9a-f]{64}$/;
 const WORKER_STDOUT_LINE_MAX_BYTES = 4_096;
 const WORKER_STDERR_MAX_BYTES = 8_192;
 const WORKER_SHUTDOWN_TIMEOUT_MILLISECONDS = 5_000;
+const WORKER_BOOTSTRAP_SOURCE =
+  'import { readFileSync } from "node:fs";' +
+  "const source=readFileSync(3);" +
+  'const encoded=Buffer.from(source).toString("base64");' +
+  'await import("data:text/javascript;base64,"+encoded);';
+const WINDOWS_DRIVE_RE = /^[A-Za-z]:$/;
 
 const INPUT_KEYS = objectFreeze(["binding", "role", "rows", "schema"] as const);
 const BINDING_KEYS = objectFreeze([
@@ -329,6 +343,19 @@ function arrayJoin(values: readonly unknown[], separator: string): string {
   return reflectApply(nativeArrayJoin, values, [separator]) as string;
 }
 
+function arraySetOwn<T>(values: T[], index: number, value: T): void {
+  objectDefineProperty(values, NativeString(index), {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value,
+  });
+}
+
+function arrayAppendOwn<T>(values: T[], value: T): void {
+  arraySetOwn(values, values.length, value);
+}
+
 function setAdd<T>(values: Set<T>, value: T): void {
   reflectApply(nativeSetAdd, values, [value]);
 }
@@ -354,7 +381,7 @@ function identifierDigest(values: readonly string[]): string {
     const value = values[index];
     if (setHas(unique, value)) continue;
     setAdd(unique, value);
-    captured[captured.length] = value;
+    arrayAppendOwn(captured, value);
   }
   arraySort(captured, compareBytewise);
   return sha256Hex(arrayJoin(captured, "\n"));
@@ -488,7 +515,7 @@ function strictRecord(
   const actual = arraySort(keys as string[], compareBytewise);
   const expected: string[] = [];
   for (let index = 0; index < expectedKeys.length; index += 1) {
-    expected[index] = expectedKeys[index];
+    arraySetOwn(expected, index, expectedKeys[index]);
   }
   arraySort(expected, compareBytewise);
   if (
@@ -562,9 +589,23 @@ function strictArray(
     ) {
       fail(`${label}[${index}] must be an enumerable own data property`);
     }
-    captured[index] = descriptor.value;
+    arraySetOwn(captured, index, descriptor.value);
   }
   return frozenList(captured);
+}
+
+function captureExactDefinedArray<T>(
+  values: T[],
+  expectedLength: number,
+  label: string,
+): readonly T[] {
+  const captured = strictArray(values, label, expectedLength) as readonly T[];
+  for (let index = 0; index < captured.length; index += 1) {
+    if (captured[index] === undefined) {
+      fail(`${label} omits an assigned index`);
+    }
+  }
+  return captured;
 }
 
 function copyBytes(
@@ -957,12 +998,12 @@ function captureInput(
       fail("input rows contain a duplicate parent or semantic position");
     }
     if (!setHas(gameIds, row.game_id))
-      gameIdValues[gameIdValues.length] = row.game_id;
+      arrayAppendOwn(gameIdValues, row.game_id);
     setAdd(gameIds, row.game_id);
     setAdd(parentIds, row.parent_id);
     setAdd(positionIds, row.position_id);
-    parentIdValues[parentIdValues.length] = row.parent_id;
-    positionIdValues[positionIdValues.length] = row.position_id;
+    arrayAppendOwn(parentIdValues, row.parent_id);
+    arrayAppendOwn(positionIdValues, row.position_id);
   }
   if (
     setSize(gameIds) !== binding.games ||
@@ -993,12 +1034,12 @@ function buildSearchRequest(
   const board: number[] = [];
   for (let file = 1; file <= 9; file += 1) {
     for (let rank = 1; rank <= 9; rank += 1) {
-      board[board.length] = position.ban[(file << 4) + rank] | 0;
+      arrayAppendOwn(board, position.ban[(file << 4) + rank] | 0);
     }
   }
   const hands: number[] = [];
   for (let piece = 17; piece <= 39; piece += 1) {
-    hands[hands.length] = position.hand[piece] | 0;
+    arrayAppendOwn(hands, position.hand[piece] | 0);
   }
   return frozenRecord({
     index,
@@ -1172,12 +1213,9 @@ function captureSearchResultBox(
     if (setHas(seen, result.index))
       fail("search results contain a duplicate index");
     setAdd(seen, result.index);
-    results[result.index] = result;
+    arraySetOwn(results, result.index, result);
   }
-  if (arraySome(results, (result) => result === undefined)) {
-    fail("search results omit an assigned index");
-  }
-  return frozenList(results);
+  return captureExactDefinedArray(results, rowCount, "captured search results");
 }
 
 function packedMoveToUsi(packedMove: number, parentSfen: string): string {
@@ -1437,6 +1475,92 @@ export function generateFloodgateStableWasmProposalsCoreForTests(
   );
 }
 
+export interface FloodgateStableWasmChildRuntime {
+  readonly cwd: string;
+  readonly env: Readonly<NodeJS.ProcessEnv>;
+}
+
+export function captureFloodgateStableWasmChildRuntimeCoreForTests(
+  platform: string,
+  executablePath: string,
+  systemRoot?: string,
+  systemDrive?: string,
+): Readonly<FloodgateStableWasmChildRuntime> {
+  if (
+    typeof platform !== "string" ||
+    platform === "" ||
+    (reflectApply(nativeStringIncludes, platform, ["\0"]) as boolean) ||
+    typeof executablePath !== "string" ||
+    executablePath === "" ||
+    (reflectApply(nativeStringIncludes, executablePath, ["\0"]) as boolean)
+  ) {
+    fail("child runtime platform or executable path is invalid");
+  }
+  const windows = platform === "win32";
+  const isAbsolute = windows ? pathWin32IsAbsolute : pathPosixIsAbsolute;
+  const parsePath = windows ? pathWin32Parse : pathPosixParse;
+  if (!isAbsolute(executablePath)) {
+    fail("child runtime executable path must be absolute");
+  }
+  const cwd = parsePath(executablePath).root;
+  if (cwd === "") fail("child runtime executable has no filesystem root");
+
+  const environment = objectCreate(null) as NodeJS.ProcessEnv;
+  if (windows) {
+    if (
+      typeof systemRoot !== "string" ||
+      typeof systemDrive !== "string" ||
+      !pathWin32IsAbsolute(systemRoot) ||
+      pathWin32Normalize(systemRoot) !== systemRoot ||
+      !regexTest(WINDOWS_DRIVE_RE, systemDrive) ||
+      (reflectApply(nativeStringIncludes, systemRoot, ["\0"]) as boolean) ||
+      (reflectApply(nativeStringIncludes, systemDrive, ["\0"]) as boolean)
+    ) {
+      fail("Windows child runtime bootstrap environment is invalid");
+    }
+    const systemRootDrive = reflectApply(
+      nativeStringSlice,
+      systemRoot,
+      [0, 2],
+    ) as string;
+    const normalizedRootDrive = reflectApply(
+      nativeStringToUpperCase,
+      systemRootDrive,
+      [],
+    ) as string;
+    const normalizedSystemDrive = reflectApply(
+      nativeStringToUpperCase,
+      systemDrive,
+      [],
+    ) as string;
+    if (normalizedRootDrive !== normalizedSystemDrive) {
+      fail("Windows child runtime drives do not match");
+    }
+    objectDefineProperty(environment, "SystemRoot", {
+      configurable: false,
+      enumerable: true,
+      writable: false,
+      value: systemRoot,
+    });
+    objectDefineProperty(environment, "SystemDrive", {
+      configurable: false,
+      enumerable: true,
+      writable: false,
+      value: systemDrive,
+    });
+  }
+  objectFreeze(environment);
+  return frozenRecord({ cwd, env: environment });
+}
+
+const stableWasmChildRuntime =
+  captureFloodgateStableWasmChildRuntimeCoreForTests(
+    process.platform,
+    process.execPath,
+    process.env.SystemRoot,
+    process.env.SystemDrive,
+  );
+
 interface PendingWorkerResponse {
   readonly label: string;
   readonly resolve: (line: string) => void;
@@ -1448,13 +1572,14 @@ class StableWasmWorkerClient {
   private readonly child: ChildProcessWithoutNullStreams;
   private stdout = "";
   private stderr = "";
+  private stderrBytes = 0;
   private pending: PendingWorkerResponse | undefined;
   private failure: Error | undefined;
   private gracefulClosing = false;
   private closePromise: Promise<void>;
   private resolveClose!: () => void;
 
-  constructor(source: string) {
+  constructor(sourceBytes: Uint8Array) {
     this.closePromise = pinNativePromise(
       new NativePromise<void>((resolve) => {
         this.resolveClose = resolve;
@@ -1462,12 +1587,12 @@ class StableWasmWorkerClient {
     );
     this.child = spawn(
       process.execPath,
-      ["--input-type=module", "--eval", source],
+      ["--input-type=module", "--eval", WORKER_BOOTSTRAP_SOURCE],
       {
-        cwd: "/",
-        env: objectCreate(null) as NodeJS.ProcessEnv,
+        cwd: stableWasmChildRuntime.cwd,
+        env: stableWasmChildRuntime.env,
         shell: false,
-        stdio: ["pipe", "pipe", "pipe"],
+        stdio: ["pipe", "pipe", "pipe", "pipe"],
       },
     );
     this.child.stdout.on("data", (chunk: Buffer) => this.onStdout(chunk));
@@ -1491,6 +1616,15 @@ class StableWasmWorkerClient {
         );
       }
     });
+    const sourcePipe = this.child.stdio[3] as Writable | null | undefined;
+    if (sourcePipe === null || sourcePipe === undefined) {
+      this.failWorker("has no worker-source pipe");
+      return;
+    }
+    sourcePipe.once("error", (error) =>
+      this.failWorker(`worker-source pipe error: ${error.message}`),
+    );
+    sourcePipe.end(sourceBytes);
   }
 
   private diagnostic(message: string): Error {
@@ -1518,9 +1652,14 @@ class StableWasmWorkerClient {
   }
 
   private onStdout(chunk: Buffer): void {
+    if (this.failure !== undefined) return;
+    if (chunk.byteLength > WORKER_STDOUT_LINE_MAX_BYTES - this.stdout.length) {
+      this.failWorker("exceeded the stdout line bound");
+      return;
+    }
     for (let index = 0; index < chunk.byteLength; index += 1) {
       const byte = chunk[index];
-      if (byte > 0x7f || byte === 0 || byte === 13) {
+      if (byte !== 0x0a && (byte < 0x20 || byte > 0x7e)) {
         this.failWorker("emitted non-canonical stdout bytes");
         return;
       }
@@ -1558,12 +1697,15 @@ class StableWasmWorkerClient {
   }
 
   private onStderr(chunk: Buffer): void {
+    if (this.failure !== undefined) return;
+    if (chunk.byteLength > WORKER_STDERR_MAX_BYTES - this.stderrBytes) {
+      this.failWorker("exceeded the stderr bound");
+      return;
+    }
     this.stderr += reflectApply(nativeBufferToString, chunk, [
       "utf8",
     ]) as string;
-    if (bufferByteLength(this.stderr, "utf8") > WORKER_STDERR_MAX_BYTES) {
-      this.failWorker("exceeded the stderr bound");
-    }
+    this.stderrBytes += chunk.byteLength;
   }
 
   private waitForClose(timeout: number, label: string): Promise<void> {
@@ -1946,23 +2088,25 @@ function runCapturedWorkerPool(
   const run = async (): Promise<
     Readonly<FloodgateStableWasmSearchResultBox>
   > => {
-    const source = new NativeTextDecoder("utf-8", { fatal: true }).decode(
-      assets.workerSourceBytes,
-    );
     const clients: StableWasmWorkerClient[] = [];
     const workerCount =
       options.workers < requests.length ? options.workers : requests.length;
     for (let index = 0; index < workerCount; index += 1) {
-      clients[index] = new StableWasmWorkerClient(source);
+      arraySetOwn(
+        clients,
+        index,
+        new StableWasmWorkerClient(assets.workerSourceBytes),
+      );
     }
     const results: Readonly<FloodgateStableWasmRawSearchResult>[] = [];
     let nextIndex = 0;
     try {
       const initializations: Promise<void>[] = [];
       for (let index = 0; index < clients.length; index += 1) {
-        initializations[index] = clients[index].initialize(
-          assets,
-          options.startupTimeoutMilliseconds,
+        arraySetOwn(
+          initializations,
+          index,
+          clients[index].initialize(assets, options.startupTimeoutMilliseconds),
         );
       }
       await waitAllVoid(initializations);
@@ -1973,27 +2117,31 @@ function runCapturedWorkerPool(
         workerIndex += 1
       ) {
         const client = clients[workerIndex];
-        loops[workerIndex] = (async () => {
-          while (true) {
-            const index = nextIndex;
-            nextIndex += 1;
-            if (index >= requests.length) return;
-            const result = await client.search(
-              requests[index],
-              options.searchTimeoutMilliseconds,
-            );
-            if (result.index !== index)
-              fail("worker returned an unassigned request index");
-            results[index] = result;
-          }
-        })();
+        arraySetOwn(
+          loops,
+          workerIndex,
+          (async () => {
+            while (true) {
+              const index = nextIndex;
+              nextIndex += 1;
+              if (index >= requests.length) return;
+              const result = await client.search(
+                requests[index],
+                options.searchTimeoutMilliseconds,
+              );
+              if (result.index !== index)
+                fail("worker returned an unassigned request index");
+              arraySetOwn(results, index, result);
+            }
+          })(),
+        );
       }
       try {
         await waitAllVoid(loops);
       } catch (error) {
         const stops: Promise<void>[] = [];
         for (let index = 0; index < clients.length; index += 1) {
-          stops[index] = clients[index].forceStop();
+          arraySetOwn(stops, index, clients[index].forceStop());
         }
         await settleAllVoid(stops);
         await settleAllVoid(loops);
@@ -2001,24 +2149,23 @@ function runCapturedWorkerPool(
       }
       const quits: Promise<void>[] = [];
       for (let index = 0; index < clients.length; index += 1) {
-        quits[index] = clients[index].quit();
+        arraySetOwn(quits, index, clients[index].quit());
       }
       await waitAllVoid(quits);
     } catch (error) {
       const stops: Promise<void>[] = [];
       for (let index = 0; index < clients.length; index += 1) {
-        stops[index] = clients[index].forceStop();
+        arraySetOwn(stops, index, clients[index].forceStop());
       }
       await settleAllVoid(stops);
       throw error;
     }
-    if (
-      results.length !== requests.length ||
-      arraySome(results, (entry) => entry === undefined)
-    ) {
-      fail("worker pool completed without exact result coverage");
-    }
-    return frozenRecord({ results: frozenList(results) });
+    const capturedResults = captureExactDefinedArray(
+      results,
+      requests.length,
+      "worker pool result coverage",
+    );
+    return frozenRecord({ results: capturedResults });
   };
   return pinNativePromise(run());
 }

@@ -42,7 +42,7 @@ All asset arguments are synchronously captured as fresh `Uint8Array` copies befo
 | tracked `shogi.wasm`                                     |    35,597 | `e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c` |
 | decoded embedded WASM                                    |    35,597 | `e185df728616b7e7af93232ada5e53c33ec7211bf05a99b1e01f48c4e56d813c` |
 | `public/shogi-nnue-weights.bin`                          | 1,185,988 | `e4e738f99fbd8685bcfe2700e4df364af6274e75b44b298432fc313b9a3e28dc` |
-| `ml/floodgate-stable-wasm-worker.mjs`                    |    18,416 | `db15628cceb34c8ef98ce60cb1d167566ff3ae4d2ed90da74699e9b03bb03986` |
+| `ml/floodgate-stable-wasm-worker.mjs`                    |    19,216 | `d21e347268fa0830882a7f8fb40893aeeed0425f8d92519b26a13444efc467e3` |
 
 The tracked and decoded embedded WASM snapshots must also be byte-for-byte equal. Matching only their lengths is insufficient. Inside each child, the WASM and weights are decoded from canonical base64, rehashed, and checked again. The copied weight region in exported WASM memory is rehashed after the copy.
 
@@ -52,7 +52,7 @@ The input shape also has to carry the pinned role-bundle result receipt—14,735
 
 ## 3. Pathless child byte snapshots
 
-The child launcher evaluates the already-captured worker-source string with the current Node executable, an empty environment, root working directory, `shell: false`, and pipe-only stdio. It does not pass a worker path, WASM path, weights path, role-bundle path, or output path. Initialization sends the exact WASM and weight snapshots as canonical base64 in a single-line canonical-JSON message.
+The child launcher places only a small fixed bootstrap on the command line. It writes the captured worker-source bytes to a dedicated anonymous fd 3 pipe and immediately closes it; the bootstrap reads those bytes and evaluates them as a data-URL module. Even a synthetic source larger than 32 KiB never appears in `execArgv`, and no temporary file is created. Fd 0 remains dedicated to the canonical runtime protocol. The application environment is empty on POSIX; on Windows it carries only validated `SystemRoot` / `SystemDrive` OS-bootstrap metadata. The working directory is the filesystem root containing the current Node executable, `shell` is false, and stdio consists only of anonymous pipes. No worker, WASM, weights, role-bundle, or output path is passed. Initialization sends the exact WASM and weight snapshots as canonical base64 in one canonical-JSON line.
 
 The protocol is phase ordered:
 
@@ -107,6 +107,8 @@ The input is recaptured into exact plain data, checked for the training schema a
 
 The final adversarial audit found four gaps because an injected search can modify process-wide built-ins while the core is awaiting it. A live `Object.is` allowed `-0` to collide with canonical JSON's `0`; the expected-key spread invoked a mutable array iterator; live `node:util.types` guards allowed the Proxy / SharedArrayBuffer rejection to be bypassed; and live `Hash.update` / `Hash.digest` methods could corrupt output digests. The fixed core captures those operations during module initialization, copies expected keys by index, and computes parent and child position IDs only through the captured Hash methods. Regression tests have the search callback itself poison each built-in: `-0`, Proxy objects, and shared backing are still rejected, while iterator and Hash-prototype poisoning still yields the same artifact. This is evidence for the in-process dependency-injection boundary, not for an OS sandbox.
 
+PR review then identified oversized stdout/stderr appends before kill completion, transport acceptance of TAB / ESC / DEL, a sparse-array coverage check, Windows empty-environment / command-line / esbuild-shim dependencies, and coercion of unknown exceptions. The parent now checks the remaining byte budget before decoding, discards chunks after failure, and permits only LF or printable ASCII on stdout. Result arrays are built and recaptured through own data descriptors. The launcher now uses the fd 3 bootstrap and a minimal platform environment described above, while the test bundle uses the esbuild JavaScript API. Calling `String(...)` on an unknown thrown value would run coercion hooks and risk disclosure, so the worker instead accepts only a captured native-Error classification and an own data `message` before bounded-ASCII sanitization. Regression tests add 1 MiB floods, all three control-byte classes, a source over 32 KiB, a numeric setter, Windows metadata cases, and hostile coercion objects.
+
 Each output row contains:
 
 - game, parent, and semantic parent IDs
@@ -157,10 +159,10 @@ Even completing steps 1–4 would establish a conforming teacher-input pipeline,
 
 | Check                       | Current result   | Scope                                                                                                     |
 | --------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------- |
-| targeted Vitest             | 30/30 PASS       | strict capture, receipt boundary, worker protocol, failure cleanup, real WASM, and deterministic assembly |
-| targeted three-way repeat   | 3 × 30/30 PASS   | the same targeted suite executed simultaneously in three processes                                        |
-| four related suites         | 128/128 PASS     | proposer plus regression coverage for the upstream role-bundle / authenticated-row contracts              |
-| full Vitest                 | 1,628/1,628 PASS | the complete repository, 99 files                                                                         |
+| targeted Vitest             | 43/43 PASS       | strict capture, receipt boundary, worker protocol, failure cleanup, real WASM, and deterministic assembly |
+| targeted three-way repeat   | 3 × 43/43 PASS   | the same targeted suite executed simultaneously in three processes                                        |
+| four related suites         | 141/141 PASS     | proposer plus regression coverage for the upstream role-bundle / authenticated-row contracts              |
+| full Vitest                 | 1,641/1,641 PASS | the complete repository, 99 files                                                                         |
 | Python ML unit tests        | 58/58 PASS       | standard-library test suite                                                                               |
 | TypeScript                  | PASS             | `tsc --noEmit`                                                                                            |
 | scoped ESLint               | PASS             | proposer source, proposer test, and then-poison fixture                                                   |
@@ -170,7 +172,7 @@ Even completing steps 1–4 would establish a conforming teacher-input pipeline,
 | known depth-11 sentinel     | PASS             | move `3a4b`, raw score -114, 644,923 nodes, 1,533,244 leaves                                              |
 | real pool invariance        | PASS             | identical rows / JSONL / output digest / semantic fingerprint at 1, 2, and 3 workers                      |
 | loader-free then isolation  | PASS             | a bundled plain-Node child poisons `Object.prototype.then` and prints `real-pool-then-isolation-pass`     |
-| final independent review    | 2/2 CLEAN        | no P0/P1/P2 findings in either the adversarial audit or the claim/count audit                             |
+| final independent review    | 3/3 CLEAN        | no P0/P1/P2 findings in the transport/coverage, portability, or bounded-error audits                      |
 
 The exact mate and sentinel values above are observations from pinned synthetic positions, not a corpus result or strength measurement. The targeted suite also exercises startup/search hangs and crashes, malformed and duplicate responses, wrong request-digest echoes, sibling-result discard after another worker fails, and no-partial-artifact behavior.
 

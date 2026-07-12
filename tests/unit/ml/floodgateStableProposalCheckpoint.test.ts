@@ -13,16 +13,24 @@ import {
   FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_SCHEMA,
   FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_STATUS,
   FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_WORK_FILENAME,
+  FLOODGATE_STABLE_PROPOSAL_SEMANTIC_BINDING_DOMAIN,
+  FLOODGATE_STABLE_PROPOSAL_SEMANTIC_BINDING_SCHEMA,
+  FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_CLAIM_BOUNDARY,
+  FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_CONTRACT,
+  FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_STATUS,
   FloodgateStableProposalCheckpointPersistenceIndeterminateError,
   checkpointFloodgateStableProposalsCoreForTests,
+  verifyAuthenticatedFloodgateStableProposalWork,
   type FloodgateStableProposalCheckpointDependencies,
   type FloodgateStableProposalCheckpointFailpointEvent,
   type FloodgateStableProposalCheckpointOptions,
+  type FloodgateStableProposalWorkVerificationOptions,
 } from "../../../ml/floodgate-stable-proposal-checkpoint";
 import {
   FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
   authorizeFloodgateTeacherStageCoreForTests,
   claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests,
+  type FloodgateTeacherStageAuthorizationReceipt,
   type FloodgateTeacherStageLease,
 } from "../../../ml/floodgate-teacher-stage-authorization";
 import {
@@ -344,6 +352,8 @@ function macForLine(
   line: Readonly<Record<string, unknown>>,
   macKey: string,
   domain: string,
+  runId = RUN_ID,
+  key: Uint8Array = rootKey(),
 ): string {
   const payload = Object.fromEntries(
     Object.entries(line).filter(([key]) => key !== macKey),
@@ -351,8 +361,8 @@ function macForLine(
   const derived = Buffer.from(
     hkdfSync(
       "sha256",
-      rootKey(),
-      Buffer.from(RUN_ID, "hex"),
+      key,
+      Buffer.from(runId, "hex"),
       Buffer.from(HKDF_INFO),
       32,
     ),
@@ -361,6 +371,82 @@ function macForLine(
     .update(domain, "utf8")
     .update(canonicalJson(payload), "utf8")
     .digest("hex");
+}
+
+function parseWorkRecords(bytes: Uint8Array): Array<Record<string, unknown>> {
+  return Buffer.from(bytes)
+    .toString("utf8")
+    .trimEnd()
+    .split("\n")
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+}
+
+function resignWorkRecords(
+  original: Uint8Array,
+  mutate: (records: Array<Record<string, unknown>>) => void,
+  runId = RUN_ID,
+  key: Uint8Array = rootKey(),
+): Buffer {
+  const records = JSON.parse(
+    JSON.stringify(parseWorkRecords(original)),
+  ) as Array<Record<string, unknown>>;
+  mutate(records);
+
+  records[0].header_mac = macForLine(
+    records[0],
+    "header_mac",
+    HEADER_DOMAIN,
+    runId,
+    key,
+  );
+  let previousMac = records[0].header_mac as string;
+  for (let index = 1; index < records.length - 1; index += 1) {
+    records[index].previous_mac = previousMac;
+    records[index].entry_mac = macForLine(
+      records[index],
+      "entry_mac",
+      ENTRY_DOMAIN,
+      runId,
+      key,
+    );
+    previousMac = records[index].entry_mac as string;
+  }
+  const seal = records.at(-1)!;
+  seal.final_entry_mac = previousMac;
+  seal.seal_mac = macForLine(seal, "seal_mac", SEAL_DOMAIN, runId, key);
+  return Buffer.from(`${records.map(canonicalJson).join("\n")}\n`, "utf8");
+}
+
+function refreshProposalReceiptIdentity(
+  records: Array<Record<string, unknown>>,
+): void {
+  const header = records[0];
+  const producer = header.producer as Record<string, unknown>;
+  const seal = records.at(-1)!;
+  const receipt = {
+    claim_boundary: producer.proposal_claim_boundary,
+    execution_boundary: producer.execution_boundary,
+    input: header.input,
+    operational: producer.operational,
+    output: seal.proposal_output,
+    preregistered_plan: producer.preregistered_plan,
+    required_search_contract: producer.required_search_contract,
+    schema: producer.proposal_schema,
+    semantic_run_fingerprint_sha256: producer.semantic_run_fingerprint_sha256,
+    status: producer.proposal_status,
+    supplied_engine_assets: producer.supplied_engine_assets,
+  };
+  producer.proposal_receipt_sha256 = sha256(`${canonicalJson(receipt)}\n`);
+}
+
+function expectDeepFrozen(value: unknown): void {
+  if (value === null || typeof value !== "object") return;
+  expect(Object.isFrozen(value)).toBe(true);
+  for (const nested of Object.values(
+    value as Readonly<Record<string, unknown>>,
+  )) {
+    expectDeepFrozen(nested);
+  }
 }
 
 function workPath(value: Fixture): string {
@@ -380,6 +466,28 @@ async function createCompleteCheckpoint(
     checkpointOptions(),
     checkpointDependencies(),
   );
+}
+
+async function freshAuthorizationReceipt(
+  value: Fixture,
+): Promise<Readonly<FloodgateTeacherStageAuthorizationReceipt>> {
+  const lease = await authorize(value);
+  const receipt = lease.receipt;
+  await lease.close();
+  return receipt;
+}
+
+function verificationOptions(
+  stageAuthorizationReceipt: Readonly<FloodgateTeacherStageAuthorizationReceipt>,
+  overrides: Partial<FloodgateStableProposalWorkVerificationOptions> = {},
+): FloodgateStableProposalWorkVerificationOptions {
+  return {
+    rootKey: rootKey(),
+    runId: RUN_ID,
+    keyId: KEY_ID,
+    stageAuthorizationReceipt,
+    ...overrides,
+  };
 }
 
 async function expectRejectedAndPreserved(
@@ -1004,5 +1112,353 @@ describe("Floodgate stable proposal authenticated checkpoint", () => {
     expect(work).not.toContain(ROOT_KEY_HEX);
     expect(JSON.stringify(receipt)).not.toContain(ROOT_KEY_HEX);
     expect(String(failure)).not.toContain(ROOT_KEY_HEX);
+  });
+});
+
+describe("Floodgate stable proposal standalone work verifier", () => {
+  it("returns exact, deeply frozen evidence and a stage-independent semantic binding from fresh same-stage receipts without leaking key bytes", async () => {
+    const value = await fixture();
+    const artifact = await syntheticArtifact();
+    const checkpointReceipt = await createCompleteCheckpoint(value, artifact);
+    const bytes = await fs.promises.readFile(workPath(value));
+    const firstStageReceipt = await freshAuthorizationReceipt(value);
+    const secondStageReceipt = await freshAuthorizationReceipt(value);
+
+    expect(firstStageReceipt).not.toBe(secondStageReceipt);
+    const first = verifyAuthenticatedFloodgateStableProposalWork(
+      bytes,
+      verificationOptions(firstStageReceipt),
+    );
+    const second = verifyAuthenticatedFloodgateStableProposalWork(
+      bytes,
+      verificationOptions(secondStageReceipt),
+    );
+
+    expect(second).toEqual(first);
+    expect(Object.keys(first)).toEqual([
+      "contract",
+      "status",
+      "claim_boundary",
+      "evidence",
+      "semantic_binding",
+    ]);
+    expect(Object.keys(first.evidence)).toEqual([
+      "work",
+      "run_id",
+      "key_id",
+      "stage",
+      "header",
+      "seal",
+    ]);
+    expect(first).toMatchObject({
+      contract: FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_CONTRACT,
+      status: FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_STATUS,
+      claim_boundary:
+        FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_CLAIM_BOUNDARY,
+      evidence: {
+        work: {
+          bytes: bytes.byteLength,
+          sha256: sha256(bytes),
+        },
+        run_id: RUN_ID,
+        key_id: KEY_ID,
+        stage: {
+          stage_basename: firstStageReceipt.stage_basename,
+          parent_dev: firstStageReceipt.parent_identity.dev.toString(10),
+          parent_ino: firstStageReceipt.parent_identity.ino.toString(10),
+          stage_dev: firstStageReceipt.stage_identity.dev.toString(10),
+          stage_ino: firstStageReceipt.stage_identity.ino.toString(10),
+        },
+        header: {
+          schema: FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_SCHEMA,
+          kind: "header",
+        },
+        seal: {
+          schema: FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_SCHEMA,
+          kind: "seal",
+          entries: artifact.rows.length,
+        },
+      },
+      semantic_binding: {
+        domain: FLOODGATE_STABLE_PROPOSAL_SEMANTIC_BINDING_DOMAIN,
+        projection: {
+          schema: FLOODGATE_STABLE_PROPOSAL_SEMANTIC_BINDING_SCHEMA,
+          checkpoint_schema: FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_SCHEMA,
+          input: artifact.receipt.input,
+          output: artifact.receipt.output,
+        },
+      },
+    });
+    const parsed = parseWorkRecords(bytes);
+    expect(first.evidence.header).toEqual(parsed[0]);
+    expect(first.evidence.seal).toEqual(parsed.at(-1));
+    expect(first.semantic_binding.projection).toEqual({
+      schema: FLOODGATE_STABLE_PROPOSAL_SEMANTIC_BINDING_SCHEMA,
+      checkpoint_schema: FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_SCHEMA,
+      producer: {
+        proposal_schema: artifact.receipt.schema,
+        proposal_status: artifact.receipt.status,
+        proposal_claim_boundary: artifact.receipt.claim_boundary,
+        semantic_run_fingerprint_sha256:
+          artifact.receipt.semantic_run_fingerprint_sha256,
+      },
+      input: artifact.receipt.input,
+      output: artifact.receipt.output,
+    });
+    expect(first.evidence.work.sha256).toBe(checkpointReceipt.work.sha256);
+    expect(first.semantic_binding.sha256).toBe(
+      sha256(
+        `${FLOODGATE_STABLE_PROPOSAL_SEMANTIC_BINDING_DOMAIN}\0${canonicalJson(first.semantic_binding.projection)}`,
+      ),
+    );
+    expectDeepFrozen(first);
+    for (const verifiedRecord of [
+      first,
+      first.evidence,
+      first.evidence.work,
+      first.evidence.stage,
+      first.evidence.header,
+      first.evidence.seal,
+      first.semantic_binding,
+      first.semantic_binding.projection,
+    ]) {
+      expect(Object.getPrototypeOf(verifiedRecord)).toBeNull();
+    }
+    expect(JSON.stringify(first)).not.toContain(ROOT_KEY_HEX);
+  });
+
+  it("rejects the wrong root key, run id, key id, or authorized stage without exposing either tested key", async () => {
+    const value = await fixture();
+    const artifact = await syntheticArtifact();
+    await createCompleteCheckpoint(value, artifact);
+    const bytes = await fs.promises.readFile(workPath(value));
+    const stageReceipt = await freshAuthorizationReceipt(value);
+    const other = await fixture();
+    const otherStageReceipt = await freshAuthorizationReceipt(other);
+    const wrongKeyHex = Buffer.from(rootKey(0x5a)).toString("hex");
+    const cases: ReadonlyArray<
+      readonly [string, FloodgateStableProposalWorkVerificationOptions]
+    > = [
+      [
+        "root key",
+        verificationOptions(stageReceipt, { rootKey: rootKey(0x5a) }),
+      ],
+      ["run id", verificationOptions(stageReceipt, { runId: OTHER_RUN_ID })],
+      [
+        "key id",
+        verificationOptions(stageReceipt, {
+          keyId: "synthetic-checkpoint-key-other",
+        }),
+      ],
+      ["stage", verificationOptions(otherStageReceipt)],
+    ];
+
+    for (const [_label, options] of cases) {
+      let failure: unknown;
+      try {
+        verifyAuthenticatedFloodgateStableProposalWork(bytes, options);
+      } catch (error) {
+        failure = error;
+      }
+      expect(failure).toBeInstanceOf(Error);
+      expect(String(failure)).not.toContain(ROOT_KEY_HEX);
+      expect(String(failure)).not.toContain(wrongKeyHex);
+    }
+
+    const invalidStageReceipts = [
+      { ...stageReceipt, contract: "wrong-authorization-contract" },
+      {
+        ...stageReceipt,
+        trust_boundary: "wrong-authorization-trust-boundary",
+      },
+      { ...stageReceipt, status: "wrong-authorization-status" },
+      { ...stageReceipt, allowed_entries: ["work.jsonl"] },
+      { ...stageReceipt, stage_basename: "../unsafe-stage" },
+      {
+        ...stageReceipt,
+        stage_identity: { ...stageReceipt.stage_identity, ino: BigInt(0) },
+      },
+    ] as unknown as ReadonlyArray<
+      Readonly<FloodgateTeacherStageAuthorizationReceipt>
+    >;
+    for (const invalidReceipt of invalidStageReceipts) {
+      expect(() =>
+        verifyAuthenticatedFloodgateStableProposalWork(
+          bytes,
+          verificationOptions(invalidReceipt),
+        ),
+      ).toThrow();
+    }
+  });
+
+  it("rejects torn bytes, a missing final LF, and any complete record after the authenticated seal", async () => {
+    const value = await fixture();
+    const artifact = await syntheticArtifact();
+    await createCompleteCheckpoint(value, artifact);
+    const bytes = await fs.promises.readFile(workPath(value));
+    const options = verificationOptions(await freshAuthorizationReceipt(value));
+    const variants = [
+      bytes.subarray(0, Math.floor(bytes.byteLength / 2)),
+      bytes.subarray(0, bytes.byteLength - 1),
+      Buffer.concat([bytes, Buffer.from("{}\n", "utf8")]),
+      Buffer.concat([Buffer.from([0xef, 0xbb, 0xbf]), bytes]),
+      Buffer.concat([
+        bytes.subarray(0, 8),
+        Buffer.from([0]),
+        bytes.subarray(9),
+      ]),
+      Buffer.concat([
+        bytes.subarray(0, 8),
+        Buffer.from("\r"),
+        bytes.subarray(8),
+      ]),
+      Buffer.concat([
+        bytes.subarray(0, 8),
+        Buffer.from([0xff]),
+        bytes.subarray(9),
+      ]),
+      Buffer.concat([bytes, Buffer.from("\n", "utf8")]),
+      Buffer.concat([Buffer.alloc(64 * 1024 + 1, 0x61), Buffer.from("\n")]),
+    ];
+
+    for (const variant of variants) {
+      expect(() =>
+        verifyAuthenticatedFloodgateStableProposalWork(variant, options),
+      ).toThrow();
+    }
+  });
+
+  it("rejects fully re-signed semantic tampering in parent linkage, seal output, semantic fingerprint, receipt identity, or nested proposal shape", async () => {
+    const value = await fixture();
+    const artifact = await syntheticArtifact();
+    await createCompleteCheckpoint(value, artifact);
+    const bytes = await fs.promises.readFile(workPath(value));
+    const options = verificationOptions(await freshAuthorizationReceipt(value));
+    const replacementParent = `sha256:${"d".repeat(64)}`;
+    const mutations: ReadonlyArray<
+      readonly [string, (records: Array<Record<string, unknown>>) => void]
+    > = [
+      [
+        "parent linkage",
+        (records) => {
+          records[1].parent_id = replacementParent;
+        },
+      ],
+      [
+        "seal output",
+        (records) => {
+          const output = records.at(-1)!.proposal_output as Record<
+            string,
+            unknown
+          >;
+          output.sha256 = "e".repeat(64);
+        },
+      ],
+      [
+        "semantic fingerprint",
+        (records) => {
+          const producer = records[0].producer as Record<string, unknown>;
+          producer.semantic_run_fingerprint_sha256 = "f".repeat(64);
+        },
+      ],
+      [
+        "proposal receipt identity",
+        (records) => {
+          const producer = records[0].producer as Record<string, unknown>;
+          producer.proposal_receipt_sha256 = "0".repeat(64);
+        },
+      ],
+      [
+        "nested extra",
+        (records) => {
+          const proposal = records[1].proposal as Record<string, unknown>;
+          const search = proposal.search as Record<string, unknown>;
+          search.synthetic_extra = true;
+        },
+      ],
+    ];
+
+    for (const [_label, mutate] of mutations) {
+      const signedTamper = resignWorkRecords(bytes, mutate);
+      expect(() =>
+        verifyAuthenticatedFloodgateStableProposalWork(signedTamper, options),
+      ).toThrow();
+    }
+  });
+
+  it("changes exact work identity across stage, run, and key contexts while preserving one synthetic semantic digest", async () => {
+    const artifact = await syntheticArtifact();
+    const base = await fixture();
+    await createCompleteCheckpoint(base, artifact);
+    const baseBytes = await fs.promises.readFile(workPath(base));
+    const baseReceipt = await freshAuthorizationReceipt(base);
+    const baseVerification = verifyAuthenticatedFloodgateStableProposalWork(
+      baseBytes,
+      verificationOptions(baseReceipt),
+    );
+
+    const otherStage = await fixture();
+    await createCompleteCheckpoint(otherStage, artifact);
+    const otherStageBytes = await fs.promises.readFile(workPath(otherStage));
+    const stageVerification = verifyAuthenticatedFloodgateStableProposalWork(
+      otherStageBytes,
+      verificationOptions(await freshAuthorizationReceipt(otherStage)),
+    );
+
+    const otherRunBytes = resignWorkRecords(
+      baseBytes,
+      (records) => {
+        records[0].run_id = OTHER_RUN_ID;
+      },
+      OTHER_RUN_ID,
+    );
+    const runVerification = verifyAuthenticatedFloodgateStableProposalWork(
+      otherRunBytes,
+      verificationOptions(baseReceipt, { runId: OTHER_RUN_ID }),
+    );
+
+    const otherKey = rootKey(0x5a);
+    const otherKeyId = "synthetic-checkpoint-key-2";
+    const otherKeyBytes = resignWorkRecords(
+      baseBytes,
+      (records) => {
+        records[0].key_id = otherKeyId;
+      },
+      RUN_ID,
+      otherKey,
+    );
+    const keyVerification = verifyAuthenticatedFloodgateStableProposalWork(
+      otherKeyBytes,
+      verificationOptions(baseReceipt, {
+        rootKey: otherKey,
+        keyId: otherKeyId,
+      }),
+    );
+
+    const operationalBytes = resignWorkRecords(baseBytes, (records) => {
+      const producer = records[0].producer as Record<string, unknown>;
+      const operational = producer.operational as Record<string, unknown>;
+      operational.workers = (operational.workers as number) + 1;
+      refreshProposalReceiptIdentity(records);
+    });
+    const operationalVerification =
+      verifyAuthenticatedFloodgateStableProposalWork(
+        operationalBytes,
+        verificationOptions(baseReceipt),
+      );
+
+    const verifications = [
+      baseVerification,
+      stageVerification,
+      runVerification,
+      keyVerification,
+      operationalVerification,
+    ];
+    expect(
+      new Set(verifications.map((entry) => entry.evidence.work.sha256)).size,
+    ).toBe(verifications.length);
+    expect(
+      new Set(verifications.map((entry) => entry.semantic_binding.sha256)),
+    ).toEqual(new Set([baseVerification.semantic_binding.sha256]));
   });
 });

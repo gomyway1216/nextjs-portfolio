@@ -1,9 +1,11 @@
 /**
  * Test-only authenticated, durable checkpointing for stable-WASM proposals.
  *
- * This is deliberately not a production runner or a publication boundary. It
- * accepts an already-complete in-memory proposer artifact and persists only a
- * private, resumable `work.jsonl` chain in an exactly authorized stage. The
+ * This is deliberately not a production runner or a publication boundary. The
+ * writer accepts an already-complete in-memory proposer artifact and persists
+ * only a private, resumable `work.jsonl` chain in an exactly authorized stage.
+ * A high-level pure verifier reauthenticates only a complete work stream; no
+ * partial MAC or canonicalization primitive is exported. The
  * namespace contract inherits the authorizer's trusted-current-EUID boundary:
  * descriptor/path identity rechecks detect accidental replacement, but Node's
  * path APIs are not an `openat` sandbox against a malicious same-EUID writer.
@@ -15,8 +17,11 @@ import { types as nodeUtilTypes } from "node:util";
 
 import {
   claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests,
+  FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT,
+  FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
+  type FloodgateTeacherStageAuthorizationReceipt,
   type FloodgateTeacherStageLease,
 } from "./floodgate-teacher-stage-authorization";
 import {
@@ -40,11 +45,22 @@ export const FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_CLAIM_BOUNDARY =
   "key-holder-authenticated-checkpoint-integrity-only-not-engine-authentication-teacher-label-or-playing-strength-evidence" as const;
 export const FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_WORK_FILENAME =
   "work.jsonl" as const;
+export const FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_CONTRACT =
+  "shogi-floodgate-stable-proposal-work-verification-v1" as const;
+export const FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_STATUS =
+  "verified-complete-authenticated-stable-proposal-work" as const;
+export const FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_CLAIM_BOUNDARY =
+  "key-holder-authenticated-complete-work-content-only-not-consumer-postflight-publication-teacher-label-or-playing-strength-evidence" as const;
+export const FLOODGATE_STABLE_PROPOSAL_SEMANTIC_BINDING_SCHEMA =
+  "shogi-floodgate-stable-proposal-semantic-binding-v1" as const;
+export const FLOODGATE_STABLE_PROPOSAL_SEMANTIC_BINDING_DOMAIN =
+  "shogi-floodgate-stable-proposal-semantic-binding-v1" as const;
 
 const HEADER_DOMAIN = "shogi-floodgate-stable-proposal-work-header-v1\0";
 const ENTRY_DOMAIN = "shogi-floodgate-stable-proposal-work-entry-v1\0";
 const SEAL_DOMAIN = "shogi-floodgate-stable-proposal-work-seal-v1\0";
 const HKDF_INFO = "shogi-floodgate-stable-proposal-checkpoint-key-v1\0";
+const SEMANTIC_BINDING_DOMAIN = `${FLOODGATE_STABLE_PROPOSAL_SEMANTIC_BINDING_DOMAIN}\0`;
 const FORMAT = "canonical-jsonl-utf8-single-final-lf-v1" as const;
 const DURABILITY =
   "append-line-file-sync-header-and-seal-directory-sync-final-reopen-v1" as const;
@@ -58,6 +74,7 @@ const RUN_ID_RE = /^[0-9a-f]{64}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const SEMANTIC_ID_RE = /^sha256:[0-9a-f]{64}$/;
 const KEY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+const SAFE_BASENAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 const HEADER_KEYS = Object.freeze([
   "algorithm",
@@ -137,6 +154,39 @@ const SEARCH_KEYS = Object.freeze([
   "score_encoding",
   "termination",
 ] as const);
+const HEADER_STAGE_BINDING_KEYS = Object.freeze([
+  "authorization_contract",
+  "authorization_trust_boundary",
+  "parent_dev",
+  "parent_ino",
+  "stage_basename",
+  "stage_dev",
+  "stage_ino",
+] as const);
+const HEADER_PRODUCER_KEYS = Object.freeze([
+  "execution_boundary",
+  "operational",
+  "preregistered_plan",
+  "proposal_claim_boundary",
+  "proposal_receipt_sha256",
+  "proposal_schema",
+  "proposal_status",
+  "required_search_contract",
+  "semantic_run_fingerprint_sha256",
+  "supplied_engine_assets",
+] as const);
+const STAGE_AUTHORIZATION_RECEIPT_KEYS = Object.freeze([
+  "allowed_entries",
+  "contract",
+  "destination_basename",
+  "lease_identity",
+  "parent_identity",
+  "stage_basename",
+  "stage_identity",
+  "status",
+  "trust_boundary",
+] as const);
+const STAGE_IDENTITY_KEYS = Object.freeze(["dev", "ino"] as const);
 
 export interface FloodgateStableProposalCheckpointOptions {
   readonly runId: string;
@@ -201,6 +251,43 @@ export interface FloodgateStableProposalCheckpointReceipt {
   }>;
 }
 
+export interface FloodgateStableProposalWorkVerificationOptions {
+  readonly rootKey: Uint8Array;
+  readonly runId: string;
+  readonly keyId: string;
+  readonly stageAuthorizationReceipt: Readonly<FloodgateTeacherStageAuthorizationReceipt>;
+}
+
+export interface FloodgateStableProposalWorkVerification {
+  readonly contract: typeof FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_CONTRACT;
+  readonly status: typeof FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_CLAIM_BOUNDARY;
+  readonly evidence: Readonly<{
+    readonly work: Readonly<{
+      readonly bytes: number;
+      readonly sha256: string;
+    }>;
+    readonly run_id: string;
+    readonly key_id: string;
+    readonly stage: Readonly<{
+      readonly authorization_contract: typeof FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT;
+      readonly authorization_trust_boundary: typeof FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY;
+      readonly stage_basename: string;
+      readonly parent_dev: string;
+      readonly parent_ino: string;
+      readonly stage_dev: string;
+      readonly stage_ino: string;
+    }>;
+    readonly header: Readonly<Record<string, unknown>>;
+    readonly seal: Readonly<Record<string, unknown>>;
+  }>;
+  readonly semantic_binding: Readonly<{
+    readonly domain: typeof FLOODGATE_STABLE_PROPOSAL_SEMANTIC_BINDING_DOMAIN;
+    readonly projection: Readonly<Record<string, unknown>>;
+    readonly sha256: string;
+  }>;
+}
+
 export class FloodgateStableProposalCheckpointError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(`Floodgate stable proposal checkpoint failed: ${message}`, options);
@@ -244,6 +331,19 @@ interface IntendedWork {
   readonly lines: readonly string[];
   readonly macs: readonly string[];
   readonly bytes: Buffer;
+}
+
+interface IntendedWorkContext {
+  readonly lease: Readonly<Pick<FloodgateTeacherStageLease, "receipt">>;
+  readonly runId: string;
+  readonly keyId: string;
+  readonly artifact: CapturedArtifact;
+}
+
+interface ParsedCompleteWork {
+  readonly header: Readonly<Record<string, unknown>>;
+  readonly entries: readonly Readonly<Record<string, unknown>>[];
+  readonly seal: Readonly<Record<string, unknown>>;
 }
 
 function failure(message: string, cause?: unknown): never {
@@ -424,6 +524,14 @@ function deepCaptureJson(value: unknown): unknown {
   return failure(`captured JSON rejects ${typeof value}`);
 }
 
+function frozenNullRecord<T extends object>(value: T): Readonly<T> {
+  const output = Object.create(null) as Record<string, unknown>;
+  for (const key of Object.keys(value)) {
+    output[key] = (value as Record<string, unknown>)[key];
+  }
+  return Object.freeze(output) as Readonly<T>;
+}
+
 function canonicalParsedJson(
   line: string,
   label: string,
@@ -479,6 +587,88 @@ function semanticId(value: unknown, label: string): string {
     failure(`${label} is not a canonical semantic identifier`);
   }
   return value;
+}
+
+function safeBasename(value: unknown, label: string): string {
+  if (typeof value !== "string" || !SAFE_BASENAME_RE.test(value)) {
+    failure(`${label} is not a safe basename`);
+  }
+  return value;
+}
+
+function captureStageIdentity(
+  value: unknown,
+  label: string,
+): Readonly<{ readonly dev: bigint; readonly ino: bigint }> {
+  const identity = strictRecord(value, STAGE_IDENTITY_KEYS, label);
+  if (
+    typeof identity.dev !== "bigint" ||
+    identity.dev < BigInt(0) ||
+    typeof identity.ino !== "bigint" ||
+    identity.ino <= BigInt(0)
+  ) {
+    failure(`${label} must contain a nonnegative device and positive inode`);
+  }
+  return frozenNullRecord({ dev: identity.dev, ino: identity.ino });
+}
+
+function captureStageAuthorizationReceipt(
+  value: Readonly<FloodgateTeacherStageAuthorizationReceipt>,
+): Readonly<FloodgateTeacherStageAuthorizationReceipt> {
+  const receipt = strictRecord(
+    value,
+    STAGE_AUTHORIZATION_RECEIPT_KEYS,
+    "stage authorization receipt",
+  );
+  if (
+    receipt.contract !== FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT ||
+    receipt.trust_boundary !==
+      FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY ||
+    receipt.status !== FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS
+  ) {
+    failure("stage authorization receipt boundary is unsupported");
+  }
+  const allowedEntries = strictDenseArray(
+    receipt.allowed_entries,
+    "stage authorization receipt.allowed_entries",
+  );
+  if (
+    allowedEntries.length !== FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES.length ||
+    allowedEntries.some(
+      (entry, index) =>
+        entry !== FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES[index],
+    )
+  ) {
+    failure("stage authorization receipt allowed entries are not exact");
+  }
+  return frozenNullRecord({
+    contract: FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT,
+    trust_boundary: FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
+    status: FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS,
+    parent_identity: captureStageIdentity(
+      receipt.parent_identity,
+      "stage authorization receipt.parent_identity",
+    ),
+    stage_identity: captureStageIdentity(
+      receipt.stage_identity,
+      "stage authorization receipt.stage_identity",
+    ),
+    lease_identity: captureStageIdentity(
+      receipt.lease_identity,
+      "stage authorization receipt.lease_identity",
+    ),
+    stage_basename: safeBasename(
+      receipt.stage_basename,
+      "stage authorization receipt.stage_basename",
+    ),
+    destination_basename: safeBasename(
+      receipt.destination_basename,
+      "stage authorization receipt.destination_basename",
+    ),
+    allowed_entries: Object.freeze([
+      ...FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES,
+    ]),
+  });
 }
 
 function captureArtifact(
@@ -756,7 +946,7 @@ function constantTimeMacEqual(actual: unknown, expected: string): boolean {
 }
 
 function buildIntendedWork(
-  invocation: CapturedInvocation,
+  invocation: IntendedWorkContext,
   key: Uint8Array,
 ): IntendedWork {
   const { receipt, receiptInput, receiptOutput } = invocation.artifact;
@@ -957,6 +1147,294 @@ function scanExistingWork(
     authenticatedBytes: start,
     tornTail: tail.byteLength > 0,
   });
+}
+
+function parseCompleteWork(bytes: Buffer): ParsedCompleteWork {
+  if (
+    bytes.byteLength === 0 ||
+    bytes.byteLength > MAX_TOTAL_BYTES ||
+    bytes[bytes.byteLength - 1] !== 10
+  ) {
+    failure("verified work must be bounded and end in exactly one complete LF");
+  }
+  const records: Readonly<Record<string, unknown>>[] = [];
+  const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+  let start = 0;
+  for (let offset = 0; offset < bytes.byteLength; offset += 1) {
+    const byte = bytes[offset];
+    if (byte === 0 || byte === 13) {
+      failure("verified work contains forbidden framing bytes");
+    }
+    if (byte !== 10) continue;
+    const lineBytes = bytes.subarray(start, offset);
+    if (lineBytes.byteLength === 0 || lineBytes.byteLength > MAX_LINE_BYTES) {
+      failure("verified work contains an empty or oversized line");
+    }
+    if (
+      lineBytes.byteLength >= 3 &&
+      lineBytes[0] === 0xef &&
+      lineBytes[1] === 0xbb &&
+      lineBytes[2] === 0xbf
+    ) {
+      failure(`verified work line ${records.length} starts with a UTF-8 BOM`);
+    }
+    let line: string;
+    try {
+      line = decoder.decode(lineBytes);
+    } catch (cause) {
+      return failure(
+        `verified work line ${records.length} is not strict UTF-8`,
+        cause,
+      );
+    }
+    records.push(
+      strictRecord(
+        deepCaptureJson(
+          canonicalParsedJson(line, `verified work line ${records.length}`),
+        ),
+        records.length === 0
+          ? HEADER_KEYS
+          : offset === bytes.byteLength - 1
+            ? SEAL_KEYS
+            : ENTRY_KEYS,
+        `verified work line ${records.length}`,
+      ),
+    );
+    if (records.length > FLOODGATE_STABLE_MAX_ROWS + 2) {
+      failure("verified work has too many records");
+    }
+    start = offset + 1;
+  }
+  if (start !== bytes.byteLength || records.length < 3) {
+    failure("verified work is not a complete header/proposal/seal stream");
+  }
+
+  const header = records[0];
+  if (
+    header.schema !== FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_SCHEMA ||
+    header.kind !== "header" ||
+    header.algorithm !== FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_ALGORITHM ||
+    header.status !== FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_PREFIX_STATUS ||
+    header.claim_boundary !==
+      FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_CLAIM_BOUNDARY
+  ) {
+    failure("verified work header boundary is unsupported");
+  }
+  strictRecord(
+    header.stage_binding,
+    HEADER_STAGE_BINDING_KEYS,
+    "verified work header.stage_binding",
+  );
+  strictRecord(
+    header.producer,
+    HEADER_PRODUCER_KEYS,
+    "verified work header.producer",
+  );
+  const entries = records.slice(1, -1);
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    if (
+      entry.schema !== FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_SCHEMA ||
+      entry.kind !== "proposal" ||
+      entry.sequence !== index
+    ) {
+      failure(`verified work proposal record ${index} is not exact`);
+    }
+  }
+  const seal = records[records.length - 1];
+  if (
+    seal.schema !== FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_SCHEMA ||
+    seal.kind !== "seal" ||
+    seal.status !== FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_STATUS ||
+    seal.entries !== entries.length
+  ) {
+    failure("verified work seal boundary or record count is unsupported");
+  }
+  return Object.freeze({
+    header,
+    entries: Object.freeze(entries),
+    seal,
+  });
+}
+
+function reconstructCapturedArtifact(
+  parsed: ParsedCompleteWork,
+): CapturedArtifact {
+  const producer = strictRecord(
+    parsed.header.producer,
+    HEADER_PRODUCER_KEYS,
+    "verified work header.producer",
+  );
+  const rows = Object.freeze(parsed.entries.map((entry) => entry.proposal));
+  const receipt = frozenNullRecord({
+    claim_boundary: producer.proposal_claim_boundary,
+    execution_boundary: producer.execution_boundary,
+    input: parsed.header.input,
+    operational: producer.operational,
+    output: parsed.seal.proposal_output,
+    preregistered_plan: producer.preregistered_plan,
+    required_search_contract: producer.required_search_contract,
+    schema: producer.proposal_schema,
+    semantic_run_fingerprint_sha256: producer.semantic_run_fingerprint_sha256,
+    status: producer.proposal_status,
+    supplied_engine_assets: producer.supplied_engine_assets,
+  });
+  const receiptJson = `${canonicalJson(receipt)}\n`;
+  const rowJsonl = `${rows.map((row) => canonicalJson(row)).join("\n")}\n`;
+  const artifact = frozenNullRecord({
+    rows,
+    jsonl: rowJsonl,
+    receipt,
+    receipt_json: receiptJson,
+  });
+  return captureArtifact(
+    artifact as unknown as FloodgateStableWasmProposalArtifact,
+  );
+}
+
+function semanticBindingProjection(
+  header: Readonly<Record<string, unknown>>,
+  seal: Readonly<Record<string, unknown>>,
+): Readonly<Record<string, unknown>> {
+  const producer = strictRecord(
+    header.producer,
+    HEADER_PRODUCER_KEYS,
+    "verified work header.producer",
+  );
+  const producerProjection = frozenNullRecord({
+    proposal_schema: producer.proposal_schema,
+    proposal_status: producer.proposal_status,
+    proposal_claim_boundary: producer.proposal_claim_boundary,
+    semantic_run_fingerprint_sha256: producer.semantic_run_fingerprint_sha256,
+  });
+  return frozenNullRecord({
+    schema: FLOODGATE_STABLE_PROPOSAL_SEMANTIC_BINDING_SCHEMA,
+    checkpoint_schema: FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_SCHEMA,
+    producer: producerProjection,
+    input: header.input,
+    output: seal.proposal_output,
+  });
+}
+
+/**
+ * Verify one complete in-memory work stream without touching the filesystem.
+ * The result authenticates checkpoint content for the supplied key holder; it
+ * does not establish consumer postflight, publication, labels, or strength.
+ */
+export function verifyAuthenticatedFloodgateStableProposalWork(
+  bytesValue: Uint8Array,
+  optionsValue: FloodgateStableProposalWorkVerificationOptions,
+): Readonly<FloodgateStableProposalWorkVerification> {
+  if (
+    !nodeUtilTypes.isUint8Array(bytesValue) ||
+    nodeUtilTypes.isProxy(bytesValue) ||
+    nodeUtilTypes.isSharedArrayBuffer(bytesValue.buffer) ||
+    bytesValue.byteLength === 0 ||
+    bytesValue.byteLength > MAX_TOTAL_BYTES
+  ) {
+    failure("bytes must be a bounded non-shared Uint8Array");
+  }
+  const options = strictRecord(
+    optionsValue,
+    ["keyId", "rootKey", "runId", "stageAuthorizationReceipt"],
+    "verification options",
+  );
+  if (typeof options.runId !== "string" || !RUN_ID_RE.test(options.runId)) {
+    failure("verification options.runId must be 32 bytes of lowercase hex");
+  }
+  if (typeof options.keyId !== "string" || !KEY_ID_RE.test(options.keyId)) {
+    failure("verification options.keyId is invalid");
+  }
+  const rootKeyValue = options.rootKey;
+  if (
+    !nodeUtilTypes.isUint8Array(rootKeyValue) ||
+    nodeUtilTypes.isProxy(rootKeyValue) ||
+    nodeUtilTypes.isSharedArrayBuffer(rootKeyValue.buffer) ||
+    rootKeyValue.byteLength !== 32
+  ) {
+    failure(
+      "verification options.rootKey must be a non-shared 32-byte Uint8Array",
+    );
+  }
+
+  const workBytes = Buffer.alloc(bytesValue.byteLength);
+  const rootKey = Buffer.alloc(32);
+  const salt = Buffer.from(options.runId, "hex");
+  let derived = Buffer.alloc(0);
+  try {
+    workBytes.set(bytesValue);
+    rootKey.set(rootKeyValue);
+    const stageReceipt = captureStageAuthorizationReceipt(
+      options.stageAuthorizationReceipt as Readonly<FloodgateTeacherStageAuthorizationReceipt>,
+    );
+    derived = Buffer.from(
+      hkdfSync("sha256", rootKey, salt, Buffer.from(HKDF_INFO), 32),
+    );
+    const parsed = parseCompleteWork(workBytes);
+    const artifact = reconstructCapturedArtifact(parsed);
+    const context: IntendedWorkContext = frozenNullRecord({
+      lease: frozenNullRecord({ receipt: stageReceipt }),
+      runId: options.runId,
+      keyId: options.keyId,
+      artifact,
+    });
+    const intended = buildIntendedWork(context, derived);
+    const scan = scanExistingWork(workBytes, intended, derived);
+    if (
+      scan.tornTail ||
+      scan.completeLines !== intended.lines.length ||
+      scan.authenticatedBytes !== workBytes.byteLength ||
+      intended.bytes.byteLength !== workBytes.byteLength ||
+      !timingSafeEqual(workBytes, intended.bytes)
+    ) {
+      failure("verified work is not the exact complete authenticated stream");
+    }
+
+    strictRecord(
+      parsed.header.stage_binding,
+      HEADER_STAGE_BINDING_KEYS,
+      "verified work header.stage_binding",
+    );
+    const stage = frozenNullRecord({
+      authorization_contract: FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT,
+      authorization_trust_boundary:
+        FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
+      stage_basename: stageReceipt.stage_basename,
+      parent_dev: stageReceipt.parent_identity.dev.toString(10),
+      parent_ino: stageReceipt.parent_identity.ino.toString(10),
+      stage_dev: stageReceipt.stage_identity.dev.toString(10),
+      stage_ino: stageReceipt.stage_identity.ino.toString(10),
+    });
+    const projection = semanticBindingProjection(parsed.header, parsed.seal);
+    return frozenNullRecord({
+      contract: FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_CONTRACT,
+      status: FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_STATUS,
+      claim_boundary:
+        FLOODGATE_STABLE_PROPOSAL_WORK_VERIFICATION_CLAIM_BOUNDARY,
+      evidence: frozenNullRecord({
+        work: frozenNullRecord({
+          bytes: workBytes.byteLength,
+          sha256: sha256Hex(workBytes),
+        }),
+        run_id: options.runId,
+        key_id: options.keyId,
+        stage,
+        header: parsed.header,
+        seal: parsed.seal,
+      }),
+      semantic_binding: frozenNullRecord({
+        domain: FLOODGATE_STABLE_PROPOSAL_SEMANTIC_BINDING_DOMAIN,
+        projection,
+        sha256: sha256Hex(
+          `${SEMANTIC_BINDING_DOMAIN}${canonicalJson(projection)}`,
+        ),
+      }),
+    });
+  } finally {
+    derived.fill(0);
+    salt.fill(0);
+    rootKey.fill(0);
+  }
 }
 
 function verifyStageStat(

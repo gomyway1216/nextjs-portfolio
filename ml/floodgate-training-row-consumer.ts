@@ -522,7 +522,7 @@ async function openTrainingSnapshot(
     ) {
       fail("opened descriptor does not match its pathname");
     }
-    const rawBytes = new Uint8Array(await rawHandle.readFile());
+    const rawBytes = await rawHandle.readFile();
     const rootAfterRead = await rootStat();
     const rawAfterRead = await rawStat();
     if (
@@ -919,7 +919,7 @@ function parseRawParent(
   });
 }
 
-/** Strict parser exposed only so unit tests can exercise malformed snapshots. */
+/** Strict production parser exported so unit tests can exercise malformed snapshots. */
 export function parseAuthenticatedFloodgateTrainingRowsCoreForTests(
   bytes: Uint8Array,
   expectedIdentityInput: Readonly<FloodgateRoleBundleRawIdentity>,
@@ -1200,12 +1200,7 @@ async function runVerifiedPinnedFloodgateTrainingRows(
   const options = captureOptions(optionsInput);
   const consume = captureConsumer(consumeInput);
   const dependencies = captureDependencies(dependenciesInput);
-  let opened: OpenedTrainingSnapshot;
-  try {
-    opened = await openTrainingSnapshot(options.outputRoot);
-  } catch (error) {
-    throw error;
-  }
+  const opened = await openTrainingSnapshot(options.outputRoot);
 
   let failed = false;
   let failure: unknown;

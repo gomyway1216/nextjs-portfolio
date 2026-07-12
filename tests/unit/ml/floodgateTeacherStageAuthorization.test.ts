@@ -17,6 +17,8 @@ import {
   FloodgateTeacherStageLeaseUnavailableError,
   authorizeFloodgateTeacherStage,
   authorizeFloodgateTeacherStageCoreForTests,
+  claimActiveAuthorizedFloodgateTeacherStageLease,
+  claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests,
 } from "../../../ml/floodgate-teacher-stage-authorization";
 
 type AuthorizationOptions = Parameters<
@@ -195,6 +197,88 @@ afterEach(async () => {
 });
 
 describe("Floodgate teacher stage authorization", () => {
+  it("allows one exact-object test lease claim while the lease is active", async () => {
+    const value = await fixture();
+    const lease = await authorize(value);
+
+    expect(
+      claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(lease),
+    ).toBeUndefined();
+
+    await closeLease(lease);
+  });
+
+  it("isolates production and test-only lease claim registries", async () => {
+    const productionValue = await fixture();
+    const productionLease = await authorizeFloodgateTeacherStage(
+      productionValue.options,
+    );
+
+    expect(() =>
+      claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(
+        productionLease,
+      ),
+    ).toThrow(/test-only runtime claim requires the exact active unclaimed lease/);
+    expect(
+      claimActiveAuthorizedFloodgateTeacherStageLease(productionLease),
+    ).toBeUndefined();
+    await closeLease(productionLease);
+
+    const testValue = await fixture();
+    const testLease = await authorize(testValue);
+
+    expect(() =>
+      claimActiveAuthorizedFloodgateTeacherStageLease(testLease),
+    ).toThrow(/production runtime claim requires the exact active unclaimed lease/);
+    expect(
+      claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(testLease),
+    ).toBeUndefined();
+    await closeLease(testLease);
+  });
+
+  it("rejects a second claim of the same active lease", async () => {
+    const value = await fixture();
+    const lease = await authorize(value);
+
+    claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(lease);
+    expect(() =>
+      claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(lease),
+    ).toThrow(/test-only runtime claim requires the exact active unclaimed lease/);
+
+    await closeLease(lease);
+  });
+
+  it("rejects copied and proxied leases without consuming the exact lease claim", async () => {
+    const value = await fixture();
+    const lease = await authorize(value);
+    const copied = { ...lease } as Readonly<AuthorizationLease>;
+    const proxied = new Proxy(lease, {});
+
+    expect(() =>
+      claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(copied),
+    ).toThrow(/test-only runtime claim requires the exact active unclaimed lease/);
+    expect(() =>
+      claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(proxied),
+    ).toThrow(/test-only runtime claim requires the exact active unclaimed lease/);
+    expect(
+      claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(lease),
+    ).toBeUndefined();
+
+    await closeLease(lease);
+  });
+
+  it("revokes an unclaimed lease synchronously when close starts", async () => {
+    const value = await fixture();
+    const lease = await authorize(value);
+
+    const closing = lease.close();
+    expect(() =>
+      claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(lease),
+    ).toThrow(/test-only runtime claim requires the exact active unclaimed lease/);
+
+    await closing;
+  });
+
   it("authorizes a fresh private stage without creating the destination", async () => {
     const value = await fixture();
     const parentBefore = await fs.promises.lstat(value.publicationParent, {

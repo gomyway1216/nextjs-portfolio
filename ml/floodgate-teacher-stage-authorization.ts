@@ -1,10 +1,10 @@
 /**
  * Private namespace authorization for a future authenticated Floodgate teacher.
  *
- * This module deliberately does not import the training-row consumer, teacher
- * generator, or publisher. It authorizes and leases only a private stage
- * namespace. Artifact authentication, generation, fsync, and publication remain
- * separate later boundaries.
+ * This module deliberately does not import the training-row consumer or teacher
+ * generator. It authorizes and leases a private stage namespace and offers a
+ * held-descriptor namespace publication transaction.
+ * Artifact authentication and teacher generation remain separate boundaries.
  */
 
 import { spawnSync } from "node:child_process";
@@ -26,6 +26,14 @@ export const FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES = Object.freeze([
 ] as const);
 export const FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON =
   "/usr/bin/python3" as const;
+export const FLOODGATE_TEACHER_STAGE_PUBLICATION_CONTRACT =
+  "floodgate-teacher-stage-publication-transaction-v1" as const;
+export const FLOODGATE_TEACHER_STAGE_PUBLICATION_TRUST_BOUNDARY =
+  "trusted-current-euid-held-private-stage-publication-v1" as const;
+export const FLOODGATE_TEACHER_STAGE_PUBLICATION_STATUS =
+  "verified-durable-exclusive-publication" as const;
+export const FLOODGATE_TEACHER_STAGE_PUBLICATION_CLAIM_BOUNDARY =
+  "namespace-publication-only-not-content-authentication-consumer-postflight-training-teacher-label-or-playing-strength-evidence" as const;
 
 const BIGINT_ZERO = BigInt(0);
 const MODE_PERMISSION_AND_SPECIAL_BITS = BigInt(0o7777);
@@ -185,6 +193,7 @@ const NativeError = Error;
 const NativeNumber = Number;
 const NativeString = String;
 const NativeWeakSet = WeakSet;
+const NativeWeakMap = WeakMap;
 const nativeArrayPrototype = Array.prototype;
 const nativeGetEffectiveUserId =
   typeof process.geteuid === "function" ? process.geteuid.bind(process) : null;
@@ -200,6 +209,10 @@ const reflectOwnKeys = Reflect.ownKeys;
 const reflectApply = Reflect.apply;
 const nativeWeakSetAdd = WeakSet.prototype.add;
 const nativeWeakSetDelete = WeakSet.prototype.delete;
+const nativeWeakSetHas = WeakSet.prototype.has;
+const nativeWeakMapGet = WeakMap.prototype.get;
+const nativeWeakMapSet = WeakMap.prototype.set;
+const nativeWeakMapDelete = WeakMap.prototype.delete;
 const nativeSetHas = Set.prototype.has;
 const nativeMapGet = Map.prototype.get;
 const nativeRegExpExec = RegExp.prototype.exec;
@@ -222,10 +235,12 @@ const realpathPath = fs.promises.realpath.bind(fs.promises);
 const mkdirPath = fs.promises.mkdir.bind(fs.promises);
 const chmodPath = fs.promises.chmod.bind(fs.promises);
 const rmdirPath = fs.promises.rmdir.bind(fs.promises);
+const openFileHandle = fs.promises.open.bind(fs.promises);
 const lstatDescriptor = fs.lstat.bind(fs);
 const openDescriptor = fs.open.bind(fs);
 const closeDescriptor = fs.close.bind(fs);
 const fstatDescriptor = fs.fstat.bind(fs);
+const fsyncDescriptor = fs.fsync.bind(fs);
 const OPEN_READ_ONLY = fs.constants.O_RDONLY;
 const OPEN_NO_FOLLOW = fs.constants.O_NOFOLLOW;
 const OPEN_DIRECTORY = fs.constants.O_DIRECTORY;
@@ -269,9 +284,93 @@ export interface FloodgateTeacherStageLease {
   close(): Promise<void>;
 }
 
+export type FloodgateTeacherStagePublicationExecutionBoundary =
+  "production-fixed-exclusive-rename" | "test-only-injected-exclusive-rename";
+
+export type FloodgateTeacherStagePublicationPhase =
+  | "ready"
+  | "commit-started"
+  | "abort-started"
+  | "committed"
+  | "aborted"
+  | "indeterminate";
+
+export type FloodgateTeacherStagePublicationDurability =
+  | "not-established"
+  | "renamed-parent-synced"
+  | "published-and-lease-removal-durable";
+
+export type FloodgateTeacherStagePublicationFailurePhase =
+  | "preflight"
+  | "rename"
+  | "reconcile"
+  | "destination-reopen"
+  | "parent-sync-before-lease-removal"
+  | "lease-removal"
+  | "parent-sync-after-lease-removal"
+  | "cleanup";
+
+export interface FloodgateTeacherStagePublicationReceipt {
+  readonly contract: typeof FLOODGATE_TEACHER_STAGE_PUBLICATION_CONTRACT;
+  readonly trust_boundary: typeof FLOODGATE_TEACHER_STAGE_PUBLICATION_TRUST_BOUNDARY;
+  readonly status: typeof FLOODGATE_TEACHER_STAGE_PUBLICATION_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_TEACHER_STAGE_PUBLICATION_CLAIM_BOUNDARY;
+  readonly execution_boundary: FloodgateTeacherStagePublicationExecutionBoundary;
+  readonly publication_durability: "published-and-lease-removal-durable";
+  readonly parent_identity: Readonly<FloodgateTeacherStageIdentity>;
+  readonly destination_identity: Readonly<FloodgateTeacherStageIdentity>;
+  readonly lease_identity: Readonly<FloodgateTeacherStageIdentity>;
+  readonly stage_basename: string;
+  readonly destination_basename: string;
+}
+
+export interface FloodgateTeacherStagePublicationTransaction {
+  readonly phase: FloodgateTeacherStagePublicationPhase;
+  readonly authorizationReceipt: Readonly<FloodgateTeacherStageAuthorizationReceipt>;
+  readonly stageRoot: string;
+  readonly destinationRoot: string;
+  commit(): Promise<Readonly<FloodgateTeacherStagePublicationReceipt>>;
+  abort(): Promise<void>;
+}
+
+export interface FloodgateTeacherStagePublicationDependencies {
+  readonly exclusiveRename: (
+    source: string,
+    destination: string,
+    sourceHandle: FloodgateTeacherStagePublicationSourceHandle,
+  ) => Promise<unknown>;
+  readonly beforeReconcileForTests?: () => void | Promise<void>;
+  readonly beforeDestinationReopenForTests?: () => void | Promise<void>;
+  readonly syncDirectoryForTests?: (
+    kind: "parent-before-lease-removal" | "parent-after-lease-removal",
+    sync: () => Promise<void>,
+  ) => Promise<void>;
+  readonly removeLeaseDirectoryForTests?: (
+    leaseRoot: string,
+    remove: () => Promise<void>,
+  ) => Promise<void>;
+  readonly closePublicationDirectoryForTests?: (
+    kind: "rename-source" | "destination" | "lease" | "stage" | "parent",
+    close: () => Promise<void>,
+  ) => Promise<void>;
+}
+
+export type FloodgateTeacherStagePublicationSourceHandle =
+  import("./floodgate-exclusive-directory-rename").FloodgateExclusiveDirectorySourceHandle;
+
 interface RuntimeClaimRegistry {
   readonly available: WeakSet<Readonly<FloodgateTeacherStageLease>>;
+  readonly publicationControllers: WeakMap<
+    Readonly<FloodgateTeacherStageLease>,
+    Readonly<RuntimePublicationController>
+  >;
   readonly boundary: "production" | "test-only";
+}
+
+interface RuntimePublicationController {
+  readonly begin: (
+    dependencies: Readonly<CapturedPublicationDependencies>,
+  ) => Readonly<FloodgateTeacherStagePublicationTransaction>;
 }
 
 function createRuntimeClaimRegistry(
@@ -279,6 +378,10 @@ function createRuntimeClaimRegistry(
 ): Readonly<RuntimeClaimRegistry> {
   return objectFreeze({
     available: new NativeWeakSet<Readonly<FloodgateTeacherStageLease>>(),
+    publicationControllers: new NativeWeakMap<
+      Readonly<FloodgateTeacherStageLease>,
+      Readonly<RuntimePublicationController>
+    >(),
     boundary,
   });
 }
@@ -300,11 +403,56 @@ function runtimeClaimDelete(
   return reflectApply(nativeWeakSetDelete, registrySet, [lease]) as boolean;
 }
 
+function runtimeClaimHas(
+  registrySet: WeakSet<Readonly<FloodgateTeacherStageLease>>,
+  lease: Readonly<FloodgateTeacherStageLease>,
+): boolean {
+  return reflectApply(nativeWeakSetHas, registrySet, [lease]) as boolean;
+}
+
+function runtimePublicationSet(
+  registryMap: WeakMap<
+    Readonly<FloodgateTeacherStageLease>,
+    Readonly<RuntimePublicationController>
+  >,
+  lease: Readonly<FloodgateTeacherStageLease>,
+  controller: Readonly<RuntimePublicationController>,
+): void {
+  reflectApply(nativeWeakMapSet, registryMap, [lease, controller]);
+}
+
+function runtimePublicationGet(
+  registryMap: WeakMap<
+    Readonly<FloodgateTeacherStageLease>,
+    Readonly<RuntimePublicationController>
+  >,
+  lease: Readonly<FloodgateTeacherStageLease>,
+): Readonly<RuntimePublicationController> | undefined {
+  return reflectApply(nativeWeakMapGet, registryMap, [lease]) as
+    Readonly<RuntimePublicationController> | undefined;
+}
+
+function runtimePublicationDelete(
+  registryMap: WeakMap<
+    Readonly<FloodgateTeacherStageLease>,
+    Readonly<RuntimePublicationController>
+  >,
+  lease: Readonly<FloodgateTeacherStageLease>,
+): void {
+  reflectApply(nativeWeakMapDelete, registryMap, [lease]);
+}
+
 function activateRuntimeClaim(
   registry: Readonly<RuntimeClaimRegistry>,
   lease: Readonly<FloodgateTeacherStageLease>,
+  publicationController: Readonly<RuntimePublicationController>,
 ): void {
   runtimeClaimAdd(registry.available, lease);
+  runtimePublicationSet(
+    registry.publicationControllers,
+    lease,
+    publicationController,
+  );
 }
 
 function revokeRuntimeClaim(
@@ -312,6 +460,7 @@ function revokeRuntimeClaim(
   lease: Readonly<FloodgateTeacherStageLease>,
 ): void {
   runtimeClaimDelete(registry.available, lease);
+  runtimePublicationDelete(registry.publicationControllers, lease);
 }
 
 function claimRuntimeLease(
@@ -323,6 +472,7 @@ function claimRuntimeLease(
       `${registry.boundary} runtime claim requires the exact active unclaimed lease`,
     );
   }
+  runtimePublicationDelete(registry.publicationControllers, lease);
 }
 
 /** Claim the exact active lease issued by the production authorizer once. */
@@ -337,6 +487,161 @@ export function claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(
   lease: Readonly<FloodgateTeacherStageLease>,
 ): void {
   claimRuntimeLease(TEST_RUNTIME_CLAIMS, lease);
+}
+
+const PUBLICATION_DEPENDENCY_KEYS = new Set<string>([
+  "exclusiveRename",
+  "beforeReconcileForTests",
+  "beforeDestinationReopenForTests",
+  "syncDirectoryForTests",
+  "removeLeaseDirectoryForTests",
+  "closePublicationDirectoryForTests",
+]);
+
+function lookupRuntimePublication(
+  registry: Readonly<RuntimeClaimRegistry>,
+  lease: Readonly<FloodgateTeacherStageLease>,
+): Readonly<RuntimePublicationController> {
+  if (!runtimeClaimHas(registry.available, lease)) {
+    throw new FloodgateTeacherStagePublicationOwnershipTransferredError(
+      `${registry.boundary} begin requires the exact active unclaimed lease`,
+    );
+  }
+  const controller = runtimePublicationGet(
+    registry.publicationControllers,
+    lease,
+  );
+  if (controller === undefined) {
+    throw new FloodgateTeacherStagePublicationOwnershipTransferredError(
+      `${registry.boundary} active lease has no publication authority`,
+    );
+  }
+  return controller;
+}
+
+function capturePublicationDependencies(
+  input: FloodgateTeacherStagePublicationDependencies,
+): Readonly<CapturedPublicationDependencies> {
+  if (input === null || typeof input !== "object" || arrayIsArray(input)) {
+    authorizationFailure("publication dependencies must be an object");
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(input);
+  const keys = reflectOwnKeys(descriptors);
+  const captured = objectCreate(null) as Record<string, unknown>;
+  for (let index = 0; index < keys.length; index += 1) {
+    const key = keys[index];
+    if (
+      typeof key !== "string" ||
+      !reflectApply(nativeSetHas, PUBLICATION_DEPENDENCY_KEYS, [key])
+    ) {
+      authorizationFailure(
+        "publication dependencies contain an unexpected field",
+      );
+    }
+    const descriptor = descriptors[key];
+    if (
+      descriptor === undefined ||
+      !reflectApply(objectHasOwn, descriptor, ["value"]) ||
+      descriptor.enumerable !== true
+    ) {
+      authorizationFailure(
+        `publication dependencies.${key} must be an enumerable data property`,
+      );
+    }
+    captured[key] = descriptor.value;
+  }
+  if (typeof captured.exclusiveRename !== "function") {
+    authorizationFailure(
+      "publication dependencies.exclusiveRename must be a function",
+    );
+  }
+  const optionalFunctions = [
+    "beforeReconcileForTests",
+    "beforeDestinationReopenForTests",
+    "syncDirectoryForTests",
+    "removeLeaseDirectoryForTests",
+    "closePublicationDirectoryForTests",
+  ] as const;
+  for (let index = 0; index < optionalFunctions.length; index += 1) {
+    const key = optionalFunctions[index];
+    if (captured[key] !== undefined && typeof captured[key] !== "function") {
+      authorizationFailure(
+        `publication dependencies.${key} must be a function`,
+      );
+    }
+  }
+  return freezeNonThenable({
+    executionBoundary: "test-only-injected-exclusive-rename" as const,
+    exclusiveRename:
+      captured.exclusiveRename as FloodgateTeacherStagePublicationDependencies["exclusiveRename"],
+    beforeReconcileForTests: captured.beforeReconcileForTests as
+      CapturedPublicationDependencies["beforeReconcileForTests"] | undefined,
+    beforeDestinationReopenForTests:
+      captured.beforeDestinationReopenForTests as
+        | CapturedPublicationDependencies["beforeDestinationReopenForTests"]
+        | undefined,
+    syncDirectoryForTests: captured.syncDirectoryForTests as
+      CapturedPublicationDependencies["syncDirectoryForTests"] | undefined,
+    removeLeaseDirectoryForTests: captured.removeLeaseDirectoryForTests as
+      | CapturedPublicationDependencies["removeLeaseDirectoryForTests"]
+      | undefined,
+    closePublicationDirectoryForTests:
+      captured.closePublicationDirectoryForTests as
+        | CapturedPublicationDependencies["closePublicationDirectoryForTests"]
+        | undefined,
+  });
+}
+
+const fixedProductionExclusiveRename: FloodgateTeacherStagePublicationDependencies["exclusiveRename"] =
+  async (source, destination, sourceHandle) => {
+    const renameModule = await import("./floodgate-exclusive-directory-rename");
+    return renameModule.exclusiveRenameFloodgateDirectory(
+      source,
+      destination,
+      sourceHandle,
+    );
+  };
+
+const PRODUCTION_PUBLICATION_DEPENDENCIES = freezeNonThenable({
+  executionBoundary: "production-fixed-exclusive-rename" as const,
+  exclusiveRename: fixedProductionExclusiveRename,
+});
+
+function beginPublicationFromRegistry(
+  registry: Readonly<RuntimeClaimRegistry>,
+  lease: Readonly<FloodgateTeacherStageLease>,
+  dependencies: Readonly<CapturedPublicationDependencies>,
+): Readonly<FloodgateTeacherStagePublicationTransaction> {
+  const controller = lookupRuntimePublication(registry, lease);
+  if (!runtimeClaimDelete(registry.available, lease)) {
+    throw new FloodgateTeacherStagePublicationOwnershipTransferredError(
+      `${registry.boundary} publication authority was already consumed`,
+    );
+  }
+  runtimePublicationDelete(registry.publicationControllers, lease);
+  return controller.begin(dependencies);
+}
+
+/** Begin a transaction using the fixed production exclusive-rename primitive. */
+export function beginFloodgateTeacherStagePublication(
+  lease: Readonly<FloodgateTeacherStageLease>,
+): Readonly<FloodgateTeacherStagePublicationTransaction> {
+  return beginPublicationFromRegistry(
+    PRODUCTION_RUNTIME_CLAIMS,
+    lease,
+    PRODUCTION_PUBLICATION_DEPENDENCIES,
+  );
+}
+
+/** Test-only publication transaction with strictly captured failure seams. */
+export function beginFloodgateTeacherStagePublicationCoreForTests(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  dependenciesInput: FloodgateTeacherStagePublicationDependencies,
+): Readonly<FloodgateTeacherStagePublicationTransaction> {
+  // Exact-object lookup deliberately precedes all dependency inspection.
+  lookupRuntimePublication(TEST_RUNTIME_CLAIMS, lease);
+  const dependencies = capturePublicationDependencies(dependenciesInput);
+  return beginPublicationFromRegistry(TEST_RUNTIME_CLAIMS, lease, dependencies);
 }
 
 export interface FloodgateTeacherStageAuthorizationHookPaths {
@@ -423,6 +728,93 @@ export class FloodgateTeacherStageAuthorizationCleanupError extends FloodgateTea
   }
 }
 
+interface FloodgateTeacherStagePublicationErrorFacets {
+  readonly mayHavePublished: boolean;
+  readonly publicationDurability: FloodgateTeacherStagePublicationDurability;
+  readonly destinationReopened: boolean;
+  readonly leaseMayRemain: boolean;
+  readonly cleanupFailures?: readonly unknown[];
+  readonly phase: FloodgateTeacherStagePublicationFailurePhase;
+  readonly primary: unknown;
+  readonly cause?: unknown;
+}
+
+abstract class FloodgateTeacherStagePublicationError extends Error {
+  abstract readonly mayHavePublished: boolean;
+  abstract readonly mayHaveCommitted: boolean;
+  readonly publicationDurability: FloodgateTeacherStagePublicationDurability;
+  readonly destinationReopened: boolean;
+  readonly leaseMayRemain: boolean;
+  readonly cleanupFailures: readonly unknown[];
+  readonly phase: FloodgateTeacherStagePublicationFailurePhase;
+  readonly primary: unknown;
+
+  protected constructor(
+    prefix: string,
+    message: string,
+    facets: Readonly<FloodgateTeacherStagePublicationErrorFacets>,
+  ) {
+    super(
+      `${prefix}: ${message}`,
+      facets.cause === undefined ? undefined : { cause: facets.cause },
+    );
+    this.publicationDurability = facets.publicationDurability;
+    this.destinationReopened = facets.destinationReopened;
+    this.leaseMayRemain = facets.leaseMayRemain;
+    this.cleanupFailures = frozenArrayCopy(facets.cleanupFailures ?? []);
+    this.phase = facets.phase;
+    this.primary = facets.primary;
+  }
+}
+
+export class FloodgateTeacherStagePublicationNotCommittedError extends FloodgateTeacherStagePublicationError {
+  readonly mayHavePublished = false as const;
+  readonly mayHaveCommitted = false as const;
+
+  constructor(
+    message: string,
+    facets: Omit<
+      FloodgateTeacherStagePublicationErrorFacets,
+      "mayHavePublished"
+    >,
+  ) {
+    super("Floodgate teacher stage publication did not commit", message, {
+      ...facets,
+      mayHavePublished: false,
+    });
+    this.name = "FloodgateTeacherStagePublicationNotCommittedError";
+  }
+}
+
+export class FloodgateTeacherStagePublicationIndeterminateError extends FloodgateTeacherStagePublicationError {
+  readonly mayHavePublished = true as const;
+  readonly mayHaveCommitted = true as const;
+
+  constructor(
+    message: string,
+    facets: Omit<
+      FloodgateTeacherStagePublicationErrorFacets,
+      "mayHavePublished"
+    >,
+  ) {
+    super("Floodgate teacher stage publication is indeterminate", message, {
+      ...facets,
+      mayHavePublished: true,
+    });
+    this.name = "FloodgateTeacherStagePublicationIndeterminateError";
+  }
+}
+
+export class FloodgateTeacherStagePublicationOwnershipTransferredError extends Error {
+  readonly transactionState =
+    "ownership-transferred-or-authority-unavailable" as const;
+
+  constructor(message: string) {
+    super(`Floodgate teacher stage ownership transferred: ${message}`);
+    this.name = "FloodgateTeacherStagePublicationOwnershipTransferredError";
+  }
+}
+
 function failureDetail(failure: unknown): string {
   if (typeof failure === "string") return failure;
   if (
@@ -494,6 +886,7 @@ interface OpenedDirectory {
     timeoutMilliseconds: number,
     maxOutputBytes: number,
   ) => string;
+  readonly sync: () => Promise<void>;
   readonly close: () => Promise<void>;
 }
 
@@ -505,6 +898,16 @@ interface EntryInspectorConfiguration {
 }
 
 type CapturedDependencies = FloodgateTeacherStageAuthorizationDependencies;
+
+interface CapturedPublicationDependencies {
+  readonly executionBoundary: FloodgateTeacherStagePublicationExecutionBoundary;
+  readonly exclusiveRename: FloodgateTeacherStagePublicationDependencies["exclusiveRename"];
+  readonly beforeReconcileForTests?: () => void | Promise<void>;
+  readonly beforeDestinationReopenForTests?: () => void | Promise<void>;
+  readonly syncDirectoryForTests?: FloodgateTeacherStagePublicationDependencies["syncDirectoryForTests"];
+  readonly removeLeaseDirectoryForTests?: FloodgateTeacherStagePublicationDependencies["removeLeaseDirectoryForTests"];
+  readonly closePublicationDirectoryForTests?: FloodgateTeacherStagePublicationDependencies["closePublicationDirectoryForTests"];
+}
 
 interface LeaseCleanupOutcome {
   readonly removed: boolean;
@@ -1198,6 +1601,18 @@ function closeDirectoryDescriptor(descriptor: number): Promise<void> {
   });
 }
 
+function syncDirectoryDescriptor(descriptor: number): Promise<void> {
+  return new NativePromise<void>((resolve, reject) => {
+    fsyncDescriptor(descriptor, (error) => {
+      if (error !== null) {
+        reject(error);
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
 async function openPrivateDirectory(
   target: string,
   expectedUserId: bigint,
@@ -1220,6 +1635,7 @@ async function openPrivateDirectory(
   }
   try {
     const statHeld = () => fstatOpenedDirectory(descriptor);
+    const syncHeld = () => syncDirectoryDescriptor(descriptor);
     const closeHeld = () => closeDirectoryDescriptor(descriptor);
     const held = await statHeld();
     const pathAfter = await lstatSnapshot(target);
@@ -1252,6 +1668,7 @@ async function openPrivateDirectory(
       identity: heldIdentity,
       stat: statHeld,
       inspectEntries: inspectEntriesHeld,
+      sync: syncHeld,
       close: closeHeld,
     });
   } catch (error) {
@@ -1491,6 +1908,139 @@ function closeOpenedDirectory(
     : dependencies.closeDirectoryForTests(kind, opened.close);
 }
 
+function closePublicationDirectory(
+  kind: "rename-source" | "destination" | "lease" | "stage" | "parent",
+  close: () => Promise<void>,
+  dependencies: Readonly<CapturedPublicationDependencies>,
+): Promise<void> {
+  return dependencies.closePublicationDirectoryForTests === undefined
+    ? close()
+    : dependencies.closePublicationDirectoryForTests(kind, close);
+}
+
+function syncPublicationParent(
+  kind: "parent-before-lease-removal" | "parent-after-lease-removal",
+  parent: Readonly<OpenedDirectory>,
+  dependencies: Readonly<CapturedPublicationDependencies>,
+): Promise<void> {
+  return dependencies.syncDirectoryForTests === undefined
+    ? parent.sync()
+    : dependencies.syncDirectoryForTests(kind, parent.sync);
+}
+
+function removePublicationLease(
+  leaseRoot: string,
+  dependencies: Readonly<CapturedPublicationDependencies>,
+): Promise<void> {
+  return dependencies.removeLeaseDirectoryForTests === undefined
+    ? rmdirPath(leaseRoot)
+    : dependencies.removeLeaseDirectoryForTests(leaseRoot, () =>
+        rmdirPath(leaseRoot),
+      );
+}
+
+async function lstatIfPresent(
+  target: string,
+): Promise<Readonly<FilesystemStatSnapshot> | undefined> {
+  try {
+    return await lstatSnapshot(target);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+}
+
+function isExactPrivateDirectoryIdentity(
+  stat: Readonly<FilesystemStatSnapshot> | undefined,
+  expectedIdentity: Readonly<FloodgateTeacherStageIdentity>,
+  expectedUserId: bigint,
+): boolean {
+  return (
+    stat !== undefined &&
+    hasFileType(stat, MODE_DIRECTORY) &&
+    stat.uid === expectedUserId &&
+    (stat.mode & MODE_PERMISSION_AND_SPECIAL_BITS) === MODE_PRIVATE_DIRECTORY &&
+    sameIdentity(directoryIdentity(stat), expectedIdentity)
+  );
+}
+
+function exactDataRecord(
+  value: unknown,
+  expectedKeys: readonly string[],
+  label: string,
+): Readonly<Record<string, unknown>> {
+  if (value === null || typeof value !== "object" || arrayIsArray(value)) {
+    authorizationFailure(`${label} must be an object`);
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(value);
+  const keys = reflectOwnKeys(descriptors);
+  if (keys.length !== expectedKeys.length) {
+    authorizationFailure(`${label} has an unexpected field set`);
+  }
+  const captured = objectCreate(null) as Record<string, unknown>;
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    const key = expectedKeys[index];
+    const descriptor = descriptors[key];
+    if (
+      descriptor === undefined ||
+      !reflectApply(objectHasOwn, descriptor, ["value"]) ||
+      descriptor.enumerable !== true
+    ) {
+      authorizationFailure(`${label}.${key} must be an enumerable data field`);
+    }
+    captured[key] = descriptor.value;
+  }
+  return objectFreeze(captured);
+}
+
+function exactRenameIdentity(
+  value: unknown,
+  expected: Readonly<FloodgateTeacherStageIdentity>,
+  label: string,
+): void {
+  const captured = exactDataRecord(value, ["dev", "ino"], label);
+  if (captured.dev !== expected.dev || captured.ino !== expected.ino) {
+    authorizationFailure(`${label} differs from the held identity`);
+  }
+}
+
+function validateExclusiveRenameReceipt(
+  value: unknown,
+  expectedContract: string,
+  expectedTrustBoundary: string,
+  expectedParent: Readonly<FloodgateTeacherStageIdentity>,
+  expectedDestination: Readonly<FloodgateTeacherStageIdentity>,
+): void {
+  const captured = exactDataRecord(
+    value,
+    [
+      "contract",
+      "trust_boundary",
+      "status",
+      "parent_identity",
+      "destination_identity",
+    ],
+    "exclusive rename receipt",
+  );
+  if (
+    captured.contract !== expectedContract ||
+    captured.trust_boundary !== expectedTrustBoundary ||
+    captured.status !== "verified-committed"
+  ) {
+    authorizationFailure("exclusive rename receipt contract is invalid");
+  }
+  exactRenameIdentity(
+    captured.parent_identity,
+    expectedParent,
+    "exclusive rename parent identity",
+  );
+  exactRenameIdentity(
+    captured.destination_identity,
+    expectedDestination,
+    "exclusive rename destination identity",
+  );
+}
+
 async function removeLeaseAfterFailure(
   lease: Readonly<OpenedDirectory> | undefined,
   leaseRoot: string,
@@ -1699,137 +2249,150 @@ async function authorizeInternal(
         allowed_entries: FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES,
       });
 
+    const performLeaseClose = async (): Promise<void> => {
+      let leaseMayRemain = true;
+      const failures = mutableNullPrototypeArray<unknown>();
+      let removalAuthorized = false;
+      try {
+        await assertOpenedDirectoryUnchanged(
+          parent,
+          options.publicationParent,
+          expectedUserId,
+          "publication parent",
+        );
+        await assertOpenedDirectoryUnchanged(
+          stage as Readonly<OpenedDirectory>,
+          stageRoot,
+          expectedUserId,
+          "teacher stage",
+        );
+        await assertOpenedDirectoryUnchanged(
+          lease as Readonly<OpenedDirectory>,
+          leaseRoot,
+          expectedUserId,
+          "stage authorization lease",
+        );
+        await assertAbsent(destinationRoot, "destination");
+        await inspectStageEntries(
+          stage as Readonly<OpenedDirectory>,
+          stageRoot,
+          expectedUserId,
+          protectedPaths,
+          inspector,
+          dependencies,
+          paths,
+        );
+        await revalidateProtectedPaths(protectedPaths);
+        await dependencies.beforeLeaseRemovalForTests?.(paths);
+        await assertOpenedDirectoryUnchanged(
+          parent,
+          options.publicationParent,
+          expectedUserId,
+          "publication parent",
+        );
+        await assertOpenedDirectoryUnchanged(
+          lease as Readonly<OpenedDirectory>,
+          leaseRoot,
+          expectedUserId,
+          "stage authorization lease",
+        );
+        await assertOpenedDirectoryUnchanged(
+          stage as Readonly<OpenedDirectory>,
+          stageRoot,
+          expectedUserId,
+          "teacher stage",
+        );
+        await assertAbsent(destinationRoot, "destination");
+        await inspectStageEntries(
+          stage as Readonly<OpenedDirectory>,
+          stageRoot,
+          expectedUserId,
+          protectedPaths,
+          inspector,
+          dependencies,
+          paths,
+        );
+        await revalidateProtectedPaths(protectedPaths);
+        removalAuthorized = true;
+      } catch (error) {
+        failures[failures.length] = error;
+      }
+      let leaseClosed = false;
+      try {
+        await closeOpenedDirectory(
+          "lease",
+          lease as Readonly<OpenedDirectory>,
+          dependencies,
+        );
+        leaseClosed = true;
+      } catch (error) {
+        failures[failures.length] = error;
+      }
+      if (removalAuthorized && leaseClosed) {
+        try {
+          const currentLease = await lstatSnapshot(leaseRoot);
+          assertPrivateDirectory(
+            currentLease,
+            expectedUserId,
+            "stage authorization lease removal target",
+          );
+          if (
+            !sameIdentity(
+              (lease as Readonly<OpenedDirectory>).identity,
+              directoryIdentity(currentLease),
+            )
+          ) {
+            authorizationFailure(
+              "stage authorization lease identity changed before removal",
+            );
+          }
+          await rmdirPath(leaseRoot);
+          leaseMayRemain = false;
+        } catch (error) {
+          failures[failures.length] = error;
+        }
+      }
+      try {
+        await closeOpenedDirectory(
+          "stage",
+          stage as Readonly<OpenedDirectory>,
+          dependencies,
+        );
+      } catch (error) {
+        failures[failures.length] = error;
+      }
+      try {
+        await closeOpenedDirectory("parent", parent, dependencies);
+      } catch (error) {
+        failures[failures.length] = error;
+      }
+      if (failures.length > 0) {
+        const first = failures[0];
+        const detail = failureDetail(first);
+        throw new FloodgateTeacherStageCloseError(detail, leaseMayRemain, {
+          cause: first,
+        });
+      }
+    };
+
+    let ownership: "lease" | "publication" | "closed" = "lease";
     let closePromise: Promise<void> | undefined;
+    let transferredClosePromise: Promise<void> | undefined;
     const close = (): Promise<void> => {
       if (closePromise !== undefined) return closePromise;
+      if (ownership !== "lease") {
+        transferredClosePromise ??= NativePromise.reject(
+          new FloodgateTeacherStagePublicationOwnershipTransferredError(
+            "lease.close cannot reclaim descriptors owned by a publication transaction",
+          ),
+        );
+        return transferredClosePromise;
+      }
+      ownership = "closed";
       // Calling close synchronously ends the exact-object claim lifetime, even
       // while asynchronous metadata reconciliation remains in progress.
       revokeRuntimeClaim(runtimeClaims, authorizedLease);
-      closePromise = (async () => {
-        let leaseMayRemain = true;
-        const failures = mutableNullPrototypeArray<unknown>();
-        let removalAuthorized = false;
-        try {
-          await assertOpenedDirectoryUnchanged(
-            parent,
-            options.publicationParent,
-            expectedUserId,
-            "publication parent",
-          );
-          await assertOpenedDirectoryUnchanged(
-            stage as Readonly<OpenedDirectory>,
-            stageRoot,
-            expectedUserId,
-            "teacher stage",
-          );
-          await assertOpenedDirectoryUnchanged(
-            lease as Readonly<OpenedDirectory>,
-            leaseRoot,
-            expectedUserId,
-            "stage authorization lease",
-          );
-          await assertAbsent(destinationRoot, "destination");
-          await inspectStageEntries(
-            stage as Readonly<OpenedDirectory>,
-            stageRoot,
-            expectedUserId,
-            protectedPaths,
-            inspector,
-            dependencies,
-            paths,
-          );
-          await revalidateProtectedPaths(protectedPaths);
-          await dependencies.beforeLeaseRemovalForTests?.(paths);
-          await assertOpenedDirectoryUnchanged(
-            parent,
-            options.publicationParent,
-            expectedUserId,
-            "publication parent",
-          );
-          await assertOpenedDirectoryUnchanged(
-            lease as Readonly<OpenedDirectory>,
-            leaseRoot,
-            expectedUserId,
-            "stage authorization lease",
-          );
-          await assertOpenedDirectoryUnchanged(
-            stage as Readonly<OpenedDirectory>,
-            stageRoot,
-            expectedUserId,
-            "teacher stage",
-          );
-          await assertAbsent(destinationRoot, "destination");
-          await inspectStageEntries(
-            stage as Readonly<OpenedDirectory>,
-            stageRoot,
-            expectedUserId,
-            protectedPaths,
-            inspector,
-            dependencies,
-            paths,
-          );
-          await revalidateProtectedPaths(protectedPaths);
-          removalAuthorized = true;
-        } catch (error) {
-          failures[failures.length] = error;
-        }
-        let leaseClosed = false;
-        try {
-          await closeOpenedDirectory(
-            "lease",
-            lease as Readonly<OpenedDirectory>,
-            dependencies,
-          );
-          leaseClosed = true;
-        } catch (error) {
-          failures[failures.length] = error;
-        }
-        if (removalAuthorized && leaseClosed) {
-          try {
-            const currentLease = await lstatSnapshot(leaseRoot);
-            assertPrivateDirectory(
-              currentLease,
-              expectedUserId,
-              "stage authorization lease removal target",
-            );
-            if (
-              !sameIdentity(
-                (lease as Readonly<OpenedDirectory>).identity,
-                directoryIdentity(currentLease),
-              )
-            ) {
-              authorizationFailure(
-                "stage authorization lease identity changed before removal",
-              );
-            }
-            await rmdirPath(leaseRoot);
-            leaseMayRemain = false;
-          } catch (error) {
-            failures[failures.length] = error;
-          }
-        }
-        try {
-          await closeOpenedDirectory(
-            "stage",
-            stage as Readonly<OpenedDirectory>,
-            dependencies,
-          );
-        } catch (error) {
-          failures[failures.length] = error;
-        }
-        try {
-          await closeOpenedDirectory("parent", parent, dependencies);
-        } catch (error) {
-          failures[failures.length] = error;
-        }
-        if (failures.length > 0) {
-          const first = failures[0];
-          const detail = failureDetail(first);
-          throw new FloodgateTeacherStageCloseError(detail, leaseMayRemain, {
-            cause: first,
-          });
-        }
-      })();
+      closePromise = performLeaseClose();
       return closePromise;
     };
 
@@ -1839,7 +2402,660 @@ async function authorizeInternal(
       destinationRoot,
       close,
     });
-    activateRuntimeClaim(runtimeClaims, authorizedLease);
+    const publicationController: Readonly<RuntimePublicationController> =
+      freezeNonThenable({
+        begin: (
+          publicationDependencies: Readonly<CapturedPublicationDependencies>,
+        ): Readonly<FloodgateTeacherStagePublicationTransaction> => {
+          if (ownership !== "lease") {
+            throw new FloodgateTeacherStagePublicationOwnershipTransferredError(
+              "publication begin requires lease-owned descriptors",
+            );
+          }
+          ownership = "publication";
+
+          let phase: FloodgateTeacherStagePublicationPhase = "ready";
+          let selected: "none" | "commit" | "abort" = "none";
+          let commitPromise:
+            | Promise<Readonly<FloodgateTeacherStagePublicationReceipt>>
+            | undefined;
+          let abortPromise: Promise<void> | undefined;
+
+          const performPublicationCommit = async (): Promise<
+            Readonly<FloodgateTeacherStagePublicationReceipt>
+          > => {
+            let sourceHandle: fs.promises.FileHandle | undefined;
+            let destination: Readonly<OpenedDirectory> | undefined;
+            let sourceClosed = false;
+            let destinationClosed = false;
+            let leaseClosed = false;
+            let stageClosed = false;
+            let parentClosed = false;
+            let destinationReopened = false;
+            let leaseMayRemain = true;
+            let publicationDurability: FloodgateTeacherStagePublicationDurability =
+              "not-established";
+
+            const closePublicationHandles = async (): Promise<
+              readonly unknown[]
+            > => {
+              const failures = mutableNullPrototypeArray<unknown>();
+              if (sourceHandle !== undefined && !sourceClosed) {
+                try {
+                  await closePublicationDirectory(
+                    "rename-source",
+                    () => (sourceHandle as fs.promises.FileHandle).close(),
+                    publicationDependencies,
+                  );
+                  sourceClosed = true;
+                } catch (error) {
+                  failures[failures.length] = error;
+                }
+              }
+              if (destination !== undefined && !destinationClosed) {
+                try {
+                  await closePublicationDirectory(
+                    "destination",
+                    destination.close,
+                    publicationDependencies,
+                  );
+                  destinationClosed = true;
+                } catch (error) {
+                  failures[failures.length] = error;
+                }
+              }
+              if (!leaseClosed) {
+                try {
+                  await closePublicationDirectory(
+                    "lease",
+                    (lease as Readonly<OpenedDirectory>).close,
+                    publicationDependencies,
+                  );
+                  leaseClosed = true;
+                } catch (error) {
+                  failures[failures.length] = error;
+                }
+              }
+              if (!stageClosed) {
+                try {
+                  await closePublicationDirectory(
+                    "stage",
+                    (stage as Readonly<OpenedDirectory>).close,
+                    publicationDependencies,
+                  );
+                  stageClosed = true;
+                } catch (error) {
+                  failures[failures.length] = error;
+                }
+              }
+              if (!parentClosed) {
+                try {
+                  await closePublicationDirectory(
+                    "parent",
+                    parent.close,
+                    publicationDependencies,
+                  );
+                  parentClosed = true;
+                } catch (error) {
+                  failures[failures.length] = error;
+                }
+              }
+              return objectFreeze(failures);
+            };
+
+            const failIndeterminate = async (
+              failurePhase: FloodgateTeacherStagePublicationFailurePhase,
+              primary: unknown,
+              existingCleanupFailures?: readonly unknown[],
+            ): Promise<never> => {
+              const cleanupFailures =
+                existingCleanupFailures ?? (await closePublicationHandles());
+              phase = "indeterminate";
+              ownership = "closed";
+              throw new FloodgateTeacherStagePublicationIndeterminateError(
+                failureDetail(primary),
+                {
+                  publicationDurability,
+                  destinationReopened,
+                  leaseMayRemain,
+                  cleanupFailures,
+                  phase: failurePhase,
+                  primary,
+                  cause: primary,
+                },
+              );
+            };
+
+            const failNotCommitted = async (
+              failurePhase: "preflight" | "reconcile",
+              primary: unknown,
+              additionalCleanupFailures: readonly unknown[] = [],
+            ): Promise<never> => {
+              const cleanupFailures = mutableNullPrototypeArray<unknown>();
+              for (
+                let index = 0;
+                index < additionalCleanupFailures.length;
+                index += 1
+              ) {
+                cleanupFailures[cleanupFailures.length] =
+                  additionalCleanupFailures[index];
+              }
+              try {
+                await performLeaseClose();
+                leaseMayRemain = false;
+                leaseClosed = true;
+                stageClosed = true;
+                parentClosed = true;
+              } catch (error) {
+                cleanupFailures[cleanupFailures.length] = error;
+                leaseMayRemain =
+                  error instanceof FloodgateTeacherStageCloseError
+                    ? error.leaseMayRemain
+                    : true;
+              }
+              phase = "aborted";
+              ownership = "closed";
+              throw new FloodgateTeacherStagePublicationNotCommittedError(
+                failureDetail(primary),
+                {
+                  publicationDurability: "not-established",
+                  destinationReopened: false,
+                  leaseMayRemain,
+                  cleanupFailures,
+                  phase: failurePhase,
+                  primary,
+                  cause: primary,
+                },
+              );
+            };
+
+            try {
+              await assertOpenedDirectoryUnchanged(
+                parent,
+                options.publicationParent,
+                expectedUserId,
+                "publication parent before publication",
+              );
+              await assertOpenedDirectoryUnchanged(
+                stage as Readonly<OpenedDirectory>,
+                stageRoot,
+                expectedUserId,
+                "teacher stage before publication",
+              );
+              await assertOpenedDirectoryUnchanged(
+                lease as Readonly<OpenedDirectory>,
+                leaseRoot,
+                expectedUserId,
+                "stage authorization lease before publication",
+              );
+              await assertAbsent(destinationRoot, "publication destination");
+              await inspectStageEntries(
+                stage as Readonly<OpenedDirectory>,
+                stageRoot,
+                expectedUserId,
+                protectedPaths,
+                inspector,
+                dependencies,
+                paths,
+              );
+              await revalidateProtectedPaths(protectedPaths);
+              sourceHandle = await openFileHandle(
+                stageRoot,
+                requiredDirectoryFlags(),
+              );
+              const sourceStat = statSnapshot(
+                await sourceHandle.stat({ bigint: true }),
+              );
+              assertPrivateDirectory(
+                sourceStat,
+                expectedUserId,
+                "fresh publication source handle",
+              );
+              if (
+                !sameIdentity(
+                  directoryIdentity(sourceStat),
+                  (stage as Readonly<OpenedDirectory>).identity,
+                )
+              ) {
+                authorizationFailure(
+                  "fresh publication source handle differs from authorized stage",
+                );
+              }
+            } catch (primary) {
+              const cleanupFailures = mutableNullPrototypeArray<unknown>();
+              if (sourceHandle !== undefined) {
+                try {
+                  await closePublicationDirectory(
+                    "rename-source",
+                    sourceHandle.close.bind(sourceHandle),
+                    publicationDependencies,
+                  );
+                  sourceClosed = true;
+                } catch (error) {
+                  cleanupFailures[cleanupFailures.length] = error;
+                }
+              }
+              return failNotCommitted("preflight", primary, cleanupFailures);
+            }
+
+            let renameFailure: unknown;
+            let renameReceiptFailure: unknown;
+            let reconcileHookFailure: unknown;
+            try {
+              const renameReceipt =
+                await publicationDependencies.exclusiveRename(
+                  stageRoot,
+                  destinationRoot,
+                  sourceHandle,
+                );
+              try {
+                const renameModule =
+                  await import("./floodgate-exclusive-directory-rename");
+                validateExclusiveRenameReceipt(
+                  renameReceipt,
+                  renameModule.FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_CONTRACT,
+                  renameModule.FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_TRUST_BOUNDARY,
+                  parent.identity,
+                  (stage as Readonly<OpenedDirectory>).identity,
+                );
+              } catch (error) {
+                renameReceiptFailure = error;
+              }
+            } catch (error) {
+              renameFailure = error;
+            }
+            try {
+              await publicationDependencies.beforeReconcileForTests?.();
+            } catch (error) {
+              reconcileHookFailure = error;
+            }
+
+            let sourcePath: Readonly<FilesystemStatSnapshot> | undefined;
+            let destinationPath: Readonly<FilesystemStatSnapshot> | undefined;
+            let sourcePathRepeated:
+              Readonly<FilesystemStatSnapshot> | undefined;
+            let destinationPathRepeated:
+              Readonly<FilesystemStatSnapshot> | undefined;
+            try {
+              sourcePath = await lstatIfPresent(stageRoot);
+              destinationPath = await lstatIfPresent(destinationRoot);
+              sourcePathRepeated = await lstatIfPresent(stageRoot);
+              destinationPathRepeated = await lstatIfPresent(destinationRoot);
+            } catch (primary) {
+              return failIndeterminate("reconcile", primary);
+            }
+            const sourceIsOriginal =
+              isExactPrivateDirectoryIdentity(
+                sourcePath,
+                (stage as Readonly<OpenedDirectory>).identity,
+                expectedUserId,
+              ) &&
+              isExactPrivateDirectoryIdentity(
+                sourcePathRepeated,
+                (stage as Readonly<OpenedDirectory>).identity,
+                expectedUserId,
+              );
+            const destinationIsOriginal =
+              isExactPrivateDirectoryIdentity(
+                destinationPath,
+                (stage as Readonly<OpenedDirectory>).identity,
+                expectedUserId,
+              ) &&
+              isExactPrivateDirectoryIdentity(
+                destinationPathRepeated,
+                (stage as Readonly<OpenedDirectory>).identity,
+                expectedUserId,
+              );
+            if (
+              sourceIsOriginal &&
+              destinationPath === undefined &&
+              destinationPathRepeated === undefined
+            ) {
+              const cleanupFailures = mutableNullPrototypeArray<unknown>();
+              try {
+                await closePublicationDirectory(
+                  "rename-source",
+                  sourceHandle.close.bind(sourceHandle),
+                  publicationDependencies,
+                );
+                sourceClosed = true;
+              } catch (error) {
+                cleanupFailures[cleanupFailures.length] = error;
+              }
+              return failNotCommitted(
+                "reconcile",
+                renameFailure ??
+                  renameReceiptFailure ??
+                  new NativeError("exclusive rename left the source in place"),
+                cleanupFailures,
+              );
+            }
+            if (!(
+              sourcePath === undefined &&
+              sourcePathRepeated === undefined &&
+              destinationIsOriginal
+            )) {
+              return failIndeterminate(
+                "reconcile",
+                renameFailure ??
+                  new NativeError(
+                    "authorized stage was not found exclusively at source or destination",
+                  ),
+              );
+            }
+            if (renameReceiptFailure !== undefined) {
+              return failIndeterminate("rename", renameReceiptFailure);
+            }
+            if (reconcileHookFailure !== undefined) {
+              return failIndeterminate("reconcile", reconcileHookFailure);
+            }
+
+            try {
+              await publicationDependencies.beforeDestinationReopenForTests?.();
+              destination = await openPrivateDirectory(
+                destinationRoot,
+                expectedUserId,
+                "published destination",
+              );
+              if (
+                !sameIdentity(
+                  destination.identity,
+                  (stage as Readonly<OpenedDirectory>).identity,
+                )
+              ) {
+                authorizationFailure(
+                  "reopened destination differs from the authorized stage",
+                );
+              }
+              destinationReopened = true;
+              await assertOpenedDirectoryUnchanged(
+                parent,
+                options.publicationParent,
+                expectedUserId,
+                "publication parent after rename",
+              );
+              await assertOpenedDirectoryUnchanged(
+                destination,
+                destinationRoot,
+                expectedUserId,
+                "published destination after reopen",
+              );
+              await assertOpenedDirectoryUnchanged(
+                lease as Readonly<OpenedDirectory>,
+                leaseRoot,
+                expectedUserId,
+                "stage authorization lease after rename",
+              );
+              await inspectStageEntries(
+                destination,
+                destinationRoot,
+                expectedUserId,
+                protectedPaths,
+                inspector,
+                dependencies,
+                hookPaths(
+                  options.publicationParent,
+                  destinationRoot,
+                  stageRoot,
+                  leaseRoot,
+                ),
+              );
+              await revalidateProtectedPaths(protectedPaths);
+            } catch (primary) {
+              return failIndeterminate("destination-reopen", primary);
+            }
+
+            try {
+              await syncPublicationParent(
+                "parent-before-lease-removal",
+                parent,
+                publicationDependencies,
+              );
+              publicationDurability = "renamed-parent-synced";
+            } catch (primary) {
+              return failIndeterminate(
+                "parent-sync-before-lease-removal",
+                primary,
+              );
+            }
+
+            try {
+              await dependencies.beforeLeaseRemovalForTests?.(
+                hookPaths(
+                  options.publicationParent,
+                  destinationRoot,
+                  stageRoot,
+                  leaseRoot,
+                ),
+              );
+              await assertOpenedDirectoryUnchanged(
+                parent,
+                options.publicationParent,
+                expectedUserId,
+                "publication parent before lease removal",
+              );
+              await assertOpenedDirectoryUnchanged(
+                destination,
+                destinationRoot,
+                expectedUserId,
+                "published destination before lease removal",
+              );
+              await assertOpenedDirectoryUnchanged(
+                lease as Readonly<OpenedDirectory>,
+                leaseRoot,
+                expectedUserId,
+                "stage authorization lease before publication removal",
+              );
+              await inspectStageEntries(
+                destination,
+                destinationRoot,
+                expectedUserId,
+                protectedPaths,
+                inspector,
+                dependencies,
+                hookPaths(
+                  options.publicationParent,
+                  destinationRoot,
+                  stageRoot,
+                  leaseRoot,
+                ),
+              );
+              await revalidateProtectedPaths(protectedPaths);
+              await closePublicationDirectory(
+                "lease",
+                (lease as Readonly<OpenedDirectory>).close,
+                publicationDependencies,
+              );
+              leaseClosed = true;
+              const currentLease = await lstatSnapshot(leaseRoot);
+              assertPrivateDirectory(
+                currentLease,
+                expectedUserId,
+                "publication lease removal target",
+              );
+              if (
+                !sameIdentity(
+                  directoryIdentity(currentLease),
+                  (lease as Readonly<OpenedDirectory>).identity,
+                )
+              ) {
+                authorizationFailure(
+                  "publication lease removal target is a replacement inode",
+                );
+              }
+              await removePublicationLease(leaseRoot, publicationDependencies);
+            } catch (primary) {
+              return failIndeterminate("lease-removal", primary);
+            }
+
+            try {
+              await syncPublicationParent(
+                "parent-after-lease-removal",
+                parent,
+                publicationDependencies,
+              );
+              publicationDurability = "published-and-lease-removal-durable";
+              leaseMayRemain = false;
+            } catch (primary) {
+              return failIndeterminate(
+                "parent-sync-after-lease-removal",
+                primary,
+              );
+            }
+
+            try {
+              await assertOpenedDirectoryUnchanged(
+                parent,
+                options.publicationParent,
+                expectedUserId,
+                "publication parent after durable lease removal",
+              );
+              await assertOpenedDirectoryUnchanged(
+                destination,
+                destinationRoot,
+                expectedUserId,
+                "published destination after durable lease removal",
+              );
+              const sourceAfterPublication = await lstatIfPresent(stageRoot);
+              const leaseAfterPublication = await lstatIfPresent(leaseRoot);
+              if (sourceAfterPublication !== undefined) {
+                authorizationFailure(
+                  "source pathname reappeared after durable publication",
+                );
+              }
+              if (leaseAfterPublication !== undefined) {
+                leaseMayRemain = true;
+                authorizationFailure(
+                  "lease marker reappeared after durable publication",
+                );
+              }
+            } catch (primary) {
+              return failIndeterminate("reconcile", primary);
+            }
+
+            const publicationReceipt: Readonly<FloodgateTeacherStagePublicationReceipt> =
+              freezeNonThenable({
+                contract: FLOODGATE_TEACHER_STAGE_PUBLICATION_CONTRACT,
+                trust_boundary:
+                  FLOODGATE_TEACHER_STAGE_PUBLICATION_TRUST_BOUNDARY,
+                status: FLOODGATE_TEACHER_STAGE_PUBLICATION_STATUS,
+                claim_boundary:
+                  FLOODGATE_TEACHER_STAGE_PUBLICATION_CLAIM_BOUNDARY,
+                execution_boundary: publicationDependencies.executionBoundary,
+                publication_durability:
+                  "published-and-lease-removal-durable" as const,
+                parent_identity: parent.identity,
+                destination_identity: destination.identity,
+                lease_identity: (lease as Readonly<OpenedDirectory>).identity,
+                stage_basename: options.stageBasename,
+                destination_basename: options.destinationBasename,
+              });
+            const cleanupFailures = await closePublicationHandles();
+            if (cleanupFailures.length > 0) {
+              return failIndeterminate(
+                "cleanup",
+                cleanupFailures[0],
+                cleanupFailures,
+              );
+            }
+            phase = "committed";
+            ownership = "closed";
+            return publicationReceipt;
+          };
+
+          const commit = (): Promise<
+            Readonly<FloodgateTeacherStagePublicationReceipt>
+          > => {
+            if (selected === "commit") {
+              return commitPromise as Promise<
+                Readonly<FloodgateTeacherStagePublicationReceipt>
+              >;
+            }
+            if (selected === "abort") {
+              return NativePromise.reject(
+                new FloodgateTeacherStagePublicationOwnershipTransferredError(
+                  "abort already owns this transaction",
+                ),
+              );
+            }
+            selected = "commit";
+            phase = "commit-started";
+            commitPromise = performPublicationCommit();
+            return commitPromise;
+          };
+
+          const abort = (): Promise<void> => {
+            if (selected === "abort") return abortPromise as Promise<void>;
+            if (selected === "commit") {
+              return NativePromise.reject(
+                new FloodgateTeacherStagePublicationOwnershipTransferredError(
+                  "commit already owns this transaction",
+                ),
+              );
+            }
+            selected = "abort";
+            phase = "abort-started";
+            abortPromise = performLeaseClose().then(
+              () => {
+                ownership = "closed";
+                phase = "aborted";
+              },
+              (error: unknown) => {
+                ownership = "closed";
+                phase = "indeterminate";
+                throw error;
+              },
+            );
+            return abortPromise;
+          };
+
+          const transaction = objectCreate(null) as {
+            readonly phase: FloodgateTeacherStagePublicationPhase;
+            readonly authorizationReceipt: Readonly<FloodgateTeacherStageAuthorizationReceipt>;
+            readonly stageRoot: string;
+            readonly destinationRoot: string;
+            commit: typeof commit;
+            abort: typeof abort;
+          };
+          Object.defineProperty(transaction, "phase", {
+            configurable: false,
+            enumerable: true,
+            get: () => phase,
+          });
+          Object.defineProperty(transaction, "authorizationReceipt", {
+            configurable: false,
+            enumerable: true,
+            value: receipt,
+            writable: false,
+          });
+          Object.defineProperty(transaction, "stageRoot", {
+            configurable: false,
+            enumerable: true,
+            value: stageRoot,
+            writable: false,
+          });
+          Object.defineProperty(transaction, "destinationRoot", {
+            configurable: false,
+            enumerable: true,
+            value: destinationRoot,
+            writable: false,
+          });
+          Object.defineProperty(transaction, "commit", {
+            configurable: false,
+            enumerable: true,
+            value: commit,
+            writable: false,
+          });
+          Object.defineProperty(transaction, "abort", {
+            configurable: false,
+            enumerable: true,
+            value: abort,
+            writable: false,
+          });
+          return objectFreeze(transaction);
+        },
+      });
+    activateRuntimeClaim(runtimeClaims, authorizedLease, publicationController);
     return authorizedLease;
   } catch (error) {
     const cleanupFailures = mutableNullPrototypeArray<unknown>();
@@ -1915,8 +3131,7 @@ export function authorizeFloodgateTeacherStage(
     options,
     {
       effectiveUserId: nativeGetEffectiveUserId(),
-      inspectorPythonExecutable:
-        FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
+      inspectorPythonExecutable: FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
     },
     PRODUCTION_RUNTIME_CLAIMS,
   );

@@ -140,11 +140,14 @@ def main() -> None:
     ):
         fail("source pathname no longer names held source", PRECONDITION_EXIT)
 
-    libc = ctypes.CDLL(None, use_errno=True)
     try:
+        libc = ctypes.CDLL(None, use_errno=True)
         renameatx_np = libc.renameatx_np
-    except AttributeError:
-        fail("Darwin libc does not expose renameatx_np", PRECONDITION_EXIT)
+    except (OSError, AttributeError) as error:
+        fail(
+            f"Darwin libc or renameatx_np is unavailable: {error}",
+            PRECONDITION_EXIT,
+        )
     renameatx_np.argtypes = [
         ctypes.c_int,
         ctypes.c_char_p,

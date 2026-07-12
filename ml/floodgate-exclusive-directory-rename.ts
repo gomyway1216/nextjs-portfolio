@@ -19,7 +19,7 @@ export const FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_HELPER = path.resolve(
   "helpers/floodgate-exclusive-directory-rename.py",
 );
 export const FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_HELPER_SHA256 =
-  "644d2a412961c34e16527e484be98769806f1d7cdc72a92f6fd2c5b66a5fa8e6" as const;
+  "a10078ae3eda0e71ac8a8a4365d294ea00e8e607aba6eae81c3a52cf0aea066b" as const;
 
 const DEFAULT_HELPER_TIMEOUT_MILLISECONDS = 5_000;
 const DEFAULT_HELPER_MAX_OUTPUT_BYTES = 4_096;

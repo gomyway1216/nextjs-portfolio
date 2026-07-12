@@ -43,6 +43,14 @@ import { positionFromSfen, rulesCompleteLegalMoves } from "./shogi-sfen";
 export const FLOODGATE_TRAINING_RAW_FILENAME = "training.raw.jsonl" as const;
 export const FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA =
   "shogi-authenticated-floodgate-training-rows-v1" as const;
+export const FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_SCHEMA =
+  "shogi-authenticated-floodgate-training-postflight-v1" as const;
+export const FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_STATUS =
+  "verified-runtime-input-claim-postflight-and-descriptors-closed" as const;
+export const FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_CLAIM_BOUNDARY =
+  "consumer-input-and-lifecycle-binding-only-not-staged-output-teacher-label-or-playing-strength-evidence" as const;
+export const FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_RUNTIME_CLAIM =
+  "exact-input-single-use-claimed-during-synchronous-callback-invocation" as const;
 export const FLOODGATE_TRAINING_RAW_MAX_BYTES = 64 * 1024 * 1024;
 
 const NativeError = Error;
@@ -178,6 +186,26 @@ export interface AuthenticatedFloodgateTrainingRows {
   readonly rows: readonly Readonly<FloodgateTrainingParent>[];
 }
 
+export interface FloodgateTrainingConsumerPostflightReceipt {
+  readonly schema: typeof FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_SCHEMA;
+  readonly status: typeof FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_CLAIM_BOUNDARY;
+  readonly execution_boundary:
+    | "production-fixed-pinned-bundle-verifier"
+    | "test-only-injected-bundle-verifier";
+  readonly input: Readonly<{
+    readonly schema: typeof FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA;
+    readonly role: "training";
+    readonly binding: Readonly<FloodgateTrainingInputBinding>;
+  }>;
+  readonly runtime_claim: typeof FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_RUNTIME_CLAIM;
+  readonly postflight: Readonly<{
+    readonly callback_settled_without_value: true;
+    readonly filesystem_snapshot_revalidated_after_callback: true;
+    readonly input_descriptors_closed: true;
+  }>;
+}
+
 export interface FloodgateTrainingRowConsumerDependencies {
   readonly verifyBundle: (
     options: Readonly<FloodgateTrainingRowConsumerOptions>,
@@ -228,6 +256,14 @@ interface DescriptorCloseOutcome {
 
 interface RuntimeClaimRegistry {
   readonly available: WeakSet<Readonly<AuthenticatedFloodgateTrainingRows>>;
+  readonly claimed: WeakSet<Readonly<AuthenticatedFloodgateTrainingRows>>;
+  readonly boundary: "production" | "test-only";
+}
+
+interface PostflightClaimRegistry {
+  readonly available: WeakSet<
+    Readonly<FloodgateTrainingConsumerPostflightReceipt>
+  >;
   readonly boundary: "production" | "test-only";
 }
 
@@ -242,12 +278,27 @@ function createRuntimeClaimRegistry(
     available: new NativeWeakSet<
       Readonly<AuthenticatedFloodgateTrainingRows>
     >(),
+    claimed: new NativeWeakSet<Readonly<AuthenticatedFloodgateTrainingRows>>(),
+    boundary,
+  });
+}
+
+function createPostflightClaimRegistry(
+  boundary: PostflightClaimRegistry["boundary"],
+): Readonly<PostflightClaimRegistry> {
+  return objectFreeze({
+    available: new NativeWeakSet<
+      Readonly<FloodgateTrainingConsumerPostflightReceipt>
+    >(),
     boundary,
   });
 }
 
 const PRODUCTION_RUNTIME_CLAIMS = createRuntimeClaimRegistry("production");
 const TEST_RUNTIME_CLAIMS = createRuntimeClaimRegistry("test-only");
+const PRODUCTION_POSTFLIGHT_CLAIMS =
+  createPostflightClaimRegistry("production");
+const TEST_POSTFLIGHT_CLAIMS = createPostflightClaimRegistry("test-only");
 
 function runtimeClaimAdd(
   registrySet: WeakSet<Readonly<AuthenticatedFloodgateTrainingRows>>,
@@ -286,6 +337,14 @@ function claimRuntimeInput(
       `${registry.boundary} runtime claim requires the exact active unclaimed input`,
     );
   }
+  runtimeClaimAdd(registry.claimed, input);
+}
+
+function consumeRuntimeClaimSuccess(
+  registry: Readonly<RuntimeClaimRegistry>,
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+): boolean {
+  return runtimeClaimDelete(registry.claimed, input);
 }
 
 /**
@@ -305,6 +364,38 @@ export function claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
   input: Readonly<AuthenticatedFloodgateTrainingRows>,
 ): void {
   claimRuntimeInput(TEST_RUNTIME_CLAIMS, input);
+}
+
+function postflightClaimAdd(
+  registry: Readonly<PostflightClaimRegistry>,
+  receipt: Readonly<FloodgateTrainingConsumerPostflightReceipt>,
+): void {
+  reflectApply(nativeWeakSetAdd, registry.available, [receipt]);
+}
+
+function claimPostflightReceipt(
+  registry: Readonly<PostflightClaimRegistry>,
+  receipt: Readonly<FloodgateTrainingConsumerPostflightReceipt>,
+): void {
+  if (!reflectApply(nativeWeakSetDelete, registry.available, [receipt])) {
+    fail(
+      `${registry.boundary} postflight claim requires the exact unclaimed receipt`,
+    );
+  }
+}
+
+/** Claim one exact production postflight receipt. Clones and repeat claims fail. */
+export function claimVerifiedFloodgateTrainingConsumerPostflight(
+  receipt: Readonly<FloodgateTrainingConsumerPostflightReceipt>,
+): void {
+  claimPostflightReceipt(PRODUCTION_POSTFLIGHT_CLAIMS, receipt);
+}
+
+/** Test-only postflight registry, intentionally isolated from production. */
+export function claimVerifiedFloodgateTrainingConsumerPostflightCoreForTests(
+  receipt: Readonly<FloodgateTrainingConsumerPostflightReceipt>,
+): void {
+  claimPostflightReceipt(TEST_POSTFLIGHT_CLAIMS, receipt);
 }
 
 function combinedFailure(
@@ -1135,6 +1226,140 @@ function buildAuthenticatedInput(
   });
 }
 
+function defineFrozenReceiptField(
+  target: object,
+  key: string,
+  value: unknown,
+): void {
+  objectDefineProperty(target, key, {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value,
+  });
+}
+
+function buildPostflightBinding(
+  binding: Readonly<FloodgateTrainingInputBinding>,
+): Readonly<FloodgateTrainingInputBinding> {
+  const captured = objectCreate(null) as object;
+  defineFrozenReceiptField(
+    captured,
+    "result_receipt_bytes",
+    binding.result_receipt_bytes,
+  );
+  defineFrozenReceiptField(
+    captured,
+    "result_receipt_sha256",
+    binding.result_receipt_sha256,
+  );
+  defineFrozenReceiptField(
+    captured,
+    "bundle_manifest_bytes",
+    binding.bundle_manifest_bytes,
+  );
+  defineFrozenReceiptField(
+    captured,
+    "bundle_manifest_sha256",
+    binding.bundle_manifest_sha256,
+  );
+  defineFrozenReceiptField(
+    captured,
+    "bundle_producer_revision",
+    binding.bundle_producer_revision,
+  );
+  defineFrozenReceiptField(
+    captured,
+    "verifier_revision",
+    binding.verifier_revision,
+  );
+  defineFrozenReceiptField(captured, "raw_format", binding.raw_format);
+  defineFrozenReceiptField(captured, "raw_bytes", binding.raw_bytes);
+  defineFrozenReceiptField(captured, "raw_sha256", binding.raw_sha256);
+  defineFrozenReceiptField(captured, "records", binding.records);
+  defineFrozenReceiptField(captured, "games", binding.games);
+  defineFrozenReceiptField(
+    captured,
+    "game_ids_sha256",
+    binding.game_ids_sha256,
+  );
+  defineFrozenReceiptField(
+    captured,
+    "parent_ids_sha256",
+    binding.parent_ids_sha256,
+  );
+  defineFrozenReceiptField(
+    captured,
+    "position_ids_count",
+    binding.position_ids_count,
+  );
+  defineFrozenReceiptField(
+    captured,
+    "position_ids_sha256",
+    binding.position_ids_sha256,
+  );
+  return objectFreeze(captured) as Readonly<FloodgateTrainingInputBinding>;
+}
+
+function buildPostflightReceipt(
+  boundary: RuntimeClaimRegistry["boundary"],
+  binding: Readonly<FloodgateTrainingInputBinding>,
+): Readonly<FloodgateTrainingConsumerPostflightReceipt> {
+  const input = objectCreate(null) as object;
+  defineFrozenReceiptField(
+    input,
+    "schema",
+    FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
+  );
+  defineFrozenReceiptField(input, "role", "training");
+  defineFrozenReceiptField(input, "binding", buildPostflightBinding(binding));
+  objectFreeze(input);
+
+  const postflight = objectCreate(null) as object;
+  defineFrozenReceiptField(postflight, "callback_settled_without_value", true);
+  defineFrozenReceiptField(
+    postflight,
+    "filesystem_snapshot_revalidated_after_callback",
+    true,
+  );
+  defineFrozenReceiptField(postflight, "input_descriptors_closed", true);
+  objectFreeze(postflight);
+
+  const receipt = objectCreate(null) as object;
+  defineFrozenReceiptField(
+    receipt,
+    "schema",
+    FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_SCHEMA,
+  );
+  defineFrozenReceiptField(
+    receipt,
+    "status",
+    FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_STATUS,
+  );
+  defineFrozenReceiptField(
+    receipt,
+    "claim_boundary",
+    FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_CLAIM_BOUNDARY,
+  );
+  defineFrozenReceiptField(
+    receipt,
+    "execution_boundary",
+    boundary === "production"
+      ? "production-fixed-pinned-bundle-verifier"
+      : "test-only-injected-bundle-verifier",
+  );
+  defineFrozenReceiptField(receipt, "input", input);
+  defineFrozenReceiptField(
+    receipt,
+    "runtime_claim",
+    FLOODGATE_TRAINING_CONSUMER_POSTFLIGHT_RUNTIME_CLAIM,
+  );
+  defineFrozenReceiptField(receipt, "postflight", postflight);
+  return objectFreeze(
+    receipt,
+  ) as Readonly<FloodgateTrainingConsumerPostflightReceipt>;
+}
+
 function pinNativePromise<T>(value: Promise<T>): Promise<T> {
   objectDefineProperty(value, "constructor", {
     configurable: false,
@@ -1187,6 +1412,32 @@ function guardNativeVoidPromise(value: unknown, label: string): Promise<void> {
   const completion = new NativePromise<void>((resolve, reject) => {
     try {
       reflectApply(nativePromiseThen, boxed, [() => resolve(), reject]);
+    } catch {
+      reject(new NativeError(`failed to guard ${label}`));
+    }
+  });
+  return pinNativePromise(completion);
+}
+
+function observeNativePromiseSettlement(value: Promise<unknown>): void {
+  try {
+    reflectApply(nativePromiseThen, value, [() => undefined, () => undefined]);
+  } catch {
+    // The guarded native Promise has already attached to the callback result.
+  }
+}
+
+function guardNativeResultPromise<T>(
+  value: unknown,
+  label: string,
+): Promise<T> {
+  const boxed = guardNativePromiseBox<T>(value, label);
+  const completion = new NativePromise<T>((resolve, reject) => {
+    try {
+      reflectApply(nativePromiseThen, boxed, [
+        (settled: Readonly<NativePromiseBox<T>>) => resolve(settled.value),
+        reject,
+      ]);
     } catch {
       reject(new NativeError(`failed to guard ${label}`));
     }
@@ -1281,7 +1532,26 @@ async function runVerifiedPinnedFloodgateTrainingRows(
   ) => Promise<void>,
   dependenciesInput: FloodgateTrainingRowConsumerDependencies,
   runtimeClaims: Readonly<RuntimeClaimRegistry>,
-): Promise<void> {
+  postflightClaims: undefined,
+): Promise<void>;
+async function runVerifiedPinnedFloodgateTrainingRows(
+  optionsInput: FloodgateTrainingRowConsumerOptions,
+  consumeInput: (
+    input: Readonly<AuthenticatedFloodgateTrainingRows>,
+  ) => Promise<void>,
+  dependenciesInput: FloodgateTrainingRowConsumerDependencies,
+  runtimeClaims: Readonly<RuntimeClaimRegistry>,
+  postflightClaims: Readonly<PostflightClaimRegistry>,
+): Promise<Readonly<FloodgateTrainingConsumerPostflightReceipt>>;
+async function runVerifiedPinnedFloodgateTrainingRows(
+  optionsInput: FloodgateTrainingRowConsumerOptions,
+  consumeInput: (
+    input: Readonly<AuthenticatedFloodgateTrainingRows>,
+  ) => Promise<void>,
+  dependenciesInput: FloodgateTrainingRowConsumerDependencies,
+  runtimeClaims: Readonly<RuntimeClaimRegistry>,
+  postflightClaims: Readonly<PostflightClaimRegistry> | undefined,
+): Promise<void | Readonly<FloodgateTrainingConsumerPostflightReceipt>> {
   const options = captureOptions(optionsInput);
   const consume = captureConsumer(consumeInput);
   const dependencies = captureDependencies(dependenciesInput);
@@ -1289,6 +1559,7 @@ async function runVerifiedPinnedFloodgateTrainingRows(
 
   let failed = false;
   let failure: unknown;
+  let postflightBinding: Readonly<FloodgateTrainingInputBinding> | undefined;
   try {
     const verifiedPromise = reflectApply(dependencies.verifyBundle, undefined, [
       options,
@@ -1313,8 +1584,10 @@ async function runVerifiedPinnedFloodgateTrainingRows(
       capturedVerified.rawIdentity,
     );
     const input = buildAuthenticatedInput(capturedVerified, rows);
+    postflightBinding = input.binding;
     activateRuntimeClaim(runtimeClaims, input);
     let callbackPromise: Promise<void>;
+    let runtimeClaimSucceeded = false;
     try {
       callbackPromise = reflectApply(consume, undefined, [input]);
     } finally {
@@ -1322,10 +1595,21 @@ async function runVerifiedPinnedFloodgateTrainingRows(
       // Waiting for Promise settlement would let callback-scheduled microtasks race
       // this revocation after the Promise was already settled.
       revokeRuntimeClaim(runtimeClaims, input);
+      // Consume the success marker on every callback exit. Legacy calls discard
+      // it; postflight calls require it before they can mint a receipt.
+      runtimeClaimSucceeded = consumeRuntimeClaimSuccess(runtimeClaims, input);
     }
-    const callbackResult = (
-      await guardNativePromiseBox<void>(callbackPromise, "consumer")
-    ).value;
+    const guardedCallbackPromise = guardNativePromiseBox<void>(
+      callbackPromise,
+      "consumer",
+    );
+    if (postflightClaims !== undefined && !runtimeClaimSucceeded) {
+      observeNativePromiseSettlement(guardedCallbackPromise);
+      fail(
+        "postflight receipt requires the exact input runtime claim during synchronous callback invocation",
+      );
+    }
+    const callbackResult = (await guardedCallbackPromise).value;
     if (callbackResult !== undefined) {
       fail("consumer must resolve without a return value");
     }
@@ -1361,6 +1645,16 @@ async function runVerifiedPinnedFloodgateTrainingRows(
       closeErrors,
     );
   }
+  if (postflightClaims === undefined) return;
+  if (postflightBinding === undefined) {
+    fail("postflight binding is unavailable after successful consumption");
+  }
+  const receipt = buildPostflightReceipt(
+    runtimeClaims.boundary,
+    postflightBinding,
+  );
+  postflightClaimAdd(postflightClaims, receipt);
+  return receipt;
 }
 
 /** Dependency-injected production core used by adversarial unit tests. */
@@ -1377,6 +1671,7 @@ export function withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
       consumeInput,
       dependenciesInput,
       TEST_RUNTIME_CLAIMS,
+      undefined,
     ),
     "training-consumer execution",
   );
@@ -1403,7 +1698,58 @@ export function withVerifiedPinnedFloodgateTrainingRows(
       consume,
       PRODUCTION_DEPENDENCIES,
       PRODUCTION_RUNTIME_CLAIMS,
+      undefined,
     ),
     "training-consumer execution",
+  );
+}
+
+/**
+ * Test-only verifier boundary that returns a provenance capability only after
+ * the exact callback input is claimed, postflight succeeds, and both held
+ * descriptors close successfully.
+ */
+export function withVerifiedPinnedFloodgateTrainingRowsAndPostflightCoreForTests(
+  optionsInput: FloodgateTrainingRowConsumerOptions,
+  consumeInput: (
+    input: Readonly<AuthenticatedFloodgateTrainingRows>,
+  ) => Promise<void>,
+  dependenciesInput: FloodgateTrainingRowConsumerDependencies,
+): Promise<Readonly<FloodgateTrainingConsumerPostflightReceipt>> {
+  return guardNativeResultPromise<
+    Readonly<FloodgateTrainingConsumerPostflightReceipt>
+  >(
+    runVerifiedPinnedFloodgateTrainingRows(
+      optionsInput,
+      consumeInput,
+      dependenciesInput,
+      TEST_RUNTIME_CLAIMS,
+      TEST_POSTFLIGHT_CLAIMS,
+    ),
+    "training-consumer postflight execution",
+  );
+}
+
+/**
+ * Authenticate the pinned training input and mint a runtime-only postflight
+ * capability after the claimed callback and held-descriptor lifecycle finish.
+ */
+export function withVerifiedPinnedFloodgateTrainingRowsAndPostflight(
+  options: FloodgateTrainingRowConsumerOptions,
+  consume: (
+    input: Readonly<AuthenticatedFloodgateTrainingRows>,
+  ) => Promise<void>,
+): Promise<Readonly<FloodgateTrainingConsumerPostflightReceipt>> {
+  return guardNativeResultPromise<
+    Readonly<FloodgateTrainingConsumerPostflightReceipt>
+  >(
+    runVerifiedPinnedFloodgateTrainingRows(
+      options,
+      consume,
+      PRODUCTION_DEPENDENCIES,
+      PRODUCTION_RUNTIME_CLAIMS,
+      PRODUCTION_POSTFLIGHT_CLAIMS,
+    ),
+    "training-consumer postflight execution",
   );
 }

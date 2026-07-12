@@ -13,7 +13,7 @@
 | direct sibling stage / destination    | 実装済み | strict basename、同一parent、相互にdistinct、destinationは不存在     |
 | protected-input disjointness          | 実装済み | realpath、inode、双方向のancestor / descendantを拒否                 |
 | exclusive stage lease                 | 実装済み | 同じstageへの同時authorizationを拒否し、stale leaseを自動stealしない |
-| fixed stage entry allowlist           | 実装済み | resume stageの未知entry、symlink、特殊fileを拒否                     |
+| held-fd stage entry allowlist         | 実装済み | fd-relative二重snapshotで未知entry、symlink、特殊fileを拒否          |
 | teacher generation / consumer接続     | 未実装   | このmoduleはgeneratorもconsumerも呼ばない                            |
 | MAC resume / fsync / result receipt   | 未実装   | 次段でcheckpoint authenticationとdurabilityを閉じる                  |
 | stable depth-11 proposer / depth-16   | 未実装   | 事前登録したcandidate unionはまだ完成していない                      |
@@ -43,13 +43,13 @@ production APIは`authorizeFloodgateTeacherStage(...)`、dependency-injected tes
 - publication parent
 - strict direct-child stage basenameとfuture destination basename
 
-role selector、training JSONL path、selection path、final-holdout path、teacher scoreは受け取らない。protected inputの内容もreadせず、namespace / metadata identityだけを検査する。`engineArgs`はholeのないown data propertyだけで構成するarrayとして同期captureし、accessorやinherited elementは呼び出さず拒否する。各entryはsimpleな`-option` / `--option` tokenか、canonical absoluteで現在存在するregular fileだけを許す。relative path、存在しないfuture path、`--config=/path`のようなinline pathを推測で通さない。
+role selector、training JSONL path、selection path、final-holdout path、teacher scoreは受け取らない。protected inputの内容もreadせず、namespace / metadata identityだけを検査する。authorization optionとtest dependencyは同期的にenumerable own data descriptorだけをcaptureし、accessor、hidden field、unexpected field、inherited test overrideを実行経路へ入れない。`engineArgs`もholeのないenumerable own data propertyだけで構成するarrayとしてcaptureし、accessorやinherited elementは呼び出さず拒否する。各entryはsimpleな`-option` / `--option` tokenか、canonical absoluteで現在存在するregular fileだけを許す。relative path、存在しないfuture path、`--config=/path`のようなinline pathを推測で通さない。
 
 ## 3. parentとstageをpathだけでなくdescriptorで保持する
 
 publication parentとstageはcanonical absolute real pathであり、current effective UIDが所有するexact `0700` directoryでなければならない。special mode bit、group / other permission、symlink traversalは拒否する。
 
-両directoryは`O_NOFOLLOW | O_DIRECTORY`でopenし、descriptor `fstat`とpathname `lstat` / `realpath`を照合する。filesystem callbackが返すstat / entry objectはPromiseへ渡す前にscalarだけのfrozen null-prototype snapshotへ変換するため、継承された`Object.prototype.then`によるthenable assimilationでidentityやprotected pathを落とせない。engine argument、entry name、protected snapshot、cleanup failureなどの内部security arrayも、最初のindex writeより前にnull-prototype化するため、継承されたnumeric setterで要素を吸収できない。authorization中はheld descriptorの`dev / ino`がidentity anchorになる。stageが存在しないfresh caseではexact `0700`で作成してからopenし、既存stageを使うresume caseでは固定entry contractを先に検査する。
+両directoryは`O_NOFOLLOW | O_DIRECTORY`でopenし、descriptor `fstat`とpathname `lstat` / `realpath`を照合する。filesystem callbackが返すstat objectはPromiseへ渡す前にscalarだけのfrozen null-prototype snapshotへ変換するため、継承された`Object.prototype.then`によるthenable assimilationでidentityやprotected pathを落とせない。engine argument、protected snapshot、cleanup failureなどの内部security arrayも、最初のindex writeより前にnull-prototype化するため、継承されたnumeric setterで要素を吸収できない。authorization中はheld descriptorの`dev / ino`がidentity anchorになる。stageが存在しないfresh caseではexact `0700`で作成してからopenし、既存stageを使うresume caseでは固定entry contractを先に検査する。
 
 stageとdestinationは同じheld parent直下のdistinct basenameである。basenameは`.`または`..`そのものであってはならず、slash、backslash、NUL、control characterを含めない。内部の`.`はsafe basename文字として許す。destinationはfile、symlink、empty directory、non-empty directoryのどれであっても存在すればauthorization前に拒否する。これはpublicationではなく、将来のexclusive renameが使うnamespaceを先に予約するpreconditionである。
 
@@ -72,7 +72,9 @@ authorizationはstageに対応するexclusive sibling leaseを作成し、その
 
 ## 6. 固定entry allowlistが証明する範囲
 
-resume stageでは既知のteacher artifact basenameだけを許し、unknown entry、symlink、directory、deviceなどを拒否する。既知entryもcurrent-EUID-owned exact `0600`、regular file、link count 1でなければならず、explicit protected fileとのinode aliasを拒否する。この検査はfile内容、JSON schema、bytes、SHA-256、checkpoint MAC、fsync状態を証明しない。stage authorizationはartifact closureの一段手前であり、次段runnerがexact file setとcontent receiptを所有する。
+resume stageでは既知のteacher artifact basenameだけを許し、unknown entry、symlink、directory、deviceなどを拒否する。pathname swap後の別directoryを読まないよう、root-owned `/usr/bin/python3` launcherを`-I -S -E`、empty environment、root cwd、5秒timeout、4,096-byte上限で起動し、held stage descriptorをchild fd 3へ継承する。macOS launcherが選ぶXcode Python runtime / stdlibそのものをroot-ownedとしてpinした主張ではなく、そのruntimeは既存のtrusted-current-EUID境界に含む。固定inline syscall bridgeは`os.listdir(3)`と`os.stat(raw_name, dir_fd=3, follow_symlinks=False)`だけでentry setとmetadataを二度取得し、前後の`os.fstat(3)`から射影した`dev / ino / mode / nlink / uid` signatureと両snapshotが完全一致しなければfail closedにする。Node側もstrict ASCII protocolのraw-name hexとdecimal statを再検査し、scan直前・直後にheld fdとpathname identityを再照合する。
+
+既知entryはcurrent-EUID-owned exact `0600`、regular file、link count 1でなければならず、explicit protected fileとのinode aliasを拒否する。この検査はfile内容、JSON schema、bytes、SHA-256、checkpoint MAC、fsync状態を証明しない。helperもentry contentをreadしない。list / fstatatはatomic filesystem snapshotではないため、same-EUID actorが照合間にswapして元へ戻す攻撃を排除する主張はせず、既存のtrusted-current-EUID critical sectionを前提にする。stage authorizationはartifact closureの一段手前であり、次段runnerがexact file setとcontent receiptを所有する。
 
 成功receiptは意図的に次のstatusを返す。
 
@@ -117,15 +119,15 @@ fresh selectionは3 seed final checkpointとresult receiptがstrict-loadする�
 
 | 検証                        | 結果                                       |
 | --------------------------- | ------------------------------------------ |
-| targeted adversarial Vitest | 85/85 PASS（1 file）                       |
-| full Vitest                 | 1,586/1,586 PASS（98 files）               |
+| targeted adversarial Vitest | 97/97 PASS（1 file）                       |
+| full Vitest                 | 1,598/1,598 PASS（98 files）               |
 | Python stdlib suite         | 58/58 PASS                                 |
 | TypeScript `tsc --noEmit`   | PASS                                       |
 | full ESLint                 | 0 errors / 157 unrelated existing warnings |
 | Next.js production build    | PASS（193 pages）                          |
-| 独立adversarial review      | 2/2 CLEAN                                  |
+| 独立adversarial re-review   | 2/2 CLEAN                                  |
 
-targeted suiteはfresh / resume、全protected category、ancestor / descendant、hardlink / symlink、path swap、future engine-argument path、同時 / stale lease、replacementを消さないtyped cleanup、close-time mutation、`Promise.all` / `Object.prototype.then` / `Array.prototype.push` / inherited `Array.prototype[0]` setter / `RegExp.prototype.exec` / `Error[Symbol.hasInstance]` poisoning、top-levelと`engineArgs` elementのaccessor descriptor拒否、日英parityを含む。suiteはtemporary directoryとsynthetic sentinelだけを使い、real bundle、training rows、engine search、selection、final holdoutを入力にしない。
+targeted suiteはfresh / resume、全protected category、ancestor / descendant、hardlink / symlink、held-fd scan中のpathname replacement、invalid-UTF8 name（filesystemが許す場合）、inspector malformed output / wrong root / stderr / nonzero / timeout / overflow、future engine-argument path、同時 / stale lease、replacementを消さないtyped cleanup、close-time mutation、`Promise.all` / isolated `Object.prototype.then` / `Array.prototype.push` / inherited `Array.prototype[0]` setter / `String.prototype.split` / `RegExp.prototype.exec` / `Error[Symbol.hasInstance]` poisoning、top-level・dependency・`engineArgs` elementのaccessor / non-enumerable descriptor拒否、inherited production inspector override拒否、日英parityを含む。suiteはtemporary directoryとsynthetic sentinelだけを使い、real bundle、training rows、engine search、selection、final holdoutを入力にしない。
 
 ## 10. 結論
 

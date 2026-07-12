@@ -6,19 +6,19 @@
 
 ## Current status
 
-| Item                                  | Status          | Boundary closed by this PR                                                 |
-| ------------------------------------- | --------------- | -------------------------------------------------------------------------- |
-| canonical publication parent          | Implemented     | Symlink-free, current-EUID-owned exact-`0700` directory                    |
-| held parent / stage descriptors       | Implemented     | Binds path and `dev / ino` with `O_NOFOLLOW \| O_DIRECTORY`                |
-| direct-sibling stage / destination    | Implemented     | Strict basenames, same parent, distinct, and destination absent            |
-| protected-input disjointness          | Implemented     | Rejects realpath, inode, and both ancestor / descendant directions         |
-| exclusive stage lease                 | Implemented     | Rejects concurrent authorization and never automatically steals stale lock |
-| fixed stage-entry allowlist           | Implemented     | Rejects unknown entries, symlinks, and special files in a resume stage     |
-| teacher generation / consumer wiring  | Not implemented | This module calls neither generator nor consumer                           |
-| MAC resume / fsync / result receipt   | Not implemented | The next boundary authenticates checkpoints and closes durability          |
-| stable depth-11 proposer / depth-16   | Not implemented | The preregistered candidate union is not complete                          |
-| real data / selection / final holdout | Unread          | No role data or labels enter this PR                                       |
-| strength claim                        | None            | Path / lease authorization is not playing-strength evidence                |
+| Item                                  | Status          | Boundary closed by this PR                                                   |
+| ------------------------------------- | --------------- | ---------------------------------------------------------------------------- |
+| canonical publication parent          | Implemented     | Symlink-free, current-EUID-owned exact-`0700` directory                      |
+| held parent / stage descriptors       | Implemented     | Binds path and `dev / ino` with `O_NOFOLLOW \| O_DIRECTORY`                  |
+| direct-sibling stage / destination    | Implemented     | Strict basenames, same parent, distinct, and destination absent              |
+| protected-input disjointness          | Implemented     | Rejects realpath, inode, and both ancestor / descendant directions           |
+| exclusive stage lease                 | Implemented     | Rejects concurrent authorization and never automatically steals stale lock   |
+| held-fd stage-entry allowlist         | Implemented     | Rejects unknown, symlink, and special entries from a double fd-relative scan |
+| teacher generation / consumer wiring  | Not implemented | This module calls neither generator nor consumer                             |
+| MAC resume / fsync / result receipt   | Not implemented | The next boundary authenticates checkpoints and closes durability            |
+| stable depth-11 proposer / depth-16   | Not implemented | The preregistered candidate union is not complete                            |
+| real data / selection / final holdout | Unread          | No role data or labels enter this PR                                         |
+| strength claim                        | None            | Path / lease authorization is not playing-strength evidence                  |
 
 “Authorized” here means only that the namespace and held identity are temporarily leased for use as a private stage. It does not mean that artifacts were generated, a checkpoint is trustworthy, consumer postflight succeeded, a directory was published, or the model became stronger.
 
@@ -43,13 +43,13 @@ The production API is `authorizeFloodgateTeacherStage(...)`; the dependency-inje
 - publication parent
 - strict direct-child basenames for the stage and future destination
 
-It accepts no role selector, training-JSONL path, selection path, final-holdout path, or teacher score. It does not read protected-input content; it checks only namespace and metadata identity. `engineArgs` is synchronously captured as a dense array of own data properties; accessors and inherited elements are rejected without invocation. Each entry must be either a simple `-option` / `--option` token or a canonical absolute regular file that currently exists. Relative paths, absent future paths, and inline forms such as `--config=/path` are not admitted by guesswork.
+It accepts no role selector, training-JSONL path, selection path, final-holdout path, or teacher score. It does not read protected-input content; it checks only namespace and metadata identity. Authorization options and test dependencies synchronously capture only enumerable own data descriptors, excluding accessors, hidden fields, unexpected fields, and inherited test overrides from the execution path. `engineArgs` is likewise captured as a dense array of enumerable own data properties; accessors and inherited elements are rejected without invocation. Each entry must be either a simple `-option` / `--option` token or a canonical absolute regular file that currently exists. Relative paths, absent future paths, and inline forms such as `--config=/path` are not admitted by guesswork.
 
 ## 3. Holding parent and stage by descriptor, not pathname alone
 
 The publication parent and stage must be canonical absolute real paths and current-effective-UID-owned exact-`0700` directories. Special mode bits, group / other permissions, and symlink traversal are rejected.
 
-Both directories are opened through `O_NOFOLLOW | O_DIRECTORY`, and descriptor `fstat` is matched against pathname `lstat` / `realpath`. Stat and entry objects returned by filesystem callbacks are reduced to frozen null-prototype scalar snapshots before Promise resolution, so inherited `Object.prototype.then` cannot use thenable assimilation to drop identities or protected paths. Internal security arrays for engine arguments, entry names, protected snapshots, and cleanup failures also receive null prototypes before their first indexed write, so inherited numeric setters cannot absorb elements. The held descriptor's `dev / ino` is the identity anchor during authorization. In the fresh case an absent stage is created exact `0700` and then opened; in the resume case the fixed-entry contract is checked before an existing stage is admitted.
+Both directories are opened through `O_NOFOLLOW | O_DIRECTORY`, and descriptor `fstat` is matched against pathname `lstat` / `realpath`. Stat objects returned by filesystem callbacks are reduced to frozen null-prototype scalar snapshots before Promise resolution, so inherited `Object.prototype.then` cannot use thenable assimilation to drop identities or protected paths. Internal security arrays for engine arguments, protected snapshots, and cleanup failures also receive null prototypes before their first indexed write, so inherited numeric setters cannot absorb elements. The held descriptor's `dev / ino` is the identity anchor during authorization. In the fresh case an absent stage is created exact `0700` and then opened; in the resume case the fixed-entry contract is checked before an existing stage is admitted.
 
 Stage and destination are distinct basenames directly under the same held parent. A basename may not be exactly `.` or `..` and may not contain a slash, backslash, NUL, or control character; an internal `.` remains an allowed safe-basename character. Authorization rejects an existing destination whether it is a file, symlink, empty directory, or non-empty directory. This is not publication; it reserves a precondition for the later exclusive rename.
 
@@ -72,7 +72,9 @@ For a successful lease, `close()` is idempotent. It rechecks the held parent / s
 
 ## 6. What the fixed-entry allowlist proves
 
-A resume stage admits only known teacher-artifact basenames and rejects unknown entries, symlinks, directories, devices, and other special files. A known entry must also be a current-EUID-owned exact-`0600` regular file with link count one, and it may not share an inode with an explicitly protected file. This does not prove file contents, JSON schema, byte counts, SHA-256, checkpoint MAC, or fsync state. Stage authorization precedes artifact closure; the next runner boundary must own the exact file set and content receipt.
+A resume stage admits only known teacher-artifact basenames and rejects unknown entries, symlinks, directories, devices, and other special files. To avoid reading a different directory after a pathname swap, the root-owned `/usr/bin/python3` launcher runs with `-I -S -E`, an empty environment, root cwd, a five-second timeout, and a 4,096-byte output bound; the held stage descriptor is inherited as child fd 3. This does not claim that the Xcode Python runtime / stdlib selected by the macOS launcher is itself pinned and root-owned; that runtime remains inside the existing trusted-current-EUID boundary. The fixed inline syscall bridge takes two entry-and-metadata snapshots using `os.listdir(3)` plus `os.stat(raw_name, dir_fd=3, follow_symlinks=False)`, and fails closed unless they and the projected `dev / ino / mode / nlink / uid` signatures from before / after `os.fstat(3)` match exactly. Node then revalidates the strict-ASCII protocol's raw-name hex and decimal stats and matches held-fd / pathname identity both immediately before and after the scan.
+
+A known entry must be a current-EUID-owned exact-`0600` regular file with link count one, and it may not share an inode with an explicitly protected file. This does not prove file contents, JSON schema, byte counts, SHA-256, checkpoint MAC, or fsync state; the helper also reads no entry content. List / fstatat is not an atomic filesystem snapshot, so this does not claim to defeat a same-EUID actor that swaps and restores state between checks. The existing trusted-current-EUID critical section remains an assumption. Stage authorization precedes artifact closure; the next runner boundary must own the exact file set and content receipt.
 
 The successful receipt deliberately carries this status:
 
@@ -115,17 +117,17 @@ Fresh selection remains closed until all three final checkpoints and result rece
 
 ## 9. Verification snapshot
 
-| Check                          | Result                                     |
-| ------------------------------ | ------------------------------------------ |
-| targeted adversarial Vitest    | 85/85 PASS (1 file)                        |
-| full Vitest                    | 1,586/1,586 PASS (98 files)                |
-| Python stdlib suite            | 58/58 PASS                                 |
-| TypeScript `tsc --noEmit`      | PASS                                       |
-| full ESLint                    | 0 errors / 157 unrelated existing warnings |
-| Next.js production build       | PASS (193 pages)                           |
-| independent adversarial review | 2/2 CLEAN                                  |
+| Check                             | Result                                     |
+| --------------------------------- | ------------------------------------------ |
+| targeted adversarial Vitest       | 97/97 PASS (1 file)                        |
+| full Vitest                       | 1,598/1,598 PASS (98 files)                |
+| Python stdlib suite               | 58/58 PASS                                 |
+| TypeScript `tsc --noEmit`         | PASS                                       |
+| full ESLint                       | 0 errors / 157 unrelated existing warnings |
+| Next.js production build          | PASS (193 pages)                           |
+| independent adversarial re-review | 2/2 CLEAN                                  |
 
-The targeted suite covers fresh / resume state, every protected category, ancestor / descendant overlap, hardlinks / symlinks, path swaps, future engine-argument paths, concurrent / stale leases, typed cleanup that preserves replacements, close-time mutation, `Promise.all` / `Object.prototype.then` / `Array.prototype.push` / inherited `Array.prototype[0]` setter / `RegExp.prototype.exec` / `Error[Symbol.hasInstance]` poisoning, accessor-descriptor rejection for both top-level options and `engineArgs` elements, and bilingual parity. It uses temporary directories and synthetic sentinels only. It does not input the real bundle, training rows, engine search, selection, or final holdout.
+The targeted suite covers fresh / resume state, every protected category, ancestor / descendant overlap, hardlinks / symlinks, pathname replacement during a held-fd scan, invalid-UTF8 names where the filesystem permits them, malformed output / wrong root / stderr / nonzero / timeout / overflow from the inspector, future engine-argument paths, concurrent / stale leases, typed cleanup that preserves replacements, close-time mutation, `Promise.all` / isolated `Object.prototype.then` / `Array.prototype.push` / inherited `Array.prototype[0]` setter / `String.prototype.split` / `RegExp.prototype.exec` / `Error[Symbol.hasInstance]` poisoning, accessor / non-enumerable descriptor rejection for top-level options, dependencies, and `engineArgs` elements, rejection of inherited production inspector overrides, and bilingual parity. It uses temporary directories and synthetic sentinels only. It does not input the real bundle, training rows, engine search, selection, or final holdout.
 
 ## 10. Conclusion
 

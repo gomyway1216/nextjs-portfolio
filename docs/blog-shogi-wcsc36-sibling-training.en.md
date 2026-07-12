@@ -248,6 +248,7 @@ The clean 100-parent gate above preregistered the full labeling depth as 18. It 
 > In particular, the old `train.py` / `eval-sibling.py` commands later in this section now fail
 > intentionally. See the [follow-up](./blog-shogi-wcsc36-sibling-training-results.en.md) for the
 > replacement commands and the narrower “exact-row sealed since PR4A” claim.
+> Current HEAD has removed this raw-path CLI entry point, so the block below is not executable as-is.
 
 ```bash
 readonly LABEL_DEPTH=18
@@ -266,7 +267,7 @@ node -r tsx/cjs ml/generate-sibling-teacher.ts \
   --work ml/data/wcsc36/sibling-progress.jsonl
 ```
 
-This command runs only from a clean worktree, writes to ignored `ml/data/`, and safely resumes when invoked again with the same contract.
+Historically, this command ran only from a clean worktree, wrote to ignored `ml/data/`, and resumed under the same contract. Current HEAD stops with a nonzero tombstone instead.
 
 ---
 

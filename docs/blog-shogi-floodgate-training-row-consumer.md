@@ -66,7 +66,7 @@ callbackの引数は次の概念形だけである。
 }
 ```
 
-引数にはpathname、file descriptor、mutable bytes、raw JSONL text、role selector、`source_url`、`game_sha256`、selection / final artifact identityを入れない。source URLとCSA body digestはparse中のgame-source consistency確認に使うが、検証後のrowから投影除外する。bindingとrowsは配列の内側までfreezeする。callbackはnative `Promise<void>`だけを返し、同期値、独自thenable、値付きPromiseを拒否する。teacherは必要な状態をprivate stagingへ置き、consumer全体の成功後に外側からpublishする。
+引数にはpathname、file descriptor、mutable bytes、raw JSONL text、role selector、`source_url`、`game_sha256`、selection / final artifact identityを入れない。source URLとCSA body digestはparse中のgame-source consistency確認に使うが、検証後のrowから投影除外する。bindingとrowsは配列の内側までfreezeする。callbackはnative `Promise<void>`だけを返し、同期値、独自thenable、値付きPromiseを拒否する。将来のproduction runnerでは、teacherが必要な状態を検証済みprivate stagingへ置き、consumer全体の成功後に外側からpublishする。
 
 これは「training rowsを使える」という限定capabilityである。ファイルをどこからでも開ける権限を渡し、その利用規約をコメントで頼む形ではない。
 

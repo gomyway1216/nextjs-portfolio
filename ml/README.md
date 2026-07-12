@@ -130,6 +130,7 @@ node -r tsx/cjs ml/import-csa-games.ts \
   --min-ply 8 --max-ply 120
 
 # PR3時点の履歴用command。現在のsealed full runには使わない。
+# 現在のHEADではこのraw-path CLI自体を削除済みで、下は実行例ではない。
 readonly LABEL_DEPTH=18
 
 node -r tsx/cjs ml/generate-sibling-teacher.ts \
@@ -156,7 +157,7 @@ node -r tsx/cjs ml/generate-sibling-teacher.ts \
 > 供給されたstrict manifestを継承するだけで、
 > depth / nodes / timeoutを選ばない。
 
-generatorは次をfail-closedで固定する。
+以下は旧v6 generatorが当時のfull runで固定した履歴であり、削除済みCLIの現行contractではない。
 
 - `--pipeline-revision`と40桁Git HEADの一致、clean worktreeを開始時と公開直前に検査する
 - source/build/compiler/binary hashを含むengine receiptを実binaryと照合する
@@ -167,6 +168,12 @@ generatorは次をfail-closedで固定する。
   fingerprintが同じ場合だけ再開する
 - 全行とsplitを検証後、train/valをatomic writeし、両方のbytes/hashを結ぶmanifestを
   最後にatomic writeする。manifestがない、またはhashが違うデータは未公開扱いにする
+
+PR-B1時点の現行moduleは、旧CLIをnonzeroのtombstoneにし、production entryをまだ提供しない。
+非本番`CoreForTests` seamはstructural rows、binding由来verifier revision、固定4 stage filenameを使うが、
+rowsのruntime authenticity、engine/eval/stage pathとsealed rootのdisjointness、private/exclusive stage、
+consumer postflight後のfinal publication、result receiptはB2 runnerで実装する。したがってB1のstage
+manifestや非鍵checkpoint checksumを公開済みteacher evidenceとして扱わない。
 
 train/validationは対局単位で分け、親局面と実際のmodel入力である子局面のtranspositionも
 validation優先でtrainから親単位に除く。depth 14/16の100親v6診断は完走しているが、

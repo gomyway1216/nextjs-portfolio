@@ -246,6 +246,7 @@ full label depthは上のclean 100親gateで18に事前固定した。結果を�
 > exposure unionを全model roleから除外し、full 3,112-entry teacher契約とpartition manifestを必須にする。特に本節後半の旧
 > `train.py` / `eval-sibling.py`コマンドは意図的にfailする。置き換え後のコマンドと限定された
 > 「PR4A以降のexact-row seal」は[続編](./blog-shogi-wcsc36-sibling-training-results.md)を参照。
+> 現在のHEADではこのraw-path CLI entry pointを削除済みなので、以下はそのまま実行できない。
 
 ```bash
 readonly LABEL_DEPTH=18
@@ -264,7 +265,7 @@ node -r tsx/cjs ml/generate-sibling-teacher.ts \
   --work ml/data/wcsc36/sibling-progress.jsonl
 ```
 
-このコマンドはclean worktreeでのみ動く。ignoredな`ml/data/`へ出力し、同じ引数で安全にresumeする。
+この旧コマンドは当時、clean worktreeでのみ動き、ignoredな`ml/data/`へ出力して同じ引数でresumeした。現在のHEADではtombstoneがnonzeroで停止する。
 
 ---
 

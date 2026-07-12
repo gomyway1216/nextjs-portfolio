@@ -66,7 +66,7 @@ Conceptually, the callback receives only this shape.
 }
 ```
 
-It receives no pathname, file descriptor, mutable bytes, raw JSONL text, role selector, `source_url`, `game_sha256`, or selection/final artifact identity. The parser uses the source URL and CSA-body digest to check per-game source consistency, then projects both fields out of the exposed row. The binding, array, and every row are frozen. The callback must return a native `Promise<void>`; synchronous values, custom thenables, and value-bearing promises are rejected. A teacher keeps required state in private staging and publishes it from the outer layer only after the entire consumer succeeds.
+It receives no pathname, file descriptor, mutable bytes, raw JSONL text, role selector, `source_url`, `game_sha256`, or selection/final artifact identity. The parser uses the source URL and CSA-body digest to check per-game source consistency, then projects both fields out of the exposed row. The binding, array, and every row are frozen. The callback must return a native `Promise<void>`; synchronous values, custom thenables, and value-bearing promises are rejected. In the future production runner, a teacher will keep required state in verified private staging and publish it from the outer layer only after the entire consumer succeeds.
 
 This is a narrow capability to use authenticated training rows. It is not a general file-opening authority constrained only by a comment.
 

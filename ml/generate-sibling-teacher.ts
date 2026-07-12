@@ -20,6 +20,14 @@ import {
   validateParentGroups,
   type SiblingRecord,
 } from './sibling-data';
+import {
+  FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
+  type AuthenticatedFloodgateTrainingRows,
+  type FloodgateTrainingInputBinding,
+  type FloodgateTrainingParent,
+} from './floodgate-training-row-consumer';
+import { FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT } from './floodgate-role-bundle';
+import { floodgateIdentifierDigest } from './floodgate-roles';
 import { childSfenAfterUsi, positionFromSfen, rulesCompleteLegalMoves } from './shogi-sfen';
 import {
   verifyPipelineOutputPaths,
@@ -48,20 +56,37 @@ export const SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT = {
   private_working_directory: true,
 } as const;
 
-interface RawParentOccurrence {
-  schema_version: 1;
-  game_id: string;
-  parent_id: string;
-  position_id: string;
-  parent_sfen: string;
-  ply: number;
-  played_move: string;
+type RawParentOccurrence = FloodgateTrainingParent;
+
+export const SIBLING_TEACHER_STAGE_FILENAMES = Object.freeze({
+  train: 'train.jsonl',
+  val: 'val.jsonl',
+  manifest: 'manifest.json',
+  work: 'work.jsonl',
+} as const);
+
+export interface SiblingTeacherStagePaths {
+  readonly root: string;
+  readonly train: string;
+  readonly val: string;
+  readonly manifest: string;
+  readonly work: string;
 }
 
-export interface GenerateSiblingTeacherOptions {
-  raw: string;
+export function siblingTeacherStagePaths(stageRoot: string): Readonly<SiblingTeacherStagePaths> {
+  const root = path.resolve(requiredText(stageRoot, 'stageRoot'));
+  return Object.freeze({
+    root,
+    train: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.train),
+    val: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.val),
+    manifest: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.manifest),
+    work: path.join(root, SIBLING_TEACHER_STAGE_FILENAMES.work),
+  });
+}
+
+export interface StageSiblingTeacherCoreForTestsOptions {
+  stageRoot: string;
   engineBin: string;
-  pipelineRevision: string;
   engineArgs?: readonly string[];
   engineReceipt: string;
   evalDir?: string;
@@ -71,18 +96,13 @@ export interface GenerateSiblingTeacherOptions {
   engines?: number;
   seed?: string | number;
   valRatio?: number;
-  outTrain: string;
-  outVal: string;
-  manifest: string;
-  work: string;
-  maxParents?: number;
   fvScale?: number;
   hashMb?: number;
   timeoutMs?: number;
 }
 
 interface NormalizedOptions {
-  raw: string;
+  stageRoot: string;
   engineBin: string;
   pipelineRevision: string;
   engineArgs: readonly string[];
@@ -97,7 +117,6 @@ interface NormalizedOptions {
   outVal: string;
   manifest: string;
   work: string;
-  maxParents?: number;
   fvScale: number;
   hashMb: number;
   timeoutMs: number;
@@ -297,7 +316,8 @@ function sealWorkEntry(value: Record<string, unknown>): WorkEntry {
 }
 
 function requiredText(value: unknown, name: string): string {
-  if (typeof value !== 'string' || value.trim() === '') throw new Error(`${name} must not be empty`);
+  if (typeof value !== 'string' || value.trim() === '')
+    throw new Error(`${name} must not be empty`);
   return value.trim();
 }
 
@@ -306,6 +326,26 @@ function validateEngineReceipt(value: unknown): Record<string, unknown> {
     throw new Error('engine receipt must contain a JSON object');
   }
   const receipt = value as Record<string, unknown>;
+  const expectedKeys = [
+    'schema',
+    'source_repository',
+    'source_commit',
+    'source_commit_date',
+    'build_directory',
+    'build_command',
+    'compiler',
+    'compiler_target',
+    'engine_id',
+    'binary_bytes',
+    'binary_sha256',
+  ];
+  const actualKeys = Object.keys(receipt).sort();
+  if (
+    actualKeys.length !== expectedKeys.length ||
+    [...expectedKeys].sort().some((key, index) => key !== actualKeys[index])
+  ) {
+    throw new Error('engine receipt must contain exactly the v1 keys');
+  }
   if (receipt.schema !== TEACHER_ENGINE_RECEIPT_SCHEMA) {
     throw new Error(`engine receipt schema must be ${TEACHER_ENGINE_RECEIPT_SCHEMA}`);
   }
@@ -318,7 +358,10 @@ function validateEngineReceipt(value: unknown): Record<string, unknown> {
     'compiler_target',
     'engine_id',
   ]) {
-    requiredText(receipt[field], `engine receipt ${field}`);
+    const canonical = requiredText(receipt[field], `engine receipt ${field}`);
+    if (receipt[field] !== canonical) {
+      throw new Error(`engine receipt ${field} must not have surrounding whitespace`);
+    }
   }
   const repository = receipt.source_repository as string;
   try {
@@ -332,10 +375,14 @@ function validateEngineReceipt(value: unknown): Record<string, unknown> {
   }
   if (
     typeof receipt.source_commit_date !== 'string' ||
-    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(receipt.source_commit_date) ||
+    !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(
+      receipt.source_commit_date
+    ) ||
     !Number.isFinite(Date.parse(receipt.source_commit_date))
   ) {
-    throw new Error('engine receipt source_commit_date must be an ISO-8601 timestamp with timezone');
+    throw new Error(
+      'engine receipt source_commit_date must be an ISO-8601 timestamp with timezone'
+    );
   }
   if (!Number.isSafeInteger(receipt.binary_bytes) || (receipt.binary_bytes as number) <= 0) {
     throw new Error('engine receipt binary_bytes must be a positive safe integer');
@@ -343,7 +390,19 @@ function validateEngineReceipt(value: unknown): Record<string, unknown> {
   if (typeof receipt.binary_sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(receipt.binary_sha256)) {
     throw new Error('engine receipt binary_sha256 must be a lowercase SHA-256 digest');
   }
-  return receipt;
+  return {
+    schema: receipt.schema,
+    source_repository: receipt.source_repository,
+    source_commit: receipt.source_commit,
+    source_commit_date: receipt.source_commit_date,
+    build_directory: receipt.build_directory,
+    build_command: receipt.build_command,
+    compiler: receipt.compiler,
+    compiler_target: receipt.compiler_target,
+    engine_id: receipt.engine_id,
+    binary_bytes: receipt.binary_bytes,
+    binary_sha256: receipt.binary_sha256,
+  };
 }
 
 function positiveInteger(value: number, name: string): number {
@@ -353,7 +412,10 @@ function positiveInteger(value: number, name: string): number {
   return value;
 }
 
-function normalizeOptions(options: GenerateSiblingTeacherOptions): NormalizedOptions {
+function normalizeOptions(
+  options: StageSiblingTeacherCoreForTestsOptions,
+  pipelineRevision: string
+): NormalizedOptions {
   const hasNodes = options.nodes !== undefined;
   const hasDepth = options.depth !== undefined;
   if (hasNodes === hasDepth) throw new Error('exactly one of nodes or depth must be specified');
@@ -361,11 +423,11 @@ function normalizeOptions(options: GenerateSiblingTeacherOptions): NormalizedOpt
   if (!(valRatio > 0 && valRatio < 1)) {
     throw new Error(`valRatio must be between 0 and 1 (got ${valRatio})`);
   }
-  if (options.maxParents !== undefined) positiveInteger(options.maxParents, 'maxParents');
+  const stage = siblingTeacherStagePaths(options.stageRoot);
   const normalized: NormalizedOptions = {
-    raw: path.resolve(requiredText(options.raw, 'raw')),
+    stageRoot: stage.root,
     engineBin: path.resolve(requiredText(options.engineBin, 'engineBin')),
-    pipelineRevision: requiredText(options.pipelineRevision, 'pipelineRevision'),
+    pipelineRevision: requiredText(pipelineRevision, 'pipelineRevision'),
     engineArgs: [...(options.engineArgs ?? [])],
     engineReceipt: path.resolve(requiredText(options.engineReceipt, 'engineReceipt')),
     multipv: positiveInteger(options.multipv ?? 12, 'multipv'),
@@ -375,16 +437,15 @@ function normalizeOptions(options: GenerateSiblingTeacherOptions): NormalizedOpt
     engines: positiveInteger(options.engines ?? 1, 'engines'),
     seed: String(options.seed ?? '42'),
     valRatio,
-    outTrain: path.resolve(requiredText(options.outTrain, 'outTrain')),
-    outVal: path.resolve(requiredText(options.outVal, 'outVal')),
-    manifest: path.resolve(requiredText(options.manifest, 'manifest')),
-    work: path.resolve(requiredText(options.work, 'work')),
+    outTrain: stage.train,
+    outVal: stage.val,
+    manifest: stage.manifest,
+    work: stage.work,
     fvScale: positiveInteger(options.fvScale ?? 20, 'fvScale'),
     hashMb: positiveInteger(options.hashMb ?? 128, 'hashMb'),
     timeoutMs: positiveInteger(options.timeoutMs ?? 120_000, 'timeoutMs'),
   };
   if (options.evalDir) normalized.evalDir = path.resolve(options.evalDir);
-  if (options.maxParents !== undefined) normalized.maxParents = options.maxParents;
   if (!/^[0-9a-f]{40}$/.test(normalized.pipelineRevision)) {
     throw new Error('pipelineRevision must be a lowercase 40-digit Git commit');
   }
@@ -398,9 +459,9 @@ function normalizeOptions(options: GenerateSiblingTeacherOptions): NormalizedOpt
   if (new Set(outputPaths).size !== outputPaths.length) {
     throw new Error('train, val, manifest, and work output paths must all be different');
   }
-  const inputPaths = [normalized.raw, normalized.engineBin, normalized.engineReceipt];
+  const inputPaths = [normalized.engineBin, normalized.engineReceipt];
   if (outputPaths.some((output) => inputPaths.includes(output))) {
-    throw new Error('output paths must not overwrite raw, engineBin, or engineReceipt inputs');
+    throw new Error('stage outputs must not overwrite engineBin or engineReceipt inputs');
   }
   return normalized;
 }
@@ -432,26 +493,103 @@ function validateRawParent(value: unknown, line: number): RawParentOccurrence {
   };
 }
 
-function parseRawParents(text: string): RawParentOccurrence[] {
-  const parents: RawParentOccurrence[] = [];
-  const ids = new Set<string>();
-  const lines = text.replace(/\r\n?/g, '\n').split('\n');
-  for (let index = 0; index < lines.length; index++) {
-    if (!lines[index].trim()) continue;
-    let value: unknown;
-    try {
-      value = JSON.parse(lines[index]);
-    } catch {
-      throw new Error(`invalid raw parent JSON on line ${index + 1}`);
-    }
-    const parent = validateRawParent(value, index + 1);
-    if (ids.has(parent.parent_id)) throw new Error(`duplicate raw parent_id: ${parent.parent_id}`);
-    ids.add(parent.parent_id);
-    parents.push(parent);
+interface CapturedTeacherInput {
+  readonly binding: Readonly<FloodgateTrainingInputBinding>;
+  readonly parents: readonly RawParentOccurrence[];
+}
+
+function captureAuthenticatedTeacherInput(
+  input: Readonly<AuthenticatedFloodgateTrainingRows>
+): Readonly<CapturedTeacherInput> {
+  if (!input || typeof input !== 'object') {
+    throw new Error('authenticated training input must be an object');
   }
-  parents.sort((a, b) => compareBytewise(a.parent_id, b.parent_id));
-  if (parents.length === 0) throw new Error('raw parent dataset is empty');
-  return parents;
+  if (input.schema !== FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA || input.role !== 'training') {
+    throw new Error('authenticated training input schema or role is invalid');
+  }
+  const source = input.binding;
+  if (!source || typeof source !== 'object') {
+    throw new Error('authenticated training input binding must be an object');
+  }
+  const positiveBindingInteger = (value: unknown, name: string): number => {
+    if (!Number.isSafeInteger(value) || (value as number) <= 0) {
+      throw new Error(`authenticated training binding ${name} must be a positive safe integer`);
+    }
+    return value as number;
+  };
+  const digest = (value: unknown, name: string): string => {
+    if (typeof value !== 'string' || !/^[0-9a-f]{64}$/.test(value)) {
+      throw new Error(`authenticated training binding ${name} must be a lowercase SHA-256`);
+    }
+    return value;
+  };
+  const revision = (value: unknown, name: string): string => {
+    if (typeof value !== 'string' || !/^[0-9a-f]{40}$/.test(value)) {
+      throw new Error(`authenticated training binding ${name} must be a lowercase revision`);
+    }
+    return value;
+  };
+  if (source.raw_format !== FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT) {
+    throw new Error('authenticated training binding raw_format is unsupported');
+  }
+  const binding: FloodgateTrainingInputBinding = Object.freeze({
+    result_receipt_bytes: positiveBindingInteger(
+      source.result_receipt_bytes,
+      'result_receipt_bytes'
+    ),
+    result_receipt_sha256: digest(source.result_receipt_sha256, 'result_receipt_sha256'),
+    bundle_manifest_bytes: positiveBindingInteger(
+      source.bundle_manifest_bytes,
+      'bundle_manifest_bytes'
+    ),
+    bundle_manifest_sha256: digest(source.bundle_manifest_sha256, 'bundle_manifest_sha256'),
+    bundle_producer_revision: revision(source.bundle_producer_revision, 'bundle_producer_revision'),
+    verifier_revision: revision(source.verifier_revision, 'verifier_revision'),
+    raw_format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
+    raw_bytes: positiveBindingInteger(source.raw_bytes, 'raw_bytes'),
+    raw_sha256: digest(source.raw_sha256, 'raw_sha256'),
+    records: positiveBindingInteger(source.records, 'records'),
+    games: positiveBindingInteger(source.games, 'games'),
+    game_ids_sha256: digest(source.game_ids_sha256, 'game_ids_sha256'),
+    parent_ids_sha256: digest(source.parent_ids_sha256, 'parent_ids_sha256'),
+    position_ids_count: positiveBindingInteger(source.position_ids_count, 'position_ids_count'),
+    position_ids_sha256: digest(source.position_ids_sha256, 'position_ids_sha256'),
+  });
+  if (!Array.isArray(input.rows) || input.rows.length === 0) {
+    throw new Error('authenticated training rows must be a non-empty array');
+  }
+  const parents = input.rows.map((row, index) => validateRawParent(row, index + 1));
+  const gameIds = new Set<string>();
+  const parentIds = new Set<string>();
+  const positionIds = new Set<string>();
+  let previousParentId: string | undefined;
+  for (const parent of parents) {
+    if (
+      previousParentId !== undefined &&
+      compareBytewise(previousParentId, parent.parent_id) >= 0
+    ) {
+      throw new Error('authenticated training rows are not in strict parent_id byte order');
+    }
+    previousParentId = parent.parent_id;
+    if (positionIds.has(parent.position_id)) {
+      throw new Error(`duplicate authenticated position_id: ${parent.position_id}`);
+    }
+    gameIds.add(parent.game_id);
+    parentIds.add(parent.parent_id);
+    positionIds.add(parent.position_id);
+  }
+  if (
+    parents.length !== binding.records ||
+    gameIds.size !== binding.games ||
+    parentIds.size !== binding.records ||
+    positionIds.size !== binding.position_ids_count ||
+    floodgateIdentifierDigest(gameIds) !== binding.game_ids_sha256 ||
+    floodgateIdentifierDigest(parentIds) !== binding.parent_ids_sha256 ||
+    floodgateIdentifierDigest(positionIds) !== binding.position_ids_sha256
+  ) {
+    throw new Error('authenticated training rows do not match their aggregate binding');
+  }
+  return Object.freeze({ binding, parents: Object.freeze(parents) });
 }
 
 async function collectDirectoryDigests(root: string): Promise<FileDigest[]> {
@@ -459,7 +597,9 @@ async function collectDirectoryDigests(root: string): Promise<FileDigest[]> {
   if (!rootStat.isDirectory()) throw new Error(`evalDir is not a directory: ${root}`);
   const files: FileDigest[] = [];
   const visit = async (directory: string, prefix: string): Promise<void> => {
-    const entries = await fs.promises.readdir(directory, { withFileTypes: true });
+    const entries = await fs.promises.readdir(directory, {
+      withFileTypes: true,
+    });
     entries.sort((a, b) => compareBytewise(a.name, b.name));
     for (const entry of entries) {
       const absolute = path.join(directory, entry.name);
@@ -515,7 +655,7 @@ async function copyVerifiedFile(
     throw new Error(`runtime snapshot changed while copying ${source}`);
   }
   const sourceMode = (await fs.promises.stat(source)).mode & 0o777;
-  await fs.promises.chmod(destination, (sourceMode & 0o555) || 0o400);
+  await fs.promises.chmod(destination, sourceMode & 0o555 || 0o400);
 }
 
 async function createRuntimeSnapshot(
@@ -555,7 +695,13 @@ async function createRuntimeSnapshot(
         );
       }
     }
-    return { root, engineBin, engineArgs, cwd, ...(evalDir ? { evalDir } : {}) };
+    return {
+      root,
+      engineBin,
+      engineArgs,
+      cwd,
+      ...(evalDir ? { evalDir } : {}),
+    };
   } catch (error) {
     await fs.promises.rm(root, { recursive: true, force: true });
     throw error;
@@ -563,7 +709,9 @@ async function createRuntimeSnapshot(
 }
 
 function serializeJsonl(records: readonly SiblingRecord[]): string {
-  return records.length === 0 ? '' : `${records.map((record) => JSON.stringify(record)).join('\n')}\n`;
+  return records.length === 0
+    ? ''
+    : `${records.map((record) => JSON.stringify(record)).join('\n')}\n`;
 }
 
 async function atomicWrite(filePath: string, contents: string): Promise<void> {
@@ -594,9 +742,7 @@ function candidateSetSha256(moves: readonly string[]): string {
 }
 
 function normalizedSearchLimit(limit: UsiSearchLimit): { nodes: number } | { depth: number } {
-  return limit.nodes !== undefined
-    ? { nodes: limit.nodes }
-    : { depth: limit.depth as number };
+  return limit.nodes !== undefined ? { nodes: limit.nodes } : { depth: limit.depth as number };
 }
 
 function searchMetadata(result: UsiMultiPvResult, limit: UsiSearchLimit): SearchMetadata {
@@ -693,7 +839,9 @@ function validateSearchMetadata(
   }
   const bestmove = requiredText(row.bestmove, `${label} bestmove`);
   if (bestmove !== moves[0]) throw new Error(`${label} bestmove does not match PV1`);
-  const scores = row.scores.map((score, index) => validateSearchScore(score, `${label} rank ${index + 1}`));
+  const scores = row.scores.map((score, index) =>
+    validateSearchScore(score, `${label} rank ${index + 1}`)
+  );
   if (
     scores.length !== moves.length ||
     scores.some((score, index) => score.move !== moves[index])
@@ -861,13 +1009,18 @@ export async function labelSiblingParent(
   const legalMoveSet = new Set(legalMoves);
   for (const move of initialMoves) {
     if (!legalMoveSet.has(move)) {
-      throw new Error(`teacher returned illegal initial move ${move} for parent ${parent.parent_id}`);
+      throw new Error(
+        `teacher returned illegal initial move ${move} for parent ${parent.parent_id}`
+      );
     }
   }
 
   const candidateSet = new Set(initialMoves);
   candidateSet.add(parent.played_move);
-  if (candidateSet.size !== initialMoves.length + (initialMoves.includes(parent.played_move) ? 0 : 1)) {
+  if (
+    candidateSet.size !==
+    initialMoves.length + (initialMoves.includes(parent.played_move) ? 0 : 1)
+  ) {
     throw new Error(`candidate union contains duplicate moves for parent ${parent.parent_id}`);
   }
   const candidateMoves = canonicalSortedMoves(candidateSet);
@@ -884,7 +1037,9 @@ export async function labelSiblingParent(
       result.lines[0].multipv !== 1 ||
       result.lines[0].move !== move
     ) {
-      throw new Error(`single-move re-search did not return exactly ${move} for ${parent.parent_id}`);
+      throw new Error(
+        `single-move re-search did not return exactly ${move} for ${parent.parent_id}`
+      );
     }
     searches.push(
       validateSearchMetadata(
@@ -896,9 +1051,7 @@ export async function labelSiblingParent(
   }
 
   const initialSet = new Set(initialMoves);
-  const rankedScores = searches
-    .map((search) => search.scores[0])
-    .sort(compareRankedScores);
+  const rankedScores = searches.map((search) => search.scores[0]).sort(compareRankedScores);
   const records = buildSiblingGroup(
     {
       game_id: parent.game_id,
@@ -950,7 +1103,9 @@ function validateWorkEntry(
   value: unknown,
   fingerprint: string,
   parents: ReadonlyMap<string, RawParentOccurrence>,
-  line: number
+  line: number,
+  expectedMultipv: number,
+  expectedLimit: UsiSearchLimit
 ): WorkEntry {
   if (!value || typeof value !== 'object') throw new Error(`work line ${line} must be an object`);
   const row = value as Partial<WorkEntry>;
@@ -1002,14 +1157,27 @@ function validateWorkEntry(
   }
   const moves = canonicalSortedMoves(entry.records.map((record) => record.move));
   const candidates = entry.candidate_moves.map((move) => requiredText(move, 'candidate move'));
-  const initialSearch = validateSearchMetadata(entry.initial_search, `work line ${line} initial search`);
+  const initialSearch = validateSearchMetadata(
+    entry.initial_search,
+    `work line ${line} initial search`
+  );
+  const legalMoves = legalMovesForParent(parent);
+  const expectedInitialMultipv = Math.min(expectedMultipv, legalMoves.length);
+  const normalizedExpectedLimit = normalizedSearchLimit(expectedLimit);
+  const expectedCandidates = canonicalSortedMoves(
+    new Set([...initialSearch.moves, parent.played_move])
+  );
   const canonicalCandidates = canonicalSortedMoves(candidates);
   if (
+    initialSearch.requested_multipv !== expectedInitialMultipv ||
+    canonicalJson(initialSearch.requested_limit) !== canonicalJson(normalizedExpectedLimit) ||
     new Set(candidates).size !== candidates.length ||
     candidates.some((move, index) => move !== canonicalCandidates[index]) ||
     moves.length !== candidates.length ||
     moves.some((move, index) => move !== candidates[index]) ||
-    initialSearch.moves.some((move) => !candidates.includes(move)) ||
+    initialSearch.moves.some((move) => !legalMoves.includes(move)) ||
+    expectedCandidates.length !== candidates.length ||
+    expectedCandidates.some((move, index) => move !== candidates[index]) ||
     entry.candidate_set_sha256 !== candidateSetSha256(candidates)
   ) {
     throw new Error(`work line ${line} has inconsistent candidate metadata`);
@@ -1017,7 +1185,7 @@ function validateWorkEntry(
   const exactSearch = validateIndependentExactSearch(
     entry.exact_search,
     candidates,
-    initialSearch.requested_limit,
+    normalizedExpectedLimit,
     `work line ${line} exact search`
   );
   const rankedMoves = entry.records.map((record) => record.move);
@@ -1071,7 +1239,9 @@ function serializeWork(header: WorkHeader, entries: Iterable<WorkEntry>): string
 async function loadWork(
   workPath: string,
   header: WorkHeader,
-  parents: ReadonlyMap<string, RawParentOccurrence>
+  parents: ReadonlyMap<string, RawParentOccurrence>,
+  expectedMultipv: number,
+  expectedLimit: UsiSearchLimit
 ): Promise<Map<string, WorkEntry>> {
   let text = '';
   try {
@@ -1091,7 +1261,9 @@ async function loadWork(
         value = JSON.parse(lines[index]);
       } catch {
         if (!hadTrailingNewline && index === lines.length - 1) {
-          process.stderr.write(`Discarding incomplete trailing work checkpoint line ${index + 1}.\n`);
+          process.stderr.write(
+            `Discarding incomplete trailing work checkpoint line ${index + 1}.\n`
+          );
           break;
         }
         throw new Error(`invalid work checkpoint JSON on line ${index + 1}`);
@@ -1112,7 +1284,14 @@ async function loadWork(
         parsedHeader = true;
         continue;
       }
-      const entry = validateWorkEntry(value, header.run_fingerprint, parents, index + 1);
+      const entry = validateWorkEntry(
+        value,
+        header.run_fingerprint,
+        parents,
+        index + 1,
+        expectedMultipv,
+        expectedLimit
+      );
       if (entries.has(entry.parent_id)) {
         throw new Error(`duplicate parent in work checkpoint: ${entry.parent_id}`);
       }
@@ -1134,30 +1313,40 @@ function firstError(error: unknown, parentId: string): Error {
   return new Error(`teacher labeling failed for parent ${parentId}: ${message}`);
 }
 
-/** Generate, resume, split, and atomically publish a sibling teacher dataset. */
-export async function generateSiblingTeacherDataset(
-  rawOptions: GenerateSiblingTeacherOptions,
+/**
+ * Non-production seam for tests and runner development.
+ *
+ * The input interface is structurally forgeable and the filesystem paths are not yet
+ * authorized against sealed roots. Only the forthcoming consumer-owned runner may expose a
+ * production entry point.
+ */
+export async function stageSiblingTeacherDatasetCoreForTests(
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+  rawOptions: StageSiblingTeacherCoreForTestsOptions,
   dependencies: GenerateSiblingTeacherDependencies = {}
 ): Promise<SiblingTeacherManifest> {
-  const options = normalizeOptions(rawOptions);
+  const capturedInput = captureAuthenticatedTeacherInput(input);
+  const options = normalizeOptions(rawOptions, capturedInput.binding.verifier_revision);
   const repositoryDirectory = path.resolve(__dirname, '..');
-  const revisionVerifier = dependencies.verifyRevision ?? ((revision: string) =>
-    verifyPipelineRevision(revision, { repositoryDirectory }));
-  const outputVerifier = dependencies.verifyOutputPaths ?? (
-    (outputs: readonly string[], inputs: readonly string[]) =>
-      verifyPipelineOutputPaths(outputs, { repositoryDirectory, inputPaths: inputs })
-  );
+  const revisionVerifier =
+    dependencies.verifyRevision ??
+    ((revision: string) => verifyPipelineRevision(revision, { repositoryDirectory }));
+  const outputVerifier =
+    dependencies.verifyOutputPaths ??
+    ((outputs: readonly string[], inputs: readonly string[]) =>
+      verifyPipelineOutputPaths(outputs, {
+        repositoryDirectory,
+        inputPaths: inputs,
+      }));
   const pipeline = await revisionVerifier(options.pipelineRevision);
-  const rawBytes = await fs.promises.readFile(options.raw);
-  const allParents = parseRawParents(rawBytes.toString('utf8'));
-  const selected = options.maxParents === undefined
-    ? allParents
-    : allParents.slice(0, options.maxParents);
+  const allParents = [...capturedInput.parents];
+  const selected = allParents;
   const selectedParentIdsSha256 = sha256(selected.map((parent) => parent.parent_id).join('\n'));
   const parentMap = new Map(selected.map((parent) => [parent.parent_id, parent]));
 
   const engineStat = await fs.promises.stat(options.engineBin);
-  if (!engineStat.isFile()) throw new Error(`engineBin is not a regular file: ${options.engineBin}`);
+  if (!engineStat.isFile())
+    throw new Error(`engineBin is not a regular file: ${options.engineBin}`);
   const engineDigest = await sha256File(options.engineBin);
   const receiptBytes = await fs.promises.readFile(options.engineReceipt);
   let receiptValue: unknown;
@@ -1167,7 +1356,10 @@ export async function generateSiblingTeacherDataset(
     throw new Error(`engine receipt is not valid JSON: ${options.engineReceipt}`);
   }
   const receipt = validateEngineReceipt(receiptValue);
-  if (receipt.binary_sha256 !== engineDigest.sha256 || receipt.binary_bytes !== engineDigest.bytes) {
+  if (
+    receipt.binary_sha256 !== engineDigest.sha256 ||
+    receipt.binary_bytes !== engineDigest.bytes
+  ) {
     throw new Error('engine receipt binary hash/size does not match --engine-bin');
   }
   const engineReceipt: SiblingTeacherManifest['teacher']['engine_receipt'] = {
@@ -1181,14 +1373,15 @@ export async function generateSiblingTeacherDataset(
   const engineArgFiles = await collectArgumentFileDigests(options.engineArgs);
   const evalFiles = options.evalDir ? await collectDirectoryDigests(options.evalDir) : [];
   if (evalFiles.some((file) => path.basename(file.path).toLowerCase() === 'eval_options.txt')) {
-    throw new Error('evalDir must not contain eval_options.txt because it can override fixed options');
+    throw new Error(
+      'evalDir must not contain eval_options.txt because it can override fixed options'
+    );
   }
   const evalSha256 = options.evalDir
     ? sha256(`eval-tree-v1\0${evalFiles.map((file) => canonicalJson(file)).join('\n')}`)
     : null;
-  const sourceRawSha256 = sha256(rawBytes);
+  const sourceRawSha256 = capturedInput.binding.raw_sha256;
   const protectedInputPaths = [
-    options.raw,
     options.engineBin,
     options.engineReceipt,
     ...engineArgFiles.map((file) => path.resolve(file.path)),
@@ -1197,33 +1390,35 @@ export async function generateSiblingTeacherDataset(
       : []),
   ];
   const outputPaths = [options.outTrain, options.outVal, options.manifest, options.work];
-  await outputVerifier(
-    outputPaths,
-    protectedInputPaths
+  await outputVerifier(outputPaths, protectedInputPaths);
+  const runFingerprint = sha256(
+    canonicalJson({
+      schema: SIBLING_TEACHER_WORK_SCHEMA,
+      authenticated_training_binding: capturedInput.binding,
+      source_raw_sha256: sourceRawSha256,
+      selected_parent_ids_sha256: selectedParentIdsSha256,
+      label_policy: SIBLING_TEACHER_LABEL_POLICY,
+      pipeline,
+      engine_bin_sha256: engineDigest.sha256,
+      engine_args: options.engineArgs,
+      engine_arg_files: engineArgFiles,
+      engine_receipt_sha256: engineReceipt.file.sha256,
+      engine_receipt: engineReceipt.content,
+      eval_sha256: evalSha256,
+      multipv: options.multipv,
+      limit: options.limit,
+      exact_rescore_mode: INDEPENDENT_EXACT_RESCORE_MODE,
+      candidate_execution_order: 'utf8-bytewise-ascending',
+      synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
+      search_state_reset: 'isready',
+      runtime_snapshot: SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT,
+      parallel_engines: options.engines,
+      fv_scale: options.fvScale,
+      hash_mb_per_engine: options.hashMb,
+      timeout_ms: options.timeoutMs,
+      engine_options: USI_TEACHER_ENGINE_CONTRACT,
+    })
   );
-  const runFingerprint = sha256(canonicalJson({
-    schema: SIBLING_TEACHER_WORK_SCHEMA,
-    source_raw_sha256: sourceRawSha256,
-    selected_parent_ids_sha256: selectedParentIdsSha256,
-    label_policy: SIBLING_TEACHER_LABEL_POLICY,
-    pipeline,
-    engine_bin_sha256: engineDigest.sha256,
-    engine_args: options.engineArgs,
-    engine_arg_files: engineArgFiles,
-    engine_receipt_sha256: engineReceipt.file.sha256,
-    engine_receipt: engineReceipt.content,
-    eval_sha256: evalSha256,
-    multipv: options.multipv,
-    limit: options.limit,
-    exact_rescore_mode: INDEPENDENT_EXACT_RESCORE_MODE,
-    candidate_execution_order: 'utf8-bytewise-ascending',
-    synthesized_rank_order: 'cp-descending-then-utf8-bytewise-move',
-    search_state_reset: 'isready',
-    runtime_snapshot: SIBLING_TEACHER_RUNTIME_SNAPSHOT_CONTRACT,
-    fv_scale: options.fvScale,
-    hash_mb_per_engine: options.hashMb,
-    engine_options: USI_TEACHER_ENGINE_CONTRACT,
-  }));
   const header: WorkHeader = {
     schema: SIBLING_TEACHER_WORK_SCHEMA,
     kind: 'header',
@@ -1233,7 +1428,13 @@ export async function generateSiblingTeacherDataset(
     label_policy: SIBLING_TEACHER_LABEL_POLICY,
     pipeline,
   };
-  const workEntries = await loadWork(options.work, header, parentMap);
+  const workEntries = await loadWork(
+    options.work,
+    header,
+    parentMap,
+    options.multipv,
+    options.limit
+  );
   const runtimeSnapshot = await createRuntimeSnapshot(
     options,
     engineDigest,
@@ -1244,7 +1445,10 @@ export async function generateSiblingTeacherDataset(
   try {
     workHandle = await fs.promises.open(options.work, 'a');
   } catch (error) {
-    await fs.promises.rm(runtimeSnapshot.root, { recursive: true, force: true });
+    await fs.promises.rm(runtimeSnapshot.root, {
+      recursive: true,
+      force: true,
+    });
     throw error;
   }
   let appendTail: Promise<void> = Promise.resolve();
@@ -1271,14 +1475,16 @@ export async function generateSiblingTeacherDataset(
       if (workEntries.has(parent.parent_id)) continue;
       const legalMoves = legalMovesForParent(parent);
       if (legalMoves.length < 2) {
-        await persist(sealWorkEntry({
-          schema: SIBLING_TEACHER_WORK_SCHEMA,
-          kind: 'skip',
-          run_fingerprint: runFingerprint,
-          parent_id: parent.parent_id,
-          reason: 'fewer-than-two-legal-moves',
-          legal_moves: legalMoves.length,
-        }));
+        await persist(
+          sealWorkEntry({
+            schema: SIBLING_TEACHER_WORK_SCHEMA,
+            kind: 'skip',
+            run_fingerprint: runFingerprint,
+            parent_id: parent.parent_id,
+            reason: 'fewer-than-two-legal-moves',
+            legal_moves: legalMoves.length,
+          })
+        );
       } else {
         pending.push({ parent, legalMoves });
       }
@@ -1314,14 +1520,23 @@ export async function generateSiblingTeacherDataset(
             );
             result.run_fingerprint = runFingerprint;
             const sealed = sealWorkEntry(result as unknown as Record<string, unknown>);
-            const validated = validateWorkEntry(sealed, runFingerprint, parentMap, 0);
+            const validated = validateWorkEntry(
+              sealed,
+              runFingerprint,
+              parentMap,
+              0,
+              options.multipv,
+              options.limit
+            );
             await persist(validated);
           } catch (error) {
             failure ??= firstError(error, job.parent.parent_id);
           }
         }
       } catch (error) {
-        failure ??= new Error(`USI worker initialization failed: ${error instanceof Error ? error.message : error}`);
+        failure ??= new Error(
+          `USI worker initialization failed: ${error instanceof Error ? error.message : error}`
+        );
       } finally {
         await engine.quit();
       }
@@ -1333,7 +1548,10 @@ export async function generateSiblingTeacherDataset(
     try {
       await workHandle.close();
     } finally {
-      await fs.promises.rm(runtimeSnapshot.root, { recursive: true, force: true });
+      await fs.promises.rm(runtimeSnapshot.root, {
+        recursive: true,
+        force: true,
+      });
     }
   }
   if (failure) throw failure;
@@ -1346,17 +1564,25 @@ export async function generateSiblingTeacherDataset(
   const skipped = [...workEntries.values()].filter((entry) => entry.kind === 'skip');
   if (completed.length === 0) throw new Error('no parent produced a sibling group');
   if (workEntries.size !== selected.length) {
-    throw new Error(`work checkpoint is incomplete (${workEntries.size}/${selected.length} parents)`);
+    throw new Error(
+      `work checkpoint is incomplete (${workEntries.size}/${selected.length} parents)`
+    );
   }
 
   const records = completed.flatMap((entry) => entry.records);
   validateParentGroups(records);
-  const split = splitSiblingDataset(records, { seed: options.seed, valRatio: options.valRatio });
+  const split = splitSiblingDataset(records, {
+    seed: options.seed,
+    valRatio: options.valRatio,
+  });
   const trainJsonl = serializeJsonl(split.train);
   const valJsonl = serializeJsonl(split.val);
   const candidateCounts = completed.map((entry) => entry.candidate_moves.length);
   const candidateLock = completed
-    .map((entry) => `${entry.parent_id}\0${entry.candidate_set_sha256}\0${entry.candidate_moves.length}`)
+    .map(
+      (entry) =>
+        `${entry.parent_id}\0${entry.candidate_set_sha256}\0${entry.candidate_moves.length}`
+    )
     .join('\n');
 
   const manifest: SiblingTeacherManifest = {
@@ -1365,7 +1591,7 @@ export async function generateSiblingTeacherDataset(
     pipeline,
     source: {
       raw_sha256: sourceRawSha256,
-      raw_records: allParents.length,
+      raw_records: capturedInput.binding.records,
       selected_parents: selected.length,
       selected_parent_ids_sha256: selectedParentIdsSha256,
     },
@@ -1385,9 +1611,10 @@ export async function generateSiblingTeacherDataset(
     },
     search: {
       multipv: options.multipv,
-      limit: 'nodes' in options.limit
-        ? { nodes: options.limit.nodes as number }
-        : { depth: options.limit.depth as number },
+      limit:
+        'nodes' in options.limit
+          ? { nodes: options.limit.nodes as number }
+          : { depth: options.limit.depth as number },
       parallel_engines: options.engines,
       fv_scale: options.fvScale,
       hash_mb_per_engine: options.hashMb,
@@ -1427,161 +1654,23 @@ export async function generateSiblingTeacherDataset(
     },
   };
 
-  // Re-check immediately before the manifest-committed publication boundary.
+  // Re-check immediately before committing the candidate staging generation.
   const finalPipeline = await revisionVerifier(options.pipelineRevision);
   if (canonicalJson(finalPipeline) !== canonicalJson(pipeline)) {
     throw new Error('pipeline provenance changed during teacher generation');
   }
   await outputVerifier(outputPaths, protectedInputPaths);
-  // No final file is touched until every label, resume check, and split check succeeds.
+  // These are candidate staging files only; a future postflight publisher must own final output.
   await atomicWrite(options.outTrain, trainJsonl);
   await atomicWrite(options.outVal, valJsonl);
   await atomicWrite(options.manifest, `${JSON.stringify(manifest, null, 2)}\n`);
   return manifest;
 }
 
-interface CliArgs extends GenerateSiblingTeacherOptions {
-  help: boolean;
-}
-
-function parseCliArgs(argv: readonly string[]): CliArgs {
-  if (argv.includes('--help') || argv.includes('-h')) {
-    return {
-      help: true,
-      raw: '',
-      engineBin: '',
-      pipelineRevision: '',
-      engineReceipt: '',
-      outTrain: '',
-      outVal: '',
-      manifest: '',
-      work: '',
-    };
-  }
-  const values = new Map<string, string>();
-  const engineArgs: string[] = [];
-  const flags = new Set([
-    'raw',
-    'engine-bin',
-    'pipeline-revision',
-    'engine-receipt',
-    'eval-dir',
-    'multipv',
-    'nodes',
-    'depth',
-    'engines',
-    'seed',
-    'val-ratio',
-    'out-train',
-    'out-val',
-    'manifest',
-    'work',
-    'max-parents',
-    'fv-scale',
-    'hash-mb',
-    'timeout-ms',
-  ]);
-  for (let index = 0; index < argv.length; index++) {
-    const token = argv[index];
-    if (!token.startsWith('--')) throw new Error(`unexpected argument: ${token}`);
-    const name = token.slice(2);
-    if (name === 'engine-arg') {
-      if (index + 1 >= argv.length) throw new Error('--engine-arg requires a value');
-      engineArgs.push(argv[++index]);
-      continue;
-    }
-    if (!flags.has(name)) throw new Error(`unknown option: --${name}`);
-    if (values.has(name)) throw new Error(`duplicate option: --${name}`);
-    const value = argv[++index];
-    if (!value || value.startsWith('--')) throw new Error(`--${name} requires a value`);
-    values.set(name, value);
-  }
-  const required = (name: string): string => {
-    const value = values.get(name);
-    if (!value) throw new Error(`--${name} is required`);
-    return value;
-  };
-  const number = (name: string): number | undefined => {
-    const value = values.get(name);
-    return value === undefined ? undefined : Number(value);
-  };
-  return {
-    help: false,
-    raw: required('raw'),
-    engineBin: required('engine-bin'),
-    pipelineRevision: required('pipeline-revision'),
-    engineArgs,
-    engineReceipt: required('engine-receipt'),
-    evalDir: values.get('eval-dir'),
-    multipv: number('multipv'),
-    nodes: number('nodes'),
-    depth: number('depth'),
-    engines: number('engines'),
-    seed: values.get('seed'),
-    valRatio: number('val-ratio'),
-    outTrain: required('out-train'),
-    outVal: required('out-val'),
-    manifest: required('manifest'),
-    work: required('work'),
-    maxParents: number('max-parents'),
-    fvScale: number('fv-scale'),
-    hashMb: number('hash-mb'),
-    timeoutMs: number('timeout-ms'),
-  };
-}
-
-const USAGE = `Usage:
-  node -r tsx/cjs ml/generate-sibling-teacher.ts \\
-    --raw <parents.raw.jsonl> \\
-    --pipeline-revision <git-commit> \\
-    --engine-bin <yaneuraou> --engine-receipt <build-receipt.json> \\
-    --eval-dir <eval-directory> \\
-    --depth 12 --multipv 12 --engines 12 \\
-    --out-train <train.jsonl> --out-val <val.jsonl> \\
-    --manifest <manifest.json> --work <progress.jsonl>
-
-Required:
-  --raw <jsonl>          Raw parent occurrences from import-csa-games.ts.
-  --pipeline-revision <commit>  Clean Git HEAD used to produce the labels.
-  --engine-bin <file>    USI engine executable.
-  --engine-receipt <json>  Build/source receipt; verified against the executable.
-  --depth <n>            Fixed-depth search (recommended for exact MultiPV), or
-  --nodes <n>            fixed-node search; exactly one search limit is required.
-  --out-train <jsonl>    Atomically published training split.
-  --out-val <jsonl>      Atomically published validation split.
-  --manifest <json>      Checksums, search contract, split, and checkpoint report.
-  --work <jsonl>         Durable per-parent resume checkpoint.
-
-Options:
-  --eval-dir <dir>       Evaluation files; the deterministic tree SHA is recorded.
-  --engine-arg <value>   Repeatable USI process argument (values may start with --).
-  --multipv <n>          Initial teacher candidate count (default: 12).
-  --engines <n>          Parallel one-thread engine processes (default: 1).
-  --seed <text>          Stable game split seed (default: 42).
-  --val-ratio <0..1>     Validation game fraction, exclusive bounds (default: 0.1).
-  --max-parents <n>      Label only the first n parent_ids after stable sorting.
-  --fv-scale <n>         Engine FV_SCALE (default: 20).
-  --hash-mb <n>          USI_Hash per engine in MiB (default: 128).
-  --timeout-ms <n>       Timeout per USI search (default: 120000).
-`;
-
-export async function main(argv: readonly string[] = process.argv.slice(2)): Promise<void> {
-  const args = parseCliArgs(argv);
-  if (args.help) {
-    process.stdout.write(USAGE);
-    return;
-  }
-  const manifest = await generateSiblingTeacherDataset(args);
-  process.stdout.write(
-    `Labeled ${manifest.candidate_sets.parents} parent(s), ` +
-    `${manifest.candidate_sets.candidates} sibling(s); ` +
-    `train=${manifest.split.stats.train_records}, val=${manifest.split.stats.val_records}\n`
-  );
-}
+export const REMOVED_SIBLING_TEACHER_CLI_MESSAGE =
+  'raw-path sibling teacher CLI removed; authenticated Floodgate runner is not yet available';
 
 if (require.main === module) {
-  main().catch((error) => {
-    console.error(error instanceof Error ? error.message : error);
-    process.exitCode = 1;
-  });
+  process.stderr.write(`${REMOVED_SIBLING_TEACHER_CLI_MESSAGE}\n`);
+  process.exitCode = 2;
 }

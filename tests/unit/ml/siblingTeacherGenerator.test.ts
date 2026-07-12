@@ -1,4 +1,5 @@
 import * as crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -7,23 +8,119 @@ import { describe, expect, it, vi } from 'vitest';
 
 import {
   INDEPENDENT_EXACT_RESCORE_MODE,
+  REMOVED_SIBLING_TEACHER_CLI_MESSAGE,
   SIBLING_TEACHER_MANIFEST_SCHEMA,
   SIBLING_TEACHER_LABEL_POLICY,
   SIBLING_TEACHER_WORK_SCHEMA,
-  generateSiblingTeacherDataset,
-  type GenerateSiblingTeacherOptions,
+  siblingTeacherStagePaths,
+  stageSiblingTeacherDatasetCoreForTests,
+  type GenerateSiblingTeacherDependencies,
+  type StageSiblingTeacherCoreForTestsOptions,
 } from '../../../ml/generate-sibling-teacher';
+import {
+  FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
+  type AuthenticatedFloodgateTrainingRows,
+  type FloodgateTrainingParent,
+} from '../../../ml/floodgate-training-row-consumer';
+import { FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT } from '../../../ml/floodgate-role-bundle';
+import { floodgateIdentifierDigest } from '../../../ml/floodgate-roles';
 import { positionKeyFromSfen, type SiblingRecord } from '../../../ml/sibling-data';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const FAKE_ENGINE = path.resolve(HERE, '../../fixtures/ml/fake-usi-engine.mjs');
+const GENERATOR_SOURCE = path.resolve(HERE, '../../../ml/generate-sibling-teacher.ts');
 const START = 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1';
 const TWO_LEGAL = 'ln4nn1/2r3gk1/3p2gp1/2s1R3S/p1p2P2p/3P2PL1/P+pSS1G1L1/1K7/LN6+b b G5Pb3p 119';
-const ONE_LEGAL = '1+R3l2l/4+Pgk2/1s2p1sp1/p3np2p/3B3N1/P1G3S2/1P2+pP2P/1R2+n4/L+b2K1GNL b GS2P5p 107';
+const ONE_LEGAL =
+  '1+R3l2l/4+Pgk2/1s2p1sp1/p3np2p/3B3N1/P1G3S2/1P2+pP2P/1R2+n4/L+b2K1GNL b GS2P5p 107';
 const PIPELINE_REVISION = '0123456789abcdef0123456789abcdef01234567';
 
+interface GenerateSiblingTeacherOptions extends Omit<
+  StageSiblingTeacherCoreForTestsOptions,
+  'stageRoot'
+> {
+  raw: string;
+  pipelineRevision: string;
+  outTrain: string;
+  outVal: string;
+  manifest: string;
+  work: string;
+}
+
+async function authenticatedInputFromRaw(
+  rawPath: string,
+  verifierRevision: string
+): Promise<Readonly<AuthenticatedFloodgateTrainingRows>> {
+  const rawBytes = await fs.promises.readFile(rawPath);
+  const sourceRows = rawBytes
+    .toString('utf8')
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as Record<string, unknown>);
+  const rows: FloodgateTrainingParent[] = sourceRows.map((row) => ({
+    schema_version: row.schema_version as 1,
+    game_id: row.game_id as string,
+    parent_id: row.parent_id as string,
+    position_id: row.position_id as string,
+    parent_sfen: row.parent_sfen as string,
+    ply: row.ply as number,
+    played_move: row.played_move as string,
+  }));
+  rows.sort((left, right) => Buffer.from(left.parent_id).compare(Buffer.from(right.parent_id)));
+  const gameIds = new Set(rows.map((row) => row.game_id));
+  const parentIds = new Set(rows.map((row) => row.parent_id));
+  const positionIds = new Set(rows.map((row) => row.position_id));
+  return Object.freeze({
+    schema: FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
+    role: 'training' as const,
+    binding: Object.freeze({
+      result_receipt_bytes: 1,
+      result_receipt_sha256: sha256('test-result-receipt'),
+      bundle_manifest_bytes: 1,
+      bundle_manifest_sha256: sha256('test-bundle-manifest'),
+      bundle_producer_revision: PIPELINE_REVISION,
+      verifier_revision: verifierRevision,
+      raw_format: FLOODGATE_ROLE_BUNDLE_RAW_PARENT_FORMAT,
+      raw_bytes: rawBytes.byteLength,
+      raw_sha256: sha256(rawBytes),
+      records: rows.length,
+      games: gameIds.size,
+      game_ids_sha256: floodgateIdentifierDigest(gameIds),
+      parent_ids_sha256: floodgateIdentifierDigest(parentIds),
+      position_ids_count: positionIds.size,
+      position_ids_sha256: floodgateIdentifierDigest(positionIds),
+    }),
+    rows: Object.freeze(rows.map((row) => Object.freeze(row))),
+  });
+}
+
+async function generateSiblingTeacherDataset(
+  options: GenerateSiblingTeacherOptions,
+  dependencies: GenerateSiblingTeacherDependencies = {}
+) {
+  const { raw, pipelineRevision, outTrain, outVal, manifest, work, ...stageOptions } = options;
+  const stageRoot = path.dirname(work);
+  const stage = siblingTeacherStagePaths(stageRoot);
+  if (
+    path.resolve(outTrain) !== stage.train ||
+    path.resolve(outVal) !== stage.val ||
+    path.resolve(manifest) !== stage.manifest ||
+    path.resolve(work) !== stage.work
+  ) {
+    throw new Error('test outputs must use the fixed sibling teacher stage filenames');
+  }
+  return stageSiblingTeacherDatasetCoreForTests(
+    await authenticatedInputFromRaw(raw, pipelineRevision),
+    { ...stageOptions, stageRoot },
+    dependencies
+  );
+}
+
 async function generateForTest(
-  options: Omit<GenerateSiblingTeacherOptions, 'pipelineRevision'> & { pipelineRevision?: string }
+  options: Omit<GenerateSiblingTeacherOptions, 'pipelineRevision'> & {
+    pipelineRevision?: string;
+  }
 ) {
   return generateSiblingTeacherDataset(
     { pipelineRevision: PIPELINE_REVISION, ...options },
@@ -69,23 +166,30 @@ function resealWorkEntry(entry: Record<string, unknown>): void {
 async function writeEngineReceipt(root: string, engineBin = process.execPath): Promise<string> {
   const bytes = await fs.promises.readFile(engineBin);
   const receipt = path.join(root, 'engine-receipt.json');
-  await fs.promises.writeFile(receipt, `${JSON.stringify({
-    schema: 'shogi-teacher-engine-receipt-v1',
-    source_repository: 'https://example.test/teacher-engine.git',
-    source_commit: '0123456789abcdef0123456789abcdef01234567',
-    source_commit_date: '2026-07-02T13:41:06+09:00',
-    build_directory: 'source',
-    build_command: 'test build',
-    compiler: 'test compiler',
-    compiler_target: 'test-target',
-    engine_id: 'fake test engine',
-    binary_bytes: bytes.byteLength,
-    binary_sha256: sha256(bytes),
-  })}\n`);
+  await fs.promises.writeFile(
+    receipt,
+    `${JSON.stringify({
+      schema: 'shogi-teacher-engine-receipt-v1',
+      source_repository: 'https://example.test/teacher-engine.git',
+      source_commit: '0123456789abcdef0123456789abcdef01234567',
+      source_commit_date: '2026-07-02T13:41:06+09:00',
+      build_directory: 'source',
+      build_command: 'test build',
+      compiler: 'test compiler',
+      compiler_target: 'test-target',
+      engine_id: 'fake test engine',
+      binary_bytes: bytes.byteLength,
+      binary_sha256: sha256(bytes),
+    })}\n`
+  );
   return receipt;
 }
 
 function rawParent(parentId: string): Record<string, unknown> {
+  const parentSfen =
+    parentId === 'parent-b'
+      ? 'lnsgkgsnl/1r5b1/ppppppppp/9/9/9/1PPPPPPPP/1B5R1/LNSGKGSNL b - 1'
+      : START;
   return {
     schema_version: 1,
     source: 'wcsc',
@@ -95,8 +199,8 @@ function rawParent(parentId: string): Record<string, unknown> {
     time_control: '900+5',
     game_id: 'game-shared',
     parent_id: parentId,
-    position_id: positionKeyFromSfen(START),
-    parent_sfen: START,
+    position_id: positionKeyFromSfen(parentSfen),
+    parent_sfen: parentSfen,
     ply: 0,
     played_move: '6g6f',
   };
@@ -110,7 +214,123 @@ function parseJsonl<T>(text: string): T[] {
     .map((line) => JSON.parse(line) as T);
 }
 
+function expectExactKeys(value: object, expected: readonly string[]): void {
+  expect(Object.keys(value).sort()).toEqual([...expected].sort());
+}
+
 describe('deterministic sibling teacher generator', () => {
+  it('fails closed when an obsolete raw-path CLI job invokes the module directly', async () => {
+    type RemovedOptionKeys = Extract<
+      keyof StageSiblingTeacherCoreForTestsOptions,
+      'raw' | 'maxParents' | 'pipelineRevision' | 'outTrain' | 'outVal' | 'manifest' | 'work'
+    >;
+    const removedFromPublicType: RemovedOptionKeys extends never ? true : false = true;
+    expect(removedFromPublicType).toBe(true);
+
+    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-cli-tombstone-'));
+    const sentinel = path.join(root, 'train.jsonl');
+    await fs.promises.writeFile(sentinel, 'unchanged\n');
+    const result = spawnSync(
+      process.execPath,
+      [
+        '-r',
+        'tsx/cjs',
+        GENERATOR_SOURCE,
+        '--raw',
+        path.join(root, 'missing.raw.jsonl'),
+        '--out-train',
+        sentinel,
+      ],
+      {
+        cwd: path.resolve(HERE, '../../..'),
+        encoding: 'utf8',
+      }
+    );
+
+    expect(result.status).toBe(2);
+    expect(result.stdout).toBe('');
+    expect(result.stderr).toContain(REMOVED_SIBLING_TEACHER_CLI_MESSAGE);
+    expect(await fs.promises.readFile(sentinel, 'utf8')).toBe('unchanged\n');
+    expect(await fs.promises.readdir(root)).toEqual(['train.jsonl']);
+  });
+
+  it('stages from authenticated rows without retaining a raw pathname and binds every receipt field', async () => {
+    const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-pathless-'));
+    const raw = path.join(root, 'source.raw.jsonl');
+    const rawText = `${JSON.stringify(rawParent('parent-pathless'))}\n`;
+    await fs.promises.writeFile(raw, rawText);
+    const input = await authenticatedInputFromRaw(raw, PIPELINE_REVISION);
+    await fs.promises.rm(raw);
+    const stageRoot = path.join(root, 'stage');
+    const stage = siblingTeacherStagePaths(stageRoot);
+    const verifyOutputPaths = vi.fn(
+      async (_outputs: readonly string[], _inputs: readonly string[]) => undefined
+    );
+    const options: StageSiblingTeacherCoreForTestsOptions = {
+      stageRoot,
+      engineBin: process.execPath,
+      engineArgs: [FAKE_ENGINE],
+      engineReceipt: await writeEngineReceipt(root),
+      multipv: 2,
+      depth: 8,
+      engines: 1,
+      timeoutMs: 5_000,
+    };
+    const dependencies: GenerateSiblingTeacherDependencies = {
+      verifyRevision: async (revision) => ({
+        source_revision: revision,
+        tracked_tree_clean: true,
+      }),
+      verifyOutputPaths,
+    };
+
+    const manifest = await stageSiblingTeacherDatasetCoreForTests(input, options, dependencies);
+    expect(manifest.source).toMatchObject({
+      raw_sha256: sha256(rawText),
+      raw_records: 1,
+      selected_parents: 1,
+    });
+    expect((await fs.promises.readdir(stageRoot)).sort()).toEqual([
+      'manifest.json',
+      'train.jsonl',
+      'val.jsonl',
+      'work.jsonl',
+    ]);
+    expect(verifyOutputPaths).toHaveBeenCalledTimes(2);
+    for (const [outputs, inputs] of verifyOutputPaths.mock.calls) {
+      expect(outputs).toEqual([stage.train, stage.val, stage.manifest, stage.work]);
+      expect(inputs).not.toContain(raw);
+    }
+
+    const mismatchedRows = Object.freeze({
+      ...input,
+      binding: Object.freeze({
+        ...input.binding,
+        parent_ids_sha256: sha256('wrong-parent-set'),
+      }),
+    });
+    await expect(
+      stageSiblingTeacherDatasetCoreForTests(mismatchedRows, options, dependencies)
+    ).rejects.toThrow(/aggregate binding/);
+
+    const changedInput = Object.freeze({
+      ...input,
+      binding: Object.freeze({
+        ...input.binding,
+        result_receipt_sha256: sha256('different-result-receipt'),
+      }),
+    });
+    await expect(
+      stageSiblingTeacherDatasetCoreForTests(changedInput, options, dependencies)
+    ).rejects.toThrow(/checkpoint header does not match/);
+    await expect(
+      stageSiblingTeacherDatasetCoreForTests(input, { ...options, timeoutMs: 6_000 }, dependencies)
+    ).rejects.toThrow(/checkpoint header does not match/);
+    await expect(
+      stageSiblingTeacherDatasetCoreForTests(input, { ...options, engines: 2 }, dependencies)
+    ).rejects.toThrow(/checkpoint header does not match/);
+  });
+
   it('re-scores played moves outside top-N, resumes deterministically, and emits no duplicates', async () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-teacher-'));
     const raw = path.join(root, 'parents.raw.jsonl');
@@ -160,6 +380,146 @@ describe('deterministic sibling teacher generator', () => {
     ];
 
     expect(firstManifest.schema).toBe(SIBLING_TEACHER_MANIFEST_SCHEMA);
+    expect(Object.keys(firstManifest).sort()).toEqual(
+      [
+        'schema',
+        'record_manifest_schema',
+        'pipeline',
+        'source',
+        'teacher',
+        'search',
+        'candidate_sets',
+        'progress_checkpoint',
+        'split',
+        'outputs',
+      ].sort()
+    );
+    expect(Object.keys(firstManifest.source).sort()).toEqual(
+      ['raw_sha256', 'raw_records', 'selected_parents', 'selected_parent_ids_sha256'].sort()
+    );
+    expect(Object.keys(firstManifest.teacher).sort()).toEqual(
+      [
+        'engine_bin_sha256',
+        'engine_bin_bytes',
+        'engine_args',
+        'engine_arg_files',
+        'engine_receipt',
+        'eval_sha256',
+        'eval_files',
+        'runtime_snapshot',
+      ].sort()
+    );
+    expect(Object.keys(firstManifest.search).sort()).toEqual(
+      [
+        'multipv',
+        'limit',
+        'parallel_engines',
+        'fv_scale',
+        'hash_mb_per_engine',
+        'timeout_ms',
+        'exact_rescore_mode',
+        'label_policy',
+        'tt_reset_before_proposal',
+        'tt_reset_before_each_candidate',
+        'search_state_reset_before_proposal',
+        'search_state_reset_before_each_candidate',
+        'candidate_execution_order',
+        'synthesized_rank_order',
+        'engine_options',
+      ].sort()
+    );
+    expectExactKeys(firstManifest.pipeline, ['source_revision', 'tracked_tree_clean']);
+    expectExactKeys(firstManifest.teacher.engine_receipt, ['file', 'content']);
+    expectExactKeys(firstManifest.teacher.engine_receipt.file, ['path', 'bytes', 'sha256']);
+    for (const file of [
+      ...firstManifest.teacher.engine_arg_files,
+      ...firstManifest.teacher.eval_files,
+    ]) {
+      expectExactKeys(file, ['path', 'bytes', 'sha256']);
+    }
+    expectExactKeys(firstManifest.teacher.engine_receipt.content, [
+      'schema',
+      'source_repository',
+      'source_commit',
+      'source_commit_date',
+      'build_directory',
+      'build_command',
+      'compiler',
+      'compiler_target',
+      'engine_id',
+      'binary_bytes',
+      'binary_sha256',
+    ]);
+    expectExactKeys(firstManifest.teacher.runtime_snapshot, [
+      'engine_binary',
+      'engine_argument_files',
+      'eval_tree',
+      'eval_options_file',
+      'private_working_directory',
+      'engine_argument_file_count',
+      'eval_tree_present',
+    ]);
+    expectExactKeys(firstManifest.search.limit, ['depth']);
+    expectExactKeys(firstManifest.search.engine_options, [
+      'threads',
+      'usi_own_book',
+      'book_file',
+      'network_delay_ms',
+      'network_delay2_ms',
+      'search_state_reset_trigger',
+    ]);
+    expectExactKeys(firstManifest.candidate_sets, [
+      'sha256',
+      'parents',
+      'candidates',
+      'min_candidates',
+      'max_candidates',
+      'skipped_parents',
+    ]);
+    expectExactKeys(firstManifest.progress_checkpoint, [
+      'schema',
+      'run_fingerprint',
+      'entries',
+      'completed_parents',
+      'skipped_parents',
+      'sha256',
+    ]);
+    expectExactKeys(firstManifest.split, [
+      'schema',
+      'record_schema',
+      'schema_version',
+      'split_seed',
+      'val_ratio',
+      'train_game_ids_sha256',
+      'val_game_ids_sha256',
+      'stats',
+    ]);
+    expectExactKeys(firstManifest.split.stats, [
+      'input_records',
+      'output_records',
+      'input_parents',
+      'output_parents',
+      'input_games',
+      'train_records',
+      'val_records',
+      'train_parents',
+      'val_parents',
+      'train_games',
+      'val_games',
+      'val_position_priority_dropped_records',
+      'val_position_priority_dropped_parents',
+      'val_child_position_priority_dropped_records',
+      'val_child_position_priority_dropped_parents',
+      'game_overlap',
+      'position_overlap',
+      'child_position_overlap',
+    ]);
+    expectExactKeys(firstManifest.outputs, [
+      'train_sha256',
+      'val_sha256',
+      'train_bytes',
+      'val_bytes',
+    ]);
     expect(firstManifest.pipeline).toEqual({
       source_revision: PIPELINE_REVISION,
       tracked_tree_clean: true,
@@ -220,7 +580,10 @@ describe('deterministic sibling teacher generator', () => {
     expect(workRows[0]).toMatchObject({
       schema: SIBLING_TEACHER_WORK_SCHEMA,
       kind: 'header',
-      pipeline: { source_revision: PIPELINE_REVISION, tracked_tree_clean: true },
+      pipeline: {
+        source_revision: PIPELINE_REVISION,
+        tracked_tree_clean: true,
+      },
     });
     expect(workRows.slice(1).map((row) => row.parent_id)).toEqual(['parent-a', 'parent-b']);
     expect(workRows[1]).toMatchObject({
@@ -333,7 +696,9 @@ describe('deterministic sibling teacher generator', () => {
       {
         name: 'execution order',
         mutate: (entry) => {
-          const exact = entry.exact_search as { searches: Record<string, unknown>[] };
+          const exact = entry.exact_search as {
+            searches: Record<string, unknown>[];
+          };
           [exact.searches[0], exact.searches[1]] = [exact.searches[1], exact.searches[0]];
         },
         error: /canonical candidate order/,
@@ -355,10 +720,42 @@ describe('deterministic sibling teacher generator', () => {
         },
         error: /disagrees with exact score metadata/,
       },
+      {
+        name: 'proposal limit',
+        mutate: (entry) => {
+          const initial = entry.initial_search as Record<string, unknown>;
+          initial.requested_limit = { depth: 7 };
+          initial.depth = 7;
+          const exact = entry.exact_search as {
+            searches: Array<Record<string, unknown>>;
+          };
+          for (const search of exact.searches) {
+            search.requested_limit = { depth: 7 };
+            search.depth = 7;
+          }
+        },
+        error: /inconsistent candidate metadata/,
+      },
+      {
+        name: 'proposal multipv',
+        mutate: (entry) => {
+          const initial = entry.initial_search as {
+            requested_multipv: number;
+            moves: string[];
+            scores: Array<Record<string, unknown>>;
+          };
+          initial.requested_multipv = 1;
+          initial.moves = initial.moves.slice(0, 1);
+          initial.scores = initial.scores.slice(0, 1);
+        },
+        error: /inconsistent candidate metadata/,
+      },
     ];
 
     for (const testCase of cases) {
-      const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), `sibling-resume-${testCase.name}-`));
+      const root = await fs.promises.mkdtemp(
+        path.join(os.tmpdir(), `sibling-resume-${testCase.name}-`)
+      );
       const raw = path.join(root, 'parents.raw.jsonl');
       const work = path.join(root, 'work.jsonl');
       const engineReceipt = await writeEngineReceipt(root);
@@ -385,7 +782,7 @@ describe('deterministic sibling teacher generator', () => {
 
       await expect(generateForTest(options), testCase.name).rejects.toThrow(testCase.error);
     }
-  });
+  }, 15_000);
 
   it('rejects a resealed false skip for a parent with multiple legal moves', async () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-false-skip-'));
@@ -428,8 +825,10 @@ describe('deterministic sibling teacher generator', () => {
 
   it('requires one and only one deterministic search limit', async () => {
     const root = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sibling-limit-'));
+    const raw = path.join(root, 'raw.jsonl');
+    await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-limit'))}\n`);
     const base = {
-      raw: path.join(root, 'raw.jsonl'),
+      raw,
       engineBin: process.execPath,
       engineReceipt: path.join(root, 'receipt.json'),
       outTrain: path.join(root, 'train.jsonl'),
@@ -614,11 +1013,11 @@ rl.on('line', (line) => {
     const raw = path.join(root, 'raw.jsonl');
     await fs.promises.writeFile(raw, `${JSON.stringify(rawParent('parent-a'))}\n`);
     const engineReceipt = await writeEngineReceipt(root);
-    const receipt = JSON.parse(await fs.promises.readFile(engineReceipt, 'utf8')) as Record<string, unknown>;
-    receipt.source_commit = 'not-a-full-git-id';
-    await fs.promises.writeFile(engineReceipt, `${JSON.stringify(receipt)}\n`);
-
-    await expect(generateForTest({
+    const receipt = JSON.parse(await fs.promises.readFile(engineReceipt, 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    const options = {
       raw,
       engineBin: process.execPath,
       engineArgs: [FAKE_ENGINE],
@@ -628,7 +1027,21 @@ rl.on('line', (line) => {
       outVal: path.join(root, 'val.jsonl'),
       manifest: path.join(root, 'manifest.json'),
       work: path.join(root, 'work.jsonl'),
-    })).rejects.toThrow(/source_commit/);
+    };
+    receipt.source_commit = 'not-a-full-git-id';
+    await fs.promises.writeFile(engineReceipt, `${JSON.stringify(receipt)}\n`);
+
+    await expect(generateForTest(options)).rejects.toThrow(/source_commit/);
+
+    receipt.source_commit = PIPELINE_REVISION;
+    receipt.unexpected = true;
+    await fs.promises.writeFile(engineReceipt, `${JSON.stringify(receipt)}\n`);
+    await expect(generateForTest(options)).rejects.toThrow(/exactly the v1 keys/);
+
+    delete receipt.unexpected;
+    receipt.compiler = ' test compiler ';
+    await fs.promises.writeFile(engineReceipt, `${JSON.stringify(receipt)}\n`);
+    await expect(generateForTest(options)).rejects.toThrow(/surrounding whitespace/);
   });
 
   it('runs workers only from immutable engine, argument-file, and eval snapshots', async () => {
@@ -750,6 +1163,9 @@ rl.on('line', (line) => {
       'z.bin',
       'é.bin',
     ]);
+    for (const file of [...manifest.teacher.engine_arg_files, ...manifest.teacher.eval_files]) {
+      expectExactKeys(file, ['path', 'bytes', 'sha256']);
+    }
   });
 
   it('rejects eval_options.txt instead of allowing mutable option overrides', async () => {
@@ -762,17 +1178,19 @@ rl.on('line', (line) => {
     await fs.promises.writeFile(path.join(evalDir, 'eval_options.txt'), 'Threads=8\n');
     const engineReceipt = await writeEngineReceipt(root);
 
-    await expect(generateForTest({
-      raw,
-      engineBin: process.execPath,
-      engineArgs: [FAKE_ENGINE],
-      engineReceipt,
-      evalDir,
-      depth: 8,
-      outTrain: path.join(root, 'train.jsonl'),
-      outVal: path.join(root, 'val.jsonl'),
-      manifest: path.join(root, 'manifest.json'),
-      work: path.join(root, 'work.jsonl'),
-    })).rejects.toThrow(/eval_options\.txt/);
+    await expect(
+      generateForTest({
+        raw,
+        engineBin: process.execPath,
+        engineArgs: [FAKE_ENGINE],
+        engineReceipt,
+        evalDir,
+        depth: 8,
+        outTrain: path.join(root, 'train.jsonl'),
+        outVal: path.join(root, 'val.jsonl'),
+        manifest: path.join(root, 'manifest.json'),
+        work: path.join(root, 'work.jsonl'),
+      })
+    ).rejects.toThrow(/eval_options\.txt/);
   });
 });

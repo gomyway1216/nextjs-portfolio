@@ -355,10 +355,8 @@ export interface FloodgateTeacherStagePublicationDependencies {
   ) => Promise<void>;
 }
 
-export interface FloodgateTeacherStagePublicationSourceHandle {
-  readonly fd: number;
-  stat(options: { readonly bigint: true }): Promise<fs.BigIntStats>;
-}
+export type FloodgateTeacherStagePublicationSourceHandle =
+  import("./floodgate-exclusive-directory-rename").FloodgateExclusiveDirectorySourceHandle;
 
 interface RuntimeClaimRegistry {
   readonly available: WeakSet<Readonly<FloodgateTeacherStageLease>>;
@@ -1980,11 +1978,8 @@ function exactDataRecord(
     authorizationFailure(`${label} has an unexpected field set`);
   }
   const captured = objectCreate(null) as Record<string, unknown>;
-  for (let index = 0; index < keys.length; index += 1) {
-    const key = keys[index];
-    if (typeof key !== "string" || expectedKeys[index] !== key) {
-      authorizationFailure(`${label} fields are not exact and canonical`);
-    }
+  for (let index = 0; index < expectedKeys.length; index += 1) {
+    const key = expectedKeys[index];
     const descriptor = descriptors[key];
     if (
       descriptor === undefined ||

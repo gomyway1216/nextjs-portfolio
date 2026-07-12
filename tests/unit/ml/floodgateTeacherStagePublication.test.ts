@@ -38,6 +38,7 @@ import {
 const SYNTHETIC_WORK_BYTES = "synthetic sealed checkpoint\n";
 const temporaryRoots: string[] = [];
 const darwinIt = process.platform === "darwin" ? it : it.skip;
+const posixDescribe = describe.runIf(typeof process.geteuid === "function");
 
 interface Fixture {
   readonly root: string;
@@ -179,12 +180,14 @@ function frozenRenameReceipt(
   parent: fs.BigIntStats,
   stage: fs.BigIntStats,
 ): Readonly<FloodgateExclusiveDirectoryRenameReceipt> {
+  // Deliberately use a different insertion order from the production helper.
+  // Exact receipt validation must compare the field set, not serialization order.
   return Object.freeze({
-    contract: FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_CONTRACT,
-    trust_boundary: FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_TRUST_BOUNDARY,
-    status: "verified-committed",
-    parent_identity: Object.freeze(identity(parent)),
     destination_identity: Object.freeze(identity(stage)),
+    parent_identity: Object.freeze(identity(parent)),
+    status: "verified-committed",
+    trust_boundary: FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_TRUST_BOUNDARY,
+    contract: FLOODGATE_EXCLUSIVE_DIRECTORY_RENAME_CONTRACT,
   });
 }
 
@@ -377,7 +380,7 @@ afterEach(async () => {
   );
 });
 
-describe("Floodgate teacher stage publication transaction", () => {
+posixDescribe("Floodgate teacher stage publication transaction", () => {
   it("uses only one synthetic private work file in its authorization fixture", async () => {
     const value = await fixture();
     const stageBefore = await fs.promises.lstat(value.stageRoot, {
@@ -1151,15 +1154,16 @@ describe("Floodgate teacher stage publication transaction", () => {
     expect(receipt.claim_boundary).toBe(
       FLOODGATE_TEACHER_STAGE_PUBLICATION_CLAIM_BOUNDARY,
     );
-    expect(Object.keys(receipt)).not.toEqual(
-      expect.arrayContaining([
-        "proposal",
-        "teacher_label",
-        "playing_strength",
-        "sfen",
-        "usi",
-      ]),
-    );
+    const receiptKeys = Object.keys(receipt);
+    for (const forbiddenKey of [
+      "proposal",
+      "teacher_label",
+      "playing_strength",
+      "sfen",
+      "usi",
+    ]) {
+      expect(receiptKeys).not.toContain(forbiddenKey);
+    }
     const source = await fs.promises.readFile(
       path.resolve(
         __dirname,

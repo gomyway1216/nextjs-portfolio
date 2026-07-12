@@ -6,7 +6,7 @@
 
 ## 現在地
 
-2026-07-11時点で、まだ「高段レベルになった」とは判定していない。labelを見ずに公開在庫を固定し、36,349件のraw responseを単一processで取得したうえで、training 1,000局、fresh selection 200局、fresh final holdout 200局のrole lockまで完了した。
+2026-07-12時点で、まだ「高段レベルになった」とは判定していない。labelを見ずに公開在庫を固定し、36,349件のraw responseを単一processで取得したうえで、training 1,000局、fresh selection 200局、fresh final holdout 200局のrole lock、label-free role bundleの公開、別processによる独立検証まで完了した。
 
 | 段階                              | 状態   | 証拠                                                  |
 | --------------------------------- | ------ | ----------------------------------------------------- |
@@ -19,7 +19,7 @@
 | live raw取得                      | 完了   | 36,349 / 36,349、result SHA `f48155a5…0301`           |
 | 1,000 / 200 / 200 role lock       | 完了   | 1,400局 / 33,600 parents / manifest `e6a54ed0…084e`   |
 | 独立full replay                   | 完了   | `b086243`、再計算一致 / anomaly 0 / filesystem不変    |
-| label-free role bundle            | 未公開 | full-replay PASS bindingまで実装・検証済み            |
+| label-free role bundle            | 完了   | 9 files / manifest `2bafc01f…e3cf9` / publish・verify exit 0 |
 | teacher / 3 seed学習              | 未開始 | model・loss・seedは変更しない                         |
 | fresh selection                   | 封印   | 3 final checkpoint完成後だけ                          |
 | final / 384局A/B / 81Dojo         | 封印   | 前段合格時だけ                                        |
@@ -244,20 +244,55 @@ key-only auditと既知のboolean値の確認では、`teacher_or_candidate_scor
 
 対策後の境界は`/usr/bin/git`を固定し、継承したGit・dynamic-loader環境を除去し、graftとfsmonitorを無効化する。それでもGitの表示だけは信用せず、HEAD treeとindexを読み、全tracked regular file / symlinkの実bytesとmodeからGit blob IDを独立再計算する。role bundleの履歴は`raw producer → role-lock producer → full-replay verifier b086243 → bundle producer → current verifier`をすべて祖先関係として要求し、bundle producer自身のtreeにtracked role-lock result / status / logのexact 3 blobsがあることも確認する。
 
-また、自己整合する別runを誤って渡せないように、bundleはtracked role-lock resultのidentityと、raw manifest、legacy exclusion、accounting、各role、aggregate digest、manifest / materialized input / allocationの実bytesを相互照合する。bundle manifestにもresult receipt identityを残す。production verifierは独立full replayのexact PASS status / log bindingだけを受理し、失敗した1回目や自己申告だけではcomplete bundleを公開できない。今回の2回目でこの公開前integrity gateを閉じたが、role bundle自体はまだ公開していない。
+また、自己整合する別runを誤って渡せないように、bundleはtracked role-lock resultのidentityと、raw manifest、legacy exclusion、accounting、各role、aggregate digest、manifest / materialized input / allocationの実bytesを相互照合する。bundle manifestにもrole-lock result-receipt identityを残す。production verifierは独立full replayのexact PASS status / log bindingだけを受理し、失敗した1回目や自己申告だけではcomplete bundleを公開できない。この公開前integrity gateを閉じたあと、次節のpublishと独立verifyを実行した。
 
 出力rootは同期`mkdir`直後に`O_NOFOLLOW | O_DIRECTORY | O_NONBLOCK`でFDを捕捉し、以後はinodeとdirectory ctimeを追跡する。取得失敗時にpathnameだけを見てdirectoryを削除する処理も廃止した。ただしNodeの`mkdir`はFDを返さないため、同一ユーザーの敵対processが2 syscall間のごく短い窓で空のmode 0700 directoryへ差し替える競合自体は完全には原子化できない。これは誤ったbundle bytesをcompleteとして通す穴ではないが、出力parentを信頼されたprivate storageに置くという運用条件として残す。
 
-## role lock後に残った次段の停止条件
+## label-free role bundleの公開と独立検証
+
+### 実行事実とtracked result receipt
+
+以下は完了したprocessと公開後filesystemを別processで再確認した実測値である。[tracked role-bundle result receipt](../ml/protocols/floodgate-q1-2026-role-bundle-result.json)は14,735 bytes / SHA-256 `56009b1abaf83a75ae66ea8abf62e1f9f7214ad1aa687f7808972679e4af3ccf`で、claim boundaryを`integrity-only-not-playing-strength-evidence`へ固定した。
+
+publishとverifyはどちらもNode.js v22.13.0、source revision `313c7699e206332f9d380858d90d0326a0a1fd12`で実行した。自動retryも失敗後の再試行もなく、failed attemptは両方0だった。
+
+| mode    | UTC開始 / 終了                                  | elapsed        | OS real / user / sys (秒)          | max RSS / peak footprint (bytes)      | exit / failed attempts |
+| ------- | ----------------------------------------------- | -------------: | ----------------------------------: | -------------------------------------: | ---------------------: |
+| publish | `2026-07-11T20:08:35Z` / `2026-07-12T04:18:39Z` | 29,404,000 ms | 29,403.92 / 29,513.22 / 1,594.65 | 6,168,936,448 / 5,378,436,272 |                  0 / 0 |
+| verify  | `2026-07-12T04:20:01Z` / `2026-07-12T12:11:22Z` | 28,281,000 ms | 28,280.32 / 28,376.91 / 1,564.28 | 6,230,917,120 / 5,380,204,472 |                  0 / 0 |
+
+公開rootはmode 0700で、直下は3 roleそれぞれの`raw.jsonl`と`protected-position-ids.txt`、`replay-excluded-position-ids.txt`、`replay-exclusion-receipt.json`、最後に公開した`manifest.json`のexact 9 regular non-symlink filesだけだった。全fileはmode 0600である。7,202-byte manifestのSHA-256は`2bafc01f602c98ea63069e04b8d39c36470bcc6d31e1861fdaa83c6fc50e3cf9`で、publish出力、独立verify出力、実fileのcanonical contentは一致した。残る8 artifactのbytes / SHA-256再計算もmanifest内identityと一致し、9 fileすべてのhash checkが通った。
+
+| role                | games | parent rows | protected position IDs |
+| ------------------- | ----: | ----------: | ---------------------: |
+| fresh final holdout |   200 |       4,800 |                413,221 |
+| fresh selection     |   200 |       4,800 |                425,344 |
+| training            | 1,000 |      24,000 |              2,121,074 |
+
+replay exclusionはlegacy 8,678 IDsとfresh final / selection 838,565 IDsを結合した847,243 IDsである。legacy / fresh間、final / selection間を含むoverlap、各集合内duplicate、replay exclusionへのtraining protected ID混入はすべて0だった。
+
+このbundleで初めてrole別parentのSFENと`played_move`をlabel-freeにmaterializeした。一方、teacher値、candidate score、labeled fresh selection、labeled fresh finalはpublishでもverifyでも読んでいない。したがってこれは再学習入力のprovenance / isolation / integrity証拠であり、評価関数が強くなった証拠ではない。
+
+## role bundle後に残った次段の停止条件
 
 - role lockではrules-complete合法手2つ以上をlabel-blind条件にし、飛車角の任意不成を含む共通helperでprotected child IDsを固定した。teacherも同じhelperを使わなければならない
-- role allocationだけでは`played_move`がない。次のread-only bundle stageでraw CASを再検証してrole別parent bundleを作り、legacy 8,678 IDとfresh final/selection IDのunionをreplay抽出前に固定する
+- role bundleにはSFENと`played_move`が入ったが、teacher consumerはまだ実行していない。検証済みtraining rowsだけへ束縛してからscoreを生成しなければならない
 - 事前登録したwarm initializer `571ca309…65ff8`、replay `2207eba5…a56cb`、Python 3.13.0 / PyTorch 2.12.1環境はexact一致で回収し、安定領域へ複製した
+
+## 新しい資料から得た設計根拠と限界
+
+[WCSC36 Ryfamate公式アピール文書](https://www.apply.computer-shogi.org/wcsc36/appeal/Ryfamate/Ryfamate_appeal20260331%281%29.html)は、NNUE alpha-betaとDL-MCTSの相補利用、NNUE-AB teacherからの知識蒸留、詰み筋をteacher targetへ加える試みを報告している。特に、小規模modelではrating改善が見えなくても終盤逆転が減ったという記述は、単一の平均誤差やratingだけでなく、致命的blunderを別gateで測る理由になる。[WCSC36アピール文書最終版PDF](https://www.apply.computer-shogi.org/wcsc36/appeal/appeal_final_260504.pdf)でも、validation精度、NPS、対局強さが分けて報告され、training dataが異なる比較は純粋なarchitecture比較ではないと明記されている。だから今回はmodel変更とdata変更を同時にせず、stableを残したまま同じmodel / objectiveでfresh dataの効果を測る。
+
+[ChessBench](https://arxiv.org/abs/2402.04494)は、Stockfish 16のlegal move / value annotationを持つ1,000万chess games・150億data pointsから、searchなしでも強いpolicyをsupervisedに蒸留できる一方、完全な蒸留には届かないと報告する。これは強いteacher labelと未見盤面評価を使う方向を支持するが、chessの大規模Transformer結果であり、将棋、今回のmodel規模、CPU探索へそのEloを移せるわけではない。
+
+[StockfishのNNUE解説](https://official-stockfish.github.io/docs/nnue-pytorch-wiki/docs/nnue.html)は、差分更新できるfeature accumulator、training data path、量子化を一体の実装問題として扱う。これはexact-int16-aware検証と同じ合法手helperを維持する根拠になるが、chess用featureやnetworkをそのまま採用する根拠ではない。[Fishtestの統計解説](https://official-stockfish.github.io/docs/fishtest-wiki/Fishtest-Mathematics.html)と[FAQ](https://official-stockfish.github.io/docs/fishtest-wiki/Fishtest-FAQ.html)はpaired outcomeのpentanomial model、sequential testing、error bar、未完了testの早読み、opening selection biasを扱う。今回の固定384局paired A/Bも対局ペアと停止条件を事前に固定するが、FishtestのGSPRT閾値を後付けで流用はしない。
+
+これらは「teacher distillationを試し、static metricと実戦を分け、stableとのpaired comparisonで判定する」という次段の設計根拠である。別game、別hardware、別data、別searchの報告なので、どれもこのbundleやcandidateが高段であることを直接証明しない。
 
 ## 高段判定までの残り
 
-role lockと独立full replayが成功しても、まだ棋力証明ではない。次はlabel-free role bundleを公開し、その後だけtraining teacherを作り、同じmodel・loss・seed 42/43/44を学習する。
+role lock、独立full replay、label-free role bundleの公開・独立verifyが成功しても、まだ棋力証明ではない。次は検証済みtraining rowsだけからteacherを作り、同じmodel・loss・seed 42/43/44を学習する。
 
 fresh selection family gateを通った候補だけが、fresh final、未開封WCSC36 final、回帰、384局paired A/Bへ進む。最後の81Dojo 200局は公式COM accountとclientを使う必要があり、外部対局を始める前にユーザーの明示確認を取る。
 
-このログの結論はまだ「強くなった」ではない。現時点の結論は、現在の評価関数を壊さず、training / selection / finalが混ざらない1,400局をlabelなしで固定し、clean revisionから独立再現できた、である。
+このログの結論はまだ「強くなった」ではない。現時点の結論は、現在の評価関数を壊さず、training / selection / finalが混ざらない1,400局をlabelなしで固定し、SFEN / `played_move`を含む再学習入力をclean revisionから公開・独立検証できた、である。

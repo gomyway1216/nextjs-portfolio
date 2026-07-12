@@ -6,7 +6,7 @@
 
 ## Current status
 
-As of 2026-07-11, this work has **not** demonstrated high-dan strength. The label-blind public inventory is fixed, all 36,349 raw responses have been acquired by one process, and the roles are now locked at 1,000 training, 200 fresh-selection, and 200 fresh-final-holdout games.
+As of 2026-07-12, this work has **not** demonstrated high-dan strength. The label-blind public inventory is fixed, all 36,349 raw responses have been acquired by one process, and the roles are locked at 1,000 training, 200 fresh-selection, and 200 fresh-final-holdout games. The label-free role bundle has also been published and independently verified by a separate process.
 
 | Stage                             | Status      | Evidence                                                |
 | --------------------------------- | ----------- | ------------------------------------------------------- |
@@ -19,7 +19,7 @@ As of 2026-07-11, this work has **not** demonstrated high-dan strength. The labe
 | live raw acquisition              | complete    | 36,349 / 36,349, result SHA `f48155a5…0301`             |
 | 1,000 / 200 / 200 role lock       | complete    | 1,400 games / 33,600 parents / manifest `e6a54ed0…084e` |
 | independent full replay           | complete    | `b086243`, exact replay / 0 anomalies / unchanged FS     |
-| label-free role bundle            | unpublished | full-replay PASS binding implemented and verified        |
+| label-free role bundle            | complete    | 9 files / manifest `2bafc01f…e3cf9` / publish and verify exit 0 |
 | teacher / three-seed training     | not started | model, objective, and seeds remain frozen               |
 | fresh selection                   | sealed      | only after all three final checkpoints                  |
 | finals / 384-game A/B / 81Dojo    | sealed      | only after earlier gates pass                           |
@@ -244,20 +244,55 @@ The next label-free role-bundle stage was implemented in parallel with the indep
 
 The hardened boundary pins `/usr/bin/git`, removes inherited Git and dynamic-loader controls, and disables grafts and fsmonitor. It still does not trust Git's display: it reads the HEAD tree and index, then independently recomputes Git blob IDs from the actual bytes and modes of every tracked regular file and symlink. Historical bundles must close every ancestry edge in `raw producer → role-lock producer → full-replay verifier b086243 → bundle producer → current verifier`, and the bundle producer's own tree must contain the exact tracked role-lock result, status, and log blobs.
 
-To reject a different but internally self-consistent run, the bundle cross-checks the tracked result identity against the raw manifest, legacy exclusion, accounting, every role, aggregate digests, and the actual manifest, materialized-input, and allocation bytes. The bundle manifest also records the result-receipt identity. The production verifier accepts only exact bindings to the independent full replay's PASS status and log; neither the failed first attempt nor a self-reported pass can publish a complete bundle. The second attempt closes that prepublication integrity gate, but the role bundle itself has not yet been published.
+To reject a different but internally self-consistent run, the bundle cross-checks the tracked role-lock result identity against the raw manifest, legacy exclusion, accounting, every role, aggregate digests, and the actual manifest, materialized-input, and allocation bytes. The bundle manifest also records the role-lock result-receipt identity. The production verifier accepts only exact bindings to the independent full replay's PASS status and log; neither the failed first attempt nor a self-reported pass can publish a complete bundle. Once that prepublication integrity gate had closed, the publish and independent verification in the next section were run.
 
 The output root now uses synchronous `mkdir` followed immediately by an `O_NOFOLLOW | O_DIRECTORY | O_NONBLOCK` descriptor capture, then tracks the inode and directory ctime for the rest of publication. Failure handling no longer removes a directory merely by pathname. Node's `mkdir` does not return a descriptor, however, so the tiny two-syscall window cannot be made fully atomic against a hostile same-user process that substitutes another empty mode-0700 directory. This does not let incorrect bundle bytes pass as complete, but it remains an explicit operational requirement to place the output parent on trusted private storage.
 
-## Stop conditions that remain after the role lock
+## Label-free role-bundle publication and independent verification
+
+### Measured facts and tracked result receipt
+
+The values below were rechecked from the completed processes and the post-publication filesystem by a separate process. The [tracked role-bundle result receipt](../ml/protocols/floodgate-q1-2026-role-bundle-result.json) is 14,735 bytes with SHA-256 `56009b1abaf83a75ae66ea8abf62e1f9f7214ad1aa687f7808972679e4af3ccf`, and pins its claim boundary to `integrity-only-not-playing-strength-evidence`.
+
+Both publish and verify used Node.js v22.13.0 at source revision `313c7699e206332f9d380858d90d0326a0a1fd12`. Neither used an automatic retry or a retry after failure, so both have zero failed attempts.
+
+| Mode    | UTC start / finish                              |       Elapsed | OS real / user / sys (seconds)      | max RSS / peak footprint (bytes)      | exit / failed attempts |
+| ------- | ----------------------------------------------- | ------------: | ----------------------------------: | -------------------------------------: | ---------------------: |
+| publish | `2026-07-11T20:08:35Z` / `2026-07-12T04:18:39Z` | 29,404,000 ms | 29,403.92 / 29,513.22 / 1,594.65 | 6,168,936,448 / 5,378,436,272 |                  0 / 0 |
+| verify  | `2026-07-12T04:20:01Z` / `2026-07-12T12:11:22Z` | 28,281,000 ms | 28,280.32 / 28,376.91 / 1,564.28 | 6,230,917,120 / 5,380,204,472 |                  0 / 0 |
+
+The published root had mode 0700 and contained exactly nine regular, non-symlink files: one `raw.jsonl` and one `protected-position-ids.txt` for each of the three roles, `replay-excluded-position-ids.txt`, `replay-exclusion-receipt.json`, and `manifest.json`, which was published last. Every file had mode 0600. The 7,202-byte manifest has SHA-256 `2bafc01f602c98ea63069e04b8d39c36470bcc6d31e1861fdaa83c6fc50e3cf9`; its canonical content matched the publish output, independent-verify output, and actual file. Recomputed bytes and SHA-256 values for the other eight artifacts matched their manifest identities, so all nine files passed their hash checks.
+
+| Role                | Games | Parent rows | Protected position IDs |
+| ------------------- | ----: | ----------: | ---------------------: |
+| fresh final holdout |   200 |       4,800 |                413,221 |
+| fresh selection     |   200 |       4,800 |                425,344 |
+| training            | 1,000 |      24,000 |              2,121,074 |
+
+Replay exclusion contains 847,243 IDs: 8,678 legacy IDs plus 838,565 fresh-final and fresh-selection IDs. All overlap checks, including legacy versus fresh and final versus selection, all within-set duplicate checks, and training-protected-ID inclusion in replay exclusion returned zero.
+
+This bundle is the first stage to materialize each role parent's SFEN and `played_move` label-free. Publish and verify still read no teacher value, candidate score, labeled fresh selection, or labeled fresh final. The evidence therefore closes provenance, isolation, and integrity of the relearning inputs; it is not evidence that the evaluator plays more strongly.
+
+## Stop conditions that remain after the role bundle
 
 - The role lock applied rules-complete legal moves >= 2 label-blindly and fixed protected-child IDs with the common helper, including optional rook and bishop non-promotions. The teacher must use the same helper
-- Allocation does not contain `played_move`. The next read-only bundle stage must reverify raw CAS into role-specific parent bundles and fix the union of the legacy 8,678 IDs plus fresh final/selection IDs before replay sampling
+- The role bundle now contains SFEN and `played_move`, but no teacher consumer has run. It must be bound to verified training rows before any score is generated
 - The preregistered warm initializer `571ca309…65ff8`, replay `2207eba5…a56cb`, and Python 3.13.0 / PyTorch 2.12.1 environment were recovered with exact identities and copied into stable storage
+
+## Design rationale and limits from newly reviewed sources
+
+The official [WCSC36 Ryfamate appeal](https://www.apply.computer-shogi.org/wcsc36/appeal/Ryfamate/Ryfamate_appeal20260331%281%29.html) reports complementary use of NNUE alpha-beta and DL-MCTS, distillation from an NNUE-AB teacher, and adding missed mating lines to teacher targets. Its observation that a small model showed no rating improvement while endgame reversals fell is a reason to gate catastrophic blunders separately from a single average error or rating. The [final WCSC36 appeal compilation](https://www.apply.computer-shogi.org/wcsc36/appeal/appeal_final_260504.pdf) likewise reports validation accuracy, NPS, and match strength separately and explicitly notes where different training data prevents a pure architecture comparison. That is why this run changes fresh data while keeping the model and objective fixed and stable preserved.
+
+[ChessBench](https://arxiv.org/abs/2402.04494) reports supervised distillation from Stockfish 16 legal-move and value annotations over 10 million chess games and 15 billion data points. Its search-free policy plays strongly, but the paper also says perfect distillation remains out of reach. This supports strong teacher labels and evaluation on unseen boards as a direction; its chess Transformer scale and Elo do not transfer to shogi, this model size, or this CPU search.
+
+The [Stockfish NNUE documentation](https://official-stockfish.github.io/docs/nnue-pytorch-wiki/docs/nnue.html) treats incrementally updated feature accumulators, the training-data path, and quantization as one implementation problem. That supports preserving exact-int16-aware validation and the same legal-move helper, but not copying chess features or networks directly. The [Fishtest mathematics](https://official-stockfish.github.io/docs/fishtest-wiki/Fishtest-Mathematics.html) and [FAQ](https://official-stockfish.github.io/docs/fishtest-wiki/Fishtest-FAQ.html) cover paired-outcome pentanomial models, sequential testing, error bars, premature reading of unfinished tests, and opening-selection bias. This run likewise preregisters pairs and stopping conditions for its fixed 384-game A/B; it will not retrofit Fishtest's GSPRT thresholds afterward.
+
+Together these sources motivate the next stage—try teacher distillation, keep static and playing gates separate, and decide by a paired comparison against stable. They concern different games, hardware, data, and searches, so none directly establishes that this bundle or a future candidate is high-dan.
 
 ## What remains before a high-dan claim
 
-A valid role lock and independent replay are not playing-strength evidence. The next step publishes the label-free role bundle. Only then may the training teacher be generated and the unchanged model/objective be trained with seeds 42, 43, and 44.
+A valid role lock, independent replay, and independently verified label-free role bundle are not playing-strength evidence. The next step is to generate the teacher only from verified training rows, then train the unchanged model and objective with seeds 42, 43, and 44.
 
 Only a fresh-selection family pass opens the fresh final, the existing unopened WCSC36 final, regressions, and the paired 384-game A/B. The final 200-game 81Dojo calibration requires an official COM account and client; explicit user confirmation will be requested before any external games are started.
 
-The conclusion is not yet “the evaluator is stronger.” The narrower, auditable conclusion is that 1,400 label-blind games are fixed without mixing training, selection, and final roles and independently reproduced from a clean revision, while the current evaluator remains untouched.
+The conclusion is not yet “the evaluator is stronger.” The narrower, auditable conclusion is that 1,400 label-blind games are fixed without mixing training, selection, and final roles, and relearning inputs containing SFEN and `played_move` have been published and independently verified from a clean revision while the current evaluator remains untouched.

@@ -6,6 +6,8 @@ data/
 venv/
 runs/
 *.log
+!protocols/floodgate-q1-2026-role-bundle-publish-time.log
+!protocols/floodgate-q1-2026-role-bundle-verify-time.log
 *.7z
 *.bin
 __pycache__/

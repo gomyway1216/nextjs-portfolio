@@ -1,0 +1,238 @@
+{
+  "schema": "shogi-floodgate-role-bundle-cli-output-v2",
+  "mode": "publish",
+  "repository_root": "/Users/yudaiyaguchi/.codex/worktrees/compact-blog-post-header",
+  "producer_revision": "313c7699e206332f9d380858d90d0326a0a1fd12",
+  "verifier_revision": "313c7699e206332f9d380858d90d0326a0a1fd12",
+  "raw_lock_root": "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-raw-lock",
+  "role_lock_root": "/Users/yudaiyaguchi/.codex/shogi-data/floodgate-q1-2026-role-lock-v1",
+  "output_root": "/Users/yudaiyaguchi/.codex/shogi-bundles/floodgate-q1-2026-label-free-role-bundle-v2",
+  "manifest": {
+    "schema": "shogi-floodgate-label-free-role-bundle-v2",
+    "status": "complete-label-free-role-bundle",
+    "provenance": {
+      "network_requests": 0,
+      "teacher_or_candidate_scores_read": false,
+      "labeled_selection_read": false,
+      "labeled_final_holdout_read": false,
+      "role_allocation_changed": false
+    },
+    "pipeline": {
+      "source_revision": "313c7699e206332f9d380858d90d0326a0a1fd12",
+      "tracked_tree_clean": true
+    },
+    "sources": {
+      "raw_lock": {
+        "manifest": {
+          "path": "manifest.json",
+          "bytes": 23698679,
+          "sha256": "1479a3a207458c9d3afe6cf9ba88abc6c44fb7b8b0e621aca9d6558637314619"
+        },
+        "source_revision": "649423d455b5762a697864610d9e8f606cc327c3"
+      },
+      "role_lock": {
+        "manifest": {
+          "path": "manifest.json",
+          "bytes": 5516989,
+          "sha256": "e6a54ed004e961f7924acabb174d1da4ef6c9f6e398e23afd3da3532445b084e"
+        },
+        "allocation": {
+          "path": "allocation.json",
+          "bytes": 236504991,
+          "sha256": "e252d2237a7ba50b959f6bbe9ebc11157623185ec7d5d949727855de4c0159b4"
+        },
+        "verification": {
+          "result": {
+            "path": "ml/protocols/floodgate-q1-2026-role-lock-result.json",
+            "bytes": 9463,
+            "sha256": "f4a78b4208516c71ea7e21d81af2cb6661cc9ea41aca0e16fa70e22928f05a26"
+          },
+          "status": {
+            "path": "ml/protocols/floodgate-q1-2026-role-lock-full-replay-status.json",
+            "bytes": 7749,
+            "sha256": "c7db624051214555d6bc22b3a6497cda83d661298e4d0bf42b3182ba0ac99053"
+          },
+          "log": {
+            "path": "ml/protocols/floodgate-q1-2026-role-lock-full-replay.log",
+            "bytes": 9010,
+            "sha256": "b3954d9593ae52d3928906fea7f921d571daa7664beabb61044b44590cc2d1b8"
+          }
+        },
+        "producer_revision": "fc18554e1ff61e2bd7a0f7a24f277ce4e418a175",
+        "verifier_revision": "313c7699e206332f9d380858d90d0326a0a1fd12"
+      },
+      "legacy_replay_exclusion": {
+        "path": "ml/data/wcsc36/int16-aware-replay-excluded-position-ids.txt",
+        "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+        "bytes": 624816,
+        "sha256": "1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a",
+        "count": 8678,
+        "identifiers_sha256": "f9d9560452554b7e40ed0183c95f9d42cc8b8787f63200b453a511dd44fac5c5"
+      }
+    },
+    "contract": {
+      "role_priority": [
+        "fresh_final_holdout",
+        "fresh_selection",
+        "training"
+      ],
+      "role_game_counts": {
+        "fresh_final_holdout": 200,
+        "fresh_selection": 200,
+        "training": 1000
+      },
+      "parents_per_game": 24,
+      "raw_parent_format": "shogi-floodgate-label-free-raw-parent-jsonl-v1",
+      "game_id_domain": "floodgate-q1-2026-game-id-v1",
+      "canonical_duplicate_policy": "lowest-utf8-bytewise-url-per-body",
+      "played_move_source": "authenticated-csa-move-at-allocated-ply",
+      "cas_read_concurrency": 16,
+      "replay_components": [
+        "legacy",
+        "fresh_final_holdout",
+        "fresh_selection"
+      ],
+      "training_in_replay_exclusion": false
+    },
+    "roles": {
+      "fresh_final_holdout": {
+        "raw_parents": {
+          "path": "fresh-final-holdout.raw.jsonl",
+          "bytes": 3073360,
+          "sha256": "387d1dc630aa453c8c5fe0b105ebfad6a37cdd1dd8f9a10ef463991cae6bcdc7",
+          "format": "shogi-floodgate-label-free-raw-parent-jsonl-v1",
+          "records": 4800,
+          "games": 200,
+          "game_ids_sha256": "29704e5c7b066f33209aa4a94bcc627391af5bc07e1db4c703f39264d11cc502",
+          "parent_ids_sha256": "bd7e6ab2b8147b8fe3e9df0b45310a107b819686d924d839ec632ad610ee8d65",
+          "position_ids_count": 4800,
+          "position_ids_sha256": "f09d19ac6d634fda8b4b46a40c017f14e895bad1866d56373c459bed782944cd"
+        },
+        "protected_position_ids": {
+          "path": "fresh-final-holdout.protected-position-ids.txt",
+          "bytes": 29751912,
+          "sha256": "4f518ce8605950198b0b116703be83932b11380169ecf5631f01d8590c82dabe",
+          "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+          "count": 413221,
+          "identifiers_sha256": "2f5823565a20cbf4099f3944c2dac6a53c90e8f806d1da43a5ce4214fabddd9f"
+        }
+      },
+      "fresh_selection": {
+        "raw_parents": {
+          "path": "fresh-selection.raw.jsonl",
+          "bytes": 3073306,
+          "sha256": "76e43969374704a77745fd329e5d22059d036fb8235626af91421fbeba16a4d9",
+          "format": "shogi-floodgate-label-free-raw-parent-jsonl-v1",
+          "records": 4800,
+          "games": 200,
+          "game_ids_sha256": "417e2e1053d9f222e82478840f9021c68d88948fec6c9db927538ebadd77e0cb",
+          "parent_ids_sha256": "db24301a7168e84de2474939e8d2b865b670b448aa6ccba2999a4e19df111a3f",
+          "position_ids_count": 4800,
+          "position_ids_sha256": "3e0c7c049bc4e0799854a4371266278c61ce53184ae14f6be82c40ab73ef02c0"
+        },
+        "protected_position_ids": {
+          "path": "fresh-selection.protected-position-ids.txt",
+          "bytes": 30624768,
+          "sha256": "3086c6ba6bff70869dee4f9e77102bfdb3c15c876897d781114bb90ae2ffef9d",
+          "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+          "count": 425344,
+          "identifiers_sha256": "fd6ebd48871d13983bdb6c0a736a0c51ac6480ae52bdda26c56abc97c00ed316"
+        }
+      },
+      "training": {
+        "raw_parents": {
+          "path": "training.raw.jsonl",
+          "bytes": 15369952,
+          "sha256": "c9ee90da69135ead5dbb60cbab6eaa82ad018db791132dd4ec122d6088c37b62",
+          "format": "shogi-floodgate-label-free-raw-parent-jsonl-v1",
+          "records": 24000,
+          "games": 1000,
+          "game_ids_sha256": "97609ce53a9dee1fffd8faadcf408d79bc3e0724c17d52d8a2ac095bc607e3d7",
+          "parent_ids_sha256": "6681bd08bb282be04f47bf3157ea07fbbe2bc6a6864a100ce65902dc9cc3f08f",
+          "position_ids_count": 24000,
+          "position_ids_sha256": "a97788b608a6687c078b7fbe2172a5c4068c57a42ed322c3997692f697e73b5c"
+        },
+        "protected_position_ids": {
+          "path": "training.protected-position-ids.txt",
+          "bytes": 152717328,
+          "sha256": "142c8e5a11b3508c999dd056bc02f192550e6f086ba8da789ec9d7f5ba37cf5b",
+          "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+          "count": 2121074,
+          "identifiers_sha256": "b5599830da8d297b713b17d6acfe636fc3d55697b29a4ffdb31443d2e27f5dd6"
+        }
+      }
+    },
+    "replay_exclusion": {
+      "identifiers": {
+        "path": "replay-excluded-position-ids.txt",
+        "bytes": 61001496,
+        "sha256": "4efde3390dfb9bbbd447899dbebc84e624a9ab92716e15e9bae85b3694fd5275",
+        "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+        "count": 847243,
+        "identifiers_sha256": "d6a95989f4cef62cd149de0c2b9aa43586f548894ca46fb66f4503437f7dce7c"
+      },
+      "receipt": {
+        "path": "replay-exclusion-receipt.json",
+        "bytes": 1471,
+        "sha256": "1c29528e3843cfae41f5f65d0f6e32832af9c85d871a89c1796e99e7c24c3f56"
+      },
+      "summary": {
+        "schema": "shogi-floodgate-replay-exclusion-union-v1",
+        "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+        "components": {
+          "legacy": {
+            "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+            "bytes": 624816,
+            "sha256": "1cddfa87218de7c0752acfd6d238d3581103a6051e7f17bf54256bee2586ce5a",
+            "count": 8678,
+            "identifiers_sha256": "f9d9560452554b7e40ed0183c95f9d42cc8b8787f63200b453a511dd44fac5c5"
+          },
+          "fresh_final": {
+            "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+            "bytes": 29751912,
+            "sha256": "4f518ce8605950198b0b116703be83932b11380169ecf5631f01d8590c82dabe",
+            "count": 413221,
+            "identifiers_sha256": "2f5823565a20cbf4099f3944c2dac6a53c90e8f806d1da43a5ce4214fabddd9f"
+          },
+          "fresh_selection": {
+            "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+            "bytes": 30624768,
+            "sha256": "3086c6ba6bff70869dee4f9e77102bfdb3c15c876897d781114bb90ae2ffef9d",
+            "count": 425344,
+            "identifiers_sha256": "fd6ebd48871d13983bdb6c0a736a0c51ac6480ae52bdda26c56abc97c00ed316"
+          }
+        },
+        "overlaps": {
+          "legacy_and_fresh_final": 0,
+          "legacy_and_fresh_selection": 0,
+          "fresh_final_and_fresh_selection": 0,
+          "all_three": 0
+        },
+        "summary": {
+          "component_memberships": 847243,
+          "unique_identifiers": 847243,
+          "duplicate_memberships": 0,
+          "fresh_evaluation_unique_identifiers": 838565,
+          "added_to_legacy": 838565
+        },
+        "output": {
+          "format": "sorted-unique-sha256-position-id-utf8-lf-v1",
+          "bytes": 61001496,
+          "sha256": "4efde3390dfb9bbbd447899dbebc84e624a9ab92716e15e9bae85b3694fd5275",
+          "count": 847243,
+          "identifiers_sha256": "d6a95989f4cef62cd149de0c2b9aa43586f548894ca46fb66f4503437f7dce7c"
+        }
+      }
+    },
+    "isolation": {
+      "legacy_and_fresh_final": 0,
+      "legacy_and_fresh_selection": 0,
+      "fresh_final_and_fresh_selection": 0,
+      "all_three": 0,
+      "duplicate_memberships": 0,
+      "cross_role_game_ids": 0,
+      "cross_role_parent_ids": 0,
+      "training_in_replay_exclusion": 0
+    }
+  }
+}

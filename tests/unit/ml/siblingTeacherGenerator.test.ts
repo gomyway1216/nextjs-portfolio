@@ -67,7 +67,9 @@ async function authenticatedInputFromRaw(
     ply: row.ply as number,
     played_move: row.played_move as string,
   }));
-  rows.sort((left, right) => Buffer.from(left.parent_id).compare(Buffer.from(right.parent_id)));
+  rows.sort((left, right) =>
+    left.parent_id < right.parent_id ? -1 : left.parent_id > right.parent_id ? 1 : 0
+  );
   const gameIds = new Set(rows.map((row) => row.game_id));
   const parentIds = new Set(rows.map((row) => row.parent_id));
   const positionIds = new Set(rows.map((row) => row.position_id));

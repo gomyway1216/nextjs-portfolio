@@ -327,22 +327,22 @@ function validateEngineReceipt(value: unknown): Record<string, unknown> {
   }
   const receipt = value as Record<string, unknown>;
   const expectedKeys = [
-    'schema',
-    'source_repository',
-    'source_commit',
-    'source_commit_date',
-    'build_directory',
+    'binary_bytes',
+    'binary_sha256',
     'build_command',
+    'build_directory',
     'compiler',
     'compiler_target',
     'engine_id',
-    'binary_bytes',
-    'binary_sha256',
+    'schema',
+    'source_commit',
+    'source_commit_date',
+    'source_repository',
   ];
   const actualKeys = Object.keys(receipt).sort();
   if (
     actualKeys.length !== expectedKeys.length ||
-    [...expectedKeys].sort().some((key, index) => key !== actualKeys[index])
+    expectedKeys.some((key, index) => key !== actualKeys[index])
   ) {
     throw new Error('engine receipt must contain exactly the v1 keys');
   }

@@ -1379,11 +1379,7 @@ export function verifyAuthenticatedFloodgateStableProposalWork(
       artifact,
     });
     const intended = buildIntendedWork(context, derived);
-    const scan = scanExistingWork(workBytes, intended, derived);
     if (
-      scan.tornTail ||
-      scan.completeLines !== intended.lines.length ||
-      scan.authenticatedBytes !== workBytes.byteLength ||
       intended.bytes.byteLength !== workBytes.byteLength ||
       !timingSafeEqual(workBytes, intended.bytes)
     ) {

@@ -18,6 +18,7 @@ import {
   assertFloodgateRoleBundleExecutionEvidenceCoreForTests,
   assertFloodgateRoleBundleResultBindingCoreForTests,
   assertFloodgateRoleBundleResultProjectionCoreForTests,
+  interpretGitIsAncestorExitCoreForTests,
   parsePinnedFloodgateRoleBundleResultReceiptCoreForTests,
   projectFloodgateRoleBundleResultBindingCoreForTests,
   runPinnedFloodgateRoleBundleVerificationCoreForTests,
@@ -303,6 +304,17 @@ describe("pinned Floodgate role-bundle receipt verification", () => {
         isAncestor: async () => true,
       }),
     ).rejects.toThrow(/verifier revision differs/);
+  });
+
+  it("distinguishes Git's non-ancestor exit from execution failures", () => {
+    expect(interpretGitIsAncestorExitCoreForTests(null)).toBe(true);
+    expect(interpretGitIsAncestorExitCoreForTests({ code: 1 })).toBe(false);
+    expect(() =>
+      interpretGitIsAncestorExitCoreForTests({ code: "ENOENT" }),
+    ).toThrow();
+    expect(() =>
+      interpretGitIsAncestorExitCoreForTests({ code: 128 }),
+    ).toThrow();
   });
 });
 

@@ -987,7 +987,7 @@ async function isGitAncestor(
   ancestor: string,
   descendant: string,
 ): Promise<boolean> {
-  return await new Promise<boolean>((resolve) => {
+  return await new Promise<boolean>((resolve, reject) => {
     execFileCallback(
       FLOODGATE_GIT_EXECUTABLE,
       [
@@ -1001,9 +1001,24 @@ async function isGitAncestor(
         cwd: repositoryRoot,
         env: floodgateGitEnvironment(),
       },
-      (error) => resolve(!error),
+      (error) => {
+        try {
+          resolve(interpretGitIsAncestorExitCoreForTests(error));
+        } catch (cause) {
+          reject(cause);
+        }
+      },
     );
   });
+}
+
+/** Interpret only Git's documented non-ancestor exit as a negative result. */
+export function interpretGitIsAncestorExitCoreForTests(
+  error: Readonly<{ code?: string | number }> | null,
+): boolean {
+  if (error === null) return true;
+  if (error.code === 1) return false;
+  throw error;
 }
 
 /**

@@ -46,6 +46,12 @@ export interface FloodgateExclusiveDirectoryRenameReceipt {
   readonly destination_identity: Readonly<FloodgateExclusiveDirectoryIdentity>;
 }
 
+/** The least authority the exclusive rename primitive needs from its caller. */
+export interface FloodgateExclusiveDirectorySourceHandle {
+  readonly fd: number;
+  stat(options: { readonly bigint: true }): Promise<fs.BigIntStats>;
+}
+
 export interface ExclusiveDirectoryRenameDependencies {
   readonly platform: NodeJS.Platform;
   readonly pythonExecutable: string;
@@ -408,7 +414,7 @@ function parseInspectionResult(
 export async function exclusiveRenameFloodgateDirectory(
   sourceInput: string,
   destinationInput: string,
-  sourceDirectoryHandle: fs.promises.FileHandle,
+  sourceDirectoryHandle: FloodgateExclusiveDirectorySourceHandle,
 ): Promise<Readonly<FloodgateExclusiveDirectoryRenameReceipt>> {
   return exclusiveRenameFloodgateDirectoryCoreForTests(
     sourceInput,
@@ -422,7 +428,7 @@ export async function exclusiveRenameFloodgateDirectory(
 export async function exclusiveRenameFloodgateDirectoryCoreForTests(
   sourceInput: string,
   destinationInput: string,
-  sourceDirectoryHandle: fs.promises.FileHandle,
+  sourceDirectoryHandle: FloodgateExclusiveDirectorySourceHandle,
   dependenciesInput: Readonly<ExclusiveDirectoryRenameDependencies>,
 ): Promise<Readonly<FloodgateExclusiveDirectoryRenameReceipt>> {
   let parentHandle: fs.promises.FileHandle | undefined;

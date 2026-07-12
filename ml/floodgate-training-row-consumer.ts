@@ -4,6 +4,10 @@
  * This boundary authenticates and strictly parses only training.raw.jsonl.
  * The callback never receives a pathname, file descriptor, mutable raw bytes,
  * raw JSONL text, role selector, or selection/final artifact identity.
+ * During the synchronous callback invocation, the production callback's exact
+ * input identity also carries one ephemeral, single-use runtime claim. The
+ * dependency-injected test core uses a separate registry and cannot mint
+ * production provenance.
  *
  * This is an input-integrity capability, not teacher-data or playing-strength
  * evidence. Callers must stage work inside the callback and publish a final
@@ -47,7 +51,10 @@ const NativeNumber = Number;
 const NativePromise = Promise;
 const NativeTextDecoder = TextDecoder;
 const NativeURL = URL;
+const NativeWeakSet = WeakSet;
 const nativePromiseThen = Promise.prototype.then;
+const nativeWeakSetAdd = WeakSet.prototype.add;
+const nativeWeakSetDelete = WeakSet.prototype.delete;
 const isNativePromise = nodeUtilTypes.isPromise.bind(nodeUtilTypes);
 const reflectApply = Reflect.apply;
 const objectDefineProperty = Object.defineProperty;
@@ -219,8 +226,85 @@ interface DescriptorCloseOutcome {
   readonly errors: readonly unknown[];
 }
 
+interface RuntimeClaimRegistry {
+  readonly available: WeakSet<Readonly<AuthenticatedFloodgateTrainingRows>>;
+  readonly boundary: "production" | "test-only";
+}
+
 function fail(message: string): never {
   throw new NativeError(`invalid Floodgate training-row consumer: ${message}`);
+}
+
+function createRuntimeClaimRegistry(
+  boundary: RuntimeClaimRegistry["boundary"],
+): Readonly<RuntimeClaimRegistry> {
+  return objectFreeze({
+    available: new NativeWeakSet<
+      Readonly<AuthenticatedFloodgateTrainingRows>
+    >(),
+    boundary,
+  });
+}
+
+const PRODUCTION_RUNTIME_CLAIMS = createRuntimeClaimRegistry("production");
+const TEST_RUNTIME_CLAIMS = createRuntimeClaimRegistry("test-only");
+
+function runtimeClaimAdd(
+  registrySet: WeakSet<Readonly<AuthenticatedFloodgateTrainingRows>>,
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+): void {
+  reflectApply(nativeWeakSetAdd, registrySet, [input]);
+}
+
+function runtimeClaimDelete(
+  registrySet: WeakSet<Readonly<AuthenticatedFloodgateTrainingRows>>,
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+): boolean {
+  return reflectApply(nativeWeakSetDelete, registrySet, [input]) as boolean;
+}
+
+function activateRuntimeClaim(
+  registry: Readonly<RuntimeClaimRegistry>,
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+): void {
+  runtimeClaimAdd(registry.available, input);
+}
+
+function revokeRuntimeClaim(
+  registry: Readonly<RuntimeClaimRegistry>,
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+): void {
+  runtimeClaimDelete(registry.available, input);
+}
+
+function claimRuntimeInput(
+  registry: Readonly<RuntimeClaimRegistry>,
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+): void {
+  if (!runtimeClaimDelete(registry.available, input)) {
+    fail(
+      `${registry.boundary} runtime claim requires the exact active unclaimed input`,
+    );
+  }
+}
+
+/**
+ * Claim the exact input issued by the production consumer during synchronous
+ * callback invocation. This proves object provenance, synchronous-entry lifetime,
+ * and single use only; possession of the callback input remains the authority to
+ * claim it.
+ */
+export function claimActiveVerifiedPinnedFloodgateTrainingRows(
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+): void {
+  claimRuntimeInput(PRODUCTION_RUNTIME_CLAIMS, input);
+}
+
+/** Test-only claim registry, intentionally isolated from the production registry. */
+export function claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+  input: Readonly<AuthenticatedFloodgateTrainingRows>,
+): void {
+  claimRuntimeInput(TEST_RUNTIME_CLAIMS, input);
 }
 
 function combinedFailure(
@@ -1196,6 +1280,7 @@ async function runVerifiedPinnedFloodgateTrainingRows(
     input: Readonly<AuthenticatedFloodgateTrainingRows>,
   ) => Promise<void>,
   dependenciesInput: FloodgateTrainingRowConsumerDependencies,
+  runtimeClaims: Readonly<RuntimeClaimRegistry>,
 ): Promise<void> {
   const options = captureOptions(optionsInput);
   const consume = captureConsumer(consumeInput);
@@ -1228,7 +1313,16 @@ async function runVerifiedPinnedFloodgateTrainingRows(
       capturedVerified.rawIdentity,
     );
     const input = buildAuthenticatedInput(capturedVerified, rows);
-    const callbackPromise = reflectApply(consume, undefined, [input]);
+    activateRuntimeClaim(runtimeClaims, input);
+    let callbackPromise: Promise<void>;
+    try {
+      callbackPromise = reflectApply(consume, undefined, [input]);
+    } finally {
+      // The claim window ends when the synchronous callback invocation returns.
+      // Waiting for Promise settlement would let callback-scheduled microtasks race
+      // this revocation after the Promise was already settled.
+      revokeRuntimeClaim(runtimeClaims, input);
+    }
     const callbackResult = (
       await guardNativePromiseBox<void>(callbackPromise, "consumer")
     ).value;
@@ -1282,6 +1376,7 @@ export function withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
       optionsInput,
       consumeInput,
       dependenciesInput,
+      TEST_RUNTIME_CLAIMS,
     ),
     "training-consumer execution",
   );
@@ -1302,9 +1397,13 @@ export function withVerifiedPinnedFloodgateTrainingRows(
     input: Readonly<AuthenticatedFloodgateTrainingRows>,
   ) => Promise<void>,
 ): Promise<void> {
-  return withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
-    options,
-    consume,
-    PRODUCTION_DEPENDENCIES,
+  return guardNativeVoidPromise(
+    runVerifiedPinnedFloodgateTrainingRows(
+      options,
+      consume,
+      PRODUCTION_DEPENDENCIES,
+      PRODUCTION_RUNTIME_CLAIMS,
+    ),
+    "training-consumer execution",
   );
 }

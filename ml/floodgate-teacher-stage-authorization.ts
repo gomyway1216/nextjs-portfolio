@@ -184,6 +184,7 @@ const NativeBigInt = BigInt;
 const NativeError = Error;
 const NativeNumber = Number;
 const NativeString = String;
+const NativeWeakSet = WeakSet;
 const nativeArrayPrototype = Array.prototype;
 const nativeGetEffectiveUserId =
   typeof process.geteuid === "function" ? process.geteuid.bind(process) : null;
@@ -197,6 +198,8 @@ const objectGetOwnPropertyDescriptors = Object.getOwnPropertyDescriptors;
 const objectHasOwn = Object.prototype.hasOwnProperty;
 const reflectOwnKeys = Reflect.ownKeys;
 const reflectApply = Reflect.apply;
+const nativeWeakSetAdd = WeakSet.prototype.add;
+const nativeWeakSetDelete = WeakSet.prototype.delete;
 const nativeSetHas = Set.prototype.has;
 const nativeMapGet = Map.prototype.get;
 const nativeRegExpExec = RegExp.prototype.exec;
@@ -264,6 +267,76 @@ export interface FloodgateTeacherStageLease {
   readonly stageRoot: string;
   readonly destinationRoot: string;
   close(): Promise<void>;
+}
+
+interface RuntimeClaimRegistry {
+  readonly available: WeakSet<Readonly<FloodgateTeacherStageLease>>;
+  readonly boundary: "production" | "test-only";
+}
+
+function createRuntimeClaimRegistry(
+  boundary: RuntimeClaimRegistry["boundary"],
+): Readonly<RuntimeClaimRegistry> {
+  return objectFreeze({
+    available: new NativeWeakSet<Readonly<FloodgateTeacherStageLease>>(),
+    boundary,
+  });
+}
+
+const PRODUCTION_RUNTIME_CLAIMS = createRuntimeClaimRegistry("production");
+const TEST_RUNTIME_CLAIMS = createRuntimeClaimRegistry("test-only");
+
+function runtimeClaimAdd(
+  registrySet: WeakSet<Readonly<FloodgateTeacherStageLease>>,
+  lease: Readonly<FloodgateTeacherStageLease>,
+): void {
+  reflectApply(nativeWeakSetAdd, registrySet, [lease]);
+}
+
+function runtimeClaimDelete(
+  registrySet: WeakSet<Readonly<FloodgateTeacherStageLease>>,
+  lease: Readonly<FloodgateTeacherStageLease>,
+): boolean {
+  return reflectApply(nativeWeakSetDelete, registrySet, [lease]) as boolean;
+}
+
+function activateRuntimeClaim(
+  registry: Readonly<RuntimeClaimRegistry>,
+  lease: Readonly<FloodgateTeacherStageLease>,
+): void {
+  runtimeClaimAdd(registry.available, lease);
+}
+
+function revokeRuntimeClaim(
+  registry: Readonly<RuntimeClaimRegistry>,
+  lease: Readonly<FloodgateTeacherStageLease>,
+): void {
+  runtimeClaimDelete(registry.available, lease);
+}
+
+function claimRuntimeLease(
+  registry: Readonly<RuntimeClaimRegistry>,
+  lease: Readonly<FloodgateTeacherStageLease>,
+): void {
+  if (!runtimeClaimDelete(registry.available, lease)) {
+    authorizationFailure(
+      `${registry.boundary} runtime claim requires the exact active unclaimed lease`,
+    );
+  }
+}
+
+/** Claim the exact active lease issued by the production authorizer once. */
+export function claimActiveAuthorizedFloodgateTeacherStageLease(
+  lease: Readonly<FloodgateTeacherStageLease>,
+): void {
+  claimRuntimeLease(PRODUCTION_RUNTIME_CLAIMS, lease);
+}
+
+/** Test-only lease claim registry, isolated from the production registry. */
+export function claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(
+  lease: Readonly<FloodgateTeacherStageLease>,
+): void {
+  claimRuntimeLease(TEST_RUNTIME_CLAIMS, lease);
 }
 
 export interface FloodgateTeacherStageAuthorizationHookPaths {
@@ -1474,6 +1547,7 @@ async function removeLeaseAfterFailure(
 async function authorizeInternal(
   optionsInput: FloodgateTeacherStageAuthorizationOptions,
   dependenciesInput: FloodgateTeacherStageAuthorizationDependencies,
+  runtimeClaims: Readonly<RuntimeClaimRegistry>,
 ): Promise<Readonly<FloodgateTeacherStageLease>> {
   const options = captureOptions(optionsInput);
   const dependencies = captureDependencies(dependenciesInput);
@@ -1628,6 +1702,9 @@ async function authorizeInternal(
     let closePromise: Promise<void> | undefined;
     const close = (): Promise<void> => {
       if (closePromise !== undefined) return closePromise;
+      // Calling close synchronously ends the exact-object claim lifetime, even
+      // while asynchronous metadata reconciliation remains in progress.
+      revokeRuntimeClaim(runtimeClaims, authorizedLease);
       closePromise = (async () => {
         let leaseMayRemain = true;
         const failures = mutableNullPrototypeArray<unknown>();
@@ -1756,7 +1833,14 @@ async function authorizeInternal(
       return closePromise;
     };
 
-    return freezeNonThenable({ receipt, stageRoot, destinationRoot, close });
+    const authorizedLease = freezeNonThenable({
+      receipt,
+      stageRoot,
+      destinationRoot,
+      close,
+    });
+    activateRuntimeClaim(runtimeClaims, authorizedLease);
+    return authorizedLease;
   } catch (error) {
     const cleanupFailures = mutableNullPrototypeArray<unknown>();
     let leaseMayRemain = false;
@@ -1811,7 +1895,7 @@ export function authorizeFloodgateTeacherStageCoreForTests(
   options: FloodgateTeacherStageAuthorizationOptions,
   dependencies: FloodgateTeacherStageAuthorizationDependencies,
 ): Promise<Readonly<FloodgateTeacherStageLease>> {
-  return authorizeInternal(options, dependencies);
+  return authorizeInternal(options, dependencies, TEST_RUNTIME_CLAIMS);
 }
 
 /** Authorize and exclusively lease a private stage namespace. */
@@ -1827,8 +1911,13 @@ export function authorizeFloodgateTeacherStage(
       );
     });
   }
-  return authorizeInternal(options, {
-    effectiveUserId: nativeGetEffectiveUserId(),
-    inspectorPythonExecutable: FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
-  });
+  return authorizeInternal(
+    options,
+    {
+      effectiveUserId: nativeGetEffectiveUserId(),
+      inspectorPythonExecutable:
+        FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
+    },
+    PRODUCTION_RUNTIME_CLAIMS,
+  );
 }

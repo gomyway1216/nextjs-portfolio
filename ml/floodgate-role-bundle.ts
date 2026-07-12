@@ -350,6 +350,13 @@ function canonicalJson(value: unknown): string {
   return fail(`canonical JSON does not support ${typeof value}`);
 }
 
+/** Exact external framing used by the published role-bundle manifest. */
+export function serializeFloodgateRoleBundleManifest(
+  manifest: Readonly<FloodgateRoleBundleManifest>,
+): string {
+  return `${canonicalJson(manifest)}\n`;
+}
+
 function canonicalAbsolutePath(value: unknown, label: string): string {
   if (
     typeof value !== "string" ||
@@ -1548,7 +1555,7 @@ async function buildRoleBundle(
       training_in_replay_exclusion: 0,
     },
   });
-  const manifestText = `${canonicalJson(manifest)}\n`;
+  const manifestText = serializeFloodgateRoleBundleManifest(manifest);
   const files = new Map<string, string>();
   for (const role of FLOODGATE_ROLE_PRIORITY) {
     files.set(roles[role].rawIdentity.path, roles[role].rawText);
@@ -2601,7 +2608,9 @@ function roleLockOptions(
 }
 
 function validateBuild(build: Readonly<RoleBundleBuild>): void {
-  if (`${canonicalJson(build.manifest)}\n` !== build.manifestText) {
+  if (
+    serializeFloodgateRoleBundleManifest(build.manifest) !== build.manifestText
+  ) {
     fail("role-bundle manifest candidate is not canonical");
   }
   for (const role of FLOODGATE_ROLE_PRIORITY) {

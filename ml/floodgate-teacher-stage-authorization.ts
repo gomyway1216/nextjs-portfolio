@@ -7,11 +7,12 @@
  * separate later boundaries.
  */
 
+import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
 export const FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT =
-  "floodgate-teacher-private-stage-authorization-v1" as const;
+  "floodgate-teacher-private-stage-authorization-v2" as const;
 export const FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY =
   "trusted-current-euid-writer-private-0700-stage-v1" as const;
 export const FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS =
@@ -23,8 +24,13 @@ export const FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES = Object.freeze([
   "val.jsonl",
   "work.jsonl",
 ] as const);
+export const FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON =
+  "/usr/bin/python3" as const;
 
+const BIGINT_ZERO = BigInt(0);
 const MODE_PERMISSION_AND_SPECIAL_BITS = BigInt(0o7777);
+const MODE_GROUP_OR_OTHER_WRITABLE = BigInt(0o022);
+const MODE_ANY_EXECUTABLE = BigInt(0o111);
 const MODE_PRIVATE_DIRECTORY = BigInt(0o700);
 const MODE_PRIVATE_FILE = BigInt(0o600);
 const BIGINT_ONE = BigInt(1);
@@ -34,9 +40,113 @@ const MODE_REGULAR_FILE = BigInt(fs.constants.S_IFREG);
 const CONTROL_CHARACTER_RE = /[\u0000-\u001f\u007f]/;
 const SAFE_BASENAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const SAFE_ENGINE_OPTION_RE = /^--?[A-Za-z0-9][A-Za-z0-9_-]*$/;
+const CANONICAL_DECIMAL_RE = /^(?:0|[1-9][0-9]*)$/;
+const ENTRY_INSPECTOR_TIMEOUT_MILLISECONDS = 5_000;
+const ENTRY_INSPECTOR_MAX_OUTPUT_BYTES = 4_096;
+const ENTRY_INSPECTOR_MAX_SCRIPT_BYTES = 32_768;
+const HELD_STAGE_ENTRY_INSPECTOR_SCRIPT = String.raw`import os
+import stat
+import sys
+
+FD = 3
+MAX_ENTRIES = 5
+
+def fail(message, code=72):
+    os.write(2, (message + "\n").encode("ascii", "strict"))
+    raise SystemExit(code)
+
+def expected(index, label):
+    value = sys.argv[index]
+    if not value.isascii() or not value.isdecimal() or str(int(value)) != value:
+        fail("invalid-expected-" + label)
+    return int(value)
+
+if len(sys.argv) != 4:
+    fail("invalid-arguments")
+if (
+    os.listdir not in os.supports_fd
+    or os.stat not in os.supports_dir_fd
+    or os.stat not in os.supports_follow_symlinks
+):
+    fail("required-fd-relative-operations-unavailable")
+
+expected_dev = expected(1, "device")
+expected_ino = expected(2, "inode")
+expected_uid = expected(3, "uid")
+
+def held_ok(value):
+    return (
+        stat.S_ISDIR(value.st_mode)
+        and value.st_dev == expected_dev
+        and value.st_ino == expected_ino
+        and value.st_uid == expected_uid
+        and stat.S_IMODE(value.st_mode) == 0o700
+    )
+
+def held_signature(value):
+    return (
+        value.st_dev,
+        value.st_ino,
+        value.st_mode,
+        value.st_nlink,
+        value.st_uid,
+    )
+
+def snapshot():
+    names = [os.fsencode(name) for name in os.listdir(FD)]
+    if len(names) > MAX_ENTRIES:
+        fail("too-many-stage-entries")
+    names.sort()
+    rows = []
+    for name in names:
+        value = os.stat(name, dir_fd=FD, follow_symlinks=False)
+        rows.append((
+            name.hex(),
+            str(value.st_dev),
+            str(value.st_ino),
+            str(value.st_mode),
+            str(value.st_nlink),
+            str(value.st_uid),
+        ))
+    return rows
+
+try:
+    held_before = os.fstat(FD)
+    first = snapshot()
+    second = snapshot()
+    held_after = os.fstat(FD)
+except OSError as error:
+    fail("filesystem-error-" + str(error.errno), 74)
+
+if not held_ok(held_before) or not held_ok(held_after):
+    fail("held-stage-identity-or-mode-mismatch")
+if held_signature(held_before) != held_signature(held_after) or first != second:
+    fail("stage-mutated-during-inspection", 75)
+
+root = (
+    "ROOT",
+    str(held_after.st_dev),
+    str(held_after.st_ino),
+    str(held_after.st_mode),
+    str(held_after.st_nlink),
+    str(held_after.st_uid),
+    str(len(first)),
+)
+os.write(1, ("\t".join(root) + "\n").encode("ascii", "strict"))
+for row in first:
+    os.write(1, ("ENTRY\t" + "\t".join(row) + "\n").encode("ascii", "strict"))
+os.write(1, b"END\n")
+`;
 const ALLOWED_ENTRY_SET = new Set<string>(
   FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES,
 );
+const ALLOWED_ENTRY_BY_HEX = new Map<string, string>([
+  ["6d616e69666573742e6a736f6e", "manifest.json"],
+  ["726573756c742e6a736f6e", "result.json"],
+  ["747261696e2e6a736f6e6c", "train.jsonl"],
+  ["76616c2e6a736f6e6c", "val.jsonl"],
+  ["776f726b2e6a736f6e6c", "work.jsonl"],
+]);
 const REQUIRED_OPTION_KEYS = Object.freeze([
   "destinationBasename",
   "engineArgs",
@@ -54,10 +164,26 @@ const ALLOWED_OPTION_KEY_SET = new Set<string>([
   ...REQUIRED_OPTION_KEYS,
   "evalDir",
 ]);
+const REQUIRED_DEPENDENCY_KEYS = Object.freeze([
+  "effectiveUserId",
+  "inspectorPythonExecutable",
+] as const);
+const ALLOWED_DEPENDENCY_KEY_SET = new Set<string>([
+  ...REQUIRED_DEPENDENCY_KEYS,
+  "afterLeaseAcquiredForTests",
+  "beforeHeldStageEntryInspectionForTests",
+  "beforeLeaseRemovalForTests",
+  "closeDirectoryForTests",
+  "inspectorMaxOutputBytesForTests",
+  "inspectorScriptForTests",
+  "inspectorTimeoutMillisecondsForTests",
+]);
 
 const NativePromise = Promise;
 const NativeBigInt = BigInt;
 const NativeError = Error;
+const NativeNumber = Number;
+const NativeString = String;
 const nativeArrayPrototype = Array.prototype;
 const nativeGetEffectiveUserId =
   typeof process.geteuid === "function" ? process.geteuid.bind(process) : null;
@@ -72,7 +198,12 @@ const objectHasOwn = Object.prototype.hasOwnProperty;
 const reflectOwnKeys = Reflect.ownKeys;
 const reflectApply = Reflect.apply;
 const nativeSetHas = Set.prototype.has;
+const nativeMapGet = Map.prototype.get;
 const nativeRegExpExec = RegExp.prototype.exec;
+const nativeBufferToString = Buffer.prototype.toString;
+const bufferByteLength = Buffer.byteLength;
+const bufferIsBuffer = Buffer.isBuffer;
+const nativeStringSplit = String.prototype.split;
 const nativeStringTrim = String.prototype.trim;
 const nativeStringIncludes = String.prototype.includes;
 const nativeStringStartsWith = String.prototype.startsWith;
@@ -83,12 +214,12 @@ const pathParse = path.parse;
 const pathRelative = path.relative;
 const pathResolve = path.resolve;
 const pathSeparator = path.sep;
+const spawnChildSync = spawnSync;
 const realpathPath = fs.promises.realpath.bind(fs.promises);
 const mkdirPath = fs.promises.mkdir.bind(fs.promises);
 const chmodPath = fs.promises.chmod.bind(fs.promises);
 const rmdirPath = fs.promises.rmdir.bind(fs.promises);
 const lstatDescriptor = fs.lstat.bind(fs);
-const readdirDescriptor = fs.readdir.bind(fs);
 const openDescriptor = fs.open.bind(fs);
 const closeDescriptor = fs.close.bind(fs);
 const fstatDescriptor = fs.fstat.bind(fs);
@@ -144,7 +275,14 @@ export interface FloodgateTeacherStageAuthorizationHookPaths {
 
 export interface FloodgateTeacherStageAuthorizationDependencies {
   readonly effectiveUserId: number;
+  readonly inspectorPythonExecutable: string;
+  readonly inspectorScriptForTests?: string;
+  readonly inspectorTimeoutMillisecondsForTests?: number;
+  readonly inspectorMaxOutputBytesForTests?: number;
   readonly afterLeaseAcquiredForTests?: (
+    paths: Readonly<FloodgateTeacherStageAuthorizationHookPaths>,
+  ) => void | Promise<void>;
+  readonly beforeHeldStageEntryInspectionForTests?: (
     paths: Readonly<FloodgateTeacherStageAuthorizationHookPaths>,
   ) => void | Promise<void>;
   readonly beforeLeaseRemovalForTests?: (
@@ -273,15 +411,27 @@ interface FilesystemStatSnapshot {
   readonly uid: bigint;
 }
 
-interface DirectoryEntryNames {
-  readonly names: readonly string[];
-}
-
 interface OpenedDirectory {
   readonly identity: Readonly<FloodgateTeacherStageIdentity>;
   readonly stat: () => Promise<Readonly<FilesystemStatSnapshot>>;
+  readonly inspectEntries: (
+    pythonExecutable: string,
+    expectedUserId: bigint,
+    script: string,
+    timeoutMilliseconds: number,
+    maxOutputBytes: number,
+  ) => string;
   readonly close: () => Promise<void>;
 }
+
+interface EntryInspectorConfiguration {
+  readonly pythonExecutable: string;
+  readonly script: string;
+  readonly timeoutMilliseconds: number;
+  readonly maxOutputBytes: number;
+}
+
+type CapturedDependencies = FloodgateTeacherStageAuthorizationDependencies;
 
 interface LeaseCleanupOutcome {
   readonly removed: boolean;
@@ -323,22 +473,151 @@ function lstatSnapshot(
   });
 }
 
-function directoryEntryNames(
-  target: string,
-): Promise<Readonly<DirectoryEntryNames>> {
-  return new NativePromise((resolve, reject) => {
-    readdirDescriptor(target, { withFileTypes: true }, (error, entries) => {
-      if (error !== null) {
-        reject(error);
-        return;
-      }
-      const names = mutableNullPrototypeArray<string>();
-      for (let index = 0; index < entries.length; index += 1) {
-        names[names.length] = entries[index].name;
-      }
-      resolve(freezeNonThenable({ names: objectFreeze(names) }));
-    });
+async function entryInspectorConfiguration(
+  dependencies: FloodgateTeacherStageAuthorizationDependencies,
+): Promise<Readonly<EntryInspectorConfiguration>> {
+  const requestedPython = canonicalAbsolutePath(
+    dependencies.inspectorPythonExecutable,
+    "stage entry inspector Python executable",
+  );
+  let pythonExecutable: string;
+  try {
+    pythonExecutable = await realpathPath(requestedPython);
+  } catch (cause) {
+    authorizationFailure(
+      "stage entry inspector Python executable cannot be resolved",
+      cause,
+    );
+  }
+  canonicalAbsolutePath(
+    pythonExecutable,
+    "resolved stage entry inspector Python executable",
+  );
+  let pythonStat: Readonly<FilesystemStatSnapshot>;
+  try {
+    pythonStat = await lstatSnapshot(pythonExecutable);
+  } catch (cause) {
+    authorizationFailure(
+      "stage entry inspector Python executable cannot be inspected",
+      cause,
+    );
+  }
+  if (
+    !hasFileType(pythonStat, MODE_REGULAR_FILE) ||
+    pythonStat.uid !== BIGINT_ZERO ||
+    (pythonStat.mode & MODE_GROUP_OR_OTHER_WRITABLE) !== BIGINT_ZERO ||
+    (pythonStat.mode & MODE_ANY_EXECUTABLE) === BIGINT_ZERO
+  ) {
+    authorizationFailure(
+      "stage entry inspector Python launcher must resolve to a root-owned non-writable executable",
+    );
+  }
+
+  const script =
+    dependencies.inspectorScriptForTests ?? HELD_STAGE_ENTRY_INSPECTOR_SCRIPT;
+  if (
+    typeof script !== "string" ||
+    script.length === 0 ||
+    reflectApply(nativeStringIncludes, script, ["\u0000"]) ||
+    bufferByteLength(script, "utf8") > ENTRY_INSPECTOR_MAX_SCRIPT_BYTES
+  ) {
+    authorizationFailure("stage entry inspector script is invalid");
+  }
+  const timeoutMilliseconds =
+    dependencies.inspectorTimeoutMillisecondsForTests ??
+    ENTRY_INSPECTOR_TIMEOUT_MILLISECONDS;
+  if (
+    !numberIsSafeInteger(timeoutMilliseconds) ||
+    timeoutMilliseconds < 1 ||
+    timeoutMilliseconds > 60_000
+  ) {
+    authorizationFailure("stage entry inspector timeout is invalid");
+  }
+  const maxOutputBytes =
+    dependencies.inspectorMaxOutputBytesForTests ??
+    ENTRY_INSPECTOR_MAX_OUTPUT_BYTES;
+  if (
+    !numberIsSafeInteger(maxOutputBytes) ||
+    maxOutputBytes < 64 ||
+    maxOutputBytes > 65_536
+  ) {
+    authorizationFailure("stage entry inspector output bound is invalid");
+  }
+  return freezeNonThenable({
+    pythonExecutable,
+    script,
+    timeoutMilliseconds,
+    maxOutputBytes,
   });
+}
+
+function runHeldStageEntryInspector(
+  descriptor: number,
+  expectedIdentity: Readonly<FloodgateTeacherStageIdentity>,
+  expectedUserId: bigint,
+  pythonExecutable: string,
+  script: string,
+  timeoutMilliseconds: number,
+  maxOutputBytes: number,
+): string {
+  const environment = objectCreate(null) as NodeJS.ProcessEnv;
+  objectFreeze(environment);
+  const result = spawnChildSync(
+    pythonExecutable,
+    [
+      "-I",
+      "-S",
+      "-E",
+      "-c",
+      script,
+      expectedIdentity.dev.toString(10),
+      expectedIdentity.ino.toString(10),
+      expectedUserId.toString(10),
+    ],
+    {
+      cwd: pathParse(pythonExecutable).root,
+      encoding: null,
+      env: environment,
+      killSignal: "SIGKILL",
+      maxBuffer: maxOutputBytes,
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe", descriptor],
+      timeout: timeoutMilliseconds,
+      windowsHide: true,
+    },
+  );
+  if (result.error !== undefined) {
+    authorizationFailure(
+      `held stage entry inspector failed to execute (${failureDetail(result.error)})`,
+      result.error,
+    );
+  }
+  if (
+    result.status !== 0 ||
+    result.signal !== null ||
+    !bufferIsBuffer(result.stdout) ||
+    !bufferIsBuffer(result.stderr)
+  ) {
+    authorizationFailure(
+      `held stage entry inspector failed closed (status=${NativeString(result.status)}, signal=${NativeString(result.signal)})`,
+    );
+  }
+  if (
+    result.stdout.byteLength > maxOutputBytes ||
+    result.stderr.byteLength > 0
+  ) {
+    authorizationFailure(
+      "held stage entry inspector emitted invalid or excessive output",
+    );
+  }
+  for (let index = 0; index < result.stdout.byteLength; index += 1) {
+    if (result.stdout[index] > 0x7f) {
+      authorizationFailure(
+        "held stage entry inspector output must be strict ASCII",
+      );
+    }
+  }
+  return reflectApply(nativeBufferToString, result.stdout, ["ascii"]);
 }
 
 function authorizationFailure(message: string, cause?: unknown): never {
@@ -401,10 +680,11 @@ function capturedStringArray(value: unknown, label: string): readonly string[] {
     const descriptor = objectGetOwnPropertyDescriptor(value, index);
     if (
       descriptor === undefined ||
-      !reflectApply(objectHasOwn, descriptor, ["value"])
+      !reflectApply(objectHasOwn, descriptor, ["value"]) ||
+      descriptor.enumerable !== true
     ) {
       authorizationFailure(
-        `${label}[${index}] must be an own data property without holes or accessors`,
+        `${label}[${index}] must be an enumerable own data property without holes or accessors`,
       );
     }
     const entry = descriptor.value;
@@ -438,9 +718,12 @@ function capturedOptionValues(
     const descriptor = descriptors[key];
     if (
       descriptor === undefined ||
-      !reflectApply(objectHasOwn, descriptor, ["value"])
+      !reflectApply(objectHasOwn, descriptor, ["value"]) ||
+      descriptor.enumerable !== true
     ) {
-      authorizationFailure(`options.${key} must be a data property`);
+      authorizationFailure(
+        `options.${key} must be an enumerable data property`,
+      );
     }
     captured[key] = descriptor.value;
   }
@@ -451,6 +734,56 @@ function capturedOptionValues(
     }
   }
   return objectFreeze(captured);
+}
+
+function captureDependencies(
+  input: FloodgateTeacherStageAuthorizationDependencies,
+): Readonly<CapturedDependencies> {
+  if (input === null || typeof input !== "object" || arrayIsArray(input)) {
+    authorizationFailure("dependencies must be an object");
+  }
+  const descriptors = objectGetOwnPropertyDescriptors(input);
+  const captured = objectCreate(null) as Record<string, unknown>;
+  const descriptorKeys = reflectOwnKeys(descriptors);
+  for (let index = 0; index < descriptorKeys.length; index += 1) {
+    const key = descriptorKeys[index];
+    if (
+      typeof key !== "string" ||
+      !reflectApply(nativeSetHas, ALLOWED_DEPENDENCY_KEY_SET, [key])
+    ) {
+      authorizationFailure("dependencies contain an unexpected field");
+    }
+    const descriptor = descriptors[key];
+    if (
+      descriptor === undefined ||
+      !reflectApply(objectHasOwn, descriptor, ["value"]) ||
+      descriptor.enumerable !== true
+    ) {
+      authorizationFailure(
+        `dependencies.${key} must be an enumerable data property`,
+      );
+    }
+    captured[key] = descriptor.value;
+  }
+  for (let index = 0; index < REQUIRED_DEPENDENCY_KEYS.length; index += 1) {
+    const key = REQUIRED_DEPENDENCY_KEYS[index];
+    if (!reflectApply(objectHasOwn, captured, [key])) {
+      authorizationFailure(`dependencies.${key} is required`);
+    }
+  }
+  const functionKeys = [
+    "afterLeaseAcquiredForTests",
+    "beforeHeldStageEntryInspectionForTests",
+    "beforeLeaseRemovalForTests",
+    "closeDirectoryForTests",
+  ] as const;
+  for (let index = 0; index < functionKeys.length; index += 1) {
+    const key = functionKeys[index];
+    if (captured[key] !== undefined && typeof captured[key] !== "function") {
+      authorizationFailure(`dependencies.${key} must be a function`);
+    }
+  }
+  return objectFreeze(captured) as Readonly<CapturedDependencies>;
 }
 
 function captureOptions(
@@ -522,6 +855,19 @@ function sameIdentity(
   return left.dev === right.dev && left.ino === right.ino;
 }
 
+function sameFilesystemStat(
+  left: Readonly<FilesystemStatSnapshot>,
+  right: Readonly<FilesystemStatSnapshot>,
+): boolean {
+  return (
+    left.dev === right.dev &&
+    left.ino === right.ino &&
+    left.mode === right.mode &&
+    left.nlink === right.nlink &&
+    left.uid === right.uid
+  );
+}
+
 function hasFileType(
   stat: Readonly<FilesystemStatSnapshot>,
   expected: bigint,
@@ -556,7 +902,7 @@ function assertPrivateStageFile(
     (stat.mode & MODE_PERMISSION_AND_SPECIAL_BITS) !== MODE_PRIVATE_FILE
   ) {
     authorizationFailure(
-      `${label} must be one current-euid-owned exact 0600 regular stage entry`,
+      `${label} must be a current-euid-owned exact 0600 regular stage entry`,
     );
   }
   if (stat.nlink !== BIGINT_ONE) {
@@ -639,6 +985,7 @@ function assertNamespaceDisjoint(
 
 async function collectProtectedPaths(
   options: Readonly<CapturedOptions>,
+  inspectorPythonExecutable: string,
 ): Promise<readonly Readonly<ProtectedPathSnapshot>[]> {
   const snapshots =
     mutableNullPrototypeArray<Readonly<ProtectedPathSnapshot>>();
@@ -675,6 +1022,11 @@ async function collectProtectedPaths(
   snapshots[snapshots.length] = await statProtectedPath(
     options.engineReceipt,
     "engineReceipt",
+    "file",
+  );
+  snapshots[snapshots.length] = await statProtectedPath(
+    inspectorPythonExecutable,
+    "stageEntryInspectorPython",
     "file",
   );
   if (options.evalDir !== undefined) {
@@ -807,9 +1159,26 @@ async function openPrivateDirectory(
     ) {
       authorizationFailure(`${label} identity changed while it was opened`);
     }
+    const inspectEntriesHeld = (
+      pythonExecutable: string,
+      inspectorUserId: bigint,
+      script: string,
+      timeoutMilliseconds: number,
+      maxOutputBytes: number,
+    ) =>
+      runHeldStageEntryInspector(
+        descriptor,
+        heldIdentity,
+        inspectorUserId,
+        pythonExecutable,
+        script,
+        timeoutMilliseconds,
+        maxOutputBytes,
+      );
     return freezeNonThenable({
       identity: heldIdentity,
       stat: statHeld,
+      inspectEntries: inspectEntriesHeld,
       close: closeHeld,
     });
   } catch (error) {
@@ -856,20 +1225,141 @@ async function assertAbsent(target: string, label: string): Promise<void> {
 }
 
 async function inspectStageEntries(
+  stage: Readonly<OpenedDirectory>,
   stageRoot: string,
   expectedUserId: bigint,
   protectedPaths: readonly Readonly<ProtectedPathSnapshot>[],
+  inspector: Readonly<EntryInspectorConfiguration>,
+  dependencies: FloodgateTeacherStageAuthorizationDependencies,
+  paths: Readonly<FloodgateTeacherStageAuthorizationHookPaths>,
 ): Promise<void> {
-  const entries = (await directoryEntryNames(stageRoot)).names;
-  for (let index = 0; index < entries.length; index += 1) {
-    const entryName = entries[index];
+  await assertOpenedDirectoryUnchanged(
+    stage,
+    stageRoot,
+    expectedUserId,
+    "teacher stage before fd-relative entry inspection",
+  );
+  await dependencies.beforeHeldStageEntryInspectionForTests?.(paths);
+  const heldBefore = await stage.stat();
+  assertPrivateDirectory(
+    heldBefore,
+    expectedUserId,
+    "held stage immediately before fd-relative entry inspection",
+  );
+  if (!sameIdentity(stage.identity, directoryIdentity(heldBefore))) {
+    authorizationFailure(
+      "held stage identity changed before fd-relative entry inspection",
+    );
+  }
+  const output = stage.inspectEntries(
+    inspector.pythonExecutable,
+    expectedUserId,
+    inspector.script,
+    inspector.timeoutMilliseconds,
+    inspector.maxOutputBytes,
+  );
+  if (
+    output.length === 0 ||
+    output[output.length - 1] !== "\n" ||
+    reflectApply(nativeStringIncludes, output, ["\r"]) ||
+    reflectApply(nativeStringIncludes, output, ["\u0000"])
+  ) {
+    authorizationFailure(
+      "held stage entry inspector returned a noncanonical protocol",
+    );
+  }
+  const lines = reflectApply(nativeStringSplit, output, ["\n"]);
+  const rootFields = reflectApply(nativeStringSplit, lines[0], ["\t"]);
+  if (rootFields.length !== 7 || rootFields[0] !== "ROOT") {
+    authorizationFailure("held stage entry inspector root record is invalid");
+  }
+  const parseDecimal = (value: string, label: string): bigint => {
+    if (!regexMatches(CANONICAL_DECIMAL_RE, value)) {
+      authorizationFailure(
+        `held stage entry inspector ${label} is not canonical decimal`,
+      );
+    }
+    return NativeBigInt(value);
+  };
+  const rootStat = freezeNonThenable({
+    dev: parseDecimal(rootFields[1], "root device"),
+    ino: parseDecimal(rootFields[2], "root inode"),
+    mode: parseDecimal(rootFields[3], "root mode"),
+    nlink: parseDecimal(rootFields[4], "root link count"),
+    uid: parseDecimal(rootFields[5], "root uid"),
+  });
+  assertPrivateDirectory(
+    rootStat,
+    expectedUserId,
+    "held stage entry inspector root",
+  );
+  if (!sameIdentity(stage.identity, directoryIdentity(rootStat))) {
+    authorizationFailure(
+      "held stage entry inspector root identity differs from the held stage",
+    );
+  }
+  if (!sameFilesystemStat(rootStat, heldBefore)) {
+    authorizationFailure(
+      "held stage entry inspector root metadata differs from the held descriptor",
+    );
+  }
+  const entryCountBigInt = parseDecimal(rootFields[6], "entry count");
+  if (
+    entryCountBigInt >
+    NativeBigInt(FLOODGATE_TEACHER_STAGE_ALLOWED_ENTRIES.length)
+  ) {
+    authorizationFailure(
+      "held stage entry inspector returned too many entries",
+    );
+  }
+  const entryCount = NativeNumber(entryCountBigInt);
+  if (
+    !numberIsSafeInteger(entryCount) ||
+    lines.length !== entryCount + 3 ||
+    lines[entryCount + 1] !== "END" ||
+    lines[entryCount + 2] !== ""
+  ) {
+    authorizationFailure(
+      "held stage entry inspector record count or terminator is invalid",
+    );
+  }
+
+  const seenNames = objectCreate(null) as Record<string, boolean>;
+  let previousNameHex: string | undefined;
+  for (let index = 0; index < entryCount; index += 1) {
+    const fields = reflectApply(nativeStringSplit, lines[index + 1], ["\t"]);
+    if (fields.length !== 7 || fields[0] !== "ENTRY") {
+      authorizationFailure(
+        "held stage entry inspector entry record is invalid",
+      );
+    }
+    const nameHex = fields[1];
+    const entryName = reflectApply(nativeMapGet, ALLOWED_ENTRY_BY_HEX, [
+      nameHex,
+    ]);
+    if (
+      typeof entryName !== "string" ||
+      (previousNameHex !== undefined && previousNameHex >= nameHex) ||
+      reflectApply(objectHasOwn, seenNames, [entryName])
+    ) {
+      authorizationFailure(
+        "held stage entry inspector returned an unknown, duplicate, or unsorted name",
+      );
+    }
+    previousNameHex = nameHex;
+    seenNames[entryName] = true;
     if (!reflectApply(nativeSetHas, ALLOWED_ENTRY_SET, [entryName])) {
       authorizationFailure(
         `stage entry ${entryName} is outside the fixed allowlist`,
       );
     }
-    const entryPath = pathJoin(stageRoot, entryName);
-    const stat = await lstatSnapshot(entryPath);
+    const stat = freezeNonThenable({
+      dev: parseDecimal(fields[2], `${entryName} device`),
+      ino: parseDecimal(fields[3], `${entryName} inode`),
+      mode: parseDecimal(fields[4], `${entryName} mode`),
+      nlink: parseDecimal(fields[5], `${entryName} link count`),
+      uid: parseDecimal(fields[6], `${entryName} uid`),
+    });
     assertPrivateStageFile(stat, expectedUserId, `stage entry ${entryName}`);
     const entryIdentity = directoryIdentity(stat);
     for (
@@ -885,6 +1375,23 @@ async function inspectStageEntries(
       }
     }
   }
+  const heldAfter = await stage.stat();
+  assertPrivateDirectory(
+    heldAfter,
+    expectedUserId,
+    "held stage immediately after fd-relative entry inspection",
+  );
+  if (!sameFilesystemStat(rootStat, heldAfter)) {
+    authorizationFailure(
+      "held stage metadata changed after fd-relative entry inspection",
+    );
+  }
+  await assertOpenedDirectoryUnchanged(
+    stage,
+    stageRoot,
+    expectedUserId,
+    "teacher stage after fd-relative entry inspection",
+  );
 }
 
 function hookPaths(
@@ -966,9 +1473,10 @@ async function removeLeaseAfterFailure(
 
 async function authorizeInternal(
   optionsInput: FloodgateTeacherStageAuthorizationOptions,
-  dependencies: FloodgateTeacherStageAuthorizationDependencies,
+  dependenciesInput: FloodgateTeacherStageAuthorizationDependencies,
 ): Promise<Readonly<FloodgateTeacherStageLease>> {
   const options = captureOptions(optionsInput);
+  const dependencies = captureDependencies(dependenciesInput);
   const expectedUserId = effectiveUserId(dependencies);
   const stageRoot = pathJoin(options.publicationParent, options.stageBasename);
   const destinationRoot = pathJoin(
@@ -985,6 +1493,7 @@ async function authorizeInternal(
     destinationRoot,
     leaseRoot,
   );
+  const inspector = await entryInspectorConfiguration(dependencies);
 
   const parent = await openPrivateDirectory(
     options.publicationParent,
@@ -995,7 +1504,10 @@ async function authorizeInternal(
   let lease: Readonly<OpenedDirectory> | undefined;
   let leaseCreated = false;
   try {
-    const protectedPaths = await collectProtectedPaths(options);
+    const protectedPaths = await collectProtectedPaths(
+      options,
+      inspector.pythonExecutable,
+    );
     for (let index = 0; index < protectedPaths.length; index += 1) {
       const protectedPath = protectedPaths[index];
       assertNamespaceDisjoint(
@@ -1052,7 +1564,15 @@ async function authorizeInternal(
           );
         }
       }
-      await inspectStageEntries(stageRoot, expectedUserId, protectedPaths);
+      await inspectStageEntries(
+        stage,
+        stageRoot,
+        expectedUserId,
+        protectedPaths,
+        inspector,
+        dependencies,
+        paths,
+      );
     } catch (error) {
       // Preserve the path after any open or inspection failure. Pathname-only
       // cleanup could delete a same-UID replacement; a later authenticated
@@ -1082,7 +1602,15 @@ async function authorizeInternal(
     );
     await assertAbsent(destinationRoot, "destination");
     await revalidateProtectedPaths(protectedPaths);
-    await inspectStageEntries(stageRoot, expectedUserId, protectedPaths);
+    await inspectStageEntries(
+      stage,
+      stageRoot,
+      expectedUserId,
+      protectedPaths,
+      inspector,
+      dependencies,
+      paths,
+    );
 
     const receipt: Readonly<FloodgateTeacherStageAuthorizationReceipt> =
       freezeNonThenable({
@@ -1124,7 +1652,15 @@ async function authorizeInternal(
             "stage authorization lease",
           );
           await assertAbsent(destinationRoot, "destination");
-          await inspectStageEntries(stageRoot, expectedUserId, protectedPaths);
+          await inspectStageEntries(
+            stage as Readonly<OpenedDirectory>,
+            stageRoot,
+            expectedUserId,
+            protectedPaths,
+            inspector,
+            dependencies,
+            paths,
+          );
           await revalidateProtectedPaths(protectedPaths);
           await dependencies.beforeLeaseRemovalForTests?.(paths);
           await assertOpenedDirectoryUnchanged(
@@ -1146,7 +1682,15 @@ async function authorizeInternal(
             "teacher stage",
           );
           await assertAbsent(destinationRoot, "destination");
-          await inspectStageEntries(stageRoot, expectedUserId, protectedPaths);
+          await inspectStageEntries(
+            stage as Readonly<OpenedDirectory>,
+            stageRoot,
+            expectedUserId,
+            protectedPaths,
+            inspector,
+            dependencies,
+            paths,
+          );
           await revalidateProtectedPaths(protectedPaths);
           removalAuthorized = true;
         } catch (error) {
@@ -1285,5 +1829,6 @@ export function authorizeFloodgateTeacherStage(
   }
   return authorizeInternal(options, {
     effectiveUserId: nativeGetEffectiveUserId(),
+    inspectorPythonExecutable: FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
   });
 }

@@ -1,6 +1,8 @@
+import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
+import * as ts from "typescript";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -9,6 +11,7 @@ import {
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_CONTRACT,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
+  FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
   FloodgateTeacherStageAuthorizationCleanupError,
   FloodgateTeacherStageCloseError,
   FloodgateTeacherStageLeaseUnavailableError,
@@ -148,6 +151,7 @@ function dependencies(
 ): AuthorizationDependencies {
   return {
     effectiveUserId: effectiveUserId(),
+    inspectorPythonExecutable: FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
     ...overrides,
   };
 }
@@ -229,6 +233,62 @@ describe("Floodgate teacher stage authorization", () => {
     await closeLease(lease);
   });
 
+  it("does not inherit a production inspector override from Object.prototype", async () => {
+    const value = await fixture();
+    await mkdir0700(value.stageRoot);
+    await writeSentinel(
+      path.join(value.stageRoot, "unexpected.tmp"),
+      "synthetic unknown entry\n",
+    );
+    const inheritedDescriptor = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      "inspectorScriptForTests",
+    );
+    const bypassScript = String.raw`import os
+s = os.fstat(3)
+line = f"ROOT\t{s.st_dev}\t{s.st_ino}\t{s.st_mode}\t{s.st_nlink}\t{s.st_uid}\t0\nEND\n"
+os.write(1, line.encode("ascii"))
+`;
+    let failure: unknown;
+    let unexpectedLease: AuthorizationLease | undefined;
+
+    Object.defineProperty(Object.prototype, "inspectorScriptForTests", {
+      configurable: true,
+      value: bypassScript,
+    });
+    try {
+      try {
+        unexpectedLease = await authorizeFloodgateTeacherStage(value.options);
+      } catch (error) {
+        failure = error;
+      }
+    } finally {
+      if (inheritedDescriptor === undefined) {
+        delete (Object.prototype as { inspectorScriptForTests?: unknown })
+          .inspectorScriptForTests;
+      } else {
+        Object.defineProperty(
+          Object.prototype,
+          "inspectorScriptForTests",
+          inheritedDescriptor,
+        );
+      }
+    }
+
+    await unexpectedLease?.close();
+    expect(unexpectedLease).toBeUndefined();
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toMatch(
+      /inspector|unknown|name|allowlist/i,
+    );
+    expect(
+      await fs.promises.readFile(
+        path.join(value.stageRoot, "unexpected.tmp"),
+        "utf8",
+      ),
+    ).toBe("synthetic unknown entry\n");
+  });
+
   it("rejects accessor-backed and unexpected option fields before creating a stage", async () => {
     const value = await fixture();
     const accessorOptions = { ...value.options } as Record<string, unknown>;
@@ -249,6 +309,63 @@ describe("Floodgate teacher stage authorization", () => {
         dependencies(),
       ),
     ).rejects.toThrow(/unexpected field|options/i);
+    const nonEnumerableOptions = { ...value.options } as Record<
+      string,
+      unknown
+    >;
+    Object.defineProperty(nonEnumerableOptions, "engineBin", {
+      enumerable: false,
+      value: value.engineBin,
+    });
+    await expect(
+      authorizeFloodgateTeacherStageCoreForTests(
+        nonEnumerableOptions as unknown as AuthorizationOptions,
+        dependencies(),
+      ),
+    ).rejects.toThrow(/enumerable.*data property|options/i);
+    await expectMissing(value.stageRoot);
+  });
+
+  it("captures only enumerable own dependency data without invoking accessors", async () => {
+    const value = await fixture();
+    const accessorDependencies = { ...dependencies() } as Record<
+      string,
+      unknown
+    >;
+    let getterCalls = 0;
+    Object.defineProperty(accessorDependencies, "inspectorScriptForTests", {
+      enumerable: true,
+      get: () => {
+        getterCalls += 1;
+        return 'raise SystemExit("must not run")\n';
+      },
+    });
+
+    await expect(
+      authorizeFloodgateTeacherStageCoreForTests(
+        value.options,
+        accessorDependencies as unknown as AuthorizationDependencies,
+      ),
+    ).rejects.toThrow(/dependencies.*data property/i);
+    expect(getterCalls).toBe(0);
+
+    const hiddenDependencies = { ...dependencies() } as Record<string, unknown>;
+    Object.defineProperty(hiddenDependencies, "inspectorScriptForTests", {
+      enumerable: false,
+      value: 'raise SystemExit("must not run")\n',
+    });
+    await expect(
+      authorizeFloodgateTeacherStageCoreForTests(
+        value.options,
+        hiddenDependencies as unknown as AuthorizationDependencies,
+      ),
+    ).rejects.toThrow(/dependencies.*enumerable.*data property/i);
+    await expect(
+      authorizeFloodgateTeacherStageCoreForTests(value.options, {
+        ...dependencies(),
+        unexpected: true,
+      } as AuthorizationDependencies),
+    ).rejects.toThrow(/dependencies.*unexpected field/i);
     await expectMissing(value.stageRoot);
   });
 
@@ -307,6 +424,17 @@ describe("Floodgate teacher stage authorization", () => {
     );
 
     expect(getterCalls).toBe(0);
+
+    const nonEnumerableEngineArgs = [value.engineArgument];
+    Object.defineProperty(nonEnumerableEngineArgs, "0", {
+      configurable: true,
+      enumerable: false,
+      value: value.engineArgument,
+      writable: true,
+    });
+    await expect(
+      authorize(value, { engineArgs: nonEnumerableEngineArgs }),
+    ).rejects.toThrow(/engineArgs\[0\].*enumerable.*data property/i);
     await expectMissing(value.stageRoot);
   });
 
@@ -367,6 +495,87 @@ describe("Floodgate teacher stage authorization", () => {
     const lease = await authorize(value);
     await closeLease(lease);
   });
+
+  it("rejects an invalid-UTF8 stage entry reported as raw bytes by the held descriptor inspector", async () => {
+    const value = await fixture();
+    await mkdir0700(value.stageRoot);
+    const invalidEntry = Buffer.concat([
+      Buffer.from(`${value.stageRoot}${path.sep}`),
+      Buffer.from([0xff]),
+    ]);
+    try {
+      await fs.promises.writeFile(invalidEntry, "synthetic invalid name\n", {
+        mode: 0o600,
+      });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "EILSEQ") {
+        expect((error as NodeJS.ErrnoException).code).toBe("EILSEQ");
+        return;
+      }
+      throw error;
+    }
+
+    await expect(authorize(value)).rejects.toThrow(
+      /entry inspector|unknown|name|allowlist/i,
+    );
+    await expectMissing(value.destinationRoot);
+  });
+
+  it.each([
+    {
+      failure: "malformed protocol",
+      script: 'import os\nos.write(1, b"bad\\n")\n',
+      overrides: {},
+    },
+    {
+      failure: "wrong held-root identity",
+      script:
+        'import os\ns = os.fstat(3)\nline = f"ROOT\\t{s.st_dev + 1}\\t{s.st_ino}\\t{s.st_mode}\\t{s.st_nlink}\\t{s.st_uid}\\t0\\nEND\\n"\nos.write(1, line.encode("ascii"))\n',
+      overrides: {},
+    },
+    {
+      failure: "success stderr",
+      script:
+        'import os\nos.write(1, b"bad\\n")\nos.write(2, b"unexpected\\n")\n',
+      overrides: {},
+    },
+    {
+      failure: "nonzero exit",
+      script: "raise SystemExit(7)\n",
+      overrides: {},
+    },
+    {
+      failure: "timeout",
+      script: "import time\ntime.sleep(1)\n",
+      overrides: { inspectorTimeoutMillisecondsForTests: 10 },
+    },
+    {
+      failure: "output overflow",
+      script: 'import os\nos.write(1, b"x" * 4096)\n',
+      overrides: { inspectorMaxOutputBytesForTests: 64 },
+    },
+  ] as const)(
+    "fails closed on held-descriptor inspector $failure and permits later reconciliation",
+    async ({ script, overrides }) => {
+      const value = await fixture();
+      const leaseRoot = path.join(
+        value.publicationParent,
+        `.${value.options.stageBasename}.authorization-lease`,
+      );
+
+      await expect(
+        authorize(value, {}, { inspectorScriptForTests: script, ...overrides }),
+      ).rejects.toThrow(/inspector|protocol|execute|output|status|failed/i);
+
+      expect((await fs.promises.lstat(value.stageRoot)).isDirectory()).toBe(
+        true,
+      );
+      await expectMissing(leaseRoot);
+      await expectMissing(value.destinationRoot);
+      const resumed = await authorize(value);
+      await closeLease(resumed);
+    },
+  );
 
   it.each([
     ["unknown file", "unexpected.tmp", "file"],
@@ -820,6 +1029,58 @@ describe("Floodgate teacher stage authorization", () => {
     await expectMissing(value.destinationRoot);
   });
 
+  it("inspects the held stage fd and rejects a pathname replacement after the scan", async () => {
+    const value = await fixture();
+    await mkdir0700(value.stageRoot);
+    await writeSentinel(
+      path.join(value.stageRoot, "work.jsonl"),
+      "synthetic held stage sentinel\n",
+    );
+    const displaced = path.join(
+      value.publicationParent,
+      "fd-inspection-displaced-stage",
+    );
+    let inspectionCalls = 0;
+    let failure: unknown;
+
+    try {
+      await authorize(
+        value,
+        {},
+        {
+          beforeHeldStageEntryInspectionForTests: async () => {
+            inspectionCalls += 1;
+            if (inspectionCalls !== 2) return;
+            await fs.promises.rename(value.stageRoot, displaced);
+            await mkdir0700(value.stageRoot);
+            await writeSentinel(
+              path.join(value.stageRoot, "unexpected.tmp"),
+              "synthetic replacement-only entry\n",
+            );
+          },
+        },
+      );
+    } catch (error) {
+      failure = error;
+    }
+
+    expect(inspectionCalls).toBe(2);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toMatch(/stage|identity|changed|swap/i);
+    expect((failure as Error).message).not.toMatch(
+      /unknown|unexpected|allowlist/i,
+    );
+    expect(
+      await fs.promises.readFile(path.join(displaced, "work.jsonl"), "utf8"),
+    ).toBe("synthetic held stage sentinel\n");
+    expect(
+      await fs.promises.readFile(
+        path.join(value.stageRoot, "unexpected.tmp"),
+        "utf8",
+      ),
+    ).toBe("synthetic replacement-only entry\n");
+  });
+
   it("does not trust a poisoned global Promise.all during identity checks", async () => {
     const value = await fixture();
     await mkdir0700(value.stageRoot);
@@ -854,56 +1115,145 @@ describe("Floodgate teacher stage authorization", () => {
     }
   });
 
-  it("does not assimilate filesystem objects through Object.prototype.then", async () => {
-    const value = await fixture();
-    await mkdir0700(value.stageRoot);
-    const displaced = path.join(
-      value.publicationParent,
-      "then-poison-displaced-stage",
+  it("does not assimilate filesystem objects through Object.prototype.then", () => {
+    const compiledRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "stage-then-compiled-"),
     );
-    const inheritedThen = Object.getOwnPropertyDescriptor(
-      Object.prototype,
-      "then",
+    temporaryRoots.push(compiledRoot);
+    const compiledModulePath = path.join(compiledRoot, "authorization.cjs");
+    const source = fs.readFileSync(
+      path.join(process.cwd(), "ml/floodgate-teacher-stage-authorization.ts"),
+      "utf8",
     );
-    let poisonCalls = 0;
-    let failure: unknown;
-    let unexpectedLease: AuthorizationLease | undefined;
-
-    Object.defineProperty(Object.prototype, "then", {
-      configurable: true,
-      value: () => {
-        poisonCalls += 1;
-        throw new Error("poisoned Object.prototype.then must not be consulted");
+    const compiled = ts.transpileModule(source, {
+      compilerOptions: {
+        esModuleInterop: true,
+        module: ts.ModuleKind.CommonJS,
+        target: ts.ScriptTarget.ES2022,
       },
-    });
-    try {
-      try {
-        unexpectedLease = await authorize(
-          value,
-          {},
-          {
-            afterLeaseAcquiredForTests: async () => {
-              await fs.promises.rename(value.stageRoot, displaced);
-              await mkdir0700(value.stageRoot);
-            },
-          },
-        );
-      } catch (error) {
-        failure = error;
-      }
-    } finally {
-      if (inheritedThen === undefined) {
-        delete (Object.prototype as { then?: unknown }).then;
-      } else {
-        Object.defineProperty(Object.prototype, "then", inheritedThen);
-      }
-    }
+      fileName: "floodgate-teacher-stage-authorization.ts",
+    }).outputText;
+    fs.writeFileSync(compiledModulePath, compiled, { mode: 0o600 });
+    const compiledModuleLiteral = JSON.stringify(compiledModulePath);
+    const script = String.raw`
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+const authorizationModule = require(${compiledModuleLiteral});
+const {
+  FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
+  authorizeFloodgateTeacherStageCoreForTests,
+} = authorizationModule;
 
-    await unexpectedLease?.close();
-    expect(poisonCalls).toBe(0);
-    expect(failure).toBeInstanceOf(Error);
-    expect((failure as Error).message).toMatch(/stage|identity|changed|swap/i);
-    expect((failure as Error).message).not.toMatch(/poisoned.*then/i);
+const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "stage-then-isolation-")));
+const repositoryRoot = path.join(root, "repository");
+const rawLockRoot = path.join(root, "raw-lock");
+const roleLockRoot = path.join(root, "role-lock");
+const roleBundleRoot = path.join(root, "role-bundle");
+const publicationParent = path.join(root, "publication");
+const stageRoot = path.join(publicationParent, "teacher-stage");
+const displaced = path.join(publicationParent, "then-displaced-stage");
+const legacy = path.join(root, "legacy", "ids.txt");
+const engineBin = path.join(root, "engine", "engine");
+const engineReceipt = path.join(root, "engine", "receipt.json");
+const engineArgument = path.join(root, "engine", "argument.bin");
+const evalDir = path.join(root, "eval");
+const mkdir = (target) => {
+  fs.mkdirSync(target, { recursive: true, mode: 0o700 });
+  fs.chmodSync(target, 0o700);
+};
+const write = (target, contents) => {
+  mkdir(path.dirname(target));
+  fs.writeFileSync(target, contents, { mode: 0o600 });
+};
+const directories = [repositoryRoot, rawLockRoot, roleLockRoot, roleBundleRoot, publicationParent, evalDir, stageRoot];
+for (let index = 0; index < directories.length; index += 1) mkdir(directories[index]);
+write(legacy, "ids\n");
+write(engineBin, "engine\n");
+write(engineReceipt, "{}\n");
+write(engineArgument, "argument\n");
+write(path.join(evalDir, "nn.bin"), "eval\n");
+
+const options = {
+  repositoryRoot,
+  rawLockRoot,
+  roleLockRoot,
+  roleBundleRoot,
+  legacyProtectedPositionIdsPath: legacy,
+  publicationParent,
+  stageBasename: "teacher-stage",
+  destinationBasename: "teacher-final",
+  engineBin,
+  engineReceipt,
+  engineArgs: [engineArgument],
+  evalDir,
+};
+
+(async () => {
+  await new Promise((resolve) => setImmediate(resolve));
+  const inheritedThen = Object.getOwnPropertyDescriptor(Object.prototype, "then");
+  let poisonCalls = 0;
+  let failure;
+  let unexpectedLease;
+  Object.defineProperty(Object.prototype, "then", {
+    configurable: true,
+    value: function poisonedThen() {
+      poisonCalls += 1;
+      const names = Object.getOwnPropertyNames(this).join(",");
+      const tag = Object.prototype.toString.call(this);
+      throw new Error("poisoned Object.prototype.then must not be consulted: " + tag + " own=" + names);
+    },
+  });
+  try {
+    try {
+      unexpectedLease = await authorizeFloodgateTeacherStageCoreForTests(options, {
+        effectiveUserId: process.geteuid(),
+        inspectorPythonExecutable: FLOODGATE_TEACHER_STAGE_ENTRY_INSPECTOR_PYTHON,
+        afterLeaseAcquiredForTests: async () => {
+          await fs.promises.rename(stageRoot, displaced);
+          await fs.promises.mkdir(stageRoot, { mode: 0o700 });
+          await fs.promises.chmod(stageRoot, 0o700);
+        },
+      });
+    } catch (error) {
+      failure = error;
+    }
+  } finally {
+    if (inheritedThen === undefined) delete Object.prototype.then;
+    else Object.defineProperty(Object.prototype, "then", inheritedThen);
+  }
+  if (unexpectedLease) {
+    try { await unexpectedLease.close(); } catch {}
+  }
+  if (poisonCalls !== 0) throw new Error("Object.prototype.then was consulted");
+  const message = failure && typeof failure.message === "string" ? failure.message : "";
+  if (!/stage|identity|changed|swap/i.test(message) || /poisoned.*then/i.test(message)) {
+    throw new Error("stage identity failure was not preserved: " + message);
+  }
+  fs.rmSync(root, { recursive: true, force: true });
+  process.stdout.write("then-isolation-pass");
+})().catch((error) => {
+  try { fs.rmSync(root, { recursive: true, force: true }); } catch {}
+  process.stderr.write(String(error && error.stack ? error.stack : error));
+  process.exitCode = 1;
+});
+`;
+    const result = spawnSync(process.execPath, ["-e", script], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      maxBuffer: 1_048_576,
+      timeout: 20_000,
+    });
+
+    expect({
+      status: result.status,
+      stderr: result.stderr,
+      stdout: result.stdout,
+    }).toEqual({
+      status: 0,
+      stderr: "",
+      stdout: "then-isolation-pass",
+    });
   });
 
   it("does not let Array.prototype.push poisoning drop an engine path", async () => {
@@ -977,6 +1327,91 @@ describe("Floodgate teacher stage authorization", () => {
       /engineArgs|existing file|resolve|protected/i,
     );
     await expectMissing(value.stageRoot);
+  });
+
+  it("does not let an inherited numeric setter drop held-inspector protocol fields", async () => {
+    const value = await fixture();
+    await mkdir0700(value.stageRoot);
+    await writeSentinel(
+      path.join(value.stageRoot, "work.jsonl"),
+      "synthetic protocol field sentinel\n",
+    );
+    const descriptor = Object.getOwnPropertyDescriptor(Array.prototype, "0");
+    let setterCalls = 0;
+    let failure: unknown;
+
+    Object.defineProperty(Array.prototype, "0", {
+      configurable: true,
+      set(this: unknown[], entry: unknown) {
+        if (entry === "ROOT" || entry === "ENTRY") {
+          setterCalls += 1;
+          return;
+        }
+        Object.defineProperty(this, "0", {
+          configurable: true,
+          enumerable: true,
+          value: entry,
+          writable: true,
+        });
+      },
+    });
+    try {
+      try {
+        const lease = await authorize(value);
+        await closeLease(lease);
+      } catch (error) {
+        failure = error;
+      }
+    } finally {
+      if (descriptor === undefined) {
+        delete (Array.prototype as unknown as Record<string, unknown>)["0"];
+      } else {
+        Object.defineProperty(Array.prototype, "0", descriptor);
+      }
+    }
+
+    expect(failure).toBeUndefined();
+    expect(setterCalls).toBe(0);
+    await expectMissing(value.destinationRoot);
+  });
+
+  it("does not trust a poisoned String.prototype.split while parsing inspector output", async () => {
+    const value = await fixture();
+    await mkdir0700(value.stageRoot);
+    await writeSentinel(
+      path.join(value.stageRoot, "work.jsonl"),
+      "synthetic split poison sentinel\n",
+    );
+    const descriptor = Object.getOwnPropertyDescriptor(
+      String.prototype,
+      "split",
+    );
+    if (descriptor === undefined || typeof descriptor.value !== "function") {
+      throw new Error("String.prototype.split is unavailable");
+    }
+    let failure: unknown;
+
+    Object.defineProperty(String.prototype, "split", {
+      ...descriptor,
+      value: () => {
+        throw new Error(
+          "poisoned String.prototype.split must not be consulted",
+        );
+      },
+    });
+    try {
+      try {
+        const lease = await authorize(value);
+        await closeLease(lease);
+      } catch (error) {
+        failure = error;
+      }
+    } finally {
+      Object.defineProperty(String.prototype, "split", descriptor);
+    }
+
+    expect(failure).toBeUndefined();
+    await expectMissing(value.destinationRoot);
   });
 
   it("does not let RegExp.prototype.exec poisoning disguise an engine path as an option", async () => {
@@ -1669,6 +2104,10 @@ describe("Floodgate teacher stage authorization article parity", () => {
     expect(source).not.toContain("Promise.all(");
     expect(source).not.toContain("fs.promises.lstat");
     expect(source).not.toContain("fs.promises.readdir");
+    expect(source).not.toContain("readdirDescriptor");
+    expect(source).not.toContain("directoryEntryNames");
+    expect(source).toContain("os.listdir(FD)");
+    expect(source).toContain("dir_fd=FD");
     expect(source).not.toMatch(/\.push\(/);
     expect(source).not.toMatch(/for \(const .* of /);
     expect(source).not.toMatch(/\.(?:isDirectory|isFile|isSymbolicLink)\(\)/);
@@ -1698,7 +2137,10 @@ describe("Floodgate teacher stage authorization article parity", () => {
       "104 GiB",
       "11.47",
       "24,000",
-      "85/85",
+      "/usr/bin/python3",
+      "os.listdir(3)",
+      "dir_fd=3",
+      "97/97",
       "a448c6be",
       "e4e738f9",
       "final holdout",

@@ -24,6 +24,8 @@ import {
 import {
   FLOODGATE_TRAINING_RAW_FILENAME,
   FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
+  claimActiveVerifiedPinnedFloodgateTrainingRows,
+  claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests,
   parseAuthenticatedFloodgateTrainingRowsCoreForTests,
   withVerifiedPinnedFloodgateTrainingRowsCoreForTests,
   type AuthenticatedFloodgateTrainingRows,
@@ -42,6 +44,17 @@ const PRODUCER_REVISION = "a".repeat(40);
 const VERIFIER_REVISION = "b".repeat(40);
 const temporaryRoots: string[] = [];
 const execFile = promisify(execFileCallback);
+
+function deferred(): Readonly<{
+  promise: Promise<void>;
+  resolve: () => void;
+}> {
+  let resolve!: () => void;
+  const promise = new Promise<void>((complete) => {
+    resolve = complete;
+  });
+  return Object.freeze({ promise, resolve });
+}
 
 function sha256Bytes(value: Uint8Array | string): string {
   return createHash("sha256").update(value).digest("hex");
@@ -164,6 +177,37 @@ interface Fixture {
   readonly bytes: Uint8Array;
   readonly identity: Readonly<FloodgateRoleBundleRawIdentity>;
   readonly options: FloodgateTrainingRowConsumerOptions;
+}
+
+function structurallyForgedAuthenticatedInput(
+  input: Fixture,
+): Readonly<AuthenticatedFloodgateTrainingRows> {
+  const manifestIdentity = verifiedBundle(input.identity).result.manifest
+    .identity;
+  return Object.freeze({
+    schema: FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
+    role: "training" as const,
+    binding: Object.freeze({
+      result_receipt_bytes: FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_BYTES,
+      result_receipt_sha256: FLOODGATE_ROLE_BUNDLE_RESULT_RECEIPT_SHA256,
+      bundle_manifest_bytes: manifestIdentity.bytes,
+      bundle_manifest_sha256: manifestIdentity.sha256,
+      bundle_producer_revision: PRODUCER_REVISION,
+      verifier_revision: VERIFIER_REVISION,
+      raw_format: input.identity.format,
+      raw_bytes: input.identity.bytes,
+      raw_sha256: input.identity.sha256,
+      records: input.identity.records,
+      games: input.identity.games,
+      game_ids_sha256: input.identity.game_ids_sha256,
+      parent_ids_sha256: input.identity.parent_ids_sha256,
+      position_ids_count: input.identity.position_ids_count,
+      position_ids_sha256: input.identity.position_ids_sha256,
+    }),
+    rows: Object.freeze(
+      projectedTrainingRows(input.rows).map((row) => Object.freeze(row)),
+    ),
+  });
 }
 
 async function fixture(): Promise<Fixture> {
@@ -596,6 +640,546 @@ describe("FD-held verified Floodgate training-row consumer", () => {
     expect(authenticated.rows.every((row) => Object.isFrozen(row))).toBe(true);
   });
 
+  it("rejects structural forgeries, active clones, and active proxies by exact identity", async () => {
+    const input = await fixture();
+    const forged = structurallyForgedAuthenticatedInput(input);
+    const forgedProxy = new Proxy(forged, {});
+
+    for (const candidate of [forged, forgedProxy]) {
+      expect(() =>
+        claimActiveVerifiedPinnedFloodgateTrainingRows(candidate),
+      ).toThrow(
+        /production runtime claim requires the exact active unclaimed input/,
+      );
+      expect(() =>
+        claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(candidate),
+      ).toThrow(
+        /test-only runtime claim requires the exact active unclaimed input/,
+      );
+    }
+
+    await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+      input.options,
+      async (authenticated) => {
+        const clone = Object.freeze({
+          ...authenticated,
+          binding: Object.freeze({ ...authenticated.binding }),
+          rows: Object.freeze(
+            authenticated.rows.map((row) => Object.freeze({ ...row })),
+          ),
+        });
+        const activeProxy = new Proxy(authenticated, {});
+        const prototypeChild = Object.create(
+          authenticated,
+        ) as Readonly<AuthenticatedFloodgateTrainingRows>;
+        const invalidIdentities: readonly unknown[] = [
+          clone,
+          activeProxy,
+          prototypeChild,
+          authenticated.binding,
+          authenticated.rows,
+          null,
+          undefined,
+          false,
+          0,
+          "training",
+        ];
+        for (const candidate of invalidIdentities) {
+          expect(() =>
+            claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+              candidate as Readonly<AuthenticatedFloodgateTrainingRows>,
+            ),
+          ).toThrow(
+            /test-only runtime claim requires the exact active unclaimed input/,
+          );
+        }
+        expect(
+          claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+            authenticated,
+          ),
+        ).toBeUndefined();
+      },
+      dependencies(input.identity),
+    );
+  });
+
+  it("keeps dependency-injected claims isolated from production and single-use", async () => {
+    const input = await fixture();
+    let captured: Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
+
+    await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+      input.options,
+      async (authenticated) => {
+        captured = authenticated;
+        expect(() =>
+          claimActiveVerifiedPinnedFloodgateTrainingRows(authenticated),
+        ).toThrow(
+          /production runtime claim requires the exact active unclaimed input/,
+        );
+        expect(
+          claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+            authenticated,
+          ),
+        ).toBeUndefined();
+        expect(() =>
+          claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+            authenticated,
+          ),
+        ).toThrow(
+          /test-only runtime claim requires the exact active unclaimed input/,
+        );
+        expect(() =>
+          claimActiveVerifiedPinnedFloodgateTrainingRows(authenticated),
+        ).toThrow(
+          /production runtime claim requires the exact active unclaimed input/,
+        );
+        await new Promise<void>((resolve) => queueMicrotask(resolve));
+        expect(() =>
+          claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+            authenticated,
+          ),
+        ).toThrow(
+          /test-only runtime claim requires the exact active unclaimed input/,
+        );
+      },
+      dependencies(input.identity),
+    );
+
+    const expired = captured as Readonly<AuthenticatedFloodgateTrainingRows>;
+    expect(() =>
+      claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(expired),
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed input/,
+    );
+    expect(() =>
+      claimActiveVerifiedPinnedFloodgateTrainingRows(expired),
+    ).toThrow(
+      /production runtime claim requires the exact active unclaimed input/,
+    );
+  });
+
+  it("arms only the production registry through the production wrapper", async () => {
+    const input = await fixture();
+    const syntheticBundle = verifiedBundle(input.identity);
+    const verifyBundle = vi.fn(async () => syntheticBundle);
+    const roleBundleResultModule = "../../../ml/floodgate-role-bundle-result";
+
+    vi.resetModules();
+    vi.doMock(roleBundleResultModule, async () => {
+      const actual = (await vi.importActual(roleBundleResultModule)) as Record<
+        string,
+        unknown
+      >;
+      return {
+        ...actual,
+        FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY:
+          syntheticBundle.result.manifest.identity,
+        verifyPinnedFloodgateRoleBundleReceipt: verifyBundle,
+      };
+    });
+
+    try {
+      const productionModule =
+        await import("../../../ml/floodgate-training-row-consumer");
+      let captured: Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
+
+      await productionModule.withVerifiedPinnedFloodgateTrainingRows(
+        input.options,
+        async (authenticated) => {
+          captured = authenticated;
+          expect(() =>
+            productionModule.claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+              authenticated,
+            ),
+          ).toThrow(
+            /test-only runtime claim requires the exact active unclaimed input/,
+          );
+          expect(
+            productionModule.claimActiveVerifiedPinnedFloodgateTrainingRows(
+              authenticated,
+            ),
+          ).toBeUndefined();
+          expect(() =>
+            productionModule.claimActiveVerifiedPinnedFloodgateTrainingRows(
+              authenticated,
+            ),
+          ).toThrow(
+            /production runtime claim requires the exact active unclaimed input/,
+          );
+        },
+      );
+
+      expect(verifyBundle).toHaveBeenCalledTimes(1);
+      expect(() =>
+        productionModule.claimActiveVerifiedPinnedFloodgateTrainingRows(
+          captured as Readonly<AuthenticatedFloodgateTrainingRows>,
+        ),
+      ).toThrow(
+        /production runtime claim requires the exact active unclaimed input/,
+      );
+    } finally {
+      vi.doUnmock(roleBundleResultModule);
+      vi.resetModules();
+    }
+  });
+
+  it("uses captured native WeakSet methods for activation, claim, and cleanup", async () => {
+    const input = await fixture();
+    const addDescriptor = Object.getOwnPropertyDescriptor(
+      WeakSet.prototype,
+      "add",
+    );
+    const deleteDescriptor = Object.getOwnPropertyDescriptor(
+      WeakSet.prototype,
+      "delete",
+    );
+    if (addDescriptor === undefined || deleteDescriptor === undefined) {
+      throw new Error("WeakSet prototype methods are unavailable");
+    }
+    let poisonCalls = 0;
+    let captured: Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
+    let operationFailure: unknown;
+
+    Object.defineProperty(WeakSet.prototype, "add", {
+      ...addDescriptor,
+      value: () => {
+        poisonCalls += 1;
+        throw new Error("poisoned WeakSet.prototype.add");
+      },
+    });
+    Object.defineProperty(WeakSet.prototype, "delete", {
+      ...deleteDescriptor,
+      value: () => {
+        poisonCalls += 1;
+        throw new Error("poisoned WeakSet.prototype.delete");
+      },
+    });
+    try {
+      await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+        input.options,
+        async (authenticated) => {
+          captured = authenticated;
+          claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+            authenticated,
+          );
+        },
+        dependencies(input.identity),
+      );
+    } catch (error) {
+      operationFailure = error;
+    } finally {
+      Object.defineProperty(WeakSet.prototype, "add", addDescriptor);
+      Object.defineProperty(WeakSet.prototype, "delete", deleteDescriptor);
+    }
+
+    expect(operationFailure).toBeUndefined();
+    expect(poisonCalls).toBe(0);
+    expect(() =>
+      claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+        captured as Readonly<AuthenticatedFloodgateTrainingRows>,
+      ),
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed input/,
+    );
+  });
+
+  it.each(["resolve", "reject"] as const)(
+    "revokes an unclaimed test identity when a callback returns a Promise that will %s",
+    async (outcome) => {
+      const input = await fixture();
+      const failure = new Error("callback rejected after receiving input");
+      let captured: Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
+      const operation = withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+        input.options,
+        (authenticated) => {
+          captured = authenticated;
+          return outcome === "resolve"
+            ? Promise.resolve(undefined)
+            : Promise.reject(failure);
+        },
+        dependencies(input.identity),
+      );
+
+      if (outcome === "resolve") {
+        await expect(operation).resolves.toBeUndefined();
+      } else {
+        await expect(operation).rejects.toBe(failure);
+      }
+      const expired = captured as Readonly<AuthenticatedFloodgateTrainingRows>;
+      expect(() =>
+        claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(expired),
+      ).toThrow(
+        /test-only runtime claim requires the exact active unclaimed input/,
+      );
+    },
+  );
+
+  it("revokes an unclaimed identity before its callback Promise settles", async () => {
+    const input = await fixture();
+    const callbackEntered = deferred();
+    const releaseCallback = deferred();
+    let captured: Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
+    const operation = withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+      input.options,
+      async (authenticated) => {
+        captured = authenticated;
+        callbackEntered.resolve();
+        await releaseCallback.promise;
+      },
+      dependencies(input.identity),
+    );
+
+    await callbackEntered.promise;
+    expect(() =>
+      claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+        captured as Readonly<AuthenticatedFloodgateTrainingRows>,
+      ),
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed input/,
+    );
+
+    releaseCallback.resolve();
+    await expect(operation).resolves.toBeUndefined();
+  });
+
+  it.each(["queueMicrotask", "settled Promise reaction"] as const)(
+    "rejects a claim scheduled by the callback through %s",
+    async (schedule) => {
+      const input = await fixture();
+      const attempted = deferred();
+      let lateClaimError: unknown;
+
+      await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+        input.options,
+        (authenticated) => {
+          const attemptClaim = () => {
+            try {
+              claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+                authenticated,
+              );
+            } catch (error) {
+              lateClaimError = error;
+            } finally {
+              attempted.resolve();
+            }
+          };
+          const settled = Promise.resolve();
+          if (schedule === "queueMicrotask") {
+            queueMicrotask(attemptClaim);
+          } else {
+            void settled.then(attemptClaim);
+          }
+          return settled;
+        },
+        dependencies(input.identity),
+      );
+
+      await attempted.promise;
+      expect(lateClaimError).toBeInstanceOf(Error);
+      expect((lateClaimError as Error).message).toMatch(
+        /test-only runtime claim requires the exact active unclaimed input/,
+      );
+    },
+  );
+
+  it("revokes a claimed identity after a synchronous callback throw", async () => {
+    const input = await fixture();
+    const failure = new Error("callback threw after claiming input");
+    let captured: Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
+
+    await expect(
+      withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+        input.options,
+        (authenticated) => {
+          captured = authenticated;
+          claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+            authenticated,
+          );
+          throw failure;
+        },
+        dependencies(input.identity),
+      ),
+    ).rejects.toBe(failure);
+
+    expect(() =>
+      claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+        captured as Readonly<AuthenticatedFloodgateTrainingRows>,
+      ),
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed input/,
+    );
+  });
+
+  it("keeps concurrent synchronous claims isolated after callbacks suspend", async () => {
+    const first = await fixture();
+    const second = await fixture();
+    const firstStarted = deferred();
+    const secondStarted = deferred();
+    const releaseFirst = deferred();
+    const releaseSecond = deferred();
+    let firstAuthenticated:
+      Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
+    let secondAuthenticated:
+      Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
+
+    const firstOperation = withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+      first.options,
+      async (authenticated) => {
+        firstAuthenticated = authenticated;
+        claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+          authenticated,
+        );
+        firstStarted.resolve();
+        await releaseFirst.promise;
+      },
+      dependencies(first.identity),
+    );
+    await firstStarted.promise;
+    const secondOperation = withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+      second.options,
+      async (authenticated) => {
+        secondAuthenticated = authenticated;
+        claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+          authenticated,
+        );
+        secondStarted.resolve();
+        await releaseSecond.promise;
+      },
+      dependencies(second.identity),
+    );
+    await secondStarted.promise;
+
+    const firstActive =
+      firstAuthenticated as Readonly<AuthenticatedFloodgateTrainingRows>;
+    const secondActive =
+      secondAuthenticated as Readonly<AuthenticatedFloodgateTrainingRows>;
+    expect(firstActive).not.toBe(secondActive);
+    try {
+      expect(() =>
+        claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(firstActive),
+      ).toThrow(
+        /test-only runtime claim requires the exact active unclaimed input/,
+      );
+      expect(() =>
+        claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+          secondActive,
+        ),
+      ).toThrow(
+        /test-only runtime claim requires the exact active unclaimed input/,
+      );
+
+      releaseFirst.resolve();
+      await expect(firstOperation).resolves.toBeUndefined();
+      expect(() =>
+        claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(firstActive),
+      ).toThrow(
+        /test-only runtime claim requires the exact active unclaimed input/,
+      );
+      expect(() =>
+        claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+          secondActive,
+        ),
+      ).toThrow(
+        /test-only runtime claim requires the exact active unclaimed input/,
+      );
+    } finally {
+      releaseFirst.resolve();
+      releaseSecond.resolve();
+      await Promise.allSettled([firstOperation, secondOperation]);
+    }
+    await expect(secondOperation).resolves.toBeUndefined();
+    expect(() =>
+      claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(secondActive),
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed input/,
+    );
+  });
+
+  it("keeps nested synchronous claims isolated", async () => {
+    const outer = await fixture();
+    const inner = await fixture();
+    let innerAuthenticated:
+      Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
+    let outerAuthenticated:
+      Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
+
+    await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+      outer.options,
+      async (authenticatedOuter) => {
+        outerAuthenticated = authenticatedOuter;
+        expect(
+          claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+            authenticatedOuter,
+          ),
+        ).toBeUndefined();
+        await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+          inner.options,
+          async (authenticatedInner) => {
+            innerAuthenticated = authenticatedInner;
+            expect(
+              claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+                authenticatedInner,
+              ),
+            ).toBeUndefined();
+          },
+          dependencies(inner.identity),
+        );
+        expect(() =>
+          claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+            innerAuthenticated as Readonly<AuthenticatedFloodgateTrainingRows>,
+          ),
+        ).toThrow(
+          /test-only runtime claim requires the exact active unclaimed input/,
+        );
+        expect(() =>
+          claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+            authenticatedOuter,
+          ),
+        ).toThrow(
+          /test-only runtime claim requires the exact active unclaimed input/,
+        );
+      },
+      dependencies(outer.identity),
+    );
+
+    for (const expired of [innerAuthenticated, outerAuthenticated]) {
+      expect(() =>
+        claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+          expired as Readonly<AuthenticatedFloodgateTrainingRows>,
+        ),
+      ).toThrow(
+        /test-only runtime claim requires the exact active unclaimed input/,
+      );
+    }
+  });
+
+  it("revokes a claimed identity before a failing postflight completes", async () => {
+    const input = await fixture();
+    let captured: Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
+
+    await expect(
+      withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+        input.options,
+        async (authenticated) => {
+          captured = authenticated;
+          claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+            authenticated,
+          );
+          await overwriteOneByte(input.trainingPath);
+        },
+        dependencies(input.identity),
+      ),
+    ).rejects.toThrow(/changed across the callback boundary/);
+
+    expect(() =>
+      claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+        captured as Readonly<AuthenticatedFloodgateTrainingRows>,
+      ),
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed input/,
+    );
+  });
+
   it("captures options before I/O and ignores later caller mutation", async () => {
     const input = await fixture();
     const originalOutputRoot = input.options.outputRoot;
@@ -864,28 +1448,50 @@ const settledArray = Promise.resolve(errors);
     ],
   ] as const)("rejects a callback returning a %s", async (_label, callback) => {
     const input = await fixture();
+    let captured: Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
     await expect(
       withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
         input.options,
-        callback as unknown as (
-          rows: Readonly<AuthenticatedFloodgateTrainingRows>,
+        ((authenticated: Readonly<AuthenticatedFloodgateTrainingRows>) => {
+          captured = authenticated;
+          return callback();
+        }) as unknown as (
+          authenticated: Readonly<AuthenticatedFloodgateTrainingRows>,
         ) => Promise<void>,
         dependencies(input.identity),
       ),
     ).rejects.toThrow(/native Promise/);
+    expect(() =>
+      claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+        captured as Readonly<AuthenticatedFloodgateTrainingRows>,
+      ),
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed input/,
+    );
   });
 
   it("rejects a native callback Promise that resolves with a value", async () => {
     const input = await fixture();
+    let captured: Readonly<AuthenticatedFloodgateTrainingRows> | undefined;
     await expect(
       withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
         input.options,
-        (() => Promise.resolve("must stay in private staging")) as unknown as (
-          rows: Readonly<AuthenticatedFloodgateTrainingRows>,
+        ((authenticated: Readonly<AuthenticatedFloodgateTrainingRows>) => {
+          captured = authenticated;
+          return Promise.resolve("must stay in private staging");
+        }) as unknown as (
+          authenticated: Readonly<AuthenticatedFloodgateTrainingRows>,
         ) => Promise<void>,
         dependencies(input.identity),
       ),
     ).rejects.toThrow(/without a return value/);
+    expect(() =>
+      claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+        captured as Readonly<AuthenticatedFloodgateTrainingRows>,
+      ),
+    ).toThrow(
+      /test-only runtime claim requires the exact active unclaimed input/,
+    );
   });
 
   it("waits for the original native Promise despite a hostile species", async () => {
@@ -1085,6 +1691,40 @@ describe("Floodgate training-row consumer article parity", () => {
       "768",
       "45%",
       "50%",
+    ];
+    for (const fact of sharedFacts) {
+      expect(japanese).toContain(fact);
+      expect(english).toContain(fact);
+    }
+  });
+});
+
+describe("Floodgate consumer runtime-claim article parity", () => {
+  it("keeps the ephemeral provenance boundary bilingual", () => {
+    const japanese = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        "docs/blog-shogi-floodgate-consumer-runtime-claim.md",
+      ),
+      "utf8",
+    );
+    const english = fs.readFileSync(
+      path.join(
+        process.cwd(),
+        "docs/blog-shogi-floodgate-consumer-runtime-claim.en.md",
+      ),
+      "utf8",
+    );
+    const sharedFacts = [
+      "PRODUCTION_RUNTIME_CLAIMS",
+      "TEST_RUNTIME_CLAIMS",
+      "WeakSet.delete",
+      "single-use",
+      "AsyncLocalStorage",
+      "CoreForTests",
+      "void",
+      "47/47",
+      "final holdout",
     ];
     for (const fact of sharedFacts) {
       expect(japanese).toContain(fact);

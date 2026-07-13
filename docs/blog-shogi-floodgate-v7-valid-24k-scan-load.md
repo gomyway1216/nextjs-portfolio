@@ -10,7 +10,7 @@
 | ------------------------- | ---------------- | -------------------------------------------- |
 | bounded test-only scanner | 実装・マージ済み | 既存`CoreForTests` entry pointを変更せず使う |
 | 100 / 1,000 parent        | 予備実測済み     | fixtureと測定手順が動くことを確認            |
-| valid 24,000 parent       | 実行中           | 実bytes・SHA-256・RSS・時間を確定する        |
+| valid 24,000 parent       | local実測完了    | 24,000親・429,244,881 bytesを再検証した      |
 | real Floodgate labels     | 未実行           | timeout、key authority、coordinator後に行う  |
 | weight / live環境         | 変更なし         | 現行weightをrollback baselineとして維持      |
 
@@ -58,34 +58,94 @@ fresh生成とresume scanはchildを分け、OSが報告するprocess-lifetime p
 
 100、1,000、24,000 parentのchild RSSとfile bytesは運用上の観察値として並べるが、RSS比率をscanner固有memoryの合否には使わない。構造的な合否はread要求65,536 bytes以下、line 24,576 bytes以下、全fileを保持するscanner配列がないことに置く。Node heap、認証済みtraining rows、JSON一行のparse objectは残るため、「process全体がO(1) memory」とは主張しない。
 
-## 6. 予備実測と24,000親の確定欄
+## 6. 予備値と確定値を分ける
 
-次はprototypeの予備実測であり、最終commitの確定load resultではない。
+次は実装前prototypeの参考値であり、Attempt 3のacceptance evidenceではない。100と1,000のfile bytesも最終harness / sourceと異なるため、24,000確定表へ混ぜない。
 
-| parents | file bytes | prefix wall ms | final wall ms | scan-child maxRSS (decimal MB) | digest                           |
-| ------: | ---------: | -------------: | ------------: | -----------------------------: | -------------------------------- |
-|     100 |  1,772,797 |            296 |           338 |                          148.6 | fresh / resume / independent一致 |
-|   1,000 | 17,956,845 |          3,050 |         3,155 |                          199.6 | fresh / resume / independent一致 |
-|  24,000 |     未実測 |         未実測 |        未実測 |                         未実測 | 未実測                           |
+| prototype parents | file bytes | prefix wall ms | final wall ms | child maxRSS (decimal MB) |
+| ----------------: | ---------: | -------------: | ------------: | ------------------------: |
+|               100 |  1,772,797 |            296 |           338 |                     148.6 |
+|             1,000 | 17,956,845 |          3,050 |         3,155 |                     199.6 |
 
-単純比例の予測は約430,964,280 bytes、1 scan約73–76秒、全工程約7.2分だった。これは旧記事のone-fixture予測416,185,154 bytesより14,779,126 bytes、3.551%大きく、fixture差による上方改定である。capacity planningだけに使い、実測値へ混ぜない。24,000親の完走後、この表を同一source SHA、64-hex digest、再現command、evidence pathを持つ確定値へ更新する。
+事前の単純比例予測は430,964,280 bytes、1 scan約73–76秒、全工程約7.2分だった。これは旧記事のone-fixture予測416,185,154 bytesより14,779,126 bytes、3.551%大きいfixture差による上方改定だった。Attempt 3の実測429,244,881 bytesは新予測より1,719,399 bytes、0.399%小さかった。予測は書き換えず、予測精度として差を残す。
 
-## 7. 合否条件
+## 7. 3回の試行を全部残す
 
-valid 24,000-parent runは、process exit 0だけでは合格しない。次をすべて満たす必要がある。
+完全なresultを得るまでに2回止まった。どちらも部分値を採用せず、発見とcleanupだけを記録する。
 
-- exact 24,000 unique parentsとexact 336,000 candidate recordsを検証する
-- 外部stream counterでheader + parents + sealの24,002 JSONL linesを確認し、receiptの24,000 parent recordsと区別する
-- fresh / resume / independent SHA-256が一致する
-- resume producer callが0である
-- resumable-prefixとsealed-finalが同じsealed bytesを受理する
-- read要求が65,536 bytes、lineが24,576 bytesを超えない
-- observed file bytes、最大line、両scan wall time、peak RSSを保存する
-- checkpoint前後RSSとprocess-lifetime maxRSSを観察値として保存し、scanner固有memoryの証明とは呼ばない
+| attempt | source    |     wall | 結果                                                                                          | acceptance |
+| ------: | --------- | -------: | --------------------------------------------------------------------------------------------- | ---------- |
+|       1 | `d5eb700` |   4.05 s | game counter `60`を`00:00:60`としていたfixture timestamp defectをcanonical URL verifierが拒否 | 不採用     |
+|       2 | `3ac84a6` |  82.81 s | 対応Node全体でtestを壊さないruntime-test compatibility修正のためoperatorがbuild childを停止   | 不採用     |
+|       3 | `7844ea4` | 440.70 s | exit 0、strict result JSON、source不変、temp root 0                                           | 採用       |
 
-fast CIでは100-parent contractを毎回実行し、数分かかる24,000-parent loadは明示的なstandalone commandとして実行する。CI timeoutを伸ばして毎pushで巨大fixtureを作る設計にはしない。
+Attempt 1はscannerへ到達していない。修正はcounterをHH / MM / SSへ分解し、0、59、60、3,599、3,600、86,399と86,400 rejectを回帰testへ固定した。Attempt 2もload failureではなく意図停止である。両runのRSS、途中bytes、時間をthroughputや24,000-parent resultへ使わない。どちらも終了後に新しい`floodgate-v7-scan-load-*` temp rootが0であることを確認した。
 
-## 8. claim boundary
+## 8. Attempt 3の確定証拠
+
+raw recordは[監査JSON](../ml/protocols/floodgate-v7-valid-24k-scan-load-7844ea4-result.json)へ保存した。evidence fileのSHA-256は`7fc84e5e6168859d1bdcb0d352839725fe53a1dc8994ea34b7b44bb3b20eda58`である。
+
+| identity        | 確定値                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| source commit   | `7844ea49f9e0326a5531824d7e356d6d51726d58`                                               |
+| harness SHA-256 | `d1debecd249f70c36f5a0b72f653f1de1764f22022f7864fd1baa68a078485ff`                       |
+| reproduction    | `npm run shogi:floodgate-v7-checkpoint-scan-load -- --parents 24000`                     |
+| runtime         | parent / build child / scan childすべてNode v22.13.0、darwin arm64                       |
+| machine         | Apple M4 Pro、physical / logical 14 core、51,539,607,552 bytes RAM、macOS 15.1 (24B2082) |
+| lifecycle       | 2026-07-13 09:23:30 UTC開始、440.70秒、post-run verify 09:31:14 UTC、exit 0、temp root 0 |
+
+finish timestampそのものはcaptureしていないため、開始時刻へ440.70秒を足して推定値を作らない。`09:31:14 UTC`は終了時刻ではなくsource / cleanupを再検証した時刻である。
+
+| valid stream                                  |                                                             確定値 |
+| --------------------------------------------- | -----------------------------------------------------------------: |
+| parents / games / derived candidate instances |                                              24,000 / 67 / 336,000 |
+| JSONL lines                                   |                            24,002 = header + 24,000 entries + seal |
+| actual bytes                                  |                                     429,244,881 bytes (409.36 MiB) |
+| actual / receipt / independent SHA-256        | `055e50c0f783894c4819e503574db4e45577ccac669d04408189f4e8ec781d13` |
+| header / entry total / seal bytes             |                                          2,551 / 429,217,823 / 505 |
+| entry min / mean / max                        |                                     17,345 / 17,884 / 18,451 bytes |
+| maximum line / bound                          |                                              18,451 / 24,576 bytes |
+| producer / completed / resumed                |                                                0 / 24,000 / 24,000 |
+
+LFを含む算術は`2,551 + 429,217,823 + 505 + 24,002 = 429,244,881`で一致した。公開JSONが明示するreceipt / independent SHAは同一で、fresh-build digestとの一致もresult発行前のstrict parent validatorが確認する。fresh receipt自体は公開証拠へ使わない。
+
+| native scan observation |                  resumable-prefix |                 sealed-final |
+| ----------------------- | --------------------------------: | ---------------------------: |
+| calls                   |                             6,550 |                        6,550 |
+| bytes                   |                       429,244,881 |                  429,244,881 |
+| maximum request         |                            65,536 |                       65,536 |
+| phase envelope          | prefix start→final start 76.284 s | final start→receipt 76.526 s |
+
+checkpoint call全体は157.760秒、外部independent SHAは0.238秒だった。phase envelopeには各scan以外の検証も含まれるためpure scan timeとは呼ばない。
+
+| RSS observation                |   raw bytes | decimal MB |
+| ------------------------------ | ----------: | ---------: |
+| scan checkpoint前              | 190,857,216 |    190.857 |
+| scan後                         | 235,749,376 |    235.749 |
+| sampled peak                   | 386,564,096 |    386.564 |
+| scan-child process max         | 386,646,016 |    386.646 |
+| full-command / build-child max | 554,876,928 |    554.877 |
+
+RSSにはtraining bindingとNode heapが含まれる。これは単一machineの観察値と内部整合性であり、scanner-only memory、閾値合格、O(1) scalingの証明ではない。
+
+fresh buildでは24,002回のregular-file syncをfixture作成時間短縮のため抑止し、native method復元後にworkとstageを各1回batch syncした。build checkpointは277.722秒だった。このbuild receiptはnon-evidenceであり、power-loss durability testではない。別childのnative-sync resume / final scanだけをscan evidenceにする。
+
+## 9. 合否条件
+
+Attempt 3はprocess exit 0だけでなく、次をすべて満たした。
+
+- exact 24,000 unique parentsとderived 336,000 candidate instances
+- 外部stream counterの24,002 JSONL linesとreceiptの24,000 parent recordsを分離
+- actual / receipt / independent SHA-256一致とfresh-build internal一致
+- resume producer call 0、completed / resumed 24,000
+- 両policyがexact 429,244,881 bytesを各6,550 bounded readsで受理
+- 最大read 65,536 bytes、最大line 18,451 bytes
+- line-byte算術、read-call算術、timing、RSS関係が全部一致
+- source commit / harness SHAがrun前後で不変、worktree clean、temp root 0
+
+fast CIでは100-parent contractだけを毎回実行し、24,000-parent loadはstandalone evidence commandのままにする。pinned Node v22.13.0では6/6 testsがpassし、別runtimeではevidence生成3件だけをskipしてpure parser / URL / pinned-evidence contract testを継続する。
+
+## 10. claim boundary
 
 このload testが示せるのは、syntheticながら意味的にvalidな最大件数をmerged test-only scanner coreがbounded readで再検証し、digest、順序、HMAC、resume、sealの整合を保てることだけである。production coordinatorへの接続はまだ示さない。
 

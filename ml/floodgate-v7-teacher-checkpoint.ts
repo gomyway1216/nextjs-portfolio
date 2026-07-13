@@ -82,6 +82,7 @@ export const FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT =
   FLOODGATE_PRODUCTION_TEACHER_RUNTIME.parallel_engines;
 const MAX_TOTAL_BYTES = FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES;
 const MAX_LINE_BYTES = FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES;
+const READ_CHUNK_BYTES = 64 * 1024;
 const MODE_MASK = 0o7777;
 const MODE_TYPE_MASK = fs.constants.S_IFMT;
 const MODE_DIRECTORY = fs.constants.S_IFDIR;
@@ -221,7 +222,8 @@ export type FloodgateV7TeacherCheckpointFailpointPhase =
   | "after-parent-produced-before-entry"
   | "after-entry-durable"
   | "after-seal-durable"
-  | "before-final-reopen";
+  | "before-final-reopen"
+  | "after-final-scan-before-path-confirmation";
 
 export interface FloodgateV7TeacherCheckpointFailpointEvent {
   readonly phase: FloodgateV7TeacherCheckpointFailpointPhase;
@@ -242,6 +244,14 @@ export interface FloodgateV7TeacherCheckpointDependencies {
       readonly length: number;
     }>,
     write: (maximumBytes?: number) => Promise<number>,
+  ) => Promise<number>;
+  readonly readForTests?: (
+    request: Readonly<{
+      readonly purpose: "resumable-prefix" | "sealed-final";
+      readonly length: number;
+      readonly position: number;
+    }>,
+    read: (maximumBytes?: number) => Promise<number>,
   ) => Promise<number>;
   readonly closeForTests?: (
     kind: "work" | "stage",
@@ -318,6 +328,7 @@ interface CapturedInvocation {
   readonly effectiveUserId: number;
   readonly failpoint?: FloodgateV7TeacherCheckpointDependencies["failpointForTests"];
   readonly writeForTests?: FloodgateV7TeacherCheckpointDependencies["writeForTests"];
+  readonly readForTests?: FloodgateV7TeacherCheckpointDependencies["readForTests"];
   readonly closeForTests?: FloodgateV7TeacherCheckpointDependencies["closeForTests"];
   readonly persistenceState: { mayHaveStarted: boolean };
 }
@@ -328,6 +339,28 @@ interface ScanResult {
   readonly sealed: boolean;
   readonly authenticatedBytes: number;
   readonly tornTail: boolean;
+}
+
+type WorkScanPolicy = "resumable-prefix" | "sealed-final";
+
+interface WorkFileIdentity {
+  readonly dev: bigint;
+  readonly ino: bigint;
+}
+
+interface WorkFileSnapshot extends WorkFileIdentity {
+  readonly mode: bigint;
+  readonly uid: bigint;
+  readonly nlink: bigint;
+  readonly size: bigint;
+  readonly mtimeNs: bigint;
+  readonly ctimeNs: bigint;
+}
+
+interface WorkFileScanResult extends ScanResult {
+  readonly fileBytes: number;
+  readonly fileSha256: string;
+  readonly snapshot: WorkFileSnapshot;
 }
 
 function failure(message: string, cause?: unknown): never {
@@ -802,7 +835,12 @@ function captureInvocation(
   if (!isPlainRecord(dependenciesValue)) {
     failure("dependencies must be a plain non-Proxy object");
   }
-  const optionalKeys = ["closeForTests", "failpointForTests", "writeForTests"];
+  const optionalKeys = [
+    "closeForTests",
+    "failpointForTests",
+    "readForTests",
+    "writeForTests",
+  ];
   const expectedDependencyKeys = ["effectiveUserId", "rootKey"];
   for (const key of optionalKeys) {
     if (Object.prototype.hasOwnProperty.call(dependenciesValue, key)) {
@@ -870,6 +908,8 @@ function captureInvocation(
     FloodgateV7TeacherCheckpointDependencies["failpointForTests"] | undefined;
   const writeForTests = dependencies.writeForTests as
     FloodgateV7TeacherCheckpointDependencies["writeForTests"] | undefined;
+  const readForTests = dependencies.readForTests as
+    FloodgateV7TeacherCheckpointDependencies["readForTests"] | undefined;
   const closeForTests = dependencies.closeForTests as
     FloodgateV7TeacherCheckpointDependencies["closeForTests"] | undefined;
   if (
@@ -885,6 +925,13 @@ function captureInvocation(
   ) {
     zeroBytes(rootKey);
     failure("dependencies.writeForTests must be a function");
+  }
+  if (
+    readForTests !== undefined &&
+    (typeof readForTests !== "function" || nodeIsProxy(readForTests))
+  ) {
+    zeroBytes(rootKey);
+    failure("dependencies.readForTests must be a function");
   }
   if (
     closeForTests !== undefined &&
@@ -905,6 +952,7 @@ function captureInvocation(
       effectiveUserId,
       failpoint,
       writeForTests,
+      readForTests,
       closeForTests,
       persistenceState: { mayHaveStarted: false },
     });
@@ -1081,11 +1129,18 @@ function buildEntry(
 }
 
 function parseCanonicalLine(
-  line: string,
+  lineBytes: Buffer,
   label: string,
+  decoder: TextDecoder,
 ): Readonly<Record<string, unknown>> {
-  if (Buffer.byteLength(line, "utf8") > MAX_LINE_BYTES) {
+  if (lineBytes.byteLength > MAX_LINE_BYTES) {
     failure(`${label} exceeds the line bound`);
+  }
+  let line: string;
+  try {
+    line = decoder.decode(lineBytes);
+  } catch (cause) {
+    return failure("work.jsonl contains invalid UTF-8", cause);
   }
   let parsed: unknown;
   try {
@@ -1093,189 +1148,151 @@ function parseCanonicalLine(
   } catch (cause) {
     return failure(`${label} is not JSON`, cause);
   }
-  if (!isPlainRecord(parsed) || canonicalJson(parsed) !== line) {
+  if (!isPlainRecord(parsed)) {
+    failure(`${label} is not a canonical JSON object`);
+  }
+  const canonicalBytes = Buffer.from(canonicalJson(parsed), "utf8");
+  if (
+    canonicalBytes.byteLength !== lineBytes.byteLength ||
+    !timingSafeEqual(canonicalBytes, lineBytes)
+  ) {
     failure(`${label} is not a canonical JSON object`);
   }
   return parsed;
 }
 
 function exactLine(
-  actual: string,
+  actual: Buffer,
   expected: Readonly<Record<string, unknown>>,
   label: string,
 ): void {
-  const expectedLine = canonicalJson(expected);
-  const left = Buffer.from(actual, "utf8");
-  const right = Buffer.from(expectedLine, "utf8");
-  if (left.byteLength !== right.byteLength || !timingSafeEqual(left, right)) {
+  const expectedBytes = Buffer.from(canonicalJson(expected), "utf8");
+  if (
+    actual.byteLength !== expectedBytes.byteLength ||
+    !timingSafeEqual(actual, expectedBytes)
+  ) {
     failure(`${label} is not the exact authenticated expected line`);
   }
 }
 
-function scanWork(
-  bytes: Buffer,
+interface MutableWorkScanState {
+  completeRecords: number;
+  completedParents: number;
+  previousMac: string;
+  sealed: boolean;
+  authenticatedBytes: number;
+}
+
+function scanCompleteLine(
+  lineBytes: Buffer,
+  lineEnd: number,
+  state: MutableWorkScanState,
   invocation: CapturedInvocation,
   key: Uint8Array,
-): ScanResult {
-  if (bytes.byteLength === 0) {
-    return Object.freeze({
-      completedParents: 0,
-      previousMac: "",
-      sealed: false,
-      authenticatedBytes: 0,
-      tornTail: false,
-    });
-  }
-  if (bytes.byteLength > MAX_TOTAL_BYTES)
-    failure("work.jsonl exceeds its byte bound");
-  const completeSlices: Array<{
-    readonly start: number;
-    readonly end: number;
-  }> = [];
-  const maximumCompleteRecords = invocation.training.parents.length + 2;
-  let start = 0;
-  for (let index = 0; index < bytes.byteLength; index += 1) {
-    if (bytes[index] !== 0x0a) {
-      if (index - start + 1 > MAX_LINE_BYTES) {
-        failure("work.jsonl line exceeds its exact bound");
-      }
-      continue;
+  decoder: TextDecoder,
+): void {
+  if (state.completeRecords === 0) {
+    const expectedHeader = buildHeader(invocation, key);
+    const header = strictRecord(
+      parseCanonicalLine(lineBytes, "work header", decoder),
+      HEADER_KEYS,
+      "work header",
+    );
+    const headerPayloadValue = withoutKey(header, "header_mac");
+    const expectedHeaderMac = hmacHex(key, HEADER_DOMAIN, headerPayloadValue);
+    if (!macEqual(header.header_mac, expectedHeaderMac)) {
+      failure("work header MAC is invalid");
     }
-    if (completeSlices.length >= maximumCompleteRecords) {
-      failure("work.jsonl contains too many complete records");
-    }
-    if (index === start) failure("work.jsonl contains an empty line");
-    completeSlices.push(Object.freeze({ start, end: index }));
-    start = index + 1;
-  }
-  const tornTail = start < bytes.byteLength;
-  const decoder = new TextDecoder("utf-8", { fatal: true });
-  const lines: string[] = [];
-  try {
-    for (const slice of completeSlices) {
-      lines.push(decoder.decode(bytes.subarray(slice.start, slice.end)));
-    }
-  } catch (cause) {
-    return failure("work.jsonl contains invalid UTF-8", cause);
-  }
-  if (lines.length === 0) {
-    return Object.freeze({
-      completedParents: 0,
-      previousMac: "",
-      sealed: false,
-      authenticatedBytes: 0,
-      tornTail: true,
-    });
+    exactLine(lineBytes, expectedHeader, "work header");
+    state.previousMac = expectedHeader.header_mac as string;
+    state.authenticatedBytes = lineEnd;
+    return;
   }
 
-  const expectedHeader = buildHeader(invocation, key);
-  const header = strictRecord(
-    parseCanonicalLine(lines[0], "work header"),
-    HEADER_KEYS,
-    "work header",
+  if (state.sealed) {
+    failure("work.jsonl contains a complete line after its seal");
+  }
+  const parsed = parseCanonicalLine(
+    lineBytes,
+    `work line ${state.completeRecords}`,
+    decoder,
   );
-  const headerPayloadValue = withoutKey(header, "header_mac");
-  const expectedHeaderMac = hmacHex(key, HEADER_DOMAIN, headerPayloadValue);
-  if (!macEqual(header.header_mac, expectedHeaderMac)) {
-    failure("work header MAC is invalid");
-  }
-  exactLine(lines[0], expectedHeader, "work header");
-  let previousMac = expectedHeader.header_mac as string;
-  let completedParents = 0;
-  let sealed = false;
-  let authenticatedBytes = completeSlices[0].end + 1;
-
-  for (let lineIndex = 1; lineIndex < lines.length; lineIndex += 1) {
-    if (sealed) failure("work.jsonl contains a complete line after its seal");
-    const parsed = parseCanonicalLine(
-      lines[lineIndex],
-      `work line ${lineIndex}`,
-    );
-    if (parsed.kind === "seal") {
-      if (completedParents !== invocation.training.parents.length) {
-        failure("work seal appears before every parent entry");
-      }
-      const seal = strictRecord(parsed, SEAL_KEYS, "work seal");
-      const expectedSealMac = hmacHex(
-        key,
-        SEAL_DOMAIN,
-        withoutKey(seal, "seal_mac"),
-      );
-      if (!macEqual(seal.seal_mac, expectedSealMac))
-        failure("work seal MAC is invalid");
-      exactLine(
-        lines[lineIndex],
-        buildSeal(invocation, previousMac, key),
-        "work seal",
-      );
-      sealed = true;
-      authenticatedBytes = completeSlices[lineIndex].end + 1;
-      continue;
+  if (parsed.kind === "seal") {
+    if (state.completedParents !== invocation.training.parents.length) {
+      failure("work seal appears before every parent entry");
     }
-    if (completedParents >= invocation.training.parents.length) {
-      failure("work.jsonl contains an entry beyond the training input");
-    }
-    const entry = strictRecord(
-      parsed,
-      ENTRY_KEYS,
-      `work entry ${completedParents}`,
+    const seal = strictRecord(parsed, SEAL_KEYS, "work seal");
+    const expectedSealMac = hmacHex(
+      key,
+      SEAL_DOMAIN,
+      withoutKey(seal, "seal_mac"),
     );
-    const entryPayload = withoutKey(entry, "entry_mac");
-    const expectedMac = hmacHex(key, ENTRY_DOMAIN, entryPayload);
-    if (!macEqual(entry.entry_mac, expectedMac)) {
-      failure(`work entry ${completedParents} MAC is invalid`);
-    }
-    const expectedParent = invocation.training.parents[completedParents];
-    if (
-      entry.schema !== FLOODGATE_V7_TEACHER_CHECKPOINT_SCHEMA ||
-      entry.kind !== "completed-parent" ||
-      entry.sequence !== completedParents ||
-      entry.input_index !== completedParents ||
-      entry.parent_id !== expectedParent.parent_id ||
-      entry.previous_mac !== previousMac
-    ) {
-      failure(
-        `work entry ${completedParents} chain or parent identity is invalid`,
-      );
-    }
-    exactJson(
-      entry.parent,
-      expectedParent,
-      `work entry ${completedParents}.parent`,
-    );
-    const evidence = captureCompletedEvidence(
-      entry.completed_evidence as FloodgateV7CompletedParentEvidence,
-      expectedParent,
-      completedParents,
-      invocation.runBinding,
-    );
-    if (
-      entry.completed_evidence_sha256 !==
-      digestCanonical(EVIDENCE_DOMAIN, evidence)
-    ) {
-      failure(
-        `work entry ${completedParents} completed evidence digest is invalid`,
-      );
+    if (!macEqual(seal.seal_mac, expectedSealMac)) {
+      failure("work seal MAC is invalid");
     }
     exactLine(
-      lines[lineIndex],
-      buildEntry(invocation, evidence, completedParents, previousMac, key),
-      `work entry ${completedParents}`,
+      lineBytes,
+      buildSeal(invocation, state.previousMac, key),
+      "work seal",
     );
-    previousMac = entry.entry_mac as string;
-    completedParents += 1;
-    authenticatedBytes = completeSlices[lineIndex].end + 1;
+    state.sealed = true;
+    state.authenticatedBytes = lineEnd;
+    return;
   }
-  if (sealed && tornTail) {
-    failure("work.jsonl contains an incomplete fragment after its valid seal");
+  if (state.completedParents >= invocation.training.parents.length) {
+    failure("work.jsonl contains an entry beyond the training input");
   }
-  return Object.freeze({
+  const completedParents = state.completedParents;
+  const entry = strictRecord(
+    parsed,
+    ENTRY_KEYS,
+    `work entry ${completedParents}`,
+  );
+  const entryPayload = withoutKey(entry, "entry_mac");
+  const expectedMac = hmacHex(key, ENTRY_DOMAIN, entryPayload);
+  if (!macEqual(entry.entry_mac, expectedMac)) {
+    failure(`work entry ${completedParents} MAC is invalid`);
+  }
+  const expectedParent = invocation.training.parents[completedParents];
+  if (
+    entry.schema !== FLOODGATE_V7_TEACHER_CHECKPOINT_SCHEMA ||
+    entry.kind !== "completed-parent" ||
+    entry.sequence !== completedParents ||
+    entry.input_index !== completedParents ||
+    entry.parent_id !== expectedParent.parent_id ||
+    entry.previous_mac !== state.previousMac
+  ) {
+    failure(
+      `work entry ${completedParents} chain or parent identity is invalid`,
+    );
+  }
+  exactJson(
+    entry.parent,
+    expectedParent,
+    `work entry ${completedParents}.parent`,
+  );
+  const evidence = captureCompletedEvidence(
+    entry.completed_evidence as FloodgateV7CompletedParentEvidence,
+    expectedParent,
     completedParents,
-    previousMac,
-    sealed,
-    authenticatedBytes,
-    tornTail,
-  });
+    invocation.runBinding,
+  );
+  if (
+    entry.completed_evidence_sha256 !==
+    digestCanonical(EVIDENCE_DOMAIN, evidence)
+  ) {
+    failure(
+      `work entry ${completedParents} completed evidence digest is invalid`,
+    );
+  }
+  exactLine(
+    lineBytes,
+    buildEntry(invocation, evidence, completedParents, state.previousMac, key),
+    `work entry ${completedParents}`,
+  );
+  state.previousMac = entry.entry_mac as string;
+  state.completedParents += 1;
+  state.authenticatedBytes = lineEnd;
 }
 
 function verifyStageStat(
@@ -1322,34 +1339,201 @@ async function verifyStagePath(invocation: CapturedInvocation): Promise<void> {
   verifyStageStat(stat, invocation);
 }
 
-async function readWholeFile(handle: fs.promises.FileHandle): Promise<Buffer> {
-  const before = await handle.stat({ bigint: true });
-  if (before.size < BigInt(0) || before.size > BigInt(MAX_TOTAL_BYTES)) {
-    failure("work.jsonl size is outside its bound");
+function captureWorkSnapshot(stat: fs.BigIntStats): WorkFileSnapshot {
+  return Object.freeze({
+    dev: stat.dev,
+    ino: stat.ino,
+    mode: stat.mode,
+    uid: stat.uid,
+    nlink: stat.nlink,
+    size: stat.size,
+    mtimeNs: stat.mtimeNs,
+    ctimeNs: stat.ctimeNs,
+  });
+}
+
+function verifyWorkIdentity(
+  stat: fs.BigIntStats,
+  expected: WorkFileIdentity,
+  label: string,
+): void {
+  if (stat.dev !== expected.dev || stat.ino !== expected.ino) {
+    failure(`${label} identity changed`);
   }
-  const bytes = Buffer.alloc(Number(before.size));
+}
+
+function verifyWorkSnapshot(
+  stat: fs.BigIntStats,
+  expected: WorkFileSnapshot,
+  invocation: CapturedInvocation,
+  label: string,
+): void {
+  verifyWorkStat(stat, invocation);
+  if (
+    stat.dev !== expected.dev ||
+    stat.ino !== expected.ino ||
+    stat.mode !== expected.mode ||
+    stat.uid !== expected.uid ||
+    stat.nlink !== expected.nlink ||
+    stat.size !== expected.size ||
+    stat.mtimeNs !== expected.mtimeNs ||
+    stat.ctimeNs !== expected.ctimeNs
+  ) {
+    failure(label);
+  }
+}
+
+async function verifyWorkPathSnapshot(
+  workPath: string,
+  expected: WorkFileSnapshot,
+  invocation: CapturedInvocation,
+): Promise<void> {
+  let stat: fs.BigIntStats;
+  try {
+    stat = await fs.promises.lstat(workPath, { bigint: true });
+  } catch (cause) {
+    return failure("work.jsonl path cannot be reinspected", cause);
+  }
+  verifyWorkSnapshot(
+    stat,
+    expected,
+    invocation,
+    "work.jsonl path snapshot changed",
+  );
+}
+
+async function scanWorkHandle(
+  handle: fs.promises.FileHandle,
+  invocation: CapturedInvocation,
+  key: Uint8Array,
+  policy: WorkScanPolicy,
+  expectedIdentity: WorkFileIdentity,
+): Promise<Readonly<WorkFileScanResult>> {
+  const before = await handle.stat({ bigint: true });
+  verifyWorkStat(before, invocation);
+  verifyWorkIdentity(before, expectedIdentity, "work.jsonl held file");
+  const beforeSnapshot = captureWorkSnapshot(before);
+  const fileBytes = Number(before.size);
+  const readBuffer = Buffer.allocUnsafe(READ_CHUNK_BYTES);
+  const lineBuffer = Buffer.allocUnsafe(MAX_LINE_BYTES);
+  const decoder = new TextDecoder("utf-8", {
+    fatal: true,
+    ignoreBOM: true,
+  });
+  const digest = createHash("sha256");
+  const state: MutableWorkScanState = {
+    completeRecords: 0,
+    completedParents: 0,
+    previousMac: "",
+    sealed: false,
+    authenticatedBytes: 0,
+  };
+  const maximumCompleteRecords = invocation.training.parents.length + 2;
+  let lineLength = 0;
   let offset = 0;
-  while (offset < bytes.byteLength) {
-    const result = await handle.read(
-      bytes,
-      offset,
-      bytes.byteLength - offset,
-      offset,
-    );
-    if (result.bytesRead === 0) failure("work.jsonl changed during read");
-    offset += result.bytesRead;
+  while (offset < fileBytes) {
+    const maximumRead = Math.min(READ_CHUNK_BYTES, fileBytes - offset);
+    let readCalled = false;
+    let actualBytesRead: number | undefined;
+    const read = async (requestedBytes = maximumRead): Promise<number> => {
+      if (readCalled) failure("work.jsonl test read was called more than once");
+      if (
+        !Number.isSafeInteger(requestedBytes) ||
+        requestedBytes < 1 ||
+        requestedBytes > maximumRead
+      ) {
+        failure("work.jsonl test read bound is invalid");
+      }
+      readCalled = true;
+      const result = await handle.read(readBuffer, 0, requestedBytes, offset);
+      actualBytesRead = result.bytesRead;
+      return result.bytesRead;
+    };
+    const bytesRead =
+      invocation.readForTests === undefined
+        ? await read()
+        : await invocation.readForTests(
+            Object.freeze({
+              purpose: policy,
+              length: maximumRead,
+              position: offset,
+            }),
+            read,
+          );
+    if (!readCalled || bytesRead !== actualBytesRead) {
+      failure("work.jsonl test read did not report the exact native read");
+    }
+    if (
+      !Number.isSafeInteger(bytesRead) ||
+      bytesRead < 0 ||
+      bytesRead > maximumRead
+    ) {
+      failure("work.jsonl read returned an invalid byte count");
+    }
+    if (bytesRead === 0) failure("work.jsonl changed during read");
+    const chunk = readBuffer.subarray(0, bytesRead);
+    digest.update(chunk);
+    let chunkStart = 0;
+    while (chunkStart < chunk.byteLength) {
+      const newline = chunk.indexOf(0x0a, chunkStart);
+      const chunkEnd = newline === -1 ? chunk.byteLength : newline;
+      const segmentLength = chunkEnd - chunkStart;
+      if (lineLength + segmentLength > MAX_LINE_BYTES) {
+        failure("work.jsonl line exceeds its exact bound");
+      }
+      if (segmentLength > 0) {
+        chunk.copy(lineBuffer, lineLength, chunkStart, chunkEnd);
+        lineLength += segmentLength;
+      }
+      if (newline === -1) break;
+      if (state.completeRecords >= maximumCompleteRecords) {
+        failure("work.jsonl contains too many complete records");
+      }
+      if (lineLength === 0) failure("work.jsonl contains an empty line");
+      scanCompleteLine(
+        lineBuffer.subarray(0, lineLength),
+        offset + newline + 1,
+        state,
+        invocation,
+        key,
+        decoder,
+      );
+      state.completeRecords += 1;
+      lineLength = 0;
+      chunkStart = newline + 1;
+    }
+    offset += bytesRead;
   }
   const after = await handle.stat({ bigint: true });
-  if (
-    after.dev !== before.dev ||
-    after.ino !== before.ino ||
-    after.size !== before.size ||
-    after.mtimeNs !== before.mtimeNs ||
-    after.ctimeNs !== before.ctimeNs
-  ) {
-    failure("work.jsonl mutated during read");
+  verifyWorkSnapshot(
+    after,
+    beforeSnapshot,
+    invocation,
+    "work.jsonl mutated during read",
+  );
+  const tornTail = lineLength > 0;
+  if (state.sealed && tornTail) {
+    failure("work.jsonl contains an incomplete fragment after its valid seal");
   }
-  return bytes;
+  if (
+    policy === "sealed-final" &&
+    (tornTail ||
+      !state.sealed ||
+      state.completedParents !== invocation.training.parents.length ||
+      state.authenticatedBytes !== fileBytes)
+  ) {
+    failure("final work.jsonl is not the exact authenticated sealed stream");
+  }
+  return Object.freeze({
+    completedParents: state.completedParents,
+    previousMac: state.previousMac,
+    sealed: state.sealed,
+    authenticatedBytes: state.authenticatedBytes,
+    tornTail,
+    fileBytes,
+    fileSha256: digest.digest("hex"),
+    snapshot: captureWorkSnapshot(after),
+  });
 }
 
 async function appendLine(
@@ -1715,8 +1899,15 @@ async function executeCheckpoint(
         tornTail: false,
       });
     } else {
-      const existing = await readWholeFile(workHandle);
-      prefix = scanWork(existing, invocation, derived);
+      const existing = await scanWorkHandle(
+        workHandle,
+        invocation,
+        derived,
+        "resumable-prefix",
+        workIdentity,
+      );
+      await verifyWorkPathSnapshot(workPath, existing.snapshot, invocation);
+      prefix = existing;
       resumedParents = prefix.completedParents;
       if (prefix.tornTail) {
         invocation.persistenceState.mayHaveStarted = true;
@@ -1813,16 +2004,17 @@ async function executeCheckpoint(
     ) {
       failure("work.jsonl identity changed before final verification");
     }
-    const finalBytes = await readWholeFile(workHandle);
-    const finalPrefix = scanWork(finalBytes, invocation, derived);
-    if (
-      finalPrefix.tornTail ||
-      !finalPrefix.sealed ||
-      finalPrefix.completedParents !== invocation.training.parents.length ||
-      finalPrefix.authenticatedBytes !== finalBytes.byteLength
-    ) {
-      failure("final work.jsonl is not the exact authenticated sealed stream");
-    }
+    const finalPrefix = await scanWorkHandle(
+      workHandle,
+      invocation,
+      derived,
+      "sealed-final",
+      workIdentity,
+    );
+    await callFailpoint(
+      invocation,
+      "after-final-scan-before-path-confirmation",
+    );
     verifyStageStat(await stageHandle.stat({ bigint: true }), invocation);
     await verifyStagePath(invocation);
     const finalEntries = await fs.promises.readdir(invocation.lease.stageRoot);
@@ -1832,6 +2024,14 @@ async function executeCheckpoint(
     ) {
       failure("stage entry set changed before success");
     }
+    await verifyWorkPathSnapshot(workPath, finalPrefix.snapshot, invocation);
+    verifyWorkSnapshot(
+      await workHandle.stat({ bigint: true }),
+      finalPrefix.snapshot,
+      invocation,
+      "held work.jsonl changed after final scan",
+    );
+    verifyStageStat(await stageHandle.stat({ bigint: true }), invocation);
     await verifyStagePath(invocation);
     return Object.freeze({
       contract: FLOODGATE_V7_TEACHER_CHECKPOINT_SCHEMA,
@@ -1851,8 +2051,8 @@ async function executeCheckpoint(
         filename: FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
         format: FORMAT,
         records: invocation.training.parents.length,
-        bytes: finalBytes.byteLength,
-        sha256: sha256Hex(finalBytes),
+        bytes: finalPrefix.fileBytes,
+        sha256: finalPrefix.fileSha256,
         completed_parents: invocation.training.parents.length,
         resumed_parents: resumedParents,
         durability: DURABILITY,

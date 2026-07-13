@@ -60,48 +60,50 @@ Child RSS and file bytes are reported across 100, 1,000, and 24,000 parents as o
 
 ## 6. Keep preliminary and confirmed values separate
 
-The following values are implementation-prototype references, not Attempt 3 acceptance evidence. The 100- and 1,000-parent file bytes also differ from the final harness / source, so they are not mixed into the confirmed 24,000-parent table.
+The following values are implementation-prototype references, not Attempt 5 acceptance evidence. The 100- and 1,000-parent file bytes also differ from the final harness / source, so they are not mixed into the confirmed 24,000-parent table.
 
 | Prototype parents | File bytes | Prefix envelope ms | Final envelope ms | Child maxRSS (decimal MB) |
 | ----------------: | ---------: | -----------------: | ----------------: | ------------------------: |
 |               100 |  1,772,797 |                296 |               338 |                     148.6 |
 |             1,000 | 17,956,845 |              3,050 |             3,155 |                     199.6 |
 
-The preregistered proportional projection was 430,964,280 bytes, about 73–76 seconds per scan, and about 7.2 minutes for the full procedure. It was 14,779,126 bytes, or 3.551%, above the older one-fixture projection of 416,185,154 bytes, an upward revision caused by fixture differences. Attempt 3 measured 429,244,881 bytes, 1,719,399 bytes or 0.399% below the newer projection. The prediction remains unchanged so that the difference records prediction accuracy.
+The preregistered proportional projection was 430,964,280 bytes, about 73–76 seconds per scan, and about 7.2 minutes for the full procedure. It was 14,779,126 bytes, or 3.551%, above the older one-fixture projection of 416,185,154 bytes, an upward revision caused by fixture differences. Attempt 5 measured 429,244,881 bytes, 1,719,399 bytes or 0.399% below the newer projection. The prediction remains unchanged so that the difference records prediction accuracy.
 
-## 7. Preserve all three attempts
+## 7. Preserve all five attempts
 
-Two runs stopped before a complete result. Neither contributes partial measurements; only the discoveries and cleanup observations are retained.
+Five runs led to the current final-harness result. Partial runs and superseded results are not mixed into current values, while discoveries and cleanup observations remain recorded.
 
-| Attempt | Source    |     Wall | Result                                                                                                        | Acceptance |
-| ------: | --------- | -------: | ------------------------------------------------------------------------------------------------------------- | ---------- |
-|       1 | `d5eb700` |   4.05 s | The canonical URL verifier rejected a fixture timestamp defect that encoded game counter `60` as `00:00:60`   | Rejected   |
-|       2 | `3ac84a6` |  82.81 s | The operator stopped the build child to fix runtime-test compatibility across package-supported Node versions | Rejected   |
-|       3 | `7844ea4` | 440.70 s | Exit 0, strict result JSON, unchanged source, and zero temporary roots                                        | Accepted   |
+| Attempt | Source    |     Wall | Result                                                                                                        | Acceptance               |
+| ------: | --------- | -------: | ------------------------------------------------------------------------------------------------------------- | ------------------------ |
+|       1 | `d5eb700` |   4.05 s | The canonical URL verifier rejected a fixture timestamp defect that encoded game counter `60` as `00:00:60`   | Rejected                 |
+|       2 | `3ac84a6` |  82.81 s | The operator stopped the build child to fix runtime-test compatibility across package-supported Node versions | Rejected                 |
+|       3 | `7844ea4` | 440.70 s | Exit 0 and strict result JSON; later review fixes changed the source                                          | Accepted then superseded |
+|       4 | `183e95f` | 436.95 s | After complete JSON, the outer wrapper assigned to zsh read-only `status` and exited 1                        | Rejected                 |
+|       5 | `183e95f` | 443.37 s | Bash wrapper exit 0, strict result JSON, unchanged source, and zero temporary roots                           | Current accepted         |
 
-Attempt 1 never reached the scanner. The fix splits the counter into HH / MM / SS and locks 0, 59, 60, 3,599, 3,600, 86,399, and rejection of 86,400 into a regression test. Attempt 2 was an intentional stop, not a load failure. Neither run's RSS, partial bytes, nor time is used for throughput or the 24,000-parent result. Both had zero new `floodgate-v7-scan-load-*` temporary roots after exit.
+Attempt 1 never reached the scanner. The fix splits the counter into HH / MM / SS and locks 0, 59, 60, 3,599, 3,600, 86,399, and rejection of 86,400 into a regression test. Attempt 2 was an intentional stop, not a load failure. Attempt 3 was valid at the time, but review fixes for setup-failure cleanup and RSS sampler ordering changed the harness SHA, so Attempt 5 supersedes it. Attempt 4 completed the harness but failed operator-wrapper bookkeeping; its result values are neither published nor accepted. Every attempt left zero new `floodgate-v7-scan-load-*` temporary roots after exit.
 
-## 8. Confirmed Attempt 3 evidence
+## 8. Confirmed Attempt 5 evidence
 
-The raw record is preserved in the [audit JSON](../ml/protocols/floodgate-v7-valid-24k-scan-load-7844ea4-result.json). The evidence file's SHA-256 is `7fc84e5e6168859d1bdcb0d352839725fe53a1dc8994ea34b7b44bb3b20eda58`.
+The raw record is preserved in the [audit JSON](../ml/protocols/floodgate-v7-valid-24k-scan-load-183e95f-result.json). The evidence file's SHA-256 is `bc8d54822c7d95fd9fe3b5f664427f5402a5a0d1839b51549b465449aa4b6209`. The Attempt 3 audit JSON remains unchanged as historical evidence.
 
-| Identity        | Confirmed value                                                                                        |
-| --------------- | ------------------------------------------------------------------------------------------------------ |
-| Source commit   | `7844ea49f9e0326a5531824d7e356d6d51726d58`                                                             |
-| Harness SHA-256 | `d1debecd249f70c36f5a0b72f653f1de1764f22022f7864fd1baa68a078485ff`                                     |
-| Reproduction    | `npm run shogi:floodgate-v7-checkpoint-scan-load -- --parents 24000`                                   |
-| Runtime         | Parent / build child / scan child all Node v22.13.0 on darwin arm64                                    |
-| Machine         | Apple M4 Pro, 14 physical / logical cores, 51,539,607,552 bytes RAM, macOS 15.1 (24B2082)              |
-| Lifecycle       | Started 2026-07-13 09:23:30 UTC, 440.70 seconds, post-run verify 09:31:14 UTC, exit 0, zero temp roots |
+| Identity        | Confirmed value                                                                                 |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| Source commit   | `183e95f409347c37feee72b0509af17317891a36`                                                      |
+| Harness SHA-256 | `d0f8b2f21b26c523949b4026171c35b7158c2509a54d5a81edba56006623d20f`                              |
+| Reproduction    | `npm run shogi:floodgate-v7-checkpoint-scan-load -- --parents 24000`                            |
+| Runtime         | Parent / build child / scan child all Node v22.13.0 on darwin arm64                             |
+| Machine         | Apple M4 Pro, 14 physical / logical cores, 51,539,607,552 bytes RAM, macOS 15.1 (24B2082)       |
+| Lifecycle       | Started 2026-07-13 10:08:12 UTC, finished 10:15:35 UTC, 443.37 seconds, exit 0, zero temp roots |
 
-The finish timestamp itself was not captured, so this report does not fabricate one by adding 440.70 seconds to the start. `09:31:14 UTC` is the source / cleanup reverification time, not the finish time.
+The Bash wrapper directly captured start UTC, finish UTC, and exit code. These times are not inferred from internal `performance.now()` values.
 
 | Valid stream                                  |                                                    Confirmed value |
 | --------------------------------------------- | -----------------------------------------------------------------: |
 | Parents / games / derived candidate instances |                                              24,000 / 67 / 336,000 |
 | JSONL lines                                   |                            24,002 = header + 24,000 entries + seal |
 | Actual bytes                                  |                                     429,244,881 bytes (409.36 MiB) |
-| Actual / receipt / independent SHA-256        | `055e50c0f783894c4819e503574db4e45577ccac669d04408189f4e8ec781d13` |
+| Actual / receipt / independent SHA-256        | `ea6e9d26e4a7b8ac817c586dec9d2b903dbc798a0324e5c63b2d5adddc10fbac` |
 | Header / entry total / seal bytes             |                                          2,551 / 429,217,823 / 505 |
 | Entry min / mean / max                        |                                     17,345 / 17,884 / 18,451 bytes |
 | Maximum line / bound                          |                                              18,451 / 24,576 bytes |
@@ -114,25 +116,25 @@ The LF-inclusive arithmetic is exact: `2,551 + 429,217,823 + 505 + 24,002 = 429,
 | Calls                   |                             6,550 |                        6,550 |
 | Bytes                   |                       429,244,881 |                  429,244,881 |
 | Maximum request         |                            65,536 |                       65,536 |
-| Phase envelope          | Prefix start→final start 76.284 s | Final start→receipt 76.526 s |
+| Phase envelope          | Prefix start→final start 77.809 s | Final start→receipt 76.760 s |
 
-The complete checkpoint call took 157.760 seconds and the external independent SHA took 0.238 seconds. The phase envelopes contain verification around each scan and therefore are not called pure scan time.
+The complete checkpoint call took 159.497 seconds and the external independent SHA took 0.226 seconds. The phase envelopes contain verification around each scan and therefore are not called pure scan time.
 
 | RSS observation                |   Raw bytes | Decimal MB |
 | ------------------------------ | ----------: | ---------: |
-| Before scan checkpoint         | 190,857,216 |    190.857 |
-| After scan                     | 235,749,376 |    235.749 |
-| Sampled peak                   | 386,564,096 |    386.564 |
-| Scan-child process max         | 386,646,016 |    386.646 |
-| Full-command / build-child max | 554,876,928 |    554.877 |
+| Before scan checkpoint         | 189,513,728 |    189.514 |
+| After scan                     | 205,881,344 |    205.881 |
+| Sampled peak                   | 383,598,592 |    383.599 |
+| Scan-child process max         | 383,598,592 |    383.599 |
+| Full-command / build-child max | 423,510,016 |    423.510 |
 
 RSS includes the training binding and Node heap. These values are a single-machine observation and internal consistency check, not scanner-only memory, a pass threshold, or proof of O(1) scaling.
 
-The fresh build suppressed 24,002 regular-file sync calls to shorten fixture construction, restored the native method, and then batch-synced the work file and stage once each. The build checkpoint took 277.722 seconds. Its receipt is non-evidence and this is not a power-loss durability test. Only the separate child's native-sync resume / final scans count as scan evidence.
+The fresh build suppressed 24,002 regular-file sync calls to shorten fixture construction, restored the native method, and then batch-synced the work file and stage once each. The build checkpoint took 278.571 seconds. Its receipt is non-evidence and this is not a power-loss durability test. Only the separate child's native-sync resume / final scans count as scan evidence.
 
 ## 9. Acceptance criteria
 
-Attempt 3 satisfied every condition below in addition to process exit zero.
+Attempt 5 satisfied every condition below in addition to process exit zero.
 
 - Exactly 24,000 unique parents and a derived 336,000 candidate instances
 - 24,002 externally counted JSONL lines kept distinct from 24,000 parent records in the receipt
@@ -143,12 +145,12 @@ Attempt 3 satisfied every condition below in addition to process exit zero.
 - Consistent line-byte arithmetic, read-call arithmetic, timing, and RSS relationships
 - Unchanged source commit / harness SHA before and after the run, clean worktree, and zero temp roots
 
-Fast CI runs only the 100-parent contract; the 24,000-parent load remains a standalone evidence command. All 6 tests pass on pinned Node v22.13.0. On another runtime, only the three exact-runtime-dependent tests skip while the pure parser / URL / pinned-evidence contract tests continue.
+Fast CI runs only the 100-parent contract; the 24,000-parent load remains a standalone evidence command. All 7 tests pass on pinned Node v22.13.0. On another runtime, only the three exact-runtime-dependent tests skip while the pure parser / URL / memory-validator / pinned-evidence contract tests continue.
 
 | Final-head local validation           | Result                           |
 | ------------------------------------- | -------------------------------- |
-| Focused scan-load Vitest              | 1 file / 6 tests                 |
-| Full Vitest                           | 112 files / 1,916 tests          |
+| Focused scan-load Vitest              | 1 file / 7 tests                 |
+| Full Vitest                           | 112 files / 1,917 tests          |
 | Python ML stdlib                      | 58 / 58                          |
 | TypeScript / scoped ESLint / Prettier | Pass / 0 warnings / pass         |
 | Repository-wide ESLint                | 0 errors / 157 existing warnings |

@@ -615,8 +615,28 @@ posixDescribe("Floodgate stable proposal synthetic coordinator", () => {
         deps,
       ),
     );
+    const traversalFailure = await captureFailure(
+      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
+        {
+          ...validOptions,
+          stageAuthorization: {
+            ...validOptions.stageAuthorization,
+            stageBasename: "../../../escape",
+          },
+        },
+        deps,
+      ),
+    );
 
     expect(failure).toMatchObject({
+      phase: "capture",
+      inputClaimed: false,
+      checkpointStarted: false,
+      finalizerStarted: false,
+      mayHavePublished: false,
+      leaseMayRemain: false,
+    });
+    expect(traversalFailure).toMatchObject({
       phase: "capture",
       inputClaimed: false,
       checkpointStarted: false,

@@ -61,6 +61,8 @@ export const FLOODGATE_STABLE_PROPOSAL_COORDINATOR_CLAIM_BOUNDARY =
 const RUN_ID_RE = /^[0-9a-f]{64}$/;
 const KEY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
+const CONTROL_CHARACTER_RE = /[\u0000-\u001f\u007f]/;
+const SAFE_BASENAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype);
 const nativeTypedArrayBuffer = Object.getOwnPropertyDescriptor(
   typedArrayPrototype,
@@ -358,6 +360,34 @@ function stringValue(value: unknown, label: string): string {
   return value;
 }
 
+function markerPublicationParent(value: unknown, label: string): string {
+  const result = stringValue(value, label);
+  if (
+    result.trim() !== result ||
+    CONTROL_CHARACTER_RE.test(result) ||
+    path.resolve(result) !== result ||
+    path.parse(result).root === result
+  ) {
+    fail(`${label} must be a canonical non-root absolute path`);
+  }
+  return result;
+}
+
+function markerStageBasename(value: unknown, label: string): string {
+  const result = stringValue(value, label);
+  if (
+    !SAFE_BASENAME_RE.test(result) ||
+    result === "." ||
+    result === ".." ||
+    result.includes("/") ||
+    result.includes("\\") ||
+    path.basename(result) !== result
+  ) {
+    fail(`${label} must be a strict direct-child basename`);
+  }
+  return result;
+}
+
 function integerValue(value: unknown, label: string): number {
   if (!Number.isSafeInteger(value) || (value as number) < 0) {
     fail(`${label} must be a nonnegative safe integer`);
@@ -447,7 +477,20 @@ function captureStageOptions(
     captured[key] =
       key === "engineArgs"
         ? engineArgs
-        : stringValue(source[key], `coordinator stage authorization ${key}`);
+        : key === "publicationParent"
+          ? markerPublicationParent(
+              source[key],
+              "coordinator stage authorization publicationParent",
+            )
+          : key === "stageBasename"
+            ? markerStageBasename(
+                source[key],
+                "coordinator stage authorization stageBasename",
+              )
+            : stringValue(
+                source[key],
+                `coordinator stage authorization ${key}`,
+              );
   }
   return Object.freeze(
     captured,

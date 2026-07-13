@@ -1,5 +1,7 @@
 # v7 checkpointを意味的にvalidな24,000親で実測する
 
+> **v2 update（現在の境界）:** 本文のAttempt 5はv1のhistorical evidenceであり、現行v2 evidenceではない。current accepted evidenceはAttempt 6（source commit `017692c7a076babbd40e7be0b14ea27d9988fa6c`、harness SHA-256 `23578cbf11deafb49cd288f38d9f3ec081e76d0f41a5b2948b3ccf08fabfb9a2`）で、wall time `435.60 s`、valid stream `429,245,287 bytes`、stream SHA-256 `8039ec02f3421d934d0a9f1d10b47a97f273e397ad414e64db50bded13c498ac`、maximum RSS `483,491,840 bytes`、exit後のnew temporary root `0`、run前後ともworktree cleanだった。これはholdout-free synthetic 24,000-parent scanner loadだけの証拠であり、real Floodgate label、production coordinator / live環境、training、weight、対局、棋力を主張しない。以下の本文とAttempt 5の値はhistorical recordとして変更せず残す。
+
 > [incremental checkpoint scanner](./blog-shogi-floodgate-v7-incremental-checkpoint-scan.md)は64 KiB read chunkと24,576-byte line bufferで、file sizeに比例するscanner固有bufferを除いた。しかし、前PRで実行した最大境界の検査はsparse fileであり、候補集合とHMAC chainを持つ意味的にvalidな24,000-parent streamではなかった。このPRはholdoutを使わないsynthetic parentだけでmerged test-only checkpoint coreを通し、stream bytes、digest、read上限、wall time、child process RSS、resume / final一致を実測する。real teacher label、production coordinator、学習、対局、棋力の証拠ではない。English version: [blog-shogi-floodgate-v7-valid-24k-scan-load.en.md](./blog-shogi-floodgate-v7-valid-24k-scan-load.en.md)
 
 ---

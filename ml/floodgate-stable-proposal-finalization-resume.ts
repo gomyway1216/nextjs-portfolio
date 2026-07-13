@@ -1,21 +1,16 @@
 /**
- * Test-only coordinator for the synthetic stable-proposal publication path.
+ * Test-only coordinator for resuming finalization over an existing complete
+ * authenticated stable-proposal work stream.
  *
- * This composes existing exact runtime capabilities. It does not add a
- * production entry point, authenticate an engine process, create teacher
- * labels, or establish playing strength.
+ * This boundary never invokes the proposer or checkpoint writer. It composes
+ * one exact consumer claim, one fresh stage lease, one postflight capability,
+ * and the fixed finalizer. It does not establish labels or playing strength.
  */
 
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { types as nodeUtilTypes } from "node:util";
 
-import {
-  checkpointFloodgateStableProposalsCoreForTests,
-  type FloodgateStableProposalCheckpointDependencies,
-  type FloodgateStableProposalCheckpointOptions,
-  type FloodgateStableProposalCheckpointReceipt,
-} from "./floodgate-stable-proposal-checkpoint";
 import {
   FLOODGATE_STABLE_PROPOSAL_FINALIZATION_CONTRACT,
   FloodgateStableProposalFinalizerError,
@@ -30,6 +25,7 @@ import {
   type FloodgateTeacherStageAuthorizationOptions,
   type FloodgateTeacherStageLease,
   type FloodgateTeacherStagePublicationDependencies,
+  type FloodgateTeacherStagePublicationDurability,
 } from "./floodgate-teacher-stage-authorization";
 import {
   claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests,
@@ -40,29 +36,24 @@ import {
   type FloodgateTrainingRowConsumerDependencies,
   type FloodgateTrainingRowConsumerOptions,
 } from "./floodgate-training-row-consumer";
-import {
-  FLOODGATE_FRESH_SIBLING_PLAN_BYTES,
-  FLOODGATE_STABLE_WASM_BYTES,
-  FLOODGATE_STABLE_WEIGHTS_BYTES,
-  FLOODGATE_STABLE_WORKER_SOURCE_BYTES,
-  generateFloodgateStableWasmProposalsCoreForTests,
-  type FloodgateStableWasmProposerAssets,
-  type FloodgateStableWasmProposerDependencies,
-  type FloodgateStableWasmProposerOptions,
-} from "./floodgate-stable-wasm-proposer";
 
-export const FLOODGATE_STABLE_PROPOSAL_COORDINATOR_CONTRACT =
-  "shogi-floodgate-stable-proposal-coordinator-v1" as const;
-export const FLOODGATE_STABLE_PROPOSAL_COORDINATOR_STATUS =
-  "synthetic-consumer-proposal-checkpoint-postflight-finalization-publication-complete" as const;
-export const FLOODGATE_STABLE_PROPOSAL_COORDINATOR_CLAIM_BOUNDARY =
-  "test-only-synthetic-runtime-composition-evidence-not-production-engine-teacher-label-training-or-playing-strength-evidence" as const;
+export const FLOODGATE_STABLE_PROPOSAL_FINALIZATION_RESUME_CONTRACT =
+  "shogi-floodgate-stable-proposal-finalization-resume-coordinator-v1" as const;
+export const FLOODGATE_STABLE_PROPOSAL_FINALIZATION_RESUME_STATUS =
+  "synthetic-consumer-postflight-authenticated-work-finalization-resume-publication-complete" as const;
+export const FLOODGATE_STABLE_PROPOSAL_FINALIZATION_RESUME_CLAIM_BOUNDARY =
+  "test-only-synthetic-finalization-resume-composition-evidence-not-proposal-generation-engine-teacher-label-training-or-playing-strength-evidence" as const;
 
 const RUN_ID_RE = /^[0-9a-f]{64}$/;
 const KEY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const CONTROL_CHARACTER_RE = /[\u0000-\u001f\u007f]/;
 const SAFE_BASENAME_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+const PUBLICATION_DURABILITIES = new Set<string>([
+  "not-established",
+  "renamed-parent-synced",
+  "published-and-lease-removal-durable",
+]);
 const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype);
 const nativeTypedArrayBuffer = Object.getOwnPropertyDescriptor(
   typedArrayPrototype,
@@ -77,75 +68,64 @@ const nativeTypedArraySet = typedArrayPrototype.set as (
   offset?: number,
 ) => void;
 
-export type FloodgateStableProposalCoordinatorPhase =
+export type FloodgateStableProposalFinalizationResumePhase =
   | "capture"
-  | "consumer-claim-proposer"
-  | "checkpoint-authorization"
-  | "checkpoint"
+  | "consumer-claim"
+  | "finalization-authorization"
   | "consumer-postflight"
   | "finalization-publication"
   | "cleanup";
 
-export type FloodgateStableProposalCoordinatorEvent =
-  | "initial-lease-acquired"
+export type FloodgateStableProposalFinalizationResumeEvent =
   | "input-claimed"
-  | "proposal-complete"
-  | "checkpoint-complete"
+  | "fresh-finalizer-lease-acquired"
   | "postflight-complete"
-  | "fresh-lease-acquired"
   | "before-finalization";
 
-export type FloodgateStableProposalCoordinatorRetryDisposition =
-  | "rerun-synthetic-coordinator-with-fresh-authority"
-  | "resume-finalization-over-complete-authenticated-work"
+export type FloodgateStableProposalFinalizationResumeRetryDisposition =
+  | "rerun-finalization-resume-with-fresh-authority"
+  | "complete-authenticated-work-verification-required"
   | "manual-content-reconciliation-required"
   | "manual-lease-reconciliation-required"
   | "manual-publication-reconciliation-required"
   | "manual-publication-and-lease-reconciliation-required";
 
-export interface FloodgateStableProposalCoordinatorOptions {
+export interface FloodgateStableProposalFinalizationResumeOptions {
   readonly stageAuthorization: FloodgateTeacherStageAuthorizationOptions;
   readonly consumer: FloodgateTrainingRowConsumerOptions;
-  readonly proposerAssets: FloodgateStableWasmProposerAssets;
-  readonly proposerOptions: FloodgateStableWasmProposerOptions;
-  readonly checkpoint: FloodgateStableProposalCheckpointOptions;
+  readonly finalization: Readonly<{
+    readonly runId: string;
+    readonly keyId: string;
+  }>;
 }
 
-export type FloodgateStableProposalCoordinatorCheckpointDependencies = Omit<
-  FloodgateStableProposalCheckpointDependencies,
-  "effectiveUserId" | "rootKey"
->;
+export type FloodgateStableProposalFinalizationResumeFinalizerDependencies =
+  Omit<FloodgateStableProposalFinalizerDependencies, "effectiveUserId">;
 
-export type FloodgateStableProposalCoordinatorFinalizerDependencies = Omit<
-  FloodgateStableProposalFinalizerDependencies,
-  "effectiveUserId"
->;
-
-export interface FloodgateStableProposalCoordinatorDependencies {
+export interface FloodgateStableProposalFinalizationResumeDependencies {
   readonly rootKey: Uint8Array;
   readonly effectiveUserId: number;
   readonly stageAuthorization: FloodgateTeacherStageAuthorizationDependencies;
   readonly consumer: FloodgateTrainingRowConsumerDependencies;
-  readonly proposer: FloodgateStableWasmProposerDependencies;
-  readonly checkpoint?: FloodgateStableProposalCoordinatorCheckpointDependencies;
-  readonly finalizer?: FloodgateStableProposalCoordinatorFinalizerDependencies;
+  readonly finalizer?: FloodgateStableProposalFinalizationResumeFinalizerDependencies;
   readonly publication: FloodgateTeacherStagePublicationDependencies;
   readonly phaseHookForTests?: (
-    event: FloodgateStableProposalCoordinatorEvent,
+    event: FloodgateStableProposalFinalizationResumeEvent,
   ) => void | Promise<void>;
 }
 
-export interface FloodgateStableProposalCoordinatorReceipt {
-  readonly contract: typeof FLOODGATE_STABLE_PROPOSAL_COORDINATOR_CONTRACT;
-  readonly status: typeof FLOODGATE_STABLE_PROPOSAL_COORDINATOR_STATUS;
-  readonly claim_boundary: typeof FLOODGATE_STABLE_PROPOSAL_COORDINATOR_CLAIM_BOUNDARY;
+export interface FloodgateStableProposalFinalizationResumeReceipt {
+  readonly contract: typeof FLOODGATE_STABLE_PROPOSAL_FINALIZATION_RESUME_CONTRACT;
+  readonly status: typeof FLOODGATE_STABLE_PROPOSAL_FINALIZATION_RESUME_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_STABLE_PROPOSAL_FINALIZATION_RESUME_CLAIM_BOUNDARY;
   readonly execution_boundary: "test-only-fixed-boundary-composition";
-  readonly execution_path: "generate-and-checkpoint";
+  readonly execution_path: "resume-finalization-only";
   readonly run_id: string;
   readonly key_id: string;
   readonly handoff: Readonly<{
+    readonly proposer_skipped: true;
+    readonly checkpoint_skipped: true;
     readonly exact_input_claimed_synchronously: true;
-    readonly initial_checkpoint_lease_closed_before_postflight: true;
     readonly exact_postflight_minted: true;
     readonly fresh_finalizer_lease_acquired: true;
     readonly finalizer_contract: typeof FLOODGATE_STABLE_PROPOSAL_FINALIZATION_CONTRACT;
@@ -153,51 +133,63 @@ export interface FloodgateStableProposalCoordinatorReceipt {
   readonly finalization: Readonly<FloodgateStableProposalFinalizationReceipt>;
 }
 
-interface CoordinatorErrorFacets {
-  readonly phase: FloodgateStableProposalCoordinatorPhase;
+export type FloodgateStableProposalFinalizationResumePostflightClaimState =
+  boolean | "unknown";
+
+interface ResumeErrorFacets {
+  readonly phase: FloodgateStableProposalFinalizationResumePhase;
   readonly inputClaimed: boolean;
-  readonly proposalComplete: boolean;
-  readonly checkpointStarted: boolean;
-  readonly checkpointComplete: boolean;
+  readonly leaseAcquired: boolean;
   readonly postflightMinted: boolean;
-  readonly freshLeaseAcquired: boolean;
   readonly finalizerStarted: boolean;
+  readonly observedState: string;
+  readonly workVerified: boolean;
+  readonly postflightClaimConsumed: FloodgateStableProposalFinalizationResumePostflightClaimState;
+  readonly mayHavePersisted: boolean;
   readonly mayHavePublished: boolean;
+  readonly publicationDurability: FloodgateTeacherStagePublicationDurability;
+  readonly destinationReopened: boolean;
   readonly leaseMayRemain: boolean;
-  readonly retryDisposition: FloodgateStableProposalCoordinatorRetryDisposition;
+  readonly retryDisposition: FloodgateStableProposalFinalizationResumeRetryDisposition;
   readonly primary: unknown;
   readonly cleanupFailures?: readonly unknown[];
 }
 
-export class FloodgateStableProposalCoordinatorError extends Error {
-  readonly phase: FloodgateStableProposalCoordinatorPhase;
+export class FloodgateStableProposalFinalizationResumeError extends Error {
+  readonly phase: FloodgateStableProposalFinalizationResumePhase;
   readonly inputClaimed: boolean;
-  readonly proposalComplete: boolean;
-  readonly checkpointStarted: boolean;
-  readonly checkpointComplete: boolean;
+  readonly leaseAcquired: boolean;
   readonly postflightMinted: boolean;
-  readonly freshLeaseAcquired: boolean;
   readonly finalizerStarted: boolean;
+  readonly observedState: string;
+  readonly workVerified: boolean;
+  readonly postflightClaimConsumed: FloodgateStableProposalFinalizationResumePostflightClaimState;
+  readonly mayHavePersisted: boolean;
   readonly mayHavePublished: boolean;
+  readonly publicationDurability: FloodgateTeacherStagePublicationDurability;
+  readonly destinationReopened: boolean;
   readonly leaseMayRemain: boolean;
-  readonly retryDisposition: FloodgateStableProposalCoordinatorRetryDisposition;
+  readonly retryDisposition: FloodgateStableProposalFinalizationResumeRetryDisposition;
   readonly primary: unknown;
   readonly cleanupFailures: readonly unknown[];
 
-  constructor(message: string, facets: Readonly<CoordinatorErrorFacets>) {
-    super(`Floodgate stable proposal coordinator failed: ${message}`, {
+  constructor(message: string, facets: Readonly<ResumeErrorFacets>) {
+    super(`Floodgate stable proposal finalization resume failed: ${message}`, {
       cause: facets.primary,
     });
-    this.name = "FloodgateStableProposalCoordinatorError";
+    this.name = "FloodgateStableProposalFinalizationResumeError";
     this.phase = facets.phase;
     this.inputClaimed = facets.inputClaimed;
-    this.proposalComplete = facets.proposalComplete;
-    this.checkpointStarted = facets.checkpointStarted;
-    this.checkpointComplete = facets.checkpointComplete;
+    this.leaseAcquired = facets.leaseAcquired;
     this.postflightMinted = facets.postflightMinted;
-    this.freshLeaseAcquired = facets.freshLeaseAcquired;
     this.finalizerStarted = facets.finalizerStarted;
+    this.observedState = facets.observedState;
+    this.workVerified = facets.workVerified;
+    this.postflightClaimConsumed = facets.postflightClaimConsumed;
+    this.mayHavePersisted = facets.mayHavePersisted;
     this.mayHavePublished = facets.mayHavePublished;
+    this.publicationDurability = facets.publicationDurability;
+    this.destinationReopened = facets.destinationReopened;
     this.leaseMayRemain = facets.leaseMayRemain;
     this.retryDisposition = facets.retryDisposition;
     this.primary = facets.primary;
@@ -209,32 +201,42 @@ interface CapturedInvocation {
   readonly options: Readonly<{
     readonly stageAuthorization: FloodgateTeacherStageAuthorizationOptions;
     readonly consumer: FloodgateTrainingRowConsumerOptions;
-    readonly proposerAssets: FloodgateStableWasmProposerAssets;
-    readonly proposerOptions: FloodgateStableWasmProposerOptions;
-    readonly checkpoint: FloodgateStableProposalCheckpointOptions;
+    readonly finalization: Readonly<{
+      readonly runId: string;
+      readonly keyId: string;
+    }>;
   }>;
   readonly dependencies: Readonly<{
     readonly rootKey: Buffer;
     readonly effectiveUserId: number;
     readonly stageAuthorization: FloodgateTeacherStageAuthorizationDependencies;
     readonly consumer: FloodgateTrainingRowConsumerDependencies;
-    readonly proposer: FloodgateStableWasmProposerDependencies;
-    readonly checkpoint: FloodgateStableProposalCoordinatorCheckpointDependencies;
-    readonly finalizer: FloodgateStableProposalCoordinatorFinalizerDependencies;
+    readonly finalizer: FloodgateStableProposalFinalizationResumeFinalizerDependencies;
     readonly publication: FloodgateTeacherStagePublicationDependencies;
-    readonly phaseHook?: FloodgateStableProposalCoordinatorDependencies["phaseHookForTests"];
+    readonly phaseHook?: FloodgateStableProposalFinalizationResumeDependencies["phaseHookForTests"];
   }>;
 }
 
 interface MutableProgress {
-  phase: FloodgateStableProposalCoordinatorPhase;
+  phase: FloodgateStableProposalFinalizationResumePhase;
   inputClaimed: boolean;
-  proposalComplete: boolean;
-  checkpointStarted: boolean;
-  checkpointComplete: boolean;
+  leaseAcquired: boolean;
   postflightMinted: boolean;
-  freshLeaseAcquired: boolean;
   finalizerStarted: boolean;
+}
+
+interface FinalizerFacets {
+  readonly isFinalizerError: boolean;
+  readonly phase?: string;
+  readonly observedState: string;
+  readonly workVerified: boolean;
+  readonly postflightClaimConsumed: boolean;
+  readonly mayHavePersisted: boolean;
+  readonly mayHavePublished: boolean;
+  readonly publicationDurability: FloodgateTeacherStagePublicationDurability;
+  readonly destinationReopened: boolean;
+  readonly leaseMayRemain: boolean;
+  readonly retryDisposition?: string;
 }
 
 function fail(message: string): never {
@@ -300,7 +302,7 @@ function frozenRecord<T extends object>(value: T): Readonly<T> {
 function byteViewFacts(
   value: unknown,
   label: string,
-  exactLength?: number,
+  exactLength: number,
 ): Readonly<{ readonly byteLength: number; readonly value: Uint8Array }> {
   if (
     !nodeUtilTypes.isUint8Array(value) ||
@@ -308,7 +310,7 @@ function byteViewFacts(
     nativeTypedArrayBuffer === undefined ||
     nativeTypedArrayByteLength === undefined
   ) {
-    fail(`${label} must be a nonempty non-shared Uint8Array`);
+    fail(`${label} must be a non-shared ${exactLength}-byte Uint8Array`);
   }
   let byteLength: number;
   let backing: ArrayBufferLike;
@@ -320,23 +322,18 @@ function byteViewFacts(
       [],
     ) as ArrayBufferLike;
   } catch {
-    return fail(`${label} must be a nonempty non-shared Uint8Array`);
+    return fail(`${label} must be a non-shared ${exactLength}-byte Uint8Array`);
   }
   if (
     nodeUtilTypes.isSharedArrayBuffer(backing) ||
-    byteLength === 0 ||
-    (exactLength !== undefined && byteLength !== exactLength)
+    byteLength !== exactLength
   ) {
-    fail(`${label} must be a nonempty non-shared Uint8Array`);
+    fail(`${label} must be a non-shared ${exactLength}-byte Uint8Array`);
   }
-  return { byteLength, value };
+  return frozenRecord({ byteLength, value });
 }
 
-function copyBytes(
-  value: unknown,
-  label: string,
-  exactLength?: number,
-): Buffer {
+function copyBytes(value: unknown, label: string, exactLength: number): Buffer {
   const facts = byteViewFacts(value, label, exactLength);
   const output = Buffer.alloc(facts.byteLength);
   Reflect.apply(nativeTypedArraySet, output, [facts.value, 0]);
@@ -434,41 +431,34 @@ function captureStageOptions(
       "stageBasename",
     ],
     ["evalDir"],
-    "coordinator stage authorization options",
+    "resume stage authorization options",
   );
   if (
     !Array.isArray(source.engineArgs) ||
     nodeUtilTypes.isProxy(source.engineArgs) ||
     Object.getPrototypeOf(source.engineArgs) !== Array.prototype
   ) {
-    fail(
-      "coordinator stage authorization engineArgs must be an ordinary array",
-    );
+    fail("resume stage authorization engineArgs must be an ordinary array");
   }
-  const engineArgumentDescriptors = Object.getOwnPropertyDescriptors(
-    source.engineArgs,
-  );
-  if (
-    Reflect.ownKeys(engineArgumentDescriptors).length !==
-    source.engineArgs.length + 1
-  ) {
-    fail("coordinator stage authorization engineArgs must be dense");
+  const descriptors = Object.getOwnPropertyDescriptors(source.engineArgs);
+  if (Reflect.ownKeys(descriptors).length !== source.engineArgs.length + 1) {
+    fail("resume stage authorization engineArgs must be dense");
   }
   const engineArgs = Object.freeze(
     Array.from({ length: source.engineArgs.length }, (_, index) => {
-      const descriptor = engineArgumentDescriptors[String(index)];
+      const descriptor = descriptors[String(index)];
       if (
         descriptor === undefined ||
         !("value" in descriptor) ||
         descriptor.enumerable !== true
       ) {
         fail(
-          `coordinator stage authorization engineArgs[${index}] must be an enumerable data property`,
+          `resume stage authorization engineArgs[${index}] must be an enumerable data property`,
         );
       }
       return stringValue(
         descriptor.value,
-        `coordinator stage authorization engineArgs[${index}]`,
+        `resume stage authorization engineArgs[${index}]`,
       );
     }),
   );
@@ -481,17 +471,14 @@ function captureStageOptions(
         : key === "publicationParent"
           ? markerPublicationParent(
               source[key],
-              "coordinator stage authorization publicationParent",
+              "resume stage authorization publicationParent",
             )
           : key === "stageBasename"
             ? markerStageBasename(
                 source[key],
-                "coordinator stage authorization stageBasename",
+                "resume stage authorization stageBasename",
               )
-            : stringValue(
-                source[key],
-                `coordinator stage authorization ${key}`,
-              );
+            : stringValue(source[key], `resume stage authorization ${key}`);
   }
   return Object.freeze(
     captured,
@@ -512,142 +499,76 @@ function captureConsumerOptions(
       "verifierRevision",
     ],
     [],
-    "coordinator consumer options",
+    "resume consumer options",
   );
   return frozenRecord({
     repositoryRoot: stringValue(
       source.repositoryRoot,
-      "consumer repositoryRoot",
+      "resume consumer repositoryRoot",
     ),
     verifierRevision: stringValue(
       source.verifierRevision,
-      "consumer verifierRevision",
+      "resume consumer verifierRevision",
     ),
-    rawLockRoot: stringValue(source.rawLockRoot, "consumer rawLockRoot"),
-    roleLockRoot: stringValue(source.roleLockRoot, "consumer roleLockRoot"),
+    rawLockRoot: stringValue(source.rawLockRoot, "resume consumer rawLockRoot"),
+    roleLockRoot: stringValue(
+      source.roleLockRoot,
+      "resume consumer roleLockRoot",
+    ),
     legacyProtectedPositionIdsPath: stringValue(
       source.legacyProtectedPositionIdsPath,
-      "consumer legacyProtectedPositionIdsPath",
+      "resume consumer legacyProtectedPositionIdsPath",
     ),
-    outputRoot: stringValue(source.outputRoot, "consumer outputRoot"),
+    outputRoot: stringValue(source.outputRoot, "resume consumer outputRoot"),
   });
 }
 
 function captureInvocation(
-  optionsValue: FloodgateStableProposalCoordinatorOptions,
-  dependenciesValue: FloodgateStableProposalCoordinatorDependencies,
+  optionsValue: FloodgateStableProposalFinalizationResumeOptions,
+  dependenciesValue: FloodgateStableProposalFinalizationResumeDependencies,
 ): CapturedInvocation {
   const options = exactRecord(
     optionsValue,
-    [
-      "checkpoint",
-      "consumer",
-      "proposerAssets",
-      "proposerOptions",
-      "stageAuthorization",
-    ],
+    ["consumer", "finalization", "stageAuthorization"],
     [],
-    "coordinator options",
+    "finalization resume options",
   );
   const dependencies = exactRecord(
     dependenciesValue,
     [
       "consumer",
       "effectiveUserId",
-      "proposer",
       "publication",
       "rootKey",
       "stageAuthorization",
     ],
-    ["checkpoint", "finalizer", "phaseHookForTests"],
-    "coordinator dependencies",
+    ["finalizer", "phaseHookForTests"],
+    "finalization resume dependencies",
   );
-  const checkpoint = exactRecord(
-    options.checkpoint,
+  const finalization = exactRecord(
+    options.finalization,
     ["keyId", "runId"],
     [],
-    "coordinator checkpoint options",
+    "finalization resume identity",
   );
   if (
-    typeof checkpoint.runId !== "string" ||
-    !RUN_ID_RE.test(checkpoint.runId)
+    typeof finalization.runId !== "string" ||
+    !RUN_ID_RE.test(finalization.runId)
   ) {
-    fail("coordinator runId must be 32 bytes of lowercase hex");
+    fail("finalization resume runId must be 32 bytes of lowercase hex");
   }
   if (
-    typeof checkpoint.keyId !== "string" ||
-    !KEY_ID_RE.test(checkpoint.keyId)
+    typeof finalization.keyId !== "string" ||
+    !KEY_ID_RE.test(finalization.keyId)
   ) {
-    fail("coordinator keyId is invalid");
+    fail("finalization resume keyId is invalid");
   }
   const rootKeySource = dependencies.rootKey;
-  // Validate through intrinsic typed-array accessors without retaining a key
-  // copy while the remaining non-secret invocation fields are captured.
-  byteViewFacts(rootKeySource, "coordinator rootKey", 32);
+  byteViewFacts(rootKeySource, "finalization resume rootKey", 32);
   const effectiveUserId = integerValue(
     dependencies.effectiveUserId,
-    "coordinator effectiveUserId",
+    "finalization resume effectiveUserId",
   );
-
-  const assetSource = exactRecord(
-    options.proposerAssets,
-    [
-      "embeddedWasmBytes",
-      "planBytes",
-      "wasmBytes",
-      "weightsBytes",
-      "workerSourceBytes",
-    ],
-    [],
-    "coordinator proposer assets",
-  );
-  const proposerAssets = frozenRecord({
-    planBytes: copyBytes(
-      assetSource.planBytes,
-      "coordinator plan bytes",
-      FLOODGATE_FRESH_SIBLING_PLAN_BYTES,
-    ),
-    wasmBytes: copyBytes(
-      assetSource.wasmBytes,
-      "coordinator WASM bytes",
-      FLOODGATE_STABLE_WASM_BYTES,
-    ),
-    embeddedWasmBytes: copyBytes(
-      assetSource.embeddedWasmBytes,
-      "coordinator embedded WASM bytes",
-      FLOODGATE_STABLE_WASM_BYTES,
-    ),
-    weightsBytes: copyBytes(
-      assetSource.weightsBytes,
-      "coordinator weights bytes",
-      FLOODGATE_STABLE_WEIGHTS_BYTES,
-    ),
-    workerSourceBytes: copyBytes(
-      assetSource.workerSourceBytes,
-      "coordinator worker source bytes",
-      FLOODGATE_STABLE_WORKER_SOURCE_BYTES,
-    ),
-  });
-  const proposerOptionSource = exactRecord(
-    options.proposerOptions,
-    ["searchTimeoutMilliseconds", "startupTimeoutMilliseconds", "workers"],
-    [],
-    "coordinator proposer options",
-  );
-  const proposerOptions = frozenRecord({
-    workers: positiveIntegerValue(
-      proposerOptionSource.workers,
-      "proposer workers",
-    ),
-    startupTimeoutMilliseconds: positiveIntegerValue(
-      proposerOptionSource.startupTimeoutMilliseconds,
-      "proposer startup timeout",
-    ),
-    searchTimeoutMilliseconds: positiveIntegerValue(
-      proposerOptionSource.searchTimeoutMilliseconds,
-      "proposer search timeout",
-    ),
-  });
 
   const authorizationSource = exactRecord(
     dependencies.stageAuthorization,
@@ -661,17 +582,17 @@ function captureInvocation(
       "inspectorScriptForTests",
       "inspectorTimeoutMillisecondsForTests",
     ],
-    "coordinator stage authorization dependencies",
+    "finalization resume stage authorization dependencies",
   );
   if (authorizationSource.effectiveUserId !== effectiveUserId) {
-    fail("coordinator stage authorization effectiveUserId differs");
+    fail("finalization resume stage authorization effectiveUserId differs");
   }
   const authorizationDependencies: Record<string, unknown> =
     Object.create(null);
   authorizationDependencies.effectiveUserId = effectiveUserId;
   authorizationDependencies.inspectorPythonExecutable = stringValue(
     authorizationSource.inspectorPythonExecutable,
-    "authorization inspector executable",
+    "resume authorization inspector executable",
   );
   for (const key of [
     "inspectorScriptForTests",
@@ -683,11 +604,11 @@ function captureInvocation(
         key === "inspectorScriptForTests"
           ? stringValue(
               authorizationSource[key],
-              "authorization inspector script",
+              "resume authorization inspector script",
             )
           : positiveIntegerValue(
               authorizationSource[key],
-              `authorization ${key}`,
+              `resume authorization ${key}`,
             );
     }
   }
@@ -701,7 +622,7 @@ function captureInvocation(
         "beforeLeaseRemovalForTests",
         "closeDirectoryForTests",
       ],
-      "authorization dependencies",
+      "resume authorization dependencies",
     ),
   );
 
@@ -709,75 +630,48 @@ function captureInvocation(
     dependencies.consumer,
     ["expectedManifestIdentity", "verifyBundle"],
     [],
-    "coordinator consumer dependencies",
+    "finalization resume consumer dependencies",
   );
   const manifestIdentity = exactRecord(
     consumerSource.expectedManifestIdentity,
     ["bytes", "path", "sha256"],
     [],
-    "coordinator expected manifest identity",
+    "finalization resume expected manifest identity",
   );
   if (
     typeof manifestIdentity.sha256 !== "string" ||
     !SHA256_RE.test(manifestIdentity.sha256)
   ) {
-    fail("coordinator expected manifest SHA-256 is invalid");
+    fail("finalization resume expected manifest SHA-256 is invalid");
   }
   const consumerDependencies = frozenRecord({
     verifyBundle: functionValue(
       consumerSource.verifyBundle,
-      "coordinator bundle verifier",
+      "finalization resume bundle verifier",
     ) as FloodgateTrainingRowConsumerDependencies["verifyBundle"],
     expectedManifestIdentity: frozenRecord({
-      path: stringValue(manifestIdentity.path, "manifest identity path"),
+      path: stringValue(manifestIdentity.path, "resume manifest identity path"),
       bytes: positiveIntegerValue(
         manifestIdentity.bytes,
-        "manifest identity bytes",
+        "resume manifest identity bytes",
       ),
       sha256: manifestIdentity.sha256,
     }),
   });
 
-  const proposerSource = exactRecord(
-    dependencies.proposer,
-    ["search"],
-    [],
-    "coordinator proposer dependencies",
-  );
-  const proposerDependencies = frozenRecord({
-    search: functionValue(
-      proposerSource.search,
-      "coordinator proposer search",
-    ) as FloodgateStableWasmProposerDependencies["search"],
-  });
-
-  const checkpointSource = exactRecord(
-    dependencies.checkpoint ?? {},
-    [],
-    ["closeForTests", "failpointForTests", "writeForTests"],
-    "coordinator checkpoint dependencies",
-  );
-  const checkpointDependencies = frozenRecord(
-    optionalFunctionFields(
-      checkpointSource,
-      ["closeForTests", "failpointForTests", "writeForTests"],
-      "checkpoint dependencies",
-    ),
-  ) as FloodgateStableProposalCoordinatorCheckpointDependencies;
-
   const finalizerSource = exactRecord(
     dependencies.finalizer ?? {},
     [],
     ["failpointForTests"],
-    "coordinator finalizer dependencies",
+    "finalization resume finalizer dependencies",
   );
   const finalizerDependencies = frozenRecord(
     optionalFunctionFields(
       finalizerSource,
       ["failpointForTests"],
-      "finalizer dependencies",
+      "finalization resume finalizer dependencies",
     ),
-  ) as FloodgateStableProposalCoordinatorFinalizerDependencies;
+  ) as FloodgateStableProposalFinalizationResumeFinalizerDependencies;
 
   const publicationSource = exactRecord(
     dependencies.publication,
@@ -789,12 +683,12 @@ function captureInvocation(
       "removeLeaseDirectoryForTests",
       "syncDirectoryForTests",
     ],
-    "coordinator publication dependencies",
+    "finalization resume publication dependencies",
   );
   const publicationDependencies = frozenRecord({
     exclusiveRename: functionValue(
       publicationSource.exclusiveRename,
-      "coordinator exclusive rename",
+      "finalization resume exclusive rename",
     ) as FloodgateTeacherStagePublicationDependencies["exclusiveRename"],
     ...optionalFunctionFields(
       publicationSource,
@@ -805,15 +699,16 @@ function captureInvocation(
         "removeLeaseDirectoryForTests",
         "syncDirectoryForTests",
       ],
-      "publication dependencies",
+      "finalization resume publication dependencies",
     ),
   }) as FloodgateTeacherStagePublicationDependencies;
+
   const phaseHook = dependencies.phaseHookForTests;
   if (
     phaseHook !== undefined &&
     (typeof phaseHook !== "function" || nodeUtilTypes.isProxy(phaseHook))
   ) {
-    fail("coordinator phase hook must be a non-Proxy function");
+    fail("finalization resume phase hook must be a non-Proxy function");
   }
   const stageAuthorizationOptions = captureStageOptions(
     options.stageAuthorization as FloodgateTeacherStageAuthorizationOptions,
@@ -821,18 +716,16 @@ function captureInvocation(
   const consumerOptions = captureConsumerOptions(
     options.consumer as FloodgateTrainingRowConsumerOptions,
   );
-  const rootKey = copyBytes(rootKeySource, "coordinator rootKey", 32);
+  const rootKey = copyBytes(rootKeySource, "finalization resume rootKey", 32);
 
   return frozenRecord({
     options: frozenRecord({
       stageAuthorization: stageAuthorizationOptions,
       consumer: consumerOptions,
-      proposerAssets,
-      proposerOptions,
-      checkpoint: frozenRecord({
-        runId: checkpoint.runId,
-        keyId: checkpoint.keyId,
-      }) as FloodgateStableProposalCheckpointOptions,
+      finalization: frozenRecord({
+        runId: finalization.runId,
+        keyId: finalization.keyId,
+      }),
     }),
     dependencies: frozenRecord({
       rootKey,
@@ -841,8 +734,6 @@ function captureInvocation(
         authorizationDependencies,
       ) as unknown as FloodgateTeacherStageAuthorizationDependencies,
       consumer: consumerDependencies,
-      proposer: proposerDependencies,
-      checkpoint: checkpointDependencies,
       finalizer: finalizerDependencies,
       publication: publicationDependencies,
       phaseHook: phaseHook as CapturedInvocation["dependencies"]["phaseHook"],
@@ -886,25 +777,18 @@ async function closeLease(
   }
 }
 
-function finalizerFacets(value: unknown): Readonly<{
-  readonly isFinalizerError: boolean;
-  readonly phase?: string;
-  readonly postflightClaimConsumed: boolean;
-  readonly mayHavePublished: boolean;
-  readonly leaseMayRemain: boolean;
-  readonly retryDisposition?: string;
-}> {
-  const unknownFacets = (): Readonly<{
-    readonly isFinalizerError: false;
-    readonly postflightClaimConsumed: false;
-    readonly mayHavePublished: true;
-    readonly leaseMayRemain: true;
-  }> =>
+function finalizerFacets(value: unknown): Readonly<FinalizerFacets> {
+  const unknownFacets = (): Readonly<FinalizerFacets> =>
     frozenRecord({
-      isFinalizerError: false as const,
-      postflightClaimConsumed: false as const,
-      mayHavePublished: true as const,
-      leaseMayRemain: true as const,
+      isFinalizerError: false,
+      observedState: "uninspected",
+      workVerified: false,
+      postflightClaimConsumed: false,
+      mayHavePersisted: true,
+      mayHavePublished: true,
+      publicationDurability: "not-established" as const,
+      destinationReopened: true,
+      leaseMayRemain: true,
     });
   if (
     value !== null &&
@@ -919,9 +803,7 @@ function finalizerFacets(value: unknown): Readonly<{
   } catch {
     return unknownFacets();
   }
-  if (!isFinalizerError) {
-    return unknownFacets();
-  }
+  if (!isFinalizerError) return unknownFacets();
   try {
     const descriptors = Object.getOwnPropertyDescriptors(value as object);
     const data = (key: string): unknown => {
@@ -931,14 +813,25 @@ function finalizerFacets(value: unknown): Readonly<{
         : undefined;
     };
     const phase = data("phase");
+    const observedState = data("observedState");
+    const workVerified = data("workVerified");
     const postflightClaimConsumed = data("postflightClaimConsumed");
+    const mayHavePersisted = data("mayHavePersisted");
     const mayHavePublished = data("mayHavePublished");
+    const publicationDurability = data("publicationDurability");
+    const destinationReopened = data("destinationReopened");
     const leaseMayRemain = data("leaseMayRemain");
     const retryDisposition = data("retryDisposition");
     if (
       typeof phase !== "string" ||
+      typeof observedState !== "string" ||
+      typeof workVerified !== "boolean" ||
       typeof postflightClaimConsumed !== "boolean" ||
+      typeof mayHavePersisted !== "boolean" ||
       typeof mayHavePublished !== "boolean" ||
+      typeof publicationDurability !== "string" ||
+      !PUBLICATION_DURABILITIES.has(publicationDurability) ||
+      typeof destinationReopened !== "boolean" ||
       typeof leaseMayRemain !== "boolean" ||
       typeof retryDisposition !== "string"
     ) {
@@ -947,8 +840,14 @@ function finalizerFacets(value: unknown): Readonly<{
     return frozenRecord({
       isFinalizerError: true,
       phase,
+      observedState,
+      workVerified,
       postflightClaimConsumed,
+      mayHavePersisted,
       mayHavePublished,
+      publicationDurability:
+        publicationDurability as FloodgateTeacherStagePublicationDurability,
+      destinationReopened,
       leaseMayRemain,
       retryDisposition,
     });
@@ -974,50 +873,53 @@ async function authorizationMarkerMayRemain(
 
 async function fire(
   invocation: CapturedInvocation,
-  event: FloodgateStableProposalCoordinatorEvent,
+  event: FloodgateStableProposalFinalizationResumeEvent,
 ): Promise<void> {
   await invocation.dependencies.phaseHook?.(event);
 }
 
 /**
- * Run the synthetic consumer-to-private-publication path with exact runtime
- * capabilities and fixed existing boundary implementations.
+ * Resume only deterministic finalization and publication over an already
+ * complete authenticated work stream. No proposer or checkpoint surface is
+ * accepted by this API.
  */
-export async function runFloodgateStableProposalCoordinatorCoreForTests(
-  options: FloodgateStableProposalCoordinatorOptions,
-  dependencies: FloodgateStableProposalCoordinatorDependencies,
-): Promise<Readonly<FloodgateStableProposalCoordinatorReceipt>> {
+export async function resumeAndPublishFloodgateStableProposalFinalizationCoreForTests(
+  options: FloodgateStableProposalFinalizationResumeOptions,
+  dependencies: FloodgateStableProposalFinalizationResumeDependencies,
+): Promise<Readonly<FloodgateStableProposalFinalizationResumeReceipt>> {
   let invocation: CapturedInvocation;
   try {
     invocation = captureInvocation(options, dependencies);
   } catch (primary) {
-    throw new FloodgateStableProposalCoordinatorError(failureDetail(primary), {
-      phase: "capture",
-      inputClaimed: false,
-      proposalComplete: false,
-      checkpointStarted: false,
-      checkpointComplete: false,
-      postflightMinted: false,
-      freshLeaseAcquired: false,
-      finalizerStarted: false,
-      mayHavePublished: false,
-      leaseMayRemain: false,
-      retryDisposition: "rerun-synthetic-coordinator-with-fresh-authority",
-      primary,
-    });
+    throw new FloodgateStableProposalFinalizationResumeError(
+      failureDetail(primary),
+      {
+        phase: "capture",
+        inputClaimed: false,
+        leaseAcquired: false,
+        postflightMinted: false,
+        finalizerStarted: false,
+        observedState: "uninspected",
+        workVerified: false,
+        postflightClaimConsumed: false,
+        mayHavePersisted: false,
+        mayHavePublished: false,
+        publicationDurability: "not-established",
+        destinationReopened: false,
+        leaseMayRemain: false,
+        retryDisposition: "rerun-finalization-resume-with-fresh-authority",
+        primary,
+      },
+    );
   }
 
   const progress: MutableProgress = {
-    phase: "consumer-claim-proposer",
+    phase: "consumer-claim",
     inputClaimed: false,
-    proposalComplete: false,
-    checkpointStarted: false,
-    checkpointComplete: false,
+    leaseAcquired: false,
     postflightMinted: false,
-    freshLeaseAcquired: false,
     finalizerStarted: false,
   };
-  let initialLease: Readonly<FloodgateTeacherStageLease> | undefined;
   let freshLease: Readonly<FloodgateTeacherStageLease> | undefined;
   let postflight:
     Readonly<FloodgateTrainingConsumerPostflightReceipt> | undefined;
@@ -1034,53 +936,7 @@ export async function runFloodgateStableProposalCoordinatorCoreForTests(
           claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(input);
           progress.inputClaimed = true;
           await fire(invocation, "input-claimed");
-          const artifact =
-            await generateFloodgateStableWasmProposalsCoreForTests(
-              input,
-              invocation.options.proposerAssets,
-              invocation.options.proposerOptions,
-              invocation.dependencies.proposer,
-            );
-          progress.proposalComplete = true;
-          await fire(invocation, "proposal-complete");
-          progress.phase = "checkpoint-authorization";
-          try {
-            initialLease = await authorizeFloodgateTeacherStageCoreForTests(
-              invocation.options.stageAuthorization,
-              invocation.dependencies.stageAuthorization,
-            );
-          } catch (error) {
-            authorizationFailedWithoutLease = true;
-            throw error;
-          }
-          await fire(invocation, "initial-lease-acquired");
-          progress.phase = "checkpoint";
-          const checkpointRootKey = Buffer.from(
-            invocation.dependencies.rootKey,
-          );
-          let checkpointPromise: Promise<
-            Readonly<FloodgateStableProposalCheckpointReceipt>
-          >;
-          try {
-            checkpointPromise = checkpointFloodgateStableProposalsCoreForTests(
-              initialLease,
-              artifact,
-              invocation.options.checkpoint,
-              {
-                rootKey: checkpointRootKey,
-                effectiveUserId: invocation.dependencies.effectiveUserId,
-                ...invocation.dependencies.checkpoint,
-              },
-            );
-            progress.checkpointStarted = true;
-          } finally {
-            checkpointRootKey.fill(0);
-          }
-          await checkpointPromise;
-          initialLease = undefined;
-          progress.checkpointComplete = true;
-          await fire(invocation, "checkpoint-complete");
-          progress.phase = "checkpoint-authorization";
+          progress.phase = "finalization-authorization";
           try {
             freshLease = await authorizeFloodgateTeacherStageCoreForTests(
               invocation.options.stageAuthorization,
@@ -1090,9 +946,9 @@ export async function runFloodgateStableProposalCoordinatorCoreForTests(
             authorizationFailedWithoutLease = true;
             throw error;
           }
-          progress.freshLeaseAcquired = true;
+          progress.leaseAcquired = true;
           progress.phase = "consumer-postflight";
-          await fire(invocation, "fresh-lease-acquired");
+          await fire(invocation, "fresh-finalizer-lease-acquired");
         },
         invocation.dependencies.consumer,
       );
@@ -1108,8 +964,8 @@ export async function runFloodgateStableProposalCoordinatorCoreForTests(
     const finalizerRootKey = Buffer.from(invocation.dependencies.rootKey);
     const finalizerOptions: FloodgateStableProposalFinalizerOptions = {
       rootKey: finalizerRootKey,
-      runId: invocation.options.checkpoint.runId,
-      keyId: invocation.options.checkpoint.keyId,
+      runId: invocation.options.finalization.runId,
+      keyId: invocation.options.finalization.keyId,
     };
     let finalizerPromise: Promise<
       Readonly<FloodgateStableProposalFinalizationReceipt>
@@ -1138,16 +994,18 @@ export async function runFloodgateStableProposalCoordinatorCoreForTests(
 
   if (primary === undefined && finalization !== undefined) {
     return frozenRecord({
-      contract: FLOODGATE_STABLE_PROPOSAL_COORDINATOR_CONTRACT,
-      status: FLOODGATE_STABLE_PROPOSAL_COORDINATOR_STATUS,
-      claim_boundary: FLOODGATE_STABLE_PROPOSAL_COORDINATOR_CLAIM_BOUNDARY,
+      contract: FLOODGATE_STABLE_PROPOSAL_FINALIZATION_RESUME_CONTRACT,
+      status: FLOODGATE_STABLE_PROPOSAL_FINALIZATION_RESUME_STATUS,
+      claim_boundary:
+        FLOODGATE_STABLE_PROPOSAL_FINALIZATION_RESUME_CLAIM_BOUNDARY,
       execution_boundary: "test-only-fixed-boundary-composition" as const,
-      execution_path: "generate-and-checkpoint" as const,
-      run_id: invocation.options.checkpoint.runId,
-      key_id: invocation.options.checkpoint.keyId,
+      execution_path: "resume-finalization-only" as const,
+      run_id: invocation.options.finalization.runId,
+      key_id: invocation.options.finalization.keyId,
       handoff: frozenRecord({
+        proposer_skipped: true as const,
+        checkpoint_skipped: true as const,
         exact_input_claimed_synchronously: true as const,
-        initial_checkpoint_lease_closed_before_postflight: true as const,
         exact_postflight_minted: true as const,
         fresh_finalizer_lease_acquired: true as const,
         finalizer_contract: FLOODGATE_STABLE_PROPOSAL_FINALIZATION_CONTRACT,
@@ -1159,15 +1017,6 @@ export async function runFloodgateStableProposalCoordinatorCoreForTests(
   const cleanupFailures: unknown[] = [];
   let leaseMayRemain = false;
   const finalizer = finalizerFacets(primary);
-  if (initialLease !== undefined && !progress.checkpointStarted) {
-    leaseMayRemain =
-      (await closeLease(initialLease, cleanupFailures)) || leaseMayRemain;
-  } else if (progress.checkpointStarted && !progress.checkpointComplete) {
-    leaseMayRemain =
-      (await authorizationMarkerMayRemain(
-        invocation.options.stageAuthorization,
-      )) || leaseMayRemain;
-  }
   if (authorizationFailedWithoutLease) {
     leaseMayRemain =
       (await authorizationMarkerMayRemain(
@@ -1202,12 +1051,22 @@ export async function runFloodgateStableProposalCoordinatorCoreForTests(
       cleanupFailures.push(error);
     }
   }
+
+  const typedFinalizer =
+    progress.finalizerStarted && finalizer.isFinalizerError;
+  const mayHavePersisted =
+    progress.finalizerStarted && finalizer.mayHavePersisted;
   const mayHavePublished =
     progress.finalizerStarted && finalizer.mayHavePublished;
+  const workVerified = typedFinalizer && finalizer.workVerified;
   const manualContentReconciliation =
-    finalizer.isFinalizerError &&
+    typedFinalizer &&
     finalizer.retryDisposition === "manual-content-reconciliation-required";
-  const retryDisposition: FloodgateStableProposalCoordinatorRetryDisposition =
+  const workVerificationRequired =
+    typedFinalizer &&
+    finalizer.phase === "work-verification" &&
+    !finalizer.workVerified;
+  const retryDisposition: FloodgateStableProposalFinalizationResumeRetryDisposition =
     mayHavePublished && leaseMayRemain
       ? "manual-publication-and-lease-reconciliation-required"
       : mayHavePublished
@@ -1216,22 +1075,41 @@ export async function runFloodgateStableProposalCoordinatorCoreForTests(
           ? "manual-lease-reconciliation-required"
           : manualContentReconciliation
             ? "manual-content-reconciliation-required"
-            : progress.checkpointComplete
-              ? "resume-finalization-over-complete-authenticated-work"
-              : "rerun-synthetic-coordinator-with-fresh-authority";
-  throw new FloodgateStableProposalCoordinatorError(failureDetail(primary), {
-    phase: progress.phase,
-    inputClaimed: progress.inputClaimed,
-    proposalComplete: progress.proposalComplete,
-    checkpointStarted: progress.checkpointStarted,
-    checkpointComplete: progress.checkpointComplete,
-    postflightMinted: progress.postflightMinted,
-    freshLeaseAcquired: progress.freshLeaseAcquired,
-    finalizerStarted: progress.finalizerStarted,
-    mayHavePublished,
-    leaseMayRemain,
-    retryDisposition,
-    primary,
-    cleanupFailures,
-  });
+            : workVerificationRequired
+              ? "complete-authenticated-work-verification-required"
+              : "rerun-finalization-resume-with-fresh-authority";
+  const postflightClaimConsumed: FloodgateStableProposalFinalizationResumePostflightClaimState =
+    !progress.finalizerStarted
+      ? false
+      : finalizer.isFinalizerError
+        ? finalizer.postflightClaimConsumed
+        : "unknown";
+  throw new FloodgateStableProposalFinalizationResumeError(
+    failureDetail(primary),
+    {
+      phase: progress.phase,
+      inputClaimed: progress.inputClaimed,
+      leaseAcquired: progress.leaseAcquired,
+      postflightMinted: progress.postflightMinted,
+      finalizerStarted: progress.finalizerStarted,
+      observedState:
+        typedFinalizer && finalizer.observedState !== ""
+          ? finalizer.observedState
+          : "uninspected",
+      workVerified,
+      postflightClaimConsumed,
+      mayHavePersisted,
+      mayHavePublished,
+      publicationDurability:
+        progress.finalizerStarted && finalizer.isFinalizerError
+          ? finalizer.publicationDurability
+          : "not-established",
+      destinationReopened:
+        progress.finalizerStarted && finalizer.destinationReopened,
+      leaseMayRemain,
+      retryDisposition,
+      primary,
+      cleanupFailures,
+    },
+  );
 }

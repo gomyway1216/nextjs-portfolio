@@ -30,7 +30,6 @@ import {
 } from "../../../ml/floodgate-training-row-consumer";
 import type {
   FloodgateStableProposalCoordinatorDependencies,
-  FloodgateStableProposalCoordinatorEvent,
   FloodgateStableProposalCoordinatorOptions,
 } from "../../../ml/floodgate-stable-proposal-coordinator";
 import type {
@@ -54,7 +53,7 @@ const START_SFEN =
 const PRODUCER_REVISION = "a".repeat(40);
 const VERIFIER_REVISION = "b".repeat(40);
 const RUN_ID = "12".repeat(32);
-const KEY_ID = "synthetic-coordinator-key-1";
+const KEY_ID = "synthetic-finalization-resume-key-1";
 const ROOT_KEY_BYTE = 0x4b;
 const ROLE_BUNDLE_RESULT_SCHEMA =
   "shogi-floodgate-role-bundle-result-v1" as const;
@@ -69,7 +68,6 @@ interface SyntheticManifestIdentity {
 }
 
 interface ConsumerFixture {
-  readonly trainingPath: string;
   readonly rows: readonly FloodgateRoleBundleRawParent[];
   readonly identity: Readonly<FloodgateRoleBundleRawIdentity>;
   readonly manifestIdentity: Readonly<SyntheticManifestIdentity>;
@@ -78,7 +76,6 @@ interface ConsumerFixture {
 }
 
 interface StageFixture {
-  readonly root: string;
   readonly publicationParent: string;
   readonly stageRoot: string;
   readonly destinationRoot: string;
@@ -88,10 +85,21 @@ interface StageFixture {
 
 type CoordinatorModule =
   typeof import("../../../ml/floodgate-stable-proposal-coordinator");
+type ResumeModule =
+  typeof import("../../../ml/floodgate-stable-proposal-finalization-resume");
+type ResumeOptions = Parameters<
+  ResumeModule["resumeAndPublishFloodgateStableProposalFinalizationCoreForTests"]
+>[0];
+type ResumeDependencies = Parameters<
+  ResumeModule["resumeAndPublishFloodgateStableProposalFinalizationCoreForTests"]
+>[1];
+type ResumeEvent = Parameters<
+  NonNullable<ResumeDependencies["phaseHookForTests"]>
+>[0];
 
 function effectiveUserId(): number {
   if (typeof process.geteuid !== "function") {
-    throw new Error("stable proposal coordinator tests require a POSIX euid");
+    throw new Error("stable proposal resume tests require a POSIX euid");
   }
   return process.geteuid();
 }
@@ -100,24 +108,24 @@ function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
 }
 
-function rootKey(): Uint8Array {
-  return new Uint8Array(32).fill(ROOT_KEY_BYTE);
+function rootKey(byte = ROOT_KEY_BYTE): Uint8Array {
+  return new Uint8Array(32).fill(byte);
 }
 
 function hostileSharedView(
   bytes: Uint8Array,
-  forgedByteLength: number,
+  forgedLength: number,
 ): Uint8Array {
   const value = new Uint8Array(new SharedArrayBuffer(bytes.byteLength));
   value.set(bytes);
   Object.defineProperties(value, {
     buffer: {
       configurable: true,
-      get: () => new ArrayBuffer(forgedByteLength),
+      get: () => new ArrayBuffer(forgedLength),
     },
     byteLength: {
       configurable: true,
-      get: () => forgedByteLength,
+      get: () => forgedLength,
     },
   });
   return value;
@@ -153,12 +161,11 @@ async function write0600(
   await fs.promises.chmod(filePath, 0o600);
 }
 
-function fixtureRows(seed = "a"): readonly FloodgateRoleBundleRawParent[] {
-  const url = `https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/01/wdoor+floodgate-300-10F+synthetic-${seed}+synthetic-b+20260101000000.csa`;
+function fixtureRows(): readonly FloodgateRoleBundleRawParent[] {
+  const url =
+    "https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/01/wdoor+floodgate-300-10F+synthetic-resume+synthetic-b+20260101000000.csa";
   const gameId = floodgateCanonicalUrlGameId(url);
-  const gameSha256 = sha256(
-    `synthetic coordinator fixture; no real game; ${seed}`,
-  );
+  const gameSha256 = sha256("synthetic resume fixture; no real game");
   const moves = ["7g7f", "3c3d", "2g2f", "8c8d"] as const;
   const rows: FloodgateRoleBundleRawParent[] = [];
   let parentSfen = START_SFEN;
@@ -185,10 +192,6 @@ function fixtureRows(seed = "a"): readonly FloodgateRoleBundleRawParent[] {
   return rows.sort((left, right) =>
     compareBytewise(left.parent_id, right.parent_id),
   );
-}
-
-function rawBytes(rows: readonly FloodgateRoleBundleRawParent[]): Uint8Array {
-  return Buffer.from(`${rows.map((row) => canonicalJson(row)).join("\n")}\n`);
 }
 
 function rawIdentity(
@@ -261,7 +264,7 @@ function buildVerifiedBundle(
 
 async function consumerFixture(): Promise<ConsumerFixture> {
   const created = await fs.promises.mkdtemp(
-    path.join(os.tmpdir(), "stable-coordinator-consumer-"),
+    path.join(os.tmpdir(), "stable-resume-consumer-"),
   );
   const root = await fs.promises.realpath(created);
   temporaryRoots.push(root);
@@ -269,13 +272,16 @@ async function consumerFixture(): Promise<ConsumerFixture> {
   const outputRoot = path.join(root, "bundle");
   await mkdir0700(outputRoot);
   const rows = fixtureRows();
-  const bytes = rawBytes(rows);
-  const trainingPath = path.join(outputRoot, FLOODGATE_TRAINING_RAW_FILENAME);
-  await write0600(trainingPath, bytes);
+  const bytes = Buffer.from(
+    `${rows.map((row) => canonicalJson(row)).join("\n")}\n`,
+  );
+  await write0600(
+    path.join(outputRoot, FLOODGATE_TRAINING_RAW_FILENAME),
+    bytes,
+  );
   const identity = rawIdentity(rows, bytes);
   const built = buildVerifiedBundle(identity);
   return {
-    trainingPath,
     rows,
     identity,
     manifestIdentity: built.manifestIdentity,
@@ -293,7 +299,7 @@ async function consumerFixture(): Promise<ConsumerFixture> {
 
 async function stageFixture(): Promise<StageFixture> {
   const created = await fs.promises.mkdtemp(
-    path.join(os.tmpdir(), "stable-coordinator-stage-"),
+    path.join(os.tmpdir(), "stable-resume-stage-"),
   );
   const root = await fs.promises.realpath(created);
   temporaryRoots.push(root);
@@ -333,7 +339,6 @@ async function stageFixture(): Promise<StageFixture> {
     write0600(path.join(evalDir, "nn.bin"), "synthetic eval\n"),
   ]);
   return {
-    root,
     publicationParent,
     stageRoot,
     destinationRoot,
@@ -405,9 +410,9 @@ function boxedResults(
   return Object.freeze({ results: Object.freeze([...results]) });
 }
 
-async function loadCoordinator(
+async function loadModules(
   manifestIdentity: Readonly<SyntheticManifestIdentity>,
-): Promise<CoordinatorModule> {
+): Promise<Readonly<{ coordinator: CoordinatorModule; resume: ResumeModule }>> {
   vi.resetModules();
   vi.doMock(ROLE_BUNDLE_RESULT_MODULE, async (importOriginal) => {
     const actual =
@@ -419,7 +424,11 @@ async function loadCoordinator(
       FLOODGATE_ROLE_BUNDLE_MANIFEST_IDENTITY: manifestIdentity,
     };
   });
-  return import("../../../ml/floodgate-stable-proposal-coordinator");
+  const [coordinator, resume] = await Promise.all([
+    import("../../../ml/floodgate-stable-proposal-coordinator"),
+    import("../../../ml/floodgate-stable-proposal-finalization-resume"),
+  ]);
+  return { coordinator, resume };
 }
 
 function renameReceipt(
@@ -460,7 +469,7 @@ function authorizationDependencies(
   };
 }
 
-function options(
+function coordinatorOptions(
   consumer: ConsumerFixture,
   stage: StageFixture,
 ): FloodgateStableProposalCoordinatorOptions {
@@ -477,10 +486,9 @@ function options(
   };
 }
 
-async function dependencies(
+async function coordinatorDependencies(
   consumer: ConsumerFixture,
   stage: StageFixture,
-  key: Uint8Array,
   overrides: Partial<FloodgateStableProposalCoordinatorDependencies> = {},
 ): Promise<FloodgateStableProposalCoordinatorDependencies> {
   const search = vi.fn(
@@ -504,7 +512,7 @@ async function dependencies(
       ),
   );
   return {
-    rootKey: key,
+    rootKey: rootKey(),
     effectiveUserId: effectiveUserId(),
     stageAuthorization: authorizationDependencies(),
     consumer: {
@@ -512,6 +520,36 @@ async function dependencies(
       expectedManifestIdentity: consumer.manifestIdentity,
     },
     proposer: { search },
+    publication: await movingPublication(stage),
+    ...overrides,
+  };
+}
+
+function resumeOptions(
+  consumer: ConsumerFixture,
+  stage: StageFixture,
+): ResumeOptions {
+  return {
+    stageAuthorization: stage.options,
+    consumer: consumer.options,
+    finalization: { runId: RUN_ID, keyId: KEY_ID },
+  };
+}
+
+async function resumeDependencies(
+  consumer: ConsumerFixture,
+  stage: StageFixture,
+  key: Uint8Array,
+  overrides: Partial<ResumeDependencies> = {},
+): Promise<ResumeDependencies> {
+  return {
+    rootKey: key,
+    effectiveUserId: effectiveUserId(),
+    stageAuthorization: authorizationDependencies(),
+    consumer: {
+      verifyBundle: vi.fn(async () => consumer.verified),
+      expectedManifestIdentity: consumer.manifestIdentity,
+    },
     publication: await movingPublication(stage),
     ...overrides,
   };
@@ -536,8 +574,16 @@ async function sortedEntries(directory: string): Promise<readonly string[]> {
   return (await fs.promises.readdir(directory)).sort(compareBytewise);
 }
 
+function expectDeepFrozen(value: unknown, seen = new Set<object>()): void {
+  if (value === null || typeof value !== "object" || seen.has(value)) return;
+  seen.add(value);
+  expect(Object.isFrozen(value)).toBe(true);
+  for (const child of Object.values(value)) expectDeepFrozen(child, seen);
+}
+
 function forbiddenReceiptKeys(value: unknown): string[] {
   const forbidden = new Set([
+    "artifact",
     "fd",
     "lease",
     "postflightReceipt",
@@ -558,14 +604,67 @@ function forbiddenReceiptKeys(value: unknown): string[] {
     }
   };
   visit(value);
-  return [...found].sort();
+  return [...found].sort(compareBytewise);
 }
 
-function expectDeepFrozen(value: unknown, seen = new Set<object>()): void {
-  if (value === null || typeof value !== "object" || seen.has(value)) return;
-  seen.add(value);
-  expect(Object.isFrozen(value)).toBe(true);
-  for (const child of Object.values(value)) expectDeepFrozen(child, seen);
+type SeedState = "work-only" | "result-prefix" | "manifest-prefix";
+
+async function seedState(
+  modules: Readonly<{ coordinator: CoordinatorModule }>,
+  consumer: ConsumerFixture,
+  stage: StageFixture,
+  state: SeedState,
+): Promise<Readonly<{ completeMetadata?: Buffer; prefixPath?: string }>> {
+  const overrides: Partial<FloodgateStableProposalCoordinatorDependencies> =
+    state === "work-only"
+      ? {
+          phaseHookForTests: (event) => {
+            if (event === "postflight-complete") {
+              throw new Error("synthetic work-only resume seed");
+            }
+          },
+        }
+      : {
+          finalizer: {
+            failpointForTests: (event) => {
+              const target =
+                state === "result-prefix"
+                  ? "result-written"
+                  : "manifest-written";
+              if (event === target) {
+                throw new Error(`synthetic ${state} resume seed`);
+              }
+            },
+          },
+        };
+  const failure = await captureFailure(
+    modules.coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
+      coordinatorOptions(consumer, stage),
+      await coordinatorDependencies(consumer, stage, overrides),
+    ),
+  );
+  expect(failure).toMatchObject({
+    mayHavePublished: false,
+    leaseMayRemain: false,
+    retryDisposition: "resume-finalization-over-complete-authenticated-work",
+  });
+  await expectMissing(stage.leaseRoot);
+  await expectMissing(stage.destinationRoot);
+  if (state === "work-only") {
+    expect(await sortedEntries(stage.stageRoot)).toEqual(["work.jsonl"]);
+    return {};
+  }
+  const filename = state === "result-prefix" ? "result.json" : "manifest.json";
+  const prefixPath = path.join(stage.stageRoot, filename);
+  const completeMetadata = await fs.promises.readFile(prefixPath);
+  expect(completeMetadata.byteLength).toBeGreaterThan(2);
+  await fs.promises.truncate(
+    prefixPath,
+    Math.floor(completeMetadata.byteLength / 2),
+  );
+  const prefix = await fs.promises.readFile(prefixPath);
+  expect(completeMetadata.subarray(0, prefix.byteLength)).toEqual(prefix);
+  return { completeMetadata, prefixPath };
 }
 
 afterEach(async () => {
@@ -580,186 +679,130 @@ afterEach(async () => {
   );
 });
 
-posixDescribe("Floodgate stable proposal synthetic coordinator", () => {
-  it("rejects an invalid asset snapshot before consumer or lease side effects", async () => {
+posixDescribe("Floodgate stable proposal explicit finalization resume", () => {
+  it("rejects checkpoint/proposer surfaces and a hostile shared key before side effects", async () => {
     const consumer = await consumerFixture();
     const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
+    const { resume } = await loadModules(consumer.manifestIdentity);
     const verifyBundle = vi.fn(async () => consumer.verified);
-    const search = vi.fn();
     let authorizations = 0;
-    const deps = await dependencies(consumer, stage, rootKey(), {
+    const base = await resumeDependencies(consumer, stage, rootKey(), {
       consumer: {
         verifyBundle,
         expectedManifestIdentity: consumer.manifestIdentity,
       },
-      proposer: { search },
       stageAuthorization: authorizationDependencies({
         afterLeaseAcquiredForTests: () => {
           authorizations += 1;
         },
       }),
     });
-    const validOptions = options(consumer, stage);
-    const invalidOptions: FloodgateStableProposalCoordinatorOptions = {
-      ...validOptions,
-      proposerAssets: {
-        ...validOptions.proposerAssets,
-        planBytes: new Uint8Array(1),
-      },
-    };
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        invalidOptions,
-        deps,
-      ),
-    );
-    const traversalFailure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
+    const invalidInvocations: readonly [unknown, unknown][] = [
+      [
         {
-          ...validOptions,
+          ...resumeOptions(consumer, stage),
           stageAuthorization: {
-            ...validOptions.stageAuthorization,
+            ...stage.options,
             stageBasename: "../../../escape",
           },
         },
-        deps,
-      ),
-    );
+        base,
+      ],
+      [
+        { ...resumeOptions(consumer, stage), checkpoint: { runId: RUN_ID } },
+        base,
+      ],
+      [resumeOptions(consumer, stage), { ...base, proposer: {} }],
+      [
+        resumeOptions(consumer, stage),
+        {
+          ...base,
+          rootKey: hostileSharedView(new Uint8Array([ROOT_KEY_BYTE]), 32),
+        },
+      ],
+    ];
 
-    expect(failure).toMatchObject({
-      phase: "capture",
-      inputClaimed: false,
-      checkpointStarted: false,
-      finalizerStarted: false,
-      mayHavePublished: false,
-      leaseMayRemain: false,
-    });
-    expect(traversalFailure).toMatchObject({
-      phase: "capture",
-      inputClaimed: false,
-      checkpointStarted: false,
-      finalizerStarted: false,
-      mayHavePublished: false,
-      leaseMayRemain: false,
-    });
+    for (const [invalidOptions, invalidDependencies] of invalidInvocations) {
+      const failure = await captureFailure(
+        resume.resumeAndPublishFloodgateStableProposalFinalizationCoreForTests(
+          invalidOptions as ResumeOptions,
+          invalidDependencies as ResumeDependencies,
+        ),
+      );
+      expect(failure).toBeInstanceOf(
+        resume.FloodgateStableProposalFinalizationResumeError,
+      );
+      expect(failure).toMatchObject({
+        phase: "capture",
+        inputClaimed: false,
+        leaseAcquired: false,
+        postflightMinted: false,
+        finalizerStarted: false,
+        mayHavePersisted: false,
+        mayHavePublished: false,
+        leaseMayRemain: false,
+      });
+    }
     expect(verifyBundle).not.toHaveBeenCalled();
-    expect(search).not.toHaveBeenCalled();
     expect(authorizations).toBe(0);
     expect(await sortedEntries(stage.stageRoot)).toEqual([]);
     await expectMissing(stage.leaseRoot);
     await expectMissing(stage.destinationRoot);
   });
 
-  it("uses intrinsic byte-view facts for hostile shared root-key and asset views", async () => {
-    const consumer = await consumerFixture();
-    const rootStage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    const rootVerifyBundle = vi.fn(async () => consumer.verified);
-    const hostileRoot = hostileSharedView(new Uint8Array([7]), 32);
-    const rootDependencies = await dependencies(
-      consumer,
-      rootStage,
-      hostileRoot,
-      {
-        consumer: {
-          verifyBundle: rootVerifyBundle,
-          expectedManifestIdentity: consumer.manifestIdentity,
-        },
-      },
-    );
-
-    const rootFailure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, rootStage),
-        rootDependencies,
-      ),
-    );
-
-    expect(rootFailure).toMatchObject({ phase: "capture" });
-    expect(rootVerifyBundle).not.toHaveBeenCalled();
-    await expectMissing(rootStage.leaseRoot);
-
-    const assetStage = await stageFixture();
-    const assetVerifyBundle = vi.fn(async () => consumer.verified);
-    const validOptions = options(consumer, assetStage);
-    const workerBytes = validOptions.proposerAssets.workerSourceBytes;
-    const hostileWorker = hostileSharedView(
-      workerBytes,
-      workerBytes.byteLength,
-    );
-    const assetDependencies = await dependencies(
-      consumer,
-      assetStage,
-      rootKey(),
-      {
-        consumer: {
-          verifyBundle: assetVerifyBundle,
-          expectedManifestIdentity: consumer.manifestIdentity,
-        },
-      },
-    );
-
-    const assetFailure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        {
-          ...validOptions,
-          proposerAssets: {
-            ...validOptions.proposerAssets,
-            workerSourceBytes: hostileWorker,
-          },
-        },
-        assetDependencies,
-      ),
-    );
-
-    expect(assetFailure).toMatchObject({ phase: "capture" });
-    expect(assetVerifyBundle).not.toHaveBeenCalled();
-    await expectMissing(assetStage.leaseRoot);
-  });
-
-  it("runs the exact clean chain with a compact non-secret receipt", async () => {
+  it("resumes work-only with one authorization, exact handoff order, and a compact frozen receipt", async () => {
     const consumer = await consumerFixture();
     const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
+    const modules = await loadModules(consumer.manifestIdentity);
+    await seedState(modules, consumer, stage, "work-only");
+    const workBefore = await fs.promises.readFile(
+      path.join(stage.stageRoot, "work.jsonl"),
+    );
+    const workStatBefore = await fs.promises.stat(
+      path.join(stage.stageRoot, "work.jsonl"),
+      { bigint: true },
+    );
+    const events: ResumeEvent[] = [];
+    let authorizations = 0;
     const key = rootKey();
     const beforeKey = new Uint8Array(key);
-    const events: FloodgateStableProposalCoordinatorEvent[] = [];
-    let authorizations = 0;
-    const deps = await dependencies(consumer, stage, key, {
-      stageAuthorization: authorizationDependencies({
-        afterLeaseAcquiredForTests: () => {
-          authorizations += 1;
-        },
-      }),
-      phaseHookForTests: (event) => {
-        events.push(event);
-      },
-    });
-
     const receipt =
-      await coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
+      await modules.resume.resumeAndPublishFloodgateStableProposalFinalizationCoreForTests(
         {
-          ...options(consumer, stage),
+          ...resumeOptions(consumer, stage),
           stageAuthorization: {
             ...stage.options,
             evalDir: undefined,
           },
         },
-        deps,
+        await resumeDependencies(consumer, stage, key, {
+          stageAuthorization: authorizationDependencies({
+            afterLeaseAcquiredForTests: () => {
+              authorizations += 1;
+            },
+          }),
+          phaseHookForTests: (event) => {
+            events.push(event);
+          },
+        }),
       );
 
     expect(receipt).toMatchObject({
-      contract: coordinator.FLOODGATE_STABLE_PROPOSAL_COORDINATOR_CONTRACT,
-      status: coordinator.FLOODGATE_STABLE_PROPOSAL_COORDINATOR_STATUS,
+      contract:
+        modules.resume.FLOODGATE_STABLE_PROPOSAL_FINALIZATION_RESUME_CONTRACT,
+      status:
+        modules.resume.FLOODGATE_STABLE_PROPOSAL_FINALIZATION_RESUME_STATUS,
+      claim_boundary:
+        modules.resume
+          .FLOODGATE_STABLE_PROPOSAL_FINALIZATION_RESUME_CLAIM_BOUNDARY,
       execution_boundary: "test-only-fixed-boundary-composition",
-      execution_path: "generate-and-checkpoint",
+      execution_path: "resume-finalization-only",
       run_id: RUN_ID,
       key_id: KEY_ID,
       handoff: {
+        proposer_skipped: true,
+        checkpoint_skipped: true,
         exact_input_claimed_synchronously: true,
-        initial_checkpoint_lease_closed_before_postflight: true,
         exact_postflight_minted: true,
         fresh_finalizer_lease_acquired: true,
       },
@@ -779,541 +822,332 @@ posixDescribe("Floodgate stable proposal synthetic coordinator", () => {
       "finalization",
     ]);
     expect(Object.keys(receipt.handoff)).toEqual([
+      "proposer_skipped",
+      "checkpoint_skipped",
       "exact_input_claimed_synchronously",
-      "initial_checkpoint_lease_closed_before_postflight",
       "exact_postflight_minted",
       "fresh_finalizer_lease_acquired",
       "finalizer_contract",
     ]);
-    expectDeepFrozen(receipt);
     expect(events).toEqual([
       "input-claimed",
-      "proposal-complete",
-      "initial-lease-acquired",
-      "checkpoint-complete",
-      "fresh-lease-acquired",
+      "fresh-finalizer-lease-acquired",
       "postflight-complete",
       "before-finalization",
     ]);
-    expect(authorizations).toBe(2);
+    expect(authorizations).toBe(1);
+    expect(key).toEqual(beforeKey);
+    expectDeepFrozen(receipt);
+    expect(forbiddenReceiptKeys(receipt)).toEqual([]);
     const auditText = JSON.stringify(receipt, (_key, value: unknown) =>
       typeof value === "bigint" ? value.toString(10) : value,
     );
     expect(Buffer.byteLength(auditText, "utf8")).toBeLessThan(8_192);
-    expect(forbiddenReceiptKeys(receipt)).toEqual([]);
-    expect(key).toEqual(beforeKey);
     expect(await sortedEntries(stage.destinationRoot)).toEqual([
       "manifest.json",
       "result.json",
       "work.jsonl",
     ]);
+    const publishedWorkPath = path.join(stage.destinationRoot, "work.jsonl");
+    expect(await fs.promises.readFile(publishedWorkPath)).toEqual(workBefore);
+    const workStatAfter = await fs.promises.stat(publishedWorkPath, {
+      bigint: true,
+    });
+    expect({ dev: workStatAfter.dev, ino: workStatAfter.ino }).toEqual({
+      dev: workStatBefore.dev,
+      ino: workStatBefore.ino,
+    });
     await expectMissing(stage.stageRoot);
     await expectMissing(stage.leaseRoot);
   });
 
-  it("reports consumer verification failure before proposer or lease acquisition", async () => {
+  for (const state of ["result-prefix", "manifest-prefix"] as const) {
+    it(`resumes an exact ${state} without replacing the prefix file`, async () => {
+      const consumer = await consumerFixture();
+      const stage = await stageFixture();
+      const modules = await loadModules(consumer.manifestIdentity);
+      const seeded = await seedState(modules, consumer, stage, state);
+      if (
+        seeded.prefixPath === undefined ||
+        seeded.completeMetadata === undefined
+      ) {
+        throw new Error("prefix seed did not return metadata");
+      }
+      const prefix = await fs.promises.readFile(seeded.prefixPath);
+      const beforeStat = await fs.promises.stat(seeded.prefixPath, {
+        bigint: true,
+      });
+      const key = rootKey();
+      const beforeKey = new Uint8Array(key);
+
+      const receipt =
+        await modules.resume.resumeAndPublishFloodgateStableProposalFinalizationCoreForTests(
+          resumeOptions(consumer, stage),
+          await resumeDependencies(consumer, stage, key),
+        );
+
+      const filename = path.basename(seeded.prefixPath);
+      const publishedPath = path.join(stage.destinationRoot, filename);
+      const published = await fs.promises.readFile(publishedPath);
+      expect(published).toEqual(seeded.completeMetadata);
+      expect(published.subarray(0, prefix.byteLength)).toEqual(prefix);
+      const afterStat = await fs.promises.stat(publishedPath, { bigint: true });
+      expect({ dev: afterStat.dev, ino: afterStat.ino }).toEqual({
+        dev: beforeStat.dev,
+        ino: beforeStat.ino,
+      });
+      expect(receipt.finalization.postpublication.content_reverified).toBe(
+        true,
+      );
+      expect(key).toEqual(beforeKey);
+      await expectMissing(stage.stageRoot);
+      await expectMissing(stage.leaseRoot);
+    });
+  }
+
+  it("preserves a mismatched metadata prefix for manual reconciliation", async () => {
     const consumer = await consumerFixture();
     const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    const key = rootKey();
-    const search = vi.fn();
-    let authorizations = 0;
-    const deps = await dependencies(consumer, stage, key, {
-      consumer: {
-        verifyBundle: vi.fn(async () => {
-          throw new Error("synthetic consumer verification failure");
-        }),
-        expectedManifestIdentity: consumer.manifestIdentity,
-      },
-      proposer: { search },
-      stageAuthorization: authorizationDependencies({
-        afterLeaseAcquiredForTests: () => {
-          authorizations += 1;
-        },
-      }),
-    });
+    const modules = await loadModules(consumer.manifestIdentity);
+    const seeded = await seedState(modules, consumer, stage, "result-prefix");
+    if (seeded.prefixPath === undefined) {
+      throw new Error("result-prefix seed did not return a path");
+    }
+    const mismatched = await fs.promises.readFile(seeded.prefixPath);
+    mismatched[0] ^= 0x01;
+    await fs.promises.writeFile(seeded.prefixPath, mismatched);
 
     const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
-      ),
-    );
-
-    expect(failure).toBeInstanceOf(
-      coordinator.FloodgateStableProposalCoordinatorError,
-    );
-    expect(failure).toMatchObject({
-      phase: "consumer-claim-proposer",
-      inputClaimed: false,
-      proposalComplete: false,
-      checkpointStarted: false,
-      retryDisposition: "rerun-synthetic-coordinator-with-fresh-authority",
-      leaseMayRemain: false,
-    });
-    expect(search).not.toHaveBeenCalled();
-    expect(authorizations).toBe(0);
-    expect(key).toEqual(rootKey());
-    expect(await sortedEntries(stage.stageRoot)).toEqual([]);
-    await expectMissing(stage.leaseRoot);
-    await expectMissing(stage.destinationRoot);
-  });
-
-  it("reports proposer failure without acquiring a stage lease", async () => {
-    const consumer = await consumerFixture();
-    const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    let authorizations = 0;
-    const deps = await dependencies(consumer, stage, rootKey(), {
-      proposer: {
-        search: vi.fn(async () => {
-          throw new Error("synthetic proposer failure");
-        }),
-      },
-      stageAuthorization: authorizationDependencies({
-        afterLeaseAcquiredForTests: () => {
-          authorizations += 1;
-        },
-      }),
-    });
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
-      ),
-    );
-
-    expect(failure).toMatchObject({
-      phase: "consumer-claim-proposer",
-      inputClaimed: true,
-      proposalComplete: false,
-      checkpointStarted: false,
-      postflightMinted: false,
-      leaseMayRemain: false,
-    });
-    expect(authorizations).toBe(0);
-    expect(await sortedEntries(stage.stageRoot)).toEqual([]);
-    await expectMissing(stage.leaseRoot);
-  });
-
-  it("closes the initial lease when interrupted before checkpoint ownership transfer", async () => {
-    const consumer = await consumerFixture();
-    const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    const events: FloodgateStableProposalCoordinatorEvent[] = [];
-    const deps = await dependencies(consumer, stage, rootKey(), {
-      phaseHookForTests: (event) => {
-        events.push(event);
-        if (event === "initial-lease-acquired") {
-          throw new Error("synthetic interruption before checkpoint");
-        }
-      },
-    });
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
-      ),
-    );
-
-    expect(failure).toMatchObject({
-      phase: "checkpoint-authorization",
-      proposalComplete: true,
-      checkpointStarted: false,
-      checkpointComplete: false,
-      leaseMayRemain: false,
-    });
-    expect(events).toEqual([
-      "input-claimed",
-      "proposal-complete",
-      "initial-lease-acquired",
-    ]);
-    expect(await sortedEntries(stage.stageRoot)).toEqual([]);
-    await expectMissing(stage.leaseRoot);
-  });
-
-  it("keeps a durable checkpoint prefix but closes its lease on checkpoint failure", async () => {
-    const consumer = await consumerFixture();
-    const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    const key = rootKey();
-    const deps = await dependencies(consumer, stage, key, {
-      checkpoint: {
-        failpointForTests: (event) => {
-          if (event.phase === "after-header-durable") {
-            throw new Error("synthetic checkpoint interruption");
-          }
-        },
-      },
-    });
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
-      ),
-    );
-
-    expect(failure).toMatchObject({
-      phase: "checkpoint",
-      inputClaimed: true,
-      proposalComplete: true,
-      checkpointStarted: true,
-      checkpointComplete: false,
-      postflightMinted: false,
-      leaseMayRemain: false,
-      retryDisposition: "rerun-synthetic-coordinator-with-fresh-authority",
-    });
-    const work = await fs.promises.readFile(
-      path.join(stage.stageRoot, "work.jsonl"),
-    );
-    expect(work.byteLength).toBeGreaterThan(0);
-    expect(work.toString("utf8").trimEnd().split("\n")).toHaveLength(1);
-    expect(key).toEqual(rootKey());
-    await expectMissing(stage.leaseRoot);
-    await expectMissing(stage.destinationRoot);
-  });
-
-  it("requires manual lease reconciliation when authorization rejects over an existing marker", async () => {
-    const consumer = await consumerFixture();
-    const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    await mkdir0700(stage.leaseRoot);
-    const deps = await dependencies(consumer, stage, rootKey());
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
-      ),
-    );
-
-    expect(failure).toMatchObject({
-      phase: "checkpoint-authorization",
-      inputClaimed: true,
-      proposalComplete: true,
-      checkpointStarted: false,
-      checkpointComplete: false,
-      freshLeaseAcquired: false,
-      leaseMayRemain: true,
-      retryDisposition: "manual-lease-reconciliation-required",
-    });
-    expect(await sortedEntries(stage.stageRoot)).toEqual([]);
-    expect((await fs.promises.lstat(stage.leaseRoot)).isDirectory()).toBe(true);
-    await expectMissing(stage.destinationRoot);
-  });
-
-  it("requires manual lease reconciliation when fresh authorization finds a new marker", async () => {
-    const consumer = await consumerFixture();
-    const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    const deps = await dependencies(consumer, stage, rootKey(), {
-      phaseHookForTests: async (event) => {
-        if (event === "checkpoint-complete") await mkdir0700(stage.leaseRoot);
-      },
-    });
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
-      ),
-    );
-
-    expect(failure).toMatchObject({
-      phase: "checkpoint-authorization",
-      checkpointStarted: true,
-      checkpointComplete: true,
-      postflightMinted: false,
-      freshLeaseAcquired: false,
-      leaseMayRemain: true,
-      retryDisposition: "manual-lease-reconciliation-required",
-    });
-    expect(await sortedEntries(stage.stageRoot)).toEqual(["work.jsonl"]);
-    expect((await fs.promises.lstat(stage.leaseRoot)).isDirectory()).toBe(true);
-    await expectMissing(stage.destinationRoot);
-  });
-
-  it("requires manual lease reconciliation when checkpoint cleanup leaves its marker", async () => {
-    const consumer = await consumerFixture();
-    const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    const deps = await dependencies(consumer, stage, rootKey(), {
-      stageAuthorization: authorizationDependencies({
-        beforeLeaseRemovalForTests: () => {
-          throw new Error("synthetic checkpoint lease cleanup failure");
-        },
-      }),
-      checkpoint: {
-        failpointForTests: (event) => {
-          if (event.phase === "after-header-durable") {
-            throw new Error("synthetic checkpoint persistence failure");
-          }
-        },
-      },
-    });
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
-      ),
-    );
-
-    expect(failure).toMatchObject({
-      phase: "checkpoint",
-      checkpointStarted: true,
-      checkpointComplete: false,
-      leaseMayRemain: true,
-      retryDisposition: "manual-lease-reconciliation-required",
-    });
-    expect((await fs.promises.lstat(stage.leaseRoot)).isDirectory()).toBe(true);
-    expect(await sortedEntries(stage.stageRoot)).toEqual(["work.jsonl"]);
-    await expectMissing(stage.destinationRoot);
-  });
-
-  it("closes a carried fresh lease when consumer postflight detects mutation", async () => {
-    const consumer = await consumerFixture();
-    const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    const deps = await dependencies(consumer, stage, rootKey(), {
-      phaseHookForTests: async (event) => {
-        if (event === "fresh-lease-acquired") {
-          await fs.promises.appendFile(
-            consumer.trainingPath,
-            "synthetic post-callback mutation\n",
-          );
-        }
-      },
-    });
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
-      ),
-    );
-
-    expect(failure).toMatchObject({
-      phase: "consumer-postflight",
-      checkpointComplete: true,
-      freshLeaseAcquired: true,
-      postflightMinted: false,
-      finalizerStarted: false,
-      leaseMayRemain: false,
-      retryDisposition: "resume-finalization-over-complete-authenticated-work",
-    });
-    expect(await sortedEntries(stage.stageRoot)).toEqual(["work.jsonl"]);
-    await expectMissing(stage.leaseRoot);
-    await expectMissing(stage.destinationRoot);
-  });
-
-  it("reports complete-work retry after postflight succeeds but before finalizer starts", async () => {
-    const consumer = await consumerFixture();
-    const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    const deps = await dependencies(consumer, stage, rootKey(), {
-      phaseHookForTests: (event) => {
-        if (event === "postflight-complete") {
-          throw new Error("synthetic handoff interruption");
-        }
-      },
-    });
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
-      ),
-    );
-
-    expect(failure).toMatchObject({
-      phase: "consumer-postflight",
-      checkpointComplete: true,
-      postflightMinted: true,
-      freshLeaseAcquired: true,
-      finalizerStarted: false,
-      leaseMayRemain: false,
-      mayHavePublished: false,
-      retryDisposition: "resume-finalization-over-complete-authenticated-work",
-    });
-    expect(await sortedEntries(stage.stageRoot)).toEqual(["work.jsonl"]);
-    await expectMissing(stage.leaseRoot);
-  });
-
-  it("contains a hostile prototype-chain failure and still cleans the carried lease", async () => {
-    const consumer = await consumerFixture();
-    const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    const key = rootKey();
-    const beforeKey = new Uint8Array(key);
-    const hostilePrototype = new Proxy(Object.create(null) as object, {
-      getPrototypeOf: () => {
-        throw new Error("synthetic hostile prototype trap");
-      },
-    });
-    const hostileFailure = Object.create(hostilePrototype) as object;
-    const deps = await dependencies(consumer, stage, key, {
-      phaseHookForTests: (event) => {
-        if (event === "postflight-complete") throw hostileFailure;
-      },
-    });
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
-      ),
-    );
-
-    expect(failure).toBeInstanceOf(
-      coordinator.FloodgateStableProposalCoordinatorError,
-    );
-    expect(failure).toMatchObject({
-      phase: "consumer-postflight",
-      checkpointComplete: true,
-      postflightMinted: true,
-      freshLeaseAcquired: true,
-      finalizerStarted: false,
-      mayHavePublished: false,
-      leaseMayRemain: false,
-      retryDisposition: "resume-finalization-over-complete-authenticated-work",
-    });
-    expect(key).toEqual(beforeKey);
-    await expectMissing(stage.leaseRoot);
-    await expectMissing(stage.destinationRoot);
-  });
-
-  it("contains a forged finalizer-error accessor and still cleans the carried lease", async () => {
-    const consumer = await consumerFixture();
-    const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    const finalizer =
-      await import("../../../ml/floodgate-stable-proposal-finalizer");
-    const key = rootKey();
-    const beforeKey = new Uint8Array(key);
-    const forgedFailure = Object.create(
-      finalizer.FloodgateStableProposalFinalizerError.prototype,
-    ) as object;
-    Object.defineProperty(forgedFailure, "phase", {
-      enumerable: true,
-      get: () => {
-        throw new Error("synthetic forged finalizer phase getter");
-      },
-    });
-    const deps = await dependencies(consumer, stage, key, {
-      phaseHookForTests: (event) => {
-        if (event === "postflight-complete") throw forgedFailure;
-      },
-    });
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
-      ),
-    );
-
-    expect(failure).toBeInstanceOf(
-      coordinator.FloodgateStableProposalCoordinatorError,
-    );
-    expect(failure).toMatchObject({
-      phase: "consumer-postflight",
-      checkpointComplete: true,
-      postflightMinted: true,
-      freshLeaseAcquired: true,
-      finalizerStarted: false,
-      mayHavePublished: false,
-      leaseMayRemain: false,
-      retryDisposition: "resume-finalization-over-complete-authenticated-work",
-    });
-    expect(key).toEqual(beforeKey);
-    await expectMissing(stage.leaseRoot);
-    await expectMissing(stage.destinationRoot);
-  });
-
-  it("reports finalizer-prefix retry without mutating the caller key", async () => {
-    const consumer = await consumerFixture();
-    const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    const key = rootKey();
-    const beforeKey = new Uint8Array(key);
-    const deps = await dependencies(consumer, stage, key, {
-      finalizer: {
-        failpointForTests: (event) => {
-          if (event === "result-created") {
-            throw new Error("synthetic finalizer prefix interruption");
-          }
-        },
-      },
-    });
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
+      modules.resume.resumeAndPublishFloodgateStableProposalFinalizationCoreForTests(
+        resumeOptions(consumer, stage),
+        await resumeDependencies(consumer, stage, rootKey()),
       ),
     );
 
     expect(failure).toMatchObject({
       phase: "finalization-publication",
-      checkpointComplete: true,
-      postflightMinted: true,
-      freshLeaseAcquired: true,
-      finalizerStarted: true,
-      mayHavePublished: false,
-      leaseMayRemain: false,
-      retryDisposition: "resume-finalization-over-complete-authenticated-work",
-    });
-    expect(await sortedEntries(stage.stageRoot)).toEqual([
-      "result.json",
-      "work.jsonl",
-    ]);
-    expect(
-      (await fs.promises.stat(path.join(stage.stageRoot, "result.json"))).size,
-    ).toBe(0);
-    expect(key).toEqual(beforeKey);
-    await expectMissing(stage.leaseRoot);
-    await expectMissing(stage.destinationRoot);
-  });
-
-  it("preserves a finalizer manual-content disposition", async () => {
-    const consumer = await consumerFixture();
-    const stage = await stageFixture();
-    const coordinator = await loadCoordinator(consumer.manifestIdentity);
-    const deps = await dependencies(consumer, stage, rootKey(), {
-      phaseHookForTests: async (event) => {
-        if (event === "before-finalization") {
-          await write0600(
-            path.join(stage.stageRoot, "train.jsonl"),
-            "synthetic foreign coordinator content\n",
-          );
-        }
-      },
-    });
-
-    const failure = await captureFailure(
-      coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
-        deps,
-      ),
-    );
-
-    expect(failure).toMatchObject({
-      phase: "finalization-publication",
-      checkpointComplete: true,
-      finalizerStarted: true,
+      workVerified: true,
       mayHavePublished: false,
       leaseMayRemain: false,
       retryDisposition: "manual-content-reconciliation-required",
     });
+    expect(await fs.promises.readFile(seeded.prefixPath)).toEqual(mismatched);
+    expect(await sortedEntries(stage.stageRoot)).toEqual([
+      "result.json",
+      "work.jsonl",
+    ]);
+    await expectMissing(stage.leaseRoot);
+    await expectMissing(stage.destinationRoot);
+  });
+
+  it("closes the fresh lease when consumer postflight detects a mutation", async () => {
+    const consumer = await consumerFixture();
+    const stage = await stageFixture();
+    const modules = await loadModules(consumer.manifestIdentity);
+    await seedState(modules, consumer, stage, "work-only");
+    const trainingPath = path.join(
+      consumer.options.outputRoot,
+      FLOODGATE_TRAINING_RAW_FILENAME,
+    );
+
+    const failure = await captureFailure(
+      modules.resume.resumeAndPublishFloodgateStableProposalFinalizationCoreForTests(
+        resumeOptions(consumer, stage),
+        await resumeDependencies(consumer, stage, rootKey(), {
+          phaseHookForTests: async (event) => {
+            if (event === "fresh-finalizer-lease-acquired") {
+              await fs.promises.appendFile(
+                trainingPath,
+                "synthetic resume postflight mutation\n",
+              );
+            }
+          },
+        }),
+      ),
+    );
+
+    expect(failure).toMatchObject({
+      phase: "consumer-postflight",
+      inputClaimed: true,
+      leaseAcquired: true,
+      postflightMinted: false,
+      finalizerStarted: false,
+      leaseMayRemain: false,
+      retryDisposition: "rerun-finalization-resume-with-fresh-authority",
+    });
+    expect(await sortedEntries(stage.stageRoot)).toEqual(["work.jsonl"]);
+    await expectMissing(stage.leaseRoot);
+    await expectMissing(stage.destinationRoot);
+  });
+
+  it("reclaims fresh lease and postflight after a pre-finalizer interruption", async () => {
+    const consumer = await consumerFixture();
+    const stage = await stageFixture();
+    const modules = await loadModules(consumer.manifestIdentity);
+    await seedState(modules, consumer, stage, "work-only");
+
+    const failure = await captureFailure(
+      modules.resume.resumeAndPublishFloodgateStableProposalFinalizationCoreForTests(
+        resumeOptions(consumer, stage),
+        await resumeDependencies(consumer, stage, rootKey(), {
+          phaseHookForTests: (event) => {
+            if (event === "postflight-complete") {
+              throw new Error("synthetic resume pre-finalizer interruption");
+            }
+          },
+        }),
+      ),
+    );
+
+    expect(failure).toMatchObject({
+      phase: "consumer-postflight",
+      postflightMinted: true,
+      finalizerStarted: false,
+      leaseMayRemain: false,
+      mayHavePublished: false,
+      retryDisposition: "rerun-finalization-resume-with-fresh-authority",
+      cleanupFailures: [],
+    });
+    expect(await sortedEntries(stage.stageRoot)).toEqual(["work.jsonl"]);
+    await expectMissing(stage.leaseRoot);
+    await expectMissing(stage.destinationRoot);
+  });
+
+  it("preserves publication and lease ambiguity after a post-rename interruption", async () => {
+    const consumer = await consumerFixture();
+    const stage = await stageFixture();
+    const modules = await loadModules(consumer.manifestIdentity);
+    await seedState(modules, consumer, stage, "work-only");
+    const publication = await movingPublication(stage);
+
+    const failure = await captureFailure(
+      modules.resume.resumeAndPublishFloodgateStableProposalFinalizationCoreForTests(
+        resumeOptions(consumer, stage),
+        await resumeDependencies(consumer, stage, rootKey(), {
+          publication: {
+            ...publication,
+            beforeDestinationReopenForTests: () => {
+              throw new Error("synthetic resume post-rename interruption");
+            },
+          },
+        }),
+      ),
+    );
+
+    expect(failure).toMatchObject({
+      phase: "finalization-publication",
+      finalizerStarted: true,
+      mayHavePublished: true,
+      leaseMayRemain: true,
+      retryDisposition: "manual-publication-and-lease-reconciliation-required",
+    });
+    await expectMissing(stage.stageRoot);
+    expect(await sortedEntries(stage.destinationRoot)).toEqual([
+      "manifest.json",
+      "result.json",
+      "work.jsonl",
+    ]);
+    expect((await fs.promises.lstat(stage.leaseRoot)).isDirectory()).toBe(true);
+  });
+
+  it("fails closed on a wrong key without changing work or the caller key", async () => {
+    const consumer = await consumerFixture();
+    const stage = await stageFixture();
+    const modules = await loadModules(consumer.manifestIdentity);
+    await seedState(modules, consumer, stage, "work-only");
+    const workPath = path.join(stage.stageRoot, "work.jsonl");
+    const workBefore = await fs.promises.readFile(workPath);
+    const key = rootKey(ROOT_KEY_BYTE + 1);
+    const beforeKey = new Uint8Array(key);
+
+    const failure = await captureFailure(
+      modules.resume.resumeAndPublishFloodgateStableProposalFinalizationCoreForTests(
+        resumeOptions(consumer, stage),
+        await resumeDependencies(consumer, stage, key),
+      ),
+    );
+
+    expect(failure).toBeInstanceOf(
+      modules.resume.FloodgateStableProposalFinalizationResumeError,
+    );
+    expect(failure).toMatchObject({
+      phase: "finalization-publication",
+      inputClaimed: true,
+      leaseAcquired: true,
+      postflightMinted: true,
+      finalizerStarted: true,
+      workVerified: false,
+      mayHavePersisted: false,
+      mayHavePublished: false,
+      leaseMayRemain: false,
+      retryDisposition: "complete-authenticated-work-verification-required",
+    });
+    expect(key).toEqual(beforeKey);
+    expect(await fs.promises.readFile(workPath)).toEqual(workBefore);
+    expect(await sortedEntries(stage.stageRoot)).toEqual(["work.jsonl"]);
+    await expectMissing(stage.leaseRoot);
+    await expectMissing(stage.destinationRoot);
+  });
+
+  it("preserves foreign content and requires manual content reconciliation", async () => {
+    const consumer = await consumerFixture();
+    const stage = await stageFixture();
+    const modules = await loadModules(consumer.manifestIdentity);
+    await seedState(modules, consumer, stage, "work-only");
+    const foreignPath = path.join(stage.stageRoot, "train.jsonl");
+    const foreignBytes = Buffer.from("synthetic foreign resume content\n");
+    await write0600(foreignPath, foreignBytes);
+
+    const failure = await captureFailure(
+      modules.resume.resumeAndPublishFloodgateStableProposalFinalizationCoreForTests(
+        resumeOptions(consumer, stage),
+        await resumeDependencies(consumer, stage, rootKey()),
+      ),
+    );
+
+    expect(failure).toMatchObject({
+      phase: "finalization-publication",
+      finalizerStarted: true,
+      observedState: "{train.jsonl,work.jsonl}",
+      mayHavePublished: false,
+      leaseMayRemain: false,
+      retryDisposition: "manual-content-reconciliation-required",
+    });
+    expect(await fs.promises.readFile(foreignPath)).toEqual(foreignBytes);
     expect(await sortedEntries(stage.stageRoot)).toEqual([
       "train.jsonl",
       "work.jsonl",
     ]);
     await expectMissing(stage.leaseRoot);
+    await expectMissing(stage.destinationRoot);
+  });
+
+  it("does not steal a stale authorization marker", async () => {
+    const consumer = await consumerFixture();
+    const stage = await stageFixture();
+    const modules = await loadModules(consumer.manifestIdentity);
+    await seedState(modules, consumer, stage, "work-only");
+    await mkdir0700(stage.leaseRoot);
+
+    const failure = await captureFailure(
+      modules.resume.resumeAndPublishFloodgateStableProposalFinalizationCoreForTests(
+        resumeOptions(consumer, stage),
+        await resumeDependencies(consumer, stage, rootKey()),
+      ),
+    );
+
+    expect(failure).toMatchObject({
+      phase: "finalization-authorization",
+      inputClaimed: true,
+      leaseAcquired: false,
+      postflightMinted: false,
+      finalizerStarted: false,
+      leaseMayRemain: true,
+      mayHavePublished: false,
+      retryDisposition: "manual-lease-reconciliation-required",
+    });
+    expect((await fs.promises.lstat(stage.leaseRoot)).isDirectory()).toBe(true);
+    expect(await sortedEntries(stage.stageRoot)).toEqual(["work.jsonl"]);
     await expectMissing(stage.destinationRoot);
   });
 });

@@ -927,19 +927,20 @@ function createCoordinatorFacade(
           const rescores: Readonly<FloodgateProductionTeacherRescoreResult>[] =
             [];
           phase = "independent-rescore";
+          let previousMoveBytes: Buffer | undefined;
           for (let index = 0; index < union.candidates.length; index += 1) {
             requireOperationActive();
+            const currentMove = union.candidates[index].move;
+            const currentMoveBytes = bufferFrom(currentMove, "utf8");
             if (
-              index > 0 &&
-              bufferCompare(
-                bufferFrom(union.candidates[index - 1].move, "utf8"),
-                bufferFrom(union.candidates[index].move, "utf8"),
-              ) >= 0
+              previousMoveBytes !== undefined &&
+              bufferCompare(previousMoveBytes, currentMoveBytes) >= 0
             ) {
               throw new NativeError(
                 "candidate union is not in strict UTF-8 byte order",
               );
             }
+            previousMoveBytes = currentMoveBytes;
             objectDefineProperty(rescores, index, {
               configurable: true,
               enumerable: true,
@@ -948,7 +949,7 @@ function createCoordinatorFacade(
                 await requireOperationPromise(
                   handoff.teacherRescore(
                     request.parent.parent_sfen,
-                    union.candidates[index].move,
+                    currentMove,
                   ),
                   `teacher runtime rescore ${index}`,
                 ),

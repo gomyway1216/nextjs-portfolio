@@ -1570,19 +1570,6 @@ describe("Floodgate v7 production parent coordinator", () => {
       parent: makeParent(),
       signal: new AbortController().signal,
     });
-    let result: Awaited<ReturnType<typeof coordinator.produce>> | undefined;
-    let failure: unknown;
-    let settled = false;
-    nativeReflectApply(nativePromiseThen, produced, [
-      (value: Awaited<ReturnType<typeof coordinator.produce>>) => {
-        result = value;
-        settled = true;
-      },
-      (reason: unknown) => {
-        failure = reason;
-        settled = true;
-      },
-    ]);
     let restored = false;
     const restore = (): void => {
       if (restored) return;
@@ -1594,11 +1581,9 @@ describe("Floodgate v7 production parent coordinator", () => {
         constructorDescriptor,
       );
     };
+    let completeTurn!: () => void;
     const turn = new Promise<void>((resolve) => {
-      setImmediate(() => {
-        restore();
-        resolve();
-      });
+      completeTurn = resolve;
     });
     nativeObjectDefineProperty(turn, "constructor", {
       configurable: false,
@@ -1606,6 +1591,23 @@ describe("Floodgate v7 production parent coordinator", () => {
       writable: false,
       value: Promise,
     });
+    let result: Awaited<ReturnType<typeof coordinator.produce>> | undefined;
+    let failure: unknown;
+    let settled = false;
+    nativeReflectApply(nativePromiseThen, produced, [
+      (value: Awaited<ReturnType<typeof coordinator.produce>>) => {
+        result = value;
+        settled = true;
+        restore();
+        completeTurn();
+      },
+      (reason: unknown) => {
+        failure = reason;
+        settled = true;
+        restore();
+        completeTurn();
+      },
+    ]);
     let trapCalls = 0;
     const poison = function (): never {
       trapCalls += 1;

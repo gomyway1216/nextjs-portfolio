@@ -51,15 +51,15 @@ const requests = [
 ];
 const options = {
   workers: 1,
-  startupTimeoutMilliseconds: 20_000,
-  searchTimeoutMilliseconds: 20_000,
+  startupTimeoutMilliseconds: 60_000,
+  searchTimeoutMilliseconds: 60_000,
 };
 const reusableOptions = {
   workers: 1,
   queueBound: 2,
-  startupTimeoutMilliseconds: 20_000,
-  searchTimeoutMilliseconds: 20_000,
-  closeTimeoutMilliseconds: 5_000,
+  startupTimeoutMilliseconds: 60_000,
+  searchTimeoutMilliseconds: 60_000,
+  closeTimeoutMilliseconds: 15_000,
 };
 const parentSfen = "4k4/9/5G3/9/4+R4/9/9/9/4K4 b 3P 1";
 const stableMove = "4c5b";

@@ -117,9 +117,13 @@ Parents may interleave across the 12-engine pool, but each parent's candidates a
 
 Exact-once here applies to an entry accepted into the authenticated checkpoint. Search completion and file fsync cannot form one atomic transaction, so a crash after search but before append reruns that candidate search. Engine execution is therefore at-least-once while accepted checkpoint entries are exact-once; the boundary will state both.
 
+Update: the later [HMAC work checkpoint](./blog-shogi-floodgate-v7-hmac-work-checkpoint.en.md) implementation audit selected a dense parent entry containing every canonical rescore instead of one physical entry per candidate. The global HMAC chain, strict parent order, and final seal express the same semantic binding with fewer fsyncs and less resume state. The retry transaction remains one parent, but the rolling window starts up to 12 parents ahead; a process crash may therefore rerun up to 12 parents that the producer completed but did not persist. Exact-once applies only to durably accepted parent entries, while engine execution remains at least once.
+
+The measured dense entry for a synthetic maximum-14-candidate fixture is 17,338 bytes. Arithmetically repeating that entry 24,000 times projects to 416,185,154 bytes, leaving 173,712,000 bytes below the 589,897,154-byte cap. All 23 focused cases for the later implementation passed: 10 completed-parent cases and 13 checkpoint cases. The current test-core resume scanner nevertheless allocates the entire stream into one `Buffer` through `readWholeFile`. This is a capacity calculation, not a 24,000-parent load test, and no production-scale scanner-readiness claim applies until it becomes incremental scan / HMAC.
+
 ## 8. The next P1 and explicit non-claims
 
-The next P1 claims a production training-row capability, HMAC verification of complete stable work, and the fixed runtime capability in one argumentless coordinator, then durably writes the proposal and every candidate rescore into a per-parent HMAC checkpoint.
+At the time of this candidate-union PR, the next P1 was planned to close synthetic crash / resume through a completed-parent semantic core and per-parent HMAC checkpoint. Although the later PR described in the update above implements that test core, an argumentless coordinator still needs to claim the production training-row capability, HMAC verification of complete stable work, and the fixed runtime capability together.
 
 This PR reads no real Floodgate game, invokes no real engine, and consumes no real training row. It opens neither selection data nor the sealed fresh-final or legacy-final holdout, and creates no weight, teacher JSONL, A/B result, Elo, or rank.
 

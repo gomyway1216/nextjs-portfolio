@@ -35,6 +35,12 @@ const poisonMarkerPath = argumentValue("--poison-marker");
 const successMarkerPath =
   poisonMarkerPath === undefined ? undefined : `${poisonMarkerPath}.success`;
 const descendantPidPath = argumentValue("--descendant-pid-file");
+const exitMarkerPath = argumentValue("--exit-marker");
+const closeReleaseMarkerPath = argumentValue("--close-release-marker");
+const delayedCloseMs = Number.parseInt(
+  argumentValue("--delayed-close-ms", "500"),
+  10,
+);
 
 const START_SFEN =
   "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
@@ -161,6 +167,51 @@ trace({
   ),
 });
 
+if (mode === "leader-exit-before-delayed-close") {
+  afterMarker(exitMarkerPath, "delayed close exit", () => {
+    if (
+      closeReleaseMarkerPath === undefined ||
+      !Number.isSafeInteger(delayedCloseMs) ||
+      delayedCloseMs < 1
+    ) {
+      process.stderr.write(
+        "synthetic delayed close requires a release marker and positive bound\n",
+      );
+      process.exit(25);
+      return;
+    }
+    const holderScript = `
+      const fs = require("node:fs");
+      const release = ${JSON.stringify(closeReleaseMarkerPath)};
+      const bound = setTimeout(() => process.exit(0), ${String(delayedCloseMs)});
+      const poll = setInterval(() => {
+        if (!fs.existsSync(release)) return;
+        clearInterval(poll);
+        clearTimeout(bound);
+        process.exit(0);
+      }, 5);
+    `;
+    const holder = spawn(process.execPath, ["-e", holderScript], {
+      detached: true,
+      stdio: ["ignore", 1, 2],
+    });
+    if (holder.pid === undefined) {
+      process.stderr.write("synthetic delayed close holder had no pid\n");
+      process.exit(26);
+      return;
+    }
+    trace({ event: "delayed-close-holder", holderPid: holder.pid });
+    holder.unref();
+    process.exit(0);
+  });
+}
+
+if (mode === "hang-go-ignore-sigterm") {
+  process.on("SIGTERM", () => {
+    trace({ event: "signal", signal: "SIGTERM" });
+  });
+}
+
 if (Number.isFinite(stderrBytes) && stderrBytes > 0) {
   process.stderr.write("e".repeat(stderrBytes));
 }
@@ -239,7 +290,13 @@ input.on("line", (line) => {
       process.stderr.write("synthetic search exit\n", () => process.exit(20));
       return;
     }
-    if (mode === "hang-go") return;
+    if (
+      mode === "hang-go" ||
+      mode === "hang-go-ignore-quit" ||
+      mode === "hang-go-ignore-sigterm"
+    ) {
+      return;
+    }
 
     const requestedDepth = Number.parseInt(
       line.match(/\bdepth (\d+)/)?.[1] ?? "16",
@@ -303,12 +360,24 @@ input.on("line", (line) => {
       leaveDescendantInProcessGroup();
       process.exit(0);
     }
-    if (mode !== "ignore-quit" && mode !== "ignore-eof") process.exit(0);
+    if (
+      mode !== "hang-go-ignore-quit" &&
+      mode !== "ignore-quit" &&
+      mode !== "ignore-eof"
+    ) {
+      process.exit(0);
+    }
     return;
   }
 });
 
 input.on("close", () => {
   trace({ event: "stdin-close", readyCount, searchCount, position });
-  if (mode !== "ignore-eof" && mode !== "ignore-quit") process.exit(0);
+  if (
+    mode !== "hang-go-ignore-quit" &&
+    mode !== "ignore-eof" &&
+    mode !== "ignore-quit"
+  ) {
+    process.exit(0);
+  }
 });

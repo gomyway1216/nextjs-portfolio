@@ -936,7 +936,7 @@ posixDescribe("Floodgate production teacher USI runtime", () => {
       if (variant === "alias") {
         const target = path.join(value.container, "snapshot-target");
         await mkdir0700(target);
-        await fs.promises.rmdir(value.snapshotParent);
+        await fs.promises.rm(value.snapshotParent, { recursive: true });
         await fs.promises.symlink(target, value.snapshotParent);
       } else {
         await fs.promises.chmod(value.snapshotParent, 0o755);

@@ -142,17 +142,24 @@ export interface FloodgateV7ProductionRuntimeOwner<
   readonly abortAndDrain: () => Promise<void>;
 }
 
+type TestStableRuntimeExecutionBoundary =
+  | "production-fixed-asset-authority-and-reusable-pool"
+  | "test-only-injected-asset-provider-and-pool-factory";
+type TestTeacherRuntimeExecutionBoundary =
+  | "production-fixed-assets-and-runtime-dependencies"
+  | "test-only-injected-asset-root-and-runtime-dependencies";
+
 type StableRuntimeExecutionBoundaryForOwner<
   TBoundary extends FloodgateV7ProductionRuntimeOwnerExecutionBoundary,
 > = TBoundary extends ProductionExecutionBoundary
   ? "production-fixed-asset-authority-and-reusable-pool"
-  : "test-only-injected-asset-provider-and-pool-factory";
+  : TestStableRuntimeExecutionBoundary;
 
 type TeacherRuntimeExecutionBoundaryForOwner<
   TBoundary extends FloodgateV7ProductionRuntimeOwnerExecutionBoundary,
 > = TBoundary extends ProductionExecutionBoundary
   ? "production-fixed-assets-and-runtime-dependencies"
-  : "test-only-injected-asset-root-and-runtime-dependencies";
+  : TestTeacherRuntimeExecutionBoundary;
 
 /**
  * Narrow operation capability consumed exactly once by the parent coordinator.
@@ -192,9 +199,9 @@ export interface FloodgateV7ProductionRuntimeOwnerParentCoordinatorHandoff<
 }
 
 type TestStableRuntime =
-  FloodgateProductionStableWasmRuntime<"test-only-injected-asset-provider-and-pool-factory">;
+  FloodgateProductionStableWasmRuntime<TestStableRuntimeExecutionBoundary>;
 type TestTeacherRuntime =
-  FloodgateProductionTeacherUsiPool<"test-only-injected-asset-root-and-runtime-dependencies">;
+  FloodgateProductionTeacherUsiPool<TestTeacherRuntimeExecutionBoundary>;
 
 export interface FloodgateV7ProductionRuntimeOwnerCoreDependencies {
   readonly createStableRuntime: () => Promise<TestStableRuntime>;

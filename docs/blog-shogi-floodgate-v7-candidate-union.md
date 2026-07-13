@@ -117,9 +117,13 @@ parent間は12-engine poolを使ってinterleaveできるが、各parentのcandi
 
 ここでのexact-onceは「checkpointへ認証付きで受理されたentry」に対する保証である。search完了とfile fsyncは1つのatomic transactionにできないため、search後・append前にcrashすれば同じcandidate searchを再実行する。したがってengine executionはat-least-once、accepted checkpoint entryはexact-onceという境界を明記する。
 
+追記: 後続の[HMAC work checkpoint](./blog-shogi-floodgate-v7-hmac-work-checkpoint.md)実装監査では、candidateごとのphysical entryではなく、canonicalな全rescoreを含むdense parent entryを採用した。これによりglobal HMAC chain、strict parent order、final sealだけで同じsemantic bindingを表現し、fsync回数とresume stateを減らす。再実行のtransaction単位は1 parentだが、rolling windowは最大12親を先行実行するため、process crashではproducerが完成させても未保存だった親を最大12件再探索し得る。durableに受理されたparent entryだけがexact-onceで、engine executionはat-least-onceである。
+
+最大14-candidateのsynthetic fixtureではdense entryを17,338 bytesと実測した。同じentryを24,000件並べる算術projectionは416,185,154 bytesで、589,897,154-byte capまで173,712,000 bytes残る。後続実装のfocused testsはcompleted-parent 10本とcheckpoint 13本、合計23/23が通った。ただし現行test coreのresume scannerは`readWholeFile`で全streamを1個の`Buffer`へ割り当てる。これは容量計算であって24,000親のload testではなく、incremental scan / HMACへ置き換えるまでproduction-scale scanner readinessを主張しない。
+
 ## 8. 次のP1と明示的nonclaim
 
-次のP1は、production training-row capability、完成したstable workのHMAC verification、fixed runtime capabilityを1つのargumentless coordinatorでclaimし、per-parent HMAC checkpointへproposalと全candidate rescoreをdurableに書くことである。
+このcandidate-union PR時点の次のP1は、まずcompleted-parent semantic coreとper-parent HMAC checkpointでsynthetic crash / resumeを閉じる計画だった。上の追記にある後続PRがそのtest coreを実装した後も、production training-row capability、完成したstable workのHMAC verification、fixed runtime capabilityを1つのargumentless coordinatorでclaimする作業は残る。
 
 このPRは実Floodgate棋譜、実engine、real training rowを読まない。selection data、fresh final、legacy finalの封印holdoutを開かず、weight、teacher JSONL、A/B result、Elo、段位を作らない。
 

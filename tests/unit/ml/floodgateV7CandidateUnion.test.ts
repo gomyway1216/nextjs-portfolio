@@ -722,6 +722,47 @@ describe("Floodgate v7 candidate union test core", () => {
     ).toThrow(/mate score/);
   });
 
+  it("normalizes parser-valid signed zero before canonical proposal hashing", () => {
+    const signedZero = mutableInput();
+    signedZero.runtime.proposal.lines[0].cp = -0;
+    signedZero.runtime.proposal.lines[0].nodes = -0;
+    const canonicalZero = mutableInput();
+    canonicalZero.runtime.proposal.lines[0].cp = 0;
+    canonicalZero.runtime.proposal.lines[0].nodes = 0;
+
+    const signedResult = buildFloodgateV7CandidateUnionCoreForTests(
+      signedZero as never,
+    );
+    const canonicalResult = buildFloodgateV7CandidateUnionCoreForTests(
+      canonicalZero as never,
+    );
+    if (
+      signedResult.status !== FLOODGATE_V7_CANDIDATE_UNION_PENDING_STATUS ||
+      canonicalResult.status !== FLOODGATE_V7_CANDIDATE_UNION_PENDING_STATUS
+    ) {
+      throw new Error("expected pending candidate unions");
+    }
+    expect(
+      runtimeBinding(signedResult.runtime_binding).proposal
+        .proposal_result_sha256,
+    ).toBe(
+      runtimeBinding(canonicalResult.runtime_binding).proposal
+        .proposal_result_sha256,
+    );
+
+    const negativeMateZero = mutableInput();
+    negativeMateZero.runtime.proposal.lines[0] = {
+      ...negativeMateZero.runtime.proposal.lines[0],
+      scoreKind: "mate",
+      mate: -0,
+      mateSign: -1,
+      cp: -1_000_000,
+    };
+    expect(() =>
+      buildFloodgateV7CandidateUnionCoreForTests(negativeMateZero as never),
+    ).not.toThrow();
+  });
+
   it("rederives every candidate child and domain-separates all stage digests", () => {
     const input = makeInput();
     const result = buildFloodgateV7CandidateUnionCoreForTests(input);

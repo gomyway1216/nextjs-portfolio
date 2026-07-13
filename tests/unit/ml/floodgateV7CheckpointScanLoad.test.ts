@@ -4,7 +4,7 @@ import * as path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import evidence from "../../../ml/protocols/floodgate-v7-valid-24k-scan-load-7844ea4-result.json";
+import evidence from "../../../ml/protocols/floodgate-v7-valid-24k-scan-load-183e95f-result.json";
 import {
   FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_SCHEMA,
   FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_STATUS,
@@ -223,23 +223,26 @@ describe("Floodgate v7 semantic checkpoint scanner load harness", () => {
     const bytes = await fs.promises.readFile(
       path.join(
         process.cwd(),
-        "ml/protocols/floodgate-v7-valid-24k-scan-load-7844ea4-result.json",
+        "ml/protocols/floodgate-v7-valid-24k-scan-load-183e95f-result.json",
       ),
     );
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(
-      "7fc84e5e6168859d1bdcb0d352839725fe53a1dc8994ea34b7b44bb3b20eda58",
+      "bc8d54822c7d95fd9fe3b5f664427f5402a5a0d1839b51549b465449aa4b6209",
     );
     expect(evidence).toMatchObject({
       status: "complete-accepted-synthetic-24k-test-only-scan-load-evidence",
       attempts: [
         { attempt: 1, accepted_evidence: false },
         { attempt: 2, accepted_evidence: false },
+        { attempt: 3, accepted_evidence: true, current_evidence: false },
+        { attempt: 4, accepted_evidence: false, current_evidence: false },
         {
-          attempt: 3,
+          attempt: 5,
           accepted_evidence: true,
-          source_commit: "7844ea49f9e0326a5531824d7e356d6d51726d58",
+          current_evidence: true,
+          source_commit: "183e95f409347c37feee72b0509af17317891a36",
           harness_sha256:
-            "d1debecd249f70c36f5a0b72f653f1de1764f22022f7864fd1baa68a078485ff",
+            "d0f8b2f21b26c523949b4026171c35b7158c2509a54d5a81edba56006623d20f",
           exit_code: 0,
           new_temp_roots_after_exit: 0,
         },

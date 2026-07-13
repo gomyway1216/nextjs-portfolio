@@ -292,6 +292,20 @@ function canonicalJson(value: unknown): string {
   throw new Error(`unsupported golden canonical value: ${typeof value}`);
 }
 
+function collectRecordKeys(value: unknown, keys: string[] = []): string[] {
+  if (Array.isArray(value)) {
+    for (const child of value) collectRecordKeys(child, keys);
+    return keys;
+  }
+  if (value !== null && typeof value === "object") {
+    for (const [key, child] of Object.entries(value)) {
+      keys.push(key);
+      collectRecordKeys(child, keys);
+    }
+  }
+  return keys;
+}
+
 function expectedUnsignedReceipt(
   request: AuthorizationRequest,
   ownerUid: number,
@@ -479,6 +493,9 @@ posixDescribe("Floodgate v7 deployment key authority", () => {
       KEY_BYTES,
       identities,
     );
+    expect(
+      collectRecordKeys(unsigned).every((key) => /^[\x00-\x7f]+$/.test(key)),
+    ).toBe(true);
     const goldenMac = expectedAuthorizationMac(unsigned, RUN_ID, KEY_BYTES);
 
     expect(receipt).toEqual({ ...unsigned, authorization_mac: goldenMac });

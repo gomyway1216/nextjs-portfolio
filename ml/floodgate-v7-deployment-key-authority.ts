@@ -773,9 +773,7 @@ function canonicalJson(value: unknown): string {
         value: rawKeys[index],
       });
     }
-    keys.sort((left, right) =>
-      Buffer.compare(bufferFrom(left), bufferFrom(right)),
-    );
+    keys.sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
     let output = "{";
     for (let index = 0; index < keys.length; index += 1) {
       const descriptor = descriptors[keys[index]];

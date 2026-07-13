@@ -1,0 +1,331 @@
+{
+  "schema": "shogi-floodgate-v7-checkpoint-semantic-scan-load-evidence-v3",
+  "status": "complete-accepted-synthetic-24k-v3-fixed-gates-test-only-scan-load-evidence",
+  "claim_boundary": "synthetic-holdout-free-v3-fixed-gate-checkpoint-scan-load-evidence-suppressed-build-gate-summaries-not-durability-evidence-native-sealed-final-retry-only-not-production-key-teacher-label-training-weight-match-rating-or-playing-strength-evidence",
+  "comparison_baseline": {
+    "path": "ml/protocols/floodgate-v7-valid-24k-scan-load-017692c-result.json",
+    "bytes": 13359,
+    "sha256": "e33b1ec4766decd0bc4aeee12346a53415d50dd1028c77a7cae8ecb48e6fb3f7",
+    "schema": "shogi-floodgate-v7-checkpoint-semantic-scan-load-evidence-v2",
+    "relationship": "immutable-comparison-only-not-superseded"
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "source_commit": "9bd1cfc1490c2c19f24e0ff20622aadddc8ed3f8",
+      "implementation_commit": "b2d1d8ce799968f711f1122ca21b8616c5d24c86",
+      "harness": {
+        "path": "ml/floodgate-v7-checkpoint-scan-load.ts",
+        "bytes": 128345,
+        "sha256": "7fa60f54ca464f987fb565557fdb917e7fe69c8aa440350e43eb81c307fa95eb"
+      },
+      "checkpoint_source": {
+        "path": "ml/floodgate-v7-teacher-checkpoint.ts",
+        "bytes": 142275,
+        "sha256": "f9f8cc364857c73f6bd38a8db026d32a1725e9e13f7207153060785de658e270"
+      },
+      "accepted_evidence": true,
+      "current_evidence": true,
+      "exit_code": 0,
+      "timed_command_exit_code": 0,
+      "external_wall_seconds": 474.99,
+      "external_user_seconds": 480.44,
+      "external_system_seconds": 7.3,
+      "external_maximum_resident_set_bytes": 583827456,
+      "started_at_utc": "2026-07-13T20:18:17Z",
+      "finished_at_utc": "2026-07-13T20:26:12Z",
+      "complete_result_json": true,
+      "worktree_clean_before_run": true,
+      "worktree_clean_after_run": true,
+      "scan_load_roots_observed_during_run": 1,
+      "scan_load_roots_after_run": 0,
+      "new_temp_roots_after_exit": 0
+    }
+  ],
+  "invocation": {
+    "cwd": "repository-root",
+    "display_command": "/usr/bin/time -lp ${NODE_V22_13_0} --expose-gc -r tsx/cjs ml/floodgate-v7-checkpoint-scan-load.ts --v3-gates --parents 24000",
+    "reproduction_command": "npm run shogi:floodgate-v7-checkpoint-scan-load -- --v3-gates --parents 24000",
+    "node_binary": {
+      "version": "v22.13.0",
+      "bytes": 121593488,
+      "sha256": "5c79f8e198fd2456ea6660aaa6be218f9f44747f2306c7d0f5f97b087b2f2dfc"
+    }
+  },
+  "machine": {
+    "chip": "Apple M4 Pro",
+    "physical_cpus": 14,
+    "logical_cpus": 14,
+    "memory_bytes": 51539607552,
+    "operating_system": "macOS",
+    "operating_system_version": "15.1",
+    "operating_system_build": "24B2082",
+    "architecture": "arm64"
+  },
+  "result": {
+    "schema": "shogi-floodgate-v7-checkpoint-semantic-scan-load-v3",
+    "status": "complete-synthetic-v3-fixed-gates-semantic-resume-and-final-scan-evidence",
+    "claim_boundary": "synthetic-holdout-free-v3-fixed-100-500-24000-gates-checkpoint-and-authenticated-producer-control-scanner-load-only-suppressed-build-receipt-durability-evidence-discarded-receipt-derived-gate-summaries-non-evidence-native-sync-restored-before-sealed-final-retry-evidence-not-teacher-label-training-weight-or-playing-strength-evidence",
+    "checkpoint_identity": {
+      "schema": "shogi-floodgate-v7-teacher-work-v3",
+      "status": "complete-authenticated-private-v7-teacher-parent-checkpoint-not-published",
+      "prefix_status": "complete-authenticated-durable-private-v7-teacher-parent-prefix-not-sealed-not-published",
+      "claim_boundary": "fixed-100-500-24000-gates-full-authenticated-input-domain-separated-milestone-chain-prefix-not-sealed-final-sealed-accepted-parent-exactly-once-search-at-least-once-authenticated-bounded-producer-control-trusted-controller-test-hooks-and-current-js-realm-intrinsics-returned-evidence-adversarial-reverified-hmac-persisted-byte-tamper-evidence-for-non-key-holders-only-not-anti-rollback-hostile-same-process-mutation-production-origin-label-holdout-or-playing-strength-evidence",
+      "algorithm": "hmac-sha256-hkdf-sha256-v7-parent-gated-milestone-chain-v3",
+      "gate_contract": {
+        "schema": "shogi-floodgate-v7-teacher-gate-contract-v1",
+        "durable_prefix_100_parents": 100,
+        "durable_prefix_500_parents": 500,
+        "sealed_final_parents": 24000
+      },
+      "format": "canonical-jsonl-utf8-single-final-lf-v3",
+      "durability": "append-parent-and-milestone-line-fsync-seal-directory-sync-final-reopen-v3",
+      "run_id": "1212121212121212121212121212121212121212121212121212121212121212",
+      "key_id": "synthetic-v7-scan-load-key-1",
+      "run_binding": {
+        "schema": "shogi-floodgate-v7-teacher-run-binding-v2",
+        "plan": {
+          "bytes": 10890,
+          "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af"
+        },
+        "producer_control": {
+          "schema": "shogi-floodgate-v7-teacher-producer-control-v2",
+          "parent_deadline_ms": 1800000,
+          "abort_drain_ms": 30000,
+          "max_in_flight": 12,
+          "cancel_policy": "first-terminal-stop-scheduling-abort-each-running-signal-once-and-call-controller-drain-once-v2",
+          "late_settlement_policy": "observe-from-start-consume-after-terminal-without-validation-or-append-v2"
+        },
+        "stable_runtime_receipt_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "teacher_usi_runtime_receipt_sha256": "a9741dfcecd4dc7f6e4910e6754069951d067594fb8edabcb5b092cce3afbe5e"
+      },
+      "teacher_usi_runtime": {
+        "contract": "shogi-floodgate-production-teacher-usi-runtime-v2",
+        "status": "initialized-hardened-pinned-usi-process-pool",
+        "claim_boundary": "engine-runtime-search-protocol-and-owner-abort-fulfilled-after-process-group-reap-and-private-snapshot-cleanup-not-production-coordinator-wiring-teacher-label-training-holdout-or-playing-strength-evidence"
+      }
+    },
+    "data": {
+      "source": "deterministic-synthetic-standard-position-legal-playouts",
+      "public_dataset_paths_accepted": false,
+      "network_reads": false,
+      "parents": 24000,
+      "games": 67,
+      "unique_parent_ids": true,
+      "unique_position_ids": true,
+      "candidates_per_parent": 14
+    },
+    "bounds": {
+      "theoretical_rejection_cap_bytes": 589946308,
+      "theoretical_rejection_cap_classification": "conservative-cap-not-valid-stream-size",
+      "maximum_line_bytes": 24576,
+      "maximum_parents": 24000
+    },
+    "valid_stream": {
+      "actual_bytes": 429247143,
+      "actual_sha256": "cd858d6cc56d1bfd613b4432deccf93f3f695525d25411377fb0895de31bf601",
+      "line_statistics": {
+        "records": 24004,
+        "header_bytes": 3275,
+        "entries": 24000,
+        "entry_bytes_total": 429217823,
+        "entry_bytes_min": 17345,
+        "entry_bytes_max": 18451,
+        "entry_bytes_mean": 17884,
+        "milestones": 2,
+        "milestone_100_bytes": 681,
+        "milestone_500_bytes": 681,
+        "milestone_bytes_total": 1362,
+        "seal_bytes": 679,
+        "maximum_line_bytes": 18451
+      },
+      "actual_is_not_theoretical_cap": true
+    },
+    "fixture_build": {
+      "classification": "receipt-derived-three-gate-build-summary-not-durability-evidence",
+      "full_authenticated_input_reused_at_all_gates": true,
+      "fresh_lease_and_training_claim_per_gate": true,
+      "same_private_root_stage_and_run_at_all_gates": true,
+      "raw": {
+        "bytes": 15607545,
+        "sha256": "e31401244c2dc7e145cae087cb286dcea807ffb1a506ffef42b371443304144f"
+      },
+      "gate_progress": {
+        "durable-prefix-100": {
+          "gate": "durable-prefix-100",
+          "status": "complete-authenticated-durable-private-v7-teacher-parent-prefix-not-sealed-not-published",
+          "sealed": false,
+          "target_parents": 100,
+          "completed_parents": 100,
+          "resumed_parents": 0,
+          "records": 102,
+          "bytes": 1791893,
+          "sha256": "c0b51455afc464e8531fc616c34b403be4690a902f77e323d0251d7187f1637e",
+          "milestone_100_mac": "8cad380b5edc3936af967271f282966f7d2d1bd44b5283ebaa11da94df395f97",
+          "milestone_500_mac": null,
+          "producer": {
+            "calls": 100,
+            "first_input_index": 0,
+            "last_input_index": 99
+          }
+        },
+        "durable-prefix-500": {
+          "gate": "durable-prefix-500",
+          "status": "complete-authenticated-durable-private-v7-teacher-parent-prefix-not-sealed-not-published",
+          "sealed": false,
+          "target_parents": 500,
+          "completed_parents": 500,
+          "resumed_parents": 100,
+          "records": 503,
+          "bytes": 8948379,
+          "sha256": "dfdd6394c417b7bbfb0491abd4a8794683e6e0c9a7da112f60200ff9987a5cb0",
+          "milestone_100_mac": "8cad380b5edc3936af967271f282966f7d2d1bd44b5283ebaa11da94df395f97",
+          "milestone_500_mac": "862028747fe9ed39c17d281de67519391846366283d62c4b58c07f5f423e471c",
+          "producer": {
+            "calls": 400,
+            "first_input_index": 100,
+            "last_input_index": 499
+          }
+        },
+        "sealed-final-24000": {
+          "gate": "sealed-final-24000",
+          "status": "complete-authenticated-private-v7-teacher-parent-checkpoint-not-published",
+          "sealed": true,
+          "target_parents": 24000,
+          "completed_parents": 24000,
+          "resumed_parents": 500,
+          "records": 24004,
+          "bytes": 429247143,
+          "sha256": "cd858d6cc56d1bfd613b4432deccf93f3f695525d25411377fb0895de31bf601",
+          "milestone_100_mac": "8cad380b5edc3936af967271f282966f7d2d1bd44b5283ebaa11da94df395f97",
+          "milestone_500_mac": "862028747fe9ed39c17d281de67519391846366283d62c4b58c07f5f423e471c",
+          "producer": {
+            "calls": 23500,
+            "first_input_index": 500,
+            "last_input_index": 23999
+          }
+        }
+      },
+      "sync": {
+        "suppressed_regular_file_syncs": 24006,
+        "expected_suppressed_regular_file_syncs": 24006,
+        "line_syncs": 24004,
+        "expected_line_syncs": 24004,
+        "pre_resume_syncs": 2,
+        "expected_pre_resume_syncs": 2,
+        "native_method_restored_before_batch_sync": true,
+        "one_work_batch_sync_completed": true,
+        "one_stage_directory_batch_sync_completed": true
+      },
+      "timing": {
+        "generation_wall_ms": 4229,
+        "fixture_wall_ms": 202,
+        "durable_prefix_100_wall_ms": 6299,
+        "durable_prefix_500_wall_ms": 10909,
+        "sealed_final_24000_wall_ms": 287194,
+        "batch_sync_and_measure_wall_ms": 899
+      },
+      "memory": {
+        "baseline_rss_bytes": 111591424,
+        "final_rss_bytes": 527499264,
+        "resource_max_rss_bytes": 583827456
+      }
+    },
+    "native_scan": {
+      "gate": "sealed-final-24000",
+      "status": "complete-authenticated-private-v7-teacher-parent-checkpoint-not-published",
+      "sealed": true,
+      "producer_calls": 0,
+      "completed_parents": 24000,
+      "resumed_parents": 24000,
+      "work": {
+        "records": 24004,
+        "target_parents": 24000,
+        "training_parents": 24000,
+        "milestone_100_mac": "8cad380b5edc3936af967271f282966f7d2d1bd44b5283ebaa11da94df395f97",
+        "milestone_500_mac": "862028747fe9ed39c17d281de67519391846366283d62c4b58c07f5f423e471c",
+        "bytes": 429247143,
+        "receipt_sha256": "cd858d6cc56d1bfd613b4432deccf93f3f695525d25411377fb0895de31bf601",
+        "independent_sha256": "cd858d6cc56d1bfd613b4432deccf93f3f695525d25411377fb0895de31bf601",
+        "sha256_match": true
+      },
+      "reads": {
+        "calls": {
+          "resumable-prefix": 6550,
+          "sealed-final": 6550
+        },
+        "bytes": {
+          "resumable-prefix": 429247143,
+          "sealed-final": 429247143
+        },
+        "maximum_request_bytes": {
+          "resumable-prefix": 65536,
+          "sealed-final": 65536
+        },
+        "first_ms": {
+          "resumable-prefix": 5368.254959,
+          "sealed-final": 84767.270792
+        }
+      },
+      "timing": {
+        "total_checkpoint_wall_ms": 163780,
+        "resumable_prefix_start_to_final_scan_start_wall_ms": 79399,
+        "sealed_final_scan_start_to_receipt_wall_ms": 79244,
+        "independent_sha256_wall_ms": 940
+      },
+      "memory": {
+        "baseline_rss_bytes": 199163904,
+        "final_rss_bytes": 204800000,
+        "resource_max_rss_bytes": 389677056,
+        "sampled_peak_rss_bytes": 389677056
+      },
+      "work_unchanged_since_build": true
+    },
+    "runtime": {
+      "node": "v22.13.0",
+      "build_child_node": "v22.13.0",
+      "scan_child_node": "v22.13.0",
+      "platform": "darwin",
+      "architecture": "arm64",
+      "logical_cpus": 14
+    }
+  },
+  "acceptance": {
+    "all_required_checks_passed": true,
+    "derived_candidate_instances": 336000,
+    "gate_order_counts_and_ranges_match": true,
+    "gate_producer_ranges_are_contiguous_and_nonoverlapping": true,
+    "gate_bytes_are_strictly_increasing": true,
+    "milestone_mac_continuity_matches": true,
+    "jsonl_line_count_arithmetic_matches": true,
+    "jsonl_line_byte_arithmetic_matches": true,
+    "milestone_total_arithmetic_matches": true,
+    "entry_mean_rounding_matches": true,
+    "entry_total_within_minimum_and_maximum_bounds": true,
+    "maximum_line_matches_observed_components": true,
+    "sync_breakdown_matches": true,
+    "native_sync_restored_before_evidence_scan": true,
+    "sealed_final_retry_producer_is_zero": true,
+    "sealed_final_retry_resumes_every_parent": true,
+    "stream_receipt_independent_sha256_match": true,
+    "read_call_ceiling_arithmetic_matches": true,
+    "read_bounds_match": true,
+    "timing_envelope_is_consistent": true,
+    "build_rss_relationships_are_consistent": true,
+    "scan_rss_relationships_are_consistent": true,
+    "external_rss_covers_child_resource_rss": true,
+    "source_commit_unchanged_after_run": true,
+    "source_files_unchanged_after_run": true,
+    "worktree_clean_before_and_after_run": true,
+    "temporary_fixture_cleanup_observed": true,
+    "v2_comparison_baseline_hash_verified": true,
+    "v2_evidence_superseded_by_v3": false,
+    "prefix_build_summary_claimed_as_durability_evidence": false,
+    "production_entry_point_claimed": false,
+    "production_key_claimed": false,
+    "teacher_label_claimed": false,
+    "playing_strength_claimed": false,
+    "live_weight_changed": false,
+    "rss_is_observation_not_scaling_gate": true
+  }
+}

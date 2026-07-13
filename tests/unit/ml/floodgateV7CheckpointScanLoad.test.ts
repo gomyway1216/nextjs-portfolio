@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import currentEvidence from "../../../ml/protocols/floodgate-v7-valid-24k-scan-load-017692c-result.json";
 import historicalEvidence from "../../../ml/protocols/floodgate-v7-valid-24k-scan-load-183e95f-result.json";
+import v3Evidence from "../../../ml/protocols/floodgate-v7-valid-24k-scan-load-v3-9bd1cfc-result.json";
 import {
   FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_SCHEMA,
   FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_STATUS,
@@ -851,5 +852,258 @@ describe("Floodgate v7 semantic checkpoint scanner load harness", () => {
     expect(
       currentEvidence.attempts[5].external_maximum_resident_set_bytes,
     ).toBeGreaterThanOrEqual(result.native_scan.memory.resource_max_rss_bytes);
+  });
+
+  it("pins and independently recomputes the accepted V3 fixed-gate evidence", async () => {
+    const evidencePath = path.join(
+      process.cwd(),
+      "ml/protocols/floodgate-v7-valid-24k-scan-load-v3-9bd1cfc-result.json",
+    );
+    const bytes = await fs.promises.readFile(evidencePath);
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(
+      "d8e038577a80bd00588bf4316ce05879ca110cc8c1499fc9959a1e7152e6fe7c",
+    );
+    expect(Object.keys(v3Evidence).sort()).toEqual(
+      [
+        "acceptance",
+        "attempts",
+        "claim_boundary",
+        "comparison_baseline",
+        "invocation",
+        "machine",
+        "result",
+        "schema",
+        "status",
+      ].sort(),
+    );
+    expect(Object.hasOwn(v3Evidence, "supersedes")).toBe(false);
+    expect(v3Evidence).toMatchObject({
+      schema: "shogi-floodgate-v7-checkpoint-semantic-scan-load-evidence-v3",
+      status:
+        "complete-accepted-synthetic-24k-v3-fixed-gates-test-only-scan-load-evidence",
+      comparison_baseline: {
+        path: "ml/protocols/floodgate-v7-valid-24k-scan-load-017692c-result.json",
+        bytes: 13_359,
+        sha256:
+          "e33b1ec4766decd0bc4aeee12346a53415d50dd1028c77a7cae8ecb48e6fb3f7",
+        schema: currentEvidence.schema,
+        relationship: "immutable-comparison-only-not-superseded",
+      },
+      attempts: [
+        {
+          attempt: 1,
+          source_commit: "9bd1cfc1490c2c19f24e0ff20622aadddc8ed3f8",
+          implementation_commit: "b2d1d8ce799968f711f1122ca21b8616c5d24c86",
+          accepted_evidence: true,
+          current_evidence: true,
+          exit_code: 0,
+          timed_command_exit_code: 0,
+          external_wall_seconds: 474.99,
+          external_user_seconds: 480.44,
+          external_system_seconds: 7.3,
+          external_maximum_resident_set_bytes: 583_827_456,
+          complete_result_json: true,
+          worktree_clean_before_run: true,
+          worktree_clean_after_run: true,
+          scan_load_roots_observed_during_run: 1,
+          scan_load_roots_after_run: 0,
+          new_temp_roots_after_exit: 0,
+        },
+      ],
+      acceptance: {
+        all_required_checks_passed: true,
+        derived_candidate_instances: 336_000,
+        prefix_build_summary_claimed_as_durability_evidence: false,
+        v2_evidence_superseded_by_v3: false,
+        production_entry_point_claimed: false,
+        production_key_claimed: false,
+        teacher_label_claimed: false,
+        playing_strength_claimed: false,
+        live_weight_changed: false,
+      },
+    });
+    expect(
+      v3Evidence.attempts.filter((attempt) => attempt.current_evidence),
+    ).toHaveLength(1);
+
+    const baselinePath = path.join(
+      process.cwd(),
+      v3Evidence.comparison_baseline.path,
+    );
+    const baselineBytes = await fs.promises.readFile(baselinePath);
+    expect(baselineBytes.byteLength).toBe(v3Evidence.comparison_baseline.bytes);
+    expect(createHash("sha256").update(baselineBytes).digest("hex")).toBe(
+      v3Evidence.comparison_baseline.sha256,
+    );
+
+    const result = v3Evidence.result;
+    expect(result).toMatchObject({
+      schema: FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_SCHEMA,
+      status: FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_STATUS,
+      claim_boundary: FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_CLAIM_BOUNDARY,
+      checkpoint_identity: {
+        schema: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
+        status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+        prefix_status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+        claim_boundary: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY,
+        algorithm: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM,
+      },
+      data: {
+        parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+        candidates_per_parent: 14,
+        public_dataset_paths_accepted: false,
+        network_reads: false,
+      },
+      native_scan: {
+        gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+        sealed: true,
+        producer_calls: 0,
+        completed_parents: 24_000,
+        resumed_parents: 24_000,
+        work_unchanged_since_build: true,
+      },
+    });
+    expect(result.data.parents * result.data.candidates_per_parent).toBe(
+      v3Evidence.acceptance.derived_candidate_instances,
+    );
+
+    const gate100 = result.fixture_build.gate_progress["durable-prefix-100"];
+    const gate500 = result.fixture_build.gate_progress["durable-prefix-500"];
+    const finalGate = result.fixture_build.gate_progress["sealed-final-24000"];
+    const gates = [gate100, gate500, finalGate] as const;
+    const expected = [
+      [100, 100, 0, 102, 100, 0, 99],
+      [500, 500, 100, 503, 400, 100, 499],
+      [24_000, 24_000, 500, 24_004, 23_500, 500, 23_999],
+    ] as const;
+    for (let index = 0; index < gates.length; index += 1) {
+      const gate = gates[index];
+      const [target, completed, resumed, records, calls, first, last] =
+        expected[index];
+      expect([
+        gate.target_parents,
+        gate.completed_parents,
+        gate.resumed_parents,
+        gate.records,
+        gate.producer.calls,
+        gate.producer.first_input_index,
+        gate.producer.last_input_index,
+      ]).toEqual([target, completed, resumed, records, calls, first, last]);
+    }
+    expect(gates.reduce((sum, gate) => sum + gate.producer.calls, 0)).toBe(
+      24_000,
+    );
+    expect(gate100.bytes).toBeLessThan(gate500.bytes);
+    expect(gate500.bytes).toBeLessThan(finalGate.bytes);
+    expect(gate100.milestone_100_mac).toBe(gate500.milestone_100_mac);
+    expect(gate100.milestone_100_mac).toBe(finalGate.milestone_100_mac);
+    expect(gate100.milestone_500_mac).toBeNull();
+    expect(gate500.milestone_500_mac).toBe(finalGate.milestone_500_mac);
+
+    const stream = result.valid_stream;
+    const lines = stream.line_statistics;
+    expect(lines.records).toBe(lines.entries + lines.milestones + 2);
+    expect(lines.milestone_bytes_total).toBe(
+      lines.milestone_100_bytes + lines.milestone_500_bytes,
+    );
+    expect(
+      lines.header_bytes +
+        lines.entry_bytes_total +
+        lines.milestone_bytes_total +
+        lines.seal_bytes +
+        lines.records,
+    ).toBe(stream.actual_bytes);
+    expect(Math.round(lines.entry_bytes_total / lines.entries)).toBe(
+      lines.entry_bytes_mean,
+    );
+    expect(lines.entry_bytes_total).toBeGreaterThanOrEqual(
+      lines.entry_bytes_min * lines.entries,
+    );
+    expect(lines.entry_bytes_total).toBeLessThanOrEqual(
+      lines.entry_bytes_max * lines.entries,
+    );
+    expect(lines.maximum_line_bytes).toBe(
+      Math.max(
+        lines.header_bytes,
+        lines.entry_bytes_max,
+        lines.milestone_100_bytes,
+        lines.milestone_500_bytes,
+        lines.seal_bytes,
+      ),
+    );
+    expect(stream.actual_bytes).toBe(finalGate.bytes);
+    expect(stream.actual_sha256).toBe(finalGate.sha256);
+
+    const sync = result.fixture_build.sync;
+    expect(sync.suppressed_regular_file_syncs).toBe(
+      sync.line_syncs + sync.pre_resume_syncs,
+    );
+    expect(sync).toMatchObject({
+      suppressed_regular_file_syncs: 24_006,
+      expected_suppressed_regular_file_syncs: 24_006,
+      line_syncs: 24_004,
+      expected_line_syncs: 24_004,
+      pre_resume_syncs: 2,
+      expected_pre_resume_syncs: 2,
+      native_method_restored_before_batch_sync: true,
+      one_work_batch_sync_completed: true,
+      one_stage_directory_batch_sync_completed: true,
+    });
+
+    const native = result.native_scan;
+    expect(native.work.records).toBe(lines.records);
+    expect(native.work.bytes).toBe(stream.actual_bytes);
+    expect(native.work.milestone_100_mac).toBe(gate100.milestone_100_mac);
+    expect(native.work.milestone_500_mac).toBe(gate500.milestone_500_mac);
+    expect(native.work.receipt_sha256).toBe(stream.actual_sha256);
+    expect(native.work.independent_sha256).toBe(stream.actual_sha256);
+    expect(native.work.sha256_match).toBe(true);
+    for (const purpose of ["resumable-prefix", "sealed-final"] as const) {
+      expect(native.reads.bytes[purpose]).toBe(stream.actual_bytes);
+      expect(native.reads.calls[purpose]).toBe(
+        Math.ceil(stream.actual_bytes / (64 * 1024)),
+      );
+      expect(native.reads.maximum_request_bytes[purpose]).toBe(64 * 1024);
+    }
+    expect(
+      Math.round(
+        native.reads.first_ms["sealed-final"] -
+          native.reads.first_ms["resumable-prefix"],
+      ),
+    ).toBe(native.timing.resumable_prefix_start_to_final_scan_start_wall_ms);
+
+    const buildWall = Object.values(result.fixture_build.timing).reduce(
+      (sum, value) => sum + value,
+      0,
+    );
+    const measuredInternalWall =
+      buildWall +
+      native.timing.total_checkpoint_wall_ms +
+      native.timing.independent_sha256_wall_ms;
+    const externalWall = v3Evidence.attempts[0].external_wall_seconds * 1_000;
+    expect(externalWall).toBeGreaterThanOrEqual(measuredInternalWall);
+    expect(externalWall - measuredInternalWall).toBeLessThan(10_000);
+    expect(
+      result.fixture_build.memory.resource_max_rss_bytes,
+    ).toBeGreaterThanOrEqual(result.fixture_build.memory.final_rss_bytes);
+    expect(native.memory.resource_max_rss_bytes).toBeGreaterThanOrEqual(
+      native.memory.final_rss_bytes,
+    );
+    expect(native.memory.resource_max_rss_bytes).toBeGreaterThanOrEqual(
+      native.memory.sampled_peak_rss_bytes,
+    );
+    expect(
+      v3Evidence.attempts[0].external_maximum_resident_set_bytes,
+    ).toBeGreaterThanOrEqual(
+      result.fixture_build.memory.resource_max_rss_bytes,
+    );
+    expect(
+      v3Evidence.attempts[0].external_maximum_resident_set_bytes,
+    ).toBeGreaterThanOrEqual(native.memory.resource_max_rss_bytes);
+
+    const serialized = JSON.stringify(v3Evidence);
+    expect(serialized).not.toContain("/Users/");
+    expect(serialized).not.toContain("/var/folders/");
+    expect(serialized).not.toContain(".v7-scan-load-capability");
   });
 });

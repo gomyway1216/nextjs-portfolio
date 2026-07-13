@@ -99,6 +99,8 @@ synthetic testsはreal asset、real棋譜、holdoutを使わず、次を固定�
 
 Promiseについても`isPromise`だけでは足りない。exact native `Promise.prototype`、non-Proxyに加え、own key 0またはlow-level poolが固定するnon-enumerable / non-writable / non-configurableな`constructor === captured NativePromise`だけを許す。Promise subclassや他のdecorated Promiseを拒否し、live `Promise.prototype.then`を使わずcaptured native `then`でobserveする。rejectionもlive `Promise.reject`ではなくcaptured constructorから直接作る。hostile rejection valueをerror messageへ変換するとcoercion hookを実行し得るため、failure detailはnative Errorのown data `message`またはbounded stringだけを使う。
 
+review後のhardeningでは`Buffer`を`node:buffer`から明示importし、`Error` / `AggregateError` constructorもmodule load時に固定した。worker failure通知callbackのthrowは元failureとaggregateしてからpending reject / killを続け、`quit` / `forceStop`呼出し自体の同期throwもrejected native Promiseへ変換する。現在のmethodsは`async`だが、将来の実装変更でも`close()`が同期throwしてcleanup chainを飛び越えない。
+
 ## 8. v7 coordinatorへの直接接続
 
 後続v7 coordinatorは、authenticated training-row callbackの中でこのproduction runtimeを自分で生成し、各parentについて`runtime.propose(parent)`をdirect callする。pure candidate-union coreへは`result.row`を渡せるが、production originの根拠はcoreのstructural validationではなく、coordinatorがowning runtimeから受け取った`runtime_binding`を同じparentのHMAC chainへ即時追加することにある。

@@ -7,6 +7,7 @@
  * establish playing strength.
  */
 
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import { types as nodeUtilTypes } from "node:util";
 
@@ -89,6 +90,10 @@ const MAX_CAPTURE_ENTRIES = 10_000;
 
 const NativePromise = Promise;
 const NativeUint8Array = Uint8Array;
+const NativeError = Error;
+const NativeAggregateError = AggregateError;
+const bufferCompare = Buffer.compare.bind(Buffer);
+const bufferFrom = Buffer.from.bind(Buffer);
 const nativePromisePrototype = Promise.prototype;
 const nativePromiseThen = Promise.prototype.then;
 const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype);
@@ -145,7 +150,7 @@ export type FloodgateProductionStableWasmRuntimePhase =
   | "proposal"
   | "cleanup";
 
-export class FloodgateProductionStableWasmRuntimeError extends Error {
+export class FloodgateProductionStableWasmRuntimeError extends NativeError {
   readonly phase: FloodgateProductionStableWasmRuntimePhase;
   readonly primary: unknown;
 
@@ -311,7 +316,7 @@ interface CapturedRuntimeAssets {
 }
 
 function fail(message: string): never {
-  throw new Error(`invalid production stable-WASM runtime: ${message}`);
+  throw new NativeError(`invalid production stable-WASM runtime: ${message}`);
 }
 
 function runtimeFailure(
@@ -376,7 +381,7 @@ function frozenList<T>(values: T[]): readonly T[] {
 }
 
 function compareBytewise(left: string, right: string): number {
-  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+  return bufferCompare(bufferFrom(left, "utf8"), bufferFrom(right, "utf8"));
 }
 
 function sha256(value: string | Uint8Array): string {
@@ -1334,7 +1339,7 @@ function guardNativePromise<T>(value: unknown, label: string): Promise<T> {
     Object.getPrototypeOf(value) !== nativePromisePrototype
   ) {
     return rejectedNativePromise(
-      new Error(`${label} must return a pinned or exact native Promise`),
+      new NativeError(`${label} must return a pinned or exact native Promise`),
     );
   }
   const ownKeys = Reflect.ownKeys(value);
@@ -1354,7 +1359,7 @@ function guardNativePromise<T>(value: unknown, label: string): Promise<T> {
     constructorDescriptor.configurable === false;
   if (!exactNative && !pinnedNative) {
     return rejectedNativePromise(
-      new Error(`${label} must return a pinned or exact native Promise`),
+      new NativeError(`${label} must return a pinned or exact native Promise`),
     );
   }
   return new NativePromise<T>((resolve, reject) => {
@@ -1546,7 +1551,7 @@ async function createRuntimeInternal<
             const zeroizeFailures = zeroAssetCopies(assets);
             if (zeroizeFailures.length > 0) {
               phase = "cleanup";
-              throw new AggregateError(
+              throw new NativeAggregateError(
                 operationFailure === undefined
                   ? zeroizeFailures
                   : [operationFailure, ...zeroizeFailures],
@@ -1573,7 +1578,7 @@ async function createRuntimeInternal<
     } catch (cleanupFailure) {
       throw runtimeFailure(
         "cleanup",
-        new AggregateError(
+        new NativeAggregateError(
           [primary, cleanupFailure],
           "runtime initialization and cleanup both failed",
         ),
@@ -1629,7 +1634,7 @@ export function createFloodgateProductionStableWasmRuntime(): Promise<
     return rejectedNativePromise(
       runtimeFailure(
         "capture",
-        new Error("production stable-WASM runtime accepts no arguments"),
+        new NativeError("production stable-WASM runtime accepts no arguments"),
       ),
     );
   }

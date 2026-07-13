@@ -1792,7 +1792,15 @@ class StableWasmWorkerClient {
     if (this.failure === undefined) this.failure = this.diagnostic(message);
     if (!this.failureNotified) {
       this.failureNotified = true;
-      this.onFailure?.(this.failure);
+      const workerFailure = this.failure;
+      try {
+        this.onFailure?.(workerFailure);
+      } catch (notificationFailure) {
+        this.failure = new NativeAggregateError(
+          [workerFailure, notificationFailure],
+          "stable-WASM worker failure and failure notification both failed",
+        );
+      }
     }
     const pending = this.pending;
     this.pending = undefined;
@@ -2126,6 +2134,26 @@ class StableWasmWorkerClient {
   }
 }
 
+function rejectedWorkerStopPromise(primary: unknown): Promise<void> {
+  return pinNativePromise(
+    new NativePromise<void>((_resolve, reject) => reject(primary)),
+  );
+}
+
+function requestWorkerStop(
+  client: StableWasmWorkerClient,
+  force: boolean,
+): Promise<void> {
+  try {
+    return guardNativePromise<void>(
+      force ? client.forceStop() : client.quit(),
+      force ? "worker force-stop" : "worker quit",
+    );
+  } catch (primary) {
+    return rejectedWorkerStopPromise(primary);
+  }
+}
+
 function parseCanonicalWorkerLine(
   line: string,
   keys: readonly string[],
@@ -2328,7 +2356,7 @@ function runCapturedWorkerPool(
       } catch (error) {
         const stops: Promise<void>[] = [];
         for (let index = 0; index < clients.length; index += 1) {
-          arraySetOwn(stops, index, clients[index].forceStop());
+          arraySetOwn(stops, index, requestWorkerStop(clients[index], true));
         }
         await settleAllVoid(stops);
         await settleAllVoid(loops);
@@ -2336,13 +2364,13 @@ function runCapturedWorkerPool(
       }
       const quits: Promise<void>[] = [];
       for (let index = 0; index < clients.length; index += 1) {
-        arraySetOwn(quits, index, clients[index].quit());
+        arraySetOwn(quits, index, requestWorkerStop(clients[index], false));
       }
       await waitAllVoid(quits);
     } catch (error) {
       const stops: Promise<void>[] = [];
       for (let index = 0; index < clients.length; index += 1) {
-        arraySetOwn(stops, index, clients[index].forceStop());
+        arraySetOwn(stops, index, requestWorkerStop(clients[index], true));
       }
       await settleAllVoid(stops);
       throw error;
@@ -2575,9 +2603,7 @@ function buildReusableProposalPool(
       arraySetOwn(
         stops,
         index,
-        forceWorkers[index]
-          ? clients[index].forceStop()
-          : clients[index].quit(),
+        requestWorkerStop(clients[index], forceWorkers[index] === true),
       );
     }
     const completeStop = async (): Promise<void> => {
@@ -2593,7 +2619,11 @@ function buildReusableProposalPool(
       }
       const forcedStops: Promise<void>[] = [];
       for (let index = 0; index < clients.length; index += 1) {
-        arraySetOwn(forcedStops, index, clients[index].forceStop());
+        arraySetOwn(
+          forcedStops,
+          index,
+          requestWorkerStop(clients[index], true),
+        );
       }
       try {
         await settleAllVoidReportingFailure(forcedStops);
@@ -2827,7 +2857,7 @@ function createReusableProposalPoolWithIdentity(
     } catch (error) {
       const stops: Promise<void>[] = [];
       for (let index = 0; index < clients.length; index += 1) {
-        arraySetOwn(stops, index, clients[index].forceStop());
+        arraySetOwn(stops, index, requestWorkerStop(clients[index], true));
       }
       let cleanupFailure: unknown;
       try {

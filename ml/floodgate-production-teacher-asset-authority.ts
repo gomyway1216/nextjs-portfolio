@@ -6,6 +6,7 @@
  * dataset, create a teacher label, train a model, or establish playing strength.
  */
 
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
@@ -14,6 +15,9 @@ import { types as nodeUtilTypes } from "node:util";
 import { markAsUntransferable } from "node:worker_threads";
 
 import { SHOGI_WASM_BASE64 } from "../src/components/game/ShogiImproved/wasm/shogiWasmBase64";
+
+const NATIVE_ERROR = Error;
+const NATIVE_AGGREGATE_ERROR = AggregateError;
 
 export const FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CONTRACT =
   "shogi-floodgate-production-teacher-asset-authority-v1" as const;
@@ -98,7 +102,7 @@ export type FloodgateProductionTeacherAssetAuthorityPhase =
   | "revalidation"
   | "callback";
 
-export class FloodgateProductionTeacherAssetAuthorityError extends Error {
+export class FloodgateProductionTeacherAssetAuthorityError extends NATIVE_ERROR {
   readonly phase: FloodgateProductionTeacherAssetAuthorityPhase;
   readonly primary: unknown;
 
@@ -313,7 +317,7 @@ export const FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY: FloodgateProductionTea
   });
 
 function fail(message: string): never {
-  throw new Error(message);
+  throw new NATIVE_ERROR(message);
 }
 
 function frozenRecord<T extends object>(value: T): Readonly<T> {
@@ -1218,7 +1222,7 @@ function zeroizeEphemeralBytes(
     for (let entryIndex = 0; entryIndex < tracked.length; entryIndex += 1) {
       const entry = tracked[entryIndex];
       if (entry === undefined) {
-        firstFailure ??= new Error(
+        firstFailure ??= new NATIVE_ERROR(
           "ephemeral runtime asset tracking became sparse",
         );
         continue;
@@ -1230,7 +1234,7 @@ function zeroizeEphemeralBytes(
         firstFailure ??= failure;
       }
       if (length !== entry.expectedBytes) {
-        firstFailure ??= new Error(
+        firstFailure ??= new NATIVE_ERROR(
           "an ephemeral runtime asset byte buffer was detached or resized",
         );
       }
@@ -1579,7 +1583,7 @@ async function verifyPinnedFloodgateProductionTeacherAssetsInternal(
           throw new FloodgateProductionTeacherAssetAuthorityError(
             wrappedPrimary.phase,
             "operation and ephemeral runtime asset byte zeroization both failed",
-            new AggregateError(
+            new NATIVE_AGGREGATE_ERROR(
               [wrappedPrimary, cleanupFailure],
               "asset authority operation and cleanup both failed",
             ),

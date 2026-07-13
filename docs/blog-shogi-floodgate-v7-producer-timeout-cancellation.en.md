@@ -37,6 +37,7 @@ Implementation and adversarial tests fixed the related traps into explicit rules
 | Removing engines alone can leave copied assets                    | Revalidate snapshot identity and include private-snapshot removal in cleanup completion                                   |
 | Test failure can happen before ordinary `afterEach` coverage      | Close started-Promise observation, group reaping, and temp-root removal in `try/finally`                                  |
 | A native Promise with own properties can reject later             | Reject it as a contract violation but best-effort observe only its rejection through a captured intrinsic                 |
+| Sharing one close error also shares caller mutation               | Freeze the instance while retaining stable identity, fixing what every later caller observes                              |
 
 ## 2. Keep runtime and checkpoint as separate state machines
 
@@ -74,7 +75,7 @@ Only the first runtime lifecycle transition owns cleanup. Later callers do not b
 | Cleanup fulfills | Every state                      | Every process group is gone and snapshot revalidation and removal have succeeded                                                     |
 | Cleanup rejects  | Every state                      | Lifecycle callers receive the raw cleanup error; operation callers receive a terminal error aggregating primary and cleanup failures |
 
-Failure to terminate one engine does not skip the remaining engines, snapshot revalidation, or snapshot removal; cleanup collects the failures in an `AggregateError`. It also removes the `close` listener after fulfilled cleanup and retains a settled guard, so a delayed `close` event cannot signal the process group a second time.
+Failure to terminate one engine does not skip the remaining engines, snapshot revalidation, or snapshot removal; cleanup collects the failures in an `AggregateError`. It also removes the `close` listener after fulfilled cleanup and retains a settled guard, so a delayed `close` event cannot signal the process group a second time. Post-merge review also found that returning the same error instance to closed callers let an earlier caller rewrite `.message` or `.name`. Freezing the instance now preserves both shared identity and every later caller's observation.
 
 ## 4. The checkpoint first-terminal state machine
 

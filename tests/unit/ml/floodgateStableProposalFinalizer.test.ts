@@ -1261,4 +1261,32 @@ posixDescribe("Floodgate stable proposal result/manifest finalizer", () => {
     expect((failure as Error).message).toMatch(/uninspectable Proxy failure/);
     await expectMissing(stage.leaseRoot);
   });
+
+  it("preserves an inherited failure message in the typed diagnostic", async () => {
+    const consumer = await consumerFixture();
+    const capability = await mintCapability(consumer);
+    const stage = await stageFixture();
+    await createCheckpoint(stage, capability.artifact);
+    const inheritedFailure = Object.create({
+      message: "synthetic inherited failure detail",
+    }) as object;
+
+    const failure = await captureFailure(
+      finalize(stage, capability.receipt, {
+        failpoint: (event) => {
+          if (event === "result-created") throw inheritedFailure;
+        },
+      }),
+    );
+
+    expect(failure).toBeInstanceOf(FloodgateStableProposalFinalizerError);
+    expect((failure as Error).message).toMatch(
+      /synthetic inherited failure detail/,
+    );
+    expect(failure).toMatchObject({
+      phase: "result-persistence",
+      mayHavePublished: false,
+      leaseMayRemain: false,
+    });
+  });
 });

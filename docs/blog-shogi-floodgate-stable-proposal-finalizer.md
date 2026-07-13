@@ -177,9 +177,9 @@ synthetic fixtureだけでfocused、関連boundary、全回帰、Python監査、
 
 | validation                                                        | 実測結果                             |
 | ----------------------------------------------------------------- | ------------------------------------ |
-| focused finalizer suite                                           | 15 / 15 pass                         |
-| finalizer + checkpoint + postflight + publication boundary suites | 84 / 84 pass                         |
-| full Vitest regression                                            | 1,730 / 1,730 pass                   |
+| focused finalizer suite                                           | 16 / 16 pass                         |
+| finalizer + checkpoint + postflight + publication boundary suites | 85 / 85 pass                         |
+| full Vitest regression                                            | 1,731 / 1,731 pass                   |
 | Python stdlib ML audit                                            | 58 / 58 pass                         |
 | TypeScript / scoped ESLint / Prettier                             | pass / 0 warnings / pass             |
 | full ESLint                                                       | 0 errors / 157 pre-existing warnings |

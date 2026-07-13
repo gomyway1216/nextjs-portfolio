@@ -177,9 +177,9 @@ Only synthetic fixtures were used for the focused, related-boundary, full-regres
 
 | Validation                                                        | Measured result                      |
 | ----------------------------------------------------------------- | ------------------------------------ |
-| Focused finalizer suite                                           | 15 / 15 pass                         |
-| Finalizer + checkpoint + postflight + publication boundary suites | 84 / 84 pass                         |
-| Full Vitest regression                                            | 1,730 / 1,730 pass                   |
+| Focused finalizer suite                                           | 16 / 16 pass                         |
+| Finalizer + checkpoint + postflight + publication boundary suites | 85 / 85 pass                         |
+| Full Vitest regression                                            | 1,731 / 1,731 pass                   |
 | Python stdlib ML audit                                            | 58 / 58 pass                         |
 | TypeScript / scoped ESLint / Prettier                             | pass / 0 warnings / pass             |
 | Full ESLint                                                       | 0 errors / 157 pre-existing warnings |

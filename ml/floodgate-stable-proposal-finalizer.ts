@@ -276,10 +276,10 @@ function failureDetail(value: unknown): string {
   }
   if (nodeUtilTypes.isProxy(value)) return "uninspectable Proxy failure";
   try {
-    const descriptor = Object.getOwnPropertyDescriptor(value, "message");
-    if (descriptor !== undefined && "value" in descriptor) {
-      return typeof descriptor.value === "string"
-        ? descriptor.value
+    if ("message" in value) {
+      const message = Reflect.get(value, "message", value) as unknown;
+      return typeof message === "string"
+        ? message
         : "non-string failure message";
     }
   } catch {

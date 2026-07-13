@@ -36,6 +36,12 @@ const START_SFEN =
   "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
 const SYNTHETIC_ENGINE_ID = "synthetic exact production teacher engine";
 const temporaryRoots: string[] = [];
+const spawnedProcessGroups: Array<
+  Readonly<{
+    readonly child: ChildProcessWithoutNullStreams;
+    readonly pgid: number | undefined;
+  }>
+> = [];
 
 interface SyntheticAssets {
   readonly container: string;
@@ -223,6 +229,57 @@ function processAlive(pid: number): boolean {
   }
 }
 
+function processGroupAlive(pid: number): boolean {
+  try {
+    process.kill(-pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isMissingProcess(error: unknown): boolean {
+  return (
+    error !== null &&
+    typeof error === "object" &&
+    "code" in error &&
+    Reflect.get(error, "code") === "ESRCH"
+  );
+}
+
+async function forceReapSpawnedProcessGroup(
+  entry: (typeof spawnedProcessGroups)[number],
+): Promise<void> {
+  const { child, pgid } = entry;
+  if (pgid !== undefined) {
+    try {
+      process.kill(-pgid, "SIGKILL");
+    } catch (error) {
+      if (!isMissingProcess(error)) throw error;
+    }
+  }
+  if (!processClosed(child)) child.kill("SIGKILL");
+  if (!processClosed(child)) {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        child.off("close", settled);
+        child.off("error", settled);
+        reject(new Error("spawned test child was not reaped"));
+      }, 2_000);
+      const settled = (): void => {
+        clearTimeout(timer);
+        child.off("close", settled);
+        child.off("error", settled);
+        resolve();
+      };
+      child.once("close", settled);
+      child.once("error", settled);
+    });
+  }
+  if (pgid !== undefined)
+    await eventually(() => !processGroupAlive(pgid), 2_000);
+}
+
 async function eventually(
   predicate: () => boolean,
   timeoutMs = 2_000,
@@ -316,6 +373,7 @@ function testDependencies(
           detached: true,
         },
       );
+      spawnedProcessGroups.push(Object.freeze({ child, pgid: child.pid }));
       spawns.push(child);
       return child;
     },
@@ -339,11 +397,24 @@ function testDependencies(
 
 afterEach(async () => {
   vi.restoreAllMocks();
-  await Promise.all(
+  const processCleanup = await Promise.allSettled(
+    spawnedProcessGroups.splice(0).map(forceReapSpawnedProcessGroup),
+  );
+  const rootCleanup = await Promise.allSettled(
     temporaryRoots
       .splice(0)
       .map((root) => fs.promises.rm(root, { recursive: true, force: true })),
   );
+  const failures = [...processCleanup, ...rootCleanup]
+    .filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    )
+    .map((result) => result.reason);
+  if (failures.length > 0)
+    throw new AggregateError(
+      failures,
+      "USI runtime test process-group or temporary-root cleanup failed",
+    );
 });
 
 const posixDescribe = describe.runIf(typeof process.geteuid === "function");
@@ -352,13 +423,13 @@ posixDescribe("Floodgate production teacher USI runtime", () => {
   it("keeps the public production factory argumentless and pins twelve engines", async () => {
     expect(createFloodgateProductionTeacherUsiRuntime).toHaveLength(0);
     expect(FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CONTRACT).toBe(
-      "shogi-floodgate-production-teacher-usi-runtime-v1",
+      "shogi-floodgate-production-teacher-usi-runtime-v2",
     );
     expect(FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_STATUS).toBe(
       "initialized-hardened-pinned-usi-process-pool",
     );
     expect(FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CLAIM_BOUNDARY).toBe(
-      "engine-runtime-and-search-protocol-not-teacher-label-training-holdout-or-playing-strength-evidence",
+      "engine-runtime-search-protocol-and-owner-abort-fulfilled-after-process-group-reap-and-private-snapshot-cleanup-not-production-coordinator-wiring-teacher-label-training-holdout-or-playing-strength-evidence",
     );
     expect(FLOODGATE_PRODUCTION_TEACHER_RUNTIME.parallel_engines).toBe(12);
     expect(
@@ -384,10 +455,19 @@ posixDescribe("Floodgate production teacher USI runtime", () => {
       expect(Object.getPrototypeOf(pool)).toBeNull();
       expect(Object.isFrozen(pool)).toBe(true);
       expect(Reflect.ownKeys(pool).sort()).toEqual(
-        ["close", "poisoned", "propose", "receipt", "rescore"].sort(),
+        [
+          "abortAndReap",
+          "close",
+          "poisoned",
+          "propose",
+          "receipt",
+          "rescore",
+        ].sort(),
       );
       expect(typeof pool.propose).toBe("function");
       expect(typeof pool.rescore).toBe("function");
+      expect(typeof pool.abortAndReap).toBe("function");
+      expect(Object.isFrozen(pool.abortAndReap)).toBe(true);
       expect(typeof pool.close).toBe("function");
       expect(pool.receipt.execution_boundary).toBe(
         "test-only-injected-asset-root-and-runtime-dependencies",
@@ -704,17 +784,502 @@ posixDescribe("Floodgate production teacher USI runtime", () => {
         .phase,
     ).toBe("cleanup");
 
-    let laterFailure: unknown;
-    try {
-      await pool.propose(START_SFEN, 2);
-    } catch (primary) {
-      laterFailure = primary;
-    }
-    expect(laterFailure).toBe(activeFailures[0].reason);
+    const later = await Promise.allSettled([
+      pool.propose(START_SFEN, 2),
+      pool.propose("invalid after poison", 1),
+      pool.rescore("invalid after poison", "7z7f"),
+    ]);
+    const laterFailures = later.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    expect(laterFailures).toHaveLength(3);
+    for (const failure of laterFailures)
+      expect(failure.reason).toBe(activeFailures[0].reason);
     await expect(pool.close()).rejects.toThrow();
     expect(children.every(processClosed)).toBe(true);
     expect(fs.existsSync(snapshotRoot)).toBe(false);
   });
+
+  it("force-reaps a SIGTERM-ignoring search and shares one abort error across active, queued, future, and late work", async () => {
+    const value = await syntheticAssets();
+    const children: ChildProcessWithoutNullStreams[] = [];
+    const invocations: Array<{
+      readonly file: string;
+      readonly args: readonly string[];
+      readonly options: Record<string, unknown>;
+    }> = [];
+    const pool = await createFloodgateProductionTeacherUsiRuntimeCoreForTests(
+      testDependencies(value, {
+        mode: "hang-go-ignore-sigterm",
+        invocations,
+        spawns: children,
+        overrides: {
+          timeouts: {
+            usiMs: 1_000,
+            readyMs: 1_000,
+            searchMs: 5_000,
+            termGraceMs: 10,
+            killGraceMs: 25,
+          },
+        },
+      }),
+    );
+    const startedOperations: Promise<unknown>[] = [];
+    let lifecyclePromise: Promise<void> | undefined;
+    try {
+      const snapshotRoot = path.dirname(path.dirname(invocations[0].file));
+      const active = pool.propose(START_SFEN, 2);
+      startedOperations.push(active);
+      await eventually(() =>
+        parseTrace(value.trace).some(
+          (event) =>
+            event.event === "stdin" &&
+            String(event.line).startsWith("go depth "),
+        ),
+      );
+      const queued = pool.propose(START_SFEN, 2);
+      startedOperations.push(queued);
+      const aborting = pool.abortAndReap();
+      lifecyclePromise = aborting;
+      const duplicateAbort = pool.abortAndReap();
+      const concurrentClose = pool.close();
+      const future = pool.rescore(START_SFEN, "7g7f");
+      startedOperations.push(future);
+      const operationsSettled = Promise.allSettled([active, queued, future]);
+      const cleanupSettled = Promise.allSettled([
+        aborting,
+        duplicateAbort,
+        concurrentClose,
+      ]);
+
+      expect(duplicateAbort).toBe(aborting);
+      expect(concurrentClose).toBe(aborting);
+      const [operations, cleanup] = await Promise.all([
+        operationsSettled,
+        cleanupSettled,
+      ]);
+
+      expect(cleanup.every((result) => result.status === "fulfilled")).toBe(
+        true,
+      );
+      const rejected = operations.filter(
+        (result): result is PromiseRejectedResult =>
+          result.status === "rejected",
+      );
+      expect(rejected).toHaveLength(3);
+      expect(rejected[0].reason).toBe(rejected[1].reason);
+      expect(rejected[0].reason).toBe(rejected[2].reason);
+      expect(rejected[0].reason).toBeInstanceOf(
+        FloodgateProductionTeacherUsiRuntimeError,
+      );
+      expect(
+        (rejected[0].reason as FloodgateProductionTeacherUsiRuntimeError).phase,
+      ).toBe("abort");
+      expect(pool.poisoned).toBe(true);
+      expect(children).toHaveLength(1);
+      expect(processClosed(children[0])).toBe(true);
+      expect(children[0].signalCode).toBe("SIGKILL");
+      expect(
+        parseTrace(value.trace).some(
+          (event) => event.event === "signal" && event.signal === "SIGTERM",
+        ),
+      ).toBe(true);
+      expect(fs.existsSync(snapshotRoot)).toBe(false);
+
+      await expect(pool.propose(START_SFEN, 2)).rejects.toBe(
+        rejected[0].reason,
+      );
+      const invalidLate = await Promise.allSettled([
+        pool.propose("invalid after abort", 1),
+        pool.rescore("invalid after abort", "7z7f"),
+      ]);
+      for (const result of invalidLate) {
+        expect(result.status).toBe("rejected");
+        expect((result as PromiseRejectedResult).reason).toBe(
+          rejected[0].reason,
+        );
+      }
+      expect(pool.abortAndReap()).toBe(aborting);
+      expect(pool.close()).toBe(aborting);
+    } finally {
+      await Promise.allSettled([
+        ...startedOperations,
+        ...(lifecyclePromise === undefined ? [] : [lifecyclePromise]),
+        pool.abortAndReap(),
+        pool.close(),
+      ]);
+    }
+  });
+
+  it("separates a raw abort cleanup rejection from the shared terminal aggregate while still reaping", async () => {
+    const value = await syntheticAssets();
+    const children: ChildProcessWithoutNullStreams[] = [];
+    const invocations: Array<{
+      readonly file: string;
+      readonly args: readonly string[];
+      readonly options: Record<string, unknown>;
+    }> = [];
+    const pool = await createFloodgateProductionTeacherUsiRuntimeCoreForTests(
+      testDependencies(value, {
+        mode: "hang-go-ignore-sigterm",
+        invocations,
+        spawns: children,
+        overrides: {
+          timeouts: {
+            usiMs: 1_000,
+            readyMs: 1_000,
+            searchMs: 5_000,
+            termGraceMs: 10,
+            killGraceMs: 25,
+          },
+        },
+      }),
+    );
+    const startedOperations: Promise<unknown>[] = [];
+    let lifecyclePromise: Promise<void> | undefined;
+    try {
+      const snapshotRoot = path.dirname(path.dirname(invocations[0].file));
+      const snapshotEval = path.join(snapshotRoot, "eval", "nn.bin");
+      const mutatedEval = await fs.promises.readFile(snapshotEval);
+      mutatedEval[0] ^= 0x01;
+      await fs.promises.chmod(snapshotEval, 0o600);
+      await fs.promises.writeFile(snapshotEval, mutatedEval);
+      await fs.promises.chmod(snapshotEval, 0o400);
+
+      const active = pool.propose(START_SFEN, 2);
+      startedOperations.push(active);
+      await eventually(() =>
+        parseTrace(value.trace).some(
+          (event) =>
+            event.event === "stdin" &&
+            String(event.line).startsWith("go depth "),
+        ),
+      );
+      const queued = pool.propose(START_SFEN, 2);
+      startedOperations.push(queued);
+      const aborting = pool.abortAndReap();
+      lifecyclePromise = aborting;
+      const closing = pool.close();
+      const future = pool.rescore(START_SFEN, "7g7f");
+      startedOperations.push(future);
+      const operationsSettled = Promise.allSettled([active, queued, future]);
+      const lifecycleSettled = Promise.allSettled([aborting, closing]);
+      expect(closing).toBe(aborting);
+
+      const [operations, lifecycle] = await Promise.all([
+        operationsSettled,
+        lifecycleSettled,
+      ]);
+      const operationFailures = operations.filter(
+        (result): result is PromiseRejectedResult =>
+          result.status === "rejected",
+      );
+      const lifecycleFailures = lifecycle.filter(
+        (result): result is PromiseRejectedResult =>
+          result.status === "rejected",
+      );
+
+      expect(operationFailures).toHaveLength(3);
+      expect(operationFailures[0].reason).toBe(operationFailures[1].reason);
+      expect(operationFailures[0].reason).toBe(operationFailures[2].reason);
+      expect(operationFailures[0].reason).toBeInstanceOf(
+        FloodgateProductionTeacherUsiRuntimeError,
+      );
+      const terminalError = operationFailures[0]
+        .reason as FloodgateProductionTeacherUsiRuntimeError;
+      expect(terminalError.phase).toBe("cleanup");
+      expect(terminalError.primary).toBeInstanceOf(AggregateError);
+
+      expect(lifecycleFailures).toHaveLength(2);
+      expect(lifecycleFailures[0].reason).toBe(lifecycleFailures[1].reason);
+      expect(lifecycleFailures[0].reason).toBeInstanceOf(
+        FloodgateProductionTeacherUsiRuntimeError,
+      );
+      const rawCleanupError = lifecycleFailures[0]
+        .reason as FloodgateProductionTeacherUsiRuntimeError;
+      expect(rawCleanupError.phase).toBe("cleanup");
+      expect(rawCleanupError).not.toBe(terminalError);
+      const aggregateErrors = (terminalError.primary as AggregateError).errors;
+      expect(aggregateErrors).toContain(rawCleanupError);
+      expect(
+        aggregateErrors.some(
+          (error) =>
+            error instanceof FloodgateProductionTeacherUsiRuntimeError &&
+            error.phase === "abort",
+        ),
+      ).toBe(true);
+
+      expect(pool.poisoned).toBe(true);
+      expect(children).toHaveLength(1);
+      expect(processClosed(children[0])).toBe(true);
+      expect(children[0].signalCode).toBe("SIGKILL");
+      expect(children[0].pid).toBeDefined();
+      expect(processGroupAlive(children[0].pid as number)).toBe(false);
+      expect(fs.existsSync(snapshotRoot)).toBe(false);
+      const invalidLate = await Promise.allSettled([
+        pool.propose("invalid after failed abort cleanup", 1),
+        pool.rescore("invalid after failed abort cleanup", "7z7f"),
+      ]);
+      for (const result of invalidLate) {
+        expect(result.status).toBe("rejected");
+        expect((result as PromiseRejectedResult).reason).toBe(terminalError);
+      }
+      expect(pool.abortAndReap()).toBe(aborting);
+      expect(pool.close()).toBe(aborting);
+    } finally {
+      await Promise.allSettled([
+        ...startedOperations,
+        ...(lifecyclePromise === undefined ? [] : [lifecyclePromise]),
+        pool.abortAndReap(),
+        pool.close(),
+      ]);
+    }
+  });
+
+  it("keeps a close-first lifecycle orderly when a concurrent abort joins the same bounded cleanup", async () => {
+    const value = await syntheticAssets();
+    const children: ChildProcessWithoutNullStreams[] = [];
+    const invocations: Array<{
+      readonly file: string;
+      readonly args: readonly string[];
+      readonly options: Record<string, unknown>;
+    }> = [];
+    const pool = await createFloodgateProductionTeacherUsiRuntimeCoreForTests(
+      testDependencies(value, {
+        mode: "hang-go-ignore-quit",
+        invocations,
+        spawns: children,
+        overrides: {
+          timeouts: {
+            usiMs: 1_000,
+            readyMs: 1_000,
+            searchMs: 5_000,
+            termGraceMs: 10,
+            killGraceMs: 25,
+          },
+        },
+      }),
+    );
+    const startedOperations: Promise<unknown>[] = [];
+    let lifecyclePromise: Promise<void> | undefined;
+    try {
+      const snapshotRoot = path.dirname(path.dirname(invocations[0].file));
+      const active = pool.propose(START_SFEN, 2);
+      startedOperations.push(active);
+      await eventually(() =>
+        parseTrace(value.trace).some(
+          (event) =>
+            event.event === "stdin" &&
+            String(event.line).startsWith("go depth "),
+        ),
+      );
+
+      const queued = pool.propose(START_SFEN, 2);
+      startedOperations.push(queued);
+      const closing = pool.close();
+      lifecyclePromise = closing;
+      const joiningAbort = pool.abortAndReap();
+      const future = pool.rescore(START_SFEN, "7g7f");
+      const invalidPropose = pool.propose("invalid after close", 1);
+      const invalidRescore = pool.rescore("invalid after close", "7z7f");
+      startedOperations.push(future, invalidPropose, invalidRescore);
+      const settledPromise = Promise.race([
+        Promise.allSettled([
+          active,
+          queued,
+          future,
+          invalidPropose,
+          invalidRescore,
+          closing,
+          joiningAbort,
+        ]),
+        new Promise<never>((_resolve, reject) =>
+          setTimeout(
+            () => reject(new Error("close-first abort race timed out")),
+            3_000,
+          ),
+        ),
+      ]);
+      expect(joiningAbort).toBe(closing);
+      expect(pool.poisoned).toBe(false);
+      const settled = await settledPromise;
+
+      expect(settled[0].status).toBe("rejected");
+      const activeFailure = (settled[0] as PromiseRejectedResult).reason;
+      expect(activeFailure).toBeInstanceOf(
+        FloodgateProductionTeacherUsiRuntimeError,
+      );
+      expect(
+        (activeFailure as FloodgateProductionTeacherUsiRuntimeError).phase,
+      ).toBe("search");
+      expect(
+        (activeFailure as FloodgateProductionTeacherUsiRuntimeError).phase,
+      ).not.toBe("abort");
+      const closedOperations = settled.slice(1, 5);
+      expect(
+        closedOperations.every((result) => result.status === "rejected"),
+      ).toBe(true);
+      const closeError = (closedOperations[0] as PromiseRejectedResult).reason;
+      for (const result of closedOperations)
+        expect((result as PromiseRejectedResult).reason).toBe(closeError);
+      expect(closeError).toBeInstanceOf(Error);
+      expect(String(closeError)).toMatch(/closed/i);
+      expect(settled[5].status).toBe("fulfilled");
+      expect(settled[6].status).toBe("fulfilled");
+      expect(pool.poisoned).toBe(false);
+      expect(children).toHaveLength(1);
+      expect(processClosed(children[0])).toBe(true);
+      expect(children[0].pid).toBeDefined();
+      expect(processGroupAlive(children[0].pid as number)).toBe(false);
+      expect(
+        parseTrace(value.trace).some(
+          (event) => event.event === "stdin" && event.line === "quit",
+        ),
+      ).toBe(true);
+      expect(fs.existsSync(snapshotRoot)).toBe(false);
+      expect(pool.close()).toBe(closing);
+      expect(pool.abortAndReap()).toBe(closing);
+    } finally {
+      await Promise.allSettled([
+        ...startedOperations,
+        ...(lifecyclePromise === undefined ? [] : [lifecyclePromise]),
+        pool.abortAndReap(),
+        pool.close(),
+      ]);
+    }
+  });
+
+  it("keeps one stable close error for valid and invalid later work when orderly cleanup fails", async () => {
+    const value = await syntheticAssets();
+    const children: ChildProcessWithoutNullStreams[] = [];
+    const invocations: Array<{
+      readonly file: string;
+      readonly args: readonly string[];
+      readonly options: Record<string, unknown>;
+    }> = [];
+    const pool = await createFloodgateProductionTeacherUsiRuntimeCoreForTests(
+      testDependencies(value, { invocations, spawns: children }),
+    );
+    const snapshotRoot = path.dirname(path.dirname(invocations[0].file));
+    const snapshotEval = path.join(snapshotRoot, "eval", "nn.bin");
+    const mutatedEval = await fs.promises.readFile(snapshotEval);
+    mutatedEval[0] ^= 0x01;
+    await fs.promises.chmod(snapshotEval, 0o600);
+    await fs.promises.writeFile(snapshotEval, mutatedEval);
+    await fs.promises.chmod(snapshotEval, 0o400);
+
+    const closing = pool.close();
+    const cleanup = await Promise.allSettled([closing]);
+    expect(cleanup[0].status).toBe("rejected");
+    const cleanupFailure = (cleanup[0] as PromiseRejectedResult).reason;
+    expect(cleanupFailure).toBeInstanceOf(
+      FloodgateProductionTeacherUsiRuntimeError,
+    );
+    expect(
+      (cleanupFailure as FloodgateProductionTeacherUsiRuntimeError).phase,
+    ).toBe("cleanup");
+
+    const later = await Promise.allSettled([
+      pool.propose(START_SFEN, 2),
+      pool.propose("invalid after failed close", 1),
+      pool.rescore("invalid after failed close", "7z7f"),
+    ]);
+    const laterFailures = later.filter(
+      (result): result is PromiseRejectedResult => result.status === "rejected",
+    );
+    expect(laterFailures).toHaveLength(3);
+    const closeError = laterFailures[0].reason;
+    for (const failure of laterFailures)
+      expect(failure.reason).toBe(closeError);
+    expect(closeError).not.toBe(cleanupFailure);
+    expect(String(closeError)).toMatch(/closed/i);
+    expect(pool.poisoned).toBe(false);
+    expect(children.every(processClosed)).toBe(true);
+    expect(fs.existsSync(snapshotRoot)).toBe(false);
+    expect(pool.close()).toBe(closing);
+    expect(pool.abortAndReap()).toBe(closing);
+  });
+
+  it("does not signal a reaped process group again when child close arrives after cleanup fulfilled", async () => {
+    const value = await syntheticAssets();
+    const children: ChildProcessWithoutNullStreams[] = [];
+    const exitMarker = path.join(value.container, "delayed-close-exit.marker");
+    const releaseMarker = path.join(
+      value.container,
+      "delayed-close-release.marker",
+    );
+    const pool = await createFloodgateProductionTeacherUsiRuntimeCoreForTests(
+      testDependencies(value, {
+        mode: "leader-exit-before-delayed-close",
+        fakeArguments: [
+          "--exit-marker",
+          exitMarker,
+          "--close-release-marker",
+          releaseMarker,
+          "--delayed-close-ms",
+          "5000",
+        ],
+        spawns: children,
+      }),
+    );
+    expect(children).toHaveLength(1);
+    const child = children[0];
+    if (child.pid === undefined) throw new Error("synthetic child had no pid");
+    const processGroup = -child.pid;
+    const state: { closing?: Promise<void> } = {};
+    let closeSeen = false;
+    const closeObserved = new Promise<void>((resolve) => {
+      child.once("close", () => {
+        closeSeen = true;
+        resolve();
+      });
+    });
+    child.once("exit", () => {
+      state.closing = pool.close();
+      void state.closing.catch(() => undefined);
+    });
+    const kill = vi.spyOn(process, "kill");
+
+    try {
+      await fs.promises.writeFile(exitMarker, "exit\n", {
+        flag: "wx",
+        mode: 0o600,
+      });
+      await eventually(() => state.closing !== undefined, 3_000);
+      const closing = state.closing;
+      if (closing === undefined)
+        throw new Error("leader exit did not start pool cleanup");
+      await closing;
+
+      const sigtermsAtFulfillment = kill.mock.calls.filter(
+        ([pid, signal]) => pid === processGroup && signal === "SIGTERM",
+      ).length;
+      expect(sigtermsAtFulfillment).toBeGreaterThan(0);
+      expect(closeSeen).toBe(false);
+
+      await fs.promises.writeFile(releaseMarker, "release\n", {
+        flag: "wx",
+        mode: 0o600,
+      });
+      await closeObserved;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(
+        kill.mock.calls.filter(
+          ([pid, signal]) => pid === processGroup && signal === "SIGTERM",
+        ),
+      ).toHaveLength(sigtermsAtFulfillment);
+    } finally {
+      await fs.promises
+        .writeFile(releaseMarker, "release\n", { mode: 0o600 })
+        .catch(() => undefined);
+      await Promise.allSettled([
+        ...(state.closing === undefined ? [] : [state.closing]),
+        pool.close(),
+      ]);
+      await eventually(() => closeSeen, 5_500).catch(() => undefined);
+      kill.mockRestore();
+    }
+  }, 10_000);
 
   it("bounds an immediate operation-close race and removes every process and snapshot", async () => {
     const value = await syntheticAssets();
@@ -964,6 +1529,57 @@ posixDescribe("Floodgate production teacher USI runtime", () => {
       if (descendantPid !== undefined && processAlive(descendantPid)) {
         process.kill(descendantPid, "SIGKILL");
       }
+    }
+  });
+
+  it("surfaces both a private-snapshot creation failure and its injected rm failure before spawn", async () => {
+    const value = await syntheticAssets();
+    const children: ChildProcessWithoutNullStreams[] = [];
+    const dependencies = testDependencies(value, { spawns: children });
+    const verifyAssets = dependencies.verifyAssets;
+    const removedEvaluation = `${value.nnPath}.removed-for-snapshot-test`;
+    const cleanupFailure = new Error("injected private snapshot rm failure");
+    let snapshotRoot: string | undefined;
+    let failure: unknown;
+    let verificationCount = 0;
+    const rm = vi
+      .spyOn(fs.promises, "rm")
+      .mockImplementationOnce(async (target) => {
+        snapshotRoot = String(target);
+        throw cleanupFailure;
+      });
+    try {
+      await createFloodgateProductionTeacherUsiRuntimeCoreForTests({
+        ...dependencies,
+        verifyAssets: async () => {
+          const authority = await verifyAssets();
+          verificationCount += 1;
+          if (verificationCount === 1)
+            await fs.promises.rename(value.nnPath, removedEvaluation);
+          return authority;
+        },
+      });
+    } catch (error) {
+      failure = error;
+    } finally {
+      rm.mockRestore();
+    }
+
+    try {
+      expect(failure).toBeInstanceOf(FloodgateProductionTeacherUsiRuntimeError);
+      const runtimeError = failure as FloodgateProductionTeacherUsiRuntimeError;
+      expect(runtimeError.phase).toBe("snapshot");
+      expect(runtimeError.primary).toBeInstanceOf(AggregateError);
+      const failures = (runtimeError.primary as AggregateError).errors;
+      expect(failures).toHaveLength(2);
+      expect(failures[0]).toMatchObject({ code: "ENOENT" });
+      expect(failures[1]).toBe(cleanupFailure);
+      expect(children).toHaveLength(0);
+      expect(snapshotRoot).toBeDefined();
+      expect(fs.existsSync(snapshotRoot as string)).toBe(true);
+    } finally {
+      if (snapshotRoot !== undefined)
+        await fs.promises.rm(snapshotRoot, { recursive: true, force: true });
     }
   });
 

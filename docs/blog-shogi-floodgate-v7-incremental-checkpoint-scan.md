@@ -1,5 +1,7 @@
 # v7 checkpointを定数メモリで再検証するincremental scanner
 
+> **v2 update（現在の境界）:** 現行scannerはv2 checkpoint identityと認証済み`producer_control`を検証する。parent deadline、各running signalへの1回限りのabort、controllerの1回限りのabort-drain、drain timeout / timer cancellation処理はtest-only v2 boundaryで実装・検証済みだが、production coordinatorやlive teacherには未配線である。以下本文にある「valid 24k未実行」「timeout / cancellationは次段階」という記述と旧計測値はv1時点のhistorical recordであり、現行v2 evidenceとしては扱わない。これはreal label、training、weight、対局、棋力の証拠ではない。
+
 > [v7 HMAC work checkpoint](./blog-shogi-floodgate-v7-hmac-work-checkpoint.md)は、完成した親をstrict input順で永続化し、crash後に未完了親だけを再実行できるようにした。しかし、再開時と最終検証時のscannerはwork file全体を先にmemoryへ読んでいた。この変更では、64 KiBのread chunkと24,576-byteのline bufferで1行ずつ認証し、HMAC chain、順序、torn-tail recoveryを変えずに追加作業メモリをfile sizeから切り離した。実装・local full validation・独立reviewは完了したが、24,000親の意味的にvalidなload testとPR CIは未完了である。この記事はproduction readinessまたは棋力向上をまだ主張しない。English version: [blog-shogi-floodgate-v7-incremental-checkpoint-scan.en.md](./blog-shogi-floodgate-v7-incremental-checkpoint-scan.en.md)
 
 ---

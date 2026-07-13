@@ -23,17 +23,18 @@ import { UsiMultiPvAccumulator, type UsiMultiPvResult } from "./usi-multipv";
 import { positionFromSfen } from "./shogi-sfen";
 
 export const FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CONTRACT =
-  "shogi-floodgate-production-teacher-usi-runtime-v1" as const;
+  "shogi-floodgate-production-teacher-usi-runtime-v2" as const;
 export const FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_STATUS =
   "initialized-hardened-pinned-usi-process-pool" as const;
 export const FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CLAIM_BOUNDARY =
-  "engine-runtime-and-search-protocol-not-teacher-label-training-holdout-or-playing-strength-evidence" as const;
+  "engine-runtime-search-protocol-and-owner-abort-fulfilled-after-process-group-reap-and-private-snapshot-cleanup-not-production-coordinator-wiring-teacher-label-training-holdout-or-playing-strength-evidence" as const;
 
 export type FloodgateProductionTeacherUsiRuntimeExecutionBoundary =
   | "production-fixed-assets-and-runtime-dependencies"
   | "test-only-injected-asset-root-and-runtime-dependencies";
 
 export type FloodgateProductionTeacherUsiRuntimePhase =
+  | "abort"
   | "capture"
   | "asset-verification"
   | "snapshot"
@@ -189,6 +190,13 @@ export interface FloodgateProductionTeacherUsiPool<
     FloodgateProductionTeacherUsiRuntimeReceipt<TBoundary>
   >;
   readonly poisoned: boolean;
+  /**
+   * Lifecycle state is checked before either entrypoint validates caller
+   * input. Once poisoned, even invalid later calls share the pool's terminal
+   * error; once an orderly close starts, even invalid later calls share the
+   * pool's stable close error. Input validation applies only while the pool is
+   * open.
+   */
   propose(
     sfenInput: string,
     legalMoveCountInput: number,
@@ -197,6 +205,16 @@ export interface FloodgateProductionTeacherUsiPool<
     sfenInput: string,
     moveInput: string,
   ): Promise<Readonly<FloodgateProductionTeacherRescoreResult>>;
+  /**
+   * Force-abort and reap when this call wins the lifecycle transition.
+   * If close() already started, the first transition wins: this joins that
+   * same bounded orderly cleanup without changing its error classification or
+   * upgrading the pool to poisoned.
+   * If forced cleanup fails, lifecycle callers share the raw cleanup Promise
+   * and error while active, queued, and future operations share a distinct
+   * terminal cleanup error aggregating the abort and raw cleanup failures.
+   */
+  abortAndReap(): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -764,9 +782,14 @@ async function createPrivateSnapshot(
       evaluation,
     });
   } catch (primary) {
-    await fs.promises
-      .rm(root, { recursive: true, force: true })
-      .catch(() => undefined);
+    try {
+      await fs.promises.rm(root, { recursive: true, force: true });
+    } catch (cleanupFailure) {
+      throw new AggregateError(
+        [primary, cleanupFailure],
+        "private snapshot creation and cleanup failed",
+      );
+    }
     throw primary;
   }
 }
@@ -1303,6 +1326,7 @@ class HardenedUsiProcess {
       const finish = (failure?: Error) => {
         if (settled) return;
         settled = true;
+        child.off("close", closed);
         clearTimeout(termTimer);
         clearTimeout(killTimer);
         clearTimeout(boundTimer);
@@ -1311,6 +1335,7 @@ class HardenedUsiProcess {
         else reject(failure);
       };
       const closed = () => {
+        if (settled) return;
         leaderClosed = true;
         // Even after the leader closes, terminate any descendant that retained
         // the detached process group.
@@ -1367,6 +1392,7 @@ class HardenedFloodgateProductionTeacherUsiPool<
   private readonly available: HardenedUsiProcess[];
   private readonly waiters: LeaseWaiter[] = [];
   private readonly queueBound: number;
+  private readonly closeError = new Error("USI pool closed");
   private poisonError: Error | null = null;
   private closing = false;
   private cleanupPromise: Promise<void> | null = null;
@@ -1392,7 +1418,7 @@ class HardenedFloodgateProductionTeacherUsiPool<
 
   private acquire(): Promise<HardenedUsiProcess> {
     if (this.poisonError !== null) return this.rejectWithTerminalError();
-    if (this.closing) return Promise.reject(new Error("USI pool is closing"));
+    if (this.closing) return Promise.reject(this.closeError);
     const engine = this.available.pop();
     if (engine !== undefined) return Promise.resolve(engine);
     if (this.waiters.length >= this.queueBound)
@@ -1409,9 +1435,9 @@ class HardenedFloodgateProductionTeacherUsiPool<
     else waiter.resolve(engine);
   }
 
-  private poison(primary: unknown): void {
+  private poison(primary: unknown, phase: "abort" | "search" = "search"): void {
     if (this.poisonError !== null || this.closing) return;
-    const poisonError = runtimeFailure("search", primary);
+    const poisonError = runtimeFailure(phase, primary);
     this.poisonError = poisonError;
     this.cleanupPromise = this.cleanup(true);
     this.terminalErrorPromise = this.cleanupPromise.then(
@@ -1441,6 +1467,12 @@ class HardenedFloodgateProductionTeacherUsiPool<
     return terminalErrorPromise.then((terminalError) => {
       throw terminalError;
     });
+  }
+
+  private lifecyclePreflight<T>(): Promise<T> | null {
+    if (this.poisonError !== null) return this.rejectWithTerminalError<T>();
+    if (this.closing) return Promise.reject(this.closeError);
+    return null;
   }
 
   private async withEngine<T>(
@@ -1481,6 +1513,11 @@ class HardenedFloodgateProductionTeacherUsiPool<
     sfenInput: string,
     legalMoveCountInput: number,
   ): Promise<Readonly<FloodgateProductionTeacherProposalResult>> {
+    const lifecycleFailure =
+      this.lifecyclePreflight<
+        Readonly<FloodgateProductionTeacherProposalResult>
+      >();
+    if (lifecycleFailure !== null) return lifecycleFailure;
     const sfen = validateSfen(sfenInput);
     const legalMoveCount = boundedInteger(
       legalMoveCountInput,
@@ -1517,6 +1554,11 @@ class HardenedFloodgateProductionTeacherUsiPool<
     sfenInput: string,
     moveInput: string,
   ): Promise<Readonly<FloodgateProductionTeacherRescoreResult>> {
+    const lifecycleFailure =
+      this.lifecyclePreflight<
+        Readonly<FloodgateProductionTeacherRescoreResult>
+      >();
+    if (lifecycleFailure !== null) return lifecycleFailure;
     const sfen = validateSfen(sfenInput);
     const move = validateMove(moveInput);
     return this.withEngine(async (engine) => {
@@ -1573,11 +1615,24 @@ class HardenedFloodgateProductionTeacherUsiPool<
       );
   }
 
-  async close(): Promise<void> {
+  abortAndReap(): Promise<void> {
+    // The first lifecycle transition owns cleanup. A close-first call already
+    // has bounded process-group reaping and snapshot removal in progress, so a
+    // later abort joins that exact Promise without reclassification or poison.
+    if (this.cleanupPromise !== null) return this.cleanupPromise;
+    this.poison(new Error("USI pool aborted by its lifecycle owner"), "abort");
+    if (this.cleanupPromise === null) {
+      return Promise.reject(
+        new Error("USI pool abort did not establish cleanup"),
+      );
+    }
+    return this.cleanupPromise;
+  }
+
+  close(): Promise<void> {
     if (this.cleanupPromise !== null) return this.cleanupPromise;
     this.closing = true;
-    const error = new Error("USI pool closed");
-    for (const waiter of this.waiters.splice(0)) waiter.reject(error);
+    for (const waiter of this.waiters.splice(0)) waiter.reject(this.closeError);
     this.cleanupPromise = this.cleanup(false);
     return this.cleanupPromise;
   }
@@ -1599,6 +1654,7 @@ function createPublicPoolFacade<
   const rescore = Object.freeze((sfenInput: string, moveInput: string) =>
     implementation.rescore(sfenInput, moveInput),
   );
+  const abortAndReap = Object.freeze(() => implementation.abortAndReap());
   const close = Object.freeze(() => implementation.close());
   Object.defineProperties(facade, {
     receipt: {
@@ -1620,6 +1676,12 @@ function createPublicPoolFacade<
     },
     rescore: {
       value: rescore,
+      enumerable: true,
+      writable: false,
+      configurable: false,
+    },
+    abortAndReap: {
+      value: abortAndReap,
       enumerable: true,
       writable: false,
       configurable: false,

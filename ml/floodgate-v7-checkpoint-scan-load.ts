@@ -71,9 +71,17 @@ import {
 } from "./floodgate-v7-candidate-union";
 import type { FloodgateV7CompletedParentInput } from "./floodgate-v7-completed-parent";
 import {
+  FLOODGATE_V7_TEACHER_CHECKPOINT_ALGORITHM,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_CLAIM_BOUNDARY,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT,
   FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
   FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_SCHEMA,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_STATUS,
   FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+  FLOODGATE_V7_TEACHER_PRODUCER_CANCEL_POLICY,
+  FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_SCHEMA,
+  FLOODGATE_V7_TEACHER_PRODUCER_LATE_SETTLEMENT_POLICY,
   FLOODGATE_V7_TEACHER_RUN_BINDING_SCHEMA,
   checkpointFloodgateV7TeacherParentsCoreForTests,
   type FloodgateV7TeacherCheckpointDependencies,
@@ -88,11 +96,11 @@ import { compareBytewise, positionKeyFromSfen } from "./sibling-data";
 import { OU, getKomashu } from "../src/components/game/ShogiImproved/types";
 
 export const FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_SCHEMA =
-  "shogi-floodgate-v7-checkpoint-semantic-scan-load-v1" as const;
+  "shogi-floodgate-v7-checkpoint-semantic-scan-load-v2" as const;
 export const FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_STATUS =
-  "complete-synthetic-semantic-resume-and-final-scan-evidence" as const;
+  "complete-synthetic-v2-checkpoint-semantic-resume-and-final-scan-evidence" as const;
 export const FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_CLAIM_BOUNDARY =
-  "synthetic-holdout-free-scanner-load-only-fresh-build-receipt-discarded-native-sync-restored-before-evidence-scan-not-teacher-label-training-weight-or-playing-strength-evidence" as const;
+  "synthetic-holdout-free-v2-checkpoint-and-authenticated-producer-control-scanner-load-only-fresh-build-receipt-discarded-native-sync-restored-before-evidence-scan-not-teacher-label-training-weight-or-playing-strength-evidence" as const;
 
 const START_SFEN =
   "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
@@ -224,6 +232,18 @@ export interface FloodgateV7CheckpointScanLoadResult {
   readonly schema: typeof FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_SCHEMA;
   readonly status: typeof FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_STATUS;
   readonly claim_boundary: typeof FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_CLAIM_BOUNDARY;
+  readonly checkpoint_identity: Readonly<{
+    schema: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_SCHEMA;
+    status: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_STATUS;
+    claim_boundary: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_CLAIM_BOUNDARY;
+    algorithm: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_ALGORITHM;
+    run_binding: Readonly<FloodgateV7TeacherCheckpointRunBinding>;
+    teacher_usi_runtime: Readonly<{
+      contract: typeof FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CONTRACT;
+      status: typeof FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_STATUS;
+      claim_boundary: typeof FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CLAIM_BOUNDARY;
+    }>;
+  }>;
   readonly data: Readonly<{
     source: "deterministic-synthetic-standard-position-legal-playouts";
     public_dataset_paths_accepted: false;
@@ -920,6 +940,15 @@ function runBinding(): Readonly<FloodgateV7TeacherCheckpointRunBinding> {
       bytes: FLOODGATE_FRESH_SIBLING_PLAN_BYTES,
       sha256: FLOODGATE_FRESH_SIBLING_PLAN_SHA256,
     }),
+    producer_control: Object.freeze({
+      schema: FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_SCHEMA,
+      parent_deadline_ms: CHILD_TIMEOUT_MS,
+      abort_drain_ms: 30_000,
+      max_in_flight: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT,
+      cancel_policy: FLOODGATE_V7_TEACHER_PRODUCER_CANCEL_POLICY,
+      late_settlement_policy:
+        FLOODGATE_V7_TEACHER_PRODUCER_LATE_SETTLEMENT_POLICY,
+    }),
     stable_runtime_receipt_sha256: "c".repeat(64),
     teacher_usi_runtime_receipt_sha256: TEACHER_RUNTIME_RECEIPT_SHA256,
   });
@@ -956,7 +985,10 @@ async function runCheckpoint(
         lease,
         authenticated,
         runBinding(),
-        async ({ parent }) => producer(parent),
+        {
+          produce: async ({ parent }) => producer(parent),
+          abortAndDrain: async () => undefined,
+        },
         { runId: RUN_ID, keyId: KEY_ID },
         {
           rootKey: rootKey(),
@@ -1978,10 +2010,24 @@ export async function runFloodgateV7CheckpointScanLoadHarness(
       timing: scan.timing,
       memory: scan.memory,
     } as const;
+    const binding = runBinding();
     const result: FloodgateV7CheckpointScanLoadResult = {
       schema: FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_SCHEMA,
       status: FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_STATUS,
       claim_boundary: FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_CLAIM_BOUNDARY,
+      checkpoint_identity: Object.freeze({
+        schema: FLOODGATE_V7_TEACHER_CHECKPOINT_SCHEMA,
+        status: FLOODGATE_V7_TEACHER_CHECKPOINT_STATUS,
+        claim_boundary: FLOODGATE_V7_TEACHER_CHECKPOINT_CLAIM_BOUNDARY,
+        algorithm: FLOODGATE_V7_TEACHER_CHECKPOINT_ALGORITHM,
+        run_binding: binding,
+        teacher_usi_runtime: Object.freeze({
+          contract: FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CONTRACT,
+          status: FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_STATUS,
+          claim_boundary:
+            FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CLAIM_BOUNDARY,
+        }),
+      }),
       data: Object.freeze({
         source: "deterministic-synthetic-standard-position-legal-playouts",
         public_dataset_paths_accepted: false,

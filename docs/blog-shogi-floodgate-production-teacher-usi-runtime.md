@@ -1,5 +1,7 @@
 # production teacher専用USI runtimeを通常のwrapperから分離する
 
+> **v2 update（現在の境界）:** 現行runtime contractは`shogi-floodgate-production-teacher-usi-runtime-v2`である。pool lifecycleでは`close()`と`abortAndReap()`のうち最初のcallが唯一のcleanup Promiseを確定する（first-call-wins）。そのPromiseは、全process groupのbounded reapとprivate snapshot削除が完了して初めてfulfillする。このv2 lifecycle evidenceはtest-only / injected boundaryのもので、production coordinatorやlive teacherには未配線である。以下の本文は作成時点のhistorical recordとして残し、teacher label、training、weight / live更新、holdout、棋力は主張しない。
+
 > [production asset authority](./blog-shogi-floodgate-production-teacher-asset-authority.md)で、YaneuraOu binary、eval、stable assetの実在bytesをfixed private registryへ固定した。しかしassetが同じでも、callerがpath、environment、option、timeoutを変えられるprocess wrapperでは同じteacher searchにならない。このPRは既存`UsiTeacherEngine`をdevelopment/test surfaceのまま残し、production専用のargumentless factory、shared private snapshot、fixed 12-engine pool、bounded USI state machineを別contractとして追加する。これはengine execution boundaryであり、teacher label、training、selection / holdout、棋力の証拠ではない。English version: [blog-shogi-floodgate-production-teacher-usi-runtime.en.md](./blog-shogi-floodgate-production-teacher-usi-runtime.en.md)
 
 ---

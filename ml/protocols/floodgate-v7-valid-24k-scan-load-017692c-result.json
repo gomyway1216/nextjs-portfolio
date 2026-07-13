@@ -1,0 +1,303 @@
+{
+  "schema": "shogi-floodgate-v7-checkpoint-semantic-scan-load-evidence-v2",
+  "status": "complete-accepted-synthetic-24k-v2-test-only-scan-load-evidence",
+  "claim_boundary": "synthetic-holdout-free-v2-checkpoint-and-authenticated-producer-control-test-only-scan-load-evidence-not-production-coordinator-official-teacher-runtime-receipt-teacher-label-training-weight-match-rating-or-playing-strength-evidence",
+  "supersedes": {
+    "path": "ml/protocols/floodgate-v7-valid-24k-scan-load-183e95f-result.json",
+    "sha256": "bc8d54822c7d95fd9fe3b5f664427f5402a5a0d1839b51549b465449aa4b6209",
+    "reason": "the checkpoint, authenticated producer-control, run-binding, and teacher-runtime identities moved from v1 to v2; the v1 result remains immutable historical evidence and cannot be resumed or re-signed in place as v2"
+  },
+  "attempts": [
+    {
+      "attempt": 1,
+      "source_commit": "d5eb700652f84b8502c1a7eb8d2cf941e33c5f73",
+      "harness_sha256": "4add30df944df9a02928fc6e089e9e43635338a5e2747c32e773fc1d5eaab27c",
+      "accepted_evidence": false,
+      "current_evidence": false,
+      "exit_code": 1,
+      "external_wall_seconds": 4.05,
+      "complete_result_json": false,
+      "classification": "fail-closed-fixture-generator-discovery-not-scan-load-evidence",
+      "failure": "invalid Floodgate source: CSA timestamp has an invalid time of day",
+      "discovery": "the synthetic game counter was formatted directly as HHMMSS and produced invalid seconds at game 60",
+      "scanner_reached": false,
+      "new_temp_roots_after_exit": 0,
+      "follow_up_commit": "3ac84a600e8e8d14f415369d7f51e8b26b776444"
+    },
+    {
+      "attempt": 2,
+      "source_commit": "3ac84a600e8e8d14f415369d7f51e8b26b776444",
+      "harness_sha256": "d1debecd249f70c36f5a0b72f653f1de1764f22022f7864fd1baa68a078485ff",
+      "accepted_evidence": false,
+      "current_evidence": false,
+      "exit_code": 1,
+      "external_wall_seconds": 82.81,
+      "complete_result_json": false,
+      "classification": "operator-stopped-build-run-not-scan-load-evidence",
+      "reason": "stopped to keep exact-v22.13.0 evidence tests from failing the repository suite on other package-supported Node runtimes",
+      "child_signal": "SIGTERM",
+      "new_temp_roots_after_exit": 0,
+      "follow_up_commit": "7844ea49f9e0326a5531824d7e356d6d51726d58"
+    },
+    {
+      "attempt": 3,
+      "source_commit": "7844ea49f9e0326a5531824d7e356d6d51726d58",
+      "harness_sha256": "d1debecd249f70c36f5a0b72f653f1de1764f22022f7864fd1baa68a078485ff",
+      "accepted_evidence": true,
+      "current_evidence": false,
+      "superseded_by_attempt": 5,
+      "exit_code": 0,
+      "external_wall_seconds": 440.7,
+      "complete_result_json": true,
+      "evidence_path": "ml/protocols/floodgate-v7-valid-24k-scan-load-7844ea4-result.json",
+      "evidence_sha256": "7fc84e5e6168859d1bdcb0d352839725fe53a1dc8994ea34b7b44bb3b20eda58",
+      "new_temp_roots_after_exit": 0
+    },
+    {
+      "attempt": 4,
+      "source_commit": "183e95f409347c37feee72b0509af17317891a36",
+      "harness_sha256": "d0f8b2f21b26c523949b4026171c35b7158c2509a54d5a81edba56006623d20f",
+      "accepted_evidence": false,
+      "current_evidence": false,
+      "wrapper_exit_code": 1,
+      "external_wall_seconds": 436.95,
+      "started_at_utc": "2026-07-13T10:00:03Z",
+      "finished_at_utc": null,
+      "complete_result_json": true,
+      "classification": "post-result-wrapper-bookkeeping-failure-not-accepted-evidence",
+      "failure": "zsh rejected assignment to its reserved read-only status variable before finish-time capture",
+      "result_values_published": false,
+      "new_temp_roots_after_exit": 0
+    },
+    {
+      "attempt": 5,
+      "source_commit": "183e95f409347c37feee72b0509af17317891a36",
+      "harness_sha256": "d0f8b2f21b26c523949b4026171c35b7158c2509a54d5a81edba56006623d20f",
+      "accepted_evidence": true,
+      "current_evidence": false,
+      "historical_schema": "shogi-floodgate-v7-checkpoint-semantic-scan-load-v1",
+      "superseded_by_attempt": 6,
+      "exit_code": 0,
+      "external_wall_seconds": 443.37,
+      "external_user_seconds": 450.0,
+      "external_system_seconds": 5.85,
+      "external_maximum_resident_set_bytes": 423510016,
+      "started_at_utc": "2026-07-13T10:08:12Z",
+      "finished_at_utc": "2026-07-13T10:15:35Z",
+      "complete_result_json": true,
+      "evidence_path": "ml/protocols/floodgate-v7-valid-24k-scan-load-183e95f-result.json",
+      "evidence_sha256": "bc8d54822c7d95fd9fe3b5f664427f5402a5a0d1839b51549b465449aa4b6209",
+      "worktree_clean_before_run": true,
+      "worktree_clean_after_run": true,
+      "new_temp_roots_after_exit": 0
+    },
+    {
+      "attempt": 6,
+      "source_commit": "017692c7a076babbd40e7be0b14ea27d9988fa6c",
+      "harness_sha256": "23578cbf11deafb49cd288f38d9f3ec081e76d0f41a5b2948b3ccf08fabfb9a2",
+      "accepted_evidence": true,
+      "current_evidence": true,
+      "checkpoint_schema": "shogi-floodgate-v7-teacher-work-v2",
+      "exit_code": 0,
+      "external_wall_seconds": 435.6,
+      "external_user_seconds": 442.23,
+      "external_system_seconds": 5.74,
+      "external_maximum_resident_set_bytes": 483491840,
+      "started_at_utc": "2026-07-13T11:51:53Z",
+      "finished_at_utc": "2026-07-13T11:59:09Z",
+      "complete_result_json": true,
+      "worktree_clean_before_run": true,
+      "worktree_clean_after_run": true,
+      "temporary_fixture_roots_before_run": 0,
+      "temporary_fixture_roots_after_run": 0,
+      "new_temp_roots_after_exit": 0,
+      "wrapper_exit_code": 0
+    }
+  ],
+  "invocation": {
+    "cwd": "repository-root",
+    "display_command": "/usr/bin/time -lp ${NODE_V22_13_0} --expose-gc -r tsx/cjs ml/floodgate-v7-checkpoint-scan-load.ts --parents 24000",
+    "reproduction_command": "npm run shogi:floodgate-v7-checkpoint-scan-load -- --parents 24000",
+    "node_binary": {
+      "version": "v22.13.0",
+      "bytes": 121593488,
+      "sha256": "5c79f8e198fd2456ea6660aaa6be218f9f44747f2306c7d0f5f97b087b2f2dfc"
+    }
+  },
+  "machine": {
+    "chip": "Apple M4 Pro",
+    "physical_cpus": 14,
+    "logical_cpus": 14,
+    "memory_bytes": 51539607552,
+    "operating_system": "macOS",
+    "operating_system_version": "15.1",
+    "operating_system_build": "24B2082",
+    "architecture": "arm64"
+  },
+  "result": {
+    "schema": "shogi-floodgate-v7-checkpoint-semantic-scan-load-v2",
+    "status": "complete-synthetic-v2-checkpoint-semantic-resume-and-final-scan-evidence",
+    "claim_boundary": "synthetic-holdout-free-v2-checkpoint-and-authenticated-producer-control-scanner-load-only-fresh-build-receipt-discarded-native-sync-restored-before-evidence-scan-not-teacher-label-training-weight-or-playing-strength-evidence",
+    "checkpoint_identity": {
+      "schema": "shogi-floodgate-v7-teacher-work-v2",
+      "status": "complete-authenticated-private-v7-teacher-parent-checkpoint-not-published",
+      "claim_boundary": "accepted-parent-exactly-once-search-at-least-once-authenticated-bounded-producer-control-trusted-controller-test-hooks-and-current-js-realm-intrinsics-returned-evidence-adversarial-reverified-hmac-persisted-byte-tamper-evidence-for-non-key-holders-only-not-hostile-same-process-mutation-production-origin-label-holdout-or-playing-strength-evidence",
+      "algorithm": "hmac-sha256-hkdf-sha256-v7-parent-chain-v2",
+      "run_binding": {
+        "schema": "shogi-floodgate-v7-teacher-run-binding-v2",
+        "plan": {
+          "bytes": 10890,
+          "sha256": "ad9e6d7f2cc7ae2d03913c405d81755d24a0b9f02b84c384b4d641c6c2b7a0af"
+        },
+        "producer_control": {
+          "schema": "shogi-floodgate-v7-teacher-producer-control-v2",
+          "parent_deadline_ms": 1800000,
+          "abort_drain_ms": 30000,
+          "max_in_flight": 12,
+          "cancel_policy": "first-terminal-stop-scheduling-abort-each-running-signal-once-and-call-controller-drain-once-v2",
+          "late_settlement_policy": "observe-from-start-consume-after-terminal-without-validation-or-append-v2"
+        },
+        "stable_runtime_receipt_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "teacher_usi_runtime_receipt_sha256": "a9741dfcecd4dc7f6e4910e6754069951d067594fb8edabcb5b092cce3afbe5e"
+      },
+      "teacher_usi_runtime": {
+        "contract": "shogi-floodgate-production-teacher-usi-runtime-v2",
+        "status": "initialized-hardened-pinned-usi-process-pool",
+        "claim_boundary": "engine-runtime-search-protocol-and-owner-abort-fulfilled-after-process-group-reap-and-private-snapshot-cleanup-not-production-coordinator-wiring-teacher-label-training-holdout-or-playing-strength-evidence"
+      }
+    },
+    "data": {
+      "source": "deterministic-synthetic-standard-position-legal-playouts",
+      "public_dataset_paths_accepted": false,
+      "network_reads": false,
+      "parents": 24000,
+      "games": 67,
+      "unique_parent_ids": true,
+      "unique_position_ids": true,
+      "candidates_per_parent": 14
+    },
+    "bounds": {
+      "theoretical_rejection_cap_bytes": 589897154,
+      "theoretical_rejection_cap_classification": "conservative-cap-not-valid-stream-size",
+      "maximum_line_bytes": 24576,
+      "maximum_parents": 24000
+    },
+    "valid_stream": {
+      "actual_bytes": 429245287,
+      "actual_sha256": "8039ec02f3421d934d0a9f1d10b47a97f273e397ad414e64db50bded13c498ac",
+      "line_statistics": {
+        "records": 24002,
+        "header_bytes": 2957,
+        "entries": 24000,
+        "entry_bytes_total": 429217823,
+        "entry_bytes_min": 17345,
+        "entry_bytes_max": 18451,
+        "entry_bytes_mean": 17884,
+        "seal_bytes": 505,
+        "maximum_line_bytes": 18451
+      },
+      "actual_is_not_theoretical_cap": true
+    },
+    "fixture_build": {
+      "classification": "non-evidence-build-receipt-discarded",
+      "raw": {
+        "bytes": 15607545,
+        "sha256": "e31401244c2dc7e145cae087cb286dcea807ffb1a506ffef42b371443304144f"
+      },
+      "sync": {
+        "suppressed_per_line_regular_file_syncs": 24002,
+        "expected_suppressed_syncs": 24002,
+        "native_method_restored_before_batch_sync": true,
+        "one_work_batch_sync_completed": true,
+        "one_stage_directory_batch_sync_completed": true
+      },
+      "timing": {
+        "generation_wall_ms": 3938,
+        "fixture_wall_ms": 194,
+        "checkpoint_build_wall_ms": 274444,
+        "batch_sync_and_measure_wall_ms": 251
+      },
+      "memory": {
+        "baseline_rss_bytes": 106594304,
+        "final_rss_bytes": 350633984,
+        "resource_max_rss_bytes": 375357440
+      }
+    },
+    "native_scan": {
+      "producer_calls": 0,
+      "completed_parents": 24000,
+      "resumed_parents": 24000,
+      "work": {
+        "bytes": 429245287,
+        "receipt_sha256": "8039ec02f3421d934d0a9f1d10b47a97f273e397ad414e64db50bded13c498ac",
+        "independent_sha256": "8039ec02f3421d934d0a9f1d10b47a97f273e397ad414e64db50bded13c498ac",
+        "sha256_match": true
+      },
+      "reads": {
+        "calls": {
+          "resumable-prefix": 6550,
+          "sealed-final": 6550
+        },
+        "bytes": {
+          "resumable-prefix": 429245287,
+          "sealed-final": 429245287
+        },
+        "maximum_request_bytes": {
+          "resumable-prefix": 65536,
+          "sealed-final": 65536
+        },
+        "first_ms": {
+          "resumable-prefix": 4989.0575,
+          "sealed-final": 80830.888625
+        }
+      },
+      "timing": {
+        "total_checkpoint_wall_ms": 156004,
+        "resumable_prefix_start_to_final_scan_start_wall_ms": 75842,
+        "sealed_final_scan_start_to_receipt_wall_ms": 75387,
+        "independent_sha256_wall_ms": 239
+      },
+      "memory": {
+        "baseline_rss_bytes": 194199552,
+        "final_rss_bytes": 404340736,
+        "resource_max_rss_bytes": 483475456,
+        "sampled_peak_rss_bytes": 404340736
+      }
+    },
+    "runtime": {
+      "node": "v22.13.0",
+      "build_child_node": "v22.13.0",
+      "scan_child_node": "v22.13.0",
+      "platform": "darwin",
+      "architecture": "arm64",
+      "logical_cpus": 14
+    }
+  },
+  "acceptance": {
+    "all_required_checks_passed": true,
+    "derived_candidate_instances": 336000,
+    "jsonl_line_byte_arithmetic_matches": true,
+    "entry_mean_rounding_matches": true,
+    "entry_total_within_minimum_and_maximum_bounds": true,
+    "maximum_line_matches_observed_components": true,
+    "read_call_ceiling_arithmetic_matches": true,
+    "prefix_timing_rounding_matches": true,
+    "timing_envelope_is_consistent": true,
+    "build_rss_relationships_are_consistent": true,
+    "scan_rss_relationships_are_consistent": true,
+    "sampled_peak_need_not_exceed_post_sampler_final": true,
+    "external_rss_covers_child_resource_rss": true,
+    "stream_receipt_independent_sha256_match": true,
+    "source_commit_unchanged_after_run": true,
+    "harness_sha256_unchanged_after_run": true,
+    "temporary_fixture_cleanup_observed": true,
+    "setup_failure_cleanup_regression_passed": true,
+    "action_rejection_sync_restoration_regression_passed": true,
+    "rss_is_observation_not_scaling_gate": true,
+    "v1_checkpoint_resumed_or_resigned_as_v2": false,
+    "production_entry_point_claimed": false,
+    "official_teacher_runtime_receipt_claimed": false,
+    "playing_strength_claimed": false,
+    "live_weight_changed": false
+  }
+}

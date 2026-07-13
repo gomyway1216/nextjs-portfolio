@@ -26,17 +26,18 @@
 
 実装とadversarial testから、関連する落とし穴もまとめて表へ固定した。
 
-| 発見                                             | 必要になった規則                                                                              |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------- |
-| `Promise.allSettled`自体には期限がない           | controllerと全raw producerを別に数え、`abort_drain_ms`で待機だけを打ち切りlate observerは残す |
-| Node timerには表現上限とclampの危険がある        | timer値をinteger `1..2,147,483,647 ms`に限定し、HMAC認証する                                  |
-| input順待ちとfailure観測順は同じでない           | 最小input indexではなく、globalに最初に観測したterminalを1回だけlatchする                     |
-| timeout後にもraw Promiseはsettleし得る           | late settlementはconsumeだけ行い、validateもappendも開始しない                                |
-| terminal前に始めたappendは途中で止められない     | 完了し得るものとしてpersistence-indeterminateにし、resume時にdurable prefixを再scanする       |
-| child PIDだけでは孫processが残り得る             | dedicated process groupをTERM / KILL escalation付きでreapする                                 |
-| engineだけ消してもasset copyが残り得る           | snapshot identityを再検証し、private snapshotをcleanup完了条件へ含める                        |
-| test失敗は通常の`afterEach`より前にも起きる      | `try/finally`でstarted promise観測、group reap、temp-root removalを閉じる                     |
-| own property付きnative Promiseも後でrejectし得る | contract違反として拒否しつつ、captured intrinsicでrejectionだけbest-effort観測する            |
+| 発見                                                    | 必要になった規則                                                                              |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `Promise.allSettled`自体には期限がない                  | controllerと全raw producerを別に数え、`abort_drain_ms`で待機だけを打ち切りlate observerは残す |
+| Node timerには表現上限とclampの危険がある               | timer値をinteger `1..2,147,483,647 ms`に限定し、HMAC認証する                                  |
+| input順待ちとfailure観測順は同じでない                  | 最小input indexではなく、globalに最初に観測したterminalを1回だけlatchする                     |
+| timeout後にもraw Promiseはsettleし得る                  | late settlementはconsumeだけ行い、validateもappendも開始しない                                |
+| terminal前に始めたappendは途中で止められない            | 完了し得るものとしてpersistence-indeterminateにし、resume時にdurable prefixを再scanする       |
+| child PIDだけでは孫processが残り得る                    | dedicated process groupをTERM / KILL escalation付きでreapする                                 |
+| engineだけ消してもasset copyが残り得る                  | snapshot identityを再検証し、private snapshotをcleanup完了条件へ含める                        |
+| test失敗は通常の`afterEach`より前にも起きる             | `try/finally`でstarted promise観測、group reap、temp-root removalを閉じる                     |
+| own property付きnative Promiseも後でrejectし得る        | contract違反として拒否しつつ、captured intrinsicでrejectionだけbest-effort観測する            |
+| 同じclose errorをcaller間で共有するとmutationも伝播する | stable identityを保ったままinstanceをfreezeし、後続callerの観測を固定する                     |
 
 ## 2. runtimeとcheckpointを別のstate machineにする
 
@@ -74,7 +75,7 @@ runtimeでは最初のlifecycle transitionだけがcleanupを所有する。後�
 | cleanup fulfill | 全状態                         | 全process groupが消滅し、snapshot再検証と削除が成功済み                                                 |
 | cleanup reject  | 全状態                         | lifecycle callerはraw cleanup error、operation callerはprimaryとcleanupを集約したterminal errorを受ける |
 
-1 engineの終了に失敗しても残りのengine、snapshot revalidation、snapshot removalを試し、cleanup failureを`AggregateError`へ集める。また、fulfilled cleanup後に遅い`close` eventが来てもprocess groupへ再signalしないようlistenerを解除し、settled guardでも二重処理を止めた。
+1 engineの終了に失敗しても残りのengine、snapshot revalidation、snapshot removalを試し、cleanup failureを`AggregateError`へ集める。また、fulfilled cleanup後に遅い`close` eventが来てもprocess groupへ再signalしないようlistenerを解除し、settled guardでも二重処理を止めた。post-merge reviewでは、closed callerへ同じerror instanceを返すだけでは先行callerが`.message`や`.name`を変更できることも見つかった。instanceをfreezeし、共有identityと後続観測の両方を固定した。
 
 ## 4. checkpointのfirst-terminal state machine
 

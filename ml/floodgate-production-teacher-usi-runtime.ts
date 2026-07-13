@@ -1382,6 +1382,28 @@ interface LeaseWaiter {
   readonly reject: (error: Error) => void;
 }
 
+function createFrozenCloseError(): Error {
+  const error = new Error("USI pool closed");
+  // Node v22 can expose `stack` through a setter-backed accessor that remains
+  // writable even after Object.freeze(). Materialize both inherited `name`
+  // and lazy `stack` as immutable own data before freezing the whole object.
+  Object.defineProperties(error, {
+    name: {
+      value: error.name,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    },
+    stack: {
+      value: error.stack,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    },
+  });
+  return Object.freeze(error);
+}
+
 class HardenedFloodgateProductionTeacherUsiPool<
   TBoundary extends FloodgateProductionTeacherUsiRuntimeExecutionBoundary =
     FloodgateProductionTeacherUsiRuntimeExecutionBoundary,
@@ -1392,7 +1414,10 @@ class HardenedFloodgateProductionTeacherUsiPool<
   private readonly available: HardenedUsiProcess[];
   private readonly waiters: LeaseWaiter[] = [];
   private readonly queueBound: number;
-  private readonly closeError = new Error("USI pool closed");
+  // Closed callers intentionally share one stable classification. Freeze the
+  // exported instance so an earlier caller cannot rewrite what later callers
+  // observe through message/name/stack or newly added own properties.
+  private readonly closeError = createFrozenCloseError();
   private poisonError: Error | null = null;
   private closing = false;
   private cleanupPromise: Promise<void> | null = null;

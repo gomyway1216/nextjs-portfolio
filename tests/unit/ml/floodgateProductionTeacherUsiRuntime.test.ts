@@ -1192,7 +1192,40 @@ posixDescribe("Floodgate production teacher USI runtime", () => {
     for (const failure of laterFailures)
       expect(failure.reason).toBe(closeError);
     expect(closeError).not.toBe(cleanupFailure);
+    expect(Object.isFrozen(closeError)).toBe(true);
     expect(String(closeError)).toMatch(/closed/i);
+    const originalStack = closeError.stack;
+    expect(typeof originalStack).toBe("string");
+    expect(Object.getOwnPropertyDescriptor(closeError, "stack")).toMatchObject({
+      value: originalStack,
+      writable: false,
+      configurable: false,
+    });
+
+    expect(Reflect.set(closeError, "message", "caller-mutated message")).toBe(
+      false,
+    );
+    expect(Reflect.set(closeError, "name", "CallerMutatedError")).toBe(false);
+    expect(Reflect.set(closeError, "stack", "caller-mutated stack")).toBe(
+      false,
+    );
+    expect(() =>
+      Object.defineProperty(closeError, "extra", { value: "caller-owned" }),
+    ).toThrow(TypeError);
+    const afterMutation = await Promise.allSettled([
+      pool.propose(START_SFEN, 2),
+      pool.rescore("invalid after mutation", "7z7f"),
+    ]);
+    for (const result of afterMutation) {
+      expect(result.status).toBe("rejected");
+      expect((result as PromiseRejectedResult).reason).toBe(closeError);
+      expect(String((result as PromiseRejectedResult).reason)).toMatch(
+        /USI pool closed/,
+      );
+      expect((result as PromiseRejectedResult).reason.stack).toBe(
+        originalStack,
+      );
+    }
     expect(pool.poisoned).toBe(false);
     expect(children.every(processClosed)).toBe(true);
     expect(fs.existsSync(snapshotRoot)).toBe(false);

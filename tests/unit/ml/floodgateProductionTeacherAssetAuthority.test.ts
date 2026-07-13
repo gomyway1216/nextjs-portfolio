@@ -594,10 +594,285 @@ posixDescribe("Floodgate production teacher asset authority", () => {
     expect(reads).not.toHaveBeenCalled();
   });
 
+  it("hands exact owned stable bytes to one callback only after final revalidation and zeroizes them", async () => {
+    const value = await fixture();
+    let finalRevalidationReached = false;
+    let callbackCalls = 0;
+    let observedBytes:
+      | Readonly<assetAuthority.FloodgateProductionStableRuntimeAssetBytes>
+      | undefined;
+
+    const result =
+      await assetAuthority.withVerifiedPinnedFloodgateProductionStableRuntimeAssetsCoreForTests(
+        value.registry,
+        value.root,
+        dependencies(value, {
+          beforeFinalRevalidationForTests: () => {
+            finalRevalidationReached = true;
+          },
+        }),
+        async (assets) => {
+          callbackCalls += 1;
+          expect(finalRevalidationReached).toBe(true);
+          expect(Object.getPrototypeOf(assets)).toBeNull();
+          expect(Object.getPrototypeOf(assets.bytes)).toBeNull();
+          expect(Object.isFrozen(assets)).toBe(true);
+          expect(Object.isFrozen(assets.bytes)).toBe(true);
+          expectDeepFrozen(assets.receipt);
+          expect(Object.keys(assets)).toEqual(["receipt", "bytes"]);
+          expect(Object.keys(assets.bytes)).toEqual([
+            "wasm",
+            "weights",
+            "worker",
+          ]);
+          expect(assets.receipt.execution_boundary).toBe(
+            "test-only-injected-expected-registry-and-root",
+          );
+          expect(assets.receipt.assets.stable).toMatchObject({
+            wasm: identity(value.bytes.wasm),
+            weights: identity(value.bytes.weights),
+            worker: identity(value.bytes.worker),
+          });
+          for (const [key, expected] of [
+            ["wasm", value.bytes.wasm],
+            ["weights", value.bytes.weights],
+            ["worker", value.bytes.worker],
+          ] as const) {
+            const bytes = assets.bytes[key];
+            expect(bytes).toBeInstanceOf(Uint8Array);
+            expect(Buffer.isBuffer(bytes)).toBe(false);
+            expect(bytes).toEqual(new Uint8Array(expected));
+            expect(bytes.buffer).not.toBe(expected.buffer);
+            expect(bytes.byteOffset).toBe(0);
+            expect(bytes.buffer.byteLength).toBe(bytes.byteLength);
+            if (typeof SharedArrayBuffer !== "undefined") {
+              expect(bytes.buffer).not.toBeInstanceOf(SharedArrayBuffer);
+            }
+          }
+          expect(Reflect.set(assets.bytes, "wasm", new Uint8Array())).toBe(
+            false,
+          );
+          observedBytes = assets.bytes;
+          return Object.freeze({ initialized: true as const });
+        },
+      );
+
+    expect(callbackCalls).toBe(1);
+    expect(result).toEqual({ initialized: true });
+    expect(observedBytes).toBeDefined();
+    for (const bytes of Object.values(observedBytes ?? {})) {
+      expect(bytes.every((byte) => byte === 0)).toBe(true);
+    }
+  });
+
+  it("fails closed on callback rejection, synchronous throws, thenables, and Proxies", async () => {
+    for (const variant of [
+      "reject",
+      "throw",
+      "thenable",
+      "promise-proxy",
+      "result-proxy",
+    ] as const) {
+      const value = await fixture();
+      const primary = new Error(`synthetic ${variant} callback failure`);
+      const then = vi.fn();
+      const callback =
+        variant === "reject"
+          ? async () => {
+              throw primary;
+            }
+          : variant === "throw"
+            ? () => {
+                throw primary;
+              }
+            : variant === "thenable"
+              ? () => ({ then })
+              : variant === "promise-proxy"
+                ? () => new Proxy(Promise.resolve("unreachable"), {})
+                : async () => new Proxy({ unreachable: true }, {});
+
+      const failure = await captureFailure(
+        assetAuthority.withVerifiedPinnedFloodgateProductionStableRuntimeAssetsCoreForTests(
+          value.registry,
+          value.root,
+          dependencies(value),
+          callback as assetAuthority.FloodgateProductionStableRuntimeAssetsCallback<
+            unknown,
+            "test-only-injected-expected-registry-and-root"
+          >,
+        ),
+      );
+
+      expect(failure).toBeInstanceOf(
+        assetAuthority.FloodgateProductionTeacherAssetAuthorityError,
+      );
+      expect(failure).toMatchObject({ phase: "callback" });
+      if (variant === "reject" || variant === "throw") {
+        expect(failure).toMatchObject({ primary });
+      }
+      expect(then).not.toHaveBeenCalled();
+    }
+
+    const proxiedCallbackFixture = await fixture();
+    const assetReads = vi.fn();
+    const proxiedCallback = new Proxy(async () => "unreachable", {});
+    const captureFailureValue = await captureFailure(
+      assetAuthority.withVerifiedPinnedFloodgateProductionStableRuntimeAssetsCoreForTests(
+        proxiedCallbackFixture.registry,
+        proxiedCallbackFixture.root,
+        dependencies(proxiedCallbackFixture, {
+          afterAssetReadForTests: assetReads,
+        }),
+        proxiedCallback,
+      ),
+    );
+    expect(captureFailureValue).toMatchObject({ phase: "capture" });
+    expect(assetReads).not.toHaveBeenCalled();
+  });
+
+  it("detects byte and deployment mutations while the callback awaits", async () => {
+    const byteMutation = await fixture();
+    let mutatedBytes: Uint8Array | undefined;
+    const byteFailure = await captureFailure(
+      assetAuthority.withVerifiedPinnedFloodgateProductionStableRuntimeAssetsCoreForTests(
+        byteMutation.registry,
+        byteMutation.root,
+        dependencies(byteMutation),
+        async ({ bytes }) => {
+          mutatedBytes = bytes.weights;
+          await Promise.resolve();
+          bytes.weights[0] ^= 0x01;
+        },
+      ),
+    );
+    expect(byteFailure).toMatchObject({ phase: "callback" });
+    expect(mutatedBytes?.every((byte) => byte === 0)).toBe(true);
+
+    const deploymentMutation = await fixture();
+    const deploymentFailure = await captureFailure(
+      assetAuthority.withVerifiedPinnedFloodgateProductionStableRuntimeAssetsCoreForTests(
+        deploymentMutation.registry,
+        deploymentMutation.root,
+        dependencies(deploymentMutation),
+        async () => {
+          await Promise.resolve();
+          const sameSize = Buffer.from(deploymentMutation.bytes.worker);
+          sameSize[0] ^= 0x01;
+          await fs.promises.writeFile(
+            deploymentMutation.paths.worker,
+            sameSize,
+          );
+        },
+      ),
+    );
+    expect(deploymentFailure).toMatchObject({ phase: "revalidation" });
+  });
+
+  it("prevents transfer of authority-owned buffers and preserves callback failure", async () => {
+    const value = await fixture();
+    const primary = new Error("synthetic callback primary");
+    let observedBytes:
+      | Readonly<assetAuthority.FloodgateProductionStableRuntimeAssetBytes>
+      | undefined;
+    const failure = await captureFailure(
+      assetAuthority.withVerifiedPinnedFloodgateProductionStableRuntimeAssetsCoreForTests(
+        value.registry,
+        value.root,
+        dependencies(value),
+        async ({ bytes }) => {
+          observedBytes = bytes;
+          expect(() =>
+            structuredClone(bytes.worker.buffer as ArrayBuffer, {
+              transfer: [bytes.worker.buffer as ArrayBuffer],
+            }),
+          ).toThrow();
+          throw primary;
+        },
+      ),
+    );
+
+    expect(failure).toMatchObject({ phase: "callback", primary });
+    expect((failure as Error).message).toContain(primary.message);
+    expect(observedBytes?.wasm.every((byte) => byte === 0)).toBe(true);
+    expect(observedBytes?.weights.every((byte) => byte === 0)).toBe(true);
+    expect(observedBytes?.worker.every((byte) => byte === 0)).toBe(true);
+  });
+
+  it("uses a captured zeroizer without touching a hostile own fill property", async () => {
+    const value = await fixture();
+    const hostileFill = vi.fn(() => {
+      throw new Error("hostile own fill must never execute");
+    });
+    const hostileBuffer = vi.fn(() => {
+      throw new Error("hostile own buffer metadata must never execute");
+    });
+    let observedBytes:
+      | Readonly<assetAuthority.FloodgateProductionStableRuntimeAssetBytes>
+      | undefined;
+
+    const result =
+      await assetAuthority.withVerifiedPinnedFloodgateProductionStableRuntimeAssetsCoreForTests(
+        value.registry,
+        value.root,
+        dependencies(value),
+        async ({ bytes }) => {
+          observedBytes = bytes;
+          const backing = bytes.wasm.buffer;
+          Object.defineProperty(bytes.wasm, "fill", {
+            configurable: true,
+            enumerable: true,
+            get: hostileFill,
+          });
+          Object.defineProperty(bytes.wasm, "buffer", {
+            configurable: true,
+            enumerable: true,
+            get: hostileBuffer,
+          });
+          Object.defineProperty(backing, "byteLength", {
+            configurable: true,
+            enumerable: true,
+            get: hostileBuffer,
+          });
+          return "initialized";
+        },
+      );
+
+    expect(result).toBe("initialized");
+    expect(hostileFill).not.toHaveBeenCalled();
+    expect(hostileBuffer).not.toHaveBeenCalled();
+    expect(observedBytes?.wasm.every((byte) => byte === 0)).toBe(true);
+    expect(observedBytes?.weights.every((byte) => byte === 0)).toBe(true);
+    expect(observedBytes?.worker.every((byte) => byte === 0)).toBe(true);
+  });
+
+  it("exposes no absolute root, descriptor, handle, or retained secret through the callback projection", async () => {
+    const value = await fixture();
+    let projectionText = "";
+    await assetAuthority.withVerifiedPinnedFloodgateProductionStableRuntimeAssetsCoreForTests(
+      value.registry,
+      value.root,
+      dependencies(value),
+      async (assets) => {
+        expect(forbiddenReceiptKeys(assets)).toEqual([]);
+        projectionText = JSON.stringify(assets.receipt);
+      },
+    );
+    expect(projectionText).not.toContain(value.root);
+    expect(projectionText).not.toContain(value.container);
+    expect(projectionText).not.toContain("embeddedWasmBase64");
+    expect(projectionText).not.toContain(value.bytes.weights.toString("hex"));
+  });
+
   it("keeps the production entry point zero-argument", () => {
     expect(
       assetAuthority.verifyPinnedFloodgateProductionTeacherAssets,
     ).toHaveLength(0);
+    expect(
+      assetAuthority.withVerifiedPinnedFloodgateProductionStableRuntimeAssets,
+    ).toHaveLength(1);
+    expect(
+      assetAuthority.withVerifiedPinnedFloodgateProductionStableRuntimeAssetsCoreForTests,
+    ).toHaveLength(4);
   });
 
   it("keeps the fixed production root independent of HOME", async () => {

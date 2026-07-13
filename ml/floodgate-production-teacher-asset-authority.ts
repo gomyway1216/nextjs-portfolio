@@ -41,6 +41,8 @@ const ROOT_RELATIVE_COMPONENTS = Object.freeze([
   "nextjs-portfolio",
   "shogi-production-teacher-assets-v1",
 ] as const);
+export const FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS =
+  ROOT_RELATIVE_COMPONENTS;
 
 export const FLOODGATE_PRODUCTION_TEACHER_RUNTIME = Object.freeze({
   parallel_engines: 12 as const,

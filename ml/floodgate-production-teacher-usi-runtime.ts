@@ -1254,8 +1254,9 @@ class HardenedUsiProcess {
         );
       },
     );
-    // A strict ready barrier after bestmove ensures delayed search output is
-    // rejected before a result can leave the runtime boundary.
+    // After bestmove, confirm readyok quiescence from the compliant pinned
+    // engine and reject structured output. Bounded info-string diagnostics
+    // and the compromised-engine temporal boundary are documented nonclaims.
     await this.reset();
     return result;
   }

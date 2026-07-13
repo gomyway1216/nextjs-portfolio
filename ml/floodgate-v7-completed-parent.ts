@@ -382,8 +382,7 @@ export interface FloodgateV7CompletedRescoreEvidence {
   readonly child_position_id: string;
   readonly depth: number;
   readonly completion:
-    | "requested-depth-complete"
-    | "exact-terminal-mate-before-requested-depth";
+    "requested-depth-complete" | "exact-terminal-mate-before-requested-depth";
   readonly score: Readonly<
     | { readonly kind: "cp"; readonly cp: number }
     | {
@@ -1617,8 +1616,7 @@ function captureStableRuntime(
       requested_depth: FLOODGATE_STABLE_REQUESTED_DEPTH,
       completed_depth: completedDepth,
       termination: search.termination as
-        | "requested-depth-complete"
-        | "winning-mate-band-early",
+        "requested-depth-complete" | "winning-mate-band-early",
       raw_search_score: rawScore,
       score_encoding: FLOODGATE_STABLE_WASM_SCORE_ENCODING,
       nodes,

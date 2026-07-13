@@ -860,14 +860,11 @@ function captureInvocation(
   const rootKey = Buffer.alloc(32);
   reflectApply(nativeTypedArraySet, rootKey, [rootKeyValue, 0]);
   const failpoint = dependencies.failpointForTests as
-    | FloodgateV7TeacherCheckpointDependencies["failpointForTests"]
-    | undefined;
+    FloodgateV7TeacherCheckpointDependencies["failpointForTests"] | undefined;
   const writeForTests = dependencies.writeForTests as
-    | FloodgateV7TeacherCheckpointDependencies["writeForTests"]
-    | undefined;
+    FloodgateV7TeacherCheckpointDependencies["writeForTests"] | undefined;
   const closeForTests = dependencies.closeForTests as
-    | FloodgateV7TeacherCheckpointDependencies["closeForTests"]
-    | undefined;
+    FloodgateV7TeacherCheckpointDependencies["closeForTests"] | undefined;
   if (
     failpoint !== undefined &&
     (typeof failpoint !== "function" || nodeIsProxy(failpoint))
@@ -1541,8 +1538,7 @@ async function appendMissingParentsInOrder(
   let nextToSchedule = startSequence;
   let previousMac = initialPreviousMac;
   let observedFailure:
-    | Readonly<{ sequence: number; cause: unknown }>
-    | undefined;
+    Readonly<{ sequence: number; cause: unknown }> | undefined;
 
   const observeFailure = async (
     task: Promise<Readonly<Record<string, unknown>>>,

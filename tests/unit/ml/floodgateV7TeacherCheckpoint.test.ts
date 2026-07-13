@@ -3246,6 +3246,8 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
     expect(producerCalls).toBe(0);
   });
 
+  // Shared Linux CI measured this exact-24k composite at 322 seconds. Keep the
+  // full corpus and adversarial matrix while allowing bounded runner variance.
   it("advances only authenticated v3 100/500 gates over one reused full input and fails closed on adversarial states", async () => {
     const corpus = fixedV3Corpus();
     expect(corpus.generated).toHaveLength(
@@ -3530,5 +3532,5 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
     }
 
     expect(forbiddenCalls).toBe(0);
-  }, 300_000);
+  }, 600_000);
 });

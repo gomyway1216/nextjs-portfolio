@@ -324,7 +324,9 @@ function fail(message: string): never {
 }
 
 function compareBytewise(left: string, right: string): number {
-  return Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8"));
+  // Accepted schema keys and canonical USI moves are ASCII, for which JS
+  // lexical order is identical to UTF-8 byte order without Buffer allocation.
+  return left < right ? -1 : left > right ? 1 : 0;
 }
 
 function sha256(value: string): string {

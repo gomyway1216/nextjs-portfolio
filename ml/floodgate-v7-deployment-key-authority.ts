@@ -1420,11 +1420,14 @@ function claimV3DerivedKey(
   }
 
   const cleanupFailure = zeroize(state.derivedKey);
+  if (
+    (primary !== undefined || cleanupFailure !== undefined) &&
+    output !== undefined
+  ) {
+    reflectApply(nativeUint8ArrayFill, output, [0]);
+    output = undefined;
+  }
   if (cleanupFailure !== undefined) {
-    if (output !== undefined) {
-      reflectApply(nativeUint8ArrayFill, output, [0]);
-      output = undefined;
-    }
     const cleanupError = new FloodgateV7DeploymentKeyAuthorityError(
       "cleanup",
       "consumed v3 checkpoint derived key could not be zeroized",

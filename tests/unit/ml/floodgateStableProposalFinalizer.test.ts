@@ -618,6 +618,10 @@ async function expectMissing(filePath: string): Promise<void> {
   });
 }
 
+async function sortedEntries(directory: string): Promise<readonly string[]> {
+  return (await fs.promises.readdir(directory)).sort(compareBytewise);
+}
+
 function parsedCanonicalFile(bytes: Uint8Array): Record<string, unknown> {
   const text = Buffer.from(bytes).toString("utf8");
   expect(text.endsWith("\n")).toBe(true);
@@ -702,7 +706,7 @@ posixDescribe("Floodgate stable proposal result/manifest finalizer", () => {
       "before-destination-reopen",
       "before-destination-content-reverification",
     ]);
-    expect(await fs.promises.readdir(stage.destinationRoot)).toEqual([
+    expect(await sortedEntries(stage.destinationRoot)).toEqual([
       "manifest.json",
       "result.json",
       "work.jsonl",
@@ -1032,7 +1036,7 @@ posixDescribe("Floodgate stable proposal result/manifest finalizer", () => {
       mayHavePublished: false,
       retryDisposition: "fresh-authority-may-resume-exact-prefix",
     });
-    expect(await fs.promises.readdir(stage.stageRoot)).toEqual([
+    expect(await sortedEntries(stage.stageRoot)).toEqual([
       "manifest.json",
       "result.json",
       "work.jsonl",
@@ -1083,7 +1087,7 @@ posixDescribe("Floodgate stable proposal result/manifest finalizer", () => {
     );
     expect(destinationWasReopened).toBe(true);
     await expectMissing(stage.stageRoot);
-    expect(await fs.promises.readdir(stage.destinationRoot)).toEqual([
+    expect(await sortedEntries(stage.destinationRoot)).toEqual([
       "manifest.json",
       "result.json",
       "work.jsonl",
@@ -1114,7 +1118,7 @@ posixDescribe("Floodgate stable proposal result/manifest finalizer", () => {
       retryDisposition: "manual-publication-and-lease-reconciliation-required",
     });
     await expectMissing(stage.stageRoot);
-    expect(await fs.promises.readdir(stage.destinationRoot)).toEqual([
+    expect(await sortedEntries(stage.destinationRoot)).toEqual([
       "manifest.json",
       "result.json",
       "work.jsonl",
@@ -1223,7 +1227,7 @@ posixDescribe("Floodgate stable proposal result/manifest finalizer", () => {
     });
     await expectMissing(stage.destinationRoot);
     await expectMissing(stage.leaseRoot);
-    expect(await fs.promises.readdir(stage.stageRoot)).toEqual([
+    expect(await sortedEntries(stage.stageRoot)).toEqual([
       "manifest.json",
       "result.json",
       "work.jsonl",

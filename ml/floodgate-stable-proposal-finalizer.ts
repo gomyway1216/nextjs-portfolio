@@ -1219,6 +1219,7 @@ async function destinationAudit(
     "published destination before content revalidation",
   );
   assertFinalEntries(await exactEntries(transaction.destinationRoot));
+  let publishedWorkHandle: fs.promises.FileHandle | undefined;
   for (const held of [work, result, manifest]) {
     const reopened = await openExistingFile(
       transaction.destinationRoot,
@@ -1226,6 +1227,12 @@ async function destinationAudit(
       false,
     );
     opened.push(reopened);
+    if (
+      held.evidence.filename ===
+      FLOODGATE_STABLE_PROPOSAL_CHECKPOINT_WORK_FILENAME
+    ) {
+      publishedWorkHandle = reopened;
+    }
     const current = await stableRead(
       reopened,
       invocation.effectiveUserId,
@@ -1245,8 +1252,11 @@ async function destinationAudit(
       );
     }
   }
+  if (publishedWorkHandle === undefined) {
+    fail("published work.jsonl handle was not retained for verification");
+  }
   const publishedWork = await stableRead(
-    opened[1] as fs.promises.FileHandle,
+    publishedWorkHandle,
     invocation.effectiveUserId,
     MAX_WORK_BYTES,
     "published work.jsonl",

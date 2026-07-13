@@ -12,6 +12,12 @@ import {
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_STATUS,
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
 } from "../../../ml/floodgate-teacher-stage-authorization";
+import {
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO,
+} from "../../../ml/floodgate-v7-checkpoint-key-contract";
 
 const REPOSITORY_ROOT = process.cwd();
 const SOURCE_PATH = path.join(
@@ -32,6 +38,14 @@ type AuthorizationRequest = Parameters<
 type AuthorityDependencies = Parameters<
   typeof authority.authorizeFloodgateV7DeploymentTeacherRunCoreForTests
 >[1];
+type V3KeyRequest = Parameters<
+  typeof authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests
+>[0];
+type V3KeyAuthorization = Awaited<
+  ReturnType<
+    typeof authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests
+  >
+>;
 
 interface Fixture {
   readonly home: string;
@@ -125,6 +139,19 @@ function expectAllZero(value: Uint8Array): void {
   expect([...value]).toEqual(Array.from({ length: value.byteLength }, () => 0));
 }
 
+function expectNoByteViewsOrFunctions(
+  value: unknown,
+  seen = new Set<object>(),
+): void {
+  expect(typeof value).not.toBe("function");
+  expect(ArrayBuffer.isView(value)).toBe(false);
+  if (value === null || typeof value !== "object" || seen.has(value)) return;
+  seen.add(value);
+  for (const child of Object.values(value)) {
+    expectNoByteViewsOrFunctions(child, seen);
+  }
+}
+
 async function captureFailure(
   operation: () => Promise<unknown>,
 ): Promise<unknown> {
@@ -202,6 +229,20 @@ function requestFixture(
     stageAuthorizationReceipt: stageAuthorizationReceipt(),
     ...overrides,
   }) as AuthorizationRequest;
+}
+
+function v3KeyRequestFixture(
+  overrides: Readonly<Record<string, unknown>> = {},
+): V3KeyRequest {
+  const base = requestFixture();
+  return nullRecord({
+    runId: base.runId,
+    keyId: base.keyId,
+    runBinding: base.runBinding,
+    stageAuthorizationReceipt: base.stageAuthorizationReceipt,
+    gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+    ...overrides,
+  }) as V3KeyRequest;
 }
 
 function dependencyFixture(
@@ -1127,6 +1168,275 @@ posixDescribe("Floodgate v7 deployment key authority", () => {
     expect(retained).toBeDefined();
     expectAllZero(retained as Uint8Array);
   });
+
+  it("prepares an exact opaque V3 facade while preserving the existing receipt boundary", async () => {
+    let observedInternalKey: Uint8Array | undefined;
+    const value = await fixture(KEY_BYTES, {
+      observeInternalKeyForTests(key: Uint8Array): void {
+        observedInternalKey = key;
+        expect(Buffer.from(key)).toEqual(KEY_BYTES);
+      },
+    });
+    const request = v3KeyRequestFixture();
+    const prepared =
+      await authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
+        request,
+        value.dependencies,
+      );
+
+    expect(Object.keys(prepared)).toEqual([
+      "contract",
+      "status",
+      "claim_boundary",
+      "gate",
+      "authorization",
+    ]);
+    expect(prepared).toMatchObject({
+      contract:
+        authority.FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CONTRACT,
+      status:
+        authority.FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_STATUS,
+      claim_boundary:
+        authority.FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CLAIM_BOUNDARY,
+      gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+      authorization: {
+        contract: authority.FLOODGATE_V7_DEPLOYMENT_KEY_AUTHORITY_CONTRACT,
+        status: authority.FLOODGATE_V7_DEPLOYMENT_KEY_AUTHORITY_STATUS,
+        run_id: RUN_ID,
+        key_id: authority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+        execution_boundary:
+          "test-only-injected-current-euid-home-key-deployment",
+      },
+    });
+    expectDeepFrozenNullRecords(prepared);
+    expectNoByteViewsOrFunctions(prepared);
+    expect(observedInternalKey).toBeDefined();
+    expectAllZero(observedInternalKey as Uint8Array);
+
+    const serialized = JSON.stringify(prepared);
+    expect(serialized).not.toContain(KEY_BYTES.toString("hex"));
+    expect(serialized).not.toContain(KEY_BYTES.toString("base64"));
+    expect(serialized).not.toContain(value.home);
+    expect(serialized).not.toContain(value.keyPath);
+    authority.discardFloodgateV7DeploymentTeacherCheckpointV3Key(prepared);
+    authority.discardFloodgateV7DeploymentTeacherCheckpointV3Key(prepared);
+  });
+
+  it("claims one standalone deterministic V3 derived key and preserves the exact token across pre-claim rejection", async () => {
+    const value = await fixture();
+    const request = v3KeyRequestFixture();
+    const prepared =
+      await authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
+        request,
+        value.dependencies,
+      );
+    const clone = nullRecord({
+      ...prepared,
+    }) as V3KeyAuthorization;
+    let proxyTraps = 0;
+    const proxy = trapProxy(prepared, () => {
+      proxyTraps += 1;
+    });
+
+    expect(() =>
+      authority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests(
+        clone,
+        request,
+      ),
+    ).toThrow(/exact prepared authorization facade/);
+    expect(() =>
+      authority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests(
+        proxy,
+        request,
+      ),
+    ).toThrow(/exact non-Proxy facade/);
+    expect(proxyTraps).toBe(0);
+    expect(() =>
+      authority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKey(
+        prepared as never,
+        request,
+      ),
+    ).toThrow(/test-only boundary/);
+    expect(() =>
+      Reflect.apply(
+        authority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests,
+        undefined,
+        [prepared],
+      ),
+    ).toThrow(/exactly two arguments/);
+
+    const derived =
+      authority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests(
+        prepared,
+        request,
+      );
+    const expected = Buffer.from(
+      hkdfSync(
+        "sha256",
+        KEY_BYTES,
+        Buffer.from(RUN_ID, "hex"),
+        Buffer.from(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO),
+        32,
+      ),
+    );
+    expect(Object.getPrototypeOf(derived)).toBe(Uint8Array.prototype);
+    expect(derived).not.toBeInstanceOf(Buffer);
+    expect(derived.byteOffset).toBe(0);
+    expect(derived.byteLength).toBe(32);
+    expect(derived.buffer.byteLength).toBe(32);
+    expect(derived.buffer).toBeInstanceOf(ArrayBuffer);
+    expect(Buffer.from(derived)).toEqual(expected);
+    expect(() =>
+      authority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests(
+        prepared,
+        request,
+      ),
+    ).toThrow(/already consumed/);
+    authority.discardFloodgateV7DeploymentTeacherCheckpointV3Key(prepared);
+    derived.fill(0);
+    expected.fill(0);
+  });
+
+  it("consumes and zeroizes a prepared V3 key on every exact-binding mismatch", async () => {
+    const value = await fixture();
+    const request = v3KeyRequestFixture();
+    const mismatches: readonly V3KeyRequest[] = [
+      v3KeyRequestFixture({
+        gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+      }),
+      v3KeyRequestFixture({ runId: "43".repeat(32) }),
+      v3KeyRequestFixture({
+        runBinding: runBinding({
+          stable_runtime_receipt_sha256: "33".repeat(32),
+        }),
+      }),
+      v3KeyRequestFixture({
+        stageAuthorizationReceipt: stageAuthorizationReceipt({
+          stage_identity: nullRecord({ dev: BigInt(201), ino: BigInt(999) }),
+        }),
+      }),
+      v3KeyRequestFixture({
+        stageAuthorizationReceipt: stageAuthorizationReceipt({
+          lease_identity: nullRecord({ dev: BigInt(201), ino: BigInt(999) }),
+        }),
+      }),
+      v3KeyRequestFixture({
+        gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+      }),
+    ];
+
+    for (const mismatch of mismatches) {
+      const prepared =
+        await authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
+          request,
+          value.dependencies,
+        );
+      expect(() =>
+        authority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests(
+          prepared,
+          mismatch,
+        ),
+      ).toThrow(/differs from the prepared binding/);
+      expect(() =>
+        authority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests(
+          prepared,
+          request,
+        ),
+      ).toThrow(/already consumed/);
+    }
+  });
+
+  it("discards either registry idempotently and rejects fake or Proxy facades without traps", async () => {
+    const value = await fixture();
+    const request = v3KeyRequestFixture();
+    const prepared =
+      await authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
+        request,
+        value.dependencies,
+      );
+    const fake = nullRecord({ ...prepared }) as V3KeyAuthorization;
+    let proxyTraps = 0;
+    const proxy = trapProxy(prepared, () => {
+      proxyTraps += 1;
+    });
+
+    expect(() =>
+      authority.discardFloodgateV7DeploymentTeacherCheckpointV3Key(fake),
+    ).toThrow(/exact prepared authorization facade/);
+    expect(() =>
+      authority.discardFloodgateV7DeploymentTeacherCheckpointV3Key(proxy),
+    ).toThrow(/exact non-Proxy facade/);
+    expect(proxyTraps).toBe(0);
+    authority.discardFloodgateV7DeploymentTeacherCheckpointV3Key(prepared);
+    authority.discardFloodgateV7DeploymentTeacherCheckpointV3Key(prepared);
+    expect(() =>
+      authority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests(
+        prepared,
+        request,
+      ),
+    ).toThrow(/already consumed or discarded/);
+  });
+
+  it("keeps V3 preparation arity and failure cleanup fail closed without exposing the derived key", async () => {
+    const value = await fixture();
+    const request = v3KeyRequestFixture();
+    expect(
+      authority.prepareFloodgateV7DeploymentTeacherCheckpointV3Key.length,
+    ).toBe(1);
+    expect(
+      authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests
+        .length,
+    ).toBe(2);
+    expect(
+      authority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKey.length,
+    ).toBe(2);
+    expect(
+      authority
+        .claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests
+        .length,
+    ).toBe(2);
+    expect(
+      authority.discardFloodgateV7DeploymentTeacherCheckpointV3Key.length,
+    ).toBe(1);
+
+    let retained: Uint8Array | undefined;
+    const failing = await fixture(KEY_BYTES, {
+      observeInternalKeyForTests(key: Uint8Array): void {
+        retained = key;
+      },
+      async beforeFinalRevalidationForTests(): Promise<void> {
+        expect(retained).toBeDefined();
+        expectAllZero(retained as Uint8Array);
+        throw new Error("synthetic revalidation failure");
+      },
+    });
+    const failure = await captureFailure(() =>
+      authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
+        request,
+        failing.dependencies,
+      ),
+    );
+    expect(failure).toBeInstanceOf(
+      authority.FloodgateV7DeploymentKeyAuthorityError,
+    );
+    expect(failure).toMatchObject({ phase: "revalidation" });
+    expect(retained).toBeDefined();
+    expectAllZero(retained as Uint8Array);
+
+    expect(() =>
+      Reflect.apply(
+        authority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests,
+        undefined,
+        [request],
+      ),
+    ).toThrow(/exactly two arguments/);
+    await expect(
+      authority.prepareFloodgateV7DeploymentTeacherCheckpointV3Key(
+        v3KeyRequestFixture({ keyId: "caller-selected-key" }),
+      ),
+    ).rejects.toMatchObject({ phase: "capture" });
+    expect(value.request.keyId).toBe(authority.FLOODGATE_V7_DEPLOYMENT_KEY_ID);
+  });
 });
 
 describe("Floodgate v7 deployment key authority source boundary", () => {
@@ -1149,8 +1459,21 @@ describe("Floodgate v7 deployment key authority source boundary", () => {
       /["'`][^"'`\n]*(?:train\.jsonl|work\.jsonl|shogi-nnue-weights\.bin|floodgate-q1-2026-label-free-role-bundle)[^"'`\n]*["'`]/i,
     );
     expect(source).not.toMatch(
-      /export\s+(?:async\s+)?function\s+.*(?:sign|hmac|hash|key)/i,
+      /export\s+(?:async\s+)?function\s+.*(?:sign|hmac|hash|root_?key)/i,
     );
+    expect(
+      [
+        ...source.matchAll(
+          /export function ([A-Za-z0-9_]*Key[A-Za-z0-9_]*)\s*\(/g,
+        ),
+      ].map((match) => match[1]),
+    ).toEqual([
+      "prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests",
+      "prepareFloodgateV7DeploymentTeacherCheckpointV3Key",
+      "claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKey",
+      "claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests",
+      "discardFloodgateV7DeploymentTeacherCheckpointV3Key",
+    ]);
     expect(source).not.toMatch(/readonly\s+(?:root_?key|key_?material)\s*:/i);
     expect(source).not.toMatch(/\bconsole\.(?:log|info|warn|error)\b/);
     expect(source).toContain("observeInternalKeyForTests: undefined");

@@ -1237,6 +1237,9 @@ export async function verifyPinnedFloodgateProductionTeacherAssets(): Promise<
   let effectiveUserId: number;
   let root: string;
   try {
+    if (process.platform !== "darwin" || process.arch !== "arm64") {
+      fail("the pinned APPLEM1 production assets require darwin arm64");
+    }
     if (typeof process.geteuid !== "function") {
       fail("POSIX effective-user identity is required");
     }

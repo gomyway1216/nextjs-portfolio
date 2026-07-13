@@ -572,6 +572,8 @@ posixDescribe("Floodgate production teacher asset authority", () => {
 
   it("keeps the fixed production root independent of HOME", async () => {
     const source = await fs.promises.readFile(AUTHORITY_SOURCE_PATH, "utf8");
+    expect(source).toContain('process.platform !== "darwin"');
+    expect(source).toContain('process.arch !== "arm64"');
     expect(source).toContain("const user = os.userInfo();");
     expect(source).toContain("user.uid !== effectiveUserId");
     expect(source).not.toContain("os.homedir()");

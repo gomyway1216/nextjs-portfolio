@@ -52,6 +52,8 @@ The article represents the machine-specific root only as `<fixed-private-deploym
 
 A relative name is a registry key, not an alias. Extra entries, another basename, a symlink, wrong directory/file type, hardlink, wrong owner / mode, or traversal outside the root are rejected. The root plus `engine`, `eval`, and `stable` must be current-EUID-owned private directories. Preflight does not fill missing assets from the caller's current working directory or an environment path search.
 
+The exact tree does not exempt `.DS_Store`. If a system-generated file enters the private deployment, preflight fails instead of silently ignoring it and requires explicit cleanup followed by revalidation.
+
 The registry fixes these logical identities.
 
 | Registry file                             | Exact identity                                                                               |
@@ -79,6 +81,8 @@ verifyPinnedFloodgateProductionTeacherAssets()
 The API accepts no options, dependencies, root path, expected hash, or engine argument. It selects the fixed root and registry constants inside the module. A test-only core may exist, but production API and registry remain separate so test injection cannot issue a production success receipt.
 
 Independent audit also showed that zero-argument alone does not make a root fixed. The first implementation used `os.homedir()`, which a `HOME` environment variable could redirect to another root. The final implementation obtains the home directory from the OS effective-user account and requires that account UID to equal the process EUID. A real-asset smoke with `HOME=/tmp` still verified the same fixed deployment.
+
+Because this registry's engine receipt pins an `APPLEM1` binary, the production API also fails closed outside `darwin/arm64`. It does not redirect the same contract automatically to a standard Linux data directory. A binary and root for another platform require a separately reviewed registry identity.
 
 Preflight verifies assets in this order.
 

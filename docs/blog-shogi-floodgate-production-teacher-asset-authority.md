@@ -52,6 +52,8 @@ receiptが期待するbinary SHAと実fileが一致することは、過去run�
 
 relative nameはaliasではなくregistry keyである。extra entry、別basename、symlink、directory/file type違い、hardlink、wrong owner / mode、root外へのtraversalは拒否する。root、`engine`、`eval`、`stable`はcurrent EUID所有のprivate directoryでなければならない。preflightはcallerのcurrent working directoryやenvironment path searchからassetを補完しない。
 
+exact treeは`.DS_Store`も例外扱いしない。private deploymentへsystem-generated fileが混入した場合も、黙って無視せずpreflightを失敗させて明示的なcleanupと再検証を要求する。
+
 registryのlogical identityは次で固定する。
 
 | registry file                             | exact identity                                                                               |
@@ -79,6 +81,8 @@ verifyPinnedFloodgateProductionTeacherAssets()
 APIはoptions、dependencies、root path、expected hash、engine argumentsを受け取らない。fixed rootとregistry constantをmodule内部で選ぶ。test-only coreが必要でもproduction APIとregistryを分離し、test injectionでproduction success receiptを発行できないようにする。
 
 独立監査では、zero-argumentだけではfixed rootにならないことも判明した。最初の実装が使った`os.homedir()`は`HOME`環境変数で別rootへ向けられた。最終実装はOSのeffective-user accountからhome directoryを取得し、そのaccount UIDとprocess EUIDの一致を要求する。`HOME=/tmp`での実asset smokeでも同じfixed deploymentを検証できた。
+
+このregistryのengine receiptは`APPLEM1` binaryを固定するため、production APIも`darwin/arm64`以外をfail closedにする。Linuxのstandard data directoryへ同じcontractを自動で切り替えない。別platformのbinaryとrootは、別registry identityとしてreviewする。
 
 preflightは次の順でassetを検証する。
 

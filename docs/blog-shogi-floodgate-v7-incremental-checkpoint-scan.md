@@ -71,7 +71,7 @@ scannerはinvalid UTF-8をfatal errorにし、BOMを暗黙に捨てない設定�
 
 開いたfile descriptorをscan中ずっと保持すれば、途中でpathnameが別fileへ差し替えられてもheld inode自体は変わらない。しかし、success receiptが示す`work.jsonl` pathnameが最後までそのinodeを指していたとは限らない。held fileだけの検査ではpathname swapを見落とす。
 
-このためscannerは開始時にheld fileの`dev`、`ino`、type、mode、owner、link count、size、`mtime`、`ctime`をsnapshotし、scan後に同じdescriptorのsnapshotが完全一致することを確認する。最終sealed scan後はstage pathnameを`lstat`し、entry setが`work.jsonl`だけであること、pathnameのsnapshotがheld fileと一致すること、held descriptorも再度同じsnapshotであることをsuccess前に確認する。open / reopenはsymlinkをfollowしない。
+このためscannerは開始時にheld fileの`dev`、`ino`、type、mode、owner、link count、size、`mtime`、`ctime`をsnapshotし、scan後に同じdescriptorのsnapshotが完全一致することを確認する。最終sealed scan後はstage pathnameを`lstat`してauthorized stage identityを再確認し、entry setが`work.jsonl`だけであることを検査する。さらに`work.jsonl` pathnameを別に`lstat`し、そのsnapshotがheld work fileと一致すること、held descriptorも再度同じsnapshotであることをsuccess前に確認する。open / reopenはsymlinkをfollowしない。
 
 この再確認は検査した時間窓でのpath-to-inode bindingを強くするが、hostile rootや同じprocess内のtrusted codeを隔離するsandboxではない。HMAC threat modelも従来どおり、keyを持たない主体によるpersisted-byte tamperを検出する範囲である。
 

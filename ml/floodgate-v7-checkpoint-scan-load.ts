@@ -265,6 +265,12 @@ interface V3LineStatistics {
   readonly maximum_line_bytes: number;
 }
 
+interface ObservedLengthSummary {
+  readonly total: number;
+  readonly minimum: number;
+  readonly maximum: number;
+}
+
 interface V3ProducerRange {
   readonly calls: number;
   readonly first_input_index: number;
@@ -1460,14 +1466,9 @@ async function streamIdentityAndLineStatistics(
     );
   }
   const entryLengths = lineLengths.slice(1, -1);
-  const entryBytesTotal = entryLengths.reduce(
-    (total, value) => total + value,
-    0,
-  );
-  const entryBytesMin = Math.min(...entryLengths);
-  const entryBytesMax = Math.max(...entryLengths);
-  const maximumLineBytes = Math.max(...lineLengths);
-  if (maximumLineBytes > FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES) {
+  const entrySummary = summarizeObservedLengths(entryLengths);
+  const lineSummary = summarizeObservedLengths(lineLengths);
+  if (lineSummary.maximum > FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES) {
     throw new Error("valid fixture exceeded the checkpoint line bound");
   }
   return Object.freeze({
@@ -1477,12 +1478,12 @@ async function streamIdentityAndLineStatistics(
       records: lineLengths.length,
       header_bytes: lineLengths[0],
       entries: entryLengths.length,
-      entry_bytes_total: entryBytesTotal,
-      entry_bytes_min: entryBytesMin,
-      entry_bytes_max: entryBytesMax,
-      entry_bytes_mean: Math.round(entryBytesTotal / entryLengths.length),
+      entry_bytes_total: entrySummary.total,
+      entry_bytes_min: entrySummary.minimum,
+      entry_bytes_max: entrySummary.maximum,
+      entry_bytes_mean: Math.round(entrySummary.total / entryLengths.length),
       seal_bytes: lineLengths.at(-1) as number,
-      maximum_line_bytes: maximumLineBytes,
+      maximum_line_bytes: lineSummary.maximum,
     }),
   });
 }
@@ -1606,12 +1607,8 @@ async function streamV3IdentityAndLineStatistics(filePath: string): Promise<
   ) {
     throw new Error("v3 fixture record or milestone counts are not exact");
   }
-  const entryBytesTotal = entryLengths.reduce(
-    (total, value) => total + value,
-    0,
-  );
-  const entryBytesMin = Math.min(...entryLengths);
-  const entryBytesMax = Math.max(...entryLengths);
+  const entrySummary = summarizeObservedLengths(entryLengths);
+  const lineSummary = summarizeObservedLengths(lineLengths);
   const milestoneBytesTotal = milestone100Bytes + milestone500Bytes;
   return Object.freeze({
     bytes,
@@ -1620,18 +1617,43 @@ async function streamV3IdentityAndLineStatistics(filePath: string): Promise<
       records: lineLengths.length,
       header_bytes: lineLengths[0],
       entries: entryLengths.length,
-      entry_bytes_total: entryBytesTotal,
-      entry_bytes_min: entryBytesMin,
-      entry_bytes_max: entryBytesMax,
-      entry_bytes_mean: Math.round(entryBytesTotal / entryLengths.length),
+      entry_bytes_total: entrySummary.total,
+      entry_bytes_min: entrySummary.minimum,
+      entry_bytes_max: entrySummary.maximum,
+      entry_bytes_mean: Math.round(entrySummary.total / entryLengths.length),
       milestones: 2,
       milestone_100_bytes: milestone100Bytes,
       milestone_500_bytes: milestone500Bytes,
       milestone_bytes_total: milestoneBytesTotal,
       seal_bytes: lineLengths.at(-1) as number,
-      maximum_line_bytes: Math.max(...lineLengths),
+      maximum_line_bytes: lineSummary.maximum,
     }),
   });
+}
+
+function summarizeObservedLengths(
+  values: readonly number[],
+): Readonly<ObservedLengthSummary> {
+  const first = values[0];
+  if (first === undefined) {
+    throw new Error("observed length summary requires a non-empty input");
+  }
+  let total = 0;
+  let minimum = first;
+  let maximum = first;
+  for (const value of values) {
+    total += value;
+    if (value < minimum) minimum = value;
+    if (value > maximum) maximum = value;
+  }
+  return Object.freeze({ total, minimum, maximum });
+}
+
+/** Regression seam proving large scan-load length sets avoid argument spread. */
+export function summarizeFloodgateV7ScanLoadLengthsCoreForTests(
+  values: readonly number[],
+): Readonly<ObservedLengthSummary> {
+  return summarizeObservedLengths(values);
 }
 
 function resourceMaxRssBytes(): number {

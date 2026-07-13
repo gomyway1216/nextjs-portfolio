@@ -178,7 +178,7 @@ Per-gate RSS, native reads / maximum lines / same-gate retries at 100 / 500, app
 | focused V3 checkpoint tests                     | `47 / 47 PASS`                                          |
 | focused scan-load / V2 compatibility / evidence | `12 / 12 PASS`                                          |
 | accepted 24,000 scan-load                       | `1 / 1 PASS`, exit `0`                                  |
-| full Vitest                                     | `115 / 115 files, 2,049 / 2,049 tests PASS`, `152.72 s` |
+| full Vitest                                     | `115 / 115 files, 2,050 / 2,050 tests PASS`, `153.19 s` |
 | Python stdlib ML tests                          | `58 / 58 PASS`                                          |
 | TypeScript / scoped ESLint / Prettier           | `PASS / PASS / PASS`                                    |
 | Next production build                           | `PASS`, page collection / generation with `13 workers`  |

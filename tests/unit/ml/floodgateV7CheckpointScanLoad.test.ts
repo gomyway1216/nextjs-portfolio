@@ -20,6 +20,7 @@ import {
   parseFloodgateV7CheckpointV3ScanLoadOptionsCoreForTests,
   runFloodgateV7CheckpointScanLoadHarness,
   runFloodgateV7CheckpointV3ScanLoadHarness,
+  summarizeFloodgateV7ScanLoadLengthsCoreForTests,
   validateFloodgateV7ScanLoadMemoryCoreForTests,
   validateFloodgateV7CheckpointV3ScanLoadChildrenCoreForTests,
   verifyFloodgateV7ScanLoadSyncRestorationCoreForTests,
@@ -236,6 +237,22 @@ function v3ChildResultFixture() {
 }
 
 describe("Floodgate v7 semantic checkpoint scanner load harness", () => {
+  it("summarizes argument-limit-scale line sets in one pass", () => {
+    const values = Array.from(
+      { length: 200_000 },
+      (_, index) => (index % 17) + 1,
+    );
+    const expectedTotal = values.reduce((total, value) => total + value, 0);
+    expect(summarizeFloodgateV7ScanLoadLengthsCoreForTests(values)).toEqual({
+      total: expectedTotal,
+      minimum: 1,
+      maximum: 17,
+    });
+    expect(() => summarizeFloodgateV7ScanLoadLengthsCoreForTests([])).toThrow(
+      /non-empty/,
+    );
+  });
+
   evidenceRuntimeIt(
     "revalidates 100 unique legal 14-candidate parents in isolated native-sync children",
     async () => {

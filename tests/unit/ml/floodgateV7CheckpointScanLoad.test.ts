@@ -9,11 +9,18 @@ import historicalEvidence from "../../../ml/protocols/floodgate-v7-valid-24k-sca
 import {
   FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_SCHEMA,
   FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_STATUS,
+  FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_CLAIM_BOUNDARY,
+  FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_SCHEMA,
+  FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_STATUS,
   buildFloodgateV7ScanLoadSourceUrlCoreForTests,
   parseFloodgateV7CheckpointScanLoadInternalOptionsCoreForTests,
   parseFloodgateV7CheckpointScanLoadOptionsCoreForTests,
+  parseFloodgateV7CheckpointV3ScanLoadInternalOptionsCoreForTests,
+  parseFloodgateV7CheckpointV3ScanLoadOptionsCoreForTests,
   runFloodgateV7CheckpointScanLoadHarness,
+  runFloodgateV7CheckpointV3ScanLoadHarness,
   validateFloodgateV7ScanLoadMemoryCoreForTests,
+  validateFloodgateV7CheckpointV3ScanLoadChildrenCoreForTests,
   verifyFloodgateV7ScanLoadSyncRestorationCoreForTests,
 } from "../../../ml/floodgate-v7-checkpoint-scan-load";
 import { floodgateCanonicalUrlGameId } from "../../../ml/floodgate-raw-lock";
@@ -30,6 +37,16 @@ import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES,
   FLOODGATE_V7_TEACHER_CHECKPOINT_SCHEMA,
   FLOODGATE_V7_TEACHER_CHECKPOINT_STATUS,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
   FLOODGATE_V7_TEACHER_PRODUCER_CANCEL_POLICY,
   FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_SCHEMA,
   FLOODGATE_V7_TEACHER_PRODUCER_LATE_SETTLEMENT_POLICY,
@@ -37,6 +54,185 @@ import {
 } from "../../../ml/floodgate-v7-teacher-checkpoint";
 
 const evidenceRuntimeIt = process.version === "v22.13.0" ? it : it.skip;
+
+function v3ChildResultFixture() {
+  const parents = FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  const records = parents + 4;
+  const headerBytes = 100;
+  const entryBytes = 100;
+  const entryBytesTotal = parents * entryBytes;
+  const milestone100Bytes = 100;
+  const milestone500Bytes = 100;
+  const sealBytes = 100;
+  const workBytes =
+    headerBytes +
+    entryBytesTotal +
+    milestone100Bytes +
+    milestone500Bytes +
+    sealBytes +
+    records;
+  const milestone100Mac = "4".repeat(64);
+  const milestone500Mac = "5".repeat(64);
+  const finalSha256 = "3".repeat(64);
+  const build = {
+    phase: "fixture-v3-three-gate-build-non-evidence",
+    node: "v22.13.0",
+    parents,
+    games: 1_000,
+    candidates_per_parent: 14,
+    raw: { bytes: 1_000_000, sha256: "0".repeat(64) },
+    gates: [
+      {
+        gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+        status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+        sealed: false,
+        target_parents: 100,
+        completed_parents: 100,
+        resumed_parents: 0,
+        records: 102,
+        bytes: 10_000,
+        sha256: "1".repeat(64),
+        milestone_100_mac: milestone100Mac,
+        milestone_500_mac: null,
+        producer: {
+          calls: 100,
+          first_input_index: 0,
+          last_input_index: 99,
+        },
+      },
+      {
+        gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+        status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+        sealed: false,
+        target_parents: 500,
+        completed_parents: 500,
+        resumed_parents: 100,
+        records: 503,
+        bytes: 50_000,
+        sha256: "2".repeat(64),
+        milestone_100_mac: milestone100Mac,
+        milestone_500_mac: milestone500Mac,
+        producer: {
+          calls: 400,
+          first_input_index: 100,
+          last_input_index: 499,
+        },
+      },
+      {
+        gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+        status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+        sealed: true,
+        target_parents: parents,
+        completed_parents: parents,
+        resumed_parents: 500,
+        records,
+        bytes: workBytes,
+        sha256: finalSha256,
+        milestone_100_mac: milestone100Mac,
+        milestone_500_mac: milestone500Mac,
+        producer: {
+          calls: parents - 500,
+          first_input_index: 500,
+          last_input_index: parents - 1,
+        },
+      },
+    ],
+    work: {
+      bytes: workBytes,
+      sha256: finalSha256,
+      line_statistics: {
+        records,
+        header_bytes: headerBytes,
+        entries: parents,
+        entry_bytes_total: entryBytesTotal,
+        entry_bytes_min: entryBytes,
+        entry_bytes_max: entryBytes,
+        entry_bytes_mean: entryBytes,
+        milestones: 2,
+        milestone_100_bytes: milestone100Bytes,
+        milestone_500_bytes: milestone500Bytes,
+        milestone_bytes_total: milestone100Bytes + milestone500Bytes,
+        seal_bytes: sealBytes,
+        maximum_line_bytes: entryBytes,
+      },
+    },
+    sync: {
+      suppressed_regular_file_syncs: parents + 6,
+      expected_suppressed_regular_file_syncs: parents + 6,
+      line_syncs: parents + 4,
+      expected_line_syncs: parents + 4,
+      pre_resume_syncs: 2,
+      expected_pre_resume_syncs: 2,
+      native_method_restored_before_batch_sync: true,
+      one_work_batch_sync_completed: true,
+      one_stage_directory_batch_sync_completed: true,
+    },
+    timing: {
+      generation_wall_ms: 1,
+      fixture_wall_ms: 2,
+      durable_prefix_100_wall_ms: 3,
+      durable_prefix_500_wall_ms: 4,
+      sealed_final_24000_wall_ms: 5,
+      batch_sync_and_measure_wall_ms: 6,
+    },
+    memory: {
+      baseline_rss_bytes: 100,
+      final_rss_bytes: 200,
+      resource_max_rss_bytes: 300,
+    },
+  };
+  const expectedReadCalls = Math.ceil(workBytes / (64 * 1024));
+  const scan = {
+    phase: "native-v3-sealed-final-retry-evidence",
+    node: "v22.13.0",
+    parents,
+    gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+    status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+    sealed: true,
+    producer_calls: 0,
+    completed_parents: parents,
+    resumed_parents: parents,
+    work: {
+      records,
+      target_parents: parents,
+      training_parents: parents,
+      milestone_100_mac: milestone100Mac,
+      milestone_500_mac: milestone500Mac,
+      bytes: workBytes,
+      receipt_sha256: finalSha256,
+      independent_sha256: finalSha256,
+      sha256_match: true,
+    },
+    reads: {
+      calls: {
+        "resumable-prefix": expectedReadCalls,
+        "sealed-final": expectedReadCalls,
+      },
+      bytes: {
+        "resumable-prefix": workBytes,
+        "sealed-final": workBytes,
+      },
+      maximum_request_bytes: {
+        "resumable-prefix": 64 * 1024,
+        "sealed-final": 64 * 1024,
+      },
+      first_ms: { "resumable-prefix": 1, "sealed-final": 2 },
+    },
+    timing: {
+      total_checkpoint_wall_ms: 10,
+      resumable_prefix_start_to_final_scan_start_wall_ms: 4,
+      sealed_final_scan_start_to_receipt_wall_ms: 5,
+      independent_sha256_wall_ms: 6,
+    },
+    memory: {
+      baseline_rss_bytes: 100,
+      final_rss_bytes: 200,
+      resource_max_rss_bytes: 300,
+      sampled_peak_rss_bytes: 250,
+    },
+  };
+  return { build, scan };
+}
 
 describe("Floodgate v7 semantic checkpoint scanner load harness", () => {
   evidenceRuntimeIt(
@@ -237,6 +433,167 @@ describe("Floodgate v7 semantic checkpoint scanner load harness", () => {
         "/tmp/forbidden",
       ]),
     ).toThrow(/not exact/);
+  });
+
+  it("keeps V3 behind an explicit fixed-24k CLI and separate hidden phases", () => {
+    expect(
+      parseFloodgateV7CheckpointV3ScanLoadOptionsCoreForTests([
+        "--v3-gates",
+        "--parents",
+        "24000",
+      ]),
+    ).toEqual({ parents: 24_000, keepFixture: false });
+    expect(
+      parseFloodgateV7CheckpointV3ScanLoadOptionsCoreForTests([
+        "--v3-gates",
+        "--parents",
+        "24000",
+        "--keep-fixture",
+      ]),
+    ).toEqual({ parents: 24_000, keepFixture: true });
+    for (const value of ["100", "024000", "24001", "2.4e4"]) {
+      expect(() =>
+        parseFloodgateV7CheckpointV3ScanLoadOptionsCoreForTests([
+          "--v3-gates",
+          "--parents",
+          value,
+        ]),
+      ).toThrow(/24000/);
+    }
+    expect(() =>
+      parseFloodgateV7CheckpointV3ScanLoadOptionsCoreForTests([
+        "--parents",
+        "24000",
+        "--v3-gates",
+      ]),
+    ).toThrow(/first/);
+    expect(() =>
+      parseFloodgateV7CheckpointV3ScanLoadOptionsCoreForTests(["--v3-gates"]),
+    ).toThrow(/required/);
+    expect(() =>
+      parseFloodgateV7CheckpointV3ScanLoadOptionsCoreForTests([
+        "--v3-gates",
+        "--v3-gates",
+        "--parents",
+        "24000",
+      ]),
+    ).toThrow(/duplicated/);
+    expect(() =>
+      parseFloodgateV7CheckpointV3ScanLoadOptionsCoreForTests([
+        "--v3-gates",
+        "--parents",
+        "24000",
+        "--unknown",
+      ]),
+    ).toThrow(/unknown/);
+    expect(
+      parseFloodgateV7CheckpointV3ScanLoadInternalOptionsCoreForTests([
+        "--internal-v3-phase",
+        "build",
+      ]),
+    ).toEqual({ phase: "build" });
+    expect(
+      parseFloodgateV7CheckpointV3ScanLoadInternalOptionsCoreForTests([
+        "--internal-v3-phase",
+        "scan",
+      ]),
+    ).toEqual({ phase: "scan" });
+    expect(() =>
+      parseFloodgateV7CheckpointV3ScanLoadInternalOptionsCoreForTests([
+        "--internal-v3-phase",
+        "scan",
+        "--root",
+        "/tmp/forbidden",
+      ]),
+    ).toThrow(/not exact/);
+    expect(() =>
+      parseFloodgateV7CheckpointScanLoadOptionsCoreForTests([
+        "--v3-gates",
+        "--parents",
+        "24000",
+      ]),
+    ).toThrow(/unknown/);
+  });
+
+  it("requires an explicit 24k V3 API request before creating children", async () => {
+    const uncheckedHarness =
+      runFloodgateV7CheckpointV3ScanLoadHarness as unknown as (
+        options?: Readonly<{ parents?: number }>,
+      ) => Promise<unknown>;
+    await expect(uncheckedHarness()).rejects.toThrow(/exactly 24000/);
+    await expect(uncheckedHarness({ parents: 100 })).rejects.toThrow(
+      /exactly 24000/,
+    );
+  });
+
+  it("validates the V3 gate, milestone, line, sync, timing, and scan schema cheaply", () => {
+    expect(FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_SCHEMA).toBe(
+      "shogi-floodgate-v7-checkpoint-semantic-scan-load-v3",
+    );
+    expect(FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_STATUS).toContain(
+      "fixed-gates",
+    );
+    expect(FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_CLAIM_BOUNDARY).toContain(
+      "100-500-24000",
+    );
+    expect(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA).toBe(
+      "shogi-floodgate-v7-teacher-work-v3",
+    );
+    expect(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM).toContain(
+      "milestone-chain-v3",
+    );
+    expect(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY).toContain(
+      "fixed-100-500-24000-gates",
+    );
+    expect(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES).toBe(
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS *
+        (FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES + 1) +
+        4 * (FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES + 1),
+    );
+
+    const valid = v3ChildResultFixture();
+    expect(() =>
+      validateFloodgateV7CheckpointV3ScanLoadChildrenCoreForTests(
+        valid.build,
+        valid.scan,
+      ),
+    ).not.toThrow();
+
+    const invalidRecords = v3ChildResultFixture();
+    invalidRecords.build.work.line_statistics.records = 24_002;
+    expect(() =>
+      validateFloodgateV7CheckpointV3ScanLoadChildrenCoreForTests(
+        invalidRecords.build,
+        invalidRecords.scan,
+      ),
+    ).toThrow(/records/);
+
+    const invalidSync = v3ChildResultFixture();
+    invalidSync.build.sync.line_syncs = 24_003;
+    expect(() =>
+      validateFloodgateV7CheckpointV3ScanLoadChildrenCoreForTests(
+        invalidSync.build,
+        invalidSync.scan,
+      ),
+    ).toThrow(/line_syncs/);
+
+    const invalidProducerRange = v3ChildResultFixture();
+    invalidProducerRange.build.gates[1].producer.first_input_index = 99;
+    expect(() =>
+      validateFloodgateV7CheckpointV3ScanLoadChildrenCoreForTests(
+        invalidProducerRange.build,
+        invalidProducerRange.scan,
+      ),
+    ).toThrow(/first_input_index/);
+
+    const invalidMilestone = v3ChildResultFixture();
+    invalidMilestone.scan.work.milestone_500_mac = "6".repeat(64);
+    expect(() =>
+      validateFloodgateV7CheckpointV3ScanLoadChildrenCoreForTests(
+        invalidMilestone.build,
+        invalidMilestone.scan,
+      ),
+    ).toThrow(/identities/);
   });
 
   it("encodes synthetic game counters as valid HHMMSS timestamps", () => {

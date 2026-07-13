@@ -1,6 +1,6 @@
 # v7 checkpoint v3で100 / 500をunsealed milestoneにし、24,000だけをsealする
 
-> 前段の[v7 HMAC work checkpoint](./blog-shogi-floodgate-v7-hmac-work-checkpoint.md)は、completed parentをinput順にHMAC chainへ保存し、crash後にdurable parentを再利用できるv2 streamを作った。[valid 24,000-parent scan-load](./blog-shogi-floodgate-v7-valid-24k-scan-load.md)は、そのv2 streamをholdout-free synthetic inputで実測した。しかし、同じfull training inputを100親、500親、24,000親の順に進めながら、prefixを完成datasetと誤認させずにdurability gateだけを記録する契約はなかった。この変更はv2を残したまま別のv3 test-only entry pointを追加し、100 / 500をdomain-separated HMAC milestone、24,000だけをsealとして固定する。source revision、v3実測、validation結果はsource freeze後に記入するため、本稿では`[TBD]`とする。production実行、deployment key、real dataset、teacher label、training、weight、live評価関数 / weight activation、対局、棋力の証拠ではない。English version: [blog-shogi-floodgate-v7-checkpoint-v3-milestones.en.md](./blog-shogi-floodgate-v7-checkpoint-v3-milestones.en.md)
+> 前段の[v7 HMAC work checkpoint](./blog-shogi-floodgate-v7-hmac-work-checkpoint.md)は、completed parentをinput順にHMAC chainへ保存し、crash後にdurable parentを再利用できるv2 streamを作った。[valid 24,000-parent scan-load](./blog-shogi-floodgate-v7-valid-24k-scan-load.md)は、そのv2 streamをholdout-free synthetic inputで実測した。しかし、同じfull training inputを100親、500親、24,000親の順に進めながら、prefixを完成datasetと誤認させずにdurability gateだけを記録する契約はなかった。この変更はv2を残したまま別のv3 test-only entry pointを追加し、100 / 500をdomain-separated HMAC milestone、24,000だけをsealとして固定する。sourceを`9bd1cfc1490c2c19f24e0ff20622aadddc8ed3f8`へ固定し、1回のaccepted synthetic 24,000-parent scan-loadとvalidation結果を別V3 evidenceへ記録した。production実行、deployment key、real dataset、teacher label、training、weight、live評価関数 / weight activation、対局、棋力の証拠ではない。English version: [blog-shogi-floodgate-v7-checkpoint-v3-milestones.en.md](./blog-shogi-floodgate-v7-checkpoint-v3-milestones.en.md)
 
 ---
 
@@ -17,7 +17,7 @@ current sourceは、既存の`checkpointFloodgateV7TeacherParentsCoreForTests`�
 | ------------------------------------ | ---------------------------- | ----------------------------------------------- |
 | v2 checkpoint API / schema / format  | 保持                         | 既存v2 callerとhistorical streamをそのまま残す  |
 | v2 valid 24,000 scan-load            | historical accepted baseline | v3実測へ流用せず比較基準だけにする              |
-| v3 gate contract / scanner / receipt | current sourceに実装         | source revisionとvalidationは`[TBD]`            |
+| v3 gate contract / scanner / receipt | sourceとevidenceを固定       | accepted synthetic 24,000 scan-loadを1回完了    |
 | real 100 / 500 / 24,000 teacher run  | 0                            | production dataやengineをこの変更では実行しない |
 | weight / live / match / strength     | 0                            | 高段安定や棋力向上を主張しない                  |
 
@@ -124,7 +124,7 @@ incomplete final fragmentは、newlineで終わる完全な不正lineとは別�
 
 search実行はcrash位置によってat-least-onceになり得るが、HMAC streamへdurableに受理されたparentとmilestoneはexact-onceである。完全lineのMAC再検証、current-gate限定truncation、strict input-index appendを組み合わせ、再探索と二重受理を区別する。
 
-## 7. 実測はv2 baselineとv3 placeholderを分ける
+## 7. v2 baselineとaccepted V3実測を分ける
 
 v2のaccepted 24,000-parent scan-loadは比較用のhistorical baselineとして残す。これはv3の成功値ではない。
 
@@ -138,29 +138,50 @@ v2のaccepted 24,000-parent scan-loadは比較用のhistorical baselineとして
 | maximum RSS                          | `483,491,840 bytes`                                                |
 | new temporary roots after exit       | `0`                                                                |
 
-v3はheader、HKDF / MAC domain、2 milestone line、final validation policyが違う。v2 bytesへmarker 2行分を単純加算してもv3実測にはならない。source freeze後、同じmachine / runtime条件を固定して各gateとfull resumeを測る。
+v3はheader、HKDF / MAC domain、2 milestone line、final validation policyが違う。v2 bytesへmarker 2行分を単純加算せず、Node `v22.13.0`、Apple M4 Pro 14 core / 51,539,607,552-byte memory、source revision `9bd1cfc1490c2c19f24e0ff20622aadddc8ed3f8`で1回だけ実行した。完全な結果は`ml/protocols/floodgate-v7-valid-24k-scan-load-v3-9bd1cfc-result.json`に固定した。V2 evidenceは比較専用で、V3がsupersedeしない。
 
-| v3 evidence                                  | 100 gate | 500 gate | 24,000 gate |
-| -------------------------------------------- | -------: | -------: | ----------: |
-| source revision                              |  `[TBD]` |  `[TBD]` |     `[TBD]` |
-| expected total JSONL lines                   |      102 |      503 |      24,004 |
-| actual bytes                                 |  `[TBD]` |  `[TBD]` |     `[TBD]` |
-| wall time                                    |  `[TBD]` |  `[TBD]` |     `[TBD]` |
-| maximum RSS                                  |  `[TBD]` |  `[TBD]` |     `[TBD]` |
-| maximum line / read request                  |  `[TBD]` |  `[TBD]` |     `[TBD]` |
-| producer / completed / resumed               |  `[TBD]` |  `[TBD]` |     `[TBD]` |
-| same-gate retry producer / append / truncate |  `[TBD]` |  `[TBD]` |     `[TBD]` |
+最初の表はregular-file sync（lineとpre-resume）を抑制したbuild childから得たreceipt summaryである。3 gateが同じfull input、private root、stage、runへ連続したことは検査したが、100 / 500 receiptのnative durability証拠ではない。
 
-validation結果も、sourceとtestsが確定する前に数字を先取りしない。
+| suppressed-sync build observation | 100 gate                                                        | 500 gate                                                        | 24,000 gate                                                     |
+| --------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------- |
+| JSONL records                     | `102`                                                           | `503`                                                           | `24,004`                                                        |
+| receipt bytes                     | `1,791,893`                                                     | `8,948,379`                                                     | `429,247,143`                                                   |
+| receipt SHA-256                   | `c0b51455…7f1637e`                                              | `dfdd6394…87a5cb0`                                              | `cd858d6c…1bf601`                                               |
+| incremental build-call wall       | `6.299 s`                                                       | `10.909 s`                                                      | `287.194 s`                                                     |
+| producer / completed / resumed    | `100 / 100 / 0`                                                 | `400 / 500 / 100`                                               | `23,500 / 24,000 / 500`                                         |
+| exact producer input range        | `0..99`                                                         | `100..499`                                                      | `500..23,999`                                                   |
+| evidence classification           | receipt-derived observation、native durability evidenceではない | receipt-derived observation、native durability evidenceではない | receipt-derived observation、native durability evidenceではない |
 
-| validation                            | result  |
-| ------------------------------------- | ------- |
-| focused v3 checkpoint tests           | `[TBD]` |
-| v2 compatibility regression tests     | `[TBD]` |
-| 24,000 scan-load / evidence validator | `[TBD]` |
-| full Vitest                           | `[TBD]` |
-| TypeScript / scoped ESLint / Prettier | `[TBD]` |
-| Next production build                 | `[TBD]` |
+build全体では、generation `4.229 s`、fixture `0.202 s`、batch sync / measure `0.899 s`だった。regular-file syncの抑制内訳はline `24,004`回とpre-resume `2`回、合計`24,006`回である。native methodを復元してからwork fileとstage directoryを各1回batch syncした。build childのbaseline / final / resource maximum RSSは`111,591,424 / 527,499,264 / 583,827,456 bytes`だった。
+
+native evidenceは、batch sync後のexact final streamに対するsealed-final retryだけである。
+
+| native sealed-final retry evidence                         | accepted value                                                     |
+| ---------------------------------------------------------- | ------------------------------------------------------------------ |
+| external wall / user / system                              | `474.99 / 480.44 / 7.30 s`                                         |
+| external maximum RSS                                       | `583,827,456 bytes`                                                |
+| final stream bytes / records                               | `429,247,143 / 24,004`                                             |
+| final stream SHA-256                                       | `cd858d6cc56d1bfd613b4432deccf93f3f695525d25411377fb0895de31bf601` |
+| header / entry-total / milestone-total / seal bytes        | `3,275 / 429,217,823 / 1,362 / 679`                                |
+| maximum observed line / bounded read request               | `18,451 / 65,536 bytes`                                            |
+| read calls (`resumable-prefix` / `sealed-final`)           | `6,550 / 6,550`                                                    |
+| producer / completed / resumed                             | `0 / 24,000 / 24,000`                                              |
+| total checkpoint / prefix→final / final→receipt / SHA wall | `163.780 / 79.399 / 79.244 / 0.940 s`                              |
+| scan baseline / final / sampled peak / resource max RSS    | `199,163,904 / 204,800,000 / 389,677,056 / 389,677,056 bytes`      |
+| work unchanged / receipt SHA = independent SHA             | `true / true`                                                      |
+| scan-load temporary roots after exit                       | `0`                                                                |
+
+gate別RSS、100 / 500のnative read / maximum line / same-gate retry、append / truncate syscall数、crash / timeout / abort / torn-tail回復はこの1回では別計測していないため`N/A`である。source contractとsynthetic unit testsはそれらのfail-closed分岐を検査するが、実24,000 native durability実測へ読み替えない。
+
+| validation                                      | result                                                  |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| focused V3 checkpoint tests                     | `47 / 47 PASS`                                          |
+| focused scan-load / V2 compatibility / evidence | `12 / 12 PASS`                                          |
+| accepted 24,000 scan-load                       | `1 / 1 PASS`、exit `0`                                  |
+| full Vitest                                     | `115 / 115 files、2,049 / 2,049 tests PASS`、`152.72 s` |
+| Python stdlib ML tests                          | `58 / 58 PASS`                                          |
+| TypeScript / scoped ESLint / Prettier           | `PASS / PASS / PASS`                                    |
+| Next production build                           | `PASS`、page collection / generation `13 workers`       |
 
 ## 8. validation境界と明示的nonclaims
 
@@ -187,7 +208,7 @@ HMACが示せるのは、trusted key holderが作ったbytesがrun / stage / ful
 
 ## 9. 24,000後にも残る棋力gate
 
-source freezeとvalidationの後に進める順序は、同じfull authenticated inputと同じrun identityを保った100 → 500 → 24,000である。各prefixではthroughput、timeout、failure、bounded abort / drain、resume、durability、score分布を監査する。100 / 500用の別sliceや別dataset identityを作らず、24,000 sealまではholdoutを開かない。
+production pilotで次に進める順序も、同じfull authenticated inputと同じrun identityを保った100 → 500 → 24,000である。その将来runでは、各prefixのthroughput、timeout、failure、bounded abort / drain、resume、native durability、score分布を別途監査しなければならない。このsynthetic scan-loadがそれらを実行済みという意味ではない。100 / 500用の別sliceや別dataset identityを作らず、24,000 sealまではholdoutを開かない。
 
 24,000 teacher checkpointがsealedになっても、棋力評価は始まったばかりである。次に固定QAT seed 42 / 43 / 44を事前登録どおり実行し、結果を見てseedを差し替えない。その後にfresh selection、fresh final、legacy final、known regression、production parityを順に通す。
 

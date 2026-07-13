@@ -1,6 +1,6 @@
 # Recording 100 / 500 as unsealed milestones and sealing only 24,000 in the v7 checkpoint v3
 
-> The earlier [v7 HMAC work checkpoint](./blog-shogi-floodgate-v7-hmac-work-checkpoint.en.md) created a v2 stream that stores completed parents in input order on an HMAC chain and reuses durable parents after a crash. The [valid 24,000-parent scan-load](./blog-shogi-floodgate-v7-valid-24k-scan-load.en.md) measured that v2 stream with holdout-free synthetic input. It did not define a contract that advances the same full training input through 100, 500, and 24,000 parents while recording only durability gates without making a prefix look like a completed dataset. This change keeps v2 and adds a separate test-only v3 entry point. It fixes 100 / 500 as domain-separated HMAC milestones and permits only 24,000 to seal. The source revision, v3 measurements, and validation results will be filled after source freeze, so this report marks them `[TBD]`. It is not evidence of production execution, a deployment key, a real dataset, teacher labels, training, weights, live evaluation-function / weight activation, matches, or playing strength. 日本語版: [blog-shogi-floodgate-v7-checkpoint-v3-milestones.md](./blog-shogi-floodgate-v7-checkpoint-v3-milestones.md)
+> The earlier [v7 HMAC work checkpoint](./blog-shogi-floodgate-v7-hmac-work-checkpoint.en.md) created a v2 stream that stores completed parents in input order on an HMAC chain and reuses durable parents after a crash. The [valid 24,000-parent scan-load](./blog-shogi-floodgate-v7-valid-24k-scan-load.en.md) measured that v2 stream with holdout-free synthetic input. It did not define a contract that advances the same full training input through 100, 500, and 24,000 parents while recording only durability gates without making a prefix look like a completed dataset. This change keeps v2 and adds a separate test-only v3 entry point. It fixes 100 / 500 as domain-separated HMAC milestones and permits only 24,000 to seal. The source was frozen at `9bd1cfc1490c2c19f24e0ff20622aadddc8ed3f8`; one accepted synthetic 24,000-parent scan-load and its validation results are recorded in a separate V3 evidence artifact. It is not evidence of production execution, a deployment key, a real dataset, teacher labels, training, weights, live evaluation-function / weight activation, matches, or playing strength. 日本語版: [blog-shogi-floodgate-v7-checkpoint-v3-milestones.md](./blog-shogi-floodgate-v7-checkpoint-v3-milestones.md)
 
 ---
 
@@ -13,13 +13,13 @@ The current source retains the existing `checkpointFloodgateV7TeacherParentsCore
 - gate contract: `shogi-floodgate-v7-teacher-gate-contract-v1`
 - gates: `durable-prefix-100`, `durable-prefix-500`, and `sealed-final-24000`
 
-| Boundary                             | Status                            | What this change establishes                             |
-| ------------------------------------ | --------------------------------- | -------------------------------------------------------- |
-| v2 checkpoint API / schema / format  | Preserved                         | Leaves existing v2 callers and historical streams intact |
-| v2 valid 24,000 scan-load            | Historical accepted baseline      | Retains it only for comparison, not as a v3 measurement  |
-| v3 gate contract / scanner / receipt | Implemented in the current source | Source revision and validation are `[TBD]`               |
-| Real 100 / 500 / 24,000 teacher run  | 0                                 | Runs no production data or engine in this change         |
-| Weight / live / match / strength     | 0                                 | Makes no stable-high-dan or strength-improvement claim   |
+| Boundary                             | Status                       | What this change establishes                             |
+| ------------------------------------ | ---------------------------- | -------------------------------------------------------- |
+| v2 checkpoint API / schema / format  | Preserved                    | Leaves existing v2 callers and historical streams intact |
+| v2 valid 24,000 scan-load            | Historical accepted baseline | Retains it only for comparison, not as a v3 measurement  |
+| v3 gate contract / scanner / receipt | Source and evidence frozen   | One accepted synthetic 24,000 scan-load completed        |
+| Real 100 / 500 / 24,000 teacher run  | 0                            | Runs no production data or engine in this change         |
+| Weight / live / match / strength     | 0                            | Makes no stable-high-dan or strength-improvement claim   |
 
 V3 is a private test-only checkpoint. It is not a zero-argument production path reached from a production coordinator or deployment key authority. It remains a core that validates an authenticated training-row capability, an authorized private stage lease, a run binding, a producer controller, and test dependencies supplied by its caller.
 
@@ -124,7 +124,7 @@ For example, the 100 gate can recover a partial write of entry 99 or the 100 mar
 
 Search execution can be at least once depending on the crash point, while a parent or milestone durably accepted into the HMAC stream is exact once. Complete-line MAC revalidation, current-gate-only truncation, and strict input-index append distinguish repeated search from duplicate acceptance.
 
-## 7. Separate the v2 baseline from v3 measurement placeholders
+## 7. Separate the v2 baseline from the accepted V3 measurement
 
 The accepted v2 24,000-parent scan-load remains a historical baseline for comparison. It is not a successful v3 value.
 
@@ -138,29 +138,50 @@ The accepted v2 24,000-parent scan-load remains a historical baseline for compar
 | maximum RSS                          | `483,491,840 bytes`                                                |
 | new temporary roots after exit       | `0`                                                                |
 
-V3 changes the header, HKDF / MAC domains, two milestone lines, and final-validation policy. Adding two estimated marker-line sizes to the v2 byte count would not be a v3 measurement. After source freeze, each gate and the full resume must be measured under one fixed machine and runtime configuration.
+V3 changes the header, HKDF / MAC domains, two milestone lines, and final-validation policy. Instead of estimating V3 from V2 bytes, it was run once with Node `v22.13.0` on an Apple M4 Pro with 14 cores and 51,539,607,552 bytes of memory at source revision `9bd1cfc1490c2c19f24e0ff20622aadddc8ed3f8`. The complete result is pinned at `ml/protocols/floodgate-v7-valid-24k-scan-load-v3-9bd1cfc-result.json`. V2 remains an immutable comparison artifact and is not superseded by V3.
 
-| v3 evidence                                  | 100 gate | 500 gate | 24,000 gate |
-| -------------------------------------------- | -------: | -------: | ----------: |
-| source revision                              |  `[TBD]` |  `[TBD]` |     `[TBD]` |
-| expected total JSONL lines                   |      102 |      503 |      24,004 |
-| actual bytes                                 |  `[TBD]` |  `[TBD]` |     `[TBD]` |
-| wall time                                    |  `[TBD]` |  `[TBD]` |     `[TBD]` |
-| maximum RSS                                  |  `[TBD]` |  `[TBD]` |     `[TBD]` |
-| maximum line / read request                  |  `[TBD]` |  `[TBD]` |     `[TBD]` |
-| producer / completed / resumed               |  `[TBD]` |  `[TBD]` |     `[TBD]` |
-| same-gate retry producer / append / truncate |  `[TBD]` |  `[TBD]` |     `[TBD]` |
+The first table contains receipt summaries from a build child that suppressed regular-file syncs for both lines and pre-resume work. The harness checked that all three gates retained one full input, private root, stage, and run. The 100 / 500 values are not native durability evidence.
 
-Validation numbers also remain unset until the source and tests are final.
+| Suppressed-sync build observation | 100 gate                                        | 500 gate                                        | 24,000 gate                                     |
+| --------------------------------- | ----------------------------------------------- | ----------------------------------------------- | ----------------------------------------------- |
+| JSONL records                     | `102`                                           | `503`                                           | `24,004`                                        |
+| receipt bytes                     | `1,791,893`                                     | `8,948,379`                                     | `429,247,143`                                   |
+| receipt SHA-256                   | `c0b51455…7f1637e`                              | `dfdd6394…87a5cb0`                              | `cd858d6c…1bf601`                               |
+| incremental build-call wall       | `6.299 s`                                       | `10.909 s`                                      | `287.194 s`                                     |
+| producer / completed / resumed    | `100 / 100 / 0`                                 | `400 / 500 / 100`                               | `23,500 / 24,000 / 500`                         |
+| exact producer input range        | `0..99`                                         | `100..499`                                      | `500..23,999`                                   |
+| evidence classification           | receipt-derived; not native durability evidence | receipt-derived; not native durability evidence | receipt-derived; not native durability evidence |
 
-| Validation                            | Result  |
-| ------------------------------------- | ------- |
-| focused v3 checkpoint tests           | `[TBD]` |
-| v2 compatibility regression tests     | `[TBD]` |
-| 24,000 scan-load / evidence validator | `[TBD]` |
-| full Vitest                           | `[TBD]` |
-| TypeScript / scoped ESLint / Prettier | `[TBD]` |
-| Next production build                 | `[TBD]` |
+Across the build, generation took `4.229 s`, fixture setup `0.202 s`, and batch sync / measurement `0.899 s`. Suppressed regular-file syncs split into `24,004` line syncs and `2` pre-resume syncs, for `24,006` total. The native method was restored before one batch sync each of the work file and stage directory. Build-child baseline / final / resource-maximum RSS was `111,591,424 / 527,499,264 / 583,827,456 bytes`.
+
+Native evidence is limited to the sealed-final retry over the exact final stream after batch sync.
+
+| Native sealed-final retry evidence                         | Accepted value                                                     |
+| ---------------------------------------------------------- | ------------------------------------------------------------------ |
+| external wall / user / system                              | `474.99 / 480.44 / 7.30 s`                                         |
+| external maximum RSS                                       | `583,827,456 bytes`                                                |
+| final stream bytes / records                               | `429,247,143 / 24,004`                                             |
+| final stream SHA-256                                       | `cd858d6cc56d1bfd613b4432deccf93f3f695525d25411377fb0895de31bf601` |
+| header / entry-total / milestone-total / seal bytes        | `3,275 / 429,217,823 / 1,362 / 679`                                |
+| maximum observed line / bounded read request               | `18,451 / 65,536 bytes`                                            |
+| read calls (`resumable-prefix` / `sealed-final`)           | `6,550 / 6,550`                                                    |
+| producer / completed / resumed                             | `0 / 24,000 / 24,000`                                              |
+| total checkpoint / prefix→final / final→receipt / SHA wall | `163.780 / 79.399 / 79.244 / 0.940 s`                              |
+| scan baseline / final / sampled peak / resource max RSS    | `199,163,904 / 204,800,000 / 389,677,056 / 389,677,056 bytes`      |
+| work unchanged / receipt SHA = independent SHA             | `true / true`                                                      |
+| scan-load temporary roots after exit                       | `0`                                                                |
+
+Per-gate RSS, native reads / maximum lines / same-gate retries at 100 / 500, append / truncate syscall counts, and crash / timeout / abort / torn-tail recovery are `N/A` because this run did not measure them separately. The source contract and synthetic unit tests exercise their fail-closed branches; they are not substitutes for native 24,000-parent durability measurements.
+
+| Validation                                      | Result                                                  |
+| ----------------------------------------------- | ------------------------------------------------------- |
+| focused V3 checkpoint tests                     | `47 / 47 PASS`                                          |
+| focused scan-load / V2 compatibility / evidence | `12 / 12 PASS`                                          |
+| accepted 24,000 scan-load                       | `1 / 1 PASS`, exit `0`                                  |
+| full Vitest                                     | `115 / 115 files, 2,049 / 2,049 tests PASS`, `152.72 s` |
+| Python stdlib ML tests                          | `58 / 58 PASS`                                          |
+| TypeScript / scoped ESLint / Prettier           | `PASS / PASS / PASS`                                    |
+| Next production build                           | `PASS`, page collection / generation with `13 workers`  |
 
 ## 8. Validation boundary and explicit non-claims
 
@@ -187,7 +208,7 @@ The HMAC establishes only that bytes produced by a trusted key holder remain bou
 
 ## 9. Strength gates that remain after 24,000
 
-After source freeze and validation, the execution order is 100 → 500 → 24,000 over the same full authenticated input and run identity. Each prefix audits throughput, timeout, failure, bounded abort / drain, resume, durability, and score distribution. There is no separate slice or dataset identity for 100 / 500, and no holdout opens before the 24,000 seal.
+The next production pilot must also run 100 → 500 → 24,000 over the same full authenticated input and run identity. That future run must separately audit per-prefix throughput, timeout, failure, bounded abort / drain, resume, native durability, and score distribution; this synthetic scan-load did not execute those checks. There is no separate slice or dataset identity for 100 / 500, and no holdout opens before the 24,000 seal.
 
 Even a sealed 24,000-parent teacher checkpoint only begins the strength-evaluation path. Fixed QAT seeds 42 / 43 / 44 must then run exactly as preregistered, without substituting a seed after seeing results. Fresh selection, fresh final, legacy final, known regressions, and production parity follow in that order.
 

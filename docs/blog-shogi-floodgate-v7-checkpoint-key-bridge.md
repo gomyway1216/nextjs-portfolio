@@ -6,17 +6,17 @@
 
 ## 1. 現在の境界
 
-| 項目            | 実装方針                                                                                | この境界から言えること                                                    |
-| --------------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| deployment root | current EUID / `os.userInfo().homedir`配下のfixed 32-byte rootをheld descriptorから読む | key deployment metadataとexact requestを同じauthority operationで認証する |
-| V3 key material | `runId`をsalt、fixed V3 HKDF infoをinfoとして32 bytesをauthority内部で導出する          | checkpointへraw rootを渡さず、V3専用keyだけを準備する                     |
-| opaque facade   | frozen null-prototype exact metadata recordをmodule-private `WeakMap` keyとして使う     | facadeのclone、receipt copy、同shape objectからsecretを取得できない       |
-| registry        | productionとinjected testを別`WeakMap`へ分離する                                        | test capabilityをproduction authorityへ格上げしない                       |
-| lifecycle       | exact `prepare` / `claim` / `discard`で1つのderived keyを所有する                       | unclaimed keyを明示破棄でき、同じfacadeから2回claimできない               |
-| checkpoint sink | claimed keyを同期copyし、claim resultを直ちにzeroizeする                                | caller-owned byte lifetimeを最初の`await`やproducer開始より前に閉じる     |
-| executor        | authority pathではV3 derived keyを直接使い、再HKDFしない                                | authorityとcheckpointで二重導出やinfo不一致を起こさない                   |
-| compatibility   | 既存raw-root `CoreForTests`を残す                                                       | 既存synthetic / fault-injection testの入力契約を壊さない                  |
-| validation      | local validation完了、PR / CI pending                                                   | Node 22、full Vitest、Python、TypeScript、buildの実測を固定した           |
+| 項目            | 実装方針                                                                                           | この境界から言えること                                                               |
+| --------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| deployment root | current EUID / `os.userInfo().homedir`配下のfixed 32-byte rootをheld descriptorから読む            | key deployment metadataとexact requestを同じauthority operationで認証する            |
+| V3 key material | `runId`をsalt、fixed V3 HKDF infoをinfoとして32 bytesをauthority内部で導出する                     | checkpointへraw rootを渡さず、V3専用keyだけを準備する                                |
+| opaque facade   | frozen null-prototype exact metadata recordをmodule-private `WeakMap` keyとして使う                | facadeのclone、receipt copy、同shape objectからsecretを取得できない                  |
+| registry        | productionとinjected testを別`WeakMap`へ分離する                                                   | test capabilityをproduction authorityへ格上げしない                                  |
+| lifecycle       | exact `prepare` / `claim` / `discard`で1つのderived keyを所有する                                  | unclaimed keyを明示破棄でき、同じfacadeから2回claimできない                          |
+| checkpoint sink | claimed keyを同期copyし、claim resultを直ちにzeroizeする                                           | caller-owned byte lifetimeを最初の`await`やproducer開始より前に閉じる                |
+| executor        | authority pathではV3 derived keyを直接使い、再HKDFしない                                           | authorityとcheckpointで二重導出やinfo不一致を起こさない                              |
+| compatibility   | 既存raw-root `CoreForTests`を残す                                                                  | 既存synthetic / fault-injection testの入力契約を壊さない                             |
+| validation      | final executable codeをlocalで再検証済み、historical PR-head CIはgreen、new-head CIはpush前pending | revision / environment別にNode 22、Vitest、Python、TypeScript、buildの実測を固定した |
 
 このbridgeだけではactive stage lease、authenticated training rows、production coordinator originを証明しない。それぞれのproduction capabilityを同じtrusted connectorがclaimし、同じrun / stage / gate bindingへ閉じる必要がある。
 
@@ -35,7 +35,7 @@ HKDF-SHA256(
 )
 ```
 
-root、authority MAC用derived key、key-instance用key、oversize確認用byteは既存authority規則どおりfinal revalidation前にzeroizeする。V3 derived keyだけをmodule-private registryへ移し、public facadeにはbytes、hash、signer、filesystem pathを載せない。したがって、facadeをserializeしてもsecretは出ず、正しいmodule内claimまでkey bytesはauthority内部に留まる。
+root、authority MAC用derived key、key-instance用key、oversize確認用byteは既存authority規則どおりfinal revalidation前にzeroizeする。V3 derived keyだけをmodule-private registryへ移し、public facadeにはkey bytes、root / V3 derived keyのhash、generic signer、absolute filesystem path、caller-selected pathを載せない。ただし、nested authorization receiptにはfixed deployment `relative_path` metadataが含まれる。したがって、facadeをserializeしてもsecretやhost-specific absolute pathは出ず、正しいmodule内claimまでkey bytesはauthority内部に留まる。
 
 ## 3. exact requestとopaque facade
 
@@ -74,9 +74,10 @@ prepareは次の順序を固定する。
 5. rootをexact 32 bytes読み、authorization MAC、key instance ID、V3 derived keyを同じheld rootから作る
 6. V3 derived key以外の全owned key copiesを次の`await`前にzeroizeする
 7. held / pathname metadataをfinal revalidateし、descriptorsをcloseする
-8. revalidationとcleanupが全て成功した後だけ、exact facadeとV3 derived keyをmatching registryへ登録する
+8. authorization material wrapperとfacadeのobject allocation / freeze、canonical binding生成、registry登録をderived-key ownership guard内で行う
+9. revalidation、cleanup、facade生成、registry登録が全て成功した後だけ、exact facadeへV3 derived keyのownershipを移す
 
-途中で失敗した場合はfacadeを返さず、準備済みV3 derived keyもzeroizeする。prepare successは「このexact binding用key capabilityが準備された」ことまでであり、checkpoint file、parent entry、milestone、sealが作られたことを意味しない。
+material wrapperのobject literal / `Object.freeze`、facadeの`frozenRecord`、registry transferの途中で失敗した場合もfacadeを返さず、準備済みV3 derived keyをownership guardでzeroizeする。invalid-length branchでzeroize自体が失敗した場合は、そのfailureを`cleanup` phaseのcauseとして保持する。prepare successは「このexact binding用key capabilityが準備された」ことまでであり、checkpoint file、parent entry、milestone、sealが作られたことを意味しない。
 
 ## 5. claim / discardとsingle-use規則
 
@@ -95,18 +96,18 @@ claimはproduction / testで別APIと別registryを使う。重要な順序は�
 
 ## 6. checkpoint sinkとexecutorのkey lifetime
 
-checkpoint sinkはauthority claimとcheckpoint captureの間を閉じるnarrow boundaryである。
+checkpoint sinkはstage、authenticated rows、authority claim、checkpoint captureのownershipを閉じるnarrow boundaryである。
 
-1. matching production / test claim APIからowned V3 derived `Uint8Array`を同期取得する
-2. stage lease、authenticated full 24,000-row input、run binding、2-key producer controller、gate optionsを同じ同期captureへ渡す
-3. sink内部のowned `Buffer`へderived keyを同期copyする
-4. captureのsuccess / failureにかかわらず、claim resultを`finally`で直ちにzeroizeする
-5. capture成功後だけcheckpoint Promiseを返し、I/O / producerを開始する
-6. executor cleanupでsink内部copyもzeroizeする
+1. matching production / test stage APIでleaseを同期claimする
+2. matching training APIでauthenticated full 24,000-row inputをclaimし、lease、rows、run binding、2-key producer controller、gate optionsを同期captureする
+3. captured bindingからexact key requestを作り、matching production / test authority APIでowned V3 derived `Uint8Array`をclaimする
+4. sink内部のowned `Buffer`へderived keyを同期copyし、partial copy failureならそのBufferをzeroizeする。claim resultはcopyのsuccess / failureにかかわらず`finally`で直ちにzeroizeする
+5. stage claim自体が失敗した場合はprepared key facadeをdiscardするが、sinkがclaimしていないleaseはcloseせず、caller ownershipに残す。stage claim後のrows / capture / key failureではkeyをdiscard / zeroizeし、claimed leaseをcloseする
+6. capture成功後だけcheckpoint Promiseを返してI/O / producerを開始し、executor cleanupでsink内部copyをzeroizeしてclaimed leaseをcloseする
 
 authority pathのcaptured key kindは`v3-derived`である。executorはこのbytesをHMAC chain / milestone / sealへ直接使い、もう一度HKDFしない。再HKDFするとauthorityが許可したkeyとcheckpointが使うkeyが別domainになり、resume MACを互換に検証できなくなるためである。
 
-claim resultのzeroizeは最初の`await`より前でなければならない。checkpointが長時間走る間に残るのはcheckpoint invocationが所有する1 copyだけであり、public facade、connector、authority registryにはkey bytesを残さない。
+claim resultのzeroizeは最初の`await`より前でなければならない。checkpointが長時間走る間に残るのはcheckpoint invocationが所有する1 copyだけであり、public facade、connector、authority registryにはkey bytesを残さない。leaseはstage claim成功時にだけsinkへ移り、それより前のfailureではcallerがcleanup responsibilityを保持する。
 
 ## 7. 既存raw-root `CoreForTests`との互換性
 
@@ -122,47 +123,66 @@ claim resultのzeroizeは最初の`await`より前でなければならない。
 
 ## 8. failure matrixと検証対象
 
-| case                                            | expected result                     | key / capability outcome                                       |
-| ----------------------------------------------- | ----------------------------------- | -------------------------------------------------------------- |
-| prepare arity mismatch                          | request capture / key I/O前にreject | capabilityなし                                                 |
-| invalid request / Proxy / accessor              | trapを起動せずpre-I/O reject        | capabilityなし                                                 |
-| key path / mode / owner / size / identity drift | fail closed                         | root / derived copiesをzeroize、facadeなし                     |
-| exact facade clone / fake                       | claim / discard reject              | valid registry entryを構造比較で取得しない                     |
-| wrong production / test registry                | boundary reject                     | keyを公開せず、testをproductionへ昇格しない                    |
-| claim arity mismatch                            | pre-capture reject                  | prepared entryを保持                                           |
-| exact facade + wrong binding                    | reject                              | entryをconsumeしstored keyをzeroize                            |
-| exact facade + valid binding                    | owned 32-byte derived keyを1回返す  | stored keyを返却前にzeroize                                    |
-| second claim                                    | reject                              | key再発行なし                                                  |
-| discard before claim                            | success                             | stored keyをzeroize                                            |
-| repeated exact discard                          | harmless no-op                      | keyなし                                                        |
-| sink capture failure                            | checkpoint未開始                    | claimed copy / partial internal copyをzeroizeしleaseをclose    |
-| executor failure / cleanup failure              | no success receipt                  | invocation-owned keyをzeroizeしprimary / cleanup failureを保持 |
-| raw-root test core                              | existing behavior                   | checkpoint内でV3 HKDFし、root / derivedをzeroize               |
+| case                                                  | expected result                     | key / capability outcome                                                     |
+| ----------------------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------- |
+| prepare arity mismatch                                | request capture / key I/O前にreject | capabilityなし                                                               |
+| invalid request / Proxy / accessor                    | trapを起動せずpre-I/O reject        | capabilityなし                                                               |
+| key path / mode / owner / size / identity drift       | fail closed                         | root / derived copiesをzeroize、facadeなし                                   |
+| material wrapper / facade allocation / freeze failure | transfer前にfail closed             | facadeなし、owned V3 derived keyをguard内でzeroize                           |
+| invalid derived-key length + zeroize failure          | cleanup failure                     | zeroize failureを`cleanup` phaseのcauseとして保持、facadeなし                |
+| exact facade clone / fake                             | claim / discard reject              | valid registry entryを構造比較で取得しない                                   |
+| wrong production / test registry                      | boundary reject                     | keyを公開せず、testをproductionへ昇格しない                                  |
+| claim arity mismatch                                  | pre-capture reject                  | prepared entryを保持                                                         |
+| exact facade + wrong binding                          | reject                              | entryをconsumeしstored keyをzeroize                                          |
+| authority claim copy failure                          | rejectしてentryをconsume            | stored keyとpartial claim outputをzeroize                                    |
+| exact facade + valid binding                          | owned 32-byte derived keyを1回返す  | stored keyを返却前にzeroize                                                  |
+| second claim                                          | reject                              | key再発行なし                                                                |
+| discard before claim                                  | success                             | stored keyをzeroize                                                          |
+| repeated exact discard                                | harmless no-op                      | keyなし                                                                      |
+| stage claim failure                                   | checkpoint未開始                    | prepared keyをdiscard、unclaimed leaseはcloseせずcaller ownershipに残す      |
+| post-stage rows / capture failure                     | checkpoint未開始                    | prepared keyをdiscardし、claimed leaseをclose                                |
+| checkpoint owned-buffer copy failure                  | checkpoint未開始                    | claim resultとpartial internal copyをzeroizeし、claimed leaseをclose         |
+| executor failure / cleanup failure                    | no success receipt                  | invocation-owned keyをzeroizeしprimary / cleanup failureを保持、leaseをclose |
+| raw-root test core                                    | existing behavior                   | checkpoint内でV3 HKDFし、root / derivedをzeroize                             |
 
-focused testsはexact keys / descriptors、Proxy trap 0、arity-before-capture、production / test registry separation、clone、double claim、wrong-binding consumption、idempotent exact discard、stored / claimed / captured key zeroization、derived pathのno-re-HKDF、既存raw-root receipt互換を対象にした。実測結果を次節へ固定する。
+focused testsはexact keys / descriptors、Proxy trap 0、arity-before-capture、production / test registry separation、clone、double claim、wrong-binding consumption、idempotent exact discard、stored / claimed / captured key zeroization、derived pathのno-re-HKDF、既存raw-root receipt互換を対象にした。material / facade allocationのdirect OOMとcaptured native-set failureを起こすtest-only injection seamは追加していない。secret-bearing allocation / copyをinterceptしたりcaptured intrinsicを差し替えたりするsurfaceを増やすと、この変更が閉じる境界自体を再び広げるためである。これらのclosest validationはsource-level ownership auditとfocused / full testsであり、実際にOOMやnative-set failureを注入したというclaimはしない。
 
-## 9. ローカルvalidation結果と残るCI
+## 9. revision別のlocal / CI validationとreview remediation
 
-bridge source commitは`2dbcdae55b22907daedb95f65db8bfe517ffac6d`、bridge test commitは`758f235095e3cecc2a4c35992c6b7d5984e8a530`である。高負荷test isolation修正を含む最終local validation revisionは`df740ac0f790e0f8c095d15ac7831f288430ecff`、Nodeは`v22.13.0`である。
+bridge source commitは`2dbcdae55b22907daedb95f65db8bfe517ffac6d`、bridge test commitは`758f235095e3cecc2a4c35992c6b7d5984e8a530`、pre-review test-isolation revisionは`df740ac0f790e0f8c095d15ac7831f288430ecff`である。pre-review記事とhistorical Linux CIのheadは`af227e5ae004a86f307199564212d7ebf7491039`、Gemini findingの最初の修正は`fab4138f3c1cdf5fec3dbaf9ad3edac6951cc82e`、review remediation後のfinal executable code revisionは`2c1e48f1766fb3a75cfb429617813072957ca38e`である。final local validationはNode `v22.13.0`で行った。
 
-| validation layer                       | status         | 実測値                                                              |
-| -------------------------------------- | -------------- | ------------------------------------------------------------------- |
-| deployment key authority focused tests | `PASS`         | 1 file / 16 tests、`0.273 s`                                        |
-| V3 checkpoint focused tests            | `PASS`         | boundary 1 / 1、exact-24k 1 / 1（`145.97 s`、独立再実行`143.70 s`） |
-| key bridge cross-boundary tests        | `PASS`         | 新規6 / 6。prepare / claim / discard / sink / no-re-HKDFを包含      |
-| related Vitest files                   | `PASS`         | authority + checkpoint、2 files / 64 tests（full run内）            |
-| full Vitest                            | `PASS`         | 115 / 115 files、2,056 / 2,056 tests、12 workers、`153.60 s`        |
-| Python ML regression                   | `PASS`         | `npm run test:ml:stdlib`、58 / 58、unittest本体`0.123 s`            |
-| TypeScript                             | `PASS`         | `npx tsc --noEmit`                                                  |
-| scoped ESLint / Prettier / diff-check  | `PASS`         | 変更source / tests / 日英記事、exit 0                               |
-| Next production build                  | `PASS`         | `npm run build`、13 workers、`25.97 s`                              |
-| independent security audit             | `PASS`         | 最終unresolved P0 / P1 / P2 = `0 / 0 / 0`                           |
-| PR / CI                                | `pending`      | ready PR作成後にURL、required checks、merge commitを追記する        |
-| production fixed-key smoke             | `not executed` | real production実行はこのPRの範囲外。secret値も取得・記録していない |
+| validation layer                  | revision / environment                | status                 | 実測値                                                                     |
+| --------------------------------- | ------------------------------------- | ---------------------- | -------------------------------------------------------------------------- |
+| deployment key authority focused  | `2c1e48f` / local macOS               | `PASS`                 | 1 file、16 / 16 tests、`0.291 s`                                           |
+| V3 checkpoint boundary focused    | `2c1e48f` / local macOS               | `PASS`                 | boundary 1 / 1                                                             |
+| V3 checkpoint exact-24k focused   | `2c1e48f` / local macOS               | `PASS`                 | exact-24k 1 / 1、test `132.80 s`                                           |
+| full Vitest                       | `2c1e48f` / local macOS               | `PASS`                 | 115 / 115 files、2,056 passed、`maxWorkers=12`、`155.07 s`                 |
+| Python ML regression              | `2c1e48f` / local macOS               | `PASS`                 | `npm run test:ml:stdlib`、58 / 58、unittest本体`0.123 s`                   |
+| TypeScript                        | `2c1e48f` / local macOS               | `PASS`                 | `npx tsc --noEmit`                                                         |
+| scoped lint / format / diff-check | final code + JA / EN articles / local | `PASS`                 | changed source / tests / articles、exit 0                                  |
+| Next production build             | `2c1e48f` / local macOS               | `PASS`                 | `npm run build`、13 workers、`25.51 s`                                     |
+| historical full Vitest            | `af227e5` / Linux CI                  | `PASS`                 | 115 files、2,042 passed + 14 skipped = 2,056 discovered、`259.72 s`        |
+| historical required checks        | `af227e5` / PR #455                   | `green`                | 当該headのchecksは全て成功                                                 |
+| source security re-audit          | `2c1e48f` / read-only                 | code P0 / P1 = `0 / 0` | direct OOM / native-set injectionなし。source audit + focused / full tests |
+| Gemini / Copilot review threads   | local remediation後、push / reply前   | `pending`              | 修正をlocal実装済みだが、threadをresolvedとは記録しない                    |
+| post-review new-head CI           | `2c1e48f`、push前                     | `pending`              | push後にrequired checksを再実行する                                        |
+| production fixed-key smoke        | live production                       | `not executed`         | secret値を取得・記録せず、production gate実行も0                           |
 
-full-power runは途中値も捨てなかった。最初の2回は2,055 / 2,056 testsまで通った後、既存coordinator testがoperation完了後も`setImmediate`までglobal `Promise.prototype`をpoisonし、並列runner通信を巻き込んだ（`166.08 s`、`154.77 s`）。同じ35-test fileは単独35 / 35だったため、operation settlement callbackで直ちにrestoreするようtestを隔離した。3回目は別のreal-child fixtureがCPU飽和下で20,000ms startup上限を約0.3秒超え、2,055 / 2,056（`152.70 s`）だった。単独実測は`0.261 s`だったためproduction timeoutは変えず、test-only fixture上限だけ60,000msへ広げた。最終4回目が上表の2,056 / 2,056である。
+reviewで得たfindingと修正履歴も、最終結果から切り離さず残す。
 
-buildは成功し、既存のedge-runtime static-generation注意、build-phase Firebase Admin拒否、`cookies`によるdynamic routeメッセージを再確認した。これらをbridge起因の新しいwarningやproduction data accessへ読み替えない。PR / CIだけは記事commit時点で未確定なので`pending`のまま残す。
+| source                 | finding                                                                                          | remediation                                                                | revision  | thread state       |
+| ---------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- | --------- | ------------------ |
+| Gemini security-high   | authority claimのnative-set failure後にpartial outputが残り得た                                  | primary / cleanup failure時にowned outputをzero-fillして破棄               | `fab4138` | reply / resolve前  |
+| Copilot                | stage claimがcapture cleanup guard外で、failure時にprepared keyをdiscardしなかった               | `stageClaimed` guard内へ移し、unclaimed / claimed lease cleanupを分離      | `2c1e48f` | reply / resolve前  |
+| Copilot P2             | test helperの`binding as never`が型不整合を隠した                                                | exact authority run-binding typeへ限定したcastへ置換                       | `2c1e48f` | reply / resolve前  |
+| follow-up source audit | material return / facade allocation failureがderived-key guard外だった                           | material assignmentとfacade生成を`try` / `finally` ownership guard内へ移動 | `2c1e48f` | local re-audit完了 |
+| follow-up source audit | invalid-length zeroize failureがcauseに残らず、checkpoint partial internal copyが未zeroizeだった | cleanup causeを保持し、copy failure時にpartial Bufferをzeroize             | `2c1e48f` | local re-audit完了 |
+
+full-power runは途中値も捨てなかった。pre-reviewの最初の2回は2,055 / 2,056 testsまで通った後、既存coordinator testがoperation完了後も`setImmediate`までglobal `Promise.prototype`をpoisonし、並列runner通信を巻き込んだ（`166.08 s`、`154.77 s`）。同じ35-test fileは単独35 / 35だったため、operation settlement callbackで直ちにrestoreするようtestを隔離した。3回目は別のreal-child fixtureがCPU飽和下で20,000ms startup上限を約0.3秒超え、2,055 / 2,056（`152.70 s`）だった。単独実測は`0.261 s`だったためproduction timeoutは変えず、test-only fixture上限だけ60,000msへ広げた。4回目は`df740ac`で2,056 / 2,056、`153.60 s`だった。
+
+review後もfull runを続けた。Gemini修正`fab4138`での5回目は115 / 115 files、2,056 passed、`154.29 s`、final executable code `2c1e48f`は115 / 115 files、2,056 passed、`155.07 s`だった。一方、historical Linux CIの`af227e5`は2,042 passedと14 skippedを分けて記録しており、そのgreen結果を新しい`2c1e48f`のCI evidenceへ読み替えない。
+
+final local buildは13 workers、`25.51 s`で成功した。既存のedge-runtime static-generation注意、build-phase Firebase Admin拒否、`cookies`によるdynamic routeメッセージをbridge起因の新しいwarningやproduction data accessへ読み替えない。post-review new-head CIはpush前なので`pending`であり、Gemini / Copilot threadもreply / resolve前である。
 
 ## 10. 明示的nonclaimsとlive状態
 
@@ -180,6 +200,8 @@ buildは成功し、既存のedge-runtime static-generation注意、build-phase 
 - matches / Elo / rating / rank / playing-strength evidence: **0**
 - formal A/B: **0 / 192 color-swapped pairs、0 / 384 games**
 
+review remediationとlocal / CI validationはcode、synthetic fixture、buildだけを対象にし、production checkpoint、dataset、学習、weight、live activationを実行していない。このため、上の0 executionsとlive unchangedはreview後も変わらない。
+
 したがって、このbridgeは評価関数を変更せず、強くなった、退行しなかった、高段で安定した、というclaimを一切作らない。閉じるのは、fixed deployment rootをexportせず、exact run / stage / gate用のV3 derived keyを一度だけcheckpoint sinkへ移すcode boundaryまでである。
 
 ## 11. 次のproduction connector
@@ -190,8 +212,10 @@ buildは成功し、既存のedge-runtime static-generation注意、build-phase 
 2. active private stage leaseをproduction boundaryでauthorizeする
 3. exact gate / run / stage / bindingでopaque V3 key facadeをprepareする
 4. authenticated full 24,000-row training consumerの同期callback内でcheckpoint sinkを呼ぶ
-5. sinkへ到達しなかったfailure pathではprepared facadeをdiscardする
-6. checkpoint、training postflight、coordinator cleanupが全て成功した後だけcombined success receiptを返す
-7. manual approvalを挟み、同じrun / stage / input / key instanceで100、500、24,000を別invocationとして進める
+5. sinkへ到達しなかったfailure pathではprepared facadeをdiscardし、connectorがまだ所有するstage leaseをcloseする
+6. sink内のstage claimが失敗した場合、sinkはprepared keyをdiscardするがunclaimed leaseをcloseしない。渡したlease capabilityのcleanup responsibilityはcallerに残る
+7. stage claim成功後はsinkがkey cleanupとlease closeを所有し、capture / executionのsuccess / failure全pathで閉じる
+8. checkpoint、training postflight、coordinator cleanupが全て成功した後だけcombined success receiptを返す
+9. manual approvalを挟み、同じrun / stage / input / key instanceで100、500、24,000を別invocationとして進める
 
 100 / 500 gateにも24,000 rows全体を渡し、別sliceやholdoutを作らない。これらはteacher-data durability gateであって棋力gateではない。label、学習、weight選択、production activation、正式A/Bは、別の明示的な検証・承認段階に残る。

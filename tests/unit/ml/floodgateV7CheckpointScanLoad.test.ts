@@ -1,5 +1,10 @@
+import { createHash } from "node:crypto";
+import * as fs from "node:fs";
+import * as path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
+import evidence from "../../../ml/protocols/floodgate-v7-valid-24k-scan-load-7844ea4-result.json";
 import {
   FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_SCHEMA,
   FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_STATUS,
@@ -181,5 +186,70 @@ describe("Floodgate v7 semantic checkpoint scanner load harness", () => {
     expect(() => buildFloodgateV7ScanLoadSourceUrlCoreForTests(86_400)).toThrow(
       /one UTC day/,
     );
+  });
+
+  it("pins the accepted synthetic 24,000-parent evidence and exact arithmetic", async () => {
+    const bytes = await fs.promises.readFile(
+      path.join(
+        process.cwd(),
+        "ml/protocols/floodgate-v7-valid-24k-scan-load-7844ea4-result.json",
+      ),
+    );
+    expect(createHash("sha256").update(bytes).digest("hex")).toBe(
+      "7fc84e5e6168859d1bdcb0d352839725fe53a1dc8994ea34b7b44bb3b20eda58",
+    );
+    expect(evidence).toMatchObject({
+      status: "complete-accepted-synthetic-24k-test-only-scan-load-evidence",
+      attempts: [
+        { attempt: 1, accepted_evidence: false },
+        { attempt: 2, accepted_evidence: false },
+        {
+          attempt: 3,
+          accepted_evidence: true,
+          source_commit: "7844ea49f9e0326a5531824d7e356d6d51726d58",
+          harness_sha256:
+            "d1debecd249f70c36f5a0b72f653f1de1764f22022f7864fd1baa68a078485ff",
+          exit_code: 0,
+          new_temp_roots_after_exit: 0,
+        },
+      ],
+      acceptance: {
+        all_required_checks_passed: true,
+        derived_candidate_instances: 336_000,
+        production_entry_point_claimed: false,
+        playing_strength_claimed: false,
+        live_weight_changed: false,
+      },
+    });
+    const stream = evidence.result.valid_stream;
+    const lines = stream.line_statistics;
+    expect(lines.records).toBe(24_002);
+    expect(lines.entries).toBe(24_000);
+    expect(
+      lines.header_bytes +
+        lines.entry_bytes_total +
+        lines.seal_bytes +
+        lines.records,
+    ).toBe(stream.actual_bytes);
+    expect(Math.round(lines.entry_bytes_total / lines.entries)).toBe(
+      lines.entry_bytes_mean,
+    );
+    expect(stream.actual_sha256).toBe(
+      evidence.result.native_scan.work.receipt_sha256,
+    );
+    expect(stream.actual_sha256).toBe(
+      evidence.result.native_scan.work.independent_sha256,
+    );
+    for (const purpose of ["resumable-prefix", "sealed-final"] as const) {
+      expect(evidence.result.native_scan.reads.bytes[purpose]).toBe(
+        stream.actual_bytes,
+      );
+      expect(evidence.result.native_scan.reads.calls[purpose]).toBe(
+        Math.ceil(stream.actual_bytes / (64 * 1024)),
+      );
+      expect(
+        evidence.result.native_scan.reads.maximum_request_bytes[purpose],
+      ).toBe(64 * 1024);
+    }
   });
 });

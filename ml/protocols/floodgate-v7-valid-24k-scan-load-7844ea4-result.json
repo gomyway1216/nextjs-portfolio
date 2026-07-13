@@ -1,0 +1,206 @@
+{
+  "schema": "shogi-floodgate-v7-checkpoint-semantic-scan-load-evidence-v1",
+  "status": "complete-accepted-synthetic-24k-test-only-scan-load-evidence",
+  "claim_boundary": "synthetic-holdout-free-test-only-checkpoint-core-scan-load-evidence-not-production-coordinator-teacher-label-training-weight-match-rating-or-playing-strength-evidence",
+  "attempts": [
+    {
+      "attempt": 1,
+      "source_commit": "d5eb700652f84b8502c1a7eb8d2cf941e33c5f73",
+      "harness_sha256": "4add30df944df9a02928fc6e089e9e43635338a5e2747c32e773fc1d5eaab27c",
+      "accepted_evidence": false,
+      "exit_code": 1,
+      "external_wall_seconds": 4.05,
+      "complete_result_json": false,
+      "classification": "fail-closed-fixture-generator-discovery-not-scan-load-evidence",
+      "failure": "invalid Floodgate source: CSA timestamp has an invalid time of day",
+      "discovery": "the synthetic game counter was formatted directly as HHMMSS and produced invalid seconds at game 60",
+      "scanner_reached": false,
+      "new_temp_roots_after_exit": 0,
+      "follow_up_commit": "3ac84a600e8e8d14f415369d7f51e8b26b776444"
+    },
+    {
+      "attempt": 2,
+      "source_commit": "3ac84a600e8e8d14f415369d7f51e8b26b776444",
+      "harness_sha256": "d1debecd249f70c36f5a0b72f653f1de1764f22022f7864fd1baa68a078485ff",
+      "accepted_evidence": false,
+      "exit_code": 1,
+      "external_wall_seconds": 82.81,
+      "complete_result_json": false,
+      "classification": "operator-stopped-build-run-not-scan-load-evidence",
+      "reason": "stopped to keep exact-v22.13.0 evidence tests from failing the repository suite on other package-supported Node runtimes",
+      "child_signal": "SIGTERM",
+      "new_temp_roots_after_exit": 0,
+      "follow_up_commit": "7844ea49f9e0326a5531824d7e356d6d51726d58"
+    },
+    {
+      "attempt": 3,
+      "source_commit": "7844ea49f9e0326a5531824d7e356d6d51726d58",
+      "harness_sha256": "d1debecd249f70c36f5a0b72f653f1de1764f22022f7864fd1baa68a078485ff",
+      "accepted_evidence": true,
+      "exit_code": 0,
+      "external_wall_seconds": 440.7,
+      "external_user_seconds": 447.11,
+      "external_system_seconds": 5.74,
+      "external_maximum_resident_set_bytes": 554876928,
+      "started_at_utc_from_process_table": "2026-07-13T09:23:30Z",
+      "finished_at_utc": null,
+      "finish_time_capture": "not-captured-do-not-infer",
+      "post_run_verified_at_utc": "2026-07-13T09:31:14Z",
+      "complete_result_json": true,
+      "worktree_clean_before_run": true,
+      "worktree_clean_after_run": true,
+      "new_temp_roots_after_exit": 0
+    }
+  ],
+  "invocation": {
+    "cwd": "repository-root",
+    "display_command": "/usr/bin/time -lp ${NODE_V22_13_0} --expose-gc -r tsx/cjs ml/floodgate-v7-checkpoint-scan-load.ts --parents 24000",
+    "reproduction_command": "npm run shogi:floodgate-v7-checkpoint-scan-load -- --parents 24000",
+    "node_binary": {
+      "version": "v22.13.0",
+      "bytes": 121593488,
+      "sha256": "5c79f8e198fd2456ea6660aaa6be218f9f44747f2306c7d0f5f97b087b2f2dfc"
+    }
+  },
+  "machine": {
+    "chip": "Apple M4 Pro",
+    "physical_cpus": 14,
+    "logical_cpus": 14,
+    "memory_bytes": 51539607552,
+    "operating_system": "macOS",
+    "operating_system_version": "15.1",
+    "operating_system_build": "24B2082",
+    "architecture": "arm64"
+  },
+  "result": {
+    "schema": "shogi-floodgate-v7-checkpoint-semantic-scan-load-v1",
+    "status": "complete-synthetic-semantic-resume-and-final-scan-evidence",
+    "claim_boundary": "synthetic-holdout-free-scanner-load-only-fresh-build-receipt-discarded-native-sync-restored-before-evidence-scan-not-teacher-label-training-weight-or-playing-strength-evidence",
+    "data": {
+      "source": "deterministic-synthetic-standard-position-legal-playouts",
+      "public_dataset_paths_accepted": false,
+      "network_reads": false,
+      "parents": 24000,
+      "games": 67,
+      "unique_parent_ids": true,
+      "unique_position_ids": true,
+      "candidates_per_parent": 14
+    },
+    "bounds": {
+      "theoretical_rejection_cap_bytes": 589897154,
+      "theoretical_rejection_cap_classification": "conservative-cap-not-valid-stream-size",
+      "maximum_line_bytes": 24576,
+      "maximum_parents": 24000
+    },
+    "valid_stream": {
+      "actual_bytes": 429244881,
+      "actual_sha256": "055e50c0f783894c4819e503574db4e45577ccac669d04408189f4e8ec781d13",
+      "line_statistics": {
+        "records": 24002,
+        "header_bytes": 2551,
+        "entries": 24000,
+        "entry_bytes_total": 429217823,
+        "entry_bytes_min": 17345,
+        "entry_bytes_max": 18451,
+        "entry_bytes_mean": 17884,
+        "seal_bytes": 505,
+        "maximum_line_bytes": 18451
+      },
+      "actual_is_not_theoretical_cap": true
+    },
+    "fixture_build": {
+      "classification": "non-evidence-build-receipt-discarded",
+      "raw": {
+        "bytes": 15607545,
+        "sha256": "e31401244c2dc7e145cae087cb286dcea807ffb1a506ffef42b371443304144f"
+      },
+      "sync": {
+        "suppressed_per_line_regular_file_syncs": 24002,
+        "expected_suppressed_syncs": 24002,
+        "native_method_restored_before_batch_sync": true,
+        "one_work_batch_sync_completed": true,
+        "one_stage_directory_batch_sync_completed": true
+      },
+      "timing": {
+        "generation_wall_ms": 4076,
+        "fixture_wall_ms": 201,
+        "checkpoint_build_wall_ms": 277722,
+        "batch_sync_and_measure_wall_ms": 247
+      },
+      "memory": {
+        "baseline_rss_bytes": 108478464,
+        "final_rss_bytes": 340967424,
+        "resource_max_rss_bytes": 554876928
+      }
+    },
+    "native_scan": {
+      "producer_calls": 0,
+      "completed_parents": 24000,
+      "resumed_parents": 24000,
+      "work": {
+        "bytes": 429244881,
+        "receipt_sha256": "055e50c0f783894c4819e503574db4e45577ccac669d04408189f4e8ec781d13",
+        "independent_sha256": "055e50c0f783894c4819e503574db4e45577ccac669d04408189f4e8ec781d13",
+        "sha256_match": true
+      },
+      "reads": {
+        "calls": {
+          "resumable-prefix": 6550,
+          "sealed-final": 6550
+        },
+        "bytes": {
+          "resumable-prefix": 429244881,
+          "sealed-final": 429244881
+        },
+        "maximum_request_bytes": {
+          "resumable-prefix": 65536,
+          "sealed-final": 65536
+        },
+        "first_ms": {
+          "resumable-prefix": 5144.614334,
+          "sealed-final": 81428.80875
+        }
+      },
+      "timing": {
+        "total_checkpoint_wall_ms": 157760,
+        "resumable_prefix_start_to_final_scan_start_wall_ms": 76284,
+        "sealed_final_scan_start_to_receipt_wall_ms": 76526,
+        "independent_sha256_wall_ms": 238
+      },
+      "memory": {
+        "baseline_rss_bytes": 190857216,
+        "final_rss_bytes": 235749376,
+        "resource_max_rss_bytes": 386646016,
+        "sampled_peak_rss_bytes": 386564096
+      }
+    },
+    "runtime": {
+      "node": "v22.13.0",
+      "build_child_node": "v22.13.0",
+      "scan_child_node": "v22.13.0",
+      "platform": "darwin",
+      "architecture": "arm64",
+      "logical_cpus": 14
+    }
+  },
+  "acceptance": {
+    "all_required_checks_passed": true,
+    "derived_candidate_instances": 336000,
+    "jsonl_line_byte_arithmetic_matches": true,
+    "entry_mean_rounding_matches": true,
+    "entry_total_within_minimum_and_maximum_bounds": true,
+    "maximum_line_matches_observed_components": true,
+    "read_call_ceiling_arithmetic_matches": true,
+    "prefix_timing_rounding_matches": true,
+    "timing_envelope_is_consistent": true,
+    "build_rss_relationships_are_consistent": true,
+    "scan_rss_relationships_are_consistent": true,
+    "source_commit_unchanged_after_run": true,
+    "harness_sha256_unchanged_after_run": true,
+    "temporary_fixture_cleanup_observed": true,
+    "rss_is_observation_not_scaling_gate": true,
+    "production_entry_point_claimed": false,
+    "playing_strength_claimed": false,
+    "live_weight_changed": false
+  }
+}

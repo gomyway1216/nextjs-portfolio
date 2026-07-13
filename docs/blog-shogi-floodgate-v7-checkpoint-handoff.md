@@ -13,7 +13,7 @@
 | identity authority     | factory-issued facadeをmodule-private `WeakMap` keyとして登録                          | receipt、clone、wrapper、同shape objectをorigin authorityにしない                   |
 | registry boundary      | production / injected testを別registryと別claim APIへ分離                              | test handoffをproduction originへ格上げしない                                       |
 | lifecycle              | unclaimed entryを`close()` / `abortAndDrain()`開始時に失効                             | lifecycle開始後に新しいconnector ownershipを作らない                                |
-| checkpoint / key / I/O | 呼び出さない。`node:fs`、checkpoint implementation、root key、dataset pathを持たない   | capability handoffだけをcheckpoint executionから分離する                            |
+| checkpoint / key / I/O | checkpoint entrypoint、root key、dataset path、`node:fs`を追加せず、関連I/Oを行わない  | capability handoffだけをcheckpoint executionから分離する                            |
 | focused validation     | Node v22.13.0で**35 / 35 PASS**                                                        | synthetic / injected coordinator regression。production checkpoint evidenceではない |
 | related / full / build | 関連**174 / 174**、full **115 files / 2,042 tests**、Python **58 / 58**、build PASS    | repository regressionであり、production handoff成功や棋力の証拠ではない             |
 | live / strength        | production weight activation 0、対局0                                                  | 「強くなった」「高段で安定した」というclaimは0                                      |

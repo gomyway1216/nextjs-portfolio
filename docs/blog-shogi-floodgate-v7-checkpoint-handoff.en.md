@@ -6,17 +6,17 @@
 
 ## 1. Current boundary
 
-| Item                   | Current implementation / validation                                                            | What this change establishes                                                        |
-| ---------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| Public coordinator     | Retains the existing exact five keys `{ receipt, run_binding, produce, close, abortAndDrain }` | Expands neither the caller-facing contract nor receipt claims                       |
-| Checkpoint handoff     | Frozen null-prototype exact four keys `{ produce, abortAndDrain, close, runBinding }`          | Lets a trusted connector obtain the required exact references once                  |
-| Identity authority     | Registers the factory-issued facade as a module-private `WeakMap` key                          | Does not treat a receipt, clone, wrapper, or same-shaped object as origin authority |
-| Registry boundary      | Separates production and injected-test registries and claim APIs                               | Does not promote a test handoff into production origin                              |
-| Lifecycle              | Invalidates an unclaimed entry when `close()` / `abortAndDrain()` starts                       | Creates no new connector ownership after lifecycle start                            |
-| Checkpoint / key / I/O | Invokes none and holds no `node:fs`, checkpoint implementation, root key, or dataset path      | Separates capability handoff from checkpoint execution                              |
-| Focused validation     | **35 / 35 PASS** on Node v22.13.0                                                              | Synthetic / injected coordinator regression, not production checkpoint evidence     |
-| Related / full / build | Related **174 / 174**, full **115 files / 2,042 tests**, Python **58 / 58**, build PASS        | Repository regression, not production-handoff success or playing-strength evidence  |
-| Live / strength        | Production-weight activation 0, games 0                                                        | Zero claim that the engine became stronger or stable at high-dan level              |
+| Item                   | Current implementation / validation                                                             | What this change establishes                                                        |
+| ---------------------- | ----------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Public coordinator     | Retains the existing exact five keys `{ receipt, run_binding, produce, close, abortAndDrain }`  | Expands neither the caller-facing contract nor receipt claims                       |
+| Checkpoint handoff     | Frozen null-prototype exact four keys `{ produce, abortAndDrain, close, runBinding }`           | Lets a trusted connector obtain the required exact references once                  |
+| Identity authority     | Registers the factory-issued facade as a module-private `WeakMap` key                           | Does not treat a receipt, clone, wrapper, or same-shaped object as origin authority |
+| Registry boundary      | Separates production and injected-test registries and claim APIs                                | Does not promote a test handoff into production origin                              |
+| Lifecycle              | Invalidates an unclaimed entry when `close()` / `abortAndDrain()` starts                        | Creates no new connector ownership after lifecycle start                            |
+| Checkpoint / key / I/O | Adds no checkpoint entrypoint, root key, dataset path, or `node:fs` and performs no related I/O | Separates capability handoff from checkpoint execution                              |
+| Focused validation     | **35 / 35 PASS** on Node v22.13.0                                                               | Synthetic / injected coordinator regression, not production checkpoint evidence     |
+| Related / full / build | Related **174 / 174**, full **115 files / 2,042 tests**, Python **58 / 58**, build PASS         | Repository regression, not production-handoff success or playing-strength evidence  |
+| Live / strength        | Production-weight activation 0, games 0                                                         | Zero claim that the engine became stronger or stable at high-dan level              |
 
 ## 2. Why the five-key facade is not passed directly to the checkpoint
 

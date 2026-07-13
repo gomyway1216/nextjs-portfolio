@@ -1414,8 +1414,8 @@ async function scanWorkHandle(
   verifyWorkIdentity(before, expectedIdentity, "work.jsonl held file");
   const beforeSnapshot = captureWorkSnapshot(before);
   const fileBytes = Number(before.size);
-  const readBuffer = Buffer.allocUnsafe(READ_CHUNK_BYTES);
-  const lineBuffer = Buffer.allocUnsafe(MAX_LINE_BYTES);
+  const readBuffer = Buffer.alloc(READ_CHUNK_BYTES);
+  const lineBuffer = Buffer.alloc(MAX_LINE_BYTES);
   const decoder = new TextDecoder("utf-8", {
     fatal: true,
     ignoreBOM: true,

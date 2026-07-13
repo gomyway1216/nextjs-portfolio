@@ -147,6 +147,8 @@ preflightは次をfail closedにする。
 | read中またはclose前のmetadata mutation       | receiptを発行しない           |
 | descriptor close failure                     | receiptを発行せず失敗         |
 
+held readとcleanup closeが同時に失敗した場合は、closeをbest-effortにして元のverification failureを保持する。元の失敗がないclose failureは、それ自体でreceipt発行を止める。
+
 このboundaryが防ぐのは、wrong asset、accidental path drift、registry外fallback、検査中のpathname replacementをproduction teacher identityへ混ぜることである。
 
 失敗するpreflightもprivate asset bytesを一時bufferへ読む。embedded WASMはdecode前にexpected encoded lengthでboundし、optional hookもdecode前に検査する。file readのscratch、余剰byte検査buffer、返却されないretained bufferは成功・失敗の両経路でzero-fillする。これはprocess memory全体の消去を保証する主張ではない。
@@ -174,9 +176,9 @@ SHA-256一致は同じbytesのidentity evidenceであり、そのbytesを信頼�
 | fixed-root metadata / exact entry set     | PASS                                 |
 | argumentless production preflight receipt | PASS                                 |
 | `HOME=/tmp` root-injection resistance     | PASS                                 |
-| targeted adversarial suite                | 10 / 10 PASS                         |
-| related asset / stage / proposer suites   | 258 / 258 PASS                       |
-| full Vitest / Python stdlib audit         | 1,768 / 1,768、58 / 58 PASS          |
+| targeted adversarial suite                | 11 / 11 PASS                         |
+| related asset / stage / proposer suites   | 259 / 259 PASS                       |
+| full Vitest / Python stdlib audit         | 1,769 / 1,769、58 / 58 PASS          |
 | TypeScript / ESLint / Prettier / build    | PASS（ESLint 0 error / 157 warning） |
 
 smoke evidenceには、registry-relative identities、receipt cross-binding、eval digest、stable file identities、descriptor lifecycleだけを記録する。engine stdout、USI handshake、bestmove、depth、nodes、scoreは存在しない。

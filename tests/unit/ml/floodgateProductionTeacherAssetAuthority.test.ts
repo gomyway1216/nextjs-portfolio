@@ -467,6 +467,36 @@ posixDescribe("Floodgate production teacher asset authority", () => {
     }
   });
 
+  it("preserves a primary held-read failure when cleanup close also fails", async () => {
+    const value = await fixture();
+    const primary = new Error("synthetic primary held-read failure");
+    const cleanup = new Error("synthetic cleanup close failure");
+    const originalOpen = fs.promises.open.bind(fs.promises);
+    let closeActualHandle: (() => Promise<void>) | undefined;
+    vi.spyOn(fs.promises, "open").mockImplementationOnce(
+      async (...arguments_: Parameters<typeof fs.promises.open>) => {
+        const handle = await originalOpen(...arguments_);
+        closeActualHandle = handle.close.bind(handle);
+        vi.spyOn(handle, "read").mockRejectedValue(primary);
+        vi.spyOn(handle, "close").mockRejectedValue(cleanup);
+        return handle;
+      },
+    );
+
+    const failure = await captureFailure(
+      assetAuthority.verifyPinnedFloodgateProductionTeacherAssetsCoreForTests(
+        value.registry,
+        value.root,
+        dependencies(value),
+      ),
+    );
+    await closeActualHandle?.();
+
+    expect(failure).toMatchObject({ phase: "asset-read", primary });
+    expect((failure as Error).message).toContain(primary.message);
+    expect((failure as Error).message).not.toContain(cleanup.message);
+  });
+
   it("rejects eval_options.txt and late tree mutations", async () => {
     const evalOptions = await fixture();
     await write0600(

@@ -147,6 +147,8 @@ Preflight fails closed on:
 | Metadata mutation during read or before close | Issue no receipt                                    |
 | Descriptor-close failure                      | Fail without issuing a receipt                      |
 
+If a held read and cleanup close fail together, close is best-effort and the original verification failure is preserved. A close failure with no primary failure stops receipt issuance on its own.
+
 This boundary prevents a wrong asset, accidental path drift, registry-external fallback, or pathname replacement during inspection from being admitted as the production-teacher identity.
 
 A failing preflight also reads private asset bytes into temporary buffers. Embedded WASM is bounded by its expected encoded length before decoding, and optional hooks are validated before decoding. File-read scratch, the extra-byte probe, and any retained buffer that is not returned are zero-filled on both success and failure paths. This does not claim erasure of all process memory.
@@ -174,9 +176,9 @@ The local smoke in this PR successfully read-only verifies seven real assets tot
 | Fixed-root metadata / exact entry set     | PASS                                  |
 | Argumentless production-preflight receipt | PASS                                  |
 | `HOME=/tmp` root-injection resistance     | PASS                                  |
-| Targeted adversarial suite                | 10 / 10 PASS                          |
-| Related asset / stage / proposer suites   | 258 / 258 PASS                        |
-| Full Vitest / Python stdlib audit         | 1,768 / 1,768; 58 / 58 PASS           |
+| Targeted adversarial suite                | 11 / 11 PASS                          |
+| Related asset / stage / proposer suites   | 259 / 259 PASS                        |
+| Full Vitest / Python stdlib audit         | 1,769 / 1,769; 58 / 58 PASS           |
 | TypeScript / ESLint / Prettier / build    | PASS (ESLint: 0 errors, 157 warnings) |
 
 Smoke evidence records only registry-relative identities, receipt cross-binding, eval digest, stable-file identities, and descriptor lifecycle. There is no engine stdout, USI handshake, bestmove, depth, nodes, or score.

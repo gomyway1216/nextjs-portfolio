@@ -752,6 +752,7 @@ async function readAsset(
   let handleAfter: Readonly<StatSnapshot>;
   let closed = false;
   let delivered = false;
+  let bodyFailed = false;
   try {
     handleBefore = statSnapshot(await handle.stat({ bigint: true }));
     assertFileStat(
@@ -819,11 +820,20 @@ async function readAsset(
     });
     delivered = true;
     return result;
+  } catch (primary) {
+    bodyFailed = true;
+    throw primary;
   } finally {
     scratch.fill(0);
     extra.fill(0);
     if (!delivered) retained?.fill(0);
-    if (!closed) await handle.close();
+    if (!closed) {
+      try {
+        await handle.close();
+      } catch (closeFailure) {
+        if (!bodyFailed) throw closeFailure;
+      }
+    }
   }
 }
 

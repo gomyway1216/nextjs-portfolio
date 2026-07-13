@@ -34,6 +34,8 @@ import {
   FLOODGATE_V7_PRODUCTION_PARENT_COORDINATOR_TEST_CLAIM_BOUNDARY,
   FLOODGATE_V7_PRODUCTION_PARENT_COORDINATOR_TEST_STATUS,
   FloodgateV7ProductionParentCoordinatorError,
+  claimFloodgateV7ProductionParentCoordinatorForCheckpoint,
+  claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests,
   createFloodgateV7ProductionParentCoordinator,
   createFloodgateV7ProductionParentCoordinatorCoreForTests,
 } from "../../../ml/floodgate-v7-production-parent-coordinator";
@@ -717,6 +719,179 @@ describe("Floodgate v7 production parent coordinator", () => {
     expect(fixture.calls.teacherClose).toBe(1);
     expect(fixture.calls.teacherAbort).toBe(0);
   });
+
+  it("hands the exact test coordinator to a checkpoint connector once without crossing registries", async () => {
+    const fixture = makeRuntimeFixture();
+    const coordinator =
+      await createFloodgateV7ProductionParentCoordinatorCoreForTests(
+        fixture.dependencies,
+      );
+    const clone = {
+      receipt: coordinator.receipt,
+      run_binding: coordinator.run_binding,
+      produce: coordinator.produce,
+      close: coordinator.close,
+      abortAndDrain: coordinator.abortAndDrain,
+    };
+    let proxyTraps = 0;
+    const proxy = new Proxy(coordinator, {
+      get() {
+        proxyTraps += 1;
+        throw new Error("coordinator Proxy get trap must not run");
+      },
+      ownKeys() {
+        proxyTraps += 1;
+        throw new Error("coordinator Proxy ownKeys trap must not run");
+      },
+    });
+
+    expect(() =>
+      claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests(
+        clone as never,
+      ),
+    ).toThrow(/handoff is unavailable/);
+    expect(() =>
+      claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests(
+        proxy,
+      ),
+    ).toThrow(/exact non-Proxy coordinator/);
+    expect(proxyTraps).toBe(0);
+    expect(() =>
+      claimFloodgateV7ProductionParentCoordinatorForCheckpoint(coordinator),
+    ).toThrow(/another boundary/);
+    expect(() =>
+      nativeReflectApply(
+        claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests,
+        undefined,
+        [],
+      ),
+    ).toThrow(/exactly one argument/);
+    expect(() =>
+      nativeReflectApply(
+        claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests,
+        undefined,
+        [coordinator, coordinator],
+      ),
+    ).toThrow(/exactly one argument/);
+    expect(() =>
+      nativeReflectApply(
+        claimFloodgateV7ProductionParentCoordinatorForCheckpoint,
+        undefined,
+        [],
+      ),
+    ).toThrow(/exactly one argument/);
+    expect(() =>
+      nativeReflectApply(
+        claimFloodgateV7ProductionParentCoordinatorForCheckpoint,
+        undefined,
+        [coordinator, coordinator],
+      ),
+    ).toThrow(/exactly one argument/);
+
+    const handoff =
+      claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests(
+        coordinator,
+      );
+    expect(Reflect.ownKeys(handoff)).toEqual([
+      "produce",
+      "abortAndDrain",
+      "close",
+      "runBinding",
+    ]);
+    expect(Object.getPrototypeOf(handoff)).toBeNull();
+    expect(Object.isFrozen(handoff)).toBe(true);
+    expect(Object.getOwnPropertyDescriptors(handoff)).toEqual({
+      produce: {
+        configurable: false,
+        enumerable: true,
+        writable: false,
+        value: coordinator.produce,
+      },
+      abortAndDrain: {
+        configurable: false,
+        enumerable: true,
+        writable: false,
+        value: coordinator.abortAndDrain,
+      },
+      close: {
+        configurable: false,
+        enumerable: true,
+        writable: false,
+        value: coordinator.close,
+      },
+      runBinding: {
+        configurable: false,
+        enumerable: true,
+        writable: false,
+        value: coordinator.run_binding,
+      },
+    });
+    expect(handoff.produce).toBe(coordinator.produce);
+    expect(handoff.abortAndDrain).toBe(coordinator.abortAndDrain);
+    expect(handoff.close).toBe(coordinator.close);
+    expect(handoff.runBinding).toBe(coordinator.run_binding);
+    expect(() =>
+      claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests(
+        coordinator,
+      ),
+    ).toThrow(/already consumed/);
+    expect(fixture.calls.stablePropose).toBe(0);
+    expect(fixture.calls.teacherPropose).toBe(0);
+    expect(fixture.calls.teacherRescore).toBe(0);
+
+    await handoff.close();
+    expect(fixture.calls.stableClose).toBe(1);
+    expect(fixture.calls.teacherClose).toBe(1);
+    expect(fixture.calls.teacherAbort).toBe(0);
+  });
+
+  it.each(["close", "abortAndDrain"] as const)(
+    "keeps an unclaimed checkpoint handoff after invalid-arity %s",
+    async (method) => {
+      const fixture = makeRuntimeFixture();
+      const coordinator =
+        await createFloodgateV7ProductionParentCoordinatorCoreForTests(
+          fixture.dependencies,
+        );
+
+      await expect(
+        nativeReflectApply(coordinator[method], undefined, ["unexpected"]),
+      ).rejects.toMatchObject({ phase: "capture" });
+      const handoff =
+        claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests(
+          coordinator,
+        );
+      await handoff.close();
+      expect(fixture.calls.stableClose).toBe(1);
+      expect(fixture.calls.teacherClose).toBe(1);
+      expect(fixture.calls.teacherAbort).toBe(0);
+    },
+  );
+
+  it.each([
+    ["close", { stableClose: 1, teacherClose: 1, teacherAbort: 0 }],
+    ["abortAndDrain", { stableClose: 1, teacherClose: 0, teacherAbort: 1 }],
+  ] as const)(
+    "invalidates an unclaimed checkpoint handoff when coordinator %s starts",
+    async (method, expectedCalls) => {
+      const fixture = makeRuntimeFixture();
+      const coordinator =
+        await createFloodgateV7ProductionParentCoordinatorCoreForTests(
+          fixture.dependencies,
+        );
+      const lifecycle = nativeReflectApply(coordinator[method], undefined, []);
+
+      expect(() =>
+        claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests(
+          coordinator,
+        ),
+      ).toThrow(/handoff is unavailable/);
+      await lifecycle;
+      expect(fixture.calls.stableClose).toBe(expectedCalls.stableClose);
+      expect(fixture.calls.teacherClose).toBe(expectedCalls.teacherClose);
+      expect(fixture.calls.teacherAbort).toBe(expectedCalls.teacherAbort);
+    },
+  );
 
   it("runs one non-forced parent in exact order and returns a detached frozen checkpoint input", async () => {
     const fixture = makeRuntimeFixture();
@@ -1772,10 +1947,24 @@ describe("Floodgate v7 production parent coordinator", () => {
     expect(
       createFloodgateV7ProductionParentCoordinatorCoreForTests.length,
     ).toBe(1);
+    expect(
+      claimFloodgateV7ProductionParentCoordinatorForCheckpoint.length,
+    ).toBe(1);
+    expect(
+      claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests.length,
+    ).toBe(1);
     const source = fs.readFileSync(COORDINATOR_SOURCE_PATH, "utf8");
     expect(source).toContain("createFloodgateV7ProductionRuntimeOwner()");
     expect(source).toContain(
       "claimFloodgateV7ProductionRuntimeOwnerForParentCoordinator",
+    );
+    expect(source).toContain("productionCheckpointHandoffs");
+    expect(source).toContain("testCheckpointHandoffs");
+    expect(source).toContain(
+      "claimFloodgateV7ProductionParentCoordinatorForCheckpoint",
+    );
+    expect(source).toContain(
+      "claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests",
     );
     expect(source).not.toMatch(/from ["']node:fs["']/);
     expect(source).not.toContain("checkpointFloodgateV7TeacherParents");

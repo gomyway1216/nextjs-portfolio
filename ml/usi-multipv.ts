@@ -40,10 +40,16 @@ export interface UsiMultiPvAccumulatorOptions {
 }
 
 function positiveInteger(value: number, name: string): number {
-  if (!Number.isInteger(value) || value <= 0) {
+  if (!Number.isSafeInteger(value) || value <= 0) {
     throw new Error(`${name} must be a positive integer (got ${value})`);
   }
   return value;
+}
+
+const CANONICAL_USI_MOVE = /^(?:[1-9][a-i][1-9][a-i]\+?|[PLNSGBR]\*[1-9][a-i])$/;
+
+function isCanonicalUsiMove(value: string): boolean {
+  return CANONICAL_USI_MOVE.test(value);
 }
 
 /** Build a deterministic USI go command. Exactly one of nodes/depth is required. */
@@ -60,7 +66,7 @@ export function buildGo(limit: UsiSearchLimit, searchmoves: readonly string[] = 
 
   if (searchmoves.length === 0) return command;
   for (const move of searchmoves) {
-    if (!move || /\s/.test(move)) {
+    if (!isCanonicalUsiMove(move)) {
       throw new Error(`invalid USI searchmove: ${JSON.stringify(move)}`);
     }
   }
@@ -72,7 +78,12 @@ function integerToken(tokens: readonly string[], name: string): number | null {
   if (index < 0 || index + 1 >= tokens.length || !/^[+-]?\d+$/.test(tokens[index + 1])) {
     return null;
   }
-  return Number.parseInt(tokens[index + 1], 10);
+  const value = Number.parseInt(tokens[index + 1], 10);
+  return Number.isSafeInteger(value) ? value : null;
+}
+
+function tokenCount(tokens: readonly string[], name: string): number {
+  return tokens.reduce((count, token) => count + Number(token === name), 0);
 }
 
 function multipvToken(tokens: readonly string[]): number | null {
@@ -95,6 +106,15 @@ export function parseUsiInfoLine(line: string): ParsedUsiPv | null {
 
   const tokens = trimmed.split(/\s+/);
   if (tokens.includes('lowerbound') || tokens.includes('upperbound')) return null;
+  if (
+    tokenCount(tokens, 'depth') !== 1 ||
+    tokenCount(tokens, 'multipv') > 1 ||
+    tokenCount(tokens, 'nodes') !== 1 ||
+    tokenCount(tokens, 'score') !== 1 ||
+    tokenCount(tokens, 'pv') !== 1
+  ) {
+    return null;
+  }
 
   const depth = integerToken(tokens, 'depth');
   const multipv = multipvToken(tokens);
@@ -119,17 +139,15 @@ export function parseUsiInfoLine(line: string): ParsedUsiPv | null {
 
   const scoreKind = tokens[scoreIndex + 1];
   const scoreText = tokens[scoreIndex + 2];
-  if (
-    (scoreKind !== 'cp' && scoreKind !== 'mate') ||
-    !/^[+-]?\d+$/.test(scoreText) ||
-    scoreIndex >= pvIndex
-  ) {
+  if ((scoreKind !== 'cp' && scoreKind !== 'mate') || !/^[+-]?\d+$/.test(scoreText) || scoreIndex >= pvIndex) {
     return null;
   }
 
   const score = Number.parseInt(scoreText, 10);
   const pv = tokens.slice(pvIndex + 1);
-  if (pv.length === 0) return null;
+  if (!Number.isSafeInteger(score) || pv.length === 0 || pv.some((move) => !isCanonicalUsiMove(move))) {
+    return null;
+  }
 
   if (scoreKind === 'mate') {
     // Number.parseInt('-0') preserves -0, but numeric comparisons do not: -0
@@ -174,6 +192,9 @@ export class UsiMultiPvAccumulator {
   private readonly maxObservedDepthByRank = new Map<number, number>();
   private observedUnexpectedRank = false;
   private observedMalformedMultiPv = false;
+  private observedMalformedTeacherEvidence = false;
+  private observedMalformedBestmove = false;
+  private terminalBestmove: 'resign' | 'win' | null = null;
   private buffer = '';
   private bestmove: string | null = null;
 
@@ -182,8 +203,7 @@ export class UsiMultiPvAccumulator {
     if (options.requiredDepth !== undefined) {
       this.requiredDepth = positiveInteger(options.requiredDepth, 'requiredDepth');
     }
-    this.allowTerminalMateBeforeRequiredDepth =
-      options.allowTerminalMateBeforeRequiredDepth ?? false;
+    this.allowTerminalMateBeforeRequiredDepth = options.allowTerminalMateBeforeRequiredDepth ?? false;
     if (this.allowTerminalMateBeforeRequiredDepth && this.requiredDepth === undefined) {
       throw new Error('terminal-mate fallback requires requiredDepth');
     }
@@ -206,10 +226,22 @@ export class UsiMultiPvAccumulator {
   private consumeLine(line: string): void {
     const trimmed = line.trim();
     if (/^bestmove(?:\s|$)/.test(trimmed)) {
-      const move = trimmed.split(/\s+/)[1];
-      if (move) this.bestmove = move;
+      const tokens = trimmed.split(/\s+/);
+      const move = tokens[1];
+      if ((move === 'resign' || move === 'win') && tokens.length === 2) {
+        this.terminalBestmove = move;
+      } else if (
+        move &&
+        isCanonicalUsiMove(move) &&
+        (tokens.length === 2 || (tokens.length === 4 && tokens[2] === 'ponder' && isCanonicalUsiMove(tokens[3])))
+      ) {
+        this.bestmove = move;
+      } else {
+        this.observedMalformedBestmove = true;
+      }
       return;
     }
+    if (/^info string(?:\s|$)/.test(trimmed)) return;
 
     // A later lowerbound/upperbound update supersedes an older exact value for
     // the same depth/rank. Merely dropping bound lines would leave that stale
@@ -219,25 +251,64 @@ export class UsiMultiPvAccumulator {
       const tokens = trimmed.split(/\s+/);
       const updateDepth = integerToken(tokens, 'depth');
       const updateMultiPv = multipvToken(tokens);
-      if (updateMultiPv === null) this.observedMalformedMultiPv = true;
+      const isBoundUpdate = tokens.includes('lowerbound') || tokens.includes('upperbound');
+      const updatesTeacherEvidence = isBoundUpdate || tokens.includes('score') || tokens.includes('pv');
+      if (updatesTeacherEvidence && updateMultiPv === null) {
+        this.observedMalformedMultiPv = true;
+      }
       if (updateDepth !== null && updateDepth > 0 && updateMultiPv !== null && updateMultiPv > 0) {
         this.observedDepths.add(updateDepth);
-        this.maxObservedDepthByRank.set(
-          updateMultiPv,
-          Math.max(this.maxObservedDepthByRank.get(updateMultiPv) ?? 0, updateDepth)
-        );
-        if (this.allowTerminalMateBeforeRequiredDepth && updateMultiPv !== 1) {
-          this.observedUnexpectedRank = true;
+        if (updatesTeacherEvidence) {
+          this.maxObservedDepthByRank.set(
+            updateMultiPv,
+            Math.max(this.maxObservedDepthByRank.get(updateMultiPv) ?? 0, updateDepth),
+          );
+          if (updateMultiPv > this.expectedMultiPv) {
+            this.observedUnexpectedRank = true;
+          }
+          this.lastUpdateByRank.set(updateMultiPv, {
+            depth: updateDepth,
+            acceptedExact: false,
+          });
         }
-        this.lastUpdateByRank.set(updateMultiPv, {
-          depth: updateDepth,
-          acceptedExact: false,
-        });
       }
-      if (tokens.includes('lowerbound') || tokens.includes('upperbound')) {
+      if (isBoundUpdate) {
         const depth = updateDepth;
         const multipv = updateMultiPv;
         const nodes = integerToken(tokens, 'nodes');
+        const scoreIndex = tokens.indexOf('score');
+        const pvIndex = tokens.indexOf('pv');
+        const scoreKind = tokens[scoreIndex + 1];
+        const scoreText = tokens[scoreIndex + 2];
+        const score = /^[+-]?\d+$/.test(scoreText ?? '') ? Number.parseInt(scoreText, 10) : null;
+        const pv = pvIndex >= 0 ? tokens.slice(pvIndex + 1) : [];
+        const hasScore = tokens.includes('score');
+        const hasPv = tokens.includes('pv');
+        const hasMalformedBaseField =
+          tokenCount(tokens, 'depth') !== 1 || tokenCount(tokens, 'multipv') > 1 || tokenCount(tokens, 'nodes') > 1;
+        const hasMalformedScore =
+          hasScore &&
+          (tokenCount(tokens, 'score') !== 1 ||
+            (scoreKind !== 'cp' && scoreKind !== 'mate') ||
+            score === null ||
+            !Number.isSafeInteger(score) ||
+            (scoreKind === 'cp' && Math.abs(score) > MAX_NON_MATE_CP));
+        const hasMalformedPv =
+          hasPv && (tokenCount(tokens, 'pv') !== 1 || pv.length === 0 || pv.some((move) => !isCanonicalUsiMove(move)));
+        if (
+          (hasScore || hasPv) &&
+          (hasMalformedBaseField ||
+            depth === null ||
+            depth <= 0 ||
+            multipv === null ||
+            multipv <= 0 ||
+            (tokens.includes('nodes') && (nodes === null || nodes < 0)) ||
+            hasMalformedScore ||
+            hasMalformedPv ||
+            (hasScore && hasPv && scoreIndex >= pvIndex))
+        ) {
+          this.observedMalformedTeacherEvidence = true;
+        }
         if (depth !== null && depth > 0 && multipv !== null && multipv > 0) {
           this.observedDepths.add(depth);
           const key = `${depth}:${multipv}`;
@@ -262,6 +333,13 @@ export class UsiMultiPvAccumulator {
         const tokens = trimmed.split(/\s+/);
         const depth = integerToken(tokens, 'depth');
         const multipv = multipvToken(tokens);
+        const isStructuredTeacherEvidence = tokens.includes('score') && tokens.includes('pv');
+        if (isStructuredTeacherEvidence) {
+          // Once an exact score/PV record is malformed, a later valid update
+          // must not make the transcript publishable. Otherwise corruption or
+          // overflow can be silently hidden by a repeated engine line.
+          this.observedMalformedTeacherEvidence = true;
+        }
         if (depth !== null && depth > 0 && multipv !== null && multipv > 0 && tokens.includes('score')) {
           const key = `${depth}:${multipv}`;
           this.boundTombstones.add(key);
@@ -297,14 +375,36 @@ export class UsiMultiPvAccumulator {
       this.consumeLine(this.buffer.replace(/\r$/, ''));
       this.buffer = '';
     }
+    if (this.observedMalformedBestmove) {
+      throw new Error('USI search emitted a malformed bestmove');
+    }
+    if (this.terminalBestmove) {
+      throw new Error(`USI search ended with terminal bestmove ${this.terminalBestmove}`);
+    }
     if (!this.bestmove) throw new Error('USI search ended without bestmove');
     if (this.observedMalformedMultiPv) {
       throw new Error('USI search emitted a malformed explicit multipv rank');
     }
+    if (this.observedUnexpectedRank) {
+      throw new Error('USI search emitted an unexpected multipv rank');
+    }
+    if (this.observedMalformedTeacherEvidence) {
+      throw new Error('USI search emitted malformed structured teacher evidence');
+    }
+    const requiredDepthIsFinal =
+      this.requiredDepth === undefined ||
+      Array.from({ length: this.expectedMultiPv }, (_, index) => index + 1).every((rank) => {
+        const finalUpdate = this.lastUpdateByRank.get(rank);
+        return finalUpdate?.acceptedExact && finalUpdate.depth === this.requiredDepth;
+      });
+    if (!requiredDepthIsFinal && !this.allowTerminalMateBeforeRequiredDepth) {
+      throw new Error(
+        `incomplete MultiPV: fixed-depth ranks did not end with exact updates at depth ${this.requiredDepth}`,
+      );
+    }
 
-    const depths = this.requiredDepth !== undefined
-      ? [this.requiredDepth]
-      : [...this.snapshots.keys()].sort((a, b) => b - a);
+    const depths =
+      this.requiredDepth !== undefined ? [this.requiredDepth] : [...this.snapshots.keys()].sort((a, b) => b - a);
 
     const resultAtDepth = (depth: number, requireMate: boolean): UsiMultiPvResult | null => {
       const byRank = this.snapshots.get(depth);
@@ -326,9 +426,7 @@ export class UsiMultiPvAccumulator {
       // historical iteration. This is required for fixed-node and fixed-depth
       // searches alike; a mismatch fails closed instead of becoming a label.
       if (lines[0].move !== this.bestmove) {
-        throw new Error(
-          `bestmove ${this.bestmove} does not match completed PV1 ${lines[0].move} at depth ${depth}`
-        );
+        throw new Error(`bestmove ${this.bestmove} does not match completed PV1 ${lines[0].move} at depth ${depth}`);
       }
 
       return {
@@ -340,15 +438,12 @@ export class UsiMultiPvAccumulator {
     };
 
     for (const depth of depths) {
+      if (!requiredDepthIsFinal) break;
       const result = resultAtDepth(depth, false);
       if (result) return result;
     }
 
-    if (
-      this.allowTerminalMateBeforeRequiredDepth &&
-      this.requiredDepth !== undefined &&
-      this.observedDepths.size > 0
-    ) {
+    if (this.allowTerminalMateBeforeRequiredDepth && this.requiredDepth !== undefined && this.observedDepths.size > 0) {
       // Only the deepest/final observed iteration may justify early completion.
       // An intervening cp or bound update keeps the search fail-closed.
       const finalRankOneUpdate = this.lastUpdateByRank.get(1);
@@ -365,9 +460,10 @@ export class UsiMultiPvAccumulator {
     }
 
     const observed = [...this.observedDepths].sort((a, b) => a - b).join(', ') || 'none';
-    const wanted = this.requiredDepth === undefined
-      ? `${this.expectedMultiPv} ranks at one depth`
-      : `${this.expectedMultiPv} ranks at depth ${this.requiredDepth}`;
+    const wanted =
+      this.requiredDepth === undefined
+        ? `${this.expectedMultiPv} ranks at one depth`
+        : `${this.expectedMultiPv} ranks at depth ${this.requiredDepth}`;
     throw new Error(`incomplete MultiPV: wanted ${wanted}; observed depths: ${observed}`);
   }
 }

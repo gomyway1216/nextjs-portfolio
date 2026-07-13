@@ -1146,8 +1146,11 @@ export async function runFloodgateStableProposalCoordinatorCoreForTests(
   }
   if (
     postflight !== undefined &&
-    (!progress.finalizerStarted ||
-      (finalizer.isFinalizerError && !finalizer.postflightClaimConsumed))
+    !(
+      progress.finalizerStarted &&
+      finalizer.isFinalizerError &&
+      finalizer.postflightClaimConsumed === true
+    )
   ) {
     try {
       claimVerifiedFloodgateTrainingConsumerPostflightCoreForTests(postflight);

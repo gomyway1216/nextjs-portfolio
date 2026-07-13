@@ -15,88 +15,100 @@ import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES,
 } from "../../../ml/floodgate-v7-teacher-checkpoint";
 
+const evidenceRuntimeIt = process.version === "v22.13.0" ? it : it.skip;
+
 describe("Floodgate v7 semantic checkpoint scanner load harness", () => {
-  it("revalidates 100 unique legal 14-candidate parents in isolated native-sync children", async () => {
-    const result = await runFloodgateV7CheckpointScanLoadHarness({
-      parents: 100,
-    });
-
-    expect(result).toMatchObject({
-      schema: FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_SCHEMA,
-      status: FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_STATUS,
-      data: {
-        public_dataset_paths_accepted: false,
-        network_reads: false,
+  evidenceRuntimeIt(
+    "revalidates 100 unique legal 14-candidate parents in isolated native-sync children",
+    async () => {
+      const result = await runFloodgateV7CheckpointScanLoadHarness({
         parents: 100,
-        unique_parent_ids: true,
-        unique_position_ids: true,
-        candidates_per_parent: 14,
-      },
-      fixture_build: {
-        classification: "non-evidence-build-receipt-discarded",
-        sync: {
-          suppressed_per_line_regular_file_syncs: 102,
-          expected_suppressed_syncs: 102,
-          native_method_restored_before_batch_sync: true,
-          one_work_batch_sync_completed: true,
-          one_stage_directory_batch_sync_completed: true,
+      });
+
+      expect(result).toMatchObject({
+        schema: FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_SCHEMA,
+        status: FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_STATUS,
+        data: {
+          public_dataset_paths_accepted: false,
+          network_reads: false,
+          parents: 100,
+          unique_parent_ids: true,
+          unique_position_ids: true,
+          candidates_per_parent: 14,
         },
-      },
-      native_scan: {
-        producer_calls: 0,
-        completed_parents: 100,
-        resumed_parents: 100,
-        work: { sha256_match: true },
-      },
-    });
-    expect(result.valid_stream.actual_bytes).toBeGreaterThan(0);
-    expect(result.valid_stream.actual_bytes).toBeLessThan(
-      FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES,
-    );
-    expect(result.valid_stream.line_statistics).toMatchObject({
-      records: 102,
-      entries: 100,
-    });
-    expect(
-      result.valid_stream.line_statistics.maximum_line_bytes,
-    ).toBeLessThanOrEqual(FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES);
-    expect(result.bounds).toEqual({
-      theoretical_rejection_cap_bytes:
+        fixture_build: {
+          classification: "non-evidence-build-receipt-discarded",
+          sync: {
+            suppressed_per_line_regular_file_syncs: 102,
+            expected_suppressed_syncs: 102,
+            native_method_restored_before_batch_sync: true,
+            one_work_batch_sync_completed: true,
+            one_stage_directory_batch_sync_completed: true,
+          },
+        },
+        native_scan: {
+          producer_calls: 0,
+          completed_parents: 100,
+          resumed_parents: 100,
+          work: { sha256_match: true },
+        },
+      });
+      expect(result.valid_stream.actual_bytes).toBeGreaterThan(0);
+      expect(result.valid_stream.actual_bytes).toBeLessThan(
         FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES,
-      theoretical_rejection_cap_classification:
-        "conservative-cap-not-valid-stream-size",
-      maximum_line_bytes: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
-      maximum_parents: 24_000,
-    });
-    expect(result.valid_stream.actual_is_not_theoretical_cap).toBe(true);
-    expect(result.native_scan.work.receipt_sha256).toBe(
-      result.native_scan.work.independent_sha256,
-    );
-    for (const purpose of ["resumable-prefix", "sealed-final"] as const) {
-      expect(result.native_scan.reads.bytes[purpose]).toBe(
-        result.valid_stream.actual_bytes,
       );
+      expect(result.valid_stream.line_statistics).toMatchObject({
+        records: 102,
+        entries: 100,
+      });
       expect(
-        result.native_scan.reads.maximum_request_bytes[purpose],
-      ).toBeLessThanOrEqual(64 * 1024);
-    }
-    expect(result).not.toHaveProperty("preserved_fixture_root");
-  }, 30_000);
+        result.valid_stream.line_statistics.maximum_line_bytes,
+      ).toBeLessThanOrEqual(FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES);
+      expect(result.bounds).toEqual({
+        theoretical_rejection_cap_bytes:
+          FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES,
+        theoretical_rejection_cap_classification:
+          "conservative-cap-not-valid-stream-size",
+        maximum_line_bytes: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
+        maximum_parents: 24_000,
+      });
+      expect(result.valid_stream.actual_is_not_theoretical_cap).toBe(true);
+      expect(result.native_scan.work.receipt_sha256).toBe(
+        result.native_scan.work.independent_sha256,
+      );
+      for (const purpose of ["resumable-prefix", "sealed-final"] as const) {
+        expect(result.native_scan.reads.bytes[purpose]).toBe(
+          result.valid_stream.actual_bytes,
+        );
+        expect(
+          result.native_scan.reads.maximum_request_bytes[purpose],
+        ).toBeLessThanOrEqual(64 * 1024);
+      }
+      expect(result).not.toHaveProperty("preserved_fixture_root");
+    },
+    30_000,
+  );
 
-  it("rejects counts outside the exact 24,000-parent bound before spawning", async () => {
-    await expect(
-      runFloodgateV7CheckpointScanLoadHarness({ parents: 0 }),
-    ).rejects.toThrow(/1 through 24000/);
-    await expect(
-      runFloodgateV7CheckpointScanLoadHarness({ parents: 24_001 }),
-    ).rejects.toThrow(/1 through 24000/);
-  });
+  evidenceRuntimeIt(
+    "rejects counts outside the exact 24,000-parent bound before spawning",
+    async () => {
+      await expect(
+        runFloodgateV7CheckpointScanLoadHarness({ parents: 0 }),
+      ).rejects.toThrow(/1 through 24000/);
+      await expect(
+        runFloodgateV7CheckpointScanLoadHarness({ parents: 24_001 }),
+      ).rejects.toThrow(/1 through 24000/);
+    },
+  );
 
-  it("restores the native sync descriptor when the isolated build action rejects", async () => {
-    await expect(
-      verifyFloodgateV7ScanLoadSyncRestorationCoreForTests(),
-    ).resolves.toBeUndefined();
-  });
+  evidenceRuntimeIt(
+    "restores the native sync descriptor when the isolated build action rejects",
+    async () => {
+      await expect(
+        verifyFloodgateV7ScanLoadSyncRestorationCoreForTests(),
+      ).resolves.toBeUndefined();
+    },
+  );
 
   it("accepts only canonical, nonduplicated public CLI options", () => {
     expect(

@@ -521,7 +521,10 @@ function safeInteger(value: unknown, label: string, minimum = 0): number {
   if (!Number.isSafeInteger(value) || (value as number) < minimum) {
     fail(`${label} must be a safe integer >= ${minimum}`);
   }
-  return value as number;
+  // The USI parser deliberately accepts signed decimal tokens, including
+  // parser-valid `-0`. Canonical JSON has one representation for zero, so
+  // normalize it at capture rather than failing later while hashing.
+  return Object.is(value, -0) ? 0 : (value as number);
 }
 
 function exact(value: unknown, expected: unknown, label: string): void {
@@ -1098,15 +1101,18 @@ function captureProposal(
     if (!Number.isSafeInteger(line.cp)) {
       fail(`runtime proposal.lines[${index}].cp is invalid`);
     }
+    const cp = Object.is(line.cp, -0) ? 0 : (line.cp as number);
+    let mate: number | undefined;
     if (scoreKind === "cp") {
-      if (Math.abs(line.cp as number) > MAX_NON_MATE_CP) {
+      if (Math.abs(cp) > MAX_NON_MATE_CP) {
         fail(`runtime proposal.lines[${index}].cp exceeds the non-mate bound`);
       }
     } else {
+      mate = Object.is(line.mate, -0) ? 0 : (line.mate as number);
       if (
         !Number.isSafeInteger(line.mate) ||
         (line.mateSign !== 1 && line.mateSign !== -1) ||
-        line.cp !== mateToCp(line.mate as number, line.mateSign as 1 | -1)
+        cp !== mateToCp(mate, line.mateSign as 1 | -1)
       ) {
         fail(`runtime proposal.lines[${index}] mate score is inconsistent`);
       }
@@ -1117,7 +1123,7 @@ function captureProposal(
         ? frozenRecord({
             depth: line.depth,
             multipv: line.multipv,
-            cp: line.cp,
+            cp,
             nodes,
             move,
             pv: frozenList(pv.map((entry) => entry as string)),
@@ -1126,12 +1132,12 @@ function captureProposal(
         : frozenRecord({
             depth: line.depth,
             multipv: line.multipv,
-            cp: line.cp,
+            cp,
             nodes,
             move,
             pv: frozenList(pv.map((entry) => entry as string)),
             scoreKind: "mate" as const,
-            mate: line.mate,
+            mate: mate as number,
             mateSign: line.mateSign,
           }),
     );

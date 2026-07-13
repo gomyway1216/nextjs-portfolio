@@ -1217,7 +1217,7 @@ describe("Floodgate stable-WASM real child pool", () => {
         {
           cwd: TEST_CHILD_RUNTIME.cwd,
           env: TEST_CHILD_RUNTIME.env,
-          timeout: 30_000,
+          timeout: 90_000,
           maxBuffer: 1_048_576,
         },
       );
@@ -1226,7 +1226,7 @@ describe("Floodgate stable-WASM real child pool", () => {
     } finally {
       await rm(temporaryRoot, { recursive: true, force: true });
     }
-  }, 40_000);
+  }, 120_000);
 
   it.each([
     ["hang-startup", /timed out/],

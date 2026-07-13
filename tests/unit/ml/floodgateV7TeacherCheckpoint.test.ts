@@ -26,6 +26,7 @@ import {
 } from "../../../ml/floodgate-teacher-stage-authorization";
 import {
   FLOODGATE_TRAINING_RAW_FILENAME,
+  claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests,
   withVerifiedPinnedFloodgateTrainingRowsCoreForTests,
   type AuthenticatedFloodgateTrainingRows,
   type FloodgateTrainingParent,
@@ -57,6 +58,8 @@ import {
   buildFloodgateV7CandidateUnionCoreForTests,
   type FloodgateV7CandidateUnionInput,
 } from "../../../ml/floodgate-v7-candidate-union";
+import * as deploymentKeyAuthority from "../../../ml/floodgate-v7-deployment-key-authority";
+import { FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO } from "../../../ml/floodgate-v7-checkpoint-key-contract";
 import {
   buildFloodgateV7CheckpointScanLoadCompletedParentCoreForTests,
   buildFloodgateV7CheckpointScanLoadRawRowsCoreForTests,
@@ -89,13 +92,16 @@ import {
   FloodgateV7TeacherProducerCleanupError,
   FloodgateV7TeacherProducerTimeoutError,
   captureFloodgateV7TeacherCheckpointIntegerCoreForTests,
+  checkpointFloodgateV7TeacherParentsV3,
   checkpointFloodgateV7TeacherParentsCoreForTests,
   checkpointFloodgateV7TeacherParentsV3CoreForTests,
+  checkpointFloodgateV7TeacherParentsV3WithDeploymentKeyCoreForTests,
   type FloodgateV7TeacherCheckpointDependencies,
   type FloodgateV7TeacherCheckpointOptions,
   type FloodgateV7TeacherCheckpointReceipt,
   type FloodgateV7TeacherCheckpointRunBinding,
   type FloodgateV7TeacherCheckpointV3Dependencies,
+  type FloodgateV7TeacherCheckpointV3DeploymentKeyDependenciesForTests,
   type FloodgateV7TeacherCheckpointV3FailpointEvent,
   type FloodgateV7TeacherCheckpointV3Gate,
   type FloodgateV7TeacherCheckpointV3Options,
@@ -122,6 +128,7 @@ const OTHER_RUN_ID = "34".repeat(32);
 const KEY_ID = "synthetic-v7-checkpoint-key-1";
 const ROOT_KEY_BYTE = 0x4b;
 const HEADER_DOMAIN = "shogi-floodgate-v7-teacher-work-header-v2\0";
+const V3_HEADER_DOMAIN = "shogi-floodgate-v7-teacher-work-header-v3\0";
 const ENTRY_DOMAIN = "shogi-floodgate-v7-teacher-work-parent-v2\0";
 const SEAL_DOMAIN = "shogi-floodgate-v7-teacher-work-seal-v2\0";
 const KEY_INFO = "shogi-floodgate-v7-teacher-checkpoint-key-v2\0";
@@ -842,9 +849,9 @@ async function runV3Checkpoint(
       receipt = await checkpointFloodgateV7TeacherParentsV3CoreForTests(
         lease,
         input,
-        settings.binding ?? runBinding(),
+        settings.binding ?? deploymentRunBinding(),
         settings.controller ?? producerController(producer),
-        settings.options ?? v3CheckpointOptions(gate),
+        settings.options ?? deploymentV3Options(gate),
         settings.dependencies ?? v3CheckpointDependencies(),
       );
     },
@@ -852,6 +859,147 @@ async function runV3Checkpoint(
   );
   if (receipt === undefined)
     throw new Error("v3 checkpoint produced no receipt");
+  return receipt;
+}
+
+interface DeploymentKeyFixture {
+  readonly home: string;
+  readonly keyPath: string;
+}
+
+type TestDeploymentV3KeyAuthorization = Awaited<
+  ReturnType<
+    typeof deploymentKeyAuthority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests
+  >
+>;
+
+function deploymentRunBinding(): FloodgateV7TeacherCheckpointRunBinding {
+  const base = runBinding();
+  return {
+    ...base,
+    producer_control: {
+      ...base.producer_control,
+      parent_deadline_ms: 1_800_000,
+      abort_drain_ms: 30_000,
+    },
+  };
+}
+
+async function deploymentKeyFixture(
+  key: Uint8Array = rootKey(),
+): Promise<Readonly<DeploymentKeyFixture>> {
+  const created = await fs.promises.mkdtemp(
+    path.join(os.tmpdir(), "floodgate-v7-checkpoint-deployment-key-"),
+  );
+  const home = await fs.promises.realpath(created);
+  temporaryRoots.push(home);
+  await fs.promises.chmod(home, 0o700);
+  const keyPath = path.join(
+    home,
+    ...deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS,
+    deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_FILENAME,
+  );
+  await mkdir0700(path.dirname(keyPath));
+  await fs.promises.writeFile(keyPath, key, { flag: "wx", mode: 0o600 });
+  await fs.promises.chmod(keyPath, 0o600);
+  return Object.freeze({ home, keyPath });
+}
+
+function deploymentV3Options(
+  gate: FloodgateV7TeacherCheckpointV3Gate,
+  overrides: Partial<FloodgateV7TeacherCheckpointV3Options> = {},
+): FloodgateV7TeacherCheckpointV3Options {
+  return {
+    gate,
+    keyId: deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    runId: RUN_ID,
+    ...overrides,
+  };
+}
+
+function deploymentV3KeyRequest(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  binding: FloodgateV7TeacherCheckpointRunBinding,
+  options: FloodgateV7TeacherCheckpointV3Options,
+): Parameters<
+  typeof deploymentKeyAuthority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests
+>[0] {
+  return {
+    runId: options.runId,
+    keyId: deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    runBinding:
+      binding as deploymentKeyAuthority.FloodgateV7DeploymentTeacherRunBinding,
+    stageAuthorizationReceipt: lease.receipt,
+    gate: options.gate,
+  };
+}
+
+async function prepareDeploymentV3Key(
+  deployment: Readonly<DeploymentKeyFixture>,
+  lease: Readonly<FloodgateTeacherStageLease>,
+  binding: FloodgateV7TeacherCheckpointRunBinding,
+  options: FloodgateV7TeacherCheckpointV3Options,
+): Promise<Readonly<TestDeploymentV3KeyAuthorization>> {
+  return deploymentKeyAuthority.prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
+    deploymentV3KeyRequest(lease, binding, options),
+    {
+      effectiveUserId: effectiveUserId(),
+      homeDirectory: deployment.home,
+    },
+  );
+}
+
+async function runDeploymentV3Checkpoint(
+  value: CheckpointFixture,
+  deployment: Readonly<DeploymentKeyFixture>,
+  gate: FloodgateV7TeacherCheckpointV3Gate,
+  producer: FloodgateV7TeacherMissingParentProducer,
+  settings: Readonly<{
+    readonly training?: TrainingFixture;
+    readonly binding?: FloodgateV7TeacherCheckpointRunBinding;
+    readonly controller?: FloodgateV7TeacherProducerController;
+    readonly options?: FloodgateV7TeacherCheckpointV3Options;
+    readonly dependencies?: FloodgateV7TeacherCheckpointV3DeploymentKeyDependenciesForTests;
+  }> = {},
+): Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> {
+  const training = settings.training ?? value.training;
+  const binding = settings.binding ?? deploymentRunBinding();
+  const options = settings.options ?? deploymentV3Options(gate);
+  const lease = await authorize(value);
+  const authorization = await prepareDeploymentV3Key(
+    deployment,
+    lease,
+    binding,
+    options,
+  );
+  let receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt> | undefined;
+  try {
+    await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+      training.options,
+      async (input: Readonly<AuthenticatedFloodgateTrainingRows>) => {
+        receipt =
+          await checkpointFloodgateV7TeacherParentsV3WithDeploymentKeyCoreForTests(
+            lease,
+            input,
+            binding,
+            settings.controller ?? producerController(producer),
+            options,
+            authorization,
+            settings.dependencies ?? {
+              effectiveUserId: effectiveUserId(),
+            },
+          );
+      },
+      trainingDependencies(training.identity),
+    );
+  } finally {
+    deploymentKeyAuthority.discardFloodgateV7DeploymentTeacherCheckpointV3Key(
+      authorization,
+    );
+  }
+  if (receipt === undefined) {
+    throw new Error("deployment-key v3 checkpoint produced no receipt");
+  }
   return receipt;
 }
 
@@ -3156,6 +3304,13 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
 
   it("publishes only the exact fixed v3 gate contract and rejects non-exact options before persistence", async () => {
     expect(checkpointFloodgateV7TeacherParentsV3CoreForTests).toHaveLength(6);
+    expect(checkpointFloodgateV7TeacherParentsV3).toHaveLength(6);
+    expect(
+      checkpointFloodgateV7TeacherParentsV3WithDeploymentKeyCoreForTests,
+    ).toHaveLength(7);
+    expect(checkpointFloodgateV7TeacherParentsV3.toString()).not.toMatch(
+      /rootKey|effectiveUserId|homeDirectory|dependencies/,
+    );
     expect(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS).toBe(24_000);
     expect(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100).toBe(
       "durable-prefix-100",
@@ -3226,6 +3381,77 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
     expect(producerCalls).toBe(0);
   });
 
+  it("keeps deployment-key arity and production/test registries fail closed before discarding an unclaimed capability", async () => {
+    const value = await fixture(forcedRows(57));
+    const deployment = await deploymentKeyFixture();
+    const binding = deploymentRunBinding();
+    const options = deploymentV3Options(
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+    );
+    const lease = await authorize(value);
+    const authorization = await prepareDeploymentV3Key(
+      deployment,
+      lease,
+      binding,
+      options,
+    );
+    const request = deploymentV3KeyRequest(lease, binding, options);
+    let producerCalls = 0;
+    const controller = producerController(async () => {
+      producerCalls += 1;
+      throw new Error("boundary rejection must precede production");
+    });
+
+    await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+      value.training.options,
+      async (input) => {
+        expect(() =>
+          Reflect.apply(
+            checkpointFloodgateV7TeacherParentsV3WithDeploymentKeyCoreForTests,
+            undefined,
+            [lease, input, binding, controller, options, authorization],
+          ),
+        ).toThrow(/exactly seven arguments/);
+        const wrongBoundary = checkpointFloodgateV7TeacherParentsV3(
+          lease,
+          input,
+          binding,
+          controller,
+          options,
+          authorization as never,
+        );
+        claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(input);
+        await expect(wrongBoundary).rejects.toThrow(
+          /production runtime claim requires the exact active unclaimed lease/,
+        );
+        expect(() =>
+          deploymentKeyAuthority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests(
+            authorization,
+            request,
+          ),
+        ).toThrow(/already consumed or discarded/);
+        await lease.close();
+      },
+      trainingDependencies(value.training.identity),
+    );
+
+    const shortStage = await siblingStageFixture(
+      value,
+      "deployment-key-short-input",
+    );
+    await expect(
+      runDeploymentV3Checkpoint(
+        shortStage,
+        deployment,
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+        controller.produce,
+      ),
+    ).rejects.toThrow(/exact full 24000-parent training input/);
+    expect(producerCalls).toBe(0);
+    expect(fs.existsSync(workPath(value))).toBe(false);
+    expect(fs.existsSync(workPath(shortStage))).toBe(false);
+  });
+
   it("rejects short authenticated input at every v3 gate before creating work or producing", async () => {
     const value = await fixture(forcedRows(55));
     const gates = [
@@ -3260,6 +3486,7 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
       FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
     );
     const value = await fixture(corpus.rawRows);
+    const deployment = await deploymentKeyFixture();
     let forbiddenCalls = 0;
     const forbiddenProducer: FloodgateV7TeacherMissingParentProducer =
       async () => {
@@ -3281,19 +3508,21 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
     const prefix100Calls: number[] = [];
     const milestoneEvents: FloodgateV7TeacherCheckpointV3FailpointEvent[] = [];
     await expect(
-      runV3Checkpoint(
+      runDeploymentV3Checkpoint(
         value,
+        deployment,
         FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
         fixedV3Producer(corpus, prefix100Calls),
         {
-          dependencies: v3CheckpointDependencies({
+          dependencies: {
+            effectiveUserId: effectiveUserId(),
             failpointForTests: (event) => {
               if (event.phase === "after-milestone-durable") {
                 milestoneEvents.push(event);
                 throw new Error("synthetic v3 milestone interruption");
               }
             },
-          }),
+          },
         },
       ),
     ).rejects.toBeInstanceOf(
@@ -3318,6 +3547,45 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
       kind: "header",
       gate_contract: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT,
     });
+    const onceDerived = Buffer.from(
+      hkdfSync(
+        "sha256",
+        rootKey(),
+        Buffer.from(RUN_ID, "hex"),
+        Buffer.from(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO),
+        32,
+      ),
+    );
+    const twiceDerived = Buffer.from(
+      hkdfSync(
+        "sha256",
+        onceDerived,
+        Buffer.from(RUN_ID, "hex"),
+        Buffer.from(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO),
+        32,
+      ),
+    );
+    try {
+      expect(prefix100Records[0].header_mac).toBe(
+        hmacForRecord(
+          onceDerived,
+          V3_HEADER_DOMAIN,
+          prefix100Records[0],
+          "header_mac",
+        ),
+      );
+      expect(prefix100Records[0].header_mac).not.toBe(
+        hmacForRecord(
+          twiceDerived,
+          V3_HEADER_DOMAIN,
+          prefix100Records[0],
+          "header_mac",
+        ),
+      );
+    } finally {
+      onceDerived.fill(0);
+      twiceDerived.fill(0);
+    }
     expect(prefix100Records[101]).toMatchObject({
       schema: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
       kind: "durable-prefix-milestone",

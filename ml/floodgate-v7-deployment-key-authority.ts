@@ -17,6 +17,13 @@ import {
   FLOODGATE_TEACHER_STAGE_AUTHORIZATION_TRUST_BOUNDARY,
   type FloodgateTeacherStageAuthorizationReceipt,
 } from "./floodgate-teacher-stage-authorization";
+import {
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO,
+  type FloodgateV7TeacherCheckpointV3Gate,
+} from "./floodgate-v7-checkpoint-key-contract";
 
 export const FLOODGATE_V7_DEPLOYMENT_KEY_AUTHORITY_CONTRACT =
   "shogi-floodgate-v7-deployment-teacher-run-authorization-v1" as const;
@@ -49,6 +56,12 @@ export const FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS =
     "shogi-floodgate-v7-deployment-key-v1",
   ] as const);
 export const FLOODGATE_V7_DEPLOYMENT_KEY_FILENAME = "root-key.bin" as const;
+export const FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CONTRACT =
+  "shogi-floodgate-v7-deployment-teacher-checkpoint-v3-key-authorization-v1" as const;
+export const FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_STATUS =
+  "prepared-opaque-single-use-v3-derived-key-not-checkpointed" as const;
+export const FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CLAIM_BOUNDARY =
+  "fixed-deployment-key-derived-v3-checkpoint-key-held-module-private-exact-run-binding-stage-and-gate-bound-single-use-not-root-key-export-generic-signing-checkpoint-runtime-dataset-label-training-weight-live-or-playing-strength-evidence" as const;
 
 const RUN_BINDING_SCHEMA = "shogi-floodgate-v7-teacher-run-binding-v2" as const;
 const PRODUCER_CONTROL_SCHEMA =
@@ -65,6 +78,13 @@ const LATE_SETTLEMENT_POLICY =
   "observe-from-start-consume-after-terminal-without-validation-or-append-v2" as const;
 
 const REQUEST_KEYS = Object.freeze([
+  "keyId",
+  "runBinding",
+  "runId",
+  "stageAuthorizationReceipt",
+] as const);
+const V3_KEY_REQUEST_KEYS = Object.freeze([
+  "gate",
   "keyId",
   "runBinding",
   "runId",
@@ -119,6 +139,17 @@ const REGULAR_TYPE = BigInt(fs.constants.S_IFREG);
 const NativeError = Error;
 const NativeAggregateError = AggregateError;
 const NativePromise = Promise;
+const NativeUint8Array = Uint8Array;
+const NativeWeakMap = WeakMap;
+const NativeWeakSet = WeakSet;
+const nativeWeakMapDelete = WeakMap.prototype.delete;
+const nativeWeakMapGet = WeakMap.prototype.get;
+const nativeWeakMapSet = WeakMap.prototype.set;
+const nativeWeakSetAdd = WeakSet.prototype.add;
+const nativeWeakSetDelete = WeakSet.prototype.delete;
+const nativeWeakSetHas = WeakSet.prototype.has;
+const nativeUint8ArraySet = Uint8Array.prototype.set;
+const nativeUint8ArrayFill = Uint8Array.prototype.fill;
 const objectCreate = Object.create;
 const objectDefineProperty = Object.defineProperty;
 const objectFreeze = Object.freeze;
@@ -166,6 +197,10 @@ export interface FloodgateV7DeploymentTeacherRunAuthorizationRequest {
   readonly keyId: typeof FLOODGATE_V7_DEPLOYMENT_KEY_ID;
   readonly runBinding: Readonly<FloodgateV7DeploymentTeacherRunBinding>;
   readonly stageAuthorizationReceipt: Readonly<FloodgateTeacherStageAuthorizationReceipt>;
+}
+
+export interface FloodgateV7DeploymentTeacherCheckpointV3KeyRequest extends FloodgateV7DeploymentTeacherRunAuthorizationRequest {
+  readonly gate: FloodgateV7TeacherCheckpointV3Gate;
 }
 
 export interface FloodgateV7DeploymentKeyAuthorityDependencies {
@@ -256,6 +291,19 @@ export interface FloodgateV7DeploymentTeacherRunAuthorizationReceipt<
   }>;
 }
 
+export interface FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary =
+    FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+> {
+  readonly contract: typeof FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CONTRACT;
+  readonly status: typeof FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CLAIM_BOUNDARY;
+  readonly gate: FloodgateV7TeacherCheckpointV3Gate;
+  readonly authorization: Readonly<
+    FloodgateV7DeploymentTeacherRunAuthorizationReceipt<TBoundary>
+  >;
+}
+
 export type FloodgateV7DeploymentKeyAuthorityPhase =
   | "capture"
   | "production-identity"
@@ -302,12 +350,64 @@ interface CapturedRequest {
   readonly stageBinding: FloodgateV7DeploymentTeacherRunAuthorizationReceipt["stage_binding"];
 }
 
+interface CapturedV3KeyRequest extends CapturedRequest {
+  readonly keyId: typeof FLOODGATE_V7_DEPLOYMENT_KEY_ID;
+  readonly gate: FloodgateV7TeacherCheckpointV3Gate;
+  readonly stageLeaseBinding: Readonly<{
+    readonly dev: string;
+    readonly ino: string;
+  }>;
+}
+
+interface PreparedV3DerivedKey {
+  readonly requestCanonical: string;
+  readonly derivedKey: Buffer;
+}
+
+interface V3KeyRegistry {
+  readonly boundary: "production" | "test-only";
+  readonly prepared: WeakMap<
+    Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization>,
+    Readonly<PreparedV3DerivedKey>
+  >;
+  readonly known: WeakSet<
+    Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization>
+  >;
+}
+
+interface AuthorizationMaterial<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+> {
+  readonly receipt: Readonly<
+    FloodgateV7DeploymentTeacherRunAuthorizationReceipt<TBoundary>
+  >;
+  readonly checkpointV3DerivedKey: Buffer | undefined;
+}
+
 interface CapturedDependencies {
   readonly effectiveUserId: number;
   readonly homeDirectory: string;
   readonly observeInternalKey?: (key: Uint8Array) => void;
   readonly beforeFinalRevalidation?: () => void | Promise<void>;
 }
+
+function createV3KeyRegistry(
+  boundary: V3KeyRegistry["boundary"],
+): Readonly<V3KeyRegistry> {
+  return objectFreeze({
+    boundary,
+    prepared: new NativeWeakMap<
+      Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization>,
+      Readonly<PreparedV3DerivedKey>
+    >(),
+    known: new NativeWeakSet<
+      Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization>
+    >(),
+  });
+}
+
+const PRODUCTION_V3_KEY_REGISTRY = createV3KeyRegistry("production");
+const TEST_V3_KEY_REGISTRY = createV3KeyRegistry("test-only");
 
 interface StatSnapshot {
   readonly dev: bigint;
@@ -646,6 +746,49 @@ function captureRequest(
   });
 }
 
+function captureV3Gate(value: unknown): FloodgateV7TeacherCheckpointV3Gate {
+  switch (value) {
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100:
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500:
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000:
+      return value;
+    default:
+      return fail("capture", "request.gate is not a supported fixed v3 gate");
+  }
+}
+
+function captureV3KeyRequest(
+  value: FloodgateV7DeploymentTeacherCheckpointV3KeyRequest,
+): CapturedV3KeyRequest {
+  const request = strictRecord(value, V3_KEY_REQUEST_KEYS, "request");
+  if (typeof request.runId !== "string" || !RUN_ID_RE.test(request.runId)) {
+    fail("capture", "request.runId must be 32 bytes of lowercase hex");
+  }
+  if (request.keyId !== FLOODGATE_V7_DEPLOYMENT_KEY_ID) {
+    fail("capture", "request.keyId is not the fixed deployment key id");
+  }
+  const stageReceipt = strictRecord(
+    request.stageAuthorizationReceipt,
+    STAGE_RECEIPT_KEYS,
+    "request.stageAuthorizationReceipt",
+  );
+  const stageLeaseIdentity = captureIdentity(
+    stageReceipt.lease_identity,
+    "stage lease identity",
+  );
+  return frozenRecord({
+    runId: request.runId,
+    keyId: FLOODGATE_V7_DEPLOYMENT_KEY_ID,
+    runBinding: captureRunBinding(request.runBinding),
+    stageBinding: captureStageBinding(request.stageAuthorizationReceipt),
+    stageLeaseBinding: frozenRecord({
+      dev: stageLeaseIdentity.dev.toString(10),
+      ino: stageLeaseIdentity.ino.toString(10),
+    }),
+    gate: captureV3Gate(request.gate),
+  });
+}
+
 function captureDependencies(
   value: FloodgateV7DeploymentKeyAuthorityDependencies,
 ): CapturedDependencies {
@@ -818,15 +961,14 @@ function zeroize(bytes: Buffer): unknown | undefined {
   }
 }
 
-async function authorizeInternal<
+async function authorizeMaterialInternal<
   TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
 >(
   request: Readonly<CapturedRequest>,
   dependencies: Readonly<CapturedDependencies>,
   executionBoundary: TBoundary,
-): Promise<
-  Readonly<FloodgateV7DeploymentTeacherRunAuthorizationReceipt<TBoundary>>
-> {
+  prepareCheckpointV3Key: boolean,
+): Promise<AuthorizationMaterial<TBoundary>> {
   const parentPath = pathJoin(
     dependencies.homeDirectory,
     ...FLOODGATE_V7_DEPLOYMENT_KEY_ROOT_RELATIVE_COMPONENTS,
@@ -838,6 +980,7 @@ async function authorizeInternal<
   const extra = bufferAlloc(1);
   let derivedKey = bufferAlloc(0);
   let instanceKey = bufferAlloc(0);
+  let checkpointV3DerivedKey: Buffer | undefined;
   let activePhase: FloodgateV7DeploymentKeyAuthorityPhase = "namespace";
   let primary: unknown;
   let result:
@@ -912,6 +1055,17 @@ async function authorizeInternal<
         32,
       ),
     );
+    if (prepareCheckpointV3Key) {
+      checkpointV3DerivedKey = bufferFrom(
+        hkdfSync(
+          "sha256",
+          rootKey,
+          bufferFrom(request.runId, "hex"),
+          bufferFrom(FLOODGATE_V7_TEACHER_CHECKPOINT_V3_HKDF_INFO),
+          FLOODGATE_V7_DEPLOYMENT_KEY_BYTES,
+        ),
+      );
+    }
     const keyInstanceId = createHmac("sha256", instanceKey)
       .update(FLOODGATE_V7_DEPLOYMENT_KEY_INSTANCE_HMAC_DOMAIN, "utf8")
       .digest("hex");
@@ -988,9 +1142,10 @@ async function authorizeInternal<
       .update(FLOODGATE_V7_DEPLOYMENT_KEY_AUTHORITY_HMAC_DOMAIN, "utf8")
       .update(canonicalJson(unsigned), "utf8")
       .digest("hex");
-    // Neither final metadata revalidation nor descriptor cleanup needs secret
-    // bytes. Zero every owned copy before the next await so a stalled hook or
-    // filesystem operation cannot extend the key lifetime.
+    // Neither final metadata revalidation nor descriptor cleanup needs the
+    // root, authorization, instance, or extra secret bytes. Zero those owned
+    // copies before the next await; the separately scoped v3 checkpoint key,
+    // when requested, remains only in module-private ownership for handoff.
     const preRevalidationZeroizeFailures: unknown[] = [];
     for (const bytes of [derivedKey, instanceKey, rootKey, extra]) {
       const zeroizeFailure = zeroize(bytes);
@@ -1074,10 +1229,267 @@ async function authorizeInternal<
             );
     }
   }
-  if (primary !== undefined) throw primary;
-  if (result === undefined)
+  if (primary !== undefined || result === undefined) {
+    const derivedCleanupFailure =
+      checkpointV3DerivedKey === undefined
+        ? undefined
+        : zeroize(checkpointV3DerivedKey);
+    checkpointV3DerivedKey = undefined;
+    if (derivedCleanupFailure !== undefined) {
+      const cleanupError = new FloodgateV7DeploymentKeyAuthorityError(
+        "cleanup",
+        "v3 checkpoint derived-key cleanup failed",
+      );
+      primary =
+        primary === undefined
+          ? cleanupError
+          : new FloodgateV7DeploymentKeyAuthorityError(
+              "cleanup",
+              "authorization and v3 checkpoint derived-key cleanup both failed",
+              new NativeAggregateError(
+                [primary, cleanupError],
+                "authorization and v3 checkpoint derived-key cleanup both failed",
+              ),
+            );
+    }
+    if (primary !== undefined) throw primary;
     fail("authorization", "authorization completed without a receipt");
-  return result;
+  }
+  let material: Readonly<AuthorizationMaterial<TBoundary>> | undefined;
+  try {
+    material = objectFreeze({
+      receipt: result,
+      checkpointV3DerivedKey,
+    });
+    return material;
+  } finally {
+    if (material === undefined && checkpointV3DerivedKey !== undefined) {
+      const cleanupFailure = zeroize(checkpointV3DerivedKey);
+      checkpointV3DerivedKey = undefined;
+      if (cleanupFailure !== undefined) {
+        fail(
+          "cleanup",
+          "v3 checkpoint derived key could not be zeroized after material transfer failure",
+          cleanupFailure,
+        );
+      }
+    }
+  }
+}
+
+async function authorizeInternal<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+>(
+  request: Readonly<CapturedRequest>,
+  dependencies: Readonly<CapturedDependencies>,
+  executionBoundary: TBoundary,
+): Promise<
+  Readonly<FloodgateV7DeploymentTeacherRunAuthorizationReceipt<TBoundary>>
+> {
+  return (
+    await authorizeMaterialInternal(
+      request,
+      dependencies,
+      executionBoundary,
+      false,
+    )
+  ).receipt;
+}
+
+function preparedV3Key(
+  registry: Readonly<V3KeyRegistry>,
+  authorization: Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization>,
+): Readonly<PreparedV3DerivedKey> | undefined {
+  return reflectApply(nativeWeakMapGet, registry.prepared, [authorization]) as
+    Readonly<PreparedV3DerivedKey> | undefined;
+}
+
+function hasKnownV3Authorization(
+  registry: Readonly<V3KeyRegistry>,
+  authorization: Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization>,
+): boolean {
+  return reflectApply(nativeWeakSetHas, registry.known, [
+    authorization,
+  ]) as boolean;
+}
+
+function assertV3AuthorizationObject(
+  value: unknown,
+): asserts value is Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization> {
+  if (value === null || typeof value !== "object" || nodeIsProxy(value)) {
+    fail(
+      "capture",
+      "v3 checkpoint key authorization must be the exact non-Proxy facade",
+    );
+  }
+}
+
+async function prepareV3KeyInternal<
+  TBoundary extends FloodgateV7DeploymentKeyAuthorityExecutionBoundary,
+>(
+  request: Readonly<CapturedV3KeyRequest>,
+  dependencies: Readonly<CapturedDependencies>,
+  executionBoundary: TBoundary,
+  registry: Readonly<V3KeyRegistry>,
+): Promise<
+  Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<TBoundary>>
+> {
+  const material = await authorizeMaterialInternal(
+    request,
+    dependencies,
+    executionBoundary,
+    true,
+  );
+  const derivedKey = material.checkpointV3DerivedKey;
+  if (
+    derivedKey === undefined ||
+    derivedKey.byteLength !== FLOODGATE_V7_DEPLOYMENT_KEY_BYTES
+  ) {
+    const cleanupFailure =
+      derivedKey === undefined ? undefined : zeroize(derivedKey);
+    if (cleanupFailure !== undefined) {
+      fail(
+        "cleanup",
+        "invalid v3 checkpoint derived key could not be zeroized",
+        cleanupFailure,
+      );
+    }
+    fail("authorization", "v3 checkpoint derived key was not prepared");
+  }
+  let authorization:
+    | Readonly<
+        FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<TBoundary>
+      >
+    | undefined;
+  let transferred = false;
+  try {
+    authorization = frozenRecord({
+      contract: FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CONTRACT,
+      status: FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_STATUS,
+      claim_boundary:
+        FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CLAIM_BOUNDARY,
+      gate: request.gate,
+      authorization: material.receipt,
+    });
+    reflectApply(nativeWeakSetAdd, registry.known, [authorization]);
+    reflectApply(nativeWeakMapSet, registry.prepared, [
+      authorization,
+      objectFreeze({
+        requestCanonical: canonicalJson(request),
+        derivedKey,
+      }),
+    ]);
+    transferred = true;
+    return authorization;
+  } finally {
+    if (!transferred) {
+      if (authorization !== undefined) {
+        reflectApply(nativeWeakMapDelete, registry.prepared, [authorization]);
+        reflectApply(nativeWeakSetDelete, registry.known, [authorization]);
+      }
+      const cleanupFailure = zeroize(derivedKey);
+      if (cleanupFailure !== undefined) {
+        fail(
+          "cleanup",
+          "v3 checkpoint derived key could not be zeroized after prepare failure",
+          cleanupFailure,
+        );
+      }
+    }
+  }
+}
+
+function claimV3DerivedKey(
+  registry: Readonly<V3KeyRegistry>,
+  otherRegistry: Readonly<V3KeyRegistry>,
+  authorizationValue: FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization,
+  requestValue: FloodgateV7DeploymentTeacherCheckpointV3KeyRequest,
+): Uint8Array {
+  assertV3AuthorizationObject(authorizationValue);
+  const state = preparedV3Key(registry, authorizationValue);
+  if (state === undefined) {
+    if (hasKnownV3Authorization(otherRegistry, authorizationValue)) {
+      fail(
+        "capture",
+        `v3 checkpoint key authorization belongs to the ${otherRegistry.boundary} boundary`,
+      );
+    }
+    if (hasKnownV3Authorization(registry, authorizationValue)) {
+      fail(
+        "capture",
+        "v3 checkpoint key authorization was already consumed or discarded",
+      );
+    }
+    fail(
+      "capture",
+      "v3 checkpoint key claim requires the exact prepared authorization facade",
+    );
+  }
+
+  // Once the exact facade is found, every request-capture or binding failure
+  // consumes it. A caller cannot repair a mismatched claim and retry with the
+  // same secret-bearing capability.
+  reflectApply(nativeWeakMapDelete, registry.prepared, [authorizationValue]);
+  let primary: unknown;
+  let output: Uint8Array | undefined;
+  try {
+    const request = captureV3KeyRequest(requestValue);
+    if (canonicalJson(request) !== state.requestCanonical) {
+      fail(
+        "capture",
+        "v3 checkpoint key claim request differs from the prepared binding",
+      );
+    }
+    output = new NativeUint8Array(FLOODGATE_V7_DEPLOYMENT_KEY_BYTES);
+    reflectApply(nativeUint8ArraySet, output, [state.derivedKey, 0]);
+  } catch (error) {
+    primary = sanitizeUnexpectedFailure(
+      error,
+      "capture",
+      "unexpected v3 checkpoint key claim failure",
+    );
+  }
+
+  const cleanupFailure = zeroize(state.derivedKey);
+  if (
+    (primary !== undefined || cleanupFailure !== undefined) &&
+    output !== undefined
+  ) {
+    reflectApply(nativeUint8ArrayFill, output, [0]);
+    output = undefined;
+  }
+  if (cleanupFailure !== undefined) {
+    const cleanupError = new FloodgateV7DeploymentKeyAuthorityError(
+      "cleanup",
+      "consumed v3 checkpoint derived key could not be zeroized",
+    );
+    primary =
+      primary === undefined
+        ? cleanupError
+        : new FloodgateV7DeploymentKeyAuthorityError(
+            "cleanup",
+            "v3 checkpoint key claim and cleanup both failed",
+            new NativeAggregateError(
+              [primary, cleanupError],
+              "v3 checkpoint key claim and cleanup both failed",
+            ),
+          );
+  }
+  if (primary !== undefined) throw primary;
+  if (output === undefined) {
+    fail("authorization", "v3 checkpoint key claim produced no owned key");
+  }
+  return output;
+}
+
+function discardPreparedV3Key(
+  registry: Readonly<V3KeyRegistry>,
+  authorization: Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization>,
+): unknown | undefined {
+  const state = preparedV3Key(registry, authorization);
+  if (state === undefined) return undefined;
+  reflectApply(nativeWeakMapDelete, registry.prepared, [authorization]);
+  return zeroize(state.derivedKey);
 }
 
 /** Test-only filesystem seam. The optional observer sees only the owned copy. */
@@ -1163,4 +1575,183 @@ export function authorizeFloodgateV7DeploymentTeacherRun(
     dependencies,
     "production-fixed-current-euid-userinfo-home-key-deployment",
   );
+}
+
+/** Prepare an opaque test-boundary capability for one exact v3 gate. */
+export function prepareFloodgateV7DeploymentTeacherCheckpointV3KeyCoreForTests(
+  requestValue: FloodgateV7DeploymentTeacherCheckpointV3KeyRequest,
+  dependenciesValue: FloodgateV7DeploymentKeyAuthorityDependencies,
+): Promise<
+  Readonly<
+    FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<"test-only-injected-current-euid-home-key-deployment">
+  >
+> {
+  if (arguments.length !== 2) {
+    throw new NativeError(
+      "test v3 checkpoint key preparation accepts exactly two arguments",
+    );
+  }
+  const request = captureV3KeyRequest(requestValue);
+  const dependencies = captureDependencies(dependenciesValue);
+  return prepareV3KeyInternal(
+    request,
+    dependencies,
+    "test-only-injected-current-euid-home-key-deployment",
+    TEST_V3_KEY_REGISTRY,
+  );
+}
+
+/**
+ * Prepare an opaque single-use v3 key capability from the fixed deployment.
+ * No dependency injection, key bytes, or signing callback is exposed.
+ */
+export function prepareFloodgateV7DeploymentTeacherCheckpointV3Key(
+  requestValue: FloodgateV7DeploymentTeacherCheckpointV3KeyRequest,
+): Promise<
+  Readonly<
+    FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<"production-fixed-current-euid-userinfo-home-key-deployment">
+  >
+> {
+  if (arguments.length !== 1) {
+    return new NativePromise((_resolve, reject) =>
+      reject(
+        new NativeError(
+          "production v3 checkpoint key preparation accepts exactly one argument",
+        ),
+      ),
+    );
+  }
+  let request: Readonly<CapturedV3KeyRequest>;
+  try {
+    request = captureV3KeyRequest(requestValue);
+  } catch (error) {
+    return new NativePromise((_resolve, reject) =>
+      reject(
+        sanitizeUnexpectedFailure(
+          error,
+          "capture",
+          "unexpected v3 checkpoint key request capture failure",
+        ),
+      ),
+    );
+  }
+  if (getEffectiveUserId === null) {
+    return new NativePromise((_resolve, reject) =>
+      reject(
+        new FloodgateV7DeploymentKeyAuthorityError(
+          "production-identity",
+          "POSIX effective-user identity is required",
+        ),
+      ),
+    );
+  }
+  let userInfo: ReturnType<typeof os.userInfo>;
+  let effectiveUserId: number;
+  try {
+    effectiveUserId = getEffectiveUserId();
+    userInfo = getUserInfo();
+    if (userInfo.uid !== effectiveUserId) {
+      fail(
+        "production-identity",
+        "os.userInfo uid differs from the current effective uid",
+      );
+    }
+  } catch (error) {
+    return new NativePromise((_resolve, reject) =>
+      reject(
+        sanitizeUnexpectedFailure(
+          error,
+          "production-identity",
+          "unexpected current-user identity lookup failure",
+        ),
+      ),
+    );
+  }
+  const dependencies = captureDependencies({
+    effectiveUserId,
+    homeDirectory: userInfo.homedir as string,
+    observeInternalKeyForTests: undefined,
+    beforeFinalRevalidationForTests: undefined,
+  });
+  return prepareV3KeyInternal(
+    request,
+    dependencies,
+    "production-fixed-current-euid-userinfo-home-key-deployment",
+    PRODUCTION_V3_KEY_REGISTRY,
+  );
+}
+
+/** Consume one exact fixed-production v3 key capability. */
+export function claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKey(
+  authorization: Readonly<
+    FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<"production-fixed-current-euid-userinfo-home-key-deployment">
+  >,
+  request: FloodgateV7DeploymentTeacherCheckpointV3KeyRequest,
+): Uint8Array {
+  if (arguments.length !== 2) {
+    throw new NativeError(
+      "production v3 checkpoint derived-key claim accepts exactly two arguments",
+    );
+  }
+  return claimV3DerivedKey(
+    PRODUCTION_V3_KEY_REGISTRY,
+    TEST_V3_KEY_REGISTRY,
+    authorization,
+    request,
+  );
+}
+
+/** Consume one exact injected-test v3 key capability. */
+export function claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests(
+  authorization: Readonly<
+    FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<"test-only-injected-current-euid-home-key-deployment">
+  >,
+  request: FloodgateV7DeploymentTeacherCheckpointV3KeyRequest,
+): Uint8Array {
+  if (arguments.length !== 2) {
+    throw new NativeError(
+      "test v3 checkpoint derived-key claim accepts exactly two arguments",
+    );
+  }
+  return claimV3DerivedKey(
+    TEST_V3_KEY_REGISTRY,
+    PRODUCTION_V3_KEY_REGISTRY,
+    authorization,
+    request,
+  );
+}
+
+/**
+ * Idempotently discard an exact unconsumed production or test capability.
+ * Already claimed or previously discarded exact facades are harmless no-ops.
+ */
+export function discardFloodgateV7DeploymentTeacherCheckpointV3Key(
+  authorizationValue: Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization>,
+): void {
+  if (arguments.length !== 1) {
+    throw new NativeError(
+      "v3 checkpoint key discard accepts exactly one argument",
+    );
+  }
+  assertV3AuthorizationObject(authorizationValue);
+  if (
+    !hasKnownV3Authorization(PRODUCTION_V3_KEY_REGISTRY, authorizationValue) &&
+    !hasKnownV3Authorization(TEST_V3_KEY_REGISTRY, authorizationValue)
+  ) {
+    fail(
+      "capture",
+      "v3 checkpoint key discard requires an exact prepared authorization facade",
+    );
+  }
+  const cleanupFailures = [
+    discardPreparedV3Key(PRODUCTION_V3_KEY_REGISTRY, authorizationValue),
+    discardPreparedV3Key(TEST_V3_KEY_REGISTRY, authorizationValue),
+  ].filter((failure) => failure !== undefined);
+  if (cleanupFailures.length > 0) {
+    fail(
+      "cleanup",
+      "discarded v3 checkpoint derived key could not be zeroized",
+      new NativeAggregateError(cleanupFailures),
+    );
+  }
 }

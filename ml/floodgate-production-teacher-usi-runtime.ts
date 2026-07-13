@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import { TextDecoder } from "node:util";
+import { TextDecoder, types as nodeUtilTypes } from "node:util";
 
 import {
   FLOODGATE_PRODUCTION_TEACHER_ASSET_ROOT_RELATIVE_COMPONENTS,
@@ -246,6 +246,15 @@ const MAX_LEGAL_MOVES = 593;
 const MODE_MASK = BigInt(0o7777);
 const FILE_TYPE_MASK = BigInt(0o170000);
 const FILE_TYPE_REGULAR = BigInt(0o100000);
+const SHA256_RE = /^[0-9a-f]{64}$/;
+const TEACHER_RUNTIME_RECEIPT_DIGEST_DOMAIN =
+  "shogi-floodgate-v7-runtime-receipt-v1\0";
+const NativeWeakMap = WeakMap;
+const nativeReflectApply = Reflect.apply;
+const nativeWeakMapGet = WeakMap.prototype.get;
+const nativeWeakMapSet = WeakMap.prototype.set;
+const PRODUCTION_RUNTIME_RECEIPT_DIGESTS = new NativeWeakMap<object, string>();
+const TEST_RUNTIME_RECEIPT_DIGESTS = new NativeWeakMap<object, string>();
 
 interface RuntimeConfiguration {
   readonly engineCount: number;
@@ -289,6 +298,64 @@ function runtimeFailure(
     message.slice(0, 512),
     primary,
   );
+}
+
+function canonicalRuntimeReceiptJson(value: unknown): string {
+  if (value === null || typeof value === "string" || typeof value === "boolean")
+    return JSON.stringify(value);
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || Object.is(value, -0))
+      throw new Error(
+        "runtime receipt canonical JSON rejects non-finite numbers and negative zero",
+      );
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value))
+    return `[${value.map(canonicalRuntimeReceiptJson).join(",")}]`;
+  if (typeof value !== "object")
+    throw new Error("runtime receipt canonical JSON rejects this value");
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort((left, right) =>
+      Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")),
+    )
+    .map(
+      (key) =>
+        `${JSON.stringify(key)}:${canonicalRuntimeReceiptJson(record[key])}`,
+    )
+    .join(",")}}`;
+}
+
+function teacherRuntimeReceiptDigest(value: unknown): string {
+  return createHash("sha256")
+    .update(TEACHER_RUNTIME_RECEIPT_DIGEST_DOMAIN, "utf8")
+    .update(canonicalRuntimeReceiptJson(value), "utf8")
+    .digest("hex");
+}
+
+function exactRegisteredRuntimeDigest(
+  value: unknown,
+  registry: WeakMap<object, string>,
+  label: string,
+): string {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    nodeUtilTypes.isProxy(value)
+  )
+    throw runtimeFailure(
+      "capture",
+      new Error(`${label} must be an exact runtime facade`),
+    );
+  const digest = nativeReflectApply(nativeWeakMapGet, registry, [
+    value,
+  ]) as unknown;
+  if (typeof digest !== "string" || !SHA256_RE.test(digest))
+    throw runtimeFailure(
+      "capture",
+      new Error(`${label} was not issued by the matching runtime factory`),
+    );
+  return digest;
 }
 
 function boundedInteger(
@@ -1718,7 +1785,74 @@ function createPublicPoolFacade<
       configurable: false,
     },
   });
-  return Object.freeze(facade);
+  const frozenFacade = Object.freeze(facade);
+  const digest = teacherRuntimeReceiptDigest(implementation.receipt);
+  if (!SHA256_RE.test(digest))
+    throw runtimeFailure(
+      "capture",
+      new Error("runtime receipt digest must be 32 bytes of lowercase hex"),
+    );
+  if (
+    implementation.receipt.execution_boundary ===
+    "production-fixed-assets-and-runtime-dependencies"
+  ) {
+    nativeReflectApply(nativeWeakMapSet, PRODUCTION_RUNTIME_RECEIPT_DIGESTS, [
+      frozenFacade,
+      digest,
+    ]);
+  } else if (
+    implementation.receipt.execution_boundary ===
+    "test-only-injected-asset-root-and-runtime-dependencies"
+  ) {
+    nativeReflectApply(nativeWeakMapSet, TEST_RUNTIME_RECEIPT_DIGESTS, [
+      frozenFacade,
+      digest,
+    ]);
+  } else {
+    throw runtimeFailure(
+      "capture",
+      new Error("runtime facade has an unsupported execution boundary"),
+    );
+  }
+  return frozenFacade;
+}
+
+/**
+ * Return the receipt digest only for the exact facade minted by the fixed
+ * production factory. A copied receipt or structurally identical facade has
+ * no production-origin authority.
+ */
+export function getFloodgateProductionTeacherUsiRuntimeReceiptDigest(
+  runtime: FloodgateProductionTeacherUsiPool<"production-fixed-assets-and-runtime-dependencies">,
+): string {
+  if (arguments.length !== 1)
+    throw runtimeFailure(
+      "capture",
+      new Error(
+        "production runtime digest authority accepts exactly one argument",
+      ),
+    );
+  return exactRegisteredRuntimeDigest(
+    runtime,
+    PRODUCTION_RUNTIME_RECEIPT_DIGESTS,
+    "production teacher runtime",
+  );
+}
+
+/** Test-only registry, deliberately disjoint from production authority. */
+export function getFloodgateProductionTeacherUsiRuntimeReceiptDigestCoreForTests(
+  runtime: FloodgateProductionTeacherUsiPool<"test-only-injected-asset-root-and-runtime-dependencies">,
+): string {
+  if (arguments.length !== 1)
+    throw runtimeFailure(
+      "capture",
+      new Error("test runtime digest authority accepts exactly one argument"),
+    );
+  return exactRegisteredRuntimeDigest(
+    runtime,
+    TEST_RUNTIME_RECEIPT_DIGESTS,
+    "test-only teacher runtime",
+  );
 }
 
 interface InternalDependencies<

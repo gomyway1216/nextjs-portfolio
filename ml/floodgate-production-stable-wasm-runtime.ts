@@ -92,10 +92,14 @@ const NativePromise = Promise;
 const NativeUint8Array = Uint8Array;
 const NativeError = Error;
 const NativeAggregateError = AggregateError;
+const NativeWeakMap = WeakMap;
+const nativeReflectApply = Reflect.apply;
 const bufferCompare = Buffer.compare.bind(Buffer);
 const bufferFrom = Buffer.from.bind(Buffer);
 const nativePromisePrototype = Promise.prototype;
 const nativePromiseThen = Promise.prototype.then;
+const nativeWeakMapGet = WeakMap.prototype.get;
+const nativeWeakMapSet = WeakMap.prototype.set;
 const typedArrayPrototype = Object.getPrototypeOf(Uint8Array.prototype);
 const typedArrayBufferGetter = Object.getOwnPropertyDescriptor(
   typedArrayPrototype,
@@ -270,6 +274,9 @@ export interface FloodgateProductionStableWasmRuntime<
   readonly close: () => Promise<void>;
 }
 
+const PRODUCTION_RUNTIME_RECEIPT_DIGESTS = new NativeWeakMap<object, string>();
+const TEST_RUNTIME_RECEIPT_DIGESTS = new NativeWeakMap<object, string>();
+
 type TestAssetProvider = <TResult>(
   callback: FloodgateProductionStableRuntimeAssetsCallback<
     TResult,
@@ -317,6 +324,53 @@ interface CapturedRuntimeAssets {
 
 function fail(message: string): never {
   throw new NativeError(`invalid production stable-WASM runtime: ${message}`);
+}
+
+function runtimeReceiptDigestRegistry(
+  boundary: FloodgateProductionStableWasmRuntimeExecutionBoundary,
+): WeakMap<object, string> {
+  return boundary === "production-fixed-asset-authority-and-reusable-pool"
+    ? PRODUCTION_RUNTIME_RECEIPT_DIGESTS
+    : TEST_RUNTIME_RECEIPT_DIGESTS;
+}
+
+function registerRuntimeReceiptDigest(
+  runtime: object,
+  boundary: FloodgateProductionStableWasmRuntimeExecutionBoundary,
+  digest: string,
+): void {
+  if (!SHA256_RE.test(digest)) {
+    fail("runtime receipt digest must be 32 bytes of lowercase hex");
+  }
+  nativeReflectApply(nativeWeakMapSet, runtimeReceiptDigestRegistry(boundary), [
+    runtime,
+    digest,
+  ]);
+}
+
+function requireRuntimeReceiptDigest(
+  runtime: unknown,
+  registry: WeakMap<object, string>,
+  boundary: "production" | "test-only",
+): string {
+  if (
+    runtime === null ||
+    typeof runtime !== "object" ||
+    nodeUtilTypes.isProxy(runtime)
+  ) {
+    fail(
+      `${boundary} receipt digest authority requires an exact factory-issued runtime facade`,
+    );
+  }
+  const digest = nativeReflectApply(nativeWeakMapGet, registry, [
+    runtime,
+  ]) as unknown;
+  if (typeof digest !== "string" || !SHA256_RE.test(digest)) {
+    fail(
+      `${boundary} receipt digest authority requires an exact factory-issued runtime facade`,
+    );
+  }
+  return digest;
 }
 
 function runtimeFailure(
@@ -1399,7 +1453,10 @@ function createFacade<
     readonly receiptSha256: string;
   },
   receipt: Readonly<FloodgateProductionStableWasmRuntimeReceipt<TBoundary>>,
-): FloodgateProductionStableWasmRuntime<TBoundary> {
+): Readonly<{
+  readonly facade: FloodgateProductionStableWasmRuntime<TBoundary>;
+  readonly runtimeReceiptSha256: string;
+}> {
   const runtimeReceiptSha256 = digestCanonical(
     RUNTIME_RECEIPT_DIGEST_DOMAIN,
     receipt,
@@ -1473,7 +1530,10 @@ function createFacade<
       return rejectedNativePromise<void>(runtimeFailure("cleanup", primary));
     }
   });
-  return frozenRecord({ receipt, propose, close });
+  return frozenRecord({
+    facade: frozenRecord({ receipt, propose, close }),
+    runtimeReceiptSha256,
+  });
 }
 
 async function createRuntimeInternal<
@@ -1495,6 +1555,7 @@ async function createRuntimeInternal<
   let phase: FloodgateProductionStableWasmRuntimePhase = "asset-authority";
   let callbackResult:
     FloodgateProductionStableWasmRuntime<TBoundary> | undefined;
+  let callbackRuntimeReceiptSha256: string | undefined;
   let createdPoolClose:
     FloodgateStableWasmReusableProposalPool["close"] | undefined;
   try {
@@ -1540,10 +1601,11 @@ async function createRuntimeInternal<
               assets,
               pool.receiptSha256,
             );
-            const facade = createFacade(pool, receipt);
-            callbackResult = facade;
+            const created = createFacade(pool, receipt);
+            callbackResult = created.facade;
+            callbackRuntimeReceiptSha256 = created.runtimeReceiptSha256;
             phase = "asset-authority";
-            return facade;
+            return created.facade;
           } catch (primary) {
             operationFailure = primary;
             throw primary;
@@ -1563,10 +1625,22 @@ async function createRuntimeInternal<
       ]),
       "asset provider",
     );
-    if (callbackCount !== 1 || callbackResult === undefined)
+    if (
+      callbackCount !== 1 ||
+      callbackResult === undefined ||
+      callbackRuntimeReceiptSha256 === undefined
+    )
       fail("asset provider did not invoke its callback exactly once");
     if (providerResult !== callbackResult)
       fail("asset provider replaced the callback result");
+    // Register only after the provider returned the exact callback facade and
+    // all callback-finally zeroization completed. A facade captured from a
+    // factory invocation that ultimately rejects receives no authority.
+    registerRuntimeReceiptDigest(
+      providerResult,
+      providerResult.receipt.execution_boundary,
+      callbackRuntimeReceiptSha256,
+    );
     return providerResult;
   } catch (primary) {
     if (createdPoolClose === undefined) throw runtimeFailure(phase, primary);
@@ -1624,6 +1698,38 @@ export function createFloodgateProductionStableWasmRuntimeCoreForTests(
     assetProvider: captured.assetProvider,
     poolFactory: captured.poolFactory,
   });
+}
+
+/** Resolve the digest only for the exact facade issued by the test factory. */
+export function getFloodgateProductionStableWasmRuntimeReceiptDigestCoreForTests(
+  runtime: Readonly<
+    FloodgateProductionStableWasmRuntime<"test-only-injected-asset-provider-and-pool-factory">
+  >,
+): string {
+  if (arguments.length !== 1) {
+    fail("test-only receipt digest authority accepts exactly one argument");
+  }
+  return requireRuntimeReceiptDigest(
+    runtime,
+    TEST_RUNTIME_RECEIPT_DIGESTS,
+    "test-only",
+  );
+}
+
+/** Resolve the digest only for the exact facade issued by the production factory. */
+export function getFloodgateProductionStableWasmRuntimeReceiptDigest(
+  runtime: Readonly<
+    FloodgateProductionStableWasmRuntime<"production-fixed-asset-authority-and-reusable-pool">
+  >,
+): string {
+  if (arguments.length !== 1) {
+    fail("production receipt digest authority accepts exactly one argument");
+  }
+  return requireRuntimeReceiptDigest(
+    runtime,
+    PRODUCTION_RUNTIME_RECEIPT_DIGESTS,
+    "production",
+  );
 }
 
 /** Create the fixed production stable-WASM capability. No injection is accepted. */

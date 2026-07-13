@@ -20,6 +20,8 @@ import {
   FloodgateProductionTeacherUsiRuntimeError,
   createFloodgateProductionTeacherUsiRuntime,
   createFloodgateProductionTeacherUsiRuntimeCoreForTests,
+  getFloodgateProductionTeacherUsiRuntimeReceiptDigest,
+  getFloodgateProductionTeacherUsiRuntimeReceiptDigestCoreForTests,
 } from "../../../ml/floodgate-production-teacher-usi-runtime";
 import * as productionTeacherUsiRuntime from "../../../ml/floodgate-production-teacher-usi-runtime";
 
@@ -69,6 +71,20 @@ function effectiveUserId(): number {
 
 function sha256(value: string | Uint8Array): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value === "string" || typeof value === "boolean")
+    return JSON.stringify(value);
+  if (typeof value === "number") return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort((left, right) =>
+      Buffer.compare(Buffer.from(left, "utf8"), Buffer.from(right, "utf8")),
+    )
+    .map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+    .join(",")}}`;
 }
 
 function identity(bytes: Uint8Array): Readonly<{
@@ -438,6 +454,135 @@ posixDescribe("Floodgate production teacher USI runtime", () => {
     const source = await fs.promises.readFile(RUNTIME_SOURCE, "utf8");
     expect(source).not.toContain("os.tmpdir()");
     expect(source).toContain("shogi-production-teacher-runtime-v1");
+  });
+
+  it("authorizes a receipt digest only for the exact factory-issued facade without searching", async () => {
+    expect(getFloodgateProductionTeacherUsiRuntimeReceiptDigest).toHaveLength(
+      1,
+    );
+    expect(
+      getFloodgateProductionTeacherUsiRuntimeReceiptDigestCoreForTests,
+    ).toHaveLength(1);
+    const value = await syntheticAssets();
+    const pool = await createFloodgateProductionTeacherUsiRuntimeCoreForTests(
+      testDependencies(value),
+    );
+    try {
+      const searched = () =>
+        parseTrace(value.trace).some(
+          (event) =>
+            event.event === "stdin" &&
+            typeof event.line === "string" &&
+            event.line.startsWith("go depth "),
+        );
+      expect(searched()).toBe(false);
+
+      const digest =
+        getFloodgateProductionTeacherUsiRuntimeReceiptDigestCoreForTests(pool);
+      expect(digest).toMatch(/^[0-9a-f]{64}$/);
+      expect(digest).toBe(
+        sha256(
+          `shogi-floodgate-v7-runtime-receipt-v1\0${canonicalJson(pool.receipt)}`,
+        ),
+      );
+      expect(
+        getFloodgateProductionTeacherUsiRuntimeReceiptDigestCoreForTests(pool),
+      ).toBe(digest);
+      expect(searched()).toBe(false);
+
+      const clone = Object.freeze(Object.assign(Object.create(null), pool));
+      let proxyTrapCalls = 0;
+      const proxy = new Proxy(pool, {
+        get() {
+          proxyTrapCalls += 1;
+          throw new Error("runtime Proxy getter must remain unused");
+        },
+        ownKeys() {
+          proxyTrapCalls += 1;
+          throw new Error("runtime Proxy ownKeys must remain unused");
+        },
+      });
+      for (const untrusted of [clone, proxy, pool.receipt]) {
+        expect(() =>
+          Reflect.apply(
+            getFloodgateProductionTeacherUsiRuntimeReceiptDigestCoreForTests,
+            undefined,
+            [untrusted],
+          ),
+        ).toThrow(FloodgateProductionTeacherUsiRuntimeError);
+      }
+      expect(proxyTrapCalls).toBe(0);
+      expect(() =>
+        Reflect.apply(
+          getFloodgateProductionTeacherUsiRuntimeReceiptDigest,
+          undefined,
+          [pool],
+        ),
+      ).toThrow(FloodgateProductionTeacherUsiRuntimeError);
+      expect(() =>
+        Reflect.apply(
+          getFloodgateProductionTeacherUsiRuntimeReceiptDigestCoreForTests,
+          undefined,
+          [],
+        ),
+      ).toThrow(/exactly one argument/);
+      expect(() =>
+        Reflect.apply(
+          getFloodgateProductionTeacherUsiRuntimeReceiptDigestCoreForTests,
+          undefined,
+          [pool, pool],
+        ),
+      ).toThrow(/exactly one argument/);
+      expect(() =>
+        Reflect.apply(
+          getFloodgateProductionTeacherUsiRuntimeReceiptDigest,
+          undefined,
+          [pool, pool],
+        ),
+      ).toThrow(/exactly one argument/);
+
+      const reflectApplyDescriptor = Object.getOwnPropertyDescriptor(
+        Reflect,
+        "apply",
+      );
+      if (reflectApplyDescriptor === undefined) {
+        throw new Error("Reflect.apply descriptor is required");
+      }
+      const productionGetter =
+        getFloodgateProductionTeacherUsiRuntimeReceiptDigest as unknown as (
+          value: unknown,
+        ) => string;
+      let registeredWithPoisonedReflect: unknown;
+      let forgedWithPoisonedReflect: unknown;
+      try {
+        Object.defineProperty(Reflect, "apply", {
+          ...reflectApplyDescriptor,
+          value: () => "a".repeat(64),
+        });
+        registeredWithPoisonedReflect =
+          getFloodgateProductionTeacherUsiRuntimeReceiptDigestCoreForTests(
+            pool,
+          );
+        try {
+          productionGetter(Object.freeze({}));
+          forgedWithPoisonedReflect = "unexpected digest authority success";
+        } catch (failure) {
+          forgedWithPoisonedReflect = failure;
+        }
+      } finally {
+        Object.defineProperty(Reflect, "apply", reflectApplyDescriptor);
+      }
+      expect(registeredWithPoisonedReflect).toBe(digest);
+      expect(forgedWithPoisonedReflect).toBeInstanceOf(
+        FloodgateProductionTeacherUsiRuntimeError,
+      );
+      expect(String(forgedWithPoisonedReflect)).toMatch(
+        /matching runtime factory/,
+      );
+      expect(searched()).toBe(false);
+    } finally {
+      await pool.close();
+    }
   });
 
   it("uses the test-only boundary and exact fixed proposal/rescore transcript", async () => {

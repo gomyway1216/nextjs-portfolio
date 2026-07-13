@@ -1255,10 +1255,26 @@ async function authorizeMaterialInternal<
     if (primary !== undefined) throw primary;
     fail("authorization", "authorization completed without a receipt");
   }
-  return {
-    receipt: result,
-    checkpointV3DerivedKey,
-  };
+  let material: Readonly<AuthorizationMaterial<TBoundary>> | undefined;
+  try {
+    material = objectFreeze({
+      receipt: result,
+      checkpointV3DerivedKey,
+    });
+    return material;
+  } finally {
+    if (material === undefined && checkpointV3DerivedKey !== undefined) {
+      const cleanupFailure = zeroize(checkpointV3DerivedKey);
+      checkpointV3DerivedKey = undefined;
+      if (cleanupFailure !== undefined) {
+        fail(
+          "cleanup",
+          "v3 checkpoint derived key could not be zeroized after material transfer failure",
+          cleanupFailure,
+        );
+      }
+    }
+  }
 }
 
 async function authorizeInternal<
@@ -1329,19 +1345,32 @@ async function prepareV3KeyInternal<
     derivedKey === undefined ||
     derivedKey.byteLength !== FLOODGATE_V7_DEPLOYMENT_KEY_BYTES
   ) {
-    if (derivedKey !== undefined) zeroize(derivedKey);
+    const cleanupFailure =
+      derivedKey === undefined ? undefined : zeroize(derivedKey);
+    if (cleanupFailure !== undefined) {
+      fail(
+        "cleanup",
+        "invalid v3 checkpoint derived key could not be zeroized",
+        cleanupFailure,
+      );
+    }
     fail("authorization", "v3 checkpoint derived key was not prepared");
   }
-  const authorization = frozenRecord({
-    contract: FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CONTRACT,
-    status: FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_STATUS,
-    claim_boundary:
-      FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CLAIM_BOUNDARY,
-    gate: request.gate,
-    authorization: material.receipt,
-  });
+  let authorization:
+    | Readonly<
+        FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization<TBoundary>
+      >
+    | undefined;
   let transferred = false;
   try {
+    authorization = frozenRecord({
+      contract: FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CONTRACT,
+      status: FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_STATUS,
+      claim_boundary:
+        FLOODGATE_V7_DEPLOYMENT_TEACHER_CHECKPOINT_V3_KEY_CLAIM_BOUNDARY,
+      gate: request.gate,
+      authorization: material.receipt,
+    });
     reflectApply(nativeWeakSetAdd, registry.known, [authorization]);
     reflectApply(nativeWeakMapSet, registry.prepared, [
       authorization,
@@ -1354,8 +1383,10 @@ async function prepareV3KeyInternal<
     return authorization;
   } finally {
     if (!transferred) {
-      reflectApply(nativeWeakMapDelete, registry.prepared, [authorization]);
-      reflectApply(nativeWeakSetDelete, registry.known, [authorization]);
+      if (authorization !== undefined) {
+        reflectApply(nativeWeakMapDelete, registry.prepared, [authorization]);
+        reflectApply(nativeWeakSetDelete, registry.known, [authorization]);
+      }
       const cleanupFailure = zeroize(derivedKey);
       if (cleanupFailure !== undefined) {
         fail(

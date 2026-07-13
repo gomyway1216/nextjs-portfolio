@@ -26,6 +26,7 @@ import {
 } from "../../../ml/floodgate-teacher-stage-authorization";
 import {
   FLOODGATE_TRAINING_RAW_FILENAME,
+  claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests,
   withVerifiedPinnedFloodgateTrainingRowsCoreForTests,
   type AuthenticatedFloodgateTrainingRows,
   type FloodgateTrainingParent,
@@ -926,7 +927,8 @@ function deploymentV3KeyRequest(
   return {
     runId: options.runId,
     keyId: deploymentKeyAuthority.FLOODGATE_V7_DEPLOYMENT_KEY_ID,
-    runBinding: binding as never,
+    runBinding:
+      binding as deploymentKeyAuthority.FloodgateV7DeploymentTeacherRunBinding,
     stageAuthorizationReceipt: lease.receipt,
     gate: options.gate,
   };
@@ -3410,46 +3412,44 @@ describe("Floodgate v7 teacher parent checkpoint", () => {
             [lease, input, binding, controller, options, authorization],
           ),
         ).toThrow(/exactly seven arguments/);
+        const wrongBoundary = checkpointFloodgateV7TeacherParentsV3(
+          lease,
+          input,
+          binding,
+          controller,
+          options,
+          authorization as never,
+        );
+        claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(input);
+        await expect(wrongBoundary).rejects.toThrow(
+          /production runtime claim requires the exact active unclaimed lease/,
+        );
         expect(() =>
-          checkpointFloodgateV7TeacherParentsV3(
-            lease,
-            input,
-            binding,
-            controller,
-            options,
-            authorization as never,
-          ),
-        ).toThrow(/production runtime claim requires/);
-        expect(() =>
-          deploymentKeyAuthority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKey(
-            authorization as never,
+          deploymentKeyAuthority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests(
+            authorization,
             request,
           ),
-        ).toThrow(/belongs to the test-only boundary/);
-
-        await expect(
-          checkpointFloodgateV7TeacherParentsV3WithDeploymentKeyCoreForTests(
-            lease,
-            input,
-            binding,
-            controller,
-            options,
-            authorization,
-            { effectiveUserId: effectiveUserId() },
-          ),
-        ).rejects.toThrow(/exact full 24000-parent training input/);
+        ).toThrow(/already consumed or discarded/);
+        await lease.close();
       },
       trainingDependencies(value.training.identity),
     );
 
-    expect(() =>
-      deploymentKeyAuthority.claimFloodgateV7DeploymentTeacherCheckpointV3DerivedKeyCoreForTests(
-        authorization,
-        request,
+    const shortStage = await siblingStageFixture(
+      value,
+      "deployment-key-short-input",
+    );
+    await expect(
+      runDeploymentV3Checkpoint(
+        shortStage,
+        deployment,
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+        controller.produce,
       ),
-    ).toThrow(/already consumed or discarded/);
+    ).rejects.toThrow(/exact full 24000-parent training input/);
     expect(producerCalls).toBe(0);
     expect(fs.existsSync(workPath(value))).toBe(false);
+    expect(fs.existsSync(workPath(shortStage))).toBe(false);
   });
 
   it("rejects short authenticated input at every v3 gate before creating work or producing", async () => {

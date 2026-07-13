@@ -72,9 +72,11 @@ const STABLE_RUNTIME_ROW_DIGEST_DOMAIN =
   "shogi-floodgate-production-stable-runtime-row-v1\0";
 const OVERSIZED_CAPTURE_ENTRY_COUNT = 100_001;
 const nativeArrayPush = Array.prototype.push;
+const nativeClearTimeout = clearTimeout;
 const nativeObjectDefineProperty = Object.defineProperty;
 const nativePromiseThen = Promise.prototype.then;
 const nativeReflectApply = Reflect.apply;
+const nativeSetTimeout = setTimeout;
 
 type StableRuntime = Awaited<
   ReturnType<
@@ -1591,6 +1593,11 @@ describe("Floodgate v7 production parent coordinator", () => {
       writable: false,
       value: Promise,
     });
+    let fallbackRestored = false;
+    const restoreTimer = nativeSetTimeout(() => {
+      fallbackRestored = true;
+      restore();
+    }, 1_000);
     let result: Awaited<ReturnType<typeof coordinator.produce>> | undefined;
     let failure: unknown;
     let settled = false;
@@ -1598,12 +1605,14 @@ describe("Floodgate v7 production parent coordinator", () => {
       (value: Awaited<ReturnType<typeof coordinator.produce>>) => {
         result = value;
         settled = true;
+        nativeClearTimeout(restoreTimer);
         restore();
         completeTurn();
       },
       (reason: unknown) => {
         failure = reason;
         settled = true;
+        nativeClearTimeout(restoreTimer);
         restore();
         completeTurn();
       },
@@ -1627,10 +1636,12 @@ describe("Floodgate v7 production parent coordinator", () => {
     try {
       await turn;
     } finally {
+      nativeClearTimeout(restoreTimer);
       restore();
     }
 
     expect(trapCalls).toBe(0);
+    expect(fallbackRestored).toBe(false);
     expect(settled).toBe(true);
     expect(failure).toBeUndefined();
     expect(result).toBeDefined();

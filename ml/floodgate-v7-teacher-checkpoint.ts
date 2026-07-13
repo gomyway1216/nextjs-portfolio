@@ -780,8 +780,13 @@ function copyExactOwned32ByteKey(value: unknown, label: string): Buffer {
     failure(`${label} must own exactly one non-shared 32-byte buffer`);
   }
   const copied = Buffer.alloc(32);
-  reflectApply(nativeTypedArraySet, copied, [value, 0]);
-  return copied;
+  try {
+    reflectApply(nativeTypedArraySet, copied, [value, 0]);
+    return copied;
+  } catch (cause) {
+    zeroBytes(copied);
+    return failure(`${label} could not be copied`, cause);
+  }
 }
 
 function persistenceFailure(message: string, cause: unknown): never {
@@ -4652,6 +4657,7 @@ async function discardKeyAndCloseAfterCaptureFailure(
   lease: Readonly<FloodgateTeacherStageLease>,
   authorization: Readonly<FloodgateV7DeploymentTeacherCheckpointV3KeyAuthorization>,
   primary: unknown,
+  closeLease: boolean,
 ): Promise<never> {
   let discardFailure: unknown;
   let closeFailure: unknown;
@@ -4660,10 +4666,12 @@ async function discardKeyAndCloseAfterCaptureFailure(
   } catch (cause) {
     discardFailure = cause;
   }
-  try {
-    await lease.close();
-  } catch (cause) {
-    closeFailure = cause;
+  if (closeLease) {
+    try {
+      await lease.close();
+    } catch (cause) {
+      closeFailure = cause;
+    }
   }
   if (discardFailure !== undefined || closeFailure !== undefined) {
     failure(
@@ -4691,10 +4699,14 @@ function checkpointV3WithDeploymentKey<
   claimTraining: (input: Readonly<AuthenticatedFloodgateTrainingRows>) => void,
   claimKey: DeploymentV3KeyClaim<TBoundary>,
 ): Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> {
-  claimStage(lease);
+  // Invoking the sink transfers the key capability immediately. The lease
+  // remains caller-owned until the exact production/test registry claim wins.
+  let stageClaimed = false;
   let executionKey: Buffer | undefined;
   let invocation: CapturedV3Invocation;
   try {
+    claimStage(lease);
+    stageClaimed = true;
     claimTraining(authenticatedTrainingRows);
     const captured = captureV3InvocationArguments(
       lease,
@@ -4737,7 +4749,12 @@ function checkpointV3WithDeploymentKey<
     executionKey = undefined;
   } catch (cause) {
     if (executionKey !== undefined) zeroBytes(executionKey);
-    return discardKeyAndCloseAfterCaptureFailure(lease, authorization, cause);
+    return discardKeyAndCloseAfterCaptureFailure(
+      lease,
+      authorization,
+      cause,
+      stageClaimed,
+    );
   }
   return executeV3AndClose(invocation);
 }

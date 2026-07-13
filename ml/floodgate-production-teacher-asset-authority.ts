@@ -6,13 +6,18 @@
  * dataset, create a teacher label, train a model, or establish playing strength.
  */
 
+import { Buffer } from "node:buffer";
 import { createHash } from "node:crypto";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { types as nodeUtilTypes } from "node:util";
+import { markAsUntransferable } from "node:worker_threads";
 
 import { SHOGI_WASM_BASE64 } from "../src/components/game/ShogiImproved/wasm/shogiWasmBase64";
+
+const NATIVE_ERROR = Error;
+const NATIVE_AGGREGATE_ERROR = AggregateError;
 
 export const FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CONTRACT =
   "shogi-floodgate-production-teacher-asset-authority-v1" as const;
@@ -90,9 +95,14 @@ export interface FloodgateProductionTeacherAssetAuthorityDependencies {
 }
 
 export type FloodgateProductionTeacherAssetAuthorityPhase =
-  "capture" | "namespace" | "asset-read" | "receipt" | "revalidation";
+  | "capture"
+  | "namespace"
+  | "asset-read"
+  | "receipt"
+  | "revalidation"
+  | "callback";
 
-export class FloodgateProductionTeacherAssetAuthorityError extends Error {
+export class FloodgateProductionTeacherAssetAuthorityError extends NATIVE_ERROR {
   readonly phase: FloodgateProductionTeacherAssetAuthorityPhase;
   readonly primary: unknown;
 
@@ -170,6 +180,37 @@ export interface FloodgateProductionTeacherAssetAuthorityReceipt<
     readonly contents_stably_read: true;
   }>;
 }
+
+/**
+ * Ephemeral, authority-owned stable-runtime byte copies. The containing plain
+ * records are frozen; the byte leaves deliberately remain mutable so they can
+ * be consumed by a worker initializer and then zero-filled by this authority.
+ */
+export interface FloodgateProductionStableRuntimeAssetBytes {
+  readonly wasm: Uint8Array;
+  readonly weights: Uint8Array;
+  readonly worker: Uint8Array;
+}
+
+export interface FloodgateProductionStableRuntimeAssets<
+  TExecutionBoundary extends
+    FloodgateProductionTeacherAssetAuthorityExecutionBoundary =
+    FloodgateProductionTeacherAssetAuthorityExecutionBoundary,
+> {
+  readonly receipt: Readonly<
+    FloodgateProductionTeacherAssetAuthorityReceipt<TExecutionBoundary>
+  >;
+  readonly bytes: Readonly<FloodgateProductionStableRuntimeAssetBytes>;
+}
+
+export type FloodgateProductionStableRuntimeAssetsCallback<
+  TResult,
+  TExecutionBoundary extends
+    FloodgateProductionTeacherAssetAuthorityExecutionBoundary =
+    FloodgateProductionTeacherAssetAuthorityExecutionBoundary,
+> = (
+  assets: Readonly<FloodgateProductionStableRuntimeAssets<TExecutionBoundary>>,
+) => Promise<TResult>;
 
 interface CapturedDependencies {
   readonly effectiveUserId: number;
@@ -276,7 +317,7 @@ export const FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY: FloodgateProductionTea
   });
 
 function fail(message: string): never {
-  throw new Error(message);
+  throw new NATIVE_ERROR(message);
 }
 
 function frozenRecord<T extends object>(value: T): Readonly<T> {
@@ -661,6 +702,7 @@ async function inspectDirectory(
 
 function assetSpecifications(
   registry: Readonly<FloodgateProductionTeacherExpectedAssetRegistry>,
+  retainStableRuntimeBytes: boolean,
 ): readonly AssetSpecification[] {
   return Object.freeze([
     frozenRecord({
@@ -703,14 +745,14 @@ function assetSpecifications(
       relativePath: "stable/shogi-nnue-weights.bin",
       expected: registry.stable.weights,
       mode: 0o600 as const,
-      retainBytes: false,
+      retainBytes: retainStableRuntimeBytes,
     }),
     frozenRecord({
       key: "stable.worker" as const,
       relativePath: "stable/floodgate-stable-wasm-worker.mjs",
       expected: registry.stable.worker,
       mode: 0o600 as const,
-      retainBytes: false,
+      retainBytes: retainStableRuntimeBytes,
     }),
   ]);
 }
@@ -1041,6 +1083,182 @@ function failureDetail(value: unknown): string {
   return "non-message failure";
 }
 
+const INTRINSIC_OBJECT_GET_PROTOTYPE_OF = Object.getPrototypeOf;
+const INTRINSIC_REFLECT_APPLY = Reflect.apply;
+const INTRINSIC_REFLECT_OWN_KEYS = Reflect.ownKeys;
+const NATIVE_PROMISE_PROTOTYPE = Promise.prototype;
+const UINT8_ARRAY_CONSTRUCTOR = Uint8Array;
+const ARRAY_BUFFER_BYTE_LENGTH_GETTER = Object.getOwnPropertyDescriptor(
+  ArrayBuffer.prototype,
+  "byteLength",
+)?.get;
+const TYPED_ARRAY_PROTOTYPE = INTRINSIC_OBJECT_GET_PROTOTYPE_OF(
+  Uint8Array.prototype,
+);
+const TYPED_ARRAY_BUFFER_GETTER = Object.getOwnPropertyDescriptor(
+  TYPED_ARRAY_PROTOTYPE,
+  "buffer",
+)?.get;
+const TYPED_ARRAY_BYTE_LENGTH_GETTER = Object.getOwnPropertyDescriptor(
+  TYPED_ARRAY_PROTOTYPE,
+  "byteLength",
+)?.get;
+const TYPED_ARRAY_BYTE_OFFSET_GETTER = Object.getOwnPropertyDescriptor(
+  TYPED_ARRAY_PROTOTYPE,
+  "byteOffset",
+)?.get;
+const TYPED_ARRAY_FILL = Uint8Array.prototype.fill;
+const TYPED_ARRAY_SET = Uint8Array.prototype.set;
+
+function typedArrayBuffer(value: Uint8Array): ArrayBufferLike {
+  if (TYPED_ARRAY_BUFFER_GETTER === undefined) {
+    return fail("the Uint8Array buffer intrinsic is unavailable");
+  }
+  return INTRINSIC_REFLECT_APPLY(
+    TYPED_ARRAY_BUFFER_GETTER,
+    value,
+    [],
+  ) as ArrayBufferLike;
+}
+
+function typedArrayByteLength(value: Uint8Array): number {
+  if (TYPED_ARRAY_BYTE_LENGTH_GETTER === undefined) {
+    return fail("the Uint8Array byteLength intrinsic is unavailable");
+  }
+  return INTRINSIC_REFLECT_APPLY(
+    TYPED_ARRAY_BYTE_LENGTH_GETTER,
+    value,
+    [],
+  ) as number;
+}
+
+function typedArrayByteOffset(value: Uint8Array): number {
+  if (TYPED_ARRAY_BYTE_OFFSET_GETTER === undefined) {
+    return fail("the Uint8Array byteOffset intrinsic is unavailable");
+  }
+  return INTRINSIC_REFLECT_APPLY(
+    TYPED_ARRAY_BYTE_OFFSET_GETTER,
+    value,
+    [],
+  ) as number;
+}
+
+function ownedArrayBufferByteLength(value: ArrayBufferLike): number {
+  if (ARRAY_BUFFER_BYTE_LENGTH_GETTER === undefined) {
+    return fail("the ArrayBuffer byteLength intrinsic is unavailable");
+  }
+  return INTRINSIC_REFLECT_APPLY(
+    ARRAY_BUFFER_BYTE_LENGTH_GETTER,
+    value,
+    [],
+  ) as number;
+}
+
+function exactNativePromise(value: unknown): value is Promise<unknown> {
+  if (
+    value === null ||
+    (typeof value !== "object" && typeof value !== "function") ||
+    nodeUtilTypes.isProxy(value) ||
+    !nodeUtilTypes.isPromise(value)
+  ) {
+    return false;
+  }
+  try {
+    return (
+      INTRINSIC_OBJECT_GET_PROTOTYPE_OF(value) === NATIVE_PROMISE_PROTOTYPE &&
+      INTRINSIC_REFLECT_OWN_KEYS(value).length === 0
+    );
+  } catch {
+    return false;
+  }
+}
+
+function ownedStableRuntimeByteCopy(
+  source: Buffer,
+  expected: Readonly<FloodgateProductionTeacherExpectedAssetIdentity>,
+  label: string,
+): Uint8Array {
+  if (
+    source.byteLength !== expected.bytes ||
+    createHash("sha256").update(source).digest("hex") !== expected.sha256
+  ) {
+    fail(`${label} retained bytes lost their pinned identity`);
+  }
+  const copy = new UINT8_ARRAY_CONSTRUCTOR(expected.bytes);
+  INTRINSIC_REFLECT_APPLY(TYPED_ARRAY_SET, copy, [source]);
+  markAsUntransferable(typedArrayBuffer(copy));
+  return copy;
+}
+
+function assertStableRuntimeByteCopy(
+  bytes: Uint8Array,
+  expected: Readonly<FloodgateProductionTeacherExpectedAssetIdentity>,
+  label: string,
+): void {
+  const backing = typedArrayBuffer(bytes);
+  if (
+    typedArrayByteLength(bytes) !== expected.bytes ||
+    typedArrayByteOffset(bytes) !== 0 ||
+    ownedArrayBufferByteLength(backing) !== expected.bytes ||
+    createHash("sha256").update(bytes).digest("hex") !== expected.sha256
+  ) {
+    fail(`${label} callback bytes changed or lost their owned exact identity`);
+  }
+}
+
+interface TrackedEphemeralBytes {
+  readonly bytes: Uint8Array;
+  readonly expectedBytes: number;
+}
+
+function zeroizeEphemeralBytes(
+  retained: readonly Readonly<TrackedEphemeralBytes>[],
+  delivered: readonly Readonly<TrackedEphemeralBytes>[],
+): unknown | undefined {
+  let firstFailure: unknown;
+  const zeroizeGroup = (
+    tracked: readonly Readonly<TrackedEphemeralBytes>[],
+  ): void => {
+    for (let entryIndex = 0; entryIndex < tracked.length; entryIndex += 1) {
+      const entry = tracked[entryIndex];
+      if (entry === undefined) {
+        firstFailure ??= new NATIVE_ERROR(
+          "ephemeral runtime asset tracking became sparse",
+        );
+        continue;
+      }
+      let length = -1;
+      try {
+        length = typedArrayByteLength(entry.bytes);
+      } catch (failure) {
+        firstFailure ??= failure;
+      }
+      if (length !== entry.expectedBytes) {
+        firstFailure ??= new NATIVE_ERROR(
+          "an ephemeral runtime asset byte buffer was detached or resized",
+        );
+      }
+      try {
+        INTRINSIC_REFLECT_APPLY(TYPED_ARRAY_FILL, entry.bytes, [0]);
+        if (length >= 0) {
+          for (let index = 0; index < length; index += 1) {
+            if (entry.bytes[index] !== 0) {
+              fail(
+                "an ephemeral runtime asset byte buffer was not zero-filled",
+              );
+            }
+          }
+        }
+      } catch (failure) {
+        firstFailure ??= failure;
+      }
+    }
+  };
+  zeroizeGroup(retained);
+  zeroizeGroup(delivered);
+  return firstFailure;
+}
+
 async function verifyPinnedFloodgateProductionTeacherAssetsInternal<
   TExecutionBoundary extends
     FloodgateProductionTeacherAssetAuthorityExecutionBoundary,
@@ -1049,13 +1267,52 @@ async function verifyPinnedFloodgateProductionTeacherAssetsInternal<
   rootValue: string,
   dependenciesValue: FloodgateProductionTeacherAssetAuthorityDependencies,
   executionBoundary: TExecutionBoundary,
+  callbackValue: null,
 ): Promise<
   Readonly<FloodgateProductionTeacherAssetAuthorityReceipt<TExecutionBoundary>>
-> {
+>;
+async function verifyPinnedFloodgateProductionTeacherAssetsInternal<
+  TExecutionBoundary extends
+    FloodgateProductionTeacherAssetAuthorityExecutionBoundary,
+  TResult,
+>(
+  expectedRegistryValue: FloodgateProductionTeacherExpectedAssetRegistry,
+  rootValue: string,
+  dependenciesValue: FloodgateProductionTeacherAssetAuthorityDependencies,
+  executionBoundary: TExecutionBoundary,
+  callbackValue: FloodgateProductionStableRuntimeAssetsCallback<
+    TResult,
+    TExecutionBoundary
+  >,
+): Promise<TResult>;
+async function verifyPinnedFloodgateProductionTeacherAssetsInternal(
+  expectedRegistryValue: FloodgateProductionTeacherExpectedAssetRegistry,
+  rootValue: string,
+  dependenciesValue: FloodgateProductionTeacherAssetAuthorityDependencies,
+  executionBoundary: FloodgateProductionTeacherAssetAuthorityExecutionBoundary,
+  callbackValue: FloodgateProductionStableRuntimeAssetsCallback<
+    unknown,
+    FloodgateProductionTeacherAssetAuthorityExecutionBoundary
+  > | null,
+): Promise<unknown> {
   let registry: Readonly<FloodgateProductionTeacherExpectedAssetRegistry>;
   let root: string;
   let dependencies: Readonly<CapturedDependencies>;
+  let callback: FloodgateProductionStableRuntimeAssetsCallback<
+    unknown,
+    FloodgateProductionTeacherAssetAuthorityExecutionBoundary
+  > | null;
   try {
+    callback =
+      callbackValue === null
+        ? null
+        : (nonProxyFunction(
+            callbackValue,
+            "stable runtime assets callback",
+          ) as FloodgateProductionStableRuntimeAssetsCallback<
+            unknown,
+            FloodgateProductionTeacherAssetAuthorityExecutionBoundary
+          >);
     registry = captureRegistry(expectedRegistryValue);
     root = canonicalRoot(rootValue);
     dependencies = captureDependencies(
@@ -1072,6 +1329,14 @@ async function verifyPinnedFloodgateProductionTeacherAssetsInternal<
 
   let phase: FloodgateProductionTeacherAssetAuthorityPhase = "namespace";
   const retainedBuffers: Buffer[] = [dependencies.embeddedWasmBytes];
+  const retainedEphemeralBuffers: TrackedEphemeralBytes[] = [
+    {
+      bytes: dependencies.embeddedWasmBytes,
+      expectedBytes: registry.stable.wasm.bytes,
+    },
+  ];
+  const ephemeralBuffers: TrackedEphemeralBytes[] = [];
+  let wrappedPrimary: FloodgateProductionTeacherAssetAuthorityError | undefined;
   try {
     const directories = Object.freeze([
       await inspectDirectory(root, "", dependencies.effectiveUserId),
@@ -1109,7 +1374,7 @@ async function verifyPinnedFloodgateProductionTeacherAssetsInternal<
       "stable",
     );
 
-    const specifications = assetSpecifications(registry);
+    const specifications = assetSpecifications(registry, callback !== null);
     for (const specification of specifications) {
       const assetPath = path.join(
         root,
@@ -1132,7 +1397,13 @@ async function verifyPinnedFloodgateProductionTeacherAssetsInternal<
         dependencies.effectiveUserId,
       );
       assets.push(asset);
-      if (asset.bytes !== undefined) retainedBuffers.push(asset.bytes);
+      if (asset.bytes !== undefined) {
+        retainedBuffers.push(asset.bytes);
+        retainedEphemeralBuffers.push({
+          bytes: asset.bytes,
+          expectedBytes: asset.specification.expected.bytes,
+        });
+      }
       await dependencies.afterAssetRead?.(specification.relativePath);
     }
 
@@ -1165,7 +1436,7 @@ async function verifyPinnedFloodgateProductionTeacherAssetsInternal<
     const stableWasm = readAssetByKey(assets, "stable.wasm");
     const stableWeights = readAssetByKey(assets, "stable.weights");
     const stableWorker = readAssetByKey(assets, "stable.worker");
-    return frozenRecord({
+    const authorityReceipt = frozenRecord({
       contract: FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_CONTRACT,
       status: FLOODGATE_PRODUCTION_TEACHER_ASSET_AUTHORITY_STATUS,
       claim_boundary:
@@ -1211,14 +1482,120 @@ async function verifyPinnedFloodgateProductionTeacherAssetsInternal<
         contents_stably_read: true as const,
       }),
     });
+
+    if (callback === null) return authorityReceipt;
+
+    const retainedWasm = stableWasm.bytes;
+    const retainedWeights = stableWeights.bytes;
+    const retainedWorker = stableWorker.bytes;
+    if (
+      retainedWasm === undefined ||
+      retainedWeights === undefined ||
+      retainedWorker === undefined
+    ) {
+      fail("stable runtime bytes were not retained for the callback");
+    }
+    const wasmCopy = ownedStableRuntimeByteCopy(
+      retainedWasm,
+      registry.stable.wasm,
+      "stable WASM",
+    );
+    ephemeralBuffers.push({
+      bytes: wasmCopy,
+      expectedBytes: registry.stable.wasm.bytes,
+    });
+    const weightsCopy = ownedStableRuntimeByteCopy(
+      retainedWeights,
+      registry.stable.weights,
+      "stable weights",
+    );
+    ephemeralBuffers.push({
+      bytes: weightsCopy,
+      expectedBytes: registry.stable.weights.bytes,
+    });
+    const workerCopy = ownedStableRuntimeByteCopy(
+      retainedWorker,
+      registry.stable.worker,
+      "stable worker",
+    );
+    ephemeralBuffers.push({
+      bytes: workerCopy,
+      expectedBytes: registry.stable.worker.bytes,
+    });
+    const callbackAssets = frozenRecord({
+      receipt: authorityReceipt,
+      bytes: frozenRecord({
+        wasm: wasmCopy,
+        weights: weightsCopy,
+        worker: workerCopy,
+      }),
+    });
+
+    phase = "callback";
+    const callbackPromise = INTRINSIC_REFLECT_APPLY(callback, undefined, [
+      callbackAssets,
+    ]) as unknown;
+    if (!exactNativePromise(callbackPromise)) {
+      fail(
+        "stable runtime assets callback must return an exact native Promise",
+      );
+    }
+    const callbackResult = await callbackPromise;
+    if (
+      callbackResult !== null &&
+      (typeof callbackResult === "object" ||
+        typeof callbackResult === "function") &&
+      nodeUtilTypes.isProxy(callbackResult)
+    ) {
+      fail("stable runtime assets callback must not resolve to a Proxy");
+    }
+    assertStableRuntimeByteCopy(wasmCopy, registry.stable.wasm, "stable WASM");
+    assertStableRuntimeByteCopy(
+      weightsCopy,
+      registry.stable.weights,
+      "stable weights",
+    );
+    assertStableRuntimeByteCopy(
+      workerCopy,
+      registry.stable.worker,
+      "stable worker",
+    );
+    phase = "revalidation";
+    await revalidate(root, directories, assets, dependencies.effectiveUserId);
+    return callbackResult;
   } catch (primary) {
-    throw new FloodgateProductionTeacherAssetAuthorityError(
+    wrappedPrimary = new FloodgateProductionTeacherAssetAuthorityError(
       phase,
       failureDetail(primary),
       primary,
     );
+    throw wrappedPrimary;
   } finally {
-    for (const buffer of retainedBuffers) buffer.fill(0);
+    if (callback === null) {
+      for (const buffer of retainedBuffers) buffer.fill(0);
+    } else {
+      const cleanupFailure = zeroizeEphemeralBytes(
+        retainedEphemeralBuffers,
+        ephemeralBuffers,
+      );
+      if (cleanupFailure !== undefined) {
+        if (wrappedPrimary !== undefined) {
+          throw new FloodgateProductionTeacherAssetAuthorityError(
+            wrappedPrimary.phase,
+            "operation and ephemeral runtime asset byte zeroization both failed",
+            new NATIVE_AGGREGATE_ERROR(
+              [wrappedPrimary, cleanupFailure],
+              "asset authority operation and cleanup both failed",
+            ),
+          );
+        }
+        throw new FloodgateProductionTeacherAssetAuthorityError(
+          "callback",
+          "ephemeral runtime asset byte zeroization failed",
+          cleanupFailure,
+        );
+      }
+    }
   }
 }
 
@@ -1237,7 +1614,63 @@ export function verifyPinnedFloodgateProductionTeacherAssetsCoreForTests(
     root,
     dependencies,
     "test-only-injected-expected-registry-and-root",
+    null,
   );
+}
+
+/**
+ * Dependency-injected seam for exercising the ephemeral stable-runtime asset
+ * handoff without opening the fixed production deployment.
+ */
+export function withVerifiedPinnedFloodgateProductionStableRuntimeAssetsCoreForTests<
+  TResult,
+>(
+  expectedRegistry: FloodgateProductionTeacherExpectedAssetRegistry,
+  root: string,
+  dependencies: FloodgateProductionTeacherAssetAuthorityDependencies,
+  callback: FloodgateProductionStableRuntimeAssetsCallback<
+    TResult,
+    "test-only-injected-expected-registry-and-root"
+  >,
+): Promise<TResult> {
+  return verifyPinnedFloodgateProductionTeacherAssetsInternal(
+    expectedRegistry,
+    root,
+    dependencies,
+    "test-only-injected-expected-registry-and-root",
+    callback,
+  );
+}
+
+interface FixedProductionAssetAuthorityInvocation {
+  readonly effectiveUserId: number;
+  readonly root: string;
+}
+
+function fixedProductionAssetAuthorityInvocation(): Readonly<FixedProductionAssetAuthorityInvocation> {
+  try {
+    if (process.platform !== "darwin" || process.arch !== "arm64") {
+      fail("the pinned APPLEM1 production assets require darwin arm64");
+    }
+    if (typeof process.geteuid !== "function") {
+      fail("POSIX effective-user identity is required");
+    }
+    const effectiveUserId = process.geteuid();
+    const user = os.userInfo();
+    if (user.uid !== effectiveUserId) {
+      fail("effective-user account lookup does not match the process EUID");
+    }
+    return frozenRecord({
+      effectiveUserId,
+      root: path.join(user.homedir, ...ROOT_RELATIVE_COMPONENTS),
+    });
+  } catch (primary) {
+    throw new FloodgateProductionTeacherAssetAuthorityError(
+      "capture",
+      failureDetail(primary),
+      primary,
+    );
+  }
 }
 
 /** Verify the fixed current-user production teacher deployment. */
@@ -1246,28 +1679,7 @@ export async function verifyPinnedFloodgateProductionTeacherAssets(): Promise<
     FloodgateProductionTeacherAssetAuthorityReceipt<"production-fixed-registry-and-deployment-root">
   >
 > {
-  let effectiveUserId: number;
-  let root: string;
-  try {
-    if (process.platform !== "darwin" || process.arch !== "arm64") {
-      fail("the pinned APPLEM1 production assets require darwin arm64");
-    }
-    if (typeof process.geteuid !== "function") {
-      fail("POSIX effective-user identity is required");
-    }
-    effectiveUserId = process.geteuid();
-    const user = os.userInfo();
-    if (user.uid !== effectiveUserId) {
-      fail("effective-user account lookup does not match the process EUID");
-    }
-    root = path.join(user.homedir, ...ROOT_RELATIVE_COMPONENTS);
-  } catch (primary) {
-    throw new FloodgateProductionTeacherAssetAuthorityError(
-      "capture",
-      failureDetail(primary),
-      primary,
-    );
-  }
+  const { effectiveUserId, root } = fixedProductionAssetAuthorityInvocation();
   return verifyPinnedFloodgateProductionTeacherAssetsInternal(
     FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY,
     root,
@@ -1276,5 +1688,33 @@ export async function verifyPinnedFloodgateProductionTeacherAssets(): Promise<
       embeddedWasmBase64: SHOGI_WASM_BASE64,
     },
     "production-fixed-registry-and-deployment-root",
+    null,
+  );
+}
+
+/**
+ * Hand fixed, revalidated production stable-runtime bytes to one asynchronous
+ * initializer. All byte copies are rechecked and zero-filled before this
+ * operation settles; no root, registry, EUID, path, or descriptor override is
+ * accepted from the caller.
+ */
+export function withVerifiedPinnedFloodgateProductionStableRuntimeAssets<
+  TResult,
+>(
+  callback: FloodgateProductionStableRuntimeAssetsCallback<
+    TResult,
+    "production-fixed-registry-and-deployment-root"
+  >,
+): Promise<TResult> {
+  const { effectiveUserId, root } = fixedProductionAssetAuthorityInvocation();
+  return verifyPinnedFloodgateProductionTeacherAssetsInternal(
+    FLOODGATE_PRODUCTION_TEACHER_ASSET_REGISTRY,
+    root,
+    {
+      effectiveUserId,
+      embeddedWasmBase64: SHOGI_WASM_BASE64,
+    },
+    "production-fixed-registry-and-deployment-root",
+    callback,
   );
 }

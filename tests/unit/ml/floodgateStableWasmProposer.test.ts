@@ -25,19 +25,27 @@ import {
 import { SHOGI_WASM_BASE64 } from "../../../src/components/game/ShogiImproved/wasm/shogiWasmBase64";
 import {
   FLOODGATE_STABLE_MATE_SCORE_MIN,
+  FLOODGATE_STABLE_REUSABLE_POOL_MAX_QUEUE_BOUND,
   FLOODGATE_STABLE_WASM_PROPOSER_STATUS,
+  FLOODGATE_STABLE_WASM_REUSABLE_POOL_CLAIM_BOUNDARY,
+  FLOODGATE_STABLE_WASM_REUSABLE_POOL_RECEIPT_SCHEMA,
+  FLOODGATE_STABLE_WASM_REUSABLE_POOL_STATUS,
   FLOODGATE_STABLE_WASM_SCORE_ENCODING,
   FLOODGATE_STABLE_WASM_SHA256,
   FLOODGATE_STABLE_WEIGHTS_SHA256,
   FLOODGATE_STABLE_WORKER_SOURCE_SHA256,
   captureFloodgateStableWasmChildRuntimeCoreForTests,
+  createFloodgateStableWasmReusableProposalPool,
+  createFloodgateStableWasmReusableProposalPoolWithSourceCoreForTests,
   generateFloodgateStableWasmProposalsCoreForTests,
   runFloodgateStableWasmWorkerPoolCoreForTests,
   runFloodgateStableWasmWorkerPoolWithSourceCoreForTests,
   type FloodgateStableWasmProposerAssets,
   type FloodgateStableWasmProposerDependencies,
   type FloodgateStableWasmProposerOptions,
+  type FloodgateStableWasmProposalRow,
   type FloodgateStableWasmRawSearchResult,
+  type FloodgateStableWasmReusableProposalPoolOptions,
   type FloodgateStableWasmSearchRequest,
   type FloodgateStableWasmSearchResultBox,
 } from "../../../ml/floodgate-stable-wasm-proposer";
@@ -66,6 +74,13 @@ const OPTIONS: FloodgateStableWasmProposerOptions = {
   workers: 1,
   startupTimeoutMilliseconds: 30_000,
   searchTimeoutMilliseconds: 30_000,
+};
+const REUSABLE_POOL_OPTIONS: FloodgateStableWasmReusableProposalPoolOptions = {
+  workers: 1,
+  queueBound: 2,
+  startupTimeoutMilliseconds: 30_000,
+  searchTimeoutMilliseconds: 30_000,
+  closeTimeoutMilliseconds: 5_000,
 };
 const TEST_CHILD_RUNTIME = captureFloodgateStableWasmChildRuntimeCoreForTests(
   process.platform,
@@ -302,6 +317,8 @@ function fakeWorkerSource(
     | "control-del"
     | "large-source"
     | "bye-hang"
+    | "stderr-quit"
+    | "invalid-bye"
     | "partial-by-index",
   packed: number,
 ): Uint8Array {
@@ -344,11 +361,39 @@ process.stdin.on("data",chunk=>{
     }
     if(message.type==="quit"){
       if(MODE==="bye-hang"){send({schema:S,type:"bye"});setInterval(()=>{},1000);}
+      else if(MODE==="stderr-quit"){process.stderr.write("synthetic quit stderr\\n");send({schema:S,type:"bye"},true);}
+      else if(MODE==="invalid-bye")send({schema:S,type:"not-bye"},true);
       else send({schema:S,type:"bye"},true);
     }
   }
 });
 ${mode === "large-source" ? `/*${"FD3_UNIQUE_MARKER".repeat(2_500)}*/` : ""}
+`;
+  return new TextEncoder().encode(source);
+}
+
+function invalidByeStayAliveWorkerSource(pidPath: string): Uint8Array {
+  const source = `
+import {writeFileSync} from "node:fs";
+const S=${JSON.stringify("shogi-floodgate-stable-wasm-worker-v1")};
+const W=${JSON.stringify(FLOODGATE_STABLE_WASM_SHA256)};
+const N=${JSON.stringify(FLOODGATE_STABLE_WEIGHTS_SHA256)};
+const PID_PATH=${JSON.stringify(pidPath)};
+let buffer="";
+function send(value){process.stdout.write(JSON.stringify(value)+"\\n","ascii");}
+process.stdin.setEncoding("ascii");
+process.stdin.on("data",chunk=>{
+  buffer+=chunk;
+  let newline;
+  while((newline=buffer.indexOf("\\n"))>=0){
+    const line=buffer.slice(0,newline);buffer=buffer.slice(newline+1);
+    const message=JSON.parse(line);
+    if(message.type==="init"){
+      writeFileSync(PID_PATH,String(process.pid));
+      send({node_version:process.version,schema:S,type:"ready",wasm_sha256:W,weights_sha256:N});
+    } else if(message.type==="quit")send({schema:S,type:"not-bye"});
+  }
+});
 `;
   return new TextEncoder().encode(source);
 }
@@ -375,6 +420,15 @@ function workerSearchAssets(sourceBytes: Uint8Array) {
     wasmBytes: pinned.wasmBytes,
     weightsBytes: pinned.weightsBytes,
     workerSourceBytes: sourceBytes,
+  };
+}
+
+function pinnedWorkerSearchAssets() {
+  const pinned = assets();
+  return {
+    wasmBytes: pinned.wasmBytes,
+    weightsBytes: pinned.weightsBytes,
+    workerSourceBytes: pinned.workerSourceBytes,
   };
 }
 
@@ -1457,5 +1511,359 @@ describe("Floodgate stable-WASM real child pool", () => {
     expect(three.receipt.semantic_run_fingerprint_sha256).toBe(
       one.receipt.semantic_run_fingerprint_sha256,
     );
+  }, 60_000);
+});
+
+describe("Floodgate stable-WASM reusable proposal pool", () => {
+  async function syntheticReusablePool(
+    mode: Parameters<typeof fakeWorkerSource>[0],
+    overrides: Partial<FloodgateStableWasmReusableProposalPoolOptions> = {},
+  ) {
+    const source = fakeWorkerSource(mode, packedMove(MATE_SFEN, MATE_MOVE));
+    return createFloodgateStableWasmReusableProposalPoolWithSourceCoreForTests(
+      workerSearchAssets(source),
+      { ...REUSABLE_POOL_OPTIONS, ...overrides },
+      { bytes: source.byteLength, sha256: sha256(source) },
+    );
+  }
+
+  it("returns an exact frozen nonclaim facade and leaks no asset bytes", async () => {
+    const source = fakeWorkerSource(
+      "success",
+      packedMove(MATE_SFEN, MATE_MOVE),
+    );
+    const supplied = workerSearchAssets(source);
+    const identities = {
+      wasm: sha256(supplied.wasmBytes),
+      weights: sha256(supplied.weightsBytes),
+      source: sha256(supplied.workerSourceBytes),
+    };
+    const pool =
+      await createFloodgateStableWasmReusableProposalPoolWithSourceCoreForTests(
+        supplied,
+        REUSABLE_POOL_OPTIONS,
+        { bytes: source.byteLength, sha256: sha256(source) },
+      );
+    expectNullFrozen(pool);
+    expectNullFrozen(pool.receipt);
+    expect(Object.keys(pool)).toEqual(["receipt", "propose", "close"]);
+    expect(Object.isFrozen(pool.propose)).toBe(true);
+    expect(Object.isFrozen(pool.close)).toBe(true);
+    expect(pool.receipt).toMatchObject({
+      schema: FLOODGATE_STABLE_WASM_REUSABLE_POOL_RECEIPT_SCHEMA,
+      status: FLOODGATE_STABLE_WASM_REUSABLE_POOL_STATUS,
+      claim_boundary: FLOODGATE_STABLE_WASM_REUSABLE_POOL_CLAIM_BOUNDARY,
+      operational: {
+        workers: 1,
+        queue_bound: 2,
+        scheduling: "bounded-fifo-one-parent-per-worker-v1",
+        failure_policy: "pool-wide-poison-reject-all-force-stop-v1",
+      },
+    });
+    const serializedReceipt = JSON.stringify(pool.receipt);
+    expect(serializedReceipt).not.toContain(
+      Buffer.from(supplied.wasmBytes.subarray(0, 32)).toString("base64"),
+    );
+    expect(serializedReceipt).not.toContain(
+      Buffer.from(supplied.weightsBytes.subarray(0, 32)).toString("base64"),
+    );
+    expect(sha256(supplied.wasmBytes)).toBe(identities.wasm);
+    expect(sha256(supplied.weightsBytes)).toBe(identities.weights);
+    expect(sha256(supplied.workerSourceBytes)).toBe(identities.source);
+    await pool.close();
+  });
+
+  it("captures options, assets, and each parent before the first await", async () => {
+    const source = fakeWorkerSource(
+      "success",
+      packedMove(MATE_SFEN, MATE_MOVE),
+    );
+    const supplied = workerSearchAssets(source);
+    const mutableOptions = { ...REUSABLE_POOL_OPTIONS };
+    const pendingPool =
+      createFloodgateStableWasmReusableProposalPoolWithSourceCoreForTests(
+        supplied,
+        mutableOptions,
+        { bytes: source.byteLength, sha256: sha256(source) },
+      );
+    mutableOptions.workers = 12;
+    supplied.wasmBytes[0] ^= 1;
+    supplied.weightsBytes[0] ^= 1;
+    supplied.workerSourceBytes[0] ^= 1;
+    const pool = await pendingPool;
+    expect(
+      (pool.receipt.operational as Readonly<Record<string, unknown>>).workers,
+    ).toBe(1);
+
+    const mutableParent = {
+      ...parent("reusable-snapshot", MATE_SFEN, 0, MATE_MOVE),
+    };
+    const proposal = pool.propose(mutableParent);
+    mutableParent.played_move = "bogus";
+    mutableParent.parent_sfen = "bogus";
+    const row = await proposal;
+    expect(row.stable_move).toBe(MATE_MOVE);
+    expect(row.search.root_tesu).toBe(0);
+    await pool.close();
+  });
+
+  it("enforces parallel-worker and FIFO queue bounds for one, two, and three workers", async () => {
+    for (const workers of [1, 2, 3]) {
+      const pool = await syntheticReusablePool("hang-search", {
+        workers,
+        queueBound: 2,
+        searchTimeoutMilliseconds: 10_000,
+      });
+      const accepted: Array<Promise<unknown>> = [];
+      for (let index = 0; index < workers + 2; index += 1) {
+        accepted.push(
+          pool.propose(
+            parent(`bounded-${workers}-${index}`, MATE_SFEN, 0, MATE_MOVE),
+          ),
+        );
+      }
+      await expect(
+        pool.propose(
+          parent(`bounded-${workers}-overflow`, MATE_SFEN, 0, MATE_MOVE),
+        ),
+      ).rejects.toThrow(/queue is full/);
+      const settlementsPromise = Promise.allSettled(accepted);
+      const firstClose = pool.close();
+      expect(pool.close()).toBe(firstClose);
+      await firstClose;
+      const settlements = await settlementsPromise;
+      expect(settlements.every((entry) => entry.status === "rejected")).toBe(
+        true,
+      );
+    }
+  }, 30_000);
+
+  it("runs one-worker proposals in FIFO order and permits duplicate objects", async () => {
+    const pool = await syntheticReusablePool("success", {
+      workers: 1,
+      queueBound: 3,
+    });
+    const shared = parent("reusable-duplicate", MATE_SFEN, 0, MATE_MOVE);
+    const order: number[] = [];
+    const proposals = [shared, shared, shared].map((row, index) =>
+      pool.propose(row).then((proposal) => {
+        order.push(index);
+        return proposal;
+      }),
+    );
+    const rows = await Promise.all(proposals);
+    expect(order).toEqual([0, 1, 2]);
+    expect(rows[0]).toEqual(rows[1]);
+    expect(rows[1]).toEqual(rows[2]);
+    await pool.close();
+  });
+
+  it("poisons the whole pool, rejects every pending parent, and cleans up", async () => {
+    const pool = await syntheticReusablePool("crash-search", {
+      workers: 2,
+      queueBound: 3,
+      searchTimeoutMilliseconds: 3_000,
+    });
+    const pending = Array.from({ length: 5 }, (_, index) =>
+      pool.propose(parent(`reusable-poison-${index}`, MATE_SFEN, 0, MATE_MOVE)),
+    );
+    const settlements = await Promise.allSettled(pending);
+    expect(settlements.every((entry) => entry.status === "rejected")).toBe(
+      true,
+    );
+    for (const settlement of settlements) {
+      expect((settlement as PromiseRejectedResult).reason).toMatchObject({
+        message: expect.stringMatching(/poisoned/),
+      });
+    }
+    await expect(
+      pool.propose(parent("after-poison", MATE_SFEN, 0, MATE_MOVE)),
+    ).rejects.toThrow(/poisoned/);
+    await pool.close();
+  });
+
+  it("rejects Proxy, accessor, thenable, mutation, and after-close inputs safely", async () => {
+    const source = fakeWorkerSource(
+      "success",
+      packedMove(MATE_SFEN, MATE_MOVE),
+    );
+    const getter = vi.fn(() => 1);
+    const accessorOptions = { ...REUSABLE_POOL_OPTIONS };
+    Object.defineProperty(accessorOptions, "workers", {
+      configurable: true,
+      enumerable: true,
+      get: getter,
+    });
+    await expect(
+      createFloodgateStableWasmReusableProposalPoolWithSourceCoreForTests(
+        workerSearchAssets(source),
+        accessorOptions,
+        { bytes: source.byteLength, sha256: sha256(source) },
+      ),
+    ).rejects.toThrow(/enumerable own data property/);
+    expect(getter).not.toHaveBeenCalled();
+
+    await expect(
+      createFloodgateStableWasmReusableProposalPool(
+        new Proxy(pinnedWorkerSearchAssets(), {}),
+        REUSABLE_POOL_OPTIONS,
+      ),
+    ).rejects.toThrow(/non-Proxy plain object/);
+    expect(FLOODGATE_STABLE_REUSABLE_POOL_MAX_QUEUE_BOUND).toBe(48);
+
+    const pool = await syntheticReusablePool("success");
+    const valid = parent("reusable-hostile-parent", MATE_SFEN, 0, MATE_MOVE);
+    await expect(pool.propose(new Proxy(valid, {}))).rejects.toThrow(
+      /non-Proxy plain object/,
+    );
+    const accessorParent = { ...valid } as Record<string, unknown>;
+    Object.defineProperty(accessorParent, "played_move", {
+      configurable: true,
+      enumerable: true,
+      get: getter,
+    });
+    await expect(
+      pool.propose(
+        accessorParent as unknown as Readonly<FloodgateTrainingParent>,
+      ),
+    ).rejects.toThrow(/enumerable own data property/);
+    expect(getter).not.toHaveBeenCalled();
+
+    const inheritedThen = Object.getOwnPropertyDescriptor(
+      Object.prototype,
+      "then",
+    );
+    let thenCalls = 0;
+    Object.defineProperty(Object.prototype, "then", {
+      configurable: true,
+      enumerable: false,
+      value() {
+        thenCalls += 1;
+        throw new Error("parent thenable must not be assimilated");
+      },
+    });
+    try {
+      expect((await pool.propose(valid)).stable_move).toBe(MATE_MOVE);
+      expect(thenCalls).toBe(0);
+    } finally {
+      if (inheritedThen === undefined)
+        delete (Object.prototype as { then?: unknown }).then;
+      else Object.defineProperty(Object.prototype, "then", inheritedThen);
+    }
+
+    await pool.close();
+    await expect(pool.propose(valid)).rejects.toThrow(/closed/);
+  });
+
+  it("validates graceful idle shutdown and reports invalid bye, stderr, and close timeout", async () => {
+    const normal = await syntheticReusablePool("success");
+    await normal.close();
+
+    for (const mode of ["stderr-quit", "invalid-bye"] as const) {
+      const pool = await syntheticReusablePool(mode);
+      await expect(pool.close()).rejects.toThrow(/could not stop every worker/);
+    }
+
+    const hanging = await syntheticReusablePool("bye-hang", {
+      closeTimeoutMilliseconds: 200,
+    });
+    await expect(hanging.close()).rejects.toThrow(/cleanup timed out/);
+  }, 15_000);
+
+  it("force-stops and reaps a worker that stays alive after an invalid bye", async () => {
+    const temporaryRoot = await mkdtemp(join(tmpdir(), "stable-pool-bye-"));
+    const pidPath = join(temporaryRoot, "worker.pid");
+    try {
+      const source = invalidByeStayAliveWorkerSource(pidPath);
+      const pool =
+        await createFloodgateStableWasmReusableProposalPoolWithSourceCoreForTests(
+          workerSearchAssets(source),
+          REUSABLE_POOL_OPTIONS,
+          { bytes: source.byteLength, sha256: sha256(source) },
+        );
+      const workerPid = Number(readFileSync(pidPath, "utf8"));
+      expect(Number.isSafeInteger(workerPid)).toBe(true);
+      await expect(pool.close()).rejects.toThrow(/could not stop every worker/);
+      expect(() => process.kill(workerPid, 0)).toThrow();
+    } finally {
+      await rm(temporaryRoot, { recursive: true, force: true });
+    }
+  });
+
+  it("uses module-captured Node executable and version identity", async () => {
+    const execPathDescriptor = Object.getOwnPropertyDescriptor(
+      process,
+      "execPath",
+    );
+    const versionDescriptor = Object.getOwnPropertyDescriptor(
+      process,
+      "version",
+    );
+    expect(execPathDescriptor).toBeDefined();
+    expect(versionDescriptor).toBeDefined();
+    const source = fakeWorkerSource(
+      "success",
+      packedMove(MATE_SFEN, MATE_MOVE),
+    );
+    let pool: Awaited<
+      ReturnType<
+        typeof createFloodgateStableWasmReusableProposalPoolWithSourceCoreForTests
+      >
+    >;
+    try {
+      Object.defineProperty(process, "execPath", {
+        ...execPathDescriptor,
+        value: "/poisoned/not-node",
+      });
+      Object.defineProperty(process, "version", {
+        ...versionDescriptor,
+        value: "v0.0.0-poisoned",
+      });
+      pool =
+        await createFloodgateStableWasmReusableProposalPoolWithSourceCoreForTests(
+          workerSearchAssets(source),
+          REUSABLE_POOL_OPTIONS,
+          { bytes: source.byteLength, sha256: sha256(source) },
+        );
+    } finally {
+      if (execPathDescriptor !== undefined)
+        Object.defineProperty(process, "execPath", execPathDescriptor);
+      if (versionDescriptor !== undefined)
+        Object.defineProperty(process, "version", versionDescriptor);
+    }
+    expect(
+      (pool.receipt.operational as Readonly<Record<string, unknown>>).workers,
+    ).toBe(1);
+    await pool.close();
+  });
+
+  it("keeps pinned proposal rows deterministic with one, two, and three reusable workers", async () => {
+    const proposalSets: Array<
+      readonly Readonly<FloodgateStableWasmProposalRow>[]
+    > = [];
+    const shared = parent("reusable-real-mate", MATE_SFEN, 0, MATE_MOVE);
+    for (const workers of [1, 2, 3]) {
+      const pool = await createFloodgateStableWasmReusableProposalPool(
+        pinnedWorkerSearchAssets(),
+        { ...REUSABLE_POOL_OPTIONS, workers, queueBound: 3 },
+      );
+      const rows = await Promise.all([
+        pool.propose(shared),
+        pool.propose(shared),
+        pool.propose(shared),
+      ]);
+      proposalSets.push(rows);
+      await pool.close();
+    }
+    expect(proposalSets[1]).toEqual(proposalSets[0]);
+    expect(proposalSets[2]).toEqual(proposalSets[0]);
+    expect(proposalSets[0][0]).toMatchObject({
+      stable_move: MATE_MOVE,
+      search: {
+        completed_depth: 1,
+        termination: "winning-mate-band-early",
+        raw_search_score: 89_999_999,
+      },
+    });
   }, 60_000);
 });

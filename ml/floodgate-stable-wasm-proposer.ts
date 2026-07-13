@@ -45,6 +45,12 @@ export const FLOODGATE_STABLE_WASM_PROPOSER_STATUS =
   "complete-in-memory-dependency-injected-test-core-not-engine-authenticated-not-durable-not-published" as const;
 export const FLOODGATE_STABLE_WASM_PROPOSER_CLAIM_BOUNDARY =
   "stable-candidate-structure-only-not-search-authentication-teacher-label-or-playing-strength-evidence" as const;
+export const FLOODGATE_STABLE_WASM_REUSABLE_POOL_RECEIPT_SCHEMA =
+  "shogi-floodgate-stable-wasm-reusable-pool-receipt-v1" as const;
+export const FLOODGATE_STABLE_WASM_REUSABLE_POOL_STATUS =
+  "initialized-in-memory-structural-pool-not-consumer-or-engine-authenticated-not-durable-not-published" as const;
+export const FLOODGATE_STABLE_WASM_REUSABLE_POOL_CLAIM_BOUNDARY =
+  "reusable-stable-candidate-structure-only-not-production-authentication-teacher-label-training-holdout-or-playing-strength-evidence" as const;
 export const FLOODGATE_STABLE_WASM_OUTPUT_FORMAT =
   "canonical-jsonl-utf8-single-final-lf-v1" as const;
 export const FLOODGATE_STABLE_WASM_SCORE_ENCODING =
@@ -69,8 +75,10 @@ export const FLOODGATE_STABLE_MATE_SCORE_MIN = 89_990_000;
 export const FLOODGATE_STABLE_MATE_SCORE_MAX = 90_000_000;
 export const FLOODGATE_STABLE_MAX_WORKERS = 12;
 export const FLOODGATE_STABLE_MAX_ROWS = 24_000;
+export const FLOODGATE_STABLE_REUSABLE_POOL_MAX_QUEUE_BOUND = 48;
 
 const NativeError = Error;
+const NativeAggregateError = AggregateError;
 const NativePromise = Promise;
 const NativeString = String;
 const NativeTextDecoder = TextDecoder;
@@ -78,6 +86,8 @@ const NativeUint8Array = Uint8Array;
 const NativeSet = Set;
 const nativeClearTimeout = clearTimeout;
 const nativeSetTimeout = setTimeout;
+const nativeProcessExecPath = process.execPath;
+const nativeProcessVersion = process.version;
 const arrayIsArray = Array.isArray;
 const nativeArrayJoin = Array.prototype.join;
 const nativeArrayMap = Array.prototype.map;
@@ -148,6 +158,11 @@ const nativeTypedArraySet = typedArrayPrototype.set as (
   source: ArrayLike<number>,
   offset?: number,
 ) => void;
+const nativeTypedArrayFill = typedArrayPrototype.fill as (
+  value: number,
+  start?: number,
+  end?: number,
+) => Uint8Array;
 
 const SHA256_RE = /^[0-9a-f]{64}$/;
 const REVISION_RE = /^[0-9a-f]{40}$/;
@@ -201,6 +216,13 @@ const OPTION_KEYS = objectFreeze([
   "startupTimeoutMilliseconds",
   "workers",
 ] as const);
+const REUSABLE_POOL_OPTION_KEYS = objectFreeze([
+  "closeTimeoutMilliseconds",
+  "queueBound",
+  "searchTimeoutMilliseconds",
+  "startupTimeoutMilliseconds",
+  "workers",
+] as const);
 const DEPENDENCY_KEYS = objectFreeze(["search"] as const);
 const RAW_RESULT_KEYS = objectFreeze([
   "completed_depth",
@@ -226,6 +248,14 @@ export interface FloodgateStableWasmProposerOptions {
   readonly workers: number;
   readonly startupTimeoutMilliseconds: number;
   readonly searchTimeoutMilliseconds: number;
+}
+
+export interface FloodgateStableWasmReusableProposalPoolOptions {
+  readonly workers: number;
+  readonly queueBound: number;
+  readonly startupTimeoutMilliseconds: number;
+  readonly searchTimeoutMilliseconds: number;
+  readonly closeTimeoutMilliseconds: number;
 }
 
 export interface FloodgateStableWasmSearchRequest {
@@ -294,6 +324,23 @@ export interface FloodgateStableWasmProposalArtifact {
   readonly jsonl: string;
   readonly receipt: Readonly<Record<string, unknown>>;
   readonly receipt_json: string;
+}
+
+export interface FloodgateStableWasmReusableProposalPoolReceipt {
+  readonly schema: typeof FLOODGATE_STABLE_WASM_REUSABLE_POOL_RECEIPT_SCHEMA;
+  readonly status: typeof FLOODGATE_STABLE_WASM_REUSABLE_POOL_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_STABLE_WASM_REUSABLE_POOL_CLAIM_BOUNDARY;
+  readonly supplied_engine_assets: Readonly<Record<string, unknown>>;
+  readonly required_search_contract: Readonly<Record<string, unknown>>;
+  readonly operational: Readonly<Record<string, unknown>>;
+}
+
+export interface FloodgateStableWasmReusableProposalPool {
+  readonly receipt: Readonly<FloodgateStableWasmReusableProposalPoolReceipt>;
+  readonly propose: (
+    parent: Readonly<FloodgateTrainingParent>,
+  ) => Promise<Readonly<FloodgateStableWasmProposalRow>>;
+  readonly close: () => Promise<void>;
 }
 
 interface CapturedAssets {
@@ -762,6 +809,59 @@ function captureOptions(
   });
 }
 
+function captureReusablePoolOptions(
+  value: FloodgateStableWasmReusableProposalPoolOptions,
+): Readonly<FloodgateStableWasmReusableProposalPoolOptions> {
+  const input = strictRecord(
+    value,
+    REUSABLE_POOL_OPTION_KEYS,
+    "reusable pool options",
+  );
+  if (
+    !numberIsSafeInteger(input.workers) ||
+    (input.workers as number) < 1 ||
+    (input.workers as number) > FLOODGATE_STABLE_MAX_WORKERS
+  ) {
+    fail(
+      `reusable pool options.workers must be between 1 and ${FLOODGATE_STABLE_MAX_WORKERS}`,
+    );
+  }
+  if (
+    !numberIsSafeInteger(input.queueBound) ||
+    (input.queueBound as number) < 1 ||
+    (input.queueBound as number) >
+      FLOODGATE_STABLE_REUSABLE_POOL_MAX_QUEUE_BOUND
+  ) {
+    fail(
+      `reusable pool options.queueBound must be between 1 and ${FLOODGATE_STABLE_REUSABLE_POOL_MAX_QUEUE_BOUND}`,
+    );
+  }
+  const timeoutKeys = [
+    "startupTimeoutMilliseconds",
+    "searchTimeoutMilliseconds",
+    "closeTimeoutMilliseconds",
+  ] as const;
+  for (let index = 0; index < timeoutKeys.length; index += 1) {
+    const key = timeoutKeys[index];
+    if (
+      !numberIsSafeInteger(input[key]) ||
+      (input[key] as number) < 1 ||
+      (input[key] as number) > 600_000
+    ) {
+      fail(
+        `reusable pool options.${key} must be an integer from 1 through 600000`,
+      );
+    }
+  }
+  return frozenRecord({
+    workers: input.workers as number,
+    queueBound: input.queueBound as number,
+    startupTimeoutMilliseconds: input.startupTimeoutMilliseconds as number,
+    searchTimeoutMilliseconds: input.searchTimeoutMilliseconds as number,
+    closeTimeoutMilliseconds: input.closeTimeoutMilliseconds as number,
+  });
+}
+
 function captureDependencies(
   value: FloodgateStableWasmProposerDependencies,
 ): Readonly<FloodgateStableWasmProposerDependencies> {
@@ -1125,6 +1225,40 @@ function settleAllVoid(values: readonly Promise<unknown>[]): Promise<void> {
   return pinNativePromise(completion);
 }
 
+function settleAllVoidReportingFailure(
+  values: readonly Promise<unknown>[],
+): Promise<void> {
+  const completion = new NativePromise<void>((resolve, reject) => {
+    if (values.length === 0) {
+      resolve();
+      return;
+    }
+    let remaining = values.length;
+    let failed = false;
+    const settledOne = (failure: boolean) => {
+      if (failure) failed = true;
+      remaining -= 1;
+      if (remaining !== 0) return;
+      if (failed) {
+        reject(
+          new NativeError(
+            "stable-WASM reusable pool could not stop every worker cleanly",
+          ),
+        );
+      } else {
+        resolve();
+      }
+    };
+    for (let index = 0; index < values.length; index += 1) {
+      reflectApply(nativePromiseThen, values[index], [
+        () => settledOne(false),
+        () => settledOne(true),
+      ]);
+    }
+  });
+  return pinNativePromise(completion);
+}
+
 function captureRawResult(
   value: unknown,
   rowCount: number,
@@ -1435,7 +1569,7 @@ async function generateArtifact(
       workers: options.workers,
       startup_timeout_ms: options.startupTimeoutMilliseconds,
       search_timeout_ms: options.searchTimeoutMilliseconds,
-      node_version: process.version,
+      node_version: nativeProcessVersion,
       counters: "observed-signed-i32-nonnegative-v1",
     }),
     output: outputIdentity,
@@ -1556,7 +1690,7 @@ export function captureFloodgateStableWasmChildRuntimeCoreForTests(
 const stableWasmChildRuntime =
   captureFloodgateStableWasmChildRuntimeCoreForTests(
     process.platform,
-    process.execPath,
+    nativeProcessExecPath,
     process.env.SystemRoot,
     process.env.SystemDrive,
   );
@@ -1570,23 +1704,26 @@ interface PendingWorkerResponse {
 
 class StableWasmWorkerClient {
   private readonly child: ChildProcessWithoutNullStreams;
+  private readonly onFailure: ((error: Error) => void) | undefined;
   private stdout = "";
   private stderr = "";
   private stderrBytes = 0;
   private pending: PendingWorkerResponse | undefined;
   private failure: Error | undefined;
+  private failureNotified = false;
   private gracefulClosing = false;
   private closePromise: Promise<void>;
   private resolveClose!: () => void;
 
-  constructor(sourceBytes: Uint8Array) {
+  constructor(sourceBytes: Uint8Array, onFailure?: (error: Error) => void) {
+    this.onFailure = onFailure;
     this.closePromise = pinNativePromise(
       new NativePromise<void>((resolve) => {
         this.resolveClose = resolve;
       }),
     );
     this.child = spawn(
-      process.execPath,
+      nativeProcessExecPath,
       ["--input-type=module", "--eval", WORKER_BOOTSTRAP_SOURCE],
       {
         cwd: stableWasmChildRuntime.cwd,
@@ -1595,36 +1732,45 @@ class StableWasmWorkerClient {
         stdio: ["pipe", "pipe", "pipe", "pipe"],
       },
     );
-    this.child.stdout.on("data", (chunk: Buffer) => this.onStdout(chunk));
-    this.child.stderr.on("data", (chunk: Buffer) => this.onStderr(chunk));
-    this.child.on("error", (error) =>
-      this.failWorker(`process error: ${error.message}`),
-    );
-    this.child.stdin.on("error", (error) =>
-      this.failWorker(`stdin error: ${error.message}`),
-    );
-    this.child.on("close", (code, signal) => {
-      this.resolveClose();
-      if (
-        !this.gracefulClosing ||
-        code !== 0 ||
-        signal !== null ||
-        this.stdout !== ""
-      ) {
-        this.failWorker(
-          `process closed (code=${NativeString(code)}, signal=${NativeString(signal)})`,
-        );
+    try {
+      this.child.on(
+        "close",
+        (code: number | null, signal: NodeJS.Signals | null) => {
+          this.resolveClose();
+          if (
+            !this.gracefulClosing ||
+            code !== 0 ||
+            signal !== null ||
+            this.stdout !== ""
+          ) {
+            this.failWorker(
+              `process closed (code=${NativeString(code)}, signal=${NativeString(signal)})`,
+            );
+          }
+        },
+      );
+      this.child.stdout.on("data", (chunk: Buffer) => this.onStdout(chunk));
+      this.child.stderr.on("data", (chunk: Buffer) => this.onStderr(chunk));
+      this.child.on("error", (error: Error) =>
+        this.failWorker(`process error: ${error.message}`),
+      );
+      this.child.stdin.on("error", (error: Error) =>
+        this.failWorker(`stdin error: ${error.message}`),
+      );
+      const sourcePipe = this.child.stdio[3] as Writable | null | undefined;
+      if (sourcePipe === null || sourcePipe === undefined) {
+        this.failWorker("has no worker-source pipe");
+        return;
       }
-    });
-    const sourcePipe = this.child.stdio[3] as Writable | null | undefined;
-    if (sourcePipe === null || sourcePipe === undefined) {
-      this.failWorker("has no worker-source pipe");
-      return;
+      sourcePipe.once("error", (error: Error) =>
+        this.failWorker(`worker-source pipe error: ${error.message}`),
+      );
+      sourcePipe.end(sourceBytes);
+    } catch {
+      // Once spawn succeeds, constructor setup failures become client failure
+      // state so the factory can register the instance and await group cleanup.
+      this.failWorker("post-spawn transport setup failed");
     }
-    sourcePipe.once("error", (error) =>
-      this.failWorker(`worker-source pipe error: ${error.message}`),
-    );
-    sourcePipe.end(sourceBytes);
   }
 
   private diagnostic(message: string): Error {
@@ -1634,8 +1780,28 @@ class StableWasmWorkerClient {
     );
   }
 
+  private signalChild(signal: NodeJS.Signals): void {
+    try {
+      this.child.kill(signal);
+    } catch {
+      // The bounded close wait retains the cleanup evidence.
+    }
+  }
+
   private failWorker(message: string): void {
     if (this.failure === undefined) this.failure = this.diagnostic(message);
+    if (!this.failureNotified) {
+      this.failureNotified = true;
+      const workerFailure = this.failure;
+      try {
+        this.onFailure?.(workerFailure);
+      } catch (notificationFailure) {
+        this.failure = new NativeAggregateError(
+          [workerFailure, notificationFailure],
+          "stable-WASM worker failure and failure notification both failed",
+        );
+      }
+    }
     const pending = this.pending;
     this.pending = undefined;
     if (pending !== undefined) {
@@ -1647,7 +1813,7 @@ class StableWasmWorkerClient {
       this.child.exitCode === null &&
       this.child.signalCode === null
     ) {
-      this.child.kill("SIGKILL");
+      this.signalChild("SIGKILL");
     }
   }
 
@@ -1721,7 +1887,7 @@ class StableWasmWorkerClient {
           this.child.exitCode === null &&
           this.child.signalCode === null
         ) {
-          this.child.kill("SIGKILL");
+          this.signalChild("SIGKILL");
         }
         reject(error);
       }, timeout);
@@ -1784,7 +1950,7 @@ class StableWasmWorkerClient {
         const error = this.diagnostic(`${label} timed out after ${timeout}ms`);
         this.failure = error;
         reject(error);
-        this.child.kill("SIGKILL");
+        this.signalChild("SIGKILL");
       }, timeout);
       this.pending = frozenRecord({ label, resolve, reject, timer });
       const writePromise = this.writeLine(line);
@@ -1799,7 +1965,7 @@ class StableWasmWorkerClient {
             );
             this.failure = failure;
             reject(failure);
-            this.child.kill("SIGKILL");
+            this.signalChild("SIGKILL");
           }
         },
       ]);
@@ -1839,7 +2005,7 @@ class StableWasmWorkerClient {
     if (
       message.schema !== FLOODGATE_STABLE_WASM_WORKER_SCHEMA ||
       message.type !== "ready" ||
-      message.node_version !== process.version ||
+      message.node_version !== nativeProcessVersion ||
       message.wasm_sha256 !== FLOODGATE_STABLE_WASM_SHA256 ||
       message.weights_sha256 !== FLOODGATE_STABLE_WEIGHTS_SHA256
     ) {
@@ -1943,12 +2109,48 @@ class StableWasmWorkerClient {
       this.child.exitCode === null &&
       this.child.signalCode === null
     ) {
-      this.child.kill("SIGKILL");
+      this.signalChild("SIGKILL");
     }
-    await this.waitForClose(
-      WORKER_SHUTDOWN_TIMEOUT_MILLISECONDS,
-      "force-stop close",
+    try {
+      await this.waitForClose(
+        WORKER_SHUTDOWN_TIMEOUT_MILLISECONDS,
+        "force-stop close",
+      );
+    } catch (primaryFailure) {
+      this.signalChild("SIGKILL");
+      try {
+        await this.waitForClose(
+          WORKER_SHUTDOWN_TIMEOUT_MILLISECONDS,
+          "force-stop reap",
+        );
+      } catch (cleanupFailure) {
+        throw new NativeAggregateError(
+          [primaryFailure, cleanupFailure],
+          "stable-WASM worker force-stop and reap both failed",
+        );
+      }
+      throw primaryFailure;
+    }
+  }
+}
+
+function rejectedWorkerStopPromise(primary: unknown): Promise<void> {
+  return pinNativePromise(
+    new NativePromise<void>((_resolve, reject) => reject(primary)),
+  );
+}
+
+function requestWorkerStop(
+  client: StableWasmWorkerClient,
+  force: boolean,
+): Promise<void> {
+  try {
+    return guardNativePromise<void>(
+      force ? client.forceStop() : client.quit(),
+      force ? "worker force-stop" : "worker quit",
     );
+  } catch (primary) {
+    return rejectedWorkerStopPromise(primary);
   }
 }
 
@@ -2044,40 +2246,53 @@ function capturePoolAssets(
     ["wasmBytes", "weightsBytes", "workerSourceBytes"],
     "worker-pool assets",
   );
-  const wasmBytes = copyBytes(
-    assets.wasmBytes,
-    "worker-pool WASM",
-    FLOODGATE_STABLE_WASM_BYTES,
-  );
-  const weightsBytes = copyBytes(
-    assets.weightsBytes,
-    "worker-pool weights",
-    FLOODGATE_STABLE_WEIGHTS_BYTES,
-  );
-  const workerSourceBytes = copyBytes(
-    assets.workerSourceBytes,
-    "worker-pool worker source",
-    expectedWorkerSource.bytes,
-  );
-  verifyIdentity(
-    wasmBytes,
-    FLOODGATE_STABLE_WASM_BYTES,
-    FLOODGATE_STABLE_WASM_SHA256,
-    "worker-pool WASM",
-  );
-  verifyIdentity(
-    weightsBytes,
-    FLOODGATE_STABLE_WEIGHTS_BYTES,
-    FLOODGATE_STABLE_WEIGHTS_SHA256,
-    "worker-pool weights",
-  );
-  verifyIdentity(
-    workerSourceBytes,
-    expectedWorkerSource.bytes,
-    expectedWorkerSource.sha256,
-    "worker-pool worker source",
-  );
-  return frozenRecord({ wasmBytes, weightsBytes, workerSourceBytes });
+  let wasmBytes: Uint8Array | undefined;
+  let weightsBytes: Uint8Array | undefined;
+  let workerSourceBytes: Uint8Array | undefined;
+  try {
+    wasmBytes = copyBytes(
+      assets.wasmBytes,
+      "worker-pool WASM",
+      FLOODGATE_STABLE_WASM_BYTES,
+    );
+    weightsBytes = copyBytes(
+      assets.weightsBytes,
+      "worker-pool weights",
+      FLOODGATE_STABLE_WEIGHTS_BYTES,
+    );
+    workerSourceBytes = copyBytes(
+      assets.workerSourceBytes,
+      "worker-pool worker source",
+      expectedWorkerSource.bytes,
+    );
+    verifyIdentity(
+      wasmBytes,
+      FLOODGATE_STABLE_WASM_BYTES,
+      FLOODGATE_STABLE_WASM_SHA256,
+      "worker-pool WASM",
+    );
+    verifyIdentity(
+      weightsBytes,
+      FLOODGATE_STABLE_WEIGHTS_BYTES,
+      FLOODGATE_STABLE_WEIGHTS_SHA256,
+      "worker-pool weights",
+    );
+    verifyIdentity(
+      workerSourceBytes,
+      expectedWorkerSource.bytes,
+      expectedWorkerSource.sha256,
+      "worker-pool worker source",
+    );
+    return frozenRecord({ wasmBytes, weightsBytes, workerSourceBytes });
+  } catch (error) {
+    if (wasmBytes !== undefined)
+      reflectApply(nativeTypedArrayFill, wasmBytes, [0]);
+    if (weightsBytes !== undefined)
+      reflectApply(nativeTypedArrayFill, weightsBytes, [0]);
+    if (workerSourceBytes !== undefined)
+      reflectApply(nativeTypedArrayFill, workerSourceBytes, [0]);
+    throw error;
+  }
 }
 
 function runCapturedWorkerPool(
@@ -2141,7 +2356,7 @@ function runCapturedWorkerPool(
       } catch (error) {
         const stops: Promise<void>[] = [];
         for (let index = 0; index < clients.length; index += 1) {
-          arraySetOwn(stops, index, clients[index].forceStop());
+          arraySetOwn(stops, index, requestWorkerStop(clients[index], true));
         }
         await settleAllVoid(stops);
         await settleAllVoid(loops);
@@ -2149,13 +2364,13 @@ function runCapturedWorkerPool(
       }
       const quits: Promise<void>[] = [];
       for (let index = 0; index < clients.length; index += 1) {
-        arraySetOwn(quits, index, clients[index].quit());
+        arraySetOwn(quits, index, requestWorkerStop(clients[index], false));
       }
       await waitAllVoid(quits);
     } catch (error) {
       const stops: Promise<void>[] = [];
       for (let index = 0; index < clients.length; index += 1) {
-        arraySetOwn(stops, index, clients[index].forceStop());
+        arraySetOwn(stops, index, requestWorkerStop(clients[index], true));
       }
       await settleAllVoid(stops);
       throw error;
@@ -2242,6 +2457,456 @@ export function runFloodgateStableWasmWorkerPoolWithSourceCoreForTests(
 ): Promise<Readonly<FloodgateStableWasmSearchResultBox>> {
   return runWorkerPoolWithIdentity(
     requestValue,
+    assetValue,
+    optionValue,
+    workerSourceIdentity,
+  );
+}
+
+interface ReusableProposalJob {
+  readonly parent: Readonly<FloodgateTrainingParent>;
+  readonly resolve: (row: Readonly<FloodgateStableWasmProposalRow>) => void;
+  readonly reject: (error: Error) => void;
+}
+
+type ReusablePoolState = "open" | "closing" | "closed" | "poisoned";
+
+function zeroizeSearchAssets(
+  assets: Readonly<FloodgateStableWasmSearchAssets>,
+): void {
+  reflectApply(nativeTypedArrayFill, assets.wasmBytes, [0]);
+  reflectApply(nativeTypedArrayFill, assets.weightsBytes, [0]);
+  reflectApply(nativeTypedArrayFill, assets.workerSourceBytes, [0]);
+}
+
+function boundedPoolCleanup(
+  completion: Promise<void>,
+  timeoutMilliseconds: number,
+): Promise<void> {
+  const bounded = new NativePromise<void>((resolve, reject) => {
+    let settled = false;
+    const timer = nativeSetTimeout(() => {
+      if (settled) return;
+      settled = true;
+      reject(
+        new NativeError(
+          `stable-WASM reusable pool cleanup timed out after ${timeoutMilliseconds}ms`,
+        ),
+      );
+    }, timeoutMilliseconds);
+    reflectApply(nativePromiseThen, completion, [
+      () => {
+        if (settled) return;
+        settled = true;
+        nativeClearTimeout(timer);
+        resolve();
+      },
+      (error: unknown) => {
+        if (settled) return;
+        settled = true;
+        nativeClearTimeout(timer);
+        reject(error);
+      },
+    ]);
+  });
+  return pinNativePromise(bounded);
+}
+
+function reusablePoolReceipt(
+  options: Readonly<FloodgateStableWasmReusableProposalPoolOptions>,
+  workerSourceIdentity: Readonly<FloodgateStableWasmWorkerSourceIdentity>,
+): Readonly<FloodgateStableWasmReusableProposalPoolReceipt> {
+  return frozenRecord({
+    schema: FLOODGATE_STABLE_WASM_REUSABLE_POOL_RECEIPT_SCHEMA,
+    status: FLOODGATE_STABLE_WASM_REUSABLE_POOL_STATUS,
+    claim_boundary: FLOODGATE_STABLE_WASM_REUSABLE_POOL_CLAIM_BOUNDARY,
+    supplied_engine_assets: frozenRecord({
+      worker_source: assetIdentity(
+        workerSourceIdentity.bytes,
+        workerSourceIdentity.sha256,
+      ),
+      wasm: assetIdentity(
+        FLOODGATE_STABLE_WASM_BYTES,
+        FLOODGATE_STABLE_WASM_SHA256,
+      ),
+      weights: frozenRecord({
+        bytes: FLOODGATE_STABLE_WEIGHTS_BYTES,
+        sha256: FLOODGATE_STABLE_WEIGHTS_SHA256,
+        k: 600,
+        buckets: 1,
+      }),
+    }),
+    required_search_contract: semanticSearchContract(),
+    operational: frozenRecord({
+      workers: options.workers,
+      queue_bound: options.queueBound,
+      startup_timeout_ms: options.startupTimeoutMilliseconds,
+      search_timeout_ms: options.searchTimeoutMilliseconds,
+      close_timeout_ms: options.closeTimeoutMilliseconds,
+      scheduling: "bounded-fifo-one-parent-per-worker-v1",
+      failure_policy: "pool-wide-poison-reject-all-force-stop-v1",
+      cleanup:
+        "asset-copies-zeroized-idle-quit-active-or-poison-force-stop-idempotent-close-v1",
+    }),
+  });
+}
+
+function buildReusableProposalPool(
+  clients: readonly StableWasmWorkerClient[],
+  options: Readonly<FloodgateStableWasmReusableProposalPoolOptions>,
+  receipt: Readonly<FloodgateStableWasmReusableProposalPoolReceipt>,
+  installPoisonHandler: (handler: (error: Error) => void) => void,
+): Readonly<FloodgateStableWasmReusableProposalPool> {
+  let state: ReusablePoolState = "open";
+  let queue: ReusableProposalJob[] = [];
+  let queueHead = 0;
+  const active: Array<ReusableProposalJob | undefined> = [];
+  const busy: boolean[] = [];
+  let stopPromise: Promise<void> | undefined;
+  let closePromise: Promise<void> | undefined;
+
+  for (let index = 0; index < clients.length; index += 1) {
+    arraySetOwn(active, index, undefined);
+    arraySetOwn(busy, index, false);
+  }
+
+  const closedError = () =>
+    new NativeError("stable-WASM reusable pool is closed");
+  const poisonedError = () =>
+    new NativeError(
+      "stable-WASM reusable pool was poisoned by a worker failure",
+    );
+
+  const queuedCount = (): number => queue.length - queueHead;
+
+  const rejectQueued = (error: Error): void => {
+    for (let index = queueHead; index < queue.length; index += 1) {
+      queue[index].reject(error);
+    }
+    queue = [];
+    queueHead = 0;
+  };
+
+  const rejectActive = (error: Error): void => {
+    for (let index = 0; index < active.length; index += 1) {
+      const job = active[index];
+      if (job !== undefined) job.reject(error);
+      active[index] = undefined;
+      busy[index] = false;
+    }
+  };
+
+  const beginStop = (forceWorkers: readonly boolean[]): Promise<void> => {
+    if (stopPromise !== undefined) return stopPromise;
+    const stops: Promise<void>[] = [];
+    for (let index = 0; index < clients.length; index += 1) {
+      arraySetOwn(
+        stops,
+        index,
+        requestWorkerStop(clients[index], forceWorkers[index] === true),
+      );
+    }
+    const completeStop = async (): Promise<void> => {
+      let primaryFailure: unknown;
+      try {
+        await boundedPoolCleanup(
+          settleAllVoidReportingFailure(stops),
+          options.closeTimeoutMilliseconds,
+        );
+        return;
+      } catch (error) {
+        primaryFailure = error;
+      }
+      const forcedStops: Promise<void>[] = [];
+      for (let index = 0; index < clients.length; index += 1) {
+        arraySetOwn(
+          forcedStops,
+          index,
+          requestWorkerStop(clients[index], true),
+        );
+      }
+      try {
+        await settleAllVoidReportingFailure(forcedStops);
+      } catch (cleanupFailure) {
+        throw new NativeAggregateError(
+          [primaryFailure, cleanupFailure],
+          "stable-WASM reusable pool close and forced cleanup both failed",
+        );
+      }
+      throw primaryFailure;
+    };
+    stopPromise = pinNativePromise(completeStop());
+    reflectApply(nativePromiseThen, stopPromise, [undefined, () => undefined]);
+    return stopPromise;
+  };
+
+  const poison = (_error: Error): void => {
+    if (state !== "open") return;
+    state = "poisoned";
+    const error = poisonedError();
+    rejectQueued(error);
+    rejectActive(error);
+    const forceWorkers: boolean[] = [];
+    for (let index = 0; index < clients.length; index += 1) {
+      arraySetOwn(forceWorkers, index, true);
+    }
+    beginStop(forceWorkers);
+  };
+
+  const pump = (): void => {
+    if (state !== "open") return;
+    for (let workerIndex = 0; workerIndex < clients.length; workerIndex += 1) {
+      if (busy[workerIndex] || queueHead >= queue.length) continue;
+      const job = queue[queueHead];
+      queueHead += 1;
+      if (queueHead === queue.length) {
+        queue = [];
+        queueHead = 0;
+      }
+      busy[workerIndex] = true;
+      active[workerIndex] = job;
+      let searchPromise: Promise<Readonly<FloodgateStableWasmRawSearchResult>>;
+      try {
+        searchPromise = clients[workerIndex].search(
+          buildSearchRequest(job.parent, 0),
+          options.searchTimeoutMilliseconds,
+        );
+      } catch {
+        poison(new NativeError("worker search dispatch failed"));
+        return;
+      }
+      reflectApply(nativePromiseThen, searchPromise, [
+        (result: Readonly<FloodgateStableWasmRawSearchResult>) => {
+          if (
+            state !== "open" ||
+            active[workerIndex] !== job ||
+            !busy[workerIndex]
+          ) {
+            return;
+          }
+          try {
+            if (result.index !== 0) {
+              fail("reusable pool worker returned an unassigned request index");
+            }
+            const row = buildProposalRow(job.parent, result);
+            active[workerIndex] = undefined;
+            busy[workerIndex] = false;
+            job.resolve(row);
+            pump();
+          } catch {
+            poison(new NativeError("worker proposal validation failed"));
+          }
+        },
+        () => poison(new NativeError("worker search failed")),
+      ]);
+    }
+  };
+
+  installPoisonHandler(poison);
+
+  const propose = objectFreeze(
+    (
+      parentValue: Readonly<FloodgateTrainingParent>,
+    ): Promise<Readonly<FloodgateStableWasmProposalRow>> => {
+      let parent: Readonly<FloodgateTrainingParent>;
+      try {
+        parent = captureParent(parentValue, 0);
+      } catch (error) {
+        return pinNativePromise(NativePromise.reject(error));
+      }
+      if (state === "poisoned") {
+        return pinNativePromise(NativePromise.reject(poisonedError()));
+      }
+      if (state !== "open") {
+        return pinNativePromise(NativePromise.reject(closedError()));
+      }
+      let resolveJob!: (row: Readonly<FloodgateStableWasmProposalRow>) => void;
+      let rejectJob!: (error: Error) => void;
+      const promise = pinNativePromise(
+        new NativePromise<Readonly<FloodgateStableWasmProposalRow>>(
+          (resolve, reject) => {
+            resolveJob = resolve;
+            rejectJob = reject;
+          },
+        ),
+      );
+      const job = frozenRecord({
+        parent,
+        resolve: resolveJob,
+        reject: rejectJob,
+      });
+      let hasIdleWorker = false;
+      for (let index = 0; index < busy.length; index += 1) {
+        if (!busy[index]) {
+          hasIdleWorker = true;
+          break;
+        }
+      }
+      if (!hasIdleWorker && queuedCount() >= options.queueBound) {
+        rejectJob(
+          new NativeError(
+            `stable-WASM reusable pool queue is full at ${options.queueBound} parents`,
+          ),
+        );
+        return promise;
+      }
+      arrayAppendOwn(queue, job);
+      pump();
+      return promise;
+    },
+  );
+
+  const close = objectFreeze((): Promise<void> => {
+    if (closePromise !== undefined) return closePromise;
+    const forceWorkers: boolean[] = [];
+    for (let index = 0; index < clients.length; index += 1) {
+      arraySetOwn(forceWorkers, index, busy[index] === true);
+    }
+    if (state === "open") {
+      state = "closing";
+      const error = closedError();
+      rejectQueued(error);
+      rejectActive(error);
+    }
+    const completion = beginStop(forceWorkers);
+    closePromise = pinNativePromise(
+      new NativePromise<void>((resolve, reject) => {
+        reflectApply(nativePromiseThen, completion, [
+          () => {
+            state = "closed";
+            resolve();
+          },
+          (error: unknown) => {
+            state = "closed";
+            reject(error);
+          },
+        ]);
+      }),
+    );
+    return closePromise;
+  });
+
+  return frozenRecord({ receipt, propose, close });
+}
+
+function createReusableProposalPoolWithIdentity(
+  assetValue: Readonly<FloodgateStableWasmSearchAssets>,
+  optionValue: FloodgateStableWasmReusableProposalPoolOptions,
+  identityValue: FloodgateStableWasmWorkerSourceIdentity,
+): Promise<Readonly<FloodgateStableWasmReusableProposalPool>> {
+  let assets: Readonly<FloodgateStableWasmSearchAssets> | undefined;
+  let options: Readonly<FloodgateStableWasmReusableProposalPoolOptions>;
+  let identity: Readonly<FloodgateStableWasmWorkerSourceIdentity>;
+  try {
+    identity = captureWorkerSourceIdentity(identityValue);
+    options = captureReusablePoolOptions(optionValue);
+    assets = capturePoolAssets(assetValue, identity);
+  } catch (error) {
+    return pinNativePromise(NativePromise.reject(error));
+  }
+  const create = async (): Promise<
+    Readonly<FloodgateStableWasmReusableProposalPool>
+  > => {
+    const clients: StableWasmWorkerClient[] = [];
+    let installedPoisonHandler: ((error: Error) => void) | undefined;
+    let startupFailure: Error | undefined;
+    const forwardFailure = (error: Error): void => {
+      if (installedPoisonHandler === undefined) startupFailure = error;
+      else installedPoisonHandler(error);
+    };
+    const initializations: Promise<void>[] = [];
+    try {
+      for (let index = 0; index < options.workers; index += 1) {
+        arraySetOwn(
+          clients,
+          index,
+          new StableWasmWorkerClient(
+            (assets as Readonly<FloodgateStableWasmSearchAssets>)
+              .workerSourceBytes,
+            forwardFailure,
+          ),
+        );
+      }
+      for (let index = 0; index < clients.length; index += 1) {
+        arraySetOwn(
+          initializations,
+          index,
+          clients[index].initialize(
+            assets as Readonly<FloodgateStableWasmSearchAssets>,
+            options.startupTimeoutMilliseconds,
+          ),
+        );
+      }
+      await waitAllVoid(initializations);
+      if (startupFailure !== undefined) throw startupFailure;
+      const receipt = reusablePoolReceipt(options, identity);
+      const pool = buildReusableProposalPool(
+        frozenList(clients),
+        options,
+        receipt,
+        (handler) => {
+          installedPoisonHandler = handler;
+        },
+      );
+      if (startupFailure !== undefined) {
+        installedPoisonHandler?.(startupFailure);
+        await pool.close();
+        throw startupFailure;
+      }
+      return pool;
+    } catch (error) {
+      const stops: Promise<void>[] = [];
+      for (let index = 0; index < clients.length; index += 1) {
+        arraySetOwn(stops, index, requestWorkerStop(clients[index], true));
+      }
+      let cleanupFailure: unknown;
+      try {
+        await settleAllVoidReportingFailure(stops);
+      } catch (failure) {
+        cleanupFailure = failure;
+      }
+      await settleAllVoid(initializations);
+      if (cleanupFailure !== undefined) {
+        throw new NativeAggregateError(
+          [error, cleanupFailure],
+          "stable-WASM reusable pool initialization and cleanup both failed",
+        );
+      }
+      throw error;
+    } finally {
+      zeroizeSearchAssets(assets as Readonly<FloodgateStableWasmSearchAssets>);
+      assets = undefined;
+    }
+  };
+  return pinNativePromise(create());
+}
+
+/**
+ * Low-level initialized worker pool for a production wrapper to create only
+ * inside its authenticated fixed-asset callback. The receipt is deliberately
+ * structural and makes no production, teacher-label, or strength claim.
+ */
+export function createFloodgateStableWasmReusableProposalPool(
+  assetValue: Readonly<FloodgateStableWasmSearchAssets>,
+  optionValue: FloodgateStableWasmReusableProposalPoolOptions,
+): Promise<Readonly<FloodgateStableWasmReusableProposalPool>> {
+  return createReusableProposalPoolWithIdentity(
+    assetValue,
+    optionValue,
+    frozenRecord({
+      bytes: FLOODGATE_STABLE_WORKER_SOURCE_BYTES,
+      sha256: FLOODGATE_STABLE_WORKER_SOURCE_SHA256,
+    }),
+  );
+}
+
+/** Synthetic worker transport seam for bounded queue and poison tests. */
+export function createFloodgateStableWasmReusableProposalPoolWithSourceCoreForTests(
+  assetValue: Readonly<FloodgateStableWasmSearchAssets>,
+  optionValue: FloodgateStableWasmReusableProposalPoolOptions,
+  workerSourceIdentity: FloodgateStableWasmWorkerSourceIdentity,
+): Promise<Readonly<FloodgateStableWasmReusableProposalPool>> {
+  return createReusableProposalPoolWithIdentity(
     assetValue,
     optionValue,
     workerSourceIdentity,

@@ -12,6 +12,7 @@ import {
   parseFloodgateV7CheckpointScanLoadInternalOptionsCoreForTests,
   parseFloodgateV7CheckpointScanLoadOptionsCoreForTests,
   runFloodgateV7CheckpointScanLoadHarness,
+  validateFloodgateV7ScanLoadMemoryCoreForTests,
   verifyFloodgateV7ScanLoadSyncRestorationCoreForTests,
 } from "../../../ml/floodgate-v7-checkpoint-scan-load";
 import { floodgateCanonicalUrlGameId } from "../../../ml/floodgate-raw-lock";
@@ -107,13 +108,43 @@ describe("Floodgate v7 semantic checkpoint scanner load harness", () => {
   );
 
   evidenceRuntimeIt(
-    "restores the native sync descriptor when the isolated build action rejects",
+    "cleans setup failures and restores native sync after action rejection",
     async () => {
       await expect(
         verifyFloodgateV7ScanLoadSyncRestorationCoreForTests(),
       ).resolves.toBeUndefined();
+      await expect(
+        verifyFloodgateV7ScanLoadSyncRestorationCoreForTests(true),
+      ).resolves.toBeUndefined();
     },
   );
+
+  it("accepts final RSS sampled after sampler stop without weakening peak bounds", () => {
+    expect(() =>
+      validateFloodgateV7ScanLoadMemoryCoreForTests({
+        baseline_rss_bytes: 100,
+        final_rss_bytes: 300,
+        resource_max_rss_bytes: 400,
+        sampled_peak_rss_bytes: 200,
+      }),
+    ).not.toThrow();
+    expect(() =>
+      validateFloodgateV7ScanLoadMemoryCoreForTests({
+        baseline_rss_bytes: 100,
+        final_rss_bytes: 300,
+        resource_max_rss_bytes: 400,
+        sampled_peak_rss_bytes: 99,
+      }),
+    ).toThrow(/sampled RSS peak/);
+    expect(() =>
+      validateFloodgateV7ScanLoadMemoryCoreForTests({
+        baseline_rss_bytes: 100,
+        final_rss_bytes: 200,
+        resource_max_rss_bytes: 250,
+        sampled_peak_rss_bytes: 300,
+      }),
+    ).toThrow(/sampled RSS peak/);
+  });
 
   it("accepts only canonical, nonduplicated public CLI options", () => {
     expect(

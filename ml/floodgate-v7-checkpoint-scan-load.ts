@@ -1029,34 +1029,61 @@ async function withRegularFileSyncSuppressed<T>(
   }
 }
 
-/** Regression seam proving the isolated sync override restores on rejection. */
-export async function verifyFloodgateV7ScanLoadSyncRestorationCoreForTests(): Promise<void> {
+/** Regression seam proving setup cleanup and sync restoration on rejection. */
+export async function verifyFloodgateV7ScanLoadSyncRestorationCoreForTests(
+  failBeforePrototypeForTests = false,
+): Promise<void> {
   requireExactNodeRuntime();
   const root = await fs.promises.mkdtemp(
     path.join(os.tmpdir(), "floodgate-v7-sync-restore-"),
   );
   const filePath = path.join(root, "work.jsonl");
-  await fs.promises.writeFile(filePath, "synthetic\n", { mode: 0o600 });
-  const handle = await fs.promises.open(filePath, fs.constants.O_RDWR);
-  const prototype = await fileHandleSyncPrototype(filePath);
-  const nativeSync = prototype.sync;
   const sentinel = new Error("intentional sync-restoration rejection");
+  let handle: fs.promises.FileHandle | undefined;
+  let prototype: FileHandleSyncPrototype | undefined;
+  let nativeSync: FileHandleSyncPrototype["sync"] | undefined;
+  let observed: unknown;
   try {
-    let observed: unknown;
-    try {
-      await withRegularFileSyncSuppressed(filePath, async () => {
-        await handle.sync();
-        throw sentinel;
-      });
-    } catch (cause) {
-      observed = cause;
-    }
-    if (observed !== sentinel || prototype.sync !== nativeSync) {
-      throw new Error("sync suppression did not restore after rejection");
-    }
+    await fs.promises.writeFile(filePath, "synthetic\n", { mode: 0o600 });
+    handle = await fs.promises.open(filePath, fs.constants.O_RDWR);
+    if (failBeforePrototypeForTests) throw sentinel;
+    prototype = await fileHandleSyncPrototype(filePath);
+    nativeSync = prototype.sync;
+    await withRegularFileSyncSuppressed(filePath, async () => {
+      await (handle as fs.promises.FileHandle).sync();
+      throw sentinel;
+    });
+  } catch (cause) {
+    observed = cause;
   } finally {
-    await handle.close();
-    await fs.promises.rm(root, { recursive: true, force: true, maxRetries: 3 });
+    try {
+      if (handle !== undefined) await handle.close();
+    } finally {
+      await fs.promises.rm(root, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+      });
+    }
+  }
+  if (
+    observed !== sentinel ||
+    (!failBeforePrototypeForTests &&
+      (prototype === undefined || prototype.sync !== nativeSync))
+  ) {
+    throw new Error("sync suppression setup or restoration check failed");
+  }
+  try {
+    await fs.promises.lstat(root);
+    throw new Error("sync restoration fixture root was not removed");
+  } catch (cause) {
+    if (
+      !(cause instanceof Error) ||
+      !("code" in cause) ||
+      cause.code !== "ENOENT"
+    ) {
+      throw cause;
+    }
   }
 }
 
@@ -1515,10 +1542,17 @@ function validateMemory(value: unknown, label: string, sampled: boolean): void {
       `${label}.sampled_peak_rss_bytes`,
       1,
     );
-    if (sampledPeak < baseline || sampledPeak < final) {
+    if (sampledPeak < baseline || resourcePeak < sampledPeak) {
       throw new Error(`${label} sampled RSS peak is inconsistent`);
     }
   }
+}
+
+/** Strict memory-validator seam for sampler ordering regressions. */
+export function validateFloodgateV7ScanLoadMemoryCoreForTests(
+  value: unknown,
+): void {
+  validateMemory(value, "test memory", true);
 }
 
 function validateBuildChildResult(

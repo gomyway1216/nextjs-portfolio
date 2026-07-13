@@ -768,7 +768,13 @@ posixDescribe("Floodgate stable proposal explicit finalization resume", () => {
     const beforeKey = new Uint8Array(key);
     const receipt =
       await modules.resume.resumeAndPublishFloodgateStableProposalFinalizationCoreForTests(
-        resumeOptions(consumer, stage),
+        {
+          ...resumeOptions(consumer, stage),
+          stageAuthorization: {
+            ...stage.options,
+            evalDir: undefined,
+          },
+        },
         await resumeDependencies(consumer, stage, key, {
           stageAuthorization: authorizationDependencies({
             afterLeaseAcquiredForTests: () => {

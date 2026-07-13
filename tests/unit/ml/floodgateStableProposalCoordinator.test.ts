@@ -740,7 +740,13 @@ posixDescribe("Floodgate stable proposal synthetic coordinator", () => {
 
     const receipt =
       await coordinator.runFloodgateStableProposalCoordinatorCoreForTests(
-        options(consumer, stage),
+        {
+          ...options(consumer, stage),
+          stageAuthorization: {
+            ...stage.options,
+            evalDir: undefined,
+          },
+        },
         deps,
       );
 

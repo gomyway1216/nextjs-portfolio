@@ -464,6 +464,7 @@ function captureStageOptions(
   );
   const captured: Record<string, unknown> = Object.create(null);
   for (const key of Object.keys(source)) {
+    if (key === "evalDir" && source[key] === undefined) continue;
     captured[key] =
       key === "engineArgs"
         ? engineArgs

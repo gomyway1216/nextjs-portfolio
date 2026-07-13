@@ -78,14 +78,32 @@ import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES,
   FLOODGATE_V7_TEACHER_CHECKPOINT_SCHEMA,
   FLOODGATE_V7_TEACHER_CHECKPOINT_STATUS,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_DURABILITY,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FORMAT,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
   FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
   FLOODGATE_V7_TEACHER_PRODUCER_CANCEL_POLICY,
   FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_SCHEMA,
   FLOODGATE_V7_TEACHER_PRODUCER_LATE_SETTLEMENT_POLICY,
   FLOODGATE_V7_TEACHER_RUN_BINDING_SCHEMA,
   checkpointFloodgateV7TeacherParentsCoreForTests,
+  checkpointFloodgateV7TeacherParentsV3CoreForTests,
   type FloodgateV7TeacherCheckpointDependencies,
   type FloodgateV7TeacherCheckpointRunBinding,
+  type FloodgateV7TeacherCheckpointV3Dependencies,
+  type FloodgateV7TeacherCheckpointV3Gate,
+  type FloodgateV7TeacherCheckpointV3Receipt,
+  type FloodgateV7TeacherMissingParentRequest,
 } from "./floodgate-v7-teacher-checkpoint";
 import {
   childSfenAfterUsi,
@@ -101,6 +119,12 @@ export const FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_STATUS =
   "complete-synthetic-v2-checkpoint-semantic-resume-and-final-scan-evidence" as const;
 export const FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_CLAIM_BOUNDARY =
   "synthetic-holdout-free-v2-checkpoint-and-authenticated-producer-control-scanner-load-only-fresh-build-receipt-discarded-native-sync-restored-before-evidence-scan-not-teacher-label-training-weight-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_SCHEMA =
+  "shogi-floodgate-v7-checkpoint-semantic-scan-load-v3" as const;
+export const FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_STATUS =
+  "complete-synthetic-v3-fixed-gates-semantic-resume-and-final-scan-evidence" as const;
+export const FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_CLAIM_BOUNDARY =
+  "synthetic-holdout-free-v3-fixed-100-500-24000-gates-checkpoint-and-authenticated-producer-control-scanner-load-only-suppressed-build-receipt-durability-evidence-discarded-receipt-derived-gate-summaries-non-evidence-native-sync-restored-before-sealed-final-retry-evidence-not-teacher-label-training-weight-or-playing-strength-evidence" as const;
 
 const START_SFEN =
   "lnsgkgsnl/1r5b1/ppppppppp/9/9/9/PPPPPPPPP/1B5R1/LNSGKGSNL b - 1";
@@ -123,12 +147,14 @@ const CAPABILITY_FILENAME = ".v7-scan-load-capability";
 const CAPABILITY_RE = /^[0-9a-f]{64}$/;
 const SHA256_RE = /^[0-9a-f]{64}$/;
 
-interface GeneratedParent {
+export interface FloodgateV7CheckpointScanLoadGeneratedParent {
   readonly parent: Readonly<FloodgateTrainingParent>;
   readonly stableMove: string;
   readonly sourceUrl: string;
   readonly gameSha256: string;
 }
+
+type GeneratedParent = FloodgateV7CheckpointScanLoadGeneratedParent;
 
 interface HarnessFixture {
   readonly root: string;
@@ -223,6 +249,116 @@ interface ScanChildResult {
   }>;
 }
 
+interface V3LineStatistics {
+  readonly records: number;
+  readonly header_bytes: number;
+  readonly entries: number;
+  readonly entry_bytes_total: number;
+  readonly entry_bytes_min: number;
+  readonly entry_bytes_max: number;
+  readonly entry_bytes_mean: number;
+  readonly milestones: 2;
+  readonly milestone_100_bytes: number;
+  readonly milestone_500_bytes: number;
+  readonly milestone_bytes_total: number;
+  readonly seal_bytes: number;
+  readonly maximum_line_bytes: number;
+}
+
+interface ObservedLengthSummary {
+  readonly total: number;
+  readonly minimum: number;
+  readonly maximum: number;
+}
+
+interface V3ProducerRange {
+  readonly calls: number;
+  readonly first_input_index: number;
+  readonly last_input_index: number;
+}
+
+interface V3GateProgress {
+  readonly gate: FloodgateV7TeacherCheckpointV3Gate;
+  readonly status:
+    | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS
+    | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS;
+  readonly sealed: boolean;
+  readonly target_parents: number;
+  readonly completed_parents: number;
+  readonly resumed_parents: number;
+  readonly records: number;
+  readonly bytes: number;
+  readonly sha256: string;
+  readonly milestone_100_mac: string;
+  readonly milestone_500_mac: string | null;
+  readonly producer: Readonly<V3ProducerRange>;
+}
+
+interface V3BuildChildResult {
+  readonly phase: "fixture-v3-three-gate-build-non-evidence";
+  readonly node: typeof REQUIRED_NODE_VERSION;
+  readonly parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  readonly games: number;
+  readonly candidates_per_parent: 14;
+  readonly raw: Readonly<{ bytes: number; sha256: string }>;
+  readonly gates: readonly [
+    Readonly<V3GateProgress>,
+    Readonly<V3GateProgress>,
+    Readonly<V3GateProgress>,
+  ];
+  readonly work: Readonly<{
+    bytes: number;
+    sha256: string;
+    line_statistics: Readonly<V3LineStatistics>;
+  }>;
+  readonly sync: Readonly<{
+    suppressed_regular_file_syncs: number;
+    expected_suppressed_regular_file_syncs: number;
+    line_syncs: number;
+    expected_line_syncs: number;
+    pre_resume_syncs: number;
+    expected_pre_resume_syncs: number;
+    native_method_restored_before_batch_sync: true;
+    one_work_batch_sync_completed: true;
+    one_stage_directory_batch_sync_completed: true;
+  }>;
+  readonly timing: Readonly<{
+    generation_wall_ms: number;
+    fixture_wall_ms: number;
+    durable_prefix_100_wall_ms: number;
+    durable_prefix_500_wall_ms: number;
+    sealed_final_24000_wall_ms: number;
+    batch_sync_and_measure_wall_ms: number;
+  }>;
+  readonly memory: BuildChildResult["memory"];
+}
+
+interface V3ScanChildResult {
+  readonly phase: "native-v3-sealed-final-retry-evidence";
+  readonly node: typeof REQUIRED_NODE_VERSION;
+  readonly parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  readonly gate: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000;
+  readonly status: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS;
+  readonly sealed: true;
+  readonly producer_calls: 0;
+  readonly completed_parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  readonly resumed_parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  readonly work: Readonly<{
+    records: number;
+    target_parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+    training_parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+    milestone_100_mac: string;
+    milestone_500_mac: string;
+    bytes: number;
+    receipt_sha256: string;
+    independent_sha256: string;
+    sha256_match: true;
+  }>;
+  readonly reads: Readonly<ReadMeasurements>;
+  readonly timing: ScanChildResult["timing"];
+  readonly memory: ScanChildResult["memory"];
+}
+
 export interface FloodgateV7CheckpointScanLoadOptions {
   readonly parents: number;
   readonly keepFixture?: boolean;
@@ -274,6 +410,83 @@ export interface FloodgateV7CheckpointScanLoadResult {
     memory: BuildChildResult["memory"];
   }>;
   readonly native_scan: Omit<ScanChildResult, "node" | "parents" | "phase">;
+  readonly runtime: Readonly<{
+    node: string;
+    build_child_node: typeof REQUIRED_NODE_VERSION;
+    scan_child_node: typeof REQUIRED_NODE_VERSION;
+    platform: NodeJS.Platform;
+    architecture: string;
+    logical_cpus: number;
+  }>;
+  readonly preserved_fixture_root?: string;
+}
+
+export interface FloodgateV7CheckpointV3ScanLoadOptions {
+  readonly parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  readonly keepFixture?: boolean;
+}
+
+export interface FloodgateV7CheckpointV3ScanLoadResult {
+  readonly schema: typeof FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_SCHEMA;
+  readonly status: typeof FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_STATUS;
+  readonly claim_boundary: typeof FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_CLAIM_BOUNDARY;
+  readonly checkpoint_identity: Readonly<{
+    schema: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA;
+    status: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS;
+    prefix_status: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS;
+    claim_boundary: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY;
+    algorithm: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM;
+    gate_contract: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT;
+    format: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FORMAT;
+    durability: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_DURABILITY;
+    run_id: typeof RUN_ID;
+    key_id: typeof KEY_ID;
+    run_binding: Readonly<FloodgateV7TeacherCheckpointRunBinding>;
+    teacher_usi_runtime: Readonly<{
+      contract: typeof FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CONTRACT;
+      status: typeof FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_STATUS;
+      claim_boundary: typeof FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CLAIM_BOUNDARY;
+    }>;
+  }>;
+  readonly data: Readonly<{
+    source: "deterministic-synthetic-standard-position-legal-playouts";
+    public_dataset_paths_accepted: false;
+    network_reads: false;
+    parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+    games: number;
+    unique_parent_ids: true;
+    unique_position_ids: true;
+    candidates_per_parent: 14;
+  }>;
+  readonly bounds: Readonly<{
+    theoretical_rejection_cap_bytes: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES;
+    theoretical_rejection_cap_classification: "conservative-cap-not-valid-stream-size";
+    maximum_line_bytes: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES;
+    maximum_parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  }>;
+  readonly valid_stream: Readonly<{
+    actual_bytes: number;
+    actual_sha256: string;
+    line_statistics: Readonly<V3LineStatistics>;
+    actual_is_not_theoretical_cap: true;
+  }>;
+  readonly fixture_build: Readonly<{
+    classification: "receipt-derived-three-gate-build-summary-not-durability-evidence";
+    full_authenticated_input_reused_at_all_gates: true;
+    fresh_lease_and_training_claim_per_gate: true;
+    same_private_root_stage_and_run_at_all_gates: true;
+    raw: V3BuildChildResult["raw"];
+    gate_progress: Readonly<{
+      "durable-prefix-100": Readonly<V3GateProgress>;
+      "durable-prefix-500": Readonly<V3GateProgress>;
+      "sealed-final-24000": Readonly<V3GateProgress>;
+    }>;
+    sync: V3BuildChildResult["sync"];
+    timing: V3BuildChildResult["timing"];
+    memory: V3BuildChildResult["memory"];
+  }>;
+  readonly native_scan: Omit<V3ScanChildResult, "node" | "parents" | "phase"> &
+    Readonly<{ work_unchanged_since_build: true }>;
   readonly runtime: Readonly<{
     node: string;
     build_child_node: typeof REQUIRED_NODE_VERSION;
@@ -611,6 +824,27 @@ function rawRows(
       game_sha256: gameSha256,
     }),
   );
+}
+
+/** Shared synthetic fixture seam for fixed-size v3 checkpoint tests. */
+export function generateFloodgateV7CheckpointScanLoadParentsCoreForTests(
+  count: number,
+): readonly Readonly<FloodgateV7CheckpointScanLoadGeneratedParent>[] {
+  return generateParents(validateParentCount(count));
+}
+
+/** Build the compact completed-parent value for one shared synthetic parent. */
+export function buildFloodgateV7CheckpointScanLoadCompletedParentCoreForTests(
+  generated: Readonly<FloodgateV7CheckpointScanLoadGeneratedParent>,
+): Readonly<FloodgateV7CompletedParentInput> {
+  return completedParentInput(generated);
+}
+
+/** Project shared synthetic parents into authenticated raw training rows. */
+export function buildFloodgateV7CheckpointScanLoadRawRowsCoreForTests(
+  generated: readonly Readonly<FloodgateV7CheckpointScanLoadGeneratedParent>[],
+): readonly Readonly<FloodgateRoleBundleRawParent>[] {
+  return rawRows(generated);
 }
 
 function canonicalRawBytes(
@@ -1003,6 +1237,42 @@ async function runCheckpoint(
   return receipt;
 }
 
+async function runV3Checkpoint(
+  fixture: Readonly<HarnessFixture>,
+  gate: FloodgateV7TeacherCheckpointV3Gate,
+  producer: (
+    request: Readonly<FloodgateV7TeacherMissingParentRequest>,
+  ) => Promise<Readonly<FloodgateV7CompletedParentInput>>,
+  dependencyOverrides: Partial<FloodgateV7TeacherCheckpointV3Dependencies> = {},
+): Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> {
+  const lease = await authorizeFixture(fixture);
+  let receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt> | undefined;
+  await withVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+    fixture.trainingOptions,
+    async (authenticated: Readonly<AuthenticatedFloodgateTrainingRows>) => {
+      receipt = await checkpointFloodgateV7TeacherParentsV3CoreForTests(
+        lease,
+        authenticated,
+        runBinding(),
+        {
+          produce: producer,
+          abortAndDrain: async () => undefined,
+        },
+        { gate, runId: RUN_ID, keyId: KEY_ID },
+        {
+          rootKey: rootKey(),
+          effectiveUserId: effectiveUserId(),
+          ...dependencyOverrides,
+        },
+      );
+    },
+    trainingDependencies(fixture.identity),
+  );
+  if (receipt === undefined)
+    throw new Error("v3 checkpoint produced no receipt");
+  return receipt;
+}
+
 interface FileHandleSyncPrototype {
   sync(this: fs.promises.FileHandle): Promise<void>;
 }
@@ -1020,7 +1290,7 @@ async function fileHandleSyncPrototype(
 
 async function withRegularFileSyncSuppressed<T>(
   probePath: string,
-  action: () => Promise<T>,
+  action: (suppressedRegularFileSyncs: () => number) => Promise<T>,
 ): Promise<Readonly<{ result: T; suppressed: number }>> {
   const prototype = await fileHandleSyncPrototype(probePath);
   const descriptor = Object.getOwnPropertyDescriptor(prototype, "sync");
@@ -1051,7 +1321,7 @@ async function withRegularFileSyncSuppressed<T>(
     },
   });
   try {
-    const result = await action();
+    const result = await action(() => suppressed);
     return Object.freeze({ result, suppressed });
   } finally {
     Object.defineProperty(prototype, "sync", descriptor);
@@ -1196,14 +1466,9 @@ async function streamIdentityAndLineStatistics(
     );
   }
   const entryLengths = lineLengths.slice(1, -1);
-  const entryBytesTotal = entryLengths.reduce(
-    (total, value) => total + value,
-    0,
-  );
-  const entryBytesMin = Math.min(...entryLengths);
-  const entryBytesMax = Math.max(...entryLengths);
-  const maximumLineBytes = Math.max(...lineLengths);
-  if (maximumLineBytes > FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES) {
+  const entrySummary = summarizeObservedLengths(entryLengths);
+  const lineSummary = summarizeObservedLengths(lineLengths);
+  if (lineSummary.maximum > FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES) {
     throw new Error("valid fixture exceeded the checkpoint line bound");
   }
   return Object.freeze({
@@ -1213,14 +1478,182 @@ async function streamIdentityAndLineStatistics(
       records: lineLengths.length,
       header_bytes: lineLengths[0],
       entries: entryLengths.length,
-      entry_bytes_total: entryBytesTotal,
-      entry_bytes_min: entryBytesMin,
-      entry_bytes_max: entryBytesMax,
-      entry_bytes_mean: Math.round(entryBytesTotal / entryLengths.length),
+      entry_bytes_total: entrySummary.total,
+      entry_bytes_min: entrySummary.minimum,
+      entry_bytes_max: entrySummary.maximum,
+      entry_bytes_mean: Math.round(entrySummary.total / entryLengths.length),
       seal_bytes: lineLengths.at(-1) as number,
-      maximum_line_bytes: maximumLineBytes,
+      maximum_line_bytes: lineSummary.maximum,
     }),
   });
+}
+
+async function streamV3IdentityAndLineStatistics(filePath: string): Promise<
+  Readonly<{
+    bytes: number;
+    sha256: string;
+    lineStatistics: Readonly<V3LineStatistics>;
+  }>
+> {
+  const digest = createHash("sha256");
+  const lineLengths: number[] = [];
+  const entryLengths: number[] = [];
+  let milestone100Bytes: number | undefined;
+  let milestone500Bytes: number | undefined;
+  let bytes = 0;
+  let pending = Buffer.alloc(0);
+
+  const acceptLine = (line: Buffer): void => {
+    if (
+      line.byteLength < 1 ||
+      line.byteLength > FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES
+    ) {
+      throw new Error("v3 fixture contains an empty or oversized line");
+    }
+    const lineIndex = lineLengths.length;
+    const parsed = JSON.parse(line.toString("utf8")) as unknown;
+    if (
+      parsed === null ||
+      typeof parsed !== "object" ||
+      Array.isArray(parsed)
+    ) {
+      throw new Error("v3 fixture line is not a JSON object");
+    }
+    const record = parsed as Record<string, unknown>;
+    if (record.schema !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA) {
+      throw new Error("v3 fixture line has the wrong schema");
+    }
+    if (lineIndex === 0) {
+      if (record.kind !== "header") {
+        throw new Error("v3 fixture does not begin with its header");
+      }
+    } else if (lineIndex === 101) {
+      if (
+        record.kind !== "durable-prefix-milestone" ||
+        record.gate !==
+          FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100 ||
+        record.completed_parents !== 100 ||
+        record.status !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS
+      ) {
+        throw new Error("v3 fixture 100-parent milestone is misplaced");
+      }
+      milestone100Bytes = line.byteLength;
+    } else if (lineIndex === 502) {
+      if (
+        record.kind !== "durable-prefix-milestone" ||
+        record.gate !==
+          FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500 ||
+        record.completed_parents !== 500 ||
+        record.status !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS
+      ) {
+        throw new Error("v3 fixture 500-parent milestone is misplaced");
+      }
+      milestone500Bytes = line.byteLength;
+    } else if (
+      lineIndex ===
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS + 3
+    ) {
+      if (
+        record.kind !== "seal" ||
+        record.entries !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS ||
+        record.status !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS
+      ) {
+        throw new Error("v3 fixture does not end with its exact final seal");
+      }
+    } else {
+      const expectedInputIndex = entryLengths.length;
+      if (
+        record.kind !== "completed-parent" ||
+        record.sequence !== expectedInputIndex ||
+        record.input_index !== expectedInputIndex
+      ) {
+        throw new Error("v3 fixture completed-parent sequence is not exact");
+      }
+      entryLengths.push(line.byteLength);
+    }
+    lineLengths.push(line.byteLength);
+  };
+
+  for await (const chunkValue of fs.createReadStream(filePath)) {
+    const chunk = Buffer.isBuffer(chunkValue)
+      ? chunkValue
+      : Buffer.from(chunkValue);
+    digest.update(chunk);
+    bytes += chunk.byteLength;
+    const data = pending.byteLength
+      ? Buffer.concat([pending, chunk], pending.byteLength + chunk.byteLength)
+      : chunk;
+    let start = 0;
+    for (;;) {
+      const newline = data.indexOf(0x0a, start);
+      if (newline === -1) break;
+      acceptLine(data.subarray(start, newline));
+      start = newline + 1;
+    }
+    pending = Buffer.from(data.subarray(start));
+    if (pending.byteLength > FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES) {
+      throw new Error("v3 fixture line exceeded its bound before LF");
+    }
+  }
+  if (pending.byteLength !== 0) {
+    throw new Error("v3 fixture stream does not end at an LF boundary");
+  }
+  const expectedRecords = FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS + 4;
+  if (
+    lineLengths.length !== expectedRecords ||
+    entryLengths.length !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS ||
+    milestone100Bytes === undefined ||
+    milestone500Bytes === undefined
+  ) {
+    throw new Error("v3 fixture record or milestone counts are not exact");
+  }
+  const entrySummary = summarizeObservedLengths(entryLengths);
+  const lineSummary = summarizeObservedLengths(lineLengths);
+  const milestoneBytesTotal = milestone100Bytes + milestone500Bytes;
+  return Object.freeze({
+    bytes,
+    sha256: digest.digest("hex"),
+    lineStatistics: Object.freeze({
+      records: lineLengths.length,
+      header_bytes: lineLengths[0],
+      entries: entryLengths.length,
+      entry_bytes_total: entrySummary.total,
+      entry_bytes_min: entrySummary.minimum,
+      entry_bytes_max: entrySummary.maximum,
+      entry_bytes_mean: Math.round(entrySummary.total / entryLengths.length),
+      milestones: 2,
+      milestone_100_bytes: milestone100Bytes,
+      milestone_500_bytes: milestone500Bytes,
+      milestone_bytes_total: milestoneBytesTotal,
+      seal_bytes: lineLengths.at(-1) as number,
+      maximum_line_bytes: lineSummary.maximum,
+    }),
+  });
+}
+
+function summarizeObservedLengths(
+  values: readonly number[],
+): Readonly<ObservedLengthSummary> {
+  const first = values[0];
+  if (first === undefined) {
+    throw new Error("observed length summary requires a non-empty input");
+  }
+  let total = 0;
+  let minimum = first;
+  let maximum = first;
+  for (const value of values) {
+    total += value;
+    if (value < minimum) minimum = value;
+    if (value > maximum) maximum = value;
+  }
+  return Object.freeze({ total, minimum, maximum });
+}
+
+/** Regression seam proving large scan-load length sets avoid argument spread. */
+export function summarizeFloodgateV7ScanLoadLengthsCoreForTests(
+  values: readonly number[],
+): Readonly<ObservedLengthSummary> {
+  return summarizeObservedLengths(values);
 }
 
 function resourceMaxRssBytes(): number {
@@ -1254,6 +1687,325 @@ function emptyReadMeasurements(): ReadMeasurements {
     },
     first_ms: {},
   };
+}
+
+function v3ProducerRange(
+  generated: readonly Readonly<GeneratedParent>[],
+  firstInputIndex: number,
+  endInputIndexExclusive: number,
+): Readonly<{
+  produce: (
+    request: Readonly<FloodgateV7TeacherMissingParentRequest>,
+  ) => Promise<Readonly<FloodgateV7CompletedParentInput>>;
+  finish: () => Readonly<V3ProducerRange>;
+}> {
+  const expectedCalls = endInputIndexExclusive - firstInputIndex;
+  const seen = new Uint8Array(expectedCalls);
+  let calls = 0;
+  return Object.freeze({
+    produce: async (request) => {
+      const inputIndex = request.input_index;
+      const offset = inputIndex - firstInputIndex;
+      if (
+        !Number.isSafeInteger(inputIndex) ||
+        offset < 0 ||
+        offset >= seen.length ||
+        seen[offset] !== 0
+      ) {
+        throw new Error("v3 gate producer request is outside its exact range");
+      }
+      const row = generated[inputIndex];
+      if (
+        row === undefined ||
+        row.parent.parent_id !== request.parent.parent_id
+      ) {
+        throw new Error("v3 gate producer request does not match full input");
+      }
+      seen[offset] = 1;
+      calls += 1;
+      return completedParentInput(row);
+    },
+    finish: () => {
+      if (calls !== expectedCalls || seen.some((value) => value !== 1)) {
+        throw new Error("v3 gate did not request every expected input once");
+      }
+      return Object.freeze({
+        calls,
+        first_input_index: firstInputIndex,
+        last_input_index: endInputIndexExclusive - 1,
+      });
+    },
+  });
+}
+
+function assertV3ReceiptIdentity(
+  receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt>,
+): void {
+  if (
+    receipt.contract !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA ||
+    receipt.claim_boundary !==
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY ||
+    receipt.algorithm !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM ||
+    receipt.run_id !== RUN_ID ||
+    receipt.key_id !== KEY_ID ||
+    receipt.gate_contract.schema !==
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT.schema ||
+    receipt.gate_contract.durable_prefix_100_parents !== 100 ||
+    receipt.gate_contract.durable_prefix_500_parents !== 500 ||
+    receipt.gate_contract.sealed_final_parents !==
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS ||
+    receipt.work.filename !== FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME ||
+    receipt.work.format !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FORMAT ||
+    receipt.work.durability !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_DURABILITY
+  ) {
+    throw new Error("v3 checkpoint receipt identity is not exact");
+  }
+}
+
+function v3GateProgress(
+  receipt: Readonly<FloodgateV7TeacherCheckpointV3Receipt>,
+  producer: Readonly<V3ProducerRange>,
+  expected: Readonly<{
+    gate: FloodgateV7TeacherCheckpointV3Gate;
+    status:
+      | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS
+      | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS;
+    sealed: boolean;
+    targetParents: number;
+    resumedParents: number;
+    records: number;
+  }>,
+): Readonly<V3GateProgress> {
+  assertV3ReceiptIdentity(receipt);
+  if (
+    receipt.gate !== expected.gate ||
+    receipt.status !== expected.status ||
+    receipt.sealed !== expected.sealed ||
+    receipt.work.target_parents !== expected.targetParents ||
+    receipt.work.completed_parents !== expected.targetParents ||
+    receipt.work.resumed_parents !== expected.resumedParents ||
+    receipt.work.records !== expected.records ||
+    receipt.work.training_parents !==
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS ||
+    !SHA256_RE.test(receipt.work.sha256) ||
+    !SHA256_RE.test(receipt.work.milestone_100_mac) ||
+    (receipt.work.milestone_500_mac !== null &&
+      !SHA256_RE.test(receipt.work.milestone_500_mac))
+  ) {
+    throw new Error(`v3 ${expected.gate} receipt is not exact`);
+  }
+  return Object.freeze({
+    gate: receipt.gate,
+    status: receipt.status,
+    sealed: receipt.sealed,
+    target_parents: receipt.work.target_parents,
+    completed_parents: receipt.work.completed_parents,
+    resumed_parents: receipt.work.resumed_parents,
+    records: receipt.work.records,
+    bytes: receipt.work.bytes,
+    sha256: receipt.work.sha256,
+    milestone_100_mac: receipt.work.milestone_100_mac,
+    milestone_500_mac: receipt.work.milestone_500_mac,
+    producer,
+  });
+}
+
+async function buildV3ChildPhase(root: string): Promise<V3BuildChildResult> {
+  const parents = FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  const baselineRss = process.memoryUsage().rss;
+  const started = performance.now();
+  const generated = generateParents(parents);
+  const generatedAt = performance.now();
+  let fixture: Readonly<HarnessFixture> | undefined;
+  try {
+    fixture = await makeFixture(generated, root);
+    const fixtureAt = performance.now();
+    const built = await withRegularFileSyncSuppressed(
+      fixture.trainingPath,
+      async (suppressedRegularFileSyncs) => {
+        const beforeGate100Syncs = suppressedRegularFileSyncs();
+        const gate100Producer = v3ProducerRange(generated, 0, 100);
+        const gate100Receipt = await runV3Checkpoint(
+          fixture as Readonly<HarnessFixture>,
+          FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+          gate100Producer.produce,
+        );
+        const gate100At = performance.now();
+        const gate100 = v3GateProgress(
+          gate100Receipt,
+          gate100Producer.finish(),
+          {
+            gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+            status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+            sealed: false,
+            targetParents: 100,
+            resumedParents: 0,
+            records: 102,
+          },
+        );
+        const afterGate100Syncs = suppressedRegularFileSyncs();
+
+        const gate500Producer = v3ProducerRange(generated, 100, 500);
+        const gate500Receipt = await runV3Checkpoint(
+          fixture as Readonly<HarnessFixture>,
+          FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+          gate500Producer.produce,
+        );
+        const gate500At = performance.now();
+        const gate500 = v3GateProgress(
+          gate500Receipt,
+          gate500Producer.finish(),
+          {
+            gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+            status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+            sealed: false,
+            targetParents: 500,
+            resumedParents: 100,
+            records: 503,
+          },
+        );
+        const afterGate500Syncs = suppressedRegularFileSyncs();
+
+        const finalProducer = v3ProducerRange(generated, 500, parents);
+        const finalReceipt = await runV3Checkpoint(
+          fixture as Readonly<HarnessFixture>,
+          FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+          finalProducer.produce,
+        );
+        const finalAt = performance.now();
+        const final = v3GateProgress(finalReceipt, finalProducer.finish(), {
+          gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+          status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+          sealed: true,
+          targetParents: parents,
+          resumedParents: 500,
+          records: parents + 4,
+        });
+        const afterFinalSyncs = suppressedRegularFileSyncs();
+        const gate100Syncs = afterGate100Syncs - beforeGate100Syncs;
+        const gate500Syncs = afterGate500Syncs - afterGate100Syncs;
+        const finalSyncs = afterFinalSyncs - afterGate500Syncs;
+        if (
+          gate100Syncs !== 102 ||
+          gate500Syncs !== 402 ||
+          finalSyncs !== parents - 500 + 2
+        ) {
+          throw new Error("v3 per-gate regular-file sync counts are not exact");
+        }
+        // The two resume gates each sync the existing whole work file once;
+        // every other suppressed call corresponds to one appended JSONL line.
+        const preResumeSyncs = 2;
+        const lineSyncs = gate100Syncs + (gate500Syncs - 1) + (finalSyncs - 1);
+        if (
+          gate100.milestone_500_mac !== null ||
+          gate100.milestone_100_mac !== gate500.milestone_100_mac ||
+          gate100.milestone_100_mac !== final.milestone_100_mac ||
+          gate500.milestone_500_mac === null ||
+          gate500.milestone_500_mac !== final.milestone_500_mac
+        ) {
+          throw new Error("v3 gate receipts lost milestone MAC continuity");
+        }
+        const stageIdentity = canonicalJson(gate100Receipt.stage);
+        if (
+          canonicalJson(gate500Receipt.stage) !== stageIdentity ||
+          canonicalJson(finalReceipt.stage) !== stageIdentity
+        ) {
+          throw new Error("v3 gate receipts did not retain one stage identity");
+        }
+        return Object.freeze({
+          gates: Object.freeze([gate100, gate500, final] as const),
+          gate100At,
+          gate500At,
+          finalAt,
+          lineSyncs,
+          preResumeSyncs,
+        });
+      },
+    );
+    const expectedSuppressed = parents + 6;
+    if (
+      built.suppressed !== expectedSuppressed ||
+      built.result.lineSyncs !== parents + 4 ||
+      built.result.preResumeSyncs !== 2 ||
+      built.result.lineSyncs + built.result.preResumeSyncs !== built.suppressed
+    ) {
+      throw new Error(
+        `suppressed ${built.suppressed} v3 regular-file syncs, expected ${expectedSuppressed}`,
+      );
+    }
+    await batchSyncFixture(fixture);
+    const workPath = path.join(
+      fixture.stageRoot,
+      FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+    );
+    const measured = await streamV3IdentityAndLineStatistics(workPath);
+    const ended = performance.now();
+    const finalGate = built.result.gates[2];
+    if (
+      finalGate.bytes !== measured.bytes ||
+      finalGate.sha256 !== measured.sha256
+    ) {
+      throw new Error("v3 batch-synced work differs from final gate receipt");
+    }
+    return Object.freeze({
+      phase: "fixture-v3-three-gate-build-non-evidence",
+      node: REQUIRED_NODE_VERSION,
+      parents,
+      games: new Set(generated.map((entry) => entry.parent.game_id)).size,
+      candidates_per_parent: 14,
+      raw: Object.freeze({
+        bytes: fixture.identity.bytes,
+        sha256: fixture.identity.sha256,
+      }),
+      gates: built.result.gates,
+      work: Object.freeze({
+        bytes: measured.bytes,
+        sha256: measured.sha256,
+        line_statistics: measured.lineStatistics,
+      }),
+      sync: Object.freeze({
+        suppressed_regular_file_syncs: built.suppressed,
+        expected_suppressed_regular_file_syncs: expectedSuppressed,
+        line_syncs: built.result.lineSyncs,
+        expected_line_syncs: parents + 4,
+        pre_resume_syncs: built.result.preResumeSyncs,
+        expected_pre_resume_syncs: 2,
+        native_method_restored_before_batch_sync: true,
+        one_work_batch_sync_completed: true,
+        one_stage_directory_batch_sync_completed: true,
+      }),
+      timing: Object.freeze({
+        generation_wall_ms: Math.round(generatedAt - started),
+        fixture_wall_ms: Math.round(fixtureAt - generatedAt),
+        durable_prefix_100_wall_ms: Math.round(
+          built.result.gate100At - fixtureAt,
+        ),
+        durable_prefix_500_wall_ms: Math.round(
+          built.result.gate500At - built.result.gate100At,
+        ),
+        sealed_final_24000_wall_ms: Math.round(
+          built.result.finalAt - built.result.gate500At,
+        ),
+        batch_sync_and_measure_wall_ms: Math.round(
+          ended - built.result.finalAt,
+        ),
+      }),
+      memory: Object.freeze({
+        baseline_rss_bytes: baselineRss,
+        final_rss_bytes: process.memoryUsage().rss,
+        resource_max_rss_bytes: resourceMaxRssBytes(),
+      }),
+    });
+  } catch (cause) {
+    if (fixture !== undefined) {
+      await fs.promises.rm(fixture.root, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+      });
+    }
+    throw cause;
+  }
 }
 
 async function buildChildPhase(
@@ -1443,6 +2195,150 @@ async function scanChildPhase(root: string): Promise<ScanChildResult> {
     completed_parents: receipt.work.completed_parents,
     resumed_parents: receipt.work.resumed_parents,
     work: Object.freeze({
+      bytes: receipt.work.bytes,
+      receipt_sha256: receipt.work.sha256,
+      independent_sha256: independent.sha256,
+      sha256_match: true,
+    }),
+    reads: Object.freeze(measurements),
+    timing: Object.freeze({
+      total_checkpoint_wall_ms: Math.round(checkpointEnded - started),
+      resumable_prefix_start_to_final_scan_start_wall_ms: Math.round(
+        finalStarted - prefixStarted,
+      ),
+      sealed_final_scan_start_to_receipt_wall_ms: Math.round(
+        checkpointEnded - finalStarted,
+      ),
+      independent_sha256_wall_ms: Math.round(ended - hashStarted),
+    }),
+    memory: Object.freeze({
+      baseline_rss_bytes: baselineRss,
+      final_rss_bytes: scanFinalRss,
+      resource_max_rss_bytes: resourceMaxRssBytes(),
+      sampled_peak_rss_bytes: sampledPeakRss,
+    }),
+  });
+}
+
+async function scanV3ChildPhase(root: string): Promise<V3ScanChildResult> {
+  const fixture = await fixtureFromExistingRoot(root);
+  const parents = fixture.identity.records;
+  if (parents !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS) {
+    throw new Error("v3 native scan fixture is not the full 24,000 input");
+  }
+  const measurements = emptyReadMeasurements();
+  const expectedPositions = {
+    "resumable-prefix": 0,
+    "sealed-final": 0,
+  };
+  const globalWithGc = globalThis as typeof globalThis & {
+    gc?: () => void;
+  };
+  globalWithGc.gc?.();
+  const baselineRss = process.memoryUsage().rss;
+  const sampler = startRssSampler();
+  let producerCalls = 0;
+  const started = performance.now();
+  const receipt = await runV3Checkpoint(
+    fixture,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+    async () => {
+      producerCalls += 1;
+      throw new Error("sealed v3 fixture unexpectedly requested a producer");
+    },
+    {
+      readForTests: async (request, read) => {
+        const purpose = request.purpose;
+        if (purpose === "durable-prefix-final") {
+          throw new Error("sealed v3 retry used the prefix-only final scan");
+        }
+        if (request.position !== expectedPositions[purpose]) {
+          throw new Error(`${purpose} v3 scan position is not contiguous`);
+        }
+        if (request.length > READ_CHUNK_BYTES) {
+          throw new Error(`${purpose} v3 scan exceeded the 64 KiB read bound`);
+        }
+        measurements.first_ms[purpose] ??= performance.now();
+        const bytesRead = await read();
+        measurements.calls[purpose] += 1;
+        measurements.bytes[purpose] += bytesRead;
+        measurements.maximum_request_bytes[purpose] = Math.max(
+          measurements.maximum_request_bytes[purpose],
+          request.length,
+        );
+        expectedPositions[purpose] += bytesRead;
+        return bytesRead;
+      },
+    },
+  );
+  const checkpointEnded = performance.now();
+  const sampledPeakRss = sampler.stop();
+  const scanFinalRss = process.memoryUsage().rss;
+  const workPath = path.join(
+    fixture.stageRoot,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+  );
+  const hashStarted = performance.now();
+  const independent = await streamV3IdentityAndLineStatistics(workPath);
+  const ended = performance.now();
+  assertV3ReceiptIdentity(receipt);
+  if (producerCalls !== 0) {
+    throw new Error("native v3 evidence scan invoked the forbidden producer");
+  }
+  if (
+    receipt.gate !==
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000 ||
+    receipt.status !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS ||
+    receipt.sealed !== true ||
+    receipt.work.records !== parents + 4 ||
+    receipt.work.target_parents !== parents ||
+    receipt.work.training_parents !== parents ||
+    receipt.work.completed_parents !== parents ||
+    receipt.work.resumed_parents !== parents ||
+    !SHA256_RE.test(receipt.work.milestone_100_mac) ||
+    receipt.work.milestone_500_mac === null ||
+    !SHA256_RE.test(receipt.work.milestone_500_mac)
+  ) {
+    throw new Error("native v3 sealed-final retry receipt is not exact");
+  }
+  if (
+    receipt.work.bytes !== independent.bytes ||
+    receipt.work.sha256 !== independent.sha256
+  ) {
+    throw new Error("v3 scanner receipt and independent identity differ");
+  }
+  for (const purpose of ["resumable-prefix", "sealed-final"] as const) {
+    const expectedCalls = Math.ceil(independent.bytes / READ_CHUNK_BYTES);
+    const expectedMaximum = Math.min(independent.bytes, READ_CHUNK_BYTES);
+    if (
+      measurements.bytes[purpose] !== independent.bytes ||
+      measurements.calls[purpose] !== expectedCalls ||
+      measurements.maximum_request_bytes[purpose] !== expectedMaximum
+    ) {
+      throw new Error(`${purpose} did not read the exact bounded v3 stream`);
+    }
+  }
+  const prefixStarted = measurements.first_ms["resumable-prefix"];
+  const finalStarted = measurements.first_ms["sealed-final"];
+  if (prefixStarted === undefined || finalStarted === undefined) {
+    throw new Error("native v3 evidence scan did not execute both policies");
+  }
+  return Object.freeze({
+    phase: "native-v3-sealed-final-retry-evidence",
+    node: REQUIRED_NODE_VERSION,
+    parents,
+    gate: receipt.gate,
+    status: receipt.status,
+    sealed: true,
+    producer_calls: 0,
+    completed_parents: receipt.work.completed_parents,
+    resumed_parents: receipt.work.resumed_parents,
+    work: Object.freeze({
+      records: receipt.work.records,
+      target_parents: receipt.work.target_parents,
+      training_parents: receipt.work.training_parents,
+      milestone_100_mac: receipt.work.milestone_100_mac,
+      milestone_500_mac: receipt.work.milestone_500_mac,
       bytes: receipt.work.bytes,
       receipt_sha256: receipt.work.sha256,
       independent_sha256: independent.sha256,
@@ -1879,6 +2775,570 @@ function validateScanChildResult(
   return scan as unknown as Readonly<ScanChildResult>;
 }
 
+function validateV3GateProgressValue(
+  value: unknown,
+  expected: Readonly<{
+    gate: FloodgateV7TeacherCheckpointV3Gate;
+    status:
+      | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS
+      | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS;
+    sealed: boolean;
+    targetParents: number;
+    resumedParents: number;
+    records: number;
+    producerCalls: number;
+    firstInputIndex: number;
+    lastInputIndex: number;
+    milestone500: boolean;
+  }>,
+): Readonly<V3GateProgress> {
+  const gate = strictJsonRecord(
+    value,
+    [
+      "bytes",
+      "completed_parents",
+      "gate",
+      "milestone_100_mac",
+      "milestone_500_mac",
+      "producer",
+      "records",
+      "resumed_parents",
+      "sealed",
+      "sha256",
+      "status",
+      "target_parents",
+    ],
+    `v3 build gate ${expected.gate}`,
+  );
+  if (
+    gate.gate !== expected.gate ||
+    gate.status !== expected.status ||
+    gate.sealed !== expected.sealed
+  ) {
+    throw new Error(`v3 build gate ${expected.gate} discriminants differ`);
+  }
+  exactInteger(
+    gate.target_parents,
+    `${expected.gate}.target_parents`,
+    expected.targetParents,
+    expected.targetParents,
+  );
+  exactInteger(
+    gate.completed_parents,
+    `${expected.gate}.completed_parents`,
+    expected.targetParents,
+    expected.targetParents,
+  );
+  exactInteger(
+    gate.resumed_parents,
+    `${expected.gate}.resumed_parents`,
+    expected.resumedParents,
+    expected.resumedParents,
+  );
+  exactInteger(
+    gate.records,
+    `${expected.gate}.records`,
+    expected.records,
+    expected.records,
+  );
+  exactInteger(
+    gate.bytes,
+    `${expected.gate}.bytes`,
+    1,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES - 1,
+  );
+  exactSha256(gate.sha256, `${expected.gate}.sha256`);
+  exactSha256(gate.milestone_100_mac, `${expected.gate}.milestone_100_mac`);
+  if (expected.milestone500) {
+    exactSha256(gate.milestone_500_mac, `${expected.gate}.milestone_500_mac`);
+  } else if (gate.milestone_500_mac !== null) {
+    throw new Error(`${expected.gate}.milestone_500_mac must be null`);
+  }
+  const producer = strictJsonRecord(
+    gate.producer,
+    ["calls", "first_input_index", "last_input_index"],
+    `${expected.gate}.producer`,
+  );
+  exactInteger(
+    producer.calls,
+    `${expected.gate}.producer.calls`,
+    expected.producerCalls,
+    expected.producerCalls,
+  );
+  exactInteger(
+    producer.first_input_index,
+    `${expected.gate}.producer.first_input_index`,
+    expected.firstInputIndex,
+    expected.firstInputIndex,
+  );
+  exactInteger(
+    producer.last_input_index,
+    `${expected.gate}.producer.last_input_index`,
+    expected.lastInputIndex,
+    expected.lastInputIndex,
+  );
+  return gate as unknown as Readonly<V3GateProgress>;
+}
+
+function validateV3LineStatistics(
+  value: unknown,
+  workBytes: number,
+): Readonly<V3LineStatistics> {
+  const lines = strictJsonRecord(
+    value,
+    [
+      "entries",
+      "entry_bytes_max",
+      "entry_bytes_mean",
+      "entry_bytes_min",
+      "entry_bytes_total",
+      "header_bytes",
+      "maximum_line_bytes",
+      "milestone_100_bytes",
+      "milestone_500_bytes",
+      "milestone_bytes_total",
+      "milestones",
+      "records",
+      "seal_bytes",
+    ],
+    "v3 build.work.line_statistics",
+  );
+  const parents = FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  const records = exactInteger(
+    lines.records,
+    "v3 lines.records",
+    parents + 4,
+    parents + 4,
+  );
+  exactInteger(lines.entries, "v3 lines.entries", parents, parents);
+  exactInteger(lines.milestones, "v3 lines.milestones", 2, 2);
+  const headerBytes = exactInteger(
+    lines.header_bytes,
+    "v3 lines.header_bytes",
+    1,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
+  );
+  const entryTotal = exactInteger(
+    lines.entry_bytes_total,
+    "v3 lines.entry_bytes_total",
+    parents,
+  );
+  const entryMin = exactInteger(
+    lines.entry_bytes_min,
+    "v3 lines.entry_bytes_min",
+    1,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
+  );
+  const entryMax = exactInteger(
+    lines.entry_bytes_max,
+    "v3 lines.entry_bytes_max",
+    entryMin,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
+  );
+  const entryMean = exactInteger(
+    lines.entry_bytes_mean,
+    "v3 lines.entry_bytes_mean",
+    entryMin,
+    entryMax,
+  );
+  const milestone100 = exactInteger(
+    lines.milestone_100_bytes,
+    "v3 lines.milestone_100_bytes",
+    1,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
+  );
+  const milestone500 = exactInteger(
+    lines.milestone_500_bytes,
+    "v3 lines.milestone_500_bytes",
+    1,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
+  );
+  const milestoneTotal = exactInteger(
+    lines.milestone_bytes_total,
+    "v3 lines.milestone_bytes_total",
+    2,
+    2 * FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
+  );
+  const sealBytes = exactInteger(
+    lines.seal_bytes,
+    "v3 lines.seal_bytes",
+    1,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
+  );
+  const lineMax = exactInteger(
+    lines.maximum_line_bytes,
+    "v3 lines.maximum_line_bytes",
+    1,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
+  );
+  if (
+    entryTotal < entryMin * parents ||
+    entryTotal > entryMax * parents ||
+    entryMean !== Math.round(entryTotal / parents) ||
+    milestoneTotal !== milestone100 + milestone500 ||
+    lineMax !==
+      Math.max(headerBytes, entryMax, milestone100, milestone500, sealBytes) ||
+    workBytes !==
+      headerBytes + entryTotal + milestoneTotal + sealBytes + records
+  ) {
+    throw new Error("v3 build line and byte aggregates are inconsistent");
+  }
+  return lines as unknown as Readonly<V3LineStatistics>;
+}
+
+function validateV3BuildChildResult(
+  value: unknown,
+): Readonly<V3BuildChildResult> {
+  const build = strictJsonRecord(
+    value,
+    [
+      "candidates_per_parent",
+      "games",
+      "gates",
+      "memory",
+      "node",
+      "parents",
+      "phase",
+      "raw",
+      "sync",
+      "timing",
+      "work",
+    ],
+    "v3 build child result",
+  );
+  const parents = FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  if (
+    build.phase !== "fixture-v3-three-gate-build-non-evidence" ||
+    build.node !== REQUIRED_NODE_VERSION ||
+    build.parents !== parents ||
+    build.candidates_per_parent !== 14
+  ) {
+    throw new Error("v3 build child identity or count is invalid");
+  }
+  exactInteger(build.games, "v3 build.games", 1, parents);
+  const raw = strictJsonRecord(build.raw, ["bytes", "sha256"], "v3 build.raw");
+  exactInteger(
+    raw.bytes,
+    "v3 build.raw.bytes",
+    1,
+    FLOODGATE_TRAINING_RAW_MAX_BYTES,
+  );
+  exactSha256(raw.sha256, "v3 build.raw.sha256");
+  if (!Array.isArray(build.gates) || build.gates.length !== 3) {
+    throw new Error("v3 build gates must be the exact ordered triple");
+  }
+  const gates = [
+    validateV3GateProgressValue(build.gates[0], {
+      gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+      status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+      sealed: false,
+      targetParents: 100,
+      resumedParents: 0,
+      records: 102,
+      producerCalls: 100,
+      firstInputIndex: 0,
+      lastInputIndex: 99,
+      milestone500: false,
+    }),
+    validateV3GateProgressValue(build.gates[1], {
+      gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+      status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+      sealed: false,
+      targetParents: 500,
+      resumedParents: 100,
+      records: 503,
+      producerCalls: 400,
+      firstInputIndex: 100,
+      lastInputIndex: 499,
+      milestone500: true,
+    }),
+    validateV3GateProgressValue(build.gates[2], {
+      gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+      status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+      sealed: true,
+      targetParents: parents,
+      resumedParents: 500,
+      records: parents + 4,
+      producerCalls: parents - 500,
+      firstInputIndex: 500,
+      lastInputIndex: parents - 1,
+      milestone500: true,
+    }),
+  ] as const;
+  if (
+    gates[0].milestone_100_mac !== gates[1].milestone_100_mac ||
+    gates[0].milestone_100_mac !== gates[2].milestone_100_mac ||
+    gates[1].milestone_500_mac !== gates[2].milestone_500_mac ||
+    !(gates[0].bytes < gates[1].bytes && gates[1].bytes < gates[2].bytes)
+  ) {
+    throw new Error("v3 build gate progression is inconsistent");
+  }
+  const work = strictJsonRecord(
+    build.work,
+    ["bytes", "line_statistics", "sha256"],
+    "v3 build.work",
+  );
+  const workBytes = exactInteger(
+    work.bytes,
+    "v3 build.work.bytes",
+    1,
+    FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES - 1,
+  );
+  const workSha = exactSha256(work.sha256, "v3 build.work.sha256");
+  validateV3LineStatistics(work.line_statistics, workBytes);
+  if (workBytes !== gates[2].bytes || workSha !== gates[2].sha256) {
+    throw new Error("v3 build final gate and measured work disagree");
+  }
+  const sync = strictJsonRecord(
+    build.sync,
+    [
+      "expected_line_syncs",
+      "expected_pre_resume_syncs",
+      "expected_suppressed_regular_file_syncs",
+      "line_syncs",
+      "native_method_restored_before_batch_sync",
+      "one_stage_directory_batch_sync_completed",
+      "one_work_batch_sync_completed",
+      "pre_resume_syncs",
+      "suppressed_regular_file_syncs",
+    ],
+    "v3 build.sync",
+  );
+  const expectedSyncs = parents + 6;
+  const suppressedSyncs = exactInteger(
+    sync.suppressed_regular_file_syncs,
+    "v3 build.sync.suppressed_regular_file_syncs",
+    expectedSyncs,
+    expectedSyncs,
+  );
+  exactInteger(
+    sync.expected_suppressed_regular_file_syncs,
+    "v3 build.sync.expected_suppressed_regular_file_syncs",
+    expectedSyncs,
+    expectedSyncs,
+  );
+  const lineSyncs = exactInteger(
+    sync.line_syncs,
+    "v3 build.sync.line_syncs",
+    parents + 4,
+    parents + 4,
+  );
+  exactInteger(
+    sync.expected_line_syncs,
+    "v3 build.sync.expected_line_syncs",
+    parents + 4,
+    parents + 4,
+  );
+  const preResumeSyncs = exactInteger(
+    sync.pre_resume_syncs,
+    "v3 build.sync.pre_resume_syncs",
+    2,
+    2,
+  );
+  exactInteger(
+    sync.expected_pre_resume_syncs,
+    "v3 build.sync.expected_pre_resume_syncs",
+    2,
+    2,
+  );
+  if (lineSyncs + preResumeSyncs !== suppressedSyncs) {
+    throw new Error("v3 build sync breakdown does not equal its total");
+  }
+  exactTrue(
+    sync.native_method_restored_before_batch_sync,
+    "v3 build.sync.native_restored",
+  );
+  exactTrue(sync.one_work_batch_sync_completed, "v3 build.sync.work_batch");
+  exactTrue(
+    sync.one_stage_directory_batch_sync_completed,
+    "v3 build.sync.stage_batch",
+  );
+  const timing = strictJsonRecord(
+    build.timing,
+    [
+      "batch_sync_and_measure_wall_ms",
+      "durable_prefix_100_wall_ms",
+      "durable_prefix_500_wall_ms",
+      "fixture_wall_ms",
+      "generation_wall_ms",
+      "sealed_final_24000_wall_ms",
+    ],
+    "v3 build.timing",
+  );
+  for (const key of Object.keys(timing)) {
+    exactInteger(timing[key], `v3 build.timing.${key}`);
+  }
+  validateMemory(build.memory, "v3 build.memory", false);
+  return build as unknown as Readonly<V3BuildChildResult>;
+}
+
+function validateV3ScanChildResult(
+  value: unknown,
+  build: Readonly<V3BuildChildResult>,
+): Readonly<V3ScanChildResult> {
+  const scan = strictJsonRecord(
+    value,
+    [
+      "completed_parents",
+      "gate",
+      "memory",
+      "node",
+      "parents",
+      "phase",
+      "producer_calls",
+      "reads",
+      "resumed_parents",
+      "sealed",
+      "status",
+      "timing",
+      "work",
+    ],
+    "v3 scan child result",
+  );
+  const parents = FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  if (
+    scan.phase !== "native-v3-sealed-final-retry-evidence" ||
+    scan.node !== REQUIRED_NODE_VERSION ||
+    scan.parents !== parents ||
+    scan.gate !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000 ||
+    scan.status !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS ||
+    scan.sealed !== true ||
+    scan.producer_calls !== 0 ||
+    scan.completed_parents !== parents ||
+    scan.resumed_parents !== parents
+  ) {
+    throw new Error("v3 scan child identity, count, or retry is invalid");
+  }
+  const work = strictJsonRecord(
+    scan.work,
+    [
+      "bytes",
+      "independent_sha256",
+      "milestone_100_mac",
+      "milestone_500_mac",
+      "receipt_sha256",
+      "records",
+      "sha256_match",
+      "target_parents",
+      "training_parents",
+    ],
+    "v3 scan.work",
+  );
+  exactInteger(work.records, "v3 scan.work.records", parents + 4, parents + 4);
+  exactInteger(
+    work.target_parents,
+    "v3 scan.work.target_parents",
+    parents,
+    parents,
+  );
+  exactInteger(
+    work.training_parents,
+    "v3 scan.work.training_parents",
+    parents,
+    parents,
+  );
+  if (work.bytes !== build.work.bytes || work.sha256_match !== true) {
+    throw new Error("v3 scan child work bytes or SHA flag is invalid");
+  }
+  const receiptSha = exactSha256(
+    work.receipt_sha256,
+    "v3 scan.work.receipt_sha256",
+  );
+  const independentSha = exactSha256(
+    work.independent_sha256,
+    "v3 scan.work.independent_sha256",
+  );
+  const milestone100 = exactSha256(
+    work.milestone_100_mac,
+    "v3 scan.work.milestone_100_mac",
+  );
+  const milestone500 = exactSha256(
+    work.milestone_500_mac,
+    "v3 scan.work.milestone_500_mac",
+  );
+  const finalGate = build.gates[2];
+  if (
+    receiptSha !== independentSha ||
+    receiptSha !== build.work.sha256 ||
+    milestone100 !== finalGate.milestone_100_mac ||
+    milestone500 !== finalGate.milestone_500_mac
+  ) {
+    throw new Error("v3 scan and build stream identities disagree");
+  }
+  const reads = strictJsonRecord(
+    scan.reads,
+    ["bytes", "calls", "first_ms", "maximum_request_bytes"],
+    "v3 scan.reads",
+  );
+  const calls = strictJsonRecord(
+    reads.calls,
+    ["resumable-prefix", "sealed-final"],
+    "v3 scan.reads.calls",
+  );
+  const bytes = strictJsonRecord(
+    reads.bytes,
+    ["resumable-prefix", "sealed-final"],
+    "v3 scan.reads.bytes",
+  );
+  const maximums = strictJsonRecord(
+    reads.maximum_request_bytes,
+    ["resumable-prefix", "sealed-final"],
+    "v3 scan.reads.maximum_request_bytes",
+  );
+  const first = strictJsonRecord(
+    reads.first_ms,
+    ["resumable-prefix", "sealed-final"],
+    "v3 scan.reads.first_ms",
+  );
+  const expectedCalls = Math.ceil(build.work.bytes / READ_CHUNK_BYTES);
+  const expectedMaximum = Math.min(build.work.bytes, READ_CHUNK_BYTES);
+  for (const purpose of ["resumable-prefix", "sealed-final"] as const) {
+    exactInteger(
+      calls[purpose],
+      `v3 scan.reads.calls.${purpose}`,
+      expectedCalls,
+      expectedCalls,
+    );
+    exactInteger(
+      bytes[purpose],
+      `v3 scan.reads.bytes.${purpose}`,
+      build.work.bytes,
+      build.work.bytes,
+    );
+    exactInteger(
+      maximums[purpose],
+      `v3 scan.reads.maximum_request_bytes.${purpose}`,
+      expectedMaximum,
+      expectedMaximum,
+    );
+    finiteNumber(first[purpose], `v3 scan.reads.first_ms.${purpose}`);
+  }
+  const timing = strictJsonRecord(
+    scan.timing,
+    [
+      "independent_sha256_wall_ms",
+      "resumable_prefix_start_to_final_scan_start_wall_ms",
+      "sealed_final_scan_start_to_receipt_wall_ms",
+      "total_checkpoint_wall_ms",
+    ],
+    "v3 scan.timing",
+  );
+  for (const key of Object.keys(timing)) {
+    exactInteger(timing[key], `v3 scan.timing.${key}`);
+  }
+  validateMemory(scan.memory, "v3 scan.memory", true);
+  return scan as unknown as Readonly<V3ScanChildResult>;
+}
+
+/** Strict V3 child-result seam for fast schema and aggregate unit tests. */
+export function validateFloodgateV7CheckpointV3ScanLoadChildrenCoreForTests(
+  buildValue: unknown,
+  scanValue: unknown,
+): void {
+  const build = validateV3BuildChildResult(buildValue);
+  validateV3ScanChildResult(scanValue, build);
+}
+
 async function runChild(
   args: readonly string[],
   capability: Readonly<RunCapability>,
@@ -2083,6 +3543,130 @@ export async function runFloodgateV7CheckpointScanLoadHarness(
   }
 }
 
+export async function runFloodgateV7CheckpointV3ScanLoadHarness(
+  options: Readonly<FloodgateV7CheckpointV3ScanLoadOptions>,
+): Promise<Readonly<FloodgateV7CheckpointV3ScanLoadResult>> {
+  if (options?.parents !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS) {
+    throw new Error("v3 scan-load parents must be exactly 24000");
+  }
+  requireExactNodeRuntime();
+  const keepFixture = options.keepFixture === true;
+  const capability = await createRunCapability();
+  let succeeded = false;
+  try {
+    const build = validateV3BuildChildResult(
+      await runChild(["--internal-v3-phase", "build"], capability),
+    );
+    const scan = validateV3ScanChildResult(
+      await runChild(["--internal-v3-phase", "scan"], capability),
+      build,
+    );
+    if (
+      build.work.bytes !== scan.work.bytes ||
+      build.work.sha256 !== scan.work.receipt_sha256
+    ) {
+      throw new Error("v3 fixture-build and native-scan evidence disagree");
+    }
+    const [gate100, gate500, finalGate] = build.gates;
+    const result: FloodgateV7CheckpointV3ScanLoadResult = {
+      schema: FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_SCHEMA,
+      status: FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_STATUS,
+      claim_boundary: FLOODGATE_V7_CHECKPOINT_V3_SCAN_LOAD_CLAIM_BOUNDARY,
+      checkpoint_identity: Object.freeze({
+        schema: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
+        status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+        prefix_status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+        claim_boundary: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY,
+        algorithm: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM,
+        gate_contract: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT,
+        format: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FORMAT,
+        durability: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_DURABILITY,
+        run_id: RUN_ID,
+        key_id: KEY_ID,
+        run_binding: runBinding(),
+        teacher_usi_runtime: Object.freeze({
+          contract: FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CONTRACT,
+          status: FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_STATUS,
+          claim_boundary:
+            FLOODGATE_PRODUCTION_TEACHER_USI_RUNTIME_CLAIM_BOUNDARY,
+        }),
+      }),
+      data: Object.freeze({
+        source: "deterministic-synthetic-standard-position-legal-playouts",
+        public_dataset_paths_accepted: false,
+        network_reads: false,
+        parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+        games: build.games,
+        unique_parent_ids: true,
+        unique_position_ids: true,
+        candidates_per_parent: 14,
+      }),
+      bounds: Object.freeze({
+        theoretical_rejection_cap_bytes:
+          FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES,
+        theoretical_rejection_cap_classification:
+          "conservative-cap-not-valid-stream-size",
+        maximum_line_bytes: FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
+        maximum_parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+      }),
+      valid_stream: Object.freeze({
+        actual_bytes: scan.work.bytes,
+        actual_sha256: scan.work.receipt_sha256,
+        line_statistics: build.work.line_statistics,
+        actual_is_not_theoretical_cap: true,
+      }),
+      fixture_build: Object.freeze({
+        classification:
+          "receipt-derived-three-gate-build-summary-not-durability-evidence",
+        full_authenticated_input_reused_at_all_gates: true,
+        fresh_lease_and_training_claim_per_gate: true,
+        same_private_root_stage_and_run_at_all_gates: true,
+        raw: build.raw,
+        gate_progress: Object.freeze({
+          "durable-prefix-100": gate100,
+          "durable-prefix-500": gate500,
+          "sealed-final-24000": finalGate,
+        }),
+        sync: build.sync,
+        timing: build.timing,
+        memory: build.memory,
+      }),
+      native_scan: Object.freeze({
+        gate: scan.gate,
+        status: scan.status,
+        sealed: scan.sealed,
+        producer_calls: scan.producer_calls,
+        completed_parents: scan.completed_parents,
+        resumed_parents: scan.resumed_parents,
+        work: scan.work,
+        reads: scan.reads,
+        timing: scan.timing,
+        memory: scan.memory,
+        work_unchanged_since_build: true,
+      }),
+      runtime: Object.freeze({
+        node: process.version,
+        build_child_node: build.node,
+        scan_child_node: scan.node,
+        platform: process.platform,
+        architecture: process.arch,
+        logical_cpus: os.cpus().length,
+      }),
+      ...(keepFixture ? { preserved_fixture_root: capability.root } : {}),
+    };
+    succeeded = true;
+    return Object.freeze(result);
+  } finally {
+    if (!keepFixture || !succeeded) {
+      await fs.promises.rm(capability.root, {
+        recursive: true,
+        force: true,
+        maxRetries: 3,
+      });
+    }
+  }
+}
+
 function requiredOptionValue(
   args: readonly string[],
   index: number,
@@ -2130,11 +3714,60 @@ function parsePublicOptions(
   });
 }
 
+function canonicalV3ParentCount(value: string, label: string): 24_000 {
+  if (value !== "24000") {
+    throw new Error(`${label} must be the canonical fixed value 24000`);
+  }
+  return FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+}
+
+function parseV3PublicOptions(
+  args: readonly string[],
+): FloodgateV7CheckpointV3ScanLoadOptions {
+  let mode = false;
+  let parents:
+    typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS | undefined;
+  let keepFixture = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const argument = args[index];
+    if (argument === "--v3-gates") {
+      if (mode) throw new Error("--v3-gates is duplicated");
+      mode = true;
+    } else if (argument === "--parents") {
+      if (parents !== undefined) throw new Error("--parents is duplicated");
+      parents = canonicalV3ParentCount(
+        requiredOptionValue(args, index, argument),
+        argument,
+      );
+      index += 1;
+    } else if (argument === "--keep-fixture") {
+      if (keepFixture) throw new Error("--keep-fixture is duplicated");
+      keepFixture = true;
+    } else {
+      throw new Error(`unknown v3 load harness option: ${argument}`);
+    }
+  }
+  if (!mode || args[0] !== "--v3-gates") {
+    throw new Error("--v3-gates must be the first explicit v3 mode option");
+  }
+  if (parents === undefined) {
+    throw new Error("--parents 24000 is required for the fixed v3 gates");
+  }
+  return Object.freeze({ parents, keepFixture });
+}
+
 /** Strict public CLI parser seam for fast fail-closed regression tests. */
 export function parseFloodgateV7CheckpointScanLoadOptionsCoreForTests(
   args: readonly string[],
 ): Readonly<FloodgateV7CheckpointScanLoadOptions> {
   return Object.freeze(parsePublicOptions(args));
+}
+
+/** Strict explicit V3 CLI parser; legacy V2 parsing remains independent. */
+export function parseFloodgateV7CheckpointV3ScanLoadOptionsCoreForTests(
+  args: readonly string[],
+): Readonly<FloodgateV7CheckpointV3ScanLoadOptions> {
+  return Object.freeze(parseV3PublicOptions(args));
 }
 
 type InternalPhaseOptions =
@@ -2171,8 +3804,42 @@ export function parseFloodgateV7CheckpointScanLoadInternalOptionsCoreForTests(
   return parseInternalPhaseOptions(args);
 }
 
+type V3InternalPhaseOptions = Readonly<{ phase: "build" | "scan" }>;
+
+function parseV3InternalPhaseOptions(
+  args: readonly string[],
+): V3InternalPhaseOptions {
+  if (
+    args.length === 2 &&
+    args[0] === "--internal-v3-phase" &&
+    (args[1] === "build" || args[1] === "scan")
+  ) {
+    return Object.freeze({ phase: args[1] });
+  }
+  throw new Error("internal v3 load child argv is not exact");
+}
+
+/** Exact V3 hidden-child argv parser; it deliberately accepts no root. */
+export function parseFloodgateV7CheckpointV3ScanLoadInternalOptionsCoreForTests(
+  args: readonly string[],
+): V3InternalPhaseOptions {
+  return parseV3InternalPhaseOptions(args);
+}
+
 async function commandLine(args: readonly string[]): Promise<void> {
   requireExactNodeRuntime();
+  if (args[0] === "--internal-v3-phase") {
+    const internal = parseV3InternalPhaseOptions(args);
+    const capability = await validateRunCapabilityFromEnvironment();
+    process.stdout.write(
+      JSON.stringify(
+        internal.phase === "build"
+          ? await buildV3ChildPhase(capability.root)
+          : await scanV3ChildPhase(capability.root),
+      ),
+    );
+    return;
+  }
   if (args[0] === "--internal-phase") {
     const internal = parseInternalPhaseOptions(args);
     const capability = await validateRunCapabilityFromEnvironment();
@@ -2185,6 +3852,13 @@ async function commandLine(args: readonly string[]): Promise<void> {
       return;
     }
     process.stdout.write(JSON.stringify(await scanChildPhase(capability.root)));
+    return;
+  }
+  if (args[0] === "--v3-gates") {
+    const result = await runFloodgateV7CheckpointV3ScanLoadHarness(
+      parseV3PublicOptions(args),
+    );
+    process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
     return;
   }
   const result = await runFloodgateV7CheckpointScanLoadHarness(

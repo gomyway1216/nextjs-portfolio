@@ -9,8 +9,9 @@
  * The producer controller, every test hook, and the current JavaScript
  * realm/intrinsics are trusted. Returned parent evidence remains adversarial
  * and is reverified; late producer settlement is observed but quarantined.
- * The HMAC detects persisted-byte tampering by a non-key-holder; it does not
- * defend against hostile same-process mutation or key access.
+ * The HMAC detects persisted-byte tampering by a non-key-holder; without an
+ * external monotonic anchor it does not detect whole-file rollback, nor does
+ * it defend against hostile same-process mutation or key access.
  * It is not a production coordinator, publication boundary, teacher-label
  * claim, holdout reader, or playing-strength claim.
  */
@@ -63,6 +64,33 @@ export const FLOODGATE_V7_TEACHER_CHECKPOINT_CLAIM_BOUNDARY =
   "accepted-parent-exactly-once-search-at-least-once-authenticated-bounded-producer-control-trusted-controller-test-hooks-and-current-js-realm-intrinsics-returned-evidence-adversarial-reverified-hmac-persisted-byte-tamper-evidence-for-non-key-holders-only-not-hostile-same-process-mutation-production-origin-label-holdout-or-playing-strength-evidence" as const;
 export const FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME =
   "work.jsonl" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA =
+  "shogi-floodgate-v7-teacher-work-v3" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM =
+  "hmac-sha256-hkdf-sha256-v7-parent-gated-milestone-chain-v3" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_IN_PROGRESS_STATUS =
+  "authenticated-private-v7-teacher-parent-gated-stream-in-progress-not-published" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS =
+  "complete-authenticated-durable-private-v7-teacher-parent-prefix-not-sealed-not-published" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS =
+  "complete-authenticated-private-v7-teacher-parent-checkpoint-not-published" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY =
+  "fixed-100-500-24000-gates-full-authenticated-input-domain-separated-milestone-chain-prefix-not-sealed-final-sealed-accepted-parent-exactly-once-search-at-least-once-authenticated-bounded-producer-control-trusted-controller-test-hooks-and-current-js-realm-intrinsics-returned-evidence-adversarial-reverified-hmac-persisted-byte-tamper-evidence-for-non-key-holders-only-not-anti-rollback-hostile-same-process-mutation-production-origin-label-holdout-or-playing-strength-evidence" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100 =
+  "durable-prefix-100" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500 =
+  "durable-prefix-500" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000 =
+  "sealed-final-24000" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS = 24_000 as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT_SCHEMA =
+  "shogi-floodgate-v7-teacher-gate-contract-v1" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT = Object.freeze({
+  schema: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT_SCHEMA,
+  durable_prefix_100_parents: 100 as const,
+  durable_prefix_500_parents: 500 as const,
+  sealed_final_parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+});
 export const FLOODGATE_V7_TEACHER_RUN_BINDING_SCHEMA =
   "shogi-floodgate-v7-teacher-run-binding-v2" as const;
 export const FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_SCHEMA =
@@ -76,20 +104,37 @@ const HEADER_DOMAIN = "shogi-floodgate-v7-teacher-work-header-v2\0";
 const ENTRY_DOMAIN = "shogi-floodgate-v7-teacher-work-parent-v2\0";
 const SEAL_DOMAIN = "shogi-floodgate-v7-teacher-work-seal-v2\0";
 const KEY_INFO = "shogi-floodgate-v7-teacher-checkpoint-key-v2\0";
+const V3_HEADER_DOMAIN = "shogi-floodgate-v7-teacher-work-header-v3\0";
+const V3_ENTRY_DOMAIN = "shogi-floodgate-v7-teacher-work-parent-v3\0";
+const V3_MILESTONE_100_DOMAIN =
+  "shogi-floodgate-v7-teacher-work-milestone-100-v3\0";
+const V3_MILESTONE_500_DOMAIN =
+  "shogi-floodgate-v7-teacher-work-milestone-500-v3\0";
+const V3_SEAL_DOMAIN = "shogi-floodgate-v7-teacher-work-seal-v3\0";
+const V3_KEY_INFO = "shogi-floodgate-v7-teacher-checkpoint-key-v3\0";
 const PARENT_STREAM_DOMAIN = "shogi-floodgate-v7-training-parents-v1\0";
 const EVIDENCE_DOMAIN = "shogi-floodgate-v7-completed-evidence-v1\0";
 const FORMAT = "canonical-jsonl-utf8-single-final-lf-v2" as const;
 const DURABILITY =
   "append-parent-line-fsync-seal-directory-sync-final-reopen-v2" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FORMAT =
+  "canonical-jsonl-utf8-single-final-lf-v3" as const;
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_DURABILITY =
+  "append-parent-and-milestone-line-fsync-seal-directory-sync-final-reopen-v3" as const;
 export const FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES = 24 * 1024;
 export const FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES =
   FLOODGATE_STABLE_MAX_ROWS *
     (FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES + 1) +
   2 * (FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES + 1);
+export const FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES =
+  FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS *
+    (FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES + 1) +
+  4 * (FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES + 1);
 export const FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_IN_FLIGHT =
   FLOODGATE_PRODUCTION_TEACHER_RUNTIME.parallel_engines;
 export const FLOODGATE_V7_TEACHER_PRODUCER_CONTROL_MAX_TIMER_MS = 2_147_483_647;
 const MAX_TOTAL_BYTES = FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES;
+const V3_MAX_TOTAL_BYTES = FLOODGATE_V7_TEACHER_CHECKPOINT_V3_MAX_TOTAL_BYTES;
 const MAX_LINE_BYTES = FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES;
 const READ_CHUNK_BYTES = 64 * 1024;
 const MODE_MASK = 0o7777;
@@ -222,6 +267,44 @@ const SEAL_KEYS = Object.freeze([
   "status",
   "training_parents_sha256",
 ] as const);
+const V3_HEADER_KEYS = Object.freeze([
+  "algorithm",
+  "claim_boundary",
+  "gate_contract",
+  "header_mac",
+  "key_id",
+  "kind",
+  "run_binding",
+  "run_id",
+  "schema",
+  "stage_binding",
+  "status",
+  "training",
+] as const);
+const V3_MILESTONE_KEYS = Object.freeze([
+  "completed_parents",
+  "gate",
+  "kind",
+  "milestone_mac",
+  "prefix_parent_ids_sha256",
+  "previous_mac",
+  "schema",
+  "status",
+  "training_parent_ids_sha256",
+  "training_parents_sha256",
+] as const);
+const V3_SEAL_KEYS = Object.freeze([
+  "entries",
+  "final_entry_mac",
+  "kind",
+  "milestone_100_mac",
+  "milestone_500_mac",
+  "parent_ids_sha256",
+  "seal_mac",
+  "schema",
+  "status",
+  "training_parents_sha256",
+] as const);
 export interface FloodgateV7TeacherCheckpointRunBinding {
   readonly schema: typeof FLOODGATE_V7_TEACHER_RUN_BINDING_SCHEMA;
   readonly plan: Readonly<{
@@ -243,6 +326,21 @@ export interface FloodgateV7TeacherProducerControl {
 }
 
 export interface FloodgateV7TeacherCheckpointOptions {
+  readonly runId: string;
+  readonly keyId: string;
+}
+
+export type FloodgateV7TeacherCheckpointV3Gate =
+  | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100
+  | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500
+  | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000;
+
+export type FloodgateV7TeacherCheckpointV3PrefixGate =
+  | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100
+  | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500;
+
+export interface FloodgateV7TeacherCheckpointV3Options {
+  readonly gate: FloodgateV7TeacherCheckpointV3Gate;
   readonly runId: string;
   readonly keyId: string;
 }
@@ -291,6 +389,33 @@ export interface FloodgateV7TeacherCheckpointDependencies {
     event: Readonly<FloodgateV7TeacherProducerControlTimerEvent>,
     fire: () => void,
   ) => () => void;
+}
+
+export type FloodgateV7TeacherCheckpointV3FailpointPhase =
+  FloodgateV7TeacherCheckpointFailpointPhase | "after-milestone-durable";
+
+export interface FloodgateV7TeacherCheckpointV3FailpointEvent {
+  readonly phase: FloodgateV7TeacherCheckpointV3FailpointPhase;
+  readonly sequence?: number;
+  readonly gate?: FloodgateV7TeacherCheckpointV3PrefixGate;
+}
+
+export interface FloodgateV7TeacherCheckpointV3Dependencies extends Omit<
+  FloodgateV7TeacherCheckpointDependencies,
+  "failpointForTests" | "readForTests"
+> {
+  readonly failpointForTests?: (
+    event: Readonly<FloodgateV7TeacherCheckpointV3FailpointEvent>,
+  ) => void | Promise<void>;
+  readonly readForTests?: (
+    request: Readonly<{
+      readonly purpose:
+        "resumable-prefix" | "durable-prefix-final" | "sealed-final";
+      readonly length: number;
+      readonly position: number;
+    }>,
+    read: (maximumBytes?: number) => Promise<number>,
+  ) => Promise<number>;
 }
 
 export type FloodgateV7TeacherProducerControlTimerPhase =
@@ -342,6 +467,86 @@ export interface FloodgateV7TeacherCheckpointReceipt {
     readonly durability: typeof DURABILITY;
   }>;
 }
+
+interface FloodgateV7TeacherCheckpointV3ReceiptCommon {
+  readonly contract: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA;
+  readonly claim_boundary: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY;
+  readonly algorithm: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM;
+  readonly run_id: string;
+  readonly key_id: string;
+  readonly gate_contract: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT;
+  readonly stage: Readonly<{
+    readonly basename: string;
+    readonly parent_dev: string;
+    readonly parent_ino: string;
+    readonly dev: string;
+    readonly ino: string;
+  }>;
+}
+
+interface FloodgateV7TeacherCheckpointV3WorkReceiptCommon {
+  readonly filename: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME;
+  readonly format: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FORMAT;
+  readonly training_parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  readonly records: number;
+  readonly bytes: number;
+  readonly sha256: string;
+  readonly resumed_parents: number;
+  readonly durability: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_DURABILITY;
+}
+
+export type FloodgateV7TeacherCheckpointV3Prefix100Receipt = Readonly<
+  FloodgateV7TeacherCheckpointV3ReceiptCommon & {
+    readonly gate: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100;
+    readonly status: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS;
+    readonly sealed: false;
+    readonly work: Readonly<
+      FloodgateV7TeacherCheckpointV3WorkReceiptCommon & {
+        readonly target_parents: 100;
+        readonly completed_parents: 100;
+        readonly milestone_100_mac: string;
+        readonly milestone_500_mac: null;
+      }
+    >;
+  }
+>;
+
+export type FloodgateV7TeacherCheckpointV3Prefix500Receipt = Readonly<
+  FloodgateV7TeacherCheckpointV3ReceiptCommon & {
+    readonly gate: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500;
+    readonly status: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS;
+    readonly sealed: false;
+    readonly work: Readonly<
+      FloodgateV7TeacherCheckpointV3WorkReceiptCommon & {
+        readonly target_parents: 500;
+        readonly completed_parents: 500;
+        readonly milestone_100_mac: string;
+        readonly milestone_500_mac: string;
+      }
+    >;
+  }
+>;
+
+export type FloodgateV7TeacherCheckpointV3FinalReceipt = Readonly<
+  FloodgateV7TeacherCheckpointV3ReceiptCommon & {
+    readonly gate: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000;
+    readonly status: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS;
+    readonly sealed: true;
+    readonly work: Readonly<
+      FloodgateV7TeacherCheckpointV3WorkReceiptCommon & {
+        readonly target_parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+        readonly completed_parents: typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+        readonly milestone_100_mac: string;
+        readonly milestone_500_mac: string;
+      }
+    >;
+  }
+>;
+
+export type FloodgateV7TeacherCheckpointV3Receipt =
+  | FloodgateV7TeacherCheckpointV3Prefix100Receipt
+  | FloodgateV7TeacherCheckpointV3Prefix500Receipt
+  | FloodgateV7TeacherCheckpointV3FinalReceipt;
 
 export class FloodgateV7TeacherCheckpointError extends Error {
   constructor(message: string, options?: ErrorOptions) {
@@ -431,12 +636,16 @@ interface CapturedInvocation {
   readonly keyId: string;
   readonly rootKey: Buffer;
   readonly effectiveUserId: number;
-  readonly failpoint?: FloodgateV7TeacherCheckpointDependencies["failpointForTests"];
+  readonly failpoint?: FloodgateV7TeacherCheckpointV3Dependencies["failpointForTests"];
   readonly writeForTests?: FloodgateV7TeacherCheckpointDependencies["writeForTests"];
-  readonly readForTests?: FloodgateV7TeacherCheckpointDependencies["readForTests"];
+  readonly readForTests?: FloodgateV7TeacherCheckpointV3Dependencies["readForTests"];
   readonly closeForTests?: FloodgateV7TeacherCheckpointDependencies["closeForTests"];
   readonly scheduleProducerControlTimerForTests?: FloodgateV7TeacherCheckpointDependencies["scheduleProducerControlTimerForTests"];
   readonly persistenceState: { mayHaveStarted: boolean };
+}
+
+interface CapturedV3Invocation extends CapturedInvocation {
+  readonly gate: FloodgateV7TeacherCheckpointV3Gate;
 }
 
 interface ScanResult {
@@ -447,7 +656,15 @@ interface ScanResult {
   readonly tornTail: boolean;
 }
 
+interface V3ScanResult extends ScanResult {
+  readonly completeRecords: number;
+  readonly milestone100Mac: string | undefined;
+  readonly milestone500Mac: string | undefined;
+}
+
 type WorkScanPolicy = "resumable-prefix" | "sealed-final";
+type V3WorkScanPolicy =
+  "resumable-prefix" | "durable-prefix-final" | "sealed-final";
 
 interface WorkFileIdentity {
   readonly dev: bigint;
@@ -464,6 +681,12 @@ interface WorkFileSnapshot extends WorkFileIdentity {
 }
 
 interface WorkFileScanResult extends ScanResult {
+  readonly fileBytes: number;
+  readonly fileSha256: string;
+  readonly snapshot: WorkFileSnapshot;
+}
+
+interface V3WorkFileScanResult extends V3ScanResult {
   readonly fileBytes: number;
   readonly fileSha256: string;
   readonly snapshot: WorkFileSnapshot;
@@ -971,7 +1194,9 @@ function captureInvocation(
   runBindingValue: FloodgateV7TeacherCheckpointRunBinding,
   producerControllerValue: FloodgateV7TeacherProducerController,
   optionsValue: FloodgateV7TeacherCheckpointOptions,
-  dependenciesValue: FloodgateV7TeacherCheckpointDependencies,
+  dependenciesValue:
+    | FloodgateV7TeacherCheckpointDependencies
+    | FloodgateV7TeacherCheckpointV3Dependencies,
 ): CapturedInvocation {
   const stageReceipt = lease.receipt;
   if (
@@ -1078,11 +1303,11 @@ function captureInvocation(
   const rootKey = Buffer.alloc(32);
   reflectApply(nativeTypedArraySet, rootKey, [rootKeyValue, 0]);
   const failpoint = dependencies.failpointForTests as
-    FloodgateV7TeacherCheckpointDependencies["failpointForTests"] | undefined;
+    FloodgateV7TeacherCheckpointV3Dependencies["failpointForTests"] | undefined;
   const writeForTests = dependencies.writeForTests as
     FloodgateV7TeacherCheckpointDependencies["writeForTests"] | undefined;
   const readForTests = dependencies.readForTests as
-    FloodgateV7TeacherCheckpointDependencies["readForTests"] | undefined;
+    FloodgateV7TeacherCheckpointV3Dependencies["readForTests"] | undefined;
   const closeForTests = dependencies.closeForTests as
     FloodgateV7TeacherCheckpointDependencies["closeForTests"] | undefined;
   const scheduleProducerControlTimerForTests =
@@ -1149,6 +1374,56 @@ function captureInvocation(
     });
   } catch (cause) {
     zeroBytes(rootKey);
+    throw cause;
+  }
+}
+
+function captureV3Gate(value: unknown): FloodgateV7TeacherCheckpointV3Gate {
+  switch (value) {
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100:
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500:
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000:
+      return value;
+    default:
+      return failure("options.gate is not a supported fixed v3 gate");
+  }
+}
+
+function captureV3Invocation(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  trainingValue: AuthenticatedFloodgateTrainingRows,
+  runBindingValue: FloodgateV7TeacherCheckpointRunBinding,
+  producerControllerValue: FloodgateV7TeacherProducerController,
+  optionsValue: FloodgateV7TeacherCheckpointV3Options,
+  dependenciesValue: FloodgateV7TeacherCheckpointV3Dependencies,
+): CapturedV3Invocation {
+  const options = strictRecord(
+    optionsValue,
+    ["gate", "keyId", "runId"],
+    "options",
+  );
+  const gate = captureV3Gate(options.gate);
+  const invocation = captureInvocation(
+    lease,
+    trainingValue,
+    runBindingValue,
+    producerControllerValue,
+    frozen({
+      runId: options.runId as string,
+      keyId: options.keyId as string,
+    }),
+    dependenciesValue,
+  );
+  try {
+    if (
+      invocation.training.parents.length !==
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS
+    ) {
+      failure("v3 gates require the exact full 24000-parent training input");
+    }
+    return Object.freeze({ ...invocation, gate });
+  } catch (cause) {
+    zeroBytes(invocation.rootKey);
     throw cause;
   }
 }
@@ -1255,6 +1530,189 @@ function buildSeal(
 ): Readonly<Record<string, unknown>> {
   const payload = sealPayload(invocation, previousMac);
   return frozen({ ...payload, seal_mac: hmacHex(key, SEAL_DOMAIN, payload) });
+}
+
+interface V3GatePlan {
+  readonly targetParents:
+    100 | 500 | typeof FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS;
+  readonly sealed: boolean;
+}
+
+function v3GatePlan(
+  gate: FloodgateV7TeacherCheckpointV3Gate,
+): Readonly<V3GatePlan> {
+  switch (gate) {
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100:
+      return frozen({ targetParents: 100 as const, sealed: false });
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500:
+      return frozen({ targetParents: 500 as const, sealed: false });
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000:
+      return frozen({
+        targetParents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+        sealed: true,
+      });
+  }
+}
+
+function v3HeaderPayload(
+  invocation: CapturedV3Invocation,
+): Readonly<Record<string, unknown>> {
+  return frozen({
+    schema: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
+    kind: "header",
+    run_id: invocation.runId,
+    key_id: invocation.keyId,
+    algorithm: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM,
+    status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_IN_PROGRESS_STATUS,
+    claim_boundary: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY,
+    stage_binding: stageBinding(invocation),
+    training: frozen({
+      schema: FLOODGATE_TRAINING_ROW_CONSUMER_SCHEMA,
+      role: "training",
+      binding: invocation.training.binding,
+      records: invocation.training.parents.length,
+      parent_ids_sha256: invocation.training.parentIdsSha256,
+      canonical_parents_sha256: invocation.training.canonicalParentsSha256,
+    }),
+    run_binding: invocation.runBinding,
+    gate_contract: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT,
+  });
+}
+
+function buildV3Header(
+  invocation: CapturedV3Invocation,
+  key: Uint8Array,
+): Readonly<Record<string, unknown>> {
+  const payload = v3HeaderPayload(invocation);
+  return frozen({
+    ...payload,
+    header_mac: hmacHex(key, V3_HEADER_DOMAIN, payload),
+  });
+}
+
+function buildV3Entry(
+  invocation: CapturedInvocation,
+  evidence: Readonly<Record<string, unknown>>,
+  sequence: number,
+  previousMac: string,
+  key: Uint8Array,
+): Readonly<Record<string, unknown>> {
+  const parent = invocation.training.parents[sequence];
+  const payload = frozen({
+    schema: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
+    kind: "completed-parent",
+    sequence,
+    input_index: sequence,
+    parent_id: parent.parent_id,
+    parent,
+    previous_mac: previousMac,
+    completed_evidence_sha256: digestCanonical(EVIDENCE_DOMAIN, evidence),
+    completed_evidence: evidence,
+  });
+  return frozen({
+    ...payload,
+    entry_mac: hmacHex(key, V3_ENTRY_DOMAIN, payload),
+  });
+}
+
+function v3PrefixParentIdsSha256(
+  invocation: CapturedV3Invocation,
+  completedParents: 100 | 500,
+): string {
+  return identifierDigest(
+    invocation.training.parents
+      .slice(0, completedParents)
+      .map((parent) => parent.parent_id),
+  );
+}
+
+function v3MilestoneDomain(
+  gate: FloodgateV7TeacherCheckpointV3PrefixGate,
+): string {
+  return gate === FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100
+    ? V3_MILESTONE_100_DOMAIN
+    : V3_MILESTONE_500_DOMAIN;
+}
+
+function v3MilestoneCompletedParents(
+  gate: FloodgateV7TeacherCheckpointV3PrefixGate,
+): 100 | 500 {
+  return gate === FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100
+    ? 100
+    : 500;
+}
+
+function v3MilestonePayload(
+  invocation: CapturedV3Invocation,
+  gate: FloodgateV7TeacherCheckpointV3PrefixGate,
+  previousMac: string,
+): Readonly<Record<string, unknown>> {
+  const completedParents = v3MilestoneCompletedParents(gate);
+  return frozen({
+    schema: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
+    kind: "durable-prefix-milestone",
+    gate,
+    completed_parents: completedParents,
+    previous_mac: previousMac,
+    prefix_parent_ids_sha256: v3PrefixParentIdsSha256(
+      invocation,
+      completedParents,
+    ),
+    training_parent_ids_sha256: invocation.training.parentIdsSha256,
+    training_parents_sha256: invocation.training.canonicalParentsSha256,
+    status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+  });
+}
+
+function buildV3Milestone(
+  invocation: CapturedV3Invocation,
+  gate: FloodgateV7TeacherCheckpointV3PrefixGate,
+  previousMac: string,
+  key: Uint8Array,
+): Readonly<Record<string, unknown>> {
+  const payload = v3MilestonePayload(invocation, gate, previousMac);
+  return frozen({
+    ...payload,
+    milestone_mac: hmacHex(key, v3MilestoneDomain(gate), payload),
+  });
+}
+
+function v3SealPayload(
+  invocation: CapturedV3Invocation,
+  previousMac: string,
+  milestone100Mac: string,
+  milestone500Mac: string,
+): Readonly<Record<string, unknown>> {
+  return frozen({
+    schema: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
+    kind: "seal",
+    entries: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+    final_entry_mac: previousMac,
+    milestone_100_mac: milestone100Mac,
+    milestone_500_mac: milestone500Mac,
+    parent_ids_sha256: invocation.training.parentIdsSha256,
+    training_parents_sha256: invocation.training.canonicalParentsSha256,
+    status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+  });
+}
+
+function buildV3Seal(
+  invocation: CapturedV3Invocation,
+  previousMac: string,
+  milestone100Mac: string,
+  milestone500Mac: string,
+  key: Uint8Array,
+): Readonly<Record<string, unknown>> {
+  const payload = v3SealPayload(
+    invocation,
+    previousMac,
+    milestone100Mac,
+    milestone500Mac,
+  );
+  return frozen({
+    ...payload,
+    seal_mac: hmacHex(key, V3_SEAL_DOMAIN, payload),
+  });
 }
 
 function exactJson(left: unknown, right: unknown, label: string): void {
@@ -1486,6 +1944,213 @@ function scanCompleteLine(
   state.authenticatedBytes = lineEnd;
 }
 
+interface MutableV3WorkScanState extends MutableWorkScanState {
+  milestone100Mac: string | undefined;
+  milestone500Mac: string | undefined;
+}
+
+function scanV3CompleteLine(
+  lineBytes: Buffer,
+  lineEnd: number,
+  state: MutableV3WorkScanState,
+  invocation: CapturedV3Invocation,
+  key: Uint8Array,
+  decoder: TextDecoder,
+): void {
+  if (state.completeRecords === 0) {
+    const expectedHeader = buildV3Header(invocation, key);
+    const header = strictRecord(
+      parseCanonicalLine(lineBytes, "v3 work header", decoder),
+      V3_HEADER_KEYS,
+      "v3 work header",
+    );
+    const expectedHeaderMac = hmacHex(
+      key,
+      V3_HEADER_DOMAIN,
+      withoutKey(header, "header_mac"),
+    );
+    if (!macEqual(header.header_mac, expectedHeaderMac)) {
+      failure("v3 work header MAC is invalid");
+    }
+    exactLine(lineBytes, expectedHeader, "v3 work header");
+    state.previousMac = expectedHeader.header_mac as string;
+    state.authenticatedBytes = lineEnd;
+    return;
+  }
+
+  if (state.sealed) {
+    failure("v3 work.jsonl contains a complete line after its seal");
+  }
+  const parsed = parseCanonicalLine(
+    lineBytes,
+    `v3 work line ${state.completeRecords}`,
+    decoder,
+  );
+
+  if (parsed.kind === "durable-prefix-milestone") {
+    const milestone = strictRecord(
+      parsed,
+      V3_MILESTONE_KEYS,
+      "v3 durable-prefix milestone",
+    );
+    let gate: FloodgateV7TeacherCheckpointV3PrefixGate;
+    if (
+      milestone.gate ===
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100
+    ) {
+      gate = FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100;
+      if (
+        state.completedParents !== 100 ||
+        state.milestone100Mac !== undefined ||
+        state.milestone500Mac !== undefined
+      ) {
+        failure("v3 100-parent milestone is early, late, or duplicate");
+      }
+    } else if (
+      milestone.gate ===
+      FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500
+    ) {
+      gate = FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500;
+      if (
+        state.completedParents !== 500 ||
+        state.milestone100Mac === undefined ||
+        state.milestone500Mac !== undefined
+      ) {
+        failure(
+          "v3 500-parent milestone is early, late, skipped, or duplicate",
+        );
+      }
+    } else {
+      return failure("v3 milestone gate is unsupported");
+    }
+    const expectedMac = hmacHex(
+      key,
+      v3MilestoneDomain(gate),
+      withoutKey(milestone, "milestone_mac"),
+    );
+    if (!macEqual(milestone.milestone_mac, expectedMac)) {
+      failure("v3 durable-prefix milestone MAC is invalid");
+    }
+    const expected = buildV3Milestone(invocation, gate, state.previousMac, key);
+    exactLine(lineBytes, expected, "v3 durable-prefix milestone");
+    const milestoneMac = expected.milestone_mac as string;
+    state.previousMac = milestoneMac;
+    if (gate === FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100) {
+      state.milestone100Mac = milestoneMac;
+    } else {
+      state.milestone500Mac = milestoneMac;
+    }
+    state.authenticatedBytes = lineEnd;
+    return;
+  }
+
+  if (parsed.kind === "seal") {
+    if (
+      state.completedParents !==
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS ||
+      state.milestone100Mac === undefined ||
+      state.milestone500Mac === undefined
+    ) {
+      failure("v3 work seal appears before the full gated parent stream");
+    }
+    const seal = strictRecord(parsed, V3_SEAL_KEYS, "v3 work seal");
+    const expectedSealMac = hmacHex(
+      key,
+      V3_SEAL_DOMAIN,
+      withoutKey(seal, "seal_mac"),
+    );
+    if (!macEqual(seal.seal_mac, expectedSealMac)) {
+      failure("v3 work seal MAC is invalid");
+    }
+    exactLine(
+      lineBytes,
+      buildV3Seal(
+        invocation,
+        state.previousMac,
+        state.milestone100Mac,
+        state.milestone500Mac,
+        key,
+      ),
+      "v3 work seal",
+    );
+    state.sealed = true;
+    state.authenticatedBytes = lineEnd;
+    return;
+  }
+
+  if (
+    state.completedParents >= FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS
+  ) {
+    failure("v3 work.jsonl contains an entry beyond the full training input");
+  }
+  if (state.completedParents === 100 && state.milestone100Mac === undefined) {
+    failure("v3 work entry crosses the 100-parent gate without its milestone");
+  }
+  if (state.completedParents === 500 && state.milestone500Mac === undefined) {
+    failure("v3 work entry crosses the 500-parent gate without its milestone");
+  }
+  const completedParents = state.completedParents;
+  const entry = strictRecord(
+    parsed,
+    ENTRY_KEYS,
+    `v3 work entry ${completedParents}`,
+  );
+  const expectedMac = hmacHex(
+    key,
+    V3_ENTRY_DOMAIN,
+    withoutKey(entry, "entry_mac"),
+  );
+  if (!macEqual(entry.entry_mac, expectedMac)) {
+    failure(`v3 work entry ${completedParents} MAC is invalid`);
+  }
+  const expectedParent = invocation.training.parents[completedParents];
+  if (
+    entry.schema !== FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA ||
+    entry.kind !== "completed-parent" ||
+    entry.sequence !== completedParents ||
+    entry.input_index !== completedParents ||
+    entry.parent_id !== expectedParent.parent_id ||
+    entry.previous_mac !== state.previousMac
+  ) {
+    failure(
+      `v3 work entry ${completedParents} chain or parent identity is invalid`,
+    );
+  }
+  exactJson(
+    entry.parent,
+    expectedParent,
+    `v3 work entry ${completedParents}.parent`,
+  );
+  const evidence = captureCompletedEvidence(
+    entry.completed_evidence as FloodgateV7CompletedParentEvidence,
+    expectedParent,
+    completedParents,
+    invocation.runBinding,
+  );
+  if (
+    entry.completed_evidence_sha256 !==
+    digestCanonical(EVIDENCE_DOMAIN, evidence)
+  ) {
+    failure(
+      `v3 work entry ${completedParents} completed evidence digest is invalid`,
+    );
+  }
+  exactLine(
+    lineBytes,
+    buildV3Entry(
+      invocation,
+      evidence,
+      completedParents,
+      state.previousMac,
+      key,
+    ),
+    `v3 work entry ${completedParents}`,
+  );
+  state.previousMac = entry.entry_mac as string;
+  state.completedParents += 1;
+  state.authenticatedBytes = lineEnd;
+}
+
 function verifyStageStat(
   stat: fs.BigIntStats,
   invocation: CapturedInvocation,
@@ -1515,6 +2180,22 @@ function verifyWorkStat(
     stat.size > BigInt(MAX_TOTAL_BYTES)
   ) {
     failure("work.jsonl owner, type, mode, link count, or size is invalid");
+  }
+}
+
+function verifyV3WorkStat(
+  stat: fs.BigIntStats,
+  invocation: CapturedV3Invocation,
+): void {
+  if (
+    (Number(stat.mode) & MODE_TYPE_MASK) !== MODE_REGULAR ||
+    (Number(stat.mode) & MODE_MASK) !== 0o600 ||
+    stat.uid !== BigInt(invocation.effectiveUserId) ||
+    stat.nlink !== BigInt(1) ||
+    stat.size < BigInt(0) ||
+    stat.size > BigInt(V3_MAX_TOTAL_BYTES)
+  ) {
+    failure("v3 work.jsonl owner, type, mode, link count, or size is invalid");
   }
 }
 
@@ -1574,6 +2255,27 @@ function verifyWorkSnapshot(
   }
 }
 
+function verifyV3WorkSnapshot(
+  stat: fs.BigIntStats,
+  expected: WorkFileSnapshot,
+  invocation: CapturedV3Invocation,
+  label: string,
+): void {
+  verifyV3WorkStat(stat, invocation);
+  if (
+    stat.dev !== expected.dev ||
+    stat.ino !== expected.ino ||
+    stat.mode !== expected.mode ||
+    stat.uid !== expected.uid ||
+    stat.nlink !== expected.nlink ||
+    stat.size !== expected.size ||
+    stat.mtimeNs !== expected.mtimeNs ||
+    stat.ctimeNs !== expected.ctimeNs
+  ) {
+    failure(label);
+  }
+}
+
 async function verifyWorkPathSnapshot(
   workPath: string,
   expected: WorkFileSnapshot,
@@ -1590,6 +2292,25 @@ async function verifyWorkPathSnapshot(
     expected,
     invocation,
     "work.jsonl path snapshot changed",
+  );
+}
+
+async function verifyV3WorkPathSnapshot(
+  workPath: string,
+  expected: WorkFileSnapshot,
+  invocation: CapturedV3Invocation,
+): Promise<void> {
+  let stat: fs.BigIntStats;
+  try {
+    stat = await fs.promises.lstat(workPath, { bigint: true });
+  } catch (cause) {
+    return failure("v3 work.jsonl path cannot be reinspected", cause);
+  }
+  verifyV3WorkSnapshot(
+    stat,
+    expected,
+    invocation,
+    "v3 work.jsonl path snapshot changed",
   );
 }
 
@@ -1727,6 +2448,253 @@ async function scanWorkHandle(
   });
 }
 
+async function scanV3WorkHandle(
+  handle: fs.promises.FileHandle,
+  invocation: CapturedV3Invocation,
+  key: Uint8Array,
+  policy: V3WorkScanPolicy,
+  expectedIdentity: WorkFileIdentity,
+): Promise<Readonly<V3WorkFileScanResult>> {
+  const before = await handle.stat({ bigint: true });
+  verifyV3WorkStat(before, invocation);
+  verifyWorkIdentity(before, expectedIdentity, "v3 work.jsonl held file");
+  const beforeSnapshot = captureWorkSnapshot(before);
+  const fileBytes = Number(before.size);
+  const readBuffer = Buffer.alloc(READ_CHUNK_BYTES);
+  const lineBuffer = Buffer.alloc(MAX_LINE_BYTES);
+  const decoder = new TextDecoder("utf-8", {
+    fatal: true,
+    ignoreBOM: true,
+  });
+  const digest = createHash("sha256");
+  const state: MutableV3WorkScanState = {
+    completeRecords: 0,
+    completedParents: 0,
+    previousMac: "",
+    milestone100Mac: undefined,
+    milestone500Mac: undefined,
+    sealed: false,
+    authenticatedBytes: 0,
+  };
+  const maximumCompleteRecords =
+    FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS + 4;
+  let lineLength = 0;
+  let offset = 0;
+  while (offset < fileBytes) {
+    const maximumRead = Math.min(READ_CHUNK_BYTES, fileBytes - offset);
+    let readCalled = false;
+    let actualBytesRead: number | undefined;
+    const read = async (requestedBytes = maximumRead): Promise<number> => {
+      if (readCalled) {
+        failure("v3 work.jsonl test read was called more than once");
+      }
+      if (
+        !Number.isSafeInteger(requestedBytes) ||
+        requestedBytes < 1 ||
+        requestedBytes > maximumRead
+      ) {
+        failure("v3 work.jsonl test read bound is invalid");
+      }
+      readCalled = true;
+      const result = await handle.read(readBuffer, 0, requestedBytes, offset);
+      actualBytesRead = result.bytesRead;
+      return result.bytesRead;
+    };
+    const bytesRead =
+      invocation.readForTests === undefined
+        ? await read()
+        : await invocation.readForTests(
+            Object.freeze({
+              purpose: policy,
+              length: maximumRead,
+              position: offset,
+            }),
+            read,
+          );
+    if (!readCalled || bytesRead !== actualBytesRead) {
+      failure("v3 work.jsonl test read did not report the exact native read");
+    }
+    if (
+      !Number.isSafeInteger(bytesRead) ||
+      bytesRead < 0 ||
+      bytesRead > maximumRead
+    ) {
+      failure("v3 work.jsonl read returned an invalid byte count");
+    }
+    if (bytesRead === 0) failure("v3 work.jsonl changed during read");
+    const chunk = readBuffer.subarray(0, bytesRead);
+    digest.update(chunk);
+    let chunkStart = 0;
+    while (chunkStart < chunk.byteLength) {
+      const newline = chunk.indexOf(0x0a, chunkStart);
+      const chunkEnd = newline === -1 ? chunk.byteLength : newline;
+      const segmentLength = chunkEnd - chunkStart;
+      if (lineLength + segmentLength > MAX_LINE_BYTES) {
+        failure("v3 work.jsonl line exceeds its exact bound");
+      }
+      if (segmentLength > 0) {
+        chunk.copy(lineBuffer, lineLength, chunkStart, chunkEnd);
+        lineLength += segmentLength;
+      }
+      if (newline === -1) break;
+      if (state.completeRecords >= maximumCompleteRecords) {
+        failure("v3 work.jsonl contains too many complete records");
+      }
+      if (lineLength === 0) failure("v3 work.jsonl contains an empty line");
+      scanV3CompleteLine(
+        lineBuffer.subarray(0, lineLength),
+        offset + newline + 1,
+        state,
+        invocation,
+        key,
+        decoder,
+      );
+      state.completeRecords += 1;
+      lineLength = 0;
+      chunkStart = newline + 1;
+    }
+    offset += bytesRead;
+  }
+  const after = await handle.stat({ bigint: true });
+  verifyV3WorkSnapshot(
+    after,
+    beforeSnapshot,
+    invocation,
+    "v3 work.jsonl mutated during read",
+  );
+  const tornTail = lineLength > 0;
+  if (state.sealed && tornTail) {
+    failure(
+      "v3 work.jsonl contains an incomplete fragment after its valid seal",
+    );
+  }
+  if (
+    policy !== "resumable-prefix" &&
+    (tornTail || state.authenticatedBytes !== fileBytes)
+  ) {
+    failure("final v3 work.jsonl contains an unauthenticated tail");
+  }
+  if (policy === "durable-prefix-final" && state.sealed) {
+    failure("final v3 durable prefix is unexpectedly sealed");
+  }
+  if (
+    policy === "sealed-final" &&
+    (!state.sealed ||
+      state.completedParents !==
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS)
+  ) {
+    failure("final v3 work.jsonl is not the exact authenticated sealed stream");
+  }
+  return Object.freeze({
+    completeRecords: state.completeRecords,
+    completedParents: state.completedParents,
+    previousMac: state.previousMac,
+    milestone100Mac: state.milestone100Mac,
+    milestone500Mac: state.milestone500Mac,
+    sealed: state.sealed,
+    authenticatedBytes: state.authenticatedBytes,
+    tornTail,
+    fileBytes,
+    fileSha256: digest.digest("hex"),
+    snapshot: captureWorkSnapshot(after),
+  });
+}
+
+function assertV3GateCanResume(
+  prefix: Readonly<V3ScanResult>,
+  gate: FloodgateV7TeacherCheckpointV3Gate,
+): void {
+  switch (gate) {
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100:
+      if (
+        prefix.sealed ||
+        prefix.completedParents > 100 ||
+        prefix.milestone500Mac !== undefined ||
+        (prefix.milestone100Mac !== undefined &&
+          (prefix.completedParents !== 100 || prefix.tornTail))
+      ) {
+        failure("v3 100-parent gate cannot resume advanced or ambiguous work");
+      }
+      return;
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500:
+      if (
+        prefix.milestone100Mac === undefined ||
+        prefix.sealed ||
+        prefix.completedParents < 100 ||
+        prefix.completedParents > 500 ||
+        (prefix.milestone500Mac !== undefined &&
+          (prefix.completedParents !== 500 || prefix.tornTail))
+      ) {
+        failure(
+          "v3 500-parent gate requires milestone 100 and rejects advanced or ambiguous work",
+        );
+      }
+      return;
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000:
+      if (
+        prefix.milestone100Mac === undefined ||
+        prefix.milestone500Mac === undefined ||
+        prefix.completedParents < 500 ||
+        prefix.completedParents >
+          FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS ||
+        (prefix.sealed &&
+          (prefix.completedParents !==
+            FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS ||
+            prefix.tornTail))
+      ) {
+        failure(
+          "v3 final gate requires both milestones and rejects incomplete gate authority",
+        );
+      }
+  }
+}
+
+function assertV3ExactGateFinal(
+  result: Readonly<V3WorkFileScanResult>,
+  gate: FloodgateV7TeacherCheckpointV3Gate,
+): void {
+  if (
+    result.tornTail ||
+    result.authenticatedBytes !== result.fileBytes ||
+    result.milestone100Mac === undefined
+  ) {
+    failure("v3 final scan is not a complete authenticated gate stream");
+  }
+  switch (gate) {
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100:
+      if (
+        result.sealed ||
+        result.completedParents !== 100 ||
+        result.completeRecords !== 102 ||
+        result.milestone500Mac !== undefined
+      ) {
+        failure("v3 100-parent final scan is not its exact durable prefix");
+      }
+      return;
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500:
+      if (
+        result.sealed ||
+        result.completedParents !== 500 ||
+        result.completeRecords !== 503 ||
+        result.milestone500Mac === undefined
+      ) {
+        failure("v3 500-parent final scan is not its exact durable prefix");
+      }
+      return;
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000:
+      if (
+        !result.sealed ||
+        result.completedParents !==
+          FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS ||
+        result.completeRecords !==
+          FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS + 4 ||
+        result.milestone500Mac === undefined
+      ) {
+        failure("v3 final scan is not its exact sealed 24000-parent stream");
+      }
+  }
+}
+
 async function appendLine(
   invocation: CapturedInvocation,
   handle: fs.promises.FileHandle,
@@ -1788,14 +2756,23 @@ async function appendLine(
 
 async function callFailpoint(
   invocation: CapturedInvocation,
-  phase: FloodgateV7TeacherCheckpointFailpointPhase,
+  phase: FloodgateV7TeacherCheckpointV3FailpointPhase,
   sequence?: number,
+  gate?: FloodgateV7TeacherCheckpointV3PrefixGate,
 ): Promise<void> {
   if (invocation.failpoint === undefined) return;
   try {
-    await invocation.failpoint(
-      Object.freeze(sequence === undefined ? { phase } : { phase, sequence }),
-    );
+    let event: FloodgateV7TeacherCheckpointV3FailpointEvent;
+    if (sequence !== undefined && gate !== undefined) {
+      event = { phase, sequence, gate };
+    } else if (sequence !== undefined) {
+      event = { phase, sequence };
+    } else if (gate !== undefined) {
+      event = { phase, gate };
+    } else {
+      event = { phase };
+    }
+    await invocation.failpoint(Object.freeze(event));
   } catch (cause) {
     persistenceFailure(
       `test failpoint ${phase} interrupted checkpointing`,
@@ -1954,6 +2931,14 @@ interface ActiveProducerTask {
   readonly activate: () => void;
   readonly abortRunningOnce: (reason: unknown) => void;
 }
+
+type MissingParentEntryBuilder = (
+  invocation: CapturedInvocation,
+  evidence: Readonly<Record<string, unknown>>,
+  sequence: number,
+  previousMac: string,
+  key: Uint8Array,
+) => Readonly<Record<string, unknown>>;
 
 function startMissingParentProduction(
   invocation: CapturedInvocation,
@@ -2172,8 +3157,17 @@ async function appendMissingParentsInOrder(
   key: Uint8Array,
   startSequence: number,
   initialPreviousMac: string,
+  endSequenceExclusive = invocation.training.parents.length,
+  entryBuilder: MissingParentEntryBuilder = buildEntry,
 ): Promise<string> {
-  const total = invocation.training.parents.length;
+  if (
+    !Number.isSafeInteger(endSequenceExclusive) ||
+    endSequenceExclusive < startSequence ||
+    endSequenceExclusive > invocation.training.parents.length
+  ) {
+    failure("missing-parent scheduler received an invalid private end bound");
+  }
+  const total = endSequenceExclusive;
   const active = new Map<number, ActiveProducerTask>();
   const rawSettlements = rawProducerSettlementCounter();
   const abortDrain: AbortDrainObservation = {
@@ -2381,7 +3375,7 @@ async function appendMissingParentsInOrder(
           sequence,
         );
         throwIfTerminal();
-        const entry = buildEntry(
+        const entry = entryBuilder(
           invocation,
           evidence,
           sequence,
@@ -2751,6 +3745,489 @@ async function executeCheckpoint(
   }
 }
 
+function buildV3Receipt(
+  invocation: CapturedV3Invocation,
+  finalPrefix: Readonly<V3WorkFileScanResult>,
+  resumedParents: number,
+): Readonly<FloodgateV7TeacherCheckpointV3Receipt> {
+  const milestone100Mac = finalPrefix.milestone100Mac;
+  if (milestone100Mac === undefined) {
+    failure("v3 receipt cannot omit milestone 100");
+  }
+  const common = {
+    contract: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_SCHEMA,
+    claim_boundary: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_CLAIM_BOUNDARY,
+    algorithm: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_ALGORITHM,
+    run_id: invocation.runId,
+    key_id: invocation.keyId,
+    gate_contract: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_CONTRACT,
+    stage: Object.freeze({
+      basename: invocation.lease.receipt.stage_basename,
+      parent_dev: invocation.lease.receipt.parent_identity.dev.toString(10),
+      parent_ino: invocation.lease.receipt.parent_identity.ino.toString(10),
+      dev: invocation.lease.receipt.stage_identity.dev.toString(10),
+      ino: invocation.lease.receipt.stage_identity.ino.toString(10),
+    }),
+  } as const;
+  const workCommon = {
+    filename: FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME,
+    format: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FORMAT,
+    training_parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+    records: finalPrefix.completeRecords,
+    bytes: finalPrefix.fileBytes,
+    sha256: finalPrefix.fileSha256,
+    resumed_parents: resumedParents,
+    durability: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_DURABILITY,
+  } as const;
+  switch (invocation.gate) {
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100:
+      return Object.freeze({
+        ...common,
+        gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+        status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+        sealed: false,
+        work: Object.freeze({
+          ...workCommon,
+          target_parents: 100,
+          completed_parents: 100,
+          milestone_100_mac: milestone100Mac,
+          milestone_500_mac: null,
+        }),
+      });
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500: {
+      const milestone500Mac = finalPrefix.milestone500Mac;
+      if (milestone500Mac === undefined) {
+        failure("v3 500-parent receipt cannot omit milestone 500");
+      }
+      return Object.freeze({
+        ...common,
+        gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+        status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_PREFIX_STATUS,
+        sealed: false,
+        work: Object.freeze({
+          ...workCommon,
+          target_parents: 500,
+          completed_parents: 500,
+          milestone_100_mac: milestone100Mac,
+          milestone_500_mac: milestone500Mac,
+        }),
+      });
+    }
+    case FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000: {
+      const milestone500Mac = finalPrefix.milestone500Mac;
+      if (milestone500Mac === undefined) {
+        failure("v3 final receipt cannot omit milestone 500");
+      }
+      return Object.freeze({
+        ...common,
+        gate: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000,
+        status: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_STATUS,
+        sealed: true,
+        work: Object.freeze({
+          ...workCommon,
+          target_parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+          completed_parents: FLOODGATE_V7_TEACHER_CHECKPOINT_V3_FINAL_PARENTS,
+          milestone_100_mac: milestone100Mac,
+          milestone_500_mac: milestone500Mac,
+        }),
+      });
+    }
+  }
+}
+
+async function executeV3Checkpoint(
+  invocation: CapturedV3Invocation,
+): Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> {
+  let stageHandle: fs.promises.FileHandle | undefined;
+  let workHandle: fs.promises.FileHandle | undefined;
+  let primaryFailure: unknown;
+  const salt = Buffer.from(invocation.runId, "hex");
+  let derived = Buffer.alloc(0);
+  try {
+    derived = Buffer.from(
+      hkdfSync(
+        "sha256",
+        invocation.rootKey,
+        salt,
+        Buffer.from(V3_KEY_INFO),
+        32,
+      ),
+    );
+    try {
+      stageHandle = await fs.promises.open(
+        invocation.lease.stageRoot,
+        fs.constants.O_RDONLY |
+          fs.constants.O_DIRECTORY |
+          fs.constants.O_NOFOLLOW,
+      );
+    } catch (cause) {
+      return failure(
+        "authorized v3 stage cannot be held without following links",
+        cause,
+      );
+    }
+    verifyStageStat(await stageHandle.stat({ bigint: true }), invocation);
+    await verifyStagePath(invocation);
+    let entries: string[];
+    try {
+      entries = await fs.promises.readdir(invocation.lease.stageRoot);
+    } catch (cause) {
+      return failure("held v3 stage entries cannot be listed", cause);
+    }
+    if (
+      entries.length > 1 ||
+      (entries.length === 1 &&
+        entries[0] !== FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME)
+    ) {
+      failure("v3 teacher stage must contain only work.jsonl");
+    }
+    verifyStageStat(await stageHandle.stat({ bigint: true }), invocation);
+    await verifyStagePath(invocation);
+
+    const workPath = `${invocation.lease.stageRoot}/${FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME}`;
+    const fresh = entries.length === 0;
+    if (
+      fresh &&
+      invocation.gate !==
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100
+    ) {
+      failure("a fresh v3 stream must begin at the 100-parent gate");
+    }
+    if (fresh) invocation.persistenceState.mayHaveStarted = true;
+    try {
+      workHandle = await fs.promises.open(
+        workPath,
+        (fresh ? fs.constants.O_CREAT | fs.constants.O_EXCL : 0) |
+          fs.constants.O_RDWR |
+          fs.constants.O_APPEND |
+          fs.constants.O_NOFOLLOW,
+        0o600,
+      );
+    } catch (cause) {
+      return failure(
+        "v3 work.jsonl cannot be opened with exclusive no-follow policy",
+        cause,
+      );
+    }
+    if (fresh) {
+      try {
+        await workHandle.chmod(0o600);
+      } catch (cause) {
+        persistenceFailure(
+          "fresh v3 work.jsonl exact-mode establishment may have persisted",
+          cause,
+        );
+      }
+    }
+    let workStat = await workHandle.stat({ bigint: true });
+    verifyV3WorkStat(workStat, invocation);
+    const workIdentity = Object.freeze({
+      dev: workStat.dev,
+      ino: workStat.ino,
+    });
+
+    let prefix: Readonly<V3ScanResult>;
+    let resumedParents = 0;
+    if (fresh) {
+      prefix = Object.freeze({
+        completeRecords: 0,
+        completedParents: 0,
+        previousMac: "",
+        milestone100Mac: undefined,
+        milestone500Mac: undefined,
+        sealed: false,
+        authenticatedBytes: 0,
+        tornTail: false,
+      });
+      assertV3GateCanResume(prefix, invocation.gate);
+    } else {
+      const existing = await scanV3WorkHandle(
+        workHandle,
+        invocation,
+        derived,
+        "resumable-prefix",
+        workIdentity,
+      );
+      await verifyV3WorkPathSnapshot(workPath, existing.snapshot, invocation);
+      assertV3GateCanResume(existing, invocation.gate);
+      prefix = existing;
+      resumedParents = prefix.completedParents;
+      if (prefix.tornTail) {
+        invocation.persistenceState.mayHaveStarted = true;
+        try {
+          await workHandle.truncate(prefix.authenticatedBytes);
+        } catch (cause) {
+          persistenceFailure(
+            "v3 same-gate torn-tail truncation may have persisted",
+            cause,
+          );
+        }
+      }
+      try {
+        await workHandle.sync();
+      } catch (cause) {
+        persistenceFailure(
+          "existing authenticated v3 work sync may have persisted",
+          cause,
+        );
+      }
+      await syncStageDirectory(
+        stageHandle,
+        "stage before existing v3 prefix resume",
+      );
+    }
+
+    let previousMac = prefix.previousMac;
+    if (prefix.authenticatedBytes === 0) {
+      const header = buildV3Header(invocation, derived);
+      invocation.persistenceState.mayHaveStarted = true;
+      await appendLine(
+        invocation,
+        workHandle,
+        canonicalJson(header),
+        "v3 checkpoint header",
+      );
+      previousMac = header.header_mac as string;
+      await syncStageDirectory(stageHandle, "stage after v3 checkpoint header");
+      await callFailpoint(invocation, "after-header-durable");
+    }
+
+    const plan = v3GatePlan(invocation.gate);
+    previousMac = await appendMissingParentsInOrder(
+      invocation,
+      workHandle,
+      derived,
+      prefix.completedParents,
+      previousMac,
+      plan.targetParents,
+      buildV3Entry,
+    );
+    let milestone100Mac = prefix.milestone100Mac;
+    let milestone500Mac = prefix.milestone500Mac;
+    if (
+      invocation.gate ===
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100 &&
+      milestone100Mac === undefined
+    ) {
+      const milestone = buildV3Milestone(
+        invocation,
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+        previousMac,
+        derived,
+      );
+      invocation.persistenceState.mayHaveStarted = true;
+      await appendLine(
+        invocation,
+        workHandle,
+        canonicalJson(milestone),
+        "v3 checkpoint 100-parent milestone",
+      );
+      milestone100Mac = milestone.milestone_mac as string;
+      previousMac = milestone100Mac;
+      await syncStageDirectory(
+        stageHandle,
+        "stage after v3 100-parent milestone",
+      );
+      await callFailpoint(
+        invocation,
+        "after-milestone-durable",
+        undefined,
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_100,
+      );
+    } else if (
+      invocation.gate ===
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500 &&
+      milestone500Mac === undefined
+    ) {
+      if (milestone100Mac === undefined) {
+        failure("v3 500-parent gate lost milestone 100 authority");
+      }
+      const milestone = buildV3Milestone(
+        invocation,
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+        previousMac,
+        derived,
+      );
+      invocation.persistenceState.mayHaveStarted = true;
+      await appendLine(
+        invocation,
+        workHandle,
+        canonicalJson(milestone),
+        "v3 checkpoint 500-parent milestone",
+      );
+      milestone500Mac = milestone.milestone_mac as string;
+      previousMac = milestone500Mac;
+      await syncStageDirectory(
+        stageHandle,
+        "stage after v3 500-parent milestone",
+      );
+      await callFailpoint(
+        invocation,
+        "after-milestone-durable",
+        undefined,
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_DURABLE_PREFIX_500,
+      );
+    } else if (
+      invocation.gate ===
+        FLOODGATE_V7_TEACHER_CHECKPOINT_V3_GATE_SEALED_FINAL_24000 &&
+      !prefix.sealed
+    ) {
+      if (milestone100Mac === undefined || milestone500Mac === undefined) {
+        failure("v3 final gate lost milestone authority before sealing");
+      }
+      const seal = buildV3Seal(
+        invocation,
+        previousMac,
+        milestone100Mac,
+        milestone500Mac,
+        derived,
+      );
+      invocation.persistenceState.mayHaveStarted = true;
+      await appendLine(
+        invocation,
+        workHandle,
+        canonicalJson(seal),
+        "v3 checkpoint seal",
+      );
+      await syncStageDirectory(stageHandle, "stage after v3 checkpoint seal");
+      await callFailpoint(invocation, "after-seal-durable");
+    }
+
+    await callFailpoint(invocation, "before-final-reopen");
+    await verifyStagePath(invocation);
+    try {
+      await closeHandle(invocation, "work", workHandle);
+    } catch (cause) {
+      let cleanupCause: unknown;
+      try {
+        await workHandle.close();
+      } catch (cleanupFailure) {
+        cleanupCause = cleanupFailure;
+      }
+      workHandle = undefined;
+      persistenceFailure(
+        "v3 work.jsonl close before final reopen may have persisted",
+        { cause, cleanupCause },
+      );
+    }
+    workHandle = undefined;
+    try {
+      workHandle = await fs.promises.open(
+        workPath,
+        fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+      );
+    } catch (cause) {
+      return failure(
+        "v3 work.jsonl cannot be reopened without following links",
+        cause,
+      );
+    }
+    await verifyStagePath(invocation);
+    workStat = await workHandle.stat({ bigint: true });
+    verifyV3WorkStat(workStat, invocation);
+    if (
+      workStat.dev !== workIdentity.dev ||
+      workStat.ino !== workIdentity.ino
+    ) {
+      failure("v3 work.jsonl identity changed before final verification");
+    }
+    const finalPrefix = await scanV3WorkHandle(
+      workHandle,
+      invocation,
+      derived,
+      plan.sealed ? "sealed-final" : "durable-prefix-final",
+      workIdentity,
+    );
+    assertV3ExactGateFinal(finalPrefix, invocation.gate);
+    await callFailpoint(
+      invocation,
+      "after-final-scan-before-path-confirmation",
+    );
+    verifyStageStat(await stageHandle.stat({ bigint: true }), invocation);
+    await verifyStagePath(invocation);
+    const finalEntries = await fs.promises.readdir(invocation.lease.stageRoot);
+    if (
+      finalEntries.length !== 1 ||
+      finalEntries[0] !== FLOODGATE_V7_TEACHER_CHECKPOINT_WORK_FILENAME
+    ) {
+      failure("v3 stage entry set changed before success");
+    }
+    await verifyV3WorkPathSnapshot(workPath, finalPrefix.snapshot, invocation);
+    verifyV3WorkSnapshot(
+      await workHandle.stat({ bigint: true }),
+      finalPrefix.snapshot,
+      invocation,
+      "held v3 work.jsonl changed after final scan",
+    );
+    verifyStageStat(await stageHandle.stat({ bigint: true }), invocation);
+    await verifyStagePath(invocation);
+    return buildV3Receipt(invocation, finalPrefix, resumedParents);
+  } catch (cause) {
+    const classified =
+      invocation.persistenceState.mayHaveStarted &&
+      !(
+        cause instanceof
+        FloodgateV7TeacherCheckpointPersistenceIndeterminateError
+      )
+        ? new FloodgateV7TeacherCheckpointPersistenceIndeterminateError(
+            "failure occurred after v3 checkpoint persistence may have started",
+            { cause },
+          )
+        : cause;
+    primaryFailure = classified;
+    throw classified;
+  } finally {
+    zeroBytes(derived);
+    zeroBytes(salt);
+    zeroBytes(invocation.rootKey);
+    const closeFailures: Array<{
+      readonly kind: "work" | "stage";
+      readonly cause: unknown;
+    }> = [];
+    if (workHandle !== undefined) {
+      try {
+        await closeHandle(invocation, "work", workHandle);
+      } catch (cause) {
+        let cleanupCause: unknown;
+        try {
+          await workHandle.close();
+        } catch (cleanupFailure) {
+          cleanupCause = cleanupFailure;
+        }
+        closeFailures.push({ kind: "work", cause: { cause, cleanupCause } });
+      }
+    }
+    if (stageHandle !== undefined) {
+      try {
+        await closeHandle(invocation, "stage", stageHandle);
+      } catch (cause) {
+        let cleanupCause: unknown;
+        try {
+          await stageHandle.close();
+        } catch (cleanupFailure) {
+          cleanupCause = cleanupFailure;
+        }
+        closeFailures.push({ kind: "stage", cause: { cause, cleanupCause } });
+      }
+    }
+    if (closeFailures.length > 0) {
+      if (
+        invocation.persistenceState.mayHaveStarted ||
+        closeFailures.some((entry) => entry.kind === "work")
+      ) {
+        persistenceFailure(
+          "filesystem handle close failed after v3 work.jsonl may have persisted",
+          { primaryFailure, closeFailures },
+        );
+      }
+      failure("held v3 stage directory handle could not be closed", {
+        primaryFailure,
+        closeFailures,
+      });
+    }
+  }
+}
+
 async function executeAndClose(
   invocation: CapturedInvocation,
 ): Promise<Readonly<FloodgateV7TeacherCheckpointReceipt>> {
@@ -2784,6 +4261,42 @@ async function executeAndClose(
   }
   if (primary !== undefined) throw primary;
   if (result === undefined) failure("checkpoint produced no result");
+  return result;
+}
+
+async function executeV3AndClose(
+  invocation: CapturedV3Invocation,
+): Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> {
+  let result: Readonly<FloodgateV7TeacherCheckpointV3Receipt> | undefined;
+  let primary: unknown;
+  try {
+    result = await executeV3Checkpoint(invocation);
+  } catch (cause) {
+    primary = cause;
+  }
+  try {
+    await invocation.lease.close();
+  } catch (closeCause) {
+    if (
+      invocation.persistenceState.mayHaveStarted ||
+      primary instanceof
+        FloodgateV7TeacherCheckpointPersistenceIndeterminateError
+    ) {
+      persistenceFailure(
+        "v3 checkpoint persistence or authorized stage lease close is indeterminate",
+        { primary, closeCause },
+      );
+    }
+    if (primary === undefined) {
+      failure("authorized v3 stage lease could not be closed", closeCause);
+    }
+    failure("v3 checkpoint failed and stage lease close also failed", {
+      primary,
+      closeCause,
+    });
+  }
+  if (primary !== undefined) throw primary;
+  if (result === undefined) failure("v3 checkpoint produced no result");
   return result;
 }
 
@@ -2832,4 +4345,37 @@ export function checkpointFloodgateV7TeacherParentsCoreForTests(
     return closeAfterCaptureFailure(lease, cause);
   }
   return executeAndClose(invocation);
+}
+
+/**
+ * Advance exactly one fixed v3 durability gate over the same authenticated
+ * full 24,000-parent input. Prefix gates remain deliberately unsealed; only
+ * the final gate may append the authenticated seal.
+ */
+export function checkpointFloodgateV7TeacherParentsV3CoreForTests(
+  lease: Readonly<FloodgateTeacherStageLease>,
+  authenticatedTrainingRows: AuthenticatedFloodgateTrainingRows,
+  runBinding: FloodgateV7TeacherCheckpointRunBinding,
+  producerController: FloodgateV7TeacherProducerController,
+  options: FloodgateV7TeacherCheckpointV3Options,
+  dependencies: FloodgateV7TeacherCheckpointV3Dependencies,
+): Promise<Readonly<FloodgateV7TeacherCheckpointV3Receipt>> {
+  claimActiveAuthorizedFloodgateTeacherStageLeaseCoreForTests(lease);
+  let invocation: CapturedV3Invocation;
+  try {
+    claimActiveVerifiedPinnedFloodgateTrainingRowsCoreForTests(
+      authenticatedTrainingRows,
+    );
+    invocation = captureV3Invocation(
+      lease,
+      authenticatedTrainingRows,
+      runBinding,
+      producerController,
+      options,
+      dependencies,
+    );
+  } catch (cause) {
+    return closeAfterCaptureFailure(lease, cause);
+  }
+  return executeV3AndClose(invocation);
 }

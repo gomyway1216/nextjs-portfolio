@@ -1229,7 +1229,7 @@ function legalBinding(legal: readonly string[]): Readonly<LegalBinding> {
  * captured before control can return. It emits no score and performs no
  * independent rescore; every non-forced candidate therefore remains pending.
  */
-export function buildFloodgateV7CandidateUnionCoreForTests(
+function buildFloodgateV7CandidateUnionInternal(
   inputValue: FloodgateV7CandidateUnionInput,
 ): Readonly<FloodgateV7CandidateUnionReceipt> {
   const input = strictRecord(inputValue, INVOCATION_KEYS, "input");
@@ -1368,4 +1368,26 @@ export function buildFloodgateV7CandidateUnionCoreForTests(
       teacher_labels_emitted: 0 as const,
     }),
   });
+}
+
+/**
+ * Structural candidate capture used immediately after direct owned-runtime
+ * calls by the production parent coordinator. The returned plain receipt is
+ * still not, by itself, a runtime-origin authentication claim.
+ */
+export function buildFloodgateV7CandidateUnionForProductionParentCoordinator(
+  inputValue: FloodgateV7CandidateUnionInput,
+): Readonly<FloodgateV7CandidateUnionReceipt> {
+  if (arguments.length !== 1) {
+    fail(
+      "production parent coordinator candidate union accepts exactly one argument",
+    );
+  }
+  return buildFloodgateV7CandidateUnionInternal(inputValue);
+}
+
+export function buildFloodgateV7CandidateUnionCoreForTests(
+  inputValue: FloodgateV7CandidateUnionInput,
+): Readonly<FloodgateV7CandidateUnionReceipt> {
+  return buildFloodgateV7CandidateUnionInternal(inputValue);
 }

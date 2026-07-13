@@ -12,12 +12,17 @@ import {
   createFloodgateProductionStableWasmRuntime,
   getFloodgateProductionStableWasmRuntimeReceiptDigest,
   type FloodgateProductionStableWasmRuntime,
+  type FloodgateProductionStableWasmRuntimeResult,
 } from "./floodgate-production-stable-wasm-runtime";
 import {
   createFloodgateProductionTeacherUsiRuntime,
   getFloodgateProductionTeacherUsiRuntimeReceiptDigest,
+  type FloodgateProductionTeacherProposalResult,
+  type FloodgateProductionTeacherRescoreResult,
   type FloodgateProductionTeacherUsiPool,
+  type FloodgateProductionTeacherUsiRuntimeReceipt,
 } from "./floodgate-production-teacher-usi-runtime";
+import type { FloodgateTrainingParent } from "./floodgate-training-row-consumer";
 
 export const FLOODGATE_V7_PRODUCTION_RUNTIME_OWNER_CONTRACT =
   "shogi-floodgate-v7-production-runtime-owner-v1" as const;
@@ -137,6 +142,55 @@ export interface FloodgateV7ProductionRuntimeOwner<
   readonly abortAndDrain: () => Promise<void>;
 }
 
+type StableRuntimeExecutionBoundaryForOwner<
+  TBoundary extends FloodgateV7ProductionRuntimeOwnerExecutionBoundary,
+> = TBoundary extends ProductionExecutionBoundary
+  ? "production-fixed-asset-authority-and-reusable-pool"
+  : "test-only-injected-asset-provider-and-pool-factory";
+
+type TeacherRuntimeExecutionBoundaryForOwner<
+  TBoundary extends FloodgateV7ProductionRuntimeOwnerExecutionBoundary,
+> = TBoundary extends ProductionExecutionBoundary
+  ? "production-fixed-assets-and-runtime-dependencies"
+  : "test-only-injected-asset-root-and-runtime-dependencies";
+
+/**
+ * Narrow operation capability consumed exactly once by the parent coordinator.
+ * It deliberately contains bound operations and receipts, never a raw runtime.
+ */
+export interface FloodgateV7ProductionRuntimeOwnerParentCoordinatorHandoff<
+  TBoundary extends FloodgateV7ProductionRuntimeOwnerExecutionBoundary =
+    FloodgateV7ProductionRuntimeOwnerExecutionBoundary,
+> {
+  readonly receipt: Readonly<
+    FloodgateV7ProductionRuntimeOwnerReceipt<TBoundary>
+  >;
+  readonly stablePropose: (
+    parent: Readonly<FloodgateTrainingParent>,
+  ) => Promise<
+    Readonly<
+      FloodgateProductionStableWasmRuntimeResult<
+        StableRuntimeExecutionBoundaryForOwner<TBoundary>
+      >
+    >
+  >;
+  readonly teacherReceipt: Readonly<
+    FloodgateProductionTeacherUsiRuntimeReceipt<
+      TeacherRuntimeExecutionBoundaryForOwner<TBoundary>
+    >
+  >;
+  readonly teacherPropose: (
+    sfen: string,
+    legalMoveCount: number,
+  ) => Promise<Readonly<FloodgateProductionTeacherProposalResult>>;
+  readonly teacherRescore: (
+    sfen: string,
+    move: string,
+  ) => Promise<Readonly<FloodgateProductionTeacherRescoreResult>>;
+  readonly close: () => Promise<void>;
+  readonly abortAndDrain: () => Promise<void>;
+}
+
 type TestStableRuntime =
   FloodgateProductionStableWasmRuntime<"test-only-injected-asset-provider-and-pool-factory">;
 type TestTeacherRuntime =
@@ -163,6 +217,10 @@ const nativeReflectApply = Reflect.apply;
 const nativeStringSlice = String.prototype.slice;
 const nativeStringCharCodeAt = String.prototype.charCodeAt;
 const nativeArrayIsArray = Array.isArray;
+const NativeWeakMap = WeakMap;
+const nativeWeakMapGet = WeakMap.prototype.get;
+const nativeWeakMapSet = WeakMap.prototype.set;
+const nativeWeakMapDelete = WeakMap.prototype.delete;
 const NativeWeakSet = WeakSet;
 const nativeWeakSetAdd = WeakSet.prototype.add;
 const nativeWeakSetHas = WeakSet.prototype.has;
@@ -197,6 +255,26 @@ objectFreeze(capturedPromiseConstructorHolder);
 
 const internallyPinnedPromises = new NativeWeakSet<object>();
 const adoptedSourcePromises = new NativeWeakSet<object>();
+
+interface ParentCoordinatorRuntimePair {
+  readonly receipt: Readonly<
+    FloodgateV7ProductionRuntimeOwnerReceipt<FloodgateV7ProductionRuntimeOwnerExecutionBoundary>
+  >;
+  readonly stable: unknown;
+  readonly teacher: unknown;
+  readonly close: ZeroArgumentLifecycleMethod;
+  readonly abortAndDrain: ZeroArgumentLifecycleMethod;
+  readonly lifecycleStarted: () => boolean;
+}
+
+const productionParentCoordinatorHandoffs = new NativeWeakMap<
+  object,
+  Readonly<ParentCoordinatorRuntimePair>
+>();
+const testParentCoordinatorHandoffs = new NativeWeakMap<
+  object,
+  Readonly<ParentCoordinatorRuntimePair>
+>();
 
 function isInternallyPinnedPromise(value: object): boolean {
   return nativeReflectApply(nativeWeakSetHas, internallyPinnedPromises, [
@@ -1050,6 +1128,127 @@ function requiredLifecycleMethod(
   return descriptorValue.value as ZeroArgumentLifecycleMethod;
 }
 
+function requiredRuntimeOperation(
+  runtime: unknown,
+  key: "propose" | "rescore",
+  arity: 1 | 2,
+  label: string,
+): (...arguments_: never[]) => unknown {
+  if (runtime === null || typeof runtime !== "object" || nodeIsProxy(runtime)) {
+    throw contractFailure(`${label} must be a non-Proxy runtime facade`);
+  }
+  const descriptor = objectGetOwnPropertyDescriptor(runtime, key);
+  const descriptorValue =
+    descriptor === undefined
+      ? undefined
+      : objectGetOwnPropertyDescriptor(descriptor, "value");
+  if (
+    descriptor === undefined ||
+    descriptorValue === undefined ||
+    typeof descriptorValue.value !== "function" ||
+    nodeIsProxy(descriptorValue.value) ||
+    !hasExactFunctionArity(descriptorValue.value, arity)
+  ) {
+    throw contractFailure(
+      `${label}.${key} must be an own non-Proxy arity-${arity} function`,
+    );
+  }
+  return descriptorValue.value as (...arguments_: never[]) => unknown;
+}
+
+function requiredRuntimeReceipt(runtime: unknown, label: string): object {
+  if (runtime === null || typeof runtime !== "object" || nodeIsProxy(runtime)) {
+    throw contractFailure(`${label} must be a non-Proxy runtime facade`);
+  }
+  const descriptor = objectGetOwnPropertyDescriptor(runtime, "receipt");
+  const descriptorValue =
+    descriptor === undefined
+      ? undefined
+      : objectGetOwnPropertyDescriptor(descriptor, "value");
+  if (
+    descriptor === undefined ||
+    descriptorValue === undefined ||
+    descriptorValue.value === null ||
+    typeof descriptorValue.value !== "object" ||
+    nodeIsProxy(descriptorValue.value)
+  ) {
+    throw contractFailure(
+      `${label}.receipt must be an own non-Proxy object data property`,
+    );
+  }
+  return descriptorValue.value as object;
+}
+
+function claimParentCoordinatorHandoff(
+  owner: unknown,
+  expectedBoundary: FloodgateV7ProductionRuntimeOwnerExecutionBoundary,
+  registry: WeakMap<object, Readonly<ParentCoordinatorRuntimePair>>,
+): Readonly<
+  FloodgateV7ProductionRuntimeOwnerParentCoordinatorHandoff<FloodgateV7ProductionRuntimeOwnerExecutionBoundary>
+> {
+  if (owner === null || typeof owner !== "object" || nodeIsProxy(owner)) {
+    throw contractFailure(
+      "parent coordinator handoff requires an exact non-Proxy owner facade",
+    );
+  }
+  const pair = nativeReflectApply(nativeWeakMapGet, registry, [owner]) as
+    Readonly<ParentCoordinatorRuntimePair> | undefined;
+  if (pair === undefined) {
+    throw contractFailure(
+      "parent coordinator handoff is unavailable, already consumed, or from another boundary",
+    );
+  }
+  if (nativeReflectApply(pair.lifecycleStarted, undefined, []) as boolean) {
+    nativeReflectApply(nativeWeakMapDelete, registry, [owner]);
+    throw contractFailure(
+      "parent coordinator handoff is unavailable after owner lifecycle start",
+    );
+  }
+  // Consumption precedes operation capture. A malformed issued test facade
+  // cannot be repaired and retried as a different capability graph.
+  nativeReflectApply(nativeWeakMapDelete, registry, [owner]);
+  if (pair.receipt.execution_boundary !== expectedBoundary) {
+    throw contractFailure(
+      "parent coordinator handoff owner execution boundary changed",
+    );
+  }
+  const stablePropose = requiredRuntimeOperation(
+    pair.stable,
+    "propose",
+    1,
+    "stable runtime",
+  );
+  const teacherReceipt = requiredRuntimeReceipt(
+    pair.teacher,
+    "teacher runtime",
+  );
+  const teacherPropose = requiredRuntimeOperation(
+    pair.teacher,
+    "propose",
+    2,
+    "teacher runtime",
+  );
+  const teacherRescore = requiredRuntimeOperation(
+    pair.teacher,
+    "rescore",
+    2,
+    "teacher runtime",
+  );
+  return frozenRecord({
+    receipt: pair.receipt,
+    stablePropose:
+      stablePropose as FloodgateV7ProductionRuntimeOwnerParentCoordinatorHandoff["stablePropose"],
+    teacherReceipt:
+      teacherReceipt as FloodgateV7ProductionRuntimeOwnerParentCoordinatorHandoff["teacherReceipt"],
+    teacherPropose:
+      teacherPropose as FloodgateV7ProductionRuntimeOwnerParentCoordinatorHandoff["teacherPropose"],
+    teacherRescore:
+      teacherRescore as FloodgateV7ProductionRuntimeOwnerParentCoordinatorHandoff["teacherRescore"],
+    close: pair.close,
+    abortAndDrain: pair.abortAndDrain,
+  });
+}
+
 function captureStableRuntime<TStable>(
   runtime: TStable,
 ): Readonly<CapturedStableRuntime<TStable>> {
@@ -1222,6 +1421,12 @@ function createOwnerFacade<
   cleanupTimeoutMs: number,
 ): FloodgateV7ProductionRuntimeOwner<TBoundary> {
   let lifecyclePromise: Promise<void> | undefined;
+  const parentCoordinatorHandoffState: { facade?: object } = {};
+  const parentCoordinatorRegistry =
+    receipt.execution_boundary ===
+    "production-fixed-stable-and-teacher-runtime-factories"
+      ? productionParentCoordinatorHandoffs
+      : testParentCoordinatorHandoffs;
 
   const startLifecycle = (
     transition: "close" | "abortAndDrain",
@@ -1239,6 +1444,11 @@ function createOwnerFacade<
     // Establish the sole public Promise before either child method is invoked,
     // so even a synchronous reentrant lifecycle call joins this transition.
     lifecyclePromise = establishedPromise;
+    if (parentCoordinatorHandoffState.facade !== undefined) {
+      nativeReflectApply(nativeWeakMapDelete, parentCoordinatorRegistry, [
+        parentCoordinatorHandoffState.facade,
+      ]);
+    }
 
     const cleanup = settleCleanup(
       [
@@ -1298,7 +1508,22 @@ function createOwnerFacade<
     return startLifecycle("abortAndDrain");
   });
 
-  return frozenRecord({ receipt, close, abortAndDrain });
+  const facade = frozenRecord({ receipt, close, abortAndDrain });
+  parentCoordinatorHandoffState.facade = facade;
+  const pair = frozenRecord({
+    receipt:
+      receipt as FloodgateV7ProductionRuntimeOwnerReceipt<FloodgateV7ProductionRuntimeOwnerExecutionBoundary>,
+    stable: stable.runtime as unknown,
+    teacher: teacher.runtime as unknown,
+    close,
+    abortAndDrain,
+    lifecycleStarted: objectFreeze(() => lifecyclePromise !== undefined),
+  });
+  nativeReflectApply(nativeWeakMapSet, parentCoordinatorRegistry, [
+    facade,
+    pair,
+  ]);
+  return facade;
 }
 
 function createOwnerInternal<
@@ -1693,4 +1918,44 @@ export function createFloodgateV7ProductionRuntimeOwner(): Promise<
     getTeacherRuntimeReceiptDigest:
       PRODUCTION_DEPENDENCIES.getTeacherRuntimeReceiptDigest,
   });
+}
+
+/** Consume the exact production owner facade once for the parent coordinator. */
+export function claimFloodgateV7ProductionRuntimeOwnerForParentCoordinator(
+  owner: FloodgateV7ProductionRuntimeOwner<"production-fixed-stable-and-teacher-runtime-factories">,
+): Readonly<
+  FloodgateV7ProductionRuntimeOwnerParentCoordinatorHandoff<"production-fixed-stable-and-teacher-runtime-factories">
+> {
+  if (arguments.length !== 1) {
+    throw contractFailure(
+      "production parent coordinator handoff accepts exactly one argument",
+    );
+  }
+  return claimParentCoordinatorHandoff(
+    owner,
+    "production-fixed-stable-and-teacher-runtime-factories",
+    productionParentCoordinatorHandoffs,
+  ) as Readonly<
+    FloodgateV7ProductionRuntimeOwnerParentCoordinatorHandoff<"production-fixed-stable-and-teacher-runtime-factories">
+  >;
+}
+
+/** Consume the exact injected-test owner facade once; this grants no production origin claim. */
+export function claimFloodgateV7ProductionRuntimeOwnerForParentCoordinatorCoreForTests(
+  owner: FloodgateV7ProductionRuntimeOwner<"test-only-injected-runtime-factories-and-digest-getters">,
+): Readonly<
+  FloodgateV7ProductionRuntimeOwnerParentCoordinatorHandoff<"test-only-injected-runtime-factories-and-digest-getters">
+> {
+  if (arguments.length !== 1) {
+    throw contractFailure(
+      "test parent coordinator handoff accepts exactly one argument",
+    );
+  }
+  return claimParentCoordinatorHandoff(
+    owner,
+    "test-only-injected-runtime-factories-and-digest-getters",
+    testParentCoordinatorHandoffs,
+  ) as Readonly<
+    FloodgateV7ProductionRuntimeOwnerParentCoordinatorHandoff<"test-only-injected-runtime-factories-and-digest-getters">
+  >;
 }

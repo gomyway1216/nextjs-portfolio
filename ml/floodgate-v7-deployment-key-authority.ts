@@ -284,6 +284,16 @@ export class FloodgateV7DeploymentKeyAuthorityError extends NativeError {
   }
 }
 
+function sanitizeUnexpectedFailure(
+  error: unknown,
+  phase: FloodgateV7DeploymentKeyAuthorityPhase,
+  message: string,
+): FloodgateV7DeploymentKeyAuthorityError {
+  return error instanceof FloodgateV7DeploymentKeyAuthorityError
+    ? error
+    : new FloodgateV7DeploymentKeyAuthorityError(phase, message);
+}
+
 type PlainRecord = Readonly<Record<string, unknown>>;
 
 interface CapturedRequest {
@@ -828,6 +838,7 @@ async function authorizeInternal<
   const extra = bufferAlloc(1);
   let derivedKey = bufferAlloc(0);
   let instanceKey = bufferAlloc(0);
+  let activePhase: FloodgateV7DeploymentKeyAuthorityPhase = "namespace";
   let primary: unknown;
   let result:
     | Readonly<FloodgateV7DeploymentTeacherRunAuthorizationReceipt<TBoundary>>
@@ -870,6 +881,7 @@ async function authorizeInternal<
     ) {
       fail("namespace", "deployment identity changed before held read");
     }
+    activePhase = "key-read";
     const read = await keyHandle.read(rootKey, 0, rootKey.byteLength, 0);
     if (
       read.bytesRead !== rootKey.byteLength ||
@@ -880,6 +892,7 @@ async function authorizeInternal<
         "deployment key produced a short or oversized held read",
       );
     }
+    activePhase = "authorization";
     dependencies.observeInternalKey?.(rootKey);
     derivedKey = bufferFrom(
       hkdfSync(
@@ -993,6 +1006,7 @@ async function authorizeInternal<
         new NativeAggregateError(preRevalidationZeroizeFailures),
       );
     }
+    activePhase = "revalidation";
     await dependencies.beforeFinalRevalidation?.();
     const parentHeldAfter = snapshot(await parentHandle.stat({ bigint: true }));
     const keyHeldAfter = snapshot(await keyHandle.stat({ bigint: true }));
@@ -1013,7 +1027,11 @@ async function authorizeInternal<
     }
     result = frozenRecord({ ...unsigned, authorization_mac: authorizationMac });
   } catch (error) {
-    primary = error;
+    primary = sanitizeUnexpectedFailure(
+      error,
+      activePhase,
+      "unexpected platform operation failed",
+    );
   } finally {
     const cleanup: unknown[] = [];
     // Secret lifetime must not depend on descriptor-close progress. FileHandle
@@ -1039,20 +1057,20 @@ async function authorizeInternal<
       cleanup[cleanup.length] = error;
     }
     if (cleanup.length > 0) {
-      const cleanupError = new NativeAggregateError(
-        cleanup,
-        "deployment key authority cleanup failed",
+      const cleanupError = new FloodgateV7DeploymentKeyAuthorityError(
+        "cleanup",
+        "cleanup failed",
       );
       primary =
         primary === undefined
-          ? new FloodgateV7DeploymentKeyAuthorityError(
+          ? cleanupError
+          : new FloodgateV7DeploymentKeyAuthorityError(
               "cleanup",
-              "cleanup failed",
-              cleanupError,
-            )
-          : new NativeAggregateError(
-              [primary, cleanupError],
               "authorization and cleanup both failed",
+              new NativeAggregateError(
+                [primary, cleanupError],
+                "authorization and cleanup both failed",
+              ),
             );
     }
   }
@@ -1092,7 +1110,15 @@ export function authorizeFloodgateV7DeploymentTeacherRun(
   try {
     request = captureRequest(requestValue);
   } catch (error) {
-    return new NativePromise((_resolve, reject) => reject(error));
+    return new NativePromise((_resolve, reject) =>
+      reject(
+        sanitizeUnexpectedFailure(
+          error,
+          "capture",
+          "unexpected request capture failure",
+        ),
+      ),
+    );
   }
   if (getEffectiveUserId === null) {
     return new NativePromise((_resolve, reject) =>
@@ -1116,7 +1142,15 @@ export function authorizeFloodgateV7DeploymentTeacherRun(
       );
     }
   } catch (error) {
-    return new NativePromise((_resolve, reject) => reject(error));
+    return new NativePromise((_resolve, reject) =>
+      reject(
+        sanitizeUnexpectedFailure(
+          error,
+          "production-identity",
+          "unexpected current-user identity lookup failure",
+        ),
+      ),
+    );
   }
   const dependencies = captureDependencies({
     effectiveUserId,

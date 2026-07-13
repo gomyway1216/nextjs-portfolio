@@ -1045,6 +1045,23 @@ posixDescribe("Floodgate v7 deployment key authority", () => {
       ),
     );
     expect(nonNormalizedFailure).toMatchObject({ phase: "capture" });
+
+    const missingHome = await temporaryHome();
+    const missingFailure = await captureFailure(() =>
+      authority.authorizeFloodgateV7DeploymentTeacherRunCoreForTests(
+        requestFixture(),
+        dependencyFixture(missingHome),
+      ),
+    );
+    expect(missingFailure).toBeInstanceOf(
+      authority.FloodgateV7DeploymentKeyAuthorityError,
+    );
+    expect(missingFailure).toMatchObject({
+      phase: "namespace",
+      primary: undefined,
+    });
+    expect(String(missingFailure)).not.toContain(missingHome);
+    expect((missingFailure as Error).cause).toBeUndefined();
   });
 
   it("zero-fills the retained internal key on post-read failure and rejects a revalidation swap", async () => {
@@ -1099,7 +1116,14 @@ posixDescribe("Floodgate v7 deployment key authority", () => {
         value.dependencies,
       ),
     );
-    expect(failure).toBe(marker);
+    expect(failure).not.toBe(marker);
+    expect(failure).toBeInstanceOf(
+      authority.FloodgateV7DeploymentKeyAuthorityError,
+    );
+    expect(failure).toMatchObject({
+      phase: "authorization",
+      primary: undefined,
+    });
     expect(retained).toBeDefined();
     expectAllZero(retained as Uint8Array);
   });

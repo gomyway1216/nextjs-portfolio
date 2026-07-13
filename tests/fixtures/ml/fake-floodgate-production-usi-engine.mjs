@@ -90,12 +90,6 @@ function afterMarker(markerPath, label, action, delayAfterMs = 0) {
   poll();
 }
 
-function afterPoisonMarker(action) {
-  // Leave enough time for the runtime to consume the failing peer's bestmove
-  // and publish the one pool-wide poison object.
-  afterMarker(poisonMarkerPath, "poison race", action, 100);
-}
-
 function leaveDescendantInProcessGroup() {
   if (descendantPidPath === undefined) {
     process.stderr.write("synthetic descendant mode requires a pid path\n");
@@ -218,9 +212,7 @@ input.on("line", (line) => {
         process.stdout.write("readyok\ninfo string unsolicited-after-ready\n");
       } else emit("readyok");
     };
-    if (mode === "poison-race-success" && searchCount > 0)
-      afterPoisonMarker(ready);
-    else later(ready);
+    later(ready);
     return;
   }
 
@@ -281,22 +273,6 @@ input.on("line", (line) => {
       const bestmove = `bestmove ${
         mode === "invalid-bestmove" ? "???" : (moves[0] ?? "resign")
       }`;
-      if (mode === "partial-after-bestmove")
-        process.stdout.write(`${bestmove}\npartial`);
-      else emit(bestmove);
-      if (mode === "poison-race-success") {
-        if (successMarkerPath === undefined) {
-          process.stderr.write(
-            "synthetic poison race success requires a marker path\n",
-          );
-          process.exit(21);
-        }
-        fs.writeFileSync(successMarkerPath, `${process.pid}\n`, {
-          encoding: "utf8",
-          flag: "wx",
-          mode: 0o600,
-        });
-      }
       if (mode === "poison-race-failure") {
         if (poisonMarkerPath === undefined) {
           process.stderr.write(
@@ -304,12 +280,17 @@ input.on("line", (line) => {
           );
           process.exit(21);
         }
+        // Publish the synchronization marker before the failing bestmove.
+        // The runtime may kill this peer as soon as that line is consumed.
         fs.writeFileSync(poisonMarkerPath, `${process.pid}\n`, {
           encoding: "utf8",
           flag: "wx",
           mode: 0o600,
         });
       }
+      if (mode === "partial-after-bestmove")
+        process.stdout.write(`${bestmove}\npartial`);
+      else emit(bestmove);
     };
     if (mode === "poison-race-failure")
       afterMarker(successMarkerPath, "poison race success", respond);

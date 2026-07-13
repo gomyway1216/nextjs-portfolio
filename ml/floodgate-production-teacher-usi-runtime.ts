@@ -108,6 +108,7 @@ export interface FloodgateProductionTeacherUsiRuntimeCoreDependencies {
   readonly limits?: Readonly<FloodgateProductionTeacherUsiLimits>;
   readonly afterSourceCopyForTests?: () => void | Promise<void>;
   readonly beforeSnapshotRevalidationForTests?: () => void | Promise<void>;
+  readonly afterOperationBeforeReturnForTests?: () => void | Promise<void>;
 }
 
 export type FloodgateProductionTeacherProposalResult = Omit<
@@ -1376,6 +1377,7 @@ class HardenedFloodgateProductionTeacherUsiPool<
     private readonly engines: readonly HardenedUsiProcess[],
     private readonly snapshot: Readonly<PrivateSnapshot>,
     private readonly effectiveUserId: number,
+    private readonly afterOperationBeforeReturn?: () => void | Promise<void>,
   ) {
     this.receipt = receipt;
     this.available = [...engines];
@@ -1449,6 +1451,8 @@ class HardenedFloodgateProductionTeacherUsiPool<
       if (this.poisonError !== null) throw this.poisonError;
       if (this.closing) throw new Error("USI pool is closing");
       const result = await operation(engine);
+      if (this.afterOperationBeforeReturn !== undefined)
+        await this.afterOperationBeforeReturn();
       // Another worker may have poisoned the shared pool while this operation
       // was still in flight. Never let a locally successful result escape a
       // globally failed execution boundary.
@@ -1647,6 +1651,7 @@ interface InternalDependencies<
   readonly configuration: Readonly<RuntimeConfiguration>;
   readonly afterSourceCopy?: () => void | Promise<void>;
   readonly beforeSnapshotRevalidation?: () => void | Promise<void>;
+  readonly afterOperationBeforeReturnForTests?: () => void | Promise<void>;
 }
 
 async function createRuntimeInternal<
@@ -1771,6 +1776,7 @@ async function createRuntimeInternal<
         engines,
         snapshot,
         dependencies.effectiveUserId,
+        dependencies.afterOperationBeforeReturnForTests,
       ),
     );
   } catch (primary) {
@@ -1825,6 +1831,14 @@ export async function createFloodgateProductionTeacherUsiRuntimeCoreForTests(
         throw new Error("verifyAssets must be a function");
       if (typeof dependencies.spawnEngine !== "function")
         throw new Error("spawnEngine must be a function");
+      if (
+        dependencies.afterOperationBeforeReturnForTests !== undefined &&
+        typeof dependencies.afterOperationBeforeReturnForTests !== "function"
+      ) {
+        throw new Error(
+          "afterOperationBeforeReturnForTests must be a function",
+        );
+      }
       return {
         assetRoot,
         snapshotParent,
@@ -1840,6 +1854,8 @@ export async function createFloodgateProductionTeacherUsiRuntimeCoreForTests(
         afterSourceCopy: dependencies.afterSourceCopyForTests,
         beforeSnapshotRevalidation:
           dependencies.beforeSnapshotRevalidationForTests,
+        afterOperationBeforeReturn:
+          dependencies.afterOperationBeforeReturnForTests,
       };
     } catch (primary) {
       throw runtimeFailure("capture", primary);
@@ -1863,6 +1879,12 @@ export async function createFloodgateProductionTeacherUsiRuntimeCoreForTests(
       ? {}
       : {
           beforeSnapshotRevalidation: captured.beforeSnapshotRevalidation,
+        }),
+    ...(captured.afterOperationBeforeReturn === undefined
+      ? {}
+      : {
+          afterOperationBeforeReturnForTests:
+            captured.afterOperationBeforeReturn,
         }),
   });
 }

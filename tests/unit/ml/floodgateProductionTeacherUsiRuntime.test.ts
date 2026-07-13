@@ -575,15 +575,33 @@ posixDescribe("Floodgate production teacher USI runtime", () => {
   it("rejects every concurrent operation with the identical global poison after one worker fails", async () => {
     const value = await syntheticAssets();
     const poisonMarker = path.join(value.container, "poison.marker");
+    const successMarker = `${poisonMarker}.success`;
     const children: ChildProcessWithoutNullStreams[] = [];
+    const state: {
+      pool?: Awaited<
+        ReturnType<
+          typeof createFloodgateProductionTeacherUsiRuntimeCoreForTests
+        >
+      >;
+    } = {};
     const pool = await createFloodgateProductionTeacherUsiRuntimeCoreForTests(
       testDependencies(value, {
         modesBySpawn: ["poison-race-failure", "poison-race-success"],
         fakeArguments: ["--poison-marker", poisonMarker],
         spawns: children,
-        overrides: { engineCount: 2 },
+        overrides: {
+          engineCount: 2,
+          afterOperationBeforeReturnForTests: async () => {
+            await fs.promises.writeFile(successMarker, "locally-complete\n", {
+              flag: "wx",
+              mode: 0o600,
+            });
+            await eventually(() => state.pool?.poisoned === true);
+          },
+        },
       }),
     );
+    state.pool = pool;
 
     try {
       const settled = await Promise.allSettled([
@@ -601,6 +619,7 @@ posixDescribe("Floodgate production teacher USI runtime", () => {
       expect(rejected[0].reason).toBe(rejected[1].reason);
       expect(pool.poisoned).toBe(true);
       expect(fs.existsSync(poisonMarker)).toBe(true);
+      expect(fs.existsSync(successMarker)).toBe(true);
 
       const trace = parseTrace(value.trace);
       const successSpawn = trace.find(
@@ -627,21 +646,39 @@ posixDescribe("Floodgate production teacher USI runtime", () => {
   it("shares one terminal error across active and later work when poison cleanup also fails", async () => {
     const value = await syntheticAssets();
     const poisonMarker = path.join(value.container, "cleanup-poison.marker");
+    const successMarker = `${poisonMarker}.success`;
     const children: ChildProcessWithoutNullStreams[] = [];
     const invocations: Array<{
       readonly file: string;
       readonly args: readonly string[];
       readonly options: Record<string, unknown>;
     }> = [];
+    const state: {
+      pool?: Awaited<
+        ReturnType<
+          typeof createFloodgateProductionTeacherUsiRuntimeCoreForTests
+        >
+      >;
+    } = {};
     const pool = await createFloodgateProductionTeacherUsiRuntimeCoreForTests(
       testDependencies(value, {
         modesBySpawn: ["poison-race-failure", "poison-race-success"],
         fakeArguments: ["--poison-marker", poisonMarker],
         invocations,
         spawns: children,
-        overrides: { engineCount: 2 },
+        overrides: {
+          engineCount: 2,
+          afterOperationBeforeReturnForTests: async () => {
+            await fs.promises.writeFile(successMarker, "locally-complete\n", {
+              flag: "wx",
+              mode: 0o600,
+            });
+            await eventually(() => state.pool?.poisoned === true);
+          },
+        },
       }),
     );
+    state.pool = pool;
     const snapshotRoot = path.dirname(path.dirname(invocations[0].file));
     const snapshotEval = path.join(snapshotRoot, "eval", "nn.bin");
     const mutatedEval = await fs.promises.readFile(snapshotEval);

@@ -293,8 +293,22 @@ function xorshift32(value: number): number {
   return output >>> 0;
 }
 
+/** Test seam for the synthetic CSA URL's monotonically increasing time. */
+export function buildFloodgateV7ScanLoadSourceUrlCoreForTests(
+  game: number,
+): string {
+  if (!Number.isSafeInteger(game) || game < 0 || game >= 24 * 60 * 60) {
+    throw new Error("synthetic scan-load game must fit one UTC day");
+  }
+  const hours = Math.floor(game / 3_600);
+  const minutes = Math.floor((game % 3_600) / 60);
+  const seconds = game % 60;
+  const hhmmss = `${String(hours).padStart(2, "0")}${String(minutes).padStart(2, "0")}${String(seconds).padStart(2, "0")}`;
+  return `https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/01/wdoor+floodgate-300-10F+synthetic-load-a+synthetic-load-b+20260101${hhmmss}.csa`;
+}
+
 function sourceUrl(game: number): string {
-  return `https://wdoor.c.u-tokyo.ac.jp/shogi/x/2026/01/01/wdoor+floodgate-300-10F+synthetic-load-a+synthetic-load-b+20260101${String(game).padStart(6, "0")}.csa`;
+  return buildFloodgateV7ScanLoadSourceUrlCoreForTests(game);
 }
 
 function parentId(gameId: string, ply: number): string {

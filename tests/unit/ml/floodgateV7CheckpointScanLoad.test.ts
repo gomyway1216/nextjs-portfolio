@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_SCHEMA,
   FLOODGATE_V7_CHECKPOINT_SCAN_LOAD_STATUS,
+  buildFloodgateV7ScanLoadSourceUrlCoreForTests,
   parseFloodgateV7CheckpointScanLoadInternalOptionsCoreForTests,
   parseFloodgateV7CheckpointScanLoadOptionsCoreForTests,
   runFloodgateV7CheckpointScanLoadHarness,
   verifyFloodgateV7ScanLoadSyncRestorationCoreForTests,
 } from "../../../ml/floodgate-v7-checkpoint-scan-load";
+import { floodgateCanonicalUrlGameId } from "../../../ml/floodgate-raw-lock";
 import {
   FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_LINE_BYTES,
   FLOODGATE_V7_TEACHER_CHECKPOINT_MAX_TOTAL_BYTES,
@@ -148,5 +150,24 @@ describe("Floodgate v7 semantic checkpoint scanner load harness", () => {
         "/tmp/forbidden",
       ]),
     ).toThrow(/not exact/);
+  });
+
+  it("encodes synthetic game counters as valid HHMMSS timestamps", () => {
+    const cases = [
+      [0, "000000"],
+      [59, "000059"],
+      [60, "000100"],
+      [3_599, "005959"],
+      [3_600, "010000"],
+      [86_399, "235959"],
+    ] as const;
+    for (const [game, timestamp] of cases) {
+      const url = buildFloodgateV7ScanLoadSourceUrlCoreForTests(game);
+      expect(url).toContain(`20260101${timestamp}.csa`);
+      expect(() => floodgateCanonicalUrlGameId(url)).not.toThrow();
+    }
+    expect(() => buildFloodgateV7ScanLoadSourceUrlCoreForTests(86_400)).toThrow(
+      /one UTC day/,
+    );
   });
 });

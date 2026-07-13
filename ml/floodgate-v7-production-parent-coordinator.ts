@@ -167,6 +167,13 @@ export interface FloodgateV7ProductionParentCoordinator {
   readonly abortAndDrain: () => Promise<void>;
 }
 
+export interface FloodgateV7ProductionParentCoordinatorCheckpointHandoff {
+  readonly produce: FloodgateV7ProductionParentCoordinator["produce"];
+  readonly abortAndDrain: FloodgateV7ProductionParentCoordinator["abortAndDrain"];
+  readonly close: FloodgateV7ProductionParentCoordinator["close"];
+  readonly runBinding: FloodgateV7ProductionParentCoordinator["run_binding"];
+}
+
 const NativePromise = Promise;
 const NativeError = Error;
 const NativeSet = Set;
@@ -176,6 +183,10 @@ const nativeSetAdd = Set.prototype.add;
 const nativeSetDelete = Set.prototype.delete;
 const nativeSetClear = Set.prototype.clear;
 const nativeSetForEach = Set.prototype.forEach;
+const NativeWeakMap = WeakMap;
+const nativeWeakMapGet = WeakMap.prototype.get;
+const nativeWeakMapSet = WeakMap.prototype.set;
+const nativeWeakMapDelete = WeakMap.prototype.delete;
 const NativeWeakSet = WeakSet;
 const nativeWeakSetAdd = WeakSet.prototype.add;
 const nativeWeakSetHas = WeakSet.prototype.has;
@@ -238,6 +249,24 @@ objectDefineProperty(capturedPromiseConstructorHolder, promiseSpeciesSymbol, {
 });
 objectFreeze(capturedPromiseConstructorHolder);
 const internallyPinnedPromises = new NativeWeakSet<object>();
+
+interface CheckpointHandoffPair {
+  readonly executionBoundary: FloodgateV7ProductionParentCoordinatorExecutionBoundary;
+  readonly produce: FloodgateV7ProductionParentCoordinator["produce"];
+  readonly abortAndDrain: FloodgateV7ProductionParentCoordinator["abortAndDrain"];
+  readonly close: FloodgateV7ProductionParentCoordinator["close"];
+  readonly runBinding: FloodgateV7ProductionParentCoordinator["run_binding"];
+  readonly lifecycleStarted: () => boolean;
+}
+
+const productionCheckpointHandoffs = new NativeWeakMap<
+  object,
+  Readonly<CheckpointHandoffPair>
+>();
+const testCheckpointHandoffs = new NativeWeakMap<
+  object,
+  Readonly<CheckpointHandoffPair>
+>();
 
 function pinCoordinatorPromise<T>(promise: Promise<T>): Promise<T> {
   if (
@@ -682,6 +711,10 @@ function createCoordinatorFacade(
   let lifecycleInternalPromise: Promise<void> | undefined;
   let terminalReason: unknown;
   const terminalRejectors = new NativeSet<(reason: unknown) => void>();
+  const checkpointHandoffState: { facade?: object } = {};
+  const checkpointHandoffRegistry = production
+    ? productionCheckpointHandoffs
+    : testCheckpointHandoffs;
 
   const startLifecycle = (
     transition: "close" | "abortAndDrain",
@@ -708,6 +741,11 @@ function createCoordinatorFacade(
     lifecyclePromise = established;
     lifecycleInternalPromise = internal;
     terminalReason = reason;
+    if (checkpointHandoffState.facade !== undefined) {
+      nativeReflectApply(nativeWeakMapDelete, checkpointHandoffRegistry, [
+        checkpointHandoffState.facade,
+      ]);
+    }
     const resolveBoth = (): void => {
       resolveLifecycle();
       resolveInternal();
@@ -1025,12 +1063,72 @@ function createCoordinatorFacade(
     );
   });
 
-  return frozenRecord({
+  const runBinding = buildRunBinding(handoff);
+  const facade = frozenRecord({
     receipt: buildReceipt(production),
-    run_binding: buildRunBinding(handoff),
+    run_binding: runBinding,
     produce,
     close,
     abortAndDrain,
+  });
+  checkpointHandoffState.facade = facade;
+  const checkpointHandoffPair = frozenRecord({
+    executionBoundary: production
+      ? ("production-exact-runtime-owner-single-use-handoff" as const)
+      : ("test-only-injected-runtime-owner-single-use-handoff" as const),
+    produce,
+    abortAndDrain,
+    close,
+    runBinding,
+    lifecycleStarted: objectFreeze(() => lifecyclePromise !== undefined),
+  });
+  nativeReflectApply(nativeWeakMapSet, checkpointHandoffRegistry, [
+    facade,
+    checkpointHandoffPair,
+  ]);
+  return facade;
+}
+
+function claimCheckpointHandoff(
+  coordinator: unknown,
+  expectedBoundary: FloodgateV7ProductionParentCoordinatorExecutionBoundary,
+  registry: WeakMap<object, Readonly<CheckpointHandoffPair>>,
+): Readonly<FloodgateV7ProductionParentCoordinatorCheckpointHandoff> {
+  if (
+    coordinator === null ||
+    typeof coordinator !== "object" ||
+    nodeUtilTypes.isProxy(coordinator)
+  ) {
+    throw new NativeError(
+      "checkpoint handoff requires an exact non-Proxy coordinator facade",
+    );
+  }
+  const pair = nativeReflectApply(nativeWeakMapGet, registry, [coordinator]) as
+    Readonly<CheckpointHandoffPair> | undefined;
+  if (pair === undefined) {
+    throw new NativeError(
+      "checkpoint handoff is unavailable, already consumed, or from another boundary",
+    );
+  }
+  if (nativeReflectApply(pair.lifecycleStarted, undefined, []) as boolean) {
+    nativeReflectApply(nativeWeakMapDelete, registry, [coordinator]);
+    throw new NativeError(
+      "checkpoint handoff is unavailable after coordinator lifecycle start",
+    );
+  }
+  // Consumption precedes capability projection. The exact facade can grant
+  // these references only once, and no structurally similar object can retry.
+  nativeReflectApply(nativeWeakMapDelete, registry, [coordinator]);
+  if (pair.executionBoundary !== expectedBoundary) {
+    throw new NativeError(
+      "checkpoint handoff coordinator execution boundary changed",
+    );
+  }
+  return frozenRecord({
+    produce: pair.produce,
+    abortAndDrain: pair.abortAndDrain,
+    close: pair.close,
+    runBinding: pair.runBinding,
   });
 }
 
@@ -1136,5 +1234,43 @@ export function createFloodgateV7ProductionParentCoordinator(): Promise<Floodgat
     createFloodgateV7ProductionRuntimeOwner(),
     claimFloodgateV7ProductionRuntimeOwnerForParentCoordinator,
     true,
+  );
+}
+
+/**
+ * Consume the exact fixed-production coordinator facade once for a trusted
+ * checkpoint connector. This performs no checkpoint, key, or dataset I/O.
+ */
+export function claimFloodgateV7ProductionParentCoordinatorForCheckpoint(
+  coordinator: FloodgateV7ProductionParentCoordinator,
+): Readonly<FloodgateV7ProductionParentCoordinatorCheckpointHandoff> {
+  if (arguments.length !== 1) {
+    throw new NativeError(
+      "production checkpoint handoff accepts exactly one argument",
+    );
+  }
+  return claimCheckpointHandoff(
+    coordinator,
+    "production-exact-runtime-owner-single-use-handoff",
+    productionCheckpointHandoffs,
+  );
+}
+
+/**
+ * Consume the exact injected-test coordinator facade once. This grants no
+ * production-origin, checkpoint-execution, key, or dataset claim.
+ */
+export function claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests(
+  coordinator: FloodgateV7ProductionParentCoordinator,
+): Readonly<FloodgateV7ProductionParentCoordinatorCheckpointHandoff> {
+  if (arguments.length !== 1) {
+    throw new NativeError(
+      "test checkpoint handoff accepts exactly one argument",
+    );
+  }
+  return claimCheckpointHandoff(
+    coordinator,
+    "test-only-injected-runtime-owner-single-use-handoff",
+    testCheckpointHandoffs,
   );
 }

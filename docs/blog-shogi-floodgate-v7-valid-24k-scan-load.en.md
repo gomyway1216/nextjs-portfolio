@@ -40,7 +40,7 @@ A separate clean child then resumes the same sealed file with a missing-parent p
 
 ## 4. Compare three digests of the same bytes
 
-The harness obtains SHA-256 from three independent paths.
+The harness obtains three observations: the scanner receipt plus the same external streaming helper used in a different child / at a different time. This does not mean three independent cryptographic implementations.
 
 1. A digest calculated from the file after the fresh build
 2. The work digest returned by the resume receipt
@@ -52,9 +52,9 @@ It also fails if the producer is called even once during resume. This demonstrat
 
 ## 5. Measuring RSS and time
 
-Fresh generation and resume scanning run in separate children. The harness records the OS-reported process-lifetime peak RSS, `process.memoryUsage().rss` immediately before and after the checkpoint call, and each scan's wall time. The scan child also constructs and retains a synthetic training binding proportional to parent count, so these values are not called scanner-specific RSS.
+Fresh generation and resume scanning run in separate children. The harness records the OS-reported process-lifetime peak RSS, `process.memoryUsage().rss` immediately before and after the checkpoint call, and each policy's phase envelope. The scan child also constructs and retains a synthetic training binding proportional to parent count, so these values are not called scanner-specific RSS.
 
-The machine is an Apple M4 Pro with 14 physical / logical CPU cores, 51,539,607,552 bytes of RAM, and macOS 15.1. The runtime is pinned to the repository-required Node v22.13.0.
+The machine is an Apple M4 Pro with 14 physical / logical CPU cores, 51,539,607,552 bytes of RAM, and macOS 15.1. Evidence generation and the CI runtime are pinned to Node v22.13.0.
 
 Child RSS and file bytes are reported across 100, 1,000, and 24,000 parents as operational observations, but their ratio is not used as proof of scanner-specific memory. Structural acceptance instead requires read requests at or below 65,536 bytes, lines at or below 24,576 bytes, and no scanner array retaining the full file. Node heap, authenticated training rows, and the parsed object for one JSON line remain, so this report does not claim that the entire process is O(1) in memory.
 
@@ -62,10 +62,10 @@ Child RSS and file bytes are reported across 100, 1,000, and 24,000 parents as o
 
 The following values are implementation-prototype references, not Attempt 3 acceptance evidence. The 100- and 1,000-parent file bytes also differ from the final harness / source, so they are not mixed into the confirmed 24,000-parent table.
 
-| Prototype parents | File bytes | Prefix wall ms | Final wall ms | Child maxRSS (decimal MB) |
-| ----------------: | ---------: | -------------: | ------------: | ------------------------: |
-|               100 |  1,772,797 |            296 |           338 |                     148.6 |
-|             1,000 | 17,956,845 |          3,050 |         3,155 |                     199.6 |
+| Prototype parents | File bytes | Prefix envelope ms | Final envelope ms | Child maxRSS (decimal MB) |
+| ----------------: | ---------: | -----------------: | ----------------: | ------------------------: |
+|               100 |  1,772,797 |                296 |               338 |                     148.6 |
+|             1,000 | 17,956,845 |              3,050 |             3,155 |                     199.6 |
 
 The preregistered proportional projection was 430,964,280 bytes, about 73–76 seconds per scan, and about 7.2 minutes for the full procedure. It was 14,779,126 bytes, or 3.551%, above the older one-fixture projection of 416,185,154 bytes, an upward revision caused by fixture differences. Attempt 3 measured 429,244,881 bytes, 1,719,399 bytes or 0.399% below the newer projection. The prediction remains unchanged so that the difference records prediction accuracy.
 
@@ -143,7 +143,16 @@ Attempt 3 satisfied every condition below in addition to process exit zero.
 - Consistent line-byte arithmetic, read-call arithmetic, timing, and RSS relationships
 - Unchanged source commit / harness SHA before and after the run, clean worktree, and zero temp roots
 
-Fast CI runs only the 100-parent contract; the 24,000-parent load remains a standalone evidence command. All 6 tests pass on pinned Node v22.13.0. On another runtime, only the three evidence-generation tests skip while the pure parser / URL / pinned-evidence contract tests continue.
+Fast CI runs only the 100-parent contract; the 24,000-parent load remains a standalone evidence command. All 6 tests pass on pinned Node v22.13.0. On another runtime, only the three exact-runtime-dependent tests skip while the pure parser / URL / pinned-evidence contract tests continue.
+
+| Final-head local validation           | Result                           |
+| ------------------------------------- | -------------------------------- |
+| Focused scan-load Vitest              | 1 file / 6 tests                 |
+| Full Vitest                           | 112 files / 1,916 tests          |
+| Python ML stdlib                      | 58 / 58                          |
+| TypeScript / scoped ESLint / Prettier | Pass / 0 warnings / pass         |
+| Repository-wide ESLint                | 0 errors / 157 existing warnings |
+| Next production build                 | 193 / 193 pages                  |
 
 ## 10. Claim boundary
 

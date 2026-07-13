@@ -40,7 +40,7 @@ fixtureは標準初期局面からrules-complete legal moveを決定的に選び
 
 ## 4. 同一bytesを三つのdigestで照合する
 
-ハーネスは次のSHA-256を別々に得る。
+ハーネスはscanner receiptと、同じexternal streaming helperを別child / 別時点で使う次の3 observationsを得る。3つの独立暗号実装という意味ではない。
 
 1. fresh-build後にfileから計算したdigest
 2. resume receiptが返したwork digest
@@ -52,9 +52,9 @@ resume時にproducer callが1回でも起きた場合もfailする。これは24
 
 ## 5. RSSと時間の測り方
 
-fresh生成とresume scanはchildを分け、OSが報告するprocess-lifetime peak RSS、checkpoint呼出し直前と直後の`process.memoryUsage().rss`、各scanのwall timeを記録する。ただしscan childも件数に比例するsynthetic training bindingを構築・保持するため、これらをscanner固有RSSとは呼ばない。
+fresh生成とresume scanはchildを分け、OSが報告するprocess-lifetime peak RSS、checkpoint呼出し直前と直後の`process.memoryUsage().rss`、各policyのphase envelopeを記録する。ただしscan childも件数に比例するsynthetic training bindingを構築・保持するため、これらをscanner固有RSSとは呼ばない。
 
-実行machineはApple M4 Pro、14 physical / logical CPU core、51,539,607,552 bytes RAM、macOS 15.1である。runtimeはrepositoryが要求するNode v22.13.0へ固定する。
+実行machineはApple M4 Pro、14 physical / logical CPU core、51,539,607,552 bytes RAM、macOS 15.1である。evidence生成とCI runtimeはNode v22.13.0へ固定する。
 
 100、1,000、24,000 parentのchild RSSとfile bytesは運用上の観察値として並べるが、RSS比率をscanner固有memoryの合否には使わない。構造的な合否はread要求65,536 bytes以下、line 24,576 bytes以下、全fileを保持するscanner配列がないことに置く。Node heap、認証済みtraining rows、JSON一行のparse objectは残るため、「process全体がO(1) memory」とは主張しない。
 
@@ -62,10 +62,10 @@ fresh生成とresume scanはchildを分け、OSが報告するprocess-lifetime p
 
 次は実装前prototypeの参考値であり、Attempt 3のacceptance evidenceではない。100と1,000のfile bytesも最終harness / sourceと異なるため、24,000確定表へ混ぜない。
 
-| prototype parents | file bytes | prefix wall ms | final wall ms | child maxRSS (decimal MB) |
-| ----------------: | ---------: | -------------: | ------------: | ------------------------: |
-|               100 |  1,772,797 |            296 |           338 |                     148.6 |
-|             1,000 | 17,956,845 |          3,050 |         3,155 |                     199.6 |
+| prototype parents | file bytes | prefix envelope ms | final envelope ms | child maxRSS (decimal MB) |
+| ----------------: | ---------: | -----------------: | ----------------: | ------------------------: |
+|               100 |  1,772,797 |                296 |               338 |                     148.6 |
+|             1,000 | 17,956,845 |              3,050 |             3,155 |                     199.6 |
 
 事前の単純比例予測は430,964,280 bytes、1 scan約73–76秒、全工程約7.2分だった。これは旧記事のone-fixture予測416,185,154 bytesより14,779,126 bytes、3.551%大きいfixture差による上方改定だった。Attempt 3の実測429,244,881 bytesは新予測より1,719,399 bytes、0.399%小さかった。予測は書き換えず、予測精度として差を残す。
 
@@ -143,7 +143,16 @@ Attempt 3はprocess exit 0だけでなく、次をすべて満たした。
 - line-byte算術、read-call算術、timing、RSS関係が全部一致
 - source commit / harness SHAがrun前後で不変、worktree clean、temp root 0
 
-fast CIでは100-parent contractだけを毎回実行し、24,000-parent loadはstandalone evidence commandのままにする。pinned Node v22.13.0では6/6 testsがpassし、別runtimeではevidence生成3件だけをskipしてpure parser / URL / pinned-evidence contract testを継続する。
+fast CIでは100-parent contractだけを毎回実行し、24,000-parent loadはstandalone evidence commandのままにする。pinned Node v22.13.0では6/6 testsがpassし、別runtimeではexact-runtime依存の3件だけをskipしてpure parser / URL / pinned-evidence contract testを継続する。
+
+| final-head local validation           | 結果                             |
+| ------------------------------------- | -------------------------------- |
+| focused scan-load Vitest              | 1 file / 6 tests                 |
+| full Vitest                           | 112 files / 1,916 tests          |
+| Python ML stdlib                      | 58 / 58                          |
+| TypeScript / scoped ESLint / Prettier | pass / 0 warnings / pass         |
+| repository-wide ESLint                | 0 errors / 157 existing warnings |
+| Next production build                 | 193 / 193 pages                  |
 
 ## 10. claim boundary
 

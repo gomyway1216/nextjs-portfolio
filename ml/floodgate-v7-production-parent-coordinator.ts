@@ -256,7 +256,6 @@ interface CheckpointHandoffPair {
   readonly abortAndDrain: FloodgateV7ProductionParentCoordinator["abortAndDrain"];
   readonly close: FloodgateV7ProductionParentCoordinator["close"];
   readonly runBinding: FloodgateV7ProductionParentCoordinator["run_binding"];
-  readonly lifecycleStarted: () => boolean;
 }
 
 const productionCheckpointHandoffs = new NativeWeakMap<
@@ -1080,7 +1079,6 @@ function createCoordinatorFacade(
     abortAndDrain,
     close,
     runBinding,
-    lifecycleStarted: objectFreeze(() => lifecyclePromise !== undefined),
   });
   nativeReflectApply(nativeWeakMapSet, checkpointHandoffRegistry, [
     facade,
@@ -1108,12 +1106,6 @@ function claimCheckpointHandoff(
   if (pair === undefined) {
     throw new NativeError(
       "checkpoint handoff is unavailable, already consumed, or from another boundary",
-    );
-  }
-  if (nativeReflectApply(pair.lifecycleStarted, undefined, []) as boolean) {
-    nativeReflectApply(nativeWeakMapDelete, registry, [coordinator]);
-    throw new NativeError(
-      "checkpoint handoff is unavailable after coordinator lifecycle start",
     );
   }
   // Consumption precedes capability projection. The exact facade can grant

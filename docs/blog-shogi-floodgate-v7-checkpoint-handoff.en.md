@@ -33,10 +33,9 @@ The production path uses `claimFloodgateV7ProductionParentCoordinatorForCheckpoi
 The claim rules are:
 
 1. Reject `null`, non-objects, and Proxies before registry lookup; no Proxy trap runs.
-2. Require the exact facade in the matching registry.
-3. Verify that lifecycle has not started.
-4. Delete the registry entry before capability projection.
-5. Verify the expected execution boundary and return a fresh frozen four-key handoff.
+2. Require the exact facade in the matching registry; a valid lifecycle start synchronously deletes the entry first.
+3. Delete the registry entry before capability projection.
+4. Verify the expected execution boundary and return a fresh frozen four-key handoff.
 
 A clone, receipt copy, plain object containing the same function references, or second claim fails. Passing a production facade to the test registry, or a test facade to the production registry, also fails. A wrong-registry lookup does not consume the matching registry entry, so the subsequent correct claim remains available.
 

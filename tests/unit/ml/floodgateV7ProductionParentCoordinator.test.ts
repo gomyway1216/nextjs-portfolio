@@ -885,7 +885,7 @@ describe("Floodgate v7 production parent coordinator", () => {
         claimFloodgateV7ProductionParentCoordinatorForCheckpointCoreForTests(
           coordinator,
         ),
-      ).toThrow(/handoff is unavailable|lifecycle start/);
+      ).toThrow(/handoff is unavailable/);
       await lifecycle;
       expect(fixture.calls.stableClose).toBe(expectedCalls.stableClose);
       expect(fixture.calls.teacherClose).toBe(expectedCalls.teacherClose);

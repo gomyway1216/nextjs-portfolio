@@ -33,10 +33,9 @@ production pathは`claimFloodgateV7ProductionParentCoordinatorForCheckpoint(...)
 claimの規則は次のとおりである。
 
 1. `null`、non-object、Proxyをregistry lookup前にrejectする。Proxy trapは起動しない
-2. exact facadeがmatching registryに存在することを要求する
-3. lifecycleがまだ始まっていないことを確認する
-4. capability projectionより前にregistry entryをdeleteする
-5. expected execution boundaryを確認し、fresh frozen 4-key handoffを返す
+2. exact facadeがmatching registryに存在することを要求する。valid lifecycle startは同期的にentryを先にdeleteする
+3. capability projectionより前にregistry entryをdeleteする
+4. expected execution boundaryを確認し、fresh frozen 4-key handoffを返す
 
 clone、receipt copy、同じfunction referencesを並べたplain object、二重claimは失敗する。production facadeをtest registryへ、またはtest facadeをproduction registryへ渡しても失敗する。wrong-registry lookupはmatching registryのentryを消費しないため、その後の正しいclaimは可能である。
 
